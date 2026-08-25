@@ -179,6 +179,8 @@ fn nearest_missing(w: &StreamWish) -> Option<(i32, i32)> {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum UiOpen {
     None,
+    Title,
+    Pause,
     Inventory,
     CraftingTable,
     Furnace((i32, i32, i32)),
@@ -206,6 +208,19 @@ pub struct ItemDrop {
     pub position: Vec3,
     pub velocity: Vec3,
     pub age: f32,
+}
+
+/// Player-tunable settings.
+#[derive(Clone, Copy, Debug)]
+pub struct Settings {
+    pub sensitivity: f32,
+    pub fov_degrees: f32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self { sensitivity: 0.0025, fov_degrees: 70.0 }
+    }
 }
 
 /// Client-side save extras (inventory/stats/time) next to PlayerSave.
@@ -286,13 +301,20 @@ impl ApplicationHandler for App {
                                 if pressed {
                                     match code {
                                         KeyCode::Escape => {
-                                            if state.ui_open != UiOpen::None {
-                                                state.close_ui();
-                                                return;
+                                            match state.ui_open {
+                                                UiOpen::Pause | UiOpen::Title => {}
+                                                UiOpen::None if state.stats.health > 0.0 => {
+                                                    state.ui_open = UiOpen::Pause;
+                                                    state.unlock_cursor();
+                                                    return;
+                                                }
+                                                UiOpen::None => {}
+                                                _ => {
+                                                    state.close_ui();
+                                                    return;
+                                                }
                                             }
-                                            if state.input.cursor_locked {
-                                                state.unlock_cursor();
-                                            } else {
+                                            if state.ui_open == UiOpen::None && !state.input.cursor_locked {
                                                 state.shutdown(event_loop);
                                             }
                                             return;
@@ -414,6 +436,8 @@ struct GameState {
     next_spawn_attempt: Instant,
     attack_cooldown: f32,
     pub kills: u32,
+    pub quit_requested: bool,
+    pub settings: Settings,
     pub air: u8,
     spawn_point: Vec3,
     pub egui: EguiPlatform,
@@ -567,6 +591,8 @@ impl GameState {
             next_spawn_attempt: Instant::now() + Duration::from_secs(2),
             attack_cooldown: 0.0,
             kills: 0,
+            quit_requested: false,
+            settings: Settings::default(),
             air: 10,
             spawn_point,
             last_instant: Instant::now(),
@@ -577,7 +603,7 @@ impl GameState {
             screenshot_counter: 0,
             running: Arc::new(AtomicBool::new(true)),
         };
-        state.lock_cursor();
+        state.ui_open = UiOpen::Title;
         state.update_title();
         state
     }
@@ -717,6 +743,11 @@ impl GameState {
         let dt = (now - self.last_instant).as_secs_f32().min(0.25);
         self.last_instant = now;
         self.frame += 1;
+        if self.quit_requested {
+            self.save_world();
+            self.streamer.shutdown();
+            std::process::exit(0);
+        }
 
         // UI frame.
         let window = self.window.clone();
@@ -724,7 +755,7 @@ impl GameState {
         let ctx = self.egui.ctx.clone();
         self.draw_ui(&ctx);
 
-        let playing = self.ui_open == UiOpen::None && self.stats.health > 0.0;
+        let playing = matches!(self.ui_open, UiOpen::None) && self.stats.health > 0.0;
         let input = if playing {
             PlayerInput {
                 forward: self.input.held(KeyCode::KeyW),
@@ -738,8 +769,8 @@ impl GameState {
                 fly_down: self.input.held(KeyCode::ShiftLeft),
                 // Mouse right (dx>0) turns the view right (yaw+); mouse down
                 // (dy>0) looks down (pitch-). Matches standard FPS feel.
-                yaw_delta: self.input.mouse_dx * LOOK_SENSITIVITY,
-                pitch_delta: -self.input.mouse_dy * LOOK_SENSITIVITY,
+                yaw_delta: self.input.mouse_dx * self.settings.sensitivity,
+                pitch_delta: -self.input.mouse_dy * self.settings.sensitivity,
             }
         } else {
             PlayerInput::default()
@@ -1280,6 +1311,7 @@ impl GameState {
     fn camera(&self) -> Camera {
         let mut camera = Camera::new(self.player.eye_position(), self.player.eye_position() + self.player.look_dir());
         camera.set_aspect(self.config.width, self.config.height);
+        camera.fovy = self.settings.fov_degrees.to_radians();
         camera
     }
 
@@ -1300,7 +1332,7 @@ impl GameState {
         let camera = self.camera();
         let env = self.env();
         let textures = lf_assets::generate_atlas();
-        match lf_engine::headless::render_to_png(&vertices, &indices, &[], &[], &textures, &camera, &env, self.clear_color(), 1280, 720, &path) {
+        match lf_engine::headless::render_to_png(&vertices, &indices, &[], &[], &textures, &camera, &env, self.clear_color(), 1280, 720, &path, None) {
             Ok(()) => tracing::info!("screenshot saved to {}", path.display()),
             Err(e) => tracing::error!("screenshot failed: {}", e),
         }

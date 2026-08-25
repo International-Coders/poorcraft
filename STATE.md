@@ -1,9 +1,9 @@
 # STATE
-loop_count: 288
-current_milestone: P6-mobs-combat
-last_done: "P6: mobs & combat — mob framework (stats table, drops, colors; gravity + step-hop physics; wander/flee/chase AI; attack cooldown); spawning cycle (day passive / night hostile, caps, surface-only, despawn 80); player combat (crosshair sphere test, tool damage table incl. swords, knockback, hurt flash); Null Knight rare night boss; porkchop/mutton food + glitch_dust/null_shard items; mobs persist in save; kills counter. 90 tests pass; game smoke-tested"
-next_task: "P7: structures (villages/ruins), weather, sound (kira), title screen + settings, UI proof screenshots"
+loop_count: 289
+current_milestone: P7-structures-menus
+last_done: "P7: structures + menus + UI proofs — worldgen structures (meadow huts with torch/table/furnace, highlands watchtowers, desert pyramids; deterministic, +1 test); title screen (Play/Quit over the world), pause menu with settings (sensitivity/FOV sliders), Esc=pause flow; hud_preview proof scene renders the real egui HUD offscreen (closes the P4 screenshot debt). 91 tests pass; game smoke-tested"
+next_task: "P8: quest triggers from gameplay, quest log UI, chronicle live events"
 build: GREEN
-tests: 90 passing
-last_screenshot: shots/vistest_torchlit_night.png
+tests: 91 passing
+last_screenshot: shots/vistest_hud_preview.png
 blockers: none

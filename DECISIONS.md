@@ -32,3 +32,6 @@
 - P4: winit 0.30 ApplicationHandler + egui 0.31 (wgpu-24 aligned); egui sees events only while a screen is open
 - P4: tool durability stored as count on a 1-stack (hits used); breaks at tier durability
 - P4: drops are server-less entities updated in the client; magnet radius 2, pickup 1.2
+- P7: structures placed during generate_chunk with in-chunk footprints (cross-chunk structures need a neighborhood pass later)
+- P7: title/pause are UiOpen variants freezing gameplay; quit_requested exits after save
+- P7: egui proof shots render through the same offscreen pipeline as world scenes

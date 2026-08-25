@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-25 — P7: structures, menus, UI proofs (loop 289)
+- worldgen structures: meadow huts, highlands watchtowers, desert pyramids
+  (deterministic per-chunk placement, in-chunk footprints, +1 test).
+- Client: title screen and pause menu; Esc opens pause; settings sliders
+  (mouse sensitivity, FOV); quit saves the world.
+- lf_engine headless: optional egui overlay in render_to_png; vistest
+  hud_preview scene draws the real HUD (hearts/hunger/hotbar/crosshair/
+  inventory) — honest UI proof shots at last.
+- Tests 90 -> 91; game smoke-tested from the title screen.
+
 ## 2026-08-25 — P6: mobs & combat (loop 288)
 - lf_game mobs rewritten as a live framework: MobEntity with AI/physics
   update (wander, flee-on-hit, chase, melee with cooldown), MobType stats

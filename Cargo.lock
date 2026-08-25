@@ -1148,6 +1148,8 @@ name = "lf_engine"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "egui",
+ "egui-wgpu",
  "glam",
  "image",
  "lf_assets",
@@ -1207,6 +1209,7 @@ dependencies = [
 name = "lf_vistest"
 version = "0.1.0"
 dependencies = [
+ "egui",
  "glam",
  "image",
  "lf_assets",

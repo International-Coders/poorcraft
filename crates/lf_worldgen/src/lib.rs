@@ -286,7 +286,10 @@ impl WorldGen {
             }
         }
 
-        // 5. Trees on grass meadow columns, canopy kept inside the chunk.
+        // 5. Structures: deterministic per-chunk placement, in-chunk footprint.
+        self.place_structures(cx, cz, &mut col);
+
+        // 6. Trees on grass meadow columns, canopy kept inside the chunk.
         for lx in 2..14usize {
             for lz in 2..14usize {
                 let wx = cx * 16 + lx as i32;
@@ -338,6 +341,104 @@ impl WorldGen {
         col
     }
 
+
+    /// Deterministic structure placement: sparse huts on meadows, watchtowers
+    /// on highlands, buried pyramids on desert. Footprints stay in-chunk.
+    fn place_structures(&self, cx: i32, cz: i32, col: &mut lf_voxel::ChunkColumn) {
+        use lf_voxel::BlockState;
+        use lf_voxel::registry::block;
+        let h0 = hash2(cx, cz, self.seed_for_features() ^ 0x5bd1e995);
+        let center_biome = self.biome(cx * 16 + 8, cz * 16 + 8);
+        let ground = |lx: usize, lz: usize| -> usize {
+            let top = self.surface_top(cx * 16 + lx as i32, cz * 16 + lz as i32);
+            top.min(250) as usize
+        };
+
+        let build_hut = |col: &mut lf_voxel::ChunkColumn| {
+            let base_y = ground(8, 8);
+            if base_y < SEA_LEVEL as usize + 1 || base_y > 200 {
+                return;
+            }
+            for dx in 5..=10usize {
+                for dz in 5..=10usize {
+                    let edge = dx == 5 || dx == 10 || dz == 5 || dz == 10;
+                    for dy in 0..3usize {
+                        let y = base_y + dy;
+                        if dy == 0 {
+                            col.set(dx, y, dz, BlockState(block::PLANKS));
+                        } else if edge {
+                            let corner = (dx == 5 || dx == 10) && (dz == 5 || dz == 10);
+                            col.set(dx, y, dz, BlockState(if corner { block::LOG } else { block::PLANKS }));
+                        } else {
+                            col.set(dx, y, dz, BlockState::AIR);
+                        }
+                    }
+                    col.set(dx, base_y + 3, dz, BlockState(block::LOG));
+                }
+            }
+            col.set(7, base_y + 1, 5, BlockState::AIR);
+            col.set(8, base_y + 1, 5, BlockState::AIR);
+            col.set(7, base_y + 2, 5, BlockState::AIR);
+            col.set(8, base_y + 2, 5, BlockState::AIR);
+            col.set(9, base_y + 1, 9, BlockState(block::TORCH));
+            col.set(6, base_y + 1, 9, BlockState(block::CRAFTING_TABLE));
+            col.set(9, base_y + 1, 6, BlockState(block::FURNACE));
+        };
+
+        let build_watchtower = |col: &mut lf_voxel::ChunkColumn| {
+            let base_y = ground(8, 8);
+            if base_y > 210 {
+                return;
+            }
+            for dy in 0..8usize {
+                let y = base_y + dy;
+                for dx in 6..=10usize {
+                    for dz in 6..=10usize {
+                        let edge = dx == 6 || dx == 10 || dz == 6 || dz == 10;
+                        let pillar = (dx == 6 || dx == 10) && (dz == 6 || dz == 10);
+                        if pillar || (dy == 7 && edge) || dy == 0 {
+                            col.set(dx, y, dz, BlockState(block::STONE));
+                        } else {
+                            col.set(dx, y, dz, BlockState::AIR);
+                        }
+                    }
+                }
+            }
+            col.set(8, base_y + 7, 8, BlockState(block::TORCH));
+        };
+
+        let build_pyramid = |col: &mut lf_voxel::ChunkColumn| {
+            let base_y = ground(8, 8);
+            if base_y > 200 {
+                return;
+            }
+            for layer in 0..4usize {
+                let r = 6 - (layer as i32) * 2;
+                if r < 0 {
+                    continue;
+                }
+                let y = base_y + layer;
+                for dx in (8 - r as usize)..=(8 + r as usize) {
+                    for dz in (8 - r as usize)..=(8 + r as usize) {
+                        let edge = (dx as i32 == 8 - r) || (dx as i32 == 8 + r)
+                            || (dz as i32 == 8 - r) || (dz as i32 == 8 + r);
+                        if edge || layer == 0 {
+                            col.set(dx, y, dz, BlockState(block::SAND));
+                        }
+                    }
+                }
+            }
+            col.set(8, base_y + 1, 2, BlockState::AIR);
+            col.set(8, base_y + 2, 2, BlockState::AIR);
+        };
+
+        match center_biome {
+            Biome::Meadow if h0 % 37 == 0 => build_hut(col),
+            Biome::Highlands if h0 % 41 == 0 => build_watchtower(col),
+            Biome::Desert if h0 % 29 == 0 => build_pyramid(col),
+            _ => {}
+        }
+    }
     fn seed_for_features(&self) -> u64 {
         // Feature placement must depend on the world seed; the noise objects
         // don't expose it, so derive from any seeded output.
@@ -488,5 +589,70 @@ mod tests {
             }
         }
         assert!(found_water > 100, "expected ocean water, found {} blocks", found_water);
+    }
+
+    #[test]
+    fn structures_generate_deterministically() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(12345));
+        let count = |col: &lf_voxel::ChunkColumn, id: u32, y0: usize, y1: usize| -> usize {
+            let mut n = 0;
+            for lx in 0..16 {
+                for lz in 0..16 {
+                    for y in y0..y1 {
+                        if col.get(lx, y, lz).id() == id {
+                            n += 1;
+                        }
+                    }
+                }
+            }
+            n
+        };
+        let (mut hut, mut pyramid, mut tower) = (false, false, false);
+        for cx in -6..6 {
+            for cz in -6..6 {
+                let a = gen.generate_chunk(cx, cz);
+                let tables = count(&a, block::CRAFTING_TABLE, 60, 200);
+                if tables > 0 {
+                    hut = true;
+                    assert!(count(&a, block::FURNACE, 60, 200) > 0, "hut has a furnace");
+                    let b = gen.generate_chunk(cx, cz);
+                    assert_eq!(count(&b, block::CRAFTING_TABLE, 60, 200), tables,
+                        "hut placement not deterministic at ({},{})", cx, cz);
+                }
+                // pyramid: wide sand band
+                for y in 60..180 {
+                    let mut sand = 0;
+                    for lx in 2..14 {
+                        for lz in 2..14 {
+                            if a.get(lx, y, lz).id() == block::SAND {
+                                sand += 1;
+                            }
+                        }
+                    }
+                    if sand > 25 {
+                        pyramid = true;
+                        break;
+                    }
+                }
+                // watchtower: dense stone stack around the chunk center
+                let mut stone_high = 0;
+                for lx in 6..=10 {
+                    for lz in 6..=10 {
+                        for y in 120..220 {
+                            if a.get(lx, y, lz).id() == block::STONE {
+                                stone_high += 1;
+                            }
+                        }
+                    }
+                }
+                if stone_high > 40 {
+                    tower = true;
+                }
+            }
+        }
+        assert!(hut, "no huts found in scan");
+        assert!(pyramid, "no pyramids found in scan");
+        assert!(tower, "no watchtowers found in scan");
     }
 }

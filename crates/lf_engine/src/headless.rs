@@ -20,6 +20,7 @@ pub fn render_to_png(
     width: u32,
     height: u32,
     out_path: &Path,
+    ui: Option<&egui::Context>,
 ) -> Result<(), String> {
     pollster::block_on(async {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -134,6 +135,37 @@ pub fn render_to_png(
             },
             wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
         );
+        // Optional egui overlay (honest UI proof screenshots).
+        if let Some(ctx) = ui {
+            let full_output = ctx.end_pass();
+            let jobs = ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
+            let screen = egui_wgpu::ScreenDescriptor {
+                size_in_pixels: [width, height],
+                pixels_per_point: full_output.pixels_per_point,
+            };
+            let mut egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, true);
+            for (id, delta) in &full_output.textures_delta.set {
+                egui_renderer.update_texture(&device, &queue, *id, delta);
+            }
+            egui_renderer.update_buffers(&device, &queue, &mut encoder, &jobs, &screen);
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("egui Headless Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &color_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                });
+                let mut pass: wgpu::RenderPass<'static> = unsafe { std::mem::transmute(pass) };
+                egui_renderer.render(&mut pass, &jobs, &screen);
+                drop(pass);
+            }
+        }
+
         queue.submit(std::iter::once(encoder.finish()));
 
         let slice = buffer.slice(..);

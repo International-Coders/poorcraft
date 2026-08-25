@@ -10,4 +10,5 @@ lf_worldgen = { path = "../lf_worldgen" }
 lf_assets = { path = "../lf_assets" }
 lf_game = { path = "../lf_game" }
 glam = "0.30"
+egui = "0.31"
 image = { version = "0.25", default-features = false, features = ["png"] }

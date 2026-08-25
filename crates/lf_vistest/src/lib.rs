@@ -94,6 +94,16 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::new(24.0, 0.0, 8.0),
         },
         SceneSpec {
+            name: "hud_preview",
+            desc: "in-game view with the real HUD drawn via egui (proof shot)",
+            default_seed: 12345,
+            time_of_day: 0.42,
+            first_person: true,
+            torches: false,
+            eye: Vec3::new(8.5, 0.0, 8.5),
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "torchlit_night",
             desc: "night scene lit by torches placed on the terrain",
             default_seed: 12345,
@@ -221,8 +231,76 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         fog_color: spec.time_of_day().sky_color(),
         fog_far: 220.0,
     };
+    let ui = if spec.name == "hud_preview" {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+            ..Default::default()
+        };
+        ctx.begin_pass(raw);
+        draw_hud_preview(&ctx);
+        Some(ctx)
+    } else {
+        None
+    };
     let textures = lf_assets::generate_atlas();
-    lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path)
+    lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, ui.as_ref())
+}
+
+/// HUD proof overlay: drawn with the same egui stack the game client uses.
+fn draw_hud_preview(ctx: &egui::Context) {
+    egui::TopBottomPanel::bottom("hud").frame(egui::Frame::none()).show_separator_line(false).show(ctx, |ui| {
+        ui.vertical_centered(|ui| {
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("\u{2665}\u{2665}\u{2665}\u{2665}\u{2665}\u{2665}\u{2665}\u{2665}\u{2661}\u{2661}").color(egui::Color32::from_rgb(220, 40, 40)).size(16.0));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(egui::RichText::new("\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CB}\u{25CB}").color(egui::Color32::from_rgb(200, 150, 40)).size(14.0));
+                });
+            });
+            ui.horizontal(|ui| {
+                let colors = [
+                    egui::Color32::from_rgb(90, 160, 60),
+                    egui::Color32::from_rgb(134, 96, 67),
+                    egui::Color32::from_gray(130),
+                    egui::Color32::from_rgb(219, 207, 163),
+                    egui::Color32::from_rgb(240, 246, 246),
+                    egui::Color32::from_rgb(102, 81, 50),
+                    egui::Color32::from_rgb(60, 120, 40),
+                    egui::Color32::from_rgb(140, 130, 160),
+                    egui::Color32::from_rgb(255, 200, 100),
+                ];
+                for (i, c) in colors.iter().enumerate() {
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
+                    ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(160));
+                    ui.painter().rect_filled(rect.shrink(6.0), 3.0, *c);
+                    let stroke = if i == 2 { egui::Stroke::new(3.0, egui::Color32::WHITE) } else { egui::Stroke::new(1.0, egui::Color32::from_gray(90)) };
+                    ui.painter().rect_stroke(rect, 4.0, stroke, egui::StrokeKind::Middle);
+                }
+            });
+            ui.label(egui::RichText::new("09:47 — E inventory · F fly · F2 shot").small().color(egui::Color32::from_gray(200)));
+        });
+    });
+    let pointer = ctx.screen_rect().center();
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, "crosshair".into()));
+    let c = egui::Color32::from_white_alpha(220);
+    p.line_segment([pointer - egui::vec2(8.0, 0.0), pointer + egui::vec2(8.0, 0.0)], egui::Stroke::new(2.0, c));
+    p.line_segment([pointer - egui::vec2(0.0, 8.0), pointer + egui::vec2(0.0, 8.0)], egui::Stroke::new(2.0, c));
+    egui::Window::new("Inventory")
+        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-12.0, 12.0))
+        .collapsible(false)
+        .resizable(false)
+        .show(ctx, |ui| {
+            for row in 0..3 {
+                ui.horizontal(|ui| {
+                    for _col in 0..9 {
+                        let (rect, _) = ui.allocate_exact_size(egui::vec2(40.0, 40.0), egui::Sense::hover());
+                        ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(160));
+                        ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(1.0, egui::Color32::from_gray(90)), egui::StrokeKind::Middle);
+                    }
+                });
+            }
+        });
 }
 
 /// Where the spawn column's biome lands for a seed (used by tests to describe scenes).

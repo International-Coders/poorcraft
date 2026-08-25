@@ -229,6 +229,8 @@ impl GameState {
         self.draw_hud(ctx);
         match self.ui_open {
             UiOpen::None => {}
+            UiOpen::Title => self.draw_title(ctx),
+            UiOpen::Pause => self.draw_pause(ctx),
             UiOpen::Inventory => self.draw_inventory(ctx, 2),
             UiOpen::CraftingTable => self.draw_inventory(ctx, 3),
             UiOpen::Furnace(pos) => self.draw_furnace(ctx, pos),
@@ -511,6 +513,59 @@ impl GameState {
                 game.inventory.slots[i] = stack;
             }
         });
+    }
+
+    fn draw_title(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(140)))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(ui.available_height() * 0.22);
+                    ui.heading(egui::RichText::new("LOREFORGE").size(64.0).color(egui::Color32::from_rgb(240, 210, 140)));
+                    ui.label(egui::RichText::new("a voxel sandbox in Rust").size(18.0).color(egui::Color32::from_gray(180)));
+                    ui.add_space(40.0);
+                    let play = egui::Button::new(egui::RichText::new("Play").size(28.0)).min_size(egui::vec2(220.0, 46.0));
+                    if ui.add(play).clicked() {
+                        self.close_ui();
+                    }
+                    ui.add_space(10.0);
+                    let quit = egui::Button::new(egui::RichText::new("Quit").size(20.0)).min_size(egui::vec2(220.0, 36.0));
+                    if ui.add(quit).clicked() {
+                        self.quit_requested = true;
+                    }
+                    ui.add_space(30.0);
+                    ui.label(
+                        egui::RichText::new(format!("WASD move · Space jump · Ctrl sprint · F fly · E inventory · LMB mine/attack · RMB place/use · Esc pause · kills: {}", self.kills))
+                            .small()
+                            .color(egui::Color32::from_gray(200)),
+                    );
+                });
+            });
+    }
+
+    fn draw_pause(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(120)))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(ui.available_height() * 0.25);
+                    ui.heading(egui::RichText::new("Paused").size(42.0));
+                    ui.add_space(24.0);
+                    if ui.button(egui::RichText::new("Resume").size(24.0)).clicked() {
+                        self.close_ui();
+                    }
+                    ui.add_space(10.0);
+                    egui::Frame::new().stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(80))).inner_margin(12.0).show(ui, |ui| {
+                        ui.heading("Settings");
+                        ui.add(egui::Slider::new(&mut self.settings.sensitivity, 0.0005..=0.01).text("Mouse sensitivity"));
+                        ui.add(egui::Slider::new(&mut self.settings.fov_degrees, 50.0..=100.0).text("FOV"));
+                    });
+                    ui.add_space(10.0);
+                    if ui.button(egui::RichText::new("Save & Quit").size(20.0)).clicked() {
+                        self.quit_requested = true;
+                    }
+                });
+            });
     }
 
     fn draw_death(&mut self, ctx: &egui::Context) {

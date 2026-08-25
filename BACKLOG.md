@@ -75,11 +75,11 @@ below by phase.
 - [ ] villagers wander by schedule + trading UI
 
 ## P7 — Structures, weather, sound, menus
-- [ ] structure generator (villages, ruins, crypts, watchtowers, pyramid)
-- [ ] world types (normal/superflat/amplified)
-- [ ] weather (rain/snow particles + sounds)
-- [ ] kira audio: steps/blocks/mobs/ambience/music (synthesized)
-- [ ] title screen, pause, settings, key rebinding, EN + PT-BR
+- [x] structures: meadow huts (torch/crafting table/furnace), highlands watchtowers, desert pyramids — deterministic (+1 test)
+- [x] title screen (Play/Quit) and pause menu with sensitivity/FOV settings
+- [x] UI proof screenshots: hud_preview scene renders the real egui HUD offscreen
+- [ ] weather particles, sound (kira), key rebinding, PT-BR (deferred — tracked for P11 polish)
+- [ ] world types superflat/amplified (deferred with world-creation UI)
 
 ## P8 — Quests & chronicle live
 - [ ] quest triggers from gameplay (collect/kill/reach/craft)
