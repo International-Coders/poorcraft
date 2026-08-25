@@ -170,3 +170,4 @@
 - [x] Creaking mob -> shots/ev_creaking.png
 - [x] Pale Garden biome -> shots/ev_pale_garden.png
 - [x] Mangrove biome -> shots/ev_mangrove.png
+- [x] Cherry Grove biome -> shots/ev_cherry_grove.png
