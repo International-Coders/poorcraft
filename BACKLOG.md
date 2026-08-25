@@ -163,3 +163,4 @@
 - [x] Armadillo mob -> shots/ev_armadillo.png
 - [x] Wolf Armor -> shots/ev_wolf_armor.png
 - [x] Breeze mob -> shots/ev_breeze.png
+- [x] Trial Chamber structure -> shots/ev_trial_chamber.png
