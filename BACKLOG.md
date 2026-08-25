@@ -139,3 +139,4 @@
 - [x] Piglin Brute mini-boss -> shots/ev_piglin_brute.png
 - [x] Bastion Remnant structure -> shots/ev_bastion.png
 - [x] Ruined Portal structure -> shots/ev_ruined_portal.png
+- [x] Pillager Outpost structure -> shots/ev_pillager_outpost.png
