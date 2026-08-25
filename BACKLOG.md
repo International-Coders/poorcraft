@@ -234,3 +234,4 @@
 - [x] Strider Mobs -> shots/ev_strider.png
 - [x] Enderman Mobs -> shots/ev_enderman.png
 - [x] Shulker Mobs -> shots/ev_shulker.png
+- [x] Dragon Boss Fight -> shots/ev_dragon_boss.png

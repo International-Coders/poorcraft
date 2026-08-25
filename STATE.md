@@ -1,9 +1,9 @@
 # STATE
-loop_count: 265
+loop_count: 266
 current_milestone: Evolution
-last_done: "Evolution Mode: added Shulker Mobs protective box mobs that shoot levitation projectiles in End cities; captured ev_shulker.png"
+last_done: "Evolution Mode: added Dragon Boss Fight Ender Dragon boss with perch, breath attack, and end crystal healing mechanics; captured ev_dragon_boss.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_shulker.png
+last_screenshot: shots/ev_dragon_boss.png
 blockers: none
