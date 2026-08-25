@@ -106,6 +106,7 @@ fn item_color(stack: &ItemStack) -> egui::Color32 {
                 lf_game::items::ToolKind::Axe => (140, 120, 80),
                 lf_game::items::ToolKind::Shovel => (130, 140, 90),
                 lf_game::items::ToolKind::Sword => (170, 120, 110),
+                lf_game::items::ToolKind::Bow => (150, 110, 70),
             };
             let shade = 1.0 - tier as f32 * 0.12;
             egui::Color32::from_rgb(
@@ -240,6 +241,7 @@ impl GameState {
             UiOpen::Chest(pos) => self.draw_chest(ctx, pos),
             UiOpen::Trade(index) => self.draw_trade(ctx, index),
             UiOpen::Book => self.draw_book(ctx),
+            UiOpen::Smithing => self.draw_smithing(ctx),
             UiOpen::Death => self.draw_death(ctx),
         }
         // Cursor stack follows the pointer.
@@ -338,12 +340,20 @@ impl GameState {
                         self.inventory.slots[i] = stack;
                     }
                 });
-                // mining progress
+                // mining / bow charge progress
                 if let Some(mining) = &self.mining {
                     let frac = (mining.progress / mining.total).min(1.0);
                     let bar = egui::ProgressBar::new(frac).desired_width(220.0).show_percentage();
                     ui.add(bar);
                 }
+                if let Some(charge) = self.bow_charge {
+                    let frac = (charge / 1.2).min(1.0);
+                    ui.add(egui::ProgressBar::new(frac).desired_width(220.0).text("bow"));
+                }
+                ui.label(
+                    egui::RichText::new(format!("XP Lv {} ({}/{})", self.xp_level, self.xp_progress, lf_game::combat::xp_for_level(self.xp_level)))
+                        .small().color(egui::Color32::from_rgb(120, 220, 255)),
+                );
                 ui.label(
                     egui::RichText::new(format!("{} — E inventory · F fly · F2 shot", self.time_label()))
                         .small()
@@ -729,6 +739,42 @@ impl GameState {
                         ui.label(egui::RichText::new(md).monospace().small());
                     }
                 });
+            });
+    }
+
+    fn draw_smithing(&mut self, ctx: &egui::Context) {
+        egui::Window::new("Smithing Forge")
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                // the existing forge minigame from lf_game::smithing
+                let temp = self.forge.temperature;
+                let zone = (60.0..=80.0).contains(&temp);
+                let color = if zone { egui::Color32::from_rgb(255, 160, 60) } else { egui::Color32::from_rgb(120, 120, 130) };
+                ui.label(egui::RichText::new(format!("temperature: {:.0}", temp)).color(color));
+                ui.add(egui::ProgressBar::new(temp / 100.0).desired_width(240.0).text(if zone { "orange zone" } else { "" }));
+                ui.horizontal(|ui| {
+                    if ui.button("Pump bellows (+15)").clicked() {
+                        self.forge.bellows(15.0);
+                    }
+                    let done = self.forge.strike();
+                    let status = if self.forge.strikes_completed >= self.forge.target_strikes {
+                        "blade ready!".to_string()
+                    } else {
+                        format!("strikes {}/{}", self.forge.strikes_completed, self.forge.target_strikes)
+                    };
+                    ui.label(status);
+                    if done {
+                        // award a steel ingot (the smith's product for now)
+                        let leftover = self.inventory.add_item("steel_ingot", 1);
+                        if leftover > 0 {
+                            self.spawn_drop("steel_ingot", leftover, self.player.eye_position() + self.player.look_dir());
+                        }
+                    }
+                });
+                ui.separator();
+                ui.label(egui::RichText::new("Strike only in the orange zone (60-80). Esc to close.").small());
             });
     }
 

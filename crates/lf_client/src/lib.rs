@@ -28,6 +28,7 @@ use lf_engine::camera::Camera;
 use lf_engine::outline::OutlineScene;
 use lf_engine::scene::{GpuVertex, MeshBatch, SceneResources};
 use lf_chronicle::{ChronicleEvent, EventType, SagaGenerator};
+use lf_game::combat::{grant_xp, mitigate, worn_armor_points, Arrow};
 use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, tier_durability, ItemKind};
 use lf_game::mining::{break_time, tool_satisfies};
@@ -193,6 +194,7 @@ pub enum UiOpen {
     Chest((i32, i32, i32)),
     Trade(usize),
     Book,
+    Smithing,
     Death,
 }
 
@@ -462,6 +464,11 @@ struct GameState {
     pub block_entities: HashMap<(i32, i32, i32), BlockEntity>,
     pub mobs: Vec<MobEntity>,
     pub villagers: Vec<Villager>,
+    pub arrows: Vec<Arrow>,
+    pub forge: lf_game::smithing::ForgeMinigame,
+    pub xp_level: u32,
+    pub xp_progress: u32,
+    bow_charge: Option<f32>,
     mob_batch: Option<MeshBatch>,
     next_mob_id: u64,
     next_spawn_attempt: Instant,
@@ -641,6 +648,11 @@ impl GameState {
             block_entities: HashMap::new(),
             mobs: Vec::new(),
             villagers: Vec::new(),
+            arrows: Vec::new(),
+            forge: lf_game::smithing::ForgeMinigame::new(3),
+            xp_level: 0,
+            xp_progress: 0,
+            bow_charge: None,
             mob_batch: None,
             next_mob_id: 1,
             next_spawn_attempt: Instant::now() + Duration::from_secs(2),
@@ -915,6 +927,35 @@ impl GameState {
         self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
         self.update_mobs(dt);
         self.update_villagers(dt);
+        self.update_arrows(dt);
+        // bow: hold RMB to charge
+        if playing && self.input.place_pressed {
+            let held_id = self.inventory.slots[self.hotbar_index].as_ref().map(|s| s.item_id.clone());
+            if held_id.as_deref() == Some("bow") {
+                self.bow_charge = Some(self.bow_charge.unwrap_or(0.0) + dt);
+            }
+        } else if let Some(charge) = self.bow_charge.take() {
+            // released: fire if we have an arrow
+            let has_arrow = self.inventory.slots.iter()
+                .filter_map(|s| s.as_ref())
+                .any(|s| s.item_id == "arrow");
+            if charge > 0.25 && has_arrow {
+                // consume one arrow
+                'find: for slot in self.inventory.slots.iter_mut() {
+                    if let Some(stack) = slot {
+                        if stack.item_id == "arrow" {
+                            stack.count -= 1;
+                            if stack.count == 0 { *slot = None; }
+                            break 'find;
+                        }
+                    }
+                }
+                let eye = self.player.eye_position();
+                let look = self.player.look_dir();
+                let speed = 12.0 + charge.min(1.2) * 18.0;
+                self.arrows.push(Arrow { position: eye + look * 0.5, velocity: look * speed, age: 0.0 });
+            }
+        }
         if let Some(n) = &mut self.net {
             n.send_state(self.player.position.to_array(), self.player.yaw, self.player.pitch);
             for msg in n.poll() {
@@ -1014,6 +1055,9 @@ impl GameState {
                             self.break_block_drops(block_id, pos);
                             self.use_durability();
                             self.remesh_around(pos.x, pos.z);
+                            let (l, p) = grant_xp(self.xp_level, self.xp_progress, 1);
+                            self.xp_level = l;
+                            self.xp_progress = p;
                             if let Some(n) = &self.net {
                                 n.send_block(pos.x, pos.y, pos.z, registry::block::AIR);
                             }
@@ -1046,6 +1090,10 @@ impl GameState {
                 match self.world.get_block(pos.x, pos.y, pos.z).id() {
                     registry::block::CRAFTING_TABLE => {
                         self.ui_open = UiOpen::CraftingTable;
+                        self.unlock_cursor();
+                    }
+                    registry::block::SMITHING_TABLE => {
+                        self.ui_open = UiOpen::Smithing;
                         self.unlock_cursor();
                     }
                     registry::block::FURNACE => {
@@ -1252,6 +1300,8 @@ impl GameState {
     }
 
     pub fn damage(&mut self, amount: f32) {
+        let armor = worn_armor_points(&self.inventory.slots);
+        let amount = mitigate(amount, armor);
         self.stats.health = (self.stats.health - amount).max(0.0);
         if self.stats.health <= 0.0 {
             self.chronicle_event(EventType::Death, "the Smith fell".into());
@@ -1282,6 +1332,56 @@ impl GameState {
             actors: vec!["The Smith".into()],
             payload,
         });
+    }
+
+    fn update_arrows(&mut self, dt: f32) {
+        let mut remove: Vec<usize> = Vec::new();
+        let mut events: Vec<(usize, f32)> = Vec::new(); // (mob idx, damage)
+        for (i, arrow) in self.arrows.iter_mut().enumerate() {
+            let before = arrow.position;
+            let done = arrow.update(dt, |x, y, z| self.world.is_solid(x, y, z));
+            if done {
+                remove.push(i);
+                continue;
+            }
+            // mob hit test along the step
+            let dir = arrow.position - before;
+            let step = dir.length().max(0.001);
+            let dir = dir / step;
+            for (mi, mob) in self.mobs.iter().enumerate() {
+                let size = mob.mob_type.stats().size;
+                let center = mob.position + Vec3::new(0.0, size, 0.0);
+                let to = center - before;
+                let t = to.dot(dir);
+                if t < 0.0 || t > step + size {
+                    continue;
+                }
+                if (before + dir * t - center).length() < size + 0.3 {
+                    events.push((mi, 6.0));
+                    remove.push(i);
+                    break;
+                }
+            }
+        }
+        for i in remove.into_iter().rev() {
+            self.arrows.remove(i);
+        }
+        for (mi, damage) in events {
+            if mi < self.mobs.len() {
+                let killed = self.mobs[mi].take_hit(damage, self.player.position);
+                if killed {
+                    let (kind, pos) = (self.mobs[mi].mob_type, self.mobs[mi].position);
+                    for (item, n) in kind.drops() {
+                        self.spawn_drop(item, *n, pos + Vec3::new(0.0, 0.5, 0.0));
+                    }
+                    self.kills += 1;
+                    let (l, p) = grant_xp(self.xp_level, self.xp_progress, 5);
+                    self.xp_level = l;
+                    self.xp_progress = p;
+                    self.mobs.remove(mi);
+                }
+            }
+        }
     }
 
     /// Villagers wander by day and rest at night (schedule data).
@@ -1834,6 +1934,11 @@ impl GameState {
                 _ => lf_assets::texture_index_for_block(registry::block::SNOW),
             };
             push_cube(mob.position.x, mob.position.y + size, mob.position.z, size, tex, &mut vertices, &mut indices);
+        }
+        // arrows render as thin pale streaks
+        for arrow in &self.arrows {
+            let tex = lf_assets::texture_index_for_block(registry::block::SNOW);
+            push_cube(arrow.position.x, arrow.position.y, arrow.position.z, 0.08, tex, &mut vertices, &mut indices);
         }
         // villagers render as earthy cubes
         for v in &self.villagers {

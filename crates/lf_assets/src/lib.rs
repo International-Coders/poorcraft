@@ -218,6 +218,15 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     let v = 190 + ((x * 3 + y * 7) % 20);
                     Rgba([ch(v - 40), ch(v - 20), ch(v + 30), 200])
                 }
+                "smithing_table" => {
+                    let v = 120 + ((x * 5 + y * 11) % 15);
+                    let anvil = (5..11).contains(&x) && (5..11).contains(&y);
+                    if anvil {
+                        Rgba([ch(v + 60), ch(v + 55), ch(v + 50), 255])
+                    } else {
+                        Rgba([ch(v - 10), ch(v - 50), ch(v - 75), 255])
+                    }
+                }
                 "mod" => {
                     let v = 100 + ((x * 5 + y * 11) % 40);
                     let band = (x + y) % 8 < 2;

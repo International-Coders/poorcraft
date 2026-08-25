@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-08-25 — P14: combat & survival completion (loop 296)
+- lf_game combat.rs: Arrow projectiles (gravity + solid-hit), XP curve
+  (7+3*level) with carry-over levels, armor mitigation (flat, min 1)
+  (+3 tests).
+- Items: bow/arrow, bronze & steel chestplates (Armor kind), smithing
+  table block (+texture); industrial material items (copper/tin/aluminum/
+  sulfur/bronze/steel ingots, wire, gear, machine frame, basic circuit)
+  with recipes — catalog consistency kept green throughout.
+- Client: hold-RMB bow charging with HUD bar, arrows fly and damage mobs,
+  XP bar in HUD, worn armor reduces damage, RMB on the smithing table opens
+  the forge minigame UI (bellows pump + orange-zone strikes produce steel).
+- Tests 107 -> 110.
+
 ## 2026-08-25 — P13: NPCs & villages (loop 295)
 - lf_npc: trade_offers(job) tables for all six jobs (+coherence test).
 - worldgen: hamlets gain dirt paths and lamp torches.

@@ -8,6 +8,7 @@ pub enum ToolKind {
     Axe,
     Shovel,
     Sword,
+    Bow,
 }
 
 impl ToolKind {
@@ -19,6 +20,7 @@ impl ToolKind {
             ToolKind::Axe => &[block::LOG, block::PLANKS, block::CRAFTING_TABLE, block::CHEST],
             ToolKind::Shovel => &[block::DIRT, block::GRASS, block::SAND, block::SNOW, block::MYCELIUM],
             ToolKind::Sword => &[block::LEAVES],
+            ToolKind::Bow => &[],
         }
     }
 }
@@ -27,6 +29,8 @@ impl ToolKind {
 pub enum ItemKind {
     /// Places the given block id.
     Block(u32),
+    /// Armor with flat damage-reduction points.
+    Armor(u8),
     /// Tool with a kind and tier (0 wood, 1 stone, 2 iron).
     Tool(ToolKind, u8),
     /// Restores hunger points when eaten.
@@ -103,6 +107,24 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "porkchop", name: "Porkchop", kind: ItemKind::Food(8), max_stack: 64 },
         ItemDef { id: "mutton", name: "Mutton", kind: ItemKind::Food(6), max_stack: 64 },
         ItemDef { id: "book", name: "Lore Book", kind: ItemKind::Material, max_stack: 16 },
+        ItemDef { id: "bow", name: "Bow", kind: ItemKind::Tool(ToolKind::Bow, 1), max_stack: 1 },
+        ItemDef { id: "arrow", name: "Arrow", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "smithing_table", name: "Smithing Table", kind: ItemKind::Block(36), max_stack: 8 },
+        ItemDef { id: "bronze_chestplate", name: "Bronze Chestplate", kind: ItemKind::Armor(4), max_stack: 1 },
+        ItemDef { id: "steel_chestplate", name: "Steel Chestplate", kind: ItemKind::Armor(7), max_stack: 1 },
+        // industrial materials (ores land with P15 worldgen)
+        ItemDef { id: "raw_copper", name: "Raw Copper", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "copper_ingot", name: "Copper Ingot", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "raw_tin", name: "Raw Tin", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "tin_ingot", name: "Tin Ingot", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "aluminum_ingot", name: "Aluminum Ingot", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "sulfur", name: "Sulfur", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "bronze_ingot", name: "Bronze Ingot", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "steel_ingot", name: "Steel Ingot", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "copper_wire", name: "Copper Wire", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "iron_gear", name: "Iron Gear", kind: ItemKind::Material, max_stack: 16 },
+        ItemDef { id: "machine_frame", name: "Machine Frame", kind: ItemKind::Material, max_stack: 16 },
+        ItemDef { id: "basic_circuit", name: "Basic Circuit", kind: ItemKind::Material, max_stack: 32 },
         // mob materials (P8 quest hooks)
         ItemDef { id: "glitch_dust", name: "Glitch Dust", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "null_shard", name: "Null Shard", kind: ItemKind::Material, max_stack: 16 },
@@ -114,6 +136,7 @@ pub fn items() -> &'static [ItemDef] {
 pub fn tool_damage(kind: ToolKind, tier: u8) -> f32 {
     let base = match kind {
         ToolKind::Sword => 4.0,
+        ToolKind::Bow => 5.0,
         ToolKind::Axe => 3.0,
         ToolKind::Pickaxe => 2.0,
         ToolKind::Shovel => 1.5,
@@ -178,6 +201,10 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::GLASS => None, // glass shatters
         block::COAL_ORE => Some("coal".into()),
         block::IRON_ORE => Some("raw_iron".into()),
+        block::COPPER_ORE => Some("raw_copper".into()),
+        block::TIN_ORE => Some("raw_tin".into()),
+        block::BAUXITE_ORE => Some("sulfur".into()), // placeholder drop until P15 bauxite item
+        block::SULFUR_ORE => Some("sulfur".into()),
         block::WATER | block::AIR => None,
         id if id >= lf_voxel::registry::MOD_BLOCK_BASE => {
             lf_voxel::registry::mod_block(id).and_then(|d| d.drop)

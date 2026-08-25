@@ -85,6 +85,7 @@ pub mod block {
     pub const TERRACOTTA: u32 = 29;
     pub const MOSS: u32 = 30;
     pub const ICE: u32 = 31;
+    pub const SMITHING_TABLE: u32 = 36;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -133,6 +134,7 @@ pub mod block {
             TIN_ORE => "Tin Ore",
             BAUXITE_ORE => "Bauxite Ore",
             SULFUR_ORE => "Sulfur Ore",
+            SMITHING_TABLE => "Smithing Table",
             _ => "Unknown",
         }
     }

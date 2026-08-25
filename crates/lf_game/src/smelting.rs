@@ -9,6 +9,8 @@ pub const SMELT_TIME: f32 = 10.0;
 pub fn smelt_result(input: &str) -> Option<&'static str> {
     match input {
         "raw_iron" => Some("iron_ingot"),
+        "raw_copper" => Some("copper_ingot"),
+        "raw_tin" => Some("tin_ingot"),
         "sand" => Some("glass"),
         _ => mod_smelt(input),
     }

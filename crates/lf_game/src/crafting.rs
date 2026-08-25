@@ -91,7 +91,49 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("planks"), None, Some("planks")],
         vec![Some("planks"), Some("planks"), Some("planks")],
     ]));
-    // glass-tier pickaxe doesn't exist; done
+    // bow: sticks + string-substitute (leaves fiber)
+    book.push(r("bow", 1, vec![
+        vec![Some("stick"), Some("leaves"), None],
+        vec![Some("stick"), None, Some("leaves")],
+        vec![Some("stick"), Some("leaves"), None],
+    ]));
+    // arrows: flint-substitute (stone tip)
+    book.push(r("arrow", 4, vec![
+        vec![Some("stone"), Some("stick"), Some("leaves")],
+    ]));
+    // armor via rings of material
+    book.push(r("bronze_chestplate", 1, vec![
+        vec![Some("bronze_ingot"), Some("bronze_ingot"), Some("bronze_ingot")],
+        vec![Some("bronze_ingot"), Some("bronze_ingot"), Some("bronze_ingot")],
+        vec![Some("bronze_ingot"), Some("bronze_ingot"), Some("bronze_ingot")],
+    ]));
+    book.push(r("steel_chestplate", 1, vec![
+        vec![Some("steel_ingot"), Some("steel_ingot"), Some("steel_ingot")],
+        vec![Some("steel_ingot"), Some("steel_ingot"), Some("steel_ingot")],
+        vec![Some("steel_ingot"), Some("steel_ingot"), Some("steel_ingot")],
+    ]));
+    // industrial intermediates
+    book.push(r("copper_wire", 6, vec![vec![Some("copper_ingot"), Some("copper_ingot"), Some("copper_ingot")]]));
+    book.push(r("iron_gear", 1, vec![
+        vec![Some("iron_ingot"), None, Some("iron_ingot")],
+        vec![None, Some("iron_ingot"), None],
+        vec![Some("iron_ingot"), None, Some("iron_ingot")],
+    ]));
+    book.push(r("machine_frame", 1, vec![
+        vec![Some("iron_ingot"), Some("iron_gear"), Some("iron_ingot")],
+        vec![Some("iron_gear"), None, Some("iron_gear")],
+        vec![Some("iron_ingot"), Some("iron_gear"), Some("iron_ingot")],
+    ]));
+    book.push(r("basic_circuit", 1, vec![
+        vec![Some("copper_wire"), Some("copper_wire"), None],
+        vec![Some("tin_ingot"), Some("iron_ingot"), None],
+    ]));
+    // smithing table
+    book.push(r("smithing_table", 1, vec![
+        vec![Some("iron_ingot"), Some("iron_ingot"), Some("iron_ingot")],
+        vec![Some("planks"), Some("crafting_table"), Some("planks")],
+        vec![Some("planks"), Some("planks"), Some("planks")],
+    ]));
     let _ = RECIPES;
     Box::leak(book.into_boxed_slice())
 }
