@@ -222,3 +222,4 @@
 - [x] Deserts and Sandstorms -> shots/ev_sandstorm.png
 - [x] Camel Mounts -> shots/ev_camel_mount.png
 - [x] Quicksand Blocks -> shots/ev_quicksand.png
+- [x] Mesa Canyons and Multi-Colored Clay Strata -> shots/ev_mesa_canyon.png
