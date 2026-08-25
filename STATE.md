@@ -1,9 +1,9 @@
 # STATE
-loop_count: 203
+loop_count: 205
 current_milestone: Evolution
-last_done: "Evolution Mode: added Dragon Egg and Hatching/Respawn trophy egg and 4 End Crystal respawn ritual; captured ev_dragon_egg_respawn.png"
+last_done: "Evolution Mode: added Credits and End Poem philosophical endgame text shown after defeating the Ender Dragon; captured ev_end_poem.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_dragon_egg_respawn.png
+last_screenshot: shots/ev_end_poem.png
 blockers: none
