@@ -152,3 +152,4 @@
 - [x] Phantom mob -> shots/ev_phantom.png
 - [x] Dolphin mob -> shots/ev_dolphin.png
 - [x] Axolotl mob -> shots/ev_axolotl.png
+- [x] Glow Squid mob -> shots/ev_glow_squid.png
