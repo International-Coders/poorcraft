@@ -22,4 +22,6 @@
 - [x] amberium ore example mod -> shots/ev_amberium.png
 - [x] crystal grove biome + custom trees -> shots/ev_crystal_grove.png
 - [x] Geode Guardian mob -> shots/ev_geode_guardian.png
+- [x] crystal tool material -> shots/ev_crystal_tools.png
+- [ ] optimize chunk meshing performance -> shots/ev_geode_guardian.png
 - [ ] crystal tool material

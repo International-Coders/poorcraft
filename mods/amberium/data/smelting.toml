@@ -1,0 +1,9 @@
+[[smelting]]
+input = "amberium:amberium_ore"
+output = "crystal:crystal_ingot"
+xp = 1.5
+
+[[smelting]]
+input = "crystal:crystal_shard"
+output = "crystal:crystal_ingot"
+xp = 0.5

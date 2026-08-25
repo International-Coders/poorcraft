@@ -1,0 +1,51 @@
+[[items]]
+id = "crystal:crystal_shard"
+name = "Crystal Shard"
+texture = "crystal_shard.png"
+
+[[items]]
+id = "crystal:crystal_ingot"
+name = "Crystal Ingot"
+texture = "crystal_ingot.png"
+
+[[items]]
+id = "crystal:crystal_sword"
+name = "Crystal Sword"
+texture = "crystal_sword.png"
+damage = 10
+durability = 800
+harvest_level = 3
+
+[[items]]
+id = "crystal:crystal_pickaxe"
+name = "Crystal Pickaxe"
+texture = "crystal_pickaxe.png"
+damage = 5
+durability = 800
+harvest_level = 4
+mining_speed = 8.0
+
+[[items]]
+id = "crystal:crystal_axe"
+name = "Crystal Axe"
+texture = "crystal_axe.png"
+damage = 8
+durability = 800
+harvest_level = 3
+chop_speed = 9.0
+
+[[items]]
+id = "crystal:crystal_shovel"
+name = "Crystal Shovel"
+texture = "crystal_shovel.png"
+damage = 4
+durability = 800
+harvest_level = 3
+dig_speed = 9.0
+
+[[items]]
+id = "crystal:crystal_hoe"
+name = "Crystal Hoe"
+texture = "crystal_hoe.png"
+durability = 800
+till_speed = 2.0

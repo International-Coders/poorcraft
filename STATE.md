@@ -1,9 +1,9 @@
 # STATE
-loop_count: 20
+loop_count: 21
 current_milestone: Evolution
-last_done: "Evolution Mode: added Geode Guardian mob with crystal armor; tests passing; captured ev_geode_guardian.png"
-next_task: "Evolution: add crystal tool material"
+last_done: "Evolution Mode: added crystal tool material (ingot, sword, pickaxe, etc.) to amberium mod; captured ev_crystal_tools.png"
+next_task: "Evolution: optimize chunk meshing performance"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_geode_guardian.png
+last_screenshot: shots/ev_crystal_tools.png
 blockers: none
