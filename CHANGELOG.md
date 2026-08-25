@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-25 — P6: mobs & combat (loop 288)
+- lf_game mobs rewritten as a live framework: MobEntity with AI/physics
+  update (wander, flee-on-hit, chase, melee with cooldown), MobType stats
+  table + drops, roll_spawn day/night table (+5 tests).
+- Client: mob spawn cycle (every 2s, cap 12, surface-only, despawn 80),
+  crosshair mob attack (tool damage table, knockback, hurt flash), mob
+  cubes render with the drop batch, mobs/kills persist in the save.
+- Items: porkchop/mutton food, glitch_dust/null_shard materials.
+- Tests 87 -> 90; game smoke-tested with mobs active.
+
 ## 2026-08-25 — P5: content catalog core (loop 287)
 - Blocks: furnace, chest, planks, glass (transparent); matching textures.
 - lf_game: smelting module (Furnace state machine with fuel/burn/progress,

@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 winit = "0.30"
 wgpu = "24.0"
-glam = "0.30"
+glam = { version = "0.30", features = ["serde"] }
 pollster = "0.3"
 bytemuck = { version = "1.16", features = ["derive"] }
 tracing = "0.1"

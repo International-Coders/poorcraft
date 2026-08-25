@@ -100,6 +100,11 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "iron_sword", name: "Iron Sword", kind: ItemKind::Tool(ToolKind::Sword, 2), max_stack: 1 },
         // food
         ItemDef { id: "apple", name: "Apple", kind: ItemKind::Food(4), max_stack: 64 },
+        ItemDef { id: "porkchop", name: "Porkchop", kind: ItemKind::Food(8), max_stack: 64 },
+        ItemDef { id: "mutton", name: "Mutton", kind: ItemKind::Food(6), max_stack: 64 },
+        // mob materials (P8 quest hooks)
+        ItemDef { id: "glitch_dust", name: "Glitch Dust", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "null_shard", name: "Null Shard", kind: ItemKind::Material, max_stack: 16 },
     ];
     ITEMS
 }

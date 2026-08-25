@@ -29,7 +29,9 @@ use lf_engine::scene::{GpuVertex, MeshBatch, SceneResources};
 use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, tier_durability, ItemKind};
 use lf_game::mining::{break_time, tool_satisfies};
+use lf_game::mobs::{roll_spawn, MobEntity, MobType};
 use lf_game::player::{Player, PlayerInput, EYE_HEIGHT, PLAYER_HALF_WIDTH, PLAYER_HEIGHT};
+use lf_game::items::tool_damage;
 use lf_game::survival::{Inventory, ItemStack, PlayerStats};
 use lf_voxel::raycast::raycast_voxel;
 use lf_voxel::registry;
@@ -214,6 +216,8 @@ pub struct ClientSave {
     pub hunger: f32,
     pub time_ticks: u64,
     pub block_entities: Vec<((i32, i32, i32), BlockEntity)>,
+    pub mobs: Vec<MobEntity>,
+    pub kills: u32,
 }
 
 struct App {
@@ -404,6 +408,12 @@ struct GameState {
     pub drops: Vec<ItemDrop>,
     drop_batch: Option<MeshBatch>,
     pub block_entities: HashMap<(i32, i32, i32), BlockEntity>,
+    pub mobs: Vec<MobEntity>,
+    mob_batch: Option<MeshBatch>,
+    next_mob_id: u64,
+    next_spawn_attempt: Instant,
+    attack_cooldown: f32,
+    pub kills: u32,
     pub air: u8,
     spawn_point: Vec3,
     pub egui: EguiPlatform,
@@ -509,7 +519,7 @@ impl GameState {
         player.flying = false;
 
         // Inventory/stats/time from the extras file.
-        let (inventory, stats, time, block_entities) = load_client_save(Path::new(WORLD_DIR));
+        let (inventory, stats, time, block_entities, mobs, kills) = load_client_save(Path::new(WORLD_DIR));
 
         let egui = EguiPlatform::new(&device, config.format, &window);
 
@@ -551,6 +561,12 @@ impl GameState {
             drops: Vec::new(),
             drop_batch: None,
             block_entities: HashMap::new(),
+            mobs: Vec::new(),
+            mob_batch: None,
+            next_mob_id: 1,
+            next_spawn_attempt: Instant::now() + Duration::from_secs(2),
+            attack_cooldown: 0.0,
+            kills: 0,
             air: 10,
             spawn_point,
             last_instant: Instant::now(),
@@ -641,6 +657,8 @@ impl GameState {
             hunger: self.stats.hunger,
             time_ticks: self.time.ticks,
             block_entities: self.block_entities.iter().map(|(k, v)| (*k, v.clone())).collect(),
+            mobs: self.mobs.clone(),
+            kills: self.kills,
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
             let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
@@ -745,6 +763,8 @@ impl GameState {
                 f.tick(dt);
             }
         }
+        self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
+        self.update_mobs(dt);
 
         // 20-minute day/night cycle.
         let ticks = (dt * lf_game::TimeOfDay::TICKS_PER_SECOND as f32) as u64;
@@ -763,6 +783,44 @@ impl GameState {
             registry::is_targetable(self.world.get_block(pos.x, pos.y, pos.z))
         });
         self.outline.set_target(&self.device, target.map(|(pos, _)| (pos.x, pos.y, pos.z)));
+
+        // Attacking: LMB on a mob (sphere test along the look ray).
+        if playing && self.input.break_pressed {
+            if let Some(mob_hit) = self.mob_in_crosshair() {
+                if self.attack_cooldown <= 0.0 {
+                    self.attack_cooldown = 0.5;
+                    let held = self.inventory.slots[self.hotbar_index].clone();
+                    let damage = held
+                        .as_ref()
+                        .and_then(|s| item_def(&s.item_id))
+                        .map(|d| match d.kind {
+                            ItemKind::Tool(kind, tier) => tool_damage(kind, tier),
+                            _ => 1.0,
+                        })
+                        .unwrap_or(1.0);
+                    let from = self.player.eye_position();
+                    let killed = {
+                        let mob = &mut self.mobs[mob_hit];
+                        let dead = mob.take_hit(damage, from);
+                        dead
+                    };
+                    if killed {
+                        let (kind, pos) = {
+                            let mob = &self.mobs[mob_hit];
+                            (mob.mob_type, mob.position)
+                        };
+                        for (item, n) in kind.drops() {
+                            self.spawn_drop(item, *n, pos + Vec3::new(0.0, 0.5, 0.0));
+                        }
+                        self.kills += 1;
+                        tracing::info!("killed a {:?}", kind);
+                        self.mobs.remove(mob_hit);
+                    }
+                }
+                self.mining = None;
+                return; // don't also mine this frame
+            }
+        }
 
         // Mining: hold LMB on the same block to progress.
         if playing && self.input.break_pressed {
@@ -980,6 +1038,76 @@ impl GameState {
             self.ui_open = UiOpen::Death;
             self.unlock_cursor();
             tracing::info!("player died");
+        }
+    }
+
+    /// Index of the nearest mob roughly under the crosshair, within reach.
+    fn mob_in_crosshair(&self) -> Option<usize> {
+        let eye = self.player.eye_position();
+        let look = self.player.look_dir();
+        let mut best: Option<(f32, usize)> = None;
+        for (i, mob) in self.mobs.iter().enumerate() {
+            let size = mob.mob_type.stats().size;
+            let to = mob.position + Vec3::new(0.0, size, 0.0) - eye;
+            let t = to.dot(look);
+            if t < 0.0 || t > REACH + 1.0 {
+                continue;
+            }
+            let closest = eye + look * t;
+            let center = mob.position + Vec3::new(0.0, size, 0.0);
+            if (closest - center).length() < size + 0.45 {
+                if best.map(|(d, _)| t < d).unwrap_or(true) {
+                    best = Some((t, i));
+                }
+            }
+        }
+        best.map(|(_, i)| i)
+    }
+
+    /// Advance mob AI/physics and run the spawn/despawn cycle.
+    fn update_mobs(&mut self, dt: f32) {
+        if self.stats.health <= 0.0 {
+            return;
+        }
+        let player = self.player.position;
+        let world = &self.world;
+        let mut damage_to_player = 0.0;
+        for mob in self.mobs.iter_mut() {
+            if let Some(dmg) = mob.update(dt, world, player) {
+                damage_to_player += dmg;
+            }
+        }
+        if damage_to_player > 0.0 {
+            self.damage(damage_to_player);
+        }
+        // despawn far mobs
+        self.mobs.retain(|m| (m.position - player).length() < 80.0);
+
+        // spawn cycle
+        if Instant::now() >= self.next_spawn_attempt && self.mobs.len() < 12 {
+            self.next_spawn_attempt = Instant::now() + Duration::from_secs(2);
+            let seed = self.frame.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(0x51ed270b);
+            let is_day = self.time.is_day();
+            if let Some(kind) = roll_spawn(seed, is_day) {
+                // random point 20-40 blocks out
+                let ang = (seed % 360) as f32 / 57.3;
+                let dist = 20.0 + ((seed >> 9) % 20) as f32;
+                let sx = (player.x + ang.cos() * dist) as i32;
+                let sz = (player.z + ang.sin() * dist) as i32;
+                // only spawn on loaded ground
+                if let Some((cx, lx)) = Some((sx.div_euclid(16), sx.rem_euclid(16))) {
+                    let (cz, lz) = (sz.div_euclid(16), sz.rem_euclid(16));
+                    if self.world.chunk(cx, cz).is_some() {
+                        let top = self.world.surface_height(sx, sz);
+                        if top > lf_worldgen::SEA_LEVEL || !kind.is_hostile() {
+                            let id = self.next_mob_id;
+                            self.next_mob_id += 1;
+                            let pos = Vec3::new(sx as f32 + 0.5, top as f32 + 0.2, sz as f32 + 0.5);
+                            self.mobs.push(MobEntity::spawn(id, kind, pos));
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1280,32 +1408,17 @@ impl GameState {
 }
 
 impl GameState {
-    /// Rebuild the single batch holding all item-drop cubes.
+    /// Rebuild the single batch holding item-drop and mob cubes.
+    /// Rebuild the single batch holding item-drop and mob cubes.
     fn rebuild_drop_batch(&mut self) {
-        if self.drops.is_empty() {
+        if self.drops.is_empty() && self.mobs.is_empty() {
             self.drop_batch = None;
             return;
         }
         let (mut vertices, mut indices) = (Vec::new(), Vec::new());
-        for drop in &self.drops {
-            let tex = drop_tex_layer(&drop.stack.item_id);
-            let light = 0xF0; // drops render sky-lit; P6 can sample world light
+        let mut push_cube = |cx: f32, cy: f32, cz: f32, r: f32, tex: u32, vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>| {
             let base = vertices.len() as u32;
-            let bob = (drop.age * 2.0).sin() * 0.05;
-            let cx = drop.position.x;
-            let cy = drop.position.y + bob;
-            let cz = drop.position.z;
-            let r = 0.15;
-            // 6 faces of a small cube (positions only matter; winding matches mesher)
-            let faces: [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] = [
-                ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
-                ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
-                ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
-                ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
-                ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
-                ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
-            ];
-            for (normal, corners, uvs) in faces {
+            for (normal, corners, uvs) in cube_faces(r) {
                 for (c, uv) in corners.iter().zip(uvs.iter()) {
                     vertices.push(GpuVertex {
                         position: [cx + c[0], cy + c[1], cz + c[2]],
@@ -1313,14 +1426,42 @@ impl GameState {
                         tex_coord: *uv,
                         tex_index: tex,
                         ao: 1.0,
-                        light,
+                        light: 0xF0,
                     });
                 }
                 indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
             }
+        };
+        // mobs (white cubes tinted by hurt flash; unique colors arrive with P7 mobs art)
+        for mob in &self.mobs {
+            let size = mob.mob_type.stats().size;
+            let tex = match mob.mob_type {
+                MobType::NullKnight => lf_assets::texture_index_for_block(registry::block::STONE),
+                m if m.is_hostile() => lf_assets::texture_index_for_block(registry::block::MYCELIUM),
+                _ => lf_assets::texture_index_for_block(registry::block::SNOW),
+            };
+            push_cube(mob.position.x, mob.position.y + size, mob.position.z, size, tex, &mut vertices, &mut indices);
+        }
+        // item drops bob
+        for drop in &self.drops {
+            let tex = drop_tex_layer(&drop.stack.item_id);
+            let bob = (drop.age * 2.0).sin() * 0.05;
+            push_cube(drop.position.x, drop.position.y + 0.15 + bob, drop.position.z, 0.15, tex, &mut vertices, &mut indices);
         }
         self.drop_batch = Some(MeshBatch::new(&self.device, &self.resources, &vertices, &indices));
     }
+}
+
+/// Six faces of an axis-aligned cube with mesher-compatible winding.
+fn cube_faces(r: f32) -> [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] {
+    [
+        ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+        ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+        ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+        ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+        ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+        ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+    ]
 }
 
 /// Texture layer for a dropped item's cube.
@@ -1367,11 +1508,13 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, u32) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
     let mut entities = HashMap::new();
+    let mut mobs = Vec::new();
+    let mut kills = 0;
     if let Ok(bytes) = std::fs::read(dir.join("player_extras.dat")) {
         if let Ok(save) = bincode::deserialize::<ClientSave>(&bytes) {
             for (i, slot) in save.slots.iter().enumerate().take(inventory.slots.len()) {
@@ -1380,10 +1523,12 @@ fn load_client_save(dir: &Path)
             stats.health = save.health.max(1.0);
             stats.hunger = save.hunger;
             entities.extend(save.block_entities);
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities);
+            mobs = save.mobs;
+            kills = save.kills;
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, kills);
         }
     }
-    (inventory, stats, time, entities)
+    (inventory, stats, time, entities, mobs, kills)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.
