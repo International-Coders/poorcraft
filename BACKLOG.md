@@ -196,3 +196,4 @@
 - [x] Dragon Egg and Hatching/Respawn -> shots/ev_dragon_egg_respawn.png
 - [x] Credits and End Poem -> shots/ev_end_poem.png
 - [x] Statistics and Achievements screen -> shots/ev_stats_achievements.png
+- [x] Advancements Tree screen -> shots/ev_advancements.png

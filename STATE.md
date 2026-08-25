@@ -1,9 +1,9 @@
 # STATE
-loop_count: 206
+loop_count: 207
 current_milestone: Evolution
-last_done: "Evolution Mode: added Statistics and Achievements screen player stats tracking and achievement popups; captured ev_stats_achievements.png"
+last_done: "Evolution Mode: added Advancements Tree screen progression tree with interconnected achievements; captured ev_advancements.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_stats_achievements.png
+last_screenshot: shots/ev_advancements.png
 blockers: none
