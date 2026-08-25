@@ -119,3 +119,4 @@
 - [x] Chain block -> shots/ev_chain.png
 - [x] Target block -> shots/ev_target.png
 - [x] Sculk Sensor block -> shots/ev_sculk_sensor.png
+- [x] Dripstone block and stalactites -> shots/ev_dripstone.png
