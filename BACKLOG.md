@@ -240,3 +240,4 @@
 - [x] End Crystal Blocks -> shots/ev_end_crystal.png
 - [x] Dragon Egg Block -> shots/ev_dragon_egg.png
 - [x] Purpur Pillars -> shots/ev_purpur_pillar.png
+- [x] Chorus Fruit and Plants -> shots/ev_chorus_fruit.png
