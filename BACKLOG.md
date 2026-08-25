@@ -37,3 +37,4 @@
 - [x] cloud cover dynamic weather -> shots/ev_cloud_cover.png
 - [ ] wind ambience sound design -> shots/ev_sound_wind.png
 - [x] tree variety pack (oak, pine, birch) -> shots/ev_tree_variety.png
+- [x] warhammer weapon category -> shots/ev_warhammer.png
