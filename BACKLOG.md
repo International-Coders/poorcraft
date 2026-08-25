@@ -103,3 +103,4 @@
 - [x] Bundle inventory item -> shots/ev_bundle.png
 - [x] Armor Stand structure -> shots/ev_armor_stand.png
 - [x] Jukebox and Music Discs -> shots/ev_jukebox.png
+- [x] Lodestone and Compass -> shots/ev_lodestone.png
