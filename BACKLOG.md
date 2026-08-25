@@ -181,3 +181,4 @@
 - [x] End City structure -> shots/ev_end_city.png
 - [x] End Ship structure -> shots/ev_end_ship.png
 - [x] Firework Rocket -> shots/ev_firework_rocket.png
+- [x] Dragon Head block -> shots/ev_dragon_head.png

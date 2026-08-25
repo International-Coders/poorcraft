@@ -1,9 +1,9 @@
 # STATE
-loop_count: 190
+loop_count: 191
 current_milestone: Evolution
-last_done: "Evolution Mode: added Firework Rocket craftable item that boosts elytra flight; captured ev_firework_rocket.png"
+last_done: "Evolution Mode: added Dragon Head block trophy wall decoration with animated jaw; captured ev_dragon_head.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_firework_rocket.png
+last_screenshot: shots/ev_dragon_head.png
 blockers: none
