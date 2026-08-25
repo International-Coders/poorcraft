@@ -48,7 +48,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
 
     /// Emit one axis-aligned quad with CCW winding seen from outside.
     fn push_face(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>,
-                 corners: [[f32; 3]; 4], uvs: [[f32; 2]; 4], normal: [f32; 3], tex_index: u32) {
+                 corners: [[f32; 3]; 4], uvs: [[f32; 2]; 4], normal: [f32; 3], tex_index: u32, light: u32) {
         let base_idx = vertices.len() as u32;
         for (corner, uv) in corners.iter().zip(uvs.iter()) {
             vertices.push(Vertex {
@@ -56,7 +56,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                 normal,
                 tex_coord: *uv,
                 ao: 1.0,
-                light: 15,
+                light,
                 tex_index,
             });
         }
@@ -87,35 +87,40 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                     !crate::registry::is_opaque(nb)
                 };
 
+                // Light sampled from the exposed cell, not the block itself.
+                let light_of_face = |dx: i32, dy: i32, dz: i32| -> u32 {
+                    light_of(x as i32 + dx, y as i32 + dy, z as i32 + dz)
+                };
+
                 // -X face
                 if face_visible(get_block(x as i32 - 1, y as i32, z as i32)) {
                     push_face(&mut vertices, &mut indices,
-                        [[fx, fy, fz], [fx, fy1, fz], [fx, fy1, fz1], [fx, fy, fz1]], UVS_A, [-1.0, 0.0, 0.0], ti);
+                        [[fx, fy, fz], [fx, fy1, fz], [fx, fy1, fz1], [fx, fy, fz1]], UVS_A, [-1.0, 0.0, 0.0], ti, light_of_face(-1, 0, 0));
                 }
                 // +X face
                 if face_visible(get_block(x as i32 + 1, y as i32, z as i32)) {
                     push_face(&mut vertices, &mut indices,
-                        [[fx1, fy, fz1], [fx1, fy1, fz1], [fx1, fy1, fz], [fx1, fy, fz]], UVS_A, [1.0, 0.0, 0.0], ti);
+                        [[fx1, fy, fz1], [fx1, fy1, fz1], [fx1, fy1, fz], [fx1, fy, fz]], UVS_A, [1.0, 0.0, 0.0], ti, light_of_face(1, 0, 0));
                 }
                 // -Y face (corners wound so the outward normal points down)
                 if face_visible(get_block(x as i32, y as i32 - 1, z as i32)) {
                     push_face(&mut vertices, &mut indices,
-                        [[fx, fy, fz], [fx, fy, fz1], [fx1, fy, fz1], [fx1, fy, fz]], UVS_B, [0.0, -1.0, 0.0], ti);
+                        [[fx, fy, fz], [fx, fy, fz1], [fx1, fy, fz1], [fx1, fy, fz]], UVS_B, [0.0, -1.0, 0.0], ti, light_of_face(0, -1, 0));
                 }
                 // +Y face
                 if face_visible(get_block(x as i32, y as i32 + 1, z as i32)) {
                     push_face(&mut vertices, &mut indices,
-                        [[fx, fy1, fz1], [fx, fy1, fz], [fx1, fy1, fz], [fx1, fy1, fz1]], UVS_B, [0.0, 1.0, 0.0], ti);
+                        [[fx, fy1, fz1], [fx, fy1, fz], [fx1, fy1, fz], [fx1, fy1, fz1]], UVS_B, [0.0, 1.0, 0.0], ti, light_of_face(0, 1, 0));
                 }
                 // -Z face
                 if face_visible(get_block(x as i32, y as i32, z as i32 - 1)) {
                     push_face(&mut vertices, &mut indices,
-                        [[fx1, fy, fz], [fx1, fy1, fz], [fx, fy1, fz], [fx, fy, fz]], UVS_B, [0.0, 0.0, -1.0], ti);
+                        [[fx1, fy, fz], [fx1, fy1, fz], [fx, fy1, fz], [fx, fy, fz]], UVS_B, [0.0, 0.0, -1.0], ti, light_of_face(0, 0, -1));
                 }
                 // +Z face
                 if face_visible(get_block(x as i32, y as i32, z as i32 + 1)) {
                     push_face(&mut vertices, &mut indices,
-                        [[fx, fy, fz1], [fx, fy1, fz1], [fx1, fy1, fz1], [fx1, fy, fz1]], UVS_B, [0.0, 0.0, 1.0], ti);
+                        [[fx, fy, fz1], [fx, fy1, fz1], [fx1, fy1, fz1], [fx1, fy, fz1]], UVS_B, [0.0, 0.0, 1.0], ti, light_of_face(0, 0, 1));
                 }
             }
         }

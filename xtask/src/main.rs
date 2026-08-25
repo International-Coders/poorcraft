@@ -1,5 +1,21 @@
 use std::path::PathBuf;
 
+fn copy_dir(src: &str, dst: std::path::PathBuf) {
+    let root = PathBuf::from(src);
+    let _ = std::fs::create_dir_all(&dst);
+    if let Ok(entries) = std::fs::read_dir(&root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let target = dst.join(entry.file_name());
+            if path.is_dir() {
+                copy_dir(path.to_str().unwrap_or(""), target);
+            } else {
+                let _ = std::fs::copy(&path, &target);
+            }
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
@@ -37,7 +53,51 @@ fn main() {
             }
         }
         "package" => {
-            println!("Packaging release artifacts... (not implemented yet; lands in P11)");
+            // Build release binaries and assemble a portable distribution
+            // directory + zip. Cross-platform by design: whatever host runs
+            // this produces that host's artifact.
+            let out_dir = PathBuf::from("dist/loreforge");
+            let _ = std::fs::remove_dir_all(&out_dir);
+            std::fs::create_dir_all(out_dir.join("bin")).expect("create dist dir");
+            let bins = [("loreforge", "loreforge"), ("loreforge-server", "loreforge-server")];
+            for (package, bin) in bins {
+                let status = std::process::Command::new("cargo")
+                    .args(["build", "--release", "-p", package])
+                    .status()
+                    .expect("run cargo");
+                if !status.success() {
+                    eprintln!("build of {} failed", package);
+                    std::process::exit(1);
+                }
+                let src = PathBuf::from(format!("target/release/{}", bin));
+                let dst = out_dir.join("bin").join(bin);
+                std::fs::copy(&src, &dst).expect("copy binary");
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(&dst, std::fs::Permissions::from_mode(0o755));
+                }
+            }
+            // ship the mods and docs
+            if PathBuf::from("mods").exists() {
+                copy_dir("mods", out_dir.join("mods"));
+            }
+            for f in ["mods/README.md", "RELEASE.md"] {
+                if PathBuf::from(f).exists() {
+                    let name = PathBuf::from(f).file_name().unwrap().to_str().unwrap().to_string();
+                    let _ = std::fs::copy(f, out_dir.join(name));
+                }
+            }
+            // zip it
+            let os = std::env::consts::OS;
+            let zip_name = format!("dist/loreforge-{}-{}.zip", env!("CARGO_PKG_VERSION"), os);
+            let _ = std::fs::remove_file(&zip_name);
+            let ok = std::process::Command::new("zip")
+                .args(["-r", &zip_name, "dist/loreforge"])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            println!("packaged {} -> {}", out_dir.display(), if ok { zip_name } else { "(zip tool missing; directory only)".to_string() });
         }
         _ => {
             println!("LOREFORGE xtask automation");

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::path::Path;
@@ -44,6 +45,9 @@ impl ChunkColumn {
 #[derive(Clone, Debug, Default)]
 pub struct World {
     pub chunks: HashMap<(i32, i32), ChunkColumn>,
+    /// Flood-filled light per column, invalidated on edits. Interior
+    /// mutability so meshing can stay `&self`.
+    light_cache: RefCell<HashMap<(i32, i32), ColumnLight>>,
 }
 
 impl World {
@@ -81,6 +85,13 @@ impl World {
         let (cx, lx) = (x.div_euclid(16), x.rem_euclid(16) as usize);
         let (cz, lz) = (z.div_euclid(16), z.rem_euclid(16) as usize);
         self.chunks.get_mut(&(cx, cz))?.set(lx, y as usize, lz, block);
+        // edited column + border neighbors relight next mesh
+        let mut cache = self.light_cache.borrow_mut();
+        cache.remove(&(cx, cz));
+        if lx == 0 { cache.remove(&(cx - 1, cz)); }
+        if lx == 15 { cache.remove(&(cx + 1, cz)); }
+        if lz == 0 { cache.remove(&(cx, cz - 1)); }
+        if lz == 15 { cache.remove(&(cx, cz + 1)); }
         Some((cx, cz))
     }
 
@@ -109,18 +120,33 @@ impl World {
             Some(c) => c,
             None => return ColumnMesh { opaque, water },
         };
-        let light: ColumnLight = compute_column_light(self, cx, cz, col);
-        let light_of = |x: i32, y: i32, z: i32| -> u32 {
-            if y < 0 {
+        let key = (cx, cz);
+        let light = {
+            let mut cache = self.light_cache.borrow_mut();
+            match cache.get(&key) {
+                Some(l) => l.clone(),
+                None => {
+                    let l = compute_column_light(self, cx, cz, col);
+                    cache.insert(key, l.clone());
+                    l
+                }
+            }
+        };
+        // light_of receives SECTION-LOCAL coords (y in 0..16 per section);
+        // the column light arrays are indexed by world y, so each section
+        // translates by its own origin.
+        let light_of_section = |oy: usize, x: i32, y: i32, z: i32| -> u32 {
+            let world_y = y + oy as i32;
+            if world_y < 0 {
                 return 0; // below the world: dark
             }
-            if y > 255 {
+            if world_y > 255 {
                 return 0xF0; // above the world: full sky
             }
             let lx = x.clamp(0, 15) as usize;
             let lz = z.clamp(0, 15) as usize;
-            let sky = light.sky_at(lx, y as usize, lz);
-            let block_l = light.block_at(lx, y as usize, lz);
+            let sky = light.sky_at(lx, world_y as usize, lz);
+            let block_l = light.block_at(lx, world_y as usize, lz);
             ((sky as u32) << 4) | block_l as u32
         };
         for (sy, section) in col.sections.iter().enumerate() {
@@ -130,13 +156,15 @@ impl World {
             let neighbor_nz = self.chunks.get(&(cx, cz - 1)).map(|c| &c.sections[sy]);
             let neighbor_py = col.sections.get(sy + 1);
             let neighbor_ny = if sy > 0 { col.sections.get(sy - 1) } else { None };
+            let oy_us = sy * 16;
+            let light_of = |x: i32, y: i32, z: i32| light_of_section(oy_us, x, y, z);
             let mesh = meshing::mesh_section(
                 section,
                 neighbor_px, neighbor_nx, neighbor_py, neighbor_ny, neighbor_pz, neighbor_nz,
                 tex_of,
                 &light_of,
             );
-            let oy = (sy * 16) as f32;
+            let oy = oy_us as f32;
             // Route each vertex into its channel and remember the new index.
             let mut remap = vec![0u32; mesh.vertices.len()];
             for (vi, v) in mesh.vertices.iter().enumerate() {
@@ -301,6 +329,26 @@ mod tests {
         }
         let mesh2 = w2.mesh_column(0, 0, &|_| 0);
         assert!(mesh.opaque.vertices.len() < mesh2.opaque.vertices.len(), "neighbor culling failed");
+    }
+
+    #[test]
+    fn light_cache_invalidates_on_edits() {
+        let mut w = World::new();
+        w.ensure_chunk(0, 0);
+        for lx in 0..16 {
+            for lz in 0..16 {
+                w.set_block(lx, 0, lz, crate::BlockState(registry::block::STONE)).unwrap();
+            }
+        }
+        // mesh once to fill the cache (light is sky-lit)
+        let lit = w.mesh_column(0, 0, &|_| 0);
+        // cap: verify light attribute is sky-lit high up (sky nibble = 15)
+        assert!(lit.opaque.vertices.iter().any(|v| (v.light >> 4) == 15));
+        // place a torch and remesh: block light must appear
+        w.set_block(8, 100, 8, crate::BlockState(registry::block::TORCH)).unwrap();
+        let relit = w.mesh_column(0, 0, &|_| 0);
+        assert!(relit.opaque.vertices.iter().any(|v| (v.light & 0xF) > 0),
+            "torch light must be visible after the edit (cache invalidated)");
     }
 
     #[test]

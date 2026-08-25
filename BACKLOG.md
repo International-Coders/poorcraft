@@ -105,6 +105,9 @@ below by phase.
 - [ ] custom mod textures (generic mod layer for now)
 
 ## P11 — Performance & release
-- [ ] profiling (puffin), chunk gen/mesh budgets
-- [ ] release packaging (macOS .app/.dmg, Windows .exe, Linux .deb) in CI
-- [ ] honest RELEASE.md
+- [x] light cache with edit invalidation (+test) — and it caught two real
+      lighting bugs (unsampled light closure; section-local y offset)
+- [x] cargo xtask package: portable dist/ zip (binaries + mods + docs)
+- [x] CI release matrix (ubuntu/macOS/windows) uploading artifacts
+- [x] honest RELEASE.md with run instructions, controls, features, gaps
+- [ ] puffin profiling pass, greedy meshing (deferred; frame times fine at view 5)

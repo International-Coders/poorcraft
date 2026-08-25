@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-08-25 — P11: performance & release; base game complete (loop 293)
+- World light cache with invalidation on edits (+test) — writing the test
+  exposed two real bugs: the mesher never actually sampled the light
+  closure (per-face light was hardcoded 15 since P3) and section-local y
+  indexed the world-height light array. Both fixed; renders now show true
+  dynamic range (shadowed overhangs, torch pools, dark nights).
+- xtask package: portable dist/ zip with release binaries, mods and docs.
+- CI: release matrix (ubuntu/macOS/windows) builds and uploads artifacts.
+- RELEASE.md rewritten honestly (how to run, controls, verified features,
+  known gaps).
+- Tests 103 -> 104. P0-P11 of the base-game plan are complete.
+
 ## 2026-08-25 — P10: mod API real (loop 292)
 - lf_voxel registry: runtime mod blocks (MOD_BLOCK_BASE + fnv ids) consulted
   by name/is_solid/is_opaque; registration test.

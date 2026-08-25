@@ -36,3 +36,21 @@ jobs:
         with:
           name: vistest-proofs
           path: shots/vistest_*.png
+
+  release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-14, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zip (linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zip
+      - name: Package
+        run: cargo run --release -p xtask -- package
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: loreforge-${{ runner.os }}
+          path: dist/*.zip

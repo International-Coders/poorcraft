@@ -1,9 +1,9 @@
 # STATE
-loop_count: 292
-current_milestone: P10-mod-api
-last_done: "P10: mod API real — runtime registries (mod blocks with stable fnv ids + solidity/opacity/drops; mod items; mod recipes; mod smelting); smelting.toml parsing fixed in load_mod; worldgen ore hooks (auto-veins for *_ore blocks); client loads mods/ at boot (2 example mods confirmed in the smoke log); mods/README.md docs; full-pipeline test (parse -> register -> place modded block -> break -> drop -> smelt). 103 tests pass; game smoke-tested"
-next_task: "P11: performance pass + release packaging (xtask package, CI artifacts) + final docs"
+loop_count: 293
+current_milestone: P11-complete
+last_done: "P11: performance & release — light cache with edit invalidation (caught and fixed two real lighting bugs: mesher never sampled the light closure, and section-local y indexed world light); per-face lighting now real (renders show true dynamic range); xtask package assembles portable dist/ zip with binaries+mods+docs; CI release matrix (linux/macOS/windows) uploads artifacts; honest RELEASE.md. 104 tests pass; game smoke-tested; BASE GAME PLAN P0-P11 COMPLETE"
+next_task: "Polish backlog (sound, weather, armor, beds, mob sync) — see BACKLOG.md"
 build: GREEN
-tests: 103 passing
+tests: 104 passing
 last_screenshot: shots/vistest_hud_preview.png
 blockers: none
