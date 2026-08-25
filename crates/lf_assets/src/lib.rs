@@ -97,7 +97,7 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                 }
                 "water" => {
                     let v = 40 + ((x * 3 + y * 5) % 14);
-                    Rgba([30, ch(60 + v / 2), ch(150 + v / 3), 255])
+                    Rgba([30, ch(60 + v / 2), ch(150 + v / 3), 170])
                 }
                 _ => {
                     let v = ((x + y) * 8) % 256;
@@ -125,8 +125,9 @@ mod tests {
             let tex = generate_block_texture(name);
             assert_eq!(tex.width(), 16);
             assert_eq!(tex.height(), 16);
-            // fully opaque
-            assert!(tex.pixels().all(|p| p.0[3] == 255));
+            // fully opaque except water (transparent pass)
+            let expected_alpha = if name == "water" { 170 } else { 255 };
+            assert!(tex.pixels().all(|p| p.0[3] == expected_alpha));
         }
     }
 

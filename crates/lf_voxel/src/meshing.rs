@@ -11,6 +11,7 @@ pub struct Vertex {
     pub tex_index: u32,
 }
 
+#[derive(Default)]
 pub struct MeshData {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
@@ -21,7 +22,8 @@ pub struct MeshData {
 pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, neighbor_nx: Option<&VoxelSection>,
                      neighbor_py: Option<&VoxelSection>, neighbor_ny: Option<&VoxelSection>,
                      neighbor_pz: Option<&VoxelSection>, neighbor_nz: Option<&VoxelSection>,
-                     tex_of: &dyn Fn(BlockState) -> u32) -> MeshData {
+                     tex_of: &dyn Fn(BlockState) -> u32,
+                     light_of: &dyn Fn(i32, i32, i32) -> u32) -> MeshData {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
 
@@ -132,7 +134,7 @@ mod tests {
     fn single_block_emits_six_faces() {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE);
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         assert_eq!(mesh.vertices.len(), 24);
         assert_eq!(mesh.indices.len(), 36);
     }
@@ -142,7 +144,7 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE);
         s.set(9, 8, 8, BlockState::DIRT);
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         // 10 exposed faces instead of 12
         assert_eq!(mesh.vertices.len(), 40);
     }
@@ -154,7 +156,7 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE);
         s.set(4, 4, 4, BlockState(6)); // second block, different corner
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         let centers = [[8.5f32, 8.5, 8.5], [4.5f32, 4.5, 4.5]];
         let mut checked = 0;
         for center in centers {
@@ -196,7 +198,7 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE);
         s.set(8, 8, 9, BlockState(6)); // snow
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &|b| (b.0 * 2) as u32);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &|b| (b.0 * 2) as u32, &|_, _, _| 0xFF);
         let indices: std::collections::HashSet<u32> = mesh.vertices.iter().map(|v| v.tex_index).collect();
         assert!(indices.contains(&2) && indices.contains(&12), "got {:?}", indices);
     }

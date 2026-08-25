@@ -3,7 +3,7 @@ use std::path::Path;
 use image::{Rgba, RgbaImage};
 
 use crate::camera::Camera;
-use crate::scene::{GpuScene, GpuVertex, MeshBatch};
+use crate::scene::{Env, GpuScene, GpuVertex, MeshBatch};
 
 /// Renders `vertices`/`indices` offscreen (no window or surface) and writes a
 /// PNG to `out_path`. This is the backbone of honest proof screenshots: the
@@ -11,8 +11,11 @@ use crate::scene::{GpuScene, GpuVertex, MeshBatch};
 pub fn render_to_png(
     vertices: &[GpuVertex],
     indices: &[u32],
+    water_vertices: &[GpuVertex],
+    water_indices: &[u32],
     textures: &[RgbaImage],
     camera: &Camera,
+    env: &Env,
     clear: [f64; 4],
     width: u32,
     height: u32,
@@ -50,6 +53,11 @@ pub fn render_to_png(
 
         let format = wgpu::TextureFormat::Rgba8UnormSrgb;
         let scene = GpuScene::new(&device, &queue, format, vertices, indices, textures);
+        let water_scene = if water_vertices.is_empty() {
+            None
+        } else {
+            Some(GpuScene::new(&device, &queue, format, water_vertices, water_indices, textures))
+        };
         let (_, depth_view) = MeshBatch::create_depth_texture(&device, width, height);
 
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -64,7 +72,10 @@ pub fn render_to_png(
         });
         let color_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        scene.update_camera(&queue, camera);
+        scene.update_camera(&queue, camera, env);
+        if let Some(ws) = &water_scene {
+            ws.update_camera(&queue, camera, env);
+        }
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Headless Encoder") });
         {
@@ -90,6 +101,9 @@ pub fn render_to_png(
                 timestamp_writes: None,
             });
             scene.draw(&mut pass);
+            if let Some(ws) = &water_scene {
+                ws.batch.draw(&mut pass, &ws.resources, true);
+            }
         }
 
         // Copy the color texture into a CPU-mappable buffer. Rows must be

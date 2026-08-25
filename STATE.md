@@ -1,9 +1,9 @@
 # STATE
-loop_count: 284
-current_milestone: P2-world-streaming
-last_done: "P2: world streaming & terrain — block registry (solid/transparent/targetable); trees, caves (3D noise), coal/iron ores by depth, water at sea level; opacity-based face culling; background chunk streamer (view radius 5, unload 8) with nearest-first generation; sphere-frustum column culling; world save/load (WorldStorage: region chunks + player.dat) with 30s autosave and save-on-exit; hotbar 8 slots; terrain_features scene. 66 tests pass; proofs in shots/vistest_*.png (trees+water verified in-render); game smoke-tested 20s with streaming"
-next_task: "P3: flood-fill lighting + AO, day/night sky in client, water transparency, fog"
+loop_count: 285
+current_milestone: P3-lighting-atmosphere
+last_done: "P3: lighting & atmosphere — flood-fill sky+block light per column (BFS, -1 falloff, opacity-aware); torch/lantern emitters; per-face light sampling in mesher (packed sky|block nibbles); shader day factor + distance fog; water rendered in alpha-blended pass sorted back-to-front; 20-min day/night cycle drives sky color + light; deeper night constants; torchlit_night scene. 69 tests pass; all 6 scenes render; game smoke-tested"
+next_task: "P4: egui HUD + inventory, crafting, tool durability/mining times, item drops, hunger/death"
 build: GREEN
-tests: 66 passing
-last_screenshot: shots/vistest_terrain_features.png
+tests: 69 passing
+last_screenshot: shots/vistest_torchlit_night.png
 blockers: none

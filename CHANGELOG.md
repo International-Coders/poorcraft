@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-08-25 — P3: lighting & atmosphere (loop 285)
+- lf_voxel light.rs: per-column flood-fill sky + block light (BFS with -1
+  falloff, opacity-aware, 15-level); emitter table (torch=14, lantern=15);
+  index-stride bug class caught by tests (y must own the largest stride).
+- Mesher samples light from the exposed cell per face (packed sky<<4|block
+  in the vertex light attribute; was hardcoded 15).
+- Shader: brightness = max(sky*day, block*0.92) with ambient AO and distance
+  fog blending to the sky color; uniforms carry camera pos + day + fog.
+- Water: separate alpha-blended pipeline (no depth write), water faces split
+  from opaque mesh, columns sorted back-to-front; water texture alpha 170.
+- Torch/lantern blocks (non-solid, non-opaque, targetable).
+- Client: 20-minute day/night cycle (lf_game::TimeOfDay) driving sky clear
+  color, day factor and fog; torch in the 9-slot hotbar; deeper night
+  constants (starlight 0.12, night sky mix 0.15).
+- vistest: torchlit_night scene (torch grid on terrain at night); scene sky
+  math now reuses lf_game::TimeOfDay.
+- Tests 66 → 69; all 6 scenes render; game smoke-tested with lighting.
+
 ## 2026-08-25 — P2: world streaming & terrain (loop 284)
 - lf_voxel: block registry (is_solid/is_opaque/is_targetable, 12 blocks);
   mesher culls by opacity (air/water/leaves show faces behind them, no

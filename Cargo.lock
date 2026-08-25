@@ -1364,6 +1364,7 @@ dependencies = [
  "image",
  "lf_assets",
  "lf_engine",
+ "lf_game",
  "lf_voxel",
  "lf_worldgen",
 ]

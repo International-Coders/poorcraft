@@ -41,7 +41,7 @@ const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(30);
 const DAY_SKY: [f64; 4] = [0.53, 0.81, 0.98, 1.0];
 
 /// Blocks available in the hotbar (P4 replaces this with a real inventory).
-const HOTBAR: [u32; 8] = [
+const HOTBAR: [u32; 9] = [
     registry::block::GRASS,
     registry::block::DIRT,
     registry::block::STONE,
@@ -50,6 +50,7 @@ const HOTBAR: [u32; 8] = [
     registry::block::LOG,
     registry::block::LEAVES,
     registry::block::MYCELIUM,
+    registry::block::TORCH,
 ];
 
 #[derive(Default)]
@@ -216,7 +217,7 @@ pub fn run() {
                                 KeyCode::F2 => state.take_screenshot(),
                                 KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3
                                 | KeyCode::Digit4 | KeyCode::Digit5 | KeyCode::Digit6
-                                | KeyCode::Digit7 | KeyCode::Digit8 => {
+                                | KeyCode::Digit7 | KeyCode::Digit8 | KeyCode::Digit9 => {
                                     let idx = match code {
                                         KeyCode::Digit1 => 0,
                                         KeyCode::Digit2 => 1,
@@ -225,7 +226,8 @@ pub fn run() {
                                         KeyCode::Digit5 => 4,
                                         KeyCode::Digit6 => 5,
                                         KeyCode::Digit7 => 6,
-                                        _ => 7,
+                                        KeyCode::Digit8 => 7,
+                                        _ => 8,
                                     };
                                     state.hotbar_index = idx;
                                     state.update_title();
@@ -281,7 +283,9 @@ struct GameState {
     _depth_texture: wgpu::Texture,
     resources: SceneResources,
     batches: HashMap<(i32, i32), MeshBatch>,
+    water_batches: HashMap<(i32, i32), MeshBatch>,
     cpu_meshes: HashMap<(i32, i32), (Vec<GpuVertex>, Vec<u32>)>,
+    time: lf_game::TimeOfDay,
     /// Vertical bounds of each column's mesh, for frustum culling.
     column_bounds: HashMap<(i32, i32), (f32, f32)>,
     outline: OutlineScene,
@@ -367,12 +371,16 @@ impl GameState {
         let resources = SceneResources::new(&device, &queue, config.format, &textures);
 
         let mut batches = HashMap::new();
+        let mut water_batches = HashMap::new();
         let mut cpu_meshes = HashMap::new();
         let mut column_bounds = HashMap::new();
         for (cx, cz) in world.chunks.keys().copied().collect::<Vec<_>>() {
-            let (v, i) = mesh_column_gpu(&world, cx, cz);
-            let (min_y, max_y) = bounds_of(&v);
+            let (v, i, wv, wi) = mesh_column_gpu(&world, cx, cz);
+            let (min_y, max_y) = bounds_of(&v, &wv);
             batches.insert((cx, cz), MeshBatch::new(&device, &resources, &v, &i));
+            if !wv.is_empty() {
+                water_batches.insert((cx, cz), MeshBatch::new(&device, &resources, &wv, &wi));
+            }
             cpu_meshes.insert((cx, cz), (v, i));
             column_bounds.insert((cx, cz), (min_y, max_y));
         }
@@ -405,7 +413,9 @@ impl GameState {
             _depth_texture: depth_texture,
             resources,
             batches,
+            water_batches,
             cpu_meshes,
+            time: lf_game::TimeOfDay::from_fraction(0.30),
             column_bounds,
             outline,
             world,
@@ -476,7 +486,7 @@ impl GameState {
     fn update_title(&self) {
         let p = &self.player;
         let title = format!(
-            "LOREFORGE — {} [{}/8] — pos ({:.1}, {:.1}, {:.1}) — chunks {} — F fly · F2 shot · Esc release",
+            "LOREFORGE — {} [{}/9] — pos ({:.1}, {:.1}, {:.1}) — chunks {} — F fly · F2 shot · Esc release",
             registry::block::name(HOTBAR[self.hotbar_index]),
             self.hotbar_index + 1,
             p.position.x, p.position.y, p.position.z,
@@ -537,6 +547,10 @@ impl GameState {
 
         let mut did_edit = false;
         self.player.update(dt, &input, &self.world);
+
+        // 20-minute day/night cycle.
+        let ticks = (dt * lf_game::TimeOfDay::TICKS_PER_SECOND as f32) as u64;
+        self.time = lf_game::TimeOfDay::new(self.time.ticks + ticks);
 
         self.stream_chunks();
         if self.frame % 120 == 0 {
@@ -625,9 +639,14 @@ impl GameState {
     }
 
     fn add_column_batch(&mut self, cx: i32, cz: i32) {
-        let (v, i) = mesh_column_gpu(&self.world, cx, cz);
-        let (min_y, max_y) = bounds_of(&v);
+        let (v, i, wv, wi) = mesh_column_gpu(&self.world, cx, cz);
+        let (min_y, max_y) = bounds_of(&v, &wv);
         self.batches.insert((cx, cz), MeshBatch::new(&self.device, &self.resources, &v, &i));
+        if wv.is_empty() {
+            self.water_batches.remove(&(cx, cz));
+        } else {
+            self.water_batches.insert((cx, cz), MeshBatch::new(&self.device, &self.resources, &wv, &wi));
+        }
         self.cpu_meshes.insert((cx, cz), (v, i));
         self.column_bounds.insert((cx, cz), (min_y, max_y));
     }
@@ -651,6 +670,7 @@ impl GameState {
             }
             self.world.chunks.remove(&pos);
             self.batches.remove(&pos);
+            self.water_batches.remove(&pos);
             self.cpu_meshes.remove(&pos);
             self.column_bounds.remove(&pos);
             self.streamer.forget(pos);
@@ -684,12 +704,27 @@ impl GameState {
             if !self.batches.contains_key(&(bx, bz)) {
                 continue;
             }
-            let (v, i) = mesh_column_gpu(&self.world, bx, bz);
-            let (min_y, max_y) = bounds_of(&v);
+            let (v, i, wv, wi) = mesh_column_gpu(&self.world, bx, bz);
+            let (min_y, max_y) = bounds_of(&v, &wv);
             self.batches.insert((bx, bz), MeshBatch::new(&self.device, &self.resources, &v, &i));
+            if wv.is_empty() {
+                self.water_batches.remove(&(bx, bz));
+            } else {
+                self.water_batches.insert((bx, bz), MeshBatch::new(&self.device, &self.resources, &wv, &wi));
+            }
             self.cpu_meshes.insert((bx, bz), (v, i));
             self.column_bounds.insert((bx, bz), (min_y, max_y));
             self.dirty.insert((bx, bz));
+        }
+    }
+
+    fn env(&self) -> lf_engine::scene::Env {
+        let sky = self.time.sky_color();
+        lf_engine::scene::Env {
+            camera_pos: self.player.eye_position(),
+            day_factor: self.time.sky_light_level(),
+            fog_color: sky,
+            fog_far: (VIEW_RADIUS as f32 + 2.0) * 16.0,
         }
     }
 
@@ -707,24 +742,35 @@ impl GameState {
             vertices.extend_from_slice(v);
             indices.extend(i.iter().map(|idx| idx + base));
         }
+        let _ = (&self.water_batches); // water omitted from quick screenshots
         self.screenshot_counter += 1;
         let path = std::path::PathBuf::from(format!("shots/screenshot_{}.png", self.screenshot_counter));
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).ok();
         }
         let camera = self.camera();
+        let env = self.env();
         let textures = lf_assets::generate_atlas();
-        match lf_engine::headless::render_to_png(&vertices, &indices, &textures, &camera, DAY_SKY, 1280, 720, &path) {
+        match lf_engine::headless::render_to_png(&vertices, &indices, &[], &[], &textures, &camera, &env, self.clear_color(), 1280, 720, &path) {
             Ok(()) => tracing::info!("screenshot saved to {}", path.display()),
             Err(e) => tracing::error!("screenshot failed: {}", e),
         }
     }
 
+    fn clear_color(&self) -> [f64; 4] {
+        let c = self.time.sky_color();
+        [c[0] as f64, c[1] as f64, c[2] as f64, 1.0]
+    }
+
     fn render(&mut self) {
         let camera = self.camera();
+        let env = self.env();
         let view_proj = camera.build_view_projection_matrix();
         for batch in self.batches.values() {
-            batch.update_camera(&self.queue, &camera);
+            batch.update_camera(&self.queue, &camera, &env);
+        }
+        for batch in self.water_batches.values() {
+            batch.update_camera(&self.queue, &camera, &env);
         }
         self.outline.update_camera(&self.queue, &camera);
 
@@ -740,6 +786,7 @@ impl GameState {
             }
         };
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let clear = self.clear_color();
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -748,7 +795,7 @@ impl GameState {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color { r: DAY_SKY[0], g: DAY_SKY[1], b: DAY_SKY[2], a: DAY_SKY[3] }),
+                        load: wgpu::LoadOp::Clear(wgpu::Color { r: clear[0], g: clear[1], b: clear[2], a: clear[3] }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -771,9 +818,26 @@ impl GameState {
                         continue;
                     }
                 }
-                batch.draw(&mut pass, resources);
+                batch.draw(&mut pass, resources, false);
             }
             self.outline.draw(&mut pass);
+            // Water: alpha-blended, far columns first for correct layering.
+            let mut water_order: Vec<(f32, (i32, i32))> = self
+                .water_batches
+                .keys()
+                .copied()
+                .map(|pos| {
+                    let dx = pos.0 as f32 * 16.0 + 8.0 - eye.x;
+                    let dz = pos.1 as f32 * 16.0 + 8.0 - eye.z;
+                    (-(dx * dx + dz * dz), pos)
+                })
+                .collect();
+            water_order.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+            for (_, pos) in water_order {
+                if let Some(batch) = self.water_batches.get(&pos) {
+                    batch.draw(&mut pass, resources, true);
+                }
+            }
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -781,27 +845,33 @@ impl GameState {
     }
 }
 
-/// Mesh one column and convert to GPU vertices.
-fn mesh_column_gpu(world: &World, cx: i32, cz: i32) -> (Vec<GpuVertex>, Vec<u32>) {
+/// Mesh one column and convert to GPU vertices (opaque + water channels).
+fn mesh_column_gpu(world: &World, cx: i32, cz: i32)
+    -> (Vec<GpuVertex>, Vec<u32>, Vec<GpuVertex>, Vec<u32>) {
     let mesh = world.mesh_column(cx, cz, &|b| lf_assets::texture_index_for_block(b.id()));
-    let vertices = mesh.vertices.iter().map(|v| GpuVertex {
-        position: v.position,
-        normal: v.normal,
-        tex_coord: v.tex_coord,
-        tex_index: v.tex_index,
-        ao: v.ao,
-    }).collect();
-    (vertices, mesh.indices)
+    let to_gpu = |vs: &[lf_voxel::meshing::Vertex]| -> Vec<GpuVertex> {
+        vs.iter().map(|v| GpuVertex {
+            position: v.position,
+            normal: v.normal,
+            tex_coord: v.tex_coord,
+            tex_index: v.tex_index,
+            ao: v.ao,
+            light: v.light,
+        }).collect()
+    };
+    let vertices = to_gpu(&mesh.opaque.vertices);
+    let water = to_gpu(&mesh.water.vertices);
+    (vertices, mesh.opaque.indices, water, mesh.water.indices)
 }
 
-fn bounds_of(vertices: &[GpuVertex]) -> (f32, f32) {
+fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
     let mut min = f32::MAX;
     let mut max = f32::MIN;
-    for v in vertices {
+    for v in vertices.iter().chain(water.iter()) {
         min = min.min(v.position[1]);
         max = max.max(v.position[1]);
     }
-    if vertices.is_empty() {
+    if min == f32::MAX {
         (0.0, 0.0)
     } else {
         (min, max)

@@ -26,3 +26,6 @@
 - P2: trees keep canopy in-chunk (2<=lx<=13) to avoid cross-chunk writes; cross-chunk structures arrive with P7 structure pass
 - P2: streaming worker generates pristine columns; edits live only in saved columns loaded on the main thread
 - P2: sphere-frustum culling per column from mesh y-bounds + 16x16 footprint radius
+- P3: light is flood-filled per column at mesh time (no persistent cache); cross-chunk light seams accepted for now
+- P3: per-face flat lighting now, smooth per-vertex in P11; y-stride must dominate column-local indices
+- P3: water = second alpha-blended pipeline without depth write, columns sorted back-to-front

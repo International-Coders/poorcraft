@@ -4,6 +4,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::light::{compute_column_light, ColumnLight};
 use crate::persistence::RegionStorage;
 use crate::registry;
 use crate::{BlockState, VoxelSection};
@@ -100,12 +101,27 @@ impl World {
     }
 
     /// Mesh one chunk column into world-space vertices (origin at chunk min).
-    pub fn mesh_column(&self, cx: i32, cz: i32, tex_of: &dyn Fn(BlockState) -> u32) -> MeshData {
-        let mut vertices: Vec<Vertex> = Vec::new();
-        let mut indices: Vec<u32> = Vec::new();
+    /// Opaque and water faces are separated; light is flood-filled per column.
+    pub fn mesh_column(&self, cx: i32, cz: i32, tex_of: &dyn Fn(BlockState) -> u32) -> ColumnMesh {
+        let mut opaque = MeshData::default();
+        let mut water = MeshData::default();
         let col = match self.chunks.get(&(cx, cz)) {
             Some(c) => c,
-            None => return MeshData { vertices, indices },
+            None => return ColumnMesh { opaque, water },
+        };
+        let light: ColumnLight = compute_column_light(self, cx, cz, col);
+        let light_of = |x: i32, y: i32, z: i32| -> u32 {
+            if y < 0 {
+                return 0; // below the world: dark
+            }
+            if y > 255 {
+                return 0xF0; // above the world: full sky
+            }
+            let lx = x.clamp(0, 15) as usize;
+            let lz = z.clamp(0, 15) as usize;
+            let sky = light.sky_at(lx, y as usize, lz);
+            let block_l = light.block_at(lx, y as usize, lz);
+            ((sky as u32) << 4) | block_l as u32
         };
         for (sy, section) in col.sections.iter().enumerate() {
             let neighbor_px = self.chunks.get(&(cx + 1, cz)).map(|c| &c.sections[sy]);
@@ -118,27 +134,56 @@ impl World {
                 section,
                 neighbor_px, neighbor_nx, neighbor_py, neighbor_ny, neighbor_pz, neighbor_nz,
                 tex_of,
+                &light_of,
             );
-            let base = vertices.len() as u32;
             let oy = (sy * 16) as f32;
-            for v in mesh.vertices {
-                vertices.push(Vertex {
+            // Route each vertex into its channel and remember the new index.
+            let mut remap = vec![0u32; mesh.vertices.len()];
+            for (vi, v) in mesh.vertices.iter().enumerate() {
+                let world_v = Vertex {
                     position: [v.position[0], v.position[1] + oy, v.position[2]],
-                    ..v
-                });
+                    ..*v
+                };
+                if v.tex_index == WATER_TEX_LAYER {
+                    remap[vi] = water.vertices.len() as u32;
+                    water.vertices.push(world_v);
+                } else {
+                    remap[vi] = opaque.vertices.len() as u32;
+                    opaque.vertices.push(world_v);
+                }
             }
-            indices.extend(mesh.indices.iter().map(|i| i + base));
+            for i in mesh.indices {
+                let vi = i as usize;
+                if mesh.vertices[vi].tex_index == WATER_TEX_LAYER {
+                    water.indices.push(remap[vi]);
+                } else {
+                    opaque.indices.push(remap[vi]);
+                }
+            }
         }
         // Offset to world space.
         let ox = (cx * 16) as f32;
         let oz = (cz * 16) as f32;
-        for v in &mut vertices {
-            v.position[0] += ox;
-            v.position[2] += oz;
+        for channel in [&mut opaque, &mut water] {
+            for v in &mut channel.vertices {
+                v.position[0] += ox;
+                v.position[2] += oz;
+            }
         }
-        MeshData { vertices, indices }
+        ColumnMesh { opaque, water }
     }
 }
+
+/// Texture atlas layer used for water faces (see lf_assets).
+pub const WATER_TEX_LAYER: u32 = 10;
+
+/// A column's mesh split by render pass.
+#[derive(Default)]
+pub struct ColumnMesh {
+    pub opaque: MeshData,
+    pub water: MeshData,
+}
+
 
 
 /// World persistence: chunk columns via RegionStorage plus a small player
@@ -225,9 +270,9 @@ mod tests {
         w.ensure_chunk(2, 3);
         w.set_block(32 + 5, 0, 48 + 7, BlockState::GRASS).unwrap(); // chunk (2,3) local (5,0,7)
         let mesh = w.mesh_column(2, 3, &|_| 0);
-        assert!(!mesh.vertices.is_empty());
+        assert!(!mesh.opaque.vertices.is_empty());
         // every vertex lies within chunk (2,3): x 32..48, z 48..64
-        for v in &mesh.vertices {
+        for v in &mesh.opaque.vertices {
             assert!((32.0..=48.0).contains(&v.position[0]), "x out of chunk: {}", v.position[0]);
             assert!((48.0..=64.0).contains(&v.position[2]), "z out of chunk: {}", v.position[2]);
         }
@@ -255,7 +300,7 @@ mod tests {
             }
         }
         let mesh2 = w2.mesh_column(0, 0, &|_| 0);
-        assert!(mesh.vertices.len() < mesh2.vertices.len(), "neighbor culling failed");
+        assert!(mesh.opaque.vertices.len() < mesh2.opaque.vertices.len(), "neighbor culling failed");
     }
 
     #[test]

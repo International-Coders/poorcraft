@@ -50,7 +50,7 @@ impl TimeOfDay {
             1.0 - noon_dist * 0.4 // ranges 0.8..1.0 during day
         } else {
             // Night: starlight level
-            0.2
+            0.12
         };
         day_brightness
     }
@@ -70,9 +70,9 @@ impl TimeOfDay {
             ]
         } else {
             [
-                day_color[0] * 0.3 + night_color[0] * 0.7,
-                day_color[1] * 0.3 + night_color[1] * 0.7,
-                day_color[2] * 0.3 + night_color[2] * 0.7,
+                day_color[0] * 0.15 + night_color[0] * 0.85,
+                day_color[1] * 0.15 + night_color[1] * 0.85,
+                day_color[2] * 0.15 + night_color[2] * 0.85,
             ]
         }
     }

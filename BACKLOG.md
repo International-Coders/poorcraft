@@ -41,10 +41,12 @@ below by phase.
 - [x] block registry: solid/transparent/targetable; water non-solid, raycast skips it
 
 ## P3 — Lighting & atmosphere
-- [ ] flood-fill sky + block light, smooth lighting/AO in mesher
-- [ ] torches/lanterns emit real light
-- [ ] sun/moon/stars, sky gradient by time, fog
-- [ ] water transparency + underwater tint
+- [x] flood-fill sky + block light per column (BFS, opacity-aware; tests for falloff/overhangs/emitters)
+- [x] torches/lanterns emit real light (14/15) and are placeable
+- [x] day/night cycle drives sky color, clear color, sky-light factor + distance fog
+- [x] water transparency (alpha-blended pass, back-to-front column sort; underwater tint in P7)
+- [ ] smooth per-vertex lighting/AO (deferred to P11 polish; flat per-face now)
+- [ ] sun/moon/stars/clouds (deferred to P7 sky pass)
 
 ## P4 — Survival & inventory UI
 - [ ] egui HUD (health/hunger/hotbar)

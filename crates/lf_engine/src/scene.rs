@@ -12,6 +12,8 @@ pub struct GpuVertex {
     pub tex_coord: [f32; 2],
     pub tex_index: u32,
     pub ao: f32,
+    /// Packed light: sky in the high nibble, block light in the low nibble.
+    pub light: u32,
 }
 
 impl GpuVertex {
@@ -25,6 +27,7 @@ impl GpuVertex {
                 wgpu::VertexAttribute { offset: 24, shader_location: 2, format: wgpu::VertexFormat::Float32x2 },
                 wgpu::VertexAttribute { offset: 32, shader_location: 3, format: wgpu::VertexFormat::Uint32 },
                 wgpu::VertexAttribute { offset: 36, shader_location: 4, format: wgpu::VertexFormat::Float32 },
+                wgpu::VertexAttribute { offset: 40, shader_location: 5, format: wgpu::VertexFormat::Uint32 },
             ],
         }
     }
@@ -34,11 +37,27 @@ impl GpuVertex {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Uniforms {
     view_proj: [[f32; 4]; 4],
+    // xyz = camera position, w = day factor [0..1] scaling sky light
+    cam_pos_day: [f32; 4],
+    // rgb = fog color, w = fog end distance in blocks
+    fog: [f32; 4],
+}
+
+/// Environment parameters passed every frame.
+#[derive(Copy, Clone, Debug)]
+pub struct Env {
+    pub camera_pos: glam::Vec3,
+    /// Day factor [0..1] scaling sky light.
+    pub day_factor: f32,
+    pub fog_color: [f32; 3],
+    /// Fog end distance in blocks.
+    pub fog_far: f32,
 }
 
 /// Pipeline + texture array shared by every mesh drawn in a frame.
 pub struct SceneResources {
     render_pipeline: wgpu::RenderPipeline,
+    water_pipeline: wgpu::RenderPipeline,
     diffuse_bind_group: wgpu::BindGroup,
     uniform_bind_group_layout: wgpu::BindGroupLayout,
 }
@@ -124,7 +143,7 @@ impl SceneResources {
         let uniform_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -144,48 +163,53 @@ impl SceneResources {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[GpuVertex::layout()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: target_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
-            multiview: None,
-            cache: None,
-        });
+        let make_pipeline = |label: &str, blend: Option<wgpu::BlendState>, depth_write: bool| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&render_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    buffers: &[GpuVertex::layout()],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: target_format,
+                        blend,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    unclipped_depth: false,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: depth_write,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
+                multiview: None,
+                cache: None,
+            })
+        };
+        let render_pipeline = make_pipeline("Render Pipeline", Some(wgpu::BlendState::REPLACE), true);
+        let water_pipeline = make_pipeline("Water Pipeline", Some(wgpu::BlendState::ALPHA_BLENDING), false);
 
         Self {
             render_pipeline,
+            water_pipeline,
             diffuse_bind_group,
             uniform_bind_group_layout,
         }
@@ -217,7 +241,11 @@ impl MeshBatch {
         });
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[Uniforms { view_proj: glam::Mat4::IDENTITY.to_cols_array_2d() }]),
+            contents: bytemuck::cast_slice(&[Uniforms {
+                view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                cam_pos_day: [0.0; 4],
+                fog: [0.0; 4],
+            }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -234,18 +262,22 @@ impl MeshBatch {
         }
     }
 
-    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera) {
+    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera, env: &Env) {
         queue.write_buffer(
             &self.uniform_buffer,
             0,
-            bytemuck::cast_slice(&[Uniforms { view_proj: camera.build_view_projection_matrix().to_cols_array_2d() }]),
+            bytemuck::cast_slice(&[Uniforms {
+                view_proj: camera.build_view_projection_matrix().to_cols_array_2d(),
+                cam_pos_day: [env.camera_pos.x, env.camera_pos.y, env.camera_pos.z, env.day_factor],
+                fog: [env.fog_color[0], env.fog_color[1], env.fog_color[2], env.fog_far],
+            }]),
         );
     }
 
-    /// Record the draw into an existing render pass. Sets pipeline + shared
-    /// texture bindings itself.
-    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, resources: &'a SceneResources) {
-        render_pass.set_pipeline(&resources.render_pipeline);
+    /// Record the draw into an existing render pass. `water` selects the
+    /// alpha-blended pipeline (draw after opaque, roughly back to front).
+    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, resources: &'a SceneResources, water: bool) {
+        render_pass.set_pipeline(if water { &resources.water_pipeline } else { &resources.render_pipeline });
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
         render_pass.set_bind_group(1, &resources.diffuse_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -284,11 +316,11 @@ impl GpuScene {
         Self { resources, batch }
     }
 
-    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera) {
-        self.batch.update_camera(queue, camera);
+    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera, env: &Env) {
+        self.batch.update_camera(queue, camera, env);
     }
 
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        self.batch.draw(render_pass, &self.resources);
+        self.batch.draw(render_pass, &self.resources, false);
     }
 }

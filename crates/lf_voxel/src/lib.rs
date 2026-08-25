@@ -1,3 +1,4 @@
+pub mod light;
 pub mod meshing;
 pub mod raycast;
 pub mod registry;

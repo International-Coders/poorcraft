@@ -15,6 +15,8 @@ pub mod block {
     pub const COAL_ORE: u32 = 9;
     pub const IRON_ORE: u32 = 10;
     pub const WATER: u32 = 11;
+    pub const TORCH: u32 = 12;
+    pub const LANTERN: u32 = 13;
 
     pub fn name(id: u32) -> &'static str {
         match id {
@@ -30,6 +32,8 @@ pub mod block {
             COAL_ORE => "Coal Ore",
             IRON_ORE => "Iron Ore",
             WATER => "Water",
+            TORCH => "Torch",
+            LANTERN => "Lantern",
             _ => "Unknown",
         }
     }
@@ -37,14 +41,15 @@ pub mod block {
 
 /// Blocks entities collide with. Water is not solid; leaves are.
 pub fn is_solid(b: BlockState) -> bool {
-    b.id() != block::AIR && b.id() != block::WATER
+    let id = b.id();
+    id != block::AIR && id != block::WATER && id != block::TORCH && id != block::LANTERN
 }
 
 /// Blocks that hide the neighboring face when meshing. Air, water and leaves
 /// let faces behind them render.
 pub fn is_opaque(b: BlockState) -> bool {
     let id = b.id();
-    id != block::AIR && id != block::WATER && id != block::LEAVES
+    id != block::AIR && id != block::WATER && id != block::LEAVES && id != block::TORCH && id != block::LANTERN
 }
 
 /// Blocks the crosshair can target (mining/placing raycast hits).
@@ -71,7 +76,7 @@ mod tests {
 
     #[test]
     fn all_blocks_named() {
-        for id in 0..=11u32 {
+        for id in 0..=13u32 {
             assert_ne!(block::name(id), "Unknown", "id {} unnamed", id);
         }
     }

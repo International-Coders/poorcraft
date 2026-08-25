@@ -115,13 +115,14 @@ impl State {
             }
         }
         let mesh = lf_voxel::meshing::mesh_section(&section, None, None, None, None, None, None,
-            &|b| lf_assets::texture_index_for_block(b.id()));
+            &|b| lf_assets::texture_index_for_block(b.id()), &|_, _, _| 0xF0);
         let vertices: Vec<GpuVertex> = mesh.vertices.iter().map(|v| GpuVertex {
             position: v.position,
             normal: v.normal,
             tex_coord: v.tex_coord,
             tex_index: v.tex_index,
             ao: v.ao,
+            light: v.light,
         }).collect();
 
         let textures = lf_assets::generate_atlas();
@@ -161,7 +162,13 @@ impl State {
     }
 
     fn update(&mut self) {
-        self.scene.update_camera(&self.queue, &self.camera);
+        let env = crate::scene::Env {
+            camera_pos: self.camera.eye,
+            day_factor: 1.0,
+            fog_color: [0.53, 0.81, 0.98],
+            fog_far: 1000.0,
+        };
+        self.scene.update_camera(&self.queue, &self.camera, &env);
     }
 
     fn render(&mut self) {
