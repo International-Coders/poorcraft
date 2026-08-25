@@ -214,3 +214,4 @@
 - [x] Skin Customizer UI -> shots/ev_skin_customizer.png
 - [x] Cape Pattern Editor -> shots/ev_cape_editor.png
 - [x] Cinematic Camera mode -> shots/ev_cinematic_camera.png
+- [x] Ambient Occlusion (AO) shader enhancement -> shots/ev_ambient_occlusion.png
