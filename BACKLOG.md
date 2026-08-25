@@ -54,3 +54,5 @@
 - [x] performance profiling pass -> shots/ev_perf_profiling.png
 - [x] levitation particle effect -> shots/ev_levitation_particles.png
 - [x] loot chest structure -> shots/ev_loot_chest.png
+- [x] Crystal Caverns biome -> shots/ev_crystal_caverns.png
+- [x] Voidsteel tool material -> shots/ev_voidsteel.png
