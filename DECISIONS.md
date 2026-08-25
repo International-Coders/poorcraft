@@ -9,5 +9,6 @@
 - M6: implemented 20-min day/night TimeOfDay with sky color interpolation, block light levels (torch=14, lantern=15), and light engine for M6 proof
 - M7: added PlayerStats (health/hunger/saturation), Inventory (36+4+1 slots), item stacking up to 64, and unit tests for M7 proof
 - M8: implemented 8-material forge+anvil system with tool parts (head/haft/binding) assembly, forge minigame, and stat tests (shots/m8_forge.png)
+- M9: implemented mobs (Boar, Woolbeast, Glitchling, Stalker, Crawler, Null Knight boss) and combat system; saved shots/m9_boss.png
 
 

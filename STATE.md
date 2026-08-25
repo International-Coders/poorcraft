@@ -1,9 +1,9 @@
 # STATE
-loop_count: 9
-current_milestone: M9
-last_done: "implemented medieval smithing with 8 materials, tool parts, forge minigame; 3 tests passing; captured m8_forge.png"
-next_task: "implement M9 mobs: 2 passive, 3 hostile, 1 boss"
+loop_count: 10
+current_milestone: M10
+last_done: "implemented mobs: 2 passive, 3 hostile, Null Knight boss; combat system; 2 tests passing; captured m9_boss.png"
+next_task: "implement M10 mods: data packs + Lua runtime, hot reload, ember_ores example"
 build: GREEN
 tests: passing
-last_screenshot: shots/m8_forge.png
+last_screenshot: shots/m9_boss.png
 blockers: none

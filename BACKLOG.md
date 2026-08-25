@@ -9,7 +9,8 @@
 - [x] M6 day/night cycle, sky light -> shots/m6_night.png
 - [x] M7 survival core (inventory, crafting) -> shots/m7_survival.png
 - [x] M8 medieval smithing system -> shots/m8_forge.png
-- [ ] M9 mobs and boss -> shots/m9_boss.png
+- [x] M9 mobs and boss -> shots/m9_boss.png
+- [ ] M10 mods (data packs + Lua) -> shots/m10_mod.png
 - [ ] M7 survival core (inventory, crafting)
 - [ ] M8 medieval smithing system -> shots/m8_forge.png
 - [ ] M9 mobs and boss -> shots/m9_boss.png
