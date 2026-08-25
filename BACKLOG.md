@@ -16,4 +16,4 @@
 - [x] M14 chronicle engine + saga generator + mythos generation -> shots/m14_chronicle.png
 - [x] M15 visual test harness --headless --scene --out shots/m15_vistest.png
 - [x] M16 release builds in CI (.exe, .dmg, .deb)
-- [ ] M17 polish, settings, localization -> shots/m17_title.png
+- [x] M17 polish, settings, localization -> shots/m17_title.png

@@ -1,9 +1,9 @@
 # STATE
-loop_count: 16
-current_milestone: M16
-last_done: "implemented visual test harness --headless --scene, scene registry, CI pipeline with vistest; captured m15_vistest.png and m16_release.png"
-next_task: "implement M17 polish: sound, settings screen, English + Português (BR) localization, title screen"
+loop_count: 17
+current_milestone: M17
+last_done: "implemented polish: sound mixer (kira buses), settings screen, English + Português (BR) localization, title screen; captured m17_title.png"
+next_task: "all milestones complete - enter Evolution Mode"
 build: GREEN
 tests: passing
-last_screenshot: shots/m16_release.png
+last_screenshot: shots/m17_title.png
 blockers: none
