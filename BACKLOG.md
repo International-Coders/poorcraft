@@ -143,3 +143,4 @@
 - [x] Witch Hut structure -> shots/ev_witch_hut.png
 - [x] Desert Pyramid structure -> shots/ev_desert_pyramid.png
 - [x] Jungle Temple structure -> shots/ev_jungle_temple.png
+- [x] Igloo structure -> shots/ev_igloo.png
