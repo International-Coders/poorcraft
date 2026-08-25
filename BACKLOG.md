@@ -132,3 +132,4 @@
 - [x] Bee Nest and Beehive blocks -> shots/ev_bees.png
 - [x] Sea Turtle mob -> shots/ev_turtle.png
 - [x] Fox mob -> shots/ev_fox.png
+- [x] Panda mob -> shots/ev_panda.png
