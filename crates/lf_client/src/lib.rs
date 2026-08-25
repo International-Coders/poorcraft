@@ -26,6 +26,7 @@ pub mod ui;
 use lf_engine::camera::Camera;
 use lf_engine::outline::OutlineScene;
 use lf_engine::scene::{GpuVertex, MeshBatch, SceneResources};
+use lf_chronicle::{ChronicleEvent, EventType, SagaGenerator};
 use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, tier_durability, ItemKind};
 use lf_game::mining::{break_time, tool_satisfies};
@@ -33,6 +34,7 @@ use lf_game::mobs::{roll_spawn, MobEntity, MobType};
 use lf_game::player::{Player, PlayerInput, EYE_HEIGHT, PLAYER_HALF_WIDTH, PLAYER_HEIGHT};
 use lf_game::items::tool_damage;
 use lf_game::survival::{Inventory, ItemStack, PlayerStats};
+use lf_story::{QuestEvent, QuestLog, starter_quests};
 use lf_voxel::raycast::raycast_voxel;
 use lf_voxel::registry;
 use lf_voxel::world::{PlayerSave, WorldStorage};
@@ -181,6 +183,7 @@ pub enum UiOpen {
     None,
     Title,
     Pause,
+    QuestLog,
     Inventory,
     CraftingTable,
     Furnace((i32, i32, i32)),
@@ -233,6 +236,8 @@ pub struct ClientSave {
     pub block_entities: Vec<((i32, i32, i32), BlockEntity)>,
     pub mobs: Vec<MobEntity>,
     pub kills: u32,
+    pub quest_log: Option<QuestLog>,
+    pub chronicle: Vec<ChronicleEvent>,
 }
 
 struct App {
@@ -318,6 +323,17 @@ impl ApplicationHandler for App {
                                                 state.shutdown(event_loop);
                                             }
                                             return;
+                                        }
+                                        KeyCode::KeyJ => {
+                                            if matches!(state.ui_open, UiOpen::None | UiOpen::QuestLog) && state.stats.health > 0.0 {
+                                                if state.ui_open == UiOpen::QuestLog {
+                                                    state.close_ui();
+                                                } else {
+                                                    state.ui_open = UiOpen::QuestLog;
+                                                    state.unlock_cursor();
+                                                }
+                                                return;
+                                            }
                                         }
                                         KeyCode::KeyE => {
                                             if state.stats.health > 0.0 {
@@ -437,6 +453,8 @@ struct GameState {
     attack_cooldown: f32,
     pub kills: u32,
     pub quit_requested: bool,
+    pub quest_log: QuestLog,
+    pub chronicle: Vec<ChronicleEvent>,
     pub settings: Settings,
     pub air: u8,
     spawn_point: Vec3,
@@ -543,7 +561,7 @@ impl GameState {
         player.flying = false;
 
         // Inventory/stats/time from the extras file.
-        let (inventory, stats, time, block_entities, mobs, kills) = load_client_save(Path::new(WORLD_DIR));
+        let (inventory, stats, time, block_entities, mobs, kills, quest_log, chronicle) = load_client_save(Path::new(WORLD_DIR));
 
         let egui = EguiPlatform::new(&device, config.format, &window);
 
@@ -592,6 +610,8 @@ impl GameState {
             attack_cooldown: 0.0,
             kills: 0,
             quit_requested: false,
+            quest_log,
+            chronicle,
             settings: Settings::default(),
             air: 10,
             spawn_point,
@@ -685,9 +705,15 @@ impl GameState {
             block_entities: self.block_entities.iter().map(|(k, v)| (*k, v.clone())).collect(),
             mobs: self.mobs.clone(),
             kills: self.kills,
+            quest_log: Some(self.quest_log.clone()),
+            chronicle: self.chronicle.clone(),
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
             let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
+        }
+        if !self.chronicle.is_empty() {
+            let md = SagaGenerator::export_markdown(&self.chronicle);
+            let _ = std::fs::write(Path::new(WORLD_DIR).join("chronicle.md"), md);
         }
         tracing::info!("world saved to {}", WORLD_DIR);
     }
@@ -844,6 +870,14 @@ impl GameState {
                             self.spawn_drop(item, *n, pos + Vec3::new(0.0, 0.5, 0.0));
                         }
                         self.kills += 1;
+                        if self.kills == 1 {
+                            self.chronicle_event(EventType::FirstBlood, "struck down the first creature".into());
+                        }
+                        if kind == MobType::NullKnight {
+                            self.chronicle_event(EventType::BossSlain, "the Null Knight falls".into());
+                        }
+                        let kind_name = format!("{:?}", kind);
+                        self.quest_event(QuestEvent::Killed(kind_name.clone()));
                         tracing::info!("killed a {:?}", kind);
                         self.mobs.remove(mob_hit);
                     }
@@ -1065,11 +1099,34 @@ impl GameState {
     pub fn damage(&mut self, amount: f32) {
         self.stats.health = (self.stats.health - amount).max(0.0);
         if self.stats.health <= 0.0 {
+            self.chronicle_event(EventType::Death, "the Smith fell".into());
             // death
             self.ui_open = UiOpen::Death;
             self.unlock_cursor();
             tracing::info!("player died");
         }
+    }
+
+    /// Feed a gameplay event into quests (and log chronicle milestones).
+    pub fn quest_event(&mut self, event: QuestEvent) {
+        let finished = self.quest_log.record_event(&event);
+        for id in finished {
+            let title = self.quest_log.quests.iter().find(|q| q.id == id)
+                .map(|q| q.title.clone()).unwrap_or_default();
+            tracing::info!("quest complete: {}", title);
+            self.chronicle_event(EventType::ActCompleted, format!("completed quest '{}'", title));
+        }
+    }
+
+    pub fn chronicle_event(&mut self, event_type: EventType, payload: String) {
+        self.chronicle.push(ChronicleEvent {
+            id: format!("e{}", self.chronicle.len() + 1),
+            event_type,
+            in_game_date: self.time.ticks / lf_game::TimeOfDay::TICKS_PER_DAY,
+            location: self.player.position.to_array(),
+            actors: vec!["The Smith".into()],
+            payload,
+        });
     }
 
     /// Index of the nearest mob roughly under the crosshair, within reach.
@@ -1146,6 +1203,7 @@ impl GameState {
     fn update_drops(&mut self, dt: f32) {
         let player_center = self.player.position + Vec3::new(0.0, 0.9, 0.0);
         let mut to_remove: Vec<usize> = Vec::new();
+        let mut collected: Vec<String> = Vec::new();
         for (i, drop) in self.drops.iter_mut().enumerate() {
             drop.age += dt;
             drop.velocity.y -= 20.0 * dt;
@@ -1165,16 +1223,28 @@ impl GameState {
                 drop.position += d.normalize() * (6.0 * dt);
             }
             if dist < 1.2 && drop.age > 0.5 {
-                let leftover = self.inventory.add_item(&drop.stack.item_id, drop.stack.count);
-                if leftover == 0 {
+                let taken = drop.stack.count.saturating_sub(
+                    self.inventory.add_item(&drop.stack.item_id, drop.stack.count)
+                );
+                if taken > 0 {
+                    collected.push(drop.stack.item_id.clone());
+                }
+                if drop.stack.count == taken {
                     to_remove.push(i);
                 } else {
-                    drop.stack.count = leftover;
+                    drop.stack.count -= taken;
                 }
             }
         }
         for i in to_remove.into_iter().rev() {
             self.drops.remove(i);
+        }
+        for item in collected {
+            let first_ever = self.chronicle.is_empty();
+            self.quest_event(QuestEvent::Collected(item.clone()));
+            if first_ever && item == "log" {
+                self.chronicle_event(EventType::FirstCraft, "collected the first logs".into());
+            }
         }
     }
 
@@ -1540,13 +1610,21 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, u32) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, u32, QuestLog, Vec<ChronicleEvent>) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
     let mut entities = HashMap::new();
     let mut mobs = Vec::new();
     let mut kills = 0;
+    let mut quest_log = {
+        let mut log = QuestLog::new();
+        for q in starter_quests() {
+            log.add_quest(q);
+        }
+        log
+    };
+    let mut chronicle = Vec::new();
     if let Ok(bytes) = std::fs::read(dir.join("player_extras.dat")) {
         if let Ok(save) = bincode::deserialize::<ClientSave>(&bytes) {
             for (i, slot) in save.slots.iter().enumerate().take(inventory.slots.len()) {
@@ -1557,10 +1635,14 @@ fn load_client_save(dir: &Path)
             entities.extend(save.block_entities);
             mobs = save.mobs;
             kills = save.kills;
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, kills);
+            if let Some(q) = save.quest_log {
+                quest_log = q;
+            }
+            chronicle = save.chronicle;
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, kills, quest_log, chronicle);
         }
     }
-    (inventory, stats, time, entities, mobs, kills)
+    (inventory, stats, time, entities, mobs, kills, quest_log, chronicle)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.

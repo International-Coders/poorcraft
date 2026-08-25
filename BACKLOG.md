@@ -82,8 +82,12 @@ below by phase.
 - [ ] world types superflat/amplified (deferred with world-creation UI)
 
 ## P8 — Quests & chronicle live
-- [ ] quest triggers from gameplay (collect/kill/reach/craft)
-- [ ] quest log UI + tracking; chronicle records live events; lore books
+- [x] quest events from gameplay (collect/craft/kill) advance objectives with progress (+1 test)
+- [x] 5-quest starter chain (timber -> planks -> tools -> iron age -> night hunter)
+- [x] quest log UI (J) with objectives, progress and the chronicle
+- [x] chronicle records live milestones, exports worlds/<name>/chronicle.md on save
+- [x] quest/chronicle state persists with the world
+- [ ] lore books readable in-game (deferred)
 
 ## P9 — Multiplayer
 - [ ] expand protocol (join/leave, snapshots, block ops, chat, inventory)

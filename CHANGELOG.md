@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-25 — P8: quests & chronicle live (loop 290)
+- lf_story: QuestEvent (Collected/Crafted/Killed/ReachedDepth) advancing
+  objectives with progress counters; starter_quests() 5-quest chain (+1 test).
+- Client: events wired to pickups, crafting, mob kills; quest log UI on J
+  showing objectives/progress/chronicle; chronicle milestones (first logs,
+  first blood, Null Knight slain, deaths, quest completions) exported to
+  worlds/<name>/chronicle.md on save; state persists in the save.
+- Tests 91 -> 92; game smoke-tested.
+
 ## 2026-08-25 — P7: structures, menus, UI proofs (loop 289)
 - worldgen structures: meadow huts, highlands watchtowers, desert pyramids
   (deterministic per-chunk placement, in-chunk footprints, +1 test).

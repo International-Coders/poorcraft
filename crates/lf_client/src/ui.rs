@@ -231,6 +231,7 @@ impl GameState {
             UiOpen::None => {}
             UiOpen::Title => self.draw_title(ctx),
             UiOpen::Pause => self.draw_pause(ctx),
+            UiOpen::QuestLog => self.draw_quest_log(ctx),
             UiOpen::Inventory => self.draw_inventory(ctx, 2),
             UiOpen::CraftingTable => self.draw_inventory(ctx, 3),
             UiOpen::Furnace(pos) => self.draw_furnace(ctx, pos),
@@ -367,7 +368,7 @@ impl GameState {
                                 };
                                 if can_take {
                                     match &mut self.cursor_stack {
-                                        None => self.cursor_stack = Some(crafted),
+                                        None => self.cursor_stack = Some(crafted.clone()),
                                         Some(c) => c.count += n,
                                     }
                                     let mut grid_slots: Vec<Option<ItemStack>> =
@@ -376,6 +377,7 @@ impl GameState {
                                     for (i, s) in grid_slots.into_iter().enumerate() {
                                         self.craft_grid[i] = s;
                                     }
+                                    self.quest_event(crate::QuestEvent::Crafted(crafted.item_id.clone()));
                                 }
                             }
                         }
@@ -513,6 +515,37 @@ impl GameState {
                 game.inventory.slots[i] = stack;
             }
         });
+    }
+
+    fn draw_quest_log(&mut self, ctx: &egui::Context) {
+        egui::Window::new("Quest Log — J to close")
+            .anchor(egui::Align2::LEFT_TOP, egui::vec2(12.0, 12.0))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                for quest in &self.quest_log.quests {
+                    let heading_color = if quest.completed {
+                        egui::Color32::from_rgb(120, 200, 120)
+                    } else {
+                        egui::Color32::from_rgb(240, 210, 140)
+                    };
+                    ui.heading(egui::RichText::new(&quest.title).size(18.0).color(heading_color));
+                    ui.label(egui::RichText::new(format!("Act {} — {}", quest.act, quest.description)).small());
+                    for obj in &quest.objectives {
+                        let mark = if obj.completed { "[x]" } else { "[ ]" };
+                        ui.label(format!("  {} {} — {}/{}", mark, obj.target, obj.progress.min(obj.count), obj.count));
+                    }
+                    ui.add_space(6.0);
+                }
+                if !self.chronicle.is_empty() {
+                    ui.separator();
+                    ui.heading("Chronicle");
+                    let md = lf_chronicle::SagaGenerator::export_markdown(&self.chronicle);
+                    egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
+                        ui.label(egui::RichText::new(md).small().monospace());
+                    });
+                }
+            });
     }
 
     fn draw_title(&mut self, ctx: &egui::Context) {
