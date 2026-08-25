@@ -40,3 +40,4 @@
 - [x] warhammer weapon category -> shots/ev_warhammer.png
 - [x] Twilight Grove biome -> shots/ev_twilight_grove.png
 - [x] server browser UI for multiplayer -> shots/ev_server_browser.png
+- [x] Levitation rune effect -> shots/ev_rune_levitation.png
