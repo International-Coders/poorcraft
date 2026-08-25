@@ -1,9 +1,9 @@
 # STATE
-loop_count: 70
+loop_count: 72
 current_milestone: Evolution
-last_done: "Evolution Mode: added Frost Mantle horse armor with ice resistance +50% and slip resistance; captured ev_frost_mantle.png"
+last_done: "Evolution Mode: added Runecrafter Table crafting station for weapon/armor rune inscription; captured ev_runecrafter_table.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_frost_mantle.png
+last_screenshot: shots/ev_runecrafter_table.png
 blockers: none

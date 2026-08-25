@@ -67,3 +67,5 @@
 - [x] Glowcap Mushroom flower -> shots/ev_glowcap.png
 - [x] combat combo system -> shots/ev_combo_system.png
 - [x] Frost Mantle horse armor -> shots/ev_frost_mantle.png
+- [x] Ancient Crypt structure -> shots/ev_ancient_crypt.png
+- [x] Runecrafter Table station -> shots/ev_runecrafter_table.png
