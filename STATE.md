@@ -1,9 +1,9 @@
 # STATE
-loop_count: 276
+loop_count: 277
 current_milestone: Evolution
-last_done: "Evolution Mode: added End Rod Lights slender white light sources emitting white particle effects in End structures; captured ev_end_rod.png"
+last_done: "Evolution Mode: added Lodestone and Compass magnetic navigation items that link to a specific lodestone block in any dimension; captured ev_lodestone.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_end_rod.png
+last_screenshot: shots/ev_lodestone.png
 blockers: none

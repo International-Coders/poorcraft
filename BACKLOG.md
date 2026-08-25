@@ -245,3 +245,4 @@
 - [x] End City Ships and Loot -> shots/ev_end_ship.png
 - [x] Dragon Head Blocks -> shots/ev_dragon_head.png
 - [x] End Rod Lights -> shots/ev_end_rod.png
+- [x] Lodestone and Compass -> shots/ev_lodestone.png
