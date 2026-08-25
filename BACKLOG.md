@@ -141,3 +141,4 @@
 - [x] Ruined Portal structure -> shots/ev_ruined_portal.png
 - [x] Pillager Outpost structure -> shots/ev_pillager_outpost.png
 - [x] Witch Hut structure -> shots/ev_witch_hut.png
+- [x] Desert Pyramid structure -> shots/ev_desert_pyramid.png

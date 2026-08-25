@@ -1,9 +1,9 @@
 # STATE
-loop_count: 148
+loop_count: 149
 current_milestone: Evolution
-last_done: "Evolution Mode: added Witch Hut structure swamp hut with cauldron and witch mob; captured ev_witch_hut.png"
+last_done: "Evolution Mode: added Desert Pyramid structure underground chamber with TNT trap and chest loot; captured ev_desert_pyramid.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_witch_hut.png
+last_screenshot: shots/ev_desert_pyramid.png
 blockers: none
