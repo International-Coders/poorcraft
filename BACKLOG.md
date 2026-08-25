@@ -61,3 +61,6 @@
 - [x] key rebinding menu -> shots/ev_key_rebinding.png
 - [x] ambient cave wind sound -> shots/ev_cave_wind.png
 - [x] Fire Resistance rune effect -> shots/ev_fire_resistance.png
+- [x] Twilight Grove NPC dialogue pack -> shots/ev_twilight_dialogue.png
+- [x] medieval siege tower -> shots/ev_siege_tower.png
+- [x] Shadow Amulet artifact -> shots/ev_shadow_amulet.png
