@@ -1,9 +1,9 @@
 # STATE
-loop_count: 4
-current_milestone: M4
-last_done: "implemented DDA raycast in lf_voxel with tests passing, captured m3_breakplace.png proof"
-next_task: "implement M4 endless terrain noise heightmap and 3+ biomes"
+loop_count: 5
+current_milestone: M5
+last_done: "implemented lf_worldgen with deterministic noise heightmap, biomes, strata, and tests passing; captured m4_terrain.png"
+next_task: "implement M5 world save and load round-trip persistence"
 build: GREEN
 tests: passing
-last_screenshot: shots/m3_breakplace.png
+last_screenshot: shots/m4_terrain.png
 blockers: none
