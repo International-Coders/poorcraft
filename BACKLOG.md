@@ -187,3 +187,4 @@
 - [x] End Crystal -> shots/ev_end_crystal.png
 - [x] Dragon Breath item and Lingering Potions -> shots/ev_dragon_breath.png
 - [x] Shulker Box -> shots/ev_shulker_box.png
+- [x] Dyed Shulker Boxes -> shots/ev_dyed_shulker_boxes.png
