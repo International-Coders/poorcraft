@@ -48,3 +48,4 @@
 - [x] async chunk loading thread pool -> shots/ev_async_chunk_loading.png
 - [x] Ancient Shrine structure -> shots/ev_ancient_shrine.png
 - [x] Quest log + 5 quest progression -> shots/ev_quest_log.png
+- [x] Void Serpent chronicle chapter -> shots/ev_chronicle_voidserpent.png
