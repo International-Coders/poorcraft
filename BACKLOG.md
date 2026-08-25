@@ -238,3 +238,4 @@
 - [x] Elytra Flight Wings -> shots/ev_elytra_wings.png
 - [x] Ender Pearls -> shots/ev_ender_pearl.png
 - [x] End Crystal Blocks -> shots/ev_end_crystal.png
+- [x] Dragon Egg Block -> shots/ev_dragon_egg.png
