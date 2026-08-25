@@ -71,6 +71,25 @@ pub mod block {
     pub const CHEST: u32 = 16;
     pub const PLANKS: u32 = 17;
     pub const GLASS: u32 = 18;
+    // biome/wood variants
+    pub const BIRCH_LOG: u32 = 19;
+    pub const SPRUCE_LOG: u32 = 20;
+    pub const DARK_LOG: u32 = 21;
+    pub const CHERRY_LOG: u32 = 22;
+    pub const BIRCH_LEAVES: u32 = 23;
+    pub const SPRUCE_LEAVES: u32 = 24;
+    pub const DARK_LEAVES: u32 = 25;
+    pub const CHERRY_LEAVES: u32 = 26;
+    pub const PALE_LEAVES: u32 = 27;
+    pub const RED_SAND: u32 = 28;
+    pub const TERRACOTTA: u32 = 29;
+    pub const MOSS: u32 = 30;
+    pub const ICE: u32 = 31;
+    // industrial ores
+    pub const COPPER_ORE: u32 = 32;
+    pub const TIN_ORE: u32 = 33;
+    pub const BAUXITE_ORE: u32 = 34;
+    pub const SULFUR_ORE: u32 = 35;
 
     pub fn name(id: u32) -> &'static str {
         if let Some(def) = crate::registry::mod_block(id) {
@@ -97,6 +116,23 @@ pub mod block {
             CHEST => "Chest",
             PLANKS => "Planks",
             GLASS => "Glass",
+            BIRCH_LOG => "Birch Log",
+            SPRUCE_LOG => "Spruce Log",
+            DARK_LOG => "Dark Oak Log",
+            CHERRY_LOG => "Cherry Log",
+            BIRCH_LEAVES => "Birch Leaves",
+            SPRUCE_LEAVES => "Spruce Leaves",
+            DARK_LEAVES => "Dark Oak Leaves",
+            CHERRY_LEAVES => "Cherry Leaves",
+            PALE_LEAVES => "Pale Leaves",
+            RED_SAND => "Red Sand",
+            TERRACOTTA => "Terracotta",
+            MOSS => "Moss",
+            ICE => "Ice",
+            COPPER_ORE => "Copper Ore",
+            TIN_ORE => "Tin Ore",
+            BAUXITE_ORE => "Bauxite Ore",
+            SULFUR_ORE => "Sulfur Ore",
             _ => "Unknown",
         }
     }
@@ -119,7 +155,7 @@ pub fn is_opaque(b: BlockState) -> bool {
         return mod_block(id).map(|d| d.opaque).unwrap_or(true);
     }
     id != block::AIR && id != block::WATER && id != block::LEAVES && id != block::TORCH
-        && id != block::LANTERN && id != block::GLASS
+        && id != block::LANTERN && id != block::GLASS && id != block::ICE
 }
 
 /// Blocks the crosshair can target (mining/placing raycast hits).

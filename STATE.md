@@ -1,9 +1,9 @@
 # STATE
-loop_count: 293
-current_milestone: P11-complete
-last_done: "P11: performance & release — light cache with edit invalidation (caught and fixed two real lighting bugs: mesher never sampled the light closure, and section-local y indexed world light); per-face lighting now real (renders show true dynamic range); xtask package assembles portable dist/ zip with binaries+mods+docs; CI release matrix (linux/macOS/windows) uploads artifacts; honest RELEASE.md. 104 tests pass; game smoke-tested; BASE GAME PLAN P0-P11 COMPLETE"
-next_task: "Polish backlog (sound, weather, armor, beds, mob sync) — see BACKLOG.md"
+loop_count: 294
+current_milestone: P12-world-atmosphere
+last_done: "P12: world & atmosphere — biome table rebuilt as data (30 biomes, census-verified in a sampled world; variant-noise neighbors like Birch/Dark/Cherry/Pale); 13 new blocks (5 wood pairs, red sand, terracotta, moss, ice) + per-species tree shapes (conifer cones, jungle, cherry blobs; >=3 species test); clouds (drifting noise layer, transparent pass), sun/moon billboards + night stars, underwater fog/tint, weather cycle (rain/snow by biome, particles, storm sky darkening); world types superflat/amplified (title-screen new-world buttons). 106 tests; 9 scenes render; clouds verified at 8.6% white pixels in proof shot"
+next_task: "P13: NPCs & villages (villagers, trading UI, lore books)"
 build: GREEN
-tests: 104 passing
-last_screenshot: shots/vistest_hud_preview.png
+tests: 106 passing
+last_screenshot: shots/vistest_clouds_weather.png
 blockers: none

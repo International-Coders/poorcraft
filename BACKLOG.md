@@ -78,8 +78,9 @@ below by phase.
 - [x] structures: meadow huts (torch/crafting table/furnace), highlands watchtowers, desert pyramids — deterministic (+1 test)
 - [x] title screen (Play/Quit) and pause menu with sensitivity/FOV settings
 - [x] UI proof screenshots: hud_preview scene renders the real egui HUD offscreen
-- [ ] weather particles, sound (kira), key rebinding, PT-BR (deferred — tracked for P11 polish)
-- [ ] world types superflat/amplified (deferred with world-creation UI)
+- [x] weather particles (rain/snow by biome) — sound lands in P17
+- [x] world types superflat/amplified with title-screen selection
+- [ ] key rebinding, PT-BR (P19)
 
 ## P8 — Quests & chronicle live
 - [x] quest events from gameplay (collect/craft/kill) advance objectives with progress (+1 test)

@@ -94,6 +94,26 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::new(24.0, 0.0, 8.0),
         },
         SceneSpec {
+            name: "biome_montage",
+            desc: "vista across the 30-biome world (mixed tree species)",
+            default_seed: 4242,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            eye: Vec3::new(-60.0, 0.0, 110.0),
+            target: Vec3::new(40.0, 0.0, 0.0),
+        },
+        SceneSpec {
+            name: "clouds_weather",
+            desc: "above the cloud layer looking down through it, rain below",
+            default_seed: 4242,
+            time_of_day: 0.55,
+            first_person: false,
+            torches: false,
+            eye: Vec3::new(-30.0, 210.0, 60.0),
+            target: Vec3::new(30.0, 110.0, -20.0),
+        },
+        SceneSpec {
             name: "hud_preview",
             desc: "in-game view with the real HUD drawn via egui (proof shot)",
             default_seed: 12345,
@@ -231,6 +251,25 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         fog_color: spec.time_of_day().sky_color(),
         fog_far: 220.0,
     };
+    // clouds/weather scene: atmosphere geometry joins the standard mesh
+    let (mut vertices, mut indices, mut water_vertices, mut water_indices) =
+        (vertices, indices, water_vertices, water_indices);
+    if spec.name == "clouds_weather" {
+        let (sv, si) = lf_engine::atmosphere::sky_bodies(eye, spec.time_of_day);
+        let base = vertices.len() as u32;
+        vertices.extend(sv);
+        indices.extend(si.iter().map(|i| i + base));
+        let (cv, ci) = lf_engine::atmosphere::cloud_mesh(eye, 40.0);
+        let wbase = water_vertices.len() as u32;
+        water_vertices.extend(cv);
+        water_indices.extend(ci.iter().map(|i| i + wbase));
+        let (rv, ri) = lf_engine::atmosphere::weather_particles(Vec3::new(0.0, 100.0, 0.0), 3.0, false);
+        let rbase = water_vertices.len() as u32;
+        water_vertices.extend(rv);
+        water_indices.extend(ri.iter().map(|i| i + rbase));
+    }
+    let (vertices, indices, water_vertices, water_indices) = (vertices, indices, water_vertices, water_indices);
+
     let ui = if spec.name == "hud_preview" {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {

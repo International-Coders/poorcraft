@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-08-25 — P12: world & atmosphere completion (loop 294)
+- Biomes: data-driven table, 8 -> 30 (variant channel splits climate bands;
+  census test verifies all 30 occur in a sampled world; per-biome surfaces,
+  tree species, freezing oceans cap with ice).
+- Blocks: birch/spruce/dark/cherry logs + leaves, pale leaves, red sand,
+  terracotta (banded), moss, packed ice (+textures); Badlands strata.
+- Trees: per-species shapes (conifer cones, tall jungle, wide cherry/dark
+  canopies); >=3 species generation test.
+- Atmosphere (lf_engine::atmosphere): drifting cloud layer (transparent
+  pass), sun/moon billboards with celestial rotation, night stars,
+  underwater fog/tint, weather cycle with rain/snow particles and storm
+  sky darkening. Cloud winding bug caught by pixel-proof (visible from
+  below only) — fixed.
+- World types: Normal/Superflat/Amplified (superflat = flat, no caves/
+  ores/structures); title-screen new-world buttons; type persists.
+- Proofs: biome_montage (19 green hue buckets = species variety),
+  clouds_weather (8.6% white cloud pixels). Tests 104 -> 106.
+
 ## 2026-08-25 — P11: performance & release; base game complete (loop 293)
 - World light cache with invalidation on edits (+test) — writing the test
   exposed two real bugs: the mesher never actually sampled the light

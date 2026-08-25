@@ -163,6 +163,61 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([220, 240, 245, 60])
                     }
                 }
+                "birch_log" => {
+                    let v = 200 + ((x * 3 + y * 5) % 10);
+                    let fleck = (x * 7 + y * 3) % 11 == 0;
+                    if fleck { Rgba([70, 70, 65, 255]) } else { Rgba([ch(v), ch(v - 8), ch(v - 30), 255]) }
+                }
+                "spruce_log" => {
+                    let v = 70 + ((x * 9 + y * 5) % 16);
+                    Rgba([ch(v), ch(v - 20), ch(v - 35), 255])
+                }
+                "dark_log" => {
+                    let v = 55 + ((x * 5 + y * 11) % 14);
+                    Rgba([ch(v), ch(v - 15), ch(v - 25), 255])
+                }
+                "cherry_log" => {
+                    let v = 150 + ((x * 3 + y * 7) % 12);
+                    Rgba([ch(v - 30), ch(v - 60), ch(v - 75), 255])
+                }
+                "birch_leaves" => {
+                    let v = 50 + ((x * 13 + y * 7) % 35);
+                    Rgba([ch(v + 60), ch(v + 110), ch(v + 30), 255])
+                }
+                "spruce_leaves" => {
+                    let v = 35 + ((x * 11 + y * 5) % 30);
+                    Rgba([ch(v / 3), ch(v + 40), ch(v / 3), 255])
+                }
+                "dark_leaves" => {
+                    let v = 30 + ((x * 7 + y * 13) % 25);
+                    Rgba([ch(v / 4), ch(v / 2), ch(v / 5), 255])
+                }
+                "cherry_leaves" => {
+                    let v = 180 + ((x * 5 + y * 11) % 40);
+                    Rgba([ch(v), ch(v - 40), ch(v - 70), 255])
+                }
+                "pale_leaves" => {
+                    let v = 120 + ((x * 7 + y * 5) % 35);
+                    Rgba([ch(v), ch(v - 5), ch(v - 15), 255])
+                }
+                "red_sand" => {
+                    let v = 180 + ((x * 3 + y * 5) % 12);
+                    Rgba([ch(v), ch(v - 60), ch(v - 90), 255])
+                }
+                "terracotta" => {
+                    let band = (y / 4) % 3;
+                    let base = match band { 0 => 190, 1 => 160, _ => 175 };
+                    let v = base + ((x * 5 + y * 3) % 8);
+                    Rgba([ch(v), ch(v - 70), ch(v - 110), 255])
+                }
+                "moss" => {
+                    let v = 60 + ((x * 7 + y * 13) % 40);
+                    Rgba([ch(v / 3), ch(v + 20), ch(v / 4), 255])
+                }
+                "ice" => {
+                    let v = 190 + ((x * 3 + y * 7) % 20);
+                    Rgba([ch(v - 40), ch(v - 20), ch(v + 30), 200])
+                }
                 "mod" => {
                     let v = 100 + ((x * 5 + y * 11) % 40);
                     let band = (x + y) % 8 < 2;
@@ -205,6 +260,11 @@ mod tests {
             // fully opaque except water (transparent pass)
             if name == "glass" {
                 // frame opaque, pane translucent
+                continue;
+            }
+            if name == "ice" {
+                // translucent pane everywhere
+                assert!(tex.pixels().all(|p| p.0[3] == 200));
                 continue;
             }
             if name != "torch_item" {

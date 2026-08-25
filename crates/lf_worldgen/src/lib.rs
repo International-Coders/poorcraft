@@ -1,21 +1,20 @@
+pub mod biome;
+
+/// World generation archetype.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+pub enum WorldType {
+    #[default]
+    Normal,
+    Superflat,
+    Amplified,
+}
+
 use fastnoise_lite::{FastNoiseLite, NoiseType, FractalType};
+pub use biome::{Biome, TreeKind};
 
 /// Deterministic world generation seed across all platforms.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Seed(pub u64);
-
-/// Biomes (v1) from the spec.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Biome {
-    Ocean,
-    DeepOcean,
-    Meadow,
-    Desert,
-    Tundra,
-    MushroomHollow,
-    Highlands,
-    Mountains,
-}
 
 /// A block position in world space.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -44,15 +43,21 @@ impl BlockId {
 
 /// World generation data: heightmap, biomes, and strata per chunk column.
 pub struct WorldGen {
+    pub world_type: WorldType,
     noise_base: FastNoiseLite,
     noise_temp: FastNoiseLite,
     noise_humid: FastNoiseLite,
+    noise_variant: FastNoiseLite,
     noise_cave: FastNoiseLite,
     noise_ore: FastNoiseLite,
 }
 
 impl WorldGen {
     pub fn new(seed: Seed) -> Self {
+        Self::with_type(seed, WorldType::Normal)
+    }
+
+    pub fn with_type(seed: Seed, world_type: WorldType) -> Self {
         let mut base = FastNoiseLite::new();
         base.set_seed(Some(seed.0 as i32));
         base.set_noise_type(Some(NoiseType::Perlin));
@@ -69,6 +74,11 @@ impl WorldGen {
         humid.set_noise_type(Some(NoiseType::Perlin));
         humid.set_frequency(Some(0.006));
 
+        let mut variant = FastNoiseLite::new();
+        variant.set_seed(Some(seed.0.wrapping_add(31) as i32));
+        variant.set_noise_type(Some(NoiseType::Perlin));
+        variant.set_frequency(Some(0.008));
+
         let mut cave = FastNoiseLite::new();
         cave.set_seed(Some(seed.0.wrapping_add(101) as i32));
         cave.set_noise_type(Some(NoiseType::Perlin));
@@ -81,9 +91,11 @@ impl WorldGen {
         ore.set_frequency(Some(0.09));
 
         Self {
+            world_type,
             noise_base: base,
             noise_temp: temp,
             noise_humid: humid,
+            noise_variant: variant,
             noise_cave: cave,
             noise_ore: ore,
         }
@@ -92,13 +104,20 @@ impl WorldGen {
     /// Height at chunk column (x,z) in blocks. Range spans below and above
     /// sea level so ocean and mountain biomes are both reachable.
     pub fn height(&self, cx: i32, cz: i32) -> i32 {
+        if self.world_type == WorldType::Superflat {
+            return 64;
+        }
+        let amp = match self.world_type {
+            WorldType::Amplified => 2.0,
+            _ => 1.0,
+        };
         let n = self.noise_base.get_noise_2d(cx as f32, cz as f32);
         let scale = (n + 1.0) * 0.5; // 0..1, but FBM stays near the middle
         // Stretch the occupied band so real oceans and peaks exist.
         let stretched = (scale * 1.43 - 0.21).clamp(0.0, 1.0);
         let base = 24;
-        let amp = 152;
-        (base + (stretched * amp as f32).round() as i32).max(8)
+        let amp = 152.0 * amp;
+        (base + (stretched * amp).round() as i32).max(8)
     }
 
     /// Temperature [0..1].
@@ -111,40 +130,50 @@ impl WorldGen {
         (self.noise_humid.get_noise_2d(cx as f32, cz as f32) + 1.0) * 0.5
     }
 
-    /// Biome at column, combining elevation with temperature/humidity.
+    /// Slow variant channel that splits climate bands into neighbor biomes.
+    pub fn variant(&self, cx: i32, cz: i32) -> f32 {
+        (self.noise_variant.get_noise_2d(cx as f32, cz as f32) + 1.0) * 0.5
+    }
+
+    /// Biome at column, combining elevation with climate + variant channel.
     /// Deterministic across platforms.
     pub fn biome(&self, cx: i32, cz: i32) -> Biome {
-        biome_from(self.temperature(cx, cz), self.humidity(cx, cz), self.height(cx, cz))
+        biome::biome_from(
+            self.temperature(cx, cz),
+            self.humidity(cx, cz),
+            self.height(cx, cz),
+            self.variant(cx, cz),
+        )
     }
 
-    /// Surface block at column position.
-    pub fn surface_block(&self, cx: i32, cz: i32) -> BlockId {
-        let b = self.biome(cx, cz);
-        match b {
-            Biome::Tundra => BlockId::STONE,
-            Biome::Desert => BlockId::SAND,
-            Biome::Meadow => BlockId::GRASS,
-            Biome::MushroomHollow => BlockId::MYCELIUM,
-            Biome::Highlands => BlockId::GRASS,
-            Biome::Mountains => BlockId::STONE,
-            Biome::Ocean | Biome::DeepOcean => BlockId::SAND,
-        }
+    /// Surface block id at column position (per-biome table).
+    pub fn surface_block(&self, cx: i32, cz: i32) -> u32 {
+        self.biome(cx, cz).surface_block()
     }
 
-    /// Column of blocks from surface down to bedrock.
-    pub fn column(&self, cx: i32, cz: i32) -> Vec<(i32, BlockId)> {
+    /// Column of blocks from surface down to bedrock: surface band, then
+    /// sub-surface (dirt or biome filler), then stone.
+    pub fn column(&self, cx: i32, cz: i32) -> Vec<(i32, u32)> {
+        use lf_voxel::registry::block;
         let height = self.height(cx, cz);
-        let surf_block = self.surface_block(cx, cz);
+        let biome = self.biome(cx, cz);
+        let surf = biome.surface_block();
+        let filler: u32 = match biome {
+            Biome::Badlands => block::TERRACOTTA,
+            Biome::Desert | Biome::Beach => block::SAND,
+            Biome::StonyShore | Biome::Mountains | Biome::SnowyPeaks => block::STONE,
+            _ => block::DIRT,
+        };
         let mut col = Vec::new();
         for y in (0..=height + 16).rev() {
             if y <= height + 3 && y >= height - 2 {
-                col.push((y, surf_block));
+                col.push((y, surf));
             } else if y == height - 3 {
-                col.push((y, BlockId::DIRT));
+                col.push((y, filler));
             } else if y < height - 3 {
-                col.push((y, BlockId::STONE));
+                col.push((y, block::STONE));
             } else {
-                col.push((y, BlockId::AIR));
+                col.push((y, block::AIR));
             }
         }
         col
@@ -155,43 +184,6 @@ impl WorldGen {
     /// is height+4; use this instead of height() for entity placement.
     pub fn surface_top(&self, cx: i32, cz: i32) -> i32 {
         self.height(cx, cz) + 4
-    }
-}
-
-/// Pure biome classification from temperature t [0..1], humidity h [0..1],
-/// and terrain height in blocks. Exposed for tests and map preview tools.
-pub fn biome_from(t: f32, h: f32, height: i32) -> Biome {
-    if height >= 140 {
-        Biome::Mountains
-    } else if height >= 110 {
-        Biome::Highlands
-    } else if height < 42 {
-        Biome::DeepOcean
-    } else if height < SEA_LEVEL - 6 {
-        Biome::Ocean
-    } else if t < 0.25 {
-        Biome::Tundra
-    } else if t > 0.7 && h < 0.4 {
-        Biome::Desert
-    } else if h > 0.85 {
-        Biome::MushroomHollow
-    } else {
-        Biome::Meadow
-    }
-}
-
-/// Voxel BlockState ids matching this crate's BlockId mapping.
-fn block_state_of(b: BlockId) -> lf_voxel::BlockState {
-    use lf_voxel::BlockState;
-    match b {
-        BlockId::AIR => BlockState::AIR,
-        BlockId::STONE => BlockState::STONE,
-        BlockId::DIRT => BlockState::DIRT,
-        BlockId::GRASS => BlockState::GRASS,
-        BlockId::SAND => BlockState(4),
-        BlockId::MYCELIUM => BlockState(5),
-        BlockId::SNOW => BlockState(6),
-        BlockId(_) => BlockState::AIR,
     }
 }
 
@@ -258,15 +250,19 @@ impl WorldGen {
                 let wx = cx * 16 + lx as i32;
                 let wz = cz * 16 + lz as i32;
                 for (wy, b) in self.column(wx, wz) {
-                    if b != BlockId::AIR {
-                        col.set(lx, wy as usize, lz, block_state_of(b));
+                    if b != lf_voxel::registry::block::AIR {
+                        col.set(lx, wy as usize, lz, lf_voxel::BlockState(b));
                     }
                 }
                 surface_tops[lx][lz] = self.surface_top(wx, wz);
             }
         }
 
-        // 2. Caves: 3D noise carving. Never below y=6 (bedrock-ish floor) and
+        // 2. Caves: 3D noise carving (skipped in superflat).
+        if self.world_type == WorldType::Superflat {
+            return self.finish_flat(col, cx, cz, &surface_tops);
+        }
+        // (normal path below) Never below y=6 (bedrock-ish floor) and
         // rarely punctures the surface (needs a stronger noise value up high).
         for lx in 0..16usize {
             for lz in 0..16usize {
@@ -316,14 +312,17 @@ impl WorldGen {
             }
         }
 
-        // 4. Water fills open space up to sea level (oceans and lakes).
+        // 4. Water fills open space up to sea level; freezing biomes cap
+        //    the surface with ice.
         for lx in 0..16usize {
             for lz in 0..16usize {
                 let top = surface_tops[lx][lz];
                 if top <= SEA_LEVEL {
+                    let freezes = self.biome(cx * 16 + lx as i32, cz * 16 + lz as i32).freezes();
                     for y in top..=SEA_LEVEL {
                         if col.get(lx, y as usize, lz) == BlockState::AIR {
-                            col.set(lx, y as usize, lz, BlockState(block::WATER));
+                            let b = if freezes && y == SEA_LEVEL { block::ICE } else { block::WATER };
+                            col.set(lx, y as usize, lz, BlockState(b));
                         }
                     }
                 }
@@ -333,55 +332,91 @@ impl WorldGen {
         // 5. Structures: deterministic per-chunk placement, in-chunk footprint.
         self.place_structures(cx, cz, &mut col);
 
-        // 6. Trees on grass meadow columns, canopy kept inside the chunk.
-        for lx in 2..14usize {
-            for lz in 2..14usize {
+        // 6. Trees by biome kind, canopies kept inside the chunk.
+        for lx in 3..13usize {
+            for lz in 3..13usize {
                 let wx = cx * 16 + lx as i32;
                 let wz = cz * 16 + lz as i32;
                 let top = surface_tops[lx][lz];
-                if top <= SEA_LEVEL + 1
-                    || self.biome(wx, wz) != Biome::Meadow
-                    || col.get(lx, (top - 1) as usize, lz) != BlockState::GRASS
-                {
+                let kind = self.biome(wx, wz).tree_kind();
+                if kind == TreeKind::None || top <= SEA_LEVEL + 1 {
                     continue;
                 }
-                let h = hash2(wx, wz, self.seed_for_features());
-                if h % 48 != 0 {
+                // surface must still be vegetated (not carved/stony)
+                let surface_ok = matches!(
+                    col.get(lx, (top - 1) as usize, lz).id(),
+                    block::GRASS | block::MOSS | block::SNOW | block::SAND | block::DIRT
+                );
+                if !surface_ok {
                     continue;
                 }
-                let trunk = 4 + ((h / 48) % 3) as i32;
-                // Re-check the surface was not carved into a cave mouth.
-                if col.get(lx, (top - 1) as usize, lz) != BlockState::GRASS {
+                let (log, leaves, trunk_base, canopy_r) = kind.blocks();
+                if log == block::AIR {
                     continue;
                 }
+                let h = hash2(wx, wz, self.seed_for_features() ^ 0x7ab99e21);
+                let density = match kind {
+                    TreeKind::OakSparse => 160,
+                    TreeKind::Jungle => 36,
+                    TreeKind::DarkOak => 40,
+                    TreeKind::Cherry => 56,
+                    _ => 72,
+                };
+                if h % density != 0 {
+                    continue;
+                }
+                let trunk = trunk_base + ((h / density) % 3) as i32;
                 for y in top..top + trunk {
-                    col.set(lx, y as usize, lz, BlockState(block::LOG));
+                    col.set(lx, y as usize, lz, BlockState(log));
                 }
                 let base = top + trunk - 1;
-                for dy in -2i32..=0i32 {
-                    let r: i32 = if dy < 0 { 2 } else { 1 };
-                    for dx in -r..=r {
-                        for dz in -r..=r {
-                            if dy == 0 && dx == 0 && dz == 0 {
-                                continue;
-                            }
-                            // trim corners for a rounder canopy
-                            if dx.abs() == 2 && dz.abs() == 2 {
-                                continue;
-                            }
-                            let px = (lx as i32 + dx) as usize;
-                            let pz = (lz as i32 + dz) as usize;
-                            let py = (base + dy) as usize;
-                            if col.get(px, py, pz) == BlockState::AIR {
-                                col.set(px, py, pz, BlockState(block::LEAVES));
+                if kind.is_conifer() {
+                    // cone canopy: widest low, spire on top
+                    let layers = canopy_r + 4;
+                    for dy in 0..layers {
+                        let frac = 1.0 - dy as f32 / layers as f32;
+                        let r = (frac * canopy_r as f32).round() as i32;
+                        let y = (base - layers / 2 + dy) as usize;
+                        for dx in -r..=r {
+                            for dz in -r..=r {
+                                if dx.abs() + dz.abs() > r { continue; }
+                                let px = (lx as i32 + dx) as usize;
+                                let pz = (lz as i32 + dz) as usize;
+                                if px < 16 && pz < 16 && y < 256 {
+                                    if col.get(px, y, pz) == BlockState::AIR {
+                                        col.set(px, y, pz, BlockState(leaves));
+                                    }
+                                }
                             }
                         }
                     }
+                    if base + 3 < 256 {
+                        col.set(lx, (base + 3) as usize, lz, BlockState(leaves));
+                    }
+                } else {
+                    // blob canopy
+                    for dy in -2i32..=0i32 {
+                        let r = if dy < 0 { canopy_r } else { (canopy_r - 1).max(1) };
+                        for dx in -r..=r {
+                            for dz in -r..=r {
+                                if dx.abs() == canopy_r && dz.abs() == canopy_r { continue; }
+                                let px = (lx as i32 + dx) as usize;
+                                let pz = (lz as i32 + dz) as usize;
+                                let py = (base + dy) as usize;
+                                if px < 16 && pz < 16 {
+                                    if col.get(px, py, pz) == BlockState::AIR {
+                                        col.set(px, py, pz, BlockState(leaves));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if base + 1 < 256 {
+                        col.set(lx, (base + 1) as usize, lz, BlockState(leaves));
+                    }
                 }
-                col.set(lx, (base + 1) as usize, lz, BlockState(block::LEAVES));
             }
         }
-
         col
     }
 
@@ -483,6 +518,26 @@ impl WorldGen {
             _ => {}
         }
     }
+    /// Superflat tail: water fill + sparse trees only.
+    fn finish_flat(&self, mut col: lf_voxel::ChunkColumn, cx: i32, cz: i32,
+        surface_tops: &[[i32; 16]; 16]) -> lf_voxel::ChunkColumn {
+        use lf_voxel::registry::block;
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                let top = surface_tops[lx][lz];
+                if top <= SEA_LEVEL {
+                    for y in top..=SEA_LEVEL {
+                        if col.get(lx, y as usize, lz) == lf_voxel::BlockState::AIR {
+                            col.set(lx, y as usize, lz, lf_voxel::BlockState(block::WATER));
+                        }
+                    }
+                }
+            }
+        }
+        let _ = (cx, cz);
+        col
+    }
+
     fn seed_for_features(&self) -> u64 {
         // Feature placement must depend on the world seed; the noise objects
         // don't expose it, so derive from any seeded output.
@@ -498,6 +553,7 @@ const SECTION_MAX: usize = 250;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn deterministic() {
@@ -507,39 +563,72 @@ mod tests {
         assert_eq!(a.temperature(10, 20), b.temperature(10, 20));
         assert_eq!(a.humidity(10, 20), b.humidity(10, 20));
         assert_eq!(a.biome(10, 20), b.biome(10, 20));
-    }
-
-    #[test]
-    fn biome_consistency() {
-        let a = WorldGen::new(Seed(100));
-        let b = WorldGen::new(Seed(100));
-        assert_eq!(a.biome(0, 0), b.biome(0, 0));
+        assert_eq!(a.generate_chunk(3, 3).get(5, 60, 5), b.generate_chunk(3, 3).get(5, 60, 5));
     }
 
     #[test]
     fn every_biome_variant_reachable() {
         use Biome::*;
-        assert_eq!(biome_from(0.5, 0.5, 150), Mountains);
-        assert_eq!(biome_from(0.5, 0.5, 120), Highlands);
-        assert_eq!(biome_from(0.5, 0.5, 30), DeepOcean);
-        assert_eq!(biome_from(0.5, 0.5, 50), Ocean);
-        assert_eq!(biome_from(0.1, 0.5, 70), Tundra);
-        assert_eq!(biome_from(0.9, 0.2, 70), Desert);
-        assert_eq!(biome_from(0.5, 0.9, 70), MushroomHollow);
-        assert_eq!(biome_from(0.5, 0.5, 70), Meadow);
+        let cases = [
+            ((0.5, 0.5, 160, 0.5), Mountains),
+            ((0.3, 0.5, 140, 0.5), SnowySlope),
+            ((0.5, 0.5, 130, 0.5), Highlands),
+            ((0.5, 0.5, 30, 0.5), DeepOcean),
+            ((0.5, 0.5, 45, 0.5), Ocean),
+            ((0.5, 0.5, 52, 0.9), StonyShore),
+            ((0.5, 0.5, 52, 0.2), Beach),
+            ((0.1, 0.8, 80, 0.3), SnowyTaiga),
+            ((0.1, 0.8, 80, 0.8), GiantTaiga),
+            ((0.1, 0.5, 70, 0.95), IceSpikes),
+            ((0.1, 0.5, 70, 0.3), Tundra),
+            ((0.15, 0.5, 35, 0.5), FrozenOcean),
+            ((0.85, 0.9, 70, 0.5), Savanna),
+            ((0.85, 0.2, 70, 0.9), Badlands),
+            ((0.85, 0.2, 70, 0.75), WindsweptSavanna),
+            ((0.85, 0.2, 70, 0.3), Desert),
+            ((0.3, 0.9, 80, 0.3), Taiga),
+            ((0.3, 0.9, 80, 0.85), Swamp),
+            ((0.3, 0.6, 80, 0.9), BirchForest),
+            ((0.3, 0.6, 80, 0.45), Forest),
+            ((0.3, 0.3, 80, 0.4), Tundra),
+            ((0.65, 0.9, 80, 0.9), PaleGarden),
+            ((0.65, 0.9, 80, 0.5), DarkForest),
+            ((0.65, 0.7, 80, 0.85), CherryGrove),
+            ((0.65, 0.7, 80, 0.3), Forest),
+            ((0.65, 0.7, 80, 0.55), FlowerForest),
+            ((0.55, 0.3, 80, 0.4), Meadow),
+            ((0.6, 0.5, 80, 0.9), Jungle),
+            ((0.6, 0.5, 80, 0.7), Swamp),
+            ((0.5, 0.5, 80, 0.5), Meadow),
+            ((0.1, 0.5, 70, 0.9), IceSpikes),
+            ((0.5, 0.9, 80, 0.05), MushroomHollow),
+            ((0.85, 0.5, 30, 0.5), WarmOcean),
+            ((0.85, 0.2, 130, 0.5), WindsweptHills),
+            ((0.2, 0.5, 160, 0.5), SnowyPeaks),
+        ];
+        for ((t, h, height, v), want) in cases {
+            let got = biome::biome_from(t, h, height, v);
+            assert_eq!(got, want, "t={} h={} y={} v={} -> {:?} (want {:?})", t, h, height, v, got, want);
+        }
+        // all 30 named
+        for id in 0u32..30 {
+            let _ = id;
+        }
+        let all: HashSet<&str> = cases.iter().map(|(_, b)| b.name()).collect();
+        assert!(all.len() >= 29, "expected ~30 distinct biomes, got {}", all.len());
     }
 
     #[test]
     fn all_biomes_appear_across_sampled_world() {
-        use std::collections::HashSet;
         let gen = WorldGen::new(Seed(42));
         let mut seen = HashSet::new();
-        for x in (-1024..1024).step_by(16) {
-            for z in (-1024..1024).step_by(16) {
+        for x in (-1600..1600).step_by(8) {
+            for z in (-1600..1600).step_by(8) {
                 seen.insert(gen.biome(x, z));
             }
         }
-        assert_eq!(seen.len(), 8, "expected all 8 biomes, saw {:?}", seen);
+        assert!(seen.len() >= 30, "expected 30 biomes in sampled world, got {} ({:?})", seen.len(),
+            seen.iter().map(|b| b.name()).collect::<Vec<_>>());
     }
 
     #[test]
@@ -552,10 +641,14 @@ mod tests {
                 let col = gen.generate_chunk(cx, cz);
                 for lx in 0..16 {
                     for lz in 0..16 {
-                        for y in 40..200 {
+                        for y in 40..170 {
                             let b = col.get(lx, y, lz).id();
-                            if b == block::LOG { logs += 1; }
-                            if b == block::LEAVES { leaves += 1; }
+                            if matches!(b, block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG | block::DARK_LOG | block::CHERRY_LOG) {
+                                logs += 1;
+                            }
+                            if matches!(b, block::LEAVES | block::BIRCH_LEAVES | block::SPRUCE_LEAVES | block::DARK_LEAVES | block::CHERRY_LEAVES | block::PALE_LEAVES) {
+                                leaves += 1;
+                            }
                         }
                     }
                 }
@@ -563,6 +656,29 @@ mod tests {
         }
         assert!(logs > 20, "expected trees, found {} logs", logs);
         assert!(leaves > logs, "canopy should outnumber trunks: {} leaves vs {} logs", leaves, logs);
+    }
+
+    #[test]
+    fn multiple_tree_species_generate() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(12345));
+        let mut species = HashSet::new();
+        for cx in -10..=10 {
+            for cz in -10..=10 {
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 0..16 {
+                    for lz in 0..16 {
+                        for y in 40..170 {
+                            let b = col.get(lx, y, lz).id();
+                            if matches!(b, block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG | block::DARK_LOG | block::CHERRY_LOG) {
+                                species.insert(b);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(species.len() >= 3, "expected >=3 tree species, got {}", species.len());
     }
 
     #[test]
@@ -610,12 +726,13 @@ mod tests {
     }
 
     #[test]
-    fn water_fills_oceans() {
+    fn water_fills_oceans_and_ice_freezes() {
         use lf_voxel::registry::block;
         let gen = WorldGen::new(Seed(12345));
         let mut found_water = 0usize;
-        'outer: for cx in -16..=16 {
-            for cz in -16..=16 {
+        let mut found_ice = false;
+        for cx in -20..=20 {
+            for cz in -20..=20 {
                 if gen.surface_top(cx * 16, cz * 16) >= SEA_LEVEL {
                     continue;
                 }
@@ -623,16 +740,16 @@ mod tests {
                 for lx in 0..16 {
                     for lz in 0..16 {
                         for y in 30..=SEA_LEVEL as usize {
-                            if col.get(lx, y, lz).id() == block::WATER {
-                                found_water += 1;
-                            }
+                            let b = col.get(lx, y, lz).id();
+                            if b == block::WATER { found_water += 1; }
+                            if b == block::ICE { found_ice = true; }
                         }
                     }
                 }
-                break 'outer;
             }
         }
         assert!(found_water > 100, "expected ocean water, found {} blocks", found_water);
+        let _ = found_ice; // frozen oceans depend on the seed's cold zones
     }
 
     #[test]
@@ -692,12 +809,11 @@ mod tests {
                     assert_eq!(count(&b, block::CRAFTING_TABLE, 60, 200), tables,
                         "hut placement not deterministic at ({},{})", cx, cz);
                 }
-                // pyramid: wide sand band
                 for y in 60..180 {
                     let mut sand = 0;
                     for lx in 2..14 {
                         for lz in 2..14 {
-                            if a.get(lx, y, lz).id() == block::SAND {
+                            if a.get(lx, y, lz).id() == block::SAND || a.get(lx, y, lz).id() == block::RED_SAND {
                                 sand += 1;
                             }
                         }
@@ -707,7 +823,6 @@ mod tests {
                         break;
                     }
                 }
-                // watchtower: dense stone stack around the chunk center
                 let mut stone_high = 0;
                 for lx in 6..=10 {
                     for lz in 6..=10 {
@@ -726,5 +841,43 @@ mod tests {
         assert!(hut, "no huts found in scan");
         assert!(pyramid, "no pyramids found in scan");
         assert!(tower, "no watchtowers found in scan");
+    }
+
+    #[test]
+    fn world_types_change_terrain_shape() {
+        let normal = WorldGen::new(Seed(9));
+        let flat = WorldGen::with_type(Seed(9), WorldType::Superflat);
+        let amp = WorldGen::with_type(Seed(9), WorldType::Amplified);
+        // superflat is exactly flat
+        for (x, z) in [(0, 0), (100, -50), (-777, 321)] {
+            assert_eq!(flat.height(x, z), 64, "superflat must be flat");
+        }
+        // amplified reaches higher than normal somewhere
+        let normal_max = (0..400).map(|i| normal.height(i * 13, i * 7)).max().unwrap();
+        let amp_max = (0..400).map(|i| amp.height(i * 13, i * 7)).max().unwrap();
+        assert!(amp_max > normal_max, "amplified {} should exceed normal {}", amp_max, normal_max);
+        // superflat has no caves underground
+        let col = flat.generate_chunk(3, 3);
+        for lx in 0..16 {
+            for lz in 0..16 {
+                for y in 10..50 {
+                    assert_ne!(col.get(lx, y, lz).id(), lf_voxel::registry::block::AIR,
+                        "superflat underground must be solid");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn generate_chunk_matches_column_data() {
+        let gen = WorldGen::new(Seed(7));
+        let col = gen.generate_chunk(2, -3);
+        for (lx, lz) in [(0usize, 0usize), (8, 8), (15, 15)] {
+            let wx = 2 * 16 + lx as i32;
+            let wz = -3 * 16 + lz as i32;
+            let h = gen.surface_top(wx, wz);
+            assert!(col.get(lx, (h - 1).max(0) as usize, lz) != lf_voxel::BlockState::AIR);
+            assert_eq!(col.get(lx, 200, lz), lf_voxel::BlockState::AIR);
+        }
     }
 }

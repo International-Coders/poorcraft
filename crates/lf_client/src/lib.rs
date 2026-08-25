@@ -240,6 +240,7 @@ pub struct ClientSave {
     pub kills: u32,
     pub quest_log: Option<QuestLog>,
     pub chronicle: Vec<ChronicleEvent>,
+    pub world_type: Option<lf_worldgen::WorldType>,
 }
 
 struct App {
@@ -467,7 +468,15 @@ struct GameState {
     pub net: Option<net::NetClient>,
     pub chat_input: Option<String>,
     pub chat_log: Vec<String>,
+    /// Clear -> rain/snow cycle with random transitions.
+    pub weather_raining: bool,
+    weather_next_change: Instant,
+    cloud_batch: Option<MeshBatch>,
+    sky_batch: Option<MeshBatch>,
+    weather_batch: Option<MeshBatch>,
+    last_cloud_rebuild: Instant,
     pub settings: Settings,
+    pub world_type: lf_worldgen::WorldType,
     pub air: u8,
     spawn_point: Vec3,
     pub egui: EguiPlatform,
@@ -527,6 +536,9 @@ impl GameState {
         };
         surface.configure(&device, &config);
 
+        // Load save (also tells us the world type) before generating.
+        let (inventory, stats, time, block_entities, mobs, kills, quest_log, chronicle, world_type) =
+            load_client_save(Path::new(WORLD_DIR));
         // Load mods into the live registries before touching the world.
         let mods = lf_modapi::load_mods_dir(Path::new("mods"));
         if !mods.is_empty() {
@@ -537,7 +549,7 @@ impl GameState {
         // Persistence + world bootstrap.
         let storage = WorldStorage::open(Path::new(WORLD_DIR));
         let saved_set = storage.saved_chunks();
-        let gen = WorldGen::new(Seed(WORLD_SEED));
+        let gen = WorldGen::with_type(Seed(WORLD_SEED), world_type);
         let mut world = World::new();
         for cx in -BOOT_RADIUS..=BOOT_RADIUS {
             for cz in -BOOT_RADIUS..=BOOT_RADIUS {
@@ -580,7 +592,7 @@ impl GameState {
         player.flying = false;
 
         // Inventory/stats/time from the extras file.
-        let (inventory, stats, time, block_entities, mobs, kills, quest_log, chronicle) = load_client_save(Path::new(WORLD_DIR));
+
 
         let egui = EguiPlatform::new(&device, config.format, &window);
 
@@ -631,9 +643,16 @@ impl GameState {
             quit_requested: false,
             quest_log,
             chronicle,
+            world_type,
             net: None,
             chat_input: None,
             chat_log: Vec::new(),
+            weather_raining: false,
+            weather_next_change: Instant::now() + Duration::from_secs(90),
+            cloud_batch: None,
+            sky_batch: None,
+            weather_batch: None,
+            last_cloud_rebuild: Instant::now() - Duration::from_secs(5),
             settings: Settings::default(),
             air: 10,
             spawn_point,
@@ -680,6 +699,49 @@ impl GameState {
         if self.stats.health > 0.0 {
             self.lock_cursor();
         }
+    }
+
+    /// Wipe the current world and regenerate with the given type.
+    pub fn new_world(&mut self, world_type: lf_worldgen::WorldType) {
+        self.save_world();
+        let _ = std::fs::remove_dir_all(std::path::Path::new(WORLD_DIR).join("region"));
+        let _ = std::fs::remove_file(std::path::Path::new(WORLD_DIR).join("player.dat"));
+        let _ = std::fs::remove_file(std::path::Path::new(WORLD_DIR).join("player_extras.dat"));
+        self.world_type = world_type;
+        // fresh state
+        self.inventory = Inventory::new();
+        self.stats = PlayerStats::default();
+        self.mobs.clear();
+        self.drops.clear();
+        self.block_entities.clear();
+        self.quest_log = {
+            let mut log = QuestLog::new();
+            for q in starter_quests() {
+                log.add_quest(q);
+            }
+            log
+        };
+        self.chronicle.clear();
+        self.time = lf_game::TimeOfDay::from_fraction(0.30);
+        // regenerate the loaded chunks
+        let gen = WorldGen::with_type(Seed(WORLD_SEED), world_type);
+        self.world = World::new();
+        self.batches.clear();
+        self.water_batches.clear();
+        self.cpu_meshes.clear();
+        self.column_bounds.clear();
+        let mut worker_skip = HashSet::new();
+        for cx in -BOOT_RADIUS..=BOOT_RADIUS {
+            for cz in -BOOT_RADIUS..=BOOT_RADIUS {
+                let col = gen.generate_chunk(cx, cz);
+                self.world.chunks.insert((cx, cz), col);
+                self.add_column_batch(cx, cz);
+            }
+        }
+        worker_skip.extend(self.world.chunks.keys().copied());
+        let _ = worker_skip; // streamer picks up new chunks via forget()
+        self.player = Player::new(Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5));
+        self.close_ui();
     }
 
     pub fn respawn(&mut self) {
@@ -729,6 +791,7 @@ impl GameState {
             kills: self.kills,
             quest_log: Some(self.quest_log.clone()),
             chronicle: self.chronicle.clone(),
+            world_type: Some(self.world_type),
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
             let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
@@ -1033,6 +1096,41 @@ impl GameState {
             self.next_autosave = now + AUTOSAVE_INTERVAL;
             self.save_world();
         }
+
+        // Weather cycle: toggles every few minutes.
+        if now >= self.weather_next_change {
+            self.weather_raining = !self.weather_raining;
+            let span = if self.weather_raining { 120 } else { 240 };
+            self.weather_next_change = now + Duration::from_secs(span + (pseudo_random(self.frame) % 120));
+        }
+        // Sky bodies every frame (they rotate); clouds drift (rebuild 2/s).
+        let eye = self.player.eye_position();
+        let (sv, si) = lf_engine::atmosphere::sky_bodies(eye, self.time.fraction());
+        self.sky_batch = Some(MeshBatch::new(&self.device, &self.resources, &sv, &si));
+        if self.last_cloud_rebuild.elapsed() >= Duration::from_millis(500) {
+            self.last_cloud_rebuild = now;
+            let (cv, ci) = lf_engine::atmosphere::cloud_mesh(eye, self.frame as f32 / 60.0);
+            self.cloud_batch = Some(MeshBatch::new(&self.device, &self.resources, &cv, &ci));
+        }
+        if self.weather_raining {
+            let cold = self.gen_biome_temp_at_player();
+            let (wv, wi) = lf_engine::atmosphere::weather_particles(eye, self.frame as f32 / 60.0, cold);
+            self.weather_batch = Some(MeshBatch::new(&self.device, &self.resources, &wv, &wi));
+        } else {
+            self.weather_batch = None;
+        }
+    }
+
+    /// Is the player's biome cold enough for snow?
+    fn gen_biome_temp_at_player(&self) -> bool {
+        // The client doesn't own a WorldGen; approximate coldness from the
+        // surface block under the player.
+        let under = self.world.get_block(
+            self.player.position.x as i32,
+            (self.player.position.y as i32 - 1).max(0),
+            self.player.position.z as i32,
+        ).id();
+        matches!(under, registry::block::SNOW | registry::block::ICE)
     }
 
     fn consume_selected(&mut self, n: u8) {
@@ -1407,12 +1505,30 @@ impl GameState {
     }
 
     fn env(&self) -> lf_engine::scene::Env {
-        let sky = self.time.sky_color();
+        let mut sky = self.time.sky_color();
+        let mut day = self.time.sky_light_level();
+        let mut fog_far = (VIEW_RADIUS as f32 + 2.0) * 16.0;
+        if self.weather_raining {
+            for c in sky.iter_mut() {
+                *c *= 0.7;
+            }
+            day *= 0.8;
+            fog_far *= 0.6;
+        }
+        let eye_block = self.world.get_block(
+            self.player.eye_position().x as i32,
+            self.player.eye_position().y as i32,
+            self.player.eye_position().z as i32,
+        ).id();
+        if let Some((fog_color, far)) = lf_engine::atmosphere::underwater_env(eye_block) {
+            sky = fog_color;
+            fog_far = far;
+        }
         lf_engine::scene::Env {
             camera_pos: self.player.eye_position(),
-            day_factor: self.time.sky_light_level(),
+            day_factor: day,
             fog_color: sky,
-            fog_far: (VIEW_RADIUS as f32 + 2.0) * 16.0,
+            fog_far,
         }
     }
 
@@ -1447,8 +1563,8 @@ impl GameState {
     }
 
     fn clear_color(&self) -> [f64; 4] {
-        let c = self.time.sky_color();
-        [c[0] as f64, c[1] as f64, c[2] as f64, 1.0]
+        let env = self.env();
+        [env.fog_color[0] as f64, env.fog_color[1] as f64, env.fog_color[2] as f64, 1.0]
     }
 
     fn render(&mut self) {
@@ -1510,6 +1626,10 @@ impl GameState {
                 }
                 batch.draw(&mut pass, resources, false);
             }
+            // sun/moon/stars above the terrain
+            if let Some(batch) = &self.sky_batch {
+                batch.draw(&mut pass, resources, false);
+            }
             self.outline.draw(&mut pass);
             // Water: alpha-blended, far columns first for correct layering.
             let mut water_order: Vec<(f32, (i32, i32))> = self
@@ -1527,6 +1647,13 @@ impl GameState {
                 if let Some(batch) = self.water_batches.get(&pos) {
                     batch.draw(&mut pass, resources, true);
                 }
+            }
+            // clouds and weather ride the transparent pass
+            if let Some(batch) = &self.cloud_batch {
+                batch.draw(&mut pass, resources, true);
+            }
+            if let Some(batch) = &self.weather_batch {
+                batch.draw(&mut pass, resources, true);
             }
             // Item drops ride the opaque pass.
             if let Some(batch) = &self.drop_batch {
@@ -1655,7 +1782,7 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, u32, QuestLog, Vec<ChronicleEvent>) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, u32, QuestLog, Vec<ChronicleEvent>, lf_worldgen::WorldType) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
@@ -1684,10 +1811,11 @@ fn load_client_save(dir: &Path)
                 quest_log = q;
             }
             chronicle = save.chronicle;
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, kills, quest_log, chronicle);
+            let world_type = save.world_type.unwrap_or_default();
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, kills, quest_log, chronicle, world_type);
         }
     }
-    (inventory, stats, time, entities, mobs, kills, quest_log, chronicle)
+    (inventory, stats, time, entities, mobs, kills, quest_log, chronicle, lf_worldgen::WorldType::Normal)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.

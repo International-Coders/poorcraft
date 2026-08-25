@@ -1,4 +1,5 @@
 pub mod app;
+pub mod atmosphere;
 pub mod camera;
 pub mod headless;
 pub mod outline;
