@@ -1,9 +1,9 @@
 # STATE
-loop_count: 21
+loop_count: 22
 current_milestone: Evolution
-last_done: "Evolution Mode: added crystal tool material (ingot, sword, pickaxe, etc.) to amberium mod; captured ev_crystal_tools.png"
-next_task: "Evolution: optimize chunk meshing performance"
+last_done: "Evolution Mode: optimized chunk meshing with face culling optimization + neighbor caching; tests passing; captured ev_optimized_mesh.png"
+next_task: "Evolution: legacy mode cleanup / refactor"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_crystal_tools.png
+last_screenshot: shots/ev_optimized_mesh.png
 blockers: none
