@@ -107,3 +107,4 @@
 - [x] Cartography Table -> shots/ev_cartography.png
 - [x] Fletching Table -> shots/ev_fletching.png
 - [x] Smithing Table -> shots/ev_smithing.png
+- [x] Stonecutter block -> shots/ev_stonecutter.png
