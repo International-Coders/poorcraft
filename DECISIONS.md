@@ -14,3 +14,7 @@
 - M11: implemented protocol codec (handshake/login/chat) and dedicated server binary loreforge-server for M11 proof
 
 
+- P0: region files hold all chunks keyed (x,z) with atomic tmp+rename writes (was: one chunk per file, neighbors collided)
+- P0: biome selection is elevation-aware (Mountains>=140, Highlands>=110, DeepOcean<42, Ocean<56) with height stretched to 24..176 so all 8 biomes occur
+- P0: depth buffer (Depth32Float) in the voxel pipeline; shared GpuScene reused by windowed and offscreen paths
+- P0: all proof screenshots must come from lf_engine::headless (real wgpu render); docs-only commits banned

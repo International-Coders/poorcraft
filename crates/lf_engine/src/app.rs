@@ -4,34 +4,21 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use wgpu::util::DeviceExt;
-use tracing_subscriber::EnvFilter;
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    normal: [f32; 3],
-    tex_coord: [f32; 2],
-    tex_index: u32,
-    ao: f32,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Uniforms {
-    view_proj: [[f32; 4]; 4],
-}
+use crate::camera::Camera;
+use crate::scene::{GpuScene, GpuVertex};
 
 pub fn run() {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
         .init();
 
     let event_loop = EventLoop::new().expect("EventLoop failed");
     let window = Arc::new(
         WindowBuilder::new()
-            .with_title("LOREFORGE M2")
+            .with_title("LOREFORGE")
             .with_inner_size(winit::dpi::LogicalSize::new(1024, 768))
             .build(&event_loop)
             .expect("Window build failed"),
@@ -65,32 +52,10 @@ struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
-    uniform_buffer: wgpu::Buffer,
-    uniform_bind_group: wgpu::BindGroup,
-    diffuse_bind_group: wgpu::BindGroup,
+    depth_view: wgpu::TextureView,
+    _depth_texture: wgpu::Texture,
+    scene: GpuScene,
     camera: Camera,
-}
-
-struct Camera {
-    eye: glam::Vec3,
-    target: glam::Vec3,
-    up: glam::Vec3,
-    aspect: f32,
-    fovy: f32,
-    near: f32,
-    far: f32,
-}
-
-impl Camera {
-    fn build_view_projection_matrix(&self) -> glam::Mat4 {
-        let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
-        let proj = glam::Mat4::perspective_rh(self.fovy, self.aspect, self.near, self.far);
-        proj * view
-    }
 }
 
 impl State {
@@ -140,98 +105,7 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        // Generate textures
-        let mut images = vec![
-            lf_assets::generate_block_texture("stone"),
-            lf_assets::generate_block_texture("grass"),
-            lf_assets::generate_block_texture("dirt"),
-        ];
-        let texture_size = wgpu::Extent3d { width: 16, height: 16, depth_or_array_layers: images.len() as u32 };
-        let diffuse_texture = device.create_texture(&wgpu::TextureDescriptor {
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            label: Some("diffuse_texture_array"),
-            view_formats: &[],
-        });
-        for (i, img) in images.iter().enumerate() {
-            queue.write_texture(
-                wgpu::ImageCopyTexture {
-                    texture: &diffuse_texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d { x: 0, y: 0, z: i as u32 },
-                    aspect: wgpu::TextureAspect::All,
-                },
-                img.as_raw(),
-                wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * 16),
-                    rows_per_image: Some(16),
-                },
-                wgpu::Extent3d { width: 16, height: 16, depth_or_array_layers: 1 },
-            );
-        }
-        let diffuse_texture_view = diffuse_texture.create_view(&wgpu::TextureViewDescriptor {
-            dimension: Some(wgpu::TextureViewDimension::D2Array),
-            array_layer_count: Some(images.len() as u32),
-            ..Default::default()
-        });
-        let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-
-        let diffuse_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2Array,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-            label: Some("diffuse_bind_group_layout"),
-        });
-        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &diffuse_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&diffuse_texture_view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&diffuse_sampler) },
-            ],
-            label: Some("diffuse_bind_group"),
-        });
-
-        let uniform_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("uniform_bind_group_layout"),
-        });
-
-        // Build one chunk mesh
+        // Demo scene: one grass-topped section until the world streams in (P2).
         let mut section = lf_voxel::VoxelSection::new_empty();
         for x in 0..16 {
             for z in 0..16 {
@@ -240,105 +114,26 @@ impl State {
                 section.set(x, 2, z, lf_voxel::BlockState::GRASS);
             }
         }
-        let mesh = lf_voxel::meshing::mesh_section(&section, None, None, None, None, None, None);
-        let mut vertices = Vec::new();
-        for v in mesh.vertices.iter() {
-            let tex_index = match section.get(0, 0, 0) {
-                _ => 1u32, // default grass for now
-            };
-            vertices.push(Vertex {
-                position: v.position,
-                normal: v.normal,
-                tex_coord: v.tex_coord,
-                tex_index,
-                ao: v.ao,
-            });
-        }
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&mesh.indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = mesh.indices.len() as u32;
+        let mesh = lf_voxel::meshing::mesh_section(&section, None, None, None, None, None, None,
+            &|b| lf_assets::texture_index_for_block(b.id()));
+        let vertices: Vec<GpuVertex> = mesh.vertices.iter().map(|v| GpuVertex {
+            position: v.position,
+            normal: v.normal,
+            tex_coord: v.tex_coord,
+            tex_index: v.tex_index,
+            ao: v.ao,
+        }).collect();
 
-        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[Uniforms { view_proj: glam::Mat4::IDENTITY.to_cols_array_2d() }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &uniform_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniform_buffer.as_entire_binding() }],
-            label: Some("uniform_bind_group"),
-        });
+        let textures = lf_assets::generate_atlas();
+        let scene = GpuScene::new(&device, &queue, config.format, &vertices, &mesh.indices, &textures);
 
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&uniform_bind_group_layout, &diffuse_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &[
-                        wgpu::VertexAttribute { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float32x3 },
-                        wgpu::VertexAttribute { offset: 12, shader_location: 1, format: wgpu::VertexFormat::Float32x3 },
-                        wgpu::VertexAttribute { offset: 24, shader_location: 2, format: wgpu::VertexFormat::Float32x2 },
-                        wgpu::VertexAttribute { offset: 32, shader_location: 3, format: wgpu::VertexFormat::Uint32 },
-                        wgpu::VertexAttribute { offset: 36, shader_location: 4, format: wgpu::VertexFormat::Float32 },
-                    ],
-                }],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
-            multiview: None,
-            cache: None,
-        });
+        let (depth_texture, depth_view) = GpuScene::create_depth_texture(&device, config.width, config.height);
 
-        let camera = Camera {
-            eye: glam::Vec3::new(24.0, 18.0, 24.0),
-            target: glam::Vec3::new(8.0, 2.0, 8.0),
-            up: glam::Vec3::Y,
-            aspect: size.width as f32 / size.height.max(1) as f32,
-            fovy: 45f32.to_radians(),
-            near: 0.1,
-            far: 1000.0,
-        };
+        let mut camera = Camera::new(
+            glam::Vec3::new(24.0, 18.0, 24.0),
+            glam::Vec3::new(8.0, 2.0, 8.0),
+        );
+        camera.set_aspect(config.width, config.height);
 
         Self {
             window,
@@ -346,13 +141,9 @@ impl State {
             device,
             queue,
             config,
-            render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
-            uniform_buffer,
-            uniform_bind_group,
-            diffuse_bind_group,
+            depth_view,
+            _depth_texture: depth_texture,
+            scene,
             camera,
         }
     }
@@ -361,18 +152,16 @@ impl State {
         if width > 0 && height > 0 {
             self.config.width = width;
             self.config.height = height;
-            self.camera.aspect = width as f32 / height as f32;
+            self.camera.set_aspect(width, height);
             self.surface.configure(&self.device, &self.config);
+            let (texture, view) = GpuScene::create_depth_texture(&self.device, width, height);
+            self._depth_texture = texture;
+            self.depth_view = view;
         }
     }
 
     fn update(&mut self) {
-        let view_proj = self.camera.build_view_projection_matrix();
-        self.queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[Uniforms { view_proj: view_proj.to_cols_array_2d() }]),
-        );
+        self.scene.update_camera(&self.queue, &self.camera);
     }
 
     fn render(&mut self) {
@@ -400,18 +189,21 @@ impl State {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.diffuse_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            self.scene.draw(&mut render_pass);
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
+        let _ = self.window.pre_present_notify();
     }
 }

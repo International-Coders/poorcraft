@@ -1,251 +1,94 @@
-# BACKLOG
-- [x] M1 window opens and clear color (lf_engine)
-- [x] M2 chunk data structure + culled meshing (lf_voxel)
-- [x] M2 texture array generator (xtask gen-assets) -> shots/m2_chunk.png
-- [x] M3 break and place blocks (raycast, highlight) -> shots/m3_breakplace.png
-- [x] M4 endless terrain noise heightmap -> shots/m4_terrain.png
-- [x] M5 save and load world round-trip test
-- [x] M6 day/night cycle, sky light -> shots/m6_night.png
-- [x] M7 survival core (inventory, crafting) -> shots/m7_survival.png
-- [x] M8 medieval smithing system -> shots/m8_forge.png
-- [x] M9 mobs and boss -> shots/m9_boss.png
-- [x] M10 mods (data packs + Lua) -> shots/m10_mod.png
-- [x] M11 multiplayer server/client -> shots/m11_two_players.png
-- [x] M12 NPCs and villages -> shots/m12_village.png
-- [x] M13 story mode quests -> quest progression test passes
-- [x] M14 chronicle engine + saga generator + mythos generation -> shots/m14_chronicle.png
-- [x] M15 visual test harness --headless --scene --out shots/m15_vistest.png
-- [x] M16 release builds in CI (.exe, .dmg, .deb)
-- [x] M17 polish, settings, localization -> shots/m17_title.png
+# BACKLOG — LOREFORGE
 
-# EVOLUTION MODE
-- [x] amberium ore example mod -> shots/ev_amberium.png
-- [x] crystal grove biome + custom trees -> shots/ev_crystal_grove.png
-- [x] Geode Guardian mob -> shots/ev_geode_guardian.png
-- [x] crystal tool material -> shots/ev_crystal_tools.png
-- [x] optimize chunk meshing performance -> shots/ev_optimized_mesh.png
-- [x] refactor / cleanup -> shots/refactor_landscape.png
-- [x] new biome (obsidian desert) + Ruined Obsidian Spires -> shots/ev_obsidian_desert.png
-- [x] new mob: Cinder Crawler -> shots/ev_cinder_crawler.png
-- [x] fog + underwater color grading -> shots/ev_visual_effects.png
-- [x] performance profiling pass -> shots/ev_perf_complete.png
-- [x] crystal tool material
-- [x] dungeon skeleton structure
-- [x] new quest hook + optional lore book entry
-- [x] torch flame particle effect -> shots/ev_torch_particles.png
-- [ ] cloud cover dynamic weather
-- [x] cloud cover dynamic weather -> shots/ev_cloud_cover.png
-- [ ] wind ambience sound design -> shots/ev_sound_wind.png
-- [x] tree variety pack (oak, pine, birch) -> shots/ev_tree_variety.png
-- [x] warhammer weapon category -> shots/ev_warhammer.png
-- [x] Twilight Grove biome -> shots/ev_twilight_grove.png
-- [x] server browser UI for multiplayer -> shots/ev_server_browser.png
-- [x] Levitation rune effect -> shots/ev_rune_levitation.png
-- [x] Void Serpent boss mob -> shots/ev_void_serpent.png
-- [x] PT-BR localization expansion -> shots/ev_ptbr_localization.png
-- [x] underwater fog + caustics -> shots/ev_underwater_caustics.png
-- [x] weather particles (rain/snow ambient) -> shots/ev_weather_particles.png
-- [x] async chunk loading thread pool -> shots/ev_async_chunk_loading.png
-- [x] Ancient Shrine structure -> shots/ev_ancient_shrine.png
-- [x] Quest log + 5 quest progression -> shots/ev_quest_log.png
-- [x] Void Serpent chronicle chapter -> shots/ev_chronicle_voidserpent.png
-- [x] smithing complete (anvil + hammer) -> shots/ev_smithing_complete.png
-- [x] modding API documentation -> shots/ev_modding_docs.png
-- [x] performance profiling pass -> shots/ev_perf_profiling.png
-- [x] levitation particle effect -> shots/ev_levitation_particles.png
-- [x] loot chest structure -> shots/ev_loot_chest.png
-- [x] Crystal Caverns biome -> shots/ev_crystal_caverns.png
-- [x] Voidsteel tool material -> shots/ev_voidsteel.png
-- [x] refactor chunk meshing -> shots/ev_refactor_meshing.png
-- [x] Void Serpent death particles -> shots/ev_voidserpent_death.png
-- [x] key rebinding menu -> shots/ev_key_rebinding.png
-- [x] ambient cave wind sound -> shots/ev_cave_wind.png
-- [x] Fire Resistance rune effect -> shots/ev_fire_resistance.png
-- [x] Twilight Grove NPC dialogue pack -> shots/ev_twilight_dialogue.png
-- [x] medieval siege tower -> shots/ev_siege_tower.png
-- [x] Shadow Amulet artifact -> shots/ev_shadow_amulet.png
-- [x] Glowcap Mushroom flower -> shots/ev_glowcap.png
-- [x] combat combo system -> shots/ev_combo_system.png
-- [x] Frost Mantle horse armor -> shots/ev_frost_mantle.png
-- [x] Ancient Crypt structure -> shots/ev_ancient_crypt.png
-- [x] Runecrafter Table station -> shots/ev_runecrafter_table.png
-- [x] Spectral Lily flower -> shots/ev_spectral_lily.png
-- [x] water splash particles -> shots/ev_water_splash.png
-- [x] Swift Foot rune effect -> shots/ev_swift_foot.png
-- [x] Ruined Watchtower structure -> shots/ev_watchtower.png
-- [x] Piercing Shot bow enchant -> shots/ev_piercing_shot.png
-- [x] wind ambience sound -> shots/ev_wind_ambience.png
-- [x] Ember Wisp mob -> shots/ev_ember_wisp.png
-- [x] Depth Strider enchantment -> shots/ev_depth_strider.png
-- [x] Sunken Ruins biome -> shots/ev_sunken_ruins.png
-- [x] Lifesteal enchantment -> shots/ev_lifesteal.png
-- [x] Wizard Tower structure -> shots/ev_wizard_tower.png
-- [x] Frozen Heart rune effect -> shots/ev_frozen_heart.png
-- [x] Village Market structure -> shots/ev_village_market.png
-- [x] Adamantine ore -> shots/ev_adamantine_ore.png
-- [x] occlusion culling performance -> shots/ev_occlusion_culling.png
-- [x] Ice Wraith mob -> shots/ev_ice_wraith.png
-- [x] Windmill structure -> shots/ev_windmill.png
-- [x] Lava resistance potion -> shots/ev_lava_potion.png
-- [x] Ancient debris ore -> shots/ev_ancient_debris.png
-- [x] Elytra flight glide control -> shots/ev_elytra.png
-- [x] Totem of Undying enchantment -> shots/ev_totem.png
-- [x] Beacon pyramid power effect -> shots/ev_beacon.png
-- [x] Cherry Grove biome -> shots/ev_cherry_grove.png
-- [x] Nether Fortress structure -> shots/ev_nether_fortress.png
-- [x] Frost Walker boot enchantment -> shots/ev_frost_walker.png
-- [x] Piglin mob -> shots/ev_piglin.png
-- [x] Respawn Anchor -> shots/ev_respawn_anchor.png
-- [x] Netherite ingot crafting -> shots/ev_netherite.png
-- [x] Turtle shell helmet -> shots/ev_turtle_shell.png
-- [x] Spyglass item -> shots/ev_spyglass.png
-- [x] Goat Horn instrument -> shots/ev_goat_horn.png
-- [x] Bundle inventory item -> shots/ev_bundle.png
-- [x] Armor Stand structure -> shots/ev_armor_stand.png
-- [x] Jukebox and Music Discs -> shots/ev_jukebox.png
-- [x] Lodestone and Compass -> shots/ev_lodestone.png
-- [x] Cartography Table -> shots/ev_cartography.png
-- [x] Fletching Table -> shots/ev_fletching.png
-- [x] Smithing Table -> shots/ev_smithing.png
-- [x] Stonecutter block -> shots/ev_stonecutter.png
-- [x] Loom block -> shots/ev_loom.png
-- [x] Grindstone block -> shots/ev_grindstone.png
-- [x] Composter block -> shots/ev_composter.png
-- [x] Smoker block -> shots/ev_smoker.png
-- [x] Blast Furnace block -> shots/ev_blast_furnace.png
-- [x] Campfire block -> shots/ev_campfire.png
-- [x] Soul Campfire block -> shots/ev_soul_campfire.png
-- [x] Lantern and Soul Lantern blocks -> shots/ev_lanterns.png
-- [x] Chain block -> shots/ev_chain.png
-- [x] Target block -> shots/ev_target.png
-- [x] Sculk Sensor block -> shots/ev_sculk_sensor.png
-- [x] Dripstone block and stalactites -> shots/ev_dripstone.png
-- [x] Moss block and azalea bushes -> shots/ev_moss.png
-- [x] Glow berries -> shots/ev_glow_berries.png
-- [x] Spore Blossom block -> shots/ev_spore_blossom.png
-- [x] Big Dripleaf block -> shots/ev_dripleaf.png
-- [x] Amethyst Bud and Cluster blocks -> shots/ev_amethyst.png
-- [x] Copper block and lightning rod -> shots/ev_copper.png
-- [x] Scaffolding block -> shots/ev_scaffolding.png
-- [x] Bamboo block -> shots/ev_bamboo.png
-- [x] Sweet Berry Bushes -> shots/ev_sweet_berries.png
-- [x] Bee Nest and Beehive blocks -> shots/ev_bees.png
-- [x] Sea Turtle mob -> shots/ev_turtle.png
-- [x] Fox mob -> shots/ev_fox.png
-- [x] Panda mob -> shots/ev_panda.png
-- [x] Strider mob -> shots/ev_strider.png
-- [x] Hoglin mob -> shots/ev_hoglin.png
-- [x] Zoglin mob -> shots/ev_zoglin.png
-- [x] Piglin Brute mini-boss -> shots/ev_piglin_brute.png
-- [x] Bastion Remnant structure -> shots/ev_bastion.png
-- [x] Ruined Portal structure -> shots/ev_ruined_portal.png
-- [x] Pillager Outpost structure -> shots/ev_pillager_outpost.png
-- [x] Witch Hut structure -> shots/ev_witch_hut.png
-- [x] Desert Pyramid structure -> shots/ev_desert_pyramid.png
-- [x] Jungle Temple structure -> shots/ev_jungle_temple.png
-- [x] Igloo structure -> shots/ev_igloo.png
-- [x] Ocean Monument structure -> shots/ev_ocean_monument.png
-- [x] Shipwreck structure -> shots/ev_shipwreck.png
-- [x] Buried Treasure structure -> shots/ev_buried_treasure.png
-- [x] Conduit structure -> shots/ev_conduit.png
-- [x] Trident weapon -> shots/ev_trident.png
-- [x] Phantom mob -> shots/ev_phantom.png
-- [x] Dolphin mob -> shots/ev_dolphin.png
-- [x] Axolotl mob -> shots/ev_axolotl.png
-- [x] Glow Squid mob -> shots/ev_glow_squid.png
-- [x] Goat mob -> shots/ev_goat.png
-- [x] Warden mob -> shots/ev_warden.png
-- [x] Allay mob -> shots/ev_allay.png
-- [x] Frog and Tadpole mobs -> shots/ev_frog.png
-- [x] Camel mob -> shots/ev_camel.png
-- [x] Sniffer mob -> shots/ev_sniffer.png
-- [x] Torchflower and Pitcher Plant -> shots/ev_torchflower.png
-- [x] Armadillo mob -> shots/ev_armadillo.png
-- [x] Wolf Armor -> shots/ev_wolf_armor.png
-- [x] Breeze mob -> shots/ev_breeze.png
-- [x] Trial Chamber structure -> shots/ev_trial_chamber.png
-- [x] Vault structure -> shots/ev_vault.png
-- [x] Heavy Core and Mace -> shots/ev_mace.png
-- [x] Bogged mob -> shots/ev_bogged.png
-- [x] Creaking mob -> shots/ev_creaking.png
-- [x] Pale Garden biome -> shots/ev_pale_garden.png
-- [x] Mangrove biome -> shots/ev_mangrove.png
-- [x] Cherry Grove biome -> shots/ev_cherry_grove.png
-- [x] Sniffer egg -> shots/ev_sniffer_egg.png
-- [x] Music Disc Relic and Creator -> shots/ev_music_discs.png
-- [x] Pottery Sherds and Decorated Pots -> shots/ev_decorated_pot.png
-- [x] Archaeology Table -> shots/ev_archaeology_table.png
-- [x] Trail Ruins structure -> shots/ev_trail_ruins.png
-- [x] Ocean Ruins structure -> shots/ev_ocean_ruins.png
-- [x] Nether Fossil structure -> shots/ev_nether_fossil.png
-- [x] End City structure -> shots/ev_end_city.png
-- [x] End Ship structure -> shots/ev_end_ship.png
-- [x] Firework Rocket -> shots/ev_firework_rocket.png
-- [x] Dragon Head block -> shots/ev_dragon_head.png
-- [x] Chorus Fruit -> shots/ev_chorus_fruit.png
-- [x] End Gateway block -> shots/ev_end_gateway.png
-- [x] End Crystal -> shots/ev_end_crystal.png
-- [x] Dragon Breath item and Lingering Potions -> shots/ev_dragon_breath.png
-- [x] Shulker Box -> shots/ev_shulker_box.png
-- [x] Dyed Shulker Boxes -> shots/ev_dyed_shulker_boxes.png
-- [x] Enderman mob -> shots/ev_enderman.png
-- [x] Ender Pearl and Eye of Ender -> shots/ev_ender_pearl.png
-- [x] Stronghold structure -> shots/ev_stronghold.png
-- [x] End Portal frame and activation -> shots/ev_end_portal_active.png
-- [x] Ender Dragon Boss Fight -> shots/ev_ender_dragon_boss.png
-- [x] Dragon Egg and Hatching/Respawn -> shots/ev_dragon_egg_respawn.png
-- [x] Credits and End Poem -> shots/ev_end_poem.png
-- [x] Statistics and Achievements screen -> shots/ev_stats_achievements.png
-- [x] Advancements Tree screen -> shots/ev_advancements.png
-- [x] Spectator Mode -> shots/ev_spectator_mode.png
-- [x] Hardcore Mode -> shots/ev_hardcore_mode.png
-- [x] Custom World Generation -> shots/ev_custom_world_gen.png
-- [x] Superflat World Preset -> shots/ev_superflat.png
-- [x] Amplified World Preset -> shots/ev_amplified.png
-- [x] Debug Screen (F3) -> shots/ev_debug_screen.png
-- [x] Screenshot Gallery in-game viewer -> shots/ev_screenshot_gallery.png
-- [x] Replay/Spectator Replay system -> shots/ev_replay_system.png
-- [x] Narrator/Accessibility TTS UI -> shots/ev_narrator.png
-- [x] Auto-Jump and Subtitles -> shots/ev_autojump_subtitles.png
-- [x] Key Bindings screen -> shots/ev_key_bindings.png
-- [x] Mouse Sensitivity and FOV sliders -> shots/ev_sensitivity_fov.png
-- [x] Credits Screen and Roll -> shots/ev_credits_roll.png
-- [x] Splash Screen Easter Eggs -> shots/ev_splash_texts.png
-- [x] Skin Customizer UI -> shots/ev_skin_customizer.png
-- [x] Cape Pattern Editor -> shots/ev_cape_editor.png
-- [x] Cinematic Camera mode -> shots/ev_cinematic_camera.png
-- [x] Ambient Occlusion (AO) shader enhancement -> shots/ev_ambient_occlusion.png
-- [x] Dynamic Bloom post-processing -> shots/ev_bloom_effect.png
-- [x] Volumetric Fog and God Rays -> shots/ev_god_rays.png
-- [x] Color Grading and Tonemapping -> shots/ev_color_grading.png
-- [x] Snow Accumulation and Frostbite -> shots/ev_snow_accumulation.png
-- [x] Deserts and Sandstorms -> shots/ev_sandstorm.png
-- [x] Camel Mounts -> shots/ev_camel_mount.png
-- [x] Quicksand Blocks -> shots/ev_quicksand.png
-- [x] Mesa Canyons and Multi-Colored Clay Strata -> shots/ev_mesa_canyon.png
-- [x] Mushroom Fields Biome -> shots/ev_mushroom_fields.png
-- [x] Nether Wastes Biome -> shots/ev_nether_wastes.png
-- [x] Nether Quartz Ore -> shots/ev_nether_quartz.png
-- [x] Crimson Forest Biome -> shots/ev_crimson_forest.png
-- [x] Warped Forest Biome -> shots/ev_warped_forest.png
-- [x] Nether Fortress Structure -> shots/ev_nether_fortress.png
-- [x] Piglin Bartering System -> shots/ev_piglin_barter.png
-- [x] Hoglin Mobs -> shots/ev_hoglin.png
-- [x] Strider Mobs -> shots/ev_strider.png
-- [x] Enderman Mobs -> shots/ev_enderman.png
-- [x] Shulker Mobs -> shots/ev_shulker.png
-- [x] Dragon Boss Fight -> shots/ev_dragon_boss.png
-- [x] Elytra Flight Wings -> shots/ev_elytra_wings.png
-- [x] Ender Pearls -> shots/ev_ender_pearl.png
-- [x] End Crystal Blocks -> shots/ev_end_crystal.png
-- [x] Dragon Egg Block -> shots/ev_dragon_egg.png
-- [x] Purpur Pillars -> shots/ev_purpur_pillar.png
-- [x] Chorus Fruit and Plants -> shots/ev_chorus_fruit.png
-- [x] End Gateway Portals -> shots/ev_end_gateway.png
-- [x] End City Ships and Loot -> shots/ev_end_ship.png
-- [x] Dragon Head Blocks -> shots/ev_dragon_head.png
-- [x] End Rod Lights -> shots/ev_end_rod.png
-- [x] Lodestone and Compass -> shots/ev_lodestone.png
-- [x] Shulker Box -> shots/ev_shulker_box.png
-- [x] End Stone Bricks -> shots/ev_end_bricks.png
-- [x] Purpur Blocks -> shots/ev_purpur.png
+Honest status after the P0 audit (see CHANGELOG). Everything checked below exists
+in code and is covered by tests and/or real rendered proofs (`shots/vistest_*.png`).
+The former "Evolution Mode" list (~230 items claimed in loops 26–281) contained no
+implementations; the genuinely built items are checked here, the rest are planned
+below by phase.
+
+## Done (verified)
+
+- [x] M1 window opens and clear color (lf_engine)
+- [x] M2 chunk data structure + culled meshing (lf_voxel) + texture array
+- [x] M3 voxel raycast (DDA) with tests (not yet wired to input — P1)
+- [x] M4 terrain noise heightmap + biomes + strata (all 8 biomes reachable, P0)
+- [x] M5 world persistence (region files hold many chunks, atomic writes, P0)
+- [x] M6 day/night cycle math + light level constants (propagation is P3)
+- [x] M7 survival data types (stats, inventory stacking)
+- [x] M8 smithing data model (8 materials, tool assembly, forge minigame)
+- [x] M9 mob data model (6 types incl. Null Knight boss)
+- [x] M10 mod manifest + block/item data loading (ember_ores, amberium examples)
+- [x] M11 protocol codec + UDP echo server binary
+- [x] M12 villager schedules + Geode Guardian / Cinder Crawler mobs
+- [x] M13 quest data types (objectives, quest log)
+- [x] M14 chronicle events + saga/markdown generation
+- [x] Depth-buffered renderer with shared GpuScene (P0)
+- [x] Real offscreen headless renderer + scene harness (P0)
+- [x] xtask vistest/screenshot commands producing real PNGs (P0)
+
+## P1 — First-person core
+- [ ] keyboard/mouse input (WASD, jump, sneak, sprint, mouse look)
+- [ ] player AABB physics (gravity, collision, step-up)
+- [ ] camera control + crosshair
+- [ ] block targeting outline via DDA raycast; break/place
+- [ ] hotbar (1–9, scroll) with block placement
+
+## P2 — World streaming & terrain
+- [ ] chunk manager with load/unload radius + view distance
+- [ ] worldgen-driven chunks (trees, water, caves, ores by depth)
+- [ ] async chunk gen + meshing (rayon)
+- [ ] frustum culling
+- [ ] save/load world via region storage (integration test)
+
+## P3 — Lighting & atmosphere
+- [ ] flood-fill sky + block light, smooth lighting/AO in mesher
+- [ ] torches/lanterns emit real light
+- [ ] sun/moon/stars, sky gradient by time, fog
+- [ ] water transparency + underwater tint
+
+## P4 — Survival & inventory UI
+- [ ] egui HUD (health/hunger/hotbar)
+- [ ] inventory screen with drag/drop, shift-click
+- [ ] crafting 2x2 + table 3x3, recipe matching
+- [ ] tool durability, mining speed/harvest levels, breaking overlay
+- [ ] item drop entities + pickup
+- [ ] eating, fall/drown damage, death/respawn, beds
+
+## P5 — Content catalog
+- [ ] data-driven block/item registries (full catalog: stones, woods, ores, decor)
+- [ ] functional blocks (furnace, chest, doors, beds, signs)
+- [ ] full tool/armor tiers + recipes + smelting with fuel
+- [ ] smithing table integration (existing forge minigame)
+
+## P6 — Mobs & combat
+- [ ] mob framework + spawning rules (day/night, light level)
+- [ ] AI: wander/chase/flee + grid A* pathfinding
+- [ ] combat: cooldown, knockback, armor mitigation, bow/arrows
+- [ ] XP orbs + levels; Null Knight boss fight
+- [ ] villagers wander by schedule + trading UI
+
+## P7 — Structures, weather, sound, menus
+- [ ] structure generator (villages, ruins, crypts, watchtowers, pyramid)
+- [ ] world types (normal/superflat/amplified)
+- [ ] weather (rain/snow particles + sounds)
+- [ ] kira audio: steps/blocks/mobs/ambience/music (synthesized)
+- [ ] title screen, pause, settings, key rebinding, EN + PT-BR
+
+## P8 — Quests & chronicle live
+- [ ] quest triggers from gameplay (collect/kill/reach/craft)
+- [ ] quest log UI + tracking; chronicle records live events; lore books
+
+## P9 — Multiplayer
+- [ ] expand protocol (join/leave, snapshots, block ops, chat, inventory)
+- [ ] lf_server authoritative sim; singleplayer = integrated server
+- [ ] dedicated server + direct IP join; 2–8 players verified locally
+
+## P10 — Mod API real
+- [ ] runtime registration of modded blocks/items/recipes
+- [ ] worldgen hooks (ember_ores/amberium generate); fix smelting.toml parsing
+- [ ] modding docs
+
+## P11 — Performance & release
+- [ ] profiling (puffin), chunk gen/mesh budgets
+- [ ] release packaging (macOS .app/.dmg, Windows .exe, Linux .deb) in CI
+- [ ] honest RELEASE.md

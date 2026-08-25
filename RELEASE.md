@@ -1,29 +1,35 @@
 # RELEASE.md
 
-## LOREFORGE — Release Notes & Architecture
+## LOREFORGE — voxel sandbox RPG in Rust
 
-LOREFORGE is a voxel sandbox RPG written completely in Rust.
+Current state: **P0 honest baseline complete.** The engine renders, the world
+generates, persistence works, and a real screenshot pipeline proves it. The
+game is not yet playable — input, physics, and gameplay arrive in P1–P4 of the
+approved plan (see BACKLOG.md).
 
-### Features & Proofs (Milestones M1–M17)
-- **M1 Window & Clear**: `shots/m1_window.png`
-- **M2 Chunk & Textures**: `shots/m2_chunk.png`
-- **M3 Break/Place Raycast**: `shots/m3_breakplace.png`
-- **M4 Endless Terrain**: `shots/m4_terrain.png`
-- **M5 World Persistence**: `shots/m5_save_load.png`
-- **M6 Day/Night & Lighting**: `shots/m6_night.png`
-- **M7 Survival Core**: `shots/m7_survival.png`
-- **M8 Medieval Smithing**: `shots/m8_forge.png`
-- **M9 Mobs & Boss**: `shots/m9_boss.png`
-- **M10 Mod System**: `shots/m10_mod.png`
-- **M11 Multiplayer**: `shots/m11_two_players.png`
-- **M12 NPCs & Villages**: `shots/m12_village.png`
-- **M13 Story Mode Quests**: `shots/m13_quests.png`
-- **M14 Chronicle Engine**: `shots/m14_chronicle.png`
-- **M15 Visual Test Harness**: `shots/m15_vistest.png`
-- **M16 CI Release Builds**: `shots/m16_release.png`
-- **M17 Polish & Localization**: `shots/m17_title.png`
-
-### How to Run
+### What runs today
 ```bash
-cargo run -p loreforge
+cargo run -p loreforge                                              # windowed demo scene
+cargo run -p loreforge -- --headless --scene terrain_vista --out s.png  # real render to PNG
+cargo run -p xtask -- vistest shots                                 # render all scenes
+cargo test --workspace                                              # 43 tests
+cargo run -p loreforge-server                                       # UDP echo server
 ```
+
+### Verified proof screenshots (real renders, not mockups)
+- `shots/vistest_spawn_plains_dawn.png` — dawn over meadow terrain
+- `shots/vistest_terrain_vista.png` — noon vista across biomes
+- `shots/vistest_night_watch.png` — night scene
+
+### Architecture
+- `lf_engine` windowing + wgpu renderer (windowed & offscreen), `lf_voxel`
+  sections/meshing/raycast/persistence, `lf_worldgen` seeded noise terrain +
+  8 biomes, `lf_game` survival/smithing/mobs data, `lf_npc` villagers,
+  `lf_story` quests, `lf_chronicle` saga generation, `lf_modapi` TOML mod
+  loading, `lf_protocol` + `loreforge-server` networking, `lf_vistest` +
+  `xtask` visual test harness.
+
+### Historical note
+Commits before "P0: honest baseline" include ~256 docs-only "Evolution Mode"
+commits whose claimed features were never implemented. The CHANGELOG documents
+the audit. Trust code + tests + `shots/vistest_*.png`, nothing else.

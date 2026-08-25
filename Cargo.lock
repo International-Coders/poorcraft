@@ -1342,6 +1342,14 @@ dependencies = [
 [[package]]
 name = "lf_vistest"
 version = "0.1.0"
+dependencies = [
+ "glam",
+ "image",
+ "lf_assets",
+ "lf_engine",
+ "lf_voxel",
+ "lf_worldgen",
+]
 
 [[package]]
 name = "lf_voxel"
@@ -1435,6 +1443,7 @@ name = "loreforge"
 version = "0.1.0"
 dependencies = [
  "lf_engine",
+ "lf_vistest",
  "tracing",
  "tracing-subscriber",
 ]
@@ -4015,6 +4024,9 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 [[package]]
 name = "xtask"
 version = "0.1.0"
+dependencies = [
+ "lf_vistest",
+]
 
 [[package]]
 name = "yoke"

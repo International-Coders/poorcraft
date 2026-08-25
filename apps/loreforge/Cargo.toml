@@ -5,5 +5,6 @@ edition = "2021"
 
 [dependencies]
 lf_engine = { path = "../../crates/lf_engine" }
+lf_vistest = { path = "../../crates/lf_vistest" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }

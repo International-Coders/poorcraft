@@ -27,7 +27,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install Vulkan drivers
+      - name: Install Vulkan drivers (lavapipe software rendering)
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
-      - name: Run visual tests
-        run: cargo run -- --headless --scene spawn_plains_dawn --seed 12345 --out shots/test.png
+      - name: Render all scenes headless (real render to PNG)
+        run: cargo run --release -p xtask -- vistest shots
+      - name: Upload rendered proofs
+        uses: actions/upload-artifact@v4
+        with:
+          name: vistest-proofs
+          path: shots/vistest_*.png
