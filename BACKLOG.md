@@ -244,3 +244,4 @@
 - [x] End Gateway Portals -> shots/ev_end_gateway.png
 - [x] End City Ships and Loot -> shots/ev_end_ship.png
 - [x] Dragon Head Blocks -> shots/ev_dragon_head.png
+- [x] End Rod Lights -> shots/ev_end_rod.png
