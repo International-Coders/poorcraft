@@ -160,3 +160,4 @@
 - [x] Camel mob -> shots/ev_camel.png
 - [x] Sniffer mob -> shots/ev_sniffer.png
 - [x] Torchflower and Pitcher Plant -> shots/ev_torchflower.png
+- [x] Armadillo mob -> shots/ev_armadillo.png

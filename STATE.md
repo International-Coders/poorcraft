@@ -1,9 +1,9 @@
 # STATE
-loop_count: 167
+loop_count: 168
 current_milestone: Evolution
-last_done: "Evolution Mode: added Torchflower and Pitcher Plant ancient prehistoric flora; captured ev_torchflower.png"
+last_done: "Evolution Mode: added Armadillo mob savanna mob drops scutes for wolf armor; captured ev_armadillo.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_torchflower.png
+last_screenshot: shots/ev_armadillo.png
 blockers: none
