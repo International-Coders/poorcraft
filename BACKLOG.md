@@ -89,3 +89,4 @@
 - [x] Lava resistance potion -> shots/ev_lava_potion.png
 - [x] Ancient debris ore -> shots/ev_ancient_debris.png
 - [x] Elytra flight glide control -> shots/ev_elytra.png
+- [x] Totem of Undying enchantment -> shots/ev_totem.png
