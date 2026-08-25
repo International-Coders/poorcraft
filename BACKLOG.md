@@ -121,3 +121,4 @@
 - [x] Sculk Sensor block -> shots/ev_sculk_sensor.png
 - [x] Dripstone block and stalactites -> shots/ev_dripstone.png
 - [x] Moss block and azalea bushes -> shots/ev_moss.png
+- [x] Glow berries -> shots/ev_glow_berries.png
