@@ -1,9 +1,9 @@
 # STATE
-loop_count: 17
-current_milestone: M17
-last_done: "implemented polish: sound mixer (kira buses), settings screen, English + Português (BR) localization, title screen; captured m17_title.png"
-next_task: "all milestones complete - enter Evolution Mode"
+loop_count: 18
+current_milestone: Evolution
+last_done: "Evolution Mode: added amberium example mod with new ore and block data pack; tests passing; captured ev_amberium.png"
+next_task: "Evolution: add new biome (crystal grove) with custom trees"
 build: GREEN
 tests: passing
-last_screenshot: shots/m17_title.png
+last_screenshot: shots/ev_amberium.png
 blockers: none

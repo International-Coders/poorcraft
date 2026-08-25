@@ -1,0 +1,15 @@
+[[blocks]]
+id = "amberium:amberium_ore"
+name = "Amberium Ore"
+texture = "amberium_ore.png"
+hardness = 5.0
+harvest_level = 3
+light = 8
+
+[[blocks]]
+id = "amberium:amberium_block"
+name = "Amberium Block"
+texture = "amberium_block.png"
+hardness = 6.0
+harvest_level = 3
+light = 4

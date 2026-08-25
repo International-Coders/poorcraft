@@ -17,3 +17,7 @@
 - [x] M15 visual test harness --headless --scene --out shots/m15_vistest.png
 - [x] M16 release builds in CI (.exe, .dmg, .deb)
 - [x] M17 polish, settings, localization -> shots/m17_title.png
+
+# EVOLUTION MODE
+- [x] amberium ore example mod -> shots/ev_amberium.png
+- [ ] crystal grove biome + custom trees
