@@ -1,6 +1,9 @@
 pub mod meshing;
 pub mod raycast;
 pub mod persistence;
+pub mod world;
+
+pub use world::{ChunkColumn, World};
 
 use serde::{Serialize, Deserialize};
 

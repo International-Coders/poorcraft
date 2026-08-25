@@ -134,6 +134,13 @@ impl WorldGen {
         }
         col
     }
+
+    /// The y of the first air block above the surface (what you stand on, +1).
+    /// column() places surface blocks up to height+3, so the standing surface
+    /// is height+4; use this instead of height() for entity placement.
+    pub fn surface_top(&self, cx: i32, cz: i32) -> i32 {
+        self.height(cx, cz) + 4
+    }
 }
 
 /// Pure biome classification from temperature t [0..1], humidity h [0..1],
@@ -155,6 +162,40 @@ pub fn biome_from(t: f32, h: f32, height: i32) -> Biome {
         Biome::MushroomHollow
     } else {
         Biome::Meadow
+    }
+}
+
+/// Voxel BlockState ids matching this crate's BlockId mapping.
+fn block_state_of(b: BlockId) -> lf_voxel::BlockState {
+    use lf_voxel::BlockState;
+    match b {
+        BlockId::AIR => BlockState::AIR,
+        BlockId::STONE => BlockState::STONE,
+        BlockId::DIRT => BlockState::DIRT,
+        BlockId::GRASS => BlockState::GRASS,
+        BlockId::SAND => BlockState(4),
+        BlockId::MYCELIUM => BlockState(5),
+        BlockId::SNOW => BlockState(6),
+        BlockId(_) => BlockState::AIR,
+    }
+}
+
+impl WorldGen {
+    /// Fill a whole 16x256x16 chunk column from noise.
+    pub fn generate_chunk(&self, cx: i32, cz: i32) -> lf_voxel::ChunkColumn {
+        let mut col = lf_voxel::ChunkColumn::empty();
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                let wx = cx * 16 + lx as i32;
+                let wz = cz * 16 + lz as i32;
+                for (wy, block) in self.column(wx, wz) {
+                    if block != BlockId::AIR {
+                        col.set(lx, wy as usize, lz, block_state_of(block));
+                    }
+                }
+            }
+        }
+        col
     }
 }
 
@@ -216,6 +257,20 @@ mod window_probe {
             let mut min = i32::MAX; let mut max = i32::MIN; let mut sum = 0i64; let n = (2*16+16)*(2*16+16);
             for x in -16..32 { for z in -16..32 { let h = g.height(x, z); min=min.min(h); max=max.max(h); sum += h as i64; } }
             println!("SEED {} min {} max {} avg {:.1}", s, min, max, sum as f64 / n as f64);
+        }
+    }
+
+    #[test]
+    fn generate_chunk_matches_column_data() {
+        let gen = WorldGen::new(Seed(7));
+        let col = gen.generate_chunk(2, -3);
+        for (lx, lz) in [(0usize, 0usize), (8, 8), (15, 15)] {
+            let wx = 2 * 16 + lx as i32;
+            let wz = -3 * 16 + lz as i32;
+            let h = gen.height(wx, wz);
+            // block just below surface height is solid, well above is air
+            assert!(col.get(lx, (h - 1).max(0) as usize, lz) != lf_voxel::BlockState::AIR);
+            assert_eq!(col.get(lx, 200, lz), lf_voxel::BlockState::AIR);
         }
     }
 }

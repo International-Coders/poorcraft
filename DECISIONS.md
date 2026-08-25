@@ -18,3 +18,7 @@
 - P0: biome selection is elevation-aware (Mountains>=140, Highlands>=110, DeepOcean<42, Ocean<56) with height stretched to 24..176 so all 8 biomes occur
 - P0: depth buffer (Depth32Float) in the voxel pipeline; shared GpuScene reused by windowed and offscreen paths
 - P0: all proof screenshots must come from lf_engine::headless (real wgpu render); docs-only commits banned
+- P1: lf_client owns the gameplay shell (input/physics wiring/world editing); lf_engine stays a renderer (SceneResources + MeshBatch + OutlineScene)
+- P1: axis-separated AABB collision with 50ms substeps (anti-tunneling); physics constants in lf_game::player
+- P1: worldgen surface band tops at height+3 — surface_top() is the standing height; height() alone must never be used for placement
+- P1: vistest first-person scenes pick a moderate ~20-block vista drop (steeper slopes fall outside a 45-degree view)

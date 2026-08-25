@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-08-25 — P1: first-person playable core (loop 283)
+- lf_voxel: World + ChunkColumn (16 sections = 16x256x16), world-coord
+  get/set with chunk border math, surface_height, mesh_column with cross-
+  border neighbor culling; 4 new tests.
+- lf_worldgen: generate_chunk fills a ChunkColumn directly; surface_top()
+  helper (surface band tops out at height+3, standing surface height+4).
+- lf_game: Player with AABB physics — gravity, jumping, sprint/sneak/walk
+  speeds, fly mode, axis-separated collision with substepping so long falls
+  never tunnel; 8 physics tests (landing, walls, jump arc, ceiling, fly,
+  tunneling, look dir).
+- lf_engine: scene split into SceneResources (shared pipeline + atlas) and
+  MeshBatch (per-column drawable); OutlineScene line pipeline renders the
+  targeted block outline.
+- lf_client (replaces dummy): the game shell — winit input with cursor
+  lock, player update loop, DDA raycast targeting with outline, instant
+  break / face-adjacent place (with player-overlap rejection), 6-slot
+  hotbar (digits + scroll, shown in window title), F2 screenshots via the
+  offscreen renderer, per-column GPU remesh on edit.
+- vistest: first_person_view scene with vista-seeking camera (moderate-drop
+  selection, constrained to the meshed area); scenes use World pipeline and
+  radius-3 meshes.
+- Tests 43 → 57. Proofs: shots/vistest_first_person_view.png (eye-height
+  view over real terrain), plus re-rendered dawn/vista/night scenes.
+
 ## 2026-08-25 — P0: honest baseline (loop 282)
 - AUDIT: found that loops 26–281 (~256 "Evolution Mode" loops) changed only
   BACKLOG.md/STATE.md — no code, data, or tests. All their claimed features

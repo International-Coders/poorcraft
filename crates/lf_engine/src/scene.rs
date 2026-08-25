@@ -32,27 +32,20 @@ impl GpuVertex {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Uniforms {
+pub struct Uniforms {
     view_proj: [[f32; 4]; 4],
 }
 
-/// A static textured mesh plus the pipeline to draw it. Shared by the
-/// windowed app and the headless renderer.
-pub struct GpuScene {
+/// Pipeline + texture array shared by every mesh drawn in a frame.
+pub struct SceneResources {
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
-    uniform_buffer: wgpu::Buffer,
-    uniform_bind_group: wgpu::BindGroup,
     diffuse_bind_group: wgpu::BindGroup,
+    uniform_bind_group_layout: wgpu::BindGroupLayout,
 }
 
-impl GpuScene {
-    /// Builds GPU buffers for `vertices`/`indices` and a texture array from
-    /// `textures` (each 16x16 RGBA). `target_format` is the output color format.
+impl SceneResources {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, target_format: wgpu::TextureFormat,
-               vertices: &[GpuVertex], indices: &[u32], textures: &[RgbaImage]) -> Self {
+               textures: &[RgbaImage]) -> Self {
         let texture_size = wgpu::Extent3d {
             width: 16,
             height: 16,
@@ -142,29 +135,6 @@ impl GpuScene {
             label: Some("uniform_bind_group_layout"),
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = indices.len() as u32;
-
-        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[Uniforms { view_proj: glam::Mat4::IDENTITY.to_cols_array_2d() }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &uniform_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniform_buffer.as_entire_binding() }],
-            label: Some("uniform_bind_group"),
-        });
-
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
             bind_group_layouts: &[&uniform_bind_group_layout, &diffuse_bind_group_layout],
@@ -216,12 +186,51 @@ impl GpuScene {
 
         Self {
             render_pipeline,
+            diffuse_bind_group,
+            uniform_bind_group_layout,
+        }
+    }
+}
+
+/// One drawable mesh (own vertex/index/camera-uniform buffers) using shared
+/// SceneResources. Typically one per chunk column.
+pub struct MeshBatch {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
+    uniform_buffer: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
+}
+
+impl MeshBatch {
+    pub fn new(device: &wgpu::Device, resources: &SceneResources,
+               vertices: &[GpuVertex], indices: &[u32]) -> Self {
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[Uniforms { view_proj: glam::Mat4::IDENTITY.to_cols_array_2d() }]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &resources.uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniform_buffer.as_entire_binding() }],
+            label: Some("uniform_bind_group"),
+        });
+        Self {
             vertex_buffer,
             index_buffer,
-            num_indices,
+            num_indices: indices.len() as u32,
             uniform_buffer,
             uniform_bind_group,
-            diffuse_bind_group,
         }
     }
 
@@ -233,12 +242,12 @@ impl GpuScene {
         );
     }
 
-    /// Record the draw into an existing render pass (color + depth attachments
-    /// are set up by the caller).
-    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.render_pipeline);
+    /// Record the draw into an existing render pass. Sets pipeline + shared
+    /// texture bindings itself.
+    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, resources: &'a SceneResources) {
+        render_pass.set_pipeline(&resources.render_pipeline);
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.diffuse_bind_group, &[]);
+        render_pass.set_bind_group(1, &resources.diffuse_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
@@ -258,5 +267,28 @@ impl GpuScene {
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         (texture, view)
+    }
+}
+
+/// Single-mesh convenience used by the demo app and headless renderer.
+pub struct GpuScene {
+    pub resources: SceneResources,
+    pub batch: MeshBatch,
+}
+
+impl GpuScene {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, target_format: wgpu::TextureFormat,
+               vertices: &[GpuVertex], indices: &[u32], textures: &[RgbaImage]) -> Self {
+        let resources = SceneResources::new(device, queue, target_format, textures);
+        let batch = MeshBatch::new(device, &resources, vertices, indices);
+        Self { resources, batch }
+    }
+
+    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera) {
+        self.batch.update_camera(queue, camera);
+    }
+
+    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        self.batch.draw(render_pass, &self.resources);
     }
 }

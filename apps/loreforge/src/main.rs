@@ -28,5 +28,5 @@ fn main() {
             }
         }
     }
-    lf_engine::run();
+    lf_client::run();
 }

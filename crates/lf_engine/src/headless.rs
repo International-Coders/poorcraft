@@ -3,7 +3,7 @@ use std::path::Path;
 use image::{Rgba, RgbaImage};
 
 use crate::camera::Camera;
-use crate::scene::{GpuScene, GpuVertex};
+use crate::scene::{GpuScene, GpuVertex, MeshBatch};
 
 /// Renders `vertices`/`indices` offscreen (no window or surface) and writes a
 /// PNG to `out_path`. This is the backbone of honest proof screenshots: the
@@ -50,7 +50,7 @@ pub fn render_to_png(
 
         let format = wgpu::TextureFormat::Rgba8UnormSrgb;
         let scene = GpuScene::new(&device, &queue, format, vertices, indices, textures);
-        let (_, depth_view) = GpuScene::create_depth_texture(&device, width, height);
+        let (_, depth_view) = MeshBatch::create_depth_texture(&device, width, height);
 
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Headless Color"),

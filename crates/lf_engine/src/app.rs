@@ -6,7 +6,7 @@ use winit::{
 };
 
 use crate::camera::Camera;
-use crate::scene::{GpuScene, GpuVertex};
+use crate::scene::{GpuScene, GpuVertex, MeshBatch};
 
 pub fn run() {
     tracing_subscriber::fmt()
@@ -127,7 +127,7 @@ impl State {
         let textures = lf_assets::generate_atlas();
         let scene = GpuScene::new(&device, &queue, config.format, &vertices, &mesh.indices, &textures);
 
-        let (depth_texture, depth_view) = GpuScene::create_depth_texture(&device, config.width, config.height);
+        let (depth_texture, depth_view) = MeshBatch::create_depth_texture(&device, config.width, config.height);
 
         let mut camera = Camera::new(
             glam::Vec3::new(24.0, 18.0, 24.0),
@@ -154,7 +154,7 @@ impl State {
             self.config.height = height;
             self.camera.set_aspect(width, height);
             self.surface.configure(&self.device, &self.config);
-            let (texture, view) = GpuScene::create_depth_texture(&self.device, width, height);
+            let (texture, view) = MeshBatch::create_depth_texture(&self.device, width, height);
             self._depth_texture = texture;
             self.depth_view = view;
         }

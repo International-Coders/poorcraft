@@ -2,3 +2,17 @@
 name = "lf_client"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+winit = "0.29"
+wgpu = "24.0"
+glam = "0.30"
+pollster = "0.3"
+bytemuck = { version = "1.16", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+lf_engine = { path = "../lf_engine" }
+lf_voxel = { path = "../lf_voxel" }
+lf_worldgen = { path = "../lf_worldgen" }
+lf_game = { path = "../lf_game" }
+lf_assets = { path = "../lf_assets" }

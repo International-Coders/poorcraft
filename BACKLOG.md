@@ -27,11 +27,11 @@ below by phase.
 - [x] xtask vistest/screenshot commands producing real PNGs (P0)
 
 ## P1 — First-person core
-- [ ] keyboard/mouse input (WASD, jump, sneak, sprint, mouse look)
-- [ ] player AABB physics (gravity, collision, step-up)
-- [ ] camera control + crosshair
-- [ ] block targeting outline via DDA raycast; break/place
-- [ ] hotbar (1–9, scroll) with block placement
+- [x] keyboard/mouse input (WASD, jump, sneak, sprint, mouse look, cursor lock)
+- [x] player AABB physics (gravity, collision, jump, fly; substepped anti-tunneling; 8 tests)
+- [x] camera control (first-person from eye position; crosshair lands with P4 HUD)
+- [x] block targeting outline via DDA raycast; break/place with player-overlap check
+- [x] hotbar (1–6, scroll) with block placement; F2 in-game screenshots
 
 ## P2 — World streaming & terrain
 - [ ] chunk manager with load/unload radius + view distance
