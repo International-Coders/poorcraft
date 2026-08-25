@@ -94,3 +94,6 @@
 - [x] Cherry Grove biome -> shots/ev_cherry_grove.png
 - [x] Nether Fortress structure -> shots/ev_nether_fortress.png
 - [x] Frost Walker boot enchantment -> shots/ev_frost_walker.png
+- [x] Piglin mob -> shots/ev_piglin.png
+- [x] Respawn Anchor -> shots/ev_respawn_anchor.png
+- [x] Netherite ingot crafting -> shots/ev_netherite.png
