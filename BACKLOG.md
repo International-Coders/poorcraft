@@ -45,3 +45,4 @@
 - [x] PT-BR localization expansion -> shots/ev_ptbr_localization.png
 - [x] underwater fog + caustics -> shots/ev_underwater_caustics.png
 - [x] weather particles (rain/snow ambient) -> shots/ev_weather_particles.png
+- [x] async chunk loading thread pool -> shots/ev_async_chunk_loading.png
