@@ -191,3 +191,4 @@
 - [x] Enderman mob -> shots/ev_enderman.png
 - [x] Ender Pearl and Eye of Ender -> shots/ev_ender_pearl.png
 - [x] Stronghold structure -> shots/ev_stronghold.png
+- [x] End Portal frame and activation -> shots/ev_end_portal_active.png
