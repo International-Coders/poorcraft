@@ -1,9 +1,9 @@
 # STATE
-loop_count: 27
+loop_count: 29
 current_milestone: Evolution
-last_done: "Evolution Mode: refined Ruins structure with Loot Chest + Basalt columns proof; captured ev_ruins.png"
-next_task: "Evolution: finalize - all Evolution complete, transition to release documentation"
+last_done: "Evolution Mode: added small dungeon skeleton structure with loot chest; captured ev_dungeon.png"
+next_task: "Evolution: new quest hook + optional lore book entry"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_ruins.png
+last_screenshot: shots/ev_dungeon.png
 blockers: none

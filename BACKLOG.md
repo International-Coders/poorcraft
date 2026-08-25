@@ -30,3 +30,5 @@
 - [x] fog + underwater color grading -> shots/ev_visual_effects.png
 - [x] performance profiling pass -> shots/ev_perf_complete.png
 - [x] crystal tool material
+- [x] dungeon skeleton structure
+- [ ] new quest hook + optional lore book entry
