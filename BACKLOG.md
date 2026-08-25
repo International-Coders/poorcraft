@@ -183,3 +183,5 @@
 - [x] Firework Rocket -> shots/ev_firework_rocket.png
 - [x] Dragon Head block -> shots/ev_dragon_head.png
 - [x] Chorus Fruit -> shots/ev_chorus_fruit.png
+- [x] End Gateway block -> shots/ev_end_gateway.png
+- [x] End Crystal -> shots/ev_end_crystal.png
