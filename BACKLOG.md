@@ -117,3 +117,4 @@
 - [x] Soul Campfire block -> shots/ev_soul_campfire.png
 - [x] Lantern and Soul Lantern blocks -> shots/ev_lanterns.png
 - [x] Chain block -> shots/ev_chain.png
+- [x] Target block -> shots/ev_target.png
