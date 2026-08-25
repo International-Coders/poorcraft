@@ -1,9 +1,9 @@
 # STATE
-loop_count: 37
+loop_count: 38
 current_milestone: Evolution
-last_done: "Evolution Mode: added Speed Boost rune effect with 20% movement, stacking, 30s cooldown; captured ev_rune_speed.png"
+last_done: "Evolution Mode: added Azure Bloom flower with night glow and alchemy uses; captured ev_azure_bloom.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_rune_speed.png
+last_screenshot: shots/ev_azure_bloom.png
 blockers: none
