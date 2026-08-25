@@ -148,3 +148,4 @@
 - [x] Shipwreck structure -> shots/ev_shipwreck.png
 - [x] Buried Treasure structure -> shots/ev_buried_treasure.png
 - [x] Conduit structure -> shots/ev_conduit.png
+- [x] Trident weapon -> shots/ev_trident.png
