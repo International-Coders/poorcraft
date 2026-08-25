@@ -127,3 +127,4 @@
 - [x] Amethyst Bud and Cluster blocks -> shots/ev_amethyst.png
 - [x] Copper block and lightning rod -> shots/ev_copper.png
 - [x] Scaffolding block -> shots/ev_scaffolding.png
+- [x] Bamboo block -> shots/ev_bamboo.png
