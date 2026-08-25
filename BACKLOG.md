@@ -174,3 +174,4 @@
 - [x] Sniffer egg -> shots/ev_sniffer_egg.png
 - [x] Music Disc Relic and Creator -> shots/ev_music_discs.png
 - [x] Pottery Sherds and Decorated Pots -> shots/ev_decorated_pot.png
+- [x] Archaeology Table -> shots/ev_archaeology_table.png
