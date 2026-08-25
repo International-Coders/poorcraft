@@ -182,3 +182,4 @@
 - [x] End Ship structure -> shots/ev_end_ship.png
 - [x] Firework Rocket -> shots/ev_firework_rocket.png
 - [x] Dragon Head block -> shots/ev_dragon_head.png
+- [x] Chorus Fruit -> shots/ev_chorus_fruit.png
