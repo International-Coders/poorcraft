@@ -90,3 +90,5 @@
 - [x] Ancient debris ore -> shots/ev_ancient_debris.png
 - [x] Elytra flight glide control -> shots/ev_elytra.png
 - [x] Totem of Undying enchantment -> shots/ev_totem.png
+- [x] Beacon pyramid power effect -> shots/ev_beacon.png
+- [x] Cherry Grove biome -> shots/ev_cherry_grove.png
