@@ -1,9 +1,9 @@
 # STATE
-loop_count: 290
-current_milestone: P8-quests-chronicle
-last_done: "P8: quests & chronicle live — QuestEvent system (collected/crafted/killed/depth) advancing objectives with progress; 5-quest starter chain; quest log UI (J) with objectives, progress and chronicle view; live chronicle events (first logs, first blood, boss slain, deaths, quest completions) exported to worlds/<name>/chronicle.md on save; quest/chronicle state persists. 92 tests pass; game smoke-tested"
-next_task: "P9: multiplayer — protocol expansion, integrated server, dedicated binary, 2-client test"
+loop_count: 291
+current_milestone: P9-multiplayer
+last_done: "P9: multiplayer — protocol v3 (Hello/Position/SetBlock/Chat/Goodbye + Welcome/PlayerStates/BlockUpdate/Chat/Join/Leave/Reject, framed codec, +4 tests); authoritative-lite UDP server (canonical world+edit history, 20/s snapshots, chat relay, join roster+edit replay; two-client integration test over real UDP passes); dedicated loreforge-server binary (host:port seed args); client NetClient (title-screen join, position send, remote block edits applied+remeshed, remote players as cubes, chat with T input + overlay). 96 tests pass; server+client smoke-tested"
+next_task: "P10: mod API real — runtime registration, smelting.toml fix, worldgen hooks, docs"
 build: GREEN
-tests: 92 passing
+tests: 96 passing
 last_screenshot: shots/vistest_hud_preview.png
 blockers: none

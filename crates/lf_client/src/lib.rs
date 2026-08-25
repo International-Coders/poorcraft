@@ -21,6 +21,7 @@ use winit::{
     window::{CursorGrabMode, WindowAttributes},
 };
 
+pub mod net;
 pub mod ui;
 
 use lf_engine::camera::Camera;
@@ -183,6 +184,7 @@ pub enum UiOpen {
     None,
     Title,
     Pause,
+    Chat,
     QuestLog,
     Inventory,
     CraftingTable,
@@ -324,6 +326,13 @@ impl ApplicationHandler for App {
                                             }
                                             return;
                                         }
+                                        KeyCode::KeyT => {
+                                            if state.net.is_some() && state.ui_open == UiOpen::None && state.stats.health > 0.0 {
+                                                state.chat_input = Some(String::new());
+                                                state.unlock_cursor();
+                                                return;
+                                            }
+                                        }
                                         KeyCode::KeyJ => {
                                             if matches!(state.ui_open, UiOpen::None | UiOpen::QuestLog) && state.stats.health > 0.0 {
                                                 if state.ui_open == UiOpen::QuestLog {
@@ -455,6 +464,9 @@ struct GameState {
     pub quit_requested: bool,
     pub quest_log: QuestLog,
     pub chronicle: Vec<ChronicleEvent>,
+    pub net: Option<net::NetClient>,
+    pub chat_input: Option<String>,
+    pub chat_log: Vec<String>,
     pub settings: Settings,
     pub air: u8,
     spawn_point: Vec3,
@@ -612,6 +624,9 @@ impl GameState {
             quit_requested: false,
             quest_log,
             chronicle,
+            net: None,
+            chat_input: None,
+            chat_log: Vec::new(),
             settings: Settings::default(),
             air: 10,
             spawn_point,
@@ -822,6 +837,16 @@ impl GameState {
         }
         self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
         self.update_mobs(dt);
+        if let Some(n) = &mut self.net {
+            n.send_state(self.player.position.to_array(), self.player.yaw, self.player.pitch);
+            for msg in n.poll() {
+                if let lf_protocol::ServerMessage::BlockUpdate { x, y, z, block } = msg {
+                    if self.world.set_block(x, y, z, BlockState(block)).is_some() {
+                        self.remesh_around(x, z);
+                    }
+                }
+            }
+        }
 
         // 20-minute day/night cycle.
         let ticks = (dt * lf_game::TimeOfDay::TICKS_PER_SECOND as f32) as u64;
@@ -911,6 +936,9 @@ impl GameState {
                             self.break_block_drops(block_id, pos);
                             self.use_durability();
                             self.remesh_around(pos.x, pos.z);
+                            if let Some(n) = &self.net {
+                                n.send_block(pos.x, pos.y, pos.z, registry::block::AIR);
+                            }
                             // container contents spill out
                             let key = (pos.x, pos.y, pos.z);
                             if let Some(entity) = self.block_entities.remove(&key) {
@@ -973,6 +1001,9 @@ impl GameState {
                                 let place = pos + normal;
                                 if !self.block_intersects_player(place) {
                                     if self.world.set_block(place.x, place.y, place.z, BlockState(b)).is_some() {
+                                        if let Some(n) = &self.net {
+                                            n.send_block(place.x, place.y, place.z, b);
+                                        }
                                         let key = (place.x, place.y, place.z);
                                         if b == registry::block::FURNACE {
                                             self.block_entities.insert(key, BlockEntity::Furnace(Default::default()));
@@ -1543,6 +1574,13 @@ impl GameState {
                 _ => lf_assets::texture_index_for_block(registry::block::SNOW),
             };
             push_cube(mob.position.x, mob.position.y + size, mob.position.z, size, tex, &mut vertices, &mut indices);
+        }
+        // remote players render as pale cubes
+        if let Some(n) = &self.net {
+            for (_, rp) in n.remote_players.iter() {
+                let tex = lf_assets::texture_index_for_block(registry::block::SNOW);
+                push_cube(rp.pos[0], rp.pos[1] + 0.9, rp.pos[2], 0.45, tex, &mut vertices, &mut indices);
+            }
         }
         // item drops bob
         for drop in &self.drops {

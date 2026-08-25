@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-08-25 — P9: multiplayer (loop 291)
+- lf_protocol v3: ClientMessage/ServerMessage gameplay set with framed
+  codec (+4 round-trip and rejection tests).
+- lf_server (real now): UDP authoritative-lite server — canonical world
+  (worldgen on demand + validated edits + history replay to newcomers),
+  20/s player snapshots, chat relay, join/leave roster; a two-client
+  integration test runs over real localhost UDP and passes.
+- loreforge-server binary: dedicated hosting (bind addr + seed args).
+- lf_client net.rs: connect from the title screen, state send, remote
+  block edits applied with remesh, remote players as cubes, chat overlay
+  with T input; local edits replicate to the server.
+- Tests 92 -> 96.
+
 ## 2026-08-25 — P8: quests & chronicle live (loop 290)
 - lf_story: QuestEvent (Collected/Crafted/Killed/ReachedDepth) advancing
   objectives with progress counters; starter_quests() 5-quest chain (+1 test).

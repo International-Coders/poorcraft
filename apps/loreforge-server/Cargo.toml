@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 lf_protocol = { path = "../../crates/lf_protocol" }
+lf_server = { path = "../../crates/lf_server" }

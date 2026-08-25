@@ -90,9 +90,12 @@ below by phase.
 - [ ] lore books readable in-game (deferred)
 
 ## P9 — Multiplayer
-- [ ] expand protocol (join/leave, snapshots, block ops, chat, inventory)
-- [ ] lf_server authoritative sim; singleplayer = integrated server
-- [ ] dedicated server + direct IP join; 2–8 players verified locally
+- [x] protocol v3: join/leave, 20/s position snapshots, validated block ops, chat (+4 codec tests)
+- [x] authoritative-lite lf_server: canonical world + edit history, newcomer replay, chat relay
+- [x] two-client local integration test over real UDP (chat + block sync + positions)
+- [x] dedicated loreforge-server binary (bind + seed args)
+- [x] client join from title screen, remote players rendered, remote edits applied, chat UI (T)
+- [ ] singleplayer routed through integrated server; mob/world sync; server browser (deferred)
 
 ## P10 — Mod API real
 - [ ] runtime registration of modded blocks/items/recipes

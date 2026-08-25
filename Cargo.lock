@@ -1133,6 +1133,7 @@ dependencies = [
  "lf_chronicle",
  "lf_engine",
  "lf_game",
+ "lf_protocol",
  "lf_story",
  "lf_voxel",
  "lf_worldgen",
@@ -1199,6 +1200,13 @@ dependencies = [
 [[package]]
 name = "lf_server"
 version = "0.1.0"
+dependencies = [
+ "bincode",
+ "lf_protocol",
+ "lf_voxel",
+ "lf_worldgen",
+ "serde",
+]
 
 [[package]]
 name = "lf_story"
@@ -1325,6 +1333,7 @@ name = "loreforge-server"
 version = "0.1.0"
 dependencies = [
  "lf_protocol",
+ "lf_server",
 ]
 
 [[package]]

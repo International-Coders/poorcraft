@@ -1,27 +1,20 @@
-use std::net::{UdpSocket, SocketAddr};
-use lf_protocol::{ServerMessage, ProtocolCodec};
+use std::net::SocketAddr;
 
 fn main() {
-    println!("LOREFORGE Dedicated Server starting...");
-    let addr = "127.0.0.1:25565";
-    let socket = UdpSocket::bind(addr).expect("Failed to bind UDP socket");
-    println!("Server listening on {}", addr);
-
-    let mut buf = [0u8; 1024];
-    loop {
-        match socket.recv_from(&mut buf) {
-            Ok((len, src)) => {
-                if let Some(msg) = ProtocolCodec::decode(&buf[..len]) {
-                    println!("Received from {}: {:?}", src, msg);
-                    // Echo back handshake for testing
-                    if matches!(msg, ServerMessage::Handshake { .. }) {
-                        let resp = ServerMessage::Handshake { protocol_version: 1 };
-                        let encoded = ProtocolCodec::encode(&resp);
-                        socket.send_to(&encoded, src).ok();
-                    }
-                }
-            }
-            Err(e) => eprintln!("recv error: {}", e),
+    let bind = std::env::args().nth(1).unwrap_or_else(|| format!("0.0.0.0:{}", lf_server::DEFAULT_PORT));
+    let seed: u64 = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(12345);
+    let mut server = match lf_server::Server::start(&bind, seed) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("failed to bind {}: {}", bind, e);
+            std::process::exit(1);
         }
+    };
+    let addr: SocketAddr = server.local_addr();
+    println!("LOREFORGE dedicated server listening on {} (seed {})", addr, seed);
+    println!("press Ctrl+C to stop");
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
+    // server stops on drop
 }

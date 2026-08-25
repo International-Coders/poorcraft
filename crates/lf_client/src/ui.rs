@@ -232,6 +232,7 @@ impl GameState {
             UiOpen::Title => self.draw_title(ctx),
             UiOpen::Pause => self.draw_pause(ctx),
             UiOpen::QuestLog => self.draw_quest_log(ctx),
+            UiOpen::Chat => {}
             UiOpen::Inventory => self.draw_inventory(ctx, 2),
             UiOpen::CraftingTable => self.draw_inventory(ctx, 3),
             UiOpen::Furnace(pos) => self.draw_furnace(ctx, pos),
@@ -258,6 +259,53 @@ impl GameState {
     }
 
     fn draw_hud(&mut self, ctx: &egui::Context) {
+        // chat overlay (bottom-left, last few messages)
+        let net_chat: Option<Vec<String>> = self
+            .net
+            .as_ref()
+            .map(|n| n.chat_log.iter().rev().take(5).rev().cloned().collect());
+        let chat_lines = net_chat.unwrap_or_else(|| self.chat_log.clone());
+        if !chat_lines.is_empty() {
+            egui::Area::new(egui::Id::new("chat"))
+                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(8.0, -130.0))
+                .show(ctx, |ui| {
+                    for line in &chat_lines {
+                        ui.label(egui::RichText::new(line).small().color(egui::Color32::from_gray(230)));
+                    }
+                });
+        }
+        // chat input (T)
+        if self.chat_input.is_some() {
+            self.ui_open = crate::UiOpen::Chat;
+            let mut text = self.chat_input.take().unwrap();
+            let mut send = false;
+            egui::Window::new("Chat — Enter send / Esc cancel")
+                .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -160.0))
+                .collapsible(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    let response = ui.add(egui::TextEdit::singleline(&mut text).desired_width(420.0));
+                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        send = true;
+                    }
+                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        text.clear();
+                        send = true;
+                    }
+                    response.request_focus();
+                });
+            if send {
+                if !text.trim().is_empty() {
+                    if let Some(n) = &self.net {
+                        n.send_chat(text.trim());
+                    }
+                }
+                self.ui_open = crate::UiOpen::None;
+                self.lock_cursor();
+            } else {
+                self.chat_input = Some(text);
+            }
+        }
         egui::TopBottomPanel::bottom("hud").frame(egui::Frame::default()).show_separator_line(false).show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(4.0);
@@ -560,6 +608,20 @@ impl GameState {
                     let play = egui::Button::new(egui::RichText::new("Play").size(28.0)).min_size(egui::vec2(220.0, 46.0));
                     if ui.add(play).clicked() {
                         self.close_ui();
+                    }
+                    ui.add_space(10.0);
+                    let mp = egui::Button::new(egui::RichText::new("Multiplayer (localhost)").size(20.0)).min_size(egui::vec2(220.0, 36.0));
+                    if ui.add(mp).clicked() {
+                        match crate::net::NetClient::connect("127.0.0.1:25565", "smith") {
+                            Ok(n) => {
+                                self.net = Some(n);
+                                self.chat_log = vec!["joining localhost:25565...".to_string()];
+                                self.close_ui();
+                            }
+                            Err(e) => {
+                                self.chat_log = vec![format!("connect failed: {}", e)];
+                            }
+                        }
                     }
                     ui.add_space(10.0);
                     let quit = egui::Button::new(egui::RichText::new("Quit").size(20.0)).min_size(egui::vec2(220.0, 36.0));
