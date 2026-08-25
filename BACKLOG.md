@@ -49,3 +49,5 @@
 - [x] Ancient Shrine structure -> shots/ev_ancient_shrine.png
 - [x] Quest log + 5 quest progression -> shots/ev_quest_log.png
 - [x] Void Serpent chronicle chapter -> shots/ev_chronicle_voidserpent.png
+- [x] smithing complete (anvil + hammer) -> shots/ev_smithing_complete.png
+- [x] modding API documentation -> shots/ev_modding_docs.png
