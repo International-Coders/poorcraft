@@ -241,3 +241,4 @@
 - [x] Dragon Egg Block -> shots/ev_dragon_egg.png
 - [x] Purpur Pillars -> shots/ev_purpur_pillar.png
 - [x] Chorus Fruit and Plants -> shots/ev_chorus_fruit.png
+- [x] End Gateway Portals -> shots/ev_end_gateway.png

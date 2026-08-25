@@ -1,9 +1,9 @@
 # STATE
-loop_count: 272
+loop_count: 273
 current_milestone: Evolution
-last_done: "Evolution Mode: added Chorus Fruit and Plants glowing purple edible fruit plants in the End that enable random teleportation upon consumption; captured ev_chorus_fruit.png"
+last_done: "Evolution Mode: added End Gateway Portals small teleportation gateways opening after defeating the dragon; captured ev_end_gateway.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_chorus_fruit.png
+last_screenshot: shots/ev_end_gateway.png
 blockers: none
