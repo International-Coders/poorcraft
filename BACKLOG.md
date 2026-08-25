@@ -99,3 +99,4 @@
 - [x] Netherite ingot crafting -> shots/ev_netherite.png
 - [x] Turtle shell helmet -> shots/ev_turtle_shell.png
 - [x] Spyglass item -> shots/ev_spyglass.png
+- [x] Goat Horn instrument -> shots/ev_goat_horn.png
