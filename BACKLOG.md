@@ -59,3 +59,4 @@
 - [x] refactor chunk meshing -> shots/ev_refactor_meshing.png
 - [x] Void Serpent death particles -> shots/ev_voidserpent_death.png
 - [x] key rebinding menu -> shots/ev_key_rebinding.png
+- [x] ambient cave wind sound -> shots/ev_cave_wind.png
