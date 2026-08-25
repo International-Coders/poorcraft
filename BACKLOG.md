@@ -35,3 +35,4 @@
 - [x] torch flame particle effect -> shots/ev_torch_particles.png
 - [ ] cloud cover dynamic weather
 - [x] cloud cover dynamic weather -> shots/ev_cloud_cover.png
+- [ ] wind ambience sound design -> shots/ev_sound_wind.png
