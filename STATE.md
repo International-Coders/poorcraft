@@ -1,9 +1,9 @@
 # STATE
-loop_count: 173
+loop_count: 174
 current_milestone: Evolution
-last_done: "Evolution Mode: added Heavy Core and Mace new weapon with wind charge slam attack; captured ev_mace.png"
+last_done: "Evolution Mode: added Bogged mob mossy skeleton variant that fires poison arrows; captured ev_bogged.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_mace.png
+last_screenshot: shots/ev_bogged.png
 blockers: none

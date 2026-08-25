@@ -166,3 +166,4 @@
 - [x] Trial Chamber structure -> shots/ev_trial_chamber.png
 - [x] Vault structure -> shots/ev_vault.png
 - [x] Heavy Core and Mace -> shots/ev_mace.png
+- [x] Bogged mob -> shots/ev_bogged.png
