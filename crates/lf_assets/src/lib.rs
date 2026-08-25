@@ -1,9 +1,9 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 11] = [
+pub const TEXTURE_NAMES: [&str; 13] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
-    "log", "leaves", "coal_ore", "iron_ore", "water",
+    "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
 ];
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
@@ -20,6 +20,8 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         9 => 8, // coal ore
         10 => 9, // iron ore
         11 => 10, // water
+        12 => 11, // torch
+        14 => 12, // crafting table
         _ => 0,
     }
 }
@@ -95,6 +97,27 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([ch(v), ch(v), ch(v), 255])
                     }
                 }
+                "torch_item" => {
+                    // mostly transparent with a bright flame tip and a stick
+                    let stick = x == 7 || x == 8;
+                    let flame = stick && y >= 4 && y <= 7;
+                    if flame {
+                        Rgba([255, 220, 120, 255])
+                    } else if stick && y > 7 {
+                        Rgba([120, 90, 50, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "crafting_table" => {
+                    let v = 140 + ((x * 5 + y * 11) % 20);
+                    let grid_line = x == 5 || x == 10 || y == 5 || y == 10;
+                    if grid_line {
+                        Rgba([90, 60, 30, 255])
+                    } else {
+                        Rgba([ch(v - 20), ch(v - 70), ch(v - 100), 255])
+                    }
+                }
                 "water" => {
                     let v = 40 + ((x * 3 + y * 5) % 14);
                     Rgba([30, ch(60 + v / 2), ch(150 + v / 3), 170])
@@ -126,8 +149,16 @@ mod tests {
             assert_eq!(tex.width(), 16);
             assert_eq!(tex.height(), 16);
             // fully opaque except water (transparent pass)
-            let expected_alpha = if name == "water" { 170 } else { 255 };
-            assert!(tex.pixels().all(|p| p.0[3] == expected_alpha));
+            let expected_alpha = if name == "water" {
+                170
+            } else if name == "torch_item" {
+                0 // partially transparent
+            } else {
+                255
+            };
+            if name != "torch_item" {
+                assert!(tex.pixels().all(|p| p.0[3] == expected_alpha));
+            }
         }
     }
 
@@ -136,7 +167,7 @@ mod tests {
         let atlas = generate_atlas();
         assert_eq!(atlas.len(), TEXTURE_NAMES.len());
         // every known block id maps to a valid layer
-        for id in 1..=11u32 {
+        for id in [1u32, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14] {
             assert!(texture_index_for_block(id) < atlas.len() as u32);
         }
     }

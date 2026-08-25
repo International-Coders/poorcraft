@@ -44,6 +44,8 @@ pub struct Player {
     pub flying: bool,
     /// True during the frame the player landed (for landing effects later).
     pub just_landed: bool,
+    /// Fall speed (blocks/s, negative) captured at the last landing.
+    pub last_impact: f32,
 }
 
 impl Player {
@@ -56,6 +58,7 @@ impl Player {
             on_ground: false,
             flying: false,
             just_landed: false,
+            last_impact: 0.0,
         }
     }
 
@@ -186,6 +189,7 @@ impl Player {
                     self.position.y = aabb.min.y.ceil() + 1e-4;
                     self.on_ground = true;
                     self.just_landed = true;
+                    self.last_impact = self.velocity.y;
                 }
                 self.velocity.y = 0.0;
             }

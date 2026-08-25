@@ -1,12 +1,49 @@
 use std::sync::Arc;
 use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    event::WindowEvent,
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    window::WindowAttributes,
 };
 
 use crate::camera::Camera;
 use crate::scene::{GpuScene, GpuVertex, MeshBatch};
+
+struct DemoApp {
+    state: Option<State>,
+}
+
+impl winit::application::ApplicationHandler for DemoApp {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        // (re)create the window and GPU state
+        let window = event_loop
+            .create_window(
+                WindowAttributes::new()
+                    .with_title("LOREFORGE")
+                    .with_inner_size(winit::dpi::LogicalSize::new(1024, 768)),
+            )
+            .expect("Window build failed");
+        self.state = Some(pollster::block_on(State::new(Arc::new(window))));
+    }
+
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: winit::window::WindowId, event: WindowEvent) {
+        let Some(state) = &mut self.state else { return };
+        match event {
+            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::Resized(size) => state.resize(size.width, size.height),
+            WindowEvent::RedrawRequested => {
+                state.update();
+                state.render();
+            }
+            _ => {}
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        event_loop.set_control_flow(ControlFlow::Poll);
+        let Some(state) = &mut self.state else { return };
+        state.window.request_redraw();
+    }
+}
 
 pub fn run() {
     tracing_subscriber::fmt()
@@ -16,34 +53,8 @@ pub fn run() {
         .init();
 
     let event_loop = EventLoop::new().expect("EventLoop failed");
-    let window = Arc::new(
-        WindowBuilder::new()
-            .with_title("LOREFORGE")
-            .with_inner_size(winit::dpi::LogicalSize::new(1024, 768))
-            .build(&event_loop)
-            .expect("Window build failed"),
-    );
-
-    let mut state = pollster::block_on(State::new(window.clone()));
-
-    event_loop
-        .run(move |event, elwt| {
-            elwt.set_control_flow(ControlFlow::Poll);
-            match event {
-                Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                    elwt.exit();
-                }
-                Event::WindowEvent { event: WindowEvent::Resized(size), .. } => {
-                    state.resize(size.width, size.height);
-                }
-                Event::AboutToWait => {
-                    state.update();
-                    state.render();
-                }
-                _ => {}
-            }
-        })
-        .expect("event loop failed");
+    let mut app = DemoApp { state: None };
+    event_loop.run_app(&mut app);
 }
 
 struct State {

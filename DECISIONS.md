@@ -29,3 +29,6 @@
 - P3: light is flood-filled per column at mesh time (no persistent cache); cross-chunk light seams accepted for now
 - P3: per-face flat lighting now, smooth per-vertex in P11; y-stride must dominate column-local indices
 - P3: water = second alpha-blended pipeline without depth write, columns sorted back-to-front
+- P4: winit 0.30 ApplicationHandler + egui 0.31 (wgpu-24 aligned); egui sees events only while a screen is open
+- P4: tool durability stored as count on a 1-stack (hits used); breaks at tier durability
+- P4: drops are server-less entities updated in the client; magnet radius 2, pickup 1.2

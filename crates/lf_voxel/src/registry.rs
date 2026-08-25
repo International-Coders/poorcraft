@@ -17,6 +17,7 @@ pub mod block {
     pub const WATER: u32 = 11;
     pub const TORCH: u32 = 12;
     pub const LANTERN: u32 = 13;
+    pub const CRAFTING_TABLE: u32 = 14;
 
     pub fn name(id: u32) -> &'static str {
         match id {
@@ -34,6 +35,7 @@ pub mod block {
             WATER => "Water",
             TORCH => "Torch",
             LANTERN => "Lantern",
+            CRAFTING_TABLE => "Crafting Table",
             _ => "Unknown",
         }
     }
@@ -76,7 +78,7 @@ mod tests {
 
     #[test]
     fn all_blocks_named() {
-        for id in 0..=13u32 {
+        for id in 0..=14u32 {
             assert_ne!(block::name(id), "Unknown", "id {} unnamed", id);
         }
     }

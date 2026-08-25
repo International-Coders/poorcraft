@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-08-25 — P4: survival & inventory UI (loop 286)
+- Migrated winit 0.29 -> 0.30 (ApplicationHandler) and adopted egui 0.31
+  (matches wgpu 24; the 0.29 stack was incompatible).
+- lf_game: items registry (block items, tools with tiers, food, materials),
+  mining rules (hardness, tool multipliers, harvest gating, break times),
+  shaped crafting with translation-aware matching (+13 tests total).
+- Blocks: crafting table; torch item texture; CRAFTING_TABLE id 14.
+- Client: egui HUD + inventory/crafting/death screens with full stack
+  interactions (pick/place/swap/merge/split); hold-to-mine with progress;
+  tool durability; item drops (gravity, magnet pickup, bobbing cubes);
+  hunger/regen/fall-damage/drowning/death+respawn; RMB context (open table,
+  eat, place); inventory/stats/time persisted in player_extras.dat.
+- Tests 69 -> 82; game smoke-tested with UI active; all scenes render.
+
 ## 2026-08-25 — P3: lighting & atmosphere (loop 285)
 - lf_voxel light.rs: per-column flood-fill sky + block light (BFS with -1
   falloff, opacity-aware, 15-level); emitter table (torch=14, lantern=15);

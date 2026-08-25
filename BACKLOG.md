@@ -49,12 +49,14 @@ below by phase.
 - [ ] sun/moon/stars/clouds (deferred to P7 sky pass)
 
 ## P4 — Survival & inventory UI
-- [ ] egui HUD (health/hunger/hotbar)
-- [ ] inventory screen with drag/drop, shift-click
-- [ ] crafting 2x2 + table 3x3, recipe matching
-- [ ] tool durability, mining speed/harvest levels, breaking overlay
-- [ ] item drop entities + pickup
-- [ ] eating, fall/drown damage, death/respawn, beds
+- [x] egui HUD (crosshair, hearts, hunger, air bubbles, 9-slot hotbar, mining progress, clock)
+- [x] inventory screen: click pick/place/swap/merge, right-click split (shift-click in P5 pass)
+- [x] crafting 2x2 in inventory + crafting table 3x3; shaped recipes with translation matching (+8 tests)
+- [x] hold-to-mine with hardness, tool speed multipliers, harvest gating (iron needs stone pick), durability that breaks tools
+- [x] item drop entities with gravity + magnet pickup + bobbing render
+- [x] hunger drain, regen when fed, fall damage, drowning with air, death screen + respawn
+- [x] eating (apple); inventory/stats/time saved with the world
+- [ ] beds/spawn setting, crack overlay texture (P5/P7 polish)
 
 ## P5 — Content catalog
 - [ ] data-driven block/item registries (full catalog: stones, woods, ores, decor)

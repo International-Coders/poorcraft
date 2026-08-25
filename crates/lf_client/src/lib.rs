@@ -14,21 +14,31 @@ use std::time::{Duration, Instant};
 
 use glam::{Vec3, Vec4};
 use winit::{
-    event::{DeviceEvent, ElementState, Event, MouseButton, MouseScrollDelta, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    application::ApplicationHandler,
+    event::{DeviceEvent, ElementState, MouseButton, MouseScrollDelta, WindowEvent},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
-    window::{CursorGrabMode, WindowBuilder},
+    window::{CursorGrabMode, WindowAttributes},
 };
+
+pub mod ui;
 
 use lf_engine::camera::Camera;
 use lf_engine::outline::OutlineScene;
 use lf_engine::scene::{GpuVertex, MeshBatch, SceneResources};
+use lf_game::crafting::{consume_ingredients, match_recipe};
+use lf_game::items::{item_def, tier_durability, ItemKind};
+use lf_game::mining::{break_time, tool_satisfies};
 use lf_game::player::{Player, PlayerInput, EYE_HEIGHT, PLAYER_HALF_WIDTH, PLAYER_HEIGHT};
+use lf_game::survival::{Inventory, ItemStack, PlayerStats};
 use lf_voxel::raycast::raycast_voxel;
 use lf_voxel::registry;
 use lf_voxel::world::{PlayerSave, WorldStorage};
 use lf_voxel::{BlockState, ChunkColumn, World};
 use lf_worldgen::{Seed, WorldGen};
+
+use serde::{Deserialize, Serialize};
+use ui::EguiPlatform;
 
 const WORLD_SEED: u64 = 12345;
 const WORLD_DIR: &str = "worlds/default";
@@ -164,6 +174,181 @@ fn nearest_missing(w: &StreamWish) -> Option<(i32, i32)> {
     best
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum UiOpen {
+    None,
+    Inventory,
+    CraftingTable,
+    Death,
+}
+
+#[derive(Clone, Debug)]
+pub struct MiningState {
+    pub pos: (i32, i32, i32),
+    pub progress: f32,
+    pub total: f32,
+}
+
+#[derive(Clone, Debug)]
+pub struct ItemDrop {
+    pub stack: ItemStack,
+    pub position: Vec3,
+    pub velocity: Vec3,
+    pub age: f32,
+}
+
+/// Client-side save extras (inventory/stats/time) next to PlayerSave.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct ClientSave {
+    pub slots: Vec<Option<ItemStack>>,
+    pub health: f32,
+    pub hunger: f32,
+    pub time_ticks: u64,
+}
+
+struct App {
+    state: Option<GameState>,
+}
+
+impl ApplicationHandler for App {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let window = event_loop
+            .create_window(
+                WindowAttributes::new()
+                    .with_title("LOREFORGE")
+                    .with_inner_size(winit::dpi::LogicalSize::new(1280, 720)),
+            )
+            .expect("Window build failed");
+        self.state = Some(pollster::block_on(GameState::new(Arc::new(window))));
+    }
+
+    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: winit::event::DeviceId, event: DeviceEvent) {
+        let Some(state) = &mut self.state else { return };
+        if let DeviceEvent::MouseMotion { delta: (dx, dy) } = event {
+            if state.input.cursor_locked && state.ui_open == UiOpen::None {
+                state.input.mouse_dx += dx as f32;
+                state.input.mouse_dy += dy as f32;
+            }
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        event_loop.set_control_flow(ControlFlow::Poll);
+        let Some(state) = &mut self.state else { return };
+        state.tick();
+        state.render();
+    }
+
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: winit::window::WindowId, event: WindowEvent) {
+        let Some(state) = &mut self.state else { return };
+        // egui sees events only while a screen is open (the HUD itself is
+        // display-only).
+        if state.ui_open != UiOpen::None {
+            let consumed = state.egui.on_event(&state.window, &event);
+            if consumed {
+                return;
+            }
+        }
+        match event {
+            WindowEvent::CloseRequested => {
+                state.shutdown(event_loop);
+            }
+            WindowEvent::Resized(size) => {
+                state.resize(size.width, size.height);
+            }
+            _ => {}
+                        WindowEvent::Focused(focused) => {
+                            if focused
+                                && !state.input.cursor_locked
+                                && state.ui_open == UiOpen::None
+                                && state.stats.health > 0.0
+                            {
+                                state.lock_cursor();
+                            }
+                        }
+                        WindowEvent::KeyboardInput { event: key, .. } => {
+                            if let PhysicalKey::Code(code) = key.physical_key {
+                                let pressed = key.state == ElementState::Pressed;
+                                if pressed {
+                                    match code {
+                                        KeyCode::Escape => {
+                                            if state.ui_open != UiOpen::None {
+                                                state.close_ui();
+                                                return;
+                                            }
+                                            if state.input.cursor_locked {
+                                                state.unlock_cursor();
+                                            } else {
+                                                state.shutdown(event_loop);
+                                            }
+                                            return;
+                                        }
+                                        KeyCode::KeyE => {
+                                            if state.stats.health > 0.0 {
+                                                if state.ui_open == UiOpen::Inventory {
+                                                    state.close_ui();
+                                                } else if state.ui_open == UiOpen::None {
+                                                    state.ui_open = UiOpen::Inventory;
+                                                    state.unlock_cursor();
+                                                }
+                                                return;
+                                            }
+                                        }
+                                        KeyCode::KeyF => {
+                                            state.player.flying = !state.player.flying;
+                                            state.player.velocity = Vec3::ZERO;
+                                        }
+                                        KeyCode::F2 => state.take_screenshot(),
+                                        KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3
+                                        | KeyCode::Digit4 | KeyCode::Digit5 | KeyCode::Digit6
+                                        | KeyCode::Digit7 | KeyCode::Digit8 | KeyCode::Digit9 => {
+                                            let idx = match code {
+                                                KeyCode::Digit1 => 0,
+                                                KeyCode::Digit2 => 1,
+                                                KeyCode::Digit3 => 2,
+                                                KeyCode::Digit4 => 3,
+                                                KeyCode::Digit5 => 4,
+                                                KeyCode::Digit6 => 5,
+                                                KeyCode::Digit7 => 6,
+                                                KeyCode::Digit8 => 7,
+                                                _ => 8,
+                                            };
+                                            state.hotbar_index = idx;
+                                            state.update_title();
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                state.input.keys.insert(code, pressed);
+                            }
+                        }
+                        WindowEvent::MouseInput { state: button_state, button, .. } => {
+                            if state.ui_open != UiOpen::None {
+                                return;
+                            }
+                            if !state.input.cursor_locked && state.stats.health > 0.0 {
+                                state.lock_cursor();
+                                return;
+                            }
+                            let pressed = button_state == ElementState::Pressed;
+                            match button {
+                                MouseButton::Left => state.input.break_pressed = pressed,
+                                MouseButton::Right => state.input.place_pressed = pressed,
+                                _ => {}
+                            }
+                        }
+                        WindowEvent::MouseWheel { delta, .. } => {
+                            let dy = match delta {
+                                MouseScrollDelta::LineDelta(_, y) => y,
+                                MouseScrollDelta::PixelDelta(p) => p.y as f32 / 40.0,
+                            };
+                            state.input.scroll += dy;
+                        }
+            _ => {}
+        }
+    }
+}
+
 pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -172,105 +357,8 @@ pub fn run() {
         .init();
 
     let event_loop = EventLoop::new().expect("EventLoop failed");
-    let window = Arc::new(
-        WindowBuilder::new()
-            .with_title("LOREFORGE")
-            .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
-            .build(&event_loop)
-            .expect("Window build failed"),
-    );
-
-    let mut state = pollster::block_on(GameState::new(window.clone()));
-
-    event_loop
-        .run(move |event, elwt| {
-            elwt.set_control_flow(ControlFlow::Poll);
-            match event {
-                Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                    state.shutdown(elwt);
-                }
-                Event::WindowEvent { event: WindowEvent::Resized(size), .. } => {
-                    state.resize(size.width, size.height);
-                }
-                Event::WindowEvent { event: WindowEvent::Focused(focused), .. } => {
-                    if focused && !state.input.cursor_locked {
-                        state.lock_cursor();
-                    }
-                }
-                Event::WindowEvent { event: WindowEvent::KeyboardInput { event: key, .. }, .. } => {
-                    if let PhysicalKey::Code(code) = key.physical_key {
-                        let pressed = key.state == ElementState::Pressed;
-                        if pressed {
-                            match code {
-                                KeyCode::Escape => {
-                                    if state.input.cursor_locked {
-                                        state.unlock_cursor();
-                                    } else {
-                                        state.shutdown(elwt);
-                                    }
-                                    return;
-                                }
-                                KeyCode::KeyF => {
-                                    state.player.flying = !state.player.flying;
-                                    state.player.velocity = Vec3::ZERO;
-                                }
-                                KeyCode::F2 => state.take_screenshot(),
-                                KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3
-                                | KeyCode::Digit4 | KeyCode::Digit5 | KeyCode::Digit6
-                                | KeyCode::Digit7 | KeyCode::Digit8 | KeyCode::Digit9 => {
-                                    let idx = match code {
-                                        KeyCode::Digit1 => 0,
-                                        KeyCode::Digit2 => 1,
-                                        KeyCode::Digit3 => 2,
-                                        KeyCode::Digit4 => 3,
-                                        KeyCode::Digit5 => 4,
-                                        KeyCode::Digit6 => 5,
-                                        KeyCode::Digit7 => 6,
-                                        KeyCode::Digit8 => 7,
-                                        _ => 8,
-                                    };
-                                    state.hotbar_index = idx;
-                                    state.update_title();
-                                }
-                                _ => {}
-                            }
-                        }
-                        state.input.keys.insert(code, pressed);
-                    }
-                }
-                Event::WindowEvent { event: WindowEvent::MouseInput { state: button_state, button, .. }, .. } => {
-                    if !state.input.cursor_locked {
-                        state.lock_cursor();
-                        return;
-                    }
-                    let pressed = button_state == ElementState::Pressed;
-                    match button {
-                        MouseButton::Left => state.input.break_pressed = pressed,
-                        MouseButton::Right => state.input.place_pressed = pressed,
-                        _ => {}
-                    }
-                }
-                Event::WindowEvent { event: WindowEvent::MouseWheel { delta, .. }, .. } => {
-                    let dy = match delta {
-                        MouseScrollDelta::LineDelta(_, y) => y,
-                        MouseScrollDelta::PixelDelta(p) => p.y as f32 / 40.0,
-                    };
-                    state.input.scroll += dy;
-                }
-                Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta: (dx, dy) }, .. } => {
-                    if state.input.cursor_locked {
-                        state.input.mouse_dx += dx as f32;
-                        state.input.mouse_dy += dy as f32;
-                    }
-                }
-                Event::AboutToWait => {
-                    state.tick();
-                    state.render();
-                }
-                _ => {}
-            }
-        })
-        .expect("event loop failed");
+    let mut app = App { state: None };
+    event_loop.run_app(&mut app);
 }
 
 struct GameState {
@@ -297,8 +385,21 @@ struct GameState {
     player: Player,
     input: InputState,
     hotbar_index: usize,
+    pub inventory: Inventory,
+    pub stats: PlayerStats,
+    pub cursor_stack: Option<ItemStack>,
+    pub ui_open: UiOpen,
+    pub craft_grid: [Option<ItemStack>; 9],
+    pub mining: Option<MiningState>,
+    pub drops: Vec<ItemDrop>,
+    drop_batch: Option<MeshBatch>,
+    pub air: u8,
+    spawn_point: Vec3,
+    pub egui: EguiPlatform,
     last_instant: Instant,
     next_autosave: Instant,
+    next_hunger_tick: Instant,
+    next_regen_tick: Instant,
     frame: u64,
     screenshot_counter: u32,
     running: Arc<AtomicBool>,
@@ -389,14 +490,17 @@ impl GameState {
         let (depth_texture, depth_view) = MeshBatch::create_depth_texture(&device, config.width, config.height);
 
         // Player: restore from save when present, else spawn on the surface.
+        let spawn_point = Vec3::new(0.5, world.surface_height(0, 0) as f32 + 0.2, 0.5);
         let mut player = match storage.load_player() {
             Some(p) => Player::new(Vec3::from(p.position)).with_look(p.yaw, p.pitch),
-            None => {
-                let spawn_y = world.surface_height(0, 0) as f32 + 0.2;
-                Player::new(Vec3::new(0.5, spawn_y, 0.5))
-            }
+            None => Player::new(spawn_point),
         };
         player.flying = false;
+
+        // Inventory/stats/time from the extras file.
+        let (inventory, stats, time) = load_client_save(Path::new(WORLD_DIR));
+
+        let egui = EguiPlatform::new(&device, config.format, &window);
 
         // The worker skips chunks that come from the save.
         let mut worker_skip = saved_set.clone();
@@ -415,7 +519,8 @@ impl GameState {
             batches,
             water_batches,
             cpu_meshes,
-            time: lf_game::TimeOfDay::from_fraction(0.30),
+            time,
+            egui,
             column_bounds,
             outline,
             world,
@@ -426,8 +531,20 @@ impl GameState {
             player,
             input: InputState::default(),
             hotbar_index: 0,
+            inventory,
+            stats,
+            cursor_stack: None,
+            ui_open: UiOpen::None,
+            craft_grid: std::array::from_fn(|_| None),
+            mining: None,
+            drops: Vec::new(),
+            drop_batch: None,
+            air: 10,
+            spawn_point,
             last_instant: Instant::now(),
             next_autosave: Instant::now() + AUTOSAVE_INTERVAL,
+            next_hunger_tick: Instant::now() + Duration::from_secs(45),
+            next_regen_tick: Instant::now() + Duration::from_secs(3),
             frame: 0,
             screenshot_counter: 0,
             running: Arc::new(AtomicBool::new(true)),
@@ -437,11 +554,54 @@ impl GameState {
         state
     }
 
-    fn shutdown(&mut self, elwt: &winit::event_loop::EventLoopWindowTarget<()>) {
+    /// Close any open screen, returning crafting-grid contents to the
+    /// inventory (leftovers drop at the player).
+    pub fn close_ui(&mut self) {
+        let grid = std::mem::take(&mut self.craft_grid);
+        for slot in grid.into_iter().flatten() {
+            let leftover = self.inventory.add_item(&slot.item_id, slot.count);
+            if leftover > 0 {
+                self.drops.push(ItemDrop {
+                    stack: ItemStack { count: leftover, ..slot },
+                    position: self.player.eye_position() + self.player.look_dir(),
+                    velocity: Vec3::new(0.0, 2.0, 0.0),
+                    age: 0.0,
+                });
+            }
+        }
+        if let Some(cursor) = self.cursor_stack.take() {
+            let leftover = self.inventory.add_item(&cursor.item_id, cursor.count);
+            if leftover > 0 {
+                self.drops.push(ItemDrop {
+                    stack: ItemStack { count: leftover, ..cursor },
+                    position: self.player.position + Vec3::new(0.0, 1.0, 0.0),
+                    velocity: Vec3::ZERO,
+                    age: 0.0,
+                });
+            }
+        }
+        self.ui_open = UiOpen::None;
+        if self.stats.health > 0.0 {
+            self.lock_cursor();
+        }
+    }
+
+    pub fn respawn(&mut self) {
+        self.stats.health = self.stats.max_health;
+        self.stats.hunger = self.stats.max_hunger;
+        self.stats.saturation = 5.0;
+        self.air = 10;
+        self.player = Player::new(self.spawn_point);
+        self.mining = None;
+        self.ui_open = UiOpen::None;
+        self.lock_cursor();
+    }
+
+    fn shutdown(&mut self, event_loop: &ActiveEventLoop) {
         self.save_world();
         self.streamer.shutdown();
         self.running.store(false, Ordering::Relaxed);
-        elwt.exit();
+        event_loop.exit();
     }
 
     fn save_world(&mut self) {
@@ -462,9 +622,17 @@ impl GameState {
         };
         if let Err(e) = self.storage.save_player(&player) {
             tracing::error!("save player failed: {}", e);
-        } else {
-            tracing::info!("world saved to {}", WORLD_DIR);
         }
+        let extras = ClientSave {
+            slots: self.inventory.slots.clone(),
+            health: self.stats.health,
+            hunger: self.stats.hunger,
+            time_ticks: self.time.ticks,
+        };
+        if let Ok(bytes) = bincode::serialize(&extras) {
+            let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
+        }
+        tracing::info!("world saved to {}", WORLD_DIR);
     }
 
     fn lock_cursor(&mut self) {
@@ -519,20 +687,31 @@ impl GameState {
         self.last_instant = now;
         self.frame += 1;
 
-        let input = PlayerInput {
-            forward: self.input.held(KeyCode::KeyW),
-            back: self.input.held(KeyCode::KeyS),
-            left: self.input.held(KeyCode::KeyA),
-            right: self.input.held(KeyCode::KeyD),
-            jump: self.input.held(KeyCode::Space),
-            sneak: self.input.held(KeyCode::ShiftLeft),
-            sprint: self.input.held(KeyCode::ControlLeft),
-            fly_up: self.input.held(KeyCode::Space),
-            fly_down: self.input.held(KeyCode::ShiftLeft),
-            // Mouse right (dx>0) turns the view right (yaw+); mouse down
-            // (dy>0) looks down (pitch-). Matches standard FPS feel.
-            yaw_delta: self.input.mouse_dx * LOOK_SENSITIVITY,
-            pitch_delta: -self.input.mouse_dy * LOOK_SENSITIVITY,
+        // UI frame.
+        let window = self.window.clone();
+        self.egui.begin_frame(&window);
+        let ctx = self.egui.ctx.clone();
+        self.draw_ui(&ctx);
+
+        let playing = self.ui_open == UiOpen::None && self.stats.health > 0.0;
+        let input = if playing {
+            PlayerInput {
+                forward: self.input.held(KeyCode::KeyW),
+                back: self.input.held(KeyCode::KeyS),
+                left: self.input.held(KeyCode::KeyA),
+                right: self.input.held(KeyCode::KeyD),
+                jump: self.input.held(KeyCode::Space),
+                sneak: self.input.held(KeyCode::ShiftLeft),
+                sprint: self.input.held(KeyCode::ControlLeft),
+                fly_up: self.input.held(KeyCode::Space),
+                fly_down: self.input.held(KeyCode::ShiftLeft),
+                // Mouse right (dx>0) turns the view right (yaw+); mouse down
+                // (dy>0) looks down (pitch-). Matches standard FPS feel.
+                yaw_delta: self.input.mouse_dx * LOOK_SENSITIVITY,
+                pitch_delta: -self.input.mouse_dy * LOOK_SENSITIVITY,
+            }
+        } else {
+            PlayerInput::default()
         };
         self.input.mouse_dx = 0.0;
         self.input.mouse_dy = 0.0;
@@ -540,13 +719,13 @@ impl GameState {
         if self.input.scroll.abs() >= 1.0 {
             let steps = self.input.scroll.signum() as i32;
             self.input.scroll = 0.0;
-            let len = HOTBAR.len() as i32;
-            self.hotbar_index = ((self.hotbar_index as i32 + steps).rem_euclid(len)) as usize;
+            self.hotbar_index = ((self.hotbar_index as i32 + steps).rem_euclid(9)) as usize;
             self.update_title();
         }
 
-        let mut did_edit = false;
         self.player.update(dt, &input, &self.world);
+        self.survival_tick(dt);
+        self.update_drops(dt);
 
         // 20-minute day/night cycle.
         let ticks = (dt * lf_game::TimeOfDay::TICKS_PER_SECOND as f32) as u64;
@@ -566,35 +745,223 @@ impl GameState {
         });
         self.outline.set_target(&self.device, target.map(|(pos, _)| (pos.x, pos.y, pos.z)));
 
-        if self.input.break_pressed {
+        // Mining: hold LMB on the same block to progress.
+        if playing && self.input.break_pressed {
             if let Some((pos, _)) = target {
-                if self.world.set_block(pos.x, pos.y, pos.z, BlockState::AIR).is_some() {
-                    self.remesh_around(pos.x, pos.z);
-                    did_edit = true;
-                    self.input.break_pressed = false; // one block per click
+                let key = (pos.x, pos.y, pos.z);
+                let block_id = self.world.get_block(pos.x, pos.y, pos.z).id();
+                let held = self.inventory.slots[self.hotbar_index].clone();
+                let total = break_time(block_id, held.as_ref()).unwrap_or(f32::INFINITY);
+                match &mut self.mining {
+                    Some(m) if m.pos == key => m.progress += dt,
+                    Some(m) => {
+                        m.pos = key;
+                        m.progress = dt;
+                        m.total = total;
+                    }
+                    None => self.mining = Some(MiningState { pos: key, progress: dt, total }),
+                }
+                if let Some(m) = &mut self.mining {
+                    m.total = total;
+                    if m.progress >= m.total {
+                        self.mining = None;
+                        if self.world.set_block(pos.x, pos.y, pos.z, BlockState::AIR).is_some() {
+                            self.break_block_drops(block_id, pos);
+                            self.use_durability();
+                            self.remesh_around(pos.x, pos.z);
+                        }
+                    }
+                }
+            } else {
+                self.mining = None;
+            }
+        } else {
+            self.mining = None;
+        }
+
+        // Right click: open crafting table, eat, or place the held block.
+        if playing && self.input.place_pressed {
+            self.input.place_pressed = false; // one action per click
+            if let Some((pos, _)) = target {
+                if self.world.get_block(pos.x, pos.y, pos.z).id() == registry::block::CRAFTING_TABLE {
+                    self.ui_open = UiOpen::CraftingTable;
+                    self.unlock_cursor();
                 }
             }
-        }
-        if self.input.place_pressed {
-            if let Some((pos, normal)) = target {
-                let place = pos + normal;
-                if !self.block_intersects_player(place) {
-                    let block = BlockState(HOTBAR[self.hotbar_index]);
-                    if self.world.set_block(place.x, place.y, place.z, block).is_some() {
-                        self.remesh_around(place.x, place.z);
-                        did_edit = true;
-                        self.input.place_pressed = false;
+            if self.ui_open == UiOpen::None {
+                let held = self.inventory.slots[self.hotbar_index].clone();
+                if let Some(stack) = held {
+                    let def = item_def(&stack.item_id);
+                    match def.map(|d| d.kind) {
+                        Some(ItemKind::Food(heal)) if self.stats.hunger < self.stats.max_hunger => {
+                            self.stats.hunger = (self.stats.hunger + heal as f32).min(self.stats.max_hunger);
+                            self.consume_selected(1);
+                        }
+                        Some(ItemKind::Block(b)) => {
+                            if let Some((pos, normal)) = target {
+                                let place = pos + normal;
+                                if !self.block_intersects_player(place) {
+                                    if self.world.set_block(place.x, place.y, place.z, BlockState(b)).is_some() {
+                                        self.remesh_around(place.x, place.z);
+                                        self.consume_selected(1);
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
         }
-        let _ = did_edit;
 
         if now >= self.next_autosave {
             self.next_autosave = now + AUTOSAVE_INTERVAL;
-            if !self.dirty.is_empty() {
-                self.save_world();
+            self.save_world();
+        }
+    }
+
+    fn consume_selected(&mut self, n: u8) {
+        if let Some(stack) = &mut self.inventory.slots[self.hotbar_index] {
+            stack.count = stack.count.saturating_sub(n);
+            if stack.count == 0 {
+                self.inventory.slots[self.hotbar_index] = None;
             }
+        }
+    }
+
+    fn use_durability(&mut self) {
+        let slot = &mut self.inventory.slots[self.hotbar_index];
+        if let Some(stack) = slot {
+            if let Some(def) = item_def(&stack.item_id) {
+                if let ItemKind::Tool(_, tier) = def.kind {
+                    // durability stored as count on a 1-stack (abused as hits left)
+                    let max = tier_durability(tier) as u8;
+                    if stack.count >= max {
+                        *slot = None; // tool broke
+                    } else {
+                        stack.count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    fn break_block_drops(&mut self, block_id: u32, pos: glam::IVec3) {
+        let held = self.inventory.slots[self.hotbar_index].clone();
+        let harvestable = tool_satisfies(block_id, held.as_ref());
+        if !harvestable {
+            return; // wrong tool: block breaks but yields nothing
+        }
+        if let Some(item) = lf_game::items::block_drop(block_id) {
+            self.spawn_drop(item, 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
+        }
+        // rare apple bonus from leaves
+        if block_id == registry::block::LEAVES && pseudo_random(self.frame) % 20 == 0 {
+            self.spawn_drop("apple", 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
+        }
+    }
+
+    fn spawn_drop(&mut self, item: &str, count: u8, pos: Vec3) {
+        self.drops.push(ItemDrop {
+            stack: ItemStack { item_id: item.to_string(), count },
+            position: pos,
+            velocity: Vec3::new(0.0, 1.5, 0.0),
+            age: 0.0,
+        });
+    }
+
+    /// Hunger drain, regen, fall damage, drowning, death.
+    fn survival_tick(&mut self, dt: f32) {
+        if self.stats.health <= 0.0 {
+            return; // dead: nothing ticks
+        }
+        let now = Instant::now();
+        // Fall damage on landing.
+        if self.player.just_landed && !self.player.flying {
+            let impact = -self.player.last_impact;
+            let damage = (impact * impact / 64.0 - 3.0).max(0.0);
+            if damage > 0.5 {
+                self.damage(damage);
+            }
+        }
+        // Drowning.
+        let eye_block = self.world.get_block(
+            self.player.eye_position().x as i32,
+            self.player.eye_position().y as i32,
+            self.player.eye_position().z as i32,
+        );
+        if eye_block.id() == registry::block::WATER {
+            if self.air == 0 {
+                if now >= self.next_regen_tick {
+                    self.next_regen_tick = now + Duration::from_secs(1);
+                    self.damage(2.0);
+                }
+            } else if self.frame % 20 == 0 {
+                self.air -= 1;
+            }
+        } else if self.air < 10 && self.frame % 4 == 0 {
+            self.air = (self.air + 1).min(10);
+        }
+        // Hunger drains slowly.
+        if now >= self.next_hunger_tick {
+            self.next_hunger_tick = now + Duration::from_secs(45);
+            self.stats.hunger = (self.stats.hunger - 1.0).max(0.0);
+        }
+        // Regen when well fed; starve at zero.
+        if now >= self.next_regen_tick {
+            self.next_regen_tick = now + Duration::from_secs(3);
+            if self.stats.hunger >= 15.0 && self.stats.health < self.stats.max_health {
+                self.stats.health = (self.stats.health + 1.0).min(self.stats.max_health);
+            } else if self.stats.hunger <= 0.0 && self.stats.health > 1.0 {
+                self.stats.health -= 1.0;
+            }
+        }
+        let _ = dt;
+    }
+
+    pub fn damage(&mut self, amount: f32) {
+        self.stats.health = (self.stats.health - amount).max(0.0);
+        if self.stats.health <= 0.0 {
+            // death
+            self.ui_open = UiOpen::Death;
+            self.unlock_cursor();
+            tracing::info!("player died");
+        }
+    }
+
+    /// Gravity + magnet pickup for item drops.
+    fn update_drops(&mut self, dt: f32) {
+        let player_center = self.player.position + Vec3::new(0.0, 0.9, 0.0);
+        let mut to_remove: Vec<usize> = Vec::new();
+        for (i, drop) in self.drops.iter_mut().enumerate() {
+            drop.age += dt;
+            drop.velocity.y -= 20.0 * dt;
+            let next = drop.position + drop.velocity * dt;
+            // land on solid blocks
+            if drop.velocity.y < 0.0
+                && self.world.is_solid(next.x as i32, (next.y - 0.1) as i32, next.z as i32)
+            {
+                drop.velocity = Vec3::ZERO;
+            } else {
+                drop.position = next;
+            }
+            // magnet then pickup
+            let d = player_center - drop.position;
+            let dist = d.length();
+            if dist < 2.0 && drop.age > 0.5 {
+                drop.position += d.normalize() * (6.0 * dt);
+            }
+            if dist < 1.2 && drop.age > 0.5 {
+                let leftover = self.inventory.add_item(&drop.stack.item_id, drop.stack.count);
+                if leftover == 0 {
+                    to_remove.push(i);
+                } else {
+                    drop.stack.count = leftover;
+                }
+            }
+        }
+        for i in to_remove.into_iter().rev() {
+            self.drops.remove(i);
         }
     }
 
@@ -763,6 +1130,7 @@ impl GameState {
     }
 
     fn render(&mut self) {
+        self.rebuild_drop_batch();
         let camera = self.camera();
         let env = self.env();
         let view_proj = camera.build_view_projection_matrix();
@@ -838,10 +1206,76 @@ impl GameState {
                     batch.draw(&mut pass, resources, true);
                 }
             }
+            // Item drops ride the opaque pass.
+            if let Some(batch) = &self.drop_batch {
+                batch.draw(&mut pass, resources, false);
+            }
         }
+        // egui UI pass on top of the world.
+        let (paint_jobs, screen) = {
+            let window = &self.window;
+            let device = &self.device;
+            let queue = &self.queue;
+            self.egui.end_frame(window, device, queue, &mut encoder)
+        };
+        self.egui.paint(&mut encoder, &view, paint_jobs, &screen);
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         let _ = self.window.pre_present_notify();
+    }
+}
+
+impl GameState {
+    /// Rebuild the single batch holding all item-drop cubes.
+    fn rebuild_drop_batch(&mut self) {
+        if self.drops.is_empty() {
+            self.drop_batch = None;
+            return;
+        }
+        let (mut vertices, mut indices) = (Vec::new(), Vec::new());
+        for drop in &self.drops {
+            let tex = drop_tex_layer(&drop.stack.item_id);
+            let light = 0xF0; // drops render sky-lit; P6 can sample world light
+            let base = vertices.len() as u32;
+            let bob = (drop.age * 2.0).sin() * 0.05;
+            let cx = drop.position.x;
+            let cy = drop.position.y + bob;
+            let cz = drop.position.z;
+            let r = 0.15;
+            // 6 faces of a small cube (positions only matter; winding matches mesher)
+            let faces: [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] = [
+                ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+                ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+                ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ];
+            for (normal, corners, uvs) in faces {
+                for (c, uv) in corners.iter().zip(uvs.iter()) {
+                    vertices.push(GpuVertex {
+                        position: [cx + c[0], cy + c[1], cz + c[2]],
+                        normal,
+                        tex_coord: *uv,
+                        tex_index: tex,
+                        ao: 1.0,
+                        light,
+                    });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+        self.drop_batch = Some(MeshBatch::new(&self.device, &self.resources, &vertices, &indices));
+    }
+}
+
+/// Texture layer for a dropped item's cube.
+fn drop_tex_layer(item_id: &str) -> u32 {
+    match item_def(item_id).map(|d| d.kind) {
+        Some(ItemKind::Block(b)) => lf_assets::texture_index_for_block(b),
+        Some(ItemKind::Food(_)) => lf_assets::texture_index_for_block(registry::block::LEAVES),
+        Some(ItemKind::Tool(_, _)) => lf_assets::texture_index_for_block(registry::block::LOG),
+        _ => lf_assets::texture_index_for_block(registry::block::STONE),
     }
 }
 
@@ -876,6 +1310,30 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
     } else {
         (min, max)
     }
+}
+
+fn load_client_save(dir: &Path) -> (Inventory, PlayerStats, lf_game::TimeOfDay) {
+    let mut inventory = Inventory::new();
+    let mut stats = PlayerStats::default();
+    let time = lf_game::TimeOfDay::from_fraction(0.30);
+    if let Ok(bytes) = std::fs::read(dir.join("player_extras.dat")) {
+        if let Ok(save) = bincode::deserialize::<ClientSave>(&bytes) {
+            for (i, slot) in save.slots.iter().enumerate().take(inventory.slots.len()) {
+                inventory.slots[i] = slot.clone();
+            }
+            stats.health = save.health.max(1.0);
+            stats.hunger = save.hunger;
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks));
+        }
+    }
+    (inventory, stats, time)
+}
+
+/// Tiny deterministic-enough hash for cosmetic randomness.
+fn pseudo_random(seed: u64) -> u64 {
+    let mut h = seed.wrapping_mul(0x9E3779B97F4A7C15);
+    h ^= h >> 31;
+    h.wrapping_mul(0xC2B2AE3D27D4EB4F)
 }
 
 /// Frustum + distance culling for a chunk column, using its mesh bounds.
