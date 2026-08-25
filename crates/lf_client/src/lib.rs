@@ -386,6 +386,7 @@ impl ApplicationHandler for App {
                                             state.player.velocity = Vec3::ZERO;
                                         }
                                         KeyCode::F2 => state.take_screenshot(),
+                                        KeyCode::KeyR => state.take_raytraced_screenshot(),
                                         KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3
                                         | KeyCode::Digit4 | KeyCode::Digit5 | KeyCode::Digit6
                                         | KeyCode::Digit7 | KeyCode::Digit8 | KeyCode::Digit9 => {
@@ -1859,6 +1860,36 @@ impl GameState {
         camera.set_aspect(self.config.width, self.config.height);
         camera.fovy = self.settings.fov_degrees.to_radians();
         camera
+    }
+
+    /// Path-trace the current view through the compute tracer (R key).
+    fn take_raytraced_screenshot(&mut self) {
+        let eye = self.player.eye_position();
+        let look = self.player.look_dir();
+        let center = (eye.x as i32, (eye.y as i32 + 20).min(220), eye.z as i32);
+        let voxel_data = lf_engine::pathtrace::build_voxel_texture_data(center, &|x, y, z| {
+            self.world.get_block(x, y, z).id()
+        });
+        let mut camera = self.camera();
+        camera.set_aspect(800, 600);
+        let tod = self.time.clone();
+        let angle = tod.fraction() * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+        let sun = [angle.cos(), angle.sin().abs(), 0.25];
+        self.screenshot_counter += 1;
+        let path = std::path::PathBuf::from(format!("shots/rt_frame_{}.png", self.screenshot_counter));
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        match lf_engine::pathtrace::pathtrace_to_image(
+            &voxel_data, center, &camera, sun, tod.sky_light_level(), 800, 600, 32,
+        ) {
+            Ok(img) => {
+                let _ = img.save(&path);
+                tracing::info!("path-traced frame saved to {}", path.display());
+                self.chat_log = vec![format!("ray-traced frame: {}", path.display())];
+            }
+            Err(e) => tracing::error!("path trace failed: {}", e),
+        }
     }
 
     fn take_screenshot(&mut self) {

@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-08-25 — P18: compute voxel path tracer (loop 298)
+- lf_engine pathtrace: WGSL compute tracer — DDA primary rays through a
+  128x64x128 block clip texture, jittered soft sun shadows, one-bounce GI
+  (sky + emissive torches/lanterns), fog, 2x2 supersampling (portable
+  write-only storage; read-write accumulation unsupported on this adapter).
+- Rust: build_voxel_texture_data from any World; pathtrace_to_image with
+  f16 decode -> PNG; headless scene integration.
+- Client: R key path-traces the current view in-game and saves
+  shots/rt_frame_N.png.
+- Proofs: raytraced_shadows (varied terrain lighting, luminance
+  transitions), raytraced_night (100% warm emissive coverage with a
+  lantern floor in view). Fixed along the way: uniform member order
+  mismatch, stale cargo fingerprints masking edits, torch placement living
+  in a dead code copy.
+
 ## 2026-08-25 — P15+P16: industrial machines & research (loop 297)
 - worldgen: copper/tin/bauxite/sulfur veins by depth (+generation test).
 - lf_game machines: Generator (EU buffer), ElectricFurnace (2x speed),

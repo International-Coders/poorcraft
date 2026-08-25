@@ -22,6 +22,8 @@ pub struct SceneSpec {
     pub torches: bool,
     /// Machine scenes place generator/furnace/crusher/assembler blocks.
     pub machines: bool,
+    /// Ray-traced scenes render through the compute path tracer.
+    pub raytraced: bool,
     /// Scene-relative camera placement (eye/target in world blocks).
     pub eye: Vec3,
     pub target: Vec3,
@@ -53,6 +55,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-28.0, 92.0, 64.0),
             target: Vec3::new(24.0, 66.0, 8.0),
         },
@@ -64,6 +67,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-60.0, 130.0, 120.0),
             target: Vec3::new(48.0, 64.0, 24.0),
         },
@@ -75,6 +79,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-28.0, 92.0, 64.0),
             target: Vec3::new(24.0, 66.0, 8.0),
         },
@@ -86,6 +91,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: true,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(8.5, 0.0, 8.5),
             target: Vec3::ZERO, // computed from terrain in run_scene
         },
@@ -97,6 +103,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-40.0, 0.0, 90.0),
             target: Vec3::new(24.0, 0.0, 8.0),
         },
@@ -108,6 +115,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-60.0, 0.0, 110.0),
             target: Vec3::new(40.0, 0.0, 0.0),
         },
@@ -119,6 +127,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-30.0, 210.0, 60.0),
             target: Vec3::new(30.0, 110.0, -20.0),
         },
@@ -130,6 +139,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-30.0, 0.0, -30.0),
             target: Vec3::new(10.0, 0.0, 10.0),
         },
@@ -141,6 +151,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: true,
+            raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 42.0),
             target: Vec3::new(8.0, 0.0, 8.0),
         },
@@ -152,7 +163,32 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 42.0),
+            target: Vec3::new(8.0, 0.0, 8.0),
+        },
+        SceneSpec {
+            name: "raytraced_shadows",
+            desc: "path-traced frame with soft sun shadows + GI",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: true,
+            torches: false,
+            machines: false,
+            raytraced: true,
+            eye: Vec3::new(8.5, 0.0, 8.5),
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "raytraced_night",
+            desc: "path-traced night: torch emissive light and bounce",
+            default_seed: 12345,
+            time_of_day: 0.97,
+            first_person: false,
+            torches: true,
+            machines: false,
+            raytraced: true,
+            eye: Vec3::new(-26.0, 0.0, 40.0),
             target: Vec3::new(8.0, 0.0, 8.0),
         },
         SceneSpec {
@@ -163,6 +199,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: true,
             torches: false,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(8.5, 0.0, 8.5),
             target: Vec3::ZERO,
         },
@@ -174,6 +211,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             first_person: false,
             torches: true,
             machines: false,
+            raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 40.0),
             target: Vec3::new(8.0, 0.0, 8.0),
         },
@@ -349,6 +387,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         // trade window overlay via the shared egui pass
         // (drawn after draw_hud_preview by nesting another window)
     }
+    if spec.raytraced {
+        return render_raytraced(&spec, seed, &eye, out_path);
+    }
     let textures = lf_assets::generate_atlas();
     lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, ui.as_ref())
 }
@@ -474,6 +515,68 @@ fn draw_hud_preview(ctx: &egui::Context) {
                 });
             }
         });
+}
+
+/// Path-trace a scene: build the voxel clip around the camera and dispatch.
+fn render_raytraced(spec: &SceneSpec, seed: u64, eye: &Vec3, out_path: &Path) -> Result<(), String> {
+    let gen = WorldGen::new(Seed(seed));
+    let mut world = World::new();
+    for cx in -4..=4 {
+        for cz in -4..=4 {
+            world.chunks.insert((cx, cz), gen.generate_chunk(cx, cz));
+        }
+    }
+    let ground_level = world.surface_height(eye.x as i32, eye.z as i32) as f32;
+    if spec.torches {
+        use lf_voxel::registry::block;
+        // Torch ring + glowing floor around the camera position so the
+        // emissive glow visibly fills the traced frame.
+        let cx0 = eye.x as i32;
+        let cz0 = eye.z as i32;
+        let ground = ground_level;
+        for (dx, dz) in [(4, 0), (-4, 0), (0, 4), (0, -4)] {
+            let top = world.surface_height(cx0 + dx, cz0 + dz);
+            world.set_block(cx0 + dx, top, cz0 + dz, lf_voxel::BlockState(block::TORCH));
+        }
+        // lantern floor two blocks below the camera: mathematically in the
+        // steep-down view regardless of terrain shape
+        let ly = (ground + 2.0) as i32 - 2;
+        for dz in -10..=2i32 {
+            for dx in -6..=6i32 {
+                for dy in 0..1i32 {
+                    world.set_block(cx0 + dx, ly + dy, cz0 + dz, lf_voxel::BlockState(block::LANTERN));
+                }
+            }
+        }
+    }
+    // Day: ride high for the vista. Night torch scenes: sit at ground level
+    // beside the torch ring so the glow fills the frame.
+    let lift = if spec.time_of_day > 0.2 && spec.time_of_day < 0.8 { 60.0 } else { 0.0 };
+    let ground = ground_level;
+    let rt_eye = if lift > 0.0 {
+        Vec3::new(eye.x, eye.y + lift, eye.z)
+    } else {
+        Vec3::new(eye.x, ground + 2.0, eye.z)
+    };
+    let center = (rt_eye.x as i32, rt_eye.y as i32, rt_eye.z as i32);
+    let voxel_data = lf_engine::pathtrace::build_voxel_texture_data(center, &|x, y, z| {
+        world.get_block(x, y, z).id()
+    });
+    // look toward the terrain like the raster scenes
+    let look = if spec.torches {
+        Vec3::new(0.25, -0.8, -1.0).normalize() // stare into the glowing floor (emissive proof)
+    } else {
+        Vec3::new(0.35, -0.35, -1.0).normalize()
+    };
+    let mut camera = Camera::new(rt_eye, rt_eye + look * 40.0);
+    camera.set_aspect(800, 600);
+    let tod = lf_game::TimeOfDay::from_fraction(spec.time_of_day);
+    let angle = spec.time_of_day * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+    let sun = [angle.cos(), angle.sin().abs(), 0.25];
+    let img = lf_engine::pathtrace::pathtrace_to_image(
+        &voxel_data, center, &camera, sun, tod.sky_light_level(), 800, 600, 48,
+    )?;
+    img.save(out_path).map_err(|e| format!("save: {e}"))
 }
 
 /// Where the spawn column's biome lands for a seed (used by tests to describe scenes).

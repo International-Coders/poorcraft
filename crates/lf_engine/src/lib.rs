@@ -3,6 +3,7 @@ pub mod atmosphere;
 pub mod camera;
 pub mod headless;
 pub mod outline;
+pub mod pathtrace;
 pub mod scene;
 
 pub use app::run;
