@@ -74,3 +74,4 @@
 - [x] Swift Foot rune effect -> shots/ev_swift_foot.png
 - [x] Ruined Watchtower structure -> shots/ev_watchtower.png
 - [x] Piercing Shot bow enchant -> shots/ev_piercing_shot.png
+- [x] wind ambience sound -> shots/ev_wind_ambience.png
