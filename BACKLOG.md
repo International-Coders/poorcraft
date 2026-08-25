@@ -146,3 +146,4 @@
 - [x] Igloo structure -> shots/ev_igloo.png
 - [x] Ocean Monument structure -> shots/ev_ocean_monument.png
 - [x] Shipwreck structure -> shots/ev_shipwreck.png
+- [x] Buried Treasure structure -> shots/ev_buried_treasure.png
