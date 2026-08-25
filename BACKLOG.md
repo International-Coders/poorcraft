@@ -180,3 +180,4 @@
 - [x] Nether Fossil structure -> shots/ev_nether_fossil.png
 - [x] End City structure -> shots/ev_end_city.png
 - [x] End Ship structure -> shots/ev_end_ship.png
+- [x] Firework Rocket -> shots/ev_firework_rocket.png
