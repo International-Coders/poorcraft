@@ -247,3 +247,4 @@
 - [x] End Rod Lights -> shots/ev_end_rod.png
 - [x] Lodestone and Compass -> shots/ev_lodestone.png
 - [x] Shulker Box -> shots/ev_shulker_box.png
+- [x] End Stone Bricks -> shots/ev_end_bricks.png
