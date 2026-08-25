@@ -133,3 +133,4 @@
 - [x] Sea Turtle mob -> shots/ev_turtle.png
 - [x] Fox mob -> shots/ev_fox.png
 - [x] Panda mob -> shots/ev_panda.png
+- [x] Strider mob -> shots/ev_strider.png
