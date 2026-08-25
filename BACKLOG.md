@@ -78,3 +78,4 @@
 - [x] Ember Wisp mob -> shots/ev_ember_wisp.png
 - [x] Depth Strider enchantment -> shots/ev_depth_strider.png
 - [x] Sunken Ruins biome -> shots/ev_sunken_ruins.png
+- [x] Lifesteal enchantment -> shots/ev_lifesteal.png
