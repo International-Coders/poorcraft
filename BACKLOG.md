@@ -144,3 +144,4 @@
 - [x] Desert Pyramid structure -> shots/ev_desert_pyramid.png
 - [x] Jungle Temple structure -> shots/ev_jungle_temple.png
 - [x] Igloo structure -> shots/ev_igloo.png
+- [x] Ocean Monument structure -> shots/ev_ocean_monument.png
