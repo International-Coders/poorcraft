@@ -239,3 +239,4 @@
 - [x] Ender Pearls -> shots/ev_ender_pearl.png
 - [x] End Crystal Blocks -> shots/ev_end_crystal.png
 - [x] Dragon Egg Block -> shots/ev_dragon_egg.png
+- [x] Purpur Pillars -> shots/ev_purpur_pillar.png

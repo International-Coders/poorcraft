@@ -1,9 +1,9 @@
 # STATE
-loop_count: 270
+loop_count: 271
 current_milestone: Evolution
-last_done: "Evolution Mode: added Dragon Egg Block decorative, teleporting egg trophy blocks that spawn when defeating the Ender Dragon; captured ev_dragon_egg.png"
+last_done: "Evolution Mode: added Purpur Pillars decorative architectural blocks found in End cities; captured ev_purpur_pillar.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_dragon_egg.png
+last_screenshot: shots/ev_purpur_pillar.png
 blockers: none
