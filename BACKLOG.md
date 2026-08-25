@@ -104,3 +104,4 @@
 - [x] Armor Stand structure -> shots/ev_armor_stand.png
 - [x] Jukebox and Music Discs -> shots/ev_jukebox.png
 - [x] Lodestone and Compass -> shots/ev_lodestone.png
+- [x] Cartography Table -> shots/ev_cartography.png
