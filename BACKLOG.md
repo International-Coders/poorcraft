@@ -168,3 +168,4 @@
 - [x] Heavy Core and Mace -> shots/ev_mace.png
 - [x] Bogged mob -> shots/ev_bogged.png
 - [x] Creaking mob -> shots/ev_creaking.png
+- [x] Pale Garden biome -> shots/ev_pale_garden.png
