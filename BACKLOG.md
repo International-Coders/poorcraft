@@ -224,3 +224,4 @@
 - [x] Quicksand Blocks -> shots/ev_quicksand.png
 - [x] Mesa Canyons and Multi-Colored Clay Strata -> shots/ev_mesa_canyon.png
 - [x] Mushroom Fields Biome -> shots/ev_mushroom_fields.png
+- [x] Nether Wastes Biome -> shots/ev_nether_wastes.png
