@@ -233,3 +233,4 @@
 - [x] Hoglin Mobs -> shots/ev_hoglin.png
 - [x] Strider Mobs -> shots/ev_strider.png
 - [x] Enderman Mobs -> shots/ev_enderman.png
+- [x] Shulker Mobs -> shots/ev_shulker.png
