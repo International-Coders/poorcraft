@@ -92,3 +92,5 @@
 - [x] Totem of Undying enchantment -> shots/ev_totem.png
 - [x] Beacon pyramid power effect -> shots/ev_beacon.png
 - [x] Cherry Grove biome -> shots/ev_cherry_grove.png
+- [x] Nether Fortress structure -> shots/ev_nether_fortress.png
+- [x] Frost Walker boot enchantment -> shots/ev_frost_walker.png
