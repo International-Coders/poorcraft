@@ -2,5 +2,6 @@
 name = "loreforge-server"
 version = "0.1.0"
 edition = "2021"
+
 [dependencies]
-lf_server = { path = "../../crates/lf_server" }
+lf_protocol = { path = "../../crates/lf_protocol" }

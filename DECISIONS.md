@@ -11,5 +11,6 @@
 - M8: implemented 8-material forge+anvil system with tool parts (head/haft/binding) assembly, forge minigame, and stat tests (shots/m8_forge.png)
 - M9: implemented mobs (Boar, Woolbeast, Glitchling, Stalker, Crawler, Null Knight boss) and combat system; saved shots/m9_boss.png
 - M10: implemented lf_modapi manifest and data pack loader for blocks/items/recipes, shipping ember_ores example mod with test proof shots/m10_mod.png
+- M11: implemented protocol codec (handshake/login/chat) and dedicated server binary loreforge-server for M11 proof
 
 

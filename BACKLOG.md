@@ -11,7 +11,8 @@
 - [x] M8 medieval smithing system -> shots/m8_forge.png
 - [x] M9 mobs and boss -> shots/m9_boss.png
 - [x] M10 mods (data packs + Lua) -> shots/m10_mod.png
-- [ ] M11 multiplayer server/client -> shots/m11_two_players.png
+- [x] M11 multiplayer server/client -> shots/m11_two_players.png
+- [ ] M12 NPCs and villages -> shots/m12_village.png
 - [ ] M7 survival core (inventory, crafting)
 - [ ] M8 medieval smithing system -> shots/m8_forge.png
 - [ ] M9 mobs and boss -> shots/m9_boss.png

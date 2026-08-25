@@ -1317,6 +1317,10 @@ version = "0.1.0"
 [[package]]
 name = "lf_protocol"
 version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+]
 
 [[package]]
 name = "lf_server"
@@ -1430,7 +1434,7 @@ dependencies = [
 name = "loreforge-server"
 version = "0.1.0"
 dependencies = [
- "lf_server",
+ "lf_protocol",
 ]
 
 [[package]]

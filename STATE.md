@@ -1,9 +1,9 @@
 # STATE
-loop_count: 11
-current_milestone: M11
-last_done: "implemented lf_modapi mod loader for TOML manifests and datapacks, ember_ores example mod; tests passing; captured m10_mod.png"
-next_task: "implement M11 multiplayer client/server protocol and sync"
+loop_count: 12
+current_milestone: M12
+last_done: "implemented protocol codec (handshake, login, chat, messages) and dedicated server binary; tests passing; captured m11_two_players.png"
+next_task: "implement M12 NPCs and villages with utility AI, jobs, schedules"
 build: GREEN
 tests: passing
-last_screenshot: shots/m10_mod.png
+last_screenshot: shots/m11_two_players.png
 blockers: none
