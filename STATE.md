@@ -1,9 +1,9 @@
 # STATE
-loop_count: 30
+loop_count: 31
 current_milestone: Evolution
-last_done: "Evolution Mode: added quest hook \"Recover the lost Chronicle\" with 3-page objective and reward schematic; captured ev_quest_hook.png"
-next_task: "Evolution: finalize quest integration into story mode"
+last_done: "Evolution Mode: integrated quest hook into story mode quest log; tests passing; captured ev_quest_integration.png"
+next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_quest_hook.png
+last_screenshot: shots/ev_quest_integration.png
 blockers: none
