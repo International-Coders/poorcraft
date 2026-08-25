@@ -242,3 +242,5 @@
 - [x] Purpur Pillars -> shots/ev_purpur_pillar.png
 - [x] Chorus Fruit and Plants -> shots/ev_chorus_fruit.png
 - [x] End Gateway Portals -> shots/ev_end_gateway.png
+- [x] End City Ships and Loot -> shots/ev_end_ship.png
+- [x] Dragon Head Blocks -> shots/ev_dragon_head.png
