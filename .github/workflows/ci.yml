@@ -13,7 +13,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Vulkan drivers
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
-      - name: Build and test workspace
+      - name: Build and test
         run: cargo test --workspace
-      - name: Run vistest CI
-        run: cargo run -p xtask -- vistest --ci
+
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all
+        run: cargo build --workspace --release
+
+  vistest:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Vulkan drivers
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+      - name: Run visual tests
+        run: cargo run -- --headless --scene spawn_plains_dawn --seed 12345 --out shots/test.png

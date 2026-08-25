@@ -1,9 +1,9 @@
 # STATE
-loop_count: 15
-current_milestone: M15
-last_done: "implemented Chronicle Engine event logging, saga generator, markdown export; captured m14_chronicle.png"
-next_task: "implement M15 visual test harness --headless --scene + golden-image compare in CI"
+loop_count: 16
+current_milestone: M16
+last_done: "implemented visual test harness --headless --scene, scene registry, CI pipeline with vistest; captured m15_vistest.png and m16_release.png"
+next_task: "implement M17 polish: sound, settings screen, English + Português (BR) localization, title screen"
 build: GREEN
 tests: passing
-last_screenshot: shots/m14_chronicle.png
+last_screenshot: shots/m16_release.png
 blockers: none

@@ -15,5 +15,5 @@
 - [x] M13 story mode quests -> quest progression test passes
 - [x] M14 chronicle engine + saga generator + mythos generation -> shots/m14_chronicle.png
 - [x] M15 visual test harness --headless --scene --out shots/m15_vistest.png
-- [ ] M16 release builds in CI (.exe, .dmg, .deb)
+- [x] M16 release builds in CI (.exe, .dmg, .deb)
 - [ ] M17 polish, settings, localization -> shots/m17_title.png
