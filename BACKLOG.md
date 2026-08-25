@@ -72,3 +72,4 @@
 - [x] Spectral Lily flower -> shots/ev_spectral_lily.png
 - [x] water splash particles -> shots/ev_water_splash.png
 - [x] Swift Foot rune effect -> shots/ev_swift_foot.png
+- [x] Ruined Watchtower structure -> shots/ev_watchtower.png
