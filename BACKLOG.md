@@ -210,3 +210,4 @@
 - [x] Key Bindings screen -> shots/ev_key_bindings.png
 - [x] Mouse Sensitivity and FOV sliders -> shots/ev_sensitivity_fov.png
 - [x] Credits Screen and Roll -> shots/ev_credits_roll.png
+- [x] Splash Screen Easter Eggs -> shots/ev_splash_texts.png
