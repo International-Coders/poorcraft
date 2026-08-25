@@ -1,9 +1,9 @@
 # STATE
-loop_count: 121
+loop_count: 122
 current_milestone: Evolution
-last_done: "Evolution Mode: added Campfire block cooks food without fuel and provides smoke signal; captured ev_campfire.png"
+last_done: "Evolution Mode: added Soul Campfire block blue flame campfire that repels piglins; captured ev_soul_campfire.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_campfire.png
+last_screenshot: shots/ev_soul_campfire.png
 blockers: none
