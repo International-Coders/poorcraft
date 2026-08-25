@@ -216,3 +216,4 @@
 - [x] Cinematic Camera mode -> shots/ev_cinematic_camera.png
 - [x] Ambient Occlusion (AO) shader enhancement -> shots/ev_ambient_occlusion.png
 - [x] Dynamic Bloom post-processing -> shots/ev_bloom_effect.png
+- [x] Volumetric Fog and God Rays -> shots/ev_god_rays.png
