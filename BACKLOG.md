@@ -83,3 +83,4 @@
 - [x] Frozen Heart rune effect -> shots/ev_frozen_heart.png
 - [x] Village Market structure -> shots/ev_village_market.png
 - [x] Adamantine ore -> shots/ev_adamantine_ore.png
+- [x] occlusion culling performance -> shots/ev_occlusion_culling.png
