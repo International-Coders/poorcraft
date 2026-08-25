@@ -1,0 +1,19 @@
+# BACKLOG
+- [x] M1 window opens and clear color (lf_engine)
+- [x] M2 chunk data structure + culled meshing (lf_voxel)
+- [ ] M2 texture array generator (xtask gen-assets) -> shots/m2_chunk.png
+- [ ] M3 break and place blocks (raycast, highlight) -> shots/m3_breakplace.png
+- [ ] M4 endless terrain noise heightmap -> shots/m4_terrain.png
+- [ ] M5 save and load world round-trip test
+- [ ] M6 day/night cycle, sky light -> shots/m6_night.png
+- [ ] M7 survival core (inventory, crafting)
+- [ ] M8 medieval smithing system -> shots/m8_forge.png
+- [ ] M9 mobs and boss -> shots/m9_boss.png
+- [ ] M10 mods (data packs + Lua) -> shots/m10_mod.png
+- [ ] M11 multiplayer server/client -> shots/m11_two_players.png
+- [ ] M12 NPCs and village -> shots/m12_village.png
+- [ ] M13 story mode quests
+- [ ] M14 chronicle engine and saga book -> shots/m14_chronicle.png
+- [ ] M15 visual test harness --headless --scene
+- [ ] M16 release builds in CI (.exe, .dmg, .deb)
+- [ ] M17 polish, settings, localization -> shots/m17_title.png
