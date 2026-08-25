@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-08-25 — P5: content catalog core (loop 287)
+- Blocks: furnace, chest, planks, glass (transparent); matching textures.
+- lf_game: smelting module (Furnace state machine with fuel/burn/progress,
+  +4 tests), iron tier + swords in the item table, tool_damage table,
+  recipes for furnace/chest/iron tools/swords.
+- Client: block entities (furnace/chest) with persistence, RMB opens their
+  screens, furnaces tick while closed, containers spill contents when
+  broken, furnace UI (input/fuel/output + flame + progress), chest UI.
+- Catalog consistency test: recipe outputs/ingredients, smelt outputs,
+  block drops, and block items all resolve.
+- Tests 82 -> 87; game smoke-tested with containers active.
+
 ## 2026-08-25 — P4: survival & inventory UI (loop 286)
 - Migrated winit 0.29 -> 0.30 (ApplicationHandler) and adopted egui 0.31
   (matches wgpu 24; the 0.29 stack was incompatible).

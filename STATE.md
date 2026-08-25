@@ -1,9 +1,9 @@
 # STATE
-loop_count: 286
-current_milestone: P4-survival-ui
-last_done: "P4: survival & inventory UI — migrated to winit 0.30 + egui 0.31 (wgpu 24 aligned); egui HUD (crosshair, hearts, hunger, air, hotbar, mining bar, clock); inventory screen with drag/swap/split/merge; crafting 2x2 + crafting table 3x3 with shaped recipe matching (translation-aware); hold-to-mine with hardness/tool speeds/harvest gating and durability; item drop entities with magnet pickup; hunger/regen/fall damage/drowning/death+respawn; eating; inventory+stats+time persist. 82 tests pass; game smoke-tested 20s with UI; all 6 scenes render. UI screenshot proof deferred to P7 (needs egui offscreen pass)"
-next_task: "P5: content catalog — data-driven block/item registry expansion, furnace + smelting, chest, more tiers/recipes"
+loop_count: 287
+current_milestone: P5-content-catalog
+last_done: "P5: content catalog core — furnace (smelting state machine: raw_iron->iron_ingot, sand->glass; coal/planks fuel; runs while UI closed) with UI (input/fuel/output + flame/progress); chest (27 slots, UI, spills contents on break); planks + glass blocks (glass transparent); iron tool tier (pick/axe/shovel/sword) + wooden/stone swords; recipes for furnace/chest/iron tools/swords; block entities persist in save; catalog consistency test. 87 tests pass; game smoke-tested"
+next_task: "P6: mobs — framework, spawning, AI (wander/chase/pathfind), combat with tools, Null Knight boss"
 build: GREEN
-tests: 82 passing
+tests: 87 passing
 last_screenshot: shots/vistest_torchlit_night.png
 blockers: none

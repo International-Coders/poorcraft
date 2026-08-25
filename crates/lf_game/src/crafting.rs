@@ -53,14 +53,45 @@ pub fn recipes() -> &'static [Recipe] {
             vec![None, Some("stick"), None],
         ]));
     }
-    // shovels (3x3)
-    for (mat, out) in [("planks", "wooden_shovel"), ("stone", "stone_shovel")] {
+    // shovels + swords (3x3); iron tools use ingots
+    for (mat, out) in [
+        ("planks", "wooden_shovel"),
+        ("stone", "stone_shovel"),
+        ("iron_ingot", "iron_shovel"),
+        ("planks", "wooden_sword"),
+        ("stone", "stone_sword"),
+        ("iron_ingot", "iron_sword"),
+    ] {
         book.push(r(out, 1, vec![
             vec![None, Some(mat), None],
             vec![None, Some("stick"), None],
             vec![None, Some("stick"), None],
         ]));
     }
+    // pickaxes and axes in iron too
+    book.push(r("iron_pickaxe", 1, vec![
+        vec![Some("iron_ingot"), Some("iron_ingot"), Some("iron_ingot")],
+        vec![None, Some("stick"), None],
+        vec![None, Some("stick"), None],
+    ]));
+    book.push(r("iron_axe", 1, vec![
+        vec![Some("iron_ingot"), Some("iron_ingot"), None],
+        vec![Some("iron_ingot"), Some("stick"), None],
+        vec![None, Some("stick"), None],
+    ]));
+    // furnace: 8 stone ring
+    book.push(r("furnace", 1, vec![
+        vec![Some("stone"), Some("stone"), Some("stone")],
+        vec![Some("stone"), None, Some("stone")],
+        vec![Some("stone"), Some("stone"), Some("stone")],
+    ]));
+    // chest: 8 planks ring
+    book.push(r("chest", 1, vec![
+        vec![Some("planks"), Some("planks"), Some("planks")],
+        vec![Some("planks"), None, Some("planks")],
+        vec![Some("planks"), Some("planks"), Some("planks")],
+    ]));
+    // glass-tier pickaxe doesn't exist; done
     let _ = RECIPES;
     Box::leak(book.into_boxed_slice())
 }

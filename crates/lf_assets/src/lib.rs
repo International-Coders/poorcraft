@@ -1,9 +1,10 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 13] = [
+pub const TEXTURE_NAMES: [&str; 17] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
+    "furnace", "chest", "planks", "glass",
 ];
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
@@ -22,6 +23,10 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         11 => 10, // water
         12 => 11, // torch
         14 => 12, // crafting table
+        15 => 13, // furnace
+        16 => 14, // chest
+        17 => 15, // planks
+        18 => 16, // glass
         _ => 0,
     }
 }
@@ -118,6 +123,45 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([ch(v - 20), ch(v - 70), ch(v - 100), 255])
                     }
                 }
+                "furnace" => {
+                    let mouth = (4..12).contains(&x) && (6..13).contains(&y);
+                    if mouth {
+                        let glow: u32 = if (x + y) % 3 == 0 { 90 } else { 0 };
+                        Rgba([ch(120 + glow), ch(60 + glow / 2), 30, 255])
+                    } else {
+                        let v = 110 + ((x * 7 + y * 13) % 20);
+                        Rgba([ch(v), ch(v), ch(v), 255])
+                    }
+                }
+                "chest" => {
+                    let band = y == 7 || y == 8;
+                    let latch = (7..=8).contains(&x) && (6..=10).contains(&y);
+                    if latch {
+                        Rgba([180, 170, 120, 255])
+                    } else if band {
+                        Rgba([90, 60, 30, 255])
+                    } else {
+                        let v = 150 + ((x * 5 + y * 9) % 15);
+                        Rgba([ch(v - 10), ch(v - 60), ch(v - 95), 255])
+                    }
+                }
+                "planks" => {
+                    let v = 160 + ((x * 3 + y * 7) % 12);
+                    let seam = y % 4 == 3 || (y % 8 < 4 && x == 8) || (y % 8 >= 4 && x == 3);
+                    if seam {
+                        Rgba([120, 90, 55, 255])
+                    } else {
+                        Rgba([ch(v - 20), ch(v - 70), ch(v - 100), 255])
+                    }
+                }
+                "glass" => {
+                    let frame = x == 0 || x == 15 || y == 0 || y == 15;
+                    if frame {
+                        Rgba([200, 220, 225, 255])
+                    } else {
+                        Rgba([220, 240, 245, 60])
+                    }
+                }
                 "water" => {
                     let v = 40 + ((x * 3 + y * 5) % 14);
                     Rgba([30, ch(60 + v / 2), ch(150 + v / 3), 170])
@@ -149,14 +193,12 @@ mod tests {
             assert_eq!(tex.width(), 16);
             assert_eq!(tex.height(), 16);
             // fully opaque except water (transparent pass)
-            let expected_alpha = if name == "water" {
-                170
-            } else if name == "torch_item" {
-                0 // partially transparent
-            } else {
-                255
-            };
+            if name == "glass" {
+                // frame opaque, pane translucent
+                continue;
+            }
             if name != "torch_item" {
+                let expected_alpha = if name == "water" { 170 } else { 255 };
                 assert!(tex.pixels().all(|p| p.0[3] == expected_alpha));
             }
         }
@@ -167,7 +209,7 @@ mod tests {
         let atlas = generate_atlas();
         assert_eq!(atlas.len(), TEXTURE_NAMES.len());
         // every known block id maps to a valid layer
-        for id in [1u32, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14] {
+        for id in [1u32, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18] {
             assert!(texture_index_for_block(id) < atlas.len() as u32);
         }
     }

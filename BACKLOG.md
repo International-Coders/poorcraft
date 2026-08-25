@@ -59,10 +59,13 @@ below by phase.
 - [ ] beds/spawn setting, crack overlay texture (P5/P7 polish)
 
 ## P5 — Content catalog
-- [ ] data-driven block/item registries (full catalog: stones, woods, ores, decor)
-- [ ] functional blocks (furnace, chest, doors, beds, signs)
-- [ ] full tool/armor tiers + recipes + smelting with fuel
-- [ ] smithing table integration (existing forge minigame)
+- [x] furnace with smelting state machine (raw iron->ingot, sand->glass; coal/log/planks fuel; ticks while closed) + UI
+- [x] chest block entity (27 slots) + UI; contents spill on break
+- [x] planks + glass blocks (glass renders in transparent pass)
+- [x] iron tool tier (pick/axe/shovel) + wooden/stone/iron swords + all recipes
+- [x] block entities persist with the world; catalog consistency test
+- [ ] armor, beds/doors/signs, wool/decor variants (fold into later passes)
+- [ ] smithing table integration (with P6 combat loot)
 
 ## P6 — Mobs & combat
 - [ ] mob framework + spawning rules (day/night, light level)

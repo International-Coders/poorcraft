@@ -18,6 +18,10 @@ pub mod block {
     pub const TORCH: u32 = 12;
     pub const LANTERN: u32 = 13;
     pub const CRAFTING_TABLE: u32 = 14;
+    pub const FURNACE: u32 = 15;
+    pub const CHEST: u32 = 16;
+    pub const PLANKS: u32 = 17;
+    pub const GLASS: u32 = 18;
 
     pub fn name(id: u32) -> &'static str {
         match id {
@@ -36,6 +40,10 @@ pub mod block {
             TORCH => "Torch",
             LANTERN => "Lantern",
             CRAFTING_TABLE => "Crafting Table",
+            FURNACE => "Furnace",
+            CHEST => "Chest",
+            PLANKS => "Planks",
+            GLASS => "Glass",
             _ => "Unknown",
         }
     }
@@ -51,7 +59,8 @@ pub fn is_solid(b: BlockState) -> bool {
 /// let faces behind them render.
 pub fn is_opaque(b: BlockState) -> bool {
     let id = b.id();
-    id != block::AIR && id != block::WATER && id != block::LEAVES && id != block::TORCH && id != block::LANTERN
+    id != block::AIR && id != block::WATER && id != block::LEAVES && id != block::TORCH
+        && id != block::LANTERN && id != block::GLASS
 }
 
 /// Blocks the crosshair can target (mining/placing raycast hits).
@@ -78,7 +87,7 @@ mod tests {
 
     #[test]
     fn all_blocks_named() {
-        for id in 0..=14u32 {
+        for id in 0..=18u32 {
             assert_ne!(block::name(id), "Unknown", "id {} unnamed", id);
         }
     }

@@ -7,6 +7,7 @@ pub mod player;
 pub mod items;
 pub mod mining;
 pub mod crafting;
+pub mod smelting;
 
 /// Game time with a 20-minute day/night cycle as per spec.
 #[derive(Clone, Debug, Serialize, Deserialize)]

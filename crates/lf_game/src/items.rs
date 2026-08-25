@@ -7,6 +7,7 @@ pub enum ToolKind {
     Pickaxe,
     Axe,
     Shovel,
+    Sword,
 }
 
 impl ToolKind {
@@ -15,8 +16,9 @@ impl ToolKind {
         use lf_voxel::registry::block;
         match self {
             ToolKind::Pickaxe => &[block::STONE, block::COAL_ORE, block::IRON_ORE],
-            ToolKind::Axe => &[block::LOG],
+            ToolKind::Axe => &[block::LOG, block::PLANKS, block::CRAFTING_TABLE, block::CHEST],
             ToolKind::Shovel => &[block::DIRT, block::GRASS, block::SAND, block::SNOW, block::MYCELIUM],
+            ToolKind::Sword => &[block::LEAVES],
         }
     }
 }
@@ -74,22 +76,43 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "leaves", name: "Oak Leaves", kind: ItemKind::Block(block::LEAVES), max_stack: 64 },
         ItemDef { id: "torch", name: "Torch", kind: ItemKind::Block(block::TORCH), max_stack: 64 },
         ItemDef { id: "crafting_table", name: "Crafting Table", kind: ItemKind::Block(block::CRAFTING_TABLE), max_stack: 64 },
+        ItemDef { id: "furnace", name: "Furnace", kind: ItemKind::Block(block::FURNACE), max_stack: 64 },
+        ItemDef { id: "chest", name: "Chest", kind: ItemKind::Block(block::CHEST), max_stack: 64 },
+        ItemDef { id: "planks", name: "Oak Planks", kind: ItemKind::Block(block::PLANKS), max_stack: 64 },
+        ItemDef { id: "glass", name: "Glass", kind: ItemKind::Block(block::GLASS), max_stack: 64 },
         // materials
         ItemDef { id: "stick", name: "Stick", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "coal", name: "Coal", kind: ItemKind::Material, max_stack: 64 },
-        ItemDef { id: "planks", name: "Oak Planks", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "raw_iron", name: "Raw Iron", kind: ItemKind::Material, max_stack: 64 },
-        // tools (tier 0 wood, 1 stone)
+        ItemDef { id: "iron_ingot", name: "Iron Ingot", kind: ItemKind::Material, max_stack: 64 },
+        // tools (tier 0 wood, 1 stone, 2 iron)
         ItemDef { id: "wooden_pickaxe", name: "Wooden Pickaxe", kind: ItemKind::Tool(ToolKind::Pickaxe, 0), max_stack: 1 },
         ItemDef { id: "stone_pickaxe", name: "Stone Pickaxe", kind: ItemKind::Tool(ToolKind::Pickaxe, 1), max_stack: 1 },
+        ItemDef { id: "iron_pickaxe", name: "Iron Pickaxe", kind: ItemKind::Tool(ToolKind::Pickaxe, 2), max_stack: 1 },
         ItemDef { id: "wooden_axe", name: "Wooden Axe", kind: ItemKind::Tool(ToolKind::Axe, 0), max_stack: 1 },
         ItemDef { id: "stone_axe", name: "Stone Axe", kind: ItemKind::Tool(ToolKind::Axe, 1), max_stack: 1 },
+        ItemDef { id: "iron_axe", name: "Iron Axe", kind: ItemKind::Tool(ToolKind::Axe, 2), max_stack: 1 },
         ItemDef { id: "wooden_shovel", name: "Wooden Shovel", kind: ItemKind::Tool(ToolKind::Shovel, 0), max_stack: 1 },
         ItemDef { id: "stone_shovel", name: "Stone Shovel", kind: ItemKind::Tool(ToolKind::Shovel, 1), max_stack: 1 },
+        ItemDef { id: "iron_shovel", name: "Iron Shovel", kind: ItemKind::Tool(ToolKind::Shovel, 2), max_stack: 1 },
+        ItemDef { id: "wooden_sword", name: "Wooden Sword", kind: ItemKind::Tool(ToolKind::Sword, 0), max_stack: 1 },
+        ItemDef { id: "stone_sword", name: "Stone Sword", kind: ItemKind::Tool(ToolKind::Sword, 1), max_stack: 1 },
+        ItemDef { id: "iron_sword", name: "Iron Sword", kind: ItemKind::Tool(ToolKind::Sword, 2), max_stack: 1 },
         // food
         ItemDef { id: "apple", name: "Apple", kind: ItemKind::Food(4), max_stack: 64 },
     ];
     ITEMS
+}
+
+/// Attack damage for a held tool (hearts); hands do 1.
+pub fn tool_damage(kind: ToolKind, tier: u8) -> f32 {
+    let base = match kind {
+        ToolKind::Sword => 4.0,
+        ToolKind::Axe => 3.0,
+        ToolKind::Pickaxe => 2.0,
+        ToolKind::Shovel => 1.5,
+    };
+    base + tier as f32
 }
 
 pub fn item_def(id: &str) -> Option<ItemDef> {
@@ -110,6 +133,10 @@ pub fn block_drop(block_id: u32) -> Option<&'static str> {
         block::LEAVES => Some("leaves"), // apples are a rare bonus handled by the caller
         block::TORCH => Some("torch"),
         block::CRAFTING_TABLE => Some("crafting_table"),
+        block::FURNACE => Some("furnace"),
+        block::CHEST => Some("chest"),
+        block::PLANKS => Some("planks"),
+        block::GLASS => None, // glass shatters
         block::COAL_ORE => Some("coal"),
         block::IRON_ORE => Some("raw_iron"),
         block::WATER | block::AIR => None,
@@ -149,6 +176,48 @@ mod tests {
             assert_eq!(def.max_stack, 1);
             if let ItemKind::Tool(_, tier) = def.kind {
                 assert!(tier_durability(tier) > 0);
+            }
+        }
+    }
+
+    #[test]
+    fn catalog_consistency() {
+        use crate::crafting::recipes;
+        use crate::smelting::smelt_result;
+        let valid = |id: &str| item_def(id).is_some();
+        // every recipe output and ingredient is a real item
+        for r in recipes() {
+            assert!(valid(&r.output), "recipe output '{}' is not an item", r.output);
+            for row in &r.pattern {
+                for cell in row.iter().flatten() {
+                    assert!(valid(cell), "recipe ingredient '{}' is not an item", cell);
+                }
+            }
+        }
+        // every smelt output is a real item
+        for input in ["raw_iron", "sand", "stone", "log"] {
+            if let Some(out) = smelt_result(input) {
+                assert!(valid(out), "smelt output '{}' is not an item", out);
+            }
+        }
+        // every block drop is a real item
+        for block_id in 0..=18u32 {
+            if let Some(drop) = block_drop(block_id) {
+                assert!(valid(drop), "drop '{}' for block {} is not an item", drop, block_id);
+            }
+        }
+        // every placeable block item maps to a named block
+        for def in items() {
+            if let ItemKind::Block(b) = def.kind {
+                assert_ne!(lf_voxel::registry::block::name(b), "Unknown",
+                    "item '{}' places unknown block {}", def.id, b);
+            }
+        }
+        // tool tiers have stats
+        for def in items() {
+            if let ItemKind::Tool(_, tier) = def.kind {
+                assert!(tier_durability(tier) > 0);
+                assert!(super::tier_speed(tier) > 1.0);
             }
         }
     }

@@ -179,7 +179,16 @@ pub enum UiOpen {
     None,
     Inventory,
     CraftingTable,
+    Furnace((i32, i32, i32)),
+    Chest((i32, i32, i32)),
     Death,
+}
+
+/// State attached to placed functional blocks.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub enum BlockEntity {
+    Furnace(lf_game::smelting::Furnace),
+    Chest { slots: Vec<Option<ItemStack>> },
 }
 
 #[derive(Clone, Debug)]
@@ -204,6 +213,7 @@ pub struct ClientSave {
     pub health: f32,
     pub hunger: f32,
     pub time_ticks: u64,
+    pub block_entities: Vec<((i32, i32, i32), BlockEntity)>,
 }
 
 struct App {
@@ -393,6 +403,7 @@ struct GameState {
     pub mining: Option<MiningState>,
     pub drops: Vec<ItemDrop>,
     drop_batch: Option<MeshBatch>,
+    pub block_entities: HashMap<(i32, i32, i32), BlockEntity>,
     pub air: u8,
     spawn_point: Vec3,
     pub egui: EguiPlatform,
@@ -498,7 +509,7 @@ impl GameState {
         player.flying = false;
 
         // Inventory/stats/time from the extras file.
-        let (inventory, stats, time) = load_client_save(Path::new(WORLD_DIR));
+        let (inventory, stats, time, block_entities) = load_client_save(Path::new(WORLD_DIR));
 
         let egui = EguiPlatform::new(&device, config.format, &window);
 
@@ -539,6 +550,7 @@ impl GameState {
             mining: None,
             drops: Vec::new(),
             drop_batch: None,
+            block_entities: HashMap::new(),
             air: 10,
             spawn_point,
             last_instant: Instant::now(),
@@ -628,6 +640,7 @@ impl GameState {
             health: self.stats.health,
             hunger: self.stats.hunger,
             time_ticks: self.time.ticks,
+            block_entities: self.block_entities.iter().map(|(k, v)| (*k, v.clone())).collect(),
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
             let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
@@ -726,6 +739,12 @@ impl GameState {
         self.player.update(dt, &input, &self.world);
         self.survival_tick(dt);
         self.update_drops(dt);
+        // Furnaces smelt whether or not their UI is open.
+        for (_, entity) in self.block_entities.iter_mut() {
+            if let BlockEntity::Furnace(f) = entity {
+                f.tick(dt);
+            }
+        }
 
         // 20-minute day/night cycle.
         let ticks = (dt * lf_game::TimeOfDay::TICKS_PER_SECOND as f32) as u64;
@@ -769,6 +788,18 @@ impl GameState {
                             self.break_block_drops(block_id, pos);
                             self.use_durability();
                             self.remesh_around(pos.x, pos.z);
+                            // container contents spill out
+                            let key = (pos.x, pos.y, pos.z);
+                            if let Some(entity) = self.block_entities.remove(&key) {
+                                let stacks: Vec<Option<ItemStack>> = match entity {
+                                    BlockEntity::Furnace(f) => vec![f.input, f.fuel, f.output],
+                                    BlockEntity::Chest { slots } => slots,
+                                };
+                                for s in stacks.into_iter().flatten() {
+                                    self.spawn_drop(&s.item_id, s.count,
+                                        Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.5, pos.z as f32 + 0.5));
+                                }
+                            }
                         }
                     }
                 }
@@ -783,9 +814,26 @@ impl GameState {
         if playing && self.input.place_pressed {
             self.input.place_pressed = false; // one action per click
             if let Some((pos, _)) = target {
-                if self.world.get_block(pos.x, pos.y, pos.z).id() == registry::block::CRAFTING_TABLE {
-                    self.ui_open = UiOpen::CraftingTable;
-                    self.unlock_cursor();
+                match self.world.get_block(pos.x, pos.y, pos.z).id() {
+                    registry::block::CRAFTING_TABLE => {
+                        self.ui_open = UiOpen::CraftingTable;
+                        self.unlock_cursor();
+                    }
+                    registry::block::FURNACE => {
+                        let key = (pos.x, pos.y, pos.z);
+                        self.block_entities.entry(key)
+                            .or_insert_with(|| BlockEntity::Furnace(Default::default()));
+                        self.ui_open = UiOpen::Furnace(key);
+                        self.unlock_cursor();
+                    }
+                    registry::block::CHEST => {
+                        let key = (pos.x, pos.y, pos.z);
+                        self.block_entities.entry(key)
+                            .or_insert_with(|| BlockEntity::Chest { slots: vec![None; 27] });
+                        self.ui_open = UiOpen::Chest(key);
+                        self.unlock_cursor();
+                    }
+                    _ => {}
                 }
             }
             if self.ui_open == UiOpen::None {
@@ -802,6 +850,12 @@ impl GameState {
                                 let place = pos + normal;
                                 if !self.block_intersects_player(place) {
                                     if self.world.set_block(place.x, place.y, place.z, BlockState(b)).is_some() {
+                                        let key = (place.x, place.y, place.z);
+                                        if b == registry::block::FURNACE {
+                                            self.block_entities.insert(key, BlockEntity::Furnace(Default::default()));
+                                        } else if b == registry::block::CHEST {
+                                            self.block_entities.insert(key, BlockEntity::Chest { slots: vec![None; 27] });
+                                        }
                                         self.remesh_around(place.x, place.z);
                                         self.consume_selected(1);
                                     }
@@ -1312,10 +1366,12 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
     }
 }
 
-fn load_client_save(dir: &Path) -> (Inventory, PlayerStats, lf_game::TimeOfDay) {
+fn load_client_save(dir: &Path)
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
+    let mut entities = HashMap::new();
     if let Ok(bytes) = std::fs::read(dir.join("player_extras.dat")) {
         if let Ok(save) = bincode::deserialize::<ClientSave>(&bytes) {
             for (i, slot) in save.slots.iter().enumerate().take(inventory.slots.len()) {
@@ -1323,10 +1379,11 @@ fn load_client_save(dir: &Path) -> (Inventory, PlayerStats, lf_game::TimeOfDay) 
             }
             stats.health = save.health.max(1.0);
             stats.hunger = save.hunger;
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks));
+            entities.extend(save.block_entities);
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities);
         }
     }
-    (inventory, stats, time)
+    (inventory, stats, time, entities)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.

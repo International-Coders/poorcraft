@@ -4,8 +4,7 @@
 use egui_wgpu::Renderer;
 use egui_winit::State as EguiWinitState;
 
-use crate::GameState;
-use crate::UiOpen;
+use crate::{BlockEntity, GameState, UiOpen};
 use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, ItemKind};
 use lf_game::survival::ItemStack;
@@ -105,6 +104,7 @@ fn item_color(stack: &ItemStack) -> egui::Color32 {
                 lf_game::items::ToolKind::Pickaxe => (150, 130, 90),
                 lf_game::items::ToolKind::Axe => (140, 120, 80),
                 lf_game::items::ToolKind::Shovel => (130, 140, 90),
+                lf_game::items::ToolKind::Sword => (170, 120, 110),
             };
             let shade = 1.0 - tier as f32 * 0.12;
             egui::Color32::from_rgb(
@@ -231,6 +231,8 @@ impl GameState {
             UiOpen::None => {}
             UiOpen::Inventory => self.draw_inventory(ctx, 2),
             UiOpen::CraftingTable => self.draw_inventory(ctx, 3),
+            UiOpen::Furnace(pos) => self.draw_furnace(ctx, pos),
+            UiOpen::Chest(pos) => self.draw_chest(ctx, pos),
             UiOpen::Death => self.draw_death(ctx),
         }
         // Cursor stack follows the pointer.
@@ -403,6 +405,112 @@ impl GameState {
                     }
                 });
             });
+    }
+
+    fn draw_furnace(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
+        let Some(BlockEntity::Furnace(mut furnace)) = self.block_entities.get(&pos).cloned() else {
+            self.close_ui();
+            return;
+        };
+        egui::Window::new("Furnace")
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label("Input");
+                        let mut input = furnace.input.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut input, &mut cursor, false);
+                        furnace.input = input;
+                        self.cursor_stack = cursor;
+                        // flame indicator
+                        let flame = if furnace.burn_total > 0.0 {
+                            (furnace.burn_left / furnace.burn_total).clamp(0.0, 1.0)
+                        } else {
+                            0.0
+                        };
+                        ui.add(egui::ProgressBar::new(flame).desired_width(SLOT_SIZE).text(if flame > 0.0 { "fire" } else { "" }));
+                        ui.label("Fuel");
+                        let mut fuel = furnace.fuel.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut fuel, &mut cursor, false);
+                        furnace.fuel = fuel;
+                        self.cursor_stack = cursor;
+                    });
+                    ui.vertical(|ui| {
+                        let frac = (furnace.progress / lf_game::smelting::SMELT_TIME).clamp(0.0, 1.0);
+                        ui.add(egui::ProgressBar::new(frac).desired_width(80.0).text("smelt"));
+                        ui.label("->");
+                    });
+                    ui.vertical(|ui| {
+                        ui.label("Output");
+                        let mut output = furnace.output.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut output, &mut cursor, false);
+                        furnace.output = output;
+                        self.cursor_stack = cursor;
+                    });
+                });
+                ui.add_space(6.0);
+                Self::draw_storage_rows(ui, self);
+            });
+        self.block_entities.insert(pos, BlockEntity::Furnace(furnace));
+    }
+
+    fn draw_chest(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
+        let mut chest_slots = match self.block_entities.get(&pos).cloned() {
+            Some(BlockEntity::Chest { slots }) => slots,
+            _ => vec![None; 27],
+        };
+        egui::Window::new("Chest")
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                for row in 0..3 {
+                    ui.horizontal(|ui| {
+                        for col in 0..9 {
+                            let idx = row * 9 + col;
+                            let mut stack = chest_slots[idx].clone();
+                            let mut cursor = self.cursor_stack.take();
+                            slot_button(ui, &mut stack, &mut cursor, false);
+                            self.cursor_stack = cursor;
+                            chest_slots[idx] = stack;
+                        }
+                    });
+                }
+                ui.add_space(6.0);
+                Self::draw_storage_rows(ui, self);
+            });
+        self.block_entities.insert(pos, BlockEntity::Chest { slots: chest_slots });
+    }
+
+    fn draw_storage_rows(ui: &mut egui::Ui, game: &mut GameState) {
+        // storage 9x3 + hotbar (shared by container screens)
+        for row in 0..3 {
+            ui.horizontal(|ui| {
+                for col in 0..9 {
+                    let idx = 9 + row * 9 + col;
+                    let mut stack = game.inventory.slots[idx].clone();
+                    let mut cursor = game.cursor_stack.take();
+                    slot_button(ui, &mut stack, &mut cursor, false);
+                    game.cursor_stack = cursor;
+                    game.inventory.slots[idx] = stack;
+                }
+            });
+        }
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            for i in 0..9 {
+                let mut stack = game.inventory.slots[i].clone();
+                let mut cursor = game.cursor_stack.take();
+                slot_button(ui, &mut stack, &mut cursor, i == game.hotbar_index);
+                game.cursor_stack = cursor;
+                game.inventory.slots[i] = stack;
+            }
+        });
     }
 
     fn draw_death(&mut self, ctx: &egui::Context) {
