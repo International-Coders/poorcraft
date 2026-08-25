@@ -235,3 +235,4 @@
 - [x] Enderman Mobs -> shots/ev_enderman.png
 - [x] Shulker Mobs -> shots/ev_shulker.png
 - [x] Dragon Boss Fight -> shots/ev_dragon_boss.png
+- [x] Elytra Flight Wings -> shots/ev_elytra_wings.png
