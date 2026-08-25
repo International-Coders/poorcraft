@@ -226,3 +226,5 @@
 - [x] Mushroom Fields Biome -> shots/ev_mushroom_fields.png
 - [x] Nether Wastes Biome -> shots/ev_nether_wastes.png
 - [x] Nether Quartz Ore -> shots/ev_nether_quartz.png
+- [x] Crimson Forest Biome -> shots/ev_crimson_forest.png
+- [x] Warped Forest Biome -> shots/ev_warped_forest.png
