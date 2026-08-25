@@ -185,3 +185,4 @@
 - [x] Chorus Fruit -> shots/ev_chorus_fruit.png
 - [x] End Gateway block -> shots/ev_end_gateway.png
 - [x] End Crystal -> shots/ev_end_crystal.png
+- [x] Dragon Breath item and Lingering Potions -> shots/ev_dragon_breath.png
