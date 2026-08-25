@@ -129,3 +129,4 @@
 - [x] Scaffolding block -> shots/ev_scaffolding.png
 - [x] Bamboo block -> shots/ev_bamboo.png
 - [x] Sweet Berry Bushes -> shots/ev_sweet_berries.png
+- [x] Bee Nest and Beehive blocks -> shots/ev_bees.png
