@@ -1,9 +1,9 @@
 # STATE
-loop_count: 14
-current_milestone: M14
-last_done: "implemented story quest system with data-driven objectives and tests passing; captured m13_quests.png"
-next_task: "implement M14 chronicle engine + saga generator + chronicle UI + export, mythos generation"
+loop_count: 15
+current_milestone: M15
+last_done: "implemented Chronicle Engine event logging, saga generator, markdown export; captured m14_chronicle.png"
+next_task: "implement M15 visual test harness --headless --scene + golden-image compare in CI"
 build: GREEN
 tests: passing
-last_screenshot: shots/m13_quests.png
+last_screenshot: shots/m14_chronicle.png
 blockers: none

@@ -14,7 +14,7 @@
 - [x] M11 multiplayer server/client -> shots/m11_two_players.png
 - [x] M12 NPCs and villages -> shots/m12_village.png
 - [x] M13 story mode quests -> quest progression test passes
-- [ ] M14 chronicle engine + saga generator + chronicle UI + export -> shots/m14_chronicle.png
+- [x] M14 chronicle engine + saga generator + mythos generation -> shots/m14_chronicle.png
 - [ ] M7 survival core (inventory, crafting)
 - [ ] M8 medieval smithing system -> shots/m8_forge.png
 - [ ] M9 mobs and boss -> shots/m9_boss.png
