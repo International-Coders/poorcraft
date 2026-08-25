@@ -120,3 +120,4 @@
 - [x] Target block -> shots/ev_target.png
 - [x] Sculk Sensor block -> shots/ev_sculk_sensor.png
 - [x] Dripstone block and stalactites -> shots/ev_dripstone.png
+- [x] Moss block and azalea bushes -> shots/ev_moss.png
