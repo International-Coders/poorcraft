@@ -118,3 +118,4 @@
 - [x] Lantern and Soul Lantern blocks -> shots/ev_lanterns.png
 - [x] Chain block -> shots/ev_chain.png
 - [x] Target block -> shots/ev_target.png
+- [x] Sculk Sensor block -> shots/ev_sculk_sensor.png
