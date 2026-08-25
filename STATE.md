@@ -1,9 +1,9 @@
 # STATE
-loop_count: 198
+loop_count: 199
 current_milestone: Evolution
-last_done: "Evolution Mode: added Enderman mob neutral tall mob that teleports when looked at or attacked; captured ev_enderman.png"
+last_done: "Evolution Mode: added Ender Pearl and Eye of Ender teleportation items and stronghold locator; captured ev_ender_pearl.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_enderman.png
+last_screenshot: shots/ev_ender_pearl.png
 blockers: none
