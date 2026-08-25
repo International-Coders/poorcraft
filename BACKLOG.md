@@ -20,4 +20,5 @@
 
 # EVOLUTION MODE
 - [x] amberium ore example mod -> shots/ev_amberium.png
-- [ ] crystal grove biome + custom trees
+- [x] crystal grove biome + custom trees -> shots/ev_crystal_grove.png
+- [ ] Geode Guardian mob

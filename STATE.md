@@ -1,9 +1,9 @@
 # STATE
-loop_count: 18
+loop_count: 19
 current_milestone: Evolution
-last_done: "Evolution Mode: added amberium example mod with new ore and block data pack; tests passing; captured ev_amberium.png"
-next_task: "Evolution: add new biome (crystal grove) with custom trees"
+last_done: "Evolution Mode: added crystal grove biome with crystal trees and geodes; captured ev_crystal_grove.png"
+next_task: "Evolution: add Geode Guardian mob"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_amberium.png
+last_screenshot: shots/ev_crystal_grove.png
 blockers: none
