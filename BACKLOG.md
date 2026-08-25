@@ -158,3 +158,4 @@
 - [x] Allay mob -> shots/ev_allay.png
 - [x] Frog and Tadpole mobs -> shots/ev_frog.png
 - [x] Camel mob -> shots/ev_camel.png
+- [x] Sniffer mob -> shots/ev_sniffer.png
