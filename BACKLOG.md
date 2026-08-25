@@ -105,3 +105,4 @@
 - [x] Jukebox and Music Discs -> shots/ev_jukebox.png
 - [x] Lodestone and Compass -> shots/ev_lodestone.png
 - [x] Cartography Table -> shots/ev_cartography.png
+- [x] Fletching Table -> shots/ev_fletching.png
