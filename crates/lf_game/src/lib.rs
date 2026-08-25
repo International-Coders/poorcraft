@@ -1,5 +1,7 @@
 use serde::{Serialize, Deserialize};
 
+pub mod survival;
+
 /// Game time with a 20-minute day/night cycle as per spec.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TimeOfDay {

@@ -7,7 +7,8 @@
 - [x] M4 endless terrain noise heightmap -> shots/m4_terrain.png
 - [x] M5 save and load world round-trip test
 - [x] M6 day/night cycle, sky light -> shots/m6_night.png
-- [ ] M7 survival core (inventory, crafting)
+- [x] M7 survival core (inventory, crafting) -> shots/m7_survival.png
+- [ ] M8 medieval smithing system -> shots/m8_forge.png
 - [ ] M7 survival core (inventory, crafting)
 - [ ] M8 medieval smithing system -> shots/m8_forge.png
 - [ ] M9 mobs and boss -> shots/m9_boss.png
