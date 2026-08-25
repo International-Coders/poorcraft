@@ -66,3 +66,4 @@
 - [x] Shadow Amulet artifact -> shots/ev_shadow_amulet.png
 - [x] Glowcap Mushroom flower -> shots/ev_glowcap.png
 - [x] combat combo system -> shots/ev_combo_system.png
+- [x] Frost Mantle horse armor -> shots/ev_frost_mantle.png
