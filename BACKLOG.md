@@ -231,3 +231,4 @@
 - [x] Nether Fortress Structure -> shots/ev_nether_fortress.png
 - [x] Piglin Bartering System -> shots/ev_piglin_barter.png
 - [x] Hoglin Mobs -> shots/ev_hoglin.png
+- [x] Strider Mobs -> shots/ev_strider.png
