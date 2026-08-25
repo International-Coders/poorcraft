@@ -131,3 +131,4 @@
 - [x] Sweet Berry Bushes -> shots/ev_sweet_berries.png
 - [x] Bee Nest and Beehive blocks -> shots/ev_bees.png
 - [x] Sea Turtle mob -> shots/ev_turtle.png
+- [x] Fox mob -> shots/ev_fox.png
