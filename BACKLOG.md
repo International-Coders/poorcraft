@@ -25,5 +25,6 @@
 - [x] crystal tool material -> shots/ev_crystal_tools.png
 - [x] optimize chunk meshing performance -> shots/ev_optimized_mesh.png
 - [x] refactor / cleanup -> shots/refactor_landscape.png
-- [ ] finalize - all improvements complete (pending) -> shots/ev_geode_guardian.png
+- [x] new biome (obsidian desert) + Ruined Obsidian Spires -> shots/ev_obsidian_desert.png
+- [ ] new mob: Cinder Crawler (pending) -> shots/ev_geode_guardian.png
 - [ ] crystal tool material
