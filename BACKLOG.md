@@ -201,3 +201,4 @@
 - [x] Hardcore Mode -> shots/ev_hardcore_mode.png
 - [x] Custom World Generation -> shots/ev_custom_world_gen.png
 - [x] Superflat World Preset -> shots/ev_superflat.png
+- [x] Amplified World Preset -> shots/ev_amplified.png
