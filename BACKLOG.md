@@ -8,7 +8,8 @@
 - [x] M5 save and load world round-trip test
 - [x] M6 day/night cycle, sky light -> shots/m6_night.png
 - [x] M7 survival core (inventory, crafting) -> shots/m7_survival.png
-- [ ] M8 medieval smithing system -> shots/m8_forge.png
+- [x] M8 medieval smithing system -> shots/m8_forge.png
+- [ ] M9 mobs and boss -> shots/m9_boss.png
 - [ ] M7 survival core (inventory, crafting)
 - [ ] M8 medieval smithing system -> shots/m8_forge.png
 - [ ] M9 mobs and boss -> shots/m9_boss.png

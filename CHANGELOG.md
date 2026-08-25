@@ -7,6 +7,7 @@
 - loop 6: implemented region storage persistence and chunk round-trip test; saved shots/m5_save_load.png. build green.
 - loop 7: implemented TimeOfDay day/night cycle, sky color transition, LightEngine with torch block light; saved shots/m6_night.png. build green.
 - loop 8: implemented survival core player stats and inventory item stacking; saved shots/m7_survival.png. build green.
+- loop 9: implemented medieval smithing system with 8 materials (wood to adamantine), tool parts, assembly, forge minigame; saved shots/m8_forge.png. build green.
 
 
 
