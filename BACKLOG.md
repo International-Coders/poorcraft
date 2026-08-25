@@ -98,3 +98,4 @@
 - [x] Respawn Anchor -> shots/ev_respawn_anchor.png
 - [x] Netherite ingot crafting -> shots/ev_netherite.png
 - [x] Turtle shell helmet -> shots/ev_turtle_shell.png
+- [x] Spyglass item -> shots/ev_spyglass.png
