@@ -352,7 +352,9 @@ impl GameState {
             sprint: self.input.held(KeyCode::ControlLeft),
             fly_up: self.input.held(KeyCode::Space),
             fly_down: self.input.held(KeyCode::ShiftLeft),
-            yaw_delta: -self.input.mouse_dx * LOOK_SENSITIVITY,
+            // Mouse right (dx>0) turns the view right (yaw+); mouse down
+            // (dy>0) looks down (pitch-). Matches standard FPS feel.
+            yaw_delta: self.input.mouse_dx * LOOK_SENSITIVITY,
             pitch_delta: -self.input.mouse_dy * LOOK_SENSITIVITY,
         };
         self.input.mouse_dx = 0.0;

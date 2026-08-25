@@ -87,25 +87,25 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                     push_face(&mut vertices, &mut indices,
                         [[fx1, fy, fz1], [fx1, fy1, fz1], [fx1, fy1, fz], [fx1, fy, fz]], UVS_A, [1.0, 0.0, 0.0], ti);
                 }
-                // -Y face
+                // -Y face (corners wound so the outward normal points down)
                 if get_block(x as i32, y as i32 - 1, z as i32) == BlockState::AIR {
                     push_face(&mut vertices, &mut indices,
-                        [[fx, fy, fz], [fx1, fy, fz], [fx1, fy, fz1], [fx, fy, fz1]], UVS_B, [0.0, -1.0, 0.0], ti);
+                        [[fx, fy, fz], [fx, fy, fz1], [fx1, fy, fz1], [fx1, fy, fz]], UVS_B, [0.0, -1.0, 0.0], ti);
                 }
                 // +Y face
                 if get_block(x as i32, y as i32 + 1, z as i32) == BlockState::AIR {
                     push_face(&mut vertices, &mut indices,
-                        [[fx, fy1, fz1], [fx1, fy1, fz1], [fx1, fy1, fz], [fx, fy1, fz]], UVS_B, [0.0, 1.0, 0.0], ti);
+                        [[fx, fy1, fz1], [fx, fy1, fz], [fx1, fy1, fz], [fx1, fy1, fz1]], UVS_B, [0.0, 1.0, 0.0], ti);
                 }
                 // -Z face
                 if get_block(x as i32, y as i32, z as i32 - 1) == BlockState::AIR {
                     push_face(&mut vertices, &mut indices,
-                        [[fx1, fy, fz], [fx, fy, fz], [fx, fy1, fz], [fx1, fy1, fz]], UVS_B, [0.0, 0.0, -1.0], ti);
+                        [[fx1, fy, fz], [fx1, fy1, fz], [fx, fy1, fz], [fx, fy, fz]], UVS_B, [0.0, 0.0, -1.0], ti);
                 }
                 // +Z face
                 if get_block(x as i32, y as i32, z as i32 + 1) == BlockState::AIR {
                     push_face(&mut vertices, &mut indices,
-                        [[fx, fy, fz1], [fx1, fy, fz1], [fx1, fy1, fz1], [fx, fy1, fz1]], UVS_B, [0.0, 0.0, 1.0], ti);
+                        [[fx, fy, fz1], [fx, fy1, fz1], [fx1, fy1, fz1], [fx1, fy, fz1]], UVS_B, [0.0, 0.0, 1.0], ti);
                 }
             }
         }
@@ -137,6 +137,50 @@ mod tests {
         let mesh = mesh_section(&s, None, None, None, None, None, None, &tex);
         // 10 exposed faces instead of 12
         assert_eq!(mesh.vertices.len(), 40);
+    }
+
+    #[test]
+    fn every_triangle_faces_outward() {
+        // Guards the face winding: with back-face culling, an inward-wound
+        // face is invisible from outside (the see-through-terrain bug).
+        let mut s = VoxelSection::new_empty();
+        s.set(8, 8, 8, BlockState::STONE);
+        s.set(4, 4, 4, BlockState(6)); // second block, different corner
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex);
+        let centers = [[8.5f32, 8.5, 8.5], [4.5f32, 4.5, 4.5]];
+        let mut checked = 0;
+        for center in centers {
+            let mut tris = 0;
+            for tri in mesh.indices.chunks(3) {
+                let p: Vec<[f32; 3]> = tri.iter().map(|i| mesh.vertices[*i as usize].position).collect();
+                let belongs = p.iter().all(|v| {
+                    (v[0] - center[0]).abs() <= 0.5 + 1e-6
+                        && (v[1] - center[1]).abs() <= 0.5 + 1e-6
+                        && (v[2] - center[2]).abs() <= 0.5 + 1e-6
+                });
+                if !belongs {
+                    continue;
+                }
+                let u = [p[1][0] - p[0][0], p[1][1] - p[0][1], p[1][2] - p[0][2]];
+                let v = [p[2][0] - p[0][0], p[2][1] - p[0][1], p[2][2] - p[0][2]];
+                let n = [
+                    u[1] * v[2] - u[2] * v[1],
+                    u[2] * v[0] - u[0] * v[2],
+                    u[0] * v[1] - u[1] * v[0],
+                ];
+                let centroid = [
+                    (p[0][0] + p[1][0] + p[2][0]) / 3.0 - center[0],
+                    (p[0][1] + p[1][1] + p[2][1]) / 3.0 - center[1],
+                    (p[0][2] + p[1][2] + p[2][2]) / 3.0 - center[2],
+                ];
+                let dot = n[0] * centroid[0] + n[1] * centroid[1] + n[2] * centroid[2];
+                assert!(dot > 0.0, "inward-wound triangle at {:?}: n={:?} centroid={:?}", p, n, centroid);
+                tris += 1;
+            }
+            assert_eq!(tris, 12, "block at {:?} should emit 12 triangles", center);
+            checked += tris;
+        }
+        assert_eq!(checked, 24);
     }
 
     #[test]
