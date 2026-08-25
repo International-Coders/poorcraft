@@ -1297,6 +1297,9 @@ dependencies = [
 [[package]]
 name = "lf_game"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "lf_modapi"

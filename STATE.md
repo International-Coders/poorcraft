@@ -1,9 +1,9 @@
 # STATE
-loop_count: 6
-current_milestone: M6
-last_done: "implemented world persistence in lf_voxel with tests passing; captured m5_save_load.png"
-next_task: "implement M6 day/night sky light cycle"
+loop_count: 7
+current_milestone: M7
+last_done: "implemented day/night cycle with TimeOfDay, sky color transition, LightEngine and torch light; captured m6_night.png"
+next_task: "implement M7 survival core: health, hunger, inventory, crafting"
 build: GREEN
 tests: passing
-last_screenshot: shots/m5_save_load.png
+last_screenshot: shots/m6_night.png
 blockers: none

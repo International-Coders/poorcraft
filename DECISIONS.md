@@ -6,5 +6,6 @@
 - M3: implemented Amanatides & Woo DDA raycast for voxel selection and outline highlight proof shots/m3_breakplace.png
 - M4: integrated fastnoise-lite for deterministic terrain height, temperature, humidity, biomes, and soil strata
 - M5: implemented zstd-compressed regional chunk file storage with bincode serialization and round-trip tests (shots/m5_save_load.png)
+- M6: implemented 20-min day/night TimeOfDay with sky color interpolation, block light levels (torch=14, lantern=15), and light engine for M6 proof
 
 
