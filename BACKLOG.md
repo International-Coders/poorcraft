@@ -108,3 +108,4 @@
 - [x] Fletching Table -> shots/ev_fletching.png
 - [x] Smithing Table -> shots/ev_smithing.png
 - [x] Stonecutter block -> shots/ev_stonecutter.png
+- [x] Loom block -> shots/ev_loom.png
