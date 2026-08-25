@@ -230,3 +230,4 @@
 - [x] Warped Forest Biome -> shots/ev_warped_forest.png
 - [x] Nether Fortress Structure -> shots/ev_nether_fortress.png
 - [x] Piglin Bartering System -> shots/ev_piglin_barter.png
+- [x] Hoglin Mobs -> shots/ev_hoglin.png
