@@ -1,9 +1,9 @@
 # STATE
-loop_count: 248
+loop_count: 250
 current_milestone: Evolution
-last_done: "Evolution Mode: added Mesa Canyons and Multi-Colored Clay Strata banded colored clay layers generating in canyon biomes; captured ev_mesa_canyon.png"
+last_done: "Evolution Mode: added Mushroom Fields Biome giant mushroom trees, mycelium blocks, and mooshroom cow mobs; captured ev_mushroom_fields.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_mesa_canyon.png
+last_screenshot: shots/ev_mushroom_fields.png
 blockers: none
