@@ -51,3 +51,4 @@
 - [x] Void Serpent chronicle chapter -> shots/ev_chronicle_voidserpent.png
 - [x] smithing complete (anvil + hammer) -> shots/ev_smithing_complete.png
 - [x] modding API documentation -> shots/ev_modding_docs.png
+- [x] performance profiling pass -> shots/ev_perf_profiling.png
