@@ -1,9 +1,9 @@
 # STATE
-loop_count: 45
+loop_count: 46
 current_milestone: Evolution
-last_done: "Evolution Mode: added Void Serpent boss mob with multi-phase coil/strike/phase-shift combat; captured ev_void_serpent.png"
+last_done: "Evolution Mode: added Portuguese (BR) localization for new Evolution content; captured ev_ptbr_localization.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_void_serpent.png
+last_screenshot: shots/ev_ptbr_localization.png
 blockers: none

@@ -42,3 +42,4 @@
 - [x] server browser UI for multiplayer -> shots/ev_server_browser.png
 - [x] Levitation rune effect -> shots/ev_rune_levitation.png
 - [x] Void Serpent boss mob -> shots/ev_void_serpent.png
+- [x] PT-BR localization expansion -> shots/ev_ptbr_localization.png
