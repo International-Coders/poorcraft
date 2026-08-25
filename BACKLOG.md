@@ -135,3 +135,4 @@
 - [x] Panda mob -> shots/ev_panda.png
 - [x] Strider mob -> shots/ev_strider.png
 - [x] Hoglin mob -> shots/ev_hoglin.png
+- [x] Zoglin mob -> shots/ev_zoglin.png
