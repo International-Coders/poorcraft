@@ -32,3 +32,5 @@
 - [x] crystal tool material
 - [x] dungeon skeleton structure
 - [x] new quest hook + optional lore book entry
+- [x] torch flame particle effect -> shots/ev_torch_particles.png
+- [ ] cloud cover dynamic weather
