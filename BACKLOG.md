@@ -123,3 +123,4 @@
 - [x] Moss block and azalea bushes -> shots/ev_moss.png
 - [x] Glow berries -> shots/ev_glow_berries.png
 - [x] Spore Blossom block -> shots/ev_spore_blossom.png
+- [x] Big Dripleaf block -> shots/ev_dripleaf.png
