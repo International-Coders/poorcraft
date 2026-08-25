@@ -1,9 +1,9 @@
 # STATE
-loop_count: 152
+loop_count: 153
 current_milestone: Evolution
-last_done: "Evolution Mode: added Ocean Monument structure massive prismarine monument with guardian mobs; captured ev_ocean_monument.png"
+last_done: "Evolution Mode: added Shipwreck structure beached or underwater wooden ship with loot chests; captured ev_shipwreck.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_ocean_monument.png
+last_screenshot: shots/ev_shipwreck.png
 blockers: none
