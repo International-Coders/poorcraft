@@ -76,3 +76,4 @@
 - [x] Piercing Shot bow enchant -> shots/ev_piercing_shot.png
 - [x] wind ambience sound -> shots/ev_wind_ambience.png
 - [x] Ember Wisp mob -> shots/ev_ember_wisp.png
+- [x] Depth Strider enchantment -> shots/ev_depth_strider.png
