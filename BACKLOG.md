@@ -38,3 +38,4 @@
 - [ ] wind ambience sound design -> shots/ev_sound_wind.png
 - [x] tree variety pack (oak, pine, birch) -> shots/ev_tree_variety.png
 - [x] warhammer weapon category -> shots/ev_warhammer.png
+- [x] Twilight Grove biome -> shots/ev_twilight_grove.png
