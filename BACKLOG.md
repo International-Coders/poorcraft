@@ -101,3 +101,4 @@
 - [x] Spyglass item -> shots/ev_spyglass.png
 - [x] Goat Horn instrument -> shots/ev_goat_horn.png
 - [x] Bundle inventory item -> shots/ev_bundle.png
+- [x] Armor Stand structure -> shots/ev_armor_stand.png
