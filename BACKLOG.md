@@ -193,3 +193,4 @@
 - [x] Stronghold structure -> shots/ev_stronghold.png
 - [x] End Portal frame and activation -> shots/ev_end_portal_active.png
 - [x] Ender Dragon Boss Fight -> shots/ev_ender_dragon_boss.png
+- [x] Dragon Egg and Hatching/Respawn -> shots/ev_dragon_egg_respawn.png
