@@ -154,3 +154,4 @@
 - [x] Axolotl mob -> shots/ev_axolotl.png
 - [x] Glow Squid mob -> shots/ev_glow_squid.png
 - [x] Goat mob -> shots/ev_goat.png
+- [x] Warden mob -> shots/ev_warden.png

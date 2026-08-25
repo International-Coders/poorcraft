@@ -1,9 +1,9 @@
 # STATE
-loop_count: 161
+loop_count: 162
 current_milestone: Evolution
-last_done: "Evolution Mode: added Goat mob jumpy mountain mob with ram attack; captured ev_goat.png"
+last_done: "Evolution Mode: added Warden mob blind underground mini-boss with sonic attack; captured ev_warden.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_goat.png
+last_screenshot: shots/ev_warden.png
 blockers: none
