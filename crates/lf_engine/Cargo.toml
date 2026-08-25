@@ -1,0 +1,16 @@
+[package]
+name = "lf_engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+winit = "0.29"
+wgpu = "24.0"
+glam = "0.30"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+egui = "0.29"
+egui-winit = "0.29"
+egui-wgpu = "0.29"
+pollster = "0.3"
+kira = "0.9"

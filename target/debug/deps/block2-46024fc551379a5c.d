@@ -1,0 +1,13 @@
+/Users/zari/Desktop/POORCRAFT/target/debug/deps/block2-46024fc551379a5c.d: /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/lib.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/abi.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/block.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/debug.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/ffi.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/global.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/rc_block.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/stack.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/traits.rs
+
+/Users/zari/Desktop/POORCRAFT/target/debug/deps/libblock2-46024fc551379a5c.rmeta: /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/lib.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/abi.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/block.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/debug.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/ffi.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/global.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/rc_block.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/stack.rs /Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/traits.rs
+
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/lib.rs:
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/abi.rs:
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/block.rs:
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/debug.rs:
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/ffi.rs:
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/global.rs:
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/rc_block.rs:
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/stack.rs:
+/Users/zari/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.5.1/src/traits.rs:

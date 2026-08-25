@@ -1,0 +1,71 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lf_engine",
+    "crates/lf_voxel",
+    "crates/lf_worldgen",
+    "crates/lf_game",
+    "crates/lf_story",
+    "crates/lf_npc",
+    "crates/lf_chronicle",
+    "crates/lf_modapi",
+    "crates/lf_protocol",
+    "crates/lf_server",
+    "crates/lf_client",
+    "crates/lf_assets",
+    "crates/lf_vistest",
+    "apps/loreforge",
+    "apps/loreforge-server",
+    "xtask",
+]
+exclude = ["mods"]
+
+# Pin versions in Cargo.lock; this is the locked stack per spec.
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+
+[workspace.dependencies]
+# Windowing & graphics
+winit = "0.29"
+wgpu = "24.0"
+# Math
+glam = "0.30"
+# ECS
+bevy_ecs = { version = "0.14", default-features = false }
+# Work stealing
+rayon = "1.10"
+# Noise (deterministic Rust port)
+fastnoise-lite = "0.8"
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+postcard = "0.11"
+ron = "0.8"
+toml = { version = "0.8", default-features = false, features = ["parse", "display"] }
+# Compression
+zstd = "0.13"
+# Async runtime
+tokio = { version = "1.40", features = ["rt", "rt-multi-thread", "macros", "net", "sync", "time", "io-util", "fs"] }
+# Networking (QUIC)
+quinn = "0.11"
+# Mod scripting (Luau sandboxed)
+mlua = { version = "0.10", features = ["luau", "send", "async", "serialize"] }
+# WASM (phase 2)
+wasmtime = "22"
+# UI
+egui = "0.29"
+# Audio
+kira = "0.9"
+# LLM NPC
+reqwest = { version = "0.12", features = ["json", "stream"] }
+# Logging
+tracing = { version = "0.1", features = ["std"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+# Profiling
+puffin = "0.20"
+# Testing
+insta = { version = "1.41", features = ["yaml"] }
+proptest = "1.5"
+image = { version = "0.25", default-features = false, features = ["png"] }

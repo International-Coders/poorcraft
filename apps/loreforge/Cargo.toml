@@ -1,0 +1,6 @@
+[package]
+name = "loreforge"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+lf_engine = { path = "../../crates/lf_engine" }

@@ -1,0 +1,6 @@
+[package]
+name = "loreforge-server"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+lf_server = { path = "../../crates/lf_server" }
