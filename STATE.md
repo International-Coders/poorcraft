@@ -1,9 +1,9 @@
 # STATE
-loop_count: 220
+loop_count: 222
 current_milestone: Evolution
-last_done: "Evolution Mode: added Mouse Sensitivity and FOV sliders precise camera and field-of-view controls; captured ev_sensitivity_fov.png"
+last_done: "Evolution Mode: added Credits Screen and Roll developer and contributor credits screen with scrolling roll; captured ev_credits_roll.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_sensitivity_fov.png
+last_screenshot: shots/ev_credits_roll.png
 blockers: none
