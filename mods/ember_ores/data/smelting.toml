@@ -1,0 +1,4 @@
+[[smelting]]
+input = "ember_ores:ember_ore"
+output = "ember_ores:ember_ingot"
+xp = 1.0

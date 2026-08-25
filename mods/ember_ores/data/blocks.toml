@@ -1,0 +1,7 @@
+[[blocks]]
+id = "ember_ores:ember_ore"
+name = "Ember Ore"
+texture = "ember_ore.png"
+hardness = 4.5
+harvest_level = 2
+light = 7

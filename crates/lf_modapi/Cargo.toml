@@ -2,3 +2,8 @@
 name = "lf_modapi"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse", "display"] }
+tempfile = "3.10"

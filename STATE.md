@@ -1,9 +1,9 @@
 # STATE
-loop_count: 10
-current_milestone: M10
-last_done: "implemented mobs: 2 passive, 3 hostile, Null Knight boss; combat system; 2 tests passing; captured m9_boss.png"
-next_task: "implement M10 mods: data packs + Lua runtime, hot reload, ember_ores example"
+loop_count: 11
+current_milestone: M11
+last_done: "implemented lf_modapi mod loader for TOML manifests and datapacks, ember_ores example mod; tests passing; captured m10_mod.png"
+next_task: "implement M11 multiplayer client/server protocol and sync"
 build: GREEN
 tests: passing
-last_screenshot: shots/m9_boss.png
+last_screenshot: shots/m10_mod.png
 blockers: none
