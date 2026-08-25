@@ -53,3 +53,4 @@
 - [x] modding API documentation -> shots/ev_modding_docs.png
 - [x] performance profiling pass -> shots/ev_perf_profiling.png
 - [x] levitation particle effect -> shots/ev_levitation_particles.png
+- [x] loot chest structure -> shots/ev_loot_chest.png
