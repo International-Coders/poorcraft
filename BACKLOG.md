@@ -190,3 +190,4 @@
 - [x] Dyed Shulker Boxes -> shots/ev_dyed_shulker_boxes.png
 - [x] Enderman mob -> shots/ev_enderman.png
 - [x] Ender Pearl and Eye of Ender -> shots/ev_ender_pearl.png
+- [x] Stronghold structure -> shots/ev_stronghold.png
