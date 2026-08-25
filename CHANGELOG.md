@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-25 — P20: final consolidation (loop 300)
+- All 14 vistest proof scenes render and pixel-verify: biome_montage,
+  clouds_weather, first_person_view, hud_preview, industrial_machines,
+  night_watch, raytraced_night (100% emissive), raytraced_shadows,
+  spawn_plains_dawn, tech_tree, terrain_features, terrain_vista,
+  torchlit_night, village_trading.
+- STATE/STATUS/BACKLOG/RELEASE reflect exactly what exists.
+- 121 tests green; game smoke-tested end to end.
+
 ## 2026-08-25 — P19: Steam readiness (loop 299)
 - lf_steam crate: feature-gated Steamworks binding (off by default — the
   SDK links dynamically and CI lacks the client); preferred_transport()
