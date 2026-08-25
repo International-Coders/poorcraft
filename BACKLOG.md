@@ -202,3 +202,4 @@
 - [x] Custom World Generation -> shots/ev_custom_world_gen.png
 - [x] Superflat World Preset -> shots/ev_superflat.png
 - [x] Amplified World Preset -> shots/ev_amplified.png
+- [x] Debug Screen (F3) -> shots/ev_debug_screen.png
