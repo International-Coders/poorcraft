@@ -1,9 +1,9 @@
 # STATE
-loop_count: 22
+loop_count: 23
 current_milestone: Evolution
-last_done: "Evolution Mode: optimized chunk meshing with face culling optimization + neighbor caching; tests passing; captured ev_optimized_mesh.png"
-next_task: "Evolution: legacy mode cleanup / refactor"
+last_done: "Evolution Mode: refactor + cleanup (vertex layout, imports, module reorganization); captured refactor_landscape.png"
+next_task: "Evolution: finalize - all improvements complete"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_optimized_mesh.png
+last_screenshot: shots/refactor_landscape.png
 blockers: none

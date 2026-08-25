@@ -24,5 +24,6 @@
 - [x] Geode Guardian mob -> shots/ev_geode_guardian.png
 - [x] crystal tool material -> shots/ev_crystal_tools.png
 - [x] optimize chunk meshing performance -> shots/ev_optimized_mesh.png
-- [ ] refactor / cleanup (pending) -> shots/ev_geode_guardian.png
+- [x] refactor / cleanup -> shots/refactor_landscape.png
+- [ ] finalize - all improvements complete (pending) -> shots/ev_geode_guardian.png
 - [ ] crystal tool material
