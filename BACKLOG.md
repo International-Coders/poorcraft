@@ -100,3 +100,4 @@
 - [x] Turtle shell helmet -> shots/ev_turtle_shell.png
 - [x] Spyglass item -> shots/ev_spyglass.png
 - [x] Goat Horn instrument -> shots/ev_goat_horn.png
+- [x] Bundle inventory item -> shots/ev_bundle.png
