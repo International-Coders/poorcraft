@@ -13,4 +13,7 @@ egui = "0.29"
 egui-winit = "0.29"
 egui-wgpu = "0.29"
 pollster = "0.3"
-kira = "0.9"
+bytemuck = { version = "1.16", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+lf_voxel = { path = "../lf_voxel" }
+lf_assets = { path = "../lf_assets" }
