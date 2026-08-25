@@ -3,7 +3,7 @@
 - [x] M2 chunk data structure + culled meshing (lf_voxel)
 - [x] M2 texture array generator (xtask gen-assets) -> shots/m2_chunk.png
 - [ ] M3 break and place blocks (raycast, highlight) -> shots/m3_breakplace.png
-- [ ] M3 break and place blocks (raycast, highlight) -> shots/m3_breakplace.png
+- [x] M3 break and place blocks (raycast, highlight) -> shots/m3_breakplace.png
 - [ ] M4 endless terrain noise heightmap -> shots/m4_terrain.png
 - [ ] M5 save and load world round-trip test
 - [ ] M6 day/night cycle, sky light -> shots/m6_night.png

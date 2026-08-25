@@ -1,4 +1,5 @@
 pub mod meshing;
+pub mod raycast;
 
 use serde::{Serialize, Deserialize};
 

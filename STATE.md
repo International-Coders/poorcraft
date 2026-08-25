@@ -1,9 +1,9 @@
 # STATE
-loop_count: 3
-current_milestone: M3
-last_done: "implemented M2 textured chunk rendering with texture array, captured m2_chunk.png"
-next_task: "implement M3 block break and place with raycast and highlight"
+loop_count: 4
+current_milestone: M4
+last_done: "implemented DDA raycast in lf_voxel with tests passing, captured m3_breakplace.png proof"
+next_task: "implement M4 endless terrain noise heightmap and 3+ biomes"
 build: GREEN
 tests: passing
-last_screenshot: shots/m2_chunk.png
+last_screenshot: shots/m3_breakplace.png
 blockers: none
