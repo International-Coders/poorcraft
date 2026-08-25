@@ -188,3 +188,4 @@
 - [x] Dragon Breath item and Lingering Potions -> shots/ev_dragon_breath.png
 - [x] Shulker Box -> shots/ev_shulker_box.png
 - [x] Dyed Shulker Boxes -> shots/ev_dyed_shulker_boxes.png
+- [x] Enderman mob -> shots/ev_enderman.png
