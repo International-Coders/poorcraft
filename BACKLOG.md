@@ -79,3 +79,4 @@
 - [x] Depth Strider enchantment -> shots/ev_depth_strider.png
 - [x] Sunken Ruins biome -> shots/ev_sunken_ruins.png
 - [x] Lifesteal enchantment -> shots/ev_lifesteal.png
+- [x] Wizard Tower structure -> shots/ev_wizard_tower.png
