@@ -186,3 +186,4 @@
 - [x] End Gateway block -> shots/ev_end_gateway.png
 - [x] End Crystal -> shots/ev_end_crystal.png
 - [x] Dragon Breath item and Lingering Potions -> shots/ev_dragon_breath.png
+- [x] Shulker Box -> shots/ev_shulker_box.png
