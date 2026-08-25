@@ -136,3 +136,4 @@
 - [x] Strider mob -> shots/ev_strider.png
 - [x] Hoglin mob -> shots/ev_hoglin.png
 - [x] Zoglin mob -> shots/ev_zoglin.png
+- [x] Piglin Brute mini-boss -> shots/ev_piglin_brute.png

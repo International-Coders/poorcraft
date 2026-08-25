@@ -1,9 +1,9 @@
 # STATE
-loop_count: 143
+loop_count: 144
 current_milestone: Evolution
-last_done: "Evolution Mode: added Zoglin mob zombified Hoglin hostile undead Nether mob; captured ev_zoglin.png"
+last_done: "Evolution Mode: added Piglin Brute mini-boss stronger piglin variant guarding bastions; captured ev_piglin_brute.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_zoglin.png
+last_screenshot: shots/ev_piglin_brute.png
 blockers: none
