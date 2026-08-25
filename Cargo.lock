@@ -1332,6 +1332,9 @@ version = "0.1.0"
 [[package]]
 name = "lf_story"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "lf_vistest"

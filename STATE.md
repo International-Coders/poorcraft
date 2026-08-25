@@ -1,9 +1,9 @@
 # STATE
-loop_count: 13
-current_milestone: M13
-last_done: "implemented NPCs with jobs/schedules, two-tier dialogue, saved m12_village.png proof"
-next_task: "implement M13 story mode quests, quest progression test"
+loop_count: 14
+current_milestone: M14
+last_done: "implemented story quest system with data-driven objectives and tests passing; captured m13_quests.png"
+next_task: "implement M14 chronicle engine + saga generator + chronicle UI + export, mythos generation"
 build: GREEN
 tests: passing
-last_screenshot: shots/m12_village.png
+last_screenshot: shots/m13_quests.png
 blockers: none
