@@ -1,9 +1,9 @@
 # STATE
-loop_count: 183
+loop_count: 184
 current_milestone: Evolution
-last_done: "Evolution Mode: added Archaeology Table crafting station for pottery sherds and decorated pots; captured ev_archaeology_table.png"
+last_done: "Evolution Mode: added Trail Ruins structure buried ancient village ruins with suspicious gravel and archaeology loot; captured ev_trail_ruins.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_archaeology_table.png
+last_screenshot: shots/ev_trail_ruins.png
 blockers: none
