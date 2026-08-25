@@ -69,3 +69,4 @@
 - [x] Frost Mantle horse armor -> shots/ev_frost_mantle.png
 - [x] Ancient Crypt structure -> shots/ev_ancient_crypt.png
 - [x] Runecrafter Table station -> shots/ev_runecrafter_table.png
+- [x] Spectral Lily flower -> shots/ev_spectral_lily.png
