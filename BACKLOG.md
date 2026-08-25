@@ -82,3 +82,4 @@
 - [x] Wizard Tower structure -> shots/ev_wizard_tower.png
 - [x] Frozen Heart rune effect -> shots/ev_frozen_heart.png
 - [x] Village Market structure -> shots/ev_village_market.png
+- [x] Adamantine ore -> shots/ev_adamantine_ore.png
