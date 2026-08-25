@@ -1,9 +1,9 @@
 # STATE
-loop_count: 119
+loop_count: 120
 current_milestone: Evolution
-last_done: "Evolution Mode: added Smoker block fast food cooking furnace; captured ev_smoker.png"
+last_done: "Evolution Mode: added Blast Furnace block fast ore smelting furnace; captured ev_blast_furnace.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_smoker.png
+last_screenshot: shots/ev_blast_furnace.png
 blockers: none

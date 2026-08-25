@@ -112,3 +112,4 @@
 - [x] Grindstone block -> shots/ev_grindstone.png
 - [x] Composter block -> shots/ev_composter.png
 - [x] Smoker block -> shots/ev_smoker.png
+- [x] Blast Furnace block -> shots/ev_blast_furnace.png
