@@ -218,3 +218,5 @@
 - [x] Dynamic Bloom post-processing -> shots/ev_bloom_effect.png
 - [x] Volumetric Fog and God Rays -> shots/ev_god_rays.png
 - [x] Color Grading and Tonemapping -> shots/ev_color_grading.png
+- [x] Snow Accumulation and Frostbite -> shots/ev_snow_accumulation.png
+- [x] Deserts and Sandstorms -> shots/ev_sandstorm.png
