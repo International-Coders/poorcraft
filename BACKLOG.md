@@ -84,3 +84,4 @@
 - [x] Village Market structure -> shots/ev_village_market.png
 - [x] Adamantine ore -> shots/ev_adamantine_ore.png
 - [x] occlusion culling performance -> shots/ev_occlusion_culling.png
+- [x] Ice Wraith mob -> shots/ev_ice_wraith.png

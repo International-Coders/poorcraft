@@ -1,9 +1,9 @@
 # STATE
-loop_count: 87
+loop_count: 88
 current_milestone: Evolution
-last_done: "Evolution Mode: added occlusion culling performance optimization - frustum check + bounding box test + 3x frame time improvement; captured ev_occlusion_culling.png"
+last_done: "Evolution Mode: added Ice Wraith mob floating ice elemental slows players on hit; captured ev_ice_wraith.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_occlusion_culling.png
+last_screenshot: shots/ev_ice_wraith.png
 blockers: none
