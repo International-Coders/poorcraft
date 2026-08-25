@@ -125,3 +125,4 @@
 - [x] Spore Blossom block -> shots/ev_spore_blossom.png
 - [x] Big Dripleaf block -> shots/ev_dripleaf.png
 - [x] Amethyst Bud and Cluster blocks -> shots/ev_amethyst.png
+- [x] Copper block and lightning rod -> shots/ev_copper.png

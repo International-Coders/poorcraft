@@ -1,9 +1,9 @@
 # STATE
-loop_count: 132
+loop_count: 133
 current_milestone: Evolution
-last_done: "Evolution Mode: added Amethyst Bud and Cluster blocks growable light-emitting crystals; captured ev_amethyst.png"
+last_done: "Evolution Mode: added Copper block and lightning rod weathering copper with lightning protection; captured ev_copper.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_amethyst.png
+last_screenshot: shots/ev_copper.png
 blockers: none
