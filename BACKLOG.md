@@ -206,3 +206,4 @@
 - [x] Screenshot Gallery in-game viewer -> shots/ev_screenshot_gallery.png
 - [x] Replay/Spectator Replay system -> shots/ev_replay_system.png
 - [x] Narrator/Accessibility TTS UI -> shots/ev_narrator.png
+- [x] Auto-Jump and Subtitles -> shots/ev_autojump_subtitles.png

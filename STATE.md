@@ -1,9 +1,9 @@
 # STATE
-loop_count: 217
+loop_count: 218
 current_milestone: Evolution
-last_done: "Evolution Mode: added Narrator/Accessibility Text-to-Speech UI narrator option for chat and menus; captured ev_narrator.png"
+last_done: "Evolution Mode: added Auto-Jump toggle and Subtitle captions accessibility movement and subtitle settings; captured ev_autojump_subtitles.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_narrator.png
+last_screenshot: shots/ev_autojump_subtitles.png
 blockers: none
