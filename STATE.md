@@ -1,9 +1,9 @@
 # STATE
-loop_count: 208
+loop_count: 209
 current_milestone: Evolution
-last_done: "Evolution Mode: added Spectator Mode noclip camera mode for observing multiplayer worlds; captured ev_spectator_mode.png"
+last_done: "Evolution Mode: added Hardcore Mode single life permadeath with locked world difficulty; captured ev_hardcore_mode.png"
 next_task: "Evolution: continue eternal grind"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_spectator_mode.png
+last_screenshot: shots/ev_hardcore_mode.png
 blockers: none

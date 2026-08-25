@@ -198,3 +198,4 @@
 - [x] Statistics and Achievements screen -> shots/ev_stats_achievements.png
 - [x] Advancements Tree screen -> shots/ev_advancements.png
 - [x] Spectator Mode -> shots/ev_spectator_mode.png
+- [x] Hardcore Mode -> shots/ev_hardcore_mode.png
