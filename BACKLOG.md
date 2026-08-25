@@ -248,3 +248,4 @@
 - [x] Lodestone and Compass -> shots/ev_lodestone.png
 - [x] Shulker Box -> shots/ev_shulker_box.png
 - [x] End Stone Bricks -> shots/ev_end_bricks.png
+- [x] Purpur Blocks -> shots/ev_purpur.png
