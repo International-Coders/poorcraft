@@ -176,3 +176,4 @@
 - [x] Pottery Sherds and Decorated Pots -> shots/ev_decorated_pot.png
 - [x] Archaeology Table -> shots/ev_archaeology_table.png
 - [x] Trail Ruins structure -> shots/ev_trail_ruins.png
+- [x] Ocean Ruins structure -> shots/ev_ocean_ruins.png
