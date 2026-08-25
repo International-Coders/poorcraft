@@ -64,3 +64,4 @@
 - [x] Twilight Grove NPC dialogue pack -> shots/ev_twilight_dialogue.png
 - [x] medieval siege tower -> shots/ev_siege_tower.png
 - [x] Shadow Amulet artifact -> shots/ev_shadow_amulet.png
+- [x] Glowcap Mushroom flower -> shots/ev_glowcap.png
