@@ -57,3 +57,4 @@
 - [x] Crystal Caverns biome -> shots/ev_crystal_caverns.png
 - [x] Voidsteel tool material -> shots/ev_voidsteel.png
 - [x] refactor chunk meshing -> shots/ev_refactor_meshing.png
+- [x] Void Serpent death particles -> shots/ev_voidserpent_death.png
