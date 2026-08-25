@@ -76,34 +76,42 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                 let fy1 = fy + 1.0;
                 let fz1 = fz + 1.0;
                 let ti = tex_of(block);
+                // Faces render when the neighbor does not hide them (air,
+                // water, leaves). No faces between two water blocks.
+                let face_visible = |nb: BlockState| {
+                    if block.id() == crate::registry::block::WATER && nb.id() == crate::registry::block::WATER {
+                        return false;
+                    }
+                    !crate::registry::is_opaque(nb)
+                };
 
                 // -X face
-                if get_block(x as i32 - 1, y as i32, z as i32) == BlockState::AIR {
+                if face_visible(get_block(x as i32 - 1, y as i32, z as i32)) {
                     push_face(&mut vertices, &mut indices,
                         [[fx, fy, fz], [fx, fy1, fz], [fx, fy1, fz1], [fx, fy, fz1]], UVS_A, [-1.0, 0.0, 0.0], ti);
                 }
                 // +X face
-                if get_block(x as i32 + 1, y as i32, z as i32) == BlockState::AIR {
+                if face_visible(get_block(x as i32 + 1, y as i32, z as i32)) {
                     push_face(&mut vertices, &mut indices,
                         [[fx1, fy, fz1], [fx1, fy1, fz1], [fx1, fy1, fz], [fx1, fy, fz]], UVS_A, [1.0, 0.0, 0.0], ti);
                 }
                 // -Y face (corners wound so the outward normal points down)
-                if get_block(x as i32, y as i32 - 1, z as i32) == BlockState::AIR {
+                if face_visible(get_block(x as i32, y as i32 - 1, z as i32)) {
                     push_face(&mut vertices, &mut indices,
                         [[fx, fy, fz], [fx, fy, fz1], [fx1, fy, fz1], [fx1, fy, fz]], UVS_B, [0.0, -1.0, 0.0], ti);
                 }
                 // +Y face
-                if get_block(x as i32, y as i32 + 1, z as i32) == BlockState::AIR {
+                if face_visible(get_block(x as i32, y as i32 + 1, z as i32)) {
                     push_face(&mut vertices, &mut indices,
                         [[fx, fy1, fz1], [fx, fy1, fz], [fx1, fy1, fz], [fx1, fy1, fz1]], UVS_B, [0.0, 1.0, 0.0], ti);
                 }
                 // -Z face
-                if get_block(x as i32, y as i32, z as i32 - 1) == BlockState::AIR {
+                if face_visible(get_block(x as i32, y as i32, z as i32 - 1)) {
                     push_face(&mut vertices, &mut indices,
                         [[fx1, fy, fz], [fx1, fy1, fz], [fx, fy1, fz], [fx, fy, fz]], UVS_B, [0.0, 0.0, -1.0], ti);
                 }
                 // +Z face
-                if get_block(x as i32, y as i32, z as i32 + 1) == BlockState::AIR {
+                if face_visible(get_block(x as i32, y as i32, z as i32 + 1)) {
                     push_face(&mut vertices, &mut indices,
                         [[fx, fy, fz1], [fx, fy1, fz1], [fx1, fy1, fz1], [fx1, fy, fz1]], UVS_B, [0.0, 0.0, 1.0], ti);
                 }

@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-08-25 — P2: world streaming & terrain (loop 284)
+- lf_voxel: block registry (is_solid/is_opaque/is_targetable, 12 blocks);
+  mesher culls by opacity (air/water/leaves show faces behind them, no
+  water-water faces); ChunkColumn serializable; WorldStorage saves chunk
+  columns via region files + player.dat (+round-trip tests).
+- lf_worldgen: trees on meadows (deterministic hash placement, canopy kept
+  in-chunk), 3D-noise caves, coal (<y96) and iron (<y48) ores in stone,
+  water fills to sea level; 4 feature tests over real generated chunks.
+- lf_assets: log/leaves/coal/iron/water textures (11-layer atlas).
+- lf_client: background chunk streamer (worker thread, nearest-first,
+  view radius 5, unload radius 8 with save-before-drop), sphere-frustum
+  column culling from mesh bounds, world persistence with 30s autosave and
+  save on exit, player position/look restored from save, hotbar 8 slots.
+- vistest: terrain_features scene; renders verify trees (~7% canopy pixels)
+  and water (~20% water pixels) visible.
+- Tests 58 → 66. Game smoke-tested 20s with streaming active.
+
 ## 2026-08-25 — P1: first-person playable core (loop 283)
 - lf_voxel: World + ChunkColumn (16 sections = 16x256x16), world-coord
   get/set with chunk border math, surface_height, mesh_column with cross-

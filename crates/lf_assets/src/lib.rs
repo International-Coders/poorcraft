@@ -1,7 +1,10 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 6] = ["stone", "grass", "dirt", "sand", "mycelium", "snow"];
+pub const TEXTURE_NAMES: [&str; 11] = [
+    "stone", "grass", "dirt", "sand", "mycelium", "snow",
+    "log", "leaves", "coal_ore", "iron_ore", "water",
+];
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -12,6 +15,11 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         4 => 3, // sand
         5 => 4, // mycelium
         6 => 5, // snow
+        7 => 6, // log
+        8 => 7, // leaves
+        9 => 8, // coal ore
+        10 => 9, // iron ore
+        11 => 10, // water
         _ => 0,
     }
 }
@@ -60,6 +68,37 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     let v = 235 + ((x + y * 3) % 5);
                     Rgba([ch(v), ch(v.min(250)), ch(v.min(252)), 255])
                 }
+                "log" => {
+                    let v = 90 + ((x * 9 + y * 5) % 18);
+                    let edge = if x == 0 || x == 15 || y == 0 || y == 15 { 12 } else { 0 };
+                    Rgba([ch(v - 20 + edge), ch(v - 45 + edge), ch(v - 60 + edge), 255])
+                }
+                "leaves" => {
+                    let v = 40 + ((x * 13 + y * 7) % 40);
+                    Rgba([ch(v / 3), ch(v + 60), ch(v / 4), 255])
+                }
+                "coal_ore" => {
+                    let speck = (x * 7 + y * 11) % 29 < 7;
+                    if speck {
+                        Rgba([30, 30, 34, 255])
+                    } else {
+                        let v = 120 + ((x * 7 + y * 13) % 20);
+                        Rgba([ch(v), ch(v), ch(v), 255])
+                    }
+                }
+                "iron_ore" => {
+                    let speck = (x * 5 + y * 13) % 31 < 7;
+                    if speck {
+                        Rgba([216, 175, 147, 255])
+                    } else {
+                        let v = 120 + ((x * 7 + y * 13) % 20);
+                        Rgba([ch(v), ch(v), ch(v), 255])
+                    }
+                }
+                "water" => {
+                    let v = 40 + ((x * 3 + y * 5) % 14);
+                    Rgba([30, ch(60 + v / 2), ch(150 + v / 3), 255])
+                }
                 _ => {
                     let v = ((x + y) * 8) % 256;
                     Rgba([ch(v), ch(255 - v), 128, 255])
@@ -96,7 +135,7 @@ mod tests {
         let atlas = generate_atlas();
         assert_eq!(atlas.len(), TEXTURE_NAMES.len());
         // every known block id maps to a valid layer
-        for id in 1..=6u32 {
+        for id in 1..=11u32 {
             assert!(texture_index_for_block(id) < atlas.len() as u32);
         }
     }

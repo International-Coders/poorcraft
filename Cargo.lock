@@ -1286,6 +1286,7 @@ dependencies = [
  "lf_voxel",
  "lf_worldgen",
  "pollster",
+ "tempfile",
  "tracing",
  "tracing-subscriber",
  "wgpu 24.0.5",

@@ -1,12 +1,18 @@
+use std::collections::HashSet;
 use std::collections::HashMap;
+use std::path::Path;
 
+use serde::{Deserialize, Serialize};
+
+use crate::persistence::RegionStorage;
+use crate::registry;
 use crate::{BlockState, VoxelSection};
 use crate::meshing::{self, MeshData, Vertex};
 
 pub const SECTION_COUNT: usize = 16; // 16 sections of 16 -> world height 256
 
 /// A 16x256x16 chunk column made of 16 vertical sections.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ChunkColumn {
     pub sections: Vec<VoxelSection>,
 }
@@ -77,15 +83,16 @@ impl World {
         Some((cx, cz))
     }
 
-    /// Solid for physics: any non-air block.
+    /// Solid for physics (uses the block registry: water is not solid).
     pub fn is_solid(&self, x: i32, y: i32, z: i32) -> bool {
-        self.get_block(x, y, z) != BlockState::AIR
+        registry::is_solid(self.get_block(x, y, z))
     }
 
-    /// Highest non-air block at a column (world coords), for spawn placement.
+    /// Highest targetable block at a column (world coords), for spawn
+    /// placement. Skips water so spawns land on the shore/floor surface.
     pub fn surface_height(&self, x: i32, z: i32) -> i32 {
         for y in (0..(SECTION_COUNT * 16) as i32).rev() {
-            if self.get_block(x, y, z) != BlockState::AIR {
+            if registry::is_targetable(self.get_block(x, y, z)) {
                 return y + 1;
             }
         }
@@ -130,6 +137,54 @@ impl World {
             v.position[2] += oz;
         }
         MeshData { vertices, indices }
+    }
+}
+
+
+/// World persistence: chunk columns via RegionStorage plus a small player
+/// state blob. A "world" is a directory with region files and player.dat.
+pub struct WorldStorage {
+    regions: RegionStorage,
+    dir: std::path::PathBuf,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PlayerSave {
+    pub position: [f32; 3],
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
+impl WorldStorage {
+    pub fn open(dir: &Path) -> Self {
+        let regions = RegionStorage::new(dir.join("region"));
+        Self { regions, dir: dir.to_path_buf() }
+    }
+
+    pub fn save_chunk(&self, cx: i32, cz: i32, col: &ChunkColumn) -> Result<(), Box<dyn std::error::Error>> {
+        let bytes = bincode::serialize(col)?;
+        self.regions.save(cx, cz, &bytes)?;
+        Ok(())
+    }
+
+    pub fn load_chunk(&self, cx: i32, cz: i32) -> Option<ChunkColumn> {
+        let bytes = self.regions.load(cx, cz).ok()?;
+        bincode::deserialize(&bytes).ok()
+    }
+
+    pub fn saved_chunks(&self) -> HashSet<(i32, i32)> {
+        self.regions.list_chunks().into_iter().collect()
+    }
+
+    pub fn save_player(&self, player: &PlayerSave) -> Result<(), Box<dyn std::error::Error>> {
+        let bytes = bincode::serialize(player)?;
+        std::fs::write(self.dir.join("player.dat"), bytes)?;
+        Ok(())
+    }
+
+    pub fn load_player(&self) -> Option<PlayerSave> {
+        let bytes = std::fs::read(self.dir.join("player.dat")).ok()?;
+        bincode::deserialize(&bytes).ok()
     }
 }
 
@@ -201,5 +256,24 @@ mod tests {
         }
         let mesh2 = w2.mesh_column(0, 0, &|_| 0);
         assert!(mesh.vertices.len() < mesh2.vertices.len(), "neighbor culling failed");
+    }
+
+    #[test]
+    fn world_storage_roundtrip() {
+        let tmp = tempfile::tempdir().unwrap();
+        let storage = WorldStorage::open(tmp.path());
+        let mut world = World::new();
+        world.ensure_chunk(3, -2);
+        world.set_block(3 * 16 + 4, 40, -2 * 16 + 5, BlockState(7)).unwrap();
+        storage.save_chunk(3, -2, world.chunk(3, -2).unwrap()).unwrap();
+        let player = PlayerSave { position: [1.0, 70.0, 2.0], yaw: 0.5, pitch: -0.1 };
+        storage.save_player(&player).unwrap();
+
+        let loaded = storage.load_chunk(3, -2).unwrap();
+        assert_eq!(loaded.get(4, 40, 5), BlockState(7));
+        assert_eq!(storage.saved_chunks(), [(3, -2)].into_iter().collect());
+        let p = storage.load_player().unwrap();
+        assert_eq!(p.position, [1.0, 70.0, 2.0]);
+        assert_eq!(p.yaw, 0.5);
     }
 }

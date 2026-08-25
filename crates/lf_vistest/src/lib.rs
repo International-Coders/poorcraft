@@ -83,6 +83,15 @@ pub fn scenes() -> Vec<SceneSpec> {
             eye: Vec3::new(8.5, 0.0, 8.5),
             target: Vec3::ZERO, // computed from terrain in run_scene
         },
+        SceneSpec {
+            name: "terrain_features",
+            desc: "meadow with trees, ores in cliffs, water at the shore",
+            default_seed: 12345,
+            time_of_day: 0.45,
+            first_person: false,
+            eye: Vec3::new(-40.0, 0.0, 90.0),
+            target: Vec3::new(24.0, 0.0, 8.0),
+        },
     ]
 }
 

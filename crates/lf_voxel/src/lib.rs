@@ -1,5 +1,6 @@
 pub mod meshing;
 pub mod raycast;
+pub mod registry;
 pub mod persistence;
 pub mod world;
 

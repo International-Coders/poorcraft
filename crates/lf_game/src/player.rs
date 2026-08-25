@@ -59,6 +59,13 @@ impl Player {
         }
     }
 
+    /// Builder-style orientation restore (from a save).
+    pub fn with_look(mut self, yaw: f32, pitch: f32) -> Self {
+        self.yaw = yaw;
+        self.pitch = pitch;
+        self
+    }
+
     pub fn eye_position(&self) -> Vec3 {
         Vec3::new(self.position.x, self.position.y + EYE_HEIGHT, self.position.z)
     }

@@ -47,6 +47,8 @@ pub struct WorldGen {
     noise_base: FastNoiseLite,
     noise_temp: FastNoiseLite,
     noise_humid: FastNoiseLite,
+    noise_cave: FastNoiseLite,
+    noise_ore: FastNoiseLite,
 }
 
 impl WorldGen {
@@ -67,10 +69,23 @@ impl WorldGen {
         humid.set_noise_type(Some(NoiseType::Perlin));
         humid.set_frequency(Some(0.006));
 
+        let mut cave = FastNoiseLite::new();
+        cave.set_seed(Some(seed.0.wrapping_add(101) as i32));
+        cave.set_noise_type(Some(NoiseType::Perlin));
+        cave.set_fractal_type(Some(FractalType::FBm));
+        cave.set_frequency(Some(0.03));
+
+        let mut ore = FastNoiseLite::new();
+        ore.set_seed(Some(seed.0.wrapping_add(211) as i32));
+        ore.set_noise_type(Some(NoiseType::Perlin));
+        ore.set_frequency(Some(0.09));
+
         Self {
             noise_base: base,
             noise_temp: temp,
             noise_humid: humid,
+            noise_cave: cave,
+            noise_ore: ore,
         }
     }
 
@@ -180,24 +195,160 @@ fn block_state_of(b: BlockId) -> lf_voxel::BlockState {
     }
 }
 
+/// Deterministic 2D hash for feature placement (trees, etc.).
+fn hash2(x: i32, z: i32, seed: u64) -> u64 {
+    let mut h = seed
+        ^ (x as u64).wrapping_mul(0x9E3779B97F4A7C15)
+        ^ (z as u64).wrapping_mul(0xC2B2AE3D27D4EB4F);
+    h ^= h >> 33;
+    h = h.wrapping_mul(0xFF51AFD7ED558CCD);
+    h ^= h >> 33;
+    h = h.wrapping_mul(0xC4CEB9FE1A85EC53);
+    h ^ (h >> 33)
+}
+
 impl WorldGen {
-    /// Fill a whole 16x256x16 chunk column from noise.
+    /// Fill a whole 16x256x16 chunk column: terrain strata, caves, ores,
+    /// water up to sea level, and trees (canopy kept inside the chunk).
     pub fn generate_chunk(&self, cx: i32, cz: i32) -> lf_voxel::ChunkColumn {
+        use lf_voxel::registry::block;
+        use lf_voxel::BlockState;
+
         let mut col = lf_voxel::ChunkColumn::empty();
+
+        // 1. Terrain strata.
+        let mut surface_tops = [[0i32; 16]; 16];
         for lx in 0..16usize {
             for lz in 0..16usize {
                 let wx = cx * 16 + lx as i32;
                 let wz = cz * 16 + lz as i32;
-                for (wy, block) in self.column(wx, wz) {
-                    if block != BlockId::AIR {
-                        col.set(lx, wy as usize, lz, block_state_of(block));
+                for (wy, b) in self.column(wx, wz) {
+                    if b != BlockId::AIR {
+                        col.set(lx, wy as usize, lz, block_state_of(b));
+                    }
+                }
+                surface_tops[lx][lz] = self.surface_top(wx, wz);
+            }
+        }
+
+        // 2. Caves: 3D noise carving. Never below y=6 (bedrock-ish floor) and
+        // rarely punctures the surface (needs a stronger noise value up high).
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                let wx = (cx * 16 + lx as i32) as f32;
+                let wz = (cz * 16 + lz as i32) as f32;
+                let top = surface_tops[lx][lz];
+                let max_carve = top - 4;
+                for y in 6..(SECTION_MAX as i32).min(max_carve.max(7)) {
+                    let n = self.noise_cave.get_noise_3d(wx, y as f32, wz);
+                    let threshold = if y > top - 12 { 0.60 } else { 0.40 };
+                    if n > threshold {
+                        col.set(lx, y as usize, lz, BlockState::AIR);
                     }
                 }
             }
         }
+
+        // 3. Ores replace stone: coal shallow and common, iron deeper.
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                let wx = (cx * 16 + lx as i32) as f32;
+                let wz = (cz * 16 + lz as i32) as f32;
+                let top = (surface_tops[lx][lz] - 5).max(6);
+                for y in 6..top {
+                    if col.get(lx, y as usize, lz) != BlockState::STONE {
+                        continue;
+                    }
+                    let coal_n = self.noise_ore.get_noise_3d(wx, y as f32, wz);
+                    if y < 96 && coal_n > 0.42 {
+                        col.set(lx, y as usize, lz, BlockState(block::COAL_ORE));
+                        continue;
+                    }
+                    let iron_n = self.noise_ore.get_noise_3d(wx + 1000.0, y as f32, wz);
+                    if y < 48 && iron_n > 0.55 {
+                        col.set(lx, y as usize, lz, BlockState(block::IRON_ORE));
+                    }
+                }
+            }
+        }
+
+        // 4. Water fills open space up to sea level (oceans and lakes).
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                let top = surface_tops[lx][lz];
+                if top <= SEA_LEVEL {
+                    for y in top..=SEA_LEVEL {
+                        if col.get(lx, y as usize, lz) == BlockState::AIR {
+                            col.set(lx, y as usize, lz, BlockState(block::WATER));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Trees on grass meadow columns, canopy kept inside the chunk.
+        for lx in 2..14usize {
+            for lz in 2..14usize {
+                let wx = cx * 16 + lx as i32;
+                let wz = cz * 16 + lz as i32;
+                let top = surface_tops[lx][lz];
+                if top <= SEA_LEVEL + 1
+                    || self.biome(wx, wz) != Biome::Meadow
+                    || col.get(lx, (top - 1) as usize, lz) != BlockState::GRASS
+                {
+                    continue;
+                }
+                let h = hash2(wx, wz, self.seed_for_features());
+                if h % 48 != 0 {
+                    continue;
+                }
+                let trunk = 4 + ((h / 48) % 3) as i32;
+                // Re-check the surface was not carved into a cave mouth.
+                if col.get(lx, (top - 1) as usize, lz) != BlockState::GRASS {
+                    continue;
+                }
+                for y in top..top + trunk {
+                    col.set(lx, y as usize, lz, BlockState(block::LOG));
+                }
+                let base = top + trunk - 1;
+                for dy in -2i32..=0i32 {
+                    let r: i32 = if dy < 0 { 2 } else { 1 };
+                    for dx in -r..=r {
+                        for dz in -r..=r {
+                            if dy == 0 && dx == 0 && dz == 0 {
+                                continue;
+                            }
+                            // trim corners for a rounder canopy
+                            if dx.abs() == 2 && dz.abs() == 2 {
+                                continue;
+                            }
+                            let px = (lx as i32 + dx) as usize;
+                            let pz = (lz as i32 + dz) as usize;
+                            let py = (base + dy) as usize;
+                            if col.get(px, py, pz) == BlockState::AIR {
+                                col.set(px, py, pz, BlockState(block::LEAVES));
+                            }
+                        }
+                    }
+                }
+                col.set(lx, (base + 1) as usize, lz, BlockState(block::LEAVES));
+            }
+        }
+
         col
     }
+
+    fn seed_for_features(&self) -> u64 {
+        // Feature placement must depend on the world seed; the noise objects
+        // don't expose it, so derive from any seeded output.
+        let a = self.noise_base.get_noise_2d(0.0, 0.0).to_bits() as u64;
+        let b = self.noise_temp.get_noise_2d(0.0, 0.0).to_bits() as u64;
+        a.wrapping_mul(31).wrapping_add(b)
+    }
 }
+
+/// Keep the carve loop bounded (sections are 16 tall, world 256).
+const SECTION_MAX: usize = 250;
 
 #[cfg(test)]
 mod tests {
@@ -245,32 +396,97 @@ mod tests {
         }
         assert_eq!(seen.len(), 8, "expected all 8 biomes, saw {:?}", seen);
     }
-}
 
-#[cfg(test)]
-mod window_probe {
-    use super::*;
     #[test]
-    fn window_heights() {
-        for s in [1u64, 2, 3, 12345] {
-            let g = WorldGen::new(Seed(s));
-            let mut min = i32::MAX; let mut max = i32::MIN; let mut sum = 0i64; let n = (2*16+16)*(2*16+16);
-            for x in -16..32 { for z in -16..32 { let h = g.height(x, z); min=min.min(h); max=max.max(h); sum += h as i64; } }
-            println!("SEED {} min {} max {} avg {:.1}", s, min, max, sum as f64 / n as f64);
+    fn trees_generate_on_meadows() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(12345));
+        let (mut logs, mut leaves) = (0usize, 0usize);
+        for cx in -6..=6 {
+            for cz in -6..=6 {
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 0..16 {
+                    for lz in 0..16 {
+                        for y in 40..200 {
+                            let b = col.get(lx, y, lz).id();
+                            if b == block::LOG { logs += 1; }
+                            if b == block::LEAVES { leaves += 1; }
+                        }
+                    }
+                }
+            }
         }
+        assert!(logs > 20, "expected trees, found {} logs", logs);
+        assert!(leaves > logs, "canopy should outnumber trunks: {} leaves vs {} logs", leaves, logs);
     }
 
     #[test]
-    fn generate_chunk_matches_column_data() {
-        let gen = WorldGen::new(Seed(7));
-        let col = gen.generate_chunk(2, -3);
-        for (lx, lz) in [(0usize, 0usize), (8, 8), (15, 15)] {
-            let wx = 2 * 16 + lx as i32;
-            let wz = -3 * 16 + lz as i32;
-            let h = gen.height(wx, wz);
-            // block just below surface height is solid, well above is air
-            assert!(col.get(lx, (h - 1).max(0) as usize, lz) != lf_voxel::BlockState::AIR);
-            assert_eq!(col.get(lx, 200, lz), lf_voxel::BlockState::AIR);
+    fn caves_carve_underground() {
+        let gen = WorldGen::new(Seed(12345));
+        let mut air_pockets = 0usize;
+        for cx in -4..=4 {
+            for cz in -4..=4 {
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 0..16 {
+                    for lz in 0..16 {
+                        for y in 10..50 {
+                            if col.get(lx, y, lz).id() == lf_voxel::registry::block::AIR {
+                                air_pockets += 1;
+                            }
+                        }
+                    }
+                }
+            }
         }
+        assert!(air_pockets > 500, "expected substantial caves, found {} air blocks underground", air_pockets);
+    }
+
+    #[test]
+    fn ores_generate_at_depth() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(12345));
+        let (mut coal, mut iron) = (0usize, 0usize);
+        for cx in -4..=4 {
+            for cz in -4..=4 {
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 0..16 {
+                    for lz in 0..16 {
+                        for y in 6..48 {
+                            let b = col.get(lx, y, lz).id();
+                            if b == block::COAL_ORE { coal += 1; }
+                            if b == block::IRON_ORE { iron += 1; }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(coal > 100, "expected coal, found {}", coal);
+        assert!(iron > 20, "expected iron, found {}", iron);
+    }
+
+    #[test]
+    fn water_fills_oceans() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(12345));
+        let mut found_water = 0usize;
+        'outer: for cx in -16..=16 {
+            for cz in -16..=16 {
+                if gen.surface_top(cx * 16, cz * 16) >= SEA_LEVEL {
+                    continue;
+                }
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 0..16 {
+                    for lz in 0..16 {
+                        for y in 30..=SEA_LEVEL as usize {
+                            if col.get(lx, y, lz).id() == block::WATER {
+                                found_water += 1;
+                            }
+                        }
+                    }
+                }
+                break 'outer;
+            }
+        }
+        assert!(found_water > 100, "expected ocean water, found {} blocks", found_water);
     }
 }

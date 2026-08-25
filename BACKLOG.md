@@ -34,11 +34,11 @@ below by phase.
 - [x] hotbar (1–6, scroll) with block placement; F2 in-game screenshots
 
 ## P2 — World streaming & terrain
-- [ ] chunk manager with load/unload radius + view distance
-- [ ] worldgen-driven chunks (trees, water, caves, ores by depth)
-- [ ] async chunk gen + meshing (rayon)
-- [ ] frustum culling
-- [ ] save/load world via region storage (integration test)
+- [x] chunk streaming: background generator thread, view radius 5, unload radius 8, nearest-first
+- [x] worldgen features: trees (canopy in-chunk), caves (3D noise), coal/iron by depth, water at sea level
+- [x] sphere-frustum + distance column culling using mesh bounds
+- [x] save/load world (region chunks + player state) with autosave and save-on-exit
+- [x] block registry: solid/transparent/targetable; water non-solid, raycast skips it
 
 ## P3 — Lighting & atmosphere
 - [ ] flood-fill sky + block light, smooth lighting/AO in mesher

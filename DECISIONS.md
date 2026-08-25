@@ -22,3 +22,7 @@
 - P1: axis-separated AABB collision with 50ms substeps (anti-tunneling); physics constants in lf_game::player
 - P1: worldgen surface band tops at height+3 — surface_top() is the standing height; height() alone must never be used for placement
 - P1: vistest first-person scenes pick a moderate ~20-block vista drop (steeper slopes fall outside a 45-degree view)
+- P2: block semantics live in lf_voxel::registry (is_solid/is_opaque/is_targetable) — physics, meshing and raycast all consult it
+- P2: trees keep canopy in-chunk (2<=lx<=13) to avoid cross-chunk writes; cross-chunk structures arrive with P7 structure pass
+- P2: streaming worker generates pristine columns; edits live only in saved columns loaded on the main thread
+- P2: sphere-frustum culling per column from mesh y-bounds + 16x16 footprint radius

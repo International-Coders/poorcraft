@@ -16,3 +16,6 @@ lf_voxel = { path = "../lf_voxel" }
 lf_worldgen = { path = "../lf_worldgen" }
 lf_game = { path = "../lf_game" }
 lf_assets = { path = "../lf_assets" }
+
+[dev-dependencies]
+tempfile = "3"
