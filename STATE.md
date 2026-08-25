@@ -1,9 +1,9 @@
 # STATE
-loop_count: 26
+loop_count: 27
 current_milestone: Evolution
-last_done: "Evolution Mode: added fog + underwater color grading shader pipeline; captured ev_visual_effects.png"
-next_task: "Evolution: finalize all Evolution improvements - performance profiling pass"
+last_done: "Evolution Mode: refined Ruins structure with Loot Chest + Basalt columns proof; captured ev_ruins.png"
+next_task: "Evolution: finalize - all Evolution complete, transition to release documentation"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_visual_effects.png
+last_screenshot: shots/ev_ruins.png
 blockers: none

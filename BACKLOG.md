@@ -28,4 +28,5 @@
 - [x] new biome (obsidian desert) + Ruined Obsidian Spires -> shots/ev_obsidian_desert.png
 - [x] new mob: Cinder Crawler -> shots/ev_cinder_crawler.png
 - [x] fog + underwater color grading -> shots/ev_visual_effects.png
-- [ ] performance profiling pass (pending)
+- [x] performance profiling pass -> shots/ev_perf_complete.png
+- [x] crystal tool material
