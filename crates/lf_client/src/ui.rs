@@ -636,7 +636,12 @@ impl GameState {
                         self.close_ui();
                     }
                     ui.add_space(10.0);
-                    let mp = egui::Button::new(egui::RichText::new("Multiplayer (localhost)").size(20.0)).min_size(egui::vec2(220.0, 36.0));
+                    let transport = if lf_steam::preferred_transport() == lf_steam::Transport::Udp {
+                        "localhost"
+                    } else {
+                        "Steam P2P (Spacewar)"
+                    };
+                    let mp = egui::Button::new(egui::RichText::new(format!("Multiplayer ({})", transport)).size(20.0)).min_size(egui::vec2(220.0, 36.0));
                     if ui.add(mp).clicked() {
                         match crate::net::NetClient::connect("127.0.0.1:25565", "smith") {
                             Ok(n) => {

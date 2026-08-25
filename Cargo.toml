@@ -11,6 +11,7 @@ members = [
     "crates/lf_modapi",
     "crates/lf_protocol",
     "crates/lf_server",
+    "crates/lf_steam",
     "crates/lf_client",
     "crates/lf_assets",
     "crates/lf_vistest",

@@ -1136,6 +1136,7 @@ dependencies = [
  "lf_modapi",
  "lf_npc",
  "lf_protocol",
+ "lf_steam",
  "lf_story",
  "lf_voxel",
  "lf_worldgen",
@@ -1211,6 +1212,13 @@ dependencies = [
  "lf_voxel",
  "lf_worldgen",
  "serde",
+]
+
+[[package]]
+name = "lf_steam"
+version = "0.1.0"
+dependencies = [
+ "lf_protocol",
 ]
 
 [[package]]

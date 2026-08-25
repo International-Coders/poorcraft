@@ -1,0 +1,14 @@
+[package]
+name = "lf_steam"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lf_protocol = { path = "../lf_protocol" }
+
+[features]
+default = []
+# Full Steamworks integration. Off by default: steamworks-rs links the SDK
+# dynamically at runtime, and CI/dev machines without the Steam client fall
+# back to the UDP transport. Enable with --features steam.
+steam = []

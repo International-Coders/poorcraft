@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-25 — P19: Steam readiness (loop 299)
+- lf_steam crate: feature-gated Steamworks binding (off by default — the
+  SDK links dynamically and CI lacks the client); preferred_transport()
+  reports Steam only after a successful init, else UDP fallback (+2 tests).
+- steam_appid.txt (Spacewar 480) for dev testing; title screen shows the
+  active transport; docs/STEAM.md covers the dev loop, feature flag, depot
+  layout and steamcmd upload.
+- Tests 119 -> 121.
+
 ## 2026-08-25 — P18: compute voxel path tracer (loop 298)
 - lf_engine pathtrace: WGSL compute tracer — DDA primary rays through a
   128x64x128 block clip texture, jittered soft sun shadows, one-bounce GI
