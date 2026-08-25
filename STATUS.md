@@ -2,7 +2,7 @@
 
 ## Current Milestone: M0 - Bootstrap
 
-**Progress**: 80%
+**Progress**: 100%
 
 ### Done
 - [x] Workspace Cargo.toml with all crates scaffolded
@@ -15,6 +15,9 @@
 
 ### Next
 - [ ] M1 - First voxel: chunk rendering, fly camera, DDA raycast, break/place, F3 overlay, golden scene spawn_plains_dawn
+
+## Blockers
+None
 
 ## Blockers
 None
