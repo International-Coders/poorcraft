@@ -138,3 +138,4 @@
 - [x] Zoglin mob -> shots/ev_zoglin.png
 - [x] Piglin Brute mini-boss -> shots/ev_piglin_brute.png
 - [x] Bastion Remnant structure -> shots/ev_bastion.png
+- [x] Ruined Portal structure -> shots/ev_ruined_portal.png
