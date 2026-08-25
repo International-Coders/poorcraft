@@ -150,3 +150,4 @@
 - [x] Conduit structure -> shots/ev_conduit.png
 - [x] Trident weapon -> shots/ev_trident.png
 - [x] Phantom mob -> shots/ev_phantom.png
+- [x] Dolphin mob -> shots/ev_dolphin.png
