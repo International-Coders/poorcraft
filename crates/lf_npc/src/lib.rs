@@ -41,6 +41,38 @@ impl Default for VillagerSchedule {
     }
 }
 
+/// One trade offer: (payment item, count, received item, count).
+pub fn trade_offers(job: VillagerJob) -> &'static [(&'static str, u8, &'static str, u8)] {
+    match job {
+        VillagerJob::Farmer => &[
+            ("coal", 2, "apple", 4),
+            ("log", 2, "porkchop", 3),
+        ],
+        VillagerJob::Smith => &[
+            ("raw_iron", 4, "iron_pickaxe", 1),
+            ("iron_ingot", 3, "stone_sword", 1),
+            ("coal", 6, "furnace", 1),
+        ],
+        VillagerJob::Trader => &[
+            ("sand", 8, "glass", 4),
+            ("glitch_dust", 4, "iron_ingot", 1),
+            ("coal", 3, "book", 1),
+        ],
+        VillagerJob::Guard => &[
+            ("iron_ingot", 2, "stone_axe", 1),
+            ("log", 4, "chest", 1),
+        ],
+        VillagerJob::Bard => &[
+            ("coal", 1, "book", 1),
+            ("apple", 2, "book", 1),
+        ],
+        VillagerJob::Lorekeeper => &[
+            ("book", 1, "iron_ingot", 2),
+            ("null_shard", 1, "iron_sword", 1),
+        ],
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Villager {
     pub id: u64,
@@ -140,6 +172,22 @@ impl CinderCrawler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trade_offers_are_coherent() {
+        for job in [VillagerJob::Farmer, VillagerJob::Smith, VillagerJob::Trader,
+                    VillagerJob::Guard, VillagerJob::Bard, VillagerJob::Lorekeeper] {
+            let offers = trade_offers(job);
+            assert!(!offers.is_empty(), "{:?} has no offers", job);
+            for (give, gn, get, rn) in offers {
+                assert!(*gn > 0 && *rn > 0, "zero-count trade");
+                assert_ne!(give, get, "self-trade {:?} {}", job, give);
+            }
+        }
+        // smith sells better picks than raw material cost
+        let smith = trade_offers(VillagerJob::Smith);
+        assert!(smith.iter().any(|(g, _, r, _)| *g == "raw_iron" && *r == "iron_pickaxe"));
+    }
 
     #[test]
     fn test_villager_schedule() {

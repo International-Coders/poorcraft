@@ -5,6 +5,7 @@ use egui_wgpu::Renderer;
 use egui_winit::State as EguiWinitState;
 
 use crate::{BlockEntity, GameState, UiOpen};
+use lf_npc::trade_offers;
 use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, ItemKind};
 use lf_game::survival::ItemStack;
@@ -237,6 +238,8 @@ impl GameState {
             UiOpen::CraftingTable => self.draw_inventory(ctx, 3),
             UiOpen::Furnace(pos) => self.draw_furnace(ctx, pos),
             UiOpen::Chest(pos) => self.draw_chest(ctx, pos),
+            UiOpen::Trade(index) => self.draw_trade(ctx, index),
+            UiOpen::Book => self.draw_book(ctx),
             UiOpen::Death => self.draw_death(ctx),
         }
         // Cursor stack follows the pointer.
@@ -658,6 +661,72 @@ impl GameState {
                     ui.add_space(10.0);
                     if ui.button(egui::RichText::new("Save & Quit").size(20.0)).clicked() {
                         self.quit_requested = true;
+                    }
+                });
+            });
+    }
+
+    fn draw_trade(&mut self, ctx: &egui::Context, index: usize) {
+        let Some(villager) = self.villagers.get(index).cloned() else {
+            self.close_ui();
+            return;
+        };
+        egui::Window::new(format!("Trading with {} the {:?}", villager.name, villager.job))
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                for (give, give_n, get, get_n) in trade_offers(villager.job) {
+                    ui.horizontal(|ui| {
+                        let have = self.inventory.slots.iter()
+                            .filter_map(|s| s.as_ref())
+                            .filter(|s| s.item_id == *give)
+                            .map(|s| s.count as u16)
+                            .sum::<u16>();
+                        let enough = have >= *give_n as u16;
+                        let color = if enough { egui::Color32::from_rgb(140, 220, 140) } else { egui::Color32::from_rgb(230, 130, 130) };
+                        ui.label(egui::RichText::new(format!("{} {} -> {} {}", give_n, give, get_n, get)).color(color));
+                        ui.label(format!("(have {})", have));
+                        if ui.add_enabled(enough, egui::Button::new("Trade")).clicked() {
+                            // pay
+                            let mut left = *give_n as u16;
+                            'pay: for slot in self.inventory.slots.iter_mut() {
+                                if let Some(stack) = slot {
+                                    if stack.item_id == *give {
+                                        let take = (stack.count as u16).min(left);
+                                        stack.count -= take as u8;
+                                        left -= take;
+                                        if stack.count == 0 {
+                                            *slot = None;
+                                        }
+                                        if left == 0 { break 'pay; }
+                                    }
+                                }
+                            }
+                            let leftover = self.inventory.add_item(get, *get_n);
+                            if leftover > 0 {
+                                self.spawn_drop(get, leftover, self.player.eye_position() + self.player.look_dir());
+                            }
+                        }
+                    });
+                }
+                ui.separator();
+                ui.label(egui::RichText::new("Esc to close").small());
+            });
+    }
+
+    fn draw_book(&mut self, ctx: &egui::Context) {
+        egui::Window::new("Lore Book")
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                    if self.chronicle.is_empty() {
+                        ui.label("The pages are blank. The world has not yet written its story — punch a tree, craft, survive.");
+                    } else {
+                        let md = lf_chronicle::SagaGenerator::export_markdown(&self.chronicle);
+                        ui.label(egui::RichText::new(md).monospace().small());
                     }
                 });
             });

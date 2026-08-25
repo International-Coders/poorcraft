@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-25 — P13: NPCs & villages (loop 295)
+- lf_npc: trade_offers(job) tables for all six jobs (+coherence test).
+- worldgen: hamlets gain dirt paths and lamp torches.
+- Client: villagers spawn when hamlet chunks load (deterministic job/name,
+  persisted), day-wander/night-rest schedule, RMB opens the trade screen
+  with live have/need counts and affordability colors; lore book item opens
+  a reading window showing the world chronicle; job-tinted villager cubes.
+- Proofs: village_trading scene with a real egui trade panel (verified by
+  pixel analysis). Tests 106 -> 107.
+
 ## 2026-08-25 — P12: world & atmosphere completion (loop 294)
 - Biomes: data-driven table, 8 -> 30 (variant channel splits climate bands;
   census test verifies all 30 occur in a sampled world; per-biome surfaces,

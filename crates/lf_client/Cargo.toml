@@ -18,6 +18,7 @@ lf_game = { path = "../lf_game" }
 lf_assets = { path = "../lf_assets" }
 lf_story = { path = "../lf_story" }
 lf_chronicle = { path = "../lf_chronicle" }
+lf_npc = { path = "../lf_npc" }
 lf_protocol = { path = "../lf_protocol" }
 lf_modapi = { path = "../lf_modapi" }
 bincode = "1"

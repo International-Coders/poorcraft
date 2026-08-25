@@ -32,6 +32,7 @@ use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, tier_durability, ItemKind};
 use lf_game::mining::{break_time, tool_satisfies};
 use lf_game::mobs::{roll_spawn, MobEntity, MobType};
+use lf_npc::{trade_offers, Villager, VillagerJob};
 use lf_game::player::{Player, PlayerInput, EYE_HEIGHT, PLAYER_HALF_WIDTH, PLAYER_HEIGHT};
 use lf_game::items::tool_damage;
 use lf_game::survival::{Inventory, ItemStack, PlayerStats};
@@ -190,6 +191,8 @@ pub enum UiOpen {
     CraftingTable,
     Furnace((i32, i32, i32)),
     Chest((i32, i32, i32)),
+    Trade(usize),
+    Book,
     Death,
 }
 
@@ -241,6 +244,7 @@ pub struct ClientSave {
     pub quest_log: Option<QuestLog>,
     pub chronicle: Vec<ChronicleEvent>,
     pub world_type: Option<lf_worldgen::WorldType>,
+    pub villagers: Vec<Villager>,
 }
 
 struct App {
@@ -457,6 +461,7 @@ struct GameState {
     drop_batch: Option<MeshBatch>,
     pub block_entities: HashMap<(i32, i32, i32), BlockEntity>,
     pub mobs: Vec<MobEntity>,
+    pub villagers: Vec<Villager>,
     mob_batch: Option<MeshBatch>,
     next_mob_id: u64,
     next_spawn_attempt: Instant,
@@ -537,7 +542,7 @@ impl GameState {
         surface.configure(&device, &config);
 
         // Load save (also tells us the world type) before generating.
-        let (inventory, stats, time, block_entities, mobs, kills, quest_log, chronicle, world_type) =
+        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, world_type) =
             load_client_save(Path::new(WORLD_DIR));
         // Load mods into the live registries before touching the world.
         let mods = lf_modapi::load_mods_dir(Path::new("mods"));
@@ -635,6 +640,7 @@ impl GameState {
             drop_batch: None,
             block_entities: HashMap::new(),
             mobs: Vec::new(),
+            villagers: Vec::new(),
             mob_batch: None,
             next_mob_id: 1,
             next_spawn_attempt: Instant::now() + Duration::from_secs(2),
@@ -788,6 +794,7 @@ impl GameState {
             time_ticks: self.time.ticks,
             block_entities: self.block_entities.iter().map(|(k, v)| (*k, v.clone())).collect(),
             mobs: self.mobs.clone(),
+            villagers: self.villagers.clone(),
             kills: self.kills,
             quest_log: Some(self.quest_log.clone()),
             chronicle: self.chronicle.clone(),
@@ -907,6 +914,7 @@ impl GameState {
         }
         self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
         self.update_mobs(dt);
+        self.update_villagers(dt);
         if let Some(n) = &mut self.net {
             n.send_state(self.player.position.to_array(), self.player.yaw, self.player.pitch);
             for msg in n.poll() {
@@ -1058,7 +1066,18 @@ impl GameState {
                 }
             }
             if self.ui_open == UiOpen::None {
+                // villager in the crosshair? trade instead
+                if let Some(vi) = self.villager_in_crosshair() {
+                    self.ui_open = UiOpen::Trade(vi);
+                    self.unlock_cursor();
+                    return;
+                }
                 let held = self.inventory.slots[self.hotbar_index].clone();
+                if held.as_ref().map(|s| s.item_id.as_str()) == Some("book") {
+                    self.ui_open = UiOpen::Book;
+                    self.unlock_cursor();
+                    return;
+                }
                 if let Some(stack) = held {
                     let def = item_def(&stack.item_id);
                     match def.map(|d| d.kind) {
@@ -1265,6 +1284,111 @@ impl GameState {
         });
     }
 
+    /// Villagers wander by day and rest at night (schedule data).
+    fn update_villagers(&mut self, dt: f32) {
+        if self.stats.health <= 0.0 {
+            return;
+        }
+        let hour = (self.time.fraction() * 24.0) as i32;
+        for (i, villager) in self.villagers.iter_mut().enumerate() {
+            // deterministic per-villager wander seed
+            let t = self.frame as u64 / 30; // change direction ~every half second
+            let seed = (villager.id).wrapping_mul(2654435761).wrapping_add(t).wrapping_add(i as u64);
+            let resting = villager.should_rest(hour);
+            if !resting && seed % 3 == 0 {
+                let a = (seed % 360) as f32 / 57.3;
+                let speed = 1.2;
+                let next = glam::Vec3::from(villager.position) + glam::Vec3::new(a.cos() * speed * dt, 0.0, a.sin() * speed * dt);
+                // stay on ground
+                if !self.world.is_solid(next.x as i32, next.y as i32, next.z as i32) {
+                    if self.world.is_solid(next.x as i32, (next.y - 1.0) as i32, next.z as i32) {
+                        villager.position = [next.x, next.y, next.z];
+                    }
+                }
+            }
+            // despawn logic none: villagers persist
+        }
+    }
+
+    /// Spawn villagers when chunks containing hamlets load (throttled).
+    fn try_spawn_villagers(&mut self) {
+        if self.villagers.len() >= 12 || self.frame % 60 != 0 {
+            return;
+        }
+        let player = self.player.position;
+        for ((cx, cz), col) in self.world.chunks.iter() {
+            // only near the player
+            let center = (*cx as f32 * 16.0 + 8.0, *cz as f32 * 16.0 + 8.0);
+            let dist = ((center.0 - player.x).powi(2) + (center.1 - player.z).powi(2)).sqrt();
+            if dist > 60.0 {
+                continue;
+            }
+            // hamlet marker: crafting table on the surface band
+            let mut has_hut = false;
+            let mut hut_spot = None;
+            for lx in 4..12usize {
+                for lz in 4..12usize {
+                    for y in 60..200usize {
+                        if col.get(lx, y, lz).id() == registry::block::CRAFTING_TABLE {
+                            has_hut = true;
+                            hut_spot = Some((cx * 16 + lx as i32, y as i32 + 1, cz * 16 + lz as i32));
+                            break;
+                        }
+                    }
+                }
+            }
+            if !has_hut {
+                continue;
+            }
+            let (hx, hy, hz) = hut_spot.unwrap();
+            // already staffed? (one villager per ~6 blocks of hut)
+            let staffed = self.villagers.iter().any(|v| {
+                (v.position[0] - hx as f32).abs() < 8.0 && (v.position[2] - hz as f32).abs() < 8.0
+            });
+            if staffed {
+                continue;
+            }
+            let id = 1000 + self.villagers.len() as u64;
+            let jobs = [VillagerJob::Farmer, VillagerJob::Smith, VillagerJob::Trader,
+                        VillagerJob::Guard, VillagerJob::Bard, VillagerJob::Lorekeeper];
+            let job = jobs[(id as usize) % jobs.len()];
+            let name = match job {
+                VillagerJob::Farmer => "Old Maisie",
+                VillagerJob::Smith => "Brann",
+                VillagerJob::Trader => "Sila",
+                VillagerJob::Guard => "Dora",
+                VillagerJob::Bard => "Pip",
+                VillagerJob::Lorekeeper => "Wex",
+            };
+            let spawn = if self.world.is_solid(hx, hy - 1, hz + 2) { (hx, hy, hz + 2) } else { (hx, hy, hz) };
+            self.villagers.push(Villager::new(id, job, name.to_string(),
+                [spawn.0 as f32 + 0.5, spawn.1 as f32 + 0.2, spawn.2 as f32 + 0.5]));
+            tracing::info!("villager {} the {:?} settled a hamlet", name, job);
+            return; // one per check
+        }
+    }
+
+    fn villager_in_crosshair(&self) -> Option<usize> {
+        let eye = self.player.eye_position();
+        let look = self.player.look_dir();
+        let mut best: Option<(f32, usize)> = None;
+        for (i, v) in self.villagers.iter().enumerate() {
+            let center = glam::Vec3::from(v.position) + glam::Vec3::new(0.0, 0.9, 0.0);
+            let to = center - eye;
+            let t = to.dot(look);
+            if t < 0.0 || t > REACH + 1.0 {
+                continue;
+            }
+            let closest = eye + look * t;
+            if (closest - center).length() < 1.0 {
+                if best.map(|(d, _)| t < d).unwrap_or(true) {
+                    best = Some((t, i));
+                }
+            }
+        }
+        best.map(|(_, i)| i)
+    }
+
     /// Index of the nearest mob roughly under the crosshair, within reach.
     fn mob_in_crosshair(&self) -> Option<usize> {
         let eye = self.player.eye_position();
@@ -1407,6 +1531,8 @@ impl GameState {
                 }
             }
         }
+
+        self.try_spawn_villagers();
 
         // Freshly generated chunks from the worker.
         let mut budget = 4;
@@ -1709,6 +1835,18 @@ impl GameState {
             };
             push_cube(mob.position.x, mob.position.y + size, mob.position.z, size, tex, &mut vertices, &mut indices);
         }
+        // villagers render as earthy cubes
+        for v in &self.villagers {
+            let tex = match v.job {
+                VillagerJob::Farmer => lf_assets::texture_index_for_block(registry::block::GRASS),
+                VillagerJob::Smith => lf_assets::texture_index_for_block(registry::block::IRON_ORE),
+                VillagerJob::Trader => lf_assets::texture_index_for_block(registry::block::SAND),
+                VillagerJob::Guard => lf_assets::texture_index_for_block(registry::block::STONE),
+                VillagerJob::Bard => lf_assets::texture_index_for_block(registry::block::CHERRY_LEAVES),
+                VillagerJob::Lorekeeper => lf_assets::texture_index_for_block(registry::block::CRAFTING_TABLE),
+            };
+            push_cube(v.position[0], v.position[1] + 0.9, v.position[2], 0.45, tex, &mut vertices, &mut indices);
+        }
         // remote players render as pale cubes
         if let Some(n) = &self.net {
             for (_, rp) in n.remote_players.iter() {
@@ -1782,12 +1920,13 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, u32, QuestLog, Vec<ChronicleEvent>, lf_worldgen::WorldType) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, lf_worldgen::WorldType) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
     let mut entities = HashMap::new();
     let mut mobs = Vec::new();
+    let mut villagers = Vec::new();
     let mut kills = 0;
     let mut quest_log = {
         let mut log = QuestLog::new();
@@ -1812,10 +1951,11 @@ fn load_client_save(dir: &Path)
             }
             chronicle = save.chronicle;
             let world_type = save.world_type.unwrap_or_default();
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, kills, quest_log, chronicle, world_type);
+            villagers = save.villagers;
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, world_type);
         }
     }
-    (inventory, stats, time, entities, mobs, kills, quest_log, chronicle, lf_worldgen::WorldType::Normal)
+    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, lf_worldgen::WorldType::Normal)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.

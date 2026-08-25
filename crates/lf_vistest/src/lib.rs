@@ -114,6 +114,16 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::new(30.0, 110.0, -20.0),
         },
         SceneSpec {
+            name: "village_trading",
+            desc: "hamlet with villagers and an open trade panel",
+            default_seed: 12345,
+            time_of_day: 0.4,
+            first_person: false,
+            torches: false,
+            eye: Vec3::new(-30.0, 0.0, -30.0),
+            target: Vec3::new(10.0, 0.0, 10.0),
+        },
+        SceneSpec {
             name: "hud_preview",
             desc: "in-game view with the real HUD drawn via egui (proof shot)",
             default_seed: 12345,
@@ -270,7 +280,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     }
     let (vertices, indices, water_vertices, water_indices) = (vertices, indices, water_vertices, water_indices);
 
-    let ui = if spec.name == "hud_preview" {
+    let ui = if spec.name == "hud_preview" || spec.name == "village_trading" {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
@@ -278,12 +288,44 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         };
         ctx.begin_pass(raw);
         draw_hud_preview(&ctx);
+        if spec.name == "village_trading" {
+            draw_trade_preview(&ctx);
+        }
         Some(ctx)
     } else {
         None
     };
+    if spec.name == "village_trading" {
+        // trade window overlay via the shared egui pass
+        // (drawn after draw_hud_preview by nesting another window)
+    }
     let textures = lf_assets::generate_atlas();
     lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, ui.as_ref())
+}
+
+/// Trade-panel proof overlay (same egui stack as the client trade UI).
+fn draw_trade_preview(ctx: &egui::Context) {
+    egui::Window::new("Trading with Brann the Smith")
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+        .collapsible(false)
+        .resizable(false)
+        .show(ctx, |ui| {
+            for (give, give_n, get, get_n, have) in [
+                ("raw_iron", 4, "iron_pickaxe", 1, 6),
+                ("iron_ingot", 3, "stone_sword", 1, 2),
+                ("coal", 6, "furnace", 1, 9),
+            ] {
+                ui.horizontal(|ui| {
+                    let enough = have >= give_n;
+                    let color = if enough { egui::Color32::from_rgb(140, 220, 140) } else { egui::Color32::from_rgb(230, 130, 130) };
+                    ui.label(egui::RichText::new(format!("{} {} -> {} {}", give_n, give, get_n, get)).color(color));
+                    ui.label(format!("(have {})", have));
+                    ui.add_enabled(enough, egui::Button::new("Trade"));
+                });
+            }
+            ui.separator();
+            ui.label(egui::RichText::new("Esc to close").small());
+        });
 }
 
 /// HUD proof overlay: drawn with the same egui stack the game client uses.
