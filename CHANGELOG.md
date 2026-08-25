@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-08-25 — P15+P16: industrial machines & research (loop 297)
+- worldgen: copper/tin/bauxite/sulfur veins by depth (+generation test).
+- lf_game machines: Generator (EU buffer), ElectricFurnace (2x speed),
+  Crusher (ore doubling), Assembler (bronze/steel/circuits/frames) with
+  power draw (+5 state-machine tests).
+- Client: machine blocks/entities with slots+progress UIs, 4-block power
+  field, machines tick while closed, spill on break, persist.
+- Research: eras with material costs, ResearchState advance consuming
+  inventory (+3 tests); era-gated crafting shows locked recipes with
+  requirements; research bench advances eras on RMB.
+- Tech tree screen (K): era columns with done/current/locked states, live
+  have/need cost colors, and a next-step hint line.
+- Bug fixed: headless egui proofs encoded the UI pass after the texture
+  readback — UI screenshots silently lacked their UI. Reordered; tech_tree
+  proof now shows the panel (verified by pixel analysis).
+- Proofs: industrial_machines, tech_tree. Tests 110 -> 119.
+
 ## 2026-08-25 — P14: combat & survival completion (loop 296)
 - lf_game combat.rs: Arrow projectiles (gravity + solid-hit), XP curve
   (7+3*level) with carry-over levels, armor mitigation (flat, min 1)

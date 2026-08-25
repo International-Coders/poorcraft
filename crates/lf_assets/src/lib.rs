@@ -218,6 +218,31 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     let v = 190 + ((x * 3 + y * 7) % 20);
                     Rgba([ch(v - 40), ch(v - 20), ch(v + 30), 200])
                 }
+                "coal_generator" => {
+                    let v = 90 + ((x * 7 + y * 5) % 18);
+                    let vent = (4..8).contains(&x) && (4..8).contains(&y);
+                    if vent { Rgba([60, 60, 65, 255]) } else { Rgba([ch(v + 40), ch(v), ch(v), 255]) }
+                }
+                "electric_furnace" => {
+                    let v = 110 + ((x * 5 + y * 9) % 15);
+                    let coil = (5..=10).contains(&x) && (y == 5 || y == 10);
+                    if coil { Rgba([220, 140, 60, 255]) } else { Rgba([ch(v), ch(v), ch(v + 20), 255]) }
+                }
+                "crusher" => {
+                    let v = 100 + ((x * 11 + y * 3) % 16);
+                    let jaws = x == 7 || x == 8;
+                    if jaws { Rgba([200, 200, 210, 255]) } else { Rgba([ch(v - 20), ch(v - 10), ch(v), 255]) }
+                }
+                "assembler" => {
+                    let v = 120 + ((x * 3 + y * 7) % 14);
+                    let arm = (6..=9).contains(&x) && (6..=9).contains(&y);
+                    if arm { Rgba([240, 190, 70, 255]) } else { Rgba([ch(v - 30), ch(v - 10), ch(v), 255]) }
+                }
+                "research_bench" => {
+                    let v = 130 + ((x * 5 + y * 3) % 12);
+                    let grid = (3..=12).contains(&x) && (3..=12).contains(&y) && (x + y) % 4 == 0;
+                    if grid { Rgba([90, 200, 190, 255]) } else { Rgba([ch(v - 40), ch(v - 25), ch(v - 10), 255]) }
+                }
                 "smithing_table" => {
                     let v = 120 + ((x * 5 + y * 11) % 15);
                     let anvil = (5..11).contains(&x) && (5..11).contains(&y);

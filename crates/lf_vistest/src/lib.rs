@@ -20,6 +20,8 @@ pub struct SceneSpec {
     pub first_person: bool,
     /// Scenes with torches place a lit torch grid on the terrain before meshing.
     pub torches: bool,
+    /// Machine scenes place generator/furnace/crusher/assembler blocks.
+    pub machines: bool,
     /// Scene-relative camera placement (eye/target in world blocks).
     pub eye: Vec3,
     pub target: Vec3,
@@ -50,6 +52,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.25,
             first_person: false,
             torches: false,
+            machines: false,
             eye: Vec3::new(-28.0, 92.0, 64.0),
             target: Vec3::new(24.0, 66.0, 8.0),
         },
@@ -60,6 +63,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.5,
             first_person: false,
             torches: false,
+            machines: false,
             eye: Vec3::new(-60.0, 130.0, 120.0),
             target: Vec3::new(48.0, 64.0, 24.0),
         },
@@ -70,6 +74,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.0,
             first_person: false,
             torches: false,
+            machines: false,
             eye: Vec3::new(-28.0, 92.0, 64.0),
             target: Vec3::new(24.0, 66.0, 8.0),
         },
@@ -80,6 +85,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.35,
             first_person: true,
             torches: false,
+            machines: false,
             eye: Vec3::new(8.5, 0.0, 8.5),
             target: Vec3::ZERO, // computed from terrain in run_scene
         },
@@ -90,6 +96,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.45,
             first_person: false,
             torches: false,
+            machines: false,
             eye: Vec3::new(-40.0, 0.0, 90.0),
             target: Vec3::new(24.0, 0.0, 8.0),
         },
@@ -100,6 +107,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.5,
             first_person: false,
             torches: false,
+            machines: false,
             eye: Vec3::new(-60.0, 0.0, 110.0),
             target: Vec3::new(40.0, 0.0, 0.0),
         },
@@ -110,6 +118,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.55,
             first_person: false,
             torches: false,
+            machines: false,
             eye: Vec3::new(-30.0, 210.0, 60.0),
             target: Vec3::new(30.0, 110.0, -20.0),
         },
@@ -120,8 +129,31 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.4,
             first_person: false,
             torches: false,
+            machines: false,
             eye: Vec3::new(-30.0, 0.0, -30.0),
             target: Vec3::new(10.0, 0.0, 10.0),
+        },
+        SceneSpec {
+            name: "industrial_machines",
+            desc: "machines placed and running on the terrain",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: true,
+            eye: Vec3::new(-26.0, 0.0, 42.0),
+            target: Vec3::new(8.0, 0.0, 8.0),
+        },
+        SceneSpec {
+            name: "tech_tree",
+            desc: "the research progression screen",
+            default_seed: 12345,
+            time_of_day: 0.45,
+            first_person: false,
+            torches: false,
+            machines: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0),
+            target: Vec3::new(8.0, 0.0, 8.0),
         },
         SceneSpec {
             name: "hud_preview",
@@ -130,6 +162,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.42,
             first_person: true,
             torches: false,
+            machines: false,
             eye: Vec3::new(8.5, 0.0, 8.5),
             target: Vec3::ZERO,
         },
@@ -140,6 +173,7 @@ pub fn scenes() -> Vec<SceneSpec> {
             time_of_day: 0.97,
             first_person: false,
             torches: true,
+            machines: false,
             eye: Vec3::new(-26.0, 0.0, 40.0),
             target: Vec3::new(8.0, 0.0, 8.0),
         },
@@ -148,7 +182,7 @@ pub fn scenes() -> Vec<SceneSpec> {
 
 /// Build the mesh for a scene: a radius-chunk plot of worldgen terrain
 /// centered at (0,0), using the real World + chunk-column pipeline.
-pub fn build_scene_mesh(_spec: &SceneSpec, seed: u64, radius_chunks: i32, torches: bool)
+pub fn build_scene_mesh(_spec: &SceneSpec, seed: u64, radius_chunks: i32, torches: bool, machines_param: bool)
     -> (Vec<GpuVertex>, Vec<u32>, Vec<GpuVertex>, Vec<u32>) {
     let gen = WorldGen::new(Seed(seed));
     let mut world = World::new();
@@ -156,6 +190,18 @@ pub fn build_scene_mesh(_spec: &SceneSpec, seed: u64, radius_chunks: i32, torche
         for cz in -radius_chunks..=radius_chunks {
             world.chunks.insert((cx, cz), gen.generate_chunk(cx, cz));
         }
+    }
+    if machines_param {
+        use lf_voxel::registry::block;
+        let mut place = |x: i32, z: i32, b: u32| {
+            let top = world.surface_height(x, z);
+            world.set_block(x, top, z, lf_voxel::BlockState(b));
+        };
+        place(0, 0, block::COAL_GENERATOR);
+        place(2, 0, block::ELECTRIC_FURNACE);
+        place(4, 0, block::CRUSHER);
+        place(6, 0, block::ASSEMBLER);
+        place(8, 0, block::RESEARCH_BENCH);
     }
     if torches {
         use lf_voxel::registry::block;
@@ -201,7 +247,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     let spec = scenes().into_iter().find(|s| s.name == name)
         .ok_or_else(|| format!("unknown scene '{}'; known: {:?}", name, scenes().iter().map(|s| s.name).collect::<Vec<_>>()))?;
     let seed = seed_override.unwrap_or(spec.default_seed);
-    let (vertices, indices, water_vertices, water_indices) = build_scene_mesh(&spec, seed, 3, spec.torches);
+    let (vertices, indices, water_vertices, water_indices) = build_scene_mesh(&spec, seed, 3, spec.torches, spec.machines);
     if vertices.is_empty() {
         return Err(format!("scene '{}' produced an empty mesh", name));
     }
@@ -280,7 +326,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     }
     let (vertices, indices, water_vertices, water_indices) = (vertices, indices, water_vertices, water_indices);
 
-    let ui = if spec.name == "hud_preview" || spec.name == "village_trading" {
+    let ui = spec.name == "hud_preview" || spec.name == "village_trading" || spec.name == "tech_tree";
+    let ui = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
@@ -290,6 +337,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         draw_hud_preview(&ctx);
         if spec.name == "village_trading" {
             draw_trade_preview(&ctx);
+        }
+        if spec.name == "tech_tree" {
+            draw_tech_tree_preview(&ctx);
         }
         Some(ctx)
     } else {
@@ -301,6 +351,48 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     }
     let textures = lf_assets::generate_atlas();
     lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, ui.as_ref())
+}
+
+/// Tech-tree proof overlay mirroring the client's draw_tech_tree.
+fn draw_tech_tree_preview(ctx: &egui::Context) {
+    egui::Window::new("Technology — K to close")
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -20.0))
+        .min_size(egui::vec2(640.0, 380.0))
+        .collapsible(false)
+        .show(ctx, |ui| {
+            ui.heading(egui::RichText::new("Research Progression").size(22.0));
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                for (e, state) in [
+                    ("Primitive", "done"), ("Bronze Age", "CURRENT"), ("Industrial Age", "locked"), ("Electrical Age", "locked"),
+                ] {
+                    let color = if state == "done" { egui::Color32::from_rgb(120, 200, 120) }
+                        else if state == "CURRENT" { egui::Color32::from_rgb(240, 210, 140) }
+                        else { egui::Color32::from_gray(110) };
+                    egui::Frame::new()
+                        .stroke(egui::Stroke::new(if state == "CURRENT" { 3.0 } else { 1.0 }, color))
+                        .inner_margin(8.0)
+                        .show(ui, |ui| {
+                            ui.set_min_size(egui::vec2(140.0, 90.0));
+                            ui.heading(egui::RichText::new(e).size(15.0).color(color));
+                            ui.label(egui::RichText::new(state).small().color(color));
+                            if state == "locked" {
+                                ui.add_space(4.0);
+                                for (item, got, n) in [("copper_ingot", 7, 10), ("tin_ingot", 5, 5), ("steel_ingot", 0, 5)] {
+                                    let ok = got >= n;
+                                    let c = if ok { egui::Color32::from_rgb(140, 220, 140) } else { egui::Color32::from_rgb(230, 130, 130) };
+                                    ui.label(egui::RichText::new(format!("{} {}/{}", item, got, n)).small().color(c));
+                                }
+                            }
+                        });
+                    if e != "Electrical Age" { ui.label("->"); }
+                }
+            });
+            ui.add_space(8.0);
+            ui.separator();
+            ui.label(egui::RichText::new("Next: the Industrial Age — place a Research Bench and bring: steel_ingot (0/5), iron_gear (2/3), coal (14/20)")
+                .color(egui::Color32::from_rgb(150, 220, 255)));
+        });
 }
 
 /// Trade-panel proof overlay (same egui stack as the client trade UI).
@@ -406,8 +498,8 @@ mod tests {
     #[test]
     fn every_scene_builds_nonempty_deterministic_mesh() {
         for spec in scenes() {
-            let (v1, i1, _, _) = build_scene_mesh(&spec, spec.default_seed, 1, false);
-            let (v2, i2, _, _) = build_scene_mesh(&spec, spec.default_seed, 1, false);
+            let (v1, i1, _, _) = build_scene_mesh(&spec, spec.default_seed, 1, false, false);
+            let (v2, i2, _, _) = build_scene_mesh(&spec, spec.default_seed, 1, false, false);
             assert!(!v1.is_empty(), "{} produced no vertices", spec.name);
             assert_eq!(v1.len(), v2.len(), "{} mesh not deterministic", spec.name);
             assert_eq!(i1.len(), i2.len());
@@ -430,7 +522,7 @@ mod tests {
         let spec = &scenes()[0];
         let mut hashes = std::collections::HashSet::new();
         for seed in 1..=20u64 {
-            let (v, _, _, _) = build_scene_mesh(spec, seed, 1, false);
+            let (v, _, _, _) = build_scene_mesh(spec, seed, 1, false, false);
             hashes.insert(hash(&v));
         }
         assert!(hashes.len() > 1, "seeds 1..=20 all produced the same mesh");

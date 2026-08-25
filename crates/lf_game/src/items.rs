@@ -110,6 +110,11 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "bow", name: "Bow", kind: ItemKind::Tool(ToolKind::Bow, 1), max_stack: 1 },
         ItemDef { id: "arrow", name: "Arrow", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "smithing_table", name: "Smithing Table", kind: ItemKind::Block(36), max_stack: 8 },
+        ItemDef { id: "coal_generator", name: "Coal Generator", kind: ItemKind::Block(37), max_stack: 8 },
+        ItemDef { id: "electric_furnace", name: "Electric Furnace", kind: ItemKind::Block(38), max_stack: 8 },
+        ItemDef { id: "crusher", name: "Crusher", kind: ItemKind::Block(39), max_stack: 8 },
+        ItemDef { id: "assembler", name: "Assembler", kind: ItemKind::Block(40), max_stack: 8 },
+        ItemDef { id: "research_bench", name: "Research Bench", kind: ItemKind::Block(41), max_stack: 8 },
         ItemDef { id: "bronze_chestplate", name: "Bronze Chestplate", kind: ItemKind::Armor(4), max_stack: 1 },
         ItemDef { id: "steel_chestplate", name: "Steel Chestplate", kind: ItemKind::Armor(7), max_stack: 1 },
         // industrial materials (ores land with P15 worldgen)

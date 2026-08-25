@@ -299,6 +299,23 @@ impl WorldGen {
                     if y < 48 && iron_n > 0.55 {
                         col.set(lx, y as usize, lz, BlockState(block::IRON_ORE));
                     }
+                    // industrial ores: copper (shallow), tin (mid), bauxite + sulfur (deep)
+                    let copper_n = self.noise_ore.get_noise_3d(wx + 2000.0, y as f32, wz);
+                    if y < 70 && copper_n > 0.52 {
+                        col.set(lx, y as usize, lz, BlockState(block::COPPER_ORE));
+                    }
+                    let tin_n = self.noise_ore.get_noise_3d(wx + 3000.0, y as f32, wz);
+                    if y < 50 && tin_n > 0.56 {
+                        col.set(lx, y as usize, lz, BlockState(block::TIN_ORE));
+                    }
+                    let baux_n = self.noise_ore.get_noise_3d(wx + 4000.0, y as f32, wz);
+                    if y < 90 && baux_n > 0.60 {
+                        col.set(lx, y as usize, lz, BlockState(block::BAUXITE_ORE));
+                    }
+                    let sulf_n = self.noise_ore.get_noise_3d(wx + 5000.0, y as f32, wz);
+                    if y < 40 && sulf_n > 0.58 {
+                        col.set(lx, y as usize, lz, BlockState(block::SULFUR_ORE));
+                    }
                     // mod ore veins
                     for hook in lf_ore_hooks() {
                         if y >= hook.y_min && y <= hook.y_max {
@@ -750,6 +767,35 @@ mod tests {
         }
         assert!(found_water > 100, "expected ocean water, found {} blocks", found_water);
         let _ = found_ice; // frozen oceans depend on the seed's cold zones
+    }
+
+    #[test]
+    fn industrial_ores_generate() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(12345));
+        let (mut copper, mut tin, mut baux, mut sulf) = (0usize, 0usize, 0usize, 0usize);
+        for cx in -3..=3 {
+            for cz in -3..=3 {
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 0..16 {
+                    for lz in 0..16 {
+                        for y in 5..90 {
+                            match col.get(lx, y, lz).id() {
+                                block::COPPER_ORE => copper += 1,
+                                block::TIN_ORE => tin += 1,
+                                block::BAUXITE_ORE => baux += 1,
+                                block::SULFUR_ORE => sulf += 1,
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(copper > 100, "copper {}, tin {}, baux {}, sulf {}", copper, tin, baux, sulf);
+        assert!(tin > 40);
+        assert!(baux > 10);
+        assert!(sulf > 30);
     }
 
     #[test]

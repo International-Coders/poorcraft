@@ -128,6 +128,32 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("copper_wire"), Some("copper_wire"), None],
         vec![Some("tin_ingot"), Some("iron_ingot"), None],
     ]));
+    // machines: frame + specific part
+    book.push(r("coal_generator", 1, vec![
+        vec![Some("machine_frame"), Some("iron_gear"), Some("stone")],
+        vec![Some("furnace"), None, Some("stone")],
+        vec![Some("machine_frame"), Some("iron_gear"), Some("stone")],
+    ]));
+    book.push(r("electric_furnace", 1, vec![
+        vec![Some("machine_frame"), Some("copper_wire"), Some("furnace")],
+        vec![Some("basic_circuit"), None, Some("furnace")],
+        vec![Some("machine_frame"), Some("copper_wire"), Some("furnace")],
+    ]));
+    book.push(r("crusher", 1, vec![
+        vec![Some("machine_frame"), Some("iron_gear"), Some("iron_gear")],
+        vec![Some("basic_circuit"), None, Some("iron_gear")],
+        vec![Some("machine_frame"), Some("iron_gear"), Some("iron_gear")],
+    ]));
+    book.push(r("assembler", 1, vec![
+        vec![Some("machine_frame"), Some("basic_circuit"), Some("copper_wire")],
+        vec![Some("crafting_table"), None, Some("copper_wire")],
+        vec![Some("machine_frame"), Some("basic_circuit"), Some("copper_wire")],
+    ]));
+    book.push(r("research_bench", 1, vec![
+        vec![Some("book"), Some("book"), Some("book")],
+        vec![Some("basic_circuit"), Some("crafting_table"), Some("basic_circuit")],
+        vec![Some("machine_frame"), Some("machine_frame"), Some("machine_frame")],
+    ]));
     // smithing table
     book.push(r("smithing_table", 1, vec![
         vec![Some("iron_ingot"), Some("iron_ingot"), Some("iron_ingot")],

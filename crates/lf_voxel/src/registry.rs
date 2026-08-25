@@ -86,6 +86,11 @@ pub mod block {
     pub const MOSS: u32 = 30;
     pub const ICE: u32 = 31;
     pub const SMITHING_TABLE: u32 = 36;
+    pub const COAL_GENERATOR: u32 = 37;
+    pub const ELECTRIC_FURNACE: u32 = 38;
+    pub const CRUSHER: u32 = 39;
+    pub const ASSEMBLER: u32 = 40;
+    pub const RESEARCH_BENCH: u32 = 41;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -135,6 +140,11 @@ pub mod block {
             BAUXITE_ORE => "Bauxite Ore",
             SULFUR_ORE => "Sulfur Ore",
             SMITHING_TABLE => "Smithing Table",
+            COAL_GENERATOR => "Coal Generator",
+            ELECTRIC_FURNACE => "Electric Furnace",
+            CRUSHER => "Crusher",
+            ASSEMBLER => "Assembler",
+            RESEARCH_BENCH => "Research Bench",
             _ => "Unknown",
         }
     }

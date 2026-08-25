@@ -28,6 +28,7 @@ use lf_engine::camera::Camera;
 use lf_engine::outline::OutlineScene;
 use lf_engine::scene::{GpuVertex, MeshBatch, SceneResources};
 use lf_chronicle::{ChronicleEvent, EventType, SagaGenerator};
+use lf_game::research::{Era, ResearchState};
 use lf_game::combat::{grant_xp, mitigate, worn_armor_points, Arrow};
 use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, tier_durability, ItemKind};
@@ -192,9 +193,11 @@ pub enum UiOpen {
     CraftingTable,
     Furnace((i32, i32, i32)),
     Chest((i32, i32, i32)),
+    Machine((i32, i32, i32)),
     Trade(usize),
     Book,
     Smithing,
+    TechTree,
     Death,
 }
 
@@ -203,6 +206,10 @@ pub enum UiOpen {
 pub enum BlockEntity {
     Furnace(lf_game::smelting::Furnace),
     Chest { slots: Vec<Option<ItemStack>> },
+    Generator(lf_game::machines::Generator),
+    ElectricFurnace(lf_game::machines::ElectricFurnace),
+    Crusher(lf_game::machines::Crusher),
+    Assembler(lf_game::machines::Assembler),
 }
 
 #[derive(Clone, Debug)]
@@ -247,6 +254,7 @@ pub struct ClientSave {
     pub chronicle: Vec<ChronicleEvent>,
     pub world_type: Option<lf_worldgen::WorldType>,
     pub villagers: Vec<Villager>,
+    pub research: Option<ResearchState>,
 }
 
 struct App {
@@ -337,6 +345,17 @@ impl ApplicationHandler for App {
                                             if state.net.is_some() && state.ui_open == UiOpen::None && state.stats.health > 0.0 {
                                                 state.chat_input = Some(String::new());
                                                 state.unlock_cursor();
+                                                return;
+                                            }
+                                        }
+                                        KeyCode::KeyK => {
+                                            if matches!(state.ui_open, UiOpen::None | UiOpen::TechTree) && state.stats.health > 0.0 {
+                                                if state.ui_open == UiOpen::TechTree {
+                                                    state.close_ui();
+                                                } else {
+                                                    state.ui_open = UiOpen::TechTree;
+                                                    state.unlock_cursor();
+                                                }
                                                 return;
                                             }
                                         }
@@ -466,6 +485,7 @@ struct GameState {
     pub villagers: Vec<Villager>,
     pub arrows: Vec<Arrow>,
     pub forge: lf_game::smithing::ForgeMinigame,
+    pub research: ResearchState,
     pub xp_level: u32,
     pub xp_progress: u32,
     bow_charge: Option<f32>,
@@ -549,7 +569,7 @@ impl GameState {
         surface.configure(&device, &config);
 
         // Load save (also tells us the world type) before generating.
-        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, world_type) =
+        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, world_type) =
             load_client_save(Path::new(WORLD_DIR));
         // Load mods into the live registries before touching the world.
         let mods = lf_modapi::load_mods_dir(Path::new("mods"));
@@ -661,6 +681,7 @@ impl GameState {
             quit_requested: false,
             quest_log,
             chronicle,
+            research,
             world_type,
             net: None,
             chat_input: None,
@@ -811,6 +832,7 @@ impl GameState {
             quest_log: Some(self.quest_log.clone()),
             chronicle: self.chronicle.clone(),
             world_type: Some(self.world_type),
+            research: Some(self.research.clone()),
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
             let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
@@ -918,12 +940,48 @@ impl GameState {
         self.player.update(dt, &input, &self.world);
         self.survival_tick(dt);
         self.update_drops(dt);
-        // Furnaces smelt whether or not their UI is open.
-        for (_, entity) in self.block_entities.iter_mut() {
-            if let BlockEntity::Furnace(f) = entity {
-                f.tick(dt);
+        // Furnaces and machines tick whether or not their UI is open.
+        // Generators are taken out while machines draw from them (single
+        // mutable owner at a time), then reinserted.
+        let mut generators: Vec<((i32, i32, i32), lf_game::machines::Generator)> = Vec::new();
+        let mut machine_positions: Vec<((i32, i32, i32), u32)> = Vec::new();
+        for (pos, entity) in self.block_entities.iter_mut() {
+            match entity {
+                BlockEntity::Generator(g) => {
+                    g.tick(dt);
+                    generators.push((*pos, g.clone()));
+                }
+                BlockEntity::ElectricFurnace(_) | BlockEntity::Crusher(_) | BlockEntity::Assembler(_) => {
+                    machine_positions.push((*pos, 1));
+                }
+                BlockEntity::Furnace(f) => {
+                    f.tick(dt);
+                }
+                _ => {}
             }
         }
+        let need = lf_game::machines::DRAW_RATE * dt;
+        for (mpos, _) in &machine_positions {
+            let mut powered = 0.0;
+            for (gpos, gen) in generators.iter_mut() {
+                let d = ((gpos.0 - mpos.0).pow(2) + (gpos.1 - mpos.1).pow(2) + (gpos.2 - mpos.2).pow(2)) as f32;
+                if d.sqrt() <= lf_game::machines::POWER_RANGE && powered < need {
+                    powered += gen.draw(need - powered);
+                }
+            }
+            if let Some(entity) = self.block_entities.get_mut(mpos) {
+                match entity {
+                    BlockEntity::ElectricFurnace(f) => { f.tick(dt, powered); }
+                    BlockEntity::Crusher(c) => { c.tick(dt, powered); }
+                    BlockEntity::Assembler(a) => { a.tick(dt, powered); }
+                    _ => {}
+                }
+            }
+        }
+        for (gpos, gen) in generators {
+            self.block_entities.insert(gpos, BlockEntity::Generator(gen));
+        }
+
         self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
         self.update_mobs(dt);
         self.update_villagers(dt);
@@ -1067,6 +1125,10 @@ impl GameState {
                                 let stacks: Vec<Option<ItemStack>> = match entity {
                                     BlockEntity::Furnace(f) => vec![f.input, f.fuel, f.output],
                                     BlockEntity::Chest { slots } => slots,
+                                    BlockEntity::Generator(g) => vec![g.fuel],
+                                    BlockEntity::ElectricFurnace(f) => vec![f.input, f.output],
+                                    BlockEntity::Crusher(c) => vec![c.input, c.output],
+                                    BlockEntity::Assembler(a) => vec![a.input_a, a.input_b, a.output],
                                 };
                                 for s in stacks.into_iter().flatten() {
                                     self.spawn_drop(&s.item_id, s.count,
@@ -1094,6 +1156,32 @@ impl GameState {
                     }
                     registry::block::SMITHING_TABLE => {
                         self.ui_open = UiOpen::Smithing;
+                        self.unlock_cursor();
+                    }
+                    registry::block::RESEARCH_BENCH => {
+                        let era = self.research.era;
+                        if let Some(next) = self.research.advance(&mut self.inventory.slots) {
+                            tracing::info!("researched the {}", next.name());
+                            self.chronicle_event(lf_chronicle::EventType::ActCompleted, format!("entered the {}", next.name()));
+                        } else if era.next().is_none() {
+                            self.chat_log.push("final era reached".into());
+                        } else {
+                            self.chat_log.push(format!("not enough materials for the {} — press K for the tree", era.next().unwrap().name()));
+                        }
+                    }
+                    registry::block::COAL_GENERATOR
+                    | registry::block::ELECTRIC_FURNACE
+                    | registry::block::CRUSHER
+                    | registry::block::ASSEMBLER => {
+                        let key = (pos.x, pos.y, pos.z);
+                        let block_id_here = self.world.get_block(pos.x, pos.y, pos.z).id();
+                        self.block_entities.entry(key).or_insert_with(|| match block_id_here {
+                            registry::block::COAL_GENERATOR => BlockEntity::Generator(Default::default()),
+                            registry::block::ELECTRIC_FURNACE => BlockEntity::ElectricFurnace(Default::default()),
+                            registry::block::CRUSHER => BlockEntity::Crusher(Default::default()),
+                            _ => BlockEntity::Assembler(Default::default()),
+                        });
+                        self.ui_open = UiOpen::Machine(key);
                         self.unlock_cursor();
                     }
                     registry::block::FURNACE => {
@@ -1146,6 +1234,14 @@ impl GameState {
                                             self.block_entities.insert(key, BlockEntity::Furnace(Default::default()));
                                         } else if b == registry::block::CHEST {
                                             self.block_entities.insert(key, BlockEntity::Chest { slots: vec![None; 27] });
+                                        } else if b == registry::block::COAL_GENERATOR {
+                                            self.block_entities.insert(key, BlockEntity::Generator(Default::default()));
+                                        } else if b == registry::block::ELECTRIC_FURNACE {
+                                            self.block_entities.insert(key, BlockEntity::ElectricFurnace(Default::default()));
+                                        } else if b == registry::block::CRUSHER {
+                                            self.block_entities.insert(key, BlockEntity::Crusher(Default::default()));
+                                        } else if b == registry::block::ASSEMBLER {
+                                            self.block_entities.insert(key, BlockEntity::Assembler(Default::default()));
                                         }
                                         self.remesh_around(place.x, place.z);
                                         self.consume_selected(1);
@@ -2025,7 +2121,7 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, lf_worldgen::WorldType) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, lf_worldgen::WorldType) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
@@ -2033,6 +2129,7 @@ fn load_client_save(dir: &Path)
     let mut mobs = Vec::new();
     let mut villagers = Vec::new();
     let mut kills = 0;
+    let mut research = ResearchState::default();
     let mut quest_log = {
         let mut log = QuestLog::new();
         for q in starter_quests() {
@@ -2041,6 +2138,7 @@ fn load_client_save(dir: &Path)
         log
     };
     let mut chronicle = Vec::new();
+    let mut research = ResearchState::default();
     if let Ok(bytes) = std::fs::read(dir.join("player_extras.dat")) {
         if let Ok(save) = bincode::deserialize::<ClientSave>(&bytes) {
             for (i, slot) in save.slots.iter().enumerate().take(inventory.slots.len()) {
@@ -2056,11 +2154,12 @@ fn load_client_save(dir: &Path)
             }
             chronicle = save.chronicle;
             let world_type = save.world_type.unwrap_or_default();
+            if let Some(r) = save.research { research = r; }
             villagers = save.villagers;
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, world_type);
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, world_type);
         }
     }
-    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, lf_worldgen::WorldType::Normal)
+    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, lf_worldgen::WorldType::Normal)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.

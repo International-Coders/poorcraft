@@ -107,34 +107,6 @@ pub fn render_to_png(
             }
         }
 
-        // Copy the color texture into a CPU-mappable buffer. Rows must be
-        // padded to 256-byte alignment.
-        let bytes_per_pixel = 4;
-        let unpadded = width * bytes_per_pixel;
-        let padded = ((unpadded + 255) / 256) * 256;
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Readback Buffer"),
-            size: (padded * height) as u64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
-                texture: &color_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::ImageCopyBuffer {
-                buffer: &buffer,
-                layout: wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(padded),
-                    rows_per_image: Some(height),
-                },
-            },
-            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-        );
         // Optional egui overlay (honest UI proof screenshots).
         if let Some(ctx) = ui {
             let full_output = ctx.end_pass();
@@ -166,6 +138,34 @@ pub fn render_to_png(
             }
         }
 
+        // Copy the color texture into a CPU-mappable buffer. Rows must be
+        // padded to 256-byte alignment.
+        let bytes_per_pixel = 4;
+        let unpadded = width * bytes_per_pixel;
+        let padded = ((unpadded + 255) / 256) * 256;
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Readback Buffer"),
+            size: (padded * height) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &color_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        );
         queue.submit(std::iter::once(encoder.finish()));
 
         let slice = buffer.slice(..);

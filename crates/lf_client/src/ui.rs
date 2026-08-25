@@ -242,6 +242,8 @@ impl GameState {
             UiOpen::Trade(index) => self.draw_trade(ctx, index),
             UiOpen::Book => self.draw_book(ctx),
             UiOpen::Smithing => self.draw_smithing(ctx),
+            UiOpen::Machine(pos) => self.draw_machine(ctx, pos),
+            UiOpen::TechTree => self.draw_tech_tree(ctx),
             UiOpen::Death => self.draw_death(ctx),
         }
         // Cursor stack follows the pointer.
@@ -400,10 +402,21 @@ impl GameState {
                     // result slot
                     let grid_ref: Vec<Option<ItemStack>> = self.craft_grid.iter().take(grid * grid).cloned().collect();
                     let result = match_recipe(&grid_ref);
+                    // era gating: locked recipes show but cannot be taken
+                    let locked = match &result {
+                        Some((out, _)) => {
+                            lf_game::research::Era::required_for(out) > self.research.era
+                        }
+                        None => false,
+                    };
                     let (disabled, color, count) = match &result {
-                        Some((out, n)) => (false, item_color(&ItemStack { item_id: out.clone(), count: *n }), *n),
+                        Some((out, n)) => (locked, item_color(&ItemStack { item_id: out.clone(), count: *n }), *n),
                         None => (true, egui::Color32::from_gray(60), 0),
                     };
+                    if locked {
+                        ui.label(egui::RichText::new(format!("requires the {}",
+                            lf_game::research::Era::required_for(&result.as_ref().unwrap().0).name())).small().color(egui::Color32::from_rgb(230, 130, 130)));
+                    }
                     let (rect, response) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE, SLOT_SIZE), egui::Sense::click());
                     ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(160));
                     ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(2.0, egui::Color32::from_gray(120)), egui::StrokeKind::Middle);
@@ -775,6 +788,166 @@ impl GameState {
                 });
                 ui.separator();
                 ui.label(egui::RichText::new("Strike only in the orange zone (60-80). Esc to close.").small());
+            });
+    }
+
+    /// Machine screens: generator / electric furnace / crusher / assembler.
+    fn draw_machine(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
+        let Some(entity) = self.block_entities.get(&pos).cloned() else {
+            self.close_ui();
+            return;
+        };
+        let title = self.world.get_block(pos.0, pos.1, pos.2).id();
+        let title = lf_voxel::registry::block::name(title);
+        egui::Window::new(title)
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| match entity {
+                BlockEntity::Generator(mut g) => {
+                    ui.add(egui::ProgressBar::new(g.buffer / lf_game::machines::GEN_CAPACITY)
+                        .desired_width(200.0).text(format!("{:.0} EU", g.buffer)));
+                    let mut fuel = g.fuel.take();
+                    let mut cursor = self.cursor_stack.take();
+                    slot_button(ui, &mut fuel, &mut cursor, false);
+                    g.fuel = fuel;
+                    self.cursor_stack = cursor;
+                    ui.label("fuel (coal/log/planks)");
+                    self.block_entities.insert(pos, BlockEntity::Generator(g));
+                }
+                BlockEntity::ElectricFurnace(mut f) => {
+                    let frac = (f.progress / (lf_game::smelting::SMELT_TIME / 2.0)).clamp(0.0, 1.0);
+                    ui.add(egui::ProgressBar::new(frac).desired_width(200.0).text("smelt (2x)"));
+                    ui.horizontal(|ui| {
+                        let mut input = f.input.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut input, &mut cursor, false);
+                        f.input = input;
+                        self.cursor_stack = cursor;
+                        let mut output = f.output.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut output, &mut cursor, false);
+                        f.output = output;
+                        self.cursor_stack = cursor;
+                    });
+                    self.block_entities.insert(pos, BlockEntity::ElectricFurnace(f));
+                }
+                BlockEntity::Crusher(mut c) => {
+                    let frac = (c.progress / lf_game::machines::PROCESS_TIME).clamp(0.0, 1.0);
+                    ui.add(egui::ProgressBar::new(frac).desired_width(200.0).text("crush"));
+                    ui.horizontal(|ui| {
+                        let mut input = c.input.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut input, &mut cursor, false);
+                        c.input = input;
+                        self.cursor_stack = cursor;
+                        let mut output = c.output.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut output, &mut cursor, false);
+                        c.output = output;
+                        self.cursor_stack = cursor;
+                    });
+                    self.block_entities.insert(pos, BlockEntity::Crusher(c));
+                }
+                BlockEntity::Assembler(mut a) => {
+                    let frac = (a.progress / lf_game::machines::PROCESS_TIME).clamp(0.0, 1.0);
+                    ui.add(egui::ProgressBar::new(frac).desired_width(200.0).text("assemble"));
+                    ui.horizontal(|ui| {
+                        let mut ia = a.input_a.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut ia, &mut cursor, false);
+                        a.input_a = ia;
+                        self.cursor_stack = cursor;
+                        let mut ib = a.input_b.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut ib, &mut cursor, false);
+                        a.input_b = ib;
+                        self.cursor_stack = cursor;
+                        let mut output = a.output.take();
+                        let mut cursor = self.cursor_stack.take();
+                        slot_button(ui, &mut output, &mut cursor, false);
+                        a.output = output;
+                        self.cursor_stack = cursor;
+                    });
+                    if let Some((an, an_n, bn, bn_n, out, out_n)) = a.current_recipe() {
+                        ui.label(egui::RichText::new(format!("{}x{} + {}x{} -> {}x{}", an, an_n, bn, bn_n, out, out_n)).small());
+                    } else {
+                        ui.label(egui::RichText::new("no recipe (try Cu+Sn, Fe+C, wire+Sn...)").small().color(egui::Color32::from_gray(150)));
+                    }
+                    self.block_entities.insert(pos, BlockEntity::Assembler(a));
+                }
+                _ => {}
+            });
+    }
+
+    /// The tech tree: era columns, states, costs with live have/need, and a
+    /// "what to do next" hint — the progression compass.
+    fn draw_tech_tree(&mut self, ctx: &egui::Context) {
+        let era = self.research.era;
+        let have = lf_game::research::ResearchState::have_counts(&self.inventory.slots);
+        egui::Window::new("Technology — K to close")
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -20.0))
+            .min_size(egui::vec2(640.0, 380.0))
+            .collapsible(false)
+            .show(ctx, |ui| {
+                ui.heading(egui::RichText::new("Research Progression").size(22.0));
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    let eras = [lf_game::research::Era::Primitive, lf_game::research::Era::Bronze,
+                                lf_game::research::Era::Industrial, lf_game::research::Era::Electrical];
+                    for e in eras {
+                        let state = if e < era { "done" } else if e == era { "CURRENT" } else { "locked" };
+                        let color = if e < era { egui::Color32::from_rgb(120, 200, 120) }
+                            else if e == era { egui::Color32::from_rgb(240, 210, 140) }
+                            else { egui::Color32::from_gray(110) };
+                        egui::Frame::new()
+                            .stroke(egui::Stroke::new(if e == era { 3.0 } else { 1.0 }, color))
+                            .inner_margin(8.0)
+                            .show(ui, |ui| {
+                                ui.set_min_size(egui::vec2(140.0, 90.0));
+                                ui.heading(egui::RichText::new(e.name()).size(15.0).color(color));
+                                ui.label(egui::RichText::new(state).small().color(color));
+                                if e > era {
+                                    ui.add_space(4.0);
+                                    for (item, n) in e.cost() {
+                                        let got = have.iter().find(|(id, _)| id == item).map(|(_, c)| *c).unwrap_or(0);
+                                        let ok = got >= *n as u16;
+                                        let c = if ok { egui::Color32::from_rgb(140, 220, 140) } else { egui::Color32::from_rgb(230, 130, 130) };
+                                        ui.label(egui::RichText::new(format!("{} {}/{}", item, got.min(*n as u16), n)).small().color(c));
+                                    }
+                                }
+                            });
+                        if e != lf_game::research::Era::Electrical {
+                            ui.label("->");
+                        }
+                    }
+                });
+                ui.add_space(8.0);
+                ui.separator();
+                // what to do next
+                let hint = match era.next() {
+                    Some(next) => {
+                        let missing: Vec<String> = next.cost().iter()
+                            .map(|(item, n)| {
+                                let got = have.iter().find(|(id, _)| id == item).map(|(_, c)| *c).unwrap_or(0);
+                                if got >= *n as u16 { format!("{} ok", item) }
+                                else { format!("{} ({}/{})", item, got, n) }
+                            })
+                            .collect();
+                        format!("Next: the {} — place a Research Bench and bring: {}. Current era unlocks: {}",
+                            next.name(), missing.join(", "),
+                            match era {
+                                lf_game::research::Era::Primitive => "basic tools, furnace, chest",
+                                lf_game::research::Era::Bronze => "armor, smithing, +everything before",
+                                lf_game::research::Era::Industrial => "generators, crushers, assemblers",
+                                _ => "electric furnace, all machines",
+                            })
+                    }
+                    None => "Final era reached: everything is unlocked.".to_string(),
+                };
+                ui.label(egui::RichText::new(hint).color(egui::Color32::from_rgb(150, 220, 255)));
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new("Advance by right-clicking a Research Bench with the materials in your inventory.").small().color(egui::Color32::from_gray(170)));
             });
     }
 
