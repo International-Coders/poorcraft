@@ -110,3 +110,4 @@
 - [x] Stonecutter block -> shots/ev_stonecutter.png
 - [x] Loom block -> shots/ev_loom.png
 - [x] Grindstone block -> shots/ev_grindstone.png
+- [x] Composter block -> shots/ev_composter.png
