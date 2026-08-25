@@ -86,3 +86,6 @@
 - [x] occlusion culling performance -> shots/ev_occlusion_culling.png
 - [x] Ice Wraith mob -> shots/ev_ice_wraith.png
 - [x] Windmill structure -> shots/ev_windmill.png
+- [x] Lava resistance potion -> shots/ev_lava_potion.png
+- [x] Ancient debris ore -> shots/ev_ancient_debris.png
+- [x] Elytra flight glide control -> shots/ev_elytra.png
