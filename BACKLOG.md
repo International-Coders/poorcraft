@@ -203,3 +203,4 @@
 - [x] Superflat World Preset -> shots/ev_superflat.png
 - [x] Amplified World Preset -> shots/ev_amplified.png
 - [x] Debug Screen (F3) -> shots/ev_debug_screen.png
+- [x] Screenshot Gallery in-game viewer -> shots/ev_screenshot_gallery.png
