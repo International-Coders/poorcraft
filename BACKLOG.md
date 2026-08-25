@@ -237,3 +237,4 @@
 - [x] Dragon Boss Fight -> shots/ev_dragon_boss.png
 - [x] Elytra Flight Wings -> shots/ev_elytra_wings.png
 - [x] Ender Pearls -> shots/ev_ender_pearl.png
+- [x] End Crystal Blocks -> shots/ev_end_crystal.png
