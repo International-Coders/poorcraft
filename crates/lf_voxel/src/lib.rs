@@ -1,5 +1,6 @@
 pub mod meshing;
 pub mod raycast;
+pub mod persistence;
 
 use serde::{Serialize, Deserialize};
 

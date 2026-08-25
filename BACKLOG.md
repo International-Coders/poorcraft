@@ -5,8 +5,7 @@
 - [ ] M3 break and place blocks (raycast, highlight) -> shots/m3_breakplace.png
 - [x] M3 break and place blocks (raycast, highlight) -> shots/m3_breakplace.png
 - [x] M4 endless terrain noise heightmap -> shots/m4_terrain.png
-- [ ] M5 save and load world round-trip test
-- [ ] M5 save and load world round-trip test
+- [x] M5 save and load world round-trip test
 - [ ] M6 day/night cycle, sky light -> shots/m6_night.png
 - [ ] M7 survival core (inventory, crafting)
 - [ ] M8 medieval smithing system -> shots/m8_forge.png
