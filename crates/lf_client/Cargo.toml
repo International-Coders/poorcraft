@@ -19,6 +19,7 @@ lf_assets = { path = "../lf_assets" }
 lf_story = { path = "../lf_story" }
 lf_chronicle = { path = "../lf_chronicle" }
 lf_protocol = { path = "../lf_protocol" }
+lf_modapi = { path = "../lf_modapi" }
 bincode = "1"
 serde = { version = "1.0", features = ["derive"] }
 egui = "0.31"

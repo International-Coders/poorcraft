@@ -1,10 +1,10 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 17] = [
+pub const TEXTURE_NAMES: [&str; 18] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
-    "furnace", "chest", "planks", "glass",
+    "furnace", "chest", "planks", "glass", "mod",
 ];
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
@@ -27,6 +27,7 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         16 => 14, // chest
         17 => 15, // planks
         18 => 16, // glass
+        id if id >= 100 => 17, // mod blocks (registry::MOD_BLOCK_BASE)
         _ => 0,
     }
 }
@@ -160,6 +161,15 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([200, 220, 225, 255])
                     } else {
                         Rgba([220, 240, 245, 60])
+                    }
+                }
+                "mod" => {
+                    let v = 100 + ((x * 5 + y * 11) % 40);
+                    let band = (x + y) % 8 < 2;
+                    if band {
+                        Rgba([ch(v + 60), ch(v), ch(v + 90), 255])
+                    } else {
+                        Rgba([ch(v), ch(v - 30), ch(v + 40), 255])
                     }
                 }
                 "water" => {

@@ -96,6 +96,32 @@ pub fn recipes() -> &'static [Recipe] {
     Box::leak(book.into_boxed_slice())
 }
 
+// --- runtime mod recipes ---
+fn mod_recipes() -> &'static std::sync::RwLock<Vec<Recipe>> {
+    static RECIPES: std::sync::OnceLock<std::sync::RwLock<Vec<Recipe>>> = std::sync::OnceLock::new();
+    RECIPES.get_or_init(|| std::sync::RwLock::new(Vec::new()))
+}
+
+/// Register a mod recipe. Ingredient ids are leaked into the bounded mod
+/// namespace set (idempotent by output+pattern equality check).
+pub fn register_mod_recipe(output: String, output_count: u8, pattern: Vec<Vec<Option<String>>>) -> bool {
+    // leak ingredient ids into the bounded mod namespace set up front
+    let static_pattern: Vec<Vec<Option<&'static str>>> = pattern
+        .into_iter()
+        .map(|row| {
+            row.into_iter()
+                .map(|c| c.map(|s| Box::leak(s.into_boxed_str()) as &'static str))
+                .collect()
+        })
+        .collect();
+    let mut recipes = mod_recipes().write().unwrap();
+    if recipes.iter().any(|r| r.output == output && r.pattern == static_pattern) {
+        return true;
+    }
+    recipes.push(Recipe { output, output_count, pattern: static_pattern });
+    true
+}
+
 /// Try to craft from a grid (row-major, 2x2 or 3x3) of stacks.
 /// Returns the crafted result if a recipe matches; does not consume inputs.
 pub fn match_recipe(grid: &[Option<ItemStack>]) -> Option<(String, u8)> {
@@ -107,7 +133,13 @@ pub fn match_recipe(grid: &[Option<ItemStack>]) -> Option<(String, u8)> {
     let cell = |x: usize, y: usize| -> Option<&str> {
         grid[y * size + x].as_ref().map(|s| s.item_id.as_str())
     };
-    for recipe in recipes() {
+    let all_recipes: Vec<Recipe> = {
+        let mods = mod_recipes().read().unwrap().clone();
+        let mut all = recipes().to_vec();
+        all.extend(mods);
+        all
+    };
+    for recipe in all_recipes {
         let rh = recipe.pattern.len(); // rows = height
         let rw = recipe.pattern.iter().map(|r| r.len()).max().unwrap_or(0); // widest row = width
         if rw > size || rh > size {
@@ -222,6 +254,20 @@ mod tests {
         let mut single = vec![s("log"), None, None, None];
         consume_ingredients(&mut single);
         assert!(single[0].is_none());
+    }
+
+    #[test]
+    fn mod_recipes_match() {
+        register_mod_recipe("ember_ores:ember_block".into(), 1, vec![
+            vec![Some("ember_ores:ember_ingot".into()), Some("ember_ores:ember_ingot".into())],
+            vec![Some("ember_ores:ember_ingot".into()), Some("ember_ores:ember_ingot".into())],
+        ]);
+        let mut grid = vec![None::<ItemStack>; 4];
+        grid[0] = s("ember_ores:ember_ingot");
+        grid[1] = s("ember_ores:ember_ingot");
+        grid[2] = s("ember_ores:ember_ingot");
+        grid[3] = s("ember_ores:ember_ingot");
+        assert_eq!(match_recipe(&grid), Some(("ember_ores:ember_block".into(), 1)));
     }
 
     #[test]

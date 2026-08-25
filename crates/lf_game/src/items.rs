@@ -121,31 +121,67 @@ pub fn tool_damage(kind: ToolKind, tier: u8) -> f32 {
 }
 
 pub fn item_def(id: &str) -> Option<ItemDef> {
-    items().iter().find(|i| i.id == id).copied()
+    if let Some(def) = items().iter().find(|i| i.id == id) {
+        return Some(*def);
+    }
+    mod_item(id)
+}
+
+// --- runtime mod items ---
+fn mod_items() -> &'static std::sync::RwLock<Vec<ItemDef>> {
+    static ITEMS: std::sync::OnceLock<std::sync::RwLock<Vec<ItemDef>>> = std::sync::OnceLock::new();
+    ITEMS.get_or_init(|| std::sync::RwLock::new(Vec::new()))
+}
+
+/// Register a mod item (namespaced ids like "ember_ores:ember_ingot").
+/// Ids are leaked into the bounded mod namespace set.
+pub fn register_mod_item(id: String, name: String, kind: ItemKind, max_stack: u8) -> bool {
+    let mut items = mod_items().write().unwrap();
+    if items.iter().any(|i| i.id == id.as_str()) {
+        return true; // idempotent reload
+    }
+    items.push(ItemDef {
+        id: Box::leak(id.into_boxed_str()),
+        name: Box::leak(name.into_boxed_str()),
+        kind,
+        max_stack,
+    });
+    true
+}
+
+fn mod_item(id: &str) -> Option<ItemDef> {
+    mod_items().read().unwrap().iter().find(|i| i.id == id).copied()
+}
+
+pub fn registered_mod_items() -> Vec<ItemDef> {
+    mod_items().read().unwrap().clone()
 }
 
 /// The item id a broken block drops (None = nothing).
-pub fn block_drop(block_id: u32) -> Option<&'static str> {
+pub fn block_drop(block_id: u32) -> Option<String> {
     use lf_voxel::registry::block;
     match block_id {
-        block::GRASS => Some("dirt"),
-        block::DIRT => Some("dirt"),
-        block::STONE => Some("stone"),
-        block::SAND => Some("sand"),
-        block::MYCELIUM => Some("mycelium"),
-        block::SNOW => Some("snow"),
-        block::LOG => Some("log"),
-        block::LEAVES => Some("leaves"), // apples are a rare bonus handled by the caller
-        block::TORCH => Some("torch"),
-        block::CRAFTING_TABLE => Some("crafting_table"),
-        block::FURNACE => Some("furnace"),
-        block::CHEST => Some("chest"),
-        block::PLANKS => Some("planks"),
+        block::GRASS => Some("dirt".into()),
+        block::DIRT => Some("dirt".into()),
+        block::STONE => Some("stone".into()),
+        block::SAND => Some("sand".into()),
+        block::MYCELIUM => Some("mycelium".into()),
+        block::SNOW => Some("snow".into()),
+        block::LOG => Some("log".into()),
+        block::LEAVES => Some("leaves".into()), // apples are a rare bonus handled by the caller
+        block::TORCH => Some("torch".into()),
+        block::CRAFTING_TABLE => Some("crafting_table".into()),
+        block::FURNACE => Some("furnace".into()),
+        block::CHEST => Some("chest".into()),
+        block::PLANKS => Some("planks".into()),
         block::GLASS => None, // glass shatters
-        block::COAL_ORE => Some("coal"),
-        block::IRON_ORE => Some("raw_iron"),
+        block::COAL_ORE => Some("coal".into()),
+        block::IRON_ORE => Some("raw_iron".into()),
         block::WATER | block::AIR => None,
-        _ => Some("stone"),
+        id if id >= lf_voxel::registry::MOD_BLOCK_BASE => {
+            lf_voxel::registry::mod_block(id).and_then(|d| d.drop)
+        }
+        _ => Some("stone".into()),
     }
 }
 
@@ -208,7 +244,7 @@ mod tests {
         // every block drop is a real item
         for block_id in 0..=18u32 {
             if let Some(drop) = block_drop(block_id) {
-                assert!(valid(drop), "drop '{}' for block {} is not an item", drop, block_id);
+                assert!(valid(&drop), "drop '{}' for block {} is not an item", drop, block_id);
             }
         }
         // every placeable block item maps to a named block
@@ -228,11 +264,19 @@ mod tests {
     }
 
     #[test]
+    fn mod_items_register_and_resolve() {
+        assert!(register_mod_item("ember_ores:ember_ingot".into(), "Ember Ingot".into(), ItemKind::Material, 64));
+        assert!(register_mod_item("ember_ores:ember_ingot".into(), "Ember Ingot".into(), ItemKind::Material, 64), "idempotent");
+        assert_eq!(item_def("ember_ores:ember_ingot").unwrap().name, "Ember Ingot");
+        assert!(item_def("ember_ores:missing").is_none());
+    }
+
+    #[test]
     fn ores_drop_materials() {
         use lf_voxel::registry::block;
-        assert_eq!(block_drop(block::COAL_ORE), Some("coal"));
-        assert_eq!(block_drop(block::IRON_ORE), Some("raw_iron"));
-        assert_eq!(block_drop(block::GRASS), Some("dirt"));
+        assert_eq!(block_drop(block::COAL_ORE).as_deref(), Some("coal"));
+        assert_eq!(block_drop(block::IRON_ORE).as_deref(), Some("raw_iron"));
+        assert_eq!(block_drop(block::GRASS).as_deref(), Some("dirt"));
         assert_eq!(block_drop(block::WATER), None);
     }
 }

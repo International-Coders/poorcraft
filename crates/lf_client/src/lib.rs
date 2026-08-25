@@ -527,6 +527,13 @@ impl GameState {
         };
         surface.configure(&device, &config);
 
+        // Load mods into the live registries before touching the world.
+        let mods = lf_modapi::load_mods_dir(Path::new("mods"));
+        if !mods.is_empty() {
+            tracing::info!("loaded {} mod(s): {:?}", mods.len(),
+                mods.iter().map(|m| m.manifest.id.clone()).collect::<Vec<_>>());
+        }
+
         // Persistence + world bootstrap.
         let storage = WorldStorage::open(Path::new(WORLD_DIR));
         let saved_set = storage.saved_chunks();
@@ -1061,7 +1068,7 @@ impl GameState {
             return; // wrong tool: block breaks but yields nothing
         }
         if let Some(item) = lf_game::items::block_drop(block_id) {
-            self.spawn_drop(item, 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
+            self.spawn_drop(&item, 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
         }
         // rare apple bonus from leaves
         if block_id == registry::block::LEAVES && pseudo_random(self.frame) % 20 == 0 {

@@ -49,12 +49,95 @@ pub struct SmeltingRecipe {
     pub xp: f32,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct SmeltingFile {
+    #[serde(default)]
+    pub smelting: Vec<SmeltingRecipe>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ModData {
     pub manifest: ModManifest,
     pub blocks: Vec<BlockDef>,
     pub items: Vec<ItemDef>,
     pub smelting_recipes: Vec<SmeltingRecipe>,
+}
+
+/// Stable block id assigned to a mod block (vanilla ids stay untouched).
+pub fn mod_block_id(namespace: &str, block_id: &str) -> u32 {
+    let full = format!("{}:{}", namespace, block_id);
+    let mut h: u32 = 2166136261;
+    for b in full.bytes() {
+        h ^= b as u32;
+        h = h.wrapping_mul(16777619);
+    }
+    lf_voxel::registry::MOD_BLOCK_BASE + (h % 1_000_000)
+}
+
+/// Register everything in ModData with the live game registries:
+/// blocks (solid/opaque/drops), items, smelting entries, ore hooks.
+/// Call once at boot, after loading mod directories.
+pub fn apply_mod(data: &ModData) {
+    let ns = &data.manifest.id;
+    // blocks
+    for block in &data.blocks {
+        // strip the "namespace:" prefix from ids if present
+        let short = block.id.split(':').last().unwrap_or(&block.id).to_string();
+        let id = mod_block_id(ns, &short);
+        lf_voxel::registry::register_mod_block(id, lf_voxel::registry::ModBlockDef {
+            name: format!("{}:{}", ns, short),
+            solid: true,
+            opaque: true,
+            drop: Some(format!("{}:{}", ns, short)),
+        });
+        // item form so it can be held/dropped/smelted
+        lf_game::items::register_mod_item(
+            format!("{}:{}", ns, short),
+            block.name.clone(),
+            lf_game::items::ItemKind::Block(id),
+            64,
+        );
+    }
+    // plain items
+    for item in &data.items {
+        lf_game::items::register_mod_item(
+            item.id.clone(),
+            item.name.clone(),
+            lf_game::items::ItemKind::Material,
+            64,
+        );
+    }
+    // smelting
+    for recipe in &data.smelting_recipes {
+        lf_game::smelting::register_mod_smelt(recipe.input.clone(), recipe.output.clone());
+    }
+}
+
+/// Load every mod under `dir` and apply it to the live registries.
+/// Returns the loaded mods (empty when the directory is missing).
+pub fn load_mods_dir(dir: &Path) -> Vec<ModData> {
+    let mut mods = Vec::new();
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return mods,
+    };
+    let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+    paths.sort();
+    for path in paths {
+        if !path.is_dir() {
+            continue;
+        }
+        if let Ok(mut data) = load_mod(&path) {
+            if let Ok(content) = std::fs::read_to_string(path.join("data/smelting.toml")) {
+                if let Ok(file) = toml::from_str::<SmeltingFile>(&content) {
+                    data.smelting_recipes = file.smelting;
+                }
+            }
+            apply_mod(&data);
+            mods.push(data);
+        }
+    }
+    mods
 }
 
 #[derive(Debug)]
@@ -118,6 +201,14 @@ pub fn load_mod(mod_path: &Path) -> Result<ModData, ModError> {
         }
     }
 
+    let smelting_path = data_dir.join("smelting.toml");
+    if smelting_path.exists() {
+        let content = std::fs::read_to_string(&smelting_path).unwrap_or_default();
+        if let Ok(file) = toml::from_str::<SmeltingFile>(&content) {
+            data.smelting_recipes = file.smelting;
+        }
+    }
+
     Ok(data)
 }
 
@@ -125,6 +216,121 @@ pub fn load_mod(mod_path: &Path) -> Result<ModData, ModError> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn smelting_toml_parses() {
+        let dir = tempdir().unwrap();
+        let mod_path = dir.path().join("smelter");
+        std::fs::create_dir_all(mod_path.join("data")).unwrap();
+        std::fs::write(mod_path.join("mod.toml"), r#"
+id = "smelter"
+name = "Smelter"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = []
+permissions = []
+"#).unwrap();
+        std::fs::write(mod_path.join("data/smelting.toml"), r#"
+[[smelting]]
+input = "smelter:raw_stuff"
+output = "smelter:ingot"
+xp = 0.2
+"#).unwrap();
+        let data = load_mod(&mod_path).unwrap();
+        assert_eq!(data.smelting_recipes.len(), 1);
+        assert_eq!(data.smelting_recipes[0].output, "smelter:ingot");
+        apply_mod(&data);
+        assert_eq!(
+            lf_game::smelting::smelt_result("smelter:raw_stuff"),
+            Some("smelter:ingot")
+        );
+    }
+
+    #[test]
+    fn full_pipeline_registers_blocks_items_smelting() {
+        let dir = tempdir().unwrap();
+        let mod_path = dir.path().join("ember_ores");
+        std::fs::create_dir_all(mod_path.join("data")).unwrap();
+        std::fs::write(mod_path.join("mod.toml"), r#"
+id = "ember_ores"
+name = "Ember Ores"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read"]
+"#).unwrap();
+        std::fs::write(mod_path.join("data/blocks.toml"), r#"
+[[blocks]]
+id = "ember_ores:ember_ore"
+name = "Ember Ore"
+texture = "ember_ore.png"
+hardness = 4.5
+harvest_level = 2
+light = 7
+"#).unwrap();
+        std::fs::write(mod_path.join("data/items.toml"), r#"
+[[items]]
+id = "ember_ores:ember_ingot"
+name = "Ember Ingot"
+"#).unwrap();
+        std::fs::write(mod_path.join("data/smelting.toml"), r#"
+[[smelting]]
+input = "ember_ores:ember_ore"
+output = "ember_ores:ember_ingot"
+xp = 0.7
+"#).unwrap();
+
+        let data = load_mod(&mod_path).unwrap();
+        apply_mod(&data);
+
+        // block registered and behaves
+        let block_id = mod_block_id("ember_ores", "ember_ore");
+        assert!(lf_voxel::registry::mod_block(block_id).is_some(), "block registered");
+        assert!(lf_voxel::registry::is_solid(lf_voxel::BlockState(block_id)));
+        assert_eq!(
+            lf_voxel::registry::block::name(block_id),
+            "ember_ores:ember_ore"
+        );
+        // world accepts placement of the modded block
+        let mut world = lf_voxel::World::new();
+        world.ensure_chunk(0, 0);
+        world.set_block(3, 40, 3, lf_voxel::BlockState(block_id)).unwrap();
+        assert_eq!(world.get_block(3, 40, 3).id(), block_id);
+        // breaking it drops the mod item
+        assert_eq!(
+            lf_game::items::block_drop(block_id).as_deref(),
+            Some("ember_ores:ember_ore")
+        );
+        // item + smelting registered
+        assert!(lf_game::items::item_def("ember_ores:ember_ingot").is_some());
+        assert_eq!(
+            lf_game::smelting::smelt_result("ember_ores:ember_ore"),
+            Some("ember_ores:ember_ingot")
+        );
+        // ore hook generates veins
+        lf_worldgen::register_ore_hook(lf_worldgen::OreHook {
+            block_id,
+            y_min: 8,
+            y_max: 50,
+            threshold: 0.62,
+            noise_offset: 750.0,
+        });
+        let gen = lf_worldgen::WorldGen::new(lf_worldgen::Seed(12345));
+        let col = gen.generate_chunk(0, 0);
+        let mut found = 0;
+        for lx in 0..16 {
+            for lz in 0..16 {
+                for y in 8..50 {
+                    if col.get(lx, y, lz).id() == block_id {
+                        found += 1;
+                    }
+                }
+            }
+        }
+        assert!(found > 0, "mod ore should generate in the world");
+    }
 
     #[test]
     fn test_load_mod() {

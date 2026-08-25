@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-08-25 — P10: mod API real (loop 292)
+- lf_voxel registry: runtime mod blocks (MOD_BLOCK_BASE + fnv ids) consulted
+  by name/is_solid/is_opaque; registration test.
+- lf_game: register_mod_item / register_mod_recipe / register_mod_smelt;
+  block_drop owned Strings + mod drops.
+- lf_worldgen: register_ore_hook + generate consults hooks (+test).
+- lf_modapi: smelting.toml parsed in load_mod (was silently dropped);
+  apply_mod/load_mods_dir wire mods into the live registries; full-pipeline
+  test: parse -> register -> place modded block -> break -> drop -> smelt.
+- lf_assets: generic "mod" texture layer; client loads mods/ at boot
+  (smoke log: loaded 2 mods).
+- mods/README.md documents the mod surface.
+- Tests 96 -> 103.
+
 ## 2026-08-25 — P9: multiplayer (loop 291)
 - lf_protocol v3: ClientMessage/ServerMessage gameplay set with framed
   codec (+4 round-trip and rejection tests).

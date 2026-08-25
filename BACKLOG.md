@@ -98,9 +98,11 @@ below by phase.
 - [ ] singleplayer routed through integrated server; mob/world sync; server browser (deferred)
 
 ## P10 — Mod API real
-- [ ] runtime registration of modded blocks/items/recipes
-- [ ] worldgen hooks (ember_ores/amberium generate); fix smelting.toml parsing
-- [ ] modding docs
+- [x] runtime registries: mod blocks (stable ids, solidity/opacity/drops), items, recipes, smelting
+- [x] smelting.toml parsing fixed; worldgen ore hooks (auto *_ore veins)
+- [x] client loads mods/ at boot — smoke log confirms ember_ores + amberium
+- [x] mods/README.md; full-pipeline test (parse->register->place->break->smelt)
+- [ ] custom mod textures (generic mod layer for now)
 
 ## P11 — Performance & release
 - [ ] profiling (puffin), chunk gen/mesh budgets

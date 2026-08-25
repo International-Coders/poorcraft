@@ -10,8 +10,33 @@ pub fn smelt_result(input: &str) -> Option<&'static str> {
     match input {
         "raw_iron" => Some("iron_ingot"),
         "sand" => Some("glass"),
-        _ => None,
+        _ => mod_smelt(input),
     }
+}
+
+// --- runtime mod smelting entries ---
+fn mod_smelts() -> &'static std::sync::RwLock<Vec<(String, &'static str)>> {
+    static SMELTS: std::sync::OnceLock<std::sync::RwLock<Vec<(String, &'static str)>>> = std::sync::OnceLock::new();
+    SMELTS.get_or_init(|| std::sync::RwLock::new(Vec::new()))
+}
+
+/// Register a mod smelting entry (input id -> output id). Idempotent.
+pub fn register_mod_smelt(input: String, output: String) -> bool {
+    let mut entries = mod_smelts().write().unwrap();
+    if entries.iter().any(|(i, _)| *i == input) {
+        return true;
+    }
+    entries.push((input, Box::leak(output.into_boxed_str())));
+    true
+}
+
+fn mod_smelt(input: &str) -> Option<&'static str> {
+    mod_smelts()
+        .read()
+        .unwrap()
+        .iter()
+        .find(|(i, _)| i == input)
+        .map(|(_, out)| *out)
 }
 
 /// Seconds of burn per fuel item.
@@ -145,6 +170,13 @@ mod tests {
         }
         assert!(f.output.is_none());
         assert_eq!(f.burn_left, 0.0);
+    }
+
+    #[test]
+    fn mod_smelting_registers() {
+        register_mod_smelt("ember_ores:ember_ore".into(), "ember_ores:ember_ingot".into());
+        register_mod_smelt("ember_ores:ember_ore".into(), "ember_ores:ember_ingot".into());
+        assert_eq!(smelt_result("ember_ores:ember_ore"), Some("ember_ores:ember_ingot"));
     }
 
     #[test]

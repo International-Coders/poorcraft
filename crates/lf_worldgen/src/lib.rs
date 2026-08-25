@@ -195,6 +195,37 @@ fn block_state_of(b: BlockId) -> lf_voxel::BlockState {
     }
 }
 
+/// A mod-registered ore vein hook.
+#[derive(Clone, Debug)]
+pub struct OreHook {
+    pub block_id: u32,
+    pub y_min: i32,
+    pub y_max: i32,
+    /// Noise threshold (higher = rarer).
+    pub threshold: f32,
+    /// Offset applied to the ore noise sample so multiple ores decorrelate.
+    pub noise_offset: f32,
+}
+
+fn ore_hooks() -> &'static std::sync::RwLock<Vec<OreHook>> {
+    static HOOKS: std::sync::OnceLock<std::sync::RwLock<Vec<OreHook>>> = std::sync::OnceLock::new();
+    HOOKS.get_or_init(|| std::sync::RwLock::new(Vec::new()))
+}
+
+/// Register a mod ore vein (idempotent by block id).
+pub fn register_ore_hook(hook: OreHook) -> bool {
+    let mut hooks = ore_hooks().write().unwrap();
+    if hooks.iter().any(|h| h.block_id == hook.block_id) {
+        return true;
+    }
+    hooks.push(hook);
+    true
+}
+
+pub fn registered_ore_hooks() -> Vec<OreHook> {
+    ore_hooks().read().unwrap().clone()
+}
+
 /// Deterministic 2D hash for feature placement (trees, etc.).
 fn hash2(x: i32, z: i32, seed: u64) -> u64 {
     let mut h = seed
@@ -205,6 +236,10 @@ fn hash2(x: i32, z: i32, seed: u64) -> u64 {
     h ^= h >> 33;
     h = h.wrapping_mul(0xC4CEB9FE1A85EC53);
     h ^ (h >> 33)
+}
+
+fn lf_ore_hooks() -> Vec<OreHook> {
+    registered_ore_hooks()
 }
 
 impl WorldGen {
@@ -267,6 +302,15 @@ impl WorldGen {
                     let iron_n = self.noise_ore.get_noise_3d(wx + 1000.0, y as f32, wz);
                     if y < 48 && iron_n > 0.55 {
                         col.set(lx, y as usize, lz, BlockState(block::IRON_ORE));
+                    }
+                    // mod ore veins
+                    for hook in lf_ore_hooks() {
+                        if y >= hook.y_min && y <= hook.y_max {
+                            let n = self.noise_ore.get_noise_3d(wx + hook.noise_offset, y as f32, wz);
+                            if n > hook.threshold {
+                                col.set(lx, y as usize, lz, BlockState(hook.block_id));
+                            }
+                        }
                     }
                 }
             }
@@ -589,6 +633,34 @@ mod tests {
             }
         }
         assert!(found_water > 100, "expected ocean water, found {} blocks", found_water);
+    }
+
+    #[test]
+    fn mod_ore_hooks_generate() {
+        register_ore_hook(OreHook {
+            block_id: 150,
+            y_min: 10,
+            y_max: 60,
+            threshold: 0.60,
+            noise_offset: 500.0,
+        });
+        let gen = WorldGen::new(Seed(12345));
+        let mut found = 0;
+        for cx in -2..=2 {
+            for cz in -2..=2 {
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 0..16 {
+                    for lz in 0..16 {
+                        for y in 10..60 {
+                            if col.get(lx, y, lz).id() == 150 {
+                                found += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(found > 50, "mod ore should generate, found {}", found);
     }
 
     #[test]
