@@ -31,4 +31,4 @@
 - [x] performance profiling pass -> shots/ev_perf_complete.png
 - [x] crystal tool material
 - [x] dungeon skeleton structure
-- [ ] new quest hook + optional lore book entry
+- [x] new quest hook + optional lore book entry

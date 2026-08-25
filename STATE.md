@@ -1,9 +1,9 @@
 # STATE
-loop_count: 29
+loop_count: 30
 current_milestone: Evolution
-last_done: "Evolution Mode: added small dungeon skeleton structure with loot chest; captured ev_dungeon.png"
-next_task: "Evolution: new quest hook + optional lore book entry"
+last_done: "Evolution Mode: added quest hook \"Recover the lost Chronicle\" with 3-page objective and reward schematic; captured ev_quest_hook.png"
+next_task: "Evolution: finalize quest integration into story mode"
 build: GREEN
 tests: passing
-last_screenshot: shots/ev_dungeon.png
+last_screenshot: shots/ev_quest_hook.png
 blockers: none
