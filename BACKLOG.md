@@ -229,3 +229,4 @@
 - [x] Crimson Forest Biome -> shots/ev_crimson_forest.png
 - [x] Warped Forest Biome -> shots/ev_warped_forest.png
 - [x] Nether Fortress Structure -> shots/ev_nether_fortress.png
+- [x] Piglin Bartering System -> shots/ev_piglin_barter.png
