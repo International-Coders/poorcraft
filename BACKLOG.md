@@ -177,3 +177,4 @@
 - [x] Archaeology Table -> shots/ev_archaeology_table.png
 - [x] Trail Ruins structure -> shots/ev_trail_ruins.png
 - [x] Ocean Ruins structure -> shots/ev_ocean_ruins.png
+- [x] Nether Fossil structure -> shots/ev_nether_fossil.png
