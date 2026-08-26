@@ -192,6 +192,30 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::new(8.0, 0.0, 8.0),
         },
         SceneSpec {
+            name: "menu_preview",
+            desc: "the animated title screen over the world",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0),
+            target: Vec3::new(8.0, 0.0, 8.0),
+        },
+        SceneSpec {
+            name: "settings_preview",
+            desc: "the tabbed settings screen with RT controls",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0),
+            target: Vec3::new(8.0, 0.0, 8.0),
+        },
+        SceneSpec {
             name: "hud_preview",
             desc: "in-game view with the real HUD drawn via egui (proof shot)",
             default_seed: 12345,
@@ -364,7 +388,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     }
     let (vertices, indices, water_vertices, water_indices) = (vertices, indices, water_vertices, water_indices);
 
-    let ui = spec.name == "hud_preview" || spec.name == "village_trading" || spec.name == "tech_tree";
+    let ui = spec.name == "hud_preview" || spec.name == "village_trading" || spec.name == "tech_tree"
+        || spec.name == "menu_preview" || spec.name == "settings_preview";
     let ui = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
@@ -379,6 +404,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         if spec.name == "tech_tree" {
             draw_tech_tree_preview(&ctx);
         }
+        if spec.name == "menu_preview" {
+            draw_menu_preview(&ctx);
+        }
+        if spec.name == "settings_preview" {
+            draw_settings_preview(&ctx);
+        }
         Some(ctx)
     } else {
         None
@@ -392,6 +423,87 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     }
     let textures = lf_assets::generate_atlas();
     lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, ui.as_ref())
+}
+
+/// Title-menu proof overlay mirroring the animated client screen.
+fn draw_menu_preview(ctx: &egui::Context) {
+    egui::CentralPanel::default()
+        .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(90)))
+        .show(ctx, |ui| {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                ui.add_space(50.0);
+                ui.label(egui::RichText::new("LOREFORGE").size(58.0)
+                    .color(egui::Color32::from_rgb(250, 220, 160)).strong());
+                ui.label(egui::RichText::new("a voxel saga of forge & industry").size(16.0)
+                    .color(egui::Color32::from_rgb(200, 205, 212)));
+                ui.add_space(24.0);
+                let items = [("Play", true), ("Multiplayer (localhost)", false),
+                             ("Settings", false), ("Quit", false)];
+                for (label, accent) in items {
+                    let (rect, response) = ui.allocate_exact_size(egui::vec2(300.0, 50.0), egui::Sense::click());
+                    let _ = response;
+                    let fill = if accent {
+                        egui::Color32::from_rgba_premultiplied(60, 48, 22, 235)
+                    } else {
+                        egui::Color32::from_rgba_premultiplied(28, 33, 44, 225)
+                    };
+                    ui.painter().rect_filled(rect, 10.0, fill);
+                    let stroke = if accent {
+                        egui::Color32::from_rgb(240, 200, 120)
+                    } else {
+                        egui::Color32::from_rgb(90, 98, 112)
+                    };
+                    ui.painter().rect_stroke(rect, 10.0, egui::Stroke::new(2.0, stroke), egui::StrokeKind::Middle);
+                    if accent {
+                        let bar = egui::Rect::from_min_size(
+                            egui::Pos2::new(rect.left() + 4.0, rect.center().y - 16.0),
+                            egui::vec2(3.0, 32.0),
+                        );
+                        ui.painter().rect_filled(bar, 2.0, egui::Color32::from_rgb(240, 200, 120));
+                    }
+                    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, label,
+                        egui::FontId::proportional(20.0), egui::Color32::from_rgb(235, 238, 242));
+                }
+            });
+        });
+}
+
+/// Settings proof overlay mirroring the tabbed client screen.
+fn draw_settings_preview(ctx: &egui::Context) {
+    egui::Window::new("Settings")
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -10.0))
+        .min_size(egui::vec2(520.0, 380.0))
+        .collapsible(false).resizable(false)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                for (label, on) in [("Video", true), ("Audio", false), ("Gameplay", false)] {
+                    let btn = egui::Button::new(egui::RichText::new(label)
+                        .color(if on { egui::Color32::from_rgb(240, 200, 120) } else { egui::Color32::from_rgb(150, 156, 165) }))
+                        .min_size(egui::vec2(90.0, 28.0));
+                    let _ = ui.add(btn);
+                }
+            });
+            ui.separator();
+            ui.label(egui::RichText::new("Video").size(17.0).color(egui::Color32::from_rgb(240, 200, 120)));
+            ui.add(egui::Slider::new(&mut 70.0f32, 50.0..=110.0).text("Field of view"));
+            ui.add(egui::Slider::new(&mut 5.0f32, 3.0..=8.0).text("View distance"));
+            ui.checkbox(&mut true, "Clouds");
+            ui.checkbox(&mut true, "Weather particles");
+            ui.add_space(6.0);
+            ui.label(egui::RichText::new("Ray Tracing").size(17.0).color(egui::Color32::from_rgb(240, 200, 120)));
+            ui.horizontal(|ui| {
+                ui.label("Mode");
+                ui.button(egui::RichText::new("Live  (cycle)").color(egui::Color32::from_rgb(240, 200, 120)));
+                ui.label(egui::RichText::new("live path-traced view (GPU heavy)").small()
+                    .color(egui::Color32::from_rgb(150, 156, 165)));
+            });
+            ui.add(egui::Slider::new(&mut 0.25f32, 0.1..=0.5).text("RT internal scale"));
+            ui.add_space(6.0);
+            ui.label(egui::RichText::new("Quality preset").size(17.0).color(egui::Color32::from_rgb(240, 200, 120)));
+            ui.horizontal(|ui| {
+                ui.button("Low"); ui.button("Medium"); ui.button("High");
+            });
+        });
 }
 
 /// Tech-tree proof overlay mirroring the client's draw_tech_tree.

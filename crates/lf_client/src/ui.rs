@@ -4,7 +4,8 @@
 use egui_wgpu::Renderer;
 use egui_winit::State as EguiWinitState;
 
-use crate::{BlockEntity, GameState, UiOpen};
+use crate::{BlockEntity, GameState, RtMode, UiOpen};
+use crate::ui_kit::{self as kit, Theme};
 use lf_npc::trade_offers;
 use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, ItemKind};
@@ -145,7 +146,7 @@ fn slot_button(
     stack: &mut Option<ItemStack>,
     cursor: &mut Option<ItemStack>,
     selected: bool,
-) {
+) -> (Option<String>, ()) {
     let mut _hover_info = None;
     let (rect, response) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE, SLOT_SIZE), egui::Sense::click());
     let frame = if selected {
@@ -175,7 +176,7 @@ fn slot_button(
     } else if response.clicked_by(egui::PointerButton::Secondary) {
         exchange(cursor, stack, true);
     }
-    let _ = _hover_info;
+    (_hover_info, ())
 }
 
 /// Move stacks between the cursor and a slot. `right_click` splits/places one.
@@ -233,6 +234,7 @@ impl GameState {
             UiOpen::None => {}
             UiOpen::Title => self.draw_title(ctx),
             UiOpen::Pause => self.draw_pause(ctx),
+            UiOpen::Settings => self.draw_settings(ctx),
             UiOpen::QuestLog => self.draw_quest_log(ctx),
             UiOpen::Chat => {}
             UiOpen::Inventory => self.draw_inventory(ctx, 2),
@@ -266,11 +268,20 @@ impl GameState {
     }
 
     fn draw_hud(&mut self, ctx: &egui::Context) {
-        // chat overlay (bottom-left, last few messages)
-        let net_chat: Option<Vec<String>> = self
-            .net
-            .as_ref()
-            .map(|n| n.chat_log.iter().rev().take(5).rev().cloned().collect());
+        // Live RT image replaces the world view behind the HUD when enabled.
+        if self.settings.rt_mode == RtMode::Live {
+            if let Some(tex) = &self.live_rt_texture {
+                let screen = ctx.screen_rect();
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::none())
+                    .show(ctx, |ui| {
+                        ui.image(egui::load::SizedTexture::new(tex.id(), tex.size_vec2()))
+                            .rect.set_width(screen.width());
+                    });
+            }
+        }
+        // chat overlay (bottom-left)
+        let net_chat: Option<Vec<String>> = self.net.as_ref().map(|n| n.chat_log.iter().rev().take(5).rev().cloned().collect());
         let chat_lines = net_chat.unwrap_or_else(|| self.chat_log.clone());
         if !chat_lines.is_empty() {
             egui::Area::new(egui::Id::new("chat"))
@@ -283,86 +294,97 @@ impl GameState {
         }
         // chat input (T)
         if self.chat_input.is_some() {
-            self.ui_open = crate::UiOpen::Chat;
+            self.ui_open = UiOpen::Chat;
             let mut text = self.chat_input.take().unwrap();
             let mut send = false;
             egui::Window::new("Chat — Enter send / Esc cancel")
                 .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -160.0))
-                .collapsible(false)
-                .resizable(false)
+                .collapsible(false).resizable(false)
                 .show(ctx, |ui| {
                     let response = ui.add(egui::TextEdit::singleline(&mut text).desired_width(420.0));
-                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                        send = true;
-                    }
-                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                        text.clear();
-                        send = true;
-                    }
+                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) { send = true; }
+                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) { text.clear(); send = true; }
                     response.request_focus();
                 });
             if send {
                 if !text.trim().is_empty() {
-                    if let Some(n) = &self.net {
-                        n.send_chat(text.trim());
-                    }
+                    if let Some(n) = &self.net { n.send_chat(text.trim()); }
                 }
-                self.ui_open = crate::UiOpen::None;
+                self.ui_open = UiOpen::None;
                 self.lock_cursor();
             } else {
                 self.chat_input = Some(text);
             }
         }
-        egui::TopBottomPanel::bottom("hud").frame(egui::Frame::default()).show_separator_line(false).show(ctx, |ui| {
+        // HUD bar
+        egui::TopBottomPanel::bottom("hud").frame(egui::Frame::none()).show_separator_line(false).show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(4.0);
-                // hearts + hunger
+                // painted hearts + hunger
                 ui.horizontal(|ui| {
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(ui.available_width() * 0.5, 16.0),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| hearts(ui, self.stats.health),
-                    );
+                    ui.add_space(ui.available_width() * 0.28);
+                    crate::ui_kit::paint_hearts(ui, self.stats.health, self.stats.max_health);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        hunger(ui, self.stats.hunger);
+                        crate::ui_kit::paint_hunger(ui, self.stats.hunger, self.stats.max_hunger);
                     });
                 });
-                // air bubbles
                 if self.air < 10 {
-                    ui.label(format!("air {}", "·".repeat(self.air as usize)));
+                    ui.label(egui::RichText::new(format!("air {}", "·".repeat(self.air as usize))).color(Theme::XP));
                 }
-                // hotbar
+                // XP bar with level chip
+                let frac = (self.xp_progress as f32 / lf_game::combat::xp_for_level(self.xp_level).max(1) as f32).clamp(0.0, 1.0);
+                ui.horizontal(|ui| {
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(180.0, 8.0), egui::Sense::hover());
+                    ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(180));
+                    ui.painter().rect_filled(egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * frac, rect.height())), 4.0, Theme::XP);
+                    ui.label(egui::RichText::new(format!("Lv {}", self.xp_level)).small().color(Theme::XP));
+                });
+                // hotbar with hover tooltips
                 ui.horizontal(|ui| {
                     for i in 0..9 {
                         let mut stack = self.inventory.slots[i].clone();
                         let selected = i == self.hotbar_index;
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut stack, &mut cursor, selected);
+                        let (hover_name, _taken) = slot_button(ui, &mut stack, &mut cursor, selected);
                         self.cursor_stack = cursor;
                         self.inventory.slots[i] = stack;
+                        if let Some(name) = hover_name {
+                            self.hotbar_hover = Some(name);
+                        }
                     }
                 });
-                // mining / bow charge progress
+                if let Some(name) = &self.hotbar_hover.clone() {
+                    ui.label(egui::RichText::new(name).small().color(Theme::ACCENT));
+                } else {
+                    ui.label(egui::RichText::new("").small());
+                }
+                // mining / bow charge
                 if let Some(mining) = &self.mining {
                     let frac = (mining.progress / mining.total).min(1.0);
-                    let bar = egui::ProgressBar::new(frac).desired_width(220.0).show_percentage();
-                    ui.add(bar);
+                    ui.add(egui::ProgressBar::new(frac).desired_width(220.0).fill(Theme::ACCENT).text(""));
                 }
                 if let Some(charge) = self.bow_charge {
                     let frac = (charge / 1.2).min(1.0);
-                    ui.add(egui::ProgressBar::new(frac).desired_width(220.0).text("bow"));
+                    ui.add(egui::ProgressBar::new(frac).desired_width(220.0).fill(Theme::OK).text("bow"));
                 }
-                ui.label(
-                    egui::RichText::new(format!("XP Lv {} ({}/{})", self.xp_level, self.xp_progress, lf_game::combat::xp_for_level(self.xp_level)))
-                        .small().color(egui::Color32::from_rgb(120, 220, 255)),
-                );
-                ui.label(
-                    egui::RichText::new(format!("{} — E inventory · F fly · F2 shot", self.time_label()))
-                        .small()
-                        .color(egui::Color32::from_gray(200)),
-                );
             });
         });
+        // info line (top-left): clock, weather, transport, FPS
+        let mut info = format!("{} · {}", self.time_label(), if self.weather_raining { "rain" } else { "clear" });
+        if let Some(n) = &self.net {
+            info.push_str(&format!(" · net:{}", if n.connected { "on" } else { "…" }));
+        }
+        if self.settings.show_fps {
+            info.push_str(&format!(" · {:.0} fps", self.last_fps));
+        }
+        if self.settings.rt_mode == RtMode::Live {
+            info.push_str(" · RT");
+        }
+        egui::Area::new(egui::Id::new("info_line"))
+            .anchor(egui::Align2::LEFT_TOP, egui::vec2(10.0, 8.0))
+            .show(ctx, |ui| {
+                ui.label(egui::RichText::new(info).small().color(egui::Color32::from_rgba_premultiplied(Theme::TEXT.r(), Theme::TEXT.g(), Theme::TEXT.b(), 200)));
+            });
         // crosshair (only when playing)
         if self.ui_open == UiOpen::None {
             let pointer = ctx.screen_rect().center();
@@ -391,7 +413,7 @@ impl GameState {
                                     let idx = row * grid + col;
                                     let mut stack = self.craft_grid[idx].clone();
                                     let mut cursor = self.cursor_stack.take();
-                                    slot_button(ui, &mut stack, &mut cursor, false);
+                                    let _ = slot_button(ui, &mut stack, &mut cursor, false);
                                     self.cursor_stack = cursor;
                                     self.craft_grid[idx] = stack;
                                 }
@@ -465,7 +487,7 @@ impl GameState {
                             let idx = 9 + row * 9 + col;
                             let mut stack = self.inventory.slots[idx].clone();
                             let mut cursor = self.cursor_stack.take();
-                            slot_button(ui, &mut stack, &mut cursor, false);
+                            let _ = slot_button(ui, &mut stack, &mut cursor, false);
                             self.cursor_stack = cursor;
                             self.inventory.slots[idx] = stack;
                         }
@@ -477,7 +499,7 @@ impl GameState {
                     for i in 0..9 {
                         let mut stack = self.inventory.slots[i].clone();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index);
+                        let _ = slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index);
                         self.cursor_stack = cursor;
                         self.inventory.slots[i] = stack;
                     }
@@ -500,7 +522,7 @@ impl GameState {
                         ui.label("Input");
                         let mut input = furnace.input.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut input, &mut cursor, false);
+                        let _ = slot_button(ui, &mut input, &mut cursor, false);
                         furnace.input = input;
                         self.cursor_stack = cursor;
                         // flame indicator
@@ -513,7 +535,7 @@ impl GameState {
                         ui.label("Fuel");
                         let mut fuel = furnace.fuel.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut fuel, &mut cursor, false);
+                        let _ = slot_button(ui, &mut fuel, &mut cursor, false);
                         furnace.fuel = fuel;
                         self.cursor_stack = cursor;
                     });
@@ -526,7 +548,7 @@ impl GameState {
                         ui.label("Output");
                         let mut output = furnace.output.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut output, &mut cursor, false);
+                        let _ = slot_button(ui, &mut output, &mut cursor, false);
                         furnace.output = output;
                         self.cursor_stack = cursor;
                     });
@@ -553,7 +575,7 @@ impl GameState {
                             let idx = row * 9 + col;
                             let mut stack = chest_slots[idx].clone();
                             let mut cursor = self.cursor_stack.take();
-                            slot_button(ui, &mut stack, &mut cursor, false);
+                            let _ = slot_button(ui, &mut stack, &mut cursor, false);
                             self.cursor_stack = cursor;
                             chest_slots[idx] = stack;
                         }
@@ -573,7 +595,7 @@ impl GameState {
                     let idx = 9 + row * 9 + col;
                     let mut stack = game.inventory.slots[idx].clone();
                     let mut cursor = game.cursor_stack.take();
-                    slot_button(ui, &mut stack, &mut cursor, false);
+                    let _ = slot_button(ui, &mut stack, &mut cursor, false);
                     game.cursor_stack = cursor;
                     game.inventory.slots[idx] = stack;
                 }
@@ -584,7 +606,7 @@ impl GameState {
             for i in 0..9 {
                 let mut stack = game.inventory.slots[i].clone();
                 let mut cursor = game.cursor_stack.take();
-                slot_button(ui, &mut stack, &mut cursor, i == game.hotbar_index);
+                let _ = slot_button(ui, &mut stack, &mut cursor, i == game.hotbar_index);
                 game.cursor_stack = cursor;
                 game.inventory.slots[i] = stack;
             }
@@ -623,26 +645,38 @@ impl GameState {
     }
 
     fn draw_title(&mut self, ctx: &egui::Context) {
+        // subtle dark vignette over the orbiting world background
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(140)))
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(90)))
             .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(ui.available_height() * 0.22);
-                    ui.heading(egui::RichText::new("LOREFORGE").size(64.0).color(egui::Color32::from_rgb(240, 210, 140)));
-                    ui.label(egui::RichText::new("a voxel sandbox in Rust").size(18.0).color(egui::Color32::from_gray(180)));
-                    ui.add_space(40.0);
-                    let play = egui::Button::new(egui::RichText::new("Play").size(28.0)).min_size(egui::vec2(220.0, 46.0));
-                    if ui.add(play).clicked() {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.add_space(ui.available_height() * 0.10);
+                    let t = self.menu_reveal;
+                    let reveal = kit::ease_out_cubic((t / 0.7).clamp(0.0, 1.0));
+                    let glow = Theme::title_glow(t);
+                    ui.label(egui::RichText::new("LOREFORGE")
+                        .size(64.0 * (0.8 + 0.2 * reveal))
+                        .color(glow)
+                        .strong());
+                    let sub_r = kit::ease_out_cubic(((t - 0.4) / 0.6).clamp(0.0, 1.0));
+                    ui.label(egui::RichText::new("a voxel saga of forge & industry")
+                        .size(17.0)
+                        .color(egui::Color32::from_rgba_premultiplied(Theme::TEXT.r(), Theme::TEXT.g(), Theme::TEXT.b(), ((200.0 * sub_r) as u8).min(255))));
+                    ui.add_space(26.0);
+                    let btn = |ui: &mut egui::Ui, label: &str, delay: f32, accent: bool| -> bool {
+                        let r = ((t - delay) / 0.45).clamp(0.0, 1.0);
+                        kit::menu_button(ui, label, r, accent)
+                    };
+                    if btn(ui, "Play", 0.7, true) {
                         self.close_ui();
                     }
-                    ui.add_space(10.0);
+                    ui.add_space(8.0);
                     let transport = if lf_steam::preferred_transport() == lf_steam::Transport::Udp {
                         "localhost"
                     } else {
-                        "Steam P2P (Spacewar)"
+                        "Steam P2P"
                     };
-                    let mp = egui::Button::new(egui::RichText::new(format!("Multiplayer ({})", transport)).size(20.0)).min_size(egui::vec2(220.0, 36.0));
-                    if ui.add(mp).clicked() {
+                    if btn(ui, &format!("Multiplayer ({})", transport), 0.85, false) {
                         match crate::net::NetClient::connect("127.0.0.1:25565", "smith") {
                             Ok(n) => {
                                 self.net = Some(n);
@@ -654,44 +688,179 @@ impl GameState {
                             }
                         }
                     }
-                    ui.add_space(10.0);
-                    let quit = egui::Button::new(egui::RichText::new("Quit").size(20.0)).min_size(egui::vec2(220.0, 36.0));
-                    if ui.add(quit).clicked() {
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if btn(ui, "New Normal", 1.0, false) {
+                            self.new_world(lf_worldgen::WorldType::Normal);
+                        }
+                        ui.add_space(6.0);
+                        if btn(ui, "New Superflat", 1.05, false) {
+                            self.new_world(lf_worldgen::WorldType::Superflat);
+                        }
+                        ui.add_space(6.0);
+                        if btn(ui, "New Amplified", 1.1, false) {
+                            self.new_world(lf_worldgen::WorldType::Amplified);
+                        }
+                    });
+                    ui.add_space(8.0);
+                    if btn(ui, "Settings", 1.2, false) {
+                        self.ui_open = UiOpen::Settings;
+                        self.menu_reveal = 0.0;
+                    }
+                    ui.add_space(8.0);
+                    if btn(ui, "Quit", 1.3, false) {
                         self.quit_requested = true;
                     }
-                    ui.add_space(30.0);
-                    ui.label(
-                        egui::RichText::new(format!("WASD move · Space jump · Ctrl sprint · F fly · E inventory · LMB mine/attack · RMB place/use · Esc pause · kills: {}", self.kills))
-                            .small()
-                            .color(egui::Color32::from_gray(200)),
-                    );
+                });
+            });
+        egui::TopBottomPanel::bottom("title_footer")
+            .frame(egui::Frame::none())
+            .show_separator_line(false)
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(egui::RichText::new(env!("CARGO_PKG_VERSION")).small().color(Theme::TEXT_DIM));
+                    ui.label(egui::RichText::new("LOREFORGE 0.1  ·  ").small().color(Theme::TEXT_DIM));
                 });
             });
     }
 
     fn draw_pause(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(120)))
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(130)))
             .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(ui.available_height() * 0.25);
-                    ui.heading(egui::RichText::new("Paused").size(42.0));
-                    ui.add_space(24.0);
-                    if ui.button(egui::RichText::new("Resume").size(24.0)).clicked() {
-                        self.close_ui();
-                    }
-                    ui.add_space(10.0);
-                    egui::Frame::new().stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(80))).inner_margin(12.0).show(ui, |ui| {
-                        ui.heading("Settings");
-                        ui.add(egui::Slider::new(&mut self.settings.sensitivity, 0.0005..=0.01).text("Mouse sensitivity"));
-                        ui.add(egui::Slider::new(&mut self.settings.fov_degrees, 50.0..=100.0).text("FOV"));
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.add_space(ui.available_height() * 0.18);
+                    let t = self.menu_reveal;
+                    kit::slide_panel(ui, (t / 0.5).clamp(0.0, 1.0), |ui| {
+                        ui.set_width(360.0);
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(14.0);
+                            ui.label(egui::RichText::new("Paused").size(34.0).color(Theme::TEXT).strong());
+                            ui.add_space(16.0);
+                            if kit::menu_button(ui, "Resume", ((t - 0.15) / 0.4).clamp(0.0, 1.0), true) {
+                                self.close_ui();
+                            }
+                            ui.add_space(6.0);
+                            if kit::menu_button(ui, "Settings", ((t - 0.25) / 0.4).clamp(0.0, 1.0), false) {
+                                self.ui_open = UiOpen::Settings;
+                                self.menu_reveal = 0.0;
+                            }
+                            ui.add_space(6.0);
+                            if kit::menu_button(ui, "Save & Quit", ((t - 0.35) / 0.4).clamp(0.0, 1.0), false) {
+                                self.quit_requested = true;
+                            }
+                            ui.add_space(14.0);
+                            ui.label(egui::RichText::new("E inventory · K tech tree · J quests · T chat · F2 shot · R RT capture")
+                                .small().color(Theme::TEXT_DIM));
+                            ui.add_space(12.0);
+                        });
                     });
-                    ui.add_space(10.0);
-                    if ui.button(egui::RichText::new("Save & Quit").size(20.0)).clicked() {
-                        self.quit_requested = true;
-                    }
                 });
             });
+    }
+
+    /// Settings screen (tabbed, kit-styled, drives the engine live).
+    fn draw_settings(&mut self, ctx: &egui::Context) {
+        let t = self.menu_reveal;
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(110)))
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.add_space(30.0);
+                    kit::slide_panel(ui, (t / 0.5).clamp(0.0, 1.0), |ui| {
+                        ui.set_width(520.0);
+                        ui.vertical(|ui| {
+                            ui.add_space(10.0);
+                            ui.heading(egui::RichText::new("Settings").size(26.0).color(Theme::TEXT));
+                            ui.add_space(8.0);
+                            ui.horizontal(|ui| {
+                                for (i, label) in ["Video", "Audio", "Gameplay"].iter().enumerate() {
+                                    let on = self.settings_tab == i;
+                                    let btn = egui::Button::new(egui::RichText::new(*label)
+                                        .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))
+                                        .min_size(egui::vec2(90.0, 28.0));
+                                    if ui.add(btn).clicked() {
+                                        self.settings_tab = i;
+                                    }
+                                }
+                            });
+                            ui.separator();
+                            match self.settings_tab {
+                                0 => self.settings_video(ui),
+                                1 => self.settings_audio(ui),
+                                _ => self.settings_gameplay(ui),
+                            }
+                            ui.add_space(10.0);
+                            if kit::menu_button(ui, "Back", 1.0, true) {
+                                self.ui_open = UiOpen::None;
+                                if self.stats.health > 0.0 {
+                                    self.lock_cursor();
+                                }
+                            }
+                            ui.add_space(10.0);
+                        });
+                    });
+                });
+            });
+    }
+
+    fn settings_video(&mut self, ui: &mut egui::Ui) {
+        kit::section_header(ui, "Video", 1.0);
+        ui.add_space(6.0);
+        let s = &mut self.settings;
+        kit::setting_slider(ui, "Field of view", &mut s.fov_degrees, (50.0, 110.0), &|v| format!("{:.0}°", v));
+        let mut vd = s.view_distance as f32;
+        kit::setting_slider(ui, "View distance", &mut vd, (3.0, 8.0), &|v| format!("{} chunks", v as i32));
+        s.view_distance = vd as i32;
+        ui.add_space(6.0);
+        kit::toggle(ui, "Clouds", &mut s.clouds);
+        kit::toggle(ui, "Weather particles", &mut s.particles);
+        ui.add_space(8.0);
+        kit::section_header(ui, "Ray Tracing", 1.0);
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Mode").color(Theme::TEXT));
+            if ui.button(egui::RichText::new(format!("{}  (cycle)", s.rt_mode.label())).color(Theme::ACCENT)).clicked() {
+                s.rt_mode = s.rt_mode.next();
+            }
+        });
+        ui.label(egui::RichText::new(match s.rt_mode {
+            RtMode::Off => "classic raster renderer",
+            RtMode::Captures => "press R in game to path-trace a frame",
+            RtMode::Live => "live path-traced view (GPU heavy)",
+        }).small().color(Theme::TEXT_DIM));
+        if s.rt_mode == RtMode::Live {
+            kit::setting_slider(ui, "RT internal scale", &mut s.rt_scale, (0.1, 0.5), &|v| format!("{:.0}%", v * 100.0));
+        }
+        ui.add_space(8.0);
+        kit::section_header(ui, "Quality preset", 1.0);
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            if ui.button("Low").clicked() { self.settings.apply_quality(crate::Quality::Low); }
+            if ui.button("Medium").clicked() { self.settings.apply_quality(crate::Quality::Medium); }
+            if ui.button("High").clicked() { self.settings.apply_quality(crate::Quality::High); }
+        });
+    }
+
+    fn settings_audio(&mut self, ui: &mut egui::Ui) {
+        let s = &mut self.settings;
+        kit::section_header(ui, "Audio", 1.0);
+        ui.add_space(6.0);
+        kit::setting_slider(ui, "Master volume", &mut s.volume_master, (0.0, 1.0), &|v| format!("{:.0}%", v * 100.0));
+        kit::setting_slider(ui, "SFX volume", &mut s.volume_sfx, (0.0, 1.0), &|v| format!("{:.0}%", v * 100.0));
+        kit::setting_slider(ui, "Music volume", &mut s.volume_music, (0.0, 1.0), &|v| format!("{:.0}%", v * 100.0));
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new("volumes persist now; the audio engine consumes them when it lands (BACKLOG)")
+            .small().color(Theme::TEXT_DIM));
+    }
+
+    fn settings_gameplay(&mut self, ui: &mut egui::Ui) {
+        let s = &mut self.settings;
+        kit::section_header(ui, "Gameplay", 1.0);
+        ui.add_space(6.0);
+        kit::setting_slider(ui, "Mouse sensitivity", &mut s.sensitivity, (0.0005, 0.01), &|v| format!("{:.1}", v * 1000.0));
+        kit::toggle(ui, "Invert mouse Y", &mut s.invert_y);
+        kit::toggle(ui, "Show FPS", &mut s.show_fps);
     }
 
     fn draw_trade(&mut self, ctx: &egui::Context, index: usize) {
@@ -796,7 +965,7 @@ impl GameState {
             });
     }
 
-    /// Machine screens: generator / electric furnace / crusher / assembler.
+
     fn draw_machine(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
         let Some(entity) = self.block_entities.get(&pos).cloned() else {
             self.close_ui();
@@ -814,7 +983,7 @@ impl GameState {
                         .desired_width(200.0).text(format!("{:.0} EU", g.buffer)));
                     let mut fuel = g.fuel.take();
                     let mut cursor = self.cursor_stack.take();
-                    slot_button(ui, &mut fuel, &mut cursor, false);
+                    let _ = slot_button(ui, &mut fuel, &mut cursor, false);
                     g.fuel = fuel;
                     self.cursor_stack = cursor;
                     ui.label("fuel (coal/log/planks)");
@@ -826,12 +995,12 @@ impl GameState {
                     ui.horizontal(|ui| {
                         let mut input = f.input.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut input, &mut cursor, false);
+                        let _ = slot_button(ui, &mut input, &mut cursor, false);
                         f.input = input;
                         self.cursor_stack = cursor;
                         let mut output = f.output.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut output, &mut cursor, false);
+                        let _ = slot_button(ui, &mut output, &mut cursor, false);
                         f.output = output;
                         self.cursor_stack = cursor;
                     });
@@ -843,12 +1012,12 @@ impl GameState {
                     ui.horizontal(|ui| {
                         let mut input = c.input.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut input, &mut cursor, false);
+                        let _ = slot_button(ui, &mut input, &mut cursor, false);
                         c.input = input;
                         self.cursor_stack = cursor;
                         let mut output = c.output.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut output, &mut cursor, false);
+                        let _ = slot_button(ui, &mut output, &mut cursor, false);
                         c.output = output;
                         self.cursor_stack = cursor;
                     });
@@ -860,17 +1029,17 @@ impl GameState {
                     ui.horizontal(|ui| {
                         let mut ia = a.input_a.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut ia, &mut cursor, false);
+                        let _ = slot_button(ui, &mut ia, &mut cursor, false);
                         a.input_a = ia;
                         self.cursor_stack = cursor;
                         let mut ib = a.input_b.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut ib, &mut cursor, false);
+                        let _ = slot_button(ui, &mut ib, &mut cursor, false);
                         a.input_b = ib;
                         self.cursor_stack = cursor;
                         let mut output = a.output.take();
                         let mut cursor = self.cursor_stack.take();
-                        slot_button(ui, &mut output, &mut cursor, false);
+                        let _ = slot_button(ui, &mut output, &mut cursor, false);
                         a.output = output;
                         self.cursor_stack = cursor;
                     });

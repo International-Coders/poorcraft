@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-08-25 — P21: menus, animations, HUD & real settings (loop 301)
+- ui_kit: theme, easing (+tests), Reveal stagger, animated menu buttons
+  (hover glow, press spring, accent bar), slide panels, toggles, sliders,
+  section headers, painted vector heart/hunger glyphs.
+- Title screen: pulsing logo, staggered buttons, live orbiting world
+  background behind the menu; pause menu as an animated slide-in panel.
+- Settings screen with Video/Audio/Gameplay tabs and quality presets,
+  persisted with the world; every knob drives the engine live (view
+  distance feeds the streamer, FOV the camera, invert-Y the mouse,
+  clouds/particles gate the atmosphere batches).
+- Ray tracing settings made real: Off / Captures(R) / **Live** — a
+  persistent Pathtracer reuses GPU resources and traces every frame at a
+  configurable internal scale, shown fullscreen beneath the HUD.
+- HUD rebuilt: painted hearts/hunger, XP bar with level chip, hotbar with
+  hover tooltips, info line (clock, weather, net, FPS, RT flag).
+- Proofs: menu_preview (dark-panel 20% + logo light 2.3% in the center),
+  settings_preview (window clearly visible). Tests 119 -> 123.
+
 ## 2026-08-25 — P20: final consolidation (loop 300)
 - All 14 vistest proof scenes render and pixel-verify: biome_montage,
   clouds_weather, first_person_view, hud_preview, industrial_machines,

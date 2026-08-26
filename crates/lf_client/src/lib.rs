@@ -23,6 +23,7 @@ use winit::{
 
 pub mod net;
 pub mod ui;
+pub mod ui_kit;
 
 use lf_engine::camera::Camera;
 use lf_engine::outline::OutlineScene;
@@ -50,7 +51,7 @@ use ui::EguiPlatform;
 
 const WORLD_SEED: u64 = 12345;
 const WORLD_DIR: &str = "worlds/default";
-const VIEW_RADIUS: i32 = 5;      // chunks generated/kept around the player
+const DEFAULT_VIEW_RADIUS: i32 = 5; // chunks generated/kept around the player
 const UNLOAD_RADIUS: i32 = 8;    // chunks beyond this are dropped (after save)
 const BOOT_RADIUS: i32 = 1;      // chunks generated synchronously at boot
 const REACH: f32 = 6.0;
@@ -108,7 +109,7 @@ impl Streamer {
     fn spawn(seed: u64, skip: HashSet<(i32, i32)>) -> Self {
         let wish = Arc::new(Mutex::new(StreamWish {
             center: (0, 0),
-            radius: VIEW_RADIUS,
+            radius: DEFAULT_VIEW_RADIUS,
             requested: skip,
             stop: false,
         }));
@@ -198,6 +199,7 @@ pub enum UiOpen {
     Book,
     Smithing,
     TechTree,
+    Settings,
     Death,
 }
 
@@ -227,16 +229,98 @@ pub struct ItemDrop {
     pub age: f32,
 }
 
-/// Player-tunable settings.
-#[derive(Clone, Copy, Debug)]
+/// Ray-tracing mode: off, R-key captures only, or a live path-traced view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+pub enum RtMode {
+    #[default]
+    Off,
+    Captures,
+    Live,
+}
+
+impl RtMode {
+    pub fn next(self) -> Self {
+        match self {
+            RtMode::Off => RtMode::Captures,
+            RtMode::Captures => RtMode::Live,
+            RtMode::Live => RtMode::Off,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            RtMode::Off => "Off",
+            RtMode::Captures => "Captures (R)",
+            RtMode::Live => "Live",
+        }
+    }
+}
+
+/// Quality presets mapping onto the video settings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Quality {
+    Low,
+    Medium,
+    High,
+}
+
+/// Player-tunable settings, persisted with the world save.
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     pub sensitivity: f32,
+    pub invert_y: bool,
     pub fov_degrees: f32,
+    pub view_distance: i32,
+    pub clouds: bool,
+    pub particles: bool,
+    pub rt_mode: RtMode,
+    pub rt_scale: f32,
+    pub volume_master: f32,
+    pub volume_sfx: f32,
+    pub volume_music: f32,
+    pub show_fps: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { sensitivity: 0.0025, fov_degrees: 70.0 }
+        Self {
+            sensitivity: 0.0025,
+            invert_y: false,
+            fov_degrees: 70.0,
+            view_distance: 5,
+            clouds: true,
+            particles: true,
+            rt_mode: RtMode::Off,
+            rt_scale: 0.25,
+            volume_master: 0.8,
+            volume_sfx: 0.9,
+            volume_music: 0.6,
+            show_fps: false,
+        }
+    }
+}
+
+impl Settings {
+    /// Apply a quality preset to the video-related knobs.
+    pub fn apply_quality(&mut self, q: Quality) {
+        match q {
+            Quality::Low => {
+                self.view_distance = 3;
+                self.clouds = false;
+                self.particles = false;
+                self.rt_mode = RtMode::Off;
+            }
+            Quality::Medium => {
+                self.view_distance = 5;
+                self.clouds = true;
+                self.particles = true;
+            }
+            Quality::High => {
+                self.view_distance = 7;
+                self.clouds = true;
+                self.particles = true;
+            }
+        }
     }
 }
 
@@ -255,6 +339,7 @@ pub struct ClientSave {
     pub world_type: Option<lf_worldgen::WorldType>,
     pub villagers: Vec<Villager>,
     pub research: Option<ResearchState>,
+    pub settings: Option<Settings>,
 }
 
 struct App {
@@ -327,6 +412,7 @@ impl ApplicationHandler for App {
                                                 UiOpen::Pause | UiOpen::Title => {}
                                                 UiOpen::None if state.stats.health > 0.0 => {
                                                     state.ui_open = UiOpen::Pause;
+                                                    state.menu_reveal = 0.0;
                                                     state.unlock_cursor();
                                                     return;
                                                 }
@@ -386,7 +472,7 @@ impl ApplicationHandler for App {
                                             state.player.velocity = Vec3::ZERO;
                                         }
                                         KeyCode::F2 => state.take_screenshot(),
-                                        KeyCode::KeyR => state.take_raytraced_screenshot(),
+                                        KeyCode::KeyR => { if state.settings.rt_mode == crate::RtMode::Captures { state.take_raytraced_screenshot(); } }
                                         KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3
                                         | KeyCode::Digit4 | KeyCode::Digit5 | KeyCode::Digit6
                                         | KeyCode::Digit7 | KeyCode::Digit8 | KeyCode::Digit9 => {
@@ -496,6 +582,13 @@ struct GameState {
     attack_cooldown: f32,
     pub kills: u32,
     pub quit_requested: bool,
+    pub live_tracer: Option<lf_engine::pathtrace::Pathtracer>,
+    pub live_rt_texture: Option<egui::TextureHandle>,
+    pub title_orbit: f32,
+    pub menu_reveal: f32,
+    pub settings_tab: usize,
+    pub hotbar_hover: Option<String>,
+    pub last_fps: f32,
     pub quest_log: QuestLog,
     pub chronicle: Vec<ChronicleEvent>,
     pub net: Option<net::NetClient>,
@@ -570,7 +663,7 @@ impl GameState {
         surface.configure(&device, &config);
 
         // Load save (also tells us the world type) before generating.
-        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, world_type) =
+        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type) =
             load_client_save(Path::new(WORLD_DIR));
         // Load mods into the live registries before touching the world.
         let mods = lf_modapi::load_mods_dir(Path::new("mods"));
@@ -680,9 +773,17 @@ impl GameState {
             attack_cooldown: 0.0,
             kills: 0,
             quit_requested: false,
+            live_tracer: None,
+            live_rt_texture: None,
+            title_orbit: 0.0,
+            menu_reveal: 0.0,
+            settings_tab: 0,
+            hotbar_hover: None,
+            last_fps: 0.0,
             quest_log,
             chronicle,
             research,
+            settings,
             world_type,
             net: None,
             chat_input: None,
@@ -693,7 +794,6 @@ impl GameState {
             sky_batch: None,
             weather_batch: None,
             last_cloud_rebuild: Instant::now() - Duration::from_secs(5),
-            settings: Settings::default(),
             air: 10,
             spawn_point,
             last_instant: Instant::now(),
@@ -834,6 +934,7 @@ impl GameState {
             chronicle: self.chronicle.clone(),
             world_type: Some(self.world_type),
             research: Some(self.research.clone()),
+            settings: Some(self.settings),
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
             let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
@@ -894,6 +995,8 @@ impl GameState {
     fn tick(&mut self) {
         let now = Instant::now();
         let dt = (now - self.last_instant).as_secs_f32().min(0.25);
+        let fps = 1.0 / dt.max(0.0001);
+        self.last_fps = if self.last_fps == 0.0 { fps } else { self.last_fps * 0.9 + fps * 0.1 };
         self.last_instant = now;
         self.frame += 1;
         if self.quit_requested {
@@ -902,7 +1005,49 @@ impl GameState {
             std::process::exit(0);
         }
 
+        // Live ray tracing: trace at the internal scale each frame.
+        if self.settings.rt_mode == RtMode::Live && self.ui_open == UiOpen::None {
+            let scale = self.settings.rt_scale.clamp(0.1, 0.5);
+            let w = ((self.config.width as f32 * scale) as u32).max(64);
+            let h = ((self.config.height as f32 * scale) as u32).max(48);
+            if self.live_tracer.as_ref().map(|t| t.width != w || t.height != h).unwrap_or(true) {
+                self.live_tracer = lf_engine::pathtrace::Pathtracer::new(w, h).ok();
+            }
+            let eye = self.player.eye_position();
+            let center = (eye.x as i32, (eye.y as i32 + 20).min(220), eye.z as i32);
+            let data = lf_engine::pathtrace::build_voxel_texture_data(center, &|x, y, z| {
+                self.world.get_block(x, y, z).id()
+            });
+            let camera = self.camera();
+            let angle = self.time.fraction() * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+            let sun = [angle.cos(), angle.sin().abs(), 0.25];
+            let day = self.time.sky_light_level();
+            if let Some(tracer) = &mut self.live_tracer {
+                tracer.upload_voxels(center, &data);
+                let camera = &camera;
+                let sun = sun;
+                if let Ok(img) = tracer.render_frame(camera, center, sun, day) {
+                    let size = [img.width() as usize, img.height() as usize];
+                    let ctx = self.egui.ctx.clone();
+                    let pixels: Vec<egui::Color32> = img.pixels().map(|p| egui::Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3])).collect();
+                    let image = egui::ColorImage { size, pixels };
+                    let tex = match self.live_rt_texture.take() {
+                        Some(mut t) => {
+                            t.set(image, egui::TextureOptions::LINEAR);
+                            t
+                        }
+                        None => ctx.load_texture("live_rt", image, egui::TextureOptions::LINEAR),
+                    };
+                    self.live_rt_texture = Some(tex);
+                }
+            }
+        }
+
         // UI frame.
+        self.menu_reveal = (self.menu_reveal + dt).min(3.0);
+        if self.ui_open == UiOpen::Title {
+            self.title_orbit += dt * 0.05; // slow menu camera orbit
+        }
         let window = self.window.clone();
         self.egui.begin_frame(&window);
         let ctx = self.egui.ctx.clone();
@@ -923,7 +1068,8 @@ impl GameState {
                 // Mouse right (dx>0) turns the view right (yaw+); mouse down
                 // (dy>0) looks down (pitch-). Matches standard FPS feel.
                 yaw_delta: self.input.mouse_dx * self.settings.sensitivity,
-                pitch_delta: -self.input.mouse_dy * self.settings.sensitivity,
+                pitch_delta: self.input.mouse_dy * self.settings.sensitivity
+                    * if self.settings.invert_y { 1.0 } else { -1.0 },
             }
         } else {
             PlayerInput::default()
@@ -1276,7 +1422,7 @@ impl GameState {
             let (cv, ci) = lf_engine::atmosphere::cloud_mesh(eye, self.frame as f32 / 60.0);
             self.cloud_batch = Some(MeshBatch::new(&self.device, &self.resources, &cv, &ci));
         }
-        if self.weather_raining {
+        if self.weather_raining && self.settings.particles {
             let cold = self.gen_biome_temp_at_player();
             let (wv, wi) = lf_engine::atmosphere::weather_particles(eye, self.frame as f32 / 60.0, cold);
             self.weather_batch = Some(MeshBatch::new(&self.device, &self.resources, &wv, &wi));
@@ -1713,8 +1859,9 @@ impl GameState {
 
         // Saved chunks load straight from disk on the main thread.
         let mut loaded = 0;
-        for dx in -VIEW_RADIUS..=VIEW_RADIUS {
-            for dz in -VIEW_RADIUS..=VIEW_RADIUS {
+        let vr = self.settings.view_distance;
+        for dx in -vr..=vr {
+            for dz in -vr..=vr {
                 if loaded >= 2 {
                     break;
                 }
@@ -1830,7 +1977,7 @@ impl GameState {
     fn env(&self) -> lf_engine::scene::Env {
         let mut sky = self.time.sky_color();
         let mut day = self.time.sky_light_level();
-        let mut fog_far = (VIEW_RADIUS as f32 + 2.0) * 16.0;
+        let mut fog_far = (self.settings.view_distance as f32 + 2.0) * 16.0;
         if self.weather_raining {
             for c in sky.iter_mut() {
                 *c *= 0.7;
@@ -1856,6 +2003,16 @@ impl GameState {
     }
 
     fn camera(&self) -> Camera {
+        if self.ui_open == UiOpen::Title {
+            let r = 34.0;
+            let cx = self.spawn_point.x + self.title_orbit.cos() * r;
+            let cz = self.spawn_point.z + self.title_orbit.sin() * r;
+            let cy = self.spawn_point.y + 14.0;
+            let mut camera = Camera::new(glam::Vec3::new(cx, cy, cz), self.spawn_point + glam::Vec3::new(0.0, 2.0, 0.0));
+            camera.set_aspect(self.config.width, self.config.height);
+            camera.fovy = self.settings.fov_degrees.to_radians();
+            return camera;
+        }
         let mut camera = Camera::new(self.player.eye_position(), self.player.eye_position() + self.player.look_dir());
         camera.set_aspect(self.config.width, self.config.height);
         camera.fovy = self.settings.fov_degrees.to_radians();
@@ -2152,7 +2309,7 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, lf_worldgen::WorldType) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
@@ -2161,6 +2318,7 @@ fn load_client_save(dir: &Path)
     let mut villagers = Vec::new();
     let mut kills = 0;
     let mut research = ResearchState::default();
+    let mut settings = Settings::default();
     let mut quest_log = {
         let mut log = QuestLog::new();
         for q in starter_quests() {
@@ -2170,6 +2328,7 @@ fn load_client_save(dir: &Path)
     };
     let mut chronicle = Vec::new();
     let mut research = ResearchState::default();
+    let mut settings = Settings::default();
     if let Ok(bytes) = std::fs::read(dir.join("player_extras.dat")) {
         if let Ok(save) = bincode::deserialize::<ClientSave>(&bytes) {
             for (i, slot) in save.slots.iter().enumerate().take(inventory.slots.len()) {
@@ -2186,11 +2345,12 @@ fn load_client_save(dir: &Path)
             chronicle = save.chronicle;
             let world_type = save.world_type.unwrap_or_default();
             if let Some(r) = save.research { research = r; }
+            if let Some(s) = save.settings { settings = s; }
             villagers = save.villagers;
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, world_type);
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type);
         }
     }
-    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, lf_worldgen::WorldType::Normal)
+    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.

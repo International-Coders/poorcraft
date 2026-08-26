@@ -75,6 +75,236 @@ pub fn build_voxel_texture_data(center: (i32, i32, i32), get: &dyn Fn(i32, i32, 
     data
 }
 
+/// Persistent path tracer: GPU resources created once, frames reused for
+/// live rendering (the RT "Live" video setting).
+pub struct Pathtracer {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    pipeline: wgpu::ComputePipeline,
+    layout: wgpu::BindGroupLayout,
+    voxel_texture: wgpu::Texture,
+    palette_buf: wgpu::Buffer,
+    accum: wgpu::Texture,
+    accum_view: wgpu::TextureView,
+    readback: wgpu::Buffer,
+    pub width: u32,
+    pub height: u32,
+    last_center: (i32, i32, i32),
+    frame: u32,
+}
+
+impl Pathtracer {
+    pub fn new(width: u32, height: u32) -> Result<Self, String> {
+        pollster::block_on(async {
+            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+                backends: wgpu::Backends::PRIMARY,
+                ..Default::default()
+            });
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    compatible_surface: None,
+                    force_fallback_adapter: false,
+                })
+                .await
+                .ok_or_else(|| "no GPU adapter".to_string())?;
+            let (device, queue) = adapter
+                .request_device(&wgpu::DeviceDescriptor {
+                    label: Some("Live PT Device"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
+                    memory_hints: wgpu::MemoryHints::default(),
+                }, None)
+                .await
+                .map_err(|e| format!("device: {e:?}"))?;
+            let (vw, vh, vd) = CLIP_DIMS;
+            let voxel_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Live PT Voxels"),
+                size: wgpu::Extent3d { width: vw, height: vh, depth_or_array_layers: vd },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D3,
+                format: wgpu::TextureFormat::R32Uint,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            let accum = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Live PT Accum"),
+                size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            });
+            let accum_view = accum.create_view(&wgpu::TextureViewDescriptor::default());
+            let padded = ((width * 8) + 255) / 256 * 256;
+            let readback = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Live PT Readback"),
+                size: (padded * height) as u64,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+            let palette_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Live PT Palette"),
+                contents: bytemuck::cast_slice(&palette()),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Pathtrace Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("pathtrace.wgsl").into()),
+            });
+            let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Live PT Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Uint, view_dimension: wgpu::TextureViewDimension::D3, multisampled: false },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: wgpu::TextureFormat::Rgba16Float, view_dimension: wgpu::TextureViewDimension::D2 },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None },
+                        count: None,
+                    },
+                ],
+            });
+            let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Live PT Pipeline"),
+                layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Live PT Pipeline Layout"),
+                    bind_group_layouts: &[&layout],
+                    push_constant_ranges: &[],
+                })),
+                module: &shader,
+                entry_point: Some("main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
+            Ok(Self { device, queue, pipeline, layout, voxel_texture, palette_buf, accum, accum_view, readback, width, height, last_center: (i32::MIN, 0, 0), frame: 0 })
+        })
+    }
+
+    /// Upload the voxel clip if the center moved.
+    pub fn upload_voxels(&mut self, center: (i32, i32, i32), data: &[u32]) {
+        if center == self.last_center {
+            return;
+        }
+        self.last_center = center;
+        let (vw, vh, vd) = CLIP_DIMS;
+        self.queue.write_texture(
+            wgpu::ImageCopyTexture { texture: &self.voxel_texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            bytemuck::cast_slice(data),
+            wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(4 * vw), rows_per_image: Some(vh) },
+            wgpu::Extent3d { width: vw, height: vh, depth_or_array_layers: vd },
+        );
+    }
+
+    /// Force the next upload even if the center is unchanged (world edit).
+    pub fn invalidate_voxels(&mut self) {
+        self.last_center = (i32::MIN, 0, 0);
+    }
+
+    /// Trace one frame and read it back as an RGBA image.
+    pub fn render_frame(
+        &mut self,
+        camera: &Camera,
+        center: (i32, i32, i32),
+        sun_dir: [f32; 3],
+        day_factor: f32,
+    ) -> Result<RgbaImage, String> {
+        let look = (camera.target - camera.eye).normalize();
+        let fov_tan = camera.fovy.to_radians().tan();
+        let right = look.cross(glam::Vec3::Y).normalize() * fov_tan;
+        let up = right.cross(look).normalize() * fov_tan;
+        let voxel_view = self.voxel_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D3),
+            ..Default::default()
+        });
+        let mut u = Vec::with_capacity(96);
+        u.extend_from_slice(bytemuck::cast_slice(&[[camera.eye.x, camera.eye.y, camera.eye.z, camera.aspect]]));
+        u.extend_from_slice(bytemuck::cast_slice(&[[look.x, look.y, look.z, fov_tan]]));
+        u.extend_from_slice(bytemuck::cast_slice(&[[right.x, right.y, right.z, self.frame as f32]]));
+        u.extend_from_slice(bytemuck::cast_slice(&[[up.x, up.y, up.z, 0.0]]));
+        let (cw, ch, cd) = CLIP_DIMS;
+        u.extend_from_slice(bytemuck::cast_slice(&[[
+            (center.0 - cw as i32 / 2) as f32,
+            (center.1 - ch as i32 / 2) as f32,
+            (center.2 - cd as i32 / 2) as f32,
+            0.0,
+        ]]));
+        u.extend_from_slice(bytemuck::cast_slice(&[[sun_dir[0], sun_dir[1], sun_dir[2], day_factor]]));
+        let uniform_buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Live PT Uniform"),
+            contents: &u,
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+        let bind = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Live PT Bind"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: uniform_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&voxel_view) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&self.accum_view) },
+                wgpu::BindGroupEntry { binding: 3, resource: self.palette_buf.as_entire_binding() },
+            ],
+        });
+        let width = self.width;
+        let height = self.height;
+        let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Live PT Enc") });
+        {
+            let mut pass = enc.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Live PT Pass"), timestamp_writes: None });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bind, &[]);
+            pass.dispatch_workgroups((width + 7) / 8, (height + 7) / 8, 1);
+        }
+        let padded = ((width * 8) + 255) / 256 * 256;
+        enc.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture { texture: &self.accum, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            wgpu::ImageCopyBuffer {
+                buffer: &self.readback,
+                layout: wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(padded), rows_per_image: Some(height) },
+            },
+            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        );
+        self.queue.submit(std::iter::once(enc.finish()));
+        let _ = self.device.poll(wgpu::Maintain::Wait);
+        self.frame += 1;
+        let slice = self.readback.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        let _ = self.device.poll(wgpu::Maintain::Wait);
+        let data = slice.get_mapped_range().to_vec();
+        let mut img = RgbaImage::new(width, height);
+        for y in 0..height {
+            for x in 0..width {
+                let px = decode_f16_pair(&data, (y * padded + x * 8) as usize);
+                img.put_pixel(x, y, Rgba([
+                    (px[0].clamp(0.0, 1.0) * 255.0) as u8,
+                    (px[1].clamp(0.0, 1.0) * 255.0) as u8,
+                    (px[2].clamp(0.0, 1.0) * 255.0) as u8,
+                    255,
+                ]));
+            }
+        }
+        Ok(img)
+    }
+}
+
 /// Render one path-traced frame (N accumulation samples) offscreen and
 /// return it as an RGBA image. Sizes are in pixels.
 pub fn pathtrace_to_image(
