@@ -1,25 +1,34 @@
 # BACKLOG — LOREFORGE
 
-Honest status after the P0 audit (see CHANGELOG). Everything checked below exists
-in code and is covered by tests and/or real rendered proofs (`shots/vistest_*.png`).
+Honest status after the P0 audit (see CHANGELOG) and the build-pack Step 1
+reality audit (see AUDIT.md, 2026-08-26 — every checked item below was
+re-verified against code + a live session; broken claims were fixed or
+re-opened). Everything checked below exists in code and is covered by tests
+and/or real rendered proofs (`shots/vistest_*.png`).
 The former "Evolution Mode" list (~230 items claimed in loops 26–281) contained no
 implementations; the genuinely built items are checked here, the rest are planned
-below by phase.
+below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
 - [x] M1 window opens and clear color (lf_engine)
 - [x] M2 chunk data structure + culled meshing (lf_voxel) + texture array
 - [x] M3 voxel raycast (DDA) with tests (not yet wired to input — P1)
-- [x] M4 terrain noise heightmap + biomes + strata (all 8 biomes reachable, P0)
+- [x] M4 terrain noise heightmap + biomes + strata — 30 biomes today
+      (the "all 8 biomes" wording was the M4-era count, stale until the
+      audit; visual distinctness of the 30 is build-pack Steps 16–19)
 - [x] M5 world persistence (region files hold many chunks, atomic writes, P0)
 - [x] M6 day/night cycle math + light level constants (propagation is P3)
 - [x] M7 survival data types (stats, inventory stacking)
-- [x] M8 smithing data model (8 materials, tool assembly, forge minigame)
+- [x] M8 smithing data model (8 materials, tool assembly, forge minigame;
+      audit fixed the forge UI minting one steel ingot per frame — strike
+      is now a click and the forge resets after granting)
 - [x] M9 mob data model (6 types incl. Null Knight boss)
 - [x] M10 mod manifest + block/item data loading (ember_ores, amberium examples)
 - [x] M11 protocol codec + UDP echo server binary
-- [x] M12 villager schedules + Geode Guardian / Cinder Crawler mobs
+- [x] M12 villager schedules + trading (audit split: the Geode Guardian /
+      Cinder Crawler mobs in lf_npc are dead data, never spawned — open
+      item in AUDIT.md, spawn-or-cut)
 - [x] M13 quest data types (objectives, quest log)
 - [x] M14 chronicle events + saga/markdown generation
 - [x] Depth-buffered renderer with shared GpuScene (P0)
@@ -28,14 +37,17 @@ below by phase.
 - [x] real item icons + tooltips + recipe book + minimap/world map/waypoints (P22)
 
 ## P1 — First-person core
-- [x] keyboard/mouse input (WASD, jump, sneak, sprint, mouse look, cursor lock)
+- [x] keyboard/mouse input (WASD, jump, sneak, sprint, mouse look, cursor lock;
+      audit fix: sneak was captured but never read — now a 0.45x careful walk)
 - [x] player AABB physics (gravity, collision, jump, fly; substepped anti-tunneling; 8 tests)
 - [x] camera control (first-person from eye position; crosshair lands with P4 HUD)
 - [x] block targeting outline via DDA raycast; break/place with player-overlap check
 - [x] hotbar (1–6, scroll) with block placement; F2 in-game screenshots
 
 ## P2 — World streaming & terrain
-- [x] chunk streaming: background generator thread, view radius 5, unload radius 8, nearest-first
+- [x] chunk streaming: background generator thread, nearest-first, wish
+      radius follows the view-distance setting (audit fix: was hard-wired
+      to 5 so High preset never streamed farther)
 - [x] worldgen features: trees (canopy in-chunk), caves (3D noise), coal/iron by depth, water at sea level
 - [x] sphere-frustum + distance column culling using mesh bounds
 - [x] save/load world (region chunks + player state) with autosave and save-on-exit
@@ -43,10 +55,13 @@ below by phase.
 
 ## P3 — Lighting & atmosphere
 - [x] flood-fill sky + block light per column (BFS, opacity-aware; tests for falloff/overhangs/emitters)
-- [x] torches/lanterns emit real light (14/15) and are placeable
+- [x] torches/lanterns emit real light (14/15) and are placeable (audit
+      fix: the lantern block existed with light 15 but had no item or
+      recipe — unplaceable; now craftable iron-over-torch)
 - [x] day/night cycle drives sky color, clear color, sky-light factor + distance fog
 - [x] water transparency (alpha-blended pass, back-to-front column sort; underwater tint in P7)
-- [ ] smooth per-vertex lighting/AO (deferred to visual-identity polish; flat per-face now)
+- [x] smooth per-vertex lighting/AO (done by P26's visual identity pass;
+      this line had been left unchecked and stale until the audit)
 - [x] sun/moon/stars/clouds + weather-driven sky/fog (client atmosphere pass)
 
 ## P4 — Survival & inventory UI
@@ -89,6 +104,9 @@ below by phase.
 - [x] 5-quest starter chain (timber -> planks -> tools -> iron age -> night hunter)
 - [x] quest log UI (J) with objectives, progress and the chronicle
 - [x] chronicle records live milestones, exports worlds/<name>/chronicle.md on save
+      (audit note: 5 of 11 event types have no producer — GreatTrade,
+      Discovery, StructureCompleted, VillageFounded, RuneApplied; and q4's
+      "collect iron" can't fire from furnace output, only ground pickup)
 - [x] quest/chronicle state persists with the world
 - [ ] lore books readable in-game (deferred)
 
@@ -98,6 +116,9 @@ below by phase.
 - [x] two-client local integration test over real UDP (chat + block sync + positions)
 - [x] dedicated loreforge-server binary (bind + seed args)
 - [x] client join from title screen, remote players rendered, remote edits applied, chat UI (T)
+      (audit note: Welcome.seed is ignored — clients generate local-seed
+      terrain, only edited blocks sync; connect is hardcoded localhost +
+      name "smith"; see P28 + build-pack Steps 34–35)
 - [ ] singleplayer routed through integrated server; mob/world sync; server browser (deferred)
 
 ## P10 — Mod API real
@@ -217,3 +238,22 @@ below by phase.
 - [ ] UI language audit (on-kit quest log/book/console/trade/tech tree,
       HUD text shadows, Theme::MANA)
 - [ ] connected-surface textures (stone/marble/planks; carried from P26)
+
+## Build-pack Stage A — reality audit (docs/poorcraft-build-pack, Step 1-2)
+- [x] Step 1: AUDIT.md written at repo root — every prior [x] claim
+      re-verified (code + live session + captures); BACKLOG corrected in
+      the same commit; stale lines fixed (M4 "8 biomes" -> 30, P3
+      smooth-AO now checked, M8/M12/P2/P9 caveats added)
+- [x] Step 1 fixes shipped with the audit: HUD hidden behind the title
+      menu; title orbit camera clamped above ring terrain (was buried on
+      hilly worlds -> flat-dark backdrop, repro tool in
+      lf_worldgen/examples); render culling uses the render camera's eye;
+      streamer wish radius follows view distance; sneak wired to a slow
+      walk; smithing strike-per-click + grant-once reset; lantern
+      craftable; random_seed() sequence counter; 201 fossil ev_*.png
+      "proofs" removed (zero code references — Evolution-era residue)
+- [ ] Step 2 remainder: audio engine + break/place sounds (pack Step 4);
+      biome visual identity (pack Steps 16-19); spawn-or-cut Geode
+      Guardian / Cinder Crawler; q4 Collected from furnace output/trade;
+      multiplayer Welcome.seed + address entry; chronicle dead event
+      types; dawn/dusk light ramp; F2 re-render includes water/crack

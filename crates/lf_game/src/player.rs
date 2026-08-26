@@ -124,7 +124,11 @@ impl Player {
             self.velocity = wish * speed;
             self.velocity.y = if input.fly_up { speed } else if input.fly_down { -speed } else { 0.0 };
         } else {
-            let speed = if input.sprint { SPRINT_SPEED } else { WALK_SPEED };
+            // Sneak = careful half-speed walk (audit Step 1: the input was
+            // captured but never read, so the BACKLOG's "sneak" claim was
+            // hollow). Flying keeps full speed; fly_down handles descent.
+            let sneak_slow = if input.sneak && !self.flying { 0.45 } else { 1.0 };
+            let speed = if input.sprint { SPRINT_SPEED } else { WALK_SPEED } * sneak_slow;
             self.velocity.x = wish.x * speed;
             self.velocity.z = wish.z * speed;
             if input.jump && self.on_ground {
@@ -305,6 +309,22 @@ mod tests {
         assert!(p.position.x < 5.0 - PLAYER_HALF_WIDTH + 1e-3,
             "wall should stop player before x=4.7, at {}", p.position.x);
         assert!((p.position.x - (5.0 - PLAYER_HALF_WIDTH)).abs() < 0.05);
+    }
+
+    /// Audit Step 1: sneak was captured but never read — it must slow the
+    /// walk to roughly half speed.
+    #[test]
+    fn sneaking_walks_at_half_speed() {
+        let f = Fixture::flat();
+        let mut walk = Player::new(Vec3::new(0.5, 1.0, 0.5));
+        walk.yaw = std::f32::consts::FRAC_PI_2; // face +X
+        run_frames(&mut walk, &PlayerInput { forward: true, ..Default::default() }, &f.world, 1.0);
+        let mut sneak = Player::new(Vec3::new(0.5, 1.0, 0.5));
+        sneak.yaw = std::f32::consts::FRAC_PI_2;
+        run_frames(&mut sneak, &PlayerInput { forward: true, sneak: true, ..Default::default() }, &f.world, 1.0);
+        assert!(sneak.position.x > 0.5, "sneak still moves");
+        assert!(sneak.position.x < walk.position.x * 0.75,
+            "sneak should be clearly slower: walked {} vs sneaked {}", walk.position.x, sneak.position.x);
     }
 
     #[test]

@@ -402,3 +402,39 @@ latent UX bugs found during planning.
 162 passed / 0 failed (new sway proof included); `cargo run --release -p
 xtask -- vistest shots` 22/22 [ok] with pixel analysis; `make smoke`
 SMOKE OK. Runtimes rebuilt via make runtimes; pushed to github.
+
+### 2026-08-26 — Loop 309: build-pack Step 1 reality audit + same-commit fixes
+**WHAT**: Executed docs/poorcraft-build-pack MASTER_PLAN Step 1 (per
+01-REALITY-AUDIT.md): verified every checked BACKLOG claim against code, a
+live session, and fresh renders; wrote AUDIT.md; corrected BACKLOG; fixed 8
+real bugs the audit surfaced (7 gameplay/render + 1 flaky test helper).
+**HOW**:
+- Live session: launched target/release/loreforge, captured the title
+  screen twice via screencapture+System-Events-window-crop
+  (shots/audit_title.png, audit_title_later.png; backdrop pixel stats mean
+  RGB ~38 = the buried-camera bug), observed an in-world session
+  (shots/audit_inworld.png — underground torch light + full HUD working),
+  inspected the session log (mods load, villager settles, autosave, slot
+  switching). The user began their own play session mid-audit (World_7) —
+  left untouched; no pkill was run.
+- Code verification: three parallel Explore agents over (a) P1-P5+P26/P27
+  survival/render claims, (b) P6-P10+P22 lore/mobs/MP/mods claims, (c)
+  M1-M14+P3+P11+P25+biome distinctness; spot-verified load-bearing claims
+  myself (shader, power loop, day/night math, biome enum).
+- Root-cause tool: crates/lf_worldgen/examples/audit_title_camera.rs —
+  prints orbit-ring terrain vs camera eye for any seed (World_5:
+  12/64 points buried; kept as a regression aid).
+- Fixes (all tested): hud_visible gate (ui.rs draw_ui + test);
+  title_eye_y clamp + camera()/render() render-eye consistency (lib.rs +
+  tests); Streamer wish radius via sync_wish from settings.view_distance
+  (lib.rs + test); sneak 0.45x walk (player.rs + test); smithing
+  Strike-per-click + ForgeMinigame::reset grant-once (ui.rs, smithing.rs +
+  test); lantern item+recipe+drop (items.rs, crafting.rs + test +
+  catalog_consistency); random_seed sequence counter (slots.rs).
+- Hygiene: git rm of 201 shots/ev_*.png fossil proofs (Evolution-era; zero
+  code references — voidserpent/allay/axolotl/breeze don't exist);
+  RELEASE.md counts 121/14 -> 168/22.
+**VERIFICATION**: cargo test --workspace 168 passed / 0 failed (6 new
+tests); cargo run --release -p xtask -- vistest shots 22/22 [ok]; live
+session evidence in shots/audit_*.png; AUDIT.md written; runtimes rebuilt;
+pushed to github. Smoke skipped deliberately (user's session running).

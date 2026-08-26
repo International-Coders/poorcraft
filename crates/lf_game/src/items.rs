@@ -79,6 +79,7 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "log", name: "Oak Log", kind: ItemKind::Block(block::LOG), max_stack: 64 },
         ItemDef { id: "leaves", name: "Oak Leaves", kind: ItemKind::Block(block::LEAVES), max_stack: 64 },
         ItemDef { id: "torch", name: "Torch", kind: ItemKind::Block(block::TORCH), max_stack: 64 },
+        ItemDef { id: "lantern", name: "Lantern", kind: ItemKind::Block(block::LANTERN), max_stack: 64 },
         ItemDef { id: "crafting_table", name: "Crafting Table", kind: ItemKind::Block(block::CRAFTING_TABLE), max_stack: 64 },
         ItemDef { id: "furnace", name: "Furnace", kind: ItemKind::Block(block::FURNACE), max_stack: 64 },
         ItemDef { id: "chest", name: "Chest", kind: ItemKind::Block(block::CHEST), max_stack: 64 },
@@ -199,6 +200,7 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::LOG => Some("log".into()),
         block::LEAVES => Some("leaves".into()), // apples are a rare bonus handled by the caller
         block::TORCH => Some("torch".into()),
+        block::LANTERN => Some("lantern".into()),
         block::CRAFTING_TABLE => Some("crafting_table".into()),
         block::FURNACE => Some("furnace".into()),
         block::CHEST => Some("chest".into()),

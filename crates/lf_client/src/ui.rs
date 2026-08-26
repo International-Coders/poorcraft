@@ -396,6 +396,15 @@ fn build_catalog() -> Vec<CatalogEntry> {
 
 // ------------------------------------------------------------------
 
+/// Gameplay HUD visibility: hidden behind menus that own the whole view.
+/// The audit caught hearts + hotbar rendering under the title menu (and
+/// under settings opened from the title); pause keeps the HUD visible the
+/// way Minecraft-style pause overlays do.
+fn hud_visible(ui_open: &UiOpen, settings_from_title: bool) -> bool {
+    !matches!(ui_open, UiOpen::Title)
+        && !(*ui_open == UiOpen::Settings && settings_from_title)
+}
+
 impl GameState {
     /// Draw every UI surface for this frame.
     pub fn draw_ui(&mut self, ctx: &egui::Context) {
@@ -404,7 +413,9 @@ impl GameState {
         let native_pts_h = self.config.height as f32 / self.window.scale_factor() as f32;
         let viewport_factor = (native_pts_h / 720.0).clamp(0.8, 1.5);
         ctx.set_zoom_factor(self.settings.ui_scale * viewport_factor);
-        self.draw_hud(ctx);
+        if hud_visible(&self.ui_open, self.settings_from_title) {
+            self.draw_hud(ctx);
+        }
         match self.ui_open {
             UiOpen::None => {}
             UiOpen::Title => self.draw_title(ctx),
@@ -1568,18 +1579,26 @@ impl GameState {
                     if ui.button(egui::RichText::new("Pump bellows (+15)").color(Theme::ACCENT)).clicked() {
                         self.forge.bellows(15.0);
                     }
-                    let done = self.forge.strike();
-                    let status = if self.forge.strikes_completed >= self.forge.target_strikes {
+                    // Strike is a click, not a per-frame tick: the audit
+                    // caught strike() running every frame (and the result
+                    // being granted every frame) while the window stayed
+                    // open in the heat zone.
+                    if ui.button(egui::RichText::new("Strike").color(Theme::ACCENT)).clicked() {
+                        self.forge.strike();
+                    }
+                    let ready = self.forge.strikes_completed >= self.forge.target_strikes;
+                    let status = if ready {
                         "blade ready!".to_string()
                     } else {
                         format!("strikes {}/{}", self.forge.strikes_completed, self.forge.target_strikes)
                     };
-                    ui.label(egui::RichText::new(status).color(if self.forge.strikes_completed >= self.forge.target_strikes { Theme::OK } else { Theme::TEXT }));
-                    if done {
+                    ui.label(egui::RichText::new(status).color(if ready { Theme::OK } else { Theme::TEXT }));
+                    if ready {
                         let leftover = self.inventory.add_item("steel_ingot", 1);
                         if leftover > 0 {
                             self.spawn_drop("steel_ingot", leftover, self.player.eye_position() + self.player.look_dir());
                         }
+                        self.forge.reset();
                     }
                 });
                 ui.separator();
@@ -1973,6 +1992,20 @@ fn ui_time(ctx: &egui::Context) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Audit Step 1: hearts + hotbar rendered under the title menu; the HUD
+    /// must hide behind menus that own the whole view but stay visible for
+    /// gameplay screens and pause.
+    #[test]
+    fn hud_hidden_behind_title_not_behind_pause() {
+        assert!(!hud_visible(&UiOpen::Title, false), "no HUD on the title screen");
+        assert!(!hud_visible(&UiOpen::Title, true));
+        assert!(!hud_visible(&UiOpen::Settings, true), "settings opened from the title is still the title view");
+        assert!(hud_visible(&UiOpen::Settings, false), "settings from pause keeps the HUD");
+        assert!(hud_visible(&UiOpen::None, false));
+        assert!(hud_visible(&UiOpen::Pause, false), "pause overlay dims the HUD but keeps it");
+        assert!(hud_visible(&UiOpen::Inventory, false));
+    }
 
     #[test]
     fn catalog_merges_all_stations() {

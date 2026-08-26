@@ -36,6 +36,12 @@ pub fn recipes() -> &'static [Recipe] {
     ]));
     // coal over stick -> 4 torches
     book.push(r("torch", 4, vec![vec![Some("coal")], vec![Some("stick")]]));
+    // iron around a torch -> lantern (the block existed with light 15 but
+    // was unobtainable — audit Step 1)
+    book.push(r("lantern", 1, vec![
+        vec![Some("iron_ingot")],
+        vec![Some("torch")],
+    ]));
     // pickaxes (3x3): material row + 2 sticks
     for (mat, out) in [("planks", "wooden_pickaxe"), ("stone", "stone_pickaxe")] {
         book.push(r(out, 1, vec![
@@ -345,6 +351,16 @@ mod tests {
         grid[0] = s("coal");
         grid[2] = s("stick");
         assert_eq!(match_recipe(&grid), Some(("torch".into(), 4)));
+    }
+
+    /// Audit Step 1: the lantern block existed with light 15 but was
+    /// unobtainable; it is now craftable (iron over torch).
+    #[test]
+    fn lantern_is_craftable() {
+        let mut grid = vec![None::<ItemStack>; 4];
+        grid[0] = s("iron_ingot");
+        grid[2] = s("torch");
+        assert_eq!(match_recipe(&grid), Some(("lantern".into(), 1)));
     }
 
     #[test]

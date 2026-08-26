@@ -7,7 +7,7 @@ weather/clouds/sun/moon/stars, survival combat (bow, armor, XP), villages
 with trading NPCs, an industrial tier (ore veins, coal generators, powered
 electric furnaces/crushers/assemblers), research eras with a tech-tree
 screen, a compute-shader voxel path tracer, multiplayer, and modding —
-proven by 121 tests and 14 pixel-verified screenshot scenes.
+proven by 168 tests and 22 pixel-verified screenshot scenes (counts re-verified by the build-pack audit, 2026-08-26).
 
 ### Play
 ```bash
@@ -15,7 +15,7 @@ cargo run --release -p loreforge                # play (title screen)
 ./target/release/loreforge-server               # host multiplayer :25565
 cargo run --release -p xtask -- vistest shots   # render all 14 proofs
 cargo run --release -p xtask -- package         # portable zip in dist/
-cargo test --workspace                          # 121 tests
+cargo test --workspace                          # 168 tests
 ```
 
 ### Controls

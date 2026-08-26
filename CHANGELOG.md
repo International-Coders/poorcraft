@@ -536,3 +536,34 @@
   instead of reading legacy worlds/default before boot_slot() — slotted
   players previously booted with defaults until clicking Play.
 - 162 tests green (was 161), 22/22 vistest scenes, release smoke OK.
+
+## Loop 309 — build-pack Stage A: reality audit (Step 1) + 8 fixes
+- Executed docs/poorcraft-build-pack Step 1 per 01-REALITY-AUDIT.md: every
+  [x] claim in BACKLOG verified across code, a live release-build session
+  (title captured twice, in-world session observed, log inspected), and
+  fresh vistest renders. AUDIT.md at repo root records CONFIRMED vs
+  ACTUALLY-BROKEN/MISSING per claim; BACKLOG corrected in the same commit.
+- Verdicts on the three user-flagged areas: destruction feedback CONFIRMED
+  (crack decal + block-textured debris traced through the real mining
+  path) except break SOUND (ACTUALLY-MISSING — no audio system exists);
+  lore machinery CONFIRMED but shallow (chronicle readable in play via J
+  and the book; 5/11 event types never fire; no dialogue; no named
+  places); biomes ACTUALLY-BROKEN as an experience (17-18 of 30 are
+  worldgen twins; one untinted grass texture; global fog; MYCELIUM unused;
+  biome_montage scene shows one vista, not a montage).
+- Fixed with the audit (each with a test): HUD rendered behind the title
+  menu (hud_visible gate); title orbit camera buried in ring terrain ->
+  flat-dark backdrop (title_eye_y clamp + audit_title_camera.rs repro
+  tool: World_5 had 12/64 orbit points under higher ground); render
+  culling/water sort used the player eye instead of the render camera;
+  streamer wish radius hardwired to 5 so view-distance settings never
+  streamed farther (sync_wish); sneak captured but never read (0.45x
+  careful walk); smithing UI called strike() and granted a steel ingot
+  every frame (Strike button + ForgeMinigame::reset); lantern block had
+  no item/recipe (craftable iron-over-torch); random_seed() could collide
+  within one clock tick (sequence counter). 201 fossil shots/ev_*.png
+  removed (Evolution-era residue; zero code references — several name
+  creatures that don't exist). RELEASE.md counts corrected (168 tests /
+  22 scenes).
+- 168 tests green, 22/22 vistest; the user's own live play session served
+  as the smoke check (their process was left running untouched).

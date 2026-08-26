@@ -132,6 +132,13 @@ impl ForgeMinigame {
         }
         self.strikes_completed >= self.target_strikes
     }
+
+    /// Fresh workpiece: the UI grants the result once and calls this, so an
+    /// open window can't mint one ingot per frame (audit Step 1).
+    pub fn reset(&mut self) {
+        self.temperature = 50.0;
+        self.strikes_completed = 0;
+    }
 }
 
 #[cfg(test)]
@@ -150,6 +157,20 @@ mod tests {
         let pick = CustomTool::assemble("Mythril Pickaxe", ToolMaterial::Mythril, ToolMaterial::Iron, ToolMaterial::Bronze);
         assert!(pick.mining_speed > 2.0);
         assert_eq!(pick.max_durability, (1400 + 500 + 320) / 3);
+    }
+
+    /// Audit Step 1: the smithing UI granted its result every frame; reset()
+    /// is what makes a completed forge start a fresh workpiece.
+    #[test]
+    fn forge_reset_starts_a_fresh_workpiece() {
+        let mut forge = ForgeMinigame::new(2);
+        forge.bellows(20.0); // 50 -> 70, inside the zone
+        assert!(!forge.strike(), "first of two strikes does not complete the work");
+        assert!(forge.strike(), "second in-zone strike completes the work");
+        forge.reset();
+        assert_eq!(forge.strikes_completed, 0);
+        assert_eq!(forge.temperature, 50.0);
+        assert!(!forge.strike(), "out-of-zone strike on a fresh workpiece counts for nothing");
     }
 
     #[test]

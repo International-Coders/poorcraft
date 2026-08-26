@@ -1,9 +1,9 @@
 # STATE
-loop_count: 308
-current_milestone: P28-v1rebrand-gate
-last_done: "P28 loop 1: V1REBRAND execution plan committed (docs/V1REBRAND/11-EXECUTION-PLAN.md, phases P28-P39 = roadmap docs at +2 offset per DECISIONS); wind-sway honesty fix — P26's commit claimed foliage wind but shader.wgsl never read the sway attribute (loc 6) or time_sway uniform, so leaves could not animate; vs_main now applies a world-position-phased double sine (max ~0.08 blocks, inside the 0.1 cull margin), proven by a new GPU-rendered two-phase test (foliage_sway_animates_between_frames: phases differ, same-phase control pixel-identical); clouds setting un-no-op'd; unload radius now view_distance+3 (was fixed 8, zero headroom at view 8); Settings-from-title returns to title on Back/Esc instead of dropping into the world; boot now loads the booted slot's player extras (legacy worlds/default was read before boot_slot). 162 tests green; 22/22 vistest; smoke OK"
-next_task: "P28 remainder: chunk-border cross-column lighting (3x3 flood + night seam proof), transparency/sort audit entry, xtask perf + frame-time DECISIONS entry, PathTraced quality tier, key rebinding, save thumbnails, minimap rotation/zoom + beacons, UI language audit, connected-surface textures"
+loop_count: 309
+current_milestone: build-pack Stage A (reality audit + first fixes)
+last_done: "build-pack Step 1 (docs/poorcraft-build-pack/01): audited every [x] claim in BACKLOG against code + a live session of the release build (title captured twice, in-world session observed, log inspected). AUDIT.md written at repo root; BACKLOG corrected same-commit (M4 '8 biomes'->30, P3 smooth-AO checked, M8/M12/P2/P9 caveats). User-flagged areas verdicts: destruction feedback CONFIRMED (crack+debris real, traced through the live mining path) except ACTUALLY-MISSING break audio (no audio system at all); lore machinery CONFIRMED but shallow (5/11 chronicle events never fire, no dialogue, weak discoverability); biomes ACTUALLY-BROKEN as an experience (17-18 of 30 worldgen-identical twins, no tint, global fog, montage scene is one vista). 7 audit bugs FIXED in the same commit: HUD behind title menu, title orbit camera buried in ring terrain (flat-dark backdrop; repro tool lf_worldgen/examples/audit_title_camera.rs), render culling used player eye instead of render camera, streamer radius hardwired 5 (High preset never streamed farther), sneak never read by physics, smithing minted a steel ingot per frame, lantern unplaceable; plus random_seed flake hardening and 201 fossil ev_*.png removal. 168 tests green; 22/22 vistest; live session (user's own World_7 play) substituted for the smoke pkill"
+next_task: "build-pack Step 2 remainder: audio engine + break/place sounds (pack Step 4), then biome identity (Steps 16-19), Geode/Cinder spawn-or-cut, q4 Collected fix, Welcome.seed"
 build: GREEN
-tests: 162 passing
-last_screenshot: shots/vistest_foliage_canopy.png
-blockers: "none — push to github works again (P25+P26 pushed as 5f7cb4d)"
+tests: 168 passing
+last_screenshot: shots/audit_inworld.png
+blockers: "none — push to github works; note: user's live game session was running during the audit (left untouched, no pkill)"

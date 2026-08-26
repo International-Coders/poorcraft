@@ -109,6 +109,16 @@ struct StreamWish {
     stop: bool,
 }
 
+/// Update the worker's wish: new center + radius (the view-distance
+/// setting — the audit caught the radius hard-wired to 5, so the High
+/// preset never streamed farther), and allow regeneration of chunks that
+/// fell out of range.
+fn sync_wish(w: &mut StreamWish, center: (i32, i32), radius: i32) {
+    w.center = center;
+    w.radius = radius;
+    w.requested.retain(|p| chebyshev(*p, center) <= radius);
+}
+
 /// Background chunk generator: picks the nearest wanted chunk and generates
 /// it until none are missing.
 struct Streamer {
@@ -117,10 +127,10 @@ struct Streamer {
 }
 
 impl Streamer {
-    fn spawn(seed: u64, skip: HashSet<(i32, i32)>) -> Self {
+    fn spawn(seed: u64, skip: HashSet<(i32, i32)>, radius: i32) -> Self {
         let wish = Arc::new(Mutex::new(StreamWish {
             center: (0, 0),
-            radius: DEFAULT_VIEW_RADIUS,
+            radius,
             requested: skip,
             stop: false,
         }));
@@ -152,12 +162,9 @@ impl Streamer {
         Self { wish, rx }
     }
 
-    fn set_center(&self, center: (i32, i32)) {
+    fn set_center(&self, center: (i32, i32), radius: i32) {
         let mut w = self.wish.lock().unwrap();
-        w.center = center;
-        // allow regeneration of unloaded chunks
-        let radius = w.radius;
-        w.requested.retain(|p| chebyshev(*p, center) <= radius);
+        sync_wish(&mut w, center, radius);
     }
 
     /// Chunks already delivered that fell out of range (so they can stream
@@ -874,7 +881,7 @@ impl GameState {
         // The worker skips chunks that come from the save.
         let mut worker_skip = saved_set.clone();
         worker_skip.extend(world.chunks.keys().copied());
-        let streamer = Streamer::spawn(world_seed, worker_skip);
+        let streamer = Streamer::spawn(world_seed, worker_skip, settings.view_distance);
 
         let mut state = Self {
             window,
@@ -1025,7 +1032,7 @@ impl GameState {
     /// fresh streamer).
     fn restart_streamer(&mut self, seed: u64, skip: HashSet<(i32, i32)>) {
         self.streamer.shutdown();
-        self.streamer = Streamer::spawn(seed, skip);
+        self.streamer = Streamer::spawn(seed, skip, self.settings.view_distance);
     }
 
     /// Switch to a brand-new save slot with a fresh random seed.
@@ -2217,7 +2224,7 @@ impl GameState {
     /// meshing a bounded number per frame.
     fn stream_chunks(&mut self) {
         let center = self.player_chunk();
-        self.streamer.set_center(center);
+        self.streamer.set_center(center, self.settings.view_distance);
 
         // Saved chunks load straight from disk on the main thread.
         let mut loaded = 0;
@@ -2376,7 +2383,12 @@ impl GameState {
             let r = 34.0;
             let cx = self.spawn_point.x + self.title_orbit.cos() * r;
             let cz = self.spawn_point.z + self.title_orbit.sin() * r;
-            let cy = self.spawn_point.y + 14.0;
+            // The old fixed spawn+14 buried the camera inside ring terrain
+            // on hilly worlds (audit Step 1: World_5 had 12/64 orbit points
+            // under higher ground — a flat-dark title backdrop). Unloaded
+            // columns report surface 0, which keeps the classic offset.
+            let ground_at_eye = self.world.surface_height(cx as i32, cz as i32);
+            let cy = title_eye_y(self.spawn_point.y, ground_at_eye);
             let mut camera = Camera::new(glam::Vec3::new(cx, cy, cz), self.spawn_point + glam::Vec3::new(0.0, 2.0, 0.0));
             camera.set_aspect(self.config.width, self.config.height);
             camera.fovy = self.settings.fov_degrees.to_radians();
@@ -2498,7 +2510,9 @@ impl GameState {
                 timestamp_writes: None,
             });
             let resources = &self.resources;
-            let eye = self.player.eye_position();
+            // Cull/sort against the RENDER camera (the title orbit camera
+            // differs from the player eye — the audit caught them mixed).
+            let eye = camera.eye;
             for (pos, batch) in self.batches.iter() {
                 if let Some(&(min_y, max_y)) = self.column_bounds.get(pos) {
                     if !column_in_view(&view_proj, eye, *pos, min_y, max_y, self.settings.view_distance) {
@@ -2845,6 +2859,12 @@ fn pseudo_random(seed: u64) -> u64 {
     h.wrapping_mul(0xC2B2AE3D27D4EB4F)
 }
 
+/// Title orbit eye height: never below the classic spawn+14, always above
+/// the terrain the eye sweeps over (see camera() for the audit context).
+fn title_eye_y(spawn_y: f32, ground_at_eye: i32) -> f32 {
+    (spawn_y + 14.0).max(ground_at_eye as f32 + 6.0)
+}
+
 /// Frustum + distance culling for a chunk column, using its mesh bounds.
 fn column_in_view(view_proj: &glam::Mat4, eye: Vec3, pos: (i32, i32), min_y: f32, max_y: f32, view_distance: i32) -> bool {
     // Distance cull: columns past ~1.5x the kept radius (view distance +
@@ -3016,6 +3036,44 @@ mod tests {
         if let Some(pick) = nearest_missing(&w) {
             assert_eq!(chebyshev(pick, (0, 0)), 2, "ring of 1 exhausted, got {:?}", pick);
         }
+    }
+
+    /// Audit Step 1 fix: the streamer's wish radius used to be hard-wired to
+    /// 5, so raising the view-distance setting never generated farther
+    /// chunks. sync_wish must both widen and narrow the request set.
+    #[test]
+    fn sync_wish_follows_view_distance() {
+        let mut w = StreamWish {
+            center: (0, 0),
+            radius: 5,
+            requested: HashSet::new(),
+            stop: false,
+        };
+        for x in -5..=5 {
+            for z in -5..=5 {
+                w.requested.insert((x, z));
+            }
+        }
+        sync_wish(&mut w, (0, 0), 8);
+        assert_eq!(w.radius, 8);
+        // the radius-5 ring is all requested, so the next candidate must
+        // reach past it
+        assert!(nearest_missing(&w).map(|p| chebyshev(p, (0, 0)) > 5).unwrap_or(false),
+            "radius 8 must reach past the old radius-5 ring");
+        w.requested.insert((8, 0));
+        sync_wish(&mut w, (0, 0), 5);
+        assert!(!w.requested.contains(&(8, 0)), "shrinking the radius prunes out-of-range chunks");
+        assert!(w.requested.contains(&(4, 0)));
+    }
+
+    /// Audit Step 1 fix: the title orbit camera's fixed spawn+14 eye buried
+    /// it inside ring terrain on hilly worlds (World_5: terrain up to y=128
+    /// on the ring vs eye y=119 -> flat-dark title backdrop).
+    #[test]
+    fn title_eye_clears_ring_terrain() {
+        assert_eq!(title_eye_y(105.0, 128), 134.0, "hill on the ring lifts the eye");
+        assert_eq!(title_eye_y(105.0, 90), 119.0, "low terrain keeps the classic offset");
+        assert_eq!(title_eye_y(105.0, 0), 119.0, "unloaded column (surface 0) keeps the classic offset");
     }
 
     #[test]

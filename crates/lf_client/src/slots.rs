@@ -18,14 +18,20 @@ pub struct SlotMeta {
     pub updated_secs: u64,
 }
 
-/// A fresh OS-entropy seed (time ^ pid, splitmix-mixed).
+/// A fresh OS-entropy seed (time ^ pid, splitmix-mixed). A process-local
+/// counter is mixed in so two calls in the same clock tick still differ —
+/// the audit run caught random_seeds_vary_and_are_huge failing exactly
+/// that way.
 pub fn random_seed() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(0x9E3779B97F4A7C15);
     let pid = std::process::id() as u64;
-    let mut z = nanos ^ pid.rotate_left(32);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed) as u64;
+    let mut z = nanos ^ pid.rotate_left(32) ^ seq.rotate_left(48);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
     z ^ (z >> 31)
