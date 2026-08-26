@@ -52,7 +52,12 @@ mod tests {
 
     #[test]
     fn default_transport_is_udp() {
-        // Without the Steam client running (CI), preferred falls back.
+        // Without the binding compiled in, UDP is the only answer. With it,
+        // the result depends on whether the Steam client is running — both
+        // are valid, so only assert the fallback for the feature-off build.
+        #[cfg(not(feature = "steam"))]
         assert_eq!(preferred_transport(), Transport::Udp);
+        #[cfg(feature = "steam")]
+        assert!(matches!(preferred_transport(), Transport::Udp | Transport::SteamP2p));
     }
 }

@@ -780,6 +780,7 @@ impl GameState {
         // seed (fresh random seed for a brand-new world).
         let mut slot_meta = slots::boot_slot();
         let world_dir = slots::slot_dir(&slot_meta.name);
+        slots::sync_generator_version(&world_dir);
         slot_meta.world_type = world_type; // save (or default) wins over meta
         let storage = WorldStorage::open(&world_dir);
         let world_seed = storage.load_seed().unwrap_or_else(|| {
@@ -1008,6 +1009,7 @@ impl GameState {
         };
         let _ = std::fs::create_dir_all(&dir);
         let _ = WorldStorage::open(&dir).save_seed(seed);
+        let _ = lf_worldgen::save_generator_version(&dir, lf_worldgen::GENERATOR_VERSION);
         slots::write_meta(&dir, &meta);
         // point the client at the new slot
         self.storage = WorldStorage::open(&dir);
@@ -1072,6 +1074,7 @@ impl GameState {
         let Some(meta) = slots::read_meta(&dir) else {
             return Err(format!("no save slot named '{}'", name));
         };
+        slots::sync_generator_version(&dir);
         self.save_world();
         // state from the slot's save files
         let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log,

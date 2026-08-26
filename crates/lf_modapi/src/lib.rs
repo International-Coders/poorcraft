@@ -97,6 +97,18 @@ pub fn apply_mod(data: &ModData) {
             lf_game::items::ItemKind::Block(id),
             64,
         );
+        // *_ore blocks become worldgen veins (docs/README contract: y 8..50).
+        // The noise offset derives from the stable block id and stays clear
+        // of the vanilla ore offsets (+1000..+5000).
+        if short.ends_with("_ore") {
+            lf_worldgen::register_ore_hook(lf_worldgen::OreHook {
+                block_id: id,
+                y_min: 8,
+                y_max: 50,
+                threshold: 0.62,
+                noise_offset: 10_000.0 + (id % 40_000) as f32,
+            });
+        }
     }
     // plain items
     for item in &data.items {
@@ -309,14 +321,11 @@ xp = 0.7
             lf_game::smelting::smelt_result("ember_ores:ember_ore"),
             Some("ember_ores:ember_ingot")
         );
-        // ore hook generates veins
-        lf_worldgen::register_ore_hook(lf_worldgen::OreHook {
-            block_id,
-            y_min: 8,
-            y_max: 50,
-            threshold: 0.62,
-            noise_offset: 750.0,
-        });
+        // ore hook auto-registered by apply_mod (README contract)
+        assert!(
+            lf_worldgen::registered_ore_hooks().iter().any(|h| h.block_id == block_id),
+            "*_ore block auto-registers a worldgen vein"
+        );
         let gen = lf_worldgen::WorldGen::new(lf_worldgen::Seed(12345));
         let col = gen.generate_chunk(0, 0);
         let mut found = 0;

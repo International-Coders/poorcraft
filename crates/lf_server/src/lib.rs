@@ -157,8 +157,9 @@ fn handle_message(
             }
         }
         ClientMessage::SetBlock { x, y, z, block } => {
-            // validate roughly: within height, known block id
-            if (0..256).contains(&y) && block <= 18 {
+            // validate: within height, and a real block (vanilla or a mod
+            // block registered from a loaded mods/ dir)
+            if (0..256).contains(&y) && lf_voxel::registry::is_known_block(block) {
                 let (cx, _lx) = (x.div_euclid(16), x.rem_euclid(16));
                 let (cz, _lz) = (z.div_euclid(16), z.rem_euclid(16));
                 if world.chunk(cx, cz).is_none() {
@@ -217,6 +218,27 @@ mod tests {
         out
     }
 
+    /// Poll a non-blocking socket until `pred` matches a decoded message or
+    /// `ms` elapses. The server generates terrain on first touch, so fixed
+    /// sleeps are not enough under parallel test load.
+    fn drain_until(socket: &UdpSocket, ms: u64, pred: impl Fn(&ServerMessage) -> bool) -> Option<ServerMessage> {
+        let deadline = std::time::Instant::now() + Duration::from_millis(ms);
+        let mut buf = [0u8; 2048];
+        while std::time::Instant::now() < deadline {
+            match socket.recv(&mut buf) {
+                Ok(len) => {
+                    if let Some(msg) = ProtocolCodec::decode_server(&buf[..len]) {
+                        if pred(&msg) {
+                            return Some(msg);
+                        }
+                    }
+                }
+                Err(_) => thread::sleep(Duration::from_millis(5)),
+            }
+        }
+        None
+    }
+
     /// Full local integration: two clients join, exchange chat, one edits a
     /// block, the other receives the update, positions snapshot.
     #[test]
@@ -252,9 +274,8 @@ mod tests {
             "bob receives chat");
 
         c2.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 5, y: 70, z: -3, block: 1 })).unwrap();
-        pump(200);
-        let c1_msgs = drain(&c1);
-        assert!(c1_msgs.iter().any(|m| matches!(m, ServerMessage::BlockUpdate { x: 5, y: 70, z: -3, block: 1 })),
+        assert!(drain_until(&c1, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 5, y: 70, z: -3, block: 1 })).is_some(),
             "alice receives block update");
 
         c1.send(&ProtocolCodec::encode_client(&ClientMessage::Position { pos: [10.0, 80.0, 10.0], yaw: 0.0, pitch: 0.0 })).unwrap();
@@ -263,6 +284,49 @@ mod tests {
         assert!(c2_msgs.iter().any(|m| matches!(m, ServerMessage::PlayerStates { states }
             if states.iter().any(|(_, pos, _)| pos == &[10.0, 80.0, 10.0]))),
             "bob sees alice position");
+
+        server.stop();
+    }
+
+    /// Mod blocks (ids >= 100 from a loaded mods/ dir) must be accepted and
+    /// relayed; unknown ids must be silently dropped (P25 regression test for
+    /// the old `block <= 18` cap that rejected all mod blocks).
+    #[test]
+    fn set_block_validates_against_registry() {
+        use lf_voxel::registry::{is_known_block, register_mod_block, ModBlockDef};
+
+        let probe_id = 9101;
+        assert!(register_mod_block(probe_id, ModBlockDef {
+            name: "server_test:udp_probe".into(),
+            solid: true,
+            opaque: true,
+            drop: None,
+        }));
+        assert!(is_known_block(probe_id), "precondition: probe registered");
+        let unknown_id = lf_voxel::registry::MAX_VANILLA_BLOCK + 1;
+        assert!(!is_known_block(unknown_id), "precondition: unknown id");
+
+        let mut server = Server::start("127.0.0.1:0", 777).expect("start server");
+        let addr = server.local_addr();
+        let c = UdpSocket::bind("127.0.0.1:0").unwrap();
+        c.set_nonblocking(true).unwrap();
+        c.connect(addr).unwrap();
+        c.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+            name: "solo".into(), protocol_version: PROTOCOL_VERSION,
+        })).unwrap();
+        pump(150);
+        let _ = drain(&c);
+
+        c.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 2, y: 70, z: 2, block: probe_id })).unwrap();
+        assert!(drain_until(&c, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { block, .. } if *block == probe_id)).is_some(),
+            "mod block edit is accepted and echoed");
+
+        c.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 3, y: 70, z: 3, block: unknown_id })).unwrap();
+        pump(600);
+        let msgs = drain(&c);
+        assert!(!msgs.iter().any(|m| matches!(m, ServerMessage::BlockUpdate { x: 3, y: 70, z: 3, .. })),
+            "unknown block id is rejected");
 
         server.stop();
     }

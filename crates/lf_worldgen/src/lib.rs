@@ -27,6 +27,26 @@ pub struct BlockPos {
 /// Water surface height used by terrain generation.
 pub const SEA_LEVEL: i32 = 62;
 
+/// Version of the terrain/climate generator. Bump whenever generation
+/// changes in a way that can alter chunks for an existing seed. Saves stamp
+/// it into `genver.dat`; a mismatch means unedited chunks that get
+/// regenerated after a revisit may differ from their first visit (edited
+/// chunks are persisted and never regenerated). Pre-P25 worlds have no
+/// stamp and read as `None`.
+pub const GENERATOR_VERSION: u32 = 1;
+
+/// Stamp `genver.dat` in a world directory with the generator version.
+pub fn save_generator_version(dir: &std::path::Path, version: u32) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    std::fs::write(dir.join("genver.dat"), version.to_string())
+}
+
+/// The generator version a world directory was last played with.
+pub fn load_generator_version(dir: &std::path::Path) -> Option<u32> {
+    std::fs::read_to_string(dir.join("genver.dat")).ok()?
+        .trim().parse().ok()
+}
+
 /// A block type from the global registry (indices only).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BlockId(pub u32);

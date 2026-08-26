@@ -493,10 +493,43 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         extra_textures: warm_textures.as_deref().unwrap_or(&[]),
     });
     if spec.raytraced {
-        return render_raytraced(&spec, seed, &eye, out_path);
+        render_raytraced(&spec, seed, &eye, out_path)?;
+        return verify_render(out_path);
     }
     let textures = lf_assets::generate_atlas();
-    lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, overlay.as_ref())
+    lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, overlay.as_ref())?;
+    verify_render(out_path)
+}
+
+/// Post-render proof check: reopen the written PNG and assert it contains a
+/// real image — sane dimensions, several distinct colors, and actual luma
+/// variance. Guards against silently black / single-color "it rendered"
+/// outputs (AGENTS.md: pixel-analyze the PNGs, never trust that it rendered).
+fn verify_render(out_path: &Path) -> Result<(), String> {
+    let img = image::open(out_path).map_err(|e| format!("reopen {}: {e}", out_path.display()))?;
+    let rgba = img.to_rgba8();
+    let (w, h) = (rgba.width(), rgba.height());
+    if w < 100 || h < 100 {
+        return Err(format!("suspect render {}: only {}x{}", out_path.display(), w, h));
+    }
+    let mut colors = std::collections::HashSet::new();
+    let (mut luma_min, mut luma_max) = (u8::MAX, 0u8);
+    for p in rgba.pixels() {
+        colors.insert(p.0);
+        let luma = ((p.0[0] as u32 * 3 + p.0[1] as u32 * 4 + p.0[2] as u32) / 8) as u8;
+        luma_min = luma_min.min(luma);
+        luma_max = luma_max.max(luma);
+        if colors.len() >= 64 && luma_max - luma_min > 32 {
+            break; // enough evidence of a real image; skip the full scan
+        }
+    }
+    if colors.len() < 16 {
+        return Err(format!("suspect render {}: only {} distinct colors", out_path.display(), colors.len()));
+    }
+    if luma_max.saturating_sub(luma_min) < 16 {
+        return Err(format!("suspect render {}: near-uniform luma {}..{}", out_path.display(), luma_min, luma_max));
+    }
+    Ok(())
 }
 
 /// Title-menu proof overlay mirroring the animated client screen.
@@ -1141,23 +1174,28 @@ fn render_raytraced(spec: &SceneSpec, seed: u64, eye: &Vec3, out_path: &Path) ->
             let top = world.surface_height(cx0 + dx, cz0 + dz);
             world.set_block(cx0 + dx, top, cz0 + dz, lf_voxel::BlockState(block::TORCH));
         }
-        // lantern floor two blocks below the camera: mathematically in the
-        // steep-down view regardless of terrain shape
+        // lantern patch just below the camera: big enough for the emissive
+        // glow to dominate the steep-down view, small enough that terrain
+        // and sky still frame it (a full-frame floor is one flat color —
+        // caught by the P25 pixel gate)
         let ly = (ground + 2.0) as i32 - 2;
-        for dz in -10..=2i32 {
-            for dx in -6..=6i32 {
+        for dz in -4..=0i32 {
+            for dx in -2..=2i32 {
                 for dy in 0..1i32 {
                     world.set_block(cx0 + dx, ly + dy, cz0 + dz, lf_voxel::BlockState(block::LANTERN));
                 }
             }
         }
     }
-    // Day: ride high for the vista. Night torch scenes: sit at ground level
-    // beside the torch ring so the glow fills the frame.
-    let lift = if spec.time_of_day > 0.2 && spec.time_of_day < 0.8 { 60.0 } else { 0.0 };
+    // Day: high enough for a vista, but the tracer's voxel clip only extends
+    // ±32 blocks around the camera — any higher and the terrain falls out of
+    // the clip and every ray returns flat fog (the pre-P25 broken proof).
+    // Night torch scenes: sit at ground level beside the torch ring so the
+    // glow fills the frame.
+    let lift = if spec.time_of_day > 0.2 && spec.time_of_day < 0.8 { 6.0 } else { 0.0 };
     let ground = ground_level;
     let rt_eye = if lift > 0.0 {
-        Vec3::new(eye.x, eye.y + lift, eye.z)
+        Vec3::new(eye.x, ground + 22.0 + lift, eye.z)
     } else {
         Vec3::new(eye.x, ground + 2.0, eye.z)
     };
@@ -1280,5 +1318,27 @@ mod tests {
     #[test]
     fn unknown_scene_errors() {
         assert!(run_scene("nope", None, Path::new("/tmp/x.png")).is_err());
+    }
+
+    #[test]
+    fn verify_render_rejects_blank_and_accepts_varied() {
+        let solid = image::RgbaImage::from_pixel(200, 200, image::Rgba([10, 10, 10, 255]));
+        let solid_path = format!("/tmp/lf_vistest_blank_{}.png", std::process::id());
+        solid.save(&solid_path).unwrap();
+        assert!(verify_render(Path::new(&solid_path)).is_err(), "uniform image must fail");
+
+        let mut varied = image::RgbaImage::new(200, 200);
+        for y in 0..200u32 {
+            for x in 0..200u32 {
+                varied.put_pixel(x, y, image::Rgba([
+                    (x * 7 % 256) as u8, (y * 5 % 256) as u8, ((x + y) * 3 % 256) as u8, 255,
+                ]));
+            }
+        }
+        let varied_path = format!("/tmp/lf_vistest_varied_{}.png", std::process::id());
+        varied.save(&varied_path).unwrap();
+        assert!(verify_render(Path::new(&varied_path)).is_ok(), "gradient image must pass");
+        let _ = std::fs::remove_file(&solid_path);
+        let _ = std::fs::remove_file(&varied_path);
     }
 }

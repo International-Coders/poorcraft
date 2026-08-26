@@ -37,5 +37,7 @@ steamcmd +login <account> +run_app_build /path/to/app_build.vdf +quit
 ## Before the store page
 - Replace 480 with your assigned AppID in the Steamworks dashboard (delete
   steam_appid.txt from depots).
-- The workspace builds green with the feature on and off; CI artifacts
-  cover both.
+- The `steam` feature compiles (verify locally with
+  `cargo check -p lf_steam --features steam` — P25 wired the steamworks
+  dependency in). CI builds and ships **default-feature** binaries only;
+  run that check before shipping a Steam build.

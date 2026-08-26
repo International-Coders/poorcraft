@@ -21,52 +21,43 @@ members = [
 ]
 exclude = ["mods"]
 
-# Pin versions in Cargo.lock; this is the locked stack per spec.
-
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.82"
 
+# Central version reference. Crates currently declare their own versions
+# (no `workspace = true` inheritance yet); this table mirrors the deps that
+# are actually used so it cannot drift into fiction again. Every entry is
+# referenced by at least one crate manifest — prune aggressively when that
+# changes. (P25: the old table listed ~14 deps nothing used: bevy_ecs,
+# quinn, mlua, wasmtime, kira, reqwest, puffin, tokio, proptest, insta,
+# rayon, postcard, ron.)
 [workspace.dependencies]
-# Windowing & graphics
-winit = "0.29"
+# Windowing & graphics (version-locked trio: wgpu 24 / winit 0.30 / egui 0.31)
+winit = "0.30"
 wgpu = "24.0"
-# Math
+egui = "0.31"
+egui-winit = "0.31"
+egui-wgpu = "0.31"
+epaint = "0.31"
+# Math & voxel data
 glam = "0.30"
-# ECS
-bevy_ecs = { version = "0.14", default-features = false }
-# Work stealing
-rayon = "1.10"
-# Noise (deterministic Rust port)
-fastnoise-lite = "0.8"
-# Serialization
+bytemuck = { version = "1.16", features = ["derive"] }
+fastnoise-lite = "1.1"
+# Serialization (bincode is the wire/disk format everywhere)
 serde = { version = "1.0", features = ["derive"] }
-postcard = "0.11"
-ron = "0.8"
+serde_json = "1.0"
+bincode = "1"
 toml = { version = "0.8", default-features = false, features = ["parse", "display"] }
-# Compression
 zstd = "0.13"
-# Async runtime
-tokio = { version = "1.40", features = ["rt", "rt-multi-thread", "macros", "net", "sync", "time", "io-util", "fs"] }
-# Networking (QUIC)
-quinn = "0.11"
-# Mod scripting (Luau sandboxed)
-mlua = { version = "0.10", features = ["luau", "send", "async", "serialize"] }
-# WASM (phase 2)
-wasmtime = "22"
-# UI
-egui = "0.29"
-# Audio
-kira = "0.9"
-# LLM NPC
-reqwest = { version = "0.12", features = ["json", "stream"] }
-# Logging
-tracing = { version = "0.1", features = ["std"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
-# Profiling
-puffin = "0.20"
-# Testing
-insta = { version = "1.41", features = ["yaml"] }
-proptest = "1.5"
+# Images & GPU plumbing
 image = { version = "0.25", default-features = false, features = ["png"] }
+pollster = "0.3"
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+# Steam (version reference; lf_steam marks it optional in its own manifest)
+steamworks = "0.12"
+# Tests
+tempfile = "3"

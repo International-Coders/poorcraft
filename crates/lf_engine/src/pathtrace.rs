@@ -229,7 +229,7 @@ impl Pathtracer {
         day_factor: f32,
     ) -> Result<RgbaImage, String> {
         let look = (camera.target - camera.eye).normalize();
-        let fov_tan = camera.fovy.to_radians().tan();
+        let fov_tan = camera.fovy.tan();
         let right = look.cross(glam::Vec3::Y).normalize() * fov_tan;
         let up = right.cross(look).normalize() * fov_tan;
         let voxel_view = self.voxel_texture.create_view(&wgpu::TextureViewDescriptor {
@@ -387,8 +387,8 @@ pub fn pathtrace_to_image(
 
         // uniforms + palette
         let look = (camera.target - camera.eye).normalize();
-        let right = look.cross(glam::Vec3::Y).normalize() * camera.fovy.to_radians().tan();
-        let up = right.cross(look).normalize() * camera.fovy.to_radians().tan();
+        let right = look.cross(glam::Vec3::Y).normalize() * camera.fovy.tan();
+        let up = right.cross(look).normalize() * camera.fovy.tan();
         let palette_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("PT Palette"),
             contents: bytemuck::cast_slice(&palette()),
@@ -447,7 +447,7 @@ pub fn pathtrace_to_image(
         for _ in 0..samples.max(1) {
             let mut u = Vec::with_capacity(80);
             u.extend_from_slice(bytemuck::cast_slice(&[[camera.eye.x, camera.eye.y, camera.eye.z, camera.aspect]]));
-            u.extend_from_slice(bytemuck::cast_slice(&[[look.x, look.y, look.z, camera.fovy.to_radians().tan()]]));
+            u.extend_from_slice(bytemuck::cast_slice(&[[look.x, look.y, look.z, camera.fovy.tan()]]));
             // up_right packs right.xy and up.y per the wgsl usage
             u.extend_from_slice(bytemuck::cast_slice(&[[right.x, right.y, up.y, frame_idx as f32]]));
             u.extend_from_slice(bytemuck::cast_slice(&[[up.x, up.y, up.z, 0.0]]));

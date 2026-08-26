@@ -36,7 +36,14 @@ fn dda(origin: vec3<f32>, dir: vec3<f32>, max_dist: f32) -> vec2<f32> {
     var pos = origin;
     let istep = sign(dir);
     let delta = 1.0 / max(abs(dir), vec3<f32>(1e-5));
-    var t_max = (floor(pos) + max(istep, vec3<f32>(0.0)) - pos) / max(abs(dir), vec3<f32>(1e-5));
+    // Distance (in t units) to the next boundary along each axis, always >= 0:
+    // for positive steps it is (floor+1)-pos, for negative steps pos-floor.
+    // The old form divided a signed numerator by abs(dir), which went
+    // negative for negative components and made the ray march one axis
+    // off into the void (every RT proof rendered one flat color).
+    let frac_pos = pos - floor(pos);
+    let to_next = select(frac_pos, vec3<f32>(1.0) - frac_pos, istep > vec3<f32>(0.0));
+    var t_max = to_next / max(abs(dir), vec3<f32>(1e-5));
     var dist = 0.0;
     var id = 0u;
     while (dist < max_dist) {

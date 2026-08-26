@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-lf_protocol = { path = "../lf_protocol" }
+# Steamworks binding, only pulled in by the `steam` feature: the SDK links
+# dynamically and requires the Steam client at runtime; everything else
+# builds and runs without it (UDP transport).
+steamworks = { version = "0.12", optional = true }
 
 [features]
 default = []
 # Full Steamworks integration. Off by default: steamworks-rs links the SDK
 # dynamically at runtime, and CI/dev machines without the Steam client fall
-# back to the UDP transport. Enable with --features steam.
-steam = []
+# back to the UDP transport. Enable with --features lf_steam/steam.
+steam = ["dep:steamworks"]

@@ -61,6 +61,34 @@ pub fn read_meta(dir: &Path) -> Option<SlotMeta> {
     bincode::deserialize(&bytes).ok()
 }
 
+/// Stamp `genver.dat` with the current generator version, warning loudly
+/// when the world was last played under a different one (unedited chunks
+/// regenerate from the seed, so terrain may drift at revisit borders).
+/// Returns the previous version when it differed. Pre-P25 worlds have no
+/// stamp and are silently upgraded to the current version.
+pub fn sync_generator_version(dir: &Path) -> Option<u32> {
+    let current = lf_worldgen::GENERATOR_VERSION;
+    let previous = lf_worldgen::load_generator_version(dir);
+    match previous {
+        Some(v) if v != current => {
+            tracing::warn!(
+                "world '{}' was generated with gen v{}, this build is gen v{}: \
+                 revisited unedited chunks may differ from their first visit \
+                 (edited chunks are safe on disk)",
+                dir.display(), v, current
+            );
+            let _ = lf_worldgen::save_generator_version(dir, current);
+            Some(v)
+        }
+        _ => {
+            if previous.is_none() {
+                let _ = lf_worldgen::save_generator_version(dir, current);
+            }
+            None
+        }
+    }
+}
+
 /// All slots, most recently played first.
 pub fn list_slots() -> Vec<SlotMeta> {
     list_slots_in(Path::new(WORLDS_ROOT))
@@ -132,6 +160,7 @@ pub fn boot_slot_in(root: &Path) -> SlotMeta {
     let dir = slot_dir_in(root, &meta.name);
     let _ = std::fs::create_dir_all(&dir);
     let _ = lf_voxel::world::WorldStorage::open(&dir).save_seed(meta.seed);
+    let _ = lf_worldgen::save_generator_version(&dir, lf_worldgen::GENERATOR_VERSION);
     write_meta(&dir, &meta);
     meta
 }
@@ -228,5 +257,31 @@ mod tests {
         assert!(storage.load_seed().is_none(), "no seed yet");
         storage.save_seed(777).unwrap();
         assert_eq!(storage.load_seed(), Some(777));
+    }
+
+    #[test]
+    fn boot_slot_stamps_generator_version() {
+        let root = tempfile::tempdir().unwrap();
+        let boot = boot_slot_in(root.path());
+        let dir = slot_dir_in(root.path(), &boot.name);
+        assert_eq!(
+            lf_worldgen::load_generator_version(&dir),
+            Some(lf_worldgen::GENERATOR_VERSION),
+            "fresh slots carry the current generator version"
+        );
+    }
+
+    #[test]
+    fn generator_version_sync_detects_mismatch_and_upgrades() {
+        let dir = tempfile::tempdir().unwrap();
+        // pre-P25 world: no stamp at all -> silently upgraded
+        assert_eq!(sync_generator_version(dir.path()), None);
+        assert_eq!(lf_worldgen::load_generator_version(dir.path()), Some(lf_worldgen::GENERATOR_VERSION));
+        // matching stamp -> no report
+        assert_eq!(sync_generator_version(dir.path()), None);
+        // stale stamp -> reported, then updated to current
+        lf_worldgen::save_generator_version(dir.path(), lf_worldgen::GENERATOR_VERSION.wrapping_add(1)).unwrap();
+        assert_eq!(sync_generator_version(dir.path()), Some(lf_worldgen::GENERATOR_VERSION.wrapping_add(1)));
+        assert_eq!(lf_worldgen::load_generator_version(dir.path()), Some(lf_worldgen::GENERATOR_VERSION));
     }
 }

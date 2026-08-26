@@ -203,3 +203,67 @@
 
 ### Push attempt
 - `git push github HEAD` still blocked (PAT lacks workflow scope).
+
+## Session 305: P25 — correctness & honesty sweep (incl. flat-color pathtracer fix)
+
+### What
+Post-Phase-0-discovery correctness sweep (plan approved by the product
+owner, together with the standing decisions: Deck-60fps floor, all four
+platforms launch-blocking, hybrid-selective art direction):
+1. Server SetBlock registry validation + dedicated-server mods/ loading.
+2. lf_steam `steam` feature made compilable via optional steamworks 0.12.
+3. Generator version stamped into saves (`genver.dat`) with mismatch warning.
+4. Lantern atlas layer (42 layers now; was silently stone).
+5. Root Cargo.toml dependency table made truthful.
+6. mods/README `_ore` auto-registration implemented for real; BACKLOG stale
+   entries fixed; STEAM.md CI claim fixed; tests/golden stub deleted.
+7. vistest pixel-analysis gate (`lf_vistest::verify_render`).
+
+### How (files touched)
+- crates/lf_voxel/src/registry.rs — MAX_VANILLA_BLOCK + is_known_block + tests
+- crates/lf_server/src/lib.rs — validation swap; drain_until helper; new test
+  set_block_validates_against_registry
+- apps/loreforge-server/{Cargo.toml,src/main.rs} — mods loading, genver check
+- crates/lf_steam/{Cargo.toml,src/lib.rs} — steamworks optional dep, honest test
+- crates/lf_worldgen/src/lib.rs — GENERATOR_VERSION + save/load helpers
+- crates/lf_client/src/slots.rs — sync_generator_version + stamp on create
+- crates/lf_client/src/lib.rs — sync calls at boot/new-world/load-world
+- crates/lf_assets/src/lib.rs — "lantern" layer, id 13 mapping, mod layer -> 41
+- crates/lf_modapi/src/lib.rs — auto OreHook for *_ore blocks
+- crates/lf_vistest/src/lib.rs — verify_render gate + test; RT scene geometry
+  (camera within the +-32 voxel clip, smaller lantern patch)
+- crates/lf_engine/src/pathtrace.wgsl — DDA t_max init fixed (select-based,
+  always non-negative distances)
+- crates/lf_engine/src/pathtrace.rs — fovy.tan() instead of a second
+  to_radians() (4 sites: one-shot + persistent/live tracer)
+- Cargo.toml (root) — truthful [workspace.dependencies]; STATE/BACKLOG/
+  CHANGELOG/docs updates; tests/golden removed
+
+### The pathtracer detective story (why it matters)
+The new pixel gate failed BOTH raytraced scenes with "1 distinct color".
+Empirical bisection with in-shader debug probes (echo UV -> varied, echo
+ray dir -> constant, echo cam.right -> ~1% magnitude) isolated two
+independent bugs, both present since P18:
+- WGSL DDA: t_max = (floor(pos)+max(istep,0)-pos)/abs(dir) goes NEGATIVE
+  for negative ray components; that axis always compared smallest, so rays
+  marched a single axis out of the clip (day scene -> constant fog sky;
+  night scene -> straight down into the lantern floor -> constant emissive).
+- Rust: camera basis scaled by fovy.to_radians().tan() but Camera stores
+  fovy in radians already -> basis at ~1.4% -> all rays ~parallel.
+Consequence: every "raytraced" proof PNG and the in-game Live RT mode
+(R key, RT settings) had been rendering one flat color, undetected because
+nothing ever analyzed the pixels. Fixed both; proofs re-verified visually
+(terrain + soft shadows + emissive night glow) and by color census
+(1697 / 294 distinct colors).
+
+### Evidence
+- cargo build --workspace: clean
+- cargo test --workspace: 154 passed / 0 failed (149 + 5 new: registry
+  validation, server UDP accept/reject, 2 genver slot tests, verify_render)
+- cargo test -p lf_steam --features steam: 2 passed (feature compiles)
+- vistest: 20/20 [ok] through the pixel gate, twice in a row
+- smoke: release binary alive after 12 s, loads 2 mods
+- dedicated server boot: "loaded 2 mod(s)", binds, genver stamped
+
+### Push attempt
+- `git push github HEAD` still blocked (PAT lacks workflow scope).

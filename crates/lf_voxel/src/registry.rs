@@ -16,6 +16,18 @@ pub struct ModBlockDef {
 /// Mod blocks start here, far above the vanilla range.
 pub const MOD_BLOCK_BASE: u32 = 100;
 
+/// Highest contiguous vanilla block id (machine/ore ids included).
+pub const MAX_VANILLA_BLOCK: u32 = 41;
+
+/// True when `id` is a placeable block: air, a vanilla id, or a block
+/// registered by a loaded mod. The server uses this to validate SetBlock.
+pub fn is_known_block(id: u32) -> bool {
+    if id >= MOD_BLOCK_BASE {
+        return mod_block(id).is_some();
+    }
+    id <= MAX_VANILLA_BLOCK
+}
+
 fn mod_blocks() -> &'static RwLock<HashMap<u32, ModBlockDef>> {
     static BLOCKS: OnceLock<RwLock<HashMap<u32, ModBlockDef>>> = OnceLock::new();
     BLOCKS.get_or_init(|| RwLock::new(HashMap::new()))
@@ -220,8 +232,23 @@ mod tests {
 
     #[test]
     fn all_blocks_named() {
-        for id in 0..=18u32 {
+        for id in 0..=MAX_VANILLA_BLOCK {
             assert_ne!(block::name(id), "Unknown", "id {} unnamed", id);
         }
+        assert_eq!(block::name(MAX_VANILLA_BLOCK + 1), "Unknown");
+    }
+
+    #[test]
+    fn known_block_validation() {
+        assert!(is_known_block(block::AIR));
+        assert!(is_known_block(block::STONE));
+        assert!(is_known_block(MAX_VANILLA_BLOCK));
+        assert!(!is_known_block(MAX_VANILLA_BLOCK + 1));
+        assert!(!is_known_block(MOD_BLOCK_BASE - 1), "vanilla/mod gap is unknown");
+        assert!(!is_known_block(MOD_BLOCK_BASE + 500_000), "unregistered mod id");
+        assert!(register_mod_block(9100, ModBlockDef {
+            name: "server_test:probe".into(), solid: true, opaque: true, drop: None,
+        }));
+        assert!(is_known_block(9100), "registered mod id");
     }
 }

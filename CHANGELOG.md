@@ -1,5 +1,46 @@
 # CHANGELOG
 
+## 2026-08-26 — P25: correctness & honesty sweep + the pathtracer was flat-color broken (loop 305)
+- Server SetBlock validates against the real registry now
+  (`lf_voxel::registry::is_known_block`): vanilla ids <= 41 plus registered
+  mod blocks (>= 100). The old `block <= 18` cap silently dropped every mod
+  block edit in multiplayer. The dedicated server loads `mods/` at boot so
+  the ids exist server-side; new UDP integration test covers accept/reject.
+- `lf_steam/steam` compiles for real: steamworks 0.12 as an optional dep
+  (`steam = ["dep:steamworks"]`), verified with
+  `cargo check -p lf_steam --features steam`. STEAM.md corrected — CI
+  builds default-feature binaries only. The feature-off default is untouched.
+- Generator versioning: `lf_worldgen::GENERATOR_VERSION` + `genver.dat` per
+  world (client slots and the dedicated server). A mismatch warns loudly:
+  unedited chunks regenerate from the seed on revisit, edited chunks are
+  always safe on disk. Pre-P25 worlds upgrade silently on first load.
+- Lantern (block 13) got its own procedural atlas layer (41 -> 42 layers);
+  it previously fell through to the stone texture.
+- Root `[workspace.dependencies]` now lists only the deps actually used
+  (21, correct versions incl. winit 0.30 / egui 0.31 / fastnoise-lite 1.1);
+  the old table declared 14 deps nothing referenced.
+- `lf_modapi::apply_mod` auto-registers `*_ore` blocks as worldgen veins
+  (y 8..50, id-derived noise offset clear of vanilla) — mods/README now
+  tells the truth. Stale BACKLOG entries corrected (P6 mobs/combat and the
+  P3 sky line were marked undone but shipped and tested); tests/golden stub
+  removed.
+- **vistest PNGs are pixel-analyzed after rendering** (`verify_render`:
+  >= 16 distinct colors, real luma variance, sane size) — enforced in code,
+  not narrative. First run caught two real, long-standing pathtracer bugs:
+  every raytraced scene since P18 (and Live RT / R-key captures in-game)
+  rendered ONE flat color. (1) The WGSL DDA initialized `t_max` with a
+  signed numerator divided by abs(dir) — negative for negative ray
+  components — so that axis always won and rays marched off into the void
+  (or straight down into the emissive floor). (2) The CPU camera basis was
+  scaled by `camera.fovy.to_radians().tan()` — but `fovy` is already
+  radians, so the basis came out at ~1.4% and every ray was parallel.
+  Both fixed; raytraced_shadows shows real terrain with fog gradient
+  (1697 colors), raytraced_night shows emissive glow over dark ground
+  (294 colors).
+- Server UDP tests use a deadline-based `drain_until` instead of fixed
+  sleeps (chunk generation on first SetBlock made 200 ms pumps flaky under
+  parallel test load).
+
 ## 2026-08-26 — P24: THE input fix — every key/mouse handler was unreachable (loop 304)
 - Root cause (found with a synthetic-input harness driving the real binary
   with macOS keystrokes): a stray `_ => {}` wildcard arm sat in the middle

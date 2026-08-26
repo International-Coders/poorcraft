@@ -18,6 +18,28 @@ fn main() {
             z ^ (z >> 31)
         });
     let _ = storage.save_seed(seed);
+    // Generator version stamp: warn if this world last ran under a different
+    // terrain generator (revisited unedited chunks may differ).
+    if let Some(old) = lf_worldgen::load_generator_version(world_dir) {
+        let current = lf_worldgen::GENERATOR_VERSION;
+        if old != current {
+            eprintln!("WARNING: world was generated with gen v{}, this build is gen v{}; \
+                       revisited unedited chunks may differ from their first visit",
+                      old, current);
+            let _ = lf_worldgen::save_generator_version(world_dir, current);
+        }
+    } else {
+        let _ = lf_worldgen::save_generator_version(world_dir, lf_worldgen::GENERATOR_VERSION);
+    }
+    // Load mods/ the same way the client does so mod block ids (>= 100) are
+    // registered and pass SetBlock validation (P25).
+    let mods = lf_modapi::load_mods_dir(std::path::Path::new("mods"));
+    if mods.is_empty() {
+        println!("no mods loaded (mods/ dir missing or empty)");
+    } else {
+        let names: Vec<&str> = mods.iter().map(|m| m.manifest.id.as_str()).collect();
+        println!("loaded {} mod(s): {}", names.len(), names.join(", "));
+    }
     let mut server = match lf_server::Server::start(&bind, seed) {
         Ok(s) => s,
         Err(e) => {

@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 41] = [
+pub const TEXTURE_NAMES: [&str; 42] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -11,9 +11,10 @@ pub const TEXTURE_NAMES: [&str; 41] = [
     "red_sand", "terracotta", "moss", "ice",
     // industrial ores (31-34)
     "copper_ore", "tin_ore", "bauxite_ore", "sulfur_ore",
-    // machines + benches (35-40)
+    // machines + benches (34-39)
     "smithing_table", "coal_generator", "electric_furnace", "crusher", "assembler",
     "research_bench",
+    "lantern",
     "mod",
 ];
 
@@ -32,6 +33,7 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         10 => 9, // iron ore
         11 => 10, // water
         12 => 11, // torch
+        13 => 40, // lantern
         14 => 12, // crafting table
         15 => 13, // furnace
         16 => 14, // chest
@@ -60,7 +62,7 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         39 => 37, // crusher
         40 => 38, // assembler
         41 => 39, // research bench
-        id if id >= 100 => 40, // mod blocks (registry::MOD_BLOCK_BASE)
+        id if id >= 100 => 41, // mod blocks (registry::MOD_BLOCK_BASE)
         _ => 0,
     }
 }
@@ -146,6 +148,21 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([120, 90, 50, 255])
                     } else {
                         Rgba([0, 0, 0, 0])
+                    }
+                }
+                "lantern" => {
+                    // iron-framed lantern with a glowing core; the emissive
+                    // look matches its light level 15 (lf_voxel light emitters)
+                    let border = x <= 1 || x >= 14 || y <= 2 || y >= 13;
+                    let bar = y == 6 || y == 7 || x == 5 || x == 10;
+                    if border {
+                        let v = 60 + ((x * 3 + y * 7) % 15);
+                        Rgba([ch(v), ch(v), ch(v + 12), 255]) // dark iron frame
+                    } else if bar {
+                        Rgba([85, 85, 95, 255]) // iron cross-bars
+                    } else {
+                        let glow = 190 + ((x * 5 + y * 3) % 50);
+                        Rgba([255, ch(glow), ch(glow / 2), 255]) // warm bright core
                     }
                 }
                 "crafting_table" => {
@@ -986,6 +1003,7 @@ mod tests {
         assert_eq!(name(32), "copper_ore");
         assert_eq!(name(37), "coal_generator");
         assert_eq!(name(41), "research_bench");
+        assert_eq!(name(13), "lantern");
         assert_eq!(name(100), "mod");
     }
 

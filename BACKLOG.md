@@ -46,8 +46,8 @@ below by phase.
 - [x] torches/lanterns emit real light (14/15) and are placeable
 - [x] day/night cycle drives sky color, clear color, sky-light factor + distance fog
 - [x] water transparency (alpha-blended pass, back-to-front column sort; underwater tint in P7)
-- [ ] smooth per-vertex lighting/AO (deferred to P11 polish; flat per-face now)
-- [ ] sun/moon/stars/clouds (deferred to P7 sky pass)
+- [ ] smooth per-vertex lighting/AO (deferred to visual-identity polish; flat per-face now)
+- [x] sun/moon/stars/clouds + weather-driven sky/fog (client atmosphere pass)
 
 ## P4 — Survival & inventory UI
 - [x] egui HUD (crosshair, hearts, hunger, air bubbles, 9-slot hotbar, mining progress, clock)
@@ -69,11 +69,12 @@ below by phase.
 - [ ] smithing table integration (with P6 combat loot)
 
 ## P6 — Mobs & combat
-- [ ] mob framework + spawning rules (day/night, light level)
-- [ ] AI: wander/chase/flee + grid A* pathfinding
-- [ ] combat: cooldown, knockback, armor mitigation, bow/arrows
-- [ ] XP orbs + levels; Null Knight boss fight
-- [ ] villagers wander by schedule + trading UI
+- [x] mob framework + AI (wander/chase/flee, 1-block hops) + spawning rules
+      (day/night table, cap 12; the light-level gating is still open)
+- [ ] grid A* pathfinding (mobs hop and beeline today)
+- [x] combat: cooldown, knockback, armor mitigation, bow/arrows
+- [x] XP levels; Null Knight boss data (arena/phases still open)
+- [x] villagers wander by schedule + trading UI
 
 ## P7 — Structures, weather, sound, menus
 - [x] structures: meadow huts (torch/crafting table/furnace), highlands watchtowers, desert pyramids — deterministic (+1 test)
@@ -113,6 +114,28 @@ below by phase.
 - [x] CI release matrix (ubuntu/macOS/windows) uploading artifacts
 - [x] honest RELEASE.md with run instructions, controls, features, gaps
 - [ ] puffin profiling pass, greedy meshing (deferred; frame times fine at view 5)
+
+## P25 — Correctness & honesty sweep
+- [x] server SetBlock validates against the real registry (mod blocks >= 100
+      accepted; the old `block <= 18` cap silently dropped every mod edit);
+      dedicated server loads mods/ at boot like the client
+- [x] `lf_steam/steam` feature actually compiles (steamworks 0.12 optional dep);
+      STEAM.md corrected (CI still builds default-feature binaries only)
+- [x] generator version stamped into saves (`genver.dat` per world; mismatch
+      warns — revisited unedited chunks regenerate, edited chunks are safe)
+- [x] lantern block got a real texture layer (was falling through to stone)
+- [x] root Cargo.toml dependency table pruned to what is actually used (the
+      old table listed 14 deps nothing referenced, with drifted versions)
+- [x] mods/README `_ore` auto-registration claim is now real code in
+      lf_modapi::apply_mod; misleading `tests/golden` stub removed
+- [x] vistest PNGs are pixel-analyzed after rendering (non-uniform, multi-color
+      check in lf_vistest::verify_render) — "it rendered" is enforced by code
+- [x] the pixel gate immediately caught two real pathtracer bugs that had made
+      every raytraced scene (and in-game Live RT) render one flat color since
+      P18: the WGSL DDA initialized t_max with a signed numerator (negative
+      for negative ray components), and the camera basis was scaled by a
+      double `to_radians()` on the already-radians fovy (basis at ~1.4%,
+      all rays parallel). Both fixed; RT proofs show real terrain again.
 
 ## Deferred (P23 notes, honest)
 - [ ] console `new`/`load` adopt connected-server seed in multiplayer
