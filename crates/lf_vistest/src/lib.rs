@@ -264,6 +264,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::new(8.0, 0.0, 8.0),
         },
         SceneSpec {
+            name: "console_preview",
+            desc: "the developer console with autocomplete + history",
+            default_seed: 12345,
+            time_of_day: 0.42,
+            first_person: true,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5),
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "minimap_hud",
             desc: "in-game HUD with minimap, icons hotbar, XP bar",
             default_seed: 12345,
@@ -426,7 +438,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
 
     let ui = spec.name == "hud_preview" || spec.name == "village_trading" || spec.name == "tech_tree"
         || spec.name == "menu_preview" || spec.name == "settings_preview"
-        || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud";
+        || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud"
+        || spec.name == "console_preview";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
@@ -455,6 +468,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "minimap_hud" {
                 draw_minimap_preview(ctx);
+            }
+            if spec.name == "console_preview" {
+                draw_console_preview(ctx);
             }
         };
         // Warmup pass: egui windows need one pass to materialize their areas
@@ -495,8 +511,8 @@ fn draw_menu_preview(ctx: &egui::Context) {
                 ui.label(egui::RichText::new("a voxel saga of forge & industry").size(16.0)
                     .color(egui::Color32::from_rgb(200, 205, 212)));
                 ui.add_space(24.0);
-                let items = [("Play", true), ("Multiplayer (localhost)", false),
-                             ("Settings", false), ("Quit", false)];
+                let items = [("Play — World 1", true), ("New World", false), ("Load Game", false),
+                             ("Multiplayer (localhost)", false), ("Settings", false), ("Quit", false)];
                 for (label, accent) in items {
                     let (rect, response) = ui.allocate_exact_size(egui::vec2(300.0, 50.0), egui::Sense::click());
                     let _ = response;
@@ -852,8 +868,12 @@ fn draw_minimap_preview(ctx: &egui::Context) {
     let gen = WorldGen::new(Seed(12345));
     let image = map_image(&gen, (8.0, 8.0), (172, 172), 1.0);
     let tex = ctx.load_texture("preview_minimap", image, egui::TextureOptions::NEAREST);
-    egui::Area::new(egui::Id::new("minimap"))
+    egui::Window::new("minimap")
         .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 34.0))
+        .title_bar(false)
+        .frame(egui::Frame::none())
+        .collapsible(false)
+        .resizable(false)
         .show(ctx, |ui| {
             let size = 172.0;
             let (rect, _) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
@@ -1166,6 +1186,49 @@ fn render_raytraced(spec: &SceneSpec, seed: u64, eye: &Vec3, out_path: &Path) ->
 pub fn spawn_biome(seed: u64) -> Biome {
     WorldGen::new(Seed(seed)).biome(0, 0)
 }
+
+/// Console proof overlay: history, suggestions, input line.
+fn draw_console_preview(ctx: &egui::Context) {
+    // NB: plain `Area`s don't materialize in the two-pass headless harness
+    // (only windows do), so the proof uses a frameless anchored window.
+    egui::Window::new("LOREFORGE Console")
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .collapsible(false)
+        .resizable(false)
+        .show(ctx, |ui| {
+            egui::Frame::new()
+                .fill(egui::Color32::from_rgba_unmultiplied(12, 14, 20, 242))
+                .stroke(egui::Stroke::new(1.0, ACCENT_DIM_COL))
+                .corner_radius(8.0)
+                .inner_margin(8.0)
+                .show(ui, |ui| {
+                    ui.set_width(520.0);
+                    ui.label(egui::RichText::new("console — Tab complete · ↑↓ history · Esc close")
+                        .small().color(TEXT_DIM));
+                    ui.add_space(4.0);
+                    egui::ScrollArea::vertical().stick_to_bottom(true).max_height(170.0).show(ui, |ui| {
+                        for line in [
+                            "> time set night",
+                            "time set (fraction 0.00)",
+                            "> give iron_pickaxe",
+                            "gave iron_pickaxe x1",
+                            "> tp 120 80 -40",
+                            "teleported to (120.0, 80.0, -40.0)",
+                        ] {
+                            ui.label(egui::RichText::new(line).small().monospace().color(egui::Color32::from_rgb(235, 238, 242)));
+                        }
+                    });
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("time  tp  weather  waypoint")
+                        .small().monospace().color(ACCENT));
+                    let mut input = "w".to_string();
+                    ui.add(egui::TextEdit::singleline(&mut input)
+                        .font(egui::TextStyle::Monospace).desired_width(504.0).hint_text("type a command… (help)"));
+                });
+        });
+}
+
+const ACCENT_DIM_COL: egui::Color32 = egui::Color32::from_rgb(120, 96, 52);
 
 #[cfg(test)]
 mod tests {

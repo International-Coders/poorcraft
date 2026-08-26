@@ -399,7 +399,11 @@ fn build_catalog() -> Vec<CatalogEntry> {
 impl GameState {
     /// Draw every UI surface for this frame.
     pub fn draw_ui(&mut self, ctx: &egui::Context) {
-        ctx.set_zoom_factor(self.settings.ui_scale);
+        // UI scale = user preference × viewport size (720p reference), on
+        // top of the native display density egui-winit provides.
+        let native_pts_h = self.config.height as f32 / self.window.scale_factor() as f32;
+        let viewport_factor = (native_pts_h / 720.0).clamp(0.8, 1.5);
+        ctx.set_zoom_factor(self.settings.ui_scale * viewport_factor);
         self.draw_hud(ctx);
         match self.ui_open {
             UiOpen::None => {}
@@ -418,6 +422,8 @@ impl GameState {
             UiOpen::Machine(pos) => self.draw_machine(ctx, pos),
             UiOpen::TechTree => self.draw_tech_tree(ctx),
             UiOpen::Map => self.draw_map_screen(ctx),
+            UiOpen::Console => self.draw_console(ctx),
+            UiOpen::Slots => self.draw_slots(ctx),
             UiOpen::Death => self.draw_death(ctx),
         }
         // Cursor stack follows the pointer (icon + count).
@@ -590,6 +596,22 @@ impl GameState {
             .show(ctx, |ui| {
                 ui.label(egui::RichText::new(info).small().color(egui::Color32::from_rgba_premultiplied(Theme::TEXT.r(), Theme::TEXT.g(), Theme::TEXT.b(), 200)));
             });
+        // F3 debug readout: exposes every gate that can kill input.
+        if self.show_debug {
+            egui::Area::new(egui::Id::new("debug_readout"))
+                .anchor(egui::Align2::LEFT_TOP, egui::vec2(10.0, 26.0))
+                .show(ctx, |ui| {
+                    let held = self.input.keys.values().filter(|&&p| p).count();
+                    let p = self.player.position;
+                    let dbg = format!(
+                        "ui_open={:?} locked={} playing={} health={:.1} keys_held={} pos=({:.1},{:.1},{:.1}) fps={:.0}",
+                        self.ui_open, self.input.cursor_locked,
+                        matches!(self.ui_open, UiOpen::None) && self.stats.health > 0.0,
+                        self.stats.health, held, p.x, p.y, p.z, self.last_fps,
+                    );
+                    ui.label(egui::RichText::new(dbg).small().monospace().color(egui::Color32::from_rgb(140, 220, 255)));
+                });
+        }
         // hurt vignette + low-health pulse
         if self.hud_flash > 0.0 || self.stats.health <= 6.0 {
             let pulse = if self.stats.health <= 6.0 {
@@ -1178,8 +1200,35 @@ impl GameState {
                         let r = ((t - delay) / 0.45).clamp(0.0, 1.0);
                         kit::menu_button(ui, label, r, accent)
                     };
-                    if btn(ui, "Play", 0.7, true) {
+                    if btn(ui, &format!("Play — {}", self.slot_meta.name), 0.7, true) {
                         self.close_ui();
+                    }
+                    ui.add_space(8.0);
+                    if btn(ui, "New World", 0.85, false) {
+                        self.title_show_new = !self.title_show_new;
+                    }
+                    if self.title_show_new {
+                        ui.horizontal(|ui| {
+                            if btn(ui, "Normal", 0.95, false) {
+                                self.new_world_named(&format!("World {}", crate::slots::list_slots().len() + 1),
+                                    lf_worldgen::WorldType::Normal);
+                            }
+                            ui.add_space(6.0);
+                            if btn(ui, "Superflat", 1.0, false) {
+                                self.new_world_named(&format!("World {}", crate::slots::list_slots().len() + 1),
+                                    lf_worldgen::WorldType::Superflat);
+                            }
+                            ui.add_space(6.0);
+                            if btn(ui, "Amplified", 1.05, false) {
+                                self.new_world_named(&format!("World {}", crate::slots::list_slots().len() + 1),
+                                    lf_worldgen::WorldType::Amplified);
+                            }
+                        });
+                    }
+                    ui.add_space(8.0);
+                    if btn(ui, "Load Game", 1.1, false) {
+                        self.ui_open = UiOpen::Slots;
+                        self.menu_reveal = 0.0;
                     }
                     ui.add_space(8.0);
                     let transport = if lf_steam::preferred_transport() == lf_steam::Transport::Udp {
@@ -1187,7 +1236,7 @@ impl GameState {
                     } else {
                         "Steam P2P"
                     };
-                    if btn(ui, &format!("Multiplayer ({})", transport), 0.85, false) {
+                    if btn(ui, &format!("Multiplayer ({})", transport), 1.2, false) {
                         match crate::net::NetClient::connect("127.0.0.1:25565", "smith") {
                             Ok(n) => {
                                 self.net = Some(n);
@@ -1200,26 +1249,12 @@ impl GameState {
                         }
                     }
                     ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        if btn(ui, "New Normal", 1.0, false) {
-                            self.new_world(lf_worldgen::WorldType::Normal);
-                        }
-                        ui.add_space(6.0);
-                        if btn(ui, "New Superflat", 1.05, false) {
-                            self.new_world(lf_worldgen::WorldType::Superflat);
-                        }
-                        ui.add_space(6.0);
-                        if btn(ui, "New Amplified", 1.1, false) {
-                            self.new_world(lf_worldgen::WorldType::Amplified);
-                        }
-                    });
-                    ui.add_space(8.0);
-                    if btn(ui, "Settings", 1.2, false) {
+                    if btn(ui, "Settings", 1.3, false) {
                         self.ui_open = UiOpen::Settings;
                         self.menu_reveal = 0.0;
                     }
                     ui.add_space(8.0);
-                    if btn(ui, "Quit", 1.3, false) {
+                    if btn(ui, "Quit", 1.4, false) {
                         self.quit_requested = true;
                     }
                 });
@@ -1252,16 +1287,32 @@ impl GameState {
                                 self.close_ui();
                             }
                             ui.add_space(6.0);
-                            if kit::menu_button(ui, "Settings", ((t - 0.25) / 0.4).clamp(0.0, 1.0), false) {
+                            if kit::menu_button(ui, "Save Now", ((t - 0.20) / 0.4).clamp(0.0, 1.0), false) {
+                                self.save_world();
+                            }
+                            ui.add_space(6.0);
+                            if kit::menu_button(ui, "Load Game", ((t - 0.25) / 0.4).clamp(0.0, 1.0), false) {
+                                self.ui_open = UiOpen::Slots;
+                                self.menu_reveal = 0.0;
+                            }
+                            ui.add_space(6.0);
+                            if kit::menu_button(ui, "Settings", ((t - 0.30) / 0.4).clamp(0.0, 1.0), false) {
                                 self.ui_open = UiOpen::Settings;
                                 self.menu_reveal = 0.0;
                             }
                             ui.add_space(6.0);
-                            if kit::menu_button(ui, "Save & Quit", ((t - 0.35) / 0.4).clamp(0.0, 1.0), false) {
+                            if kit::menu_button(ui, "Quit to Title", ((t - 0.35) / 0.4).clamp(0.0, 1.0), false) {
+                                self.save_world();
+                                self.ui_open = UiOpen::Title;
+                                self.menu_reveal = 0.0;
+                                self.title_show_new = false;
+                            }
+                            ui.add_space(6.0);
+                            if kit::menu_button(ui, "Quit Game", ((t - 0.40) / 0.4).clamp(0.0, 1.0), false) {
                                 self.quit_requested = true;
                             }
                             ui.add_space(14.0);
-                            ui.label(egui::RichText::new("E inventory · M map · K tech tree · J quests · T chat · F2 shot · R RT capture")
+                            ui.label(egui::RichText::new("E inventory · M map · ` console · K tech tree · J quests · T chat · F2 shot · F3 debug")
                                 .small().color(Theme::TEXT_DIM));
                             ui.add_space(12.0);
                         });
@@ -1747,6 +1798,121 @@ impl GameState {
             });
     }
 
+    /// Save-slot picker: list worlds (Load / Delete) + create a new one
+    /// with a custom name and type.
+    fn draw_slots(&mut self, ctx: &egui::Context) {
+        let reveal = kit::ease_out_cubic((self.menu_reveal / 0.35).clamp(0.0, 1.0));
+        let mut open_game = None;
+        let mut delete_slot: Option<String> = None;
+        let mut create: Option<(String, lf_worldgen::WorldType)> = None;
+        let slots = crate::slots::list_slots();
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(150)))
+            .show(ctx, |ui| {
+                kit::slide_panel(ui, reveal, |ui| {
+                    ui.set_width(460.0);
+                    ui.vertical(|ui| {
+                        ui.add_space(10.0);
+                        ui.label(egui::RichText::new("Save Slots").size(26.0).color(Theme::TEXT).strong());
+                        ui.label(egui::RichText::new(format!("current: {}", self.slot_meta.name)).small().color(Theme::TEXT_DIM));
+                        ui.add_space(10.0);
+                        ui.separator();
+                        egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                            if slots.is_empty() {
+                                ui.label(egui::RichText::new("no saved worlds yet").color(Theme::TEXT_DIM));
+                            }
+                            for meta in &slots {
+                                let current = meta.name == self.slot_meta.name;
+                                egui::Frame::new()
+                                    .fill(if current { egui::Color32::from_rgba_premultiplied(34, 40, 32, 220) }
+                                          else { egui::Color32::from_black_alpha(130) })
+                                    .stroke(egui::Stroke::new(if current { 1.6 } else { 1.0 },
+                                        if current { Theme::ACCENT_DIM } else { egui::Color32::from_gray(60) }))
+                                    .corner_radius(7.0)
+                                    .inner_margin(8.0)
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.vertical(|ui| {
+                                                ui.label(egui::RichText::new(&meta.name).size(16.0)
+                                                    .color(if current { Theme::ACCENT } else { Theme::TEXT }));
+                                                ui.label(egui::RichText::new(format!("{:?} · seed {} · saved {}",
+                                                    meta.world_type, meta.seed, time_ago(meta.updated_secs)))
+                                                    .small().color(Theme::TEXT_DIM));
+                                            });
+                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                let del_id = egui::Id::new(("delslot", &meta.name));
+                                                let confirming = ui.ctx().data(|d| d.get_temp::<bool>(del_id).unwrap_or(false));
+                                                if ui.button(if confirming { "really delete?" } else { "Delete" }).clicked() {
+                                                    if confirming {
+                                                        delete_slot = Some(meta.name.clone());
+                                                        ui.ctx().data_mut(|d| d.insert_temp(del_id, false));
+                                                    } else {
+                                                        ui.ctx().data_mut(|d| d.insert_temp(del_id, true));
+                                                    }
+                                                }
+                                                if confirming && ui.button("keep").clicked() {
+                                                    ui.ctx().data_mut(|d| d.insert_temp(del_id, false));
+                                                }
+                                                if ui.button("Load").clicked() {
+                                                    open_game = Some(meta.name.clone());
+                                                }
+                                            });
+                                        });
+                                    });
+                                ui.add_space(4.0);
+                            }
+                        });
+                        ui.add_space(8.0);
+                        ui.separator();
+                        ui.label(egui::RichText::new("New World").size(17.0).color(Theme::ACCENT));
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("name").small().color(Theme::TEXT_DIM));
+                            ui.add(egui::TextEdit::singleline(&mut self.slot_name_input).desired_width(160.0).hint_text("My World"));
+                            for (label, wt) in [("Normal", lf_worldgen::WorldType::Normal),
+                                                ("Superflat", lf_worldgen::WorldType::Superflat),
+                                                ("Amplified", lf_worldgen::WorldType::Amplified)] {
+                                let on = self.slot_new_type == wt;
+                                if ui.add(egui::Button::new(egui::RichText::new(label)
+                                    .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))).clicked() {
+                                    self.slot_new_type = wt;
+                                }
+                            }
+                            if ui.button("Create").clicked() {
+                                let name = if self.slot_name_input.trim().is_empty() {
+                                    format!("World {}", crate::slots::list_slots().len() + 1)
+                                } else {
+                                    self.slot_name_input.clone()
+                                };
+                                create = Some((name, self.slot_new_type));
+                            }
+                        });
+                        ui.add_space(10.0);
+                        if kit::menu_button(ui, "Back", 1.0, true) {
+                            self.ui_open = UiOpen::Title;
+                            self.menu_reveal = 0.0;
+                        }
+                        ui.add_space(10.0);
+                    });
+                });
+            });
+        if let Some(name) = open_game {
+            let _ = self.load_world(&name);
+        }
+        if let Some(name) = delete_slot {
+            crate::slots::delete_slot(&name);
+            if name == self.slot_meta.name {
+                // deleted the live world — fall back to the newest other slot
+                match crate::slots::list_slots().into_iter().next() {
+                    Some(meta) => { let _ = self.load_world(&meta.name); }
+                    None => self.new_world_named("World 1", lf_worldgen::WorldType::Normal),
+                }
+            }
+        }
+        if let Some((name, wt)) = create {
+            self.new_world_named(&name, wt);
+        }
+    }
+
     fn draw_death(&mut self, ctx: &egui::Context) {
         // gradient: near-black edges, deep red center
         let screen = ctx.screen_rect();
@@ -1848,5 +2014,23 @@ mod tests {
         take_one(&mut slots, "log").unwrap();
         assert!(slots[0].is_none(), "emptied slot clears");
         assert!(take_one(&mut slots, "log").is_none(), "nothing left to take");
+    }
+}
+
+/// Human-friendly "how long ago" for the slot list.
+fn time_ago(secs: u64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let delta = now.saturating_sub(secs);
+    if delta < 60 {
+        "just now".into()
+    } else if delta < 3600 {
+        format!("{}m ago", delta / 60)
+    } else if delta < 86400 {
+        format!("{}h ago", delta / 3600)
+    } else {
+        format!("{}d ago", delta / 86400)
     }
 }

@@ -21,8 +21,10 @@ use winit::{
     window::{CursorGrabMode, WindowAttributes},
 };
 
+pub mod console;
 pub mod icons;
 pub mod map;
+pub mod slots;
 pub mod net;
 pub mod ui;
 pub mod ui_kit;
@@ -202,6 +204,8 @@ pub enum UiOpen {
     Smithing,
     TechTree,
     Map,
+    Console,
+    Slots,
     Settings,
     Death,
 }
@@ -428,7 +432,13 @@ impl ApplicationHandler for App {
                                     match code {
                                         KeyCode::Escape => {
                                             match state.ui_open {
-                                                UiOpen::Pause | UiOpen::Title => {}
+                                                UiOpen::Title => {}
+                                                UiOpen::Pause => {
+                                                    // Esc resumes from pause (used to be a
+                                                    // silent no-op only the Resume button fixed)
+                                                    state.close_ui();
+                                                    return;
+                                                }
                                                 UiOpen::None if state.stats.health > 0.0 => {
                                                     state.ui_open = UiOpen::Pause;
                                                     state.menu_reveal = 0.0;
@@ -450,6 +460,19 @@ impl ApplicationHandler for App {
                                             if state.net.is_some() && state.ui_open == UiOpen::None && state.stats.health > 0.0 {
                                                 state.chat_input = Some(String::new());
                                                 state.unlock_cursor();
+                                                return;
+                                            }
+                                        }
+                                        KeyCode::Backquote => {
+                                            if matches!(state.ui_open, UiOpen::None) && state.stats.health > 0.0 {
+                                                state.console_open();
+                                                return;
+                                            }
+                                        }
+                                        KeyCode::Slash => {
+                                            if matches!(state.ui_open, UiOpen::None) && state.stats.health > 0.0 {
+                                                state.console_open();
+                                                state.console.input = "/".to_string();
                                                 return;
                                             }
                                         }
@@ -504,6 +527,9 @@ impl ApplicationHandler for App {
                                             state.player.velocity = Vec3::ZERO;
                                         }
                                         KeyCode::F2 => state.take_screenshot(),
+                                        KeyCode::F3 => {
+                                            state.show_debug = !state.show_debug;
+                                        }
                                         KeyCode::KeyR => { if state.settings.rt_mode == crate::RtMode::Captures { state.take_raytraced_screenshot(); } }
                                         KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3
                                         | KeyCode::Digit4 | KeyCode::Digit5 | KeyCode::Digit6
@@ -533,8 +559,9 @@ impl ApplicationHandler for App {
                                 return;
                             }
                             if !state.input.cursor_locked && state.stats.health > 0.0 {
+                                // Re-enter input mode but let this click act too —
+                                // eating the first click felt dead to players.
                                 state.lock_cursor();
-                                return;
                             }
                             let pressed = button_state == ElementState::Pressed;
                             match button {
@@ -620,6 +647,21 @@ struct GameState {
     pub menu_reveal: f32,
     pub settings_tab: usize,
     pub hotbar_hover: Option<String>,
+    /// F3 debug readout (input gates, position, seed) for diagnosing input.
+    pub show_debug: bool,
+    /// Developer console session (input, history, suggestions).
+    pub console: console::ConsoleState,
+    /// The active world's seed (persisted per slot with the world).
+    pub world_seed: u64,
+    /// The active save-slot directory (worlds/<slot-name>/).
+    pub world_dir: std::path::PathBuf,
+    /// The active slot's metadata (name/type/seed/updated).
+    pub slot_meta: slots::SlotMeta,
+    /// Slot picker state: new-world name input + chosen type.
+    pub slot_name_input: String,
+    pub slot_new_type: lf_worldgen::WorldType,
+    /// Title screen: "New World" sub-menu expanded.
+    pub title_show_new: bool,
     /// Real pixel-art item icons (one egui texture per item id).
     pub icons: icons::ItemIcons,
     /// Minimap + world-map state (tile cache, view, waypoints view state).
@@ -721,10 +763,20 @@ impl GameState {
                 mods.iter().map(|m| m.manifest.id.clone()).collect::<Vec<_>>());
         }
 
-        // Persistence + world bootstrap.
-        let storage = WorldStorage::open(Path::new(WORLD_DIR));
+        // Persistence + world bootstrap: the slot owns the directory AND the
+        // seed (fresh random seed for a brand-new world).
+        let mut slot_meta = slots::boot_slot();
+        let world_dir = slots::slot_dir(&slot_meta.name);
+        slot_meta.world_type = world_type; // save (or default) wins over meta
+        let storage = WorldStorage::open(&world_dir);
+        let world_seed = storage.load_seed().unwrap_or_else(|| {
+            let s = slot_meta.seed;
+            let _ = storage.save_seed(s);
+            s
+        });
+        slot_meta.seed = world_seed;
         let saved_set = storage.saved_chunks();
-        let gen = WorldGen::with_type(Seed(WORLD_SEED), world_type);
+        let gen = WorldGen::with_type(Seed(world_seed), world_type);
         let mut world = World::new();
         for cx in -BOOT_RADIUS..=BOOT_RADIUS {
             for cz in -BOOT_RADIUS..=BOOT_RADIUS {
@@ -775,7 +827,7 @@ impl GameState {
         // The worker skips chunks that come from the save.
         let mut worker_skip = saved_set.clone();
         worker_skip.extend(world.chunks.keys().copied());
-        let streamer = Streamer::spawn(WORLD_SEED, worker_skip);
+        let streamer = Streamer::spawn(world_seed, worker_skip);
 
         let mut state = Self {
             window,
@@ -829,8 +881,16 @@ impl GameState {
             menu_reveal: 0.0,
             settings_tab: 0,
             hotbar_hover: None,
+            show_debug: std::env::var("LOREFORGE_DEBUG_INPUT").is_ok(),
+            console: console::ConsoleState::default(),
+            world_seed,
+            world_dir,
+            slot_meta,
+            slot_name_input: String::new(),
+            slot_new_type: lf_worldgen::WorldType::Normal,
+            title_show_new: false,
             icons,
-            map: map::MapState::new(world_type, WORLD_SEED),
+            map: map::MapState::new(world_type, world_seed),
             waypoints,
             hud_flash: 0.0,
             hit_flash: 0.0,
@@ -874,6 +934,9 @@ impl GameState {
     /// Close any open screen, returning crafting-grid contents to the
     /// inventory (leftovers drop at the player).
     pub fn close_ui(&mut self) {
+        // A stale chat input would force ui_open = Chat again next frame —
+        // an invisible screen that eats every key and click.
+        self.chat_input = None;
         let grid = std::mem::take(&mut self.craft_grid);
         for slot in grid.into_iter().flatten() {
             let leftover = self.inventory.add_item(&slot.item_id, slot.count);
@@ -903,21 +966,57 @@ impl GameState {
         }
     }
 
-    /// Wipe the current world and regenerate with the given type.
+    /// Restart the background chunk generator with a new seed/ skip set
+    /// (the worker captures its WorldGen at spawn, so seed changes need a
+    /// fresh streamer).
+    fn restart_streamer(&mut self, seed: u64, skip: HashSet<(i32, i32)>) {
+        self.streamer.shutdown();
+        self.streamer = Streamer::spawn(seed, skip);
+    }
+
+    /// Switch to a brand-new save slot with a fresh random seed.
     pub fn new_world(&mut self, world_type: lf_worldgen::WorldType) {
+        self.new_world_named("World 1", world_type);
+    }
+
+    /// Create (or fully reset) the named slot with a fresh random seed.
+    pub fn new_world_named(&mut self, name: &str, world_type: lf_worldgen::WorldType) {
         self.save_world();
-        let _ = std::fs::remove_dir_all(std::path::Path::new(WORLD_DIR).join("region"));
-        let _ = std::fs::remove_file(std::path::Path::new(WORLD_DIR).join("player.dat"));
-        let _ = std::fs::remove_file(std::path::Path::new(WORLD_DIR).join("player_extras.dat"));
+        let name = slots::sanitize(name);
+        let dir = slots::slot_dir(&name);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let seed = slots::random_seed();
+        let meta = slots::SlotMeta {
+            name: name.clone(),
+            world_type,
+            seed,
+            updated_secs: slots::now_secs(),
+        };
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = WorldStorage::open(&dir).save_seed(seed);
+        slots::write_meta(&dir, &meta);
+        // point the client at the new slot
+        self.storage = WorldStorage::open(&dir);
+        self.world_dir = dir;
+        self.slot_meta = meta;
+        self.world_seed = seed;
         self.world_type = world_type;
         // fresh state
         self.inventory = Inventory::new();
         self.stats = PlayerStats::default();
         self.mobs.clear();
         self.drops.clear();
+        self.arrows.clear();
+        self.mining = None;
+        self.cursor_stack = None;
+        self.craft_grid = std::array::from_fn(|_| None);
         self.block_entities.clear();
         self.waypoints.clear();
-        self.map = map::MapState::new(world_type, WORLD_SEED);
+        self.xp_level = 0;
+        self.xp_progress = 0;
+        self.kills = 0;
+        self.map = map::MapState::new(world_type, seed);
         self.quest_log = {
             let mut log = QuestLog::new();
             for q in starter_quests() {
@@ -927,13 +1026,15 @@ impl GameState {
         };
         self.chronicle.clear();
         self.time = lf_game::TimeOfDay::from_fraction(0.30);
-        // regenerate the loaded chunks
-        let gen = WorldGen::with_type(Seed(WORLD_SEED), world_type);
+        // regenerate the loaded chunks with the new seed
+        let gen = WorldGen::with_type(Seed(seed), world_type);
         self.world = World::new();
         self.batches.clear();
         self.water_batches.clear();
         self.cpu_meshes.clear();
         self.column_bounds.clear();
+        self.dirty.clear();
+        self.saved_set.clear();
         let mut worker_skip = HashSet::new();
         for cx in -BOOT_RADIUS..=BOOT_RADIUS {
             for cz in -BOOT_RADIUS..=BOOT_RADIUS {
@@ -943,9 +1044,86 @@ impl GameState {
             }
         }
         worker_skip.extend(self.world.chunks.keys().copied());
-        let _ = worker_skip; // streamer picks up new chunks via forget()
-        self.player = Player::new(Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5));
+        self.restart_streamer(seed, worker_skip);
+        self.spawn_point = Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5);
+        self.player = Player::new(self.spawn_point);
+        self.update_title();
         self.close_ui();
+    }
+
+    /// Load another save slot mid-session. Returns Err with a user-facing
+    /// message when the slot doesn't exist.
+    pub fn load_world(&mut self, name: &str) -> Result<(), String> {
+        let name = slots::sanitize(name);
+        let dir = slots::slot_dir(&name);
+        let Some(meta) = slots::read_meta(&dir) else {
+            return Err(format!("no save slot named '{}'", name));
+        };
+        self.save_world();
+        // state from the slot's save files
+        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log,
+             chronicle, research, settings, world_type, waypoints) = load_client_save(&dir);
+        let storage = WorldStorage::open(&dir);
+        let seed = storage.load_seed().unwrap_or(meta.seed);
+        let saved_set = storage.saved_chunks();
+        self.world_dir = dir;
+        self.slot_meta = slots::SlotMeta { seed, updated_secs: meta.updated_secs, ..meta };
+        self.world_seed = seed;
+        self.storage = storage;
+        self.world_type = world_type;
+        self.saved_set = saved_set.clone();
+        self.inventory = inventory;
+        self.stats = stats;
+        self.time = time;
+        self.block_entities = block_entities;
+        self.mobs = mobs;
+        self.villagers = villagers;
+        self.kills = kills;
+        self.quest_log = quest_log;
+        self.chronicle = chronicle;
+        self.research = research;
+        self.settings = settings;
+        self.waypoints = waypoints;
+        self.xp_level = 0;
+        self.xp_progress = 0;
+        self.drops.clear();
+        self.arrows.clear();
+        self.mining = None;
+        self.cursor_stack = None;
+        self.craft_grid = std::array::from_fn(|_| None);
+        self.dirty.clear();
+        self.map = map::MapState::new(world_type, seed);
+        // rebuild the world from the slot: saved chunks first, gen fallback
+        let gen = WorldGen::with_type(Seed(seed), world_type);
+        self.world = World::new();
+        self.batches.clear();
+        self.water_batches.clear();
+        self.cpu_meshes.clear();
+        self.column_bounds.clear();
+        let mut worker_skip = HashSet::new();
+        for cx in -BOOT_RADIUS..=BOOT_RADIUS {
+            for cz in -BOOT_RADIUS..=BOOT_RADIUS {
+                let col = if saved_set.contains(&(cx, cz)) {
+                    self.storage.load_chunk(cx, cz).unwrap_or_else(|| gen.generate_chunk(cx, cz))
+                } else {
+                    gen.generate_chunk(cx, cz)
+                };
+                self.world.chunks.insert((cx, cz), col);
+                self.add_column_batch(cx, cz);
+            }
+        }
+        worker_skip.extend(saved_set);
+        worker_skip.extend(self.world.chunks.keys().copied());
+        self.restart_streamer(seed, worker_skip);
+        self.spawn_point = Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5);
+        self.player = match self.storage.load_player() {
+            Some(p) => Player::new(Vec3::from(p.position)).with_look(p.yaw, p.pitch),
+            None => Player::new(self.spawn_point),
+        };
+        self.player.flying = false;
+        self.update_title();
+        self.close_ui();
+        Ok(())
     }
 
     pub fn respawn(&mut self) {
@@ -1002,20 +1180,33 @@ impl GameState {
             waypoints: self.waypoints.clone(),
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
-            let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
+            let _ = std::fs::write(self.world_dir.join("player_extras.dat"), bytes);
         }
         if !self.chronicle.is_empty() {
             let md = SagaGenerator::export_markdown(&self.chronicle);
-            let _ = std::fs::write(Path::new(WORLD_DIR).join("chronicle.md"), md);
+            let _ = std::fs::write(self.world_dir.join("chronicle.md"), md);
         }
-        tracing::info!("world saved to {}", WORLD_DIR);
+        // keep the slot metadata current (ordering + seed + type)
+        let meta = slots::SlotMeta {
+            name: self.slot_meta.name.clone(),
+            world_type: self.world_type,
+            seed: self.world_seed,
+            updated_secs: slots::now_secs(),
+        };
+        slots::write_meta(&self.world_dir, &meta);
+        self.slot_meta = meta;
+        let _ = self.storage.save_seed(self.world_seed);
+        tracing::info!("world '{}' saved to {}", self.slot_meta.name, self.world_dir.display());
     }
 
     fn lock_cursor(&mut self) {
+        // Enter input mode even if the OS grab fails (some window managers
+        // refuse grabs): mouse motion still arrives via DeviceEvent, and
+        // clicks must keep working instead of being swallowed forever.
         if self.window.set_cursor_grab(CursorGrabMode::Locked).is_ok() {
             self.window.set_cursor_visible(false);
-            self.input.cursor_locked = true;
         }
+        self.input.cursor_locked = true;
     }
 
     fn unlock_cursor(&mut self) {

@@ -114,6 +114,13 @@ below by phase.
 - [x] honest RELEASE.md with run instructions, controls, features, gaps
 - [ ] puffin profiling pass, greedy meshing (deferred; frame times fine at view 5)
 
+## Deferred (P23 notes, honest)
+- [ ] console `new`/`load` adopt connected-server seed in multiplayer
+  (Welcome.seed now carries it; client terrain is still local-only).
+- [ ] second-level autocomplete (command arguments) — first token only.
+- [ ] save-slot thumbnails in the picker (renders a map preview per slot).
+- [ ] Gamepad/mobile input; key remapping UI.
+
 ## Deferred (P22 notes, honest)
 - [ ] migrating GameState::menu_reveal (f32 clock) onto ui_kit::Reveal — the
   clock + per-open reset already provides the same behavior; pure churn, kept

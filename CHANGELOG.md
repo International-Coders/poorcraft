@@ -1,5 +1,46 @@
 # CHANGELOG
 
+## 2026-08-26 — P23: urgent fixes — input, console, seeds, biomes, slots, scaling (loop 303)
+- Input defenses: `close_ui` clears a stale chat input (an invisible Chat
+  screen forced every frame would eat all keys and clicks); Escape closes
+  the Pause menu; if the OS refuses the cursor grab the game still enters
+  input mode (mouse-look via raw motion, clicks keep working); the click
+  that re-captures the cursor also passes through instead of being eaten.
+  New F3 / LOREFORGE_DEBUG_INPUT overlay shows ui_open/cursor_locked/
+  playing/keys/health for live diagnosis.
+- Developer console (`` ` `` or `/`): 20 commands — help, time set
+  (sunrise/day/noon/sunset/night/ticks), give, tp, seed, weather, fly,
+  heal, feed, kill, spawn, clear, waypoint add/list/remove, say, fps, rt,
+  save, slots, load <slot>, new <type> [name]. TAB cycles autocomplete,
+  arrows walk history, Esc closes; command parsing is a pure, unit-tested
+  function.
+- Real random seeds: each world owns a seed (`seed.dat`), generated from
+  OS entropy for new worlds; WorldGen exposes it, noise channels hash it
+  with splitmix64 (u64->i32 truncation no longer collides); switching
+  worlds restarts the streamer with the new seed (latent bug: the worker
+  kept its old WorldGen forever); the dedicated server persists its seed
+  and sends the true value in Welcome.
+- Natural biome transitions: fractal (3-octave) climate noise at lower
+  frequency with a contrast stretch, domain warping (±34 blocks) so biome
+  borders follow organic curves, and fine dithering (±0.045) that turns
+  straight threshold lines into dithered transition bands of mixed surface
+  blocks. `biome_from` stays pure; biome-coverage test samples wider.
+- Multiple save slots: each world lives in `worlds/<slot>/` with
+  `meta.dat` (name, type, seed, updated). Title menu reordered (Play —
+  <slot>, New World submenu, Load Game, Multiplayer, Settings, Quit);
+  slot picker with Load / Delete-with-confirm / Create (name + type);
+  pause menu gains Save Now, Load Game, Quit to Title. `load_world()`
+  reloads a slot mid-session; the pre-slot `worlds/default` auto-migrates
+  to "World 1" keeping its chunks and seed (verified live). Slot meta,
+  seed persistence and migration are tempfile-tested.
+- DPI/proportional UI: egui zoom = user scale × native display density ×
+  viewport factor (720p reference, clamped) — text, slots, panels and the
+  minimap scale with both pixel density and window size; macOS bundle
+  declares NSHighResolutionCapable.
+- Harness: plain egui `Area`s never render in the two-pass headless
+  harness (only windows materialize) — previews converted to frameless
+  windows; new `console_preview` proof scene. Tests 140 -> 149.
+
 ## 2026-08-26 — P22: UI overhaul — icons, tooltips, recipe book, map suite (loop 302)
 - Real pixel-art item icons in every slot (hotbar, inventory, crafting grid,
   chests, furnaces, machines, trades, cursor, tooltips): `lf_assets`

@@ -1349,6 +1349,7 @@ version = "0.1.0"
 dependencies = [
  "lf_protocol",
  "lf_server",
+ "lf_voxel",
 ]
 
 [[package]]

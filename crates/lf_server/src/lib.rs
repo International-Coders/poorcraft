@@ -134,7 +134,7 @@ fn handle_message(
             players.insert(id, Player { name: name.clone(), addr: src, pos: [0.0, 80.0, 0.0], yaw: 0.0 });
             let welcome = ProtocolCodec::encode_server(&ServerMessage::Welcome {
                 your_id: id,
-                seed: seed_of(gen),
+                seed: gen.seed(), // the true world seed (P23)
                 players: roster,
             });
             let _ = socket.send_to(&welcome, src);
@@ -190,13 +190,6 @@ fn handle_message(
             }
         }
     }
-}
-
-fn seed_of(gen: &WorldGen) -> u64 {
-    // Derive a stable id from generator output (the seed field is private).
-    let a = gen.height(0, 0) as u64;
-    let b = gen.height(12345, 6789) as u64;
-    a.wrapping_mul(0x9E3779B1).wrapping_add(b)
 }
 
 #[cfg(test)]

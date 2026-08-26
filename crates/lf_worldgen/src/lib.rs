@@ -44,13 +44,35 @@ impl BlockId {
 /// World generation data: heightmap, biomes, and strata per chunk column.
 pub struct WorldGen {
     pub world_type: WorldType,
+    seed: u64,
     noise_base: FastNoiseLite,
     noise_temp: FastNoiseLite,
     noise_humid: FastNoiseLite,
     noise_variant: FastNoiseLite,
     noise_cave: FastNoiseLite,
     noise_ore: FastNoiseLite,
+    /// Low-frequency domain warp for the climate fields: biome borders
+    /// follow organic curves instead of straight noise level-sets.
+    noise_warp_x: FastNoiseLite,
+    noise_warp_z: FastNoiseLite,
+    /// Fine high-frequency dither: breaks threshold lines into natural
+    /// dithered transition bands of mixed surface blocks.
+    noise_dither: FastNoiseLite,
 }
+
+/// Splitmix64 — decorrelates a u64 seed into per-channel i32 seeds without
+/// the truncation collisions a bare `as i32` would cause.
+fn channel_seed(seed: u64, salt: u64) -> i32 {
+    let mut z = seed.wrapping_add(salt.wrapping_mul(0x9E3779B97F4A7C15));
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+    (z ^ (z >> 31)) as i32
+}
+
+/// How far (in blocks) domain warping can shift climate sampling.
+const WARP_AMPLITUDE: f32 = 34.0;
+/// Dither amplitude applied to climate inputs near biome thresholds.
+const DITHER: f32 = 0.045;
 
 impl WorldGen {
     pub fn new(seed: Seed) -> Self {
@@ -58,47 +80,80 @@ impl WorldGen {
     }
 
     pub fn with_type(seed: Seed, world_type: WorldType) -> Self {
+        let s = seed.0;
         let mut base = FastNoiseLite::new();
-        base.set_seed(Some(seed.0 as i32));
+        base.set_seed(Some(channel_seed(s, 1)));
         base.set_noise_type(Some(NoiseType::Perlin));
         base.set_fractal_type(Some(FractalType::FBm));
         base.set_frequency(Some(0.01));
 
+        // climate: fractal + lower frequency so biomes are broad regions
+        // that transition smoothly, then warped + dithered at classification
         let mut temp = FastNoiseLite::new();
-        temp.set_seed(Some(seed.0.wrapping_add(7) as i32));
+        temp.set_seed(Some(channel_seed(s, 7)));
         temp.set_noise_type(Some(NoiseType::Perlin));
-        temp.set_frequency(Some(0.005));
+        temp.set_fractal_type(Some(FractalType::FBm));
+        temp.set_fractal_octaves(Some(3));
+        temp.set_frequency(Some(0.0028));
 
         let mut humid = FastNoiseLite::new();
-        humid.set_seed(Some(seed.0.wrapping_add(13) as i32));
+        humid.set_seed(Some(channel_seed(s, 13)));
         humid.set_noise_type(Some(NoiseType::Perlin));
-        humid.set_frequency(Some(0.006));
+        humid.set_fractal_type(Some(FractalType::FBm));
+        humid.set_fractal_octaves(Some(3));
+        humid.set_frequency(Some(0.0032));
 
         let mut variant = FastNoiseLite::new();
-        variant.set_seed(Some(seed.0.wrapping_add(31) as i32));
+        variant.set_seed(Some(channel_seed(s, 31)));
         variant.set_noise_type(Some(NoiseType::Perlin));
-        variant.set_frequency(Some(0.008));
+        variant.set_fractal_type(Some(FractalType::FBm));
+        variant.set_fractal_octaves(Some(2));
+        variant.set_frequency(Some(0.0042));
 
         let mut cave = FastNoiseLite::new();
-        cave.set_seed(Some(seed.0.wrapping_add(101) as i32));
+        cave.set_seed(Some(channel_seed(s, 101)));
         cave.set_noise_type(Some(NoiseType::Perlin));
         cave.set_fractal_type(Some(FractalType::FBm));
         cave.set_frequency(Some(0.03));
 
         let mut ore = FastNoiseLite::new();
-        ore.set_seed(Some(seed.0.wrapping_add(211) as i32));
+        ore.set_seed(Some(channel_seed(s, 211)));
         ore.set_noise_type(Some(NoiseType::Perlin));
         ore.set_frequency(Some(0.09));
 
+        let mut warp_x = FastNoiseLite::new();
+        warp_x.set_seed(Some(channel_seed(s, 409)));
+        warp_x.set_noise_type(Some(NoiseType::Perlin));
+        warp_x.set_frequency(Some(0.004));
+
+        let mut warp_z = FastNoiseLite::new();
+        warp_z.set_seed(Some(channel_seed(s, 613)));
+        warp_z.set_noise_type(Some(NoiseType::Perlin));
+        warp_z.set_frequency(Some(0.004));
+
+        let mut dither = FastNoiseLite::new();
+        dither.set_seed(Some(channel_seed(s, 733)));
+        dither.set_noise_type(Some(NoiseType::Perlin));
+        dither.set_frequency(Some(0.22));
+
         Self {
             world_type,
+            seed: s,
             noise_base: base,
             noise_temp: temp,
             noise_humid: humid,
             noise_variant: variant,
             noise_cave: cave,
             noise_ore: ore,
+            noise_warp_x: warp_x,
+            noise_warp_z: warp_z,
+            noise_dither: dither,
         }
+    }
+
+    /// The world's seed (persisted with the save).
+    pub fn seed(&self) -> u64 {
+        self.seed
     }
 
     /// Height at chunk column (x,z) in blocks. Range spans below and above
@@ -120,30 +175,59 @@ impl WorldGen {
         (base + (stretched * amp).round() as i32).max(8)
     }
 
-    /// Temperature [0..1].
+    /// Warped climate sample point (shared by t/h/v so the fields stay
+    /// spatially coherent under the warp).
+    fn warped(&self, cx: i32, cz: i32) -> (f32, f32) {
+        let wx = self.noise_warp_x.get_noise_2d(cx as f32, cz as f32);
+        let wz = self.noise_warp_z.get_noise_2d(cx as f32, cz as f32);
+        (cx as f32 + wx * WARP_AMPLITUDE, cz as f32 + wz * WARP_AMPLITUDE)
+    }
+
+    /// Fractal noise concentrates near 0; stretch the climate fields so
+    /// extreme-value biomes (Ice Spikes, Badlands, Mushroom Hollow...) stay
+    /// reachable at the now-larger biome scale.
+    fn stretch(n: f32) -> f32 {
+        ((n + 1.0) * 0.5 * 1.45 - 0.225).clamp(0.0, 1.0)
+    }
+
+    /// Temperature [0..1] (domain-warped + stretched).
     pub fn temperature(&self, cx: i32, cz: i32) -> f32 {
-        (self.noise_temp.get_noise_2d(cx as f32, cz as f32) + 1.0) * 0.5
+        let (x, z) = self.warped(cx, cz);
+        Self::stretch(self.noise_temp.get_noise_2d(x, z))
     }
 
-    /// Humidity [0..1].
+    /// Humidity [0..1] (domain-warped + stretched).
     pub fn humidity(&self, cx: i32, cz: i32) -> f32 {
-        (self.noise_humid.get_noise_2d(cx as f32, cz as f32) + 1.0) * 0.5
+        let (x, z) = self.warped(cx, cz);
+        Self::stretch(self.noise_humid.get_noise_2d(x, z))
     }
 
-    /// Slow variant channel that splits climate bands into neighbor biomes.
+    /// Slow variant channel that splits climate bands into neighbor biomes
+    /// (domain-warped + stretched).
     pub fn variant(&self, cx: i32, cz: i32) -> f32 {
-        (self.noise_variant.get_noise_2d(cx as f32, cz as f32) + 1.0) * 0.5
+        let (x, z) = self.warped(cx, cz);
+        Self::stretch(self.noise_variant.get_noise_2d(x, z))
+    }
+
+    /// Decorrelated fine dither in [-1, 1]; `channel` 0/1/2 for t/h/v.
+    fn dither(&self, cx: i32, cz: i32, channel: u32) -> f32 {
+        let (dx, dz) = match channel {
+            0 => (0.0, 0.0),
+            1 => (997.0, 0.0),
+            _ => (0.0, 997.0),
+        };
+        self.noise_dither.get_noise_2d(cx as f32 + dx, cz as f32 + dz)
     }
 
     /// Biome at column, combining elevation with climate + variant channel.
-    /// Deterministic across platforms.
+    /// Climate inputs are domain-warped and dithered so biome borders curve
+    /// organically and transition as mixed dithered bands instead of hard
+    /// straight lines. Deterministic across platforms.
     pub fn biome(&self, cx: i32, cz: i32) -> Biome {
-        biome::biome_from(
-            self.temperature(cx, cz),
-            self.humidity(cx, cz),
-            self.height(cx, cz),
-            self.variant(cx, cz),
-        )
+        let t = (self.temperature(cx, cz) + self.dither(cx, cz, 0) * DITHER).clamp(0.0, 1.0);
+        let h = (self.humidity(cx, cz) + self.dither(cx, cz, 1) * DITHER).clamp(0.0, 1.0);
+        let v = (self.variant(cx, cz) + self.dither(cx, cz, 2) * DITHER).clamp(0.0, 1.0);
+        biome::biome_from(t, h, self.height(cx, cz), v)
     }
 
     /// Surface block id at column position (per-biome table).
@@ -639,8 +723,9 @@ mod tests {
     fn all_biomes_appear_across_sampled_world() {
         let gen = WorldGen::new(Seed(42));
         let mut seen = HashSet::new();
-        for x in (-1600..1600).step_by(8) {
-            for z in (-1600..1600).step_by(8) {
+        // biomes are larger since the P23 climate smoothing — sample wider
+        for x in (-4000..4000).step_by(12) {
+            for z in (-4000..4000).step_by(12) {
                 seen.insert(gen.biome(x, z));
             }
         }
@@ -680,16 +765,30 @@ mod tests {
         use lf_voxel::registry::block;
         let gen = WorldGen::new(Seed(12345));
         let mut species = HashSet::new();
-        for cx in -10..=10 {
-            for cz in -10..=10 {
-                let col = gen.generate_chunk(cx, cz);
-                for lx in 0..16 {
-                    for lz in 0..16 {
-                        for y in 40..170 {
-                            let b = col.get(lx, y, lz).id();
-                            if matches!(b, block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG | block::DARK_LOG | block::CHERRY_LOG) {
-                                species.insert(b);
-                            }
+        // biomes are larger since P23; target chunks per biome instead of
+        // brute-scanning (chunk generation is too slow for wide scans)
+        let mut wanted: Vec<(i32, i32)> = Vec::new();
+        'find: for cx in -80..80i32 {
+            for cz in -80..80i32 {
+                use Biome::*;
+                let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                if matches!(b, Forest | BirchForest | Taiga | SnowyTaiga | GiantTaiga
+                    | DarkForest | CherryGrove | PaleGarden | Jungle) {
+                    wanted.push((cx, cz));
+                    if wanted.len() >= 24 {
+                        break 'find;
+                    }
+                }
+            }
+        }
+        for (cx, cz) in wanted {
+            let col = gen.generate_chunk(cx, cz);
+            for lx in 0..16 {
+                for lz in 0..16 {
+                    for y in 40..170 {
+                        let b = col.get(lx, y, lz).id();
+                        if matches!(b, block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG | block::DARK_LOG | block::CHERRY_LOG) {
+                            species.insert(b);
                         }
                     }
                 }
@@ -844,8 +943,23 @@ mod tests {
             n
         };
         let (mut hut, mut pyramid, mut tower) = (false, false, false);
-        for cx in -6..6 {
-            for cz in -6..6 {
+        // cheap biome-guided chunk selection (full brute scans are too slow
+        // at the larger P23 biome scale)
+        let mut picked: Vec<(i32, i32)> = Vec::new();
+        'pick: for cx in -60..60i32 {
+            for cz in -60..60i32 {
+                let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                if matches!(b, Biome::Desert | Biome::Badlands | Biome::Meadow
+                    | Biome::Forest | Biome::Mountains | Biome::SnowyPeaks) {
+                    picked.push((cx, cz));
+                    if picked.len() >= 90 {
+                        break 'pick;
+                    }
+                }
+            }
+        }
+        for (cx, cz) in picked {
+            {
                 let a = gen.generate_chunk(cx, cz);
                 let tables = count(&a, block::CRAFTING_TABLE, 60, 200);
                 if tables > 0 {

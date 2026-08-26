@@ -259,6 +259,19 @@ impl WorldStorage {
         let bytes = std::fs::read(self.dir.join("player.dat")).ok()?;
         bincode::deserialize(&bytes).ok()
     }
+
+    /// Persist the world seed beside the player data. Every world owns its
+    /// seed; generated fresh (OS entropy) when absent.
+    pub fn save_seed(&self, seed: u64) -> Result<(), Box<dyn std::error::Error>> {
+        let bytes = bincode::serialize(&seed)?;
+        std::fs::write(self.dir.join("seed.dat"), bytes)?;
+        Ok(())
+    }
+
+    pub fn load_seed(&self) -> Option<u64> {
+        let bytes = std::fs::read(self.dir.join("seed.dat")).ok()?;
+        bincode::deserialize(&bytes).ok()
+    }
 }
 
 #[cfg(test)]

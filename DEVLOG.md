@@ -118,3 +118,53 @@
   on main. Fix remains: update the token with `workflow`+`repo` scope or
   switch the remote to SSH. (GitHub also warns about >50MB `target/debug`
   blobs deep in history — history cleanup with filter-repo recommended.)
+
+## 2026-08-26 — P23: urgent fixes (loop 303)
+
+### What was done
+- Input fixes (WASD + block clicks report): close_ui clears stale chat
+  input (invisible-Chat trap), Escape closes Pause, cursor-grab fallback
+  (input mode even if the OS refuses the grab), first click passes
+  through after re-lock, F3/LOREFORGE_DEBUG_INPUT diagnostic overlay.
+- Developer console (` / `/`): 20 commands, TAB autocomplete, history,
+  pure unit-tested parser.
+- Per-world random seeds (seed.dat, splitmix64 channel hashing, streamer
+  restart on world switch, server sends the true seed in Welcome).
+- Natural biome transitions (fractal climate + stretch, domain warp
+  ±34 blocks, ±0.045 border dithering; biome_from kept pure).
+- Multiple save slots (worlds/<slot>/ + meta.dat, picker UI, load_world
+  mid-session, worlds/default auto-migration to World_1).
+- Menu reorder + egui zoom = user scale × native DPI × viewport factor;
+  NSHighResolutionCapable in the app bundle.
+
+### How
+- lib.rs: close_ui/lock_cursor/Escape/MouseInput changes; world_seed/
+  world_dir/slot_meta/console/show_debug fields; boot via slots::boot_slot;
+  new_world_named + load_world + restart_streamer; Backquote/Slash keys;
+  F3. console.rs (new): Command enum + parse/complete + egui overlay.
+  slots.rs (new): slot dirs, meta, random_seed, migration, boot pick.
+  lf_worldgen: WorldGen stores/exposes seed; FBm+warp+dither climate.
+  lf_voxel: WorldStorage::save_seed/load_seed. lf_server + server bin:
+  persisted seed, true Welcome.seed. ui.rs: reordered title, pause menu
+  additions, draw_slots picker, viewport-proportional zoom factor.
+  lf_vistest: console_preview scene; previews moved off raw Areas ( Areas
+  never materialize in the 2-pass headless harness — frameless windows do).
+
+### Verification evidence
+- `cargo test --workspace`: 149 passing, 0 failed (was 140). New tests:
+  console parse/complete/time, slots sanitize/random/meta/seed roundtrip/
+  ordering/migration, worldgen coverage widened to ±4000.
+- `cargo run --release -p xtask -- vistest shots`: 20/20 [ok];
+  console_preview pixel-checked (dark panel 3121 px, history + gold
+  suggestions + input visible), minimap_hud re-verified.
+- Smoke: release binary alive 12s with LOREFORGE_DEBUG_INPUT=1; live log
+  shows "migrated legacy world -> worlds/World_1 (seed 12345)".
+- Artifacts: dist/loreforge-macos.dmg (5.6MB), dist/loreforge-linux-
+  x86_64.tar.gz (5.2MB), dist/loreforge.app (+NSHighResolutionCapable),
+  dist/loreforge-server. Windows exe NOT built (no mingw on host).
+
+### Honest notes
+- The static input path was byte-identical to the last working version;
+  the fixes target every identified runtime trap (chat-screen hold, grab
+  failure, pause-escape) — user playtest requested to confirm.
+- GitHub push still blocked (PAT lacks workflow scope; CI file in history).

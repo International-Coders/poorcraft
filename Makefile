@@ -41,7 +41,7 @@ runtimes: release ## macOS .app + .dmg + Linux tarball (+ Windows exe if mingw p
 	@cp target/release/loreforge dist/loreforge.app/Contents/MacOS/
 	@cp target/release/loreforge-server dist/
 	@printf 'APPLLORE' > dist/loreforge.app/Contents/Resources/PkgInfo
-	@printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>loreforge</string><key>CFBundleIdentifier</key><string>com.loreforge.game</string><key>CFBundleName</key><string>LOREFORGE</string></dict></plist>\n' > dist/loreforge.app/Contents/Info.plist
+	@printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>loreforge</string><key>CFBundleIdentifier</key><string>com.loreforge.game</string><key>CFBundleName</key><string>LOREFORGE</string><key>NSHighResolutionCapable</key><true/></dict></plist>\n' > dist/loreforge.app/Contents/Info.plist
 	hdiutil create -volname LOREFORGE -srcfolder dist/loreforge.app -ov -format UDZO dist/loreforge-macos.dmg
 	tar -czf dist/loreforge-linux-x86_64.tar.gz -C target/release loreforge loreforge-server
 	@if command -v x86_64-w64-mingw32-gcc > /dev/null 2>&1; then \
