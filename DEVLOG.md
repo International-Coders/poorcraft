@@ -267,3 +267,26 @@ nothing ever analyzed the pixels. Fixed both; proofs re-verified visually
 
 ### Push attempt
 - `git push github HEAD` still blocked (PAT lacks workflow scope).
+
+## 2026-08-26 — P26 commit + first successful GitHub push
+### What
+- Committed the pending meshing upgrade as P26 (`80f6891`): per-face
+  texture API (`meshing::Face`), per-vertex ambient occlusion, smoothed
+  corner lighting, leaf wind-sway attribute, `registry::is_leaf`.
+- Fixed three call sites still passing the old 1-arg texture closure:
+  `lf_engine/src/app.rs:129`, `lf_vistest/src/lib.rs:343`,
+  `lf_client/src/lib.rs:2577` (now `|b, _face|`; lf_assets still returns
+  one layer per block — per-face atlas selection is future work, sway is
+  meshed but not yet consumed by the shader).
+- First successful push of the full history to
+  github.com/International-Coders/poorcraft (repo was empty; `main`
+  now at `80f6891`).
+### How
+- `cargo build --workspace` clean; `cargo test -p lf_voxel` green;
+  granted the gh CLI token `workflow` scope via device flow
+  (`gh auth refresh -s workflow`), `gh auth setup-git`, then
+  `git push github HEAD`.
+### Evidence
+- `git ls-remote github refs/heads/main` → `80f6891...` (matches HEAD)
+- GitHub warned: `target/debug/deps/libnaga-*.rlib` (53.82 MB) is in
+  history — under the 100 MB limit but should be scrubbed/gitignored.
