@@ -6,4 +6,4 @@ next_task: "user playtest of the P26 build (first with real foliage/material fee
 build: GREEN
 tests: 160 passing
 last_screenshot: shots/vistest_foliage_canopy.png
-blockers: "github push still blocked by PAT missing workflow scope"
+blockers: "none — push to github works again (P25+P26 pushed as 5f7cb4d)"
