@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 42] = [
+pub const TEXTURE_NAMES: [&str; 48] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -15,6 +15,10 @@ pub const TEXTURE_NAMES: [&str; 42] = [
     "smithing_table", "coal_generator", "electric_furnace", "crusher", "assembler",
     "research_bench",
     "lantern",
+    // per-face materials (P26): grass top face, shared log end rings
+    "grass_top", "log_top",
+    // progressive crack decal stages for the mining overlay
+    "crack_0", "crack_1", "crack_2", "crack_3",
     "mod",
 ];
 
@@ -62,8 +66,28 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         39 => 37, // crusher
         40 => 38, // assembler
         41 => 39, // research bench
-        id if id >= 100 => 41, // mod blocks (registry::MOD_BLOCK_BASE)
+        id if id >= 100 => 47, // mod blocks (registry::MOD_BLOCK_BASE)
         _ => 0,
+    }
+}
+
+/// Atlas layers for the per-face materials and the crack decal (P26).
+pub const GRASS_TOP_LAYER: u32 = 41;
+pub const LOG_TOP_LAYER: u32 = 42;
+pub const CRACK_LAYERS: [u32; 4] = [43, 44, 45, 46];
+
+/// Per-face material mapping: which atlas layer a block's face uses. Blocks
+/// without distinct faces fall through to `texture_index_for_block`.
+pub fn texture_index_for_face(block_id: u32, face: lf_voxel::meshing::Face) -> u32 {
+    use lf_voxel::meshing::Face;
+    use lf_voxel::registry::block;
+    let is_log = matches!(block_id, block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG
+        | block::DARK_LOG | block::CHERRY_LOG);
+    match (block_id, face) {
+        (block::GRASS, Face::Top) => GRASS_TOP_LAYER,
+        (block::GRASS, Face::Bottom) => texture_index_for_block(block::DIRT),
+        (id, Face::Top) | (id, Face::Bottom) if is_log => LOG_TOP_LAYER,
+        _ => texture_index_for_block(block_id),
     }
 }
 
@@ -351,15 +375,97 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     let v = 40 + ((x * 3 + y * 5) % 14);
                     Rgba([30, ch(60 + v / 2), ch(150 + v / 3), 170])
                 }
+                "grass_top" => {
+                    // full green with a mottled, slightly clumpy lawn look
+                    let v = ((x * 5 + y * 3) % 7) + ((x * y) % 5);
+                    Rgba([ch(52 + v * 3), ch(128 + v * 4), ch(40 + v * 2), 255])
+                }
+                "log_top" => {
+                    // growth rings: concentric squares around the center
+                    let d = ((x as i32 - 8).abs()).max((y as i32 - 8).abs());
+                    let ring = if d % 2 == 0 { 176 } else { 120 };
+                    let v = ring + ((x * 3 + y * 7) % 12);
+                    Rgba([ch(v), ch((v * 3) / 4), ch(v / 2), 255])
+                }
+                name if name.starts_with("crack_") => {
+                    // progressive mining cracks on a transparent decal
+                    let stage: u32 = name[6..].parse().unwrap_or(0);
+                    crack_pixel(x, y, stage)
+                }
                 _ => {
                     let v = ((x + y) * 8) % 256;
                     Rgba([ch(v), ch(255 - v), 128, 255])
                 }
             };
-            img.put_pixel(x, y, color);
+            let mut px = color;
+            if is_leaf_name(name) {
+                // alpha-cutout foliage: deterministic holes, density varies
+                // per species via the name hash
+                let h = pixel_hash(x, y, name);
+                let density = 18 + (fnv1a(name) % 12) as u32; // 18..29 %
+                if h % 100 < density {
+                    px.0[3] = 0;
+                }
+            }
+            img.put_pixel(x, y, px);
         }
     }
     img
+}
+
+/// Foliage textures punched full of cutout holes.
+fn is_leaf_name(name: &str) -> bool {
+    name == "leaves" || name.ends_with("_leaves")
+}
+
+fn fnv1a(s: &str) -> u32 {
+    let mut h: u32 = 2166136261;
+    for b in s.bytes() {
+        h ^= b as u32;
+        h = h.wrapping_mul(16777619);
+    }
+    h
+}
+
+fn pixel_hash(x: u32, y: u32, name: &str) -> u32 {
+    let mut h = fnv1a(name);
+    h ^= (x.wrapping_mul(73856093)) ^ (y.wrapping_mul(19349663));
+    h = h.wrapping_mul(0x9E3779B1);
+    h ^ (h >> 13)
+}
+
+/// One pixel of the stage-N crack decal: dark crooked lines radiating from
+/// the block center; more/longer cracks as the stage grows.
+fn crack_pixel(x: u32, y: u32, stage: u32) -> Rgba<u8> {
+    let mut on = false;
+    let cracks = 2 + stage;
+    for c in 0..cracks {
+        // deterministic walk from the center outward
+        let mut px = 8i32;
+        let mut py = 8i32;
+        let mut dir = (c as i32) * 3 + ((stage as i32 * 5) % 7);
+        let len = 4 + stage * 3 + (c % 2) as u32;
+        for _ in 0..len {
+            // step with a jittered direction so cracks look jagged
+            let jitter = pixel_hash(px as u32, py as u32, "crack") % 7;
+            match (dir + jitter as i32) % 4 {
+                0 => px += 1,
+                1 => px -= 1,
+                2 => py += 1,
+                _ => py -= 1,
+            }
+            if px < 0 || px > 15 || py < 0 || py > 15 { break; }
+            if px == x as i32 && py == y as i32 {
+                on = true;
+            }
+        }
+    }
+    if on {
+        let v = 22 + ((x * 11 + y * 17) % 18) as u32;
+        Rgba([ch(v), ch(v), ch(v + 6), 255])
+    } else {
+        Rgba([0, 0, 0, 0])
+    }
 }
 
 /// The full atlas, one 16x16 layer per entry in TEXTURE_NAMES.
@@ -980,11 +1086,53 @@ mod tests {
                 assert!(tex.pixels().all(|p| p.0[3] == 200));
                 continue;
             }
+            if name.starts_with("crack_") {
+                // decal: mostly transparent, some opaque crack pixels
+                let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
+                assert!(solid > 4, "{} too sparse", name);
+                continue;
+            }
+            if is_leaf_name(name) {
+                // alpha-cutout foliage: holes AND leaf pixels, all-or-nothing
+                let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
+                let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
+                assert!(holes > 20 && solid > 100, "{} holes={} solid={}", name, holes, solid);
+                continue;
+            }
             if name != "torch_item" {
                 let expected_alpha = if name == "water" { 170 } else { 255 };
                 assert!(tex.pixels().all(|p| p.0[3] == expected_alpha));
             }
         }
+    }
+
+    #[test]
+    fn crack_stages_grow() {
+        let counts: Vec<usize> = (0..4).map(|s| {
+            generate_block_texture(&format!("crack_{}", s)).pixels().filter(|p| p.0[3] == 255).count()
+        }).collect();
+        assert!(counts[0] < counts[3], "later stages have more crack pixels: {:?}", counts);
+    }
+
+    #[test]
+    fn per_face_mapping_routes_materials() {
+        use lf_voxel::meshing::Face;
+        let name_of = |id: u32, f: Face| TEXTURE_NAMES[texture_index_for_face(id, f) as usize];
+        // grass: green top, banded side, dirt bottom
+        assert_eq!(name_of(2, Face::Top), "grass_top");
+        assert_eq!(name_of(2, Face::Side), "grass");
+        assert_eq!(name_of(2, Face::Bottom), "dirt");
+        // every log species: ring texture on the ends, bark on the sides
+        for log_id in [7u32, 19, 20, 21, 22] {
+            assert_eq!(name_of(log_id, Face::Top), "log_top", "log {}", log_id);
+            assert_eq!(name_of(log_id, Face::Bottom), "log_top", "log {}", log_id);
+            assert_ne!(name_of(log_id, Face::Side), "log_top");
+        }
+        // blocks without distinct faces are unchanged on every face
+        assert_eq!(name_of(1, Face::Top), "stone");
+        assert_eq!(name_of(1, Face::Bottom), "stone");
+        assert_eq!(name_of(41, Face::Side), "research_bench");
+        assert_eq!(name_of(100, Face::Top), "mod");
     }
 
     #[test]

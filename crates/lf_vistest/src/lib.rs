@@ -287,12 +287,36 @@ pub fn scenes() -> Vec<SceneSpec> {
             eye: Vec3::new(8.5, 0.0, 8.5),
             target: Vec3::ZERO,
         },
+        SceneSpec {
+            name: "foliage_canopy",
+            desc: "canopy close-up: cutout leaves, log rings, smooth AO under leaves",
+            default_seed: 12345,
+            time_of_day: 0.4,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed directly at the placed canopy in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "mining_feedback",
+            desc: "crack decal + debris particles on a block being mined",
+            default_seed: 12345,
+            time_of_day: 0.45,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed directly at the target block in run_scene
+            target: Vec3::ZERO,
+        },
     ]
 }
 
 /// Build the mesh for a scene: a radius-chunk plot of worldgen terrain
 /// centered at (0,0), using the real World + chunk-column pipeline.
-pub fn build_scene_mesh(_spec: &SceneSpec, seed: u64, radius_chunks: i32, torches: bool, machines_param: bool)
+pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches: bool, machines_param: bool)
     -> (Vec<GpuVertex>, Vec<u32>, Vec<GpuVertex>, Vec<u32>) {
     let gen = WorldGen::new(Seed(seed));
     let mut world = World::new();
@@ -324,6 +348,33 @@ pub fn build_scene_mesh(_spec: &SceneSpec, seed: u64, radius_chunks: i32, torche
         }
     }
 
+    // P26 proof geometry: a hand-framed canopy, and a crack decal with
+    // debris on a block mid-mining.
+    if spec.name == "foliage_canopy" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for y in h..h + 8 {
+            world.set_block(0, y, 0, lf_voxel::BlockState(block::LOG));
+        }
+        for dy in 7..12 {
+            for dx in -3i32..=3 {
+                for dz in -3i32..=3 {
+                    if dx.abs() + dz.abs() + (dy - 7) <= 6 {
+                        world.set_block(dx, h + dy, dz, lf_voxel::BlockState(block::LEAVES));
+                    }
+                }
+            }
+        }
+    }
+
+    if spec.name == "mining_feedback" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for y in 0..5 {
+            world.set_block(0, h + y, 0, lf_voxel::BlockState(block::STONE));
+        }
+    }
+
     let to_gpu = |vs: &[lf_voxel::meshing::Vertex]| -> Vec<GpuVertex> {
         vs.iter().map(|v| GpuVertex {
             position: v.position,
@@ -332,6 +383,7 @@ pub fn build_scene_mesh(_spec: &SceneSpec, seed: u64, radius_chunks: i32, torche
             tex_index: v.tex_index,
             ao: v.ao,
             light: v.light,
+            sway: v.sway,
         }).collect()
     };
     let mut vertices: Vec<GpuVertex> = Vec::new();
@@ -340,13 +392,69 @@ pub fn build_scene_mesh(_spec: &SceneSpec, seed: u64, radius_chunks: i32, torche
     let mut water_indices: Vec<u32> = Vec::new();
     for cx in -radius_chunks..=radius_chunks {
         for cz in -radius_chunks..=radius_chunks {
-            let mesh = world.mesh_column(cx, cz, &|b, _face| lf_assets::texture_index_for_block(b.id()));
+            let mesh = world.mesh_column(cx, cz, &|b, face| lf_assets::texture_index_for_face(b.id(), face));
             let base = vertices.len() as u32;
             vertices.extend(to_gpu(&mesh.opaque.vertices));
             indices.extend(mesh.opaque.indices.iter().map(|i| i + base));
             let wbase = water_vertices.len() as u32;
             water_vertices.extend(to_gpu(&mesh.water.vertices));
             water_indices.extend(mesh.water.indices.iter().map(|i| i + wbase));
+        }
+    }
+    // mining_feedback: crack decal + debris billboards around the column
+    // that build_scene_mesh placed before meshing
+    if spec.name == "mining_feedback" {
+        let push_quad = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                         corners: [[f32; 3]; 4], uvs: [[f32; 2]; 4], normal: [f32; 3], tex: u32| {
+            let base = vertices.len() as u32;
+            for (c, uv) in corners.iter().zip(uvs.iter()) {
+                vertices.push(GpuVertex {
+                    position: *c,
+                    normal,
+                    tex_coord: *uv,
+                    tex_index: tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        };
+        // stage-2 crack decal, inflated around the middle block
+        let h = world.surface_height(0, 0);
+        let (cx, cy, cz) = (0.5f32, h as f32 + 2.5, 0.5f32);
+        let r = 0.505f32;
+        let crack = lf_assets::CRACK_LAYERS[2];
+        let faces: [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] = [
+            ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+            ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+            ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+        ];
+        for (normal, corners, uvs) in faces {
+            let corners: [[f32; 3]; 4] = corners.map(|c| [cx + c[0], cy + c[1], cz + c[2]]);
+            push_quad(&mut vertices, &mut indices, corners, uvs, normal, crack);
+        }
+        // camera-facing debris quads (stone texture sub-tiles)
+        let stone_tex = lf_assets::texture_index_for_block(lf_voxel::registry::block::STONE);
+        for i in 0..6u32 {
+            let t = i as f32;
+            let (ox, oy, oz) = (((t * 2.3).sin()) * 0.9, 1.6 + (t % 2.0) * 0.8, ((t * 1.7).cos()) * 0.9);
+            let center = Vec3::new(cx + ox, cy + oy, cz + oz);
+            let right = Vec3::new(0.08, 0.0, 0.0);
+            let up = Vec3::new(0.0, 0.08, 0.0);
+            let u0 = (t * 0.11) % 0.75;
+            let v0 = (t * 0.17) % 0.75;
+            let c0 = center - right - up;
+            let c1 = center - right + up;
+            let c2 = center + right + up;
+            let c3 = center + right - up;
+            push_quad(&mut vertices, &mut indices,
+                [[c0.x, c0.y, c0.z], [c1.x, c1.y, c1.z], [c2.x, c2.y, c2.z], [c3.x, c3.y, c3.z]],
+                [[u0, v0 + 0.25], [u0, v0], [u0 + 0.25, v0], [u0 + 0.25, v0 + 0.25]],
+                [0.0, 0.0, 1.0], stone_tex);
         }
     }
     (vertices, indices, water_vertices, water_indices)
@@ -365,7 +473,16 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     // its x/z so hills never bury the shot. First-person scenes instead sit
     // at player eye height looking slightly downhill.
     let gen = WorldGen::new(Seed(seed));
-    let (eye, target) = if spec.first_person {
+    let (eye, target) = if spec.name == "foliage_canopy" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-10.0, h + 13.0, 14.0), Vec3::new(0.5, h + 9.5, 0.5))
+    } else if spec.name == "mining_feedback" {
+        // the slope rises toward the camera, so reference the terrain AT the
+        // eye or the camera ends up buried (backfaces see through the hill)
+        let h = gen.surface_top(0, 0) as f32;
+        let he = gen.surface_top(-6, 7) as f32;
+        (Vec3::new(-6.0, he + 2.2, 7.0), Vec3::new(0.5, h + 2.5, 0.5))
+    } else if spec.first_person {
         // Find a viewpoint with an open vista: a local rise whose best look
         // direction drops the most over 30 blocks, so the frame shows both
         // nearby terrain and the horizon — what a player actually sees.
@@ -413,6 +530,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     camera.set_aspect(800, 600);
     let env = lf_engine::scene::Env {
         camera_pos: eye,
+        // mid-sway pose: proofs show the wind offset statically
+        time: 0.8,
         day_factor: spec.day_factor(),
         fog_color: spec.time_of_day().sky_color(),
         fog_far: 220.0,

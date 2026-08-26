@@ -137,6 +137,28 @@ below by phase.
       double `to_radians()` on the already-radians fovy (basis at ~1.4%,
       all rays parallel). Both fixed; RT proofs show real terrain again.
 
+## P26 — Visual identity (per approved direction: hybrid-selective)
+- [x] per-face materials: `tex_of(BlockState, Face)` — grass top/side/bottom
+      correct on all six faces, log rings on every species' ends (atlas 48
+      layers: +grass_top, +log_top, +crack_0..3)
+- [x] alpha-cutout foliage: shader discards alpha < 0.5; all six leaf
+      textures hole-punched per species (18-29% deterministic holes);
+      see-through leaves with reliable depth writes (water/ice unaffected,
+      glass pane becomes frame-only cutout)
+- [x] foliage wind: GpuVertex sway weight + Env.time; vertex-shader wave
+      phased by world position (stable across chunk borders); frozen when
+      the particles setting is off (low quality tier)
+- [x] smooth lighting: per-vertex AO (classic side/side/corner) + per-corner
+      light averaging over the 4 touching cells (was flat per-face)
+- [x] mining feedback on the target: stage 0..3 crack decal (inflated cutout
+      cube) + debris particles (billboards, gravity, ground stop, cap 128);
+      the subtle HUD progress bar stays for accessibility
+- [x] mipmaps: 5-level CPU box-filtered chain per layer, mag-nearest /
+      min-linear sampling (distance shimmer gone)
+- [x] two new proofs: `foliage_canopy`, `mining_feedback` (22 scenes total)
+- [ ] connected-surface projection on large man-made materials
+      (stone/marble/planks) — the hybrid-selective art direction's second half
+
 ## Deferred (P23 notes, honest)
 - [ ] console `new`/`load` adopt connected-server seed in multiplayer
   (Welcome.seed now carries it; client terrain is still local-only).

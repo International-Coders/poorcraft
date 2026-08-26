@@ -40,6 +40,7 @@ pub fn cloud_mesh(center: Vec3, time: f32) -> (Vec<GpuVertex>, Vec<u32>) {
                     tex_index: tex,
                     ao: 0.9,
                     light: 0xF0,
+                    sway: 0.0,
                 });
             }
             indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
@@ -74,6 +75,7 @@ pub fn sky_bodies(eye: Vec3, time_frac: f32) -> (Vec<GpuVertex>, Vec<u32>) {
                 tex_index: tex,
                 ao: 1.0,
                 light: brightness,
+                    sway: 0.0,
             });
         }
         indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
@@ -149,6 +151,7 @@ pub fn weather_particles(center: Vec3, time: f32, snow: bool) -> (Vec<GpuVertex>
                 tex_index: tex,
                 ao: 1.0,
                 light: 0xE0,
+                    sway: 0.0,
             });
         }
         indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);

@@ -15,6 +15,8 @@ struct Uniforms {
     cam_pos_day: vec4<f32>,
     // rgb = fog color, w = fog end distance in blocks
     fog: vec4<f32>,
+    // x = elapsed seconds (foliage wind), yzw spare
+    time_sway: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -48,6 +50,9 @@ fn vs_main(
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(t_diffuse, s_diffuse, in.tex_coord, in.tex_index);
+    // alpha cutout (leaves, glass panes, crack decals). Water (a ~0.67) and
+    // ice (~0.78) sit above the threshold and render solid/blended.
+    if (color.a < 0.5) { discard; }
     let sky = f32((in.light >> 4u) & 15u) / 15.0;
     let block_l = f32(in.light & 15u) / 15.0;
     let day = uniforms.cam_pos_day.w;

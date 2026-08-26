@@ -14,6 +14,9 @@ pub struct GpuVertex {
     pub ao: f32,
     /// Packed light: sky in the high nibble, block light in the low nibble.
     pub light: u32,
+    /// Wind-sway weight (foliage = 1.0); the vertex shader offsets the
+    /// position by a world-position-phased wave scaled by this.
+    pub sway: f32,
 }
 
 impl GpuVertex {
@@ -28,6 +31,7 @@ impl GpuVertex {
                 wgpu::VertexAttribute { offset: 32, shader_location: 3, format: wgpu::VertexFormat::Uint32 },
                 wgpu::VertexAttribute { offset: 36, shader_location: 4, format: wgpu::VertexFormat::Float32 },
                 wgpu::VertexAttribute { offset: 40, shader_location: 5, format: wgpu::VertexFormat::Uint32 },
+                wgpu::VertexAttribute { offset: 44, shader_location: 6, format: wgpu::VertexFormat::Float32 },
             ],
         }
     }
@@ -41,6 +45,8 @@ pub struct Uniforms {
     cam_pos_day: [f32; 4],
     // rgb = fog color, w = fog end distance in blocks
     fog: [f32; 4],
+    // x = elapsed seconds (drives foliage wind), yzw spare
+    time_sway: [f32; 4],
 }
 
 /// Environment parameters passed every frame.
@@ -52,6 +58,8 @@ pub struct Env {
     pub fog_color: [f32; 3],
     /// Fog end distance in blocks.
     pub fog_far: f32,
+    /// Elapsed seconds; drives the vertex-shader foliage sway.
+    pub time: f32,
 }
 
 /// Pipeline + texture array shared by every mesh drawn in a frame.
@@ -70,9 +78,12 @@ impl SceneResources {
             height: 16,
             depth_or_array_layers: textures.len().max(1) as u32,
         };
+        // 16x16 layers -> 5 mip levels (16, 8, 4, 2, 1); distance sampling
+        // picks a filtered mip so terrain stops shimmering at range
+        const MIP_LEVELS: u32 = 5;
         let diffuse_texture = device.create_texture(&wgpu::TextureDescriptor {
             size: texture_size,
-            mip_level_count: 1,
+            mip_level_count: MIP_LEVELS,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -81,21 +92,26 @@ impl SceneResources {
             view_formats: &[],
         });
         for (i, img) in textures.iter().enumerate() {
-            queue.write_texture(
-                wgpu::ImageCopyTexture {
-                    texture: &diffuse_texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d { x: 0, y: 0, z: i as u32 },
-                    aspect: wgpu::TextureAspect::All,
-                },
-                img.as_raw(),
-                wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * 16),
-                    rows_per_image: Some(16),
-                },
-                wgpu::Extent3d { width: 16, height: 16, depth_or_array_layers: 1 },
-            );
+            let mut level = img.clone();
+            for mip in 0..MIP_LEVELS {
+                let (w, h) = level.dimensions();
+                queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &diffuse_texture,
+                        mip_level: mip,
+                        origin: wgpu::Origin3d { x: 0, y: 0, z: i as u32 },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    level.as_raw(),
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * w),
+                        rows_per_image: Some(h),
+                    },
+                    wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                );
+                level = downsample_2x(&level);
+            }
         }
         let diffuse_texture_view = diffuse_texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(wgpu::TextureViewDimension::D2Array),
@@ -106,7 +122,8 @@ impl SceneResources {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
 
@@ -245,6 +262,7 @@ impl MeshBatch {
                 view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
                 cam_pos_day: [0.0; 4],
                 fog: [0.0; 4],
+                time_sway: [0.0; 4],
             }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -270,6 +288,7 @@ impl MeshBatch {
                 view_proj: camera.build_view_projection_matrix().to_cols_array_2d(),
                 cam_pos_day: [env.camera_pos.x, env.camera_pos.y, env.camera_pos.z, env.day_factor],
                 fog: [env.fog_color[0], env.fog_color[1], env.fog_color[2], env.fog_far],
+                time_sway: [env.time, 0.0, 0.0, 0.0],
             }]),
         );
     }
@@ -323,4 +342,34 @@ impl GpuScene {
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         self.batch.draw(render_pass, &self.resources, false);
     }
+}
+
+/// Box-filter a texture down by exactly 2x (used to build the atlas mip
+/// chain on the CPU at startup).
+fn downsample_2x(img: &RgbaImage) -> RgbaImage {
+    let (w, h) = img.dimensions();
+    let (nw, nh) = ((w / 2).max(1), (h / 2).max(1));
+    if nw == w || nh == h {
+        return img.clone();
+    }
+    let mut out = RgbaImage::new(nw, nh);
+    for y in 0..nh {
+        for x in 0..nw {
+            let (x0, y0) = (x * 2, y * 2);
+            let mut acc = [0u32; 4];
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                let px = img.get_pixel(x0 + dx, y0 + dy);
+                for c in 0..4 {
+                    acc[c] += px.0[c] as u32;
+                }
+            }
+            out.put_pixel(x, y, image::Rgba([
+                (acc[0] / 4) as u8,
+                (acc[1] / 4) as u8,
+                (acc[2] / 4) as u8,
+                (acc[3] / 4) as u8,
+            ]));
+        }
+    }
+    out
 }

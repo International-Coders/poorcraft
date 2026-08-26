@@ -233,6 +233,17 @@ pub struct MiningState {
     pub total: f32,
 }
 
+/// A small break/mining debris particle (billboard quad, cutout-safe).
+#[derive(Clone, Debug)]
+pub struct Particle {
+    pub position: Vec3,
+    pub velocity: Vec3,
+    pub life: f32,
+    pub tex: u32,
+    /// Sub-tile of the block texture to sample (0..0.75, quarter-tile).
+    pub uv_off: [f32; 2],
+}
+
 #[derive(Clone, Debug)]
 pub struct ItemDrop {
     pub stack: ItemStack,
@@ -637,6 +648,14 @@ struct GameState {
     pub ui_open: UiOpen,
     pub craft_grid: [Option<ItemStack>; 9],
     pub mining: Option<MiningState>,
+    /// (target, stage) the crack decal batch was built for.
+    crack_state: Option<((i32, i32, i32), u32)>,
+    crack_batch: Option<MeshBatch>,
+    particle_batch: Option<MeshBatch>,
+    pub particles: Vec<Particle>,
+    particle_timer: f32,
+    /// Total elapsed seconds (drives foliage wind).
+    elapsed: f32,
     pub drops: Vec<ItemDrop>,
     drop_batch: Option<MeshBatch>,
     pub block_entities: HashMap<(i32, i32, i32), BlockEntity>,
@@ -875,6 +894,12 @@ impl GameState {
             mining: None,
             drops: Vec::new(),
             drop_batch: None,
+            crack_state: None,
+            crack_batch: None,
+            particle_batch: None,
+            particles: Vec::new(),
+            particle_timer: 0.0,
+            elapsed: 0.0,
             block_entities: HashMap::new(),
             mobs: Vec::new(),
             villagers: Vec::new(),
@@ -1464,6 +1489,21 @@ impl GameState {
             }
         }
 
+        self.elapsed += dt;
+
+        // Break particles: gravity + simple ground stop.
+        for pt in self.particles.iter_mut() {
+            pt.life -= dt;
+            pt.velocity.y -= 18.0 * dt;
+            let next = pt.position + pt.velocity * dt;
+            if registry::is_solid(self.world.get_block(next.x as i32, next.y as i32, next.z as i32)) {
+                pt.velocity = Vec3::ZERO;
+            } else {
+                pt.position = next;
+            }
+        }
+        self.particles.retain(|pt| pt.life > 0.0);
+
         // 20-minute day/night cycle.
         let ticks = (dt * lf_game::TimeOfDay::TICKS_PER_SECOND as f32) as u64;
         self.time = lf_game::TimeOfDay::new(self.time.ticks + ticks);
@@ -1545,12 +1585,21 @@ impl GameState {
                     }
                     None => self.mining = Some(MiningState { pos: key, progress: dt, total }),
                 }
+                // steady debris while grinding the block
+                self.particle_timer += dt;
+                if self.particle_timer > 0.15 && self.settings.particles {
+                    self.particle_timer = 0.0;
+                    self.spawn_break_particles(block_id, (pos.x, pos.y, pos.z), 2);
+                }
                 if let Some(m) = &mut self.mining {
                     m.total = total;
                     if m.progress >= m.total {
                         self.mining = None;
                         if self.world.set_block(pos.x, pos.y, pos.z, BlockState::AIR).is_some() {
                             self.break_block_drops(block_id, pos);
+                            if self.settings.particles {
+                                self.spawn_break_particles(block_id, (pos.x, pos.y, pos.z), 16);
+                            }
                             self.use_durability();
                             self.remesh_around(pos.x, pos.z);
                             let (l, p) = grant_xp(self.xp_level, self.xp_progress, 1);
@@ -2271,6 +2320,11 @@ impl GameState {
     }
 
     fn env(&self) -> lf_engine::scene::Env {
+        let env_time = if self.settings.particles {
+            self.elapsed
+        } else {
+            0.0 // freeze wind when particles/FX are off (low quality tier)
+        };
         let mut sky = self.time.sky_color();
         let mut day = self.time.sky_light_level();
         let mut fog_far = (self.settings.view_distance as f32 + 2.0) * 16.0;
@@ -2295,6 +2349,7 @@ impl GameState {
             day_factor: day,
             fog_color: sky,
             fog_far,
+            time: env_time,
         }
     }
 
@@ -2375,6 +2430,8 @@ impl GameState {
 
     fn render(&mut self) {
         self.rebuild_drop_batch();
+        self.rebuild_crack_batch();
+        self.rebuild_particle_batch();
         let camera = self.camera();
         let env = self.env();
         let view_proj = camera.build_view_projection_matrix();
@@ -2465,6 +2522,14 @@ impl GameState {
             if let Some(batch) = &self.drop_batch {
                 batch.draw(&mut pass, resources, false);
             }
+            // Crack decal on the block being mined (cutout, depth-tested).
+            if let Some(batch) = &self.crack_batch {
+                batch.draw(&mut pass, resources, false);
+            }
+            // Break debris billboards.
+            if let Some(batch) = &self.particle_batch {
+                batch.draw(&mut pass, resources, false);
+            }
         }
         // egui UI pass on top of the world.
         let (paint_jobs, screen) = {
@@ -2500,6 +2565,7 @@ impl GameState {
                         tex_index: tex,
                         ao: 1.0,
                         light: 0xF0,
+                        sway: 0.0,
                     });
                 }
                 indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
@@ -2550,6 +2616,109 @@ impl GameState {
 }
 
 /// Six faces of an axis-aligned cube with mesher-compatible winding.
+impl GameState {
+    /// Crack decal on the block being mined: an inflated cube textured with
+    /// the stage-N crack layer; the shader's alpha cutout keeps it hollow.
+    fn rebuild_crack_batch(&mut self) {
+        let want = self.mining.as_ref().map(|m| {
+            let stage = ((m.progress / m.total).clamp(0.0, 1.0) * lf_assets::CRACK_LAYERS.len() as f32) as u32;
+            (m.pos, stage.min(lf_assets::CRACK_LAYERS.len() as u32 - 1))
+        });
+        if want == self.crack_state {
+            return;
+        }
+        self.crack_state = want;
+        self.crack_batch = None;
+        let Some(((x, y, z), stage)) = want else { return };
+        let tex = lf_assets::CRACK_LAYERS[stage as usize];
+        let (cx, cy, cz) = (x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
+        let r = 0.505; // just clear of the block surface to avoid z-fighting
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        for (normal, corners, uvs) in cube_faces(r) {
+            let base = vertices.len() as u32;
+            for (c, uv) in corners.iter().zip(uvs.iter()) {
+                vertices.push(GpuVertex {
+                    position: [cx + c[0], cy + c[1], cz + c[2]],
+                    normal,
+                    tex_coord: *uv,
+                    tex_index: tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+        self.crack_batch = Some(MeshBatch::new(&self.device, &self.resources, &vertices, &indices));
+    }
+
+    /// Camera-facing debris quads for break/mining particles.
+    fn rebuild_particle_batch(&mut self) {
+        if self.particles.is_empty() {
+            self.particle_batch = None;
+            return;
+        }
+        let look = self.player.look_dir();
+        let right = look.cross(Vec3::Y).normalize();
+        let up = right.cross(look).normalize();
+        let r = 0.07;
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        for pt in &self.particles {
+            let base = vertices.len() as u32;
+            let corners = [
+                (-right * r - up * r, [pt.uv_off[0], pt.uv_off[1] + 0.25]),
+                (-right * r + up * r, [pt.uv_off[0], pt.uv_off[1]]),
+                (right * r + up * r, [pt.uv_off[0] + 0.25, pt.uv_off[1]]),
+                (right * r - up * r, [pt.uv_off[0] + 0.25, pt.uv_off[1] + 0.25]),
+            ];
+            for (offset, uv) in corners {
+                vertices.push(GpuVertex {
+                    position: [pt.position.x + offset.x, pt.position.y + offset.y, pt.position.z + offset.z],
+                    normal: [look.x, look.y, look.z],
+                    tex_coord: uv,
+                    tex_index: pt.tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+        self.particle_batch = Some(MeshBatch::new(&self.device, &self.resources, &vertices, &indices));
+    }
+
+    /// Spawn debris flying off a block that is being ground down or broken.
+    fn spawn_break_particles(&mut self, block_id: u32, pos: (i32, i32, i32), count: usize) {
+        let tex = lf_assets::texture_index_for_block(block_id);
+        for i in 0..count {
+            // cheap deterministic-ish jitter from the elapsed clock
+            let seed = (self.elapsed.to_bits() as u32).wrapping_add(i as u32 * 2654435761);
+            let r1 = (seed % 1000) as f32 / 1000.0;
+            let r2 = ((seed >> 10) % 1000) as f32 / 1000.0;
+            let r3 = ((seed >> 20) % 1000) as f32 / 1000.0;
+            self.particles.push(Particle {
+                position: Vec3::new(
+                    pos.0 as f32 + 0.2 + r1 * 0.6,
+                    pos.1 as f32 + 0.2 + r2 * 0.6,
+                    pos.2 as f32 + 0.2 + r3 * 0.6,
+                ),
+                velocity: Vec3::new((r1 - 0.5) * 3.0, 2.0 + r2 * 2.0, (r3 - 0.5) * 3.0),
+                life: 0.4 + r2 * 0.5,
+                tex,
+                uv_off: [r1 * 0.75, r3 * 0.75],
+            });
+        }
+        // keep the debris budget bounded
+        let max = 128;
+        if self.particles.len() > max {
+            let excess = self.particles.len() - max;
+            self.particles.drain(0..excess);
+        }
+    }
+}
+
 fn cube_faces(r: f32) -> [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] {
     [
         ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
@@ -2574,7 +2743,7 @@ fn drop_tex_layer(item_id: &str) -> u32 {
 /// Mesh one column and convert to GPU vertices (opaque + water channels).
 fn mesh_column_gpu(world: &World, cx: i32, cz: i32)
     -> (Vec<GpuVertex>, Vec<u32>, Vec<GpuVertex>, Vec<u32>) {
-    let mesh = world.mesh_column(cx, cz, &|b, _face| lf_assets::texture_index_for_block(b.id()));
+    let mesh = world.mesh_column(cx, cz, &|b, face| lf_assets::texture_index_for_face(b.id(), face));
     let to_gpu = |vs: &[lf_voxel::meshing::Vertex]| -> Vec<GpuVertex> {
         vs.iter().map(|v| GpuVertex {
             position: v.position,
@@ -2583,6 +2752,7 @@ fn mesh_column_gpu(world: &World, cx: i32, cz: i32)
             tex_index: v.tex_index,
             ao: v.ao,
             light: v.light,
+            sway: v.sway,
         }).collect()
     };
     let vertices = to_gpu(&mesh.opaque.vertices);

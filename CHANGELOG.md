@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2026-08-26 — P26: visual identity — per-face materials, cutout leaves + wind, smooth AO, mining cracks/particles, mipmaps (loop 306)
+- Per-face materials: meshing's texture callback is now
+  `(BlockState, Face::{Top, Bottom, Side})`. Grass finally renders a green
+  top, banded side and dirt bottom (it previously painted a fake green band
+  on all six faces); every log species gets growth-ring end textures. New
+  atlas layers (grass_top, log_top, crack_0..3) bring the array to 48.
+- Alpha cutout: the fragment shader discards alpha < 0.5 and the six leaf
+  textures are deterministically hole-punched per species. Foliage is now
+  see-through with reliable depth writes — water (0.67) and ice (0.78) sit
+  above the threshold and are unaffected; the glass pane becomes a
+  frame-only cutout, Minecraft-style.
+- Wind: vertices carry a sway weight (leaf family = 1.0) and Env.time drives
+  a vertex-shader wave whose phase derives from world position, so animation
+  is continuous across chunk borders and stable while moving. Frozen when
+  the particles setting is off (low quality tier).
+- Smooth lighting: per-vertex ambient occlusion from the classic
+  side/side/corner rule and per-corner light averaging over the four cells
+  touching each corner (both were flat per-face before). get_block now
+  handles diagonal cross-section lookups safely (approximates as air) —
+  corner sampling used to overflow section indexing.
+- Mining feedback: a stage 0..3 crack decal (slightly inflated cutout cube
+  on the targeted block) plus debris particles — small camera-facing
+  billboards sampling the block's texture, with gravity, a simple ground
+  stop and a 128-particle cap. The subtle HUD progress bar stays for
+  accessibility.
+- Mipmaps: a 5-level CPU box-filtered chain per atlas layer with
+  mag-nearest / min-linear+mipmap-linear sampling; distance shimmer is gone
+  without losing the pixel-art look up close.
+- New proof scenes: `foliage_canopy` (cutout + AO + log rings close-up) and
+  `mining_feedback` (crack decal + debris on a stone column). The mining
+  scene taught a lesson: frame scene cameras against the terrain AT the eye
+  — a buried camera sees straight through backfaces.
+
 ## 2026-08-26 — P25: correctness & honesty sweep + the pathtracer was flat-color broken (loop 305)
 - Server SetBlock validates against the real registry now
   (`lf_voxel::registry::is_known_block`): vanilla ids <= 41 plus registered

@@ -290,3 +290,50 @@ nothing ever analyzed the pixels. Fixed both; proofs re-verified visually
 - `git ls-remote github refs/heads/main` → `80f6891...` (matches HEAD)
 - GitHub warned: `target/debug/deps/libnaga-*.rlib` (53.82 MB) is in
   history — under the 100 MB limit but should be scrubbed/gitignored.
+
+## Session 306: P26 — visual identity milestone
+
+### What
+The approved visual-identity scope under the standing decisions
+(hybrid-selective art, Deck-60fps floor, four launch platforms):
+per-face material mapping, alpha-cutout leaves, vertex wind sway,
+smooth per-vertex AO + light, crack-decal + debris mining feedback,
+texture mipmaps, plus two new vistest proofs.
+
+### How (files touched)
+- crates/lf_voxel/src/meshing.rs — Face enum; tex_of(BlockState, Face);
+  per-vertex AO + smoothed light via corner_shades (2x2 touching cells);
+  sway weight on leaf vertices; get_block handles diagonal cross-section
+  lookups as air; 4 new unit tests (per-face routing, corner AO, smooth
+  light averaging, sway flags)
+- crates/lf_voxel/src/registry.rs — is_leaf() block family predicate
+- crates/lf_voxel/src/world.rs — mesh_column signature follows tex_of
+- crates/lf_assets/ — depends on lf_voxel now; texture_index_for_face +
+  GRASS_TOP/LOG_TOP/CRACK_LAYERS consts; grass_top + log_top + crack_0..3
+  procedural textures; per-species hole-punched leaves; 3 new/updated tests
+- crates/lf_engine/src/scene.rs — GpuVertex.sway (+layout loc 6);
+  Uniforms.time_sway; Env.time; mipmapped texture array (5 levels, CPU box
+  filter) with mag-nearest/min-linear sampler
+- crates/lf_engine/src/shader.wgsl — vertex wind (world-pos phased);
+  fragment alpha-cutout discard < 0.5
+- crates/lf_engine/src/atmosphere.rs, app.rs — sway: 0.0 / Env.time fixes
+- crates/lf_client/src/lib.rs — face-aware mesh_column_gpu; elapsed clock;
+  crack_batch (stage-keyed rebuild), particle system (spawn on grind ticks
+  + 16 on break, physics in tick, billboard rebuild in render, capped 128);
+  wind frozen when settings.particles is off
+- crates/lf_vistest/src/lib.rs — sway/time plumbed; foliage_canopy +
+  mining_feedback scenes (canopy hand-built at origin; stone column placed
+  BEFORE meshing — first attempt placed it after the mesh loop and only the
+  raw decal/billboard vertices rendered; camera framed against terrain at
+  the EYE because a buried camera sees through backfaces)
+
+### Evidence
+- cargo build/test --workspace: 160 passed / 0 failed (154 + 6 new)
+- vistest: 22/22 [ok] through the pixel gate; foliage_canopy and
+  mining_feedback visually verified (cutout holes, trunk, crack lines,
+  debris quads); spawn_plains_dawn shows the new grass top/side/bottom
+- smoke: release binary alive after 12 s, loads 2 mods
+- runtimes rebuilt (see dist/)
+
+### Push attempt
+- `git push github HEAD` still blocked (PAT lacks workflow scope).

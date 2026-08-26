@@ -126,7 +126,7 @@ impl State {
             }
         }
         let mesh = lf_voxel::meshing::mesh_section(&section, None, None, None, None, None, None,
-            &|b, _face| lf_assets::texture_index_for_block(b.id()), &|_, _, _| 0xF0);
+            &|b, face| lf_assets::texture_index_for_face(b.id(), face), &|_, _, _| 0xF0);
         let vertices: Vec<GpuVertex> = mesh.vertices.iter().map(|v| GpuVertex {
             position: v.position,
             normal: v.normal,
@@ -134,6 +134,7 @@ impl State {
             tex_index: v.tex_index,
             ao: v.ao,
             light: v.light,
+            sway: v.sway,
         }).collect();
 
         let textures = lf_assets::generate_atlas();
@@ -178,6 +179,7 @@ impl State {
             day_factor: 1.0,
             fog_color: [0.53, 0.81, 0.98],
             fog_far: 1000.0,
+            time: 0.0, // one-chunk demo has no foliage to animate
         };
         self.scene.update_camera(&self.queue, &self.camera, &env);
     }
