@@ -49,3 +49,13 @@
 ### Evidence
 - `make help` output lists 12 targets.
 - `git remote -v` shows `github -> International-Coders/poorcraft.git`.
+
+### Push attempt (honest log)
+- `git push -u github HEAD` FAILED: the stored Personal Access Token lacks
+  the `workflow` scope, so GitHub refuses pushes touching
+  `.github/workflows/ci.yml` (which is in the branch history).
+  Fix: update the token to include `workflow` (and ideally `repo`) scope,
+  or switch the remote to SSH. Note: history also contains large
+  `target/debug` blobs (>50MB warning) from early commits — consider
+  `git rm -r --cached target` is NOT needed now (untracked), but a history
+  cleanup (filter-repo) would silence the warning.
