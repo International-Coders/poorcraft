@@ -21,6 +21,8 @@ use winit::{
     window::{CursorGrabMode, WindowAttributes},
 };
 
+pub mod icons;
+pub mod map;
 pub mod net;
 pub mod ui;
 pub mod ui_kit;
@@ -199,6 +201,7 @@ pub enum UiOpen {
     Book,
     Smithing,
     TechTree,
+    Map,
     Settings,
     Death,
 }
@@ -279,6 +282,18 @@ pub struct Settings {
     pub volume_sfx: f32,
     pub volume_music: f32,
     pub show_fps: bool,
+    #[serde(default = "default_true")]
+    pub show_minimap: bool,
+    #[serde(default = "default_ui_scale")]
+    pub ui_scale: f32,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_ui_scale() -> f32 {
+    1.0
 }
 
 impl Default for Settings {
@@ -296,6 +311,8 @@ impl Default for Settings {
             volume_sfx: 0.9,
             volume_music: 0.6,
             show_fps: false,
+            show_minimap: true,
+            ui_scale: 1.0,
         }
     }
 }
@@ -340,6 +357,8 @@ pub struct ClientSave {
     pub villagers: Vec<Villager>,
     pub research: Option<ResearchState>,
     pub settings: Option<Settings>,
+    #[serde(default)]
+    pub waypoints: Vec<map::Waypoint>,
 }
 
 struct App {
@@ -431,6 +450,19 @@ impl ApplicationHandler for App {
                                             if state.net.is_some() && state.ui_open == UiOpen::None && state.stats.health > 0.0 {
                                                 state.chat_input = Some(String::new());
                                                 state.unlock_cursor();
+                                                return;
+                                            }
+                                        }
+                                        KeyCode::KeyM => {
+                                            if matches!(state.ui_open, UiOpen::None | UiOpen::Map) && state.stats.health > 0.0 {
+                                                if state.ui_open == UiOpen::Map {
+                                                    state.close_ui();
+                                                } else {
+                                                    state.ui_open = UiOpen::Map;
+                                                    state.menu_reveal = 0.0;
+                                                    state.map.following = true;
+                                                    state.unlock_cursor();
+                                                }
                                                 return;
                                             }
                                         }
@@ -588,6 +620,23 @@ struct GameState {
     pub menu_reveal: f32,
     pub settings_tab: usize,
     pub hotbar_hover: Option<String>,
+    /// Real pixel-art item icons (one egui texture per item id).
+    pub icons: icons::ItemIcons,
+    /// Minimap + world-map state (tile cache, view, waypoints view state).
+    pub map: map::MapState,
+    /// Persisted player markers, shown on the map + minimap.
+    pub waypoints: Vec<map::Waypoint>,
+    /// HUD feedback timers, 1 -> 0.
+    pub hud_flash: f32,
+    pub hit_flash: f32,
+    pub xp_flash: f32,
+    pub hotbar_pick_time: f32,
+    last_hotbar_index: usize,
+    /// Recipe book panel state.
+    pub recipe_book_open: bool,
+    pub recipe_search: String,
+    pub recipe_station: usize,
+    pub recipe_craftable_only: bool,
     pub last_fps: f32,
     pub quest_log: QuestLog,
     pub chronicle: Vec<ChronicleEvent>,
@@ -663,7 +712,7 @@ impl GameState {
         surface.configure(&device, &config);
 
         // Load save (also tells us the world type) before generating.
-        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type) =
+        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints) =
             load_client_save(Path::new(WORLD_DIR));
         // Load mods into the live registries before touching the world.
         let mods = lf_modapi::load_mods_dir(Path::new("mods"));
@@ -721,6 +770,7 @@ impl GameState {
 
 
         let egui = EguiPlatform::new(&device, config.format, &window);
+        let icons = icons::ItemIcons::new(&egui.ctx);
 
         // The worker skips chunks that come from the save.
         let mut worker_skip = saved_set.clone();
@@ -779,6 +829,18 @@ impl GameState {
             menu_reveal: 0.0,
             settings_tab: 0,
             hotbar_hover: None,
+            icons,
+            map: map::MapState::new(world_type, WORLD_SEED),
+            waypoints,
+            hud_flash: 0.0,
+            hit_flash: 0.0,
+            xp_flash: 0.0,
+            hotbar_pick_time: 0.0,
+            last_hotbar_index: 0,
+            recipe_book_open: true,
+            recipe_search: String::new(),
+            recipe_station: usize::MAX,
+            recipe_craftable_only: false,
             last_fps: 0.0,
             quest_log,
             chronicle,
@@ -854,6 +916,8 @@ impl GameState {
         self.mobs.clear();
         self.drops.clear();
         self.block_entities.clear();
+        self.waypoints.clear();
+        self.map = map::MapState::new(world_type, WORLD_SEED);
         self.quest_log = {
             let mut log = QuestLog::new();
             for q in starter_quests() {
@@ -935,6 +999,7 @@ impl GameState {
             world_type: Some(self.world_type),
             research: Some(self.research.clone()),
             settings: Some(self.settings),
+            waypoints: self.waypoints.clone(),
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
             let _ = std::fs::write(Path::new(WORLD_DIR).join("player_extras.dat"), bytes);
@@ -1047,6 +1112,15 @@ impl GameState {
         self.menu_reveal = (self.menu_reveal + dt).min(3.0);
         if self.ui_open == UiOpen::Title {
             self.title_orbit += dt * 0.05; // slow menu camera orbit
+        }
+        // HUD feedback timers + hotbar switch detection.
+        self.hud_flash = (self.hud_flash - dt * 1.6).max(0.0);
+        self.hit_flash = (self.hit_flash - dt * 3.0).max(0.0);
+        self.xp_flash = (self.xp_flash - dt * 1.2).max(0.0);
+        self.hotbar_pick_time = (self.hotbar_pick_time - dt * 0.55).max(0.0);
+        if self.hotbar_index != self.last_hotbar_index {
+            self.last_hotbar_index = self.hotbar_index;
+            self.hotbar_pick_time = 1.0;
         }
         let window = self.window.clone();
         self.egui.begin_frame(&window);
@@ -1210,6 +1284,7 @@ impl GameState {
                         let dead = mob.take_hit(damage, from);
                         dead
                     };
+                    self.hit_flash = 1.0;
                     if killed {
                         let (kind, pos) = {
                             let mob = &self.mobs[mob_hit];
@@ -1263,6 +1338,7 @@ impl GameState {
                             let (l, p) = grant_xp(self.xp_level, self.xp_progress, 1);
                             self.xp_level = l;
                             self.xp_progress = p;
+                            self.xp_flash = 1.0;
                             if let Some(n) = &self.net {
                                 n.send_block(pos.x, pos.y, pos.z, registry::block::AIR);
                             }
@@ -1546,6 +1622,7 @@ impl GameState {
         let armor = worn_armor_points(&self.inventory.slots);
         let amount = mitigate(amount, armor);
         self.stats.health = (self.stats.health - amount).max(0.0);
+        self.hud_flash = 1.0;
         if self.stats.health <= 0.0 {
             self.chronicle_event(EventType::Death, "the Smith fell".into());
             // death
@@ -1621,6 +1698,7 @@ impl GameState {
                     let (l, p) = grant_xp(self.xp_level, self.xp_progress, 5);
                     self.xp_level = l;
                     self.xp_progress = p;
+                    self.xp_flash = 1.0;
                     self.mobs.remove(mi);
                 }
             }
@@ -2309,7 +2387,7 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType, Vec<map::Waypoint>) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
@@ -2347,10 +2425,11 @@ fn load_client_save(dir: &Path)
             if let Some(r) = save.research { research = r; }
             if let Some(s) = save.settings { settings = s; }
             villagers = save.villagers;
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type);
+            let waypoints = save.waypoints;
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints);
         }
     }
-    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal)
+    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal, Vec::new())
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.

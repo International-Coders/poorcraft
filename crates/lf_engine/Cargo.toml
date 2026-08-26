@@ -14,5 +14,6 @@ bytemuck = { version = "1.16", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 lf_voxel = { path = "../lf_voxel" }
 egui = "0.31"
+epaint = "0.31"
 egui-wgpu = "0.31"
 lf_assets = { path = "../lf_assets" }

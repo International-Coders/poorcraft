@@ -1,9 +1,9 @@
 # STATE
-loop_count: 301
-current_milestone: P21-menus-ui
-last_done: "P21: UI overhaul — ui_kit design system (theme palette, easing library +unit tests, Reveal stagger tracker, menu_button with hover glow/press spring/accent bar, slide_panel, animated toggle, styled slider, section headers, painted vector hearts/hunger glyphs replacing font boxes); animated title screen (pulsing logo glow, staggered buttons, world slowly orbiting spawn behind the menu); pause menu rebuilt as slide-in panel with kit buttons; settings screen (Video/Audio/Gameplay tabs, quality presets) driving the engine live (view distance->streamer, FOV, invert-Y, clouds/particles toggles, RT mode Off/Captures/Live with internal-scale slider); LIVE ray tracing (persistent Pathtracer reusing GPU resources, per-frame traced view as fullscreen texture under the HUD); HUD rebuilt (painted hearts/hunger, XP bar with level chip, hotbar hover tooltips, info line with clock/weather/FPS/RT flag). 123 tests; menu_preview + settings_preview proofs pixel-verified; game smoke-tested"
-next_task: "polish backlog (sound, beds/doors, A*, PT-BR) or further UI passes"
+loop_count: 302
+current_milestone: P22-ui-overhaul
+last_done: "P22: UI/UX overhaul — real 16x16 pixel-art item icons everywhere (lf_assets item sprite generator for ~37 non-block items + mod-item gem fallback; atlas extended 18->41 layers wiring wood variants, industrial ores and machines that previously rendered as stone); tooltip system (icon + display name + tool/food/armor stats, fuel seconds, smelts-into, era badge, recipe pattern mini-grid); crafting screen redesign with recipe book (unified catalog over crafting+smelting+alloy+crush, search, station tabs, craftable-only filter, have/need coloring, click-to-auto-fill, hover pattern preview); shift-click quick-move across inventory/chest/furnace/machines; map suite: corner minimap + full M-key world map (chunk tile cache, real top-block colors for loaded chunks, seed-derived approximation dimmed for explored-only, fog of war, hillshading, entity dots, waypoint manager, pan/zoom, biome+coord readouts, compass) with waypoints persisted in ClientSave; HUD polish (icon hotbar with pulsing selection + fading item name, armor points, XP bar mirroring hotbar with gain flash, dynamic crosshair with mining expand + hit marker, hurt vignette + low-health pulse, death screen with run stats); settings Interface tab (minimap toggle, UI scale). Fixed: crafting::recipes() per-call Box::leak (OnceLock), Inventory::add_item ignoring max_stack, vistest windows never rendering (egui warmup pass + font-atlas texture delta threading via headless::UiOverlay) — the pre-P22 trade/tech proofs had silently empty windows. 123 -> 140 tests; 3 new proof scenes (crafting_ui, map_screen, minimap_hud) + all previews re-rendered and pixel-verified; game smoke-tested; runtimes rebuilt"
+next_task: "playtest pass on the new UI; then polish backlog (sound, beds/doors, A*, PT-BR)"
 build: GREEN
-tests: 123 passing
-last_screenshot: shots/vistest_menu_preview.png
+tests: 140 passing
+last_screenshot: shots/vistest_crafting_ui.png
 blockers: none

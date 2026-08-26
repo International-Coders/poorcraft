@@ -40,13 +40,14 @@ impl Inventory {
     }
 
     pub fn add_item(&mut self, item_id: &str, count: u8) -> u8 {
+        let cap = crate::items::item_def(item_id).map(|d| d.max_stack).unwrap_or(64);
         let mut remaining = count;
         // First pass: fill existing stacks
         for slot in self.slots.iter_mut().take(36) {
             if remaining == 0 { break; }
             if let Some(stack) = slot {
-                if stack.item_id == item_id && stack.count < 64 {
-                    let space = 64 - stack.count;
+                if stack.item_id == item_id && stack.count < cap {
+                    let space = cap - stack.count;
                     let add = remaining.min(space);
                     stack.count += add;
                     remaining -= add;
@@ -58,7 +59,7 @@ impl Inventory {
             for slot in self.slots.iter_mut().take(36) {
                 if remaining == 0 { break; }
                 if slot.is_none() {
-                    let add = remaining.min(64);
+                    let add = remaining.min(cap);
                     *slot = Some(ItemStack { item_id: item_id.to_string(), count: add });
                     remaining -= add;
                 }
@@ -66,13 +67,6 @@ impl Inventory {
         }
         remaining
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CraftingRecipe {
-    pub input_pattern: Vec<String>, // simplified flat list or recipe key
-    pub output_item: String,
-    pub output_count: u8,
 }
 
 #[cfg(test)]
@@ -93,5 +87,20 @@ mod tests {
         assert_eq!(rem, 0); // 64 + 6 = 70, fully placed
         assert_eq!(inv.slots[0].as_ref().unwrap().count, 64);
         assert_eq!(inv.slots[1].as_ref().unwrap().count, 6);
+    }
+
+    #[test]
+    fn add_item_respects_max_stack() {
+        let mut inv = Inventory::new();
+        // iron_gear stacks to 16, not 64
+        let rem = inv.add_item("iron_gear", 40);
+        assert_eq!(rem, 0, "40 gears = 16 + 16 + 8 across three slots");
+        assert_eq!(inv.slots[0].as_ref().unwrap().count, 16);
+        assert_eq!(inv.slots[2].as_ref().unwrap().count, 8);
+        // tools never stack
+        let rem = inv.add_item("iron_pickaxe", 2);
+        assert_eq!(rem, 0);
+        assert_eq!(inv.slots[3].as_ref().unwrap().count, 1);
+        assert_eq!(inv.slots[4].as_ref().unwrap().count, 1);
     }
 }

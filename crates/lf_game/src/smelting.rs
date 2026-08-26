@@ -41,6 +41,19 @@ fn mod_smelt(input: &str) -> Option<&'static str> {
         .map(|(_, out)| *out)
 }
 
+/// Every known smelting pair (input, output), vanilla + mods. For recipe
+/// browsers; keep in sync with `smelt_result` (a test guards the agreement).
+pub fn smelt_entries() -> Vec<(String, &'static str)> {
+    let mut out: Vec<(String, &'static str)> = vec![
+        ("raw_iron".into(), "iron_ingot"),
+        ("raw_copper".into(), "copper_ingot"),
+        ("raw_tin".into(), "tin_ingot"),
+        ("sand".into(), "glass"),
+    ];
+    out.extend(mod_smelts().read().unwrap().iter().cloned());
+    out
+}
+
 /// Seconds of burn per fuel item.
 pub fn fuel_seconds(fuel: &str) -> f32 {
     match fuel {
@@ -187,5 +200,13 @@ mod tests {
         assert_eq!(smelt_result("stone"), None);
         assert!(fuel_seconds("planks") > 0.0);
         assert_eq!(fuel_seconds("iron_ingot"), 0.0);
+    }
+
+    #[test]
+    fn smelt_entries_agree_with_smelt_result() {
+        assert!(!smelt_entries().is_empty());
+        for (input, output) in smelt_entries() {
+            assert_eq!(smelt_result(&input), Some(output), "entry {} disagrees with smelt_result", input);
+        }
     }
 }

@@ -22,6 +22,7 @@ lf_npc = { path = "../lf_npc" }
 lf_protocol = { path = "../lf_protocol" }
 lf_steam = { path = "../lf_steam" }
 lf_modapi = { path = "../lf_modapi" }
+image = { version = "0.25", default-features = false, features = ["png"] }
 bincode = "1"
 serde = { version = "1.0", features = ["derive"] }
 egui = "0.31"

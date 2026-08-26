@@ -71,6 +71,12 @@ pub fn crush_result(input: &str) -> Option<(&'static str, u8)> {
     }
 }
 
+/// Every crushable input with its result, for recipe browsers. Only item
+/// ids (ore blocks drop raw_* items, so they never sit in the input slot).
+pub fn crush_entries() -> &'static [(&'static str, &'static str, u8)] {
+    &[("raw_iron", "raw_iron", 2), ("raw_copper", "raw_copper", 2), ("raw_tin", "raw_tin", 2)]
+}
+
 impl Crusher {
     /// tick with `powered` = EU granted this frame.
     pub fn tick(&mut self, dt: f32, powered: f32) -> bool {
@@ -147,7 +153,7 @@ impl Assembler {
             changed = true;
             if self.progress >= PROCESS_TIME {
                 self.progress = 0.0;
-                if let Some((a, an, b, bn, out, on)) = recipe {
+                if let Some((_a, an, _b, bn, out, on)) = recipe {
                     if let Some(sa) = &mut self.input_a {
                         sa.count = sa.count.saturating_sub(an);
                         if sa.count == 0 { self.input_a = None; }

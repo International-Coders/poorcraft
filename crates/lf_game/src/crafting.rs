@@ -22,9 +22,8 @@ pub fn recipes() -> &'static [Recipe] {
     fn r(output: &str, count: u8, pattern: Vec<Vec<Option<&'static str>>>) -> Recipe {
         Recipe { output: output.to_string(), output_count: count, pattern }
     }
-    static RECIPES: &[Recipe] = &[];
-    // Building a static table with owned Strings is awkward; return a leaked
-    // vec built once.
+    static RECIPES: std::sync::OnceLock<Vec<Recipe>> = std::sync::OnceLock::new();
+    &RECIPES.get_or_init(|| {
     let mut book = Vec::new();
     // log -> 4 planks (shapeless-ish: single cell)
     book.push(r("planks", 4, vec![vec![Some("log")]]));
@@ -160,14 +159,21 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("planks"), Some("crafting_table"), Some("planks")],
         vec![Some("planks"), Some("planks"), Some("planks")],
     ]));
-    let _ = RECIPES;
-    Box::leak(book.into_boxed_slice())
+    book
+    })
 }
 
 // --- runtime mod recipes ---
 fn mod_recipes() -> &'static std::sync::RwLock<Vec<Recipe>> {
     static RECIPES: std::sync::OnceLock<std::sync::RwLock<Vec<Recipe>>> = std::sync::OnceLock::new();
     RECIPES.get_or_init(|| std::sync::RwLock::new(Vec::new()))
+}
+
+/// Vanilla + mod recipes in one list, for recipe browsers.
+pub fn all_recipes() -> Vec<Recipe> {
+    let mut all = recipes().to_vec();
+    all.extend(mod_recipes().read().unwrap().iter().cloned());
+    all
 }
 
 /// Register a mod recipe. Ingredient ids are leaked into the bounded mod
@@ -201,13 +207,8 @@ pub fn match_recipe(grid: &[Option<ItemStack>]) -> Option<(String, u8)> {
     let cell = |x: usize, y: usize| -> Option<&str> {
         grid[y * size + x].as_ref().map(|s| s.item_id.as_str())
     };
-    let all_recipes: Vec<Recipe> = {
-        let mods = mod_recipes().read().unwrap().clone();
-        let mut all = recipes().to_vec();
-        all.extend(mods);
-        all
-    };
-    for recipe in all_recipes {
+    let mods = mod_recipes().read().unwrap().clone();
+    for recipe in recipes().iter().chain(mods.iter()) {
         let rh = recipe.pattern.len(); // rows = height
         let rw = recipe.pattern.iter().map(|r| r.len()).max().unwrap_or(0); // widest row = width
         if rw > size || rh > size {
@@ -344,5 +345,14 @@ mod tests {
         grid[0] = s("coal");
         grid[2] = s("stick");
         assert_eq!(match_recipe(&grid), Some(("torch".into(), 4)));
+    }
+
+    #[test]
+    fn recipes_table_is_a_singleton() {
+        // the book is built once and shared, never leaked per call
+        let a = recipes();
+        let b = recipes();
+        assert!(std::ptr::eq(a.as_ptr(), b.as_ptr()));
+        assert!(!a.is_empty());
     }
 }

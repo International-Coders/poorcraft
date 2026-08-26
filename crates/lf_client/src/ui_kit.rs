@@ -3,7 +3,10 @@
 //! spring easing, fade/slide-in panels, toggles, sliders, and painted
 //! heart/hunger glyphs (no unicode font boxes).
 
-use egui::{Align2, Color32, Pos2, Rect, Sense, Stroke, Ui, Vec2};
+use egui::{Align2, Color32, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
+
+use lf_game::items::{item_def, tool_damage, ItemKind, ToolKind};
+use lf_game::survival::ItemStack;
 
 // ------------------------------------------------------------------
 // Theme
@@ -202,6 +205,114 @@ pub fn section_header(ui: &mut Ui, title: &str, reveal: f32) {
         [pos + Vec2::new(0.0, 24.0), pos + Vec2::new(120.0 * e, 24.0)],
         Stroke::new(2.0, Theme::ACCENT_DIM),
     );
+}
+
+// ------------------------------------------------------------------
+// Item tooltips (real icon + stats + era badge)
+
+/// One stat line inside a tooltip: label left, value right.
+fn tooltip_line(ui: &mut Ui, label: &str, value: &str, color: Color32) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).size(12.0).color(Theme::TEXT_DIM));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(RichText::new(value).size(12.0).color(color));
+        });
+    });
+}
+
+/// The tooltip body for an item stack. Draws inside whatever popup/hover
+/// container the caller set up (on_hover_ui, popup below...).
+pub fn item_tooltip_body(ui: &mut Ui, stack: &ItemStack, icons: &crate::icons::ItemIcons) {
+    egui::Frame::new()
+        .fill(Color32::from_rgba_premultiplied(14, 17, 24, 248))
+        .corner_radius(8.0)
+        .stroke(egui::Stroke::new(1.0, Theme::ACCENT_DIM))
+        .inner_margin(egui::Margin::same(10))
+        .show(ui, |ui| {
+            ui.set_min_width(190.0);
+            ui.horizontal(|ui| {
+                let (rect, _) = ui.allocate_exact_size(Vec2::new(28.0, 28.0), Sense::hover());
+                if !icons.paint(ui, rect, &stack.item_id) {
+                    ui.painter().rect_filled(rect, 4.0, crate::icons::fallback_color(&stack.item_id));
+                }
+                ui.vertical(|ui| {
+                    let name = item_def(&stack.item_id).map(|d| d.name).unwrap_or("Unknown");
+                    ui.label(RichText::new(name).size(15.0).color(Theme::ACCENT).strong());
+                    if stack.count > 1 {
+                        ui.label(RichText::new(format!("x{}", stack.count)).size(11.0).color(Theme::TEXT_DIM));
+                    }
+                });
+            });
+            ui.add_space(3.0);
+            let sep = ui.style().visuals.widgets.noninteractive.bg_stroke;
+            ui.painter().line_segment(
+                [ui.cursor().min, ui.cursor().min + Vec2::new(ui.available_width(), 0.0)],
+                sep,
+            );
+            ui.add_space(4.0);
+            // kind-specific stats
+            if let Some(def) = item_def(&stack.item_id) {
+                match def.kind {
+                    ItemKind::Tool(kind, tier) => {
+                        let tier_name = match tier { 0 => "Wood", 1 => "Stone", _ => "Iron" };
+                        let kind_name = match kind {
+                            ToolKind::Pickaxe => "Pickaxe",
+                            ToolKind::Axe => "Axe",
+                            ToolKind::Shovel => "Shovel",
+                            ToolKind::Sword => "Sword",
+                            ToolKind::Bow => "Bow",
+                        };
+                        tooltip_line(ui, kind_name, tier_name, Theme::TEXT);
+                        tooltip_line(ui, "Damage", &format!("{:.1}", tool_damage(kind, tier)), Theme::BAD);
+                        tooltip_line(ui, "Mining speed", &format!("{:.0}x", lf_game::items::tier_speed(tier)), Theme::OK);
+                        if let ToolKind::Bow = kind {
+                            tooltip_line(ui, "Use", "hold RMB to charge", Theme::TEXT_DIM);
+                        }
+                    }
+                    ItemKind::Food(h) => {
+                        tooltip_line(ui, "Food", &format!("+{} hunger", h), Theme::HUNGER);
+                    }
+                    ItemKind::Armor(points) => {
+                        tooltip_line(ui, "Armor", &format!("-{} damage taken", points), Theme::OK);
+                        tooltip_line(ui, "Slot", "equip via inventory", Theme::TEXT_DIM);
+                    }
+                    ItemKind::Block(b) => {
+                        tooltip_line(ui, "Block", lf_voxel::registry::block::name(b), Theme::TEXT);
+                    }
+                    ItemKind::Material => {
+                        tooltip_line(ui, "Material", "crafting input", Theme::TEXT_DIM);
+                    }
+                }
+                if def.max_stack > 1 {
+                    tooltip_line(ui, "Stacks to", &format!("{}", def.max_stack), Theme::TEXT_DIM);
+                }
+            }
+            // cross-item facts
+            let fuel = lf_game::smelting::fuel_seconds(&stack.item_id);
+            if fuel > 0.0 {
+                tooltip_line(ui, "Fuel", &format!("{:.0}s", fuel), Theme::HUNGER);
+            }
+            if let Some(out) = lf_game::smelting::smelt_result(&stack.item_id) {
+                let out_name = item_def(out).map(|d| d.name).unwrap_or(out);
+                tooltip_line(ui, "Smelts into", out_name, Theme::XP);
+            }
+            if let Some((out, _)) = lf_game::machines::crush_result(&stack.item_id) {
+                let out_name = item_def(out).map(|d| d.name).unwrap_or(out);
+                tooltip_line(ui, "Crushes into", out_name, Theme::XP);
+            }
+            let era = lf_game::research::Era::required_for(&stack.item_id);
+            if era > lf_game::research::Era::Primitive {
+                tooltip_line(ui, "Requires", era.name(), Theme::BAD);
+            }
+        });
+}
+
+/// Attach the standard item tooltip to a slot response.
+pub fn hover_item_tooltip(response: &egui::Response, stack: &ItemStack, icons: &crate::icons::ItemIcons) {
+    let stack = stack.clone();
+    response.clone().on_hover_ui(|ui| {
+        item_tooltip_body(ui, &stack, icons);
+    });
 }
 
 // ------------------------------------------------------------------

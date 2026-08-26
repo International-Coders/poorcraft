@@ -239,6 +239,42 @@ pub fn scenes() -> Vec<SceneSpec> {
             eye: Vec3::new(-26.0, 0.0, 40.0),
             target: Vec3::new(8.0, 0.0, 8.0),
         },
+        SceneSpec {
+            name: "crafting_ui",
+            desc: "3x3 crafting grid + recipe book with real icons",
+            default_seed: 12345,
+            time_of_day: 0.42,
+            first_person: true,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5),
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "map_screen",
+            desc: "the world map with biome colors, fog, waypoints",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0),
+            target: Vec3::new(8.0, 0.0, 8.0),
+        },
+        SceneSpec {
+            name: "minimap_hud",
+            desc: "in-game HUD with minimap, icons hotbar, XP bar",
+            default_seed: 12345,
+            time_of_day: 0.35,
+            first_person: true,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5),
+            target: Vec3::ZERO,
+        },
     ]
 }
 
@@ -389,40 +425,62 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     let (vertices, indices, water_vertices, water_indices) = (vertices, indices, water_vertices, water_indices);
 
     let ui = spec.name == "hud_preview" || spec.name == "village_trading" || spec.name == "tech_tree"
-        || spec.name == "menu_preview" || spec.name == "settings_preview";
-    let ui = if ui {
+        || spec.name == "menu_preview" || spec.name == "settings_preview"
+        || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud";
+    let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
             ..Default::default()
         };
+        let draw = |ctx: &egui::Context| {
+            draw_hud_preview(ctx);
+            if spec.name == "village_trading" {
+                draw_trade_preview(ctx);
+            }
+            if spec.name == "tech_tree" {
+                draw_tech_tree_preview(ctx);
+            }
+            if spec.name == "menu_preview" {
+                draw_menu_preview(ctx);
+            }
+            if spec.name == "settings_preview" {
+                draw_settings_preview(ctx);
+            }
+            if spec.name == "crafting_ui" {
+                draw_crafting_preview(ctx);
+            }
+            if spec.name == "map_screen" {
+                draw_map_preview(ctx);
+            }
+            if spec.name == "minimap_hud" {
+                draw_minimap_preview(ctx);
+            }
+        };
+        // Warmup pass: egui windows need one pass to materialize their areas
+        // before their content renders (a fresh single-pass context produces
+        // empty window shapes — this bit the pre-P22 trade/tech proofs too).
+        ctx.begin_pass(raw.clone());
+        draw(&ctx);
+        let warm = ctx.end_pass();
         ctx.begin_pass(raw);
-        draw_hud_preview(&ctx);
-        if spec.name == "village_trading" {
-            draw_trade_preview(&ctx);
-        }
-        if spec.name == "tech_tree" {
-            draw_tech_tree_preview(&ctx);
-        }
-        if spec.name == "menu_preview" {
-            draw_menu_preview(&ctx);
-        }
-        if spec.name == "settings_preview" {
-            draw_settings_preview(&ctx);
-        }
-        Some(ctx)
+        draw(&ctx);
+        // The warmup output carried the font-atlas texture delta away; keep
+        // it so the renderer still uploads fonts (else text/painted fills
+        // vanish from the proof).
+        (Some(ctx), Some(warm.textures_delta.set))
     } else {
-        None
+        (None, None)
     };
-    if spec.name == "village_trading" {
-        // trade window overlay via the shared egui pass
-        // (drawn after draw_hud_preview by nesting another window)
-    }
+    let overlay = ui_ctx.as_ref().map(|ctx| lf_engine::headless::UiOverlay {
+        ctx,
+        extra_textures: warm_textures.as_deref().unwrap_or(&[]),
+    });
     if spec.raytraced {
         return render_raytraced(&spec, seed, &eye, out_path);
     }
     let textures = lf_assets::generate_atlas();
-    lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, ui.as_ref())
+    lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, overlay.as_ref())
 }
 
 /// Title-menu proof overlay mirroring the animated client screen.
@@ -476,9 +534,9 @@ fn draw_settings_preview(ctx: &egui::Context) {
         .collapsible(false).resizable(false)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                for (label, on) in [("Video", true), ("Audio", false), ("Gameplay", false)] {
+                for (label, on) in [("Video", true), ("Interface", false), ("Audio", false), ("Gameplay", false)] {
                     let btn = egui::Button::new(egui::RichText::new(label)
-                        .color(if on { egui::Color32::from_rgb(240, 200, 120) } else { egui::Color32::from_rgb(150, 156, 165) }))
+                        .color(if on { ACCENT } else { TEXT_DIM }))
                         .min_size(egui::vec2(90.0, 28.0));
                     let _ = ui.add(btn);
                 }
@@ -508,6 +566,7 @@ fn draw_settings_preview(ctx: &egui::Context) {
 
 /// Tech-tree proof overlay mirroring the client's draw_tech_tree.
 fn draw_tech_tree_preview(ctx: &egui::Context) {
+    let icons = PreviewIcons::new(ctx, &["copper_ingot", "tin_ingot", "steel_ingot", "iron_gear", "coal"]);
     egui::Window::new("Technology — K to close")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -20.0))
         .min_size(egui::vec2(640.0, 380.0))
@@ -520,10 +579,12 @@ fn draw_tech_tree_preview(ctx: &egui::Context) {
                     ("Primitive", "done"), ("Bronze Age", "CURRENT"), ("Industrial Age", "locked"), ("Electrical Age", "locked"),
                 ] {
                     let color = if state == "done" { egui::Color32::from_rgb(120, 200, 120) }
-                        else if state == "CURRENT" { egui::Color32::from_rgb(240, 210, 140) }
+                        else if state == "CURRENT" { ACCENT }
                         else { egui::Color32::from_gray(110) };
                     egui::Frame::new()
-                        .stroke(egui::Stroke::new(if state == "CURRENT" { 3.0 } else { 1.0 }, color))
+                        .fill(egui::Color32::from_black_alpha(120))
+                        .stroke(egui::Stroke::new(if state == "CURRENT" { 2.5 } else { 1.0 }, color))
+                        .corner_radius(8.0)
                         .inner_margin(8.0)
                         .show(ui, |ui| {
                             ui.set_min_size(egui::vec2(140.0, 90.0));
@@ -533,8 +594,12 @@ fn draw_tech_tree_preview(ctx: &egui::Context) {
                                 ui.add_space(4.0);
                                 for (item, got, n) in [("copper_ingot", 7, 10), ("tin_ingot", 5, 5), ("steel_ingot", 0, 5)] {
                                     let ok = got >= n;
-                                    let c = if ok { egui::Color32::from_rgb(140, 220, 140) } else { egui::Color32::from_rgb(230, 130, 130) };
-                                    ui.label(egui::RichText::new(format!("{} {}/{}", item, got, n)).small().color(c));
+                                    let c = if ok { OK } else { egui::Color32::from_rgb(230, 130, 130) };
+                                    ui.horizontal(|ui| {
+                                        let (r, _) = ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::hover());
+                                        icons.paint(ui, r, item);
+                                        ui.label(egui::RichText::new(format!("{}/{}", got, n)).small().color(c));
+                                    });
                                 }
                             }
                         });
@@ -550,6 +615,7 @@ fn draw_tech_tree_preview(ctx: &egui::Context) {
 
 /// Trade-panel proof overlay (same egui stack as the client trade UI).
 fn draw_trade_preview(ctx: &egui::Context) {
+    let icons = PreviewIcons::new(ctx, &["raw_iron", "iron_pickaxe", "iron_ingot", "stone_sword", "coal", "furnace"]);
     egui::Window::new("Trading with Brann the Smith")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
         .collapsible(false)
@@ -560,69 +626,474 @@ fn draw_trade_preview(ctx: &egui::Context) {
                 ("iron_ingot", 3, "stone_sword", 1, 2),
                 ("coal", 6, "furnace", 1, 9),
             ] {
-                ui.horizontal(|ui| {
-                    let enough = have >= give_n;
-                    let color = if enough { egui::Color32::from_rgb(140, 220, 140) } else { egui::Color32::from_rgb(230, 130, 130) };
-                    ui.label(egui::RichText::new(format!("{} {} -> {} {}", give_n, give, get_n, get)).color(color));
-                    ui.label(format!("(have {})", have));
-                    ui.add_enabled(enough, egui::Button::new("Trade"));
-                });
+                let enough = have >= give_n;
+                egui::Frame::new()
+                    .fill(egui::Color32::from_black_alpha(130))
+                    .corner_radius(7.0)
+                    .inner_margin(6.0)
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let (r, _) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
+                            icons.paint(ui, r, give);
+                            ui.label(egui::RichText::new(format!("x{}", give_n)).color(if enough { OK } else { BAD }));
+                            ui.label(egui::RichText::new("→").color(TEXT_DIM));
+                            let (r2, _) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
+                            icons.paint(ui, r2, get);
+                            ui.label(egui::RichText::new(format!("x{}", get_n)).color(egui::Color32::from_rgb(235, 238, 242)));
+                            ui.label(egui::RichText::new(format!("(have {})", have)).small().color(TEXT_DIM));
+                            ui.add_enabled(enough, egui::Button::new("Trade"));
+                        });
+                    });
             }
             ui.separator();
             ui.label(egui::RichText::new("Esc to close").small());
         });
 }
 
-/// HUD proof overlay: drawn with the same egui stack the game client uses.
+// ------------------------------------------------------------------
+// Preview helpers: real icon textures + map images from real worldgen.
+
+const ACCENT: egui::Color32 = egui::Color32::from_rgb(240, 200, 120);
+const TEXT_DIM: egui::Color32 = egui::Color32::from_rgb(150, 156, 165);
+const OK: egui::Color32 = egui::Color32::from_rgb(120, 210, 130);
+const BAD: egui::Color32 = egui::Color32::from_rgb(230, 120, 110);
+
+fn load_icon(ctx: &egui::Context, id: &str) -> egui::TextureHandle {
+    use lf_game::items::ItemKind;
+    let img = match lf_game::items::item_def(id).map(|d| d.kind) {
+        Some(ItemKind::Block(b)) => {
+            let layer = lf_assets::texture_index_for_block(b) as usize;
+            lf_assets::generate_block_texture(lf_assets::TEXTURE_NAMES[layer])
+        }
+        _ => lf_assets::generate_item_texture(id)
+            .unwrap_or_else(|| lf_assets::generate_block_texture("stone")),
+    };
+    let size = [img.width() as usize, img.height() as usize];
+    let pixels = img.pixels().map(|p| egui::Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3])).collect();
+    ctx.load_texture(format!("preview_icon:{}", id), egui::ColorImage { size, pixels }, egui::TextureOptions::NEAREST)
+}
+
+/// Icon registry for one preview frame.
+struct PreviewIcons {
+    map: std::collections::HashMap<String, egui::TextureHandle>,
+}
+
+impl PreviewIcons {
+    fn new(ctx: &egui::Context, ids: &[&str]) -> Self {
+        Self { map: ids.iter().map(|id| (id.to_string(), load_icon(ctx, id))).collect() }
+    }
+
+    fn paint(&self, ui: &mut egui::Ui, rect: egui::Rect, id: &str) {
+        let uv = egui::Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0));
+        match self.map.get(id) {
+            Some(tex) => { ui.painter().image(tex.id(), rect, uv, egui::Color32::WHITE); }
+            None => { ui.painter().rect_filled(rect, 3.0, egui::Color32::from_gray(140)); }
+        }
+    }
+}
+
+/// One preview slot: recessed well + real icon + count + optional selection.
+fn preview_slot(ui: &mut egui::Ui, icons: &PreviewIcons, rect: egui::Rect, item: Option<(&str, u8)>, selected: bool) {
+    ui.painter().rect_filled(rect, 5.0, egui::Color32::from_black_alpha(170));
+    ui.painter().rect_filled(rect.shrink(1.5), 4.0, egui::Color32::from_rgba_premultiplied(30, 35, 46, 200));
+    if let Some((id, count)) = item {
+        icons.paint(ui, rect.shrink(6.0), id);
+        if count > 1 {
+            ui.painter().text(rect.right_bottom() + egui::vec2(-5.0, -5.0) + egui::vec2(1.0, 1.0),
+                egui::Align2::RIGHT_BOTTOM, format!("{}", count),
+                egui::FontId::proportional(13.0), egui::Color32::from_black_alpha(200));
+            ui.painter().text(rect.right_bottom() + egui::vec2(-5.0, -5.0),
+                egui::Align2::RIGHT_BOTTOM, format!("{}", count),
+                egui::FontId::proportional(13.0), egui::Color32::WHITE);
+        }
+    }
+    let stroke = if selected {
+        egui::Stroke::new(2.5, ACCENT)
+    } else {
+        egui::Stroke::new(1.0, egui::Color32::from_gray(80))
+    };
+    ui.painter().rect_stroke(rect, 5.0, stroke, egui::StrokeKind::Middle);
+}
+
+/// Map image sampled from real worldgen (biome color + height shading).
+fn map_image(gen: &WorldGen, center: (f32, f32), wh: (usize, usize), px_per_block: f32) -> egui::ColorImage {
+    let mut pixels = Vec::with_capacity(wh.0 * wh.1);
+    let step = 1.0 / px_per_block;
+    let mut wz = center.1 - wh.1 as f32 / (2.0 * px_per_block);
+    for _ in 0..wh.1 {
+        let mut wx = center.0 - wh.0 as f32 / (2.0 * px_per_block);
+        for _ in 0..wh.0 {
+            let x = wx.floor() as i32;
+            let z = wz.floor() as i32;
+            let h = gen.height(x, z);
+            let mut c = preview_biome_color(gen.biome(x, z));
+            if h <= lf_worldgen::SEA_LEVEL {
+                // flatten oceans
+            } else {
+                let f = (1.0 + (h - gen.height(x - 1, z)) as f32 * 0.035).clamp(0.62, 1.30);
+                c = egui::Color32::from_rgba_unmultiplied(
+                    ((c.r() as f32) * f).clamp(0.0, 255.0) as u8,
+                    ((c.g() as f32) * f).clamp(0.0, 255.0) as u8,
+                    ((c.b() as f32) * f).clamp(0.0, 255.0) as u8,
+                    c.a(),
+                );
+            }
+            pixels.push(c);
+            wx += step;
+        }
+        wz += step;
+    }
+    egui::ColorImage { size: [wh.0, wh.1], pixels }
+}
+
+/// Preview palette matching the client's 30-biome table (subset used here).
+fn preview_biome_color(b: Biome) -> egui::Color32 {
+    use Biome::*;
+    let c = |r: u32, g: u32, bl: u32| egui::Color32::from_rgb(r as u8, g as u8, bl as u8);
+    match b {
+        Meadow => c(120, 178, 90),
+        FlowerForest | Forest => c(78, 140, 66),
+        BirchForest => c(148, 168, 104),
+        DarkForest => c(48, 100, 55),
+        Taiga | SnowyTaiga => c(70, 120, 85),
+        Tundra => c(200, 215, 215),
+        IceSpikes => c(185, 220, 235),
+        SnowySlope | SnowyPeaks => c(225, 232, 235),
+        Desert => c(228, 208, 140),
+        Badlands => c(190, 115, 65),
+        Beach => c(222, 210, 165),
+        StonyShore => c(140, 140, 138),
+        Ocean => c(55, 95, 165),
+        DeepOcean => c(35, 62, 130),
+        WarmOcean => c(60, 140, 175),
+        Highlands => c(125, 145, 105),
+        Mountains => c(130, 128, 125),
+        WindsweptHills => c(145, 150, 120),
+        Swamp => c(85, 105, 70),
+        Jungle => c(50, 135, 60),
+        Savanna | WindsweptSavanna => c(170, 164, 94),
+        _ => c(120, 160, 90),
+    }
+}
+
+// ------------------------------------------------------------------
+// HUD proof overlay: icons hotbar, XP bar, painted hearts, minimap.
+
 fn draw_hud_preview(ctx: &egui::Context) {
+    let icons = PreviewIcons::new(ctx, &[
+        "grass", "dirt", "stone_pickaxe", "torch", "planks", "iron_ingot", "apple", "bow", "arrow", "coal", "raw_iron",
+    ]);
     egui::TopBottomPanel::bottom("hud").frame(egui::Frame::none()).show_separator_line(false).show(ctx, |ui| {
         ui.vertical_centered(|ui| {
             ui.add_space(4.0);
+            // hearts + hunger (painted glyphs, no unicode boxes)
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("\u{2665}\u{2665}\u{2665}\u{2665}\u{2665}\u{2665}\u{2665}\u{2665}\u{2661}\u{2661}").color(egui::Color32::from_rgb(220, 40, 40)).size(16.0));
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(190.0, 16.0), egui::Sense::hover());
+                for i in 0..10 {
+                    let c = egui::pos2(rect.left() + 9.0 + i as f32 * 18.0, rect.center().y);
+                    let full = i < 8;
+                    let half = i == 8;
+                    let col = if full || half {
+                        egui::Color32::from_rgb(225, 60, 70)
+                    } else {
+                        egui::Color32::from_rgb(70, 40, 44)
+                    };
+                    ui.painter().circle_filled(egui::pos2(c.x - 3.5, c.y - 2.5), 3.6, col);
+                    ui.painter().circle_filled(egui::pos2(c.x + 3.5, c.y - 2.5), 3.6, col);
+                    ui.painter().add(egui::Shape::convex_polygon(vec![
+                        egui::pos2(c.x - 6.8, c.y - 1.0), egui::pos2(c.x + 6.8, c.y - 1.0), egui::pos2(c.x, c.y + 6.5),
+                    ], col, egui::Stroke::NONE));
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new("\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CF}\u{25CB}\u{25CB}").color(egui::Color32::from_rgb(200, 150, 40)).size(14.0));
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(170.0, 14.0), egui::Sense::hover());
+                    for i in 0..10 {
+                        let c = egui::pos2(rect.right() - 7.0 - i as f32 * 16.0, rect.center().y);
+                        let fill = if i < 7 { egui::Color32::from_rgb(210, 150, 50) } else { egui::Color32::from_rgb(70, 56, 32) };
+                        ui.painter().circle_filled(c, 5.0, fill);
+                        ui.painter().circle_stroke(c, 5.0, egui::Stroke::new(1.0, egui::Color32::from_rgb(30, 24, 16)));
+                    }
                 });
             });
+            // XP bar with level chip
+            let (xrect, _) = ui.allocate_exact_size(egui::vec2(420.0, 9.0), egui::Sense::hover());
+            ui.painter().rect_filled(xrect, 4.0, egui::Color32::from_black_alpha(190));
+            ui.painter().rect_filled(egui::Rect::from_min_size(xrect.min, egui::vec2(xrect.width() * 0.62, xrect.height())), 4.0,
+                egui::Color32::from_rgb(110, 220, 255));
+            let chip = egui::Rect::from_center_size(xrect.center(), egui::vec2(34.0, 14.0));
+            ui.painter().rect_filled(chip, 4.0, egui::Color32::from_rgb(16, 18, 24));
+            ui.painter().text(chip.center(), egui::Align2::CENTER_CENTER, "Lv 7",
+                egui::FontId::proportional(11.0), egui::Color32::from_rgb(110, 220, 255));
+            ui.add_space(1.0);
+            // hotbar with real icons
             ui.horizontal(|ui| {
-                let colors = [
-                    egui::Color32::from_rgb(90, 160, 60),
-                    egui::Color32::from_rgb(134, 96, 67),
-                    egui::Color32::from_gray(130),
-                    egui::Color32::from_rgb(219, 207, 163),
-                    egui::Color32::from_rgb(240, 246, 246),
-                    egui::Color32::from_rgb(102, 81, 50),
-                    egui::Color32::from_rgb(60, 120, 40),
-                    egui::Color32::from_rgb(140, 130, 160),
-                    egui::Color32::from_rgb(255, 200, 100),
+                let items: [Option<(&str, u8)>; 9] = [
+                    Some(("grass", 42)), Some(("dirt", 64)), Some(("stone_pickaxe", 1)), Some(("torch", 12)),
+                    Some(("planks", 33)), Some(("iron_ingot", 7)), Some(("apple", 3)), Some(("bow", 1)), Some(("arrow", 21)),
                 ];
-                for (i, c) in colors.iter().enumerate() {
+                for (i, item) in items.iter().enumerate() {
                     let (rect, _) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
-                    ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(160));
-                    ui.painter().rect_filled(rect.shrink(6.0), 3.0, *c);
-                    let stroke = if i == 2 { egui::Stroke::new(3.0, egui::Color32::WHITE) } else { egui::Stroke::new(1.0, egui::Color32::from_gray(90)) };
-                    ui.painter().rect_stroke(rect, 4.0, stroke, egui::StrokeKind::Middle);
+                    preview_slot(ui, &icons, rect, *item, i == 2);
                 }
             });
-            ui.label(egui::RichText::new("09:47 — E inventory · F fly · F2 shot").small().color(egui::Color32::from_gray(200)));
+            ui.label(egui::RichText::new("Stone Pickaxe").small().color(ACCENT));
         });
     });
     let pointer = ctx.screen_rect().center();
     let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, "crosshair".into()));
     let c = egui::Color32::from_white_alpha(220);
-    p.line_segment([pointer - egui::vec2(8.0, 0.0), pointer + egui::vec2(8.0, 0.0)], egui::Stroke::new(2.0, c));
-    p.line_segment([pointer - egui::vec2(0.0, 8.0), pointer + egui::vec2(0.0, 8.0)], egui::Stroke::new(2.0, c));
-    egui::Window::new("Inventory")
-        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-12.0, 12.0))
+    p.line_segment([pointer - egui::vec2(7.0, 0.0), pointer - egui::vec2(2.0, 0.0)], egui::Stroke::new(2.0, c));
+    p.line_segment([pointer + egui::vec2(2.0, 0.0), pointer + egui::vec2(7.0, 0.0)], egui::Stroke::new(2.0, c));
+    p.line_segment([pointer - egui::vec2(0.0, 7.0), pointer - egui::vec2(0.0, 2.0)], egui::Stroke::new(2.0, c));
+    p.line_segment([pointer + egui::vec2(0.0, 2.0), pointer + egui::vec2(0.0, 7.0)], egui::Stroke::new(2.0, c));
+}
+
+/// Corner minimap proof: terrain texture + entity dots + player arrow.
+fn draw_minimap_preview(ctx: &egui::Context) {
+    let gen = WorldGen::new(Seed(12345));
+    let image = map_image(&gen, (8.0, 8.0), (172, 172), 1.0);
+    let tex = ctx.load_texture("preview_minimap", image, egui::TextureOptions::NEAREST);
+    egui::Area::new(egui::Id::new("minimap"))
+        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 34.0))
+        .show(ctx, |ui| {
+            let size = 172.0;
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
+            let paint = ui.painter();
+            paint.rect_filled(rect, 8.0, egui::Color32::from_rgb(20, 24, 32));
+            let uv = egui::Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0));
+            paint.image(tex.id(), rect, uv, egui::Color32::WHITE);
+            paint.rect_stroke(rect, 8.0, egui::Stroke::new(2.0, egui::Color32::from_rgb(120, 96, 52)), egui::StrokeKind::Middle);
+            paint.rect_filled(egui::Rect::from_center_size(rect.center_top(), egui::vec2(18.0, 12.0)), 3.0, egui::Color32::from_rgb(16, 18, 24));
+            paint.text(rect.center_top() + egui::vec2(0.0, 6.0), egui::Align2::CENTER_CENTER, "N",
+                egui::FontId::proportional(10.0), ACCENT);
+            // entity dots + waypoint pip
+            paint.circle_filled(rect.center() + egui::vec2(-34.0, 18.0), 2.0, BAD);
+            paint.circle_filled(rect.center() + egui::vec2(22.0, -40.0), 2.0, BAD);
+            paint.circle_filled(rect.center() + egui::vec2(50.0, 30.0), 2.0, OK);
+            paint.circle_filled(rect.center() + egui::vec2(-60.0, -30.0), 3.5, ACCENT);
+            paint.circle_stroke(rect.center() + egui::vec2(-60.0, -30.0), 3.5, egui::Stroke::new(1.0, egui::Color32::from_rgb(16, 18, 24)));
+            // player arrow
+            let c = rect.center();
+            let dir = egui::vec2(0.6, -0.8);
+            let tip = c + dir * 7.0;
+            let left = c + egui::vec2(-dir.y, dir.x) * 4.0 - dir * 4.0;
+            let right = c - egui::vec2(-dir.y, dir.x) * 4.0 - dir * 4.0;
+            paint.add(egui::Shape::convex_polygon(vec![tip, left, right], egui::Color32::WHITE,
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(16, 18, 24))));
+        });
+    // info line with facing + biome
+    egui::Area::new(egui::Id::new("info_line"))
+        .anchor(egui::Align2::LEFT_TOP, egui::vec2(10.0, 8.0))
+        .show(ctx, |ui| {
+            ui.label(egui::RichText::new("NW · Meadow · 8,12 · 08:24 · clear").small()
+                .color(egui::Color32::from_rgba_unmultiplied(235, 238, 242, 200)));
+        });
+}
+
+/// Full world-map proof: pannable map canvas, fog of war, waypoints panel.
+fn draw_map_preview(ctx: &egui::Context) {
+    let gen = WorldGen::new(Seed(12345));
+    egui::CentralPanel::default()
+        .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(160)))
+        .show(ctx, |ui| {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                // map canvas with fog beyond the explored radius
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(520.0, 520.0), egui::Sense::click_and_drag());
+                let image = map_image(&gen, (0.0, 0.0), (260, 260), 2.0);
+                let tex = ctx.load_texture("preview_map", image, egui::TextureOptions::NEAREST);
+                let paint = ui.painter();
+                paint.rect_filled(rect, 6.0, egui::Color32::from_rgb(20, 24, 32));
+                let uv = egui::Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0));
+                paint.image(tex.id(), rect, uv, egui::Color32::WHITE);
+                // fog of war: dim everything beyond the explored radius
+                let explored = egui::Rect::from_center_size(rect.center(), egui::vec2(300.0, 300.0));
+                paint.rect_filled(egui::Rect::from_min_max(rect.left_top(), explored.right_top()), 0.0, egui::Color32::from_rgba_unmultiplied(20, 24, 32, 225));
+                paint.rect_filled(egui::Rect::from_min_max(rect.left_top(), explored.left_bottom()), 0.0, egui::Color32::from_rgba_unmultiplied(20, 24, 32, 225));
+                paint.rect_filled(egui::Rect::from_min_max(explored.right_top(), rect.right_bottom()), 0.0, egui::Color32::from_rgba_unmultiplied(20, 24, 32, 225));
+                paint.rect_filled(egui::Rect::from_min_max(explored.left_bottom(), rect.right_bottom()), 0.0, egui::Color32::from_rgba_unmultiplied(20, 24, 32, 225));
+                paint.rect_stroke(rect, 6.0, egui::Stroke::new(1.5, egui::Color32::from_rgb(120, 96, 52)), egui::StrokeKind::Middle);
+                let to_screen = |wx: f32, wz: f32| -> egui::Pos2 {
+                    egui::Pos2::new(rect.left() + wx * 2.0 + rect.width() / 2.0, rect.top() + wz * 2.0 + rect.height() / 2.0)
+                };
+                // spawn diamond
+                let sp = to_screen(0.0, 0.0);
+                paint.add(egui::Shape::convex_polygon(vec![
+                    sp + egui::vec2(0.0, -6.0), sp + egui::vec2(6.0, 0.0), sp + egui::vec2(0.0, 6.0), sp + egui::vec2(-6.0, 0.0),
+                ], egui::Color32::from_rgb(240, 120, 140), egui::Stroke::new(1.5, egui::Color32::from_rgb(16, 18, 24))));
+                // waypoints with labels
+                for (x, z, name, col) in [
+                    (-58.0, -44.0, "Home · 72m", ACCENT),
+                    (64.0, 30.0, "Iron Mine · 71m", egui::Color32::from_rgb(110, 220, 255)),
+                ] {
+                    let pos = to_screen(x, z);
+                    paint.circle_filled(pos, 5.0, col);
+                    paint.circle_stroke(pos, 5.0, egui::Stroke::new(1.5, egui::Color32::from_rgb(16, 18, 24)));
+                    paint.text(pos + egui::vec2(0.0, -12.0), egui::Align2::CENTER_CENTER, name,
+                        egui::FontId::proportional(11.0), egui::Color32::from_rgb(235, 238, 242));
+                }
+                // player arrow
+                let c = to_screen(10.0, 14.0);
+                let dir = egui::vec2(0.6, -0.8);
+                let tip = c + dir * 8.0;
+                let left = c + egui::vec2(-dir.y, dir.x) * 5.0 - dir * 5.0;
+                let right = c - egui::vec2(-dir.y, dir.x) * 5.0 - dir * 5.0;
+                paint.add(egui::Shape::convex_polygon(vec![tip, left, right], egui::Color32::WHITE,
+                    egui::Stroke::new(1.0, egui::Color32::from_rgb(16, 18, 24))));
+                paint.text(rect.center_top() + egui::vec2(0.0, 12.0), egui::Align2::CENTER_CENTER, "N",
+                    egui::FontId::proportional(13.0), ACCENT);
+                paint.rect_filled(egui::Rect::from_min_size(rect.left_bottom(), egui::vec2(200.0, 20.0)), 3.0, egui::Color32::from_black_alpha(170));
+                paint.text(rect.left_bottom() + egui::vec2(8.0, 10.0), egui::Align2::LEFT_CENTER,
+                    "-12, 30 · Taiga", egui::FontId::proportional(11.0), egui::Color32::from_rgb(235, 238, 242));
+                paint.text(rect.right_bottom() + egui::vec2(-150.0, -10.0), egui::Align2::LEFT_CENTER,
+                    "drag pan · wheel zoom · M close", egui::FontId::proportional(10.0), TEXT_DIM);
+
+                // waypoint manager panel
+                ui.vertical(|ui| {
+                    ui.set_width(230.0);
+                    ui.label(egui::RichText::new("Waypoints").size(18.0).color(ACCENT));
+                    ui.painter().line_segment([ui.cursor().min + egui::vec2(0.0, 24.0), ui.cursor().min + egui::vec2(120.0, 24.0)],
+                        egui::Stroke::new(2.0, egui::Color32::from_rgb(120, 96, 52)));
+                    ui.add_space(14.0);
+                    let btn = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(300.0, 52.0));
+                    ui.allocate_rect(btn, egui::Sense::click());
+                    ui.painter().rect_filled(btn, 10.0, egui::Color32::from_rgba_premultiplied(28, 33, 44, 225));
+                    ui.painter().rect_stroke(btn, 10.0, egui::Stroke::new(1.5, egui::Color32::from_rgb(90, 98, 112)), egui::StrokeKind::Middle);
+                    ui.painter().rect_filled(egui::Rect::from_min_size(egui::Pos2::new(btn.left() + 4.0, btn.center().y - 16.0), egui::vec2(3.0, 32.0)), 2.0, ACCENT);
+                    ui.painter().text(btn.center(), egui::Align2::CENTER_CENTER, "+ Marker at 10,14",
+                        egui::FontId::proportional(18.0), egui::Color32::from_rgb(235, 238, 242));
+                    ui.add_space(12.0);
+                    for (name, dist, col) in [
+                        ("Home", "72m", ACCENT),
+                        ("Iron Mine", "71m", egui::Color32::from_rgb(110, 220, 255)),
+                        ("Village", "143m", OK),
+                    ] {
+                        egui::Frame::new()
+                            .fill(egui::Color32::from_black_alpha(100))
+                            .corner_radius(6.0)
+                            .inner_margin(6.0)
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let (dot, _) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
+                                    ui.painter().circle_filled(dot.center(), 5.0, col);
+                                    ui.label(egui::RichText::new(name).size(13.0).color(egui::Color32::from_rgb(235, 238, 242)));
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.small_button("×");
+                                        ui.label(egui::RichText::new(dist).small().color(TEXT_DIM));
+                                    });
+                                });
+                            });
+                    }
+                    ui.add_space(8.0);
+                    ui.add(egui::Slider::new(&mut 2.0f32, 0.5..=6.0).text("zoom"));
+                    if ui.button("Center on player").clicked() {}
+                });
+            });
+        });
+}
+
+/// Crafting + recipe book proof: real icons everywhere, have/need coloring.
+fn draw_crafting_preview(ctx: &egui::Context) {
+    let icons = PreviewIcons::new(ctx, &[
+        "planks", "stick", "crafting_table", "torch", "iron_ingot", "iron_pickaxe", "chest", "furnace",
+        "coal", "raw_iron", "stone", "log", "apple", "dirt", "grass", "copper_ingot", "tin_ingot", "bronze_ingot",
+    ]);
+    egui::Window::new("Crafting Table")
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(-40.0, -20.0))
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
-            for row in 0..3 {
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    // 3x3 grid with the pickaxe pattern filled in
+                    ui.label(egui::RichText::new("Craft").size(16.0).color(ACCENT));
+                    ui.add_space(4.0);
+                    let grid: [[Option<(&str, u8)>; 3]; 3] = [
+                        [Some(("iron_ingot", 12)), Some(("iron_ingot", 12)), Some(("iron_ingot", 12))],
+                        [None, Some(("stick", 30)), None],
+                        [None, Some(("stick", 30)), None],
+                    ];
+                    for row in grid {
+                        ui.horizontal(|ui| {
+                            for cell in row {
+                                let (rect, _) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
+                                preview_slot(ui, &icons, rect, cell, false);
+                            }
+                        });
+                    }
+                });
+                ui.add_space(12.0);
+                // result slot
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(52.0, 52.0), egui::Sense::hover());
+                ui.painter().rect_filled(rect, 6.0, egui::Color32::from_black_alpha(170));
+                ui.painter().rect_stroke(rect, 6.0, egui::Stroke::new(2.0, ACCENT), egui::StrokeKind::Middle);
+                icons.paint(ui, rect.shrink(8.0), "iron_pickaxe");
+                ui.add_space(12.0);
+                // recipe book panel
+                ui.vertical(|ui| {
+                    ui.set_width(300.0);
+                    ui.label(egui::RichText::new("Recipe Book").size(16.0).color(ACCENT));
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut "pick".to_string()).desired_width(110.0));
+                        for (label, on) in [("All", true), ("Craft", false), ("Smelt", false), ("Alloy", false)] {
+                            let btn = egui::Button::new(egui::RichText::new(label).color(if on { ACCENT } else { TEXT_DIM }));
+                            let _ = ui.add(btn);
+                        }
+                    });
+                    ui.add_space(4.0);
+                    let entries: [(&str, &str, u8, &[(&str, u8, u16)], bool); 4] = [
+                        ("iron_pickaxe", "Iron Pickaxe", 1, &[("iron_ingot", 3, 12), ("stick", 2, 30)], true),
+                        ("iron_axe", "Iron Axe", 1, &[("iron_ingot", 3, 12), ("stick", 2, 30)], true),
+                        ("torch", "Torch", 4, &[("coal", 1, 9), ("stick", 1, 30)], true),
+                        ("basic_circuit", "Basic Circuit", 1, &[("copper_wire", 2, 0), ("tin_ingot", 1, 2), ("iron_ingot", 1, 12)], false),
+                    ];
+                    for (id, name, count, needs, craftable) in entries {
+                        egui::Frame::new()
+                            .fill(if craftable { egui::Color32::from_rgba_premultiplied(34, 40, 32, 220) }
+                                  else { egui::Color32::from_black_alpha(150) })
+                            .stroke(egui::Stroke::new(if craftable { 1.6 } else { 1.0 },
+                                if craftable { egui::Color32::from_rgb(120, 96, 52) } else { egui::Color32::from_gray(60) }))
+                            .corner_radius(7.0)
+                            .inner_margin(6.0)
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let (orect, _) = ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
+                                    icons.paint(ui, orect, id);
+                                    ui.vertical(|ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.label(egui::RichText::new(name).size(13.0).color(egui::Color32::from_rgb(235, 238, 242)));
+                                            if count > 1 {
+                                                ui.label(egui::RichText::new(format!("x{}", count)).small().color(TEXT_DIM));
+                                            }
+                                        });
+                                        ui.horizontal(|ui| {
+                                            for (nid, n, have) in needs {
+                                                let ok = *have >= *n as u16;
+                                                let (irect, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
+                                                icons.paint(ui, irect, nid);
+                                                ui.label(egui::RichText::new(format!("{}", n)).small().color(if ok { OK } else { BAD }));
+                                            }
+                                        });
+                                    });
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.label(egui::RichText::new("Crafting Table").small().color(TEXT_DIM));
+                                        ui.add_enabled(craftable, egui::Button::new("fill"));
+                                    });
+                                });
+                            });
+                    }
+                });
+            });
+            ui.add_space(6.0);
+            // storage + hotbar rows
+            for row in 0..2 {
                 ui.horizontal(|ui| {
-                    for _col in 0..9 {
-                        let (rect, _) = ui.allocate_exact_size(egui::vec2(40.0, 40.0), egui::Sense::hover());
-                        ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(160));
-                        ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(1.0, egui::Color32::from_gray(90)), egui::StrokeKind::Middle);
+                    for col in 0..9 {
+                        let _ = col;
+                        let (rect, _) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
+                        let items = [Some(("log", 16)), Some(("planks", 64)), None, Some(("coal", 9)), None,
+                                     Some(("raw_iron", 5)), None, None, Some(("dirt", 32))];
+                        preview_slot(ui, &icons, rect, items[row], false);
                     }
                 });
             }

@@ -1,5 +1,50 @@
 # CHANGELOG
 
+## 2026-08-26 — P22: UI overhaul — icons, tooltips, recipe book, map suite (loop 302)
+- Real pixel-art item icons in every slot (hotbar, inventory, crafting grid,
+  chests, furnaces, machines, trades, cursor, tooltips): `lf_assets`
+  sprite generator for all non-block items (tools per tier, ingots, raw
+  ores, food, armor, industrial parts) + deterministic gem icons for mod
+  items; block items reuse atlas art.
+- Texture atlas 18 -> 41 layers: wood-variant logs/leaves, red sand,
+  terracotta, moss, ice, copper/tin/bauxite/sulfur ores and all six
+  machine/bench blocks now render in-world with their own art (they
+  previously fell back to stone).
+- Tooltip system: icon + display name, tool tier/damage/speed, food value,
+  armor points, fuel seconds, "smelts into", crusher input, era-requirement
+  badge, stack size; recipe-book entries preview their pattern as a
+  mini-grid on hover.
+- Crafting screen redesign + recipe book panel: unified catalog merging
+  crafting (vanilla + mods), smelting, assembler alloys and crusher
+  recipes; search box, station tabs, craftable-only filter; ingredient
+  icons with have/need coloring; click auto-fills the grid from the
+  inventory (returning grid contents first); "needs table" and era-lock
+  badges.
+- Shift-click quick-move everywhere: inventory storage <-> hotbar, chest
+  <-> inventory, furnace/machine slots <-> inventory.
+- Map suite: top-right minimap (terrain/biome colors, entity dots,
+  waypoint pips, player arrow, north marker, toggle in settings) and the
+  full M-key world map — pan/zoom, fog of war, explored-but-unloaded
+  approximation dimmed, spawn marker, waypoint manager (add/rename/
+  recolor/delete, persisted in ClientSave), cursor coords + biome,
+  chunk grid at high zoom. HUD info line gains compass facing + biome.
+- HUD polish: icon hotbar with pulsing selection glow and fading item
+  name on switch, armor points, XP bar mirroring the hotbar width with
+  level chip + gain flash, dynamic crosshair (expands while mining,
+  hit-marker on attacks), hurt vignette + low-health pulse, redesigned
+  death screen with run stats. Settings gains an Interface tab (minimap
+  toggle, UI scale driving egui zoom).
+- Fixes: `crafting::recipes()` leaked a Vec per call (now a OnceLock
+  singleton), `Inventory::add_item` ignored per-item max_stack, crusher
+  catalog listed `iron_ore` (a block id, not an item), and the vistest
+  harness never rendered egui windows (fresh contexts need a warmup pass
+  for window areas, whose font-atlas texture delta must be threaded to
+  the renderer — the pre-P22 trade/tech proof shots had silently empty
+  windows).
+- Proofs: 3 new scenes (crafting_ui, map_screen, minimap_hud), all 19
+  scenes re-rendered and pixel-verified (panels present, icons/text
+  visible). Tests 123 -> 140.
+
 ## 2026-08-25 — P21: menus, animations, HUD & real settings (loop 301)
 - ui_kit: theme, easing (+tests), Reveal stagger, animated menu buttons
   (hover glow, press spring, accent bar), slide panels, toggles, sliders,

@@ -25,6 +25,7 @@ below by phase.
 - [x] Depth-buffered renderer with shared GpuScene (P0)
 - [x] Real offscreen headless renderer + scene harness (P0)
 - [x] xtask vistest/screenshot commands producing real PNGs (P0)
+- [x] real item icons + tooltips + recipe book + minimap/world map/waypoints (P22)
 
 ## P1 — First-person core
 - [x] keyboard/mouse input (WASD, jump, sneak, sprint, mouse look, cursor lock)
@@ -50,7 +51,7 @@ below by phase.
 
 ## P4 — Survival & inventory UI
 - [x] egui HUD (crosshair, hearts, hunger, air bubbles, 9-slot hotbar, mining progress, clock)
-- [x] inventory screen: click pick/place/swap/merge, right-click split (shift-click in P5 pass)
+- [x] inventory screen: click pick/place/swap/merge, right-click split; shift-click quick-move (P22)
 - [x] crafting 2x2 in inventory + crafting table 3x3; shaped recipes with translation matching (+8 tests)
 - [x] hold-to-mine with hardness, tool speed multipliers, harvest gating (iron needs stone pick), durability that breaks tools
 - [x] item drop entities with gravity + magnet pickup + bobbing render
@@ -112,3 +113,12 @@ below by phase.
 - [x] CI release matrix (ubuntu/macOS/windows) uploading artifacts
 - [x] honest RELEASE.md with run instructions, controls, features, gaps
 - [ ] puffin profiling pass, greedy meshing (deferred; frame times fine at view 5)
+
+## Deferred (P22 notes, honest)
+- [ ] migrating GameState::menu_reveal (f32 clock) onto ui_kit::Reveal — the
+  clock + per-open reset already provides the same behavior; pure churn, kept
+  for a rainy day. Reveal stays tested in ui_kit.
+- [ ] minimap rotation / zoom controls; in-game waypoint beacon rendering
+  (map + minimap pips exist, world-space beams do not).
+- [ ] Windows exe runtime: host lacks mingw-w64 (macOS runner); macOS dmg +
+  Linux tarball ship instead.

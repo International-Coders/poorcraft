@@ -1,15 +1,18 @@
-//! egui integration: platform plumbing plus HUD, inventory/crafting screens
-//! and the death screen. All immediate-mode drawing against GameState.
+//! egui integration: platform plumbing plus HUD, inventory/crafting screens,
+//! the recipe book, container screens and the death screen. All immediate-
+//! mode drawing against GameState, styled by the ui_kit design system and
+//! the real pixel-art icons from `crate::icons`.
 
 use egui_wgpu::Renderer;
 use egui_winit::State as EguiWinitState;
 
-use crate::{BlockEntity, GameState, RtMode, UiOpen};
 use crate::ui_kit::{self as kit, Theme};
-use lf_npc::trade_offers;
+use crate::{BlockEntity, GameState, RtMode, UiOpen};
 use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, ItemKind};
+use lf_game::research::Era;
 use lf_game::survival::ItemStack;
+use lf_npc::trade_offers;
 
 pub struct EguiPlatform {
     pub ctx: egui::Context,
@@ -98,25 +101,17 @@ impl EguiPlatform {
     }
 }
 
+// ------------------------------------------------------------------
+// Slots: shared drawing + pick/place/split/quick-move semantics
+
+const SLOT_SIZE: f32 = 44.0;
+
+/// Flat-color fallbacks for ids without pixel art (modded/unknown items).
 fn item_color(stack: &ItemStack) -> egui::Color32 {
     match item_def(&stack.item_id).map(|d| d.kind) {
         Some(ItemKind::Block(b)) => block_color(b),
-        Some(ItemKind::Tool(kind, tier)) => {
-            let base = match kind {
-                lf_game::items::ToolKind::Pickaxe => (150, 130, 90),
-                lf_game::items::ToolKind::Axe => (140, 120, 80),
-                lf_game::items::ToolKind::Shovel => (130, 140, 90),
-                lf_game::items::ToolKind::Sword => (170, 120, 110),
-                lf_game::items::ToolKind::Bow => (150, 110, 70),
-            };
-            let shade = 1.0 - tier as f32 * 0.12;
-            egui::Color32::from_rgb(
-                (base.0 as f32 * shade) as u8,
-                (base.1 as f32 * shade) as u8,
-                (base.2 as f32 * shade) as u8,
-            )
-        }
         Some(ItemKind::Food(_)) => egui::Color32::from_rgb(200, 60, 60),
+        Some(ItemKind::Tool(_, _)) => egui::Color32::from_rgb(150, 130, 90),
         _ => egui::Color32::from_gray(160),
     }
 }
@@ -138,45 +133,88 @@ fn block_color(block_id: u32) -> egui::Color32 {
     }
 }
 
-const SLOT_SIZE: f32 = 44.0;
+/// Draw one item glyph (icon texture, flat-color fallback) into a rect.
+fn paint_item(ui: &mut egui::Ui, rect: egui::Rect, stack: &ItemStack, icons: &crate::icons::ItemIcons) {
+    let inner = rect.shrink(6.0);
+    if !icons.paint(ui, inner, &stack.item_id) {
+        ui.painter().rect_filled(inner, 3.0, item_color(stack));
+    }
+}
 
-/// One inventory slot with full pick/place/merge/split semantics.
+fn paint_count(ui: &mut egui::Ui, rect: egui::Rect, count: u8) {
+    if count <= 1 {
+        return;
+    }
+    let pos = rect.right_bottom() + egui::vec2(-5.0, -5.0);
+    // drop shadow then text, so counts stay readable over bright icons
+    ui.painter().text(pos + egui::vec2(1.0, 1.0), egui::Align2::RIGHT_BOTTOM, format!("{}", count),
+        egui::FontId::proportional(13.0), egui::Color32::from_black_alpha(200));
+    ui.painter().text(pos, egui::Align2::RIGHT_BOTTOM, format!("{}", count),
+        egui::FontId::proportional(13.0), egui::Color32::WHITE);
+}
+
+struct SlotOutcome {
+    hovered: Option<ItemStack>,
+    /// Set on shift-click: the whole stack was lifted and the caller must
+    /// route it into the "other" container.
+    quick_moved: Option<ItemStack>,
+}
+
+/// One inventory slot: icon + count + hover glow + tooltip, with full
+/// pick/place/merge/split semantics (right-click splits/places one).
 fn slot_button(
     ui: &mut egui::Ui,
     stack: &mut Option<ItemStack>,
     cursor: &mut Option<ItemStack>,
     selected: bool,
-) -> (Option<String>, ()) {
-    let mut _hover_info = None;
+    icons: &crate::icons::ItemIcons,
+) -> SlotOutcome {
+    let mut outcome = SlotOutcome { hovered: None, quick_moved: None };
     let (rect, response) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE, SLOT_SIZE), egui::Sense::click());
-    let frame = if selected {
-        egui::Stroke::new(3.0, egui::Color32::WHITE)
-    } else {
-        egui::Stroke::new(1.0, egui::Color32::from_gray(90))
-    };
-    ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(160));
-    ui.painter().rect_stroke(rect, 4.0, frame, egui::StrokeKind::Middle);
+    let hovered = response.hovered();
+    let hover_amt = ui.ctx().animate_value_with_time(
+        egui::Id::new(("slot", rect.min.x as i32, rect.min.y as i32)),
+        if hovered { 1.0 } else { 0.0 },
+        0.09,
+    );
+    // recessed well
+    ui.painter().rect_filled(rect, 5.0, egui::Color32::from_black_alpha(170));
+    ui.painter().rect_filled(rect.shrink(1.5), 4.0, egui::Color32::from_rgba_premultiplied(30, 35, 46, 200));
     if let Some(s) = stack {
-        ui.painter().rect_filled(rect.shrink(7.0), 3.0, item_color(s));
-        if s.count > 1 {
-            ui.painter().text(
-                rect.right_bottom() + egui::vec2(-6.0, -6.0),
-                egui::Align2::RIGHT_BOTTOM,
-                format!("{}", s.count),
-                egui::FontId::proportional(13.0),
-                egui::Color32::WHITE,
-            );
-        }
-        if response.hovered() {
-            _hover_info = Some(s.item_id.clone());
+        paint_item(ui, rect, s, icons);
+        paint_count(ui, rect, s.count);
+        if hovered {
+            outcome.hovered = Some(s.clone());
         }
     }
+    // selected: pulsing gold frame; hover: white lift
+    if selected {
+        let pulse = 0.5 + 0.5 * (ui.input(|i| i.time) as f32 * 3.0).sin();
+        let a = (170.0 + 60.0 * pulse) as u8;
+        ui.painter().rect_stroke(rect, 5.0,
+            egui::Stroke::new(2.5, egui::Color32::from_rgba_premultiplied(Theme::ACCENT.r(), Theme::ACCENT.g(), Theme::ACCENT.b(), a)),
+            egui::StrokeKind::Middle);
+    } else if hover_amt > 0.01 {
+        ui.painter().rect_stroke(rect, 5.0,
+            egui::Stroke::new(1.0 + hover_amt, egui::Color32::from_white_alpha((150.0 * hover_amt) as u8)),
+            egui::StrokeKind::Middle);
+    } else {
+        ui.painter().rect_stroke(rect, 5.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Middle);
+    }
+    if let Some(s) = stack {
+        kit::hover_item_tooltip(&response, s, icons);
+    }
+    let shift = ui.input(|i| i.modifiers.shift);
     if response.clicked_by(egui::PointerButton::Primary) {
-        exchange(cursor, stack, false);
+        if shift && stack.is_some() && cursor.is_none() {
+            outcome.quick_moved = stack.take();
+        } else {
+            exchange(cursor, stack, false);
+        }
     } else if response.clicked_by(egui::PointerButton::Secondary) {
         exchange(cursor, stack, true);
     }
-    (_hover_info, ())
+    outcome
 }
 
 /// Move stacks between the cursor and a slot. `right_click` splits/places one.
@@ -226,9 +264,142 @@ fn exchange(cursor: &mut Option<ItemStack>, slot: &mut Option<ItemStack>, right_
     }
 }
 
+/// Merge a stack into a slot range (quick-move target); consumes what fits.
+fn quick_insert(slots: &mut [Option<ItemStack>], stack: &mut ItemStack) {
+    let cap = item_def(&stack.item_id).map(|d| d.max_stack).unwrap_or(64);
+    for slot in slots.iter_mut() {
+        if stack.count == 0 {
+            break;
+        }
+        if let Some(s) = slot {
+            if s.item_id == stack.item_id && s.count < cap {
+                let add = (cap - s.count).min(stack.count);
+                s.count += add;
+                stack.count -= add;
+            }
+        }
+    }
+    for slot in slots.iter_mut() {
+        if stack.count == 0 {
+            break;
+        }
+        if slot.is_none() {
+            *slot = Some(ItemStack { item_id: stack.item_id.clone(), count: stack.count.min(cap) });
+            stack.count = stack.count.saturating_sub(cap);
+        }
+    }
+}
+
+/// Pull exactly one item of `id` out of a slot range (auto-fill helper).
+fn take_one(slots: &mut [Option<ItemStack>], id: &str) -> Option<ItemStack> {
+    for slot in slots.iter_mut() {
+        if let Some(s) = slot {
+            if s.item_id == id && s.count > 0 {
+                s.count -= 1;
+                let out = Some(ItemStack { item_id: id.to_string(), count: 1 });
+                if s.count == 0 {
+                    *slot = None;
+                }
+                return out;
+            }
+        }
+    }
+    None
+}
+
+// ------------------------------------------------------------------
+// Recipe catalog (crafting + smelting + alloying + crushing in one list)
+
+#[derive(Clone, Copy, PartialEq)]
+enum Station {
+    Craft,
+    Smelt,
+    Alloy,
+    Crush,
+}
+
+impl Station {
+    fn label(self) -> &'static str {
+        match self {
+            Station::Craft => "Crafting Table",
+            Station::Smelt => "Furnace",
+            Station::Alloy => "Assembler",
+            Station::Crush => "Crusher",
+        }
+    }
+}
+
+struct CatalogEntry {
+    station: Station,
+    output: String,
+    output_count: u8,
+    /// Aggregated (item, count) pairs.
+    ingredients: Vec<(String, u8)>,
+    /// Shaped pattern (crafting recipes only) for auto-fill + preview.
+    pattern: Option<Vec<Vec<Option<&'static str>>>>,
+    grid_size: usize,
+}
+
+fn build_catalog() -> Vec<CatalogEntry> {
+    let mut out = Vec::new();
+    for r in lf_game::crafting::all_recipes() {
+        let mut counts: Vec<(String, u8)> = Vec::new();
+        for row in &r.pattern {
+            for cell in row.iter().flatten() {
+                match counts.iter_mut().find(|(id, _)| id == cell) {
+                    Some(e) => e.1 += 1,
+                    None => counts.push((cell.to_string(), 1)),
+                }
+            }
+        }
+        out.push(CatalogEntry {
+            station: Station::Craft,
+            output: r.output.clone(),
+            output_count: r.output_count,
+            ingredients: counts,
+            pattern: Some(r.pattern.clone()),
+            grid_size: r.grid_size(),
+        });
+    }
+    for (input, output) in lf_game::smelting::smelt_entries() {
+        out.push(CatalogEntry {
+            station: Station::Smelt,
+            output: output.to_string(),
+            output_count: 1,
+            ingredients: vec![(input, 1)],
+            pattern: None,
+            grid_size: 0,
+        });
+    }
+    for (a, an, b, bn, out_id, on) in lf_game::machines::alloy_recipes() {
+        out.push(CatalogEntry {
+            station: Station::Alloy,
+            output: out_id.to_string(),
+            output_count: *on,
+            ingredients: vec![(a.to_string(), *an), (b.to_string(), *bn)],
+            pattern: None,
+            grid_size: 0,
+        });
+    }
+    for (input, output, n) in lf_game::machines::crush_entries() {
+        out.push(CatalogEntry {
+            station: Station::Crush,
+            output: output.to_string(),
+            output_count: *n,
+            ingredients: vec![(input.to_string(), 1)],
+            pattern: None,
+            grid_size: 0,
+        });
+    }
+    out
+}
+
+// ------------------------------------------------------------------
+
 impl GameState {
     /// Draw every UI surface for this frame.
     pub fn draw_ui(&mut self, ctx: &egui::Context) {
+        ctx.set_zoom_factor(self.settings.ui_scale);
         self.draw_hud(ctx);
         match self.ui_open {
             UiOpen::None => {}
@@ -246,22 +417,24 @@ impl GameState {
             UiOpen::Smithing => self.draw_smithing(ctx),
             UiOpen::Machine(pos) => self.draw_machine(ctx, pos),
             UiOpen::TechTree => self.draw_tech_tree(ctx),
+            UiOpen::Map => self.draw_map_screen(ctx),
             UiOpen::Death => self.draw_death(ctx),
         }
-        // Cursor stack follows the pointer.
+        // Cursor stack follows the pointer (icon + count).
         if let Some(cursor) = &self.cursor_stack {
             if let Some(pointer) = ctx.pointer_hover_pos() {
                 let layer = egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("cursor-stack"));
                 let rect = egui::Rect::from_center_size(pointer, egui::vec2(30.0, 30.0));
-                ctx.layer_painter(layer).rect_filled(rect, 3.0, item_color(cursor));
+                let painter = ctx.layer_painter(layer);
+                if let Some(tex) = self.icons.get(&cursor.item_id) {
+                    let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+                    painter.image(tex.id(), rect, uv, egui::Color32::WHITE);
+                } else {
+                    painter.rect_filled(rect, 3.0, item_color(cursor));
+                }
                 if cursor.count > 1 {
-                    ctx.layer_painter(layer).text(
-                        rect.right_bottom(),
-                        egui::Align2::RIGHT_BOTTOM,
-                        format!("{}", cursor.count),
-                        egui::FontId::proportional(12.0),
-                        egui::Color32::WHITE,
-                    );
+                    painter.text(rect.right_bottom(), egui::Align2::RIGHT_BOTTOM, format!("{}", cursor.count),
+                        egui::FontId::proportional(12.0), egui::Color32::WHITE);
                 }
             }
         }
@@ -285,7 +458,7 @@ impl GameState {
         let chat_lines = net_chat.unwrap_or_else(|| self.chat_log.clone());
         if !chat_lines.is_empty() {
             egui::Area::new(egui::Id::new("chat"))
-                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(8.0, -130.0))
+                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(8.0, -150.0))
                 .show(ctx, |ui| {
                     for line in &chat_lines {
                         ui.label(egui::RichText::new(line).small().color(egui::Color32::from_gray(230)));
@@ -298,7 +471,7 @@ impl GameState {
             let mut text = self.chat_input.take().unwrap();
             let mut send = false;
             egui::Window::new("Chat — Enter send / Esc cancel")
-                .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -160.0))
+                .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -180.0))
                 .collapsible(false).resizable(false)
                 .show(ctx, |ui| {
                     let response = ui.add(egui::TextEdit::singleline(&mut text).desired_width(420.0));
@@ -316,47 +489,71 @@ impl GameState {
                 self.chat_input = Some(text);
             }
         }
-        // HUD bar
+        // ---- bottom HUD bar ----
+        let hotbar_w = 9.0 * (SLOT_SIZE + 4.0);
         egui::TopBottomPanel::bottom("hud").frame(egui::Frame::none()).show_separator_line(false).show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(4.0);
-                // painted hearts + hunger
+                // hearts + armor (left) / hunger (right)
                 ui.horizontal(|ui| {
-                    ui.add_space(ui.available_width() * 0.28);
-                    crate::ui_kit::paint_hearts(ui, self.stats.health, self.stats.max_health);
+                    ui.add_space(ui.available_width() * 0.5 - hotbar_w * 0.5);
+                    kit::paint_hearts(ui, self.stats.health, self.stats.max_health);
+                    let armor = lf_game::combat::worn_armor_points(&self.inventory.slots);
+                    if armor > 0 {
+                        let (rect, _) = ui.allocate_exact_size(egui::vec2(34.0, 16.0), egui::Sense::hover());
+                        let p = ui.painter();
+                        p.rect_filled(egui::Rect::from_center_size(rect.center(), egui::vec2(11.0, 11.0)), 2.0, egui::Color32::from_rgb(190, 200, 215));
+                        p.rect_filled(egui::Rect::from_center_size(rect.center() + egui::vec2(0.0, -3.5), egui::vec2(13.0, 4.0)), 2.0, egui::Color32::from_rgb(210, 220, 235));
+                        p.text(rect.center() + egui::vec2(14.0, 0.0), egui::Align2::LEFT_CENTER, format!("+{}", armor),
+                            egui::FontId::proportional(12.0), egui::Color32::from_rgb(190, 200, 215));
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        crate::ui_kit::paint_hunger(ui, self.stats.hunger, self.stats.max_hunger);
+                        ui.add_space(ui.available_width() * 0.5 - hotbar_w * 0.5);
+                        kit::paint_hunger(ui, self.stats.hunger, self.stats.max_hunger);
                     });
                 });
                 if self.air < 10 {
                     ui.label(egui::RichText::new(format!("air {}", "·".repeat(self.air as usize))).color(Theme::XP));
                 }
-                // XP bar with level chip
+                // XP bar mirroring the hotbar width, with level chip + gain flash
                 let frac = (self.xp_progress as f32 / lf_game::combat::xp_for_level(self.xp_level).max(1) as f32).clamp(0.0, 1.0);
-                ui.horizontal(|ui| {
-                    let (rect, _) = ui.allocate_exact_size(egui::vec2(180.0, 8.0), egui::Sense::hover());
-                    ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(180));
-                    ui.painter().rect_filled(egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * frac, rect.height())), 4.0, Theme::XP);
-                    ui.label(egui::RichText::new(format!("Lv {}", self.xp_level)).small().color(Theme::XP));
-                });
-                // hotbar with hover tooltips
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(hotbar_w, 9.0), egui::Sense::hover());
+                let p = ui.painter();
+                p.rect_filled(rect, 4.0, egui::Color32::from_black_alpha(190));
+                p.rect_filled(egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * frac, rect.height())), 4.0, Theme::XP);
+                if self.xp_flash > 0.0 {
+                    let a = (self.xp_flash * 130.0) as u8;
+                    p.rect_stroke(rect, 4.0, egui::Stroke::new(2.0, egui::Color32::from_rgba_unmultiplied(Theme::XP.r(), Theme::XP.g(), Theme::XP.b(), a)), egui::StrokeKind::Middle);
+                }
+                let chip = egui::Rect::from_center_size(rect.center(), egui::vec2(34.0, 14.0));
+                p.rect_filled(chip, 4.0, Theme::BG);
+                p.text(chip.center(), egui::Align2::CENTER_CENTER, format!("Lv {}", self.xp_level),
+                    egui::FontId::proportional(11.0), Theme::XP);
+                ui.add_space(1.0);
+                // hotbar
                 ui.horizontal(|ui| {
                     for i in 0..9 {
                         let mut stack = self.inventory.slots[i].clone();
                         let selected = i == self.hotbar_index;
                         let mut cursor = self.cursor_stack.take();
-                        let (hover_name, _taken) = slot_button(ui, &mut stack, &mut cursor, selected);
+                        let outcome = slot_button(ui, &mut stack, &mut cursor, selected, &self.icons);
                         self.cursor_stack = cursor;
                         self.inventory.slots[i] = stack;
-                        if let Some(name) = hover_name {
-                            self.hotbar_hover = Some(name);
+                        if let Some(s) = outcome.hovered {
+                            self.hotbar_hover = Some(s.item_id);
                         }
                     }
                 });
-                if let Some(name) = &self.hotbar_hover.clone() {
-                    ui.label(egui::RichText::new(name).small().color(Theme::ACCENT));
-                } else {
-                    ui.label(egui::RichText::new("").small());
+                // selected item name, fading after a switch
+                let name = self.inventory.slots[self.hotbar_index].as_ref()
+                    .and_then(|s| item_def(&s.item_id).map(|d| d.name.to_string()));
+                let alpha = (self.hotbar_pick_time * 255.0).min(255.0) as u8;
+                match (name, alpha) {
+                    (Some(n), a) if a > 8 => {
+                        ui.label(egui::RichText::new(n).small().color(
+                            egui::Color32::from_rgba_unmultiplied(Theme::ACCENT.r(), Theme::ACCENT.g(), Theme::ACCENT.b(), a)));
+                    }
+                    _ => { ui.label(egui::RichText::new("").small()); }
                 }
                 // mining / bow charge
                 if let Some(mining) = &self.mining {
@@ -369,8 +566,16 @@ impl GameState {
                 }
             });
         });
-        // info line (top-left): clock, weather, transport, FPS
-        let mut info = format!("{} · {}", self.time_label(), if self.weather_raining { "rain" } else { "clear" });
+        // minimap (top-right) while playing
+        if self.stats.health > 0.0 && matches!(self.ui_open, UiOpen::None | UiOpen::Chat) {
+            self.draw_minimap(ctx);
+        }
+        // info line (top-left): facing, biome, coords, clock, weather, net, FPS
+        let facing = crate::map::compass_facing(self.player.yaw);
+        let biome = self.map.biome_at(self.player.position.x as i32, self.player.position.z as i32).name();
+        let mut info = format!("{} · {} · {:.0},{:.0} · {}", facing, biome,
+            self.player.position.x, self.player.position.z, self.time_label());
+        info.push_str(if self.weather_raining { " · rain" } else { " · clear" });
         if let Some(n) = &self.net {
             info.push_str(&format!(" · net:{}", if n.connected { "on" } else { "…" }));
         }
@@ -385,126 +590,363 @@ impl GameState {
             .show(ctx, |ui| {
                 ui.label(egui::RichText::new(info).small().color(egui::Color32::from_rgba_premultiplied(Theme::TEXT.r(), Theme::TEXT.g(), Theme::TEXT.b(), 200)));
             });
-        // crosshair (only when playing)
-        if self.ui_open == UiOpen::None {
+        // hurt vignette + low-health pulse
+        if self.hud_flash > 0.0 || self.stats.health <= 6.0 {
+            let pulse = if self.stats.health <= 6.0 {
+                0.12 + 0.08 * (ui_time(ctx) * 4.0).sin()
+            } else {
+                0.0
+            };
+            let alpha = ((self.hud_flash * 0.45 + pulse) * 255.0).min(200.0) as u8;
+            let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("vignette")));
+            let r = ctx.screen_rect();
+            let band = 70.0;
+            for (a, b) in [(r.left_top(), r.right_top()), (r.left_bottom(), r.right_bottom()),
+                           (r.left_top(), r.left_bottom()), (r.right_top(), r.right_bottom())] {
+                painter.line_segment([a, b], egui::Stroke::new(band, egui::Color32::from_rgba_unmultiplied(190, 30, 30, alpha / 6)));
+            }
+            painter.rect_stroke(r.shrink(band / 2.0), 0.0,
+                egui::Stroke::new(2.0, egui::Color32::from_rgba_unmultiplied(220, 40, 40, alpha)), egui::StrokeKind::Middle);
+        }
+        // crosshair: opens with mining progress, hit-marker flash on attacks
+        if self.ui_open == UiOpen::None && self.stats.health > 0.0 {
             let pointer = ctx.screen_rect().center();
             let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, "crosshair".into()));
+            let grow = self.mining.as_ref()
+                .map(|m| 2.0 + (m.progress / m.total).min(1.0) * 6.0)
+                .unwrap_or(2.0);
             let c = egui::Color32::from_white_alpha(220);
-            p.line_segment([pointer - egui::vec2(8.0, 0.0), pointer + egui::vec2(8.0, 0.0)], egui::Stroke::new(2.0, c));
-            p.line_segment([pointer - egui::vec2(0.0, 8.0), pointer + egui::vec2(0.0, 8.0)], egui::Stroke::new(2.0, c));
+            p.line_segment([pointer - egui::vec2(7.0 + grow, 0.0), pointer - egui::vec2(2.0, 0.0)], egui::Stroke::new(2.0, c));
+            p.line_segment([pointer + egui::vec2(2.0, 0.0), pointer + egui::vec2(7.0 + grow, 0.0)], egui::Stroke::new(2.0, c));
+            p.line_segment([pointer - egui::vec2(0.0, 7.0 + grow), pointer - egui::vec2(0.0, 2.0)], egui::Stroke::new(2.0, c));
+            p.line_segment([pointer + egui::vec2(0.0, 2.0), pointer + egui::vec2(0.0, 7.0 + grow)], egui::Stroke::new(2.0, c));
+            if self.hit_flash > 0.0 {
+                let a = (self.hit_flash * 255.0) as u8;
+                let mark = egui::Color32::from_rgba_unmultiplied(255, 120, 90, a);
+                let d = 5.0 + (1.0 - self.hit_flash) * 8.0;
+                for (dx, dy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+                    p.line_segment([
+                        pointer + egui::vec2(dx * 3.0, dy * 3.0),
+                        pointer + egui::vec2(dx * d, dy * d),
+                    ], egui::Stroke::new(2.0, mark));
+                }
+            }
         }
     }
 
     fn draw_inventory(&mut self, ctx: &egui::Context, grid: usize) {
         let title = if grid == 3 { "Crafting Table" } else { "Inventory" };
+        let book = self.recipe_book_open;
         egui::Window::new(title)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
-                // crafting area
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
-                        ui.label(if grid == 3 { "Craft" } else { "2x2" });
-                        let cells: usize = grid * grid;
-                        for row in 0..grid {
+                        ui.horizontal(|ui| {
+                            // crafting grid
+                            ui.vertical(|ui| {
+                                kit::section_header(ui, if grid == 3 { "Craft" } else { "2x2" }, 1.0);
+                                ui.add_space(8.0);
+                                for row in 0..grid {
+                                    ui.horizontal(|ui| {
+                                        for col in 0..grid {
+                                            let idx = row * grid + col;
+                                            let mut stack = self.craft_grid[idx].clone();
+                                            let mut cursor = self.cursor_stack.take();
+                                            let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
+                                            self.cursor_stack = cursor;
+                                            if let Some(mut q) = out.quick_moved {
+                                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                                            }
+                                            self.craft_grid[idx] = stack;
+                                        }
+                                    });
+                                }
+                            });
+                            ui.add_space(10.0);
+                            // result slot
+                            ui.vertical(|ui| {
+                                ui.add_space(12.0);
+                                let grid_ref: Vec<Option<ItemStack>> = self.craft_grid.iter().take(grid * grid).cloned().collect();
+                                let result = match_recipe(&grid_ref);
+                                let locked = match &result {
+                                    Some((out, _)) => Era::required_for(out) > self.research.era,
+                                    None => false,
+                                };
+                                let (rect, response) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE + 8.0, SLOT_SIZE + 8.0), egui::Sense::click());
+                                ui.painter().rect_filled(rect, 6.0, egui::Color32::from_black_alpha(170));
+                                ui.painter().rect_stroke(rect, 6.0, egui::Stroke::new(2.0,
+                                    if result.is_some() && !locked { Theme::ACCENT } else { egui::Color32::from_gray(90) }), egui::StrokeKind::Middle);
+                                if let Some((out, n)) = &result {
+                                    let stack = ItemStack { item_id: out.clone(), count: *n };
+                                    paint_item(ui, rect.shrink(4.0), &stack, &self.icons);
+                                    paint_count(ui, rect, *n);
+                                    if locked {
+                                        // dark veil + era note
+                                        ui.painter().rect_filled(rect, 6.0, egui::Color32::from_black_alpha(140));
+                                        ui.painter().text(rect.center_bottom() + egui::vec2(0.0, 10.0), egui::Align2::CENTER_CENTER,
+                                            format!("needs {}", Era::required_for(out).name()),
+                                            egui::FontId::proportional(10.0), egui::Color32::from_rgb(230, 130, 130));
+                                    } else {
+                                        kit::hover_item_tooltip(&response, &stack, &self.icons);
+                                    }
+                                }
+                                if response.clicked() {
+                                    if let Some((out, n)) = result {
+                                        if !locked {
+                                            let crafted = ItemStack { item_id: out, count: n };
+                                            let can_take = match &self.cursor_stack {
+                                                None => true,
+                                                Some(c) => c.item_id == crafted.item_id
+                                                    && c.count as u16 + n as u16 <= item_def(&crafted.item_id).map(|d| d.max_stack).unwrap_or(64) as u16,
+                                            };
+                                            if can_take {
+                                                match &mut self.cursor_stack {
+                                                    None => self.cursor_stack = Some(crafted.clone()),
+                                                    Some(c) => c.count += n,
+                                                }
+                                                let mut grid_slots: Vec<Option<ItemStack>> =
+                                                    self.craft_grid.iter().take(grid * grid).cloned().collect();
+                                                consume_ingredients(&mut grid_slots);
+                                                for (i, s) in grid_slots.into_iter().enumerate() {
+                                                    self.craft_grid[i] = s;
+                                                }
+                                                self.quest_event(crate::QuestEvent::Crafted(crafted.item_id.clone()));
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                        ui.add_space(8.0);
+                        // storage 9x3 (shift-click bounces to the hotbar and back)
+                        for row in 0..3 {
                             ui.horizontal(|ui| {
-                                for col in 0..grid {
-                                    let idx = row * grid + col;
-                                    let mut stack = self.craft_grid[idx].clone();
+                                for col in 0..9 {
+                                    let idx = 9 + row * 9 + col;
+                                    let mut stack = self.inventory.slots[idx].clone();
                                     let mut cursor = self.cursor_stack.take();
-                                    let _ = slot_button(ui, &mut stack, &mut cursor, false);
+                                    let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
                                     self.cursor_stack = cursor;
-                                    self.craft_grid[idx] = stack;
+                                    if let Some(mut q) = out.quick_moved {
+                                        quick_insert(&mut self.inventory.slots[..9], &mut q);
+                                    }
+                                    self.inventory.slots[idx] = stack;
                                 }
                             });
                         }
-                    });
-                    ui.label("->");
-                    // result slot
-                    let grid_ref: Vec<Option<ItemStack>> = self.craft_grid.iter().take(grid * grid).cloned().collect();
-                    let result = match_recipe(&grid_ref);
-                    // era gating: locked recipes show but cannot be taken
-                    let locked = match &result {
-                        Some((out, _)) => {
-                            lf_game::research::Era::required_for(out) > self.research.era
-                        }
-                        None => false,
-                    };
-                    let (disabled, color, count) = match &result {
-                        Some((out, n)) => (locked, item_color(&ItemStack { item_id: out.clone(), count: *n }), *n),
-                        None => (true, egui::Color32::from_gray(60), 0),
-                    };
-                    if locked {
-                        ui.label(egui::RichText::new(format!("requires the {}",
-                            lf_game::research::Era::required_for(&result.as_ref().unwrap().0).name())).small().color(egui::Color32::from_rgb(230, 130, 130)));
-                    }
-                    let (rect, response) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE, SLOT_SIZE), egui::Sense::click());
-                    ui.painter().rect_filled(rect, 4.0, egui::Color32::from_black_alpha(160));
-                    ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(2.0, egui::Color32::from_gray(120)), egui::StrokeKind::Middle);
-                    if !disabled {
-                        ui.painter().rect_filled(rect.shrink(7.0), 3.0, color);
-                        if count > 1 {
-                            ui.painter().text(
-                                rect.right_bottom() + egui::vec2(-6.0, -6.0),
-                                egui::Align2::RIGHT_BOTTOM,
-                                format!("{}", count),
-                                egui::FontId::proportional(13.0),
-                                egui::Color32::WHITE,
-                            );
-                        }
-                        if response.clicked() {
-                            if let Some((out, n)) = result {
-                                let crafted = ItemStack { item_id: out, count: n };
-                                // take into cursor if possible
-                                let can_take = match &self.cursor_stack {
-                                    None => true,
-                                    Some(c) => c.item_id == crafted.item_id
-                                        && c.count as u16 + n as u16 <= item_def(&crafted.item_id).map(|d| d.max_stack).unwrap_or(64) as u16,
-                                };
-                                if can_take {
-                                    match &mut self.cursor_stack {
-                                        None => self.cursor_stack = Some(crafted.clone()),
-                                        Some(c) => c.count += n,
-                                    }
-                                    let mut grid_slots: Vec<Option<ItemStack>> =
-                                        self.craft_grid.iter().take(grid * grid).cloned().collect();
-                                    consume_ingredients(&mut grid_slots);
-                                    for (i, s) in grid_slots.into_iter().enumerate() {
-                                        self.craft_grid[i] = s;
-                                    }
-                                    self.quest_event(crate::QuestEvent::Crafted(crafted.item_id.clone()));
+                        ui.add_space(4.0);
+                        // hotbar row (shift-click bounces to storage)
+                        ui.horizontal(|ui| {
+                            for i in 0..9 {
+                                let mut stack = self.inventory.slots[i].clone();
+                                let mut cursor = self.cursor_stack.take();
+                                let out = slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index, &self.icons);
+                                self.cursor_stack = cursor;
+                                if let Some(mut q) = out.quick_moved {
+                                    quick_insert(&mut self.inventory.slots[9..36], &mut q);
                                 }
+                                self.inventory.slots[i] = stack;
                             }
-                        }
-                    }
-                });
-                ui.add_space(6.0);
-                // storage 9x3
-                for row in 0..3 {
-                    ui.horizontal(|ui| {
-                        for col in 0..9 {
-                            let idx = 9 + row * 9 + col;
-                            let mut stack = self.inventory.slots[idx].clone();
-                            let mut cursor = self.cursor_stack.take();
-                            let _ = slot_button(ui, &mut stack, &mut cursor, false);
-                            self.cursor_stack = cursor;
-                            self.inventory.slots[idx] = stack;
-                        }
+                        });
                     });
-                }
-                ui.add_space(4.0);
-                // hotbar row
-                ui.horizontal(|ui| {
-                    for i in 0..9 {
-                        let mut stack = self.inventory.slots[i].clone();
-                        let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index);
-                        self.cursor_stack = cursor;
-                        self.inventory.slots[i] = stack;
+                    if book {
+                        self.draw_recipe_book(ui, grid);
+                    } else {
+                        ui.vertical(|ui| {
+                            ui.add_space(60.0);
+                            if kit::menu_button(ui, "Recipes", 1.0, false) {
+                                self.recipe_book_open = true;
+                            }
+                            ui.label(egui::RichText::new("browse &\nauto-fill").small().color(Theme::TEXT_DIM));
+                        });
                     }
                 });
             });
+    }
+
+    /// The recipe book side panel: unified catalog with search, station
+    /// filters, have/need coloring and click-to-auto-fill.
+    fn draw_recipe_book(&mut self, ui: &mut egui::Ui, grid: usize) {
+        let catalog = build_catalog();
+        let have: std::collections::HashMap<String, u16> = {
+            let mut h = std::collections::HashMap::new();
+            for s in self.inventory.slots.iter().take(36).flatten() {
+                *h.entry(s.item_id.clone()).or_insert(0) += s.count as u16;
+            }
+            h
+        };
+        ui.vertical(|ui| {
+            ui.set_width(340.0);
+            kit::section_header(ui, "Recipe Book", 1.0);
+            if kit::menu_button(ui, "× close", 1.0, false) {
+                self.recipe_book_open = false;
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut self.recipe_search).desired_width(150.0).hint_text("search..."));
+                let stations = [("All", usize::MAX), ("Craft", 0), ("Smelt", 1), ("Alloy", 2), ("Crush", 3)];
+                for (label, idx) in stations {
+                    let on = if idx == usize::MAX { self.recipe_station == usize::MAX } else { self.recipe_station == idx };
+                    if ui.add(egui::Button::new(egui::RichText::new(label)
+                        .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))).clicked() {
+                        self.recipe_station = idx;
+                    }
+                }
+            });
+            if ui.add(egui::Button::new(egui::RichText::new(if self.recipe_craftable_only {
+                "✓ craftable only"
+            } else {
+                "craftable only"
+            }).color(if self.recipe_craftable_only { Theme::OK } else { Theme::TEXT_DIM }))).clicked() {
+                self.recipe_craftable_only = !self.recipe_craftable_only;
+            }
+            ui.add_space(4.0);
+            let search = self.recipe_search.to_lowercase();
+            let station_of = |e: &CatalogEntry| match e.station {
+                Station::Craft => 0,
+                Station::Smelt => 1,
+                Station::Alloy => 2,
+                Station::Crush => 3,
+            };
+            egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                for entry in &catalog {
+                    if self.recipe_station != usize::MAX && station_of(entry) != self.recipe_station {
+                        continue;
+                    }
+                    let name = item_def(&entry.output).map(|d| d.name).unwrap_or(&entry.output);
+                    if !search.is_empty() && !name.to_lowercase().contains(&search) {
+                        continue;
+                    }
+                    let era_ok = Era::required_for(&entry.output) <= self.research.era;
+                    let have_all = entry.ingredients.iter().all(|(id, n)| have.get(id).copied().unwrap_or(0) >= *n as u16);
+                    let fits_grid = entry.station != Station::Craft || entry.grid_size <= grid;
+                    let craftable = era_ok && have_all && fits_grid;
+                    if self.recipe_craftable_only && !craftable {
+                        continue;
+                    }
+                    let selected_entry = entry.station == Station::Craft && fits_grid;
+                    egui::Frame::new()
+                        .fill(if craftable { egui::Color32::from_rgba_premultiplied(34, 40, 32, 220) }
+                              else { egui::Color32::from_black_alpha(150) })
+                        .stroke(egui::Stroke::new(if craftable { 1.6 } else { 1.0 },
+                            if craftable { Theme::ACCENT_DIM } else { egui::Color32::from_gray(60) }))
+                        .corner_radius(7.0)
+                        .inner_margin(6.0)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let (orect, _) = ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
+                                paint_item(ui, orect, &ItemStack { item_id: entry.output.clone(), count: 1 }, &self.icons);
+                                ui.vertical(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(egui::RichText::new(name).size(13.0)
+                                            .color(if era_ok { Theme::TEXT } else { egui::Color32::from_rgb(230, 130, 130) }));
+                                        if entry.output_count > 1 {
+                                            ui.label(egui::RichText::new(format!("x{}", entry.output_count)).small().color(Theme::TEXT_DIM));
+                                        }
+                                        if !era_ok {
+                                            ui.label(egui::RichText::new(format!("[{}]", Era::required_for(&entry.output).name())).small().color(Theme::BAD));
+                                        } else if entry.station == Station::Craft && !fits_grid {
+                                            ui.label(egui::RichText::new("[needs table]").small().color(Theme::TEXT_DIM));
+                                        }
+                                    });
+                                    // ingredient icons with have/need counts
+                                    ui.horizontal(|ui| {
+                                        for (id, n) in &entry.ingredients {
+                                            let got = have.get(id).copied().unwrap_or(0);
+                                            let ok = got >= *n as u16;
+                                            let (irect, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
+                                            paint_item(ui, irect, &ItemStack { item_id: id.clone(), count: 1 }, &self.icons);
+                                            ui.label(egui::RichText::new(format!("{}", n)).small()
+                                                .color(if ok { Theme::OK } else { Theme::BAD }));
+                                            let short_name = item_def(id).map(|d| d.name).unwrap_or(id);
+                                            ui.label(egui::RichText::new(short_name).small().color(Theme::TEXT_DIM));
+                                        }
+                                    });
+                                });
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(egui::RichText::new(entry.station.label()).small().color(Theme::TEXT_DIM));
+                                    if selected_entry && ui.add_enabled(craftable, egui::Button::new("fill")).clicked() {
+                                        if let Some(pattern) = &entry.pattern {
+                                            self.autofill_recipe(pattern);
+                                        }
+                                    }
+                                });
+                            });
+                            // hover preview: pattern mini-grid + output tooltip
+                            let resp = ui.allocate_response(egui::vec2(ui.available_width(), 0.0), egui::Sense::hover());
+                            let entry_out = entry.output.clone();
+                            let icons_ptr = &self.icons;
+                            let pattern = entry.pattern.clone();
+                            resp.on_hover_ui(|ui| {
+                                let stack = ItemStack { item_id: entry_out.clone(), count: 1 };
+                                kit::item_tooltip_body(ui, &stack, icons_ptr);
+                                if let Some(pattern) = &pattern {
+                                    ui.add_space(4.0);
+                                    let h = pattern.len();
+                                    let w = pattern.iter().map(|r| r.len()).max().unwrap_or(0);
+                                    ui.horizontal(|ui| {
+                                        for row in 0..h {
+                                            ui.vertical(|ui| {
+                                                for col in 0..w {
+                                                    let cell = pattern[row].get(col).copied().flatten();
+                                                    let (rect, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover());
+                                                    let p = ui.painter();
+                                                    p.rect_filled(rect, 4.0, egui::Color32::from_black_alpha(170));
+                                                    p.rect_stroke(rect, 4.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Middle);
+                                                    if let Some(id) = cell {
+                                                        paint_item(ui, rect, &ItemStack { item_id: id.to_string(), count: 1 }, icons_ptr);
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    });
+                                }
+                            });
+                        });
+                }
+                if catalog.is_empty() {
+                    ui.label(egui::RichText::new("no recipes match").small().color(Theme::TEXT_DIM));
+                }
+            });
+        });
+    }
+
+    /// Move the current grid contents back to the inventory, then pull the
+    /// recipe's ingredients into the grid (only if everything is available).
+    fn autofill_recipe(&mut self, pattern: &[Vec<Option<&'static str>>]) {
+        // return whatever is in the grid first
+        let grid = std::mem::take(&mut self.craft_grid);
+        for s in grid.into_iter().flatten() {
+            let leftover = self.inventory.add_item(&s.item_id, s.count);
+            if leftover > 0 {
+                self.spawn_drop(&s.item_id, leftover, self.player.eye_position() + self.player.look_dir());
+            }
+        }
+        // count needs, verify availability
+        let mut needed: std::collections::HashMap<&str, u8> = std::collections::HashMap::new();
+        for row in pattern {
+            for cell in row.iter().flatten() {
+                *needed.entry(cell).or_insert(0) += 1;
+            }
+        }
+        for (id, n) in &needed {
+            let got: u16 = self.inventory.slots.iter().take(36).flatten()
+                .filter(|s| s.item_id == *id)
+                .map(|s| s.count as u16).sum();
+            if got < *n as u16 {
+                return; // not enough — leave the grid empty rather than partial
+            }
+        }
+        for (y, row) in pattern.iter().enumerate() {
+            for (x, cell) in row.iter().enumerate() {
+                if let Some(id) = cell {
+                    self.craft_grid[y * 3 + x] = take_one(&mut self.inventory.slots, id);
+                }
+            }
+        }
     }
 
     fn draw_furnace(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
@@ -519,42 +961,72 @@ impl GameState {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
-                        ui.label("Input");
+                        ui.label(egui::RichText::new("Input").small().color(Theme::TEXT_DIM));
                         let mut input = furnace.input.take();
                         let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut input, &mut cursor, false);
+                        let out = slot_button(ui, &mut input, &mut cursor, false, &self.icons);
+                        if let Some(mut q) = out.quick_moved {
+                            quick_insert(&mut self.inventory.slots[..36], &mut q);
+                        }
                         furnace.input = input;
                         self.cursor_stack = cursor;
-                        // flame indicator
+                        // painted flame (burn remaining)
                         let flame = if furnace.burn_total > 0.0 {
                             (furnace.burn_left / furnace.burn_total).clamp(0.0, 1.0)
                         } else {
                             0.0
                         };
-                        ui.add(egui::ProgressBar::new(flame).desired_width(SLOT_SIZE).text(if flame > 0.0 { "fire" } else { "" }));
-                        ui.label("Fuel");
+                        let (frect, _) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE, 22.0), egui::Sense::hover());
+                        let p = ui.painter();
+                        p.rect_filled(frect, 3.0, egui::Color32::from_black_alpha(170));
+                        let fh = frect.height() * flame;
+                        p.rect_filled(egui::Rect::from_min_max(
+                            egui::pos2(frect.left() + 2.0, frect.bottom() - 2.0 - fh),
+                            egui::pos2(frect.right() - 2.0, frect.bottom() - 2.0)), 3.0,
+                            egui::Color32::from_rgb(250, 150, 50));
+                        for i in 0..3 {
+                            let t = i as f32 / 3.0;
+                            let fy = frect.bottom() - 3.0 - (fh * (0.4 + 0.6 * t)).min(fh);
+                            p.circle_filled(egui::pos2(frect.left() + 8.0 + i as f32 * 14.0, fy), 3.0,
+                                egui::Color32::from_rgb(255, 210, 90));
+                        }
+                        ui.label(egui::RichText::new("Fuel").small().color(Theme::TEXT_DIM));
                         let mut fuel = furnace.fuel.take();
                         let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut fuel, &mut cursor, false);
+                        let out = slot_button(ui, &mut fuel, &mut cursor, false, &self.icons);
+                        if let Some(mut q) = out.quick_moved {
+                            quick_insert(&mut self.inventory.slots[..36], &mut q);
+                        }
                         furnace.fuel = fuel;
                         self.cursor_stack = cursor;
                     });
+                    ui.add_space(8.0);
+                    // smelt progress arrow
+                    let frac = (furnace.progress / lf_game::smelting::SMELT_TIME).clamp(0.0, 1.0);
+                    let (arect, _) = ui.allocate_exact_size(egui::vec2(70.0, 20.0), egui::Sense::hover());
+                    let p = ui.painter();
+                    p.rect_filled(arect, 3.0, egui::Color32::from_black_alpha(170));
+                    p.rect_filled(egui::Rect::from_min_size(arect.min + egui::vec2(2.0, 2.0),
+                        egui::vec2((arect.width() - 4.0) * frac, arect.height() - 4.0)), 3.0, Theme::ACCENT);
+                    let tip = arect.right_center() + egui::vec2(6.0, 0.0);
+                    p.add(egui::Shape::convex_polygon(vec![
+                        tip + egui::vec2(-6.0, -8.0), tip + egui::vec2(6.0, 0.0), tip + egui::vec2(-6.0, 8.0)],
+                        Theme::ACCENT, egui::Stroke::NONE));
+                    ui.add_space(8.0);
                     ui.vertical(|ui| {
-                        let frac = (furnace.progress / lf_game::smelting::SMELT_TIME).clamp(0.0, 1.0);
-                        ui.add(egui::ProgressBar::new(frac).desired_width(80.0).text("smelt"));
-                        ui.label("->");
-                    });
-                    ui.vertical(|ui| {
-                        ui.label("Output");
+                        ui.label(egui::RichText::new("Output").small().color(Theme::TEXT_DIM));
                         let mut output = furnace.output.take();
                         let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut output, &mut cursor, false);
+                        let out = slot_button(ui, &mut output, &mut cursor, false, &self.icons);
+                        if let Some(mut q) = out.quick_moved {
+                            quick_insert(&mut self.inventory.slots[..36], &mut q);
+                        }
                         furnace.output = output;
                         self.cursor_stack = cursor;
                     });
                 });
                 ui.add_space(6.0);
-                Self::draw_storage_rows(ui, self);
+                self.draw_storage_rows(ui);
             });
         self.block_entities.insert(pos, BlockEntity::Furnace(furnace));
     }
@@ -575,40 +1047,79 @@ impl GameState {
                             let idx = row * 9 + col;
                             let mut stack = chest_slots[idx].clone();
                             let mut cursor = self.cursor_stack.take();
-                            let _ = slot_button(ui, &mut stack, &mut cursor, false);
+                            let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
                             self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                // chest -> inventory
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
                             chest_slots[idx] = stack;
                         }
                     });
                 }
                 ui.add_space(6.0);
-                Self::draw_storage_rows(ui, self);
+                // player rows; shift-click sends stacks into the chest
+                for row in 0..3 {
+                    ui.horizontal(|ui| {
+                        for col in 0..9 {
+                            let idx = 9 + row * 9 + col;
+                            let mut stack = self.inventory.slots[idx].clone();
+                            let mut cursor = self.cursor_stack.take();
+                            let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                quick_insert(&mut chest_slots, &mut q);
+                            }
+                            self.inventory.slots[idx] = stack;
+                        }
+                    });
+                }
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    for i in 0..9 {
+                        let mut stack = self.inventory.slots[i].clone();
+                        let mut cursor = self.cursor_stack.take();
+                        let out = slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index, &self.icons);
+                        self.cursor_stack = cursor;
+                        if let Some(mut q) = out.quick_moved {
+                            quick_insert(&mut chest_slots, &mut q);
+                        }
+                        self.inventory.slots[i] = stack;
+                    }
+                });
             });
         self.block_entities.insert(pos, BlockEntity::Chest { slots: chest_slots });
     }
 
-    fn draw_storage_rows(ui: &mut egui::Ui, game: &mut GameState) {
-        // storage 9x3 + hotbar (shared by container screens)
+    /// Player storage + hotbar below a container screen; shift-click sends
+    /// slots across the inventory (storage <-> hotbar).
+    fn draw_storage_rows(&mut self, ui: &mut egui::Ui) {
         for row in 0..3 {
             ui.horizontal(|ui| {
                 for col in 0..9 {
                     let idx = 9 + row * 9 + col;
-                    let mut stack = game.inventory.slots[idx].clone();
-                    let mut cursor = game.cursor_stack.take();
-                    let _ = slot_button(ui, &mut stack, &mut cursor, false);
-                    game.cursor_stack = cursor;
-                    game.inventory.slots[idx] = stack;
+                    let mut stack = self.inventory.slots[idx].clone();
+                    let mut cursor = self.cursor_stack.take();
+                    let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
+                    self.cursor_stack = cursor;
+                    if let Some(mut q) = out.quick_moved {
+                        quick_insert(&mut self.inventory.slots[..9], &mut q);
+                    }
+                    self.inventory.slots[idx] = stack;
                 }
             });
         }
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             for i in 0..9 {
-                let mut stack = game.inventory.slots[i].clone();
-                let mut cursor = game.cursor_stack.take();
-                let _ = slot_button(ui, &mut stack, &mut cursor, i == game.hotbar_index);
-                game.cursor_stack = cursor;
-                game.inventory.slots[i] = stack;
+                let mut stack = self.inventory.slots[i].clone();
+                let mut cursor = self.cursor_stack.take();
+                let out = slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index, &self.icons);
+                self.cursor_stack = cursor;
+                if let Some(mut q) = out.quick_moved {
+                    quick_insert(&mut self.inventory.slots[9..36], &mut q);
+                }
+                self.inventory.slots[i] = stack;
             }
         });
     }
@@ -750,7 +1261,7 @@ impl GameState {
                                 self.quit_requested = true;
                             }
                             ui.add_space(14.0);
-                            ui.label(egui::RichText::new("E inventory · K tech tree · J quests · T chat · F2 shot · R RT capture")
+                            ui.label(egui::RichText::new("E inventory · M map · K tech tree · J quests · T chat · F2 shot · R RT capture")
                                 .small().color(Theme::TEXT_DIM));
                             ui.add_space(12.0);
                         });
@@ -774,7 +1285,7 @@ impl GameState {
                             ui.heading(egui::RichText::new("Settings").size(26.0).color(Theme::TEXT));
                             ui.add_space(8.0);
                             ui.horizontal(|ui| {
-                                for (i, label) in ["Video", "Audio", "Gameplay"].iter().enumerate() {
+                                for (i, label) in ["Video", "Interface", "Audio", "Gameplay"].iter().enumerate() {
                                     let on = self.settings_tab == i;
                                     let btn = egui::Button::new(egui::RichText::new(*label)
                                         .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))
@@ -787,7 +1298,8 @@ impl GameState {
                             ui.separator();
                             match self.settings_tab {
                                 0 => self.settings_video(ui),
-                                1 => self.settings_audio(ui),
+                                1 => self.settings_interface(ui),
+                                2 => self.settings_audio(ui),
                                 _ => self.settings_gameplay(ui),
                             }
                             ui.add_space(10.0);
@@ -842,6 +1354,16 @@ impl GameState {
         });
     }
 
+    fn settings_interface(&mut self, ui: &mut egui::Ui) {
+        kit::section_header(ui, "Interface", 1.0);
+        ui.add_space(6.0);
+        let s = &mut self.settings;
+        kit::toggle(ui, "Show minimap", &mut s.show_minimap);
+        kit::setting_slider(ui, "UI scale", &mut s.ui_scale, (0.7, 1.6), &|v| format!("{:.0}%", v * 100.0));
+        ui.label(egui::RichText::new("minimap top-right · M opens the world map · shift-click slots to quick-move")
+            .small().color(Theme::TEXT_DIM));
+    }
+
     fn settings_audio(&mut self, ui: &mut egui::Ui) {
         let s = &mut self.settings;
         kit::section_header(ui, "Audio", 1.0);
@@ -874,38 +1396,52 @@ impl GameState {
             .resizable(false)
             .show(ctx, |ui| {
                 for (give, give_n, get, get_n) in trade_offers(villager.job) {
-                    ui.horizontal(|ui| {
-                        let have = self.inventory.slots.iter()
-                            .filter_map(|s| s.as_ref())
-                            .filter(|s| s.item_id == *give)
-                            .map(|s| s.count as u16)
-                            .sum::<u16>();
-                        let enough = have >= *give_n as u16;
-                        let color = if enough { egui::Color32::from_rgb(140, 220, 140) } else { egui::Color32::from_rgb(230, 130, 130) };
-                        ui.label(egui::RichText::new(format!("{} {} -> {} {}", give_n, give, get_n, get)).color(color));
-                        ui.label(format!("(have {})", have));
-                        if ui.add_enabled(enough, egui::Button::new("Trade")).clicked() {
-                            // pay
-                            let mut left = *give_n as u16;
-                            'pay: for slot in self.inventory.slots.iter_mut() {
-                                if let Some(stack) = slot {
-                                    if stack.item_id == *give {
-                                        let take = (stack.count as u16).min(left);
-                                        stack.count -= take as u8;
-                                        left -= take;
-                                        if stack.count == 0 {
-                                            *slot = None;
+                    let have = self.inventory.slots.iter()
+                        .filter_map(|s| s.as_ref())
+                        .filter(|s| s.item_id == *give)
+                        .map(|s| s.count as u16)
+                        .sum::<u16>();
+                    let enough = have >= *give_n as u16;
+                    egui::Frame::new()
+                        .fill(egui::Color32::from_black_alpha(130))
+                        .corner_radius(7.0)
+                        .inner_margin(6.0)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let give_stack = ItemStack { item_id: give.to_string(), count: 1 };
+                                let get_stack = ItemStack { item_id: get.to_string(), count: 1 };
+                                let (r, resp) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
+                                paint_item(ui, r, &give_stack, &self.icons);
+                                kit::hover_item_tooltip(&resp, &give_stack, &self.icons);
+                                ui.label(egui::RichText::new(format!("x{}", give_n))
+                                    .color(if enough { Theme::OK } else { Theme::BAD }));
+                                ui.label(egui::RichText::new("→").color(Theme::TEXT_DIM));
+                                let (r2, _) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
+                                paint_item(ui, r2, &get_stack, &self.icons);
+                                ui.label(egui::RichText::new(format!("x{}", get_n)).color(Theme::TEXT));
+                                ui.label(egui::RichText::new(format!("(have {})", have)).small().color(Theme::TEXT_DIM));
+                                if ui.add_enabled(enough, egui::Button::new("Trade")).clicked() {
+                                    let mut left = *give_n as u16;
+                                    'pay: for slot in self.inventory.slots.iter_mut() {
+                                        if let Some(stack) = slot {
+                                            if stack.item_id == *give {
+                                                let take = (stack.count as u16).min(left);
+                                                stack.count -= take as u8;
+                                                left -= take;
+                                                if stack.count == 0 {
+                                                    *slot = None;
+                                                }
+                                                if left == 0 { break 'pay; }
+                                            }
                                         }
-                                        if left == 0 { break 'pay; }
+                                    }
+                                    let leftover = self.inventory.add_item(get, *get_n);
+                                    if leftover > 0 {
+                                        self.spawn_drop(get, leftover, self.player.eye_position() + self.player.look_dir());
                                     }
                                 }
-                            }
-                            let leftover = self.inventory.add_item(get, *get_n);
-                            if leftover > 0 {
-                                self.spawn_drop(get, leftover, self.player.eye_position() + self.player.look_dir());
-                            }
-                        }
-                    });
+                            });
+                        });
                 }
                 ui.separator();
                 ui.label(egui::RichText::new("Esc to close").small());
@@ -935,14 +1471,35 @@ impl GameState {
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
-                // the existing forge minigame from lf_game::smithing
                 let temp = self.forge.temperature;
                 let zone = (60.0..=80.0).contains(&temp);
-                let color = if zone { egui::Color32::from_rgb(255, 160, 60) } else { egui::Color32::from_rgb(120, 120, 130) };
-                ui.label(egui::RichText::new(format!("temperature: {:.0}", temp)).color(color));
-                ui.add(egui::ProgressBar::new(temp / 100.0).desired_width(240.0).text(if zone { "orange zone" } else { "" }));
+                kit::section_header(ui, "Forge Heat", 1.0);
+                ui.add_space(10.0);
+                // temperature bar with the orange work zone marked
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(280.0, 26.0), egui::Sense::hover());
+                let p = ui.painter();
+                p.rect_filled(rect, 5.0, egui::Color32::from_black_alpha(190));
+                // cool -> hot gradient
+                for i in 0..rect.width() as i32 {
+                    let t = i as f32 / rect.width();
+                    let heat = ((t * temp as f32) / 100.0).min(1.0);
+                    let col = egui::Color32::from_rgb((90.0 + 165.0 * heat) as u8, (60.0 + 60.0 * heat) as u8, (50.0 + 10.0 * heat) as u8);
+                    p.rect_filled(egui::Rect::from_min_size(egui::pos2(rect.left() + i as f32, rect.top() + 2.0), egui::vec2(1.0, rect.height() - 4.0)), 0.0, col);
+                }
+                let zx0 = rect.left() + rect.width() * 0.60;
+                let zx1 = rect.left() + rect.width() * 0.80;
+                p.rect_stroke(egui::Rect::from_min_max(egui::pos2(zx0, rect.top()), egui::pos2(zx1, rect.bottom())), 3.0,
+                    egui::Stroke::new(2.0, if zone { egui::Color32::from_rgb(255, 200, 90) } else { egui::Color32::from_rgb(150, 110, 60) }), egui::StrokeKind::Middle);
+                let fill_t = rect.left() + rect.width() * (temp / 100.0).clamp(0.0, 1.0);
+                p.line_segment([egui::pos2(fill_t, rect.top() - 3.0), egui::pos2(fill_t, rect.bottom() + 3.0)],
+                    egui::Stroke::new(2.5, Theme::TEXT));
+                p.text(rect.center_bottom() + egui::vec2(0.0, 14.0), egui::Align2::CENTER_CENTER,
+                    format!("{:.0}° — {}", temp, if zone { "STRIKE NOW" } else { "heat to the marked zone" }),
+                    egui::FontId::proportional(12.0),
+                    if zone { egui::Color32::from_rgb(255, 200, 90) } else { Theme::TEXT_DIM });
+                ui.add_space(20.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Pump bellows (+15)").clicked() {
+                    if ui.button(egui::RichText::new("Pump bellows (+15)").color(Theme::ACCENT)).clicked() {
                         self.forge.bellows(15.0);
                     }
                     let done = self.forge.strike();
@@ -951,9 +1508,8 @@ impl GameState {
                     } else {
                         format!("strikes {}/{}", self.forge.strikes_completed, self.forge.target_strikes)
                     };
-                    ui.label(status);
+                    ui.label(egui::RichText::new(status).color(if self.forge.strikes_completed >= self.forge.target_strikes { Theme::OK } else { Theme::TEXT }));
                     if done {
-                        // award a steel ingot (the smith's product for now)
                         let leftover = self.inventory.add_item("steel_ingot", 1);
                         if leftover > 0 {
                             self.spawn_drop("steel_ingot", leftover, self.player.eye_position() + self.player.look_dir());
@@ -961,10 +1517,9 @@ impl GameState {
                     }
                 });
                 ui.separator();
-                ui.label(egui::RichText::new("Strike only in the orange zone (60-80). Esc to close.").small());
+                ui.label(egui::RichText::new("Strike only in the marked zone (60-80). Esc to close.").small());
             });
     }
-
 
     fn draw_machine(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
         let Some(entity) = self.block_entities.get(&pos).cloned() else {
@@ -977,80 +1532,142 @@ impl GameState {
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
             .collapsible(false)
             .resizable(false)
-            .show(ctx, |ui| match entity {
-                BlockEntity::Generator(mut g) => {
-                    ui.add(egui::ProgressBar::new(g.buffer / lf_game::machines::GEN_CAPACITY)
-                        .desired_width(200.0).text(format!("{:.0} EU", g.buffer)));
-                    let mut fuel = g.fuel.take();
-                    let mut cursor = self.cursor_stack.take();
-                    let _ = slot_button(ui, &mut fuel, &mut cursor, false);
-                    g.fuel = fuel;
-                    self.cursor_stack = cursor;
-                    ui.label("fuel (coal/log/planks)");
-                    self.block_entities.insert(pos, BlockEntity::Generator(g));
-                }
-                BlockEntity::ElectricFurnace(mut f) => {
-                    let frac = (f.progress / (lf_game::smelting::SMELT_TIME / 2.0)).clamp(0.0, 1.0);
-                    ui.add(egui::ProgressBar::new(frac).desired_width(200.0).text("smelt (2x)"));
-                    ui.horizontal(|ui| {
-                        let mut input = f.input.take();
+            .show(ctx, |ui| {
+                // EU / progress bar kit styling
+                let mut top_bar = |ui: &mut egui::Ui, frac: f32, label: &str, color| {
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(230.0, 18.0), egui::Sense::hover());
+                    let p = ui.painter();
+                    p.rect_filled(rect, 4.0, egui::Color32::from_black_alpha(190));
+                    p.rect_filled(egui::Rect::from_min_size(rect.min + egui::vec2(2.0, 2.0),
+                        egui::vec2((rect.width() - 4.0) * frac.clamp(0.0, 1.0), rect.height() - 4.0)), 4.0, color);
+                    p.text(rect.center(), egui::Align2::CENTER_CENTER, label,
+                        egui::FontId::proportional(11.0), Theme::TEXT);
+                    ui.add_space(4.0);
+                };
+                match entity {
+                    BlockEntity::Generator(mut g) => {
+                        top_bar(ui, g.buffer / lf_game::machines::GEN_CAPACITY, &format!("{:.0} / {} EU", g.buffer, lf_game::machines::GEN_CAPACITY), Theme::XP);
+                        let mut fuel = g.fuel.take();
                         let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut input, &mut cursor, false);
-                        f.input = input;
+                        let out = slot_button(ui, &mut fuel, &mut cursor, false, &self.icons);
                         self.cursor_stack = cursor;
-                        let mut output = f.output.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut output, &mut cursor, false);
-                        f.output = output;
-                        self.cursor_stack = cursor;
-                    });
-                    self.block_entities.insert(pos, BlockEntity::ElectricFurnace(f));
-                }
-                BlockEntity::Crusher(mut c) => {
-                    let frac = (c.progress / lf_game::machines::PROCESS_TIME).clamp(0.0, 1.0);
-                    ui.add(egui::ProgressBar::new(frac).desired_width(200.0).text("crush"));
-                    ui.horizontal(|ui| {
-                        let mut input = c.input.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut input, &mut cursor, false);
-                        c.input = input;
-                        self.cursor_stack = cursor;
-                        let mut output = c.output.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut output, &mut cursor, false);
-                        c.output = output;
-                        self.cursor_stack = cursor;
-                    });
-                    self.block_entities.insert(pos, BlockEntity::Crusher(c));
-                }
-                BlockEntity::Assembler(mut a) => {
-                    let frac = (a.progress / lf_game::machines::PROCESS_TIME).clamp(0.0, 1.0);
-                    ui.add(egui::ProgressBar::new(frac).desired_width(200.0).text("assemble"));
-                    ui.horizontal(|ui| {
-                        let mut ia = a.input_a.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut ia, &mut cursor, false);
-                        a.input_a = ia;
-                        self.cursor_stack = cursor;
-                        let mut ib = a.input_b.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut ib, &mut cursor, false);
-                        a.input_b = ib;
-                        self.cursor_stack = cursor;
-                        let mut output = a.output.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let _ = slot_button(ui, &mut output, &mut cursor, false);
-                        a.output = output;
-                        self.cursor_stack = cursor;
-                    });
-                    if let Some((an, an_n, bn, bn_n, out, out_n)) = a.current_recipe() {
-                        ui.label(egui::RichText::new(format!("{}x{} + {}x{} -> {}x{}", an, an_n, bn, bn_n, out, out_n)).small());
-                    } else {
-                        ui.label(egui::RichText::new("no recipe (try Cu+Sn, Fe+C, wire+Sn...)").small().color(egui::Color32::from_gray(150)));
+                        if let Some(mut q) = out.quick_moved {
+                            quick_insert(&mut self.inventory.slots[..36], &mut q);
+                        }
+                        g.fuel = fuel;
+                        ui.label(egui::RichText::new("fuel (coal/log/planks)").small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Generator(g));
                     }
-                    self.block_entities.insert(pos, BlockEntity::Assembler(a));
+                    BlockEntity::ElectricFurnace(mut f) => {
+                        top_bar(ui, f.progress / (lf_game::smelting::SMELT_TIME / 2.0), "smelt (2x)", Theme::ACCENT);
+                        ui.horizontal(|ui| {
+                            let mut input = f.input.take();
+                            let mut cursor = self.cursor_stack.take();
+                            let out = slot_button(ui, &mut input, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
+                            f.input = input;
+                            let mut output = f.output.take();
+                            let mut cursor = self.cursor_stack.take();
+                            let out = slot_button(ui, &mut output, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
+                            f.output = output;
+                        });
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::ElectricFurnace(f));
+                    }
+                    BlockEntity::Crusher(mut c) => {
+                        top_bar(ui, c.progress / lf_game::machines::PROCESS_TIME, "crush", Theme::ACCENT);
+                        ui.horizontal(|ui| {
+                            let mut input = c.input.take();
+                            let mut cursor = self.cursor_stack.take();
+                            let out = slot_button(ui, &mut input, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
+                            c.input = input;
+                            let mut output = c.output.take();
+                            let mut cursor = self.cursor_stack.take();
+                            let out = slot_button(ui, &mut output, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
+                            c.output = output;
+                        });
+                        ui.label(egui::RichText::new("ores in — 2x raw out").small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Crusher(c));
+                    }
+                    BlockEntity::Assembler(mut a) => {
+                        top_bar(ui, a.progress / lf_game::machines::PROCESS_TIME, "assemble", Theme::ACCENT);
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label(egui::RichText::new("A").small().color(Theme::TEXT_DIM));
+                                let mut ia = a.input_a.take();
+                                let mut cursor = self.cursor_stack.take();
+                                let out = slot_button(ui, &mut ia, &mut cursor, false, &self.icons);
+                                self.cursor_stack = cursor;
+                                if let Some(mut q) = out.quick_moved {
+                                    quick_insert(&mut self.inventory.slots[..36], &mut q);
+                                }
+                                a.input_a = ia;
+                            });
+                            ui.vertical(|ui| {
+                                ui.label(egui::RichText::new("B").small().color(Theme::TEXT_DIM));
+                                let mut ib = a.input_b.take();
+                                let mut cursor = self.cursor_stack.take();
+                                let out = slot_button(ui, &mut ib, &mut cursor, false, &self.icons);
+                                self.cursor_stack = cursor;
+                                if let Some(mut q) = out.quick_moved {
+                                    quick_insert(&mut self.inventory.slots[..36], &mut q);
+                                }
+                                a.input_b = ib;
+                            });
+                            ui.vertical(|ui| {
+                                ui.label(egui::RichText::new("Out").small().color(Theme::TEXT_DIM));
+                                let mut output = a.output.take();
+                                let mut cursor = self.cursor_stack.take();
+                                let out = slot_button(ui, &mut output, &mut cursor, false, &self.icons);
+                                self.cursor_stack = cursor;
+                                if let Some(mut q) = out.quick_moved {
+                                    quick_insert(&mut self.inventory.slots[..36], &mut q);
+                                }
+                                a.output = output;
+                            });
+                        });
+                        // live alloy recipe with icons
+                        if let Some((an, an_n, bn, bn_n, out, out_n)) = a.current_recipe() {
+                            ui.horizontal(|ui| {
+                                for (id, n) in [(an, an_n), (bn, bn_n)] {
+                                    let (r, _) = ui.allocate_exact_size(egui::vec2(22.0, 22.0), egui::Sense::hover());
+                                    paint_item(ui, r, &ItemStack { item_id: id.to_string(), count: 1 }, &self.icons);
+                                    ui.label(egui::RichText::new(format!("x{} +", n)).small().color(Theme::TEXT_DIM));
+                                }
+                                ui.label(egui::RichText::new("→").color(Theme::TEXT_DIM));
+                                let (r, _) = ui.allocate_exact_size(egui::vec2(22.0, 22.0), egui::Sense::hover());
+                                paint_item(ui, r, &ItemStack { item_id: out.to_string(), count: 1 }, &self.icons);
+                                ui.label(egui::RichText::new(format!("x{}", out_n)).small().color(Theme::OK));
+                            });
+                        } else {
+                            ui.label(egui::RichText::new("no recipe (try Cu+Sn, Fe+C, wire+Sn...)").small().color(egui::Color32::from_gray(150)));
+                        }
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Assembler(a));
+                    }
+                    _ => {}
                 }
-                _ => {}
             });
     }
 
@@ -1064,18 +1681,19 @@ impl GameState {
             .min_size(egui::vec2(640.0, 380.0))
             .collapsible(false)
             .show(ctx, |ui| {
-                ui.heading(egui::RichText::new("Research Progression").size(22.0));
+                ui.heading(egui::RichText::new("Research Progression").size(22.0).color(Theme::TEXT));
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    let eras = [lf_game::research::Era::Primitive, lf_game::research::Era::Bronze,
-                                lf_game::research::Era::Industrial, lf_game::research::Era::Electrical];
+                    let eras = [Era::Primitive, Era::Bronze, Era::Industrial, Era::Electrical];
                     for e in eras {
                         let state = if e < era { "done" } else if e == era { "CURRENT" } else { "locked" };
-                        let color = if e < era { egui::Color32::from_rgb(120, 200, 120) }
-                            else if e == era { egui::Color32::from_rgb(240, 210, 140) }
+                        let color = if e < era { Theme::OK }
+                            else if e == era { Theme::ACCENT }
                             else { egui::Color32::from_gray(110) };
                         egui::Frame::new()
-                            .stroke(egui::Stroke::new(if e == era { 3.0 } else { 1.0 }, color))
+                            .fill(egui::Color32::from_black_alpha(120))
+                            .stroke(egui::Stroke::new(if e == era { 2.5 } else { 1.0 }, color))
+                            .corner_radius(8.0)
                             .inner_margin(8.0)
                             .show(ui, |ui| {
                                 ui.set_min_size(egui::vec2(140.0, 90.0));
@@ -1086,19 +1704,23 @@ impl GameState {
                                     for (item, n) in e.cost() {
                                         let got = have.iter().find(|(id, _)| id == item).map(|(_, c)| *c).unwrap_or(0);
                                         let ok = got >= *n as u16;
-                                        let c = if ok { egui::Color32::from_rgb(140, 220, 140) } else { egui::Color32::from_rgb(230, 130, 130) };
-                                        ui.label(egui::RichText::new(format!("{} {}/{}", item, got.min(*n as u16), n)).small().color(c));
+                                        let c = if ok { Theme::OK } else { egui::Color32::from_rgb(230, 130, 130) };
+                                        // icon + have/need
+                                        ui.horizontal(|ui| {
+                                            let (r, _) = ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::hover());
+                                            paint_item(ui, r, &ItemStack { item_id: item.to_string(), count: 1 }, &self.icons);
+                                            ui.label(egui::RichText::new(format!("{}/{}", got.min(*n as u16), n)).small().color(c));
+                                        });
                                     }
                                 }
                             });
-                        if e != lf_game::research::Era::Electrical {
-                            ui.label("->");
+                        if e != Era::Electrical {
+                            ui.label(egui::RichText::new("→").color(Theme::TEXT_DIM));
                         }
                     }
                 });
                 ui.add_space(8.0);
                 ui.separator();
-                // what to do next
                 let hint = match era.next() {
                     Some(next) => {
                         let missing: Vec<String> = next.cost().iter()
@@ -1111,9 +1733,9 @@ impl GameState {
                         format!("Next: the {} — place a Research Bench and bring: {}. Current era unlocks: {}",
                             next.name(), missing.join(", "),
                             match era {
-                                lf_game::research::Era::Primitive => "basic tools, furnace, chest",
-                                lf_game::research::Era::Bronze => "armor, smithing, +everything before",
-                                lf_game::research::Era::Industrial => "generators, crushers, assemblers",
+                                Era::Primitive => "basic tools, furnace, chest",
+                                Era::Bronze => "armor, smithing, +everything before",
+                                Era::Industrial => "generators, crushers, assemblers",
                                 _ => "electric furnace, all machines",
                             })
                     }
@@ -1126,18 +1748,31 @@ impl GameState {
     }
 
     fn draw_death(&mut self, ctx: &egui::Context) {
+        // gradient: near-black edges, deep red center
+        let screen = ctx.screen_rect();
+        let painter = ctx.layer_painter(egui::LayerId::background());
+        painter.rect_filled(screen, 0.0, egui::Color32::from_black_alpha(235));
+        let c = screen.center();
+        for i in 0..40 {
+            let t = i as f32 / 40.0;
+            let r = t * screen.width().max(screen.height()) * 0.7;
+            painter.circle_filled(c, r, egui::Color32::from_rgba_unmultiplied(60, 8, 10, (30.0 * (1.0 - t)) as u8));
+        }
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(200)))
+            .frame(egui::Frame::none())
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
-                    ui.add_space(ui.available_height() * 0.3);
-                    ui.heading(egui::RichText::new("You died!").size(42.0).color(egui::Color32::RED));
-                    ui.add_space(20.0);
-                    if ui.button(egui::RichText::new("Respawn").size(24.0)).clicked() {
+                    ui.add_space(ui.available_height() * 0.28);
+                    ui.label(egui::RichText::new("You died").size(46.0).color(egui::Color32::from_rgb(235, 70, 60)).strong());
+                    ui.add_space(6.0);
+                    ui.label(egui::RichText::new(format!("level {} · {} · {} kills",
+                        self.xp_level, self.research.era.name(), self.kills)).color(Theme::TEXT_DIM));
+                    ui.add_space(24.0);
+                    if kit::menu_button(ui, "Respawn", (self.menu_reveal / 0.4).clamp(0.0, 1.0), true) {
                         self.respawn();
                     }
-                    ui.add_space(8.0);
-                    ui.label("or press Escape to quit");
+                    ui.add_space(10.0);
+                    ui.label(egui::RichText::new("or press Escape to quit").small().color(Theme::TEXT_DIM));
                 });
             });
     }
@@ -1150,27 +1785,68 @@ impl GameState {
     }
 }
 
-fn hearts(ui: &mut egui::Ui, health: f32) {
-    let full = (health / 2.0).floor();
-    let half = (health / 2.0 - full) >= 0.5;
-    let mut s = String::new();
-    for i in 0..10 {
-        if (i as f32) < full {
-            s.push('\u{2665}');
-        } else if i as f32 == full && half {
-            s.push('\u{2661}');
-        } else {
-            s.push('\u{2661}');
-        }
-    }
-    ui.label(egui::RichText::new(s).color(egui::Color32::from_rgb(220, 40, 40)).size(16.0));
+fn ui_time(ctx: &egui::Context) -> f32 {
+    ctx.input(|i| i.time) as f32
 }
 
-fn hunger(ui: &mut egui::Ui, hunger: f32) {
-    let full = (hunger / 2.0).floor() as usize;
-    let mut s = String::new();
-    for i in 0..10 {
-        s.push(if i < full { '\u{25CF}' } else { '\u{25CB}' });
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_merges_all_stations() {
+        let catalog = build_catalog();
+        assert!(catalog.iter().any(|e| e.station == Station::Craft), "crafting recipes missing");
+        assert!(catalog.iter().any(|e| e.station == Station::Smelt), "smelting recipes missing");
+        assert!(catalog.iter().any(|e| e.station == Station::Alloy), "alloy recipes missing");
+        assert!(catalog.iter().any(|e| e.station == Station::Crush), "crush recipes missing");
+        // every output and ingredient is a real item
+        for e in &catalog {
+            assert!(item_def(&e.output).is_some(), "catalog output '{}' is not an item", e.output);
+            for (id, _) in &e.ingredients {
+                assert!(item_def(id).is_some(), "catalog ingredient '{}' is not an item", id);
+            }
+            assert!(e.output_count > 0);
+            assert!(!e.ingredients.is_empty());
+        }
     }
-    ui.label(egui::RichText::new(s).color(egui::Color32::from_rgb(200, 150, 40)).size(14.0));
+
+    #[test]
+    fn catalog_aggregates_ingredients() {
+        let catalog = build_catalog();
+        let pick = catalog.iter().find(|e| e.output == "iron_pickaxe").expect("iron pickaxe recipe");
+        let sticks = pick.ingredients.iter().find(|(id, _)| id == "stick").expect("sticks in pickaxe");
+        assert_eq!(sticks.1, 2, "pickaxe needs exactly 2 sticks");
+        let ingots = pick.ingredients.iter().find(|(id, _)| id == "iron_ingot").expect("ingots in pickaxe");
+        assert_eq!(ingots.1, 3);
+        assert_eq!(pick.grid_size, 3);
+    }
+
+    #[test]
+    fn quick_insert_merges_and_fills() {
+        let mut slots = vec![Some(ItemStack { item_id: "stone".into(), count: 10 }), None, None];
+        let mut stack = ItemStack { item_id: "stone".into(), count: 64 };
+        quick_insert(&mut slots, &mut stack);
+        assert_eq!(slots[0].as_ref().unwrap().count, 64, "fills the existing stack first");
+        assert_eq!(slots[1].as_ref().unwrap().count, 10, "spills the remainder into empty slots");
+        assert_eq!(stack.count, 0, "stone stacks to 64 so everything fits");
+        // tools never stack: two picks end up in two slots
+        let mut slots = vec![None, None];
+        let mut stack = ItemStack { item_id: "iron_pickaxe".into(), count: 2 };
+        quick_insert(&mut slots, &mut stack);
+        assert_eq!(slots[0].as_ref().unwrap().count, 1);
+        assert_eq!(slots[1].as_ref().unwrap().count, 1);
+        assert_eq!(stack.count, 0);
+    }
+
+    #[test]
+    fn take_one_pulls_single_items() {
+        let mut slots = vec![Some(ItemStack { item_id: "log".into(), count: 2 })];
+        let one = take_one(&mut slots, "log").unwrap();
+        assert_eq!((one.item_id.as_str(), one.count), ("log", 1));
+        assert_eq!(slots[0].as_ref().unwrap().count, 1);
+        take_one(&mut slots, "log").unwrap();
+        assert!(slots[0].is_none(), "emptied slot clears");
+        assert!(take_one(&mut slots, "log").is_none(), "nothing left to take");
+    }
 }

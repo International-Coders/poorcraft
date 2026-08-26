@@ -5,6 +5,16 @@ use image::{Rgba, RgbaImage};
 use crate::camera::Camera;
 use crate::scene::{Env, GpuScene, GpuVertex, MeshBatch};
 
+/// An egui overlay to composite over the scene, plus any texture deltas
+/// captured from warmup passes. Warmup passes are required before windows
+/// materialize (a fresh single-pass context produces empty window shapes),
+/// but their `end_pass` output carries the font-atlas texture delta away —
+/// pass it back here or every font/white-texture draw vanishes.
+pub struct UiOverlay<'a> {
+    pub ctx: &'a egui::Context,
+    pub extra_textures: &'a [(egui::TextureId, epaint::ImageDelta)],
+}
+
 /// Renders `vertices`/`indices` offscreen (no window or surface) and writes a
 /// PNG to `out_path`. This is the backbone of honest proof screenshots: the
 /// image always comes from the real renderer fed by real game data.
@@ -20,7 +30,7 @@ pub fn render_to_png(
     width: u32,
     height: u32,
     out_path: &Path,
-    ui: Option<&egui::Context>,
+    ui: Option<&UiOverlay>,
 ) -> Result<(), String> {
     pollster::block_on(async {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -108,7 +118,8 @@ pub fn render_to_png(
         }
 
         // Optional egui overlay (honest UI proof screenshots).
-        if let Some(ctx) = ui {
+        if let Some(overlay) = ui {
+            let ctx = overlay.ctx;
             let full_output = ctx.end_pass();
             let jobs = ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
             let screen = egui_wgpu::ScreenDescriptor {
@@ -116,6 +127,11 @@ pub fn render_to_png(
                 pixels_per_point: full_output.pixels_per_point,
             };
             let mut egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, true);
+            // warmup-pass textures first (includes the font atlas), then any
+            // textures the final pass itself added
+            for (id, delta) in overlay.extra_textures {
+                egui_renderer.update_texture(&device, &queue, *id, delta);
+            }
             for (id, delta) in &full_output.textures_delta.set {
                 egui_renderer.update_texture(&device, &queue, *id, delta);
             }
