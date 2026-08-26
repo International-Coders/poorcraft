@@ -159,6 +159,14 @@ below by phase.
 - [ ] connected-surface projection on large man-made materials
       (stone/marble/planks) — the hybrid-selective art direction's second half
 
+## P27 — Camera culling fix
+- [x] objects-no-longer-disappear-when-looking-up: column frustum culling
+      now uses the exact AABB bounding sphere (sqrt(128 + half_h^2) + sway
+      margin) instead of an under-sized axis-only sphere, and the frustum
+      planes are normalized (the near plane's raw normal is ~2x unit);
+      regression test proves corner-inside => kept across pitches 5-85 deg
+      with a pinned pre-fix failure case
+
 ## Deferred (P23 notes, honest)
 - [ ] console `new`/`load` adopt connected-server seed in multiplayer
   (Welcome.seed now carries it; client terrain is still local-only).

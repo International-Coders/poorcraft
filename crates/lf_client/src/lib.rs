@@ -2843,9 +2843,17 @@ fn column_in_view(view_proj: &glam::Mat4, eye: Vec3, pos: (i32, i32), min_y: f32
     // Sphere-frustum test (Gribb-Hartmann planes from the view-projection).
     let cy = (min_y + max_y) * 0.5;
     let half_h = (max_y - min_y) * 0.5;
-    let radius = half_h.max(11.4); // covers the 16x16 footprint
+    // Bounding sphere of the column AABB (16 x 16 x height) = half-diagonal.
+    // The old `half_h.max(11.4)` only covered the footprint along its axes;
+    // the true corner distance is sqrt(128 + half_h^2) (~13.6 even for flat
+    // ground), so columns poking into the frame edge were wrongly culled —
+    // most visibly along the bottom of the view when looking up (P27).
+    // The small margin absorbs the foliage wind sway.
+    let radius = (128.0 + half_h * half_h).sqrt() + 0.1;
     let m = view_proj.to_cols_array();
-    // planes as (a, b, c, d) with a*x + b*y + c*z + d >= -radius = inside
+    // planes as (a, b, c, d): a*x + b*y + c*z + d >= -radius = inside.
+    // Normalized so the radius stays in world units (raw Gribb-Hartmann
+    // normals vary in length: the near plane's is ~2, the far's ~0.0002).
     let rows = [
         [m[3] + m[0], m[7] + m[4], m[11] + m[8], m[15] + m[12]],  // left
         [m[3] - m[0], m[7] - m[4], m[11] - m[8], m[15] - m[12]],  // right
@@ -2855,7 +2863,11 @@ fn column_in_view(view_proj: &glam::Mat4, eye: Vec3, pos: (i32, i32), min_y: f32
         [m[3] - m[2], m[7] - m[6], m[11] - m[10], m[15] - m[14]], // far
     ];
     for p in rows {
-        let dist = p[0] * center_x + p[1] * cy + p[2] * center_z + p[3];
+        let len = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+        if len < 1e-6 {
+            continue;
+        }
+        let dist = (p[0] * center_x + p[1] * cy + p[2] * center_z + p[3]) / len;
         if dist < -radius {
             return false;
         }
@@ -2907,6 +2919,66 @@ mod tests {
         assert!(!column_in_view(&vp, eye, (0, 3), 60.0, 100.0));
         // far to the side: culled
         assert!(!column_in_view(&vp, eye, (30, -3), 60.0, 100.0));
+    }
+
+    /// P27 regression: the old bounding sphere (max(half_h, 11.4)) ignored
+    /// the footprint's corner distance (~13.6 for flat ground, ~17.7 for a
+    /// 20-tall column), so columns still poking into the frame edge were
+    /// wrongly culled — "objects disappear when looking up" (and, as the
+    /// pinned case shows, tall columns vanish even near level pitch).
+    /// Property: whenever any AABB corner projects inside the frustum, the
+    /// column must be kept.
+    #[test]
+    fn looking_up_does_not_cull_visible_columns() {
+        for pitch_deg in [5.0f32, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 75.0, 85.0] {
+            let pitch = pitch_deg.to_radians();
+            for eye_y in [80.0f32, 90.0, 100.0, 120.0] {
+                let eye = Vec3::new(8.0, eye_y, 8.0);
+                let dir = Vec3::new(0.0, pitch.sin(), -pitch.cos());
+                let vp = camera_frustum(eye, eye + dir * 40.0);
+                for cx in -3..=3i32 {
+                    for cz in -6..=2i32 {
+                        // ground columns through tall (tree/mountain) ones
+                        for (min_y, max_y) in [
+                            (70.0f32, 75.0f32), (70.0, 90.0), (70.0, 95.0),
+                            (60.0, 100.0), (75.0, 82.0),
+                        ] {
+                            let mut any_inside = false;
+                            for corner_x in [cx as f32 * 16.0, cx as f32 * 16.0 + 16.0] {
+                                for corner_y in [min_y, max_y] {
+                                    for corner_z in [cz as f32 * 16.0, cz as f32 * 16.0 + 16.0] {
+                                        let c = vp * glam::Vec4::new(corner_x, corner_y, corner_z, 1.0);
+                                        if c.w > 1e-6
+                                            && c.x.abs() <= c.w
+                                            && c.y.abs() <= c.w
+                                            && c.z.abs() <= c.w
+                                        {
+                                            any_inside = true;
+                                        }
+                                    }
+                                }
+                            }
+                            if any_inside {
+                                assert!(
+                                    column_in_view(&vp, eye, (cx, cz), min_y, max_y),
+                                    "pitch {}° eye_y {}: column ({},{}) bounds {:?} pokes into view but was culled",
+                                    pitch_deg, eye_y, cx, cz, (min_y, max_y)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // the concrete pre-fix failure (found by scanning the old test's
+        // blind spots): tall column at the frame edge, near-level pitch —
+        // the old max(half_h, 11.4) sphere culled it while a corner was
+        // plainly inside the frustum
+        let eye = Vec3::new(8.0, 80.0, 8.0);
+        let five = 5.0f32.to_radians();
+        let vp = camera_frustum(eye, eye + Vec3::new(0.0, five.sin(), -five.cos()) * 40.0);
+        assert!(column_in_view(&vp, eye, (-3, -4), 70.0, 90.0),
+            "pinned case: tall column at the frame edge must stay visible");
     }
 
     #[test]

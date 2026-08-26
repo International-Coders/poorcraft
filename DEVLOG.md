@@ -340,3 +340,38 @@ texture mipmaps, plus two new vistest proofs.
 ### Push
 - `git push github HEAD` SUCCEEDED this session (ee1b9a5..5f7cb4d): the P25
   and P26 commits are both on GitHub; the PAT workflow-scope blocker is gone.
+
+## Session 307: P27 — camera culling fix ("objects disappear when looking up")
+
+### What
+User-reported: looking up makes objects disappear. Suspected raycast/FOV;
+both were checked and are fine (pitch clamps at 89°, look_at
+non-degenerate, fov_degrees converts once). The real bug: chunk-column
+frustum culling used an under-sized bounding sphere.
+
+### Root cause
+`column_in_view` tested columns against the frustum with a sphere of
+radius max(half_h, 11.4). That radius covers a 16x16 footprint only along
+its axes; the corner distance is sqrt(128 + half_h^2) — 13.6 for flat
+ground, ~17.7 for a 20-tall column. As the bottom frustum plane tilted up
+with the view, columns still poking into the frame edge fell outside the
+too-small sphere and were culled — terrain vanishing at high pitch, tall
+columns even near level. Aggravator: the Gribb-Hartmann planes were used
+unnormalized (the near plane's normal is ~2x unit), skewing the
+world-unit margin.
+
+### How (files touched)
+- crates/lf_client/src/lib.rs — column_in_view: exact AABB bounding sphere
+  (+0.1 sway margin), normalized plane distances
+- same file, tests — looking_up_does_not_cull_visible_columns: corner
+  projection property across pitches 5-85° x eye heights x column grid x
+  five heights, plus the pinned pre-fix failure (pitch 5°, tall column at
+  the frame edge, found by scanning the old code's blind spots)
+
+### Evidence
+- with the old formula the regression test fails; with the fix it passes
+- cargo build --workspace clean; 161 tests / 0 failures
+- vistest 22/22 through the pixel gate; release smoke OK (12 s, 2 mods)
+
+### Push
+- committed and pushed to github (main).

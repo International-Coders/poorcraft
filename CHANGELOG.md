@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-08-26 — P27: fix "objects disappear when looking up" (frustum culling, loop 307)
+- The chunk-column frustum test approximated each 16x16xH column with a
+  sphere of radius `max(half_h, 11.4)`. That covers the footprint only
+  along its axes — the true corner distance is sqrt(128 + half_h^2)
+  (~13.6 flat ground, ~17.7 for a 20-tall column), so when the bottom
+  frustum plane swept up with the view, columns still poking into the
+  frame were wrongly culled: terrain and objects vanished as pitch rose
+  (and tall columns vanished even near level pitch). The raycast and FOV
+  were innocent: pitch is clamped to 89 deg and the look_at basis stays
+  non-degenerate.
+- Fix: exact AABB bounding sphere with a 0.1 sway margin (wind-animated
+  leaves never culled at the margin), and the Gribb-Hartmann frustum
+  planes are normalized before the distance test so the world-unit radius
+  means what it says (the raw near-plane normal is ~2x unit length).
+- Regression test `looking_up_does_not_cull_visible_columns`: pitches
+  5-85 deg x four eye heights x a column grid x five column heights — any
+  AABB corner projecting inside the frustum requires the column kept —
+  plus the pinned pre-fix failure (pitch 5 deg, tall column at the frame
+  edge). Verified the test fails against the old formula.
+
 ## 2026-08-26 — P26: visual identity — per-face materials, cutout leaves + wind, smooth AO, mining cracks/particles, mipmaps (loop 306)
 - Per-face materials: meshing's texture callback is now
   `(BlockState, Face::{Top, Bottom, Side})`. Grass finally renders a green
