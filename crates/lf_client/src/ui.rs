@@ -604,10 +604,10 @@ impl GameState {
                     let held = self.input.keys.values().filter(|&&p| p).count();
                     let p = self.player.position;
                     let dbg = format!(
-                        "ui_open={:?} locked={} playing={} health={:.1} keys_held={} pos=({:.1},{:.1},{:.1}) fps={:.0}",
+                        "ui_open={:?} locked={} playing={} health={:.1} keys_held={} pos=({:.1},{:.1},{:.1}) fps={:.0} frame_ms={:.1}",
                         self.ui_open, self.input.cursor_locked,
                         matches!(self.ui_open, UiOpen::None) && self.stats.health > 0.0,
-                        self.stats.health, held, p.x, p.y, p.z, self.last_fps,
+                        self.stats.health, held, p.x, p.y, p.z, self.last_fps, 1000.0 / self.last_fps.max(0.001),
                     );
                     ui.label(egui::RichText::new(dbg).small().monospace().color(egui::Color32::from_rgb(140, 220, 255)));
                 });

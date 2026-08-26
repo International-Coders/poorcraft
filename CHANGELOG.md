@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-08-26 — P24: THE input fix — every key/mouse handler was unreachable (loop 304)
+- Root cause (found with a synthetic-input harness driving the real binary
+  with macOS keystrokes): a stray `_ => {}` wildcard arm sat in the middle
+  of the `match event` in `window_event` — inserted back in P4 — so every
+  handler after it (Focused, KeyboardInput, MouseInput, MouseWheel) was
+  UNREACHABLE dead code. rustc only warns about unreachable patterns, and
+  the warning was buried: keyboard and mouse input never worked through
+  the event handler in ANY release; menus worked only because egui gets
+  events through a different path. Fix: wildcard removed; lf_client now
+  `#![deny(unreachable_patterns)]` so this class of bug cannot compile
+  silently again.
+- Verified empirically on the fixed build via synthetic input: E toggles
+  inventory, holding W walks (position trace 1.2,-0.8 -> 5.1,-4.9), M
+  toggles map, ` opens the console, a typed `fly` command executes, Esc
+  returns to play, clicks reach the mining path.
+- Kept (behind LOREFORGE_DEBUG_INPUT / F3): per-event input trace
+  (event/ui_open/egui-consumed), 1Hz tick summary with frame_ms.
+
 ## 2026-08-26 — P23: urgent fixes — input, console, seeds, biomes, slots, scaling (loop 303)
 - Input defenses: `close_ui` clears a stale chat input (an invisible Chat
   screen forced every frame would eat all keys and clicks); Escape closes

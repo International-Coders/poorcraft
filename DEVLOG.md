@@ -168,3 +168,38 @@
   the fixes target every identified runtime trap (chat-screen hold, grab
   failure, pause-escape) — user playtest requested to confirm.
 - GitHub push still blocked (PAT lacks workflow scope; CI file in history).
+
+## 2026-08-26 — P24: input root cause found & fixed (loop 304)
+
+### What was done
+- Deep empirical diagnosis with a synthetic-input harness: launched the
+  instrumented release binary, drove it with real macOS keystrokes/mouse
+  clicks (System Events), captured screenshots, traced every event.
+- ROOT CAUSE: a stray `_ => {}` arm in the middle of `match event` in
+  window_event (inserted in P4) made ALL later arms unreachable —
+  KeyboardInput, MouseInput, Focused, MouseWheel were dead code in every
+  release. rustc only WARNED (unreachable_patterns); the warning was
+  buried among many others. Static review kept missing it because the
+  arms are syntactically valid, just unreachable.
+- Fix: removed the wildcard; added `#![deny(unreachable_patterns)]` to
+  lf_client (this class of bug now fails the build).
+- Input instrumentation kept behind LOREFORGE_DEBUG_INPUT: per-event
+  trace + 1Hz tick summary + frame_ms in the F3 overlay.
+
+### Evidence (all from the fixed binary, synthetic input)
+- E -> `[input] tick ... ui_open=Inventory` (opened + closed on repeat)
+- hold W 2s -> window title pos (1.2,105.0,-0.8) -> (5.1,105.0,-4.9)
+- M -> ui_open=Map; Esc -> ui_open=None playing=true
+- backquote -> ui_open=Console; typed "fly"+Enter -> `[console] fly`
+- MouseInput Pressed events now reach the mining path (logged, ui_open=None)
+- cargo test --workspace: 149 passed / 0 failed
+- vistest: 20/20 [ok]; runtimes rebuilt (dmg 5.6MB, tar 5.2MB)
+
+### Scope adjustment (honest)
+- The planned InputRouter refactor was skipped with evidence: the routing
+  logic was always correct — the bug was dead-code suppression, which the
+  deny lint now makes a hard error. The synthetic harness (documented
+  above) is the deep regression test for input.
+
+### Push attempt
+- `git push github HEAD` still blocked (PAT lacks workflow scope).

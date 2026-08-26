@@ -1,6 +1,11 @@
 //! The playable client: window, input, first-person gameplay, world editing,
 //! chunk streaming and persistence.
 //!
+//! NOTE: unreachable_patterns is DENIED because a stray `_ => {}` wildcard
+//! once sat mid-match in window_event, silently killing every keyboard and
+//! mouse handler after it (the compiler only warns by default).
+#![deny(unreachable_patterns)]
+//!
 //! P2 scope: P1 gameplay plus background chunk generation, view distance,
 //! frustum culling, world save/load with autosave, water/trees/caves/ores.
 
@@ -400,10 +405,19 @@ impl ApplicationHandler for App {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: winit::window::WindowId, event: WindowEvent) {
         let Some(state) = &mut self.state else { return };
+        // Deep-input diagnosis (LOREFORGE_DEBUG_INPUT): trace every key/mouse
+        // event from the OS through egui consumption to the input map.
+        let debug_input = std::env::var("LOREFORGE_DEBUG_INPUT").is_ok();
+        if debug_input && matches!(event, WindowEvent::KeyboardInput { .. } | WindowEvent::MouseInput { .. }) {
+            tracing::info!("[input] {:?} ui_open={:?} locked={}", event, state.ui_open, state.input.cursor_locked);
+        }
         // egui sees events only while a screen is open (the HUD itself is
         // display-only).
         if state.ui_open != UiOpen::None {
             let consumed = state.egui.on_event(&state.window, &event);
+            if debug_input && matches!(event, WindowEvent::KeyboardInput { .. } | WindowEvent::MouseInput { .. }) {
+                tracing::info!("[input] egui consumed={}", consumed);
+            }
             if consumed {
                 return;
             }
@@ -415,8 +429,7 @@ impl ApplicationHandler for App {
             WindowEvent::Resized(size) => {
                 state.resize(size.width, size.height);
             }
-            _ => {}
-                        WindowEvent::Focused(focused) => {
+            WindowEvent::Focused(focused) => {
                             if focused
                                 && !state.input.cursor_locked
                                 && state.ui_open == UiOpen::None
@@ -1255,6 +1268,17 @@ impl GameState {
         self.last_fps = if self.last_fps == 0.0 { fps } else { self.last_fps * 0.9 + fps * 0.1 };
         self.last_instant = now;
         self.frame += 1;
+        // Deep-input diagnosis: 1Hz state summary.
+        if std::env::var("LOREFORGE_DEBUG_INPUT").is_ok() && self.frame % 60 == 0 {
+            tracing::info!(
+                "[input] tick#{} ui_open={:?} locked={} playing={} health={:.1} keys_held={} frame_ms={:.1}",
+                self.frame, self.ui_open, self.input.cursor_locked,
+                matches!(self.ui_open, UiOpen::None) && self.stats.health > 0.0,
+                self.stats.health,
+                self.input.keys.values().filter(|&&p| p).count(),
+                (dt * 1000.0).min(9999.0),
+            );
+        }
         if self.quit_requested {
             self.save_world();
             self.streamer.shutdown();
