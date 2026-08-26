@@ -1,9 +1,9 @@
 # STATE
-loop_count: 307
-current_milestone: P27-camera-culling-fix
-last_done: "P27 camera fix (user report: objects disappear when looking up): the chunk-column frustum cull approximated each 16x16xH column with a sphere of radius max(half_h, 11.4) — that only covers the footprint along its axes, while the true corner distance is sqrt(128 + half_h^2) (~13.6 for flat ground, ~17.7 for a 20-tall column). When the bottom frustum plane swept up with the view, columns still poking into the frame edge were wrongly culled by 2-6 blocks — terrain/objects vanishing at high pitch (and tall columns even near level pitch; not the raycast or FOV, both are fine — pitch is clamped to 89 and look_at stays non-degenerate). Fix: exact AABB bounding sphere + 0.1 sway margin, and the Gribb-Hartmann planes are now normalized so the world-unit radius means what it says (near-plane normal was ~2x unit). Regression test scans pitches 5-85 deg, four eye heights, five column heights around the camera asserting corner-inside-frustum => kept, plus the pinned pre-fix failure (pitch 5, tall column at the frame edge); verified the test fails on the old formula and passes on the new one. 161 tests green; 22/22 vistest; smoke OK"
-next_task: "user playtest (look up/down — culling fixed); then choose: connected-surface textures on large man-made materials, audio engine, or multiplayer hardening"
+loop_count: 308
+current_milestone: P28-v1rebrand-gate
+last_done: "P28 loop 1: V1REBRAND execution plan committed (docs/V1REBRAND/11-EXECUTION-PLAN.md, phases P28-P39 = roadmap docs at +2 offset per DECISIONS); wind-sway honesty fix — P26's commit claimed foliage wind but shader.wgsl never read the sway attribute (loc 6) or time_sway uniform, so leaves could not animate; vs_main now applies a world-position-phased double sine (max ~0.08 blocks, inside the 0.1 cull margin), proven by a new GPU-rendered two-phase test (foliage_sway_animates_between_frames: phases differ, same-phase control pixel-identical); clouds setting un-no-op'd; unload radius now view_distance+3 (was fixed 8, zero headroom at view 8); Settings-from-title returns to title on Back/Esc instead of dropping into the world; boot now loads the booted slot's player extras (legacy worlds/default was read before boot_slot). 162 tests green; 22/22 vistest; smoke OK"
+next_task: "P28 remainder: chunk-border cross-column lighting (3x3 flood + night seam proof), transparency/sort audit entry, xtask perf + frame-time DECISIONS entry, PathTraced quality tier, key rebinding, save thumbnails, minimap rotation/zoom + beacons, UI language audit, connected-surface textures"
 build: GREEN
-tests: 161 passing
+tests: 162 passing
 last_screenshot: shots/vistest_foliage_canopy.png
 blockers: "none — push to github works again (P25+P26 pushed as 5f7cb4d)"

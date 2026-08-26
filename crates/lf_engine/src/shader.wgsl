@@ -35,15 +35,29 @@ fn vs_main(
     @location(3) tex_index: u32,
     @location(4) ao: f32,
     @location(5) light: u32,
+    @location(6) sway: f32,
 ) -> VertexOutput {
+    var pos = position;
+    if (sway > 0.0) {
+        // Foliage wind: two world-position-phased sines so the canopy
+        // ripples instead of moving as one rigid sheet. Max combined
+        // horizontal offset ~0.08 blocks — inside the 0.1 sway margin the
+        // column frustum cull already reserves.
+        let t = uniforms.time_sway.x;
+        let phase = position.x * 0.7 + position.y * 0.3 + position.z * 0.9;
+        let wave = sin(t * 1.6 + phase) * 0.5 + sin(t * 2.7 + phase * 1.7) * 0.5;
+        pos.x += wave * 0.055 * sway;
+        pos.z += wave * 0.045 * sway;
+        pos.y += abs(wave) * 0.02 * sway;
+    }
     var out: VertexOutput;
-    out.clip_position = uniforms.view_proj * vec4<f32>(position, 1.0);
+    out.clip_position = uniforms.view_proj * vec4<f32>(pos, 1.0);
     out.normal = normal;
     out.tex_coord = tex_coord;
     out.tex_index = tex_index;
     out.ao = ao;
     out.light = light;
-    out.world_pos = position;
+    out.world_pos = pos;
     return out;
 }
 

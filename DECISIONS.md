@@ -35,3 +35,4 @@
 - P7: structures placed during generate_chunk with in-chunk footprints (cross-chunk structures need a neighborhood pass later)
 - P7: title/pause are UiOpen variants freezing gameplay; quit_requested exits after save
 - P7: egui proof shots render through the same offscreen pipeline as world scenes
+- P28: V1REBRAND roadmap phases execute at doc number +2 (docs/V1REBRAND/09 says P26–P35; BACKLOG already spent P26/P27 on visual identity and the camera-culling fix) — P28=UX gate, P29=Water, P30=Steam, P31=Oil, P32=Nuclear, P33=Magic, P34=Construction, P35=Smart building, P36=Dragons, P37=Paths; see docs/V1REBRAND/11-EXECUTION-PLAN.md

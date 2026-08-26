@@ -1440,6 +1440,60 @@ mod tests {
     }
 
     #[test]
+    fn foliage_sway_animates_between_frames() {
+        // The P26 commit claimed wind sway, but the vertex shader never read
+        // the sway attribute — leaves could not move. This proof renders the
+        // canopy at two wind phases through the real GPU pipeline and demands
+        // the frames differ, with a same-phase control that must be
+        // pixel-identical (everything except the sway is deterministic).
+        let spec = scenes().into_iter().find(|s| s.name == "foliage_canopy")
+            .expect("foliage_canopy scene registered");
+        let (v, i, wv, wi) = build_scene_mesh(&spec, spec.default_seed, 2, false, false);
+        let gen = WorldGen::new(Seed(spec.default_seed));
+        let h = gen.surface_top(0, 0) as f32;
+        let eye = Vec3::new(-10.0, h + 13.0, 14.0);
+        let mut camera = Camera::new(eye, Vec3::new(0.5, h + 9.5, 0.5));
+        camera.set_aspect(800, 600);
+        let mk_env = |time: f32| lf_engine::scene::Env {
+            camera_pos: eye,
+            time,
+            day_factor: spec.day_factor(),
+            fog_color: spec.time_of_day().sky_color(),
+            fog_far: 220.0,
+        };
+        let textures = lf_assets::generate_atlas();
+        let mut paths = Vec::new();
+        let frame = |tag: &str, time: f32, paths: &mut Vec<String>| -> image::RgbaImage {
+            let path = format!("/tmp/lf_vistest_sway_{tag}_{}.png", std::process::id());
+            lf_engine::headless::render_to_png(
+                &v, &i, &wv, &wi, &textures, &camera, &mk_env(time), spec.sky_color(),
+                800, 600, Path::new(&path), None,
+            ).unwrap_or_else(|e| panic!("render {tag} failed: {e}"));
+            paths.push(path.clone());
+            image::open(&path).expect("reopen sway frame").to_rgba8()
+        };
+        let a1 = frame("a1", 0.8, &mut paths);
+        let a2 = frame("a2", 0.8, &mut paths);
+        let b = frame("b", 0.8 + std::f32::consts::PI, &mut paths);
+        let changed = |x: &image::RgbaImage, y: &image::RgbaImage| -> usize {
+            x.pixels().zip(y.pixels())
+                .filter(|(p, q)| p.0.iter().zip(q.0.iter())
+                    .any(|(c, d)| (*c as i32 - *d as i32).abs() > 8))
+                .count()
+        };
+        assert_eq!(changed(&a1, &a2), 0, "same wind phase must render pixel-identical");
+        let moved = changed(&a1, &b);
+        let total = (800 * 600) as usize;
+        assert!(
+            moved > total / 1000,
+            "wind must visibly move foliage between phases: only {moved}/{total} px changed"
+        );
+        for p in paths {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+
+    #[test]
     fn verify_render_rejects_blank_and_accepts_varied() {
         let solid = image::RgbaImage::from_pixel(200, 200, image::Rgba([10, 10, 10, 255]));
         let solid_path = format!("/tmp/lf_vistest_blank_{}.png", std::process::id());

@@ -59,9 +59,11 @@ use serde::{Deserialize, Serialize};
 use ui::EguiPlatform;
 
 const WORLD_SEED: u64 = 12345;
-const WORLD_DIR: &str = "worlds/default";
 const DEFAULT_VIEW_RADIUS: i32 = 5; // chunks generated/kept around the player
-const UNLOAD_RADIUS: i32 = 8;    // chunks beyond this are dropped (after save)
+// Chunks past view_distance + this margin are dropped (after save); the
+// margin keeps streaming from thrashing when the player crosses borders.
+// Was a fixed 8, which left zero headroom at view distance 8.
+const UNLOAD_MARGIN: i32 = 3;
 const BOOT_RADIUS: i32 = 1;      // chunks generated synchronously at boot
 const REACH: f32 = 6.0;
 const LOOK_SENSITIVITY: f32 = 0.0025;
@@ -470,6 +472,13 @@ impl ApplicationHandler for App {
                                                     return;
                                                 }
                                                 UiOpen::None => {}
+                                                UiOpen::Settings => {
+                                                    // returns to the title
+                                                    // screen when opened
+                                                    // from there
+                                                    state.close_settings();
+                                                    return;
+                                                }
                                                 _ => {
                                                     state.close_ui();
                                                     return;
@@ -678,6 +687,9 @@ struct GameState {
     pub title_orbit: f32,
     pub menu_reveal: f32,
     pub settings_tab: usize,
+    /// Settings was opened from the title screen — Back/Esc must return
+    /// there, not drop the player into the world (doc 02 first-launch audit).
+    pub settings_from_title: bool,
     pub hotbar_hover: Option<String>,
     /// F3 debug readout (input gates, position, seed) for diagnosing input.
     pub show_debug: bool,
@@ -785,9 +797,6 @@ impl GameState {
         };
         surface.configure(&device, &config);
 
-        // Load save (also tells us the world type) before generating.
-        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints) =
-            load_client_save(Path::new(WORLD_DIR));
         // Load mods into the live registries before touching the world.
         let mods = lf_modapi::load_mods_dir(Path::new("mods"));
         if !mods.is_empty() {
@@ -796,10 +805,15 @@ impl GameState {
         }
 
         // Persistence + world bootstrap: the slot owns the directory AND the
-        // seed (fresh random seed for a brand-new world).
+        // seed (fresh random seed for a brand-new world). Player extras come
+        // from the booted slot — the old pre-slot code loaded the legacy
+        // worlds/default before boot_slot() ran, so a slotted player booted
+        // with default inventory/settings until they clicked Play.
         let mut slot_meta = slots::boot_slot();
         let world_dir = slots::slot_dir(&slot_meta.name);
         slots::sync_generator_version(&world_dir);
+        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints) =
+            load_client_save(&world_dir);
         slot_meta.world_type = world_type; // save (or default) wins over meta
         let storage = WorldStorage::open(&world_dir);
         let world_seed = storage.load_seed().unwrap_or_else(|| {
@@ -919,6 +933,7 @@ impl GameState {
             title_orbit: 0.0,
             menu_reveal: 0.0,
             settings_tab: 0,
+            settings_from_title: false,
             hotbar_hover: None,
             show_debug: std::env::var("LOREFORGE_DEBUG_INPUT").is_ok(),
             console: console::ConsoleState::default(),
@@ -1760,7 +1775,9 @@ impl GameState {
         let eye = self.player.eye_position();
         let (sv, si) = lf_engine::atmosphere::sky_bodies(eye, self.time.fraction());
         self.sky_batch = Some(MeshBatch::new(&self.device, &self.resources, &sv, &si));
-        if self.last_cloud_rebuild.elapsed() >= Duration::from_millis(500) {
+        if !self.settings.clouds {
+            self.cloud_batch = None; // the toggle was previously unwired
+        } else if self.last_cloud_rebuild.elapsed() >= Duration::from_millis(500) {
             self.last_cloud_rebuild = now;
             let (cv, ci) = lf_engine::atmosphere::cloud_mesh(eye, self.frame as f32 / 60.0);
             self.cloud_batch = Some(MeshBatch::new(&self.device, &self.resources, &cv, &ci));
@@ -2255,12 +2272,13 @@ impl GameState {
     /// Drop far chunks (saving dirty ones first) to bound memory.
     fn unload_far_chunks(&mut self) {
         let center = self.player_chunk();
+        let unload_radius = self.settings.view_distance + UNLOAD_MARGIN;
         let far: Vec<(i32, i32)> = self
             .world
             .chunks
             .keys()
             .copied()
-            .filter(|p| chebyshev(*p, center) > UNLOAD_RADIUS)
+            .filter(|p| chebyshev(*p, center) > unload_radius)
             .collect();
         for pos in far {
             if self.dirty.remove(&pos) {
@@ -2483,7 +2501,7 @@ impl GameState {
             let eye = self.player.eye_position();
             for (pos, batch) in self.batches.iter() {
                 if let Some(&(min_y, max_y)) = self.column_bounds.get(pos) {
-                    if !column_in_view(&view_proj, eye, *pos, min_y, max_y) {
+                    if !column_in_view(&view_proj, eye, *pos, min_y, max_y, self.settings.view_distance) {
                         continue;
                     }
                 }
@@ -2828,14 +2846,15 @@ fn pseudo_random(seed: u64) -> u64 {
 }
 
 /// Frustum + distance culling for a chunk column, using its mesh bounds.
-fn column_in_view(view_proj: &glam::Mat4, eye: Vec3, pos: (i32, i32), min_y: f32, max_y: f32) -> bool {
-    // Distance cull: columns past 1.5x view radius can't be visible anyway.
+fn column_in_view(view_proj: &glam::Mat4, eye: Vec3, pos: (i32, i32), min_y: f32, max_y: f32, view_distance: i32) -> bool {
+    // Distance cull: columns past ~1.5x the kept radius (view distance +
+    // unload margin) can't be visible anyway.
     let center_x = pos.0 as f32 * 16.0 + 8.0;
     let center_z = pos.1 as f32 * 16.0 + 8.0;
     let dx = center_x - eye.x;
     let dz = center_z - eye.z;
     let dist2 = dx * dx + dz * dz;
-    let limit = (UNLOAD_RADIUS as f32 * 16.0 * 1.25).powi(2);
+    let limit = ((view_distance + UNLOAD_MARGIN + 1) as f32 * 16.0 * 1.25).powi(2);
     if dist2 > limit {
         return false;
     }
@@ -2914,11 +2933,11 @@ mod tests {
         let vp = camera_frustum(Vec3::new(0.0, 80.0, 0.0), Vec3::new(0.0, 80.0, -10.0));
         let eye = Vec3::new(0.0, 80.0, 0.0);
         // straight ahead: visible
-        assert!(column_in_view(&vp, eye, (0, -3), 60.0, 100.0));
+        assert!(column_in_view(&vp, eye, (0, -3), 60.0, 100.0, 5));
         // behind: culled
-        assert!(!column_in_view(&vp, eye, (0, 3), 60.0, 100.0));
+        assert!(!column_in_view(&vp, eye, (0, 3), 60.0, 100.0, 5));
         // far to the side: culled
-        assert!(!column_in_view(&vp, eye, (30, -3), 60.0, 100.0));
+        assert!(!column_in_view(&vp, eye, (30, -3), 60.0, 100.0, 5));
     }
 
     /// P27 regression: the old bounding sphere (max(half_h, 11.4)) ignored
@@ -2960,7 +2979,7 @@ mod tests {
                             }
                             if any_inside {
                                 assert!(
-                                    column_in_view(&vp, eye, (cx, cz), min_y, max_y),
+                                    column_in_view(&vp, eye, (cx, cz), min_y, max_y, 5),
                                     "pitch {}° eye_y {}: column ({},{}) bounds {:?} pokes into view but was culled",
                                     pitch_deg, eye_y, cx, cz, (min_y, max_y)
                                 );
@@ -2977,7 +2996,7 @@ mod tests {
         let eye = Vec3::new(8.0, 80.0, 8.0);
         let five = 5.0f32.to_radians();
         let vp = camera_frustum(eye, eye + Vec3::new(0.0, five.sin(), -five.cos()) * 40.0);
-        assert!(column_in_view(&vp, eye, (-3, -4), 70.0, 90.0),
+        assert!(column_in_view(&vp, eye, (-3, -4), 70.0, 90.0, 5),
             "pinned case: tall column at the frame edge must stay visible");
     }
 

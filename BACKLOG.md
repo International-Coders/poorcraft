@@ -182,3 +182,38 @@ below by phase.
   (map + minimap pips exist, world-space beams do not).
 - [ ] Windows exe runtime: host lacks mingw-w64 (macOS runner); macOS dmg +
   Linux tarball ship instead.
+
+## P28 — V1REBRAND rendering & UX gate (docs/V1REBRAND/02, +2 numbering per DECISIONS)
+- [x] execution plan written: docs/V1REBRAND/11-EXECUTION-PLAN.md (P28-P39
+      map onto roadmap docs 02-10 with the +2 phase offset)
+- [x] wind-sway honesty fix: P26 claimed foliage wind, but shader.wgsl
+      vs_main never read the sway attribute (loc 6) or time_sway — leaves
+      could not move. Shader now offsets sway-weighted vertices with a
+      world-position-phased double sine (max ~0.08 blocks, inside the 0.1
+      cull margin). Proof: foliage_sway_animates_between_frames renders the
+      canopy at two wind phases through the real GPU pipeline and demands
+      pixels differ (same-phase control must be pixel-identical).
+- [x] clouds setting un-no-op'd: the toggle now actually clears/rebuilds
+      the cloud batch (was rebuilt unconditionally)
+- [x] unload radius tracks view distance: UNLOAD_RADIUS=8 const replaced by
+      view_distance + UNLOAD_MARGIN(3); column_in_view takes the view
+      distance (view 8 previously had zero unload headroom)
+- [x] first-launch fix: Settings opened from the title screen now returns
+      to the title (Back and Esc via close_settings) instead of dropping
+      the player into the world
+- [x] boot loads the booted slot's player extras (was: legacy worlds/default
+      read before boot_slot(), so slotted players booted with default
+      inventory/settings until Play was clicked)
+- [ ] chunk-border lighting: cross-column flood (3x3 neighborhood) replacing
+      "seams accepted"; night seam vistest + regression test
+- [ ] transparency/sort audit documented in DECISIONS (water sort + particle
+      rules ahead of Steam-age smoke/steam)
+- [ ] frame-time target: xtask perf (p50/p95 ms at Medium) + DECISIONS entry
+      (host iGPU is the "low" device)
+- [ ] quality tiers: PathTraced preset (Low/Medium/High/Path-Traced)
+- [ ] key rebinding (input.rs Action/Keymap + Controls tab + persistence)
+- [ ] save-slot thumbnails
+- [ ] minimap rotation/zoom + waypoint beacons
+- [ ] UI language audit (on-kit quest log/book/console/trade/tech tree,
+      HUD text shadows, Theme::MANA)
+- [ ] connected-surface textures (stone/marble/planks; carried from P26)

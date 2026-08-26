@@ -1251,6 +1251,7 @@ impl GameState {
                     ui.add_space(8.0);
                     if btn(ui, "Settings", 1.3, false) {
                         self.ui_open = UiOpen::Settings;
+                        self.settings_from_title = true;
                         self.menu_reveal = 0.0;
                     }
                     ui.add_space(8.0);
@@ -1298,6 +1299,7 @@ impl GameState {
                             ui.add_space(6.0);
                             if kit::menu_button(ui, "Settings", ((t - 0.30) / 0.4).clamp(0.0, 1.0), false) {
                                 self.ui_open = UiOpen::Settings;
+                                self.settings_from_title = false;
                                 self.menu_reveal = 0.0;
                             }
                             ui.add_space(6.0);
@@ -1322,6 +1324,22 @@ impl GameState {
     }
 
     /// Settings screen (tabbed, kit-styled, drives the engine live).
+    /// Leave the settings screen the way the player entered it: back to the
+    /// title screen when opened from there, otherwise resume play. Both the
+    /// Back button and Esc route through here (doc 02 first-launch audit —
+    /// Back used to drop a title-screen player straight into the world).
+    pub fn close_settings(&mut self) {
+        if self.settings_from_title {
+            self.ui_open = UiOpen::Title;
+            self.menu_reveal = 0.0;
+        } else {
+            self.ui_open = UiOpen::None;
+            if self.stats.health > 0.0 {
+                self.lock_cursor();
+            }
+        }
+    }
+
     fn draw_settings(&mut self, ctx: &egui::Context) {
         let t = self.menu_reveal;
         egui::CentralPanel::default()
@@ -1355,10 +1373,7 @@ impl GameState {
                             }
                             ui.add_space(10.0);
                             if kit::menu_button(ui, "Back", 1.0, true) {
-                                self.ui_open = UiOpen::None;
-                                if self.stats.health > 0.0 {
-                                    self.lock_cursor();
-                                }
+                                self.close_settings();
                             }
                             ui.add_space(10.0);
                         });

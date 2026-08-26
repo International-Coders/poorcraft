@@ -507,3 +507,32 @@
 - loop 13: implemented villagers with VillagerJob, VillagerSchedule, utility AI two-tier dialogue system (data-driven + optional LLM fallback); captured shots/m12_village.png. build green.
 - loop 14: implemented story mode quests, objective types, and quest log tests; captured shots/m13_quests.png proof. build green.
 - loops 15–25: chronicle engine, quests, milestone proofs, amberium mod, crystal/obsidian content, Geode Guardian, Cinder Crawler (all with code + tests).
+
+## Loop 308 — P28 (V1REBRAND gate) begins: sway honesty fix + 4 latent UX bugs
+- Committed docs/V1REBRAND/11-EXECUTION-PLAN.md: the full P28-P39 execution
+  plan mapping roadmap docs 02-10 onto BACKLOG numbers at +2 offset
+  (DECISIONS entry added; P26/P27 were already taken by visual identity and
+  the camera-culling fix).
+- Wind-sway honesty fix: P26's commit message claimed foliage wind sway, but
+  shader.wgsl's vs_main never consumed the sway vertex attribute (loc 6) or
+  the time_sway uniform — the attribute, uniform, mesher weights, client
+  clock, and cull margin all existed; only the shader math was missing, so
+  leaves never moved. vs_main now applies a world-position-phased double
+  sine (amplitudes 0.055/0.045/0.02, combined max ~0.08 blocks, inside the
+  0.1 sway margin of the P27 cull). New proof test
+  foliage_sway_animates_between_frames renders the canopy at two wind
+  phases through the real GPU pipeline: frames must differ (>0.1% of
+  pixels), same-phase control must be pixel-identical. The test necessarily
+  fails on the old shader (it had zero time dependence).
+- Clouds setting was a no-op: cloud_batch was rebuilt unconditionally; now
+  gated on settings.clouds (cleared when off).
+- UNLOAD_RADIUS (fixed 8) -> view_distance + UNLOAD_MARGIN(3); the distance
+  cull in column_in_view now takes the view distance (view 8 previously had
+  zero unload headroom). P27 regression updated to pass view=5 explicitly.
+- First-launch fix: Settings opened from the title screen now returns to
+  the title via Back and Esc (close_settings); previously both dropped the
+  player straight into the world.
+- Boot now loads the booted slot's player_extras (settings/inventory/etc.)
+  instead of reading legacy worlds/default before boot_slot() — slotted
+  players previously booted with defaults until clicking Play.
+- 162 tests green (was 161), 22/22 vistest scenes, release smoke OK.

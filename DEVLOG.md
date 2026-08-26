@@ -375,3 +375,30 @@ world-unit margin.
 
 ### Push
 - committed and pushed to github (main).
+
+### 2026-08-26 — Loop 308: V1REBRAND plan + P28 loop 1 (sway fix + latent UX bugs)
+**WHAT**: Wrote the execution plan for the whole docs/V1REBRAND/ roadmap and
+started its hard-gate phase P28: fixed the wind-sway shader gap plus four
+latent UX bugs found during planning.
+**HOW**:
+- docs/V1REBRAND/11-EXECUTION-PLAN.md — P28-P39 sequencing with per-phase
+  file maps; DECISIONS.md entry records the +2 phase-number offset.
+- crates/lf_engine/src/shader.wgsl — vs_main gained `@location(6) sway` and
+  reads uniforms.time_sway.x: two world-position-phased sines, combined max
+  offset ~0.08 blocks (inside the 0.1 cull margin from P27).
+- crates/lf_vistest/src/lib.rs — new test
+  `foliage_sway_animates_between_frames`: builds the foliage_canopy scene,
+  renders at t=0.8 vs t=0.8+pi through lf_engine::headless (real GPU),
+  asserts frames differ while a same-phase control is pixel-identical.
+- crates/lf_client/src/lib.rs — clouds gate on settings.clouds;
+  UNLOAD_MARGIN(3) + settings-driven unload radius; column_in_view takes
+  view_distance (P27 test updated); Escape routes UiOpen::Settings through
+  close_settings; GameState::new loads player extras from the booted slot
+  dir (dropped the legacy worlds/default pre-load + WORLD_DIR const);
+  new GameState field settings_from_title.
+- crates/lf_client/src/ui.rs — close_settings() (title vs pause return),
+  title/pause Settings buttons record their origin.
+**VERIFICATION**: cargo build --workspace clean; cargo test --workspace
+162 passed / 0 failed (new sway proof included); `cargo run --release -p
+xtask -- vistest shots` 22/22 [ok] with pixel analysis; `make smoke`
+SMOKE OK. Runtimes rebuilt via make runtimes; pushed to github.
