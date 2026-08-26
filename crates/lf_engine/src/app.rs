@@ -126,7 +126,7 @@ impl State {
             }
         }
         let mesh = lf_voxel::meshing::mesh_section(&section, None, None, None, None, None, None,
-            &|b| lf_assets::texture_index_for_block(b.id()), &|_, _, _| 0xF0);
+            &|b, _face| lf_assets::texture_index_for_block(b.id()), &|_, _, _| 0xF0);
         let vertices: Vec<GpuVertex> = mesh.vertices.iter().map(|v| GpuVertex {
             position: v.position,
             normal: v.normal,

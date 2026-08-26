@@ -113,7 +113,9 @@ impl World {
 
     /// Mesh one chunk column into world-space vertices (origin at chunk min).
     /// Opaque and water faces are separated; light is flood-filled per column.
-    pub fn mesh_column(&self, cx: i32, cz: i32, tex_of: &dyn Fn(BlockState) -> u32) -> ColumnMesh {
+    /// `tex_of` selects the atlas layer per block AND face (per-face
+    /// materials: grass top/side/bottom, log rings, ...).
+    pub fn mesh_column(&self, cx: i32, cz: i32, tex_of: &dyn Fn(BlockState, crate::meshing::Face) -> u32) -> ColumnMesh {
         let mut opaque = MeshData::default();
         let mut water = MeshData::default();
         let col = match self.chunks.get(&(cx, cz)) {
@@ -310,7 +312,7 @@ mod tests {
         let mut w = World::new();
         w.ensure_chunk(2, 3);
         w.set_block(32 + 5, 0, 48 + 7, BlockState::GRASS).unwrap(); // chunk (2,3) local (5,0,7)
-        let mesh = w.mesh_column(2, 3, &|_| 0);
+        let mesh = w.mesh_column(2, 3, &|_, _| 0);
         assert!(!mesh.opaque.vertices.is_empty());
         // every vertex lies within chunk (2,3): x 32..48, z 48..64
         for v in &mesh.opaque.vertices {
@@ -331,7 +333,7 @@ mod tests {
                 w.set_block(16, y, z, BlockState::STONE).unwrap();
             }
         }
-        let mesh = w.mesh_column(0, 0, &|_| 0);
+        let mesh = w.mesh_column(0, 0, &|_, _| 0);
         // with the neighbor present, no +X faces at x=16 plane: max vertex x should be exactly 16 (face boundary) but no face AT x==16 facing +X... simpler: fewer vertices than without neighbor
         let mut w2 = World::new();
         w2.ensure_chunk(0, 0);
@@ -340,7 +342,7 @@ mod tests {
                 w2.set_block(15, y, z, BlockState::STONE).unwrap();
             }
         }
-        let mesh2 = w2.mesh_column(0, 0, &|_| 0);
+        let mesh2 = w2.mesh_column(0, 0, &|_, _| 0);
         assert!(mesh.opaque.vertices.len() < mesh2.opaque.vertices.len(), "neighbor culling failed");
     }
 
@@ -354,12 +356,12 @@ mod tests {
             }
         }
         // mesh once to fill the cache (light is sky-lit)
-        let lit = w.mesh_column(0, 0, &|_| 0);
+        let lit = w.mesh_column(0, 0, &|_, _| 0);
         // cap: verify light attribute is sky-lit high up (sky nibble = 15)
         assert!(lit.opaque.vertices.iter().any(|v| (v.light >> 4) == 15));
         // place a torch and remesh: block light must appear
         w.set_block(8, 100, 8, crate::BlockState(registry::block::TORCH)).unwrap();
-        let relit = w.mesh_column(0, 0, &|_| 0);
+        let relit = w.mesh_column(0, 0, &|_, _| 0);
         assert!(relit.opaque.vertices.iter().any(|v| (v.light & 0xF) > 0),
             "torch light must be visible after the edit (cache invalidated)");
     }

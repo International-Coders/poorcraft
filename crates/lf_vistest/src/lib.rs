@@ -340,7 +340,7 @@ pub fn build_scene_mesh(_spec: &SceneSpec, seed: u64, radius_chunks: i32, torche
     let mut water_indices: Vec<u32> = Vec::new();
     for cx in -radius_chunks..=radius_chunks {
         for cz in -radius_chunks..=radius_chunks {
-            let mesh = world.mesh_column(cx, cz, &|b| lf_assets::texture_index_for_block(b.id()));
+            let mesh = world.mesh_column(cx, cz, &|b, _face| lf_assets::texture_index_for_block(b.id()));
             let base = vertices.len() as u32;
             vertices.extend(to_gpu(&mesh.opaque.vertices));
             indices.extend(mesh.opaque.indices.iter().map(|i| i + base));

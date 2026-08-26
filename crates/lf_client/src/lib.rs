@@ -2574,7 +2574,7 @@ fn drop_tex_layer(item_id: &str) -> u32 {
 /// Mesh one column and convert to GPU vertices (opaque + water channels).
 fn mesh_column_gpu(world: &World, cx: i32, cz: i32)
     -> (Vec<GpuVertex>, Vec<u32>, Vec<GpuVertex>, Vec<u32>) {
-    let mesh = world.mesh_column(cx, cz, &|b| lf_assets::texture_index_for_block(b.id()));
+    let mesh = world.mesh_column(cx, cz, &|b, _face| lf_assets::texture_index_for_block(b.id()));
     let to_gpu = |vs: &[lf_voxel::meshing::Vertex]| -> Vec<GpuVertex> {
         vs.iter().map(|v| GpuVertex {
             position: v.position,

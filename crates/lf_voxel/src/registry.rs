@@ -162,6 +162,13 @@ pub mod block {
     }
 }
 
+/// Foliage blocks: non-opaque, sway in the wind, alpha-cutout rendering.
+pub fn is_leaf(id: u32) -> bool {
+    use block as b;
+    id == b::LEAVES || id == b::BIRCH_LEAVES || id == b::SPRUCE_LEAVES
+        || id == b::DARK_LEAVES || id == b::CHERRY_LEAVES || id == b::PALE_LEAVES
+}
+
 /// Blocks entities collide with. Water is not solid; leaves are.
 pub fn is_solid(b: BlockState) -> bool {
     let id = b.id();
