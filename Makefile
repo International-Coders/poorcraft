@@ -55,3 +55,7 @@ runtimes: release ## macOS .app + .dmg + Linux tarball (+ Windows exe if mingw p
 
 push: ## Commit-and-push helper: pushes current branch to the GitHub remote
 	git push -u github HEAD || (git remote add github https://github.com/International-Coders/poorcraft.git && git push -u github HEAD)
+
+## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
+new-mod:
+	cargo run -p xtask -- new-mod $(id) $(if $(name),--name "$(name)",)

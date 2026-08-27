@@ -735,3 +735,14 @@ real-UDP two-client test; ornate items/recipes/icons; paths_screen +
 trade_p2p previews.
 **VERIFICATION**: 248 tests / 0 failed (+5). vistest 47/47;
 paths_screen AI-verified. Smoke OK. Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 325: Steps 34-39
+**WHAT**: The platform finish line — lobbies, UGC, docs, scaffolding.
+**HOW**: lf_steam::lobbies (LobbyManager/Invite, UDP codes as host
+addresses; 3 tests) + lf_steam::workshop (scan_installed; test);
+mods/README.md fully rewritten for the v2 surface; xtask new-mod
+(scaffold_mod fn, refuse-overwrite, Makefile target) + the
+scaffold-parses loader test.
+**VERIFICATION**: 253 tests / 0 failed (+5). new-mod run live
+(scaffold + duplicate refusal observed). Smoke OK. Runtimes rebuilt;
+pushed.

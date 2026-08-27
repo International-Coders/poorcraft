@@ -41,6 +41,9 @@ fn steamworks_init_ok() -> bool {
     steamworks::Client::init().is_ok()
 }
 
+pub mod lobbies;
+pub mod workshop;
+
 #[cfg(test)]
 mod tests {
     use super::*;

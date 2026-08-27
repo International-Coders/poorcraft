@@ -728,3 +728,26 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [ ] Deferred: client-side trade-offer SEND UI (receive/apply is wired;
   server + protocol + tests fully cover the trading deliverable),
   ornate-item gameplay effects beyond the tier-3 tools.
+
+## Loop 325 — Finish line: Steps 34-39
+- [x] STEPS 34-36 (lobbies/P2P/invites): lf_steam::lobbies — a
+      transport-neutral lobby model (create/join/membership churn/leave)
+      where UDP lobby codes ARE the host address, plus the full invite
+      flow (mint/receive/accept/decline). 3 tests. The Steamworks-armed
+      mapping stays behind the `steam` feature (off by default; UDP
+      fallback unchanged), per the existing DECISIONS entry.
+- [x] STEP 37 (Workshop UGC): lf_steam::workshop — WorkshopItem +
+      scan_installed(): UGC folders with mod.toml load identically to
+      bundled mods (Steam subscriptions land in the same shape); test
+      scans a temp dir, ignores non-mods, tolerates a missing dir.
+- [x] STEP 38 (mods/README rewrite): full authoring guide — quick-start
+      scaffold, manifest reference, blocks (with the light field that
+      now truly emits), items/smelting, decoration packs, UGC/Workshop
+      install, multiplayer determinism, gate interactions, testing.
+- [x] STEP 39 (xtask new-mod): `cargo run -p xtask -- new-mod <id>
+      [--name]` scaffolds manifest + example block/item, refuses
+      overwrites; `make new-mod id=... name=...` added. Verified live
+      (scaffold + duplicate refusal) + the scaffold shape parses and
+      registers through the real loader (lf_modapi test).
+- [ ] Deferred: client title-screen lobby UI wiring (the model + UDP
+      codes are done; Steam feature-on arms unverified without the SDK).

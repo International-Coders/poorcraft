@@ -396,6 +396,26 @@ name = "Ember Ingot"
     /// (real mods/ folder, not a fixture) — its block and item land in the
     /// live registries and smoke_log flags it.
     #[test]
+    /// Step 39: `xtask new-mod` scaffolds exactly this shape — the
+    /// scaffold must parse + register through the real loader.
+    #[test]
+    fn new_mod_scaffold_parses_and_registers() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("my_pack");
+        std::fs::create_dir_all(root.join("data")).unwrap();
+        std::fs::write(root.join("mod.toml"),
+            "# scaffolded manifest\nid = \"my_pack\"\nname = \"My Pack\"\nversion = \"0.1.0\"\napi_version = \"1\"\nside = \"both\"\ndependencies = [\"core\"]\npermissions = [\"world.read\", \"world.write\"]\n").unwrap();
+        std::fs::write(root.join("data/blocks.toml"),
+            "[[blocks]]\nid = \"my_pack:example_block\"\nname = \"Example Block\"\ntexture = \"example_block.png\"\nhardness = 1.0\nharvest_level = 0\nlight = 0\n").unwrap();
+        std::fs::write(root.join("data/items.toml"),
+            "[[items]]\nid = \"my_pack:example_token\"\nname = \"Example Token\"\n").unwrap();
+        let data = load_mod(&root).expect("scaffold parses");
+        apply_mod(&data);
+        assert_eq!(data.manifest.id, "my_pack");
+        assert_eq!(data.blocks.len(), 1);
+        assert_eq!(data.items.len(), 1);
+    }
+
     /// P34: the decoration pack's `light` values reach the voxel emission
     /// table (the parsed-but-dropped gap, fixed).
     #[test]

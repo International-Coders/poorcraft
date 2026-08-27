@@ -1373,7 +1373,9 @@ dependencies = [
 name = "lf_steam"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "steamworks",
+ "tempfile",
 ]
 
 [[package]]

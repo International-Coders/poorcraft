@@ -1,44 +1,118 @@
-# LOREFORGE Mods
+# LOREFORGE Mods — the full authoring guide
 
-Mods live in directories under `mods/` and load at boot. The two bundled
-examples (`ember_ores`, `amberium`) demonstrate the full surface.
+Mods are plain TOML folders under `mods/` (or installed Workshop items —
+see [UGC](#ugc--workshop)). They load at boot on both the client and the
+dedicated server. Everything a mod can do is data; no code, no build.
 
-## Not sure mod loading is working? Check `smoke_test` first
+## Quick start: scaffold one
 
-`mods/smoke_test/` exists for exactly this: it registers one block and one
-item and nothing else. When it loads, boot prints one unmissable line:
+```bash
+cargo run -p xtask -- new-mod my_pack --name "My Pack"
+# -> mods/my_pack/  (manifest + blocks + items, ready to edit)
+```
+
+## Is loading working? Check the smoke test
+
+`mods/smoke_test/` registers one block and one item and nothing else.
+When it loads, boot prints one unmissable line:
 
 ```
 [MOD SMOKE TEST] OK — smoke_test mod loaded successfully
 ```
 
-If that line is missing while `mods/smoke_test/` exists, mod loading is
-broken — no need to reason about the bigger example mods. A CI test
-(`smoke_test_mod_loads_from_the_real_folder` in lf_modapi) keeps this mod
-loading correctly.
+If that line is missing while the folder exists, loading is broken. A CI
+test (`smoke_test_mod_loads_from_the_real_folder` in lf_modapi) keeps it
+honest.
 
 ## Layout
+
 ```
 mods/my_mod/
-  mod.toml            # manifest: id, name, version, api_version, side, dependencies, permissions
+  mod.toml            # manifest (below)
   data/
-    blocks.toml       # [[blocks]] id, name, texture, hardness, harvest_level, light
-    items.toml        # [[items]]  id, name
+    blocks.toml       # [[blocks]]
+    items.toml        # [[items]]
     smelting.toml     # [[smelting]] input, output, xp
 ```
 
-## What registers where
-- **Blocks** get a stable runtime id (`MOD_BLOCK_BASE + fnv1a(namespace:block)`)
-  and become solid, opaque, minable blocks that drop their item form.
-- **Items** join the live item registry (holdable, stackable, smeltable).
-- **Smelting** entries map input items to outputs in any furnace.
-- **Ore veins**: blocks whose name ends in `_ore` are auto-registered as
-  worldgen veins between y=8..50 (threshold 0.62).
+## Manifest (mod.toml)
 
-## ids
-Use your namespace everywhere: `ember_ores:ember_ingot`. Vanilla ids are the
-plain names from the catalog (`stone`, `iron_ingot`, ...).
+```toml
+id = "my_pack"              # your namespace, unique, no colons
+name = "My Pack"
+version = "1.0.0"
+api_version = "1"           # the loader refuses mismatched majors
+side = "both"               # both | client | server
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]
+```
 
-## Testing
-`cargo test -p lf_modapi` covers the whole pipeline: parse -> register ->
-place a modded block in a world -> break it -> smelt the drop.
+## Blocks
+
+```toml
+[[blocks]]
+id = "my_pack:glowing_banner"   # always namespaced
+name = "Glowing Banner"
+texture = "glowing_banner.png"  # declared name (see Textures)
+hardness = 0.6                  # seconds by hand
+harvest_level = 0               # 0 hand, 1 stone, 2 iron, ...
+light = 12                      # 0..15 — REALLY emits light
+```
+
+- Runtime ids are stable: `100 + fnv1a(namespace:block)`.
+- Mod blocks are solid, opaque, minable, and drop their item form.
+- `light` reaches the light engine (registered blocks emit; the
+  decoration pack's glowing banner is the living test).
+- Names ending in `_ore` become worldgen veins (y 8..50, rare).
+
+## Items & smelting
+
+```toml
+[[items]]
+id = "my_pack:carving_kit"
+name = "Carving Kit"
+
+[[smelting]]
+input = "my_pack:raw_amber"
+output = "my_pack:amber_ingot"
+```
+
+Items are holdable, stackable, tradeable (protocol v4 escrow applies to
+any id), and smeltable in any furnace.
+
+## Decoration packs
+
+A mod with only decorative blocks IS a decoration pack — see
+`mods/decor_pack/` (banner with light, plinth, rug). There is no special
+mode: declare blocks, set `light`, keep hardness low. Build with them,
+run them through the chisel/enchanting economy like any block.
+
+## UGC & Workshop
+
+Workshop items are mod folders. On Steam they download into the UGC
+store (feature-gated integration, `docs/STEAM.md`); everywhere else they
+live in `ugc/` at the game root. Both are scanned by the same code
+(`lf_steam::workshop::scan_installed`) and load exactly like bundled
+mods. To install by hand: drop the folder into `ugc/`.
+
+## Transport & multiplayer
+
+Mods load identically on the dedicated UDP server (`loreforge-server`).
+Block ids are deterministic across peers (same fnv1a mapping), so
+modded worlds stay in sync; the server validates ids against the same
+registry and drops unknown ones.
+
+## Gate interactions
+
+Vanilla gates (era / path standing) apply to vanilla recipes only. Mod
+items are ungated by design — pack authors curate their own progression.
+
+## Testing your mod
+
+```bash
+cargo test -p lf_modapi     # loader pipeline (parse/register/place/break/smelt)
+cargo run --release -p loreforge   # watch for the smoke line + your blocks
+```
+
+The catalog consistency test catches dangling references (a mod item
+pointing at a missing block, etc.).

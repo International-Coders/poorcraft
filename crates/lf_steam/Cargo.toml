@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+serde = { workspace = true, features = ["derive"] }
 # Steamworks binding, only pulled in by the `steam` feature: the SDK links
 # dynamically and requires the Steam client at runtime; everything else
 # builds and runs without it (UDP transport).
@@ -15,3 +16,6 @@ default = []
 # dynamically at runtime, and CI/dev machines without the Steam client fall
 # back to the UDP transport. Enable with --features lf_steam/steam.
 steam = ["dep:steamworks"]
+
+[dev-dependencies]
+tempfile.workspace = true

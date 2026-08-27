@@ -16,10 +16,69 @@ fn copy_dir(src: &str, dst: std::path::PathBuf) {
     }
 }
 
+/// Step 39: scaffold a new mod folder (manifest + data files), refusing
+/// to overwrite an existing one. Returns the created path.
+fn scaffold_mod(root: &std::path::Path, id: &str, name: &str) -> Result<std::path::PathBuf, String> {
+    if id.is_empty() || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '_') {
+        return Err(format!("mod id must be [a-z0-9_], got {:?}", id));
+    }
+    let dir = root.join(id);
+    if dir.exists() {
+        return Err(format!("{} already exists", dir.display()));
+    }
+    let data = dir.join("data");
+    std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("mod.toml"), format!(
+"# {} mod manifest — see mods/README.md for the full guide
+id = \"{}\"
+name = \"{}\"
+version = \"0.1.0\"
+api_version = \"1\"
+side = \"both\"
+dependencies = [\"core\"]
+permissions = [\"world.read\", \"world.write\"]
+", name, id, name)).map_err(|e| e.to_string())?;
+    std::fs::write(data.join("blocks.toml"), format!(
+"# One example block to start from — delete or duplicate at will.
+[[blocks]]
+id = \"{}:example_block\"
+name = \"Example Block\"
+texture = \"example_block.png\"
+hardness = 1.0
+harvest_level = 0
+light = 0
+", id)).map_err(|e| e.to_string())?;
+    std::fs::write(data.join("items.toml"), format!(
+"[[items]]
+id = \"{}:example_token\"
+name = \"Example Token\"
+", id)).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
     match cmd {
+        "new-mod" => {
+            // Step 39: `xtask new-mod <id> [--name "Pretty Name"]`
+            let id = args.get(2).cloned().unwrap_or_default();
+            let name = args.iter().position(|a| a == "--name")
+                .and_then(|i| args.get(i + 1).cloned())
+                .unwrap_or_else(|| id.clone());
+            if id.is_empty() {
+                eprintln!("usage: xtask new-mod <id> [--name \"Pretty Name\"]");
+                std::process::exit(2);
+            }
+            match scaffold_mod(std::path::Path::new("mods"), &id, &name) {
+                Ok(dir) => println!("[ok] scaffolded {} — edit {}/data/*.toml (see mods/README.md)",
+                    dir.display(), dir.display()),
+                Err(e) => {
+                    eprintln!("[FAIL] {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         "vistest" => {
             // Renders every registered scene to shots/vistest_<name>.png.
             let out_dir = args.get(2).cloned().unwrap_or_else(|| "shots".into());

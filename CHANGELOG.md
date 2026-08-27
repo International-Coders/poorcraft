@@ -760,3 +760,9 @@
   real-UDP test.
 - 248 tests green (+5); 47/47 vistest scenes; smoke OK; runtimes
   rebuilt; pushed.
+
+## Loop 325 — Finish line, part 1 (Steps 34-39)
+- Transport-neutral lobbies + the invite flow (tested), Workshop UGC
+  scanning (tested), the full mods/README authoring guide, and
+  `xtask new-mod` scaffolding (live-verified + loader-tested).
+- 253 tests green (+5); smoke OK; runtimes rebuilt; pushed.
