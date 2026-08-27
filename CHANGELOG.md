@@ -567,3 +567,30 @@
   22 scenes).
 - 168 tests green, 22/22 vistest; the user's own live play session served
   as the smoke check (their process was left running untouched).
+
+## Loop 310 — block gravity + water physics (user request)
+- Granular blocks no longer float: registry::has_gravity (sand, red_sand,
+  snow, dirt, grass, moss, mycelium — ores excluded, embedded in stone per
+  the Minecraft rule). Breaking support detaches the whole column into
+  animated FallingBlock entities (rendered with the block's own texture,
+  water-damped sinking, landing re-places through the same remesh +
+  network-broadcast path as a player edit, crushing nothing v1; a landing
+  into an occupied cell drops the item instead).
+- Water physics: event-driven cellular simulation in lf_game::fluids —
+  flow level 0 (source) .. 7 rides in BlockState's unused flag nibble;
+  water falls first, then spreads horizontally with decay, and unsupported
+  flow dries up (scooping a source recedes its puddle — test-proven).
+  Edits enqueue the cell + 6 neighbors; a 64-cell tick budget bounds frame
+  cost. Worldgen oceans/lakes are sources, so nothing changes until
+  disturbed. Mesher renders flowing water as stepped, lowered surfaces
+  with step-covering side faces (no slits between levels).
+- Bucket + water_bucket items (craftable: 3 iron ingots in a V; pixel-art
+  icons) — scoop a source (right-click it with an empty bucket) or pour
+  one (right-click a face with a full bucket): the player-facing tool for
+  the fluid system and the P30 Steam-Age groundwork.
+- Proofs: 6 new unit tests + 2 new vistest scenes — water_flow (aqueduct
+  pours down a flume and pools at a dam, settled through the real sim
+  before meshing; AI-verified stepped surfaces + pooling) and falling_sand
+  (column collapsed into a dug pocket via the real gravity settle, plus a
+  mid-air faller cube; AI-verified pile + floating block). 24 scenes total.
+- 174 tests green, 24/24 vistest; runtimes rebuilt; pushed.

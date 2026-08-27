@@ -311,6 +311,30 @@ pub fn scenes() -> Vec<SceneSpec> {
             eye: Vec3::ZERO, // framed directly at the target block in run_scene
             target: Vec3::ZERO,
         },
+        SceneSpec {
+            name: "water_flow",
+            desc: "source on an aqueduct pours down a flume and pools at a dam (flowing surfaces render lowered)",
+            default_seed: 12345,
+            time_of_day: 0.4,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the built waterfall in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "falling_sand",
+            desc: "granular column collapse: settled pile plus a block caught mid-fall",
+            default_seed: 12345,
+            time_of_day: 0.4,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the column in run_scene
+            target: Vec3::ZERO,
+        },
     ]
 }
 
@@ -373,6 +397,66 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         for y in 0..5 {
             world.set_block(0, h + y, 0, lf_voxel::BlockState(block::STONE));
         }
+    }
+
+    // water_flow: a stone aqueduct with a source on top, a guiding flume
+    // and a dam — then the real simulation runs to quiescence before
+    // meshing, so the PNG shows actual flow levels and pooling.
+    if spec.name == "water_flow" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        // flatten a work pad
+        for x in -6..16 {
+            for z in -6..6 {
+                for y in h..h + 14 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // flume walls guide the runoff 1-D along +x, dam at the far end
+        for x in 0..=9 {
+            for y in h..h + 2 {
+                world.set_block(x, y, -2, lf_voxel::BlockState(block::STONE));
+                world.set_block(x, y, 2, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        for y in h..h + 3 {
+            for z in -2..=2 {
+                world.set_block(9, y, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // aqueduct pillar + source on top
+        for y in h..h + 5 {
+            world.set_block(0, y, 0, lf_voxel::BlockState(block::STONE));
+        }
+        world.set_block(0, h + 5, 0, lf_voxel::water_with_level(0));
+        let mut q = std::collections::VecDeque::new();
+        lf_game::fluids::enqueue_around(&mut q, (0, h + 5, 0));
+        lf_game::fluids::settle(&mut world, &mut q, 20_000);
+    }
+
+    // falling_sand: a sand column over a dug pocket — the collapse runs
+    // through the real gravity settle before meshing.
+    if spec.name == "falling_sand" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -5..5 {
+            for z in -5..5 {
+                for y in h..h + 10 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // pocket: two air cells under the column with a stone floor
+        world.set_block(0, h - 1, 0, lf_voxel::BlockState(block::AIR));
+        world.set_block(0, h - 2, 0, lf_voxel::BlockState(block::AIR));
+        world.set_block(0, h - 3, 0, lf_voxel::BlockState(block::STONE));
+        for y in h..h + 5 {
+            world.set_block(0, y, 0, lf_voxel::BlockState(block::SAND));
+        }
+        lf_game::fluids::settle_gravity(&mut world, 0, 0);
     }
 
     let to_gpu = |vs: &[lf_voxel::meshing::Vertex]| -> Vec<GpuVertex> {
@@ -457,6 +541,43 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
                 [0.0, 0.0, 1.0], stone_tex);
         }
     }
+    // falling_sand: one granular block caught mid-fall above the settled
+    // pile (the client renders these as near-full cubes with the block's
+    // own texture — same shape here, appended post-mesh)
+    if spec.name == "falling_sand" {
+        let push_quad = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                         corners: [[f32; 3]; 4], uvs: [[f32; 2]; 4], normal: [f32; 3], tex: u32| {
+            let base = vertices.len() as u32;
+            for (c, uv) in corners.iter().zip(uvs.iter()) {
+                vertices.push(GpuVertex {
+                    position: *c,
+                    normal,
+                    tex_coord: *uv,
+                    tex_index: tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        };
+        let h = world.surface_height(0, 0) as f32;
+        let (cx, cy, cz) = (0.5f32, h + 3.2, 0.5f32);
+        let r = 0.48f32;
+        let sand_tex = lf_assets::texture_index_for_block(lf_voxel::registry::block::SAND);
+        let faces: [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] = [
+            ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+            ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+            ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+        ];
+        for (normal, corners, uvs) in faces {
+            let corners: [[f32; 3]; 4] = corners.map(|c| [cx + c[0], cy + c[1], cz + c[2]]);
+            push_quad(&mut vertices, &mut indices, corners, uvs, normal, sand_tex);
+        }
+    }
     (vertices, indices, water_vertices, water_indices)
 }
 
@@ -482,6 +603,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         let h = gen.surface_top(0, 0) as f32;
         let he = gen.surface_top(-6, 7) as f32;
         (Vec3::new(-6.0, he + 2.2, 7.0), Vec3::new(0.5, h + 2.5, 0.5))
+    } else if spec.name == "water_flow" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-9.0, h + 9.0, 11.0), Vec3::new(4.0, h + 1.5, 0.0))
+    } else if spec.name == "falling_sand" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-7.0, h + 5.0, 8.0), Vec3::new(0.5, h - 1.0, 0.5))
     } else if spec.first_person {
         // Find a viewpoint with an open vista: a local rise whose best look
         // direction drops the most over 30 blocks, so the frame shows both

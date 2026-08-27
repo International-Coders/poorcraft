@@ -28,6 +28,21 @@ impl BlockState {
     }
 }
 
+/// Flow distance of a water block: 0 = source, 1..=7 = how far the cell is
+/// from the source feeding it (carried in the state-flags nibble).
+pub fn water_level(state: BlockState) -> u8 {
+    if state.id() == registry::block::WATER {
+        state.state_flags() & 0x0F
+    } else {
+        0
+    }
+}
+
+/// A water block with the given flow level (0 = source).
+pub fn water_with_level(level: u8) -> BlockState {
+    BlockState(registry::block::WATER | (((level as u32) & 0x0F) << 24))
+}
+
 /// A 16x16x16 section of voxels with palette compression.
 pub const SECTION_SIZE: usize = 16;
 pub const SECTION_VOLUME: usize = SECTION_SIZE * SECTION_SIZE * SECTION_SIZE;

@@ -438,3 +438,24 @@ real bugs the audit surfaced (7 gameplay/render + 1 flaky test helper).
 tests); cargo run --release -p xtask -- vistest shots 22/22 [ok]; live
 session evidence in shots/audit_*.png; AUDIT.md written; runtimes rebuilt;
 pushed to github. Smoke skipped deliberately (user's session running).
+
+### 2026-08-26 — Loop 310: block gravity + water physics
+**WHAT**: Sand/dirt-family blocks now fall when unsupported (animated),
+and water actually flows (falls, spreads with decay, dries up when its
+source goes) with lowered flowing surfaces and a bucket to move sources.
+**HOW**: registry::has_gravity (granular set, ores excluded); client
+FallingBlock entities (24 m/s², capped 2.5 in water, land via apply_sim_
+edit which reuses remesh_around + net.send_block; after_edit triggers
+fluid-wake + faller-cascade on every player/sim edit); lf_game::fluids
+(step_cell rules, settle/settle_gravity drivers, MAX_SPREAD=7); water
+levels in BlockState flag nibble (lf_voxel::water_level/water_with_level);
+mesh_section partial-height water (water_surface_height 1-1/8 per level,
+side faces full-height against taller water); bucket/water_bucket items +
+3-iron recipe + BUCKET_ART sprite + scoop/pour in the place handler.
+**VERIFICATION**: 174 tests pass (6 new: spread decay, source recede,
+fall+pool, column collapse, water displacement, lowered-surface meshing);
+vistest 24/24 with new water_flow + falling_sand scenes, both visually
+verified via image analysis (stepped surfaces + dam pooling; collapsed
+pile + mid-air faller); user's live game session left untouched (no
+smoke pkill — their session is the liveness check). Runtimes rebuilt;
+pushed to github.

@@ -9,7 +9,7 @@
 //! P2 scope: P1 gameplay plus background chunk generation, view distance,
 //! frustum culling, world save/load with autosave, water/trees/caves/ores.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -259,6 +259,15 @@ pub struct ItemDrop {
     pub position: Vec3,
     pub velocity: Vec3,
     pub age: f32,
+}
+
+/// A granular block (sand/dirt-family) detached from its support and
+/// falling; lands and re-places itself as a block.
+#[derive(Clone, Debug)]
+pub struct FallingBlock {
+    pub position: Vec3,
+    pub velocity: f32,
+    pub block: BlockState,
 }
 
 /// Ray-tracing mode: off, R-key captures only, or a live path-traced view.
@@ -678,6 +687,12 @@ struct GameState {
     pub mobs: Vec<MobEntity>,
     pub villagers: Vec<Villager>,
     pub arrows: Vec<Arrow>,
+    /// Granular blocks mid-fall (sand/dirt-family), animated until they
+    /// land and re-place themselves.
+    pub falling_blocks: Vec<FallingBlock>,
+    /// Pending water-simulation cells (deduplicated by `fluid_queued`).
+    fluid_queue: VecDeque<(i32, i32, i32)>,
+    fluid_queued: HashSet<(i32, i32, i32)>,
     pub forge: lf_game::smithing::ForgeMinigame,
     pub research: ResearchState,
     pub xp_level: u32,
@@ -925,6 +940,9 @@ impl GameState {
             mobs: Vec::new(),
             villagers: Vec::new(),
             arrows: Vec::new(),
+            falling_blocks: Vec::new(),
+            fluid_queue: VecDeque::new(),
+            fluid_queued: HashSet::new(),
             forge: lf_game::smithing::ForgeMinigame::new(3),
             xp_level: 0,
             xp_progress: 0,
@@ -1468,6 +1486,10 @@ impl GameState {
             self.block_entities.insert(gpos, BlockEntity::Generator(gen));
         }
 
+        // Water simulation + animated falling blocks.
+        self.update_falling_blocks(dt);
+        self.tick_fluids();
+
         self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
         self.update_mobs(dt);
         self.update_villagers(dt);
@@ -1624,6 +1646,8 @@ impl GameState {
                             }
                             self.use_durability();
                             self.remesh_around(pos.x, pos.z);
+                            // wake water + drop unsupported granular blocks
+                            self.after_edit(pos.x, pos.y, pos.z);
                             let (l, p) = grant_xp(self.xp_level, self.xp_progress, 1);
                             self.xp_level = l;
                             self.xp_progress = p;
@@ -1726,6 +1750,32 @@ impl GameState {
                     self.unlock_cursor();
                     return;
                 }
+                // buckets: scoop a water source / pour one. The raycast
+                // skips water, so the target cell is the face-adjacent one.
+                if let Some(stack) = &held {
+                    if stack.item_id == "bucket" || stack.item_id == "water_bucket" {
+                        if let Some((pos, normal)) = target {
+                            let cell = pos + normal;
+                            let state_there = self.world.get_block(cell.x, cell.y, cell.z);
+                            let holding_water = stack.item_id == "water_bucket";
+                            if !holding_water
+                                && state_there.id() == registry::block::WATER
+                                && lf_voxel::water_level(state_there) == 0
+                            {
+                                self.apply_sim_edit(cell.x, cell.y, cell.z, BlockState::AIR);
+                                self.after_edit(cell.x, cell.y, cell.z);
+                                self.inventory.slots[self.hotbar_index] =
+                                    Some(ItemStack { item_id: "water_bucket".into(), count: 1 });
+                            } else if holding_water && state_there == BlockState::AIR {
+                                self.apply_sim_edit(cell.x, cell.y, cell.z, lf_voxel::water_with_level(0));
+                                self.after_edit(cell.x, cell.y, cell.z);
+                                self.inventory.slots[self.hotbar_index] =
+                                    Some(ItemStack { item_id: "bucket".into(), count: 1 });
+                            }
+                        }
+                        return;
+                    }
+                }
                 if let Some(stack) = held {
                     let def = item_def(&stack.item_id);
                     match def.map(|d| d.kind) {
@@ -1756,6 +1806,9 @@ impl GameState {
                                             self.block_entities.insert(key, BlockEntity::Assembler(Default::default()));
                                         }
                                         self.remesh_around(place.x, place.z);
+                                        // a placed block can dam water or
+                                        // catch a floating granular column
+                                        self.after_edit(place.x, place.y, place.z);
                                         self.consume_selected(1);
                                     }
                                 }
@@ -2171,6 +2224,122 @@ impl GameState {
         }
     }
 
+    /// Water/gravity aftermath of any block edit (player or simulation):
+    /// wake the water around the cell and drop any granular block that
+    /// just lost its support.
+    fn after_edit(&mut self, x: i32, y: i32, z: i32) {
+        self.enqueue_fluid_around(x, y, z);
+        self.spawn_faller_from_above(x, y, z);
+    }
+
+    fn enqueue_fluid_around(&mut self, x: i32, y: i32, z: i32) {
+        for p in [
+            (x, y, z),
+            (x + 1, y, z),
+            (x - 1, y, z),
+            (x, y + 1, z),
+            (x, y - 1, z),
+            (x, y, z + 1),
+            (x, y, z - 1),
+        ] {
+            if self.fluid_queued.insert(p) {
+                self.fluid_queue.push_back(p);
+            }
+        }
+    }
+
+    /// If the block above `(x, y, z)` is granular and the cell is now
+    /// non-supporting, detach it into an animated faller. Cascades up the
+    /// column (each detachment re-checks the block above it).
+    fn spawn_faller_from_above(&mut self, x: i32, y: i32, z: i32) {
+        let above = self.world.get_block(x, y + 1, z);
+        if !registry::has_gravity(above.id()) || self.world.is_solid(x, y, z) {
+            return;
+        }
+        if self.world.set_block(x, y + 1, z, BlockState::AIR).is_some() {
+            self.remesh_around(x, z);
+            if let Some(n) = &self.net {
+                n.send_block(x, y + 1, z, registry::block::AIR);
+            }
+            self.falling_blocks.push(FallingBlock {
+                position: Vec3::new(x as f32 + 0.5, y as f32 + 1.5, z as f32 + 0.5),
+                velocity: 0.0,
+                block: above,
+            });
+            self.spawn_faller_from_above(x, y + 1, z);
+        }
+    }
+
+    /// Advance animated falling blocks; landing re-places the block
+    /// (displacing water, crushing nothing v1) through the same edit path
+    /// as a player placement so remesh + network stay consistent.
+    fn update_falling_blocks(&mut self, dt: f32) {
+        let mut landed: Vec<(i32, i32, i32, BlockState)> = Vec::new();
+        let mut dropped_items: Vec<BlockState> = Vec::new();
+        self.falling_blocks.retain_mut(|f| {
+            let cell = (f.position.x.floor() as i32, f.position.y.floor() as i32, f.position.z.floor() as i32);
+            let in_water = self.world.get_block(cell.0, cell.1, cell.2).id() == registry::block::WATER;
+            f.velocity += 24.0 * dt;
+            if in_water {
+                f.velocity = f.velocity.min(2.5); // sinks, does not rocket through the pool
+            }
+            let new_y = f.position.y - f.velocity * dt;
+            let feet_cell = (new_y - 0.5).floor() as i32;
+            if feet_cell < 0 {
+                return false; // fell out of the world
+            }
+            if self.world.is_solid(cell.0, feet_cell, cell.2) {
+                let land_y = feet_cell + 1;
+                let occupied = self.world.get_block(cell.0, land_y, cell.2);
+                if registry::is_solid(occupied) {
+                    dropped_items.push(f.block);
+                } else {
+                    landed.push((cell.0, land_y, cell.2, f.block));
+                }
+                return false;
+            }
+            f.position.y = new_y;
+            true
+        });
+        for (x, y, z, b) in landed {
+            self.apply_sim_edit(x, y, z, b);
+            self.after_edit(x, y, z);
+        }
+        for b in dropped_items {
+            if let Some(item) = lf_game::items::block_drop(b.id()) {
+                self.spawn_drop(&item, 1, self.player.eye_position() + self.player.look_dir());
+            }
+        }
+    }
+
+    /// Apply a simulation-driven block change with the same remesh +
+    /// network-broadcast treatment as a player edit.
+    fn apply_sim_edit(&mut self, x: i32, y: i32, z: i32, state: BlockState) {
+        if self.world.set_block(x, y, z, state).is_some() {
+            self.remesh_around(x, z);
+            if let Some(n) = &self.net {
+                n.send_block(x, y, z, state.id());
+            }
+        }
+    }
+
+    /// Run a bounded slice of the water simulation. Cell edits are applied
+    /// through [`Self::apply_sim_edit`] and re-enqueue their neighborhood,
+    /// so floods/recessions propagate across ticks.
+    fn tick_fluids(&mut self) {
+        const BUDGET: usize = 64;
+        let mut edits: Vec<((i32, i32, i32), BlockState)> = Vec::new();
+        for _ in 0..BUDGET {
+            let Some((x, y, z)) = self.fluid_queue.pop_front() else { break };
+            self.fluid_queued.remove(&(x, y, z));
+            edits.extend(lf_game::fluids::step_cell(&mut self.world, x, y, z));
+        }
+        for ((x, y, z), state) in edits {
+            self.apply_sim_edit(x, y, z, state);
+            self.enqueue_fluid_around(x, y, z);
+        }
+    }
+
     /// Gravity + magnet pickup for item drops.
     fn update_drops(&mut self, dt: f32) {
         let player_center = self.player.position + Vec3::new(0.0, 0.9, 0.0);
@@ -2581,7 +2750,7 @@ impl GameState {
     /// Rebuild the single batch holding item-drop and mob cubes.
     /// Rebuild the single batch holding item-drop and mob cubes.
     fn rebuild_drop_batch(&mut self) {
-        if self.drops.is_empty() && self.mobs.is_empty() {
+        if self.drops.is_empty() && self.mobs.is_empty() && self.falling_blocks.is_empty() {
             self.drop_batch = None;
             return;
         }
@@ -2603,6 +2772,11 @@ impl GameState {
                 indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
             }
         };
+        // falling granular blocks render near-full-size with their own texture
+        for fb in &self.falling_blocks {
+            let tex = lf_assets::texture_index_for_block(fb.block.id());
+            push_cube(fb.position.x, fb.position.y, fb.position.z, 0.48, tex, &mut vertices, &mut indices);
+        }
         // mobs (white cubes tinted by hurt flash; unique colors arrive with P7 mobs art)
         for mob in &self.mobs {
             let size = mob.mob_type.stats().size;

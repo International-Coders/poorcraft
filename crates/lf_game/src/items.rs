@@ -106,6 +106,9 @@ pub fn items() -> &'static [ItemDef] {
         // food
         ItemDef { id: "apple", name: "Apple", kind: ItemKind::Food(4), max_stack: 64 },
         ItemDef { id: "porkchop", name: "Porkchop", kind: ItemKind::Food(8), max_stack: 64 },
+        // fluids
+        ItemDef { id: "bucket", name: "Bucket", kind: ItemKind::Material, max_stack: 1 },
+        ItemDef { id: "water_bucket", name: "Water Bucket", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "mutton", name: "Mutton", kind: ItemKind::Food(6), max_stack: 64 },
         ItemDef { id: "book", name: "Lore Book", kind: ItemKind::Material, max_stack: 16 },
         ItemDef { id: "bow", name: "Bow", kind: ItemKind::Tool(ToolKind::Bow, 1), max_stack: 1 },

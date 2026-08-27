@@ -486,6 +486,7 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "wooden_shovel", "stone_shovel", "iron_shovel",
     "wooden_sword", "stone_sword", "iron_sword",
     "apple", "porkchop", "mutton", "book", "bow", "arrow",
+    "bucket", "water_bucket",
     "bronze_chestplate", "steel_chestplate",
     "raw_copper", "copper_ingot", "raw_tin", "tin_ingot",
     "aluminum_ingot", "sulfur", "bronze_ingot", "steel_ingot",
@@ -758,6 +759,27 @@ const BOOK_ART: [&str; 16] = [
     "................",
 ];
 
+/// 'm' = metal wall, 'M' = highlight rim, 'd' = dark base/shadow,
+/// 'w'/'W' = water fill + sparkle (water_bucket only).
+const BUCKET_ART: [&str; 16] = [
+    "................",
+    "................",
+    "...M........M...",
+    "...mM......Mm...",
+    "...mMm....mMm...",
+    "....mMm..mMm....",
+    "....mMmmmmMm....",
+    "....mMwwwwMm....",
+    "....mMwWWwMm....",
+    "....mMwwwwMm....",
+    "....dMmmmmMd....",
+    ".....dddddd.....",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
 const CHESTPLATE_ART: [&str; 16] = [
     "................",
     "................",
@@ -1003,6 +1025,16 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
         "book" => paint_sprite(BOOK_ART, |c| match c {
             'c' => Rgba([120, 80, 45, 255]), 'C' => Rgba([152, 106, 62, 255]),
             'p' => Rgba([230, 225, 210, 255]), _ => Rgba([0, 0, 0, 0]),
+        }),
+        "bucket" => paint_sprite(BUCKET_ART, |c| match c {
+            'm' => Rgba([198, 198, 206, 255]), 'M' => Rgba([232, 232, 240, 255]),
+            'd' => Rgba([140, 140, 150, 255]), _ => Rgba([0, 0, 0, 0]),
+        }),
+        "water_bucket" => paint_sprite(BUCKET_ART, |c| match c {
+            'm' => Rgba([198, 198, 206, 255]), 'M' => Rgba([232, 232, 240, 255]),
+            'd' => Rgba([140, 140, 150, 255]),
+            'w' => Rgba([64, 120, 200, 255]), 'W' => Rgba([110, 170, 235, 255]),
+            _ => Rgba([0, 0, 0, 0]),
         }),
         "bronze_chestplate" | "steel_chestplate" => {
             let base = if item_id.starts_with("bronze") {

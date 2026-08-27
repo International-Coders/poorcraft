@@ -42,6 +42,11 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("iron_ingot")],
         vec![Some("torch")],
     ]));
+    // 3 iron ingots in a V -> bucket (scoop/place water sources)
+    book.push(r("bucket", 1, vec![
+        vec![Some("iron_ingot"), None, Some("iron_ingot")],
+        vec![None, Some("iron_ingot"), None],
+    ]));
     // pickaxes (3x3): material row + 2 sticks
     for (mat, out) in [("planks", "wooden_pickaxe"), ("stone", "stone_pickaxe")] {
         book.push(r(out, 1, vec![

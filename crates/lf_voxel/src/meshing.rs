@@ -31,6 +31,12 @@ pub struct MeshData {
     pub indices: Vec<u32>,
 }
 
+/// Surface height (0..1 within the cell) of a water block by flow level:
+/// sources fill the cell, each level step sinks the surface by 1/8.
+pub fn water_surface_height(block: BlockState) -> f32 {
+    1.0 - (crate::water_level(block) as f32) * 0.125
+}
+
 /// Simple culled face meshing for a voxel section. `tex_of` maps each block
 /// state + face to a texture atlas layer index (per-face materials); light is
 /// smoothed per vertex by averaging the four cells around each corner, and
@@ -147,26 +153,52 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                 let fz1 = fz + 1.0;
                 let cell = (x as i32, y as i32, z as i32);
                 let sway = if registry::is_leaf(block.id()) { 1.0 } else { 0.0 };
+                // Flowing water renders as a shortened column: the surface
+                // sinks with the flow level (source = full). Side faces
+                // against a taller water neighbor are drawn at full height
+                // so the level step does not show a slit.
+                let is_water = block.id() == crate::registry::block::WATER;
+                let wy1 = if is_water { fy + water_surface_height(block) } else { fy1 };
+                let my_level = crate::water_level(block);
                 // Faces render when the neighbor does not hide them (air,
-                // water, leaves). No faces between two water blocks.
+                // water, leaves). No faces between two water blocks of
+                // compatible heights.
                 let face_visible = |nb: BlockState| {
-                    if block.id() == crate::registry::block::WATER && nb.id() == crate::registry::block::WATER {
-                        return false;
+                    if is_water && nb.id() == crate::registry::block::WATER {
+                        // hidden only when the neighbor is at least as tall
+                        return crate::water_level(nb) > my_level;
                     }
                     !crate::registry::is_opaque(nb)
                 };
+                // Side-face top for water: full height when the neighbor is
+                // taller water (covers the step), else the surface height.
+                let side_top = |nb: BlockState| -> f32 {
+                    if is_water && nb.id() == crate::registry::block::WATER && crate::water_level(nb) <= my_level {
+                        fy1
+                    } else {
+                        wy1
+                    }
+                };
 
                 // -X face
-                if face_visible(get_block(x as i32 - 1, y as i32, z as i32)) {
-                    let corners = [[fx, fy, fz], [fx, fy1, fz], [fx, fy1, fz1], [fx, fy, fz1]];
-                    let (ao, light) = corner_shades(cell, [-1, 0, 0], &corners, [fx, fy, fz]);
-                    push_face(&mut vertices, &mut indices, corners, UVS_A, [-1.0, 0.0, 0.0], tex_of(block, Face::Side), ao, light, sway);
+                {
+                    let nb = get_block(x as i32 - 1, y as i32, z as i32);
+                    if face_visible(nb) {
+                        let t = side_top(nb);
+                        let corners = [[fx, fy, fz], [fx, t, fz], [fx, t, fz1], [fx, fy, fz1]];
+                        let (ao, light) = corner_shades(cell, [-1, 0, 0], &corners, [fx, fy, fz]);
+                        push_face(&mut vertices, &mut indices, corners, UVS_A, [-1.0, 0.0, 0.0], tex_of(block, Face::Side), ao, light, sway);
+                    }
                 }
                 // +X face
-                if face_visible(get_block(x as i32 + 1, y as i32, z as i32)) {
-                    let corners = [[fx1, fy, fz1], [fx1, fy1, fz1], [fx1, fy1, fz], [fx1, fy, fz]];
-                    let (ao, light) = corner_shades(cell, [1, 0, 0], &corners, [fx, fy, fz]);
-                    push_face(&mut vertices, &mut indices, corners, UVS_A, [1.0, 0.0, 0.0], tex_of(block, Face::Side), ao, light, sway);
+                {
+                    let nb = get_block(x as i32 + 1, y as i32, z as i32);
+                    if face_visible(nb) {
+                        let t = side_top(nb);
+                        let corners = [[fx1, fy, fz1], [fx1, t, fz1], [fx1, t, fz], [fx1, fy, fz]];
+                        let (ao, light) = corner_shades(cell, [1, 0, 0], &corners, [fx, fy, fz]);
+                        push_face(&mut vertices, &mut indices, corners, UVS_A, [1.0, 0.0, 0.0], tex_of(block, Face::Side), ao, light, sway);
+                    }
                 }
                 // -Y face (corners wound so the outward normal points down)
                 if face_visible(get_block(x as i32, y as i32 - 1, z as i32)) {
@@ -176,21 +208,29 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                 }
                 // +Y face
                 if face_visible(get_block(x as i32, y as i32 + 1, z as i32)) {
-                    let corners = [[fx, fy1, fz1], [fx, fy1, fz], [fx1, fy1, fz], [fx1, fy1, fz1]];
+                    let corners = [[fx, wy1, fz1], [fx, wy1, fz], [fx1, wy1, fz], [fx1, wy1, fz1]];
                     let (ao, light) = corner_shades(cell, [0, 1, 0], &corners, [fx, fy, fz]);
                     push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 1.0, 0.0], tex_of(block, Face::Top), ao, light, sway);
                 }
                 // -Z face
-                if face_visible(get_block(x as i32, y as i32, z as i32 - 1)) {
-                    let corners = [[fx1, fy, fz], [fx1, fy1, fz], [fx, fy1, fz], [fx, fy, fz]];
-                    let (ao, light) = corner_shades(cell, [0, 0, -1], &corners, [fx, fy, fz]);
-                    push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, -1.0], tex_of(block, Face::Side), ao, light, sway);
+                {
+                    let nb = get_block(x as i32, y as i32, z as i32 - 1);
+                    if face_visible(nb) {
+                        let t = side_top(nb);
+                        let corners = [[fx1, fy, fz], [fx1, t, fz], [fx, t, fz], [fx, fy, fz]];
+                        let (ao, light) = corner_shades(cell, [0, 0, -1], &corners, [fx, fy, fz]);
+                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, -1.0], tex_of(block, Face::Side), ao, light, sway);
+                    }
                 }
                 // +Z face
-                if face_visible(get_block(x as i32, y as i32, z as i32 + 1)) {
-                    let corners = [[fx, fy, fz1], [fx, fy1, fz1], [fx1, fy1, fz1], [fx1, fy, fz1]];
-                    let (ao, light) = corner_shades(cell, [0, 0, 1], &corners, [fx, fy, fz]);
-                    push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, 1.0], tex_of(block, Face::Side), ao, light, sway);
+                {
+                    let nb = get_block(x as i32, y as i32, z as i32 + 1);
+                    if face_visible(nb) {
+                        let t = side_top(nb);
+                        let corners = [[fx, fy, fz1], [fx, t, fz1], [fx1, t, fz1], [fx1, fy, fz1]];
+                        let (ao, light) = corner_shades(cell, [0, 0, 1], &corners, [fx, fy, fz]);
+                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, 1.0], tex_of(block, Face::Side), ao, light, sway);
+                    }
                 }
             }
         }
@@ -343,5 +383,23 @@ mod tests {
         s2.set(8, 8, 8, BlockState::STONE);
         let stone_mesh = mesh_section(&s2, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         assert!(stone_mesh.vertices.iter().all(|v| v.sway == 0.0), "stone vertices do not");
+    }
+
+    #[test]
+    fn flowing_water_renders_lower_than_sources() {
+        let mut s = VoxelSection::new_empty();
+        // floor under both cells so only the water surfaces matter
+        s.set(7, 7, 8, BlockState::STONE);
+        s.set(8, 7, 8, BlockState::STONE);
+        s.set(7, 8, 8, crate::water_with_level(0)); // source: full cell
+        s.set(8, 8, 8, crate::water_with_level(4)); // flowing: lowered
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let has_top_at = |y: f32, x: f32| -> bool {
+            mesh.vertices.iter()
+                .any(|v| v.normal[1] > 0.5 && v.position[0] == x && (v.position[1] - y).abs() < 1e-3)
+        };
+        assert!(has_top_at(9.0, 7.0), "source surface fills its cell (y=9)");
+        assert!(has_top_at(8.5, 9.0), "level-4 surface sits at 1-4/8 of the cell (y=8.5)");
+        assert!(!has_top_at(9.0, 9.0), "the flowing cell must NOT have a full-height surface");
     }
 }

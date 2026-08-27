@@ -257,3 +257,19 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       Guardian / Cinder Crawler; q4 Collected from furnace output/trade;
       multiplayer Welcome.seed + address entry; chronicle dead event
       types; dawn/dusk light ramp; F2 re-render includes water/crack
+
+## Fluids & block gravity (user request; P30 Steam-Age fluid groundwork landed early)
+- [x] granular blocks fall: registry::has_gravity (sand/red_sand/snow/dirt/
+      grass/moss/mycelium — ores deliberately excluded, MC rule); breaking
+      support detaches the column into animated FallingBlock entities that
+      land through the player edit path (remesh + MP broadcast); settle_
+      gravity is the headless twin (tests + vistest)
+- [x] water physics: level 0..7 flow states in BlockState flags; event-driven
+      cellular sim (fall first, spread with decay, dry up when unsupported);
+      flowing surfaces render lowered (stepped water) with step-covering
+      side faces; 64-cell tick budget; oceans/lakes are sources
+- [x] bucket + water_bucket (craftable from 3 iron; scoop a source /
+      pour a source) — first player tool for the fluid system
+- [x] vistest proofs: water_flow (aqueduct -> flume -> dam pooling,
+      settled through the real sim before meshing) and falling_sand
+      (collapsed pile + mid-air faller), 24 scenes total

@@ -194,6 +194,15 @@ pub fn is_targetable(b: BlockState) -> bool {
     b.id() != block::AIR && b.id() != block::WATER
 }
 
+/// Granular blocks that fall when the block under them is removed (they do
+/// not float). Ores are deliberately excluded — they are embedded in the
+/// stone matrix, not loose (same rule Minecraft uses for sand/gravel).
+pub fn has_gravity(id: u32) -> bool {
+    use block as b;
+    id == b::SAND || id == b::RED_SAND || id == b::SNOW
+        || id == b::DIRT || id == b::GRASS || id == b::MOSS || id == b::MYCELIUM
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
