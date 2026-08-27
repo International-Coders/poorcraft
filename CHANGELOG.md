@@ -627,3 +627,20 @@
 - STATUS.md rewritten to match verified reality (the old one claimed 121
   tests / 14 scenes / live-RT-deferred).
 - 178 tests green; 25/25 vistest scenes; runtimes rebuilt; pushed.
+
+## Loop 312 — audio engine + impact shake + FOV/transparency/perf proofs
+- lf_audio crate (rodio): procedural break/place sounds per material
+  category with silent fallback; wired into real break/place; sliders now
+  actually drive playback (the settings label no longer says "when it
+  lands"). 4 dispatch/synth tests. CI ubuntu installs alsa headers.
+- Step 3 impact pulse: short decaying screen shake on heavy breaks
+  (envelope tested), applied to the camera target only.
+- Step 7: FOV reference test at 90/60 degrees guards the double-radians
+  bug class on the raster path.
+- Step 8: transparency_layers scene (water behind glass, particles both
+  sides) — AI-verified correct layering.
+- Step 9: headless.rs refactored into a persistent HeadlessRenderer (the
+  naive perf loop measured 774ms of per-frame SETUP); xtask perf + make
+  perf at Medium radius-5: p50 111 / p95 156 / min 77 ms incl. readback +
+  PNG encode; DECISIONS names this host's iGPU as the low-end target.
+- 184 tests green; 26/26 vistest scenes; runtimes rebuilt; pushed.

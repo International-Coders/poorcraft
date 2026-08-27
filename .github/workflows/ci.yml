@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Vulkan drivers
-        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libasound2-dev
       - name: Build and test
         run: cargo test --workspace
 
@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install alsa headers (rodio/cpal build dep)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - name: Build all
         run: cargo build --workspace --release
 
@@ -28,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Vulkan drivers (lavapipe software rendering)
-        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libasound2-dev
       - name: Render all scenes headless (real render to PNG)
         run: cargo run --release -p xtask -- vistest shots
       - name: Upload rendered proofs
@@ -44,9 +46,9 @@ jobs:
         os: [ubuntu-22.04, macos-14, windows-latest]
     steps:
       - uses: actions/checkout@v4
-      - name: Install zip (linux)
+      - name: Install zip + alsa (linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y zip
+        run: sudo apt-get update && sudo apt-get install -y zip libasound2-dev
       - name: Package
         run: cargo run --release -p xtask -- package
       - name: Upload artifact

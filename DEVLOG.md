@@ -480,3 +480,23 @@ biome-grade GPU proof, smoke_test pipeline, tiling mesh proof); vistest
 25/25 [ok] (new scene texture_tiling; hud_preview shows the radial
 reticle); texture_tiling + grade frames AI-verified (per-block tiling;
 hue/sat shift). Runtimes rebuilt; pushed to github.
+
+### 2026-08-27 — Loop 312: audio engine + impact shake + FOV/transparency/perf proofs
+**WHAT**: The build-pack's remaining destruction-feel items: real audio
+(Step 4), the impact pulse (Step 3), the FOV reference test (Step 7), the
+transparency layering proof (Step 8), and the frame-time benchmark with a
+named low-end target (Step 9).
+**HOW**: crates/lf_audio (rodio; synth = decaying tone + LP-filtered LCG
+noise per category; Audio::new silent fallback; scaled() volume math);
+client play_block_sound on break/place + break_impulse/shake_decay/
+shake_offset camera-target jitter; lf_engine camera reference test;
+lf_vistest transparency_layers scene (worldgen pool+glass, post-mesh
+billboards); headless.rs persistent HeadlessRenderer + lf_vistest::bench +
+xtask/make perf; ci.yml +libasound2-dev (test/build/vistest/release).
+**VERIFICATION**: 184 tests / 0 failed (new: 4 audio, screen_shake_
+envelope, projection reference); vistest 26/26 [ok]; transparency proof
+AI-verified (water through glass, near particles over pane, far ones
+through it); perf at Medium radius-5 p50 111 / p95 156 / min 77 ms (incl.
+readback+PNG overhead — live confirmation via F3 pending next session).
+User's game session still running — no smoke pkill. Runtimes rebuilt;
+pushed.

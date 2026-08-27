@@ -697,6 +697,10 @@ struct GameState {
     /// player stands in — hard cuts read as bugs).
     pub grade_tint: [f32; 3],
     pub grade_sat: f32,
+    /// Procedural sound player (None = no output device: silent fallback).
+    pub audio: Option<lf_audio::Audio>,
+    /// Screen-shake amplitude (impact pulse on heavy breaks), decays fast.
+    pub shake: f32,
     pub forge: lf_game::smithing::ForgeMinigame,
     pub research: ResearchState,
     pub xp_level: u32,
@@ -952,6 +956,8 @@ impl GameState {
             fluid_queued: HashSet::new(),
             grade_tint: [1.0, 1.0, 1.0],
             grade_sat: 1.0,
+            audio: lf_audio::Audio::new(),
+            shake: 0.0,
             forge: lf_game::smithing::ForgeMinigame::new(3),
             xp_level: 0,
             xp_progress: 0,
@@ -1650,6 +1656,8 @@ impl GameState {
                         self.mining = None;
                         if self.world.set_block(pos.x, pos.y, pos.z, BlockState::AIR).is_some() {
                             self.break_block_drops(block_id, pos);
+                            self.play_block_sound(block_id, lf_audio::Action::Break);
+                            self.break_impulse(block_id);
                             if self.settings.particles {
                                 self.spawn_break_particles(block_id, (pos.x, pos.y, pos.z), 16);
                             }
@@ -1818,6 +1826,7 @@ impl GameState {
                                         // a placed block can dam water or
                                         // catch a floating granular column
                                         self.after_edit(place.x, place.y, place.z);
+                                        self.play_block_sound(b, lf_audio::Action::Place);
                                         self.consume_selected(1);
                                     }
                                 }
@@ -1853,6 +1862,8 @@ impl GameState {
             }
             self.grade_sat += (sat_t - self.grade_sat) * k;
         }
+        // impact-pulse decay (Step 3)
+        self.shake = shake_decay(self.shake, dt);
         // Sky bodies every frame (they rotate); clouds drift (rebuild 2/s).
         let eye = self.player.eye_position();
         let (sv, si) = lf_engine::atmosphere::sky_bodies(eye, self.time.fraction());
@@ -2246,6 +2257,23 @@ impl GameState {
         }
     }
 
+    /// Procedural one-shot for block edits (Step 4): category from the
+    /// block family, volume from the persisted sliders. Silent when no
+    /// output device exists.
+    fn play_block_sound(&mut self, block_id: u32, action: lf_audio::Action) {
+        let volume = self.settings.volume_master * self.settings.volume_sfx;
+        if let Some(a) = &mut self.audio {
+            a.play(lf_audio::block_category(block_id), action, volume);
+        }
+    }
+
+    /// Impact pulse for heavy breaks (Step 3): a short camera shake scaled
+    /// by block hardness and tool weight.
+    fn break_impulse(&mut self, block_id: u32) {
+        let amp = break_shake(lf_game::mining::hardness(block_id), held_tool_tier(self));
+        self.shake = (self.shake + amp).min(0.6);
+    }
+
     /// Water/gravity aftermath of any block edit (player or simulation):
     /// wake the water around the cell and drop any granular block that
     /// just lost its support.
@@ -2590,6 +2618,13 @@ impl GameState {
         let mut camera = Camera::new(self.player.eye_position(), self.player.eye_position() + self.player.look_dir());
         camera.set_aspect(self.config.width, self.config.height);
         camera.fovy = self.settings.fov_degrees.to_radians();
+        // impact pulse: jitter the look target only, never the player state
+        let (sr, su) = shake_offset(self.shake, self.frame as u64);
+        if sr != 0.0 || su != 0.0 {
+            let look = self.player.look_dir();
+            let right = Vec3::new(-look.z, 0.0, look.x).normalize();
+            camera.target += right * sr + Vec3::new(0.0, su, 0.0);
+        }
         camera
     }
 
@@ -3070,6 +3105,39 @@ fn title_eye_y(spawn_y: f32, ground_at_eye: i32) -> f32 {
     (spawn_y + 14.0).max(ground_at_eye as f32 + 6.0)
 }
 
+/// Screen-shake helpers (Step 3 impact pulse): heavy blocks broken with
+/// heavy tools kick the camera a little; the amplitude decays fast so it
+/// reads as an impact, not a wobble.
+pub fn break_shake(block_hardness: f32, tool_tier: u8) -> f32 {
+    ((block_hardness * 0.05) * (1.0 + tool_tier as f32 * 0.35)).min(0.35)
+}
+
+fn held_tool_tier(state: &GameState) -> u8 {
+    state.inventory.slots[state.hotbar_index].as_ref()
+        .and_then(|s| item_def(&s.item_id))
+        .map(|d| match d.kind {
+            ItemKind::Tool(_, tier) => tier,
+            _ => 0,
+        })
+        .unwrap_or(0)
+}
+
+pub fn shake_decay(shake: f32, dt: f32) -> f32 {
+    shake * (-dt * 8.0).exp()
+}
+
+/// Deterministic shake direction offset (right, up) in blocks for a frame.
+pub fn shake_offset(shake: f32, frame: u64) -> (f32, f32) {
+    if shake <= 0.01 {
+        return (0.0, 0.0);
+    }
+    let t = frame as f32;
+    (
+        (t * 2.7).sin() * shake * 0.09,
+        (t * 4.3).sin() * shake * 0.06,
+    )
+}
+
 /// Per-biome color grade (goal Section 3): (tint multiply per channel,
 /// saturation). The film-grade layer on top of per-block palettes and fog —
 /// hot/dry pushes warm amber, cold pushes cool blue and desaturates,
@@ -3298,6 +3366,23 @@ mod tests {
         assert_eq!(title_eye_y(105.0, 128), 134.0, "hill on the ring lifts the eye");
         assert_eq!(title_eye_y(105.0, 90), 119.0, "low terrain keeps the classic offset");
         assert_eq!(title_eye_y(105.0, 0), 119.0, "unloaded column (surface 0) keeps the classic offset");
+    }
+
+    /// Step 3 impact pulse: heavier blocks + heavier tools shake more, the
+    /// shake decays to nothing, and the camera offset stays tiny (an impact,
+    /// not a wobble) and zeroes below the noise floor.
+    #[test]
+    fn screen_shake_envelope() {
+        assert!(break_shake(4.5, 2) > break_shake(1.5, 0), "harder block + heavier tool shakes more");
+        assert!(break_shake(99.0, 5) <= 0.35, "capped");
+        let mut s = 0.3f32;
+        for _ in 0..30 {
+            s = shake_decay(s, 1.0 / 60.0);
+        }
+        assert!(s < 0.01, "half a second of decay kills the shake, got {s}");
+        assert_eq!(shake_offset(0.0, 42).0, 0.0);
+        let (r, u) = shake_offset(0.35, 7);
+        assert!(r.abs() <= 0.09 * 0.35 * 1.01 && u.abs() <= 0.06 * 0.35 * 1.01, "offsets scale with amplitude");
     }
 
     #[test]

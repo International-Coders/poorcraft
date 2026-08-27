@@ -1452,7 +1452,7 @@ impl GameState {
         kit::setting_slider(ui, "SFX volume", &mut s.volume_sfx, (0.0, 1.0), &|v| format!("{:.0}%", v * 100.0));
         kit::setting_slider(ui, "Music volume", &mut s.volume_music, (0.0, 1.0), &|v| format!("{:.0}%", v * 100.0));
         ui.add_space(8.0);
-        ui.label(egui::RichText::new("volumes persist now; the audio engine consumes them when it lands (BACKLOG)")
+        ui.label(egui::RichText::new("drives the procedural break/place sound engine live")
             .small().color(Theme::TEXT_DIM));
     }
 

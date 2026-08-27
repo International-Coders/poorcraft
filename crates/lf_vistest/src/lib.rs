@@ -347,6 +347,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             eye: Vec3::ZERO, // framed straight at the wall in run_scene
             target: Vec3::ZERO,
         },
+        SceneSpec {
+            name: "transparency_layers",
+            desc: "water pool behind a glass wall with particles on both sides: transparent pass layering, pixel-checked",
+            default_seed: 12345,
+            time_of_day: 0.45,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed straight at the stack in run_scene
+            target: Vec3::ZERO,
+        },
     ]
 }
 
@@ -429,6 +441,36 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         for x in -3..=3 {
             for y in h..h + 4 {
                 world.set_block(x, y, 0, lf_voxel::BlockState(block::PLANKS));
+            }
+        }
+    }
+
+    // transparency_layers (Step 8): a water pool BEHIND a glass wall, with
+    // debris billboards on both sides of the glass — water must be visible
+    // through the pane, and the near particle must render over the glass
+    // while the far one shows through it.
+    if spec.name == "transparency_layers" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -5..5 {
+            for z in -4..8 {
+                for y in h..h + 8 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // water pool (sources) at z 0..=3, x -2..=2, two deep
+        for z in 0..=3 {
+            for x in -2..=2 {
+                world.set_block(x, h, z, lf_voxel::water_with_level(0));
+                world.set_block(x, h + 1, z, lf_voxel::water_with_level(0));
+            }
+        }
+        // glass wall at z = 5, three tall
+        for x in -3..=3 {
+            for y in h..h + 3 {
+                world.set_block(x, y, 5, lf_voxel::BlockState(block::GLASS));
             }
         }
     }
@@ -612,6 +654,40 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
             push_quad(&mut vertices, &mut indices, corners, uvs, normal, sand_tex);
         }
     }
+    // transparency_layers: debris billboards on both sides of the glass —
+    // the near pair must render over the pane, the far pair through it
+    if spec.name == "transparency_layers" {
+        let h = world.surface_height(0, 0) as f32;
+        let stone_tex = lf_assets::texture_index_for_block(lf_voxel::registry::block::STONE);
+        let plank_tex = lf_assets::texture_index_for_block(lf_voxel::registry::block::PLANKS);
+        let push_billboard = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                              center: Vec3, half: f32, tex: u32| {
+            let base = vertices.len() as u32;
+            let corners = [
+                [center.x - half, center.y - half, center.z],
+                [center.x - half, center.y + half, center.z],
+                [center.x + half, center.y + half, center.z],
+                [center.x + half, center.y - half, center.z],
+            ];
+            for (c, uv) in corners.iter().zip([[0.0f32, 0.25], [0.0, 0.0], [0.25, 0.0], [0.25, 0.25]]) {
+                vertices.push(GpuVertex {
+                    position: *c,
+                    normal: [0.0, 0.0, 1.0],
+                    tex_coord: uv,
+                    tex_index: tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        };
+        // in front of the glass (z = 6.4) and behind it over the water (z = 3.6)
+        push_billboard(&mut vertices, &mut indices, Vec3::new(-0.6, h + 2.4, 6.4), 0.22, plank_tex);
+        push_billboard(&mut vertices, &mut indices, Vec3::new(0.9, h + 1.6, 6.4), 0.16, stone_tex);
+        push_billboard(&mut vertices, &mut indices, Vec3::new(-0.9, h + 1.9, 3.6), 0.18, plank_tex);
+        push_billboard(&mut vertices, &mut indices, Vec3::new(0.7, h + 2.6, 3.6), 0.2, stone_tex);
+    }
     (vertices, indices, water_vertices, water_indices)
 }
 
@@ -646,6 +722,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "texture_tiling" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.6, 9.5), Vec3::new(0.5, h + 1.5, 0.0))
+    } else if spec.name == "transparency_layers" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.5, h + 2.2, 10.5), Vec3::new(0.0, h + 1.2, 2.0))
     } else if spec.first_person {
         // Find a viewpoint with an open vista: a local rise whose best look
         // direction drops the most over 30 blocks, so the frame shows both
@@ -1573,6 +1652,62 @@ fn draw_console_preview(ctx: &egui::Context) {
 }
 
 const ACCENT_DIM_COL: egui::Color32 = egui::Color32::from_rgb(120, 96, 52);
+
+/// Frame-time benchmark (goal Section 5 / Step 9): build a scene once,
+/// create the persistent headless renderer once (device + atlas), then
+/// time N renders — each render re-uploads the mesh like a live re-mesh
+/// and includes GPU + readback + PNG encode, so it is an upper bound on
+/// present-only frame cost (caveat recorded in DECISIONS.md).
+pub struct BenchStats {
+    pub p50_ms: f32,
+    pub p95_ms: f32,
+    pub min_ms: f32,
+}
+
+pub fn bench(scene_name: &str, n: usize) -> Result<BenchStats, String> {
+    let spec = scenes().into_iter().find(|s| s.name == scene_name)
+        .ok_or_else(|| format!("unknown scene '{}'", scene_name))?;
+    if spec.raytraced {
+        return Err("bench renders through the raster path; pick a non-RT scene".into());
+    }
+    // Medium quality = view distance 5, so bench a radius-5 plot
+    let (v, i, wv, wi) = build_scene_mesh(&spec, spec.default_seed, 5, spec.torches, spec.machines);
+    if v.is_empty() {
+        return Err(format!("scene '{}' produced an empty mesh", scene_name));
+    }
+    let gen = WorldGen::new(Seed(spec.default_seed));
+    let h_eye = gen.surface_top(spec.eye.x as i32, spec.eye.z as i32);
+    let h_target = gen.surface_top(spec.target.x as i32, spec.target.z as i32);
+    let eye = Vec3::new(spec.eye.x, spec.eye.y.max(h_eye as f32 + 22.0), spec.eye.z);
+    let target = Vec3::new(spec.target.x, h_target as f32 + 2.0, spec.target.z);
+    let mut camera = Camera::new(eye, target);
+    camera.set_aspect(800, 600);
+    let env = lf_engine::scene::Env {
+        camera_pos: eye,
+        time: 0.8,
+        day_factor: spec.day_factor(),
+        fog_color: spec.time_of_day().sky_color(),
+        fog_far: 220.0,
+        grade_tint: [1.0, 1.0, 1.0],
+        grade_saturation: 1.0,
+    };
+    let textures = lf_assets::generate_atlas();
+    let renderer = lf_engine::headless::HeadlessRenderer::new(800, 600, &textures)?;
+    let out = std::env::temp_dir().join("lf_perf_frame.png");
+    let mut times_ms: Vec<f32> = Vec::with_capacity(n);
+    for k in 0..n {
+        let t = std::time::Instant::now();
+        renderer.render(&v, &i, &wv, &wi, &camera, &env, spec.sky_color(), &out, None)?;
+        if k > 0 {
+            times_ms.push(t.elapsed().as_secs_f32() * 1000.0); // first frame pays warmup
+        }
+    }
+    times_ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let p50 = times_ms[times_ms.len() / 2];
+    let p95 = times_ms[((times_ms.len() as f32 * 0.95) as usize).min(times_ms.len() - 1)];
+    let min = times_ms[0];
+    Ok(BenchStats { p50_ms: p50, p95_ms: p95, min_ms: min })
+}
 
 #[cfg(test)]
 mod tests {

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/lf_audio",
     "crates/lf_engine",
     "crates/lf_voxel",
     "crates/lf_worldgen",
@@ -34,6 +35,7 @@ rust-version = "1.82"
 # quinn, mlua, wasmtime, kira, reqwest, puffin, tokio, proptest, insta,
 # rayon, postcard, ron.)
 [workspace.dependencies]
+lf_audio = { path = "crates/lf_audio" }
 # Windowing & graphics (version-locked trio: wgpu 24 / winit 0.30 / egui 0.31)
 winit = "0.30"
 wgpu = "24.0"

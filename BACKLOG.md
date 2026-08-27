@@ -296,3 +296,27 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [x] S5 spot: Live RT decision + greedy-mesh UV precondition in DECISIONS
 - [x] STATUS.md rewritten to match verified reality (was stale: 121 tests/
       14 scenes/live-RT-deferred)
+
+## Loop 312 — build-pack Step 3 remainder, Step 4 (audio), Step 7, Step 8, Step 9
+- [x] Step 4 AUDIO: new lf_audio crate — procedural PCM one-shots (no
+      asset files) per material category (wood/stone/metal/glass/soft),
+      break + place variants, rodio playback with silent fallback when no
+      output device, 30ms rate limit, driven by the persisted volume
+      sliders; client plays on every real break/place; category dispatch
+      unit-tested (block_categories_dispatch_correctly etc., 4 tests);
+      CI ubuntu jobs install libasound2-dev
+- [x] Step 3 remainder: impact pulse — heavy blocks with heavy tools kick
+      a short decaying camera shake (break_shake/shake_decay/shake_offset,
+      envelope unit-tested; jitters the look target only)
+- [x] Step 7: FOV-to-projection verified against hand-computed reference
+      values at fov 90 and 60 (projection_matches_reference_values_at_two_
+      fovs in lf_engine) — the double-to_radians class is guarded on the
+      raster path now
+- [x] Step 8: transparency_layers proof scene — water pool behind a glass
+      wall with particles on both sides; AI-verified layering (water
+      through glass, near particles over the pane, far ones through it)
+- [x] Step 9: persistent HeadlessRenderer refactor (device+atlas once —
+      the first perf run measured setup, not frames), xtask perf + make
+      perf, Medium(radius-5) numbers recorded in DECISIONS (target device
+      = this host's iGPU); live >=30fps confirmation pending next play
+      session's F3 reading

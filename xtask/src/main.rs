@@ -99,10 +99,29 @@ fn main() {
                 .unwrap_or(false);
             println!("packaged {} -> {}", out_dir.display(), if ok { zip_name } else { "(zip tool missing; directory only)".to_string() });
         }
+        "perf" => {
+            // Frame-time benchmark (goal Section 5 / Step 9): persistent
+            // renderer, scene built once — measures per-frame cost (mesh
+            // upload + GPU + readback + PNG encode), not setup. Caveat
+            // recorded in DECISIONS.md.
+            let scene = args.get(2).map(String::as_str).unwrap_or("terrain_vista");
+            let n: usize = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(30);
+            match lf_vistest::bench(scene, n) {
+                Ok(b) => println!(
+                    "perf {} x{} (warm): p50 {:.1} ms  p95 {:.1} ms  min {:.1} ms  (=> ~{:.0} fps at p50)",
+                    scene, n - 1, b.p50_ms, b.p95_ms, b.min_ms, 1000.0 / b.p50_ms.max(0.001)
+                ),
+                Err(e) => {
+                    eprintln!("perf failed: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         _ => {
             println!("LOREFORGE xtask automation");
             println!("  cargo xtask vistest [out-dir]       render all scenes to PNGs");
             println!("  cargo xtask screenshot <scene> [out] [seed]  render one scene");
+            println!("  cargo xtask perf [scene] [n]        frame-time benchmark (p50/p95)");
             println!("  cargo xtask package                build release artifacts (P11)");
         }
     }

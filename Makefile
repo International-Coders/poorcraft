@@ -27,6 +27,9 @@ smoke: ## Launch the game in the background for ~12s and verify it stays up
 	if pgrep -f target/release/loreforge > /dev/null; then echo "SMOKE OK"; else echo "SMOKE FAIL"; exit 1; fi; \
 	pkill -f target/release/loreforge || true
 
+perf: ## Frame-time benchmark (p50/p95) of a representative scene
+	cargo run --release -p xtask -- perf terrain_vista 30
+
 vistest: ## Render every proof scene into shots/
 	cargo run --release -p xtask -- vistest shots
 
