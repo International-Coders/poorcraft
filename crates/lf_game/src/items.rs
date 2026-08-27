@@ -109,6 +109,10 @@ pub fn items() -> &'static [ItemDef] {
         // fluids
         ItemDef { id: "water_wheel", name: "Water Wheel", kind: ItemKind::Block(block::WATER_WHEEL), max_stack: 1 },
         ItemDef { id: "battery", name: "Battery", kind: ItemKind::Block(block::BATTERY), max_stack: 1 },
+        // lore tomes (Step 20): readable via lore/books.toml
+        ItemDef { id: "tome_of_the_forge", name: "Tome of the First Forge", kind: ItemKind::Material, max_stack: 1 },
+        ItemDef { id: "tome_of_the_null", name: "Tome of the Null", kind: ItemKind::Material, max_stack: 1 },
+        ItemDef { id: "wardens_ledger", name: "The River Wardens' Ledger", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "pipe", name: "Pipe", kind: ItemKind::Block(block::PIPE), max_stack: 16 },
         ItemDef { id: "boiler", name: "Boiler", kind: ItemKind::Block(block::BOILER), max_stack: 1 },
         ItemDef { id: "steam_engine", name: "Steam Engine", kind: ItemKind::Block(block::STEAM_ENGINE), max_stack: 1 },

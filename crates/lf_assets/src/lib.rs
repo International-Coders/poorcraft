@@ -659,6 +659,7 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "wooden_sword", "stone_sword", "iron_sword",
     "apple", "porkchop", "mutton", "book", "bow", "arrow",
     "bucket", "water_bucket",
+    "tome_of_the_forge", "tome_of_the_null", "wardens_ledger",
     "bronze_chestplate", "steel_chestplate",
     "raw_copper", "copper_ingot", "raw_tin", "tin_ingot",
     "aluminum_ingot", "sulfur", "bronze_ingot", "steel_ingot",
@@ -918,8 +919,8 @@ const BOOK_ART: [&str; 16] = [
     "................",
     "..cccccccccc....",
     "..cCCCCCCCCc....",
-    "..cCCCCCCCCc....",
-    "..cCCCCCCCCc....",
+    "..cCCggCCgCc....",
+    "..cCCggCCgCc....",
     "..cCCCCCCCCc....",
     "..cCCCCCCCCc....",
     "..cccccccccc....",
@@ -1193,6 +1194,21 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
         "mutton" => paint_sprite(MEAT_ART, |c| match c {
             'p' => Rgba([190, 90, 80, 255]), 'P' => Rgba([222, 130, 110, 255]),
             'b' => Rgba([235, 225, 210, 255]), _ => Rgba([0, 0, 0, 0]),
+        }),
+        "tome_of_the_forge" => paint_sprite(BOOK_ART, |c| match c {
+            'c' => Rgba([110, 60, 30, 255]), 'C' => Rgba([150, 96, 50, 255]),
+            'p' => Rgba([240, 190, 110, 255]), 'g' => Rgba([250, 150, 60, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "tome_of_the_null" => paint_sprite(BOOK_ART, |c| match c {
+            'c' => Rgba([40, 40, 52, 255]), 'C' => Rgba([70, 70, 90, 255]),
+            'p' => Rgba([150, 150, 170, 255]), 'g' => Rgba([120, 220, 235, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "wardens_ledger" => paint_sprite(BOOK_ART, |c| match c {
+            'c' => Rgba([50, 70, 90, 255]), 'C' => Rgba([80, 110, 135, 255]),
+            'p' => Rgba([210, 225, 235, 255]), 'g' => Rgba([90, 170, 240, 255]),
+            _ => Rgba([0, 0, 0, 0]),
         }),
         "book" => paint_sprite(BOOK_ART, |c| match c {
             'c' => Rgba([120, 80, 45, 255]), 'C' => Rgba([152, 106, 62, 255]),

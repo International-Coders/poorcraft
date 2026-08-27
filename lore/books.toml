@@ -1,0 +1,34 @@
+# Lore books (build-pack Step 20): in-game readable tomes. Loaded by the
+# client at boot; each tome is an item right-clicked to read, and the
+# Lorekeeper villager trades them. The named anchors here (The Smith, the
+# Null, the river wardens) are the same ones the chronicle and quests use.
+
+[[books]]
+id = "tome_of_the_forge"
+title = "Tome of the First Forge"
+item = "tome_of_the_forge"
+pages = [
+    "Before there was a village, before there was even a road, there was a smith who came down from the highlands with a hammer and no name. The people she met called her only The Smith, and the name stayed.",
+    "The Smith taught the first families to pull iron from the red hills and to ask the river to turn their wheels. 'A machine is a promise,' she said. 'Feed it, mind it, and it will keep your children fed. Neglect it and it will keep nothing.'",
+    "When The Smith died, her tools were scattered among the settlements. The chronicle you carry is written in her tradition: the world remembers what you build and what you break.",
+]
+
+[[books]]
+id = "tome_of_the_null"
+title = "Tome of the Null"
+item = "tome_of_the_null"
+pages = [
+    "The glitches came in the winter the watchers failed. Creatures of borrowed shape — Glitchlings, Stalkers, Crawlers — they walk our nights and dissolve into dust that will not burn.",
+    "Their master is the Null Knight: a suit of iron with nothing inside. It stands where the old road forked and it does not age. Those who defeat it carry a null shard, cold to the touch, that the traders prize strangely.",
+    "The Lorekeepers write that the Null is not an army but a wound — a place where the world's story was cut. What was cut out, no book in this valley can say.",
+]
+
+[[books]]
+id = "wardens_ledger"
+title = "The River Wardens' Ledger"
+item = "wardens_ledger"
+pages = [
+    "Ledger of the River Wardens, keepers of the mills. Entry the first: the wheel turns so long as the water does. Mind the spring floods; a wheel torn loose is a week of cold bread.",
+    "Entry the ninth: the new boilers hiss like cats. The engineers swear by them, but an old warden notes in the margin — fire and water married make a strong servant and a bad master.",
+    "Last entry, unsigned: the wardens are gone and the wheels stand still. Whoever reads this, the river still turns. That is all a warden ever was."
+]

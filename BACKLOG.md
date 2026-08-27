@@ -420,3 +420,25 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       through the real machine code) -> engine -> crusher with live puffs;
       AI-verified as a working boiler room (caught + fixed an infinite
       feed loop in the scene itself during rendering)
+
+## Loop 317 — P28 chunk-border lighting + Step 20 lore books
+- [x] P28/Step 6 CROSS-COLUMN LIGHTING: compute_column_light now floods
+      sky+block light through a 3x3-column volume (48x256x48) and extracts
+      the center slice — the P3 "seams accepted" decision is superseded
+      (DECISIONS updated); edit invalidation widened to the full 3x3 column
+      neighborhood (light travels 15 blocks). Regression:
+      torch_light_crosses_chunk_borders (neighbor column gets 13 at the
+      border). Proof: night_border_seam scene — torch straddling a border
+      at night, measured max adjacent-column brightness step 1.92 (a seam
+      would cliff >8). perf bench after the change: p50 47.7ms incl.
+      readback+PNG at Medium radius-5 — no regression.
+- [x] Step 20 LORE BOOKS: lore/books.toml with three real tomes (Tome of
+      the First Forge / Tome of the Null / The River Wardens' Ledger —
+      anchored to the existing Smith + Null + river lore threads);
+      lf_client::lore loads them at boot; right-click a tome to page
+      through an on-kit reader (prev/next, page x of y); tomes are
+      Lorekeeper trades; pixel-art icons with a cover gem. Test:
+      lore_books_load_from_the_real_file (3 tomes, pages >40 chars,
+      item mapping, lore anchors present). Proof: lore_book scene reading
+      the REAL file — AI-verified finished reader with readable story
+      text.

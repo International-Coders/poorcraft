@@ -1293,6 +1293,7 @@ dependencies = [
  "pollster",
  "serde",
  "tempfile",
+ "toml",
  "tracing",
  "tracing-subscriber",
  "wgpu",
@@ -1392,6 +1393,8 @@ dependencies = [
  "lf_game",
  "lf_voxel",
  "lf_worldgen",
+ "serde",
+ "toml",
 ]
 
 [[package]]

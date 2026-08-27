@@ -69,6 +69,10 @@ pub fn trade_offers(job: VillagerJob) -> &'static [(&'static str, u8, &'static s
         VillagerJob::Lorekeeper => &[
             ("book", 1, "iron_ingot", 2),
             ("null_shard", 1, "iron_sword", 1),
+            // lore tomes (Step 20): the Lorekeeper keeps the valley's books
+            ("tome_of_the_forge", 1, "iron_ingot", 4),
+            ("tome_of_the_null", 1, "null_shard", 1),
+            ("wardens_ledger", 1, "iron_ingot", 6),
         ],
     }
 }

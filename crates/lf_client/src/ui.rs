@@ -430,6 +430,7 @@ impl GameState {
             UiOpen::Chest(pos) => self.draw_chest(ctx, pos),
             UiOpen::Trade(index) => self.draw_trade(ctx, index),
             UiOpen::Book => self.draw_book(ctx),
+            UiOpen::LoreBook => self.draw_lore_book(ctx),
             UiOpen::Smithing => self.draw_smithing(ctx),
             UiOpen::Machine(pos) => self.draw_machine(ctx, pos),
             UiOpen::TechTree => self.draw_tech_tree(ctx),
@@ -1587,6 +1588,60 @@ impl GameState {
                         let md = lf_chronicle::SagaGenerator::export_markdown(&self.chronicle);
                         ui.label(egui::RichText::new(md).monospace().small());
                     }
+                });
+            });
+    }
+
+    /// Step 20: the lore tome reader — paginated, on-kit, real text from
+    /// lore/books.toml.
+    fn draw_lore_book(&mut self, ctx: &egui::Context) {
+        let title = self.open_lore_title.clone().unwrap_or_default();
+        let Some(book) = self.lore.books.iter().position(|b| b.title == title) else {
+            self.ui_open = UiOpen::None;
+            return;
+        };
+        let (book_title, page_count, current_page) = {
+            let book = &self.lore.books[book];
+            (book.title.clone(), book.pages.len(), book.pages[self.open_lore_page.min(book.pages.len().saturating_sub(1))].clone())
+        };
+        let page = self.open_lore_page.min(page_count.saturating_sub(1));
+        let t = self.menu_reveal;
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(140)))
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.add_space(30.0);
+                    kit::slide_panel(ui, (t / 0.5).clamp(0.0, 1.0), |ui| {
+                        ui.set_width(460.0);
+                        ui.vertical(|ui| {
+                            ui.add_space(10.0);
+                            ui.label(egui::RichText::new(&book_title).size(22.0).color(Theme::ACCENT));
+                            ui.label(egui::RichText::new(format!("page {} of {}", page + 1, page_count))
+                                .small().color(Theme::TEXT_DIM));
+                            ui.separator();
+                            ui.add_space(8.0);
+                            ui.label(egui::RichText::new(current_page)
+                                .size(15.0).color(Theme::TEXT));
+                            ui.add_space(10.0);
+                            ui.horizontal(|ui| {
+                                let prev_enabled = page > 0;
+                                let next_enabled = page + 1 < page_count;
+                                if ui.add_enabled(prev_enabled, egui::Button::new("< prev")).clicked() {
+                                    self.open_lore_page = page - 1;
+                                }
+                                if ui.add_enabled(next_enabled, egui::Button::new("next >")).clicked() {
+                                    self.open_lore_page = page + 1;
+                                }
+                                if kit::menu_button(ui, "Close", 1.0, true) {
+                                    self.ui_open = UiOpen::None;
+                                    if self.stats.health > 0.0 {
+                                        self.lock_cursor();
+                                    }
+                                }
+                            });
+                            ui.add_space(10.0);
+                        });
+                    });
                 });
             });
     }

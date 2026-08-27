@@ -420,6 +420,30 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "night_border_seam",
+            desc: "torch light crossing a chunk border at night — no seam (P28 cross-column lighting)",
+            default_seed: 12345,
+            time_of_day: 0.97,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the border in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "lore_book",
+            desc: "open lore tome with real text from lore/books.toml, paginated reader (Step 20)",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "transparency_layers",
             desc: "water pool behind a glass wall with particles on both sides: transparent pass layering, pixel-checked",
             default_seed: 12345,
@@ -677,6 +701,23 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
             let steam_in = boiler.draw_steam(lf_game::machines::STEAM_ENGINE_INTAKE * dt * 2.0);
             engine.tick(dt, steam_in);
         }
+    }
+
+    // night_border_seam (P28): a torch at x=15 — the chunk border runs at
+    // x=16 — and the light must fall off smoothly across it.
+    if spec.name == "night_border_seam" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -8..24 {
+            for z in -6..6 {
+                for y in h..h + 12 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // the seam-straddling torch, one block west of the border
+        world.set_block(15, h, 0, lf_voxel::BlockState(block::TORCH));
     }
 
     // transparency_layers (Step 8): a water pool BEHIND a glass wall, with
@@ -1054,6 +1095,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "transparency_layers" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.2, 10.5), Vec3::new(0.0, h + 1.2, 2.0))
+    } else if spec.name == "night_border_seam" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(16.0, h + 1.7, 12.0), Vec3::new(16.0, h + 0.4, 0.0))
     } else if spec.name == "steam_chain" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-4.0, h + 6.0, 9.0), Vec3::new(0.5, h + 0.8, 0.5))
@@ -1147,7 +1191,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     let ui = spec.name == "hud_preview" || spec.name == "village_trading" || spec.name == "tech_tree"
         || spec.name == "menu_preview" || spec.name == "settings_preview"
         || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud"
-        || spec.name == "console_preview";
+        || spec.name == "console_preview" || spec.name == "lore_book";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
@@ -1179,6 +1223,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "console_preview" {
                 draw_console_preview(ctx);
+            }
+            if spec.name == "lore_book" {
+                draw_lore_preview(ctx);
             }
         };
         // Warmup pass: egui windows need one pass to materialize their areas
@@ -1623,6 +1670,66 @@ fn draw_hud_preview(ctx: &egui::Context) {
     }
     p.line_segment([pointer - egui::vec2(0.0, 7.0), pointer - egui::vec2(0.0, 2.0)], egui::Stroke::new(2.0, c));
     p.line_segment([pointer + egui::vec2(0.0, 2.0), pointer + egui::vec2(0.0, 7.0)], egui::Stroke::new(2.0, c));
+}
+
+mod serde_inline {
+    // local mirror of lf_client::lore's schema (see note above)
+    use serde::Deserialize;
+    #[derive(Deserialize)]
+    pub struct Lib {
+        pub books: Vec<Book>,
+    }
+    #[derive(Deserialize)]
+    pub struct Book {
+        pub id: String,
+        pub title: String,
+        pub item: String,
+        pub pages: Vec<String>,
+    }
+}
+
+/// Lore tome proof (Step 20): an open book page with real text loaded
+/// from the actual lore/books.toml the game reads.
+fn draw_lore_preview(ctx: &egui::Context) {
+    // mini-reader mirroring lf_client::lore (same real file; lf_vistest
+    // cannot depend on lf_client) — keep the schema in sync
+    let book: Option<serde_inline::Lib> = std::fs::read_to_string("lore/books.toml")
+        .ok()
+        .and_then(|t| toml::from_str(&t).ok());
+    let Some(book) = book.and_then(|l| l.books.into_iter().find(|b| b.item == "tome_of_the_forge")) else {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("lore/books.toml missing — proof cannot render");
+        });
+        return;
+    };
+    let page = 1.min(book.pages.len() - 1);
+    egui::CentralPanel::default()
+        .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(150)))
+        .show(ctx, |ui| {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                ui.add_space(60.0);
+                egui::Frame::new()
+                    .fill(egui::Color32::from_rgb(24, 22, 18))
+                    .stroke(egui::Stroke::new(2.0, egui::Color32::from_rgb(240, 200, 120)))
+                    .corner_radius(8.0)
+                    .inner_margin(24.0)
+                    .show(ui, |ui| {
+                        ui.set_width(430.0);
+                        ui.label(egui::RichText::new(&book.title).size(21.0)
+                            .color(egui::Color32::from_rgb(240, 200, 120)));
+                        ui.label(egui::RichText::new(format!("page {} of {}", page + 1, book.pages.len()))
+                            .small().color(egui::Color32::from_gray(150)));
+                        ui.separator();
+                        ui.label(egui::RichText::new(book.pages[page].clone()).size(15.0)
+                            .color(egui::Color32::from_gray(230)));
+                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            ui.add_enabled_ui(page > 0, |ui| { ui.button("< prev"); });
+                            ui.add_enabled_ui(page + 1 < book.pages.len(), |ui| { ui.button("next >"); });
+                        });
+                    });
+            });
+        });
 }
 
 /// Corner minimap proof: terrain texture + entity dots + player arrow.

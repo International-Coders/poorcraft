@@ -28,6 +28,7 @@ use winit::{
 
 pub mod console;
 pub mod input;
+pub mod lore;
 pub mod icons;
 pub mod map;
 pub mod slots;
@@ -216,6 +217,7 @@ pub enum UiOpen {
     Machine((i32, i32, i32)),
     Trade(usize),
     Book,
+    LoreBook,
     Smithing,
     TechTree,
     Map,
@@ -775,6 +777,11 @@ struct GameState {
     last_thumb: Instant,
     /// Loaded save-slot thumbnails for the picker (Step 14).
     pub slot_thumbs: std::collections::HashMap<String, egui::TextureHandle>,
+    /// Lore tomes from lore/books.toml (Step 20) + reader page position.
+    pub lore: lore::LoreLibrary,
+    pub open_lore_page: usize,
+    /// Title of the tome currently open (matches lore.for_item by item).
+    pub open_lore_title: Option<String>,
     pub forge: lf_game::smithing::ForgeMinigame,
     pub research: ResearchState,
     pub xp_level: u32,
@@ -1038,6 +1045,9 @@ impl GameState {
             rebind_capture: None,
             last_thumb: Instant::now() - Duration::from_secs(600), // capture soon after boot
             slot_thumbs: std::collections::HashMap::new(),
+            lore: lore::LoreLibrary::load(Path::new("lore/books.toml")),
+            open_lore_page: 0,
+            open_lore_title: None,
             forge: lf_game::smithing::ForgeMinigame::new(3),
             xp_level: 0,
             xp_progress: 0,
@@ -1967,6 +1977,16 @@ impl GameState {
                 let held = self.inventory.slots[self.hotbar_index].clone();
                 if held.as_ref().map(|s| s.item_id.as_str()) == Some("book") {
                     self.ui_open = UiOpen::Book;
+                    self.unlock_cursor();
+                    return;
+                }
+                // lore tomes (Step 20): page through real book content
+                if let Some(book) = held.as_ref()
+                    .and_then(|s| self.lore.for_item(&s.item_id).map(|b| b.title.clone()))
+                {
+                    self.open_lore_title = Some(book);
+                    self.open_lore_page = 0;
+                    self.ui_open = UiOpen::LoreBook;
                     self.unlock_cursor();
                     return;
                 }

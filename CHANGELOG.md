@@ -691,3 +691,12 @@
   the content pipeline with UI panels and burning-boiler steam puffs.
 - 199 tests green; 32/32 vistest (steam_chain proof, AI-verified); smoke
   OK; runtimes rebuilt; pushed.
+
+## Loop 317 — cross-column lighting + lore books
+- Light engine floods a 3x3-column neighborhood: chunk borders no longer
+  seam (regression test + night_border_seam proof with a measured 1.92
+  max brightness step; perf unchanged at p50 47.7ms).
+- Lore books: three tomes in lore/books.toml (the Smith / Null / river
+  warden threads), on-kit paginated reader, Lorekeeper trades, icons;
+  file-load test + AI-verified lore_book proof scene.
+- 201 tests green; 34/34 vistest; smoke OK; runtimes rebuilt; pushed.

@@ -582,3 +582,19 @@ underflowed usize below x=11 (atlas test caught it).
 **VERIFICATION**: 199 tests / 0; vistest 32/32; steam_chain AI-verified
 (water->pipes->boiler with fire glow->engine->crusher, puffs rising);
 smoke OK. Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 317: P28 lighting + Step 20 lore books
+**WHAT**: Chunk-border light seams eliminated; lore books became a real
+readable in-game interaction fed by a data file.
+**HOW**: light.rs rewritten to a 48x256x48 neighborhood volume (opacity
+bitset + emitter scan + shared BFS, center-slice extraction); world.rs
+invalidation widened to 3x3 columns; night_border_seam scene + measured
+smoothness. lore/books.toml (3 tomes) + lf_client::lore + UiOpen::LoreBook
+paginated reader + item hook + Lorekeeper trades + lf_assets tome icons
+(cover-gem BOOK_ART variants); lore_book vistest preview reads the real
+file (local schema mirror per the preview pattern).
+**VERIFICATION**: 201 tests / 0 (new: border-light regression, lore file
+load; icons test caught the missing tome art — fixed with gemmed covers);
+vistest 34/34; night seam max step 1.92 (python-measured); lore reader
+AI-verified (title/page/readable text/buttons). Smoke OK. Runtimes
+rebuilt; pushed.

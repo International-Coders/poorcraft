@@ -85,13 +85,15 @@ impl World {
         let (cx, lx) = (x.div_euclid(16), x.rem_euclid(16) as usize);
         let (cz, lz) = (z.div_euclid(16), z.rem_euclid(16) as usize);
         self.chunks.get_mut(&(cx, cz))?.set(lx, y as usize, lz, block);
-        // edited column + border neighbors relight next mesh
+        // Edited column + the 8 surrounding columns relight next mesh:
+        // light travels up to 15 blocks, so a mid-column torch edit can
+        // change any neighbor's light (P28 cross-column lighting).
         let mut cache = self.light_cache.borrow_mut();
-        cache.remove(&(cx, cz));
-        if lx == 0 { cache.remove(&(cx - 1, cz)); }
-        if lx == 15 { cache.remove(&(cx + 1, cz)); }
-        if lz == 0 { cache.remove(&(cx, cz - 1)); }
-        if lz == 15 { cache.remove(&(cx, cz + 1)); }
+        for dx in -1..=1 {
+            for dz in -1..=1 {
+                cache.remove(&(cx + dx, cz + dz));
+            }
+        }
         Some((cx, cz))
     }
 

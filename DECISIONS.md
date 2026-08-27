@@ -26,7 +26,7 @@
 - P2: trees keep canopy in-chunk (2<=lx<=13) to avoid cross-chunk writes; cross-chunk structures arrive with P7 structure pass
 - P2: streaming worker generates pristine columns; edits live only in saved columns loaded on the main thread
 - P2: sphere-frustum culling per column from mesh y-bounds + 16x16 footprint radius
-- P3: light is flood-filled per column at mesh time (no persistent cache); cross-chunk light seams accepted for now
+- P3 (superseded by P28): light WAS flood-filled per column with accepted cross-chunk seams. P28: compute_column_light now floods sky+block light through a 3x3-column neighborhood volume (48x256x48) and extracts the center slice — borders seam no more; the edit invalidator drops the whole 3x3 column neighborhood (light travels 15 blocks). Proof: night_border_seam scene (torch straddling a border, measured max adjacent-column brightness step 1.92 — a seam would cliff >8) + torch_light_crosses_chunk_borders regression.
 - P3: per-face flat lighting now, smooth per-vertex in P11; y-stride must dominate column-local indices
 - P3: water = second alpha-blended pipeline without depth write, columns sorted back-to-front
 - P4: winit 0.30 ApplicationHandler + egui 0.31 (wgpu-24 aligned); egui sees events only while a screen is open

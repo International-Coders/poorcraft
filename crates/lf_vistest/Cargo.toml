@@ -12,3 +12,5 @@ lf_game = { path = "../lf_game" }
 glam = "0.30"
 egui = "0.31"
 image = { version = "0.25", default-features = false, features = ["png"] }
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }

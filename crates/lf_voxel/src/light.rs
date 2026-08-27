@@ -52,108 +52,109 @@ struct Cell {
     level: u8,
 }
 
-/// Compute sky and block light for one chunk column. Sky light pours down
-/// from above and floods sideways with -1 falloff; block light spreads from
-/// emitters the same way. Opacity comes from the world (cross-chunk reads),
-/// but sources are confined to this column (seams at chunk borders are a
-/// known P3 simplification).
+/// Side length of the lighting neighborhood: 3 chunk columns (48 blocks).
+const V: usize = 48;
+
+#[inline]
+fn vidx(x: usize, y: usize, z: usize) -> usize {
+    x + z * V + y * V * V
+}
+
+/// Compute sky and block light for one chunk column via a 3x3-column
+/// neighborhood (P28: cross-chunk seams eliminated). Torch light and sky
+/// spill flood across chunk borders inside the volume; only the center
+/// column's slice is kept. `col` is retained for signature compatibility —
+/// all block data comes from the world (identical for the center column).
 pub fn compute_column_light(world: &World, cx: i32, cz: i32, col: &ChunkColumn) -> ColumnLight {
-    let mut light = ColumnLight::new();
-    let wx0 = cx * 16;
-    let wz0 = cz * 16;
+    let _ = col;
+    let wx0 = cx * 16 - 16;
+    let wz0 = cz * 16 - 16;
 
-    let opaque_at = |x: i32, y: i32, z: i32| -> bool {
-        if y < 0 || y >= 256 {
-            return false;
-        }
-        let (tcx, lx) = (x.div_euclid(16), x.rem_euclid(16) as usize);
-        let (tcz, lz) = (z.div_euclid(16), z.rem_euclid(16) as usize);
-        if tcx == cx && tcz == cz {
-            registry::is_opaque(col.get(lx, y as usize, lz))
-        } else {
-            registry::is_opaque(world.get_block(x, y, z))
-        }
-    };
-
-    // --- Sky light: columns of open sky get 15 down to the first opaque block.
+    // One pass over the 48x256x48 volume: opacity bitset + emitters.
+    let vol = V * V * 256;
+    let mut opaque = vec![false; vol];
+    let mut sky = vec![0u8; vol];
+    let mut block = vec![0u8; vol];
+    let mut block_queue: VecDeque<Cell> = VecDeque::new();
     let mut sky_queue: VecDeque<Cell> = VecDeque::new();
-    for lx in 0..16usize {
-        for lz in 0..16usize {
+
+    for x in 0..V {
+        for z in 0..V {
+            let wx = wx0 + x as i32;
+            let wz = wz0 + z as i32;
+            // sky pour down the volume column
             let mut y = 255usize;
             loop {
-                if registry::is_opaque(col.get(lx, y, lz)) {
-                    break;
-                }
-                light.sky[ColumnLight::idx(lx, y, lz)] = MAX_LIGHT;
-                y -= 1;
-                if y == 0 {
-                    if !registry::is_opaque(col.get(lx, 0, lz)) {
-                        light.sky[ColumnLight::idx(lx, 0, lz)] = MAX_LIGHT;
-                    }
-                    break;
-                }
-            }
-            // Queue lit cells that border unlit space (spread frontier).
-            if y > 1 {
-                sky_queue.push_back(Cell { x: lx, y, z: lz, level: MAX_LIGHT });
-            }
-        }
-    }
-
-    // --- Block light: emitters seed the queue.
-    let mut block_queue: VecDeque<Cell> = VecDeque::new();
-    for lx in 0..16usize {
-        for lz in 0..16usize {
-            for y in 0..256usize {
-                let e = emission(col.get(lx, y, lz).id());
+                let i = vidx(x, y, z);
+                let b = world.get_block(wx, y as i32, wz);
+                opaque[i] = registry::is_opaque(b);
+                let e = emission(b.id());
                 if e > 0 {
-                    light.block[ColumnLight::idx(lx, y, lz)] = e;
-                    block_queue.push_back(Cell { x: lx, y, z: lz, level: e });
+                    block[i] = e;
+                    block_queue.push_back(Cell { x, y, z, level: e });
                 }
+                if opaque[i] {
+                    break;
+                }
+                sky[i] = MAX_LIGHT;
+                if y == 0 {
+                    break;
+                }
+                y -= 1;
+            }
+            // frontier: the lowest lit cell spills sideways into shade
+            if y > 1 {
+                sky_queue.push_back(Cell { x, y, z, level: MAX_LIGHT });
             }
         }
     }
 
-    // --- BFS flood fill shared by both channels.
-    let mut flood = |channel: &mut Vec<u8>, queue: &mut VecDeque<Cell>, is_sky: bool| {
+    // BFS flood shared by both channels, free to cross chunk borders.
+    let mut flood = |channel: &mut Vec<u8>, queue: &mut VecDeque<Cell>| {
         while let Some(cell) = queue.pop_front() {
             if cell.level <= 1 {
                 continue;
             }
-            let dirs = [
-                (1i32, 0i32, 0i32),
-                (-1, 0, 0),
-                (0, 1, 0),
-                (0, -1, 0),
-                (0, 0, 1),
-                (0, 0, -1),
-            ];
-            for (dx, dy, dz) in dirs {
+            for (dx, dy, dz) in [
+                (1i32, 0i32, 0i32), (-1, 0, 0),
+                (0, 1, 0), (0, -1, 0),
+                (0, 0, 1), (0, 0, -1),
+            ] {
                 let nx = cell.x as i32 + dx;
                 let ny = cell.y as i32 + dy;
                 let nz = cell.z as i32 + dz;
-                if nx < 0 || nx > 15 || nz < 0 || nz > 15 || ny < 0 || ny > 255 {
-                    continue; // stay in this column (cross-chunk seams accepted)
+                if nx < 0 || nx >= V as i32 || nz < 0 || nz >= V as i32 || ny < 0 || ny > 255 {
+                    continue;
                 }
                 let (nxu, nyu, nzu) = (nx as usize, ny as usize, nz as usize);
-                if registry::is_opaque(col.get(nxu, nyu, nzu)) {
+                let i = vidx(nxu, nyu, nzu);
+                if opaque[i] {
                     continue;
                 }
                 let next = cell.level - 1;
-                let i = ColumnLight::idx(nxu, nyu, nzu);
                 if channel[i] < next {
                     channel[i] = next;
                     queue.push_back(Cell { x: nxu, y: nyu, z: nzu, level: next });
                 }
-                let _ = is_sky;
             }
         }
     };
 
-    flood(&mut light.sky, &mut sky_queue, true);
-    flood(&mut light.block, &mut block_queue, false);
+    flood(&mut sky, &mut sky_queue);
+    flood(&mut block, &mut block_queue);
 
-    let _ = (wx0, wz0);
+    // Extract the center column's slice.
+    let mut light = ColumnLight::new();
+    for lx in 0..16usize {
+        for lz in 0..16usize {
+            for y in 0..256usize {
+                let src = vidx(lx + 16, y, lz + 16);
+                let dst = ColumnLight::idx(lx, y, lz);
+                light.sky[dst] = sky[src];
+                light.block[dst] = block[src];
+            }
+        }
+    }
     light
 }
 
@@ -196,6 +197,35 @@ mod tests {
         assert_eq!(light.block_at(8, 1, 7), 13);
         // stone blocks the spread (below floor)
         assert_eq!(light.block_at(8, 0, 8), 0, "opaque floor should not receive light");
+    }
+
+    /// P28 regression: light must cross chunk borders — a torch on one
+    /// column's edge lights the neighboring column (the old per-column BFS
+    /// left a hard seam).
+    #[test]
+    fn torch_light_crosses_chunk_borders() {
+        let mut w = World::new();
+        w.ensure_chunk(0, 0);
+        w.ensure_chunk(1, 0);
+        w.ensure_chunk(-1, 0);
+        for cx in [-1, 0, 1] {
+            for lx in 0..16 {
+                for lz in 0..16 {
+                    w.set_block(cx * 16 + lx, 0, lz, BlockState::STONE);
+                }
+            }
+        }
+        // torch on the east edge of column (0,0), block 15
+        w.set_block(15, 1, 8, BlockState(registry::block::TORCH));
+        let col1 = w.chunk(1, 0).unwrap().clone();
+        let light1 = compute_column_light(&w, 1, 0, &col1);
+        assert_eq!(light1.block_at(0, 1, 8), 13,
+            "light spills one block into the eastern neighbor across the border");
+        assert_eq!(light1.block_at(3, 1, 8), 10, "and falls off with distance");
+        // symmetric: the western column also receives nothing (it's dark)
+        let colw = w.chunk(-1, 0).unwrap().clone();
+        let lightw = compute_column_light(&w, -1, 0, &colw);
+        assert_eq!(lightw.block_at(15, 1, 8), 0, "no light on the far side of the torch column");
     }
 
     #[test]

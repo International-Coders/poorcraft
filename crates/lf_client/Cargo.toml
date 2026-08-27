@@ -16,6 +16,7 @@ lf_voxel = { path = "../lf_voxel" }
 lf_worldgen = { path = "../lf_worldgen" }
 lf_game = { path = "../lf_game" }
 lf_audio = { path = "../lf_audio" }
+toml = "0.8"
 lf_assets = { path = "../lf_assets" }
 lf_story = { path = "../lf_story" }
 lf_chronicle = { path = "../lf_chronicle" }
