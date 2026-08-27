@@ -1,9 +1,9 @@
 # STATE
-loop_count: 322
-current_milestone: P35 Smart building
-last_done: "Smart building: conduit-relayed power field (4-hop chains, tested), physics elevator, climate comfort regen, computer screen with the dynamic atlas-layer path (signature-gated uploads, page cycling, readout tests). 238 tests, 43/43 vistest (modern_wing AI-verified)"
-next_task: "P36 Dragons (multi-part rendering, flight AI, fire breath, roost structures, chronicle saga) + mount spike — then P37 Paths/trading, Steps 34-40"
+loop_count: 323
+current_milestone: P36 Dragons
+last_done: "Dragons: circle/swoop/perch flight AI (tested), multi-part sine-animated rendering from a shared layout fn (proofs use it too), fire breath + ember particles, mountain roost worldgen (gated, tested), BossSlain saga, mount after the streaming spike held (DECISIONS). 243 tests, 45/45 vistest (dragon_roost AI-verified, dragon_flight pixel-verified)"
+next_task: "P37 Paths & specialization (4 paths on ClientSave, accrual hooks, Gate generalization with craft enforcement, respec, protocol v4 player trading) — then Steps 34-40 (Steam lobbies/P2P, Workshop, README, xtask new-mod, final playthrough)"
 build: GREEN
-tests: 238 passing
+tests: 243 passing
 last_screenshot: shots/audit_transparency.png
 blockers: "none"

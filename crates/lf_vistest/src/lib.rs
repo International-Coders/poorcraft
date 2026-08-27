@@ -540,6 +540,30 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "dragon_roost",
+            desc: "Dragons (P36): the mountain roost — egg clutch on a stone crag, the dragon perched above it",
+            default_seed: 99,
+            time_of_day: 0.72,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "dragon_flight",
+            desc: "Dragons (P36): the multi-part assembly mid-flight — body, head, flapping wings, tail — breathing fire",
+            default_seed: 12345,
+            time_of_day: 0.55,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "grid_overlay",
             desc: "power-grid overlay (Step 25): green tint cube over the powered furnace, red over a starved crusher out of range",
             default_seed: 12345,
@@ -1095,6 +1119,48 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         world.set_block(2, h, 1, lf_voxel::BlockState(block::ENCHANTING_TABLE));
     }
 
+    // dragon_roost (P36): the crag + egg clutch (the worldgen twin; the
+    // generation itself is proven by the worldgen unit test).
+    if spec.name == "dragon_roost" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -8..9 {
+            for z in -8..8 {
+                for y in h..h + 14 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // stone crag spire (the build_roost twin)
+        for dy in 0..5i32 {
+            let r = 3 - dy / 2;
+            if r < 0 { continue; }
+            for dx in -r..=r {
+                for dz in -r..=r {
+                    world.set_block(dx, h + dy, dz, lf_voxel::BlockState(block::STONE));
+                }
+            }
+        }
+        world.set_block(-1, h + 5, 0, lf_voxel::BlockState(block::DRAGON_EGG));
+        world.set_block(1, h + 5, -1, lf_voxel::BlockState(block::DRAGON_EGG));
+    }
+
+    // dragon_flight (P36): the multi-part dragon assembled through the
+    // SAME layout fn the client renders with, mid-flap, breathing fire.
+    if spec.name == "dragon_flight" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -8..9 {
+            for z in -8..8 {
+                for y in h..h + 16 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+    }
+
     // modern_wing (P35): "one wing wired for electricity" — a two-storey
     // wing: conduits relay a distant generator's field to the upper
     // floor machines, an elevator shaft climbs the side, a climate unit
@@ -1562,6 +1628,73 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         }
     }
 
+    // dragon scenes (P36): the multi-part assembly through the shared
+    // dragon_parts layout (the client renderer uses the same fn), plus
+    // fire-breath quads ahead of the head.
+    if spec.name == "dragon_roost" || spec.name == "dragon_flight" {
+        let h = world.surface_height(0, 0) as f32;
+        let tex = lf_assets::DRAGON_BODY_LAYER;
+        let (center, yaw, t) = if spec.name == "dragon_roost" {
+            (Vec3::new(0.5, h + 7.5, 0.5), 2.2, 0.7)
+        } else {
+            (Vec3::new(0.5, h + 6.0, 0.5), 0.4, 1.1)
+        };
+        for (offset, size) in lf_game::dragons::dragon_parts(t, yaw) {
+            let p = center + offset;
+            // part cubes: 6 faces each, same construction as the mob batch
+            let e = size;
+            let (cx, cy, cz) = (p.x, p.y, p.z);
+            let faces: [([[f32; 3]; 4]); 6] = [
+                [[cx - e, cy - e, cz - e], [cx - e, cy + e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy - e, cz - e]],
+                [[cx + e, cy - e, cz + e], [cx + e, cy + e, cz + e], [cx - e, cy + e, cz + e], [cx - e, cy - e, cz + e]],
+                [[cx - e, cy - e, cz + e], [cx - e, cy + e, cz + e], [cx - e, cy + e, cz - e], [cx - e, cy - e, cz - e]],
+                [[cx + e, cy - e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy + e, cz + e], [cx + e, cy - e, cz + e]],
+                [[cx - e, cy + e, cz + e], [cx - e, cy + e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy + e, cz + e]],
+                [[cx - e, cy - e, cz - e], [cx + e, cy - e, cz - e], [cx + e, cy - e, cz + e], [cx - e, cy - e, cz + e]],
+            ];
+            for corners in faces {
+                let base = vertices.len() as u32;
+                for (corner, uv) in corners.iter().zip([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]) {
+                    vertices.push(GpuVertex {
+                        position: *corner,
+                        normal: [0.0, 1.0, 0.0],
+                        tex_coord: uv,
+                        tex_index: tex,
+                        ao: 1.0,
+                        light: 0xF0,
+                        sway: 0.0,
+                    });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+        // fire breath: ember quads streaming from the head forward
+        if spec.name == "dragon_flight" {
+            let ember = lf_assets::texture_index_for_block(lf_voxel::registry::block::SNOW);
+            let (sy, cy) = yaw.sin_cos();
+            let head_dir = Vec3::new(sy, -0.15, -cy);
+            let head = center + Vec3::new(sy * 1.2, 0.35, -cy * 1.2);
+            for i in 0..7u32 {
+                let d = 0.8 + i as f32 * 0.9;
+                let spread = (i as f32) * 0.12;
+                let p = head + head_dir * d;
+                let base = vertices.len() as u32;
+                let s = 0.14 + i as f32 * 0.05;
+                let corners = [
+                    [p.x - s, p.y - s, p.z], [p.x - s, p.y + s, p.z],
+                    [p.x + s, p.y + s + spread * 0.1, p.z], [p.x + s, p.y - s - spread * 0.1, p.z],
+                ];
+                for (corner, uv) in corners.iter().zip([[0.375, 0.625], [0.375, 0.375], [0.625, 0.375], [0.625, 0.625]]) {
+                    vertices.push(GpuVertex {
+                        position: *corner, normal: [0.0, 0.0, 1.0], tex_coord: uv,
+                        tex_index: ember, ao: 1.0, light: 0xF0, sway: 0.0,
+                    });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+    }
+
     // oil_chain: dark flare smoke rising from the refinery columns (P31)
     if spec.name == "oil_chain" {
         let h = world.surface_height(0, 0) as f32;
@@ -1744,6 +1877,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "grid_overlay" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-4.0, h + 7.0, 13.0), Vec3::new(2.0, h + 0.6, 0.0))
+    } else if spec.name == "dragon_roost" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-7.0, h + 11.0, 9.0), Vec3::new(0.5, h + 5.5, 0.5))
+    } else if spec.name == "dragon_flight" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-6.0, h + 10.0, 9.0), Vec3::new(0.8, h + 6.0, 0.0))
     } else if spec.name == "modern_wing" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-6.0, h + 9.0, 10.0), Vec3::new(0.5, h + 3.0, -1.0))

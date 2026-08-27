@@ -703,3 +703,21 @@ carry the field).
 **VERIFICATION**: 238 tests / 0 failed (+5). vistest 43/43;
 modern_wing AI-verified (conduits, elevator, climate unit, screen,
 upper machines). Smoke OK. Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 323: P36 Dragons
+**WHAT**: The top-tier creature — flight AI, multi-part rendering,
+breath, roosts, saga, and the user-approved mount.
+**HOW**: lf_game::dragons (DragonBrain + Phase + tick + dragon_parts
+layout; 4 tests), MobType::Dragon stats/drops + MobEntity.dragon/roost
+serde-defaulted fields; registry DRAGON_EGG 66 + atlas 83 layers
+(scale block tint, ember-cracked egg) + dragon_scale item/art; worldgen
+build_roost (gated biomes, 400-chunk test); client: dragon AI owns
+mob positions in update_mobs, breath damage + ember particles, settle
+pass at egg markers (cap 2, Discovery event), multi-part entity
+rendering via the shared layout, BossSlain on both kill paths,
+mounted_dragon ride (bare-hand bond, sneak dismount). DECISIONS: the
+mount spike audit + margins. dragon_roost + dragon_flight scenes.
+**VERIFICATION**: 243 tests / 0 failed. vistest 45/45. dragon_roost
+AI-verified (crag, eggs, full assembly); dragon_flight pixel-verified
+(8116 body-red + 228 breath-bright). Smoke OK. Runtimes rebuilt;
+pushed.

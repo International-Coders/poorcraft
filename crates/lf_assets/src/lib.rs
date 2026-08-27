@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 81] = [
+pub const TEXTURE_NAMES: [&str; 83] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -41,6 +41,8 @@ pub const TEXTURE_NAMES: [&str; 81] = [
     "scaffold", "statue",
     // Smart building (P35): relays, ride, climate, and the dynamic screen
     "conduit", "elevator", "ac_unit", "computer", "screen",
+    // P36 dragons
+    "dragon_scale_block", "dragon_egg",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -77,6 +79,10 @@ pub const COMPUTER_LAYER: u32 = 79;
 /// The dynamic screen layer (P35): the client rewrites its pixels when
 /// the displayed page or data changes (data-change-driven uploads).
 pub const SCREEN_LAYER: u32 = 80;
+/// Dragon body/wing/tail tint (a deep ember red the multi-part renderer
+/// tints its cubes with).
+pub const DRAGON_BODY_LAYER: u32 = 81;
+pub const DRAGON_EGG_LAYER: u32 = 82;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -110,6 +116,7 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         63 => 77, // elevator
         64 => 78, // climate unit
         65 => 79, // computer (its FACE shows the dynamic screen layer)
+        66 => 82, // dragon egg
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -497,6 +504,31 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     } else if frame {
                         let v = 110 + ((x * 3 + y * 9) % 16);
                         Rgba([ch(v), ch(v - 6), ch(v - 14), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "dragon_scale_block" => {
+                    // ember-red scales: overlapping rows with dark ridges
+                    let ridge = (x + y * 3) % 7 < 2;
+                    let scale = (x / 2 + y / 2) % 2 == 0;
+                    if ridge {
+                        Rgba([96, 26, 20, 255])
+                    } else if scale {
+                        Rgba([176, 46, 34, 255])
+                    } else {
+                        Rgba([136, 34, 26, 255])
+                    }
+                }
+                "dragon_egg" => {
+                    // dark scaled ovoid with ember cracks
+                    let dx = (x as i32 - 8).pow(2) * 4 / 9 + (y as i32 - 8).pow(2);
+                    let shell = dx <= 42;
+                    let crack = (x * 3 + y * 7) % 23 < 3;
+                    if shell && crack {
+                        Rgba([255, 140, 60, 255])
+                    } else if shell {
+                        Rgba([44, 22, 20, 255])
                     } else {
                         Rgba([0, 0, 0, 0])
                     }
@@ -1001,7 +1033,7 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "raw_uranium", "uranium_ingot", "fuel_rod",
     "scroll_of_firebolt", "scroll_of_gale_step", "scroll_of_ward", "scroll_of_hearthlight",
     "rune_of_haste", "rune_of_warding", "chisel", "blueprint",
-    "stone_slab", "planks_slab", "stone_stairs",
+    "stone_slab", "planks_slab", "stone_stairs", "dragon_scale",
 ];
 
 fn paint_sprite(art: [&str; 16], colors: impl Fn(char) -> Rgba<u8>) -> RgbaImage {
@@ -1284,6 +1316,25 @@ const BUCKET_ART: [&str; 16] = [
     "....mMwwwwMm....",
     "....dMmmmmMd....",
     ".....dddddd.....",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
+const SLFB_ART: [&str; 16] = [
+    "................",
+    "................",
+    "................",
+    "................",
+    "....kSSSSk......",
+    "...kSssssSk.....",
+    "..kSskkkksSk....",
+    "..kSskSSksSk....",
+    "..kSskkkksSk....",
+    "...kSssssSk.....",
+    "....kSSSSk......",
+    "................",
     "................",
     "................",
     "................",
@@ -1743,6 +1794,11 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
             's' => Rgba([60, 130, 220, 255]), 'g' => Rgba([235, 235, 245, 255]),
             _ => Rgba([0, 0, 0, 0]),
         }),
+        "dragon_scale" => paint_sprite(SLFB_ART, |c| match c {
+            's' => Rgba([150, 40, 30, 255]), 'S' => Rgba([200, 70, 50, 255]),
+            'k' => Rgba([90, 22, 18, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
         "stone_slab" => paint_sprite(SLAB_ART, |c| match c {
             's' => Rgba([130, 130, 134, 255]), 'S' => Rgba([172, 172, 178, 255]),
             _ => Rgba([0, 0, 0, 0]),
@@ -1851,7 +1907,7 @@ mod tests {
             if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine"
                 || name == "pump" || name == "refinery" || name == "combustion_generator"
                 || name == "reactor" || name == "enchanting_table" || name == "warding_pylon"
-                || name == "scaffold" || name == "statue" || name == "conduit" || name == "elevator"
+                || name == "scaffold" || name == "statue" || name == "conduit" || name == "elevator" || name == "dragon_egg"
                 || name == "ac_unit" || name == "computer" {
                 // machine shells with hollow details
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();

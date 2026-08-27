@@ -62,3 +62,16 @@ fission but decay heat keeps climbing without coolant, and a meltdown
 leaves radiation residue that damages anyone near the crater until it is
 physically scrubbed. Cooling constants are test-pinned: full coolant
 (-5/s) must beat fission heat (+4/s) so a tended core holds equilibrium.
+
+### Loop 323 — the dragon mount spike holds (P36, user-approved stretch)
+Flight x chunk streaming audit before implementing the ride: the dragon
+circles at radius 14 around its roost at ~6 blocks/s; chunk streaming
+follows the PLAYER (the rider is pinned to the dragon each tick), and
+UNLOAD_RADIUS = view_distance + 3 (the P28 fix) leaves a >=3-chunk
+margin at the slowest setting (view 8), which the ring's 14-block
+radius never outruns. Mesh budget: one dragon adds 8 part-cubes (48
+quads) to the per-frame entity batch — noise next to a single chunk's
+mesh. Mount implemented: bare-hand right-click bonds the ride, the
+player tracks the dragon's position each tick, sneak dismounts. If a
+future dragon speed exceeds streaming margins, re-run this audit — the
+numbers are recorded here for that reason.

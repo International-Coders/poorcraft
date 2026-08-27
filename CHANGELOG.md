@@ -743,3 +743,11 @@
   rewrites showing research/chronicle/grid readouts).
 - 238 tests green (+5); 43/43 vistest scenes; smoke OK; runtimes
   rebuilt; pushed.
+
+## Loop 323 — Dragons (P36)
+- The roost boss end-to-end: circle/swoop/perch flight AI (tested),
+  multi-part sine-animated rendering from a shared layout fn, fire
+  breath, mountain roost worldgen (gated, tested), BossSlain saga, and
+  the approved dragon mount after the streaming spike held.
+- 243 tests green (+5); 45/45 vistest scenes; smoke OK; runtimes
+  rebuilt; pushed.

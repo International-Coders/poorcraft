@@ -753,6 +753,28 @@ impl WorldGen {
             col.set(10, base_y + 9, 8, BlockState(block::TORCH));
         };
 
+        let build_roost = |col: &mut lf_voxel::ChunkColumn| {
+            // P36: a crag spire with a clutch of eggs on top — the dragon
+            // settles here (marker = DRAGON_EGG).
+            let base_y = ground(8, 8);
+            if base_y < SEA_LEVEL as usize + 1 || base_y > 220 {
+                return;
+            }
+            for dy in 0..5usize {
+                let r = 3 - (dy as i32 / 2);
+                if r < 0 {
+                    continue;
+                }
+                for dx in (8 - r as usize)..=(8 + r as usize) {
+                    for dz in (8 - r as usize)..=(8 + r as usize) {
+                        col.set(dx, base_y + dy, dz, BlockState(block::STONE));
+                    }
+                }
+            }
+            col.set(7, base_y + 5, 8, BlockState(block::DRAGON_EGG));
+            col.set(9, base_y + 5, 7, BlockState(block::DRAGON_EGG));
+        };
+
         match center_biome {
             Biome::Meadow if h0 % 37 == 0 => build_hut(col),
             Biome::Highlands if h0 % 41 == 0 => build_watchtower(col),
@@ -761,6 +783,9 @@ impl WorldGen {
             // enchanting table appears without crafting one
             Biome::FlowerForest if h0 % 53 == 0 => build_wizard_tower(col),
             Biome::Highlands if h0 % 97 == 0 => build_wizard_tower(col),
+            // P36: dragon roosts — mountain peaks only, very rare
+            Biome::Mountains if h0 % 89 == 0 => build_roost(col),
+            Biome::SnowyPeaks if h0 % 101 == 0 => build_roost(col),
             _ => {}
         }
     }
@@ -810,6 +835,32 @@ mod tests {
         assert_eq!(a.humidity(10, 20), b.humidity(10, 20));
         assert_eq!(a.biome(10, 20), b.biome(10, 20));
         assert_eq!(a.generate_chunk(3, 3).get(5, 60, 5), b.generate_chunk(3, 3).get(5, 60, 5));
+    }
+
+    /// P36: dragon roosts (egg clutches on a stone crag) generate in the
+    /// mountain biomes only.
+    #[test]
+    fn dragon_roosts_generate_on_peaks() {
+        let mut roosts = 0usize;
+        let gen = WorldGen::new(Seed(99));
+        for cx in -10..10i32 {
+            for cz in -10..10i32 {
+                let biome = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 5..=11usize {
+                    for lz in 5..=11usize {
+                        for y in 60..230usize {
+                            if col.get(lx, y, lz).id() == lf_voxel::registry::block::DRAGON_EGG {
+                                roosts += 1;
+                                assert!(matches!(biome, Biome::Mountains | Biome::SnowyPeaks),
+                                    "roost in {:?} at ({},{})", biome, cx, cz);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(roosts >= 1, "a 20x20-chunk scan should find a roost, got {}", roosts);
     }
 
     /// P33: wizard towers generate (enchanting table on top), only in the

@@ -988,6 +988,8 @@ struct GameState {
     pub producer_positions: Vec<(i32, i32, i32)>,
     /// P35: the screen texture is rewritten only when its data changes.
     screen_signature: u64,
+    /// P36: the dragon the player rides (mob id).
+    pub mounted_dragon: Option<u64>,
     /// P34 blueprints: first corner marker, the captured clipboard, and
     /// the file it came from.
     pub bp_corner_a: Option<(i32, i32, i32)>,
@@ -1232,6 +1234,7 @@ impl GameState {
             symmetry_plane: None,
             producer_positions: Vec::new(),
             screen_signature: 0,
+            mounted_dragon: None,
             bp_corner_a: None,
             bp_clip: None,
             bp_path: None,
@@ -2133,6 +2136,10 @@ impl GameState {
                         if kind == MobType::NullKnight {
                             self.chronicle_event(EventType::BossSlain, "the Null Knight falls".into());
                         }
+                        if kind == MobType::Dragon {
+                            self.chronicle_event(EventType::BossSlain,
+                                "the dragon of the peaks falls — the saga turns a page".into());
+                        }
                         let kind_name = format!("{:?}", kind);
                         self.quest_event(QuestEvent::Killed(kind_name.clone()));
                         tracing::info!("killed a {:?}", kind);
@@ -2383,6 +2390,18 @@ impl GameState {
                     self.unlock_cursor();
                     return;
                 }
+                // P36 mount: bare-hand right-click a dragon to ride it.
+                if held.is_none() {
+                    if let Some(mi) = self.mob_in_crosshair() {
+                        if let Some(mob) = self.mobs.get(mi) {
+                            if mob.mob_type == MobType::Dragon {
+                                self.mounted_dragon = Some(mob.id);
+                                self.push_hint("you take the saddle — sneak to dismount");
+                                return;
+                            }
+                        }
+                    }
+                }
                 // spell scrolls (P33): right-click to learn the spell.
                 if let Some(stack) = &held {
                     if let Some(spell) = lf_game::magic::Spell::from_scroll(&stack.item_id) {
@@ -2451,6 +2470,7 @@ impl GameState {
                     }
                 }
                 if let Some(stack) = held {
+                        // (P36 mount lives in the held.is_none() arm above)
                         // P34 blueprints: two-corner capture, then paste. Sneak-click clears.
                     if stack.item_id == "blueprint" {
                         if let Some((pos, _)) = target {
@@ -2903,6 +2923,10 @@ impl GameState {
         for (mi, damage) in events {
             if mi < self.mobs.len() {
                 let killed = self.mobs[mi].take_hit(damage, self.player.position);
+                if killed && self.mobs[mi].mob_type == MobType::Dragon {
+                    self.chronicle_event(EventType::BossSlain,
+                        "the dragon of the peaks falls — the saga turns a page".into());
+                }
                 if killed {
                     let (kind, pos) = (self.mobs[mi].mob_type, self.mobs[mi].position);
                     for (item, n) in kind.drops() {
@@ -3410,6 +3434,62 @@ impl GameState {
         }
     }
 
+    /// P36: one dragon settles each roost (marker = a dragon egg), max
+    /// two alive at once, flying the ring above the clutch.
+    fn try_settle_dragons(&mut self) {
+        if self.frame % 180 != 0 {
+            return;
+        }
+        let dragons = self.mobs.iter()
+            .filter(|m| m.mob_type == lf_game::mobs::MobType::Dragon).count();
+        if dragons >= 2 || dragons == 0 && self.mobs.len() >= 12 {
+            return;
+        }
+        let player = self.player.position;
+        for ((cx, cz), col) in self.world.chunks.iter() {
+            let center = (*cx as f32 * 16.0 + 8.0, *cz as f32 * 16.0 + 8.0);
+            let dist = ((center.0 - player.x).powi(2) + (center.1 - player.z).powi(2)).sqrt();
+            if dist > 70.0 {
+                continue;
+            }
+            let mut egg = None;
+            'scan: for lx in 5..11usize {
+                for lz in 5..11usize {
+                    for y in 60..230usize {
+                        if col.get(lx, y, lz).id() == registry::block::DRAGON_EGG {
+                            egg = Some((cx * 16 + lx as i32, y as i32, cz * 16 + lz as i32));
+                            break 'scan;
+                        }
+                    }
+                }
+            }
+            let Some((ex, ey, ez)) = egg else { continue };
+            let staffed = self.mobs.iter().any(|m| {
+                m.roost.map(|r| (r[0] as i32 - ex).abs() < 16 && (r[2] as i32 - ez).abs() < 16).unwrap_or(false)
+            });
+            if staffed {
+                continue;
+            }
+            let mut dragon = lf_game::mobs::MobEntity::spawn(
+                self.next_mob_id,
+                lf_game::mobs::MobType::Dragon,
+                Vec3::new(ex as f32 + 0.5, ey as f32 + 6.0, ez as f32 + 0.5),
+            );
+            dragon.roost = Some([ex as f32 + 0.5, ey as f32, ez as f32 + 0.5]);
+            dragon.dragon = Some(lf_game::dragons::DragonBrain {
+                phase: lf_game::dragons::Phase::Circling,
+                ..Default::default()
+            });
+            self.next_mob_id += 1;
+            self.mobs.push(dragon);
+            self.chronicle_event(
+                EventType::Discovery,
+                "wings circle the peaks — a dragon guards its clutch".into(),
+            );
+            return;
+        }
+    }
+
     fn villager_in_crosshair(&self) -> Option<usize> {
         let eye = self.player.eye_position();
         let look = self.player.look_dir();
@@ -3462,13 +3542,62 @@ impl GameState {
         let player = self.player.position;
         let world = &self.world;
         let mut damage_to_player = 0.0;
+        let mut breathers: Vec<glam::Vec3> = Vec::new();
         for mob in self.mobs.iter_mut() {
+            if mob.mob_type == lf_game::mobs::MobType::Dragon && mob.roost.is_some() {
+                // P36: the dragon's flight brain owns its position
+                let roost = mob.roost.unwrap();
+                let center = Vec3::from(roost);
+                let (pos, breathing) = match &mut mob.dragon {
+                    Some(brain) => brain.tick(dt, center, Some(player), center + Vec3::new(0.0, 3.0, 0.0)),
+                    None => (mob.position, false),
+                };
+                mob.position = pos;
+                mob.yaw = (player.x - pos.x).atan2(-(player.z - pos.z));
+                if breathing {
+                    breathers.push(pos);
+                }
+                continue;
+            }
             if let Some(dmg) = mob.update(dt, world, player) {
                 damage_to_player += dmg;
             }
         }
         if damage_to_player > 0.0 {
             self.damage(damage_to_player);
+        }
+        // P36: fire breath scorches the player in range
+        for mouth in breathers {
+            if (player - mouth).length() < lf_game::dragons::BREATH_RANGE + 1.0 {
+                self.damage(6.0 * dt * 10.0);
+                if self.settings.particles && self.frame % 2 == 0 {
+                    let tex = lf_assets::texture_index_for_block(registry::block::LANTERN);
+                    for i in 0..5u32 {
+                        let a = i as f32 * 1.3 + self.elapsed * 3.0;
+                        let dir = (player - mouth).normalize();
+                        self.particles.push(Particle {
+                            position: mouth + dir * (a % 3.0),
+                            velocity: dir * 6.0,
+                            life: 0.4,
+                            tex,
+                            uv_off: [0.0, 0.0],
+                        });
+                    }
+                }
+            }
+        }
+        // P36 mount: the rider sits on the bonded dragon
+        if let Some(dragon_id) = self.mounted_dragon {
+            if let Some(dragon) = self.mobs.iter().find(|m| m.id == dragon_id) {
+                self.player.position = dragon.position + Vec3::new(0.0, 2.0, 0.0);
+                self.player.velocity = Vec3::ZERO;
+                if self.input.held(self.keymap.key(crate::input::Action::Sneak)) {
+                    self.mounted_dragon = None;
+                    self.push_hint("dismounted — the wing beats settle");
+                }
+            } else {
+                self.mounted_dragon = None;
+            }
         }
         // despawn far mobs
         self.mobs.retain(|m| (m.position - player).length() < 80.0);
@@ -3729,6 +3858,7 @@ impl GameState {
         }
 
         self.try_spawn_villagers();
+        self.try_settle_dragons();
 
         // Freshly generated chunks from the worker.
         let mut budget = 4;
@@ -4164,10 +4294,21 @@ impl GameState {
             let size = mob.mob_type.stats().size;
             let tex = match mob.mob_type {
                 MobType::NullKnight => lf_assets::texture_index_for_block(registry::block::STONE),
+                MobType::Dragon => lf_assets::DRAGON_BODY_LAYER,
                 m if m.is_hostile() => lf_assets::texture_index_for_block(registry::block::MYCELIUM),
                 _ => lf_assets::texture_index_for_block(registry::block::SNOW),
             };
-            push_cube(mob.position.x, mob.position.y + size, mob.position.z, size, tex, &mut vertices, &mut indices);
+            if mob.mob_type == MobType::Dragon {
+                // P36: multi-part assembly — body/head/wings/tail with
+                // sine animation from the shared layout fn
+                let t = self.elapsed;
+                for (offset, part_size) in lf_game::dragons::dragon_parts(t, mob.yaw) {
+                    let p = mob.position + offset + Vec3::new(0.0, size, 0.0);
+                    push_cube(p.x, p.y, p.z, part_size, tex, &mut vertices, &mut indices);
+                }
+            } else {
+                push_cube(mob.position.x, mob.position.y + size, mob.position.z, size, tex, &mut vertices, &mut indices);
+            }
         }
         // arrows render as thin pale streaks
         for arrow in &self.arrows {

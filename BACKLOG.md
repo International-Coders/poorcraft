@@ -660,3 +660,37 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       climate unit, computer; AI-verified all five elements.
 - [ ] Deferred: screen text glyphs (the readout is styled pips/bars),
       elevator door animation, conduit visual connection stretching.
+
+## Loop 323 — P36 Dragons
+- [x] FLIGHT AI (lf_game::dragons): circle/swoop/perch state machine —
+      Circling holds the 14-block ring at roost+8, close players (<20)
+      provoke a SWOOP_TIME dive that re-provokes while the threat
+      lingers and releases when they retreat; Perched breathes fire on a
+      3s period at <7 blocks and launches back into the ring when
+      cornered. 3 AI tests pin all of this.
+- [x] MULTI-PART RENDERING: dragon_parts(t, yaw) — body, head (forward,
+      bobbing), two wings (sine flap), three tail segments (sway) — one
+      shared layout fn used by BOTH the client entity batch and the
+      vistest proofs (the proof shows the real assembly). Parts test
+      asserts flap amplitude, head-lead, tail-trail, yaw rotation.
+- [x] FIRE BREATH: perched dragons damage the player in range with ember
+      particles streaming from the mouth; breath gated by the AI test.
+- [x] ROOSTS: stone crag + egg clutch (DRAGON_EGG 66, ember-cracked
+      texture) in Mountains (1/89) / SnowyPeaks (1/101); 400-chunk
+      gating test (seed 99 -> 2 clutches). try_settle_dragons: one
+      dragon per roost (marker = egg), max two alive, Discovery
+      chronicle on settling.
+- [x] BOSS: MobType::Dragon (400 HP, 18 dmg, size 2.2 — above the Null
+      Knight), drops dragon_scale + iron, BossSlain saga event on melee
+      AND projectile kills ("the dragon of the peaks falls — the saga
+      turns a page").
+- [x] MOUNT (user-approved spike, DECISIONS entry): the flight x
+      streaming audit held (ring 14 << view+3 margins; 8 part-cubes is
+      mesh noise) — bare-hand right-click bonds the ride, the rider
+      tracks the dragon each tick, sneak dismounts.
+- [x] Proofs: dragon_roost (AI-verified: crag + cracked eggs + the full
+      multi-part assembly readable as a dragon) and dragon_flight
+      (pixel-verified: 8116 body-red px + 228 white-hot breath px on
+      the shared-assembly mid-flap pose).
+- [ ] Deferred: dragon roost loot chests, wing-tilt banking in the
+      layout, breath setting blocks alight.

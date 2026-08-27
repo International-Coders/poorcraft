@@ -14,6 +14,9 @@ pub enum MobType {
     Crawler,
     // Boss
     NullKnight,
+    /// P36: roost boss — never rolls naturally; the client settles them
+    /// at mountain roosts. Rendered multi-part on the client.
+    Dragon,
 }
 
 impl MobType {
@@ -30,6 +33,7 @@ impl MobType {
             Stalker => MobStats { max_health: 30.0, damage: 6.0, speed: 2.8, size: 0.8, detect: 20.0 },
             Crawler => MobStats { max_health: 15.0, damage: 3.0, speed: 3.6, size: 0.5, detect: 14.0 },
             NullKnight => MobStats { max_health: 250.0, damage: 15.0, speed: 2.2, size: 1.4, detect: 32.0 },
+            Dragon => MobStats { max_health: 400.0, damage: 18.0, speed: 6.0, size: 2.2, detect: 32.0 },
         }
     }
 
@@ -42,6 +46,7 @@ impl MobType {
             Stalker => [0.25, 0.25, 0.3],
             Crawler => [0.6, 0.3, 0.3],
             NullKnight => [0.15, 0.1, 0.25],
+            Dragon => [0.45, 0.12, 0.1],
         }
     }
 
@@ -55,6 +60,7 @@ impl MobType {
             Stalker => &[("glitch_dust", 2)],
             Crawler => &[("glitch_dust", 1)],
             NullKnight => &[("iron_ingot", 4), ("null_shard", 1)],
+            Dragon => &[("dragon_scale", 3), ("raw_iron", 4)],
         }
     }
 }
@@ -83,6 +89,12 @@ pub struct MobEntity {
     pub wander_dir: (f32, f32),
     pub hurt_flash: f32,
     pub age: f32,
+    /// P36: dragons carry their flight brain + roost (serde-defaulted so
+    /// pre-dragon saves load; JSON extras make the default real).
+    #[serde(default)]
+    pub dragon: Option<crate::dragons::DragonBrain>,
+    #[serde(default)]
+    pub roost: Option<[f32; 3]>,
 }
 
 impl MobEntity {
@@ -99,6 +111,8 @@ impl MobEntity {
             wander_dir: (0.0, 0.0),
             hurt_flash: 0.0,
             age: 0.0,
+            dragon: (mob_type == MobType::Dragon).then(crate::dragons::DragonBrain::default),
+            roost: None,
         }
     }
 
