@@ -221,6 +221,8 @@ pub enum UiOpen {
     Smithing,
     TechTree,
     Map,
+    Spellbook,
+    Imbue,
     Console,
     Slots,
     Settings,
@@ -450,6 +452,64 @@ pub struct ClientSave {
     pub settings: Option<Settings>,
     #[serde(default)]
     pub waypoints: Vec<map::Waypoint>,
+    /// P33 magic: mana pool + learned spells. Extras moved to JSON in the
+    /// same phase so serde(default) actually applies on old saves (bincode
+    /// would EOF instead — caught empirically, see the migration tests).
+    #[serde(default = "default_mana")]
+    pub mana: f32,
+    #[serde(default)]
+    pub spellbook: Option<lf_game::magic::Spellbook>,
+    #[serde(default)]
+    pub runed: Vec<(String, String)>,
+}
+
+fn default_mana() -> f32 {
+    lf_game::magic::MAX_MANA
+}
+
+/// The pre-magic ClientSave shape (bincode era). Kept frozen so worlds
+/// saved before P33 migrate instead of silently resetting their extras.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct LegacyClientSave {
+    slots: Vec<Option<ItemStack>>,
+    health: f32,
+    hunger: f32,
+    time_ticks: u64,
+    block_entities: Vec<((i32, i32, i32), BlockEntity)>,
+    mobs: Vec<lf_game::mobs::MobEntity>,
+    kills: u32,
+    quest_log: Option<QuestLog>,
+    chronicle: Vec<ChronicleEvent>,
+    world_type: Option<lf_worldgen::WorldType>,
+    villagers: Vec<Villager>,
+    research: Option<lf_game::research::ResearchState>,
+    settings: Option<Settings>,
+    #[serde(default)]
+    waypoints: Vec<map::Waypoint>,
+}
+
+impl From<LegacyClientSave> for ClientSave {
+    fn from(old: LegacyClientSave) -> Self {
+        ClientSave {
+            slots: old.slots,
+            health: old.health,
+            hunger: old.hunger,
+            time_ticks: old.time_ticks,
+            block_entities: old.block_entities,
+            mobs: old.mobs,
+            kills: old.kills,
+            quest_log: old.quest_log,
+            chronicle: old.chronicle,
+            world_type: old.world_type,
+            villagers: old.villagers,
+            research: old.research,
+            settings: old.settings,
+            waypoints: old.waypoints,
+            mana: default_mana(),
+            spellbook: None,
+            runed: Vec::new(),
+        }
+    }
 }
 
 struct App {
@@ -543,6 +603,12 @@ impl ApplicationHandler for App {
                                 let dbg_key = state.keymap.key(crate::input::Action::DebugInfo);
                                 let rt_key = state.keymap.key(crate::input::Action::RtCapture);
                                 let grid_key = state.keymap.key(crate::input::Action::GridOverlay);
+                                let book_key = state.keymap.key(crate::input::Action::Spellbook);
+                                let spell_keys = [
+                                    state.keymap.key(crate::input::Action::Spell1),
+                                    state.keymap.key(crate::input::Action::Spell2),
+                                    state.keymap.key(crate::input::Action::Spell3),
+                                ];
                                 if pressed {
                                     match code {
                                         KeyCode::Escape => {
@@ -653,6 +719,25 @@ impl ApplicationHandler for App {
                                             state.show_debug = !state.show_debug;
                                         }
                                         k if k == rt_key => { if state.settings.rt_mode == crate::RtMode::Captures { state.take_raytraced_screenshot(); } }
+                                        k if k == book_key => {
+                                            if matches!(state.ui_open, UiOpen::None | UiOpen::Spellbook) && state.stats.health > 0.0 {
+                                                if state.ui_open == UiOpen::Spellbook {
+                                                    state.close_ui();
+                                                } else {
+                                                    state.ui_open = UiOpen::Spellbook;
+                                                    state.menu_reveal = 0.0;
+                                                    state.unlock_cursor();
+                                                }
+                                                return;
+                                            }
+                                        }
+                                        k if spell_keys.contains(&k) => {
+                                            if state.ui_open == UiOpen::None && state.stats.health > 0.0 {
+                                                let slot = spell_keys.iter().position(|&sk| sk == k).unwrap_or(0);
+                                                state.cast_from_slot(slot);
+                                                return;
+                                            }
+                                        }
                                         k if k == grid_key => {
                                             if matches!(state.ui_open, UiOpen::None) && state.stats.health > 0.0 {
                                                 state.grid_overlay = !state.grid_overlay;
@@ -868,6 +953,18 @@ struct GameState {
     pub grid_overlay: bool,
     pub machine_power: std::collections::HashMap<(i32, i32, i32), f32>,
     overlay_batch: Option<MeshBatch>,
+    /// P33 magic: the learned spell set + 3 cast slots.
+    pub spellbook: lf_game::magic::Spellbook,
+    /// Ward spell: seconds of damage absorption left.
+    pub ward_timer: f32,
+    /// Firebolts in flight (arrows that hit harder and burn).
+    pub firebolts: Vec<lf_game::combat::Arrow>,
+    /// Temporary light blocks placed by Hearthlight (despawn positions).
+    hearth_lights: std::collections::HashMap<(i32, i32, i32), f32>,
+    /// The enchanting minigame (P33).
+    pub imbue: lf_game::magic::ImbueMinigame,
+    /// Runed tools: item id -> rune item id (P33). Persisted in extras.
+    pub runed_tools: std::collections::HashMap<String, String>,
     last_cloud_rebuild: Instant,
     pub settings: Settings,
     pub world_type: lf_worldgen::WorldType,
@@ -948,7 +1045,7 @@ impl GameState {
         let mut slot_meta = slots::boot_slot();
         let world_dir = slots::slot_dir(&slot_meta.name);
         slots::sync_generator_version(&world_dir);
-        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints) =
+        let (inventory, mut stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed) =
             load_client_save(&world_dir);
         slot_meta.world_type = world_type; // save (or default) wins over meta
         let storage = WorldStorage::open(&world_dir);
@@ -1096,6 +1193,9 @@ impl GameState {
             icons,
             map: map::MapState::new(world_type, world_seed),
             waypoints,
+            spellbook,
+            runed_tools: runed,
+            imbue: lf_game::magic::ImbueMinigame::new(3),
             hud_flash: 0.0,
             hit_flash: 0.0,
             xp_flash: 0.0,
@@ -1123,6 +1223,9 @@ impl GameState {
             grid_overlay: false,
             machine_power: std::collections::HashMap::new(),
             overlay_batch: None,
+            ward_timer: 0.0,
+            firebolts: Vec::new(),
+            hearth_lights: std::collections::HashMap::new(),
             last_cloud_rebuild: Instant::now() - Duration::from_secs(5),
             air: 10,
             spawn_point,
@@ -1272,7 +1375,7 @@ impl GameState {
         self.save_world();
         // state from the slot's save files
         let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log,
-             chronicle, research, settings, world_type, waypoints) = load_client_save(&dir);
+             chronicle, research, settings, world_type, waypoints, spellbook, runed) = load_client_save(&dir);
         let storage = WorldStorage::open(&dir);
         let seed = storage.load_seed().unwrap_or(meta.seed);
         let saved_set = storage.saved_chunks();
@@ -1291,6 +1394,7 @@ impl GameState {
         self.kills = kills;
         self.quest_log = quest_log;
         self.chronicle = chronicle;
+        self.runed_tools = runed;
         self.research = research;
         self.settings = settings;
         self.keymap = crate::input::Keymap::from_pairs(&self.settings.keymap_pairs);
@@ -1389,9 +1493,14 @@ impl GameState {
             research: Some(self.research.clone()),
             settings: Some(self.settings.clone()),
             waypoints: self.waypoints.clone(),
+            mana: self.stats.mana,
+            spellbook: Some(self.spellbook.clone()),
+            runed: self.runed_tools.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
         };
-        if let Ok(bytes) = bincode::serialize(&extras) {
-            let _ = std::fs::write(self.world_dir.join("player_extras.dat"), bytes);
+        // JSON (self-describing) so future field additions with
+        // serde(default) load old bytes — bincode EOFs on them instead.
+        if let Ok(bytes) = serde_json::to_vec(&extras) {
+            let _ = std::fs::write(self.world_dir.join("player_extras.json"), bytes);
         }
         if !self.chronicle.is_empty() {
             let md = SagaGenerator::export_markdown(&self.chronicle);
@@ -1857,6 +1966,9 @@ impl GameState {
         self.tick_fluids();
 
         self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
+        self.update_firebolts(dt);
+        self.tick_hearth_lights(dt);
+        self.ward_timer = (self.ward_timer - dt).max(0.0);
         self.update_mobs(dt);
         self.update_villagers(dt);
         self.update_arrows(dt);
@@ -1985,7 +2097,15 @@ impl GameState {
                 let key = (pos.x, pos.y, pos.z);
                 let block_id = self.world.get_block(pos.x, pos.y, pos.z).id();
                 let held = self.inventory.slots[self.hotbar_index].clone();
-                let total = break_time(block_id, held.as_ref()).unwrap_or(f32::INFINITY);
+                let mut total = break_time(block_id, held.as_ref()).unwrap_or(f32::INFINITY);
+                // P33: a bound Rune of Haste speeds the held tool
+                if let Some(h) = held.as_ref() {
+                    if let Some(rune_id) = self.runed_tools.get(&h.item_id) {
+                        if let Some(rune) = lf_game::magic::Rune::from_item(rune_id) {
+                            total /= rune.mining_multiplier();
+                        }
+                    }
+                }
                 match &mut self.mining {
                     Some(m) if m.pos == key => m.progress += dt,
                     Some(m) => {
@@ -2061,6 +2181,11 @@ impl GameState {
             self.input.place_pressed = false; // one action per click
             if let Some((pos, _)) = target {
                 match self.world.get_block(pos.x, pos.y, pos.z).id() {
+                    registry::block::ENCHANTING_TABLE => {
+                        self.ui_open = UiOpen::Imbue;
+                        self.menu_reveal = 0.0;
+                        self.unlock_cursor();
+                    }
                     registry::block::CRAFTING_TABLE => {
                         self.ui_open = UiOpen::CraftingTable;
                         self.unlock_cursor();
@@ -2152,6 +2277,19 @@ impl GameState {
                     self.ui_open = UiOpen::LoreBook;
                     self.unlock_cursor();
                     return;
+                }
+                // spell scrolls (P33): right-click to learn the spell.
+                if let Some(stack) = &held {
+                    if let Some(spell) = lf_game::magic::Spell::from_scroll(&stack.item_id) {
+                        if self.spellbook.learn(spell) {
+                            self.chronicle_event(
+                                EventType::Discovery,
+                                format!("a scroll unravels — {} learned", spell.name()),
+                            );
+                            self.consume_selected(1);
+                        }
+                        return;
+                    }
                 }
                 // buckets: scoop a water/oil source or pour one. The raycast
                 // skips fluids, so the target cell is the face-adjacent one.
@@ -2341,6 +2479,183 @@ impl GameState {
         ).is_cold()
     }
 
+    /// P33: cast the spell in a slot (Z/X/C). The pure gating lives in
+    /// lf_game::magic; this applies the effect to the world/player.
+    pub fn cast_from_slot(&mut self, slot: usize) {
+        use lf_game::magic::{SpellEffect};
+        let Ok((effect, mana_left)) = self.spellbook.try_cast(slot, self.stats.mana) else {
+            return; // not learned / no mana: the HUD shows the pool, stay quiet
+        };
+        self.stats.mana = mana_left;
+        match effect {
+            SpellEffect::Firebolt => {
+                let eye = self.player.eye_position();
+                let look = self.player.look_dir();
+                self.firebolts.push(lf_game::combat::Arrow {
+                    position: eye + look * 0.5,
+                    velocity: look * 22.0,
+                    age: 0.0,
+                });
+            }
+            SpellEffect::Blink { forward } => {
+                // step along the gaze until a wall, land just before it
+                let eye = self.player.eye_position();
+                let look = self.player.look_dir();
+                let mut dest = eye + look * forward;
+                let steps = (forward / 0.5) as usize;
+                for i in 1..=steps {
+                    let p = eye + look * (i as f32 * 0.5);
+                    if self.world.is_solid(p.x as i32, p.y as i32, p.z as i32) {
+                        let back = eye + look * ((i as f32 - 1.0) * 0.5);
+                        dest = back;
+                        break;
+                    }
+                }
+                self.player.position = dest - Vec3::new(0.0, 1.7, 0.0); // eye height back to feet
+                // blink wisp particles at both ends
+                if self.settings.particles {
+                    let tex = lf_assets::LUMEN_LAYER;
+                    for (pos, spread) in [(dest, 0.2), (eye, 0.3)] {
+                        self.particles.push(Particle {
+                            position: pos,
+                            velocity: Vec3::new(spread, 0.6, spread),
+                            life: 0.5,
+                            tex,
+                            uv_off: [0.0, 0.0],
+                        });
+                    }
+                }
+            }
+            SpellEffect::Ward { secs } => {
+                self.ward_timer = self.ward_timer.max(secs);
+            }
+            SpellEffect::Hearthlight => {
+                // soften one ore by hand (the Smith's trick)
+                let ids: Vec<String> = self.inventory.slots.iter()
+                    .filter_map(|s| s.as_ref().map(|s| s.item_id.clone()))
+                    .collect();
+                let refs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+                if let Some((from, to)) = lf_game::magic::hearthlight_pick(&refs) {
+                    // consume one, add one
+                    'find: for slot_item in self.inventory.slots.iter_mut() {
+                        if let Some(stack) = slot_item {
+                            if stack.item_id == from {
+                                stack.count -= 1;
+                                if stack.count == 0 {
+                                    *slot_item = None;
+                                }
+                                let leftover = self.inventory.add_item(&to, 1);
+                                if leftover > 0 {
+                                    self.spawn_drop(&to, 1, self.player.eye_position());
+                                }
+                                break 'find;
+                            }
+                        }
+                    }
+                }
+                // and light the targeted cell (or under the player)
+                let target = raycast_voxel(
+                    self.player.eye_position(),
+                    self.player.look_dir(),
+                    REACH,
+                    |pos| registry::is_targetable(self.world.get_block(pos.x, pos.y, pos.z)),
+                )
+                .map(|(pos, normal)| pos + normal)
+                .unwrap_or_else(|| glam::IVec3::new(
+                    self.player.position.x as i32,
+                    self.player.position.y as i32 + 2,
+                    self.player.position.z as i32,
+                ));
+                if self.world.get_block(target.x, target.y, target.z) == BlockState::AIR {
+                    self.world.set_block(target.x, target.y, target.z, BlockState(registry::block::LUMEN_BLOCK));
+                    self.hearth_lights.insert((target.x, target.y, target.z), 90.0);
+                    self.remesh_around(target.x, target.z);
+                }
+            }
+        }
+    }
+
+    /// P33: advancing firebolts — arrows that hit harder and spark.
+    fn update_firebolts(&mut self, dt: f32) {
+        let mut remove: Vec<usize> = Vec::new();
+        let mut events: Vec<(usize, f32)> = Vec::new();
+        for (i, bolt) in self.firebolts.iter_mut().enumerate() {
+            let before = bolt.position;
+            let done = bolt.update(dt, |x, y, z| self.world.is_solid(x, y, z));
+            if done {
+                remove.push(i);
+                continue;
+            }
+            let dir = bolt.position - before;
+            let step = dir.length().max(0.001);
+            let dir = dir / step;
+            for (mi, mob) in self.mobs.iter().enumerate() {
+                let size = mob.mob_type.stats().size;
+                let center = mob.position + Vec3::new(0.0, size, 0.0);
+                let to = center - before;
+                let t = to.dot(dir);
+                if t < 0.0 || t > step + size {
+                    continue;
+                }
+                if (before + dir * t - center).length() < size + 0.3 {
+                    events.push((mi, 8.0));
+                    remove.push(i);
+                    break;
+                }
+            }
+        }
+        for i in remove.into_iter().rev() {
+            let p = self.firebolts[i].position;
+            if self.settings.particles {
+                let tex = lf_assets::texture_index_for_block(registry::block::LANTERN);
+                for j in 0..6u32 {
+                    let a = j as f32 * 1.05;
+                    self.particles.push(Particle {
+                        position: p,
+                        velocity: Vec3::new(a.cos() * 2.0, 1.5, a.sin() * 2.0),
+                        life: 0.5,
+                        tex,
+                        uv_off: [0.0, 0.0],
+                    });
+                }
+            }
+            self.firebolts.remove(i);
+        }
+        for (mi, damage) in events {
+            if mi < self.mobs.len() {
+                let killed = self.mobs[mi].take_hit(damage, self.player.position);
+                if killed {
+                    let (kind, pos) = (self.mobs[mi].mob_type, self.mobs[mi].position);
+                    for (item, n) in kind.drops() {
+                        self.spawn_drop(item, *n, pos + Vec3::new(0.0, 0.5, 0.0));
+                    }
+                    self.kills += 1;
+                    let (l, pr) = lf_game::combat::grant_xp(self.xp_level, self.xp_progress, 5);
+                    self.xp_level = l;
+                    self.xp_progress = pr;
+                    self.xp_flash = 1.0;
+                }
+            }
+        }
+    }
+
+    /// P33: temporary hearthlight blocks burn out.
+    fn tick_hearth_lights(&mut self, dt: f32) {
+        let expired: Vec<(i32, i32, i32)> = self.hearth_lights.iter_mut()
+            .filter_map(|(pos, t)| {
+                *t -= dt;
+                if *t <= 0.0 { Some(*pos) } else { None }
+            })
+            .collect();
+        for pos in expired {
+            self.hearth_lights.remove(&pos);
+            if self.world.get_block(pos.0, pos.1, pos.2).id() == registry::block::LUMEN_BLOCK {
+                self.world.set_block(pos.0, pos.1, pos.2, BlockState::AIR);
+                self.remesh_around(pos.0, pos.2);
+            }
+        }
+    }
+
     /// P32: a reactor meltdown — the core and everything near it is
     /// destroyed, radiation residue is scattered through the crater, and
     /// the chronicle records it. The crater glows an unhealthy green.
@@ -2474,6 +2789,9 @@ impl GameState {
             return; // dead: nothing ticks
         }
         let now = Instant::now();
+        // P33: mana regenerates passively (clamped at the pool).
+        self.stats.mana = (self.stats.mana + lf_game::magic::MANA_REGEN * dt)
+            .min(self.stats.max_mana);
         // P32: radiation residue poisons anyone standing near it until the
         // crater is scrubbed clean (the blocks are breakable).
         let p = self.player.position;
@@ -2536,7 +2854,20 @@ impl GameState {
     }
 
     pub fn damage(&mut self, amount: f32) {
-        let armor = worn_armor_points(&self.inventory.slots);
+        if self.ward_timer > 0.0 {
+            // the ward drinks it (P33); the timer still runs down in tick
+            self.hud_flash = 1.0;
+            return;
+        }
+        let mut armor = worn_armor_points(&self.inventory.slots);
+        // P33: a held Rune of Warding tool adds flat armor
+        if let Some(h) = self.inventory.slots[self.hotbar_index].as_ref() {
+            if let Some(rune_id) = self.runed_tools.get(&h.item_id) {
+                if let Some(rune) = lf_game::magic::Rune::from_item(rune_id) {
+                    armor = (armor as f32 + rune.armor_bonus()) as u8;
+                }
+            }
+        }
         let amount = mitigate(amount, armor);
         self.stats.health = (self.stats.health - amount).max(0.0);
         self.hud_flash = 1.0;
@@ -2661,19 +2992,42 @@ impl GameState {
             if dist > 60.0 {
                 continue;
             }
-            // hamlet marker: crafting table on the surface band
+            // hamlet marker: crafting table on the surface band;
+            // wizard tower marker: an enchanting table (P33)
             let mut has_hut = false;
+            let mut tower_spot = None;
             let mut hut_spot = None;
             for lx in 4..12usize {
                 for lz in 4..12usize {
                     for y in 60..200usize {
-                        if col.get(lx, y, lz).id() == registry::block::CRAFTING_TABLE {
+                        let id_here = col.get(lx, y, lz).id();
+                        if id_here == registry::block::CRAFTING_TABLE {
                             has_hut = true;
                             hut_spot = Some((cx * 16 + lx as i32, y as i32 + 1, cz * 16 + lz as i32));
-                            break;
+                        } else if id_here == registry::block::ENCHANTING_TABLE {
+                            tower_spot = Some((cx * 16 + lx as i32, y as i32 + 1, cz * 16 + lz as i32));
                         }
                     }
                 }
+            }
+            // a wizard settles the tower (max two per world, one per tower)
+            if let Some((tx, ty, tz)) = tower_spot {
+                let wizards = self.villagers.iter()
+                    .filter(|v| v.job == VillagerJob::Wizard).count();
+                let staffed = self.villagers.iter().any(|v| {
+                    v.job == VillagerJob::Wizard
+                        && (v.position[0] - tx as f32).abs() < 12.0
+                        && (v.position[2] - tz as f32).abs() < 12.0
+                });
+                if wizards < 2 && !staffed {
+                    let id = 1000 + self.villagers.len() as u64;
+                    let spawn = if self.world.is_solid(tx, ty - 1, tz + 2) { (tx, ty, tz + 2) } else { (tx, ty, tz) };
+                    self.villagers.push(Villager::new(id, VillagerJob::Wizard, "Ysolde".into(),
+                        [spawn.0 as f32 + 0.5, spawn.1 as f32 + 0.2, spawn.2 as f32 + 0.5]));
+                    tracing::info!("Ysolde the Wizard settled a tower");
+                    return;
+                }
+                continue;
             }
             if !has_hut {
                 continue;
@@ -2697,6 +3051,7 @@ impl GameState {
                 VillagerJob::Guard => "Dora",
                 VillagerJob::Bard => "Pip",
                 VillagerJob::Lorekeeper => "Wex",
+                VillagerJob::Wizard => "Ysolde",
             };
             let spawn = if self.world.is_solid(hx, hy - 1, hz + 2) { (hx, hy, hz + 2) } else { (hx, hy, hz) };
             self.villagers.push(Villager::new(id, job, name.to_string(),
@@ -2790,14 +3145,26 @@ impl GameState {
                 let sz = (player.z + ang.sin() * dist) as i32;
                 // only spawn on loaded ground
                 if let Some((cx, lx)) = Some((sx.div_euclid(16), sx.rem_euclid(16))) {
-                    let (cz, lz) = (sz.div_euclid(16), sz.rem_euclid(16));
-                    if self.world.chunk(cx, cz).is_some() {
-                        let top = self.world.surface_height(sx, sz);
-                        if top > lf_worldgen::SEA_LEVEL || !kind.is_hostile() {
-                            let id = self.next_mob_id;
-                            self.next_mob_id += 1;
-                            let pos = Vec3::new(sx as f32 + 0.5, top as f32 + 0.2, sz as f32 + 0.5);
-                            self.mobs.push(MobEntity::spawn(id, kind, pos));
+                    // P33: a warding pylon keeps hostiles out of its reach
+                    let warded = kind.is_hostile() && {
+                        let top0 = self.world.surface_height(sx, sz);
+                        (-3..=3i32).any(|dx| (-3..=3i32).any(|dz| {
+                            (-1..=2i32).any(|dy| {
+                                self.world.get_block(sx + dx, top0 + dy, sz + dz).id()
+                                    == registry::block::WARDING_PYLON
+                            })
+                        }))
+                    };
+                    if !warded {
+                        let (cz, lz) = (sz.div_euclid(16), sz.rem_euclid(16));
+                        if self.world.chunk(cx, cz).is_some() {
+                            let top = self.world.surface_height(sx, sz);
+                            if top > lf_worldgen::SEA_LEVEL || !kind.is_hostile() {
+                                let id = self.next_mob_id;
+                                self.next_mob_id += 1;
+                                let pos = Vec3::new(sx as f32 + 0.5, top as f32 + 0.2, sz as f32 + 0.5);
+                                self.mobs.push(MobEntity::spawn(id, kind, pos));
+                            }
                         }
                     }
                 }
@@ -3452,6 +3819,11 @@ impl GameState {
             let tex = lf_assets::texture_index_for_block(registry::block::SNOW);
             push_cube(arrow.position.x, arrow.position.y, arrow.position.z, 0.08, tex, &mut vertices, &mut indices);
         }
+        // firebolts glow (P33)
+        for bolt in &self.firebolts {
+            push_cube(bolt.position.x, bolt.position.y, bolt.position.z, 0.12,
+                lf_assets::texture_index_for_block(registry::block::LANTERN), &mut vertices, &mut indices);
+        }
         // villagers render as earthy cubes
         for v in &self.villagers {
             let tex = match v.job {
@@ -3461,6 +3833,7 @@ impl GameState {
                 VillagerJob::Guard => lf_assets::texture_index_for_block(registry::block::STONE),
                 VillagerJob::Bard => lf_assets::texture_index_for_block(registry::block::CHERRY_LEAVES),
                 VillagerJob::Lorekeeper => lf_assets::texture_index_for_block(registry::block::CRAFTING_TABLE),
+                VillagerJob::Wizard => lf_assets::ENCHANTING_LAYER,
             };
             push_cube(v.position[0], v.position[1] + 0.9, v.position[2], 0.45, tex, &mut vertices, &mut indices);
         }
@@ -3641,7 +4014,7 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType, Vec<map::Waypoint>) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType, Vec<map::Waypoint>, lf_game::magic::Spellbook, std::collections::HashMap<String, String>) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
@@ -3661,8 +4034,19 @@ fn load_client_save(dir: &Path)
     let mut chronicle = Vec::new();
     let mut research = ResearchState::default();
     let mut settings = Settings::default();
-    if let Ok(bytes) = std::fs::read(dir.join("player_extras.dat")) {
-        if let Ok(save) = bincode::deserialize::<ClientSave>(&bytes) {
+    // P33: extras are JSON now; the old bincode file migrates through the
+    // frozen LegacyClientSave shape (never a silent extras reset).
+    let loaded: Option<ClientSave> = (|| {
+        if let Ok(bytes) = std::fs::read(dir.join("player_extras.json")) {
+            return serde_json::from_slice::<ClientSave>(&bytes).ok();
+        }
+        if let Ok(bytes) = std::fs::read(dir.join("player_extras.dat")) {
+            return bincode::deserialize::<LegacyClientSave>(&bytes).ok().map(ClientSave::from);
+        }
+        None
+    })();
+    if let Some(save) = loaded {
+        {
             for (i, slot) in save.slots.iter().enumerate().take(inventory.slots.len()) {
                 inventory.slots[i] = slot.clone();
             }
@@ -3680,10 +4064,13 @@ fn load_client_save(dir: &Path)
             if let Some(s) = save.settings { settings = s; }
             villagers = save.villagers;
             let waypoints = save.waypoints;
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints);
+            stats.mana = save.mana.clamp(0.0, stats.max_mana);
+            let spellbook = save.spellbook.unwrap_or_default();
+            let runed = save.runed.into_iter().collect();
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed);
         }
     }
-    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal, Vec::new())
+    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal, Vec::new(), lf_game::magic::Spellbook::default(), std::collections::HashMap::new())
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.
@@ -4030,6 +4417,65 @@ mod tests {
     /// shake decays to nothing, and the camera offset stays tiny (an impact,
     /// not a wobble) and zeroes below the noise floor.
     /// Step 13 done-when: a rebound key AND the quality tier survive a
+    /// P33 save migration: pre-magic bincode extras load through the frozen
+    /// LegacyClientSave shape — and would EOF on the current struct (that
+    /// gap is exactly why the legacy path exists).
+    #[test]
+    fn legacy_bincode_extras_migrate_instead_of_resetting() {
+        let old = LegacyClientSave {
+            slots: vec![Some(ItemStack { item_id: "iron_pickaxe".into(), count: 1 })],
+            health: 17.0,
+            hunger: 12.0,
+            time_ticks: 90_000,
+            block_entities: vec![],
+            mobs: vec![],
+            kills: 9,
+            quest_log: None,
+            chronicle: vec![],
+            world_type: None,
+            villagers: vec![],
+            research: None,
+            settings: None,
+            waypoints: vec![],
+        };
+        let bytes = bincode::serialize(&old).expect("legacy serialize");
+        // the current struct would fail on those bytes (bincode + new fields = EOF)
+        assert!(bincode::deserialize::<ClientSave>(&bytes).is_err(),
+            "the legacy shape is load-bearing; if this passes the test is stale");
+        let migrated = bincode::deserialize::<LegacyClientSave>(&bytes)
+            .map(ClientSave::from)
+            .expect("legacy path loads");
+        assert_eq!(migrated.health, 17.0);
+        assert_eq!(migrated.kills, 9);
+        assert!((migrated.mana - lf_game::magic::MAX_MANA).abs() < 1e-4, "migrated worlds start with a full pool");
+        assert!(migrated.spellbook.is_none());
+    }
+
+    /// Future field additions stay compatible: JSON extras missing the
+    /// newest field default it (serde default works on self-describing
+    /// formats — the reason extras moved off bincode).
+    #[test]
+    fn json_extras_tolerate_missing_new_fields() {
+        let save = ClientSave::default();
+        let json = serde_json::to_string(&save).expect("json serialize");
+        let stripped = json.replace(&format!("\"mana\":{}", save.mana), "\"mana_stripped\":0");
+        let loaded: ClientSave = serde_json::from_str(&stripped).expect("older json loads");
+        assert!((loaded.mana - lf_game::magic::MAX_MANA).abs() < 1e-4, "missing mana defaults full");
+    }
+
+    /// The spellbook persists through the JSON extras path.
+    #[test]
+    fn spellbook_persists_through_client_save() {
+        let mut book = lf_game::magic::Spellbook::default();
+        book.learn(lf_game::magic::Spell::Firebolt);
+        book.learn(lf_game::magic::Spell::Ward);
+        let save = ClientSave { spellbook: Some(book), mana: 12.5, ..Default::default() };
+        let loaded: ClientSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        let book = loaded.spellbook.unwrap();
+        assert!(book.knows(lf_game::magic::Spell::Firebolt));
+        assert!((loaded.mana - 12.5).abs() < 1e-4);
+    }
+
     /// ClientSave bincode round trip (the same path save_world/load use).
     #[test]
     fn rebind_and_quality_tier_persist_through_client_save() {

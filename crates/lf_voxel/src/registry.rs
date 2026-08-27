@@ -17,7 +17,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 100;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 56;
+pub const MAX_VANILLA_BLOCK: u32 = 59;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -123,6 +123,10 @@ pub mod block {
     pub const URANIUM_ORE: u32 = 54;
     pub const REACTOR: u32 = 55;
     pub const RADIATION: u32 = 56;
+    // Magic foundation (P33)
+    pub const ENCHANTING_TABLE: u32 = 57;
+    pub const LUMEN_BLOCK: u32 = 58;
+    pub const WARDING_PYLON: u32 = 59;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -153,6 +157,9 @@ pub mod block {
             URANIUM_ORE => "Uranium Ore",
             REACTOR => "Reactor",
             RADIATION => "Radiation Residue",
+            ENCHANTING_TABLE => "Enchanting Table",
+            LUMEN_BLOCK => "Lumen Block",
+            WARDING_PYLON => "Warding Pylon",
             DIRT => "Dirt",
             SAND => "Sand",
             MYCELIUM => "Mycelium",

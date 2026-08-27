@@ -717,10 +717,50 @@ impl WorldGen {
             col.set(8, base_y + 2, 2, BlockState::AIR);
         };
 
+        let build_wizard_tower = |col: &mut lf_voxel::ChunkColumn| {
+            let base_y = ground(8, 8);
+            if base_y < SEA_LEVEL as usize + 1 || base_y > 200 {
+                return;
+            }
+            // 5x5 stone shell, 9 tall, hollow; a spiral stair climbs the
+            // inside wall; the top floor holds the enchanting table.
+            for dy in 0..9usize {
+                let y = base_y + dy;
+                for dx in 6..=10usize {
+                    for dz in 6..=10usize {
+                        let edge = dx == 6 || dx == 10 || dz == 6 || dz == 10;
+                        if dy == 0 || dy == 8 || edge {
+                            col.set(dx, y, dz, BlockState(block::STONE));
+                        } else {
+                            col.set(dx, y, dz, BlockState::AIR);
+                        }
+                    }
+                }
+            }
+            // spiral stairs (the wall ring, one step per quarter turn)
+            let ring = [(7, 6), (8, 6), (9, 6), (10, 7), (10, 8), (10, 9),
+                        (9, 10), (8, 10), (7, 10), (6, 9), (6, 8), (6, 7)];
+            for step in 0..7usize {
+                let (sx, sz) = ring[step % ring.len()];
+                col.set(sx, base_y + 1 + step, sz, BlockState(block::STONE));
+            }
+            // door
+            col.set(8, base_y + 1, 6, BlockState::AIR);
+            col.set(8, base_y + 2, 6, BlockState::AIR);
+            // top floor: the enchanting table + light
+            col.set(8, base_y + 9, 8, BlockState(block::ENCHANTING_TABLE));
+            col.set(6, base_y + 9, 8, BlockState(block::TORCH));
+            col.set(10, base_y + 9, 8, BlockState(block::TORCH));
+        };
+
         match center_biome {
             Biome::Meadow if h0 % 37 == 0 => build_hut(col),
             Biome::Highlands if h0 % 41 == 0 => build_watchtower(col),
             Biome::Desert if h0 % 29 == 0 => build_pyramid(col),
+            // P33: wizard towers — rare, forested, and the only place the
+            // enchanting table appears without crafting one
+            Biome::FlowerForest if h0 % 53 == 0 => build_wizard_tower(col),
+            Biome::Highlands if h0 % 97 == 0 => build_wizard_tower(col),
             _ => {}
         }
     }
@@ -770,6 +810,32 @@ mod tests {
         assert_eq!(a.humidity(10, 20), b.humidity(10, 20));
         assert_eq!(a.biome(10, 20), b.biome(10, 20));
         assert_eq!(a.generate_chunk(3, 3).get(5, 60, 5), b.generate_chunk(3, 3).get(5, 60, 5));
+    }
+
+    /// P33: wizard towers generate (enchanting table on top), only in the
+    /// gated biomes, rare.
+    #[test]
+    fn wizard_towers_generate_in_gated_biomes() {
+        let mut towers = 0usize;
+        let gen = WorldGen::new(Seed(42));
+        for cx in -10..10i32 {
+            for cz in -10..10i32 {
+                let biome = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 6..=10usize {
+                    for lz in 6..=10usize {
+                        for y in 60..200usize {
+                            if col.get(lx, y, lz).id() == lf_voxel::registry::block::ENCHANTING_TABLE {
+                                towers += 1;
+                                assert!(matches!(biome, Biome::FlowerForest | Biome::Highlands),
+                                    "tower in {:?} at ({},{})", biome, cx, cz);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(towers >= 1, "a 20x20-chunk scan should find at least one tower, got {}", towers);
     }
 
     /// P31 (doc 04): crude exists (desert/swamp-gated), stays underground in

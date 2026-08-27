@@ -32,10 +32,14 @@ pub enum Action {
     DebugInfo,
     RtCapture,
     GridOverlay,
+    Spell1,
+    Spell2,
+    Spell3,
+    Spellbook,
 }
 
 impl Action {
-    pub const ALL: [Action; 20] = [
+    pub const ALL: [Action; 24] = [
         Action::Forward,
         Action::Back,
         Action::Left,
@@ -56,6 +60,10 @@ impl Action {
         Action::DebugInfo,
         Action::RtCapture,
         Action::GridOverlay,
+        Action::Spell1,
+        Action::Spell2,
+        Action::Spell3,
+        Action::Spellbook,
     ];
 
     pub fn label(self) -> &'static str {
@@ -80,6 +88,10 @@ impl Action {
             Action::DebugInfo => "Debug overlay",
             Action::RtCapture => "Path-traced capture",
             Action::GridOverlay => "Power-grid overlay",
+            Action::Spell1 => "Cast spell slot 1",
+            Action::Spell2 => "Cast spell slot 2",
+            Action::Spell3 => "Cast spell slot 3",
+            Action::Spellbook => "Spellbook",
         }
     }
 }
@@ -143,6 +155,10 @@ impl Default for Keymap {
         set(Action::DebugInfo, F3);
         set(Action::RtCapture, KeyR);
         set(Action::GridOverlay, KeyG);
+        set(Action::Spell1, KeyZ);
+        set(Action::Spell2, KeyX);
+        set(Action::Spell3, KeyC);
+        set(Action::Spellbook, KeyB);
         Self { bindings }
     }
 }

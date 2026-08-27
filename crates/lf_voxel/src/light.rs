@@ -12,6 +12,8 @@ pub fn emission(block_id: u32) -> u8 {
         registry::block::LANTERN => 15,
         // meltdown residue glows an unhealthy green (P32)
         registry::block::RADIATION => 7,
+        // the crossover light block: fuelless, full-bright (P33)
+        registry::block::LUMEN_BLOCK => 15,
         _ => 0,
     }
 }

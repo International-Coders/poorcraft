@@ -431,6 +431,8 @@ impl GameState {
             UiOpen::Trade(index) => self.draw_trade(ctx, index),
             UiOpen::Book => self.draw_book(ctx),
             UiOpen::LoreBook => self.draw_lore_book(ctx),
+            UiOpen::Spellbook => self.draw_spellbook(ctx),
+            UiOpen::Imbue => self.draw_imbue(ctx),
             UiOpen::Smithing => self.draw_smithing(ctx),
             UiOpen::Machine(pos) => self.draw_machine(ctx, pos),
             UiOpen::TechTree => self.draw_tech_tree(ctx),
@@ -549,6 +551,20 @@ impl GameState {
                 p.text(chip.center(), egui::Align2::CENTER_CENTER, format!("Lv {}", self.xp_level),
                     egui::FontId::proportional(11.0), Theme::XP);
                 ui.add_space(1.0);
+                // Mana bar (P33): only once a spell is known — magic is
+                // something you found, not something you were born with.
+                if !self.spellbook.learned.is_empty() {
+                    let frac = (self.stats.mana / self.stats.max_mana).clamp(0.0, 1.0);
+                    let (mrect, _) = ui.allocate_exact_size(egui::vec2(hotbar_w, 5.0), egui::Sense::hover());
+                    let p = ui.painter();
+                    p.rect_filled(mrect, 3.0, egui::Color32::from_black_alpha(190));
+                    p.rect_filled(egui::Rect::from_min_size(mrect.min, egui::vec2(mrect.width() * frac, mrect.height())), 3.0, Theme::MANA);
+                    let chip = egui::Rect::from_center_size(mrect.right_center(), egui::vec2(30.0, 12.0));
+                    p.rect_filled(chip, 3.0, Theme::BG);
+                    p.text(chip.center(), egui::Align2::CENTER_CENTER, format!("{:.0}", self.stats.mana),
+                        egui::FontId::proportional(10.0), Theme::MANA);
+                    ui.add_space(1.0);
+                }
                 // hotbar
                 ui.horizontal(|ui| {
                     for i in 0..9 {
@@ -1708,6 +1724,223 @@ impl GameState {
                 ui.separator();
                 ui.label(egui::RichText::new("Strike only in the marked zone (60-80). Esc to close.").small());
             });
+    }
+
+    /// The spellbook (P33): learned spells, the three cast slots, mana.
+    /// Click a learned spell to send it to the clicked slot; the book is
+    /// the only place slots change. On-kit: slide panel, no native windows.
+    fn draw_spellbook(&mut self, ctx: &egui::Context) {
+        use lf_game::magic::Spell;
+        let reveal = self.menu_reveal;
+        let (mana, max_mana) = (self.stats.mana, self.stats.max_mana);
+        let learned = self.spellbook.learned.clone();
+        let slots = self.spellbook.slots;
+        let mut assign: Option<(usize, Option<Spell>)> = None;
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(150)))
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    let panel_w = 460.0_f32.min(ui.available_width() - 24.0);
+                    kit::slide_panel(ui, reveal, |ui| {
+                        egui::Frame::new()
+                            .fill(Theme::BG)
+                            .stroke(egui::Stroke::new(1.0, Theme::MANA))
+                            .corner_radius(10.0)
+                            .inner_margin(14.0)
+                            .show(ui, |ui| {
+                                ui.set_width(panel_w);
+                                ui.heading(egui::RichText::new("Spellbook").color(Theme::MANA));
+                                ui.label(egui::RichText::new(
+                                    "the bounded set — four spells, three slots. The wizard sells the rest of what you're missing.",
+                                ).small().color(Theme::TEXT_DIM));
+                                ui.add_space(6.0);
+                                // mana readout
+                                let frac = (mana / max_mana).clamp(0.0, 1.0);
+                                let (r, _) = ui.allocate_exact_size(egui::vec2(panel_w - 8.0, 10.0), egui::Sense::hover());
+                                let p = ui.painter();
+                                p.rect_filled(r, 4.0, egui::Color32::from_black_alpha(190));
+                                p.rect_filled(egui::Rect::from_min_size(r.min, egui::vec2(r.width() * frac, r.height())), 4.0, Theme::MANA);
+                                ui.add_space(8.0);
+                                // three cast slots (Z / X / C)
+                                ui.horizontal(|ui| {
+                                    for (i, slot) in slots.iter().enumerate() {
+                                        let key = ["Z", "X", "C"][i];
+                                        let label = slot.map(|s| s.name().to_string()).unwrap_or_else(|| "—".into());
+                                        let color = slot.map(|_| Theme::MANA).unwrap_or(Theme::TEXT_DIM);
+                                        egui::Frame::new()
+                                            .fill(egui::Color32::from_black_alpha(120))
+                                            .stroke(egui::Stroke::new(1.5, color))
+                                            .corner_radius(8.0)
+                                            .inner_margin(8.0)
+                                            .show(ui, |ui| {
+                                                ui.set_min_size(egui::vec2(112.0, 52.0));
+                                                ui.heading(egui::RichText::new(format!("{}  [{}]", label, key)).size(13.0).color(color));
+                                                ui.label(egui::RichText::new(format!(
+                                                    "{} mana", slot.map(|s| s.cost() as u8).unwrap_or(0)
+                                                )).small().color(Theme::TEXT_DIM));
+                                            });
+                                    }
+                                });
+                                ui.add_space(10.0);
+                                ui.separator();
+                                ui.add_space(6.0);
+                                ui.label(egui::RichText::new("learned — click to fill the first free slot, click a slot row to clear it").small().color(Theme::TEXT_DIM));
+                                ui.add_space(4.0);
+                                if learned.is_empty() {
+                                    ui.label(egui::RichText::new(
+                                        "no spells yet — find the tower and buy a scroll",
+                                    ).color(Theme::TEXT_DIM));
+                                }
+                                for spell in &learned {
+                                    ui.horizontal(|ui| {
+                                        ui.heading(egui::RichText::new(spell.name()).size(14.0).color(Theme::MANA));
+                                        ui.label(egui::RichText::new(format!("{} mana", spell.cost() as u8)).small().color(Theme::TEXT_DIM));
+                                        if ui.button("→ slot").clicked() {
+                                            assign = Some((slots.iter().position(|s| s.is_none()).unwrap_or(2), Some(*spell)));
+                                        }
+                                        if let Some(si) = slots.iter().position(|s| *s == Some(*spell)) {
+                                            if ui.button("clear slot").clicked() {
+                                                assign = Some((si, None));
+                                            }
+                                        }
+                                    });
+                                    ui.label(egui::RichText::new(spell.desc()).small().color(Theme::TEXT_DIM));
+                                    ui.add_space(3.0);
+                                }
+                                ui.add_space(8.0);
+                                if ui.button("Close").clicked() {
+                                    self.ui_open = UiOpen::None;
+                                    self.lock_cursor();
+                                }
+                            });
+                    });
+                });
+            });
+        if let Some((slot, spell)) = assign {
+            self.spellbook.assign(slot, spell);
+        }
+    }
+
+    /// The enchanting table (P33): the imbue minigame — channel the
+    /// attunement into the band, pulse three times, bind a rune to the
+    /// held tool. Mirrors the forge's band/strike rhythm.
+    fn draw_imbue(&mut self, ctx: &egui::Context) {
+        use lf_game::magic::Rune;
+        let reveal = self.menu_reveal;
+        let attunement = self.imbue.attunement;
+        let pulses = self.imbue.pulses;
+        let target = self.imbue.target_pulses;
+        let held = self.inventory.slots[self.hotbar_index].clone();
+        let mut grant: Option<Rune> = None;
+        let mut reset = false;
+        // first rune in the inventory (the one that would bind)
+        let rune_in_inv = Rune::ALL.iter().copied().find(|r| {
+            self.inventory.slots.iter().flatten().any(|s| s.item_id == r.item_id())
+        });
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(150)))
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    let panel_w = 430.0_f32.min(ui.available_width() - 24.0);
+                    kit::slide_panel(ui, reveal, |ui| {
+                        egui::Frame::new()
+                            .fill(Theme::BG)
+                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(160, 120, 240)))
+                            .corner_radius(10.0)
+                            .inner_margin(14.0)
+                            .show(ui, |ui| {
+                                ui.set_width(panel_w);
+                                ui.heading(egui::RichText::new("Enchanting Table").color(egui::Color32::from_rgb(185, 130, 255)));
+                                ui.label(egui::RichText::new(
+                                    "channel the attunement into the marked band, then pulse — three clean pulses bind the rune",
+                                ).small().color(Theme::TEXT_DIM));
+                                ui.add_space(6.0);
+                                // attunement bar with the 55..75 band marked
+                                let (r, _) = ui.allocate_exact_size(egui::vec2(panel_w - 8.0, 14.0), egui::Sense::hover());
+                                let p = ui.painter();
+                                p.rect_filled(r, 4.0, egui::Color32::from_black_alpha(190));
+                                let band = egui::Rect::from_min_max(
+                                    egui::pos2(r.left() + r.width() * 0.55, r.top()),
+                                    egui::pos2(r.left() + r.width() * 0.75, r.bottom()),
+                                );
+                                p.rect_filled(band, 4.0, egui::Color32::from_rgb(60, 90, 150));
+                                let w = (attunement / 100.0).clamp(0.0, 1.0);
+                                p.rect_filled(egui::Rect::from_min_size(r.min, egui::vec2(r.width() * w, r.height())), 4.0,
+                                    egui::Color32::from_rgb(185, 130, 255));
+                                ui.add_space(6.0);
+                                ui.label(egui::RichText::new(format!("attunement {:.0} — pulses {}/{}", attunement, pulses, target))
+                                    .color(Theme::TEXT));
+                                ui.horizontal(|ui| {
+                                    if ui.button("focus −10").clicked() { self.imbue.focus(-10.0); }
+                                    if ui.button("focus +10").clicked() { self.imbue.focus(10.0); }
+                                    let in_band = (55.0..=75.0).contains(&attunement);
+                                    if ui.add_enabled(rune_in_inv.is_some(),
+                                        egui::Button::new(egui::RichText::new("Pulse").color(
+                                            if in_band { Theme::OK } else { Theme::TEXT_DIM }))).clicked() {
+                                        if self.imbue.pulse() {
+                                            grant = rune_in_inv;
+                                        }
+                                    }
+                                });
+                                ui.separator();
+                                // what binds, and to what
+                                match (&held, rune_in_inv) {
+                                    (Some(h), Some(rune)) => {
+                                        ui.label(egui::RichText::new(format!(
+                                            "{} will bind to the held {}", rune.name(), h.item_id,
+                                        )).small().color(Theme::TEXT_DIM));
+                                        if self.imbue.ready() {
+                                            ui.label(egui::RichText::new("the rune is ready — Pulse once more to bind").color(Theme::OK));
+                                        }
+                                    }
+                                    (None, Some(_)) => {
+                                        ui.label(egui::RichText::new("hold the tool you want runed").small().color(egui::Color32::from_rgb(230, 130, 130)));
+                                    }
+                                    (_, None) => {
+                                        ui.label(egui::RichText::new("bring a rune — the wizard sells them, or craft them at the table's price")
+                                            .small().color(egui::Color32::from_rgb(230, 130, 130)));
+                                    }
+                                }
+                                if let Some(h) = &held {
+                                    if let Some(rune_id) = self.runed_tools.get(&h.item_id) {
+                                        ui.label(egui::RichText::new(format!(
+                                            "already runed: {}", Rune::from_item(rune_id).map(|r| r.name()).unwrap_or(rune_id),
+                                        )).small().color(Theme::OK));
+                                    }
+                                }
+                                ui.add_space(8.0);
+                                if ui.button("Close").clicked() {
+                                    self.ui_open = UiOpen::None;
+                                    self.lock_cursor();
+                                }
+                            });
+                    });
+                });
+            });
+        if let Some(rune) = grant {
+            if let Some(held_stack) = self.inventory.slots[self.hotbar_index].as_ref() {
+                let tool_id = held_stack.item_id.clone();
+                self.runed_tools.insert(tool_id.clone(), rune.item_id().to_string());
+                // consume one rune
+                'find: for slot in self.inventory.slots.iter_mut() {
+                    if let Some(s) = slot {
+                        if s.item_id == rune.item_id() {
+                            s.count -= 1;
+                            if s.count == 0 {
+                                *slot = None;
+                            }
+                            break 'find;
+                        }
+                    }
+                }
+                self.chronicle_event(lf_chronicle::EventType::RuneApplied,
+                    format!("a {} is bound into the {}", rune.name(), tool_id));
+                reset = true;
+            }
+        }
+        if reset {
+            self.imbue.reset();
+        }
     }
 
     fn draw_machine(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {

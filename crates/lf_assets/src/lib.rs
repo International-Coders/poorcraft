@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 71] = [
+pub const TEXTURE_NAMES: [&str; 74] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -35,6 +35,8 @@ pub const TEXTURE_NAMES: [&str; 71] = [
     "grid_ok", "grid_starved",
     // Nuclear tier (P32): deep uranium, the reactor, meltdown residue
     "uranium_ore", "reactor", "radiation",
+    // Magic foundation (P33)
+    "enchanting_table", "lumen_block", "warding_pylon",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -59,6 +61,9 @@ pub const GRID_STARVED_LAYER: u32 = 67;
 pub const URANIUM_LAYER: u32 = 68;
 pub const REACTOR_LAYER: u32 = 69;
 pub const RADIATION_LAYER: u32 = 70;
+pub const ENCHANTING_LAYER: u32 = 71;
+pub const LUMEN_LAYER: u32 = 72;
+pub const WARDING_LAYER: u32 = 73;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -83,6 +88,9 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         54 => 68, // uranium ore
         55 => 69, // reactor
         56 => 70, // radiation residue
+        57 => 71, // enchanting table
+        58 => 72, // lumen block
+        59 => 73, // warding pylon
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -372,6 +380,55 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([70, 120, 60, 255])
                     } else {
                         Rgba([34, 60, 34, 255])
+                    }
+                }
+                // Magic foundation (P33)
+                "enchanting_table" => {
+                    // dark table with a floating rune diamond + corner studs
+                    let top = y >= 2 && y <= 6 && x >= 2 && x <= 13;
+                    let cloth = y >= 7 && y <= 13 && x >= 3 && x <= 12;
+                    let rune = (x as i32 - 8).abs() <= 1 && (y as i32 - 9).abs() <= 1;
+                    let stud = (x < 3 || x > 12) && (y < 3 || y > 12) && (x + y) % 2 == 0;
+                    if rune {
+                        Rgba([160, 120, 240, 255])
+                    } else if top {
+                        let v = 90 + ((x * 7 + y * 5) % 14);
+                        Rgba([ch(v), ch(v - 12), ch(v - 26), 255])
+                    } else if cloth {
+                        let v = 40 + ((x * 3 + y * 11) % 12);
+                        Rgba([ch(v), ch(v - 8), ch(v + 30), 255])
+                    } else if stud {
+                        Rgba([220, 200, 120, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "lumen_block" => {
+                    // warm fuelless light: bright core, pale casing
+                    let core = (x as i32 - 8).pow(2) + (y as i32 - 8).pow(2) <= 16;
+                    let ring = (x as i32 - 8).pow(2) + (y as i32 - 8).pow(2) <= 42;
+                    if core {
+                        Rgba([255, 244, 200, 255])
+                    } else if ring {
+                        Rgba([230, 214, 168, 255])
+                    } else {
+                        Rgba([120, 108, 84, 255])
+                    }
+                }
+                "warding_pylon" => {
+                    // obsidian-ish pillar with a cyan ward band
+                    let pillar = x >= 5 && x <= 10 && y >= 2 && y <= 14;
+                    let band = pillar && y >= 6 && y <= 8;
+                    let cap = y >= 0 && y <= 1 && x >= 6 && x <= 9;
+                    if band {
+                        Rgba([90, 230, 235, 255])
+                    } else if cap {
+                        Rgba([70, 220, 225, 255])
+                    } else if pillar {
+                        let v = 38 + ((x * 5 + y * 7) % 10);
+                        Rgba([ch(v), ch(v - 4), ch(v + 12), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
                     }
                 }
                 // Water Age machines (P29)
@@ -812,6 +869,8 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "copper_wire", "iron_gear", "machine_frame", "basic_circuit",
     "glitch_dust", "null_shard",
     "raw_uranium", "uranium_ingot", "fuel_rod",
+    "scroll_of_firebolt", "scroll_of_gale_step", "scroll_of_ward", "scroll_of_hearthlight",
+    "rune_of_haste", "rune_of_warding",
 ];
 
 fn paint_sprite(art: [&str; 16], colors: impl Fn(char) -> Rgba<u8>) -> RgbaImage {
@@ -1094,6 +1153,44 @@ const BUCKET_ART: [&str; 16] = [
     "....mMwwwwMm....",
     "....dMmmmmMd....",
     ".....dddddd.....",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
+const RUNE_ART: [&str; 16] = [
+    "................",
+    "................",
+    "......dGg.......",
+    ".....dGggd......",
+    "....dGg..gGd....",
+    "....dg.GG.gd....",
+    "....dg.GG.gd....",
+    "....dGg..gGd....",
+    ".....dGggd......",
+    "......dGg.......",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
+const SCROLL_ART: [&str; 16] = [
+    "................",
+    ".....rrrr.......",
+    "....rppppr......",
+    "...rpssppr......",
+    "..rpspppspr.....",
+    "..rpspgppr......",
+    "..rpspggpr......",
+    "..rpsppppr......",
+    "..rpssppr.......",
+    "...rppppr.......",
+    "....rrrr........",
+    "................",
     "................",
     "................",
     "................",
@@ -1424,6 +1521,36 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
         }
         "raw_iron" => raw_chunk(Rgba([172, 146, 126, 255]), Rgba([210, 185, 160, 255])),
         "raw_uranium" => raw_chunk(Rgba([70, 130, 55, 255]), Rgba([140, 230, 100, 255])),
+        "scroll_of_firebolt" => paint_sprite(SCROLL_ART, |c| match c {
+            'p' => Rgba([238, 226, 196, 255]), 'r' => Rgba([120, 72, 40, 255]),
+            's' => Rgba([60, 130, 220, 255]), 'g' => Rgba([250, 140, 60, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "scroll_of_gale_step" => paint_sprite(SCROLL_ART, |c| match c {
+            'p' => Rgba([238, 226, 196, 255]), 'r' => Rgba([120, 72, 40, 255]),
+            's' => Rgba([60, 130, 220, 255]), 'g' => Rgba([150, 235, 170, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "scroll_of_ward" => paint_sprite(SCROLL_ART, |c| match c {
+            'p' => Rgba([238, 226, 196, 255]), 'r' => Rgba([120, 72, 40, 255]),
+            's' => Rgba([60, 130, 220, 255]), 'g' => Rgba([235, 235, 245, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "rune_of_haste" => paint_sprite(RUNE_ART, |c| match c {
+            'g' => Rgba([150, 235, 170, 255]), 'G' => Rgba([210, 255, 225, 255]),
+            'd' => Rgba([70, 120, 85, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "rune_of_warding" => paint_sprite(RUNE_ART, |c| match c {
+            'g' => Rgba([120, 200, 235, 255]), 'G' => Rgba([190, 235, 255, 255]),
+            'd' => Rgba([60, 95, 125, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "scroll_of_hearthlight" => paint_sprite(SCROLL_ART, |c| match c {
+            'p' => Rgba([238, 226, 196, 255]), 'r' => Rgba([120, 72, 40, 255]),
+            's' => Rgba([60, 130, 220, 255]), 'g' => Rgba([255, 220, 130, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
         "uranium_ingot" => ingot_palette2(Rgba([90, 160, 70, 255]), Rgba([140, 230, 105, 255]), Rgba([55, 105, 45, 255])),
         "fuel_rod" => paint_sprite(FUEL_ROD_ART, |c| match c {
             'm' => Rgba([170, 180, 190, 255]), 'M' => Rgba([215, 225, 235, 255]),
@@ -1494,7 +1621,7 @@ mod tests {
             // fully opaque except water (transparent pass)
             if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine"
                 || name == "pump" || name == "refinery" || name == "combustion_generator"
-                || name == "reactor" {
+                || name == "reactor" || name == "enchanting_table" || name == "warding_pylon" {
                 // machine shells with hollow details
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(solid > 40, "{} too sparse", name);

@@ -1292,6 +1292,7 @@ dependencies = [
  "lf_worldgen",
  "pollster",
  "serde",
+ "serde_json",
  "tempfile",
  "toml",
  "tracing",

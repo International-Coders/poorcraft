@@ -717,3 +717,13 @@
   big red button.
 - 213 tests green (+4); 38/38 vistest scenes; smoke OK; runtimes
   rebuilt; pushed.
+
+## Loop 320 — Magic foundation (P33)
+- Mana + HUD, the bounded four spells with 3 rebinding-aware slots and a
+  spellbook screen, wizard NPC + rare tower worldgen, scroll learning,
+  the enchanting imbue minigame with real rune effects on held tools,
+  and the two crossover blocks (fuelless lumen light, mob-warding
+  pylon). Extras saves moved to JSON with a legacy bincode migration —
+  fixing the latent silent-reset on every old field addition.
+- 223 tests green (+10); 41/41 vistest scenes; smoke OK; runtimes
+  rebuilt; pushed.

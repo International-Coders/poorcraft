@@ -25,6 +25,8 @@ impl Theme {
     pub const HEART: Color32 = Color32::from_rgb(225, 60, 70);
     pub const HUNGER: Color32 = Color32::from_rgb(210, 150, 50);
     pub const XP: Color32 = Color32::from_rgb(110, 220, 255);
+    /// P33 magic: a violet that reads "arcane" against every biome so far.
+    pub const MANA: Color32 = Color32::from_rgb(185, 130, 255);
 
     pub fn title_glow(t: f32) -> Color32 {
         let pulse = 0.5 + 0.5 * (t * 1.4).sin();

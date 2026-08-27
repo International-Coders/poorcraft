@@ -480,6 +480,42 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "wizard_tower",
+            desc: "Magic (P33): the wizard tower — spiral stair, enchanting table under torchlight",
+            default_seed: 42,
+            time_of_day: 0.72,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "spellbook",
+            desc: "Magic (P33): the spellbook screen — learned spells, three cast slots, mana bar",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "spell_effects",
+            desc: "Magic (P33): hearthlight's lumen glow, a firebolt streak, a ward ring",
+            default_seed: 12345,
+            time_of_day: 0.62,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "grid_overlay",
             desc: "power-grid overlay (Step 25): green tint cube over the powered furnace, red over a starved crusher out of range",
             default_seed: 12345,
@@ -980,6 +1016,61 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         world.set_block(3, h, 1, lf_voxel::BlockState(block::COMBUSTION_GENERATOR));
     }
 
+    // wizard_tower (P33): the same tower worldgen places in FlowerForest/
+    // Highlands (visual twin of build_wizard_tower — the generation itself
+    // is proven by the worldgen unit test).
+    if spec.name == "wizard_tower" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -6..8 {
+            for z in -6..6 {
+                for y in h..h + 14 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::GRASS));
+            }
+        }
+        // 5x5 shell 9 tall, hollow, on the local ground (chunk-local 6..=10
+        // mapped to world -2..=2 around the origin)
+        for dy in 0..9usize {
+            for dx in 6..=10usize {
+                for dz in 6..=10usize {
+                    let edge = dx == 6 || dx == 10 || dz == 6 || dz == 10;
+                    let b = if dy == 0 || dy == 8 || edge { block::STONE } else { block::AIR };
+                    world.set_block(dx as i32 - 8, h + dy as i32, dz as i32 - 8, lf_voxel::BlockState(b));
+                }
+            }
+        }
+        let ring = [(7, 6), (8, 6), (9, 6), (10, 7), (10, 8), (10, 9), (9, 10), (8, 10), (7, 10), (6, 9), (6, 8), (6, 7)];
+        for step in 0..7usize {
+            let (sx, sz) = ring[step % ring.len()];
+            world.set_block(sx as i32 - 8, h + 1 + step as i32, sz as i32 - 8, lf_voxel::BlockState(block::STONE));
+        }
+        world.set_block(0, h + 1, -2, lf_voxel::BlockState(block::AIR));
+        world.set_block(0, h + 2, -2, lf_voxel::BlockState(block::AIR));
+        world.set_block(0, h + 9, 0, lf_voxel::BlockState(block::ENCHANTING_TABLE));
+        world.set_block(-2, h + 9, 0, lf_voxel::BlockState(block::TORCH));
+        world.set_block(2, h + 9, 0, lf_voxel::BlockState(block::TORCH));
+    }
+
+    // spell_effects (P33): a lumen block lighting a dark shelf, a firebolt
+    // streak mid-flight, a ward ring around the caster spot.
+    if spec.name == "spell_effects" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -6..7 {
+            for z in -6..6 {
+                for y in h..h + 9 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // hearthlight's temporary light + one placed lumen (the crossover)
+        world.set_block(-2, h, 0, lf_voxel::BlockState(block::LUMEN_BLOCK));
+        world.set_block(2, h, 1, lf_voxel::BlockState(block::ENCHANTING_TABLE));
+    }
+
     // transparency_layers (Step 8): a water pool BEHIND a glass wall, with
     // debris billboards on both sides of the glass — water must be visible
     // through the pane, and the near particle must render over the glass
@@ -1223,6 +1314,7 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
     // steam_chain: pale puffs rising from the boiler drum
     if spec.name == "steam_chain" {
         let h = world.surface_height(0, 0) as f32;
+
         let snow_tex = lf_assets::texture_index_for_block(lf_voxel::registry::block::SNOW);
         for i in 0..10u32 {
             let t = i as f32;
@@ -1240,6 +1332,69 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
                     normal: [0.0, 0.0, 1.0],
                     tex_coord: uv,
                     tex_index: snow_tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+
+    // spell_effects: a firebolt streak (glowing cubes along an arc) and a
+    // ward ring (translucent white tiles circling the caster)
+    if spec.name == "spell_effects" {
+        let h = world.surface_height(0, 0) as f32;
+        let _ = ();
+        let lantern = lf_assets::texture_index_for_block(lf_voxel::registry::block::LANTERN);
+        let snow = lf_assets::texture_index_for_block(lf_voxel::registry::block::SNOW);
+        // firebolt arc from right to left at chest height
+        for i in 0..7u32 {
+            let t = i as f32;
+            let center = Vec3::new(4.5 - t * 1.1, h + 1.6 + (t * 0.18).sin() * 0.4, 0.5);
+            let base = vertices.len() as u32;
+            let s = 0.12 + (6 - i) as f32 * 0.02;
+            let corners = [
+                [center.x - s, center.y - s, center.z],
+                [center.x - s, center.y + s, center.z],
+                [center.x + s, center.y + s, center.z],
+                [center.x + s, center.y - s, center.z],
+            ];
+            // sample the lantern sprite's glowing core, not the empty corner
+            for (corner, uv) in corners.iter().zip([[0.375, 0.625], [0.375, 0.375], [0.625, 0.375], [0.625, 0.625]]) {
+                vertices.push(GpuVertex {
+                    position: *corner,
+                    normal: [0.0, 0.0, 1.0],
+                    tex_coord: uv,
+                    tex_index: lantern,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+        // ward ring: 10 pale tiles facing inward around (0, h+1, 0)
+        let (cx, cy, cz) = (0.5f32, h + 1.4, 0.5f32);
+        let r = 1.1f32;
+        for i in 0..10u32 {
+            let a = i as f32 * std::f32::consts::TAU / 10.0;
+            let px = cx + a.cos() * r;
+            let pz = cz + a.sin() * r;
+            let base = vertices.len() as u32;
+            let s = 0.24f32;
+            let corners = [
+                [px - s, cy - s, pz],
+                [px - s, cy + s, pz],
+                [px + s, cy + s, pz],
+                [px + s, cy - s, pz],
+            ];
+            for (corner, uv) in corners.iter().zip([[0.25, 0.75], [0.25, 0.25], [0.75, 0.25], [0.75, 0.75]]) {
+                vertices.push(GpuVertex {
+                    position: *corner,
+                    normal: [0.0, 0.0, 1.0],
+                    tex_coord: uv,
+                    tex_index: snow,
                     ao: 1.0,
                     light: 0xF0,
                     sway: 0.0,
@@ -1431,6 +1586,15 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "grid_overlay" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-4.0, h + 7.0, 13.0), Vec3::new(2.0, h + 0.6, 0.0))
+    } else if spec.name == "wizard_tower" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-7.0, h + 9.0, 9.0), Vec3::new(0.5, h + 6.0, 0.5))
+    } else if spec.name == "spellbook" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.0, h + 3.0, 0.0), Vec3::new(0.0, h + 3.0, -1.0))
+    } else if spec.name == "spell_effects" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-4.0, h + 6.0, 9.0), Vec3::new(0.5, h + 0.8, 0.5))
     } else if spec.name == "reactor_control" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-5.0, h + 6.0, 9.0), Vec3::new(0.5, h + 0.8, 0.0))
@@ -1527,7 +1691,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     let ui = spec.name == "hud_preview" || spec.name == "village_trading" || spec.name == "tech_tree"
         || spec.name == "menu_preview" || spec.name == "settings_preview"
         || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud"
-        || spec.name == "console_preview" || spec.name == "lore_book";
+        || spec.name == "console_preview" || spec.name == "lore_book"
+        || spec.name == "spellbook";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
@@ -1562,6 +1727,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "lore_book" {
                 draw_lore_preview(ctx);
+            }
+            if spec.name == "spellbook" {
+                draw_spellbook_preview(ctx);
             }
         };
         // Warmup pass: egui windows need one pass to materialize their areas
@@ -2698,4 +2866,76 @@ mod tests {
         let _ = std::fs::remove_file(&solid_path);
         let _ = std::fs::remove_file(&varied_path);
     }
+}
+
+/// The spellbook preview (P33) — mirrors lf_client's draw_spellbook layout
+/// (lf_vistest cannot depend on lf_client); spell set + costs come from
+/// the real lf_game::magic.
+fn draw_spellbook_preview(ctx: &egui::Context) {
+    use egui::{Align2, Color32, FontId, RichText};
+    let purple = Color32::from_rgb(185, 130, 255);
+    let dim = Color32::from_gray(150);
+    egui::CentralPanel::default()
+        .frame(egui::Frame::new().fill(Color32::from_black_alpha(160)))
+        .show(ctx, |ui| {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                egui::Frame::new()
+                    .fill(Color32::from_gray(24))
+                    .stroke(egui::Stroke::new(1.0, purple))
+                    .corner_radius(10.0)
+                    .inner_margin(14.0)
+                    .show(ui, |ui| {
+                        ui.set_width(440.0);
+                        ui.heading(RichText::new("Spellbook").color(purple));
+                        ui.label(RichText::new("the bounded set — four spells, three slots. The wizard sells the rest of what you're missing.")
+                            .small().color(dim));
+                        ui.add_space(6.0);
+                        let (r, _) = ui.allocate_exact_size(egui::vec2(430.0, 10.0), egui::Sense::hover());
+                        let p = ui.painter();
+                        p.rect_filled(r, 4.0, Color32::from_black_alpha(190));
+                        p.rect_filled(egui::Rect::from_min_size(r.min, egui::vec2(r.width() * 0.66, r.height())), 4.0, purple);
+                        p.text(r.right_center(), Align2::RIGHT_CENTER, "20", FontId::proportional(10.0), purple);
+                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            for (label, key, cost) in [
+                                ("Firebolt", "Z", "8"), ("Ward", "X", "20"), ("Hearthlight", "C", "15"),
+                            ] {
+                                egui::Frame::new()
+                                    .fill(Color32::from_black_alpha(120))
+                                    .stroke(egui::Stroke::new(1.5, purple))
+                                    .corner_radius(8.0)
+                                    .inner_margin(8.0)
+                                    .show(ui, |ui| {
+                                        ui.set_min_size(egui::vec2(122.0, 52.0));
+                                        ui.heading(RichText::new(format!("{}  [{}]", label, key)).size(13.0).color(purple));
+                                        ui.label(RichText::new(format!("{} mana", cost)).small().color(dim));
+                                    });
+                            }
+                        });
+                        ui.add_space(10.0);
+                        ui.separator();
+                        ui.add_space(6.0);
+                        ui.label(RichText::new("learned — click to fill the first free slot, click a slot row to clear it").small().color(dim));
+                        ui.add_space(4.0);
+                        for (name, cost, desc) in [
+                            ("Firebolt", "8", "hurl a bolt of fire — an arrow that hits harder"),
+                            ("Gale-step", "12", "blink forward along your gaze"),
+                            ("Ward", "20", "a shield that drinks damage for a few seconds"),
+                            ("Hearthlight", "15", "the Smith's trick: light the dark, soften one ore by hand"),
+                        ] {
+                            ui.horizontal(|ui| {
+                                ui.heading(RichText::new(name).size(14.0).color(purple));
+                                ui.label(RichText::new(format!("{} mana", cost)).small().color(dim));
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.small_button("→ slot");
+                                });
+                            });
+                            ui.label(RichText::new(desc).small().color(dim));
+                            ui.add_space(3.0);
+                        }
+                        ui.add_space(8.0);
+                        if ui.button("Close").clicked() {}
+                    });
+            });
+        });
 }

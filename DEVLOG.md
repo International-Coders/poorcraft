@@ -646,3 +646,23 @@ clusters. AI-verified both scenes. Debug-built world state confirmed 14
 residue blocks placed before trusting the render. Framing bug chased and
 fixed (surface_top vs surface_height convention). Smoke OK. Runtimes
 rebuilt; pushed.
+
+### 2026-08-27 — Loop 320: P33 Magic foundation
+**WHAT**: The full magic layer — mana, four bounded spells, spellbook,
+wizard + towers, enchanting with rune effects, crossover blocks — plus a
+real save-compat fix the phase forced into the open.
+**HOW**: lf_game::magic (Spell/Spellbook/try_cast/hearthlight_pick/
+ImbueMinigame/Rune, 6 tests); PlayerStats.mana + ClientSave.mana +
+runed tools (JSON extras + frozen LegacyClientSave bincode migration
+with 3 migration tests — bincode EOF on new fields proven live);
+registry 57-59 + atlas 71->74 + scroll/rune pixel art; wizard tower
+worldgen (gated biomes, 400-chunk test) + Wizard job/trades/spawn;
+client: cast_from_slot (firebolt arrow variant, blink raycast, ward
+absorb in damage(), hearthlight smelt+temp lumen), mana regen in
+survival_tick, spell keys Z/X/C + book B (24 actions now), spellbook +
+imbue UIs, rune mining/armor effects, pylon spawn suppression.
+**VERIFICATION**: 223 tests / 0 failed. vistest 41/41. Three new scenes
+AI-verified (tower at dusk, finished spellbook screen, effects showcase
+with firebolt arc + ward ring + lumen glow — the dusk-dimming rabbit
+hole ended as a scan-threshold lesson, scene set to 0.62). Smoke OK.
+Runtimes rebuilt; pushed.

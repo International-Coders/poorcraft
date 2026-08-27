@@ -8,6 +8,8 @@ pub enum VillagerJob {
     Trader,
     Bard,
     Lorekeeper,
+    /// P33: dwells the tower, sells spell scrolls + reagents.
+    Wizard,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -73,6 +75,15 @@ pub fn trade_offers(job: VillagerJob) -> &'static [(&'static str, u8, &'static s
             ("tome_of_the_forge", 1, "iron_ingot", 4),
             ("tome_of_the_null", 1, "null_shard", 1),
             ("wardens_ledger", 1, "iron_ingot", 6),
+        ],
+        // P33: the wizard teaches the bounded set — every scroll is here,
+        // and reagents flow both ways.
+        VillagerJob::Wizard => &[
+            ("glitch_dust", 6, "scroll_of_firebolt", 1),
+            ("null_shard", 1, "scroll_of_gale_step", 1),
+            ("glitch_dust", 12, "scroll_of_ward", 1),
+            ("book", 2, "scroll_of_hearthlight", 1),
+            ("iron_ingot", 2, "glitch_dust", 3),
         ],
     }
 }

@@ -537,3 +537,54 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       destruction of other machines' block entities (entities in the
       crater are dropped today via generic spill-on-break only for the
       reactor itself).
+
+## Loop 320 — P33 Magic foundation
+- [x] MANA: lf_game::magic (MAX_MANA 30, regen 1.5/s) + PlayerStats.mana
+      (persisted via ClientSave.mana). HUD bar in Theme::MANA violet under
+      the XP bar — appears only once a spell is learned (magic is found,
+      not innate). Tests: pool/cost gating, bounded set stability.
+- [x] THE BOUNDED FOUR (doc 05): Firebolt (8 mana — a harder-hitting
+      arrow with impact sparks), Gale-step (12 — gaze-ray blink up to 8
+      blocks, wall-safe), Ward (20 — 5s of full damage absorption while
+      the timer runs), Hearthlight (15 — softens ONE raw ore by hand via
+      smelting::smelt_result and lights the targeted cell with a
+      temporary lumen that burns out after 90s). 3 cast slots on
+      Z/X/C (rebinding-aware, Action::Spell1..3), spellbook screen on B
+      (on-kit slide panel: mana bar, slot cards, learned list,
+      assign/clear).
+- [x] SAVE MIGRATION (latent bug found + fixed): bincode EOFs on old
+      bytes when fields are added — every past ClientSave field addition
+      silently reset old worlds' extras on load. Extras are now JSON
+      (serde defaults apply), with a frozen LegacyClientSave bincode
+      shape migrating pre-magic worlds. Tests prove the legacy bytes
+      fail the current struct (the legacy path is load-bearing), that
+      older JSON tolerates missing new fields, and that the spellbook +
+      runed tools persist.
+- [x] WIZARD: VillagerJob::Wizard (Ysolde, max 2 per world) settles
+      towers (spawn marker = the enchanting table), sells all four
+      scrolls + reagents. Wizard towers worldgen: 5x5 stone shell, 9
+      tall, spiral stair, torch-lit enchanting table on top —
+      FlowerForest (1/53) / Highlands (1/97); unit test scans 400 chunks
+      (seed 42 -> 3 towers, biome-gated). Scrolls: right-click to learn
+      (chronicle Discovery; auto-assign to a free slot).
+- [x] ENCHANTING: ENCHANTING_TABLE (57, craftable + towers) opens the
+      imbue minigame (ImbueMinigame mirrors ForgeMinigame: channel
+      55..75 band, 3 pulses bind, reset guards per-frame minting).
+      Runes (rune_of_haste x1.3 mining while held, rune_of_warding +2
+      armor while held) bind to the HELD tool (runed_tools map,
+      persisted; CustomTool.rune fill + RuneApplied chronicle event —
+      the pre-cut hook is proven by test).
+- [x] CROSSOVER ITEMS (doc 05): LUMEN_BLOCK (58 — fuelless light-15,
+      crafted from glitch dust + glass + torch; also Hearthlight's
+      temporary form) and WARDING_PYLON (59 — hostile mobs refuse to
+      spawn within ~3 blocks; crafted around a null_shard core). Magic
+      that plays along with the machines, not instead of them.
+- [x] Proofs: wizard_tower (AI-verified tower + table + torches at
+      dusk), spellbook (AI-verified finished screen: title, mana bar,
+      three Z/X/C slot cards, four learned spells), spell_effects
+      (AI-verified: lumen glow, enchanting table, orange firebolt arc,
+      pale ward ring — pixel-checked; dusk dimming caught by scan
+      thresholds, scene moved to 0.62 golden hour).
+- [ ] Deferred to P33b+: more runes (the enum is the extension point),
+      wizard quest hooks (trades teach today), spell targeting beyond
+      the crosshair cell.

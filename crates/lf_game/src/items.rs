@@ -123,6 +123,16 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "oil_bucket", name: "Bucket of Crude", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "refined_fuel", name: "Refined Fuel", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "tar", name: "Tar", kind: ItemKind::Material, max_stack: 64 },
+        // Magic foundation (P33): scrolls teach spells (right-click)
+        ItemDef { id: "scroll_of_firebolt", name: "Scroll of Firebolt", kind: ItemKind::Material, max_stack: 4 },
+        ItemDef { id: "scroll_of_gale_step", name: "Scroll of Gale-step", kind: ItemKind::Material, max_stack: 4 },
+        ItemDef { id: "scroll_of_ward", name: "Scroll of Ward", kind: ItemKind::Material, max_stack: 4 },
+        ItemDef { id: "scroll_of_hearthlight", name: "Scroll of Hearthlight", kind: ItemKind::Material, max_stack: 4 },
+        ItemDef { id: "rune_of_haste", name: "Rune of Haste", kind: ItemKind::Material, max_stack: 8 },
+        ItemDef { id: "rune_of_warding", name: "Rune of Warding", kind: ItemKind::Material, max_stack: 8 },
+        ItemDef { id: "enchanting_table", name: "Enchanting Table", kind: ItemKind::Block(block::ENCHANTING_TABLE), max_stack: 1 },
+        ItemDef { id: "lumen_block", name: "Lumen Block", kind: ItemKind::Block(block::LUMEN_BLOCK), max_stack: 16 },
+        ItemDef { id: "warding_pylon", name: "Warding Pylon", kind: ItemKind::Block(block::WARDING_PYLON), max_stack: 4 },
         // Nuclear tier (P32)
         ItemDef { id: "raw_uranium", name: "Raw Uranium", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "uranium_ingot", name: "Uranium Ingot", kind: ItemKind::Material, max_stack: 64 },
@@ -226,6 +236,9 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::PUMP => Some("pump".into()),
         block::REFINERY => Some("refinery".into()),
         block::COMBUSTION_GENERATOR => Some("combustion_generator".into()),
+        block::ENCHANTING_TABLE => Some("enchanting_table".into()),
+        block::LUMEN_BLOCK => Some("lumen_block".into()),
+        block::WARDING_PYLON => Some("warding_pylon".into()),
         block::URANIUM_ORE => Some("raw_uranium".into()),
         block::REACTOR => Some("reactor".into()),
         block::RADIATION => None, // residue is scrubbed, not collected

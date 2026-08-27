@@ -93,6 +93,24 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("machine_frame"), Some("basic_circuit"), Some("machine_frame")],
         vec![Some("iron_ingot"), Some("iron_gear"), Some("iron_ingot")],
     ]));
+    // Magic foundation (P33): the enchanting table, and the two crossover
+    // blocks — magic that plays along with the machines instead of
+    // replacing them (doc 05)
+    book.push(r("enchanting_table", 1, vec![
+        vec![Some("stone"), Some("book"), Some("stone")],
+        vec![Some("glitch_dust"), Some("null_shard"), Some("glitch_dust")],
+        vec![Some("stone"), Some("book"), Some("stone")],
+    ]));
+    book.push(r("lumen_block", 2, vec![
+        vec![Some("glitch_dust"), Some("glass"), Some("glitch_dust")],
+        vec![Some("glass"), Some("torch"), Some("glass")],
+        vec![Some("glitch_dust"), Some("glass"), Some("glitch_dust")],
+    ]));
+    book.push(r("warding_pylon", 1, vec![
+        vec![Some("null_shard"), Some("machine_frame"), Some("null_shard")],
+        vec![Some("machine_frame"), Some("glitch_dust"), Some("machine_frame")],
+        vec![Some("null_shard"), Some("machine_frame"), Some("null_shard")],
+    ]));
     // 3 iron ingots in a V -> bucket (scoop/place water sources)
     book.push(r("bucket", 1, vec![
         vec![Some("iron_ingot"), None, Some("iron_ingot")],
