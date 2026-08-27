@@ -564,6 +564,30 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "paths_screen",
+            desc: "Paths & specialization (P37): four standings with tiers, focus bars, respec note",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "trade_p2p",
+            desc: "Player trading (P37, protocol v4): the offer panel — give/want, accept or cancel",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "grid_overlay",
             desc: "power-grid overlay (Step 25): green tint cube over the powered furnace, red over a starved crusher out of range",
             default_seed: 12345,
@@ -1877,6 +1901,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "grid_overlay" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-4.0, h + 7.0, 13.0), Vec3::new(2.0, h + 0.6, 0.0))
+    } else if spec.name == "paths_screen" || spec.name == "trade_p2p" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.0, h + 3.0, 0.0), Vec3::new(0.0, h + 3.0, -1.0))
     } else if spec.name == "dragon_roost" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-7.0, h + 11.0, 9.0), Vec3::new(0.5, h + 5.5, 0.5))
@@ -1995,7 +2022,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         || spec.name == "menu_preview" || spec.name == "settings_preview"
         || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud"
         || spec.name == "console_preview" || spec.name == "lore_book"
-        || spec.name == "spellbook";
+        || spec.name == "spellbook" || spec.name == "paths_screen" || spec.name == "trade_p2p";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
@@ -2033,6 +2060,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "spellbook" {
                 draw_spellbook_preview(ctx);
+            }
+            if spec.name == "paths_screen" {
+                draw_paths_preview(ctx);
+            }
+            if spec.name == "trade_p2p" {
+                draw_trade_p2p_preview(ctx);
             }
         };
         // Warmup pass: egui windows need one pass to materialize their areas
@@ -3176,6 +3209,8 @@ mod tests {
 /// the real lf_game::magic.
 fn draw_spellbook_preview(ctx: &egui::Context) {
     use egui::{Align2, Color32, FontId, RichText};
+    #[allow(unused_imports)]
+    use Align2 as _Align2;
     let purple = Color32::from_rgb(185, 130, 255);
     let dim = Color32::from_gray(150);
     egui::CentralPanel::default()
@@ -3238,6 +3273,112 @@ fn draw_spellbook_preview(ctx: &egui::Context) {
                         }
                         ui.add_space(8.0);
                         if ui.button("Close").clicked() {}
+                    });
+            });
+        });
+}
+
+/// The paths screen preview (P37) — mirrors lf_client's draw_paths layout.
+fn draw_paths_preview(ctx: &egui::Context) {
+    use egui::{Align2, Color32, FontId, RichText};
+    #[allow(unused_imports)]
+    use Align2 as _Align2;
+    let gold = Color32::from_rgb(240, 200, 120);
+    let violet = Color32::from_rgb(185, 130, 255);
+    let dim = Color32::from_gray(150);
+    let paths: [(&str, &str, u32); 4] = [
+        ("Engineer", "machines hum under your hands", 31),
+        ("Architect", "the valley takes your shape", 24),
+        ("Battlemage", "spell and steel, both yours", 37),
+        ("Artisan", "everything you make is better", 18),
+    ];
+    egui::CentralPanel::default()
+        .frame(egui::Frame::new().fill(Color32::from_black_alpha(160)))
+        .show(ctx, |ui| {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                egui::Frame::new()
+                    .fill(Color32::from_gray(24))
+                    .stroke(egui::Stroke::new(1.0, gold))
+                    .corner_radius(10.0)
+                    .inner_margin(14.0)
+                    .show(ui, |ui| {
+                        ui.set_width(480.0);
+                        ui.heading(RichText::new("Paths").color(gold));
+                        ui.label(RichText::new("no decay, no lock-in — everything you do deepens a path").small().color(dim));
+                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            for (i, (name, desc, standing)) in paths.iter().enumerate() {
+                                let tier = standing / 25;
+                                let frac = (standing % 25) as f32 / 25.0;
+                                let focused = i == 2;
+                                let color = if focused { violet } else { gold };
+                                egui::Frame::new()
+                                    .fill(Color32::from_black_alpha(120))
+                                    .stroke(egui::Stroke::new(if focused { 2.5 } else { 1.0 }, color))
+                                    .corner_radius(8.0)
+                                    .inner_margin(8.0)
+                                    .show(ui, |ui| {
+                                        ui.set_min_size(egui::vec2(108.0, 96.0));
+                                        ui.heading(RichText::new(name.to_string()).size(14.0).color(color));
+                                        ui.label(RichText::new(format!("tier {} — {}/25", tier, standing % 25)).small().color(dim));
+                                        let (r, _) = ui.allocate_exact_size(egui::vec2(92.0, 6.0), egui::Sense::hover());
+                                        let p = ui.painter();
+                                        p.rect_filled(r, 3.0, Color32::from_black_alpha(190));
+                                        p.rect_filled(egui::Rect::from_min_size(r.min, egui::vec2(r.width() * frac, r.height())), 3.0, color);
+                                        ui.label(RichText::new(desc.to_string()).small().color(dim));
+                                        ui.small_button("focus");
+                                    });
+                            }
+                        });
+                        ui.add_space(6.0);
+                        ui.label(RichText::new("respec: pay 8 iron_ingot + 1 null_shard, standings reset, the focused path accrues double").small().color(dim));
+                        ui.label(RichText::new("current focus: Battlemage").small().color(violet));
+                        ui.add_space(8.0);
+                        ui.button("Close");
+                        let _ = FontId::proportional(11.0);
+                    });
+            });
+        });
+}
+
+/// The P2P trade offer preview (P37, protocol v4) — the escrowed offer
+/// as the receiving player sees it.
+fn draw_trade_p2p_preview(ctx: &egui::Context) {
+    use egui::{Align2, Color32, RichText};
+    let gold = Color32::from_rgb(240, 200, 120);
+    let ok = Color32::from_rgb(120, 210, 130);
+    let dim = Color32::from_gray(150);
+    egui::CentralPanel::default()
+        .frame(egui::Frame::new().fill(Color32::from_black_alpha(160)))
+        .show(ctx, |ui| {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                egui::Frame::new()
+                    .fill(Color32::from_gray(24))
+                    .stroke(egui::Stroke::new(1.0, gold))
+                    .corner_radius(10.0)
+                    .inner_margin(14.0)
+                    .show(ui, |ui| {
+                        ui.set_width(400.0);
+                        ui.heading(RichText::new("Trade Offer").color(gold));
+                        ui.label(RichText::new("alice offers to you (escrowed by the server)").small().color(dim));
+                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label(RichText::new("they give").small().color(dim));
+                                ui.label(RichText::new("iron_ingot x4").color(ok));
+                            });
+                            ui.label(RichText::new("⇄").size(20.0).color(gold));
+                            ui.vertical(|ui| {
+                                ui.label(RichText::new("they want").small().color(dim));
+                                ui.label(RichText::new("dragon_scale x1").color(ok));
+                            });
+                        });
+                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            ui.button(egui::RichText::new("Accept").color(ok));
+                            ui.button("Decline");
+                        });
+                        ui.label(RichText::new("accepting delivers to both sides; declining frees the escrow").small().color(dim));
                     });
             });
         });

@@ -144,6 +144,11 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "ac_unit", name: "Climate Unit", kind: ItemKind::Block(block::AC_UNIT), max_stack: 8 },
         ItemDef { id: "computer", name: "Computer Screen", kind: ItemKind::Block(block::COMPUTER), max_stack: 8 },
         ItemDef { id: "dragon_scale", name: "Dragon Scale", kind: ItemKind::Material, max_stack: 16 },
+        // P37 ornate professional-tier items (path-gated)
+        ItemDef { id: "precision_gear", name: "Precision Gear", kind: ItemKind::Material, max_stack: 8 },
+        ItemDef { id: "master_blueprint", name: "Master Blueprint", kind: ItemKind::Material, max_stack: 4 },
+        ItemDef { id: "battlestaff", name: "Battlestaff", kind: ItemKind::Tool(ToolKind::Sword, 3), max_stack: 1 },
+        ItemDef { id: "master_chisel", name: "Master Chisel", kind: ItemKind::Tool(ToolKind::Pickaxe, 3), max_stack: 1 },
         ItemDef { id: "enchanting_table", name: "Enchanting Table", kind: ItemKind::Block(block::ENCHANTING_TABLE), max_stack: 1 },
         ItemDef { id: "lumen_block", name: "Lumen Block", kind: ItemKind::Block(block::LUMEN_BLOCK), max_stack: 16 },
         ItemDef { id: "warding_pylon", name: "Warding Pylon", kind: ItemKind::Block(block::WARDING_PYLON), max_stack: 4 },

@@ -9,6 +9,12 @@ pub enum ClientMessage {
     /// Request to change a block (validated/applied by the server).
     SetBlock { x: i32, y: i32, z: i32, block: u32 },
     Chat { text: String },
+    /// P37 (protocol v4) player trading: offer items to a player.
+    TradeOffer { to: u64, give: Vec<(String, u8)>, want: Vec<(String, u8)> },
+    /// Accept a received offer.
+    TradeAccept { offer_id: u64 },
+    /// Cancel/decline a standing offer (either side).
+    TradeCancel { offer_id: u64 },
     Goodbye,
 }
 
@@ -24,9 +30,52 @@ pub enum ServerMessage {
     PlayerJoined { id: u64, name: String },
     PlayerLeft { id: u64 },
     Reject { reason: String },
+    /// P37 (protocol v4): an offer addressed to you.
+    TradeOffered { offer_id: u64, from: u64, from_name: String, give: Vec<(String, u8)>, want: Vec<(String, u8)> },
+    /// Escrow verdict: accepted swaps deliver items to BOTH sides;
+    /// cancelled offers free them. `items` is what THIS client receives.
+    TradeResolved { offer_id: u64, accepted: bool, items: Vec<(String, u8)> },
 }
 
-pub const PROTOCOL_VERSION: u32 = 3;
+pub const PROTOCOL_VERSION: u32 = 4;
+
+/// One escrowed trade offer on the server (P37). The server holds the
+/// offer and validates the participants; item swaps apply on the peers
+/// (authoritative-lite, same policy as blocks).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct TradeOfferRecord {
+    pub offer_id: u64,
+    pub from: u64,
+    pub to: u64,
+    pub give: Vec<(String, u8)>,
+    pub want: Vec<(String, u8)>,
+}
+
+#[cfg(test)]
+mod trade_tests {
+    use super::*;
+
+    /// v4 messages round-trip through the wire format.
+    #[test]
+    fn trade_messages_round_trip() {
+        let msg = ClientMessage::TradeOffer {
+            to: 7,
+            give: vec![("iron_ingot".into(), 4)],
+            want: vec![("dragon_scale".into(), 1)],
+        };
+        let bytes = bincode::serialize(&msg).unwrap();
+        let back: ClientMessage = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(msg, back);
+        let resolved = ServerMessage::TradeResolved {
+            offer_id: 1,
+            accepted: true,
+            items: vec![("dragon_scale".into(), 1)],
+        };
+        let back: ServerMessage = bincode::deserialize(&bincode::serialize(&resolved).unwrap()).unwrap();
+        assert_eq!(back, resolved);
+        assert_eq!(PROTOCOL_VERSION, 4);
+    }
+}
 
 pub struct ProtocolCodec;
 

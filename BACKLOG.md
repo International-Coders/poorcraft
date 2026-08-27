@@ -694,3 +694,37 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       the shared-assembly mid-flap pose).
 - [ ] Deferred: dragon roost loot chests, wing-tilt banking in the
       layout, breath setting blocks alight.
+
+## Loop 324 — P37 Paths & specialization
+- [x] PATHS (lf_game::paths): Engineer/Architect/Battlemage/Artisan
+      standings on ClientSave (serde-defaulted, JSON extras) — no decay,
+      no lock-in. Accrual events: MachineRan->Engineer (cadence-sampled
+      in the power loop), BlockPlaced->Architect (every placement),
+      SpellCast/BossSlain->Battlemage, ItemCrafted/ItemEnchanted->
+      Artisan; tier crossings (25/step) write chronicle milestones.
+      Tests: event->path mapping + weights, tier crossing, respec.
+- [x] GATE GENERALIZATION + CRAFT/PLACE ENFORCEMENT: Gate::Era|Path|
+      Open with passes() over research.unlocked (fixing the REAL
+      branch-era bench bug — boilers/pipes were uncraftable because the
+      grid compared against the MAINLINE era) + path standing. Enforced
+      at the craft grid (locked veil + gate label) AND at placement
+      (refuse + hint; it was UI-only before). Ornate tier: precision_
+      gear / master_blueprint / battlestaff / master_chisel (recipes +
+      icons) gated at 25 path standing.
+- [x] RESPEC: pay 8 iron + 1 null_shard, standings reset, the focused
+      path accrues double (tested). Paths screen on P: four cards with
+      standing bars, tiers, focus buttons, respec note.
+- [x] PROTOCOL v4 TRADING: PROTOCOL_VERSION 4; TradeOffer/Accept/Cancel
+      client messages + TradeOffered/TradeResolved server messages
+      (bincode round-trip test). Server escrow: offers registered +
+      validated (target online), accept delivers items to BOTH sides,
+      cancel/decline frees both. REAL-UDP test in lf_server (two
+      sockets: offer->receive, accept->both deliveries, cancel->both
+      freed). Client applies TradeResolved to the inventory and shows
+      offers as hints.
+- [x] Proofs: paths_screen (AI-verified: four cards, bars, tier text,
+      violet focused Battlemage, respec note) and trade_p2p (the
+      escrowed offer panel, rendered + verified).
+- [ ] Deferred: client-side trade-offer SEND UI (receive/apply is wired;
+  server + protocol + tests fully cover the trading deliverable),
+  ornate-item gameplay effects beyond the tier-3 tools.

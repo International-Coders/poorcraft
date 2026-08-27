@@ -70,6 +70,8 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
     let mut players: HashMap<u64, Player> = HashMap::new();
     let mut edits: Vec<(i32, i32, i32, u32)> = Vec::new();
     let mut next_id: u64 = 1;
+    let mut offers: HashMap<u64, lf_protocol::TradeOfferRecord> = HashMap::new();
+    let mut next_offer_id: u64 = 1;
     let mut last_snapshot = std::time::Instant::now();
     let mut buf = [0u8; 2048];
 
@@ -81,7 +83,7 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
                     activity = true;
                     if let Some(msg) = ProtocolCodec::decode_client(&buf[..len]) {
                         handle_message(&socket, &mut players, &mut world, &gen, &mut edits,
-                            &mut next_id, src, msg);
+                            &mut next_id, &mut offers, &mut next_offer_id, src, msg);
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
@@ -115,6 +117,8 @@ fn handle_message(
     gen: &WorldGen,
     edits: &mut Vec<(i32, i32, i32, u32)>,
     next_id: &mut u64,
+    offers: &mut HashMap<u64, lf_protocol::TradeOfferRecord>,
+    next_offer_id: &mut u64,
     src: SocketAddr,
     msg: ClientMessage,
 ) {
@@ -170,6 +174,71 @@ fn handle_message(
                 let upd = ProtocolCodec::encode_server(&ServerMessage::BlockUpdate { x, y, z, block });
                 for p in players.values() {
                     let _ = socket.send_to(&upd, p.addr);
+                }
+            }
+        }
+        ClientMessage::TradeOffer { to, give, want } => {
+            // P37 escrow: register the offer, notify the recipient.
+            let from = match players.values().find(|p| p.addr == src) {
+                Some(p) => p,
+                None => return,
+            };
+            let from_name = from.name.clone();
+            let from_id = players.iter().find(|(_, p)| p.addr == src).map(|(id, _)| *id).unwrap_or(0);
+            if players.get(&to).is_none() {
+                let reply = ProtocolCodec::encode_server(&ServerMessage::Reject {
+                    reason: "trade target is not online".into(),
+                });
+                let _ = socket.send_to(&reply, src);
+                return;
+            }
+            let offer_id = *next_offer_id;
+            *next_offer_id += 1;
+            offers.insert(offer_id, lf_protocol::TradeOfferRecord {
+                offer_id, from: from_id, to, give: give.clone(), want: want.clone(),
+            });
+            let reply = ProtocolCodec::encode_server(&ServerMessage::TradeOffered {
+                offer_id, from: from_id, from_name, give, want,
+            });
+            if let Some(target) = players.get(&to) {
+                let _ = socket.send_to(&reply, target.addr);
+            }
+        }
+        ClientMessage::TradeAccept { offer_id } => {
+            // Complete the escrow: the accepter receives `give`, the
+            // offerer receives `want` (both peers apply the swap —
+            // authoritative-lite, same policy as blocks).
+            let sender_id = players.iter().find(|(_, p)| p.addr == src).map(|(id, _)| *id).unwrap_or(0);
+            let Some(offer) = offers.remove(&offer_id) else { return };
+            let accepted = offer.to == sender_id;
+            let to_accepter = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
+                offer_id, accepted, items: if accepted { offer.give.clone() } else { vec![] },
+            });
+            let to_offerer = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
+                offer_id, accepted, items: if accepted { offer.want.clone() } else { vec![] },
+            });
+            if let Some(t) = players.get(&offer.to) {
+                let _ = socket.send_to(&to_accepter, t.addr);
+            }
+            if let Some(f) = players.get(&offer.from) {
+                let _ = socket.send_to(&to_offerer, f.addr);
+            }
+        }
+        ClientMessage::TradeCancel { offer_id } => {
+            let sender_id = players.iter().find(|(_, p)| p.addr == src).map(|(id, _)| *id).unwrap_or(0);
+            if let Some(offer) = offers.remove(&offer_id) {
+                if offer.from == sender_id || offer.to == sender_id {
+                    let msg = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
+                        offer_id, accepted: false, items: vec![],
+                    });
+                    if let Some(t) = players.get(&offer.to) {
+                        let _ = socket.send_to(&msg, t.addr);
+                    }
+                    if let Some(f) = players.get(&offer.from) {
+                        let _ = socket.send_to(&msg, f.addr);
+                    }
+                } else {
+                    offers.insert(offer_id, offer);
                 }
             }
         }
@@ -284,6 +353,83 @@ mod tests {
         assert!(c2_msgs.iter().any(|m| matches!(m, ServerMessage::PlayerStates { states }
             if states.iter().any(|(_, pos, _)| pos == &[10.0, 80.0, 10.0]))),
             "bob sees alice position");
+
+        server.stop();
+    }
+
+    /// P37: the full trade escrow over real UDP — offer, deliver to both
+    /// sides on accept, and a cancel path that frees the offer.
+    #[test]
+    fn trade_escrow_over_real_udp() {
+        let mut server = Server::start("127.0.0.1:0", 12345).expect("start server");
+        let addr = server.local_addr();
+        let c1 = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let c2 = UdpSocket::bind("127.0.0.1:0").unwrap();
+        c1.set_nonblocking(true).unwrap();
+        c2.set_nonblocking(true).unwrap();
+        c1.connect(addr).unwrap();
+        c2.connect(addr).unwrap();
+        // both hellos
+        for (sock, name) in [(&c1, "alice"), (&c2, "bob")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let welcome1 = drain(&c1);
+        let alice_id = welcome1.iter().find_map(|m| match m {
+            ServerMessage::Welcome { your_id, players, .. } => {
+                let _ = players;
+                Some(*your_id)
+            }
+            _ => None,
+        }).expect("alice has an id");
+        let bob_id = drain(&c2).iter().find_map(|m| match m {
+            ServerMessage::Welcome { your_id, .. } => Some(*your_id),
+            _ => None,
+        }).expect("bob has an id");
+
+        // alice offers 4 iron for bob's dragon scale
+        c1.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: bob_id,
+            give: vec![("iron_ingot".into(), 4)],
+            want: vec![("dragon_scale".into(), 1)],
+        })).unwrap();
+        let offered = drain_until(&c2, 5000, |m| matches!(m,
+            ServerMessage::TradeOffered { from, give, want, .. }
+                if *from == alice_id && give[0].0 == "iron_ingot" && want[0].0 == "dragon_scale"));
+        assert!(offered.is_some(), "bob receives the offer");
+        let offer_id = match offered.unwrap() {
+            ServerMessage::TradeOffered { offer_id, .. } => offer_id,
+            _ => unreachable!(),
+        };
+
+        // bob accepts: BOTH sides get their delivery
+        c2.send(&ProtocolCodec::encode_client(&ClientMessage::TradeAccept { offer_id })).unwrap();
+        let bob_res = drain_until(&c2, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: true, items, .. } if items[0].0 == "iron_ingot"));
+        assert!(bob_res.is_some(), "bob receives the iron");
+        let alice_res = drain_until(&c1, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: true, items, .. } if items[0].0 == "dragon_scale"));
+        assert!(alice_res.is_some(), "alice receives the scale");
+
+        // a cancelled offer frees both sides with no items
+        c1.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: bob_id, give: vec![("coal".into(), 1)], want: vec![],
+        })).unwrap();
+        let offered2 = drain_until(&c2, 5000, |m| matches!(m, ServerMessage::TradeOffered { .. }));
+        assert!(offered2.is_some());
+        let offer2 = match offered2.unwrap() {
+            ServerMessage::TradeOffered { offer_id, .. } => offer_id,
+            _ => unreachable!(),
+        };
+        c1.send(&ProtocolCodec::encode_client(&ClientMessage::TradeCancel { offer_id: offer2 })).unwrap();
+        let cancel1 = drain_until(&c1, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: false, items, .. } if items.is_empty()));
+        assert!(cancel1.is_some(), "the offerer is freed on cancel");
+        let cancel2 = drain_until(&c2, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: false, items, .. } if items.is_empty()));
+        assert!(cancel2.is_some(), "the target is freed on cancel");
 
         server.stop();
     }

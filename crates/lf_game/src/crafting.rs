@@ -127,6 +127,23 @@ pub fn recipes() -> &'static [Recipe] {
         vec![None, Some("iron_ingot"), None],
         vec![None, Some("stick"), None],
     ]));
+    // P37 ornate professional-tier recipes (path-gated via paths::gate_for)
+    book.push(r("precision_gear", 1, vec![
+        vec![Some("machine_frame"), Some("iron_gear"), Some("machine_frame")],
+        vec![Some("copper_wire"), Some("glitch_dust"), Some("copper_wire")],
+    ]));
+    book.push(r("master_blueprint", 1, vec![
+        vec![Some("blueprint"), Some("book"), Some("blueprint")],
+        vec![Some("null_shard"), Some("glitch_dust"), Some("null_shard")],
+    ]));
+    book.push(r("battlestaff", 1, vec![
+        vec![Some("dragon_scale"), Some("glitch_dust"), Some("dragon_scale")],
+        vec![Some("stick"), Some("null_shard"), Some("stick")],
+    ]));
+    book.push(r("master_chisel", 1, vec![
+        vec![Some("dragon_scale"), Some("iron_ingot"), Some("dragon_scale")],
+        vec![Some("stick"), Some("rune_of_haste"), Some("stick")],
+    ]));
     // Smart building (P35)
     book.push(r("conduit", 8, vec![
         vec![Some("copper_wire"), Some("iron_ingot"), Some("copper_wire")],

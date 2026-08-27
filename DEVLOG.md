@@ -721,3 +721,17 @@ mount spike audit + margins. dragon_roost + dragon_flight scenes.
 AI-verified (crag, eggs, full assembly); dragon_flight pixel-verified
 (8116 body-red + 228 breath-bright). Smoke OK. Runtimes rebuilt;
 pushed.
+
+### 2026-08-27 — Loop 324: P37 Paths & specialization
+**WHAT**: The last gameplay phase — paths, gates, respec, trading.
+**HOW**: lf_game::paths (Path/PathEvent/Paths/Gate/gate_for, 3 tests);
+client: paths persisted in JSON extras, accrual hooks at the power
+loop/placement/spell cast/boss kills, gate_for at the craft grid
+(fixing the branch-era lock) + placement refusal, Paths screen (P),
+trade message handling (TradeResolved->inventory, TradeOffered->hint);
+protocol v4 (messages + round-trip test) + server escrow (offer
+registration, dual delivery on accept, mutual free on cancel) + the
+real-UDP two-client test; ornate items/recipes/icons; paths_screen +
+trade_p2p previews.
+**VERIFICATION**: 248 tests / 0 failed (+5). vistest 47/47;
+paths_screen AI-verified. Smoke OK. Runtimes rebuilt; pushed.

@@ -228,6 +228,7 @@ pub enum UiOpen {
     Slots,
     Settings,
     Death,
+    Paths,
 }
 
 /// State attached to placed functional blocks.
@@ -464,6 +465,8 @@ pub struct ClientSave {
     pub spellbook: Option<lf_game::magic::Spellbook>,
     #[serde(default)]
     pub runed: Vec<(String, String)>,
+    #[serde(default)]
+    pub paths: Option<lf_game::paths::Paths>,
 }
 
 fn default_mana() -> f32 {
@@ -511,6 +514,7 @@ impl From<LegacyClientSave> for ClientSave {
             mana: default_mana(),
             spellbook: None,
             runed: Vec::new(),
+            paths: None,
         }
     }
 }
@@ -608,6 +612,7 @@ impl ApplicationHandler for App {
                                 let grid_key = state.keymap.key(crate::input::Action::GridOverlay);
                                 let book_key = state.keymap.key(crate::input::Action::Spellbook);
                                 let sym_key = state.keymap.key(crate::input::Action::Symmetry);
+                                let paths_key = state.keymap.key(crate::input::Action::PathsScreen);
                                 let spell_keys = [
                                     state.keymap.key(crate::input::Action::Spell1),
                                     state.keymap.key(crate::input::Action::Spell2),
@@ -723,6 +728,18 @@ impl ApplicationHandler for App {
                                             state.show_debug = !state.show_debug;
                                         }
                                         k if k == rt_key => { if state.settings.rt_mode == crate::RtMode::Captures { state.take_raytraced_screenshot(); } }
+                                        k if k == paths_key => {
+                                            if matches!(state.ui_open, UiOpen::None | UiOpen::Paths) && state.stats.health > 0.0 {
+                                                if state.ui_open == UiOpen::Paths {
+                                                    state.close_ui();
+                                                } else {
+                                                    state.ui_open = UiOpen::Paths;
+                                                    state.menu_reveal = 0.0;
+                                                    state.unlock_cursor();
+                                                }
+                                                return;
+                                            }
+                                        }
                                         k if k == sym_key => {
                                             if matches!(state.ui_open, UiOpen::None) && state.stats.health > 0.0 {
                                                 state.symmetry_plane = match state.symmetry_plane {
@@ -990,6 +1007,8 @@ struct GameState {
     screen_signature: u64,
     /// P36: the dragon the player rides (mob id).
     pub mounted_dragon: Option<u64>,
+    /// P37: path standings + focus (accrued by play, never decay).
+    pub paths: lf_game::paths::Paths,
     /// P34 blueprints: first corner marker, the captured clipboard, and
     /// the file it came from.
     pub bp_corner_a: Option<(i32, i32, i32)>,
@@ -1080,7 +1099,7 @@ impl GameState {
         let mut slot_meta = slots::boot_slot();
         let world_dir = slots::slot_dir(&slot_meta.name);
         slots::sync_generator_version(&world_dir);
-        let (inventory, mut stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed) =
+        let (inventory, mut stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths) =
             load_client_save(&world_dir);
         slot_meta.world_type = world_type; // save (or default) wins over meta
         let storage = WorldStorage::open(&world_dir);
@@ -1230,6 +1249,7 @@ impl GameState {
             waypoints,
             spellbook,
             runed_tools: runed,
+            paths,
             imbue: lf_game::magic::ImbueMinigame::new(3),
             symmetry_plane: None,
             producer_positions: Vec::new(),
@@ -1419,7 +1439,7 @@ impl GameState {
         self.save_world();
         // state from the slot's save files
         let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log,
-             chronicle, research, settings, world_type, waypoints, spellbook, runed) = load_client_save(&dir);
+             chronicle, research, settings, world_type, waypoints, spellbook, runed, paths) = load_client_save(&dir);
         let storage = WorldStorage::open(&dir);
         let seed = storage.load_seed().unwrap_or(meta.seed);
         let saved_set = storage.saved_chunks();
@@ -1439,6 +1459,7 @@ impl GameState {
         self.quest_log = quest_log;
         self.chronicle = chronicle;
         self.runed_tools = runed;
+        self.paths = paths;
         self.research = research;
         self.settings = settings;
         self.keymap = crate::input::Keymap::from_pairs(&self.settings.keymap_pairs);
@@ -1540,6 +1561,7 @@ impl GameState {
             mana: self.stats.mana,
             spellbook: Some(self.spellbook.clone()),
             runed: self.runed_tools.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            paths: Some(self.paths.clone()),
         };
         // JSON (self-describing) so future field additions with
         // serde(default) load old bytes — bincode EOFs on them instead.
@@ -1964,6 +1986,14 @@ impl GameState {
             let _ = &conduit_positions;
             self.block_entities.insert(spos, entity);
         }
+        // P37: machines running accrue the Engineer path (sampled on a
+        // cadence; any powered machine counts once per window)
+        if self.frame % 60 == 0 && granted.iter().any(|g| *g > 0.0) {
+            if let Some((p, tier)) = self.paths.accrue(lf_game::paths::PathEvent::MachineRan) {
+                self.chronicle_event(EventType::Discovery,
+                    format!("the {} path deepens — tier {}", p.name(), tier));
+            }
+        }
         for (mi, mpos) in machine_positions.iter().enumerate() {
             let powered = granted[mi];
             // grid overlay (Step 25): remember this frame's power verdict as
@@ -2059,10 +2089,33 @@ impl GameState {
         if let Some(n) = &mut self.net {
             n.send_state(self.player.position.to_array(), self.player.yaw, self.player.pitch);
             for msg in n.poll() {
-                if let lf_protocol::ServerMessage::BlockUpdate { x, y, z, block } = msg {
-                    if self.world.set_block(x, y, z, BlockState(block)).is_some() {
-                        self.remesh_around(x, z);
+                match msg {
+                    lf_protocol::ServerMessage::BlockUpdate { x, y, z, block } => {
+                        if self.world.set_block(x, y, z, BlockState(block)).is_some() {
+                            self.remesh_around(x, z);
+                        }
                     }
+                    // P37: escrowed trades deliver to the inventory
+                    lf_protocol::ServerMessage::TradeResolved { accepted, items, .. } => {
+                        if accepted {
+                            for (id, count) in items {
+                                let leftover = self.inventory.add_item(&id, count);
+                                if leftover > 0 {
+                                    self.spawn_drop(&id, leftover, self.player.eye_position());
+                                }
+                            }
+                            self.push_hint("trade completed");
+                        } else {
+                            self.push_hint("trade cancelled");
+                        }
+                    }
+                    lf_protocol::ServerMessage::TradeOffered { from_name, give, .. } => {
+                        self.push_hint(&format!(
+                            "{} offers {}x{} — type /tradeaccept to accept",
+                            from_name, give.first().map(|(i, _)| i.clone()).unwrap_or_default(),
+                            give.first().map(|(_, n)| *n).unwrap_or(0)));
+                    }
+                    _ => {}
                 }
             }
         }
@@ -2139,6 +2192,9 @@ impl GameState {
                         if kind == MobType::Dragon {
                             self.chronicle_event(EventType::BossSlain,
                                 "the dragon of the peaks falls — the saga turns a page".into());
+                        }
+                        if matches!(kind, MobType::Dragon | MobType::NullKnight) {
+                            let _ = self.paths.accrue(lf_game::paths::PathEvent::BossSlain);
                         }
                         let kind_name = format!("{:?}", kind);
                         self.quest_event(QuestEvent::Killed(kind_name.clone()));
@@ -2612,6 +2668,17 @@ impl GameState {
                         Some(ItemKind::Block(b)) => {
                             if let Some((pos, normal)) = target {
                                 let place = pos + normal;
+                                // P37: the generalized gate is enforced at
+                                // PLACEMENT too (it was UI-only before)
+                                let gate = lf_game::paths::gate_for(&stack.item_id);
+                                if !gate.passes(&self.research, &self.paths) {
+                                    self.push_hint(&gate.label());
+                                    return;
+                                }
+                                if let Some((p, tier)) = self.paths.accrue(lf_game::paths::PathEvent::BlockPlaced) {
+                                    self.chronicle_event(EventType::Discovery,
+                                        format!("the {} path deepens — tier {}", p.name(), tier));
+                                }
                                 if !self.block_intersects_player(place) {
                                     if self.world.set_block(place.x, place.y, place.z, BlockState(b)).is_some() {
                                         if let Some(n) = &self.net {
@@ -2786,6 +2853,10 @@ impl GameState {
             return; // not learned / no mana: the HUD shows the pool, stay quiet
         };
         self.stats.mana = mana_left;
+        if let Some((p, tier)) = self.paths.accrue(lf_game::paths::PathEvent::SpellCast) {
+            self.chronicle_event(EventType::Discovery,
+                format!("the {} path deepens — tier {}", p.name(), tier));
+        }
         match effect {
             SpellEffect::Firebolt => {
                 let eye = self.player.eye_position();
@@ -4510,7 +4581,7 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
 }
 
 fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType, Vec<map::Waypoint>, lf_game::magic::Spellbook, std::collections::HashMap<String, String>) {
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType, Vec<map::Waypoint>, lf_game::magic::Spellbook, std::collections::HashMap<String, String>, lf_game::paths::Paths) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
@@ -4563,10 +4634,11 @@ fn load_client_save(dir: &Path)
             stats.mana = save.mana.clamp(0.0, stats.max_mana);
             let spellbook = save.spellbook.unwrap_or_default();
             let runed = save.runed.into_iter().collect();
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed);
+            let paths = save.paths.unwrap_or_default();
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths);
         }
     }
-    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal, Vec::new(), lf_game::magic::Spellbook::default(), std::collections::HashMap::new())
+    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal, Vec::new(), lf_game::magic::Spellbook::default(), std::collections::HashMap::new(), lf_game::paths::Paths::default())
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.

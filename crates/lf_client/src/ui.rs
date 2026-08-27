@@ -434,6 +434,7 @@ impl GameState {
             UiOpen::Spellbook => self.draw_spellbook(ctx),
             UiOpen::Imbue => self.draw_imbue(ctx),
             UiOpen::Carve => self.draw_carve(ctx),
+            UiOpen::Paths => self.draw_paths(ctx),
             UiOpen::Smithing => self.draw_smithing(ctx),
             UiOpen::Machine(pos) => self.draw_machine(ctx, pos),
             UiOpen::TechTree => self.draw_tech_tree(ctx),
@@ -726,8 +727,14 @@ impl GameState {
                                 ui.add_space(12.0);
                                 let grid_ref: Vec<Option<ItemStack>> = self.craft_grid.iter().take(grid * grid).cloned().collect();
                                 let result = match_recipe(&grid_ref);
+                                // P37: the generalized gate (era branches
+                                // honored via unlocked(), path standing for
+                                // the ornate tier — fixes the branch-era
+                                // bench lock bug)
                                 let locked = match &result {
-                                    Some((out, _)) => Era::required_for(out) > self.research.era,
+                                    Some((out, _)) => {
+                                        !lf_game::paths::gate_for(out).passes(&self.research, &self.paths)
+                                    }
                                     None => false,
                                 };
                                 let (rect, response) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE + 8.0, SLOT_SIZE + 8.0), egui::Sense::click());
@@ -742,7 +749,7 @@ impl GameState {
                                         // dark veil + era note
                                         ui.painter().rect_filled(rect, 6.0, egui::Color32::from_black_alpha(140));
                                         ui.painter().text(rect.center_bottom() + egui::vec2(0.0, 10.0), egui::Align2::CENTER_CENTER,
-                                            format!("needs {}", Era::required_for(out).name()),
+                                            lf_game::paths::gate_for(out).label(),
                                             egui::FontId::proportional(10.0), egui::Color32::from_rgb(230, 130, 130));
                                     } else {
                                         kit::hover_item_tooltip(&response, &stack, &self.icons);
@@ -2015,6 +2022,104 @@ impl GameState {
             }
             self.carve.reset();
             self.carve_target = None;
+        }
+    }
+
+    /// The paths screen (P37): four standings, tiers, focus/respec.
+    fn draw_paths(&mut self, ctx: &egui::Context) {
+        use lf_game::paths::{Path, Paths, RESPEC_COST, TIER_STEP};
+        let reveal = self.menu_reveal;
+        let snapshot = self.paths.clone();
+        let mut respec: Option<Path> = None;
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(150)))
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    let panel_w = 480.0_f32.min(ui.available_width() - 24.0);
+                    kit::slide_panel(ui, reveal, |ui| {
+                        egui::Frame::new()
+                            .fill(Theme::BG)
+                            .stroke(egui::Stroke::new(1.0, Theme::ACCENT))
+                            .corner_radius(10.0)
+                            .inner_margin(14.0)
+                            .show(ui, |ui| {
+                                ui.set_width(panel_w);
+                                ui.heading(egui::RichText::new("Paths").color(Theme::ACCENT));
+                                ui.label(egui::RichText::new(
+                                    "no decay, no lock-in — everything you do deepens a path",
+                                ).small().color(Theme::TEXT_DIM));
+                                ui.add_space(8.0);
+                                ui.horizontal(|ui| {
+                                    for path in Path::ALL {
+                                        let standing = snapshot.standing(path);
+                                        let tier = snapshot.tier(path);
+                                        let focused = snapshot.focus == Some(path);
+                                        let color = if focused { Theme::MANA } else { Theme::ACCENT };
+                                        egui::Frame::new()
+                                            .fill(egui::Color32::from_black_alpha(120))
+                                            .stroke(egui::Stroke::new(if focused { 2.5 } else { 1.0 }, color))
+                                            .corner_radius(8.0)
+                                            .inner_margin(8.0)
+                                            .show(ui, |ui| {
+                                                ui.set_min_size(egui::vec2(108.0, 96.0));
+                                                ui.heading(egui::RichText::new(path.name()).size(14.0).color(color));
+                                                ui.label(egui::RichText::new(format!("tier {} — {}/{}", tier, standing % TIER_STEP, TIER_STEP)).small().color(Theme::TEXT_DIM));
+                                                let frac = (standing % TIER_STEP) as f32 / TIER_STEP as f32;
+                                                let (r, _) = ui.allocate_exact_size(egui::vec2(92.0, 6.0), egui::Sense::hover());
+                                                let p = ui.painter();
+                                                p.rect_filled(r, 3.0, egui::Color32::from_black_alpha(190));
+                                                p.rect_filled(egui::Rect::from_min_size(r.min, egui::vec2(r.width() * frac, r.height())), 3.0, color);
+                                                ui.label(egui::RichText::new(path.desc()).small().color(Theme::TEXT_DIM));
+                                                if ui.small_button("focus").clicked() {
+                                                    respec = Some(path);
+                                                }
+                                            });
+                                    }
+                                });
+                                ui.add_space(6.0);
+                                ui.label(egui::RichText::new(format!(
+                                    "respec: pay {} + {}, standings reset, the focused path accrues double",
+                                    RESPEC_COST[0].0, RESPEC_COST[1].0,
+                                )).small().color(Theme::TEXT_DIM));
+                                if let Some(f) = snapshot.focus {
+                                    ui.label(egui::RichText::new(format!("current focus: {}", f.name())).small().color(Theme::MANA));
+                                }
+                                ui.add_space(8.0);
+                                if ui.button("Close").clicked() {
+                                    self.ui_open = UiOpen::None;
+                                    self.lock_cursor();
+                                }
+                            });
+                    });
+                });
+            });
+        if let Some(path) = respec {
+            let afford = RESPEC_COST.iter().all(|(id, n)| {
+                self.inventory.slots.iter().flatten()
+                    .filter(|s| s.item_id == *id)
+                    .map(|s| s.count as u16).sum::<u16>() >= *n as u16
+            });
+            if afford {
+                for (id, n) in RESPEC_COST {
+                    let mut left = n as u16;
+                    for slot in self.inventory.slots.iter_mut() {
+                        if left == 0 { break; }
+                        if let Some(s) = slot {
+                            if s.item_id == id {
+                                let take = (s.count as u16).min(left);
+                                s.count -= take as u8;
+                                left -= take;
+                                if s.count == 0 { *slot = None; }
+                            }
+                        }
+                    }
+                }
+                self.paths.respec(path);
+                self.chronicle_event(lf_chronicle::EventType::Discovery,
+                    format!("the {} path becomes the work", path.name()));
+            } else {
+                self.push_hint("cannot afford the respec");
+            }
         }
     }
 

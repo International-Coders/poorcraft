@@ -1034,6 +1034,7 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "scroll_of_firebolt", "scroll_of_gale_step", "scroll_of_ward", "scroll_of_hearthlight",
     "rune_of_haste", "rune_of_warding", "chisel", "blueprint",
     "stone_slab", "planks_slab", "stone_stairs", "dragon_scale",
+    "precision_gear", "master_blueprint", "battlestaff", "master_chisel",
 ];
 
 fn paint_sprite(art: [&str; 16], colors: impl Fn(char) -> Rgba<u8>) -> RgbaImage {
@@ -1792,6 +1793,25 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
         "scroll_of_ward" => paint_sprite(SCROLL_ART, |c| match c {
             'p' => Rgba([238, 226, 196, 255]), 'r' => Rgba([120, 72, 40, 255]),
             's' => Rgba([60, 130, 220, 255]), 'g' => Rgba([235, 235, 245, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "precision_gear" => paint_sprite(SULFUR_ART, |c| match c {
+            'y' => Rgba([210, 210, 220, 255]), 'Y' => Rgba([245, 245, 252, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "master_blueprint" => paint_sprite(BLUEPRINT_ART, |c| match c {
+            'p' => Rgba([70, 110, 170, 255]), 'P' => Rgba([110, 150, 210, 255]),
+            'w' => Rgba([240, 240, 235, 255]), 'i' => Rgba([255, 215, 90, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "battlestaff" => paint_sprite(CHISEL_ART, |c| match c {
+            'm' => Rgba([150, 40, 30, 255]), 'M' => Rgba([255, 140, 60, 255]),
+            'h' => Rgba([120, 84, 46, 255]), 'd' => Rgba([104, 76, 43, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "master_chisel" => paint_sprite(CHISEL_ART, |c| match c {
+            'm' => Rgba([200, 200, 210, 255]), 'M' => Rgba([240, 240, 248, 255]),
+            'h' => Rgba([120, 84, 46, 255]), 'd' => Rgba([104, 76, 43, 255]),
             _ => Rgba([0, 0, 0, 0]),
         }),
         "dragon_scale" => paint_sprite(SLFB_ART, |c| match c {

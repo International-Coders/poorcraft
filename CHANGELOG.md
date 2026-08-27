@@ -751,3 +751,12 @@
   the approved dragon mount after the streaming spike held.
 - 243 tests green (+5); 45/45 vistest scenes; smoke OK; runtimes
   rebuilt; pushed.
+
+## Loop 324 — Paths & specialization (P37)
+- Four play-accrued paths with chronicle milestones, the generalized
+  era|path gate enforced at crafting AND placement (fixing the
+  branch-era bench lock bug), respec with double-accrual focus, the
+  ornate tier, and protocol v4 player trading with server escrow and a
+  real-UDP test.
+- 248 tests green (+5); 47/47 vistest scenes; smoke OK; runtimes
+  rebuilt; pushed.
