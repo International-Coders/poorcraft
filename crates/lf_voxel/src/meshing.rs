@@ -385,6 +385,31 @@ mod tests {
         assert!(stone_mesh.vertices.iter().all(|v| v.sway == 0.0), "stone vertices do not");
     }
 
+    /// Goal Section 1: a multi-block surface must tile its texture per
+    /// block — each block emits its own quad with UVs spanning exactly
+    /// 0..1 (a seam vertex between blocks), never one stretched quad.
+    /// This is the invariant any future greedy meshing must preserve by
+    /// scaling UVs to the merged span and switching to repeat addressing.
+    #[test]
+    fn multi_block_walls_tile_per_block_not_stretched() {
+        let mut s = VoxelSection::new_empty();
+        s.set(7, 8, 8, BlockState(crate::registry::block::PLANKS));
+        s.set(8, 8, 8, BlockState(crate::registry::block::PLANKS));
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let front: Vec<&Vertex> = mesh.vertices.iter()
+            .filter(|v| v.normal[2] > 0.5)
+            .collect();
+        assert_eq!(front.len(), 8, "two blocks = two quads = 8 verts (a merged quad would be 4)");
+        assert!(front.iter().any(|v| (v.position[0] - 9.0).abs() < 1e-4),
+            "a seam vertex at the block boundary keeps the quads per-block");
+        for v in &front {
+            for u in [v.tex_coord[0], v.tex_coord[1]] {
+                assert!(u.abs() < 1e-4 || (u - 1.0).abs() < 1e-4,
+                    "per-block quads span UVs exactly 0..1, got {}", u);
+            }
+        }
+    }
+
     #[test]
     fn flowing_water_renders_lower_than_sources() {
         let mut s = VoxelSection::new_empty();

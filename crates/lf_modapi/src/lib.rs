@@ -152,6 +152,16 @@ pub fn load_mods_dir(dir: &Path) -> Vec<ModData> {
     mods
 }
 
+/// Goal Section 4: the unmissable boot line confirming the mod pipeline via
+/// the bundled smoke_test mod — "are mods working right now" answerable at
+/// a glance, no log archaeology. Returns the line when the smoke mod is
+/// among the loaded set; each boot site logs it with its own logger.
+pub fn smoke_line(mods: &[ModData]) -> Option<&'static str> {
+    mods.iter()
+        .any(|m| m.manifest.id == "smoke_test")
+        .then_some("[MOD SMOKE TEST] OK — smoke_test mod loaded successfully")
+}
+
 #[derive(Debug)]
 pub enum ModError {
     InvalidManifest(String),
@@ -379,5 +389,23 @@ name = "Ember Ingot"
         assert_eq!(data.manifest.id, "ember_ores");
         assert_eq!(data.blocks.len(), 1);
         assert_eq!(data.items.len(), 1);
+    }
+
+    /// Goal Section 4: the bundled smoke_test mod keeps loading correctly
+    /// (real mods/ folder, not a fixture) — its block and item land in the
+    /// live registries and smoke_log flags it.
+    #[test]
+    fn smoke_test_mod_loads_from_the_real_folder() {
+        let repo_mods = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join("mods/smoke_test");
+        let data = load_mod(&repo_mods).expect("mods/smoke_test parses");
+        assert_eq!(data.manifest.id, "smoke_test");
+        assert_eq!(data.blocks.len(), 1);
+        assert_eq!(data.items.len(), 1);
+        apply_mod(&data);
+        let id = mod_block_id("smoke_test", "ok_block");
+        assert!(lf_voxel::registry::mod_block(id).is_some(),
+            "smoke_test:ok_block must be registered (id {id})");
+        assert!(lf_game::items::item_def("smoke_test:ok_token").is_some(),
+            "smoke_test:ok_token must be a registered item");
     }
 }

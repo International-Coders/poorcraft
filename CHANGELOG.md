@@ -594,3 +594,36 @@
   (column collapsed into a dug pocket via the real gravity settle, plus a
   mid-air faller cube; AI-verified pile + floating block). 24 scenes total.
 - 174 tests green, 24/24 vistest; runtimes rebuilt; pushed.
+
+## Loop 311 — goal Sections 0–4: re-audit + the four feel fixes
+- S0: re-verified the four flagged items before touching them (AUDIT.md
+  "Goal-file re-audit" section). Verdicts: bottom mining bar CONFIRMED;
+  texture stretching NOT reproducible in the raster path; biome grade
+  absent CONFIRMED; mod-load visibility absent CONFIRMED.
+- S2 destruction feel: removed the mining/bow egui::ProgressBar pair from
+  the bottom HUD panel (the reported "mar") entirely; progress renders as
+  a crosshair-centered radial ring (faint track + clockwise accent arc;
+  bow charge in the ok role). Geometry unit-tested
+  (reticle_arc_spans_progress_from_top); hud_preview renders it mid-break.
+  Crack decal + debris particles unchanged.
+- S3 biome grade: shader.wgsl gains a grade uniform (tint multiply +
+  saturation pull toward luma) applied after lighting and fog; lf_client
+  biome_grade table (desert/badlands/savanna warm, snow family cool +
+  desaturated, swamp/jungle lush, hollow eerie pale, oceans teal,
+  temperate neutral); ~0.3s exponential lerp across boundaries; clear
+  color mirrors the grade so the sky shifts with the world. GPU proof:
+  biome_grade_shifts_midframe_color (same scene, warm vs cold: hue moves
+  ~10.7deg, saturation ~0.10).
+- S4: mods/smoke_test (one block, one item) with lf_modapi::smoke_line ->
+  "[MOD SMOKE TEST] OK" boot line on both client and dedicated server; CI
+  test loads the real mods/smoke_test folder and asserts both
+  registrations; mods/README.md points to it as the first sanity check.
+- S1: proved per-block texture tiling instead of assuming it — mesh test
+  multi_block_walls_tile_per_block_not_stretched (two blocks = two quads,
+  seam vertex, UVs exactly 0..1) + texture_tiling scene (7-wide plank
+  wall + stone floor, AI-verified per-block repetition, no smearing).
+  DECISIONS: greedy meshing blocked on the UV-repeat invariant; Live RT
+  ships (live + capture) — capture-only no longer the model.
+- STATUS.md rewritten to match verified reality (the old one claimed 121
+  tests / 14 scenes / live-RT-deferred).
+- 178 tests green; 25/25 vistest scenes; runtimes rebuilt; pushed.

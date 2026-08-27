@@ -180,6 +180,8 @@ impl State {
             fog_color: [0.53, 0.81, 0.98],
             fog_far: 1000.0,
             time: 0.0, // one-chunk demo has no foliage to animate
+            grade_tint: [1.0, 1.0, 1.0],
+            grade_saturation: 1.0,
         };
         self.scene.update_camera(&self.queue, &self.camera, &env);
     }

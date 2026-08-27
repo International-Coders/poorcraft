@@ -1,0 +1,7 @@
+id = "smoke_test"
+name = "Mod Smoke Test"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]

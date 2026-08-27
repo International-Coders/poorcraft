@@ -131,3 +131,22 @@ same commit.
   mods load, villager settles, autosave every 30 s, slot switching works
 - `crates/lf_worldgen/examples/audit_title_camera.rs` — orbit-burial
   repro tool for any seed (kept as a regression aid)
+
+---
+
+# Goal-file re-audit (2026-08-26, loop 311)
+
+The /goal prompt (docs same date) flagged four items as still wrong after
+prior fixes. Re-verified each against the current build before fixing:
+
+| Flagged item | Audit verdict | Evidence / resolution |
+|---|---|---|
+| Block-break "mar" at the bottom of the screen | **CONFIRMED** — it was the mining/bow `egui::ProgressBar` pair in the bottom HUD panel (ui.rs, 220px wide) | **FIXED this commit**: bottom bars removed entirely; progress now renders as a crosshair-centered radial ring (`ui_kit::paint_mining_reticle`, mining=accent, bow=ok role), unit-tested geometry (arc from 12 o'clock, span=progress), shown mid-break in the hud_preview proof. On-block crack decal + debris particles untouched. |
+| Textures stretching across multi-block surfaces | **NOT REPRODUCIBLE in the current raster path** — there is no merged-quad/greedy-mesh path (deferred per P11); every block emits its own quad with UVs exactly 0..1, so a 7-wide wall shows seven repeats by construction. Proof added rather than assumption: mesh-level test `multi_block_walls_tile_per_block_not_stretched` (two blocks = two quads, seam vertex present, UVs exactly 0..1) + visual scene `texture_tiling` (7-wide plank wall + stone floor, AI-verified per-block repetition, no smearing). DECISIONS now records the precondition any future greedy meshing must satisfy (UV span = block count + repeat sampler). Known negligible: partial-height water side faces reuse 0..1 UVs on a shortened quad (near-uniform water texture). If the player-visible stretching persists in live play, the repro is not in the voxel mesher — candidates would be mob/drop cube art (intentionally single-texture faces). |
+| Biome atmosphere not perceptibly changing | **CONFIRMED** — loop-309 audit already showed fog was global and no per-biome tint existed | **FIXED this commit**: per-biome color grade — shader `grade` uniform (tint multiply + saturation pull toward luma) applied post-lighting/post-fog; per-biome table (hot/dry warm amber, cold blue+desaturated, lush green, hollow eerie pale, oceans teal, temperate neutral); smooth ~0.3s lerp on boundary crossings (hard cuts read as bugs); client clear-color mirrors the grade so the sky carries the same cast. GPU proof: `biome_grade_shifts_midframe_color` renders the same scene under warm vs cold grades — hue shifts >5° and saturation >0.03 (measured ~10.7° / 0.10). |
+| No at-a-glance mod-loading confirmation | **CONFIRMED** — boot only logged a generic "loaded N mod(s)" list | **FIXED this commit**: `mods/smoke_test/` (one block, one item) + `lf_modapi::smoke_line` → boot prints `[MOD SMOKE TEST] OK — smoke_test mod loaded successfully` on client and dedicated server; CI test `smoke_test_mod_loads_from_the_real_folder` loads the real folder and asserts both registrations; mods/README.md now points to it as the first sanity check. |
+
+Section 5 spot-decisions recorded in DECISIONS.md this commit: Live RT
+ships (the live-updating path-traced view exists and works — RtMode::Live —
+capture-only is no longer the model); greedy meshing stays deferred until
+its UV-repeat invariant is provable on merged quads.

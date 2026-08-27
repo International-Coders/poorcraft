@@ -1,0 +1,7 @@
+[[blocks]]
+id = "smoke_test:ok_block"
+name = "Smoke OK Block"
+texture = "ok_block.png"
+hardness = 1.0
+harvest_level = 0
+light = 0

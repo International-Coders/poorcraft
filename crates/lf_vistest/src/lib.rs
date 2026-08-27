@@ -335,6 +335,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             eye: Vec3::ZERO, // framed at the column in run_scene
             target: Vec3::ZERO,
         },
+        SceneSpec {
+            name: "texture_tiling",
+            desc: "7-wide plank wall + wide stone floor: textures repeat per block, never stretch across merged surfaces",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed straight at the wall in run_scene
+            target: Vec3::ZERO,
+        },
     ]
 }
 
@@ -396,6 +408,28 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         let h = world.surface_height(0, 0);
         for y in 0..5 {
             world.set_block(0, h + y, 0, lf_voxel::BlockState(block::STONE));
+        }
+    }
+
+    // texture_tiling (goal Section 1): a 7-wide, 4-tall plank wall on a
+    // wide stone floor — the proof that textures repeat at 1-block scale
+    // on multi-block surfaces instead of stretching.
+    if spec.name == "texture_tiling" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -5..=5 {
+            for z in -3..=4 {
+                for y in h..h + 9 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // 7-wide, 4-tall plank wall standing on the floor at z = 0
+        for x in -3..=3 {
+            for y in h..h + 4 {
+                world.set_block(x, y, 0, lf_voxel::BlockState(block::PLANKS));
+            }
         }
     }
 
@@ -609,6 +643,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "falling_sand" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-7.0, h + 5.0, 8.0), Vec3::new(0.5, h - 1.0, 0.5))
+    } else if spec.name == "texture_tiling" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.5, h + 2.6, 9.5), Vec3::new(0.5, h + 1.5, 0.0))
     } else if spec.first_person {
         // Find a viewpoint with an open vista: a local rise whose best look
         // direction drops the most over 30 blocks, so the frame shows both
@@ -662,6 +699,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         day_factor: spec.day_factor(),
         fog_color: spec.time_of_day().sky_color(),
         fog_far: 220.0,
+        grade_tint: [1.0, 1.0, 1.0],
+        grade_saturation: 1.0,
     };
     // clouds/weather scene: atmosphere geometry joins the standard mesh
     let (mut vertices, mut indices, mut water_vertices, mut water_indices) =
@@ -1138,6 +1177,27 @@ fn draw_hud_preview(ctx: &egui::Context) {
     let c = egui::Color32::from_white_alpha(220);
     p.line_segment([pointer - egui::vec2(7.0, 0.0), pointer - egui::vec2(2.0, 0.0)], egui::Stroke::new(2.0, c));
     p.line_segment([pointer + egui::vec2(2.0, 0.0), pointer + egui::vec2(7.0, 0.0)], egui::Stroke::new(2.0, c));
+    // radial mining-progress reticle mid-break (mirrors ui_kit::
+    // paint_mining_reticle — lf_vistest cannot depend on lf_client; keep
+    // the math in sync)
+    {
+        const RADIUS: f32 = 15.0;
+        let progress = 0.55f32;
+        p.circle_stroke(pointer, RADIUS, egui::Stroke::new(1.5, egui::Color32::from_white_alpha(48)));
+        let steps = ((progress * 64.0).ceil() as usize).max(2);
+        let points: Vec<egui::Pos2> = (0..=steps)
+            .map(|i| {
+                let a = -std::f32::consts::FRAC_PI_2 + (i as f32 / steps as f32) * progress * std::f32::consts::TAU;
+                pointer + egui::vec2(a.cos() * RADIUS, a.sin() * RADIUS)
+            })
+            .collect();
+        p.add(egui::Shape::Path(egui::epaint::PathShape {
+            points,
+            closed: false,
+            fill: egui::Color32::TRANSPARENT,
+            stroke: egui::epaint::PathStroke::new(3.0, egui::Color32::from_rgb(240, 200, 120)),
+        }));
+    }
     p.line_segment([pointer - egui::vec2(0.0, 7.0), pointer - egui::vec2(0.0, 2.0)], egui::Stroke::new(2.0, c));
     p.line_segment([pointer + egui::vec2(0.0, 2.0), pointer + egui::vec2(0.0, 7.0)], egui::Stroke::new(2.0, c));
 }
@@ -1566,6 +1626,79 @@ mod tests {
         assert!(run_scene("nope", None, Path::new("/tmp/x.png")).is_err());
     }
 
+    /// Goal Section 3 proof: the per-biome color grade must measurably
+    /// shift the mid-frame color of the SAME scene — a warm desert grade
+    /// versus a cold snow grade, rendered through the real GPU pipeline.
+    #[test]
+    fn biome_grade_shifts_midframe_color() {
+        let spec = scenes().into_iter().find(|s| s.name == "terrain_vista")
+            .expect("terrain_vista scene registered");
+        let (v, i, wv, wi) = build_scene_mesh(&spec, spec.default_seed, 2, false, false);
+        let gen = WorldGen::new(Seed(spec.default_seed));
+        let h = gen.surface_top(0, 0) as f32;
+        let eye = Vec3::new(-24.0, h + 26.0, 48.0);
+        let mut camera = Camera::new(eye, Vec3::new(0.0, h + 6.0, 0.0));
+        camera.set_aspect(800, 600);
+        let mk_env = |tint: [f32; 3], sat: f32| lf_engine::scene::Env {
+            camera_pos: eye,
+            time: 0.8,
+            day_factor: spec.day_factor(),
+            fog_color: spec.time_of_day().sky_color(),
+            fog_far: 220.0,
+            grade_tint: tint,
+            grade_saturation: sat,
+        };
+        let textures = lf_assets::generate_atlas();
+        let mut paths = Vec::new();
+        let frame = |tag: &str, env: &lf_engine::scene::Env, paths: &mut Vec<String>| -> [f64; 3] {
+            let path = format!("/tmp/lf_vistest_grade_{tag}_{}.png", std::process::id());
+            lf_engine::headless::render_to_png(
+                &v, &i, &wv, &wi, &textures, &camera, env, spec.sky_color(),
+                800, 600, Path::new(&path), None,
+            ).unwrap_or_else(|e| panic!("render {tag} failed: {e}"));
+            paths.push(path.clone());
+            let img = image::open(&path).expect("reopen grade frame").to_rgba8();
+            // mid-frame band: terrain, not sky, not the HUD edge
+            let (mut r, mut g, mut b) = (0u64, 0u64, 0u64);
+            let mut n = 0u64;
+            for y in 240..400u32 {
+                for x in 120..680u32 {
+                    let p = img.get_pixel(x, y);
+                    r += p.0[0] as u64; g += p.0[1] as u64; b += p.0[2] as u64; n += 1;
+                }
+            }
+            [r as f64 / n as f64, g as f64 / n as f64, b as f64 / n as f64]
+        };
+        let warm = frame("warm", &mk_env([1.08, 1.00, 0.88], 0.92), &mut paths);
+        let cold = frame("cold", &mk_env([0.90, 0.98, 1.10], 0.85), &mut paths);
+        // hue (degrees) + saturation (max-min / max) of a band average
+        let hue_sat = |c: [f64; 3]| -> (f64, f64) {
+            let (r, g, b) = (c[0], c[1], c[2]);
+            let (max, min) = (r.max(g).max(b), r.min(g).min(b));
+            let sat = if max > 1.0 { (max - min) / max } else { 0.0 };
+            let hue = if (max - min).abs() < 1e-6 {
+                0.0
+            } else if max == g {
+                60.0 * (2.0 + (b - r) / (max - min))
+            } else if max == r {
+                60.0 * ((g - b) / (max - min)).rem_euclid(6.0)
+            } else {
+                60.0 * (4.0 + (r - g) / (max - min))
+            };
+            (hue, sat)
+        };
+        let (hw, sw) = hue_sat(warm);
+        let (hc, sc) = hue_sat(cold);
+        assert!(
+            (hc - hw).abs() > 5.0 && (sw - sc).abs() > 0.03,
+            "the two grades must measurably shift hue/saturation: warm hue {hw:.1} sat {sw:.3} vs cold hue {hc:.1} sat {sc:.3} (warm {:?} cold {:?})",
+            warm, cold
+        );
+        for p in paths {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+
     #[test]
     fn foliage_sway_animates_between_frames() {
         // The P26 commit claimed wind sway, but the vertex shader never read
@@ -1587,6 +1720,8 @@ mod tests {
             day_factor: spec.day_factor(),
             fog_color: spec.time_of_day().sky_color(),
             fog_far: 220.0,
+            grade_tint: [1.0, 1.0, 1.0],
+            grade_saturation: 1.0,
         };
         let textures = lf_assets::generate_atlas();
         let mut paths = Vec::new();

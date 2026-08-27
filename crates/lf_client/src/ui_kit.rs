@@ -318,6 +318,44 @@ pub fn hover_item_tooltip(response: &egui::Response, stack: &ItemStack, icons: &
 // ------------------------------------------------------------------
 // Painted HUD glyphs (no font dependency)
 
+/// Points of the crosshair reticle's progress arc: clockwise from 12
+/// o'clock, sweeping `progress * TAU`. Pure geometry so it can be tested
+/// without a painter; the vistest HUD preview mirrors this math (lf_vistest
+/// does not depend on lf_client) — keep the two in sync.
+pub fn reticle_points(center: Pos2, radius: f32, progress: f32) -> Vec<Pos2> {
+    let t = progress.clamp(0.0, 1.0);
+    if t <= 0.001 {
+        return Vec::new();
+    }
+    let steps = ((t * 64.0).ceil() as usize).max(2);
+    (0..=steps)
+        .map(|i| {
+            let a = -std::f32::consts::FRAC_PI_2 + (i as f32 / steps as f32) * t * std::f32::consts::TAU;
+            center + Vec2::new(a.cos() * radius, a.sin() * radius)
+        })
+        .collect()
+}
+
+/// Crosshair-centered radial progress ring (mining / bow charge) — the
+/// Section-2 replacement for the old bottom-of-screen progress bar. A faint
+/// full ring tracks the sweep; the arc fills clockwise with progress.
+pub fn paint_mining_reticle(p: &egui::Painter, center: Pos2, progress: f32, color: Color32) {
+    if progress <= 0.001 {
+        return;
+    }
+    const RADIUS: f32 = 15.0;
+    p.circle_stroke(center, RADIUS, Stroke::new(1.5, Color32::from_white_alpha(48)));
+    let points = reticle_points(center, RADIUS, progress);
+    if points.len() >= 2 {
+        p.add(egui::Shape::Path(egui::epaint::PathShape {
+            points,
+            closed: false,
+            fill: Color32::TRANSPARENT,
+            stroke: egui::epaint::PathStroke::new(3.0, color),
+        }));
+    }
+}
+
 pub fn paint_hearts(ui: &mut Ui, health: f32, max: f32) {
     let full = (health / 2.0).floor().max(0.0) as i32;
     let half = health - full as f32 * 2.0 >= 1.0;
@@ -387,5 +425,28 @@ mod tests {
         assert_eq!(d.t, 0.0, "still in the last of the delay");
         d.step(0.1);
         assert!(d.t > 0.0, "now progressing");
+    }
+
+    /// Section 2: the crosshair reticle arc starts at 12 o'clock, sweeps
+    /// clockwise, and its angular span tracks progress exactly.
+    #[test]
+    fn reticle_arc_spans_progress_from_top() {
+        let center = Pos2::new(0.0, 0.0);
+        assert!(reticle_points(center, 15.0, 0.0).is_empty(), "no arc at zero progress");
+        let quarter = reticle_points(center, 10.0, 0.25);
+        assert!(!quarter.is_empty());
+        let first = quarter[0];
+        assert!((first.x - 0.0).abs() < 1e-4 && (first.y + 10.0).abs() < 1e-4,
+            "arc starts at 12 o'clock (top of the ring), got {:?}", first);
+        let last = *quarter.last().unwrap();
+        // a quarter sweep clockwise ends at 3 o'clock
+        assert!((last.x - 10.0).abs() < 0.5 && last.y.abs() < 0.5,
+            "quarter progress ends at 3 o'clock, got {:?}", last);
+        let full = reticle_points(center, 10.0, 1.0);
+        let end = *full.last().unwrap();
+        // full sweep closes the ring back at the top (TAU wraps to -PI/2)
+        assert!((end.x).abs() < 0.5 && (end.y + 10.0).abs() < 0.5,
+            "full progress closes the ring at 12 o'clock, got {:?}", end);
+        assert!(full.len() > quarter.len(), "more progress = more arc points");
     }
 }

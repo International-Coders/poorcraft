@@ -572,15 +572,10 @@ impl GameState {
                     }
                     _ => { ui.label(egui::RichText::new("").small()); }
                 }
-                // mining / bow charge
-                if let Some(mining) = &self.mining {
-                    let frac = (mining.progress / mining.total).min(1.0);
-                    ui.add(egui::ProgressBar::new(frac).desired_width(220.0).fill(Theme::ACCENT).text(""));
-                }
-                if let Some(charge) = self.bow_charge {
-                    let frac = (charge / 1.2).min(1.0);
-                    ui.add(egui::ProgressBar::new(frac).desired_width(220.0).fill(Theme::OK).text("bow"));
-                }
+                // mining / bow charge feedback moved to the crosshair
+                // reticle (Section 2: the old bottom-of-screen progress bar
+                // read as an artifact at the foot of the HUD)
+                ui.label(egui::RichText::new("").small());
             });
         });
         // minimap (top-right) while playing
@@ -653,6 +648,14 @@ impl GameState {
             p.line_segment([pointer + egui::vec2(2.0, 0.0), pointer + egui::vec2(7.0 + grow, 0.0)], egui::Stroke::new(2.0, c));
             p.line_segment([pointer - egui::vec2(0.0, 7.0 + grow), pointer - egui::vec2(0.0, 2.0)], egui::Stroke::new(2.0, c));
             p.line_segment([pointer + egui::vec2(0.0, 2.0), pointer + egui::vec2(0.0, 7.0 + grow)], egui::Stroke::new(2.0, c));
+            // Section 2: radial progress lives on the crosshair — mining in
+            // the accent role, bow charge in the ok role
+            if let Some(mining) = &self.mining {
+                kit::paint_mining_reticle(&p, pointer, (mining.progress / mining.total).min(1.0), Theme::ACCENT);
+            }
+            if let Some(charge) = self.bow_charge {
+                kit::paint_mining_reticle(&p, pointer, (charge / 1.2).min(1.0), Theme::OK);
+            }
             if self.hit_flash > 0.0 {
                 let a = (self.hit_flash * 255.0) as u8;
                 let mark = egui::Color32::from_rgba_unmultiplied(255, 120, 90, a);

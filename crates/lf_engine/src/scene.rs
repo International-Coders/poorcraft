@@ -47,6 +47,8 @@ pub struct Uniforms {
     fog: [f32; 4],
     // x = elapsed seconds (drives foliage wind), yzw spare
     time_sway: [f32; 4],
+    // rgb = color-grade tint multiplier, w = saturation (1 = unchanged)
+    grade: [f32; 4],
 }
 
 /// Environment parameters passed every frame.
@@ -60,6 +62,19 @@ pub struct Env {
     pub fog_far: f32,
     /// Elapsed seconds; drives the vertex-shader foliage sway.
     pub time: f32,
+    /// Color-grade tint multiplier per channel (1.0 = unchanged) — the
+    /// per-biome "film grade" applied to the final fragment color.
+    pub grade_tint: [f32; 3],
+    /// Color-grade saturation (1.0 = unchanged, <1 desaturates).
+    pub grade_saturation: f32,
+}
+
+impl Env {
+    /// Neutral (temperate) grade — the baseline every biome grade lerps
+    /// from and back to.
+    pub fn neutral_grade() -> ([f32; 3], f32) {
+        ([1.0, 1.0, 1.0], 1.0)
+    }
 }
 
 /// Pipeline + texture array shared by every mesh drawn in a frame.
@@ -263,6 +278,7 @@ impl MeshBatch {
                 cam_pos_day: [0.0; 4],
                 fog: [0.0; 4],
                 time_sway: [0.0; 4],
+                grade: [1.0, 1.0, 1.0, 1.0],
             }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -289,6 +305,7 @@ impl MeshBatch {
                 cam_pos_day: [env.camera_pos.x, env.camera_pos.y, env.camera_pos.z, env.day_factor],
                 fog: [env.fog_color[0], env.fog_color[1], env.fog_color[2], env.fog_far],
                 time_sway: [env.time, 0.0, 0.0, 0.0],
+                grade: [env.grade_tint[0], env.grade_tint[1], env.grade_tint[2], env.grade_saturation],
             }]),
         );
     }

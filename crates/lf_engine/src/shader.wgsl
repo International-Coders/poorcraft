@@ -17,6 +17,8 @@ struct Uniforms {
     fog: vec4<f32>,
     // x = elapsed seconds (foliage wind), yzw spare
     time_sway: vec4<f32>,
+    // rgb = color-grade tint multiplier, w = saturation (1 = unchanged)
+    grade: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -80,5 +82,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let dist = distance(in.world_pos, uniforms.cam_pos_day.xyz);
     let t = smoothstep(uniforms.fog.w * 0.55, uniforms.fog.w, dist);
     let fogged = mix(lit.rgb, uniforms.fog.rgb, t);
-    return vec4<f32>(fogged, lit.a);
+
+    // Per-biome color grade (the "film grade"): saturation pull toward
+    // luma, then a per-channel tint multiply. Applied after lighting and
+    // fog so the whole visible world shifts together.
+    let luma = dot(fogged, vec3<f32>(0.299, 0.587, 0.114));
+    let graded = mix(vec3<f32>(luma), fogged, uniforms.grade.w) * uniforms.grade.rgb;
+    return vec4<f32>(graded, lit.a);
 }

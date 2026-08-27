@@ -3,6 +3,20 @@
 Mods live in directories under `mods/` and load at boot. The two bundled
 examples (`ember_ores`, `amberium`) demonstrate the full surface.
 
+## Not sure mod loading is working? Check `smoke_test` first
+
+`mods/smoke_test/` exists for exactly this: it registers one block and one
+item and nothing else. When it loads, boot prints one unmissable line:
+
+```
+[MOD SMOKE TEST] OK — smoke_test mod loaded successfully
+```
+
+If that line is missing while `mods/smoke_test/` exists, mod loading is
+broken — no need to reason about the bigger example mods. A CI test
+(`smoke_test_mod_loads_from_the_real_folder` in lf_modapi) keeps this mod
+loading correctly.
+
 ## Layout
 ```
 mods/my_mod/

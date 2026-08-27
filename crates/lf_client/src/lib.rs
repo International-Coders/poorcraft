@@ -693,6 +693,10 @@ struct GameState {
     /// Pending water-simulation cells (deduplicated by `fluid_queued`).
     fluid_queue: VecDeque<(i32, i32, i32)>,
     fluid_queued: HashSet<(i32, i32, i32)>,
+    /// Current per-biome color grade (smoothly lerped toward the biome the
+    /// player stands in — hard cuts read as bugs).
+    pub grade_tint: [f32; 3],
+    pub grade_sat: f32,
     pub forge: lf_game::smithing::ForgeMinigame,
     pub research: ResearchState,
     pub xp_level: u32,
@@ -825,6 +829,9 @@ impl GameState {
             tracing::info!("loaded {} mod(s): {:?}", mods.len(),
                 mods.iter().map(|m| m.manifest.id.clone()).collect::<Vec<_>>());
         }
+        if let Some(line) = lf_modapi::smoke_line(&mods) {
+            tracing::info!("{line}");
+        }
 
         // Persistence + world bootstrap: the slot owns the directory AND the
         // seed (fresh random seed for a brand-new world). Player extras come
@@ -943,6 +950,8 @@ impl GameState {
             falling_blocks: Vec::new(),
             fluid_queue: VecDeque::new(),
             fluid_queued: HashSet::new(),
+            grade_tint: [1.0, 1.0, 1.0],
+            grade_sat: 1.0,
             forge: lf_game::smithing::ForgeMinigame::new(3),
             xp_level: 0,
             xp_progress: 0,
@@ -1831,6 +1840,19 @@ impl GameState {
             let span = if self.weather_raining { 120 } else { 240 };
             self.weather_next_change = now + Duration::from_secs(span + (pseudo_random(self.frame) % 120));
         }
+        // Biome color grade: lerp toward the biome the player stands in
+        // (~0.3s time constant — a hard cut would read as a bug).
+        {
+            let (tint_t, sat_t) = biome_grade(self.map.biome_at(
+                self.player.position.x as i32,
+                self.player.position.z as i32,
+            ));
+            let k = 1.0 - (-dt * 3.0).exp();
+            for i in 0..3 {
+                self.grade_tint[i] += (tint_t[i] - self.grade_tint[i]) * k;
+            }
+            self.grade_sat += (sat_t - self.grade_sat) * k;
+        }
         // Sky bodies every frame (they rotate); clouds drift (rebuild 2/s).
         let eye = self.player.eye_position();
         let (sv, si) = lf_engine::atmosphere::sky_bodies(eye, self.time.fraction());
@@ -2544,6 +2566,8 @@ impl GameState {
             fog_color: sky,
             fog_far,
             time: env_time,
+            grade_tint: self.grade_tint,
+            grade_saturation: self.grade_sat,
         }
     }
 
@@ -2624,7 +2648,14 @@ impl GameState {
 
     fn clear_color(&self) -> [f64; 4] {
         let env = self.env();
-        [env.fog_color[0] as f64, env.fog_color[1] as f64, env.fog_color[2] as f64, 1.0]
+        let mut c = env.fog_color;
+        // mirror the shader's post-fog grade so the open sky carries the
+        // same color cast as the graded geometry (no horizon seam)
+        let luma = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+        for i in 0..3 {
+            c[i] = (luma + (c[i] - luma) * self.grade_sat) * self.grade_tint[i];
+        }
+        [c[0] as f64, c[1] as f64, c[2] as f64, 1.0]
     }
 
     fn render(&mut self) {
@@ -3037,6 +3068,25 @@ fn pseudo_random(seed: u64) -> u64 {
 /// the terrain the eye sweeps over (see camera() for the audit context).
 fn title_eye_y(spawn_y: f32, ground_at_eye: i32) -> f32 {
     (spawn_y + 14.0).max(ground_at_eye as f32 + 6.0)
+}
+
+/// Per-biome color grade (goal Section 3): (tint multiply per channel,
+/// saturation). The film-grade layer on top of per-block palettes and fog —
+/// hot/dry pushes warm amber, cold pushes cool blue and desaturates,
+/// lush/wet pushes green, the hollow goes eerie pale, oceans go teal, and
+/// the temperate majority stays the neutral baseline.
+pub fn biome_grade(b: lf_worldgen::Biome) -> ([f32; 3], f32) {
+    use lf_worldgen::Biome as B;
+    match b {
+        B::Desert | B::Badlands => ([1.08, 1.00, 0.88], 0.92),
+        B::Savanna | B::WindsweptSavanna => ([1.04, 1.00, 0.94], 0.97),
+        B::SnowyTaiga | B::GiantTaiga | B::Tundra | B::IceSpikes | B::SnowySlope
+        | B::SnowyPeaks | B::FrozenOcean => ([0.90, 0.98, 1.10], 0.85),
+        B::Swamp | B::Jungle => ([0.93, 1.05, 0.95], 1.00),
+        B::MushroomHollow => ([0.96, 0.94, 1.04], 0.80),
+        B::Ocean | B::DeepOcean | B::WarmOcean => ([0.94, 1.00, 1.05], 0.96),
+        _ => ([1.0, 1.0, 1.0], 1.0),
+    }
 }
 
 /// Frustum + distance culling for a chunk column, using its mesh bounds.

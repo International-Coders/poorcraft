@@ -459,3 +459,24 @@ verified via image analysis (stepped surfaces + dam pooling; collapsed
 pile + mid-air faller); user's live game session left untouched (no
 smoke pkill — their session is the liveness check). Runtimes rebuilt;
 pushed to github.
+
+### 2026-08-26 — Loop 311: goal Sections 0-4 (re-audit + feel fixes)
+**WHAT**: Re-audited the /goal prompt's four "still wrong" flags and fixed
+three of them (the fourth proved not to exist in the current build, with
+evidence).
+**HOW**: AUDIT.md re-audit section (per-flag verdicts + evidence). S2:
+ui.rs bottom progress bars deleted; ui_kit reticle_points/
+paint_mining_reticle (arc from 12 o'clock, span=progress) painted at the
+crosshair for mining (accent) and bow (ok); vistest hud_preview mirrors it
+mid-break. S3: scene.rs Env/Uniforms + shader.wgsl grade vec4 (rgb tint,
+w saturation) applied post-fog; lf_client biome_grade table + smoothed
+grade_tint/grade_sat fields; clear_color mirrors the shader grade. S4:
+mods/smoke_test + smoke_line + client/server boot logging + modapi CI test
+on the real folder + README section. S1: lf_voxel mesh test
+multi_block_walls_tile_per_block_not_stretched + vistest texture_tiling
+scene. STATUS.md rewritten from stale to verified-current.
+**VERIFICATION**: cargo test --workspace 178/0 (new: reticle geometry,
+biome-grade GPU proof, smoke_test pipeline, tiling mesh proof); vistest
+25/25 [ok] (new scene texture_tiling; hud_preview shows the radial
+reticle); texture_tiling + grade frames AI-verified (per-block tiling;
+hue/sat shift). Runtimes rebuilt; pushed to github.

@@ -273,3 +273,26 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [x] vistest proofs: water_flow (aqueduct -> flume -> dam pooling,
       settled through the real sim before meshing) and falling_sand
       (collapsed pile + mid-air faller), 24 scenes total
+
+## Goal-file Sections 0–4 (2026-08-26, loop 311)
+- [x] S0 re-audit of the four flagged items (AUDIT.md updated): bottom
+      mining bar CONFIRMED and removed; texture stretching NOT
+      reproducible in the raster path (per-block quads tile by
+      construction — mesh test + visual proof added, greedy-mesh
+      precondition recorded); biome grade absence CONFIRMED and fixed;
+      mod-load visibility CONFIRMED and fixed
+- [x] S2: mining/bow progress = crosshair-centered radial ring
+      (ui_kit::paint_mining_reticle + geometry test; hud_preview proof
+      shows it mid-break; bottom-of-screen bars fully removed)
+- [x] S3: per-biome color grade (shader grade uniform; warm/cool/lush/
+      eerie/teal/neutral table; ~0.3s boundary lerp; clear-color mirror;
+      GPU hue/sat proof test biome_grade_shifts_midframe_color)
+- [x] S4: mods/smoke_test (1 block + 1 item) + [MOD SMOKE TEST] OK boot
+      line (client + dedicated server) + CI test on the real folder +
+      README pointer
+- [x] S1: per-block texture tiling proven (mesh test
+      multi_block_walls_tile_per_block_not_stretched + texture_tiling
+      scene, AI-verified per-block repetition on a 7-wide wall and floor)
+- [x] S5 spot: Live RT decision + greedy-mesh UV precondition in DECISIONS
+- [x] STATUS.md rewritten to match verified reality (was stale: 121 tests/
+      14 scenes/live-RT-deferred)

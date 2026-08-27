@@ -39,6 +39,9 @@ fn main() {
     } else {
         let names: Vec<&str> = mods.iter().map(|m| m.manifest.id.as_str()).collect();
         println!("loaded {} mod(s): {}", names.len(), names.join(", "));
+        if let Some(line) = lf_modapi::smoke_line(&mods) {
+            println!("{line}");
+        }
     }
     let mut server = match lf_server::Server::start(&bind, seed) {
         Ok(s) => s,
