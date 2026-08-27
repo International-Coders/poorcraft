@@ -130,6 +130,14 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "scroll_of_hearthlight", name: "Scroll of Hearthlight", kind: ItemKind::Material, max_stack: 4 },
         ItemDef { id: "rune_of_haste", name: "Rune of Haste", kind: ItemKind::Material, max_stack: 8 },
         ItemDef { id: "rune_of_warding", name: "Rune of Warding", kind: ItemKind::Material, max_stack: 8 },
+        // Construction (P34): shaped placement via shaped_placement()
+        ItemDef { id: "stone_slab", name: "Stone Slab", kind: ItemKind::Material, max_stack: 32 },
+        ItemDef { id: "planks_slab", name: "Planks Slab", kind: ItemKind::Material, max_stack: 32 },
+        ItemDef { id: "stone_stairs", name: "Stone Stairs", kind: ItemKind::Material, max_stack: 16 },
+        ItemDef { id: "scaffold", name: "Scaffolding", kind: ItemKind::Block(block::SCAFFOLD), max_stack: 32 },
+        ItemDef { id: "statue", name: "Chiseled Statue", kind: ItemKind::Block(block::STATUE), max_stack: 8 },
+        ItemDef { id: "chisel", name: "Chisel", kind: ItemKind::Tool(ToolKind::Pickaxe, 1), max_stack: 1 },
+        ItemDef { id: "blueprint", name: "Blueprint", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "enchanting_table", name: "Enchanting Table", kind: ItemKind::Block(block::ENCHANTING_TABLE), max_stack: 1 },
         ItemDef { id: "lumen_block", name: "Lumen Block", kind: ItemKind::Block(block::LUMEN_BLOCK), max_stack: 16 },
         ItemDef { id: "warding_pylon", name: "Warding Pylon", kind: ItemKind::Block(block::WARDING_PYLON), max_stack: 4 },
@@ -236,6 +244,8 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::PUMP => Some("pump".into()),
         block::REFINERY => Some("refinery".into()),
         block::COMBUSTION_GENERATOR => Some("combustion_generator".into()),
+        block::SCAFFOLD => Some("scaffold".into()),
+        block::STATUE => Some("statue".into()),
         block::ENCHANTING_TABLE => Some("enchanting_table".into()),
         block::LUMEN_BLOCK => Some("lumen_block".into()),
         block::WARDING_PYLON => Some("warding_pylon".into()),
@@ -272,6 +282,25 @@ pub fn block_drop(block_id: u32) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::shaped_placement;
+    use lf_voxel::Shape;
+
+    #[test]
+    fn shaped_placement_orients_stairs_by_yaw() {
+        assert_eq!(shaped_placement("stone_slab", 0.0).unwrap().shape(), Shape::SlabBottom);
+        assert_eq!(shaped_placement("planks_slab", 3.0).unwrap().id(), lf_voxel::registry::block::PLANKS);
+        assert_eq!(shaped_placement("stone_stairs", 0.0).unwrap().shape(), Shape::StairNorth);
+        assert_eq!(shaped_placement("stone_stairs", 1.6).unwrap().shape(), Shape::StairEast);
+        assert_eq!(shaped_placement("stone_stairs", 3.2).unwrap().shape(), Shape::StairSouth);
+        assert_eq!(shaped_placement("stone_stairs", 4.7).unwrap().shape(), Shape::StairWest);
+        assert_eq!(shaped_placement("stone", 0.0), None, "plain blocks are not shaped");
+        // two bottom slabs of the same material merge into a cube
+        let a = shaped_placement("stone_slab", 0.0).unwrap();
+        assert_eq!(super::slab_merge(a, a).unwrap(), lf_voxel::BlockState(lf_voxel::registry::block::STONE));
+        let p = shaped_placement("planks_slab", 0.0).unwrap();
+        assert!(super::slab_merge(a, p).is_none(), "different materials do not merge");
+    }
+
     use super::*;
 
     #[test]
@@ -363,5 +392,49 @@ mod tests {
         assert_eq!(block_drop(block::IRON_ORE).as_deref(), Some("raw_iron"));
         assert_eq!(block_drop(block::GRASS).as_deref(), Some("dirt"));
         assert_eq!(block_drop(block::WATER), None);
+    }
+}
+
+/// P34 construction: shaped-block placement. Slabs place bottom-half
+/// (a slab onto a matching bottom slab merges into a full cube — handled
+/// by the caller via [`slab_merge`]); stairs orient by the player's yaw
+/// so you always walk UP the way you face.
+pub fn shaped_placement(item_id: &str, yaw: f32) -> Option<lf_voxel::BlockState> {
+    use lf_voxel::Shape;
+    use lf_voxel::registry::block;
+    let base = match item_id {
+        "stone_slab" => lf_voxel::BlockState(block::STONE),
+        "planks_slab" => lf_voxel::BlockState(block::PLANKS),
+        "stone_stairs" => lf_voxel::BlockState(block::STONE),
+        _ => return None,
+    };
+    let shape = match item_id {
+        "stone_slab" | "planks_slab" => Shape::SlabBottom,
+        // yaw 0 faces -Z; walking "forward" is the way you look, so the
+        // high half goes opposite the look direction (you step UP toward it)
+        _ => {
+            let deg = yaw.to_degrees().rem_euclid(360.0);
+            match deg {
+                d if d < 45.0 || d >= 315.0 => Shape::StairNorth,
+                d if d < 135.0 => Shape::StairEast,
+                d if d < 225.0 => Shape::StairSouth,
+                _ => Shape::StairWest,
+            }
+        }
+    };
+    Some(base.with_shape(shape))
+}
+
+/// Placing a bottom slab onto a matching bottom slab makes a full cube.
+/// Returns the state the cell should become (None = no merge).
+pub fn slab_merge(existing: lf_voxel::BlockState, incoming: lf_voxel::BlockState) -> Option<lf_voxel::BlockState> {
+    use lf_voxel::Shape;
+    if existing.id() == incoming.id()
+        && existing.shape() == Shape::SlabBottom
+        && incoming.shape() == Shape::SlabBottom
+    {
+        Some(lf_voxel::BlockState(existing.id()))
+    } else {
+        None
     }
 }

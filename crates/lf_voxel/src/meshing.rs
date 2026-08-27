@@ -137,11 +137,98 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
         (aos, lights)
     };
 
+    /// P34 shapes: emit a slab or stair as 1-2 boxes with exactly the
+    /// exterior faces (no coincident interior quads). Faces flush against
+    /// an opaque full-cube neighbor are culled. AO/light reuse
+    /// corner_shades, so shaped blocks blend with the smoothed lighting.
+    let push_shaped = |vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>,
+                       cell: (i32, i32, i32), fx: f32, fy: f32, fz: f32,
+                       block: BlockState, shape: crate::Shape,
+                       get_block: &dyn Fn(i32, i32, i32) -> BlockState| {
+        let opaque_cube = |p: (i32, i32, i32)| {
+            let nb = get_block(p.0, p.1, p.2);
+            registry::is_opaque(nb) && nb.shape() == crate::Shape::Cube
+        };
+        let side_tex = tex_of(block, Face::Side);
+        let top_tex = tex_of(block, Face::Top);
+        let bot_tex = tex_of(block, Face::Bottom);
+        // one quad: corners CCW from outside, with AO/light
+        let mut quad = |corners: [[f32; 3]; 4], normal: [f32; 3], tex: u32, uvs: &[[f32; 2]; 4]| {
+            let (ao, light) = corner_shades(cell, [normal[0] as i32, normal[1] as i32, normal[2] as i32], &corners, [fx, fy, fz]);
+            push_face(vertices, indices, corners, *uvs, normal, tex, ao, light, 0.0);
+        };
+        match shape {
+            crate::Shape::Cube => unreachable!(),
+            crate::Shape::SlabBottom | crate::Shape::SlabTop => {
+                let y0 = if shape == crate::Shape::SlabTop { fy + 0.5 } else { fy };
+                let y1 = if shape == crate::Shape::SlabTop { fy + 1.0 } else { fy + 0.5 };
+                let below = opaque_cube((cell.0, cell.1 - 1, cell.2));
+                let above = opaque_cube((cell.0, cell.1 + 1, cell.2));
+                let cull = [opaque_cube((cell.0 - 1, cell.1, cell.2)), opaque_cube((cell.0 + 1, cell.1, cell.2)),
+                            opaque_cube((cell.0, cell.1, cell.2 - 1)), opaque_cube((cell.0, cell.1, cell.2 + 1))];
+                if !cull[0] { quad([[fx, y0, fz], [fx, y1, fz], [fx, y1, fz + 1.0], [fx, y0, fz + 1.0]], [-1.0, 0.0, 0.0], side_tex, &UVS_A); }
+                if !cull[1] { quad([[fx + 1.0, y0, fz + 1.0], [fx + 1.0, y1, fz + 1.0], [fx + 1.0, y1, fz], [fx + 1.0, y0, fz]], [1.0, 0.0, 0.0], side_tex, &UVS_A); }
+                if !cull[2] { quad([[fx + 1.0, y0, fz], [fx + 1.0, y1, fz], [fx, y1, fz], [fx, y0, fz]], [0.0, 0.0, -1.0], side_tex, &UVS_B); }
+                if !cull[3] { quad([[fx, y0, fz + 1.0], [fx, y1, fz + 1.0], [fx + 1.0, y1, fz + 1.0], [fx + 1.0, y0, fz + 1.0]], [0.0, 0.0, 1.0], side_tex, &UVS_B); }
+                if !below { quad([[fx, y0, fz], [fx, y0, fz + 1.0], [fx + 1.0, y0, fz + 1.0], [fx + 1.0, y0, fz]], [0.0, -1.0, 0.0], bot_tex, &UVS_A); }
+                if !above { quad([[fx, y1, fz + 1.0], [fx, y1, fz], [fx + 1.0, y1, fz], [fx + 1.0, y1, fz + 1.0]], [0.0, 1.0, 0.0], top_tex, &UVS_A); }
+            }
+            crate::Shape::StairNorth | crate::Shape::StairSouth
+            | crate::Shape::StairWest | crate::Shape::StairEast => {
+                // high half span on the walking axis
+                let (hx0, hx1, hz0, hz1) = match shape {
+                    crate::Shape::StairNorth => (fx, fx + 1.0, fz, fz + 0.5),
+                    crate::Shape::StairSouth => (fx, fx + 1.0, fz + 0.5, fz + 1.0),
+                    crate::Shape::StairWest => (fx, fx + 0.5, fz, fz + 1.0),
+                    _ => (fx + 0.5, fx + 1.0, fz, fz + 1.0),
+                };
+                // bottom slab (full footprint, y 0..0.5); its top face only
+                // on the LOW half so it never coincides with the high box
+                let below = opaque_cube((cell.0, cell.1 - 1, cell.2));
+                let cull = [opaque_cube((cell.0 - 1, cell.1, cell.2)), opaque_cube((cell.0 + 1, cell.1, cell.2)),
+                            opaque_cube((cell.0, cell.1, cell.2 - 1)), opaque_cube((cell.0, cell.1, cell.2 + 1))];
+                // slab sides at half height
+                if !cull[0] { quad([[fx, fy, fz], [fx, fy + 0.5, fz], [fx, fy + 0.5, fz + 1.0], [fx, fy, fz + 1.0]], [-1.0, 0.0, 0.0], side_tex, &UVS_A); }
+                if !cull[1] { quad([[fx + 1.0, fy, fz + 1.0], [fx + 1.0, fy + 0.5, fz + 1.0], [fx + 1.0, fy + 0.5, fz], [fx + 1.0, fy, fz]], [1.0, 0.0, 0.0], side_tex, &UVS_A); }
+                if !cull[2] { quad([[fx + 1.0, fy, fz], [fx + 1.0, fy + 0.5, fz], [fx, fy + 0.5, fz], [fx, fy, fz]], [0.0, 0.0, -1.0], side_tex, &UVS_B); }
+                if !cull[3] { quad([[fx, fy, fz + 1.0], [fx, fy + 0.5, fz + 1.0], [fx + 1.0, fy + 0.5, fz + 1.0], [fx + 1.0, fy, fz + 1.0]], [0.0, 0.0, 1.0], side_tex, &UVS_B); }
+                if !below { quad([[fx, fy, fz], [fx, fy, fz + 1.0], [fx + 1.0, fy, fz + 1.0], [fx + 1.0, fy, fz]], [0.0, -1.0, 0.0], bot_tex, &UVS_A); }
+                // low-half top strip (the step you walk onto)
+                let (lx0, lx1, lz0, lz1) = (hx0, hx1, hz0, hz1);
+                let (tx0, tx1, tz0, tz1) = if hx0 == fx && hx1 == fx + 1.0 {
+                    (fx, fx + 1.0, if hz0 == fz { fz + 0.5 } else { fz }, if hz0 == fz { fz + 1.0 } else { fz + 0.5 })
+                } else {
+                    (if hx0 == fx { fx + 0.5 } else { fx }, if hx0 == fx { fx + 1.0 } else { fx + 0.5 }, fz, fz + 1.0)
+                };
+                quad([[tx0, fy + 0.5, tz1], [tx0, fy + 0.5, tz0], [tx1, fy + 0.5, tz0], [tx1, fy + 0.5, tz1]], [0.0, 1.0, 0.0], top_tex, &UVS_A);
+                // high box (y 0.5..1) on the back half: 4 sides + top; no
+                // bottom (it sits on the slab)
+                let above = opaque_cube((cell.0, cell.1 + 1, cell.2));
+                if !cull[0] { quad([[hx0, fy + 0.5, hz0], [hx0, fy + 1.0, hz0], [hx0, fy + 1.0, hz1], [hx0, fy + 0.5, hz1]], [-1.0, 0.0, 0.0], side_tex, &UVS_A); }
+                if !cull[1] { quad([[hx1, fy + 0.5, hz1], [hx1, fy + 1.0, hz1], [hx1, fy + 1.0, hz0], [hx1, fy + 0.5, hz0]], [1.0, 0.0, 0.0], side_tex, &UVS_A); }
+                if !cull[2] { quad([[hx1, fy + 0.5, hz0], [hx1, fy + 1.0, hz0], [hx0, fy + 1.0, hz0], [hx0, fy + 0.5, hz0]], [0.0, 0.0, -1.0], side_tex, &UVS_B); }
+                if !cull[3] { quad([[hx0, fy + 0.5, hz1], [hx0, fy + 1.0, hz1], [hx1, fy + 1.0, hz1], [hx1, fy + 0.5, hz1]], [0.0, 0.0, 1.0], side_tex, &UVS_B); }
+                if !above { quad([[hx0, fy + 1.0, hz1], [hx0, fy + 1.0, hz0], [hx1, fy + 1.0, hz0], [hx1, fy + 1.0, hz1]], [0.0, 1.0, 0.0], top_tex, &UVS_A); }
+                let _ = (lx0, lx1, lz0, lz1);
+            }
+        }
+    };
+
     for x in 0..SECTION_SIZE {
         for y in 0..SECTION_SIZE {
             for z in 0..SECTION_SIZE {
                 let block = section.get(x, y, z);
                 if block == BlockState::AIR {
+                    continue;
+                }
+                // P34: shaped blocks take their own emission path; plain
+                // cubes keep the original code untouched below
+                let shape = block.shape();
+                if shape != crate::Shape::Cube {
+                    let cell = (x as i32, y as i32, z as i32);
+                    let get = |gx: i32, gy: i32, gz: i32| get_block(gx, gy, gz);
+                    push_shaped(&mut vertices, &mut indices, cell,
+                        x as f32, y as f32, z as f32, block, shape, &get);
                     continue;
                 }
 
@@ -426,5 +513,69 @@ mod tests {
         assert!(has_top_at(9.0, 7.0), "source surface fills its cell (y=9)");
         assert!(has_top_at(8.5, 9.0), "level-4 surface sits at 1-4/8 of the cell (y=8.5)");
         assert!(!has_top_at(9.0, 9.0), "the flowing cell must NOT have a full-height surface");
+    }
+
+    /// P34: a bottom slab renders a half-height box — its top face sits at
+    /// y+0.5 and every triangle still faces outward.
+    #[test]
+    fn slab_renders_a_half_box() {
+        use crate::Shape;
+        let mut s = VoxelSection::new_empty();
+        s.set(8, 8, 8, BlockState::STONE.with_shape(Shape::SlabBottom));
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        // 5 visible faces (no culling neighbors): 4 sides + top + bottom = 6
+        assert_eq!(mesh.vertices.len(), 24, "slab = 6 faces like a cube, at half height");
+        let tops: Vec<&Vertex> = mesh.vertices.iter()
+            .filter(|v| v.normal == [0.0, 1.0, 0.0]).collect();
+        assert_eq!(tops.len(), 4, "one top quad");
+        for v in &tops {
+            assert!((v.position[1] - 8.5).abs() < 1e-4, "top face at the half plane, got {}", v.position[1]);
+        }
+        // winding guard still holds for shaped geometry
+        for i in (0..mesh.indices.len()).step_by(3) {
+            let (a, b, d) = (mesh.vertices[mesh.indices[i] as usize], mesh.vertices[mesh.indices[i + 1] as usize], mesh.vertices[mesh.indices[i + 2] as usize]);
+            let u = [b.position[0] - a.position[0], b.position[1] - a.position[1], b.position[2] - a.position[2]];
+            let v = [d.position[0] - a.position[0], d.position[1] - a.position[1], d.position[2] - a.position[2]];
+            let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+            let dot = n[0] * a.normal[0] + n[1] * a.normal[1] + n[2] * a.normal[2];
+            assert!(dot > 0.0, "shaped triangle must face outward along its normal");
+        }
+    }
+
+    /// P34: a stair is a bottom slab + a back half-box; the step (low top
+    /// strip) and the back top both exist, and nothing coincides.
+    #[test]
+    fn stair_renders_step_and_back() {
+        use crate::Shape;
+        let mut s = VoxelSection::new_empty();
+        s.set(8, 8, 8, BlockState::STONE.with_shape(Shape::StairSouth));
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        // slab(6 faces) + back box(5 faces: no bottom) + low strip top... the
+        // slab's top is ONLY the low strip, so total = 4 sides + slab-bottom
+        // + low-strip-top + 4 back sides + back top = 11 faces
+        assert_eq!(mesh.vertices.len(), 44, "stair = 11 exterior faces, got {}", mesh.vertices.len());
+        let top_y: Vec<f32> = mesh.vertices.iter()
+            .filter(|v| v.normal == [0.0, 1.0, 0.0])
+            .map(|v| v.position[1]).collect();
+        assert!(top_y.iter().all(|y| (*y - 8.5).abs() < 1e-4 || (*y - 9.0).abs() < 1e-4),
+            "tops only at the step (8.5) and the back (9.0)");
+        // the back box occupies the +Z half: at least one +Z side quad at z=9
+        assert!(mesh.vertices.iter().any(|v| v.normal == [0.0, 0.0, 1.0] && (v.position[2] - 9.0).abs() < 1e-4));
+    }
+
+    /// P34: shaped faces against a full opaque cube are culled.
+    #[test]
+    fn shaped_faces_cull_against_full_cubes() {
+        use crate::Shape;
+        let mut s = VoxelSection::new_empty();
+        s.set(8, 8, 8, BlockState::STONE.with_shape(Shape::SlabBottom));
+        s.set(8, 7, 8, BlockState::STONE); // full cube below: bottom face culled
+        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        // slab = 5 faces (its bottom culled by the cube below) + the
+        // supporting cube = 5 faces (its top culled by the slab)
+        assert_eq!(mesh.vertices.len(), 40, "slab over a cube = 10 faces, got {}", mesh.vertices.len());
+        let slab_bottoms = mesh.vertices.iter()
+            .filter(|v| v.normal == [0.0, -1.0, 0.0] && (v.position[1] - 8.0).abs() < 1e-4).count();
+        assert_eq!(slab_bottoms, 0, "the slab's own bottom face is culled at y=8");
     }
 }

@@ -300,8 +300,7 @@ mod tests {
             name: "server_test:udp_probe".into(),
             solid: true,
             opaque: true,
-            drop: None,
-        }));
+            drop: None, light: 0 }));
         assert!(is_known_block(probe_id), "precondition: probe registered");
         let unknown_id = lf_voxel::registry::MAX_VANILLA_BLOCK + 1;
         assert!(!is_known_block(unknown_id), "precondition: unknown id");

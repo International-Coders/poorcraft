@@ -433,6 +433,7 @@ impl GameState {
             UiOpen::LoreBook => self.draw_lore_book(ctx),
             UiOpen::Spellbook => self.draw_spellbook(ctx),
             UiOpen::Imbue => self.draw_imbue(ctx),
+            UiOpen::Carve => self.draw_carve(ctx),
             UiOpen::Smithing => self.draw_smithing(ctx),
             UiOpen::Machine(pos) => self.draw_machine(ctx, pos),
             UiOpen::TechTree => self.draw_tech_tree(ctx),
@@ -1940,6 +1941,80 @@ impl GameState {
         }
         if reset {
             self.imbue.reset();
+        }
+    }
+
+    /// Statue carving (P34): the chisel minigame — hold the detail in
+    /// the band, tap three times, the stone becomes a statue.
+    fn draw_carve(&mut self, ctx: &egui::Context) {
+        let reveal = self.menu_reveal;
+        let detail = self.carve.detail;
+        let taps = self.carve.taps;
+        let target = self.carve_target;
+        let mut grant = false;
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(150)))
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    let panel_w = 400.0_f32.min(ui.available_width() - 24.0);
+                    kit::slide_panel(ui, reveal, |ui| {
+                        egui::Frame::new()
+                            .fill(Theme::BG)
+                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(200, 190, 170)))
+                            .corner_radius(10.0)
+                            .inner_margin(14.0)
+                            .show(ui, |ui| {
+                                ui.set_width(panel_w);
+                                ui.heading(egui::RichText::new("Carving").color(Theme::ACCENT));
+                                ui.label(egui::RichText::new(
+                                    "chip, check, chip — hold the detail in the band and tap",
+                                ).small().color(Theme::TEXT_DIM));
+                                ui.add_space(6.0);
+                                let (r, _) = ui.allocate_exact_size(egui::vec2(panel_w - 8.0, 14.0), egui::Sense::hover());
+                                let p = ui.painter();
+                                p.rect_filled(r, 4.0, egui::Color32::from_black_alpha(190));
+                                let band = egui::Rect::from_min_max(
+                                    egui::pos2(r.left() + r.width() * 0.65, r.top()),
+                                    egui::pos2(r.left() + r.width() * 0.85, r.bottom()),
+                                );
+                                p.rect_filled(band, 4.0, egui::Color32::from_rgb(60, 90, 150));
+                                p.rect_filled(egui::Rect::from_min_size(r.min, egui::vec2(r.width() * (detail / 100.0), r.height())), 4.0, Theme::ACCENT);
+                                ui.add_space(6.0);
+                                ui.label(egui::RichText::new(format!("detail {:.0} — taps {}/3", detail, taps)).color(Theme::TEXT));
+                                ui.horizontal(|ui| {
+                                    if ui.button("chip −10").clicked() { self.carve.tap_adjust(-10.0); }
+                                    if ui.button("chip +10").clicked() { self.carve.tap_adjust(10.0); }
+                                    let in_band = (65.0..=85.0).contains(&detail);
+                                    if ui.button(egui::RichText::new("Tap").color(
+                                        if in_band { Theme::OK } else { Theme::TEXT_DIM })).clicked() {
+                                        if self.carve.chisel_tap() {
+                                            grant = true;
+                                        }
+                                    }
+                                });
+                                ui.add_space(8.0);
+                                if ui.button("Close").clicked() {
+                                    self.ui_open = UiOpen::None;
+                                    self.lock_cursor();
+                                }
+                            });
+                    });
+                });
+            });
+        if grant {
+            if let Some((x, y, z)) = target {
+                if self.world.get_block(x, y, z).id() == crate::registry::block::STONE {
+                    self.world.set_block(x, y, z, lf_voxel::BlockState(crate::registry::block::STATUE));
+                    self.remesh_around(x, z);
+                    self.after_edit(x, y, z);
+                    self.chronicle_event(
+                        lf_chronicle::EventType::Discovery,
+                        "the chisel finds a figure in the stone".into(),
+                    );
+                }
+            }
+            self.carve.reset();
+            self.carve_target = None;
         }
     }
 

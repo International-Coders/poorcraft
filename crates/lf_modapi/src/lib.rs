@@ -89,6 +89,7 @@ pub fn apply_mod(data: &ModData) {
             solid: true,
             opaque: true,
             drop: Some(format!("{}:{}", ns, short)),
+            light: block.light,
         });
         // item form so it can be held/dropped/smelted
         lf_game::items::register_mod_item(
@@ -395,6 +396,20 @@ name = "Ember Ingot"
     /// (real mods/ folder, not a fixture) — its block and item land in the
     /// live registries and smoke_log flags it.
     #[test]
+    /// P34: the decoration pack's `light` values reach the voxel emission
+    /// table (the parsed-but-dropped gap, fixed).
+    #[test]
+    fn decor_pack_light_reaches_the_light_engine() {
+        let repo_mods = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join("mods/decor_pack");
+        let data = load_mod(&repo_mods).expect("mods/decor_pack parses");
+        apply_mod(&data);
+        let banner = mod_block_id("decor_pack", "glowing_banner");
+        assert_eq!(lf_voxel::registry::mod_block(banner).expect("registered").light, 12);
+        assert_eq!(lf_voxel::light::emission(banner), 12, "the banner actually glows");
+        let plinth = mod_block_id("decor_pack", "stone_plinth");
+        assert_eq!(lf_voxel::light::emission(plinth), 0);
+    }
+
     fn smoke_test_mod_loads_from_the_real_folder() {
         let repo_mods = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join("mods/smoke_test");
         let data = load_mod(&repo_mods).expect("mods/smoke_test parses");

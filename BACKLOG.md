@@ -588,3 +588,48 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [ ] Deferred to P33b+: more runes (the enum is the extension point),
       wizard quest hooks (trades teach today), spell targeting beyond
       the crosshair cell.
+
+## Loop 321 — P34 Construction
+- [x] SHAPE SYSTEM: Shape (Cube/SlabBottom/SlabTop/Stair x4) in
+      BlockState's high flag nibble (bits 28..31 — fluid levels keep the
+      low nibble; shape 0 = plain cube so every old save is untouched).
+      mesh_section emits shaped geometry on its own path (1-2 boxes,
+      exactly the exterior faces, no coincident interior quads, culled
+      against opaque full cubes, AO/smoothed-light blended); the plain
+      cube path is untouched. Physics: intersects_solid resolves the
+      player AABB against registry::collision_boxes (slab = half plane,
+      stair = slab + back box). Tests: meshing (half-box top, stair =
+      11 exterior faces, winding outward, culling), physics (slab at
+      half height, stair open/rise halves).
+- [x] SHAPED PLACEMENT: stone/planks slabs + stone stairs items with
+      shaped_placement() (stairs orient by yaw, tested across quadrants);
+      placing a slab onto a matching bottom slab merges into a full cube
+      (slab_merge, tested).
+- [x] SCAFFOLDING (60): climbable (hold jump to rise, sneak to descend
+      — physics hook), breaking one removes the connected column above
+      and refunds every block.
+- [x] SYMMETRY (V): a mirror plane at the player's x; place AND break
+      mirror across it; the plane renders as a translucent wall (overlay
+      batch). Rebindable Action::Symmetry.
+- [x] BLUEPRINTS: two-corner capture (16^3 clamp) -> bincode file under
+      worlds/<slot>/blueprints/; holding the blueprint shows the ghost
+      (translucent cubes where it would paste, capped at 600); paste
+      places into air cells only and consumes the exact per-block bill
+      (drop-table-derived). lf_game::construction with capture/file/bill
+      tests.
+- [x] STATUE CARVING (61): chisel + CarveMinigame (detail 65..85 band,
+      3 taps, per-frame-mint reset — mirroring forge/imbue); a completed
+      carve turns the targeted stone into a Chiseled Statue; chronicle
+      Discovery event.
+- [x] DECORATION REGISTRY v2 / MODAPI LIGHT: BlockDef.light was parsed
+      and dropped — it now flows through ModBlockDef.light into
+      emission() (mod blocks emit their declared light). New
+      mods/decor_pack example (glowing banner light 12, plinth, rug) +
+      test loading the real folder and asserting the emission.
+- [x] Proof: build_tools scene (slab staircase, oriented stairs,
+      scaffold tower, statue, green ghost cubes) — AI-verified all four
+      construction elements; pixel art for every new item (icons test).
+- [ ] Deferred: slopes/arbitrary-corner shapes beyond stairs (the
+      Shape enum is the extension point), decoration texture overrides
+      (decor blocks currently use the mod texture slot), blueprint
+      rotation on paste.

@@ -145,6 +145,23 @@ impl ForgeMinigame {
 mod tests {
     use super::*;
 
+    /// P34: the chisel binds only in its band, mirroring forge/imbue.
+    #[test]
+    fn carve_minigame_taps_in_the_band() {
+        let mut g = CarveMinigame::new(3);
+        assert!(!g.chisel_tap(), "50 is outside 65..85");
+        g.tap_adjust(25.0);
+        assert!(!g.chisel_tap(), "75 taps (1/3)");
+        g.tap_adjust(15.0);
+        assert!(!g.chisel_tap(), "90 outside");
+        g.tap_adjust(-15.0);
+        assert!(!g.chisel_tap(), "75 (2/3)");
+        g.tap_adjust(-5.0);
+        assert!(g.chisel_tap(), "70 (3/3) — the statue emerges");
+        g.reset();
+        assert!(!g.ready() && g.detail == 50.0);
+    }
+
     #[test]
     fn test_material_stats() {
         assert_eq!(ToolMaterial::Wood.harvest_level(), 0);
@@ -181,5 +198,42 @@ mod tests {
         assert!(!forge.strike());
         assert!(forge.strike());
         assert_eq!(forge.strikes_completed, 3);
+    }
+}
+
+/// Statue carving (P34, doc 06): the chisel minigame mirroring the forge
+/// and the imbue table — hold the detail in the 65..85 band, tap three
+/// times, and the stone takes a shape.
+pub struct CarveMinigame {
+    pub detail: f32,
+    pub taps: u32,
+    pub target_taps: u32,
+}
+
+impl CarveMinigame {
+    pub fn new(target_taps: u32) -> Self {
+        Self { detail: 50.0, taps: 0, target_taps }
+    }
+
+    pub fn tap_adjust(&mut self, amount: f32) {
+        self.detail = (self.detail + amount).clamp(0.0, 100.0);
+    }
+
+    pub fn chisel_tap(&mut self) -> bool {
+        if (65.0..=85.0).contains(&self.detail) {
+            self.taps += 1;
+        }
+        self.taps >= self.target_taps
+    }
+
+    pub fn ready(&self) -> bool {
+        self.taps >= self.target_taps
+    }
+
+    /// Fresh block: the UI grants the statue once then resets (the same
+    /// per-frame-mint guard the other minigames have).
+    pub fn reset(&mut self) {
+        self.detail = 50.0;
+        self.taps = 0;
     }
 }

@@ -1,0 +1,26 @@
+# Decoration pack (P34, decoration registry v2): data-driven decor whose
+# `light` now actually reaches the light engine (the parsed-but-dropped
+# gap the phase fixed). Statues, banners, rugs — the builder's kit.
+[[blocks]]
+id = "decor_pack:glowing_banner"
+name = "Glowing Banner"
+texture = "glowing_banner.png"
+hardness = 0.6
+harvest_level = 0
+light = 12
+
+[[blocks]]
+id = "decor_pack:stone_plinth"
+name = "Stone Plinth"
+texture = "stone_plinth.png"
+hardness = 1.5
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "decor_pack:red_rug"
+name = "Red Rug"
+texture = "red_rug.png"
+hardness = 0.3
+harvest_level = 0
+light = 0

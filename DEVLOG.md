@@ -666,3 +666,23 @@ AI-verified (tower at dusk, finished spellbook screen, effects showcase
 with firebolt arc + ward ring + lumen glow — the dusk-dimming rabbit
 hole ended as a scan-threshold lesson, scene set to 0.62). Smoke OK.
 Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 321: P34 Construction
+**WHAT**: The full construction phase — shapes, symmetry, blueprints,
+scaffolding, carving, decoration light.
+**HOW**: lf_voxel Shape + with_shape (high flag nibble) +
+collision_boxes; mesh_section push_shaped (exterior faces only, slab
+top at the half plane, stair = slab + back box with the low strip);
+player.rs intersects_solid vs fractional boxes + scaffold climb;
+lf_game items shaped_placement/slab_merge + construction.rs
+(Blueprint capture/save/bill/paste_targets, tempfile+bincode tests) +
+CarveMinigame; client place hooks (blueprint capture/paste with bill
+consumption, chisel->Carve UI, shaped placement + symmetry mirror),
+scaffold column removal, symmetry key/plane render, blueprint ghost in
+the overlay batch; ModBlockDef.light wired through modapi into
+emission() + mods/decor_pack + real-folder test; atlas 76 layers +
+slab/stairs/chisel/blueprint/scroll/rune art.
+**VERIFICATION**: 233 tests / 0 failed (+10: 3 meshing, 2 physics, 1
+placement, 1 carve, 2 blueprint, 1 decor light). vistest 42/42;
+build_tools AI-verified (slab steps, scaffold, statue, ghost cubes).
+Smoke OK. Runtimes rebuilt; pushed.

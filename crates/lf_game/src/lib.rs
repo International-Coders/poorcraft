@@ -13,6 +13,7 @@ pub mod machines;
 pub mod research;
 pub mod fluids;
 pub mod magic;
+pub mod construction;
 
 /// Game time with a 20-minute day/night cycle as per spec.
 #[derive(Clone, Debug, Serialize, Deserialize)]

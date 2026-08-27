@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 74] = [
+pub const TEXTURE_NAMES: [&str; 76] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -37,6 +37,8 @@ pub const TEXTURE_NAMES: [&str; 74] = [
     "uranium_ore", "reactor", "radiation",
     // Magic foundation (P33)
     "enchanting_table", "lumen_block", "warding_pylon",
+    // Construction (P34)
+    "scaffold", "statue",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -64,6 +66,8 @@ pub const RADIATION_LAYER: u32 = 70;
 pub const ENCHANTING_LAYER: u32 = 71;
 pub const LUMEN_LAYER: u32 = 72;
 pub const WARDING_LAYER: u32 = 73;
+pub const SCAFFOLD_LAYER: u32 = 74;
+pub const STATUE_LAYER: u32 = 75;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -91,6 +95,8 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         57 => 71, // enchanting table
         58 => 72, // lumen block
         59 => 73, // warding pylon
+        60 => 74, // scaffolding
+        61 => 75, // chiseled statue
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -413,6 +419,40 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([230, 214, 168, 255])
                     } else {
                         Rgba([120, 108, 84, 255])
+                    }
+                }
+                "scaffold" => {
+                    // ladder-tower: two uprights + rungs + a top platform
+                    let upright = (x == 4 || x == 5 || x == 10 || x == 11) && y >= 2 && y <= 13;
+                    let rung = x >= 4 && x <= 11 && y >= 3 && y <= 13 && (y % 3 == 0);
+                    let platform = y >= 12 && y <= 13 && x >= 3 && x <= 12;
+                    if platform {
+                        Rgba([ch(150 + ((x * 5 + y * 7) % 18)), ch(118), ch(70), 255])
+                    } else if upright {
+                        Rgba([128, 92, 52, 255])
+                    } else if rung {
+                        Rgba([168, 126, 76, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "statue" => {
+                    // a chiseled figure on a plinth (front view)
+                    let plinth = y >= 12 && y <= 14 && x >= 3 && x <= 12;
+                    let body = x >= 6 && x <= 9 && y >= 5 && y <= 11;
+                    let head = (x as i32 - 7).pow(2) + (y as i32 - 3).pow(2) <= 3;
+                    let arm_l = y >= 6 && y <= 7 && x == 5;
+                    let arm_r = y >= 6 && y <= 7 && x == 10;
+                    if head {
+                        Rgba([205, 200, 192, 255])
+                    } else if body || arm_l || arm_r {
+                        let v = 160 + ((x * 7 + y * 3) % 20);
+                        Rgba([ch(v), ch(v - 8), ch(v - 20), 255])
+                    } else if plinth {
+                        let v = 120 + ((x * 11 + y * 5) % 16);
+                        Rgba([ch(v), ch(v - 4), ch(v - 14), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
                     }
                 }
                 "warding_pylon" => {
@@ -870,7 +910,8 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "glitch_dust", "null_shard",
     "raw_uranium", "uranium_ingot", "fuel_rod",
     "scroll_of_firebolt", "scroll_of_gale_step", "scroll_of_ward", "scroll_of_hearthlight",
-    "rune_of_haste", "rune_of_warding",
+    "rune_of_haste", "rune_of_warding", "chisel", "blueprint",
+    "stone_slab", "planks_slab", "stone_stairs",
 ];
 
 fn paint_sprite(art: [&str; 16], colors: impl Fn(char) -> Rgba<u8>) -> RgbaImage {
@@ -1155,6 +1196,82 @@ const BUCKET_ART: [&str; 16] = [
     ".....dddddd.....",
     "................",
     "................",
+    "................",
+    "................",
+];
+
+const SLAB_ART: [&str; 16] = [
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "..SSSSSSSSSSSS..",
+    "..SSSSSSSSSSSS..",
+    "..ssssssssssss..",
+    "..ssssssssssss..",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
+const STAIRS_ART: [&str; 16] = [
+    "................",
+    "................",
+    "................",
+    "......SSSSSSS...",
+    "......SSSSSSS...",
+    "......SSSSSSS...",
+    "......sssssss...",
+    "..SSSSssssss....",
+    "..SSSSSSSSSS....",
+    "..SSSSSSSSSS....",
+    "..ssssssssss....",
+    "..ssssssssss....",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
+const CHISEL_ART: [&str; 16] = [
+    "................",
+    "..............M.",
+    ".............Mm.",
+    "............Mm..",
+    "...........Mm...",
+    "..........Mm....",
+    ".........Mm.....",
+    "........mm......",
+    ".......hh.......",
+    "......hh........",
+    ".....hh.........",
+    "....dd..........",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
+const BLUEPRINT_ART: [&str; 16] = [
+    "................",
+    ".pppppppppppppp.",
+    ".pPPPPPPPPPPPPp.",
+    ".pPwwwwwwwwwwPp.",
+    ".pPwiiiiiiiiwPp.",
+    ".pPwiwiiiiwiwPp.",
+    ".pPwiiiiiiwiwPp.",
+    ".pPwiwiiiiiiwPp.",
+    ".pPwiwiiiiwiwPp.",
+    ".pPwiiiiiiwiwPp.",
+    ".pPwiiiiiiiiwPp.",
+    ".pPwwwwwwwwwwPp.",
+    ".pPPPPPPPPPPPPp.",
+    ".pppppppppppppp.",
     "................",
     "................",
 ];
@@ -1536,6 +1653,28 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
             's' => Rgba([60, 130, 220, 255]), 'g' => Rgba([235, 235, 245, 255]),
             _ => Rgba([0, 0, 0, 0]),
         }),
+        "stone_slab" => paint_sprite(SLAB_ART, |c| match c {
+            's' => Rgba([130, 130, 134, 255]), 'S' => Rgba([172, 172, 178, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "planks_slab" => paint_sprite(SLAB_ART, |c| match c {
+            's' => Rgba([150, 116, 68, 255]), 'S' => Rgba([186, 148, 92, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "stone_stairs" => paint_sprite(STAIRS_ART, |c| match c {
+            's' => Rgba([130, 130, 134, 255]), 'S' => Rgba([172, 172, 178, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "chisel" => paint_sprite(CHISEL_ART, |c| match c {
+            'm' => Rgba([200, 200, 210, 255]), 'M' => Rgba([240, 240, 248, 255]),
+            'h' => HANDLE, 'd' => HANDLE_DARK,
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "blueprint" => paint_sprite(BLUEPRINT_ART, |c| match c {
+            'p' => Rgba([70, 110, 170, 255]), 'P' => Rgba([110, 150, 210, 255]),
+            'w' => Rgba([240, 240, 235, 255]), 'i' => Rgba([250, 210, 120, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
         "rune_of_haste" => paint_sprite(RUNE_ART, |c| match c {
             'g' => Rgba([150, 235, 170, 255]), 'G' => Rgba([210, 255, 225, 255]),
             'd' => Rgba([70, 120, 85, 255]),
@@ -1621,7 +1760,8 @@ mod tests {
             // fully opaque except water (transparent pass)
             if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine"
                 || name == "pump" || name == "refinery" || name == "combustion_generator"
-                || name == "reactor" || name == "enchanting_table" || name == "warding_pylon" {
+                || name == "reactor" || name == "enchanting_table" || name == "warding_pylon"
+                || name == "scaffold" || name == "statue" {
                 // machine shells with hollow details
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(solid > 40, "{} too sparse", name);

@@ -11,13 +11,16 @@ pub struct ModBlockDef {
     pub opaque: bool,
     /// Item id this block drops (None = nothing).
     pub drop: Option<String>,
+    /// Light emission 0..15 (P34: the modapi `light` field finally
+    /// reaches the light engine — it was parsed and dropped before).
+    pub light: u8,
 }
 
 /// Mod blocks start here, far above the vanilla range.
 pub const MOD_BLOCK_BASE: u32 = 100;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 59;
+pub const MAX_VANILLA_BLOCK: u32 = 61;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -127,6 +130,9 @@ pub mod block {
     pub const ENCHANTING_TABLE: u32 = 57;
     pub const LUMEN_BLOCK: u32 = 58;
     pub const WARDING_PYLON: u32 = 59;
+    // Construction (P34)
+    pub const SCAFFOLD: u32 = 60;
+    pub const STATUE: u32 = 61;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -160,6 +166,8 @@ pub mod block {
             ENCHANTING_TABLE => "Enchanting Table",
             LUMEN_BLOCK => "Lumen Block",
             WARDING_PYLON => "Warding Pylon",
+            SCAFFOLD => "Scaffolding",
+            STATUE => "Chiseled Statue",
             DIRT => "Dirt",
             SAND => "Sand",
             MYCELIUM => "Mycelium",
@@ -233,6 +241,29 @@ pub fn is_opaque(b: BlockState) -> bool {
         && id != block::ICE && id != block::FLOWER
 }
 
+/// Collision boxes (block-local 0..1 coordinates) for shaped blocks —
+/// the physics resolves the player AABB against these (P34). Full cubes
+/// return the whole cell.
+pub fn collision_boxes(state: BlockState) -> &'static [[f32; 6]] {
+    use crate::Shape;
+    const FULL: [[f32; 6]; 1] = [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]];
+    const SLAB_BOTTOM: [[f32; 6]; 1] = [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]];
+    const SLAB_TOP: [[f32; 6]; 1] = [[0.0, 0.5, 0.0, 1.0, 1.0, 1.0]];
+    const STAIR_N: [[f32; 6]; 2] = [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0], [0.0, 0.5, 0.0, 1.0, 1.0, 0.5]];
+    const STAIR_S: [[f32; 6]; 2] = [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0], [0.0, 0.5, 0.5, 1.0, 1.0, 1.0]];
+    const STAIR_W: [[f32; 6]; 2] = [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0], [0.0, 0.5, 0.0, 0.5, 1.0, 1.0]];
+    const STAIR_E: [[f32; 6]; 2] = [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0], [0.5, 0.5, 0.0, 1.0, 1.0, 1.0]];
+    match state.shape() {
+        Shape::Cube => &FULL,
+        Shape::SlabBottom => &SLAB_BOTTOM,
+        Shape::SlabTop => &SLAB_TOP,
+        Shape::StairNorth => &STAIR_N,
+        Shape::StairSouth => &STAIR_S,
+        Shape::StairWest => &STAIR_W,
+        Shape::StairEast => &STAIR_E,
+    }
+}
+
 /// Blocks the crosshair can target (mining/placing raycast hits). Fluids
 /// are scooped with the bucket via the face-adjacent cell instead.
 pub fn is_targetable(b: BlockState) -> bool {
@@ -277,20 +308,16 @@ mod tests {
             name: "ember_ores:ember_ore".into(),
             solid: true,
             opaque: true,
-            drop: Some("ember_ores:ember_ingot".into()),
-        }));
+            drop: Some("ember_ores:ember_ingot".into()), light: 0 }));
         assert!(register_mod_block(150, ModBlockDef {
             name: "ember_ores:ember_ore".into(),
             solid: true,
             opaque: true,
-            drop: Some("ember_ores:ember_ingot".into()),
-        }), "idempotent re-register");
+            drop: Some("ember_ores:ember_ingot".into()), light: 0 }), "idempotent re-register");
         assert!(!register_mod_block(150, ModBlockDef {
-            name: "other:clash".into(), solid: true, opaque: true, drop: None,
-        }), "id collision with a different mod rejected");
+            name: "other:clash".into(), solid: true, opaque: true, drop: None, light: 0 }), "id collision with a different mod rejected");
         assert!(!register_mod_block(5, ModBlockDef {
-            name: "low:id".into(), solid: true, opaque: true, drop: None,
-        }), "vanilla id range rejected");
+            name: "low:id".into(), solid: true, opaque: true, drop: None, light: 0 }), "vanilla id range rejected");
         assert!(is_solid(BlockState(150)));
         assert!(is_opaque(BlockState(150)));
         assert_eq!(block::name(150), "ember_ores:ember_ore");
@@ -314,8 +341,7 @@ mod tests {
         assert!(!is_known_block(MOD_BLOCK_BASE - 1), "vanilla/mod gap is unknown");
         assert!(!is_known_block(MOD_BLOCK_BASE + 500_000), "unregistered mod id");
         assert!(register_mod_block(9100, ModBlockDef {
-            name: "server_test:probe".into(), solid: true, opaque: true, drop: None,
-        }));
+            name: "server_test:probe".into(), solid: true, opaque: true, drop: None, light: 0 }));
         assert!(is_known_block(9100), "registered mod id");
     }
 }

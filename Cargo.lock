@@ -1328,6 +1328,7 @@ dependencies = [
  "glam",
  "lf_voxel",
  "serde",
+ "tempfile",
 ]
 
 [[package]]

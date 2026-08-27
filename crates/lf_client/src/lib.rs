@@ -223,6 +223,7 @@ pub enum UiOpen {
     Map,
     Spellbook,
     Imbue,
+    Carve,
     Console,
     Slots,
     Settings,
@@ -604,6 +605,7 @@ impl ApplicationHandler for App {
                                 let rt_key = state.keymap.key(crate::input::Action::RtCapture);
                                 let grid_key = state.keymap.key(crate::input::Action::GridOverlay);
                                 let book_key = state.keymap.key(crate::input::Action::Spellbook);
+                                let sym_key = state.keymap.key(crate::input::Action::Symmetry);
                                 let spell_keys = [
                                     state.keymap.key(crate::input::Action::Spell1),
                                     state.keymap.key(crate::input::Action::Spell2),
@@ -719,6 +721,21 @@ impl ApplicationHandler for App {
                                             state.show_debug = !state.show_debug;
                                         }
                                         k if k == rt_key => { if state.settings.rt_mode == crate::RtMode::Captures { state.take_raytraced_screenshot(); } }
+                                        k if k == sym_key => {
+                                            if matches!(state.ui_open, UiOpen::None) && state.stats.health > 0.0 {
+                                                state.symmetry_plane = match state.symmetry_plane {
+                                                    Some(_) => {
+                                                        state.push_hint("symmetry off");
+                                                        None
+                                                    }
+                                                    None => {
+                                                        state.push_hint("symmetry plane set — place & break are mirrored (V to clear)");
+                                                        Some(state.player.position.x)
+                                                    }
+                                                };
+                                                return;
+                                            }
+                                        }
                                         k if k == book_key => {
                                             if matches!(state.ui_open, UiOpen::None | UiOpen::Spellbook) && state.stats.health > 0.0 {
                                                 if state.ui_open == UiOpen::Spellbook {
@@ -963,6 +980,16 @@ struct GameState {
     hearth_lights: std::collections::HashMap<(i32, i32, i32), f32>,
     /// The enchanting minigame (P33).
     pub imbue: lf_game::magic::ImbueMinigame,
+    /// P34: symmetry plane x (mirrors place/break across it).
+    pub symmetry_plane: Option<f32>,
+    /// P34 blueprints: first corner marker, the captured clipboard, and
+    /// the file it came from.
+    pub bp_corner_a: Option<(i32, i32, i32)>,
+    pub bp_clip: Option<lf_game::construction::Blueprint>,
+    pub bp_path: Option<std::path::PathBuf>,
+    /// P34: the statue-carving minigame + which stone it works on.
+    pub carve: lf_game::smithing::CarveMinigame,
+    pub carve_target: Option<(i32, i32, i32)>,
     /// Runed tools: item id -> rune item id (P33). Persisted in extras.
     pub runed_tools: std::collections::HashMap<String, String>,
     last_cloud_rebuild: Instant,
@@ -1196,6 +1223,12 @@ impl GameState {
             spellbook,
             runed_tools: runed,
             imbue: lf_game::magic::ImbueMinigame::new(3),
+            symmetry_plane: None,
+            bp_corner_a: None,
+            bp_clip: None,
+            bp_path: None,
+            carve: lf_game::smithing::CarveMinigame::new(3),
+            carve_target: None,
             hud_flash: 0.0,
             hit_flash: 0.0,
             xp_flash: 0.0,
@@ -2133,6 +2166,33 @@ impl GameState {
                                 self.spawn_break_particles(block_id, (pos.x, pos.y, pos.z), 16);
                             }
                             self.use_durability();
+                            // P34: breaking a scaffold drops the whole
+                            // connected column above it (bulk-remove)
+                            if block_id == registry::block::SCAFFOLD {
+                                let mut y = pos.y + 1;
+                                while self.world.get_block(pos.x, y, pos.z).id() == registry::block::SCAFFOLD {
+                                    self.world.set_block(pos.x, y, pos.z, BlockState::AIR);
+                                    self.spawn_drop("scaffold", 1, Vec3::new(pos.x as f32 + 0.5, y as f32 + 0.5, pos.z as f32 + 0.5));
+                                    y += 1;
+                                }
+                                if y > pos.y + 1 {
+                                    self.remesh_around(pos.x, pos.z);
+                                }
+                            }
+                            // P34: symmetry mirrors the break across the plane
+                            if let Some(px) = self.symmetry_plane {
+                                let mx = (2.0 * px - pos.x as f32).round() as i32;
+                                let mirrored = self.world.get_block(mx, pos.y, pos.z);
+                                if mirrored.id() == block_id {
+                                    self.world.set_block(mx, pos.y, pos.z, BlockState::AIR);
+                                    self.break_block_drops(block_id, glam::IVec3::new(mx, pos.y, pos.z));
+                                    self.remesh_around(mx, pos.z);
+                                    self.after_edit(mx, pos.y, pos.z);
+                                    if let Some(n) = &self.net {
+                                        n.send_block(mx, pos.y, pos.z, registry::block::AIR);
+                                    }
+                                }
+                            }
                             self.remesh_around(pos.x, pos.z);
                             // wake water + drop unsupported granular blocks
                             self.after_edit(pos.x, pos.y, pos.z);
@@ -2346,6 +2406,138 @@ impl GameState {
                     }
                 }
                 if let Some(stack) = held {
+                        // P34 blueprints: two-corner capture, then paste. Sneak-click clears.
+                    if stack.item_id == "blueprint" {
+                        if let Some((pos, _)) = target {
+                            if self.input.held(self.keymap.key(crate::input::Action::Sneak)) {
+                                self.bp_corner_a = None;
+                                self.push_hint("blueprint marker cleared");
+                            } else if self.bp_clip.is_none() {
+                                match self.bp_corner_a {
+                                    None => {
+                                        self.bp_corner_a = Some((pos.x, pos.y, pos.z));
+                                        self.push_hint("corner A marked — click the far corner");
+                                    }
+                                    Some(a) => {
+                                        let bp = lf_game::construction::capture(
+                                            &self.world, a, (pos.x, pos.y, pos.z));
+                                        let dir = self.world_dir.join("blueprints");
+                                        let _ = std::fs::create_dir_all(&dir);
+                                        let stamp = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .map(|d| d.as_secs()).unwrap_or(0);
+                                        let path = dir.join(format!("bp{}.bp", stamp));
+                                        if let Err(e) = bp.save(&path) {
+                                            self.push_hint(&format!("blueprint save failed: {}", e));
+                                        } else {
+                                            self.push_hint(&format!(
+                                                "captured {}x{}x{} ({} blocks) — next clicks paste it",
+                                                bp.sx, bp.sy, bp.sz, bp.blocks.iter().filter(|b| b.id() != 0).count()));
+                                            self.bp_clip = Some(bp);
+                                            self.bp_path = Some(path);
+                                        }
+                                        self.bp_corner_a = None;
+                                    }
+                                }
+                            } else if let Some(bp) = self.bp_clip.clone() {
+                                // paste at the face-adjacent cell
+                                let at = (pos.x + 1, pos.y, pos.z);
+                                let targets = lf_game::construction::paste_targets(&self.world, &bp, at);
+                                // materials: the bill for exactly these blocks
+                                let mut need: Vec<(String, u16)> = Vec::new();
+                                for (_, b) in &targets {
+                                    if let Some(item) = lf_game::items::block_drop(b.id()) {
+                                        match need.iter_mut().find(|(id, _)| *id == item) {
+                                            Some((_, n)) => *n += 1,
+                                            None => need.push((item, 1)),
+                                        }
+                                    }
+                                }
+                                let have = |id: &str| -> u16 {
+                                    self.inventory.slots.iter().flatten()
+                                        .filter(|s| s.item_id == id)
+                                        .map(|s| s.count as u16).sum()
+                                };
+                                let short = need.iter().find(|(id, n)| have(id) < *n);
+                                if let Some((id, n)) = short {
+                                    self.push_hint(&format!("paste needs {} x{}", n, id));
+                                } else {
+                                    for (id, n) in &need {
+                                        let mut left = *n;
+                                        for slot in self.inventory.slots.iter_mut() {
+                                            if left == 0 { break; }
+                                            if let Some(s) = slot {
+                                                if s.item_id == *id {
+                                                    let take = (s.count as u16).min(left);
+                                                    s.count -= take as u8;
+                                                    left -= take;
+                                                    if s.count == 0 { *slot = None; }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    let mut remesh = false;
+                                    for ((x, y, z), b) in targets {
+                                        if self.world.set_block(x, y, z, b).is_some() {
+                                            if let Some(n) = &self.net {
+                                                n.send_block(x, y, z, b.id());
+                                            }
+                                            remesh = true;
+                                        }
+                                    }
+                                    if remesh {
+                                        self.remesh_around(at.0, at.2);
+                                        self.push_hint("blueprint pasted");
+                                    }
+                                }
+                            }
+                        }
+                        return;
+                    }
+                    // P34 chisel: right-click stone with a chisel to carve.
+                    if stack.item_id == "chisel" {
+                        if let Some((pos, _)) = target {
+                            if self.world.get_block(pos.x, pos.y, pos.z).id() == registry::block::STONE {
+                                self.carve_target = Some((pos.x, pos.y, pos.z));
+                                self.ui_open = UiOpen::Carve;
+                                self.menu_reveal = 0.0;
+                                self.unlock_cursor();
+                            } else {
+                                self.push_hint("the chisel works stone, nothing else");
+                            }
+                        }
+                        return;
+                    }
+                    // P34 shaped blocks: slabs + stairs place with shape
+                    // (a slab aimed at a matching bottom slab merges).
+                    if let Some(shaped) = lf_game::items::shaped_placement(&stack.item_id, self.player.yaw) {
+                        if let Some((pos, normal)) = target {
+                            let existing = self.world.get_block(pos.x, pos.y, pos.z);
+                            let merge = lf_game::items::slab_merge(existing, shaped);
+                            let place = if merge.is_some() { pos } else { pos + normal };
+                            if merge.is_some() || !self.block_intersects_player(place) {
+                                let final_state = merge.unwrap_or(shaped);
+                                if self.world.set_block(place.x, place.y, place.z, final_state).is_some() {
+                                    if let Some(n) = &self.net {
+                                        n.send_block(place.x, place.y, place.z, final_state.id());
+                                    }
+                                    self.remesh_around(place.x, place.z);
+                                    self.after_edit(place.x, place.y, place.z);
+                                    self.play_block_sound(final_state.id(), lf_audio::Action::Place);
+                                    self.consume_selected(1);
+                                    // symmetry mirrors the placement
+                                    if let Some(px) = self.symmetry_plane {
+                                        let mx = (2.0 * px - place.x as f32).round() as i32;
+                                        if self.world.get_block(mx, place.y, place.z) == BlockState::AIR {
+                                            self.world.set_block(mx, place.y, place.z, final_state);
+                                            self.remesh_around(mx, place.z);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        return;
+                    }
                     let def = item_def(&stack.item_id);
                     match def.map(|d| d.kind) {
                         Some(ItemKind::Food(heal)) if self.stats.hunger < self.stats.max_hunger => {
@@ -2481,6 +2673,15 @@ impl GameState {
 
     /// P33: cast the spell in a slot (Z/X/C). The pure gating lives in
     /// lf_game::magic; this applies the effect to the world/player.
+    /// P34: a builder's hint line in the chat log.
+    fn push_hint(&mut self, msg: &str) {
+        self.chat_log.push(msg.to_string());
+        let len = self.chat_log.len();
+        if len > 6 {
+            self.chat_log.drain(..len - 6);
+        }
+    }
+
     pub fn cast_from_slot(&mut self, slot: usize) {
         use lf_game::magic::{SpellEffect};
         let Ok((effect, mana_left)) = self.spellbook.try_cast(slot, self.stats.mana) else {
@@ -2715,7 +2916,8 @@ impl GameState {
     }
 
     /// Step 25 grid overlay: one translucent tint cube per powered machine
-    /// (green = fed, red = starved), rebuilt every few frames while on.
+    /// (green = fed, red = starved), plus the P34 symmetry plane and the
+    /// blueprint ghost — rebuilt every few frames while any is active.
     fn rebuild_overlay_batch(&mut self) {
         let (mut bv, mut bi) = (Vec::new(), Vec::new());
         for (pos, ratio) in &self.machine_power {
@@ -2725,6 +2927,63 @@ impl GameState {
                 lf_assets::GRID_STARVED_LAYER
             };
             push_overlay_cube(&mut bv, &mut bi, pos.0 as f32, pos.1 as f32, pos.2 as f32, layer);
+        }
+        // P34 symmetry plane: a translucent wall at the mirror x
+        if let Some(px) = self.symmetry_plane {
+            let layer = lf_assets::GRID_OK_LAYER;
+            let (x0, x1) = (px - 0.05, px + 0.05);
+            let y0 = self.player.position.y - 3.0;
+            let y1 = y0 + 14.0;
+            let z0 = self.player.position.z - 12.0;
+            let z1 = z0 + 24.0;
+            for (cx, cz, n) in [
+                (x0, z0, [-1.0f32, 0.0, 0.0]),
+                (x1, z0, [1.0, 0.0, 0.0]),
+            ] {
+                let base = bv.len() as u32;
+                for (corner, uv) in [
+                    ([cx, y0, cz], [0.0, 1.0]), ([cx, y1, cz], [0.0, 0.0]),
+                    ([cx, y1, z1], [1.0, 0.0]), ([cx, y0, z1], [1.0, 1.0]),
+                ] {
+                    bv.push(GpuVertex {
+                        position: corner, normal: n, tex_coord: uv,
+                        tex_index: layer, ao: 1.0, light: 0xF0, sway: 0.0,
+                    });
+                }
+                bi.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+        // P34 blueprint ghost: the captured build hanging where it would
+        // paste (capped — huge captures draw a cut of themselves)
+        let holding_bp = self.inventory.slots[self.hotbar_index].as_ref()
+            .map(|s| s.item_id == "blueprint").unwrap_or(false);
+        if holding_bp {
+            if let Some(bp) = &self.bp_clip {
+                if let Some((pos, normal)) = raycast_voxel(
+                    self.player.eye_position(), self.player.look_dir(), REACH,
+                    |p| registry::is_targetable(self.world.get_block(p.x, p.y, p.z)),
+                ) {
+                    let at = (pos.x + normal.x, pos.y + normal.y, pos.z + normal.z);
+                    let mut drawn = 0usize;
+                    'outer: for y in 0..bp.sy as i32 {
+                        for z in 0..bp.sz as i32 {
+                            for x in 0..bp.sx as i32 {
+                                let b = bp.get(x, y, z);
+                                if b.id() == 0 {
+                                    continue;
+                                }
+                                push_overlay_cube(&mut bv, &mut bi,
+                                    (at.0 + x) as f32, (at.1 + y) as f32, (at.2 + z) as f32,
+                                    lf_assets::GRID_OK_LAYER);
+                                drawn += 1;
+                                if drawn >= 600 {
+                                    break 'outer;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         self.overlay_batch = if bv.is_empty() {
             None
@@ -3649,11 +3908,17 @@ impl GameState {
         if let Some(batch) = &self.waypoint_batch {
             batch.update_camera(&self.queue, &camera, &env);
         }
-        // Step 25 grid overlay cubes (rebuilt periodically while enabled)
-        if self.grid_overlay && (self.frame % 15 == 0 || self.overlay_batch.is_none()) {
+        // Step 25 overlay cubes (grid tint, symmetry plane, blueprint
+        // ghost) — rebuilt periodically while any is active
+        let overlay_active = self.grid_overlay
+            || self.symmetry_plane.is_some()
+            || (self.bp_clip.is_some()
+                && self.inventory.slots[self.hotbar_index].as_ref()
+                    .map(|s| s.item_id == "blueprint").unwrap_or(false));
+        if overlay_active && (self.frame % 15 == 0 || self.overlay_batch.is_none()) {
             self.rebuild_overlay_batch();
         }
-        if !self.grid_overlay {
+        if !overlay_active {
             self.overlay_batch = None;
         }
         if let Some(batch) = &self.overlay_batch {

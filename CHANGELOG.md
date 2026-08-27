@@ -727,3 +727,11 @@
   fixing the latent silent-reset on every old field addition.
 - 223 tests green (+10); 41/41 vistest scenes; smoke OK; runtimes
   rebuilt; pushed.
+
+## Loop 321 — Construction (P34)
+- The shape system (slabs/stairs in BlockState bits, shaped meshing,
+  fractional collision), shaped placement with slab merge, climbable
+  bulk-removable scaffolding, build symmetry (V), blueprint
+  capture/ghost/paste with material bills, chisel statue carving, and
+  the modapi light fix + decor_pack. 233 tests green (+10); 42/42
+  vistest scenes; smoke OK; runtimes rebuilt; pushed.

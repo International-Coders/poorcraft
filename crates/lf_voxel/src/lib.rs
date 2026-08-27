@@ -57,6 +57,62 @@ pub fn oil_with_level(level: u8) -> BlockState {
     BlockState(registry::block::OIL | (((level as u32) & 0x0F) << 24))
 }
 
+/// Block shape (P34 construction): lives in the high nibble of the state
+/// flags (bits 28..31; water/oil levels own the low nibble). Shape 0 is
+/// the plain cube every existing block uses, so old saves are unaffected.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Shape {
+    Cube,
+    SlabBottom,
+    SlabTop,
+    /// High half toward -Z (the direction you walk UP is north).
+    StairNorth,
+    /// High half toward +Z.
+    StairSouth,
+    /// High half toward -X.
+    StairWest,
+    /// High half toward +X.
+    StairEast,
+}
+
+impl Shape {
+    pub fn nibble(self) -> u8 {
+        match self {
+            Shape::Cube => 0,
+            Shape::SlabBottom => 1,
+            Shape::SlabTop => 2,
+            Shape::StairNorth => 3,
+            Shape::StairSouth => 4,
+            Shape::StairWest => 5,
+            Shape::StairEast => 6,
+        }
+    }
+
+    pub fn from_nibble(n: u8) -> Shape {
+        match n {
+            1 => Shape::SlabBottom,
+            2 => Shape::SlabTop,
+            3 => Shape::StairNorth,
+            4 => Shape::StairSouth,
+            5 => Shape::StairWest,
+            6 => Shape::StairEast,
+            _ => Shape::Cube,
+        }
+    }
+}
+
+impl BlockState {
+    /// This block's shape (P34). Plain blocks are [`Shape::Cube`].
+    pub fn shape(self) -> Shape {
+        Shape::from_nibble(self.state_flags() >> 4)
+    }
+
+    /// The same block with a different shape (fluid levels are preserved).
+    pub fn with_shape(self, shape: Shape) -> BlockState {
+        BlockState((self.0 & 0x0FFFFFFF) | ((shape.nibble() as u32) << 28))
+    }
+}
+
 /// A 16x16x16 section of voxels with palette compression.
 pub const SECTION_SIZE: usize = 16;
 pub const SECTION_VOLUME: usize = SECTION_SIZE * SECTION_SIZE * SECTION_SIZE;

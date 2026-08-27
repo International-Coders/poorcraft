@@ -7,6 +7,13 @@ pub const MAX_LIGHT: u8 = 15;
 
 /// Emission strength of light-emitting blocks.
 pub fn emission(block_id: u32) -> u8 {
+    // mod blocks carry their own emission (P34: the modapi `light`
+    // field finally reaches the light engine)
+    if block_id >= registry::MOD_BLOCK_BASE {
+        if let Some(def) = registry::mod_block(block_id) {
+            return def.light.min(15);
+        }
+    }
     match block_id {
         registry::block::TORCH => 14,
         registry::block::LANTERN => 15,

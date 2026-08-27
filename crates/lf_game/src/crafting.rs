@@ -106,6 +106,31 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("glass"), Some("torch"), Some("glass")],
         vec![Some("glitch_dust"), Some("glass"), Some("glitch_dust")],
     ]));
+    // Construction (P34): shapes + builder's kit
+    book.push(r("stone_slab", 6, vec![
+        vec![Some("stone"), Some("stone"), Some("stone")],
+    ]));
+    book.push(r("planks_slab", 6, vec![
+        vec![Some("planks"), Some("planks"), Some("planks")],
+    ]));
+    book.push(r("stone_stairs", 4, vec![
+        vec![Some("stone"), None, None],
+        vec![Some("stone"), Some("stone"), None],
+        vec![Some("stone"), Some("stone"), Some("stone")],
+    ]));
+    book.push(r("scaffold", 8, vec![
+        vec![Some("planks"), None, Some("planks")],
+        vec![None, Some("stick"), None],
+        vec![Some("planks"), None, Some("planks")],
+    ]));
+    book.push(r("chisel", 1, vec![
+        vec![None, Some("iron_ingot"), None],
+        vec![None, Some("stick"), None],
+    ]));
+    book.push(r("blueprint", 1, vec![
+        vec![None, Some("iron_ingot"), None],
+        vec![Some("iron_ingot"), Some("book"), Some("iron_ingot")],
+    ]));
     book.push(r("warding_pylon", 1, vec![
         vec![Some("null_shard"), Some("machine_frame"), Some("null_shard")],
         vec![Some("machine_frame"), Some("glitch_dust"), Some("machine_frame")],

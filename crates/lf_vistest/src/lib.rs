@@ -516,6 +516,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "build_tools",
+            desc: "Construction (P34): slab staircase + stairs, a blueprint ghost, scaffolding and a chiseled statue",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "grid_overlay",
             desc: "power-grid overlay (Step 25): green tint cube over the powered furnace, red over a starved crusher out of range",
             default_seed: 12345,
@@ -1071,6 +1083,42 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         world.set_block(2, h, 1, lf_voxel::BlockState(block::ENCHANTING_TABLE));
     }
 
+    // build_tools (P34): the construction kit in one frame — a slab
+    // staircase climbing east, oriented stairs at the top, scaffolding
+    // beside it, a chiseled statue on a pedestal, and a blueprint ghost
+    // (translucent tint cubes) hanging where it would paste.
+    if spec.name == "build_tools" {
+        use lf_voxel::{BlockState, Shape};
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -8..10 {
+            for z in -6..6 {
+                for y in h..h + 10 {
+                    world.set_block(x, y, z, BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, BlockState(block::STONE));
+            }
+        }
+        // slab staircase: each step is one bottom slab + the next course
+        for step in 0..4 {
+            let x = -6 + step;
+            for xw in x..(x + 4) {
+                world.set_block(xw, h + step, 0, BlockState(block::STONE).with_shape(Shape::SlabBottom));
+            }
+        }
+        // an oriented stair at the top landing
+        world.set_block(-2, h + 4, 0, BlockState(block::STONE).with_shape(Shape::StairEast));
+        world.set_block(-1, h + 4, 0, BlockState(block::STONE).with_shape(Shape::StairEast));
+        // scaffolding tower beside the stairs
+        for y in 0..5 {
+            world.set_block(2, h + y, -2, BlockState(block::SCAFFOLD));
+            world.set_block(3, h + y, -2, BlockState(block::SCAFFOLD));
+        }
+        // statue on a plinth
+        world.set_block(5, h, 2, BlockState(block::STONE));
+        world.set_block(5, h + 1, 2, BlockState(block::STATUE));
+    }
+
     // transparency_layers (Step 8): a water pool BEHIND a glass wall, with
     // debris billboards on both sides of the glass — water must be visible
     // through the pane, and the near particle must render over the glass
@@ -1404,6 +1452,42 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         }
     }
 
+    // build_tools (P34): the blueprint ghost — translucent green tint
+    // cubes hanging in the air where a paste would land (the same cube
+    // construction the client's ghost preview uses).
+    if spec.name == "build_tools" {
+        let h = world.surface_height(0, 0);
+        let ghost_cells: Vec<(i32, i32, i32)> = (0..9).map(|i| (i % 3 - 1, h + 6 + i / 3, (i % 5) - 2)).collect();
+        for (gx, gy, gz) in ghost_cells {
+            let tex = lf_assets::GRID_OK_LAYER;
+            let e = 0.51f32;
+            let (cx, cy, cz) = (gx as f32 + 0.5, gy as f32 + 0.5, gz as f32 + 0.5);
+            let faces: [([[f32; 3]; 4]); 6] = [
+                [[cx - e, cy - e, cz - e], [cx - e, cy + e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy - e, cz - e]],
+                [[cx + e, cy - e, cz + e], [cx + e, cy + e, cz + e], [cx - e, cy + e, cz + e], [cx - e, cy - e, cz + e]],
+                [[cx - e, cy - e, cz + e], [cx - e, cy + e, cz + e], [cx - e, cy + e, cz - e], [cx - e, cy - e, cz - e]],
+                [[cx + e, cy - e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy + e, cz + e], [cx + e, cy - e, cz + e]],
+                [[cx - e, cy + e, cz + e], [cx - e, cy + e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy + e, cz + e]],
+                [[cx - e, cy - e, cz - e], [cx + e, cy - e, cz - e], [cx + e, cy - e, cz + e], [cx - e, cy - e, cz + e]],
+            ];
+            for corners in faces {
+                let base = water_vertices.len() as u32;
+                for (corner, uv) in corners.iter().zip([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]) {
+                    water_vertices.push(GpuVertex {
+                        position: *corner,
+                        normal: [0.0, 1.0, 0.0],
+                        tex_coord: uv,
+                        tex_index: tex,
+                        ao: 1.0,
+                        light: 0xF0,
+                        sway: 0.0,
+                    });
+                }
+                water_indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+    }
+
     // oil_chain: dark flare smoke rising from the refinery columns (P31)
     if spec.name == "oil_chain" {
         let h = world.surface_height(0, 0) as f32;
@@ -1586,6 +1670,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "grid_overlay" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-4.0, h + 7.0, 13.0), Vec3::new(2.0, h + 0.6, 0.0))
+    } else if spec.name == "build_tools" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-9.0, h + 8.0, 9.0), Vec3::new(0.0, h + 1.5, 0.0))
     } else if spec.name == "wizard_tower" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-7.0, h + 9.0, 9.0), Vec3::new(0.5, h + 6.0, 0.5))

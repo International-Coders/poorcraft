@@ -1,9 +1,9 @@
 # STATE
-loop_count: 319
-current_milestone: P32 Nuclear (the ceiling)
-last_done: "Nuclear tier capped: uranium worldgen (deep y8-24), fuel rods, 32 EU/s reactor with pinned heat curve (equilibrium cooling, auto-SCRAM, residual decay heat, meltdown -> r=3 crater + glowing radiation residue that damages until scrubbed + chronicle event), reactor_safety certification gating Era::Nuclear, reactor UI with SCRAM. 213 tests, 38/38 vistest (reactor_control + meltdown_aftermath AI-verified)"
-next_task: "P33 Magic foundation (mana + HUD bar, 4 bounded spells + spell slots + spellbook screen, wizard NPC + tower worldgen, enchanting table + imbue minigame, crossover items) — then P34 Construction"
+loop_count: 321
+current_milestone: P34 Construction
+last_done: "Construction: shape system (BlockState nibble, shaped meshing with exterior-face tests, fractional collision), slab/stair placement + merge, climbable bulk-remove scaffolding, symmetry V, blueprint capture/ghost/paste with material bills, chisel statue carving, modapi light fix + decor_pack. 233 tests, 42/42 vistest (build_tools AI-verified)"
+next_task: "P35 Smart building (conduit/wire relays, elevator, climate block, computer screen block with dynamic texture) — then P36 Dragons, P37 Paths/trading, Steps 34-40"
 build: GREEN
-tests: 213 passing
+tests: 233 passing
 last_screenshot: shots/audit_transparency.png
 blockers: "none"

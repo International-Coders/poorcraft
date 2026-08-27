@@ -135,7 +135,23 @@ impl Player {
                 self.velocity.y = JUMP_VELOCITY;
                 self.on_ground = false;
             }
-            self.velocity.y = (self.velocity.y - GRAVITY * dt).max(TERMINAL_VELOCITY);
+            // P34 scaffolding: overlapping a scaffold cell lets you climb
+            // (hold jump to rise, sneak to slide down) — like a ladder
+            // that costs nothing and comes down in one hit.
+            let p = self.position;
+            let in_scaffold = world.get_block(p.x as i32, (p.y + 0.5) as i32, p.z as i32).id()
+                == lf_voxel::registry::block::SCAFFOLD;
+            if in_scaffold {
+                self.velocity.y = if input.jump {
+                    4.0
+                } else if input.sneak {
+                    -3.0
+                } else {
+                    (self.velocity.y - GRAVITY * dt).max(-1.5)
+                };
+            } else {
+                self.velocity.y = (self.velocity.y - GRAVITY * dt).max(TERMINAL_VELOCITY);
+            }
         }
 
         // Axis-separated integrate + collide.
@@ -223,8 +239,21 @@ fn intersects_solid(world: &World, aabb: &Aabb) -> bool {
     for x in min.x..=max.x {
         for y in min.y..=max.y {
             for z in min.z..=max.z {
-                if world.is_solid(x, y, z) {
-                    return true;
+                let state = world.get_block(x, y, z);
+                if !lf_voxel::registry::is_solid(state) {
+                    continue;
+                }
+                // P34: shaped blocks collide through their fractional
+                // boxes (slabs at half height, stairs as slab + back box)
+                for b in lf_voxel::registry::collision_boxes(state) {
+                    let bmin = Vec3::new(x as f32 + b[0], y as f32 + b[1], z as f32 + b[2]);
+                    let bmax = Vec3::new(x as f32 + b[3], y as f32 + b[4], z as f32 + b[5]);
+                    if aabb.min.x < bmax.x && aabb.max.x > bmin.x
+                        && aabb.min.y < bmax.y && aabb.max.y > bmin.y
+                        && aabb.min.z < bmax.z && aabb.max.z > bmin.z
+                    {
+                        return true;
+                    }
                 }
             }
         }
@@ -388,5 +417,53 @@ mod tests {
         p.apply_look(0.0, std::f32::consts::FRAC_PI_2);
         // pitch clamps at 89 degrees, so look nearly straight up
         assert!(p.look_dir().y > 0.99, "pitch +90 clamps to near-up, got {:?}", p.look_dir());
+    }
+
+    /// P34: a bottom slab collides only up to the half plane — a player
+    /// standing beside it walks THROUGH the upper half but not the lower.
+    #[test]
+    fn slabs_collide_at_half_height() {
+        let mut w = lf_voxel::World::new();
+        w.ensure_chunk(0, 0);
+        for x in -4..4 {
+            for z in -4..4 {
+                w.set_block(x, 0, z, lf_voxel::BlockState::STONE);
+            }
+        }
+        // slab wall at x = 2, one tall
+        for z in -2..=2 {
+            w.set_block(2, 1, z, lf_voxel::BlockState::STONE.with_shape(lf_voxel::Shape::SlabTop));
+        }
+        // the player at eye height 1.6..: feet at y=1.0, head ~2.8. A TOP
+        // slab (0.5..1.0 of its cell) occupies world y 1.5..2.0 -> the
+        // body overlaps it horizontally.
+        // direct collision probe: an AABB overlapping the slab region
+        let aabb = Aabb {
+            min: Vec3::new(2.2, 1.2, -0.3),
+            max: Vec3::new(2.8, 2.2, 0.3),
+        };
+        assert!(intersects_solid(&w, &aabb), "top slab blocks the upper body");
+        // the same footprint ABOVE the slab's cell is free
+        let above = Aabb {
+            min: Vec3::new(2.2, 2.2, -0.3),
+            max: Vec3::new(2.8, 3.0, 0.3),
+        };
+        assert!(!intersects_solid(&w, &above), "nothing solid above the slab");
+    }
+
+    /// P34: stairs are two boxes — the open half is walk-through at head
+    /// height, the back half is not.
+    #[test]
+    fn stairs_collide_as_two_boxes() {
+        let mut w = lf_voxel::World::new();
+        w.ensure_chunk(0, 0);
+        w.set_block(0, 1, 0, lf_voxel::BlockState::STONE.with_shape(lf_voxel::Shape::StairSouth));
+        // the step slab is solid everywhere up to world y 1.5; above it,
+        // the FRONT half (z 0..0.5) is open air and the BACK half
+        // (the rise, world y 1.5..2.0 over z 0.5..1) is blocked
+        let front = Aabb { min: Vec3::new(0.2, 1.6, 0.05), max: Vec3::new(0.8, 2.3, 0.45) };
+        assert!(!intersects_solid(&w, &front), "the open half above the step is free");
+        let back = Aabb { min: Vec3::new(0.2, 1.6, 0.55), max: Vec3::new(0.8, 2.3, 0.95) };
+        assert!(intersects_solid(&w, &back), "the rise of the step is solid");
     }
 }

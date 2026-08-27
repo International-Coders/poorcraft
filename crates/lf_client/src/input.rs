@@ -36,10 +36,11 @@ pub enum Action {
     Spell2,
     Spell3,
     Spellbook,
+    Symmetry,
 }
 
 impl Action {
-    pub const ALL: [Action; 24] = [
+    pub const ALL: [Action; 25] = [
         Action::Forward,
         Action::Back,
         Action::Left,
@@ -64,6 +65,7 @@ impl Action {
         Action::Spell2,
         Action::Spell3,
         Action::Spellbook,
+        Action::Symmetry,
     ];
 
     pub fn label(self) -> &'static str {
@@ -92,6 +94,7 @@ impl Action {
             Action::Spell2 => "Cast spell slot 2",
             Action::Spell3 => "Cast spell slot 3",
             Action::Spellbook => "Spellbook",
+            Action::Symmetry => "Toggle build symmetry",
         }
     }
 }
@@ -159,6 +162,7 @@ impl Default for Keymap {
         set(Action::Spell2, KeyX);
         set(Action::Spell3, KeyC);
         set(Action::Spellbook, KeyB);
+        set(Action::Symmetry, KeyV);
         Self { bindings }
     }
 }
