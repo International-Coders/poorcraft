@@ -398,3 +398,25 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [x] proof: water_wheel_power scene (river carved, wheel + battery +
       crusher, the real power step spins the wheel for 30 sim-seconds) —
       AI-verified as a riverside power station
+
+## Loop 316 — P30 Steam Age (V1REBRAND doc 04 / build-pack Step 24)
+- [x] Era::Steam branch (prereq Industrial, either-order vs Water —
+      tested; 12 iron + 4 gears + 16 coal); tech-tree branch cards now
+      list Water AND Steam with live unlock buttons
+- [x] machines: Pipe (1000 mB, equal-share between neighbors — no
+      pressure sim per DECISIONS), Boiler (fuel via the existing
+      fuel_seconds table + water -> steam, idle dissipates), SteamEngine
+      (16 EU/s at full steam — wheel 12 < engine 16 < coal 20, asserted);
+      4 tests incl. the full boiler->engine->machine chain through
+      distribute_power
+- [x] blocks PIPE(47)/BOILER(48)/STEAM_ENGINE(49) through the full
+      pipeline (atlas layers, procedural textures — flywheel underflow
+      caught by the atlas test and fixed, items, Steam-gated recipes,
+      drops); client steam pass (pipe equalization, boiler feeds from
+      adjacent sources like a pump + pipes, engines drink adjacent
+      boilers); steam puffs rise from burning boilers (particles-gated);
+      UI panels (pipe water level, boiler fire+steam+fuel, engine output)
+- [x] proof: steam_chain scene — water -> pipes -> fueled boiler (pre-run
+      through the real machine code) -> engine -> crusher with live puffs;
+      AI-verified as a working boiler room (caught + fixed an infinite
+      feed loop in the scene itself during rendering)

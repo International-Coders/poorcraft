@@ -344,6 +344,7 @@ pub enum PowerSource {
     Generator(Generator),
     Wheel(WaterWheel),
     Battery(BatteryCell),
+    Engine(SteamEngine),
 }
 
 impl PowerSource {
@@ -356,6 +357,7 @@ impl PowerSource {
             PowerSource::Generator(g) => g.draw(want),
             PowerSource::Wheel(w) => w.draw(want),
             PowerSource::Battery(b) => b.draw(want),
+            PowerSource::Engine(e) => e.draw(want),
         }
     }
 
@@ -365,6 +367,7 @@ impl PowerSource {
             PowerSource::Generator(g) => g.buffer,
             PowerSource::Wheel(w) => w.buffer,
             PowerSource::Battery(b) => b.charge,
+            PowerSource::Engine(e) => e.buffer,
         }
     }
 }
@@ -451,6 +454,7 @@ pub fn distribute_power(
             match &mut sources[i].1 {
                 PowerSource::Generator(g) => g.buffer -= took,
                 PowerSource::Wheel(w) => w.buffer -= took,
+                PowerSource::Engine(e) => e.buffer -= took,
                 PowerSource::Battery(_) => {}
             }
         }
@@ -524,5 +528,219 @@ mod water_age_tests {
             PowerSource::Battery(b) => assert_eq!(b.charge, 0.0, "field radius respected"),
             _ => unreachable!(),
         }
+    }
+}
+
+// ------------------------------------------------------------------
+// Steam Age (V1REBRAND doc 04 / build-pack Step 24)
+
+/// mB of water a pipe segment holds.
+pub const PIPE_CAP: u16 = 1000;
+/// mB of water the boiler consumes per second while burning.
+pub const BOILER_WATER_RATE: u16 = 80;
+/// Steam (arbitrary units) produced per second while burning.
+pub const BOILER_STEAM_RATE: f32 = 40.0;
+pub const BOILER_STEAM_CAP: f32 = 400.0;
+/// EU/s the steam engine produces while fed — between the wheel's 12 and
+/// the coal generator's 20 (doc 04: "you've committed to a boiler room").
+pub const STEAM_ENGINE_RATE: f32 = 16.0;
+/// Steam the engine consumes per second.
+pub const STEAM_ENGINE_INTAKE: f32 = 20.0;
+
+/// One pipe segment: carries water between neighbors (equal-share, no
+/// pressure sim — DECISIONS entry). Ticked by the client per segment.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct Pipe {
+    pub water: u16,
+}
+
+impl Pipe {
+    /// Equalize with one neighbor (call per adjacent pair, one direction
+    /// per tick to avoid double-transfer). Returns self's new level.
+    pub fn equalize_with(&mut self, neighbor: &mut Pipe) {
+        let total = self.water as u32 + neighbor.water as u32;
+        let share = (total / 2) as u16;
+        let rem = (total % 2) as u16;
+        self.water = share + rem;
+        neighbor.water = share;
+    }
+
+    /// Pull up to `want` mB (a boiler drinking).
+    pub fn draw(&mut self, want: u16) -> u16 {
+        let take = want.min(self.water);
+        self.water -= take;
+        take
+    }
+
+    pub fn fill(&mut self, offer: u16) -> u16 {
+        let take = offer.min(PIPE_CAP - self.water);
+        self.water += take;
+        take
+    }
+}
+
+/// Boiler: burns fuel (existing fuel_seconds table) + water into steam.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct Boiler {
+    pub fuel: Option<ItemStack>,
+    pub burn_left: f32,
+    /// Water tank (mB). Filled by the client tick from adjacent sources
+    /// and pipes.
+    pub water: u16,
+    pub steam: f32,
+}
+
+impl Boiler {
+    /// One tick. `water_in` is what the environment (pipes/sources) fed
+    /// this tick, in mB. Returns true while burning (drives particles).
+    pub fn tick(&mut self, dt: f32, water_in: u16) -> bool {
+        self.water = (self.water + water_in).min(40_000);
+        let has_fuel = self.burn_left > 0.0
+            || self.fuel.as_ref().map(|f| crate::smelting::fuel_seconds(&f.item_id) > 0.0).unwrap_or(false);
+        if !has_fuel || self.water < 1 {
+            // idle: steam dissipates slowly
+            self.steam = (self.steam - dt * 2.0).max(0.0);
+            return false;
+        }
+        if self.burn_left <= 0.0 {
+            // light the next fuel item
+            if let Some(f) = self.fuel.take() {
+                let secs = crate::smelting::fuel_seconds(&f.item_id);
+                if secs > 0.0 {
+                    self.burn_left = secs;
+                    if f.count > 1 {
+                        self.fuel = Some(ItemStack { count: f.count - 1, ..f });
+                    }
+                } else {
+                    self.fuel = Some(f);
+                }
+            }
+        }
+        if self.burn_left <= 0.0 {
+            return false;
+        }
+        self.burn_left -= dt;
+        let want_water = (BOILER_WATER_RATE as f32 * dt).round() as u16;
+        if self.water < want_water {
+            return false;
+        }
+        self.water -= want_water;
+        self.steam = (self.steam + BOILER_STEAM_RATE * dt).min(BOILER_STEAM_CAP);
+        true
+    }
+
+    /// The engine drinks steam directly from an adjacent boiler.
+    pub fn draw_steam(&mut self, want: f32) -> f32 {
+        let take = want.min(self.steam);
+        self.steam -= take;
+        take
+    }
+}
+
+/// Steam engine: consumes steam (from an adjacent boiler, piped or not)
+/// and buffers electrical output like the other sources.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct SteamEngine {
+    pub buffer: f32,
+    pub steam_avail: f32, // steam pulled from the boiler this tick, per client wiring
+}
+
+impl SteamEngine {
+    pub fn tick(&mut self, dt: f32, steam_in: f32) {
+        self.steam_avail = steam_in;
+        if steam_in > 0.0 {
+            let ratio = (steam_in / (STEAM_ENGINE_INTAKE * dt)).min(1.0);
+            self.buffer = (self.buffer + STEAM_ENGINE_RATE * dt * ratio).min(600.0);
+        }
+    }
+
+    pub fn draw(&mut self, want: f32) -> f32 {
+        let take = want.min(self.buffer);
+        self.buffer -= take;
+        take
+    }
+}
+
+#[cfg(test)]
+mod steam_age_tests {
+    use super::*;
+
+    fn pipe(w: u16) -> Pipe {
+        Pipe { water: w }
+    }
+
+    #[test]
+    fn pipes_equalize_water() {
+        let mut a = pipe(1000);
+        let mut b = pipe(0);
+        a.equalize_with(&mut b);
+        assert_eq!(a.water, 500);
+        assert_eq!(b.water, 500);
+        // total is conserved (odd amounts keep the remainder in `a`)
+        let mut c = pipe(3);
+        let mut d = pipe(0);
+        c.equalize_with(&mut d);
+        assert_eq!(c.water + d.water, 3);
+        // fill/draw respect the cap
+        let mut p = pipe(900);
+        assert_eq!(p.fill(500), 100);
+        assert_eq!(p.water, PIPE_CAP);
+        assert_eq!(p.draw(400), 400);
+    }
+
+    #[test]
+    fn boiler_burns_fuel_and_water_into_steam() {
+        let mut b = Boiler {
+            fuel: Some(ItemStack { item_id: "coal".into(), count: 2 }),
+            burn_left: 0.0,
+            water: 10_000,
+            steam: 0.0,
+        };
+        assert!(b.tick(1.0, 0), "fueled + water = burning");
+        assert!((b.steam - BOILER_STEAM_RATE).abs() < 1e-3);
+        assert_eq!(b.water, 10_000 - BOILER_WATER_RATE);
+        // no water: no steam
+        let mut dry = Boiler { fuel: b.fuel.clone(), burn_left: 10.0, water: 0, steam: 0.0 };
+        assert!(!dry.tick(1.0, 0));
+        // no fuel: idle, steam dissipates
+        let mut cold = Boiler { fuel: None, burn_left: 0.0, water: 100, steam: 50.0 };
+        assert!(!cold.tick(1.0, 0));
+        assert!(cold.steam < 50.0);
+    }
+
+    #[test]
+    fn engine_turns_steam_into_power_between_wheel_and_coal() {
+        let mut e = SteamEngine::default();
+        e.tick(1.0, STEAM_ENGINE_INTAKE);
+        assert!((e.buffer - STEAM_ENGINE_RATE).abs() < 1e-3, "full intake = full rate");
+        // starved steam scales output down
+        let mut half = SteamEngine::default();
+        half.tick(1.0, STEAM_ENGINE_INTAKE / 2.0);
+        assert!(half.buffer < e.buffer && half.buffer > 0.0);
+        // tiering: wheel < engine < coal generator
+        assert!(WHEEL_RATE < STEAM_ENGINE_RATE && STEAM_ENGINE_RATE < GENERATE_RATE);
+    }
+
+    /// The full chain: fueled boiler + engine drives a machine through the
+    /// same distribute_power the client uses.
+    #[test]
+    fn boiler_engine_chain_powers_a_machine() {
+        let mut boiler = Boiler {
+            fuel: Some(ItemStack { item_id: "coal".into(), count: 5 }),
+            burn_left: 0.0,
+            water: 10_000,
+            steam: 0.0,
+        };
+        let mut engine = SteamEngine::default();
+        let machine = (2, 0, 0);
+        let dt = 1.0 / 20.0;
+        for _ in 0..600 {
+            let burning = boiler.tick(dt, 0);
+            let steam_in = if burning { boiler.draw_steam(STEAM_ENGINE_INTAKE * dt * 2.0) } else { 0.0 };
+            engine.tick(dt, steam_in);
+        }
+        let mut sources = vec![((0, 0, 0), PowerSource::Engine(engine))];
+        let granted = distribute_power(&mut sources, &[machine], DRAW_RATE * dt);
+        assert!(granted[0] >= DRAW_RATE * dt * 0.99, "chain covers a machine, got {}", granted[0]);
     }
 }

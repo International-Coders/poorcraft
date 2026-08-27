@@ -563,3 +563,22 @@ vistest scene (river carved, real power step run 30 sim-seconds).
 water-age machines); vistest 31/31; water_wheel_power AI-verified (wheel
 against water, battery + crusher in field, reads as a riverside power
 station). Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 316: P30 Steam Age
+**WHAT**: The second power age: research Steam branch, water pipes,
+boiler, steam engine, steam particles, and the boiler-room proof chain.
+**HOW**: research.rs (Era::Steam + tests); machines.rs (Pipe
+equalize/draw/fill, Boiler fuel+water->steam with idle dissipation,
+SteamEngine ratio-scaled output, PowerSource::Engine; 4 tests);
+registry 47-49 + atlas 59-61 + items + Steam-gated recipes + RT palette
+entries; client steam pass (pairwise pipe equalization via remove/
+reinsert, boiler feeding from adjacent sources/pipes, engines drinking
+adjacent boilers) + steam puffs (snow-tex particles rising, gated) +
+UI panels; vistest steam_chain (real machine code pre-run 30 sim-s).
+**BUGS CAUGHT BY THE PROOF DISCIPLINE**: the scene's water-feed loop
+spun forever once the pipe filled (infinite screenshot render —
+killed, fixed with a took==0 break); the steam-engine flywheel texture
+underflowed usize below x=11 (atlas test caught it).
+**VERIFICATION**: 199 tests / 0; vistest 32/32; steam_chain AI-verified
+(water->pipes->boiler with fire glow->engine->crusher, puffs rising);
+smoke OK. Runtimes rebuilt; pushed.

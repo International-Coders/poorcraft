@@ -54,6 +54,22 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("copper_wire"), Some("coal"), Some("copper_wire")],
         vec![Some("iron_ingot"), Some("copper_wire"), Some("iron_ingot")],
     ]));
+    // Steam Age (P30, Steam-era gated): copper pipes, the boiler drum,
+    // the engine that drinks its steam
+    book.push(r("pipe", 6, vec![
+        vec![Some("copper_ingot"), None, Some("copper_ingot")],
+        vec![None, Some("copper_ingot"), None],
+    ]));
+    book.push(r("boiler", 1, vec![
+        vec![Some("iron_ingot"), Some("iron_ingot"), Some("iron_ingot")],
+        vec![Some("iron_ingot"), Some("furnace"), Some("iron_ingot")],
+        vec![Some("iron_ingot"), Some("iron_gear"), Some("iron_ingot")],
+    ]));
+    book.push(r("steam_engine", 1, vec![
+        vec![Some("iron_ingot"), Some("copper_wire"), Some("iron_ingot")],
+        vec![Some("machine_frame"), Some("iron_gear"), Some("machine_frame")],
+        vec![Some("iron_ingot"), Some("copper_wire"), Some("iron_ingot")],
+    ]));
     // 3 iron ingots in a V -> bucket (scoop/place water sources)
     book.push(r("bucket", 1, vec![
         vec![Some("iron_ingot"), None, Some("iron_ingot")],

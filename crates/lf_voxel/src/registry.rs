@@ -17,7 +17,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 100;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 46;
+pub const MAX_VANILLA_BLOCK: u32 = 49;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -110,6 +110,10 @@ pub mod block {
     // Water Age machines (P29)
     pub const WATER_WHEEL: u32 = 45;
     pub const BATTERY: u32 = 46;
+    // Steam Age machines (P30)
+    pub const PIPE: u32 = 47;
+    pub const BOILER: u32 = 48;
+    pub const STEAM_ENGINE: u32 = 49;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -130,6 +134,9 @@ pub mod block {
             FLOWER => "Wildflower",
             WATER_WHEEL => "Water Wheel",
             BATTERY => "Battery",
+            PIPE => "Pipe",
+            BOILER => "Boiler",
+            STEAM_ENGINE => "Steam Engine",
             DIRT => "Dirt",
             SAND => "Sand",
             MYCELIUM => "Mycelium",

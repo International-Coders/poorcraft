@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 59] = [
+pub const TEXTURE_NAMES: [&str; 62] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -27,6 +27,8 @@ pub const TEXTURE_NAMES: [&str; 59] = [
     "jungle_grass", "savanna_grass", "flower",
     // Water Age machines (P29)
     "water_wheel", "battery",
+    // Steam Age machines (P30)
+    "pipe", "boiler", "steam_engine",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -38,6 +40,9 @@ pub const SAVANNA_GRASS_LAYER: u32 = 55;
 pub const FLOWER_LAYER: u32 = 56;
 pub const WATER_WHEEL_LAYER: u32 = 57;
 pub const BATTERY_LAYER: u32 = 58;
+pub const PIPE_LAYER: u32 = 59;
+pub const BOILER_LAYER: u32 = 60;
+pub const STEAM_ENGINE_LAYER: u32 = 61;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -52,6 +57,9 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         44 => 56, // wildflower
         45 => 57, // water wheel
         46 => 58, // battery
+        47 => 59, // pipe
+        48 => 60, // boiler
+        49 => 61, // steam engine
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -168,6 +176,54 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([250, 210, 90, 255])
                     } else if stem {
                         Rgba([60, 150, 60, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                // Steam Age machines (P30): pipe = copper tube with flanges;
+                // boiler = iron drum with a glowing fire door; engine =
+                // iron block with piston + flywheel stripe
+                "pipe" => {
+                    let tube = (x >= 4 && x <= 11);
+                    let flange = (x == 4 || x == 5 || x == 10 || x == 11) && y >= 4 && y <= 11;
+                    let shine = tube && (y == 5 || y == 6);
+                    if flange {
+                        Rgba([150, 150, 158, 255])
+                    } else if tube && y >= 4 && y <= 11 {
+                        if shine { Rgba([235, 150, 90, 255]) } else { Rgba([198, 110, 62, 255]) }
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "boiler" => {
+                    let shell = x >= 2 && x <= 13 && y >= 3 && y <= 14;
+                    let door = x >= 6 && x <= 9 && y >= 9 && y <= 13;
+                    let gauge = x >= 6 && x <= 9 && y >= 4 && y <= 6;
+                    let hot = x >= 5 && x <= 10 && y >= 11 && y <= 13;
+                    if gauge {
+                        Rgba([90, 160, 210, 255]) // water gauge
+                    } else if door && hot {
+                        Rgba([250, 150, 60, 255]) // fire door glow
+                    } else if door {
+                        Rgba([70, 60, 55, 255])
+                    } else if shell {
+                        let v = 140 + ((x * 5 + y * 7) % 20);
+                        Rgba([ch(v), ch(v - 6), ch(v - 20), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "steam_engine" => {
+                    let body = x >= 2 && x <= 13 && y >= 5 && y <= 14;
+                    let piston = x >= 5 && x <= 10 && y >= 3 && y <= 6;
+                    let flywheel = (x as i32 - 11).pow(2) + (y as i32 - 10).pow(2) <= 9 && x >= 8;
+                    if piston {
+                        Rgba([220, 200, 160, 255])
+                    } else if flywheel {
+                        Rgba([110, 110, 120, 255])
+                    } else if body {
+                        let v = 130 + ((x * 3 + y * 9) % 24);
+                        Rgba([ch(v), ch(v - 4), ch(v - 16), 255])
                     } else {
                         Rgba([0, 0, 0, 0])
                     }
@@ -1225,7 +1281,7 @@ mod tests {
             assert_eq!(tex.width(), 16);
             assert_eq!(tex.height(), 16);
             // fully opaque except water (transparent pass)
-            if name == "water_wheel" || name == "battery" {
+            if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine" {
                 // machine shells with hollow details
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(solid > 40, "{} too sparse", name);

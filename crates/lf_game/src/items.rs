@@ -109,6 +109,9 @@ pub fn items() -> &'static [ItemDef] {
         // fluids
         ItemDef { id: "water_wheel", name: "Water Wheel", kind: ItemKind::Block(block::WATER_WHEEL), max_stack: 1 },
         ItemDef { id: "battery", name: "Battery", kind: ItemKind::Block(block::BATTERY), max_stack: 1 },
+        ItemDef { id: "pipe", name: "Pipe", kind: ItemKind::Block(block::PIPE), max_stack: 16 },
+        ItemDef { id: "boiler", name: "Boiler", kind: ItemKind::Block(block::BOILER), max_stack: 1 },
+        ItemDef { id: "steam_engine", name: "Steam Engine", kind: ItemKind::Block(block::STEAM_ENGINE), max_stack: 1 },
         ItemDef { id: "bucket", name: "Bucket", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "water_bucket", name: "Water Bucket", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "mutton", name: "Mutton", kind: ItemKind::Food(6), max_stack: 64 },
@@ -201,6 +204,9 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::FLOWER => None, // petals shatter (no item yet — note in BACKLOG)
         block::WATER_WHEEL => Some("water_wheel".into()),
         block::BATTERY => Some("battery".into()),
+        block::PIPE => Some("pipe".into()),
+        block::BOILER => Some("boiler".into()),
+        block::STEAM_ENGINE => Some("steam_engine".into()),
         block::STONE => Some("stone".into()),
         block::SAND => Some("sand".into()),
         block::MYCELIUM => Some("mycelium".into()),

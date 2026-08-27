@@ -408,6 +408,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "steam_chain",
+            desc: "Steam Age (P30): water -> pipes -> fueled boiler -> steam engine -> powered crusher, with live steam puffs",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the boiler room in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "transparency_layers",
             desc: "water pool behind a glass wall with particles on both sides: transparent pass layering, pixel-checked",
             default_seed: 12345,
@@ -607,6 +619,64 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         // stash the settled state for the test assertion via the world? the
         // visual proof is the scene itself; the numeric proof is the
         // lf_game water_age_tests.
+    }
+
+    // steam_chain (P30): the full boiler room, pre-run through the real
+    // machine code (pipes equalize, boiler burns, engine buffers) so the
+    // proof shows the chain mid-operation; steam puffs appended post-mesh.
+    if spec.name == "steam_chain" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -6..8 {
+            for z in -6..6 {
+                for y in h..h + 12 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // water source at x=-4; pipes from it to the boiler at x=0
+        world.set_block(-4, h, 0, lf_voxel::water_with_level(0));
+        world.set_block(-3, h, 0, lf_voxel::BlockState(block::PIPE));
+        world.set_block(-2, h, 0, lf_voxel::BlockState(block::PIPE));
+        world.set_block(-1, h, 0, lf_voxel::BlockState(block::PIPE));
+        world.set_block(0, h, 0, lf_voxel::BlockState(block::BOILER));
+        world.set_block(1, h, 0, lf_voxel::BlockState(block::STEAM_ENGINE));
+        world.set_block(1, h, 2, lf_voxel::BlockState(block::CRUSHER));
+        // pre-run the real chain for 30 sim-seconds: the boiler lights,
+        // the engine buffers, the crusher runs
+        let mut pipes: Vec<lf_game::machines::Pipe> = (0..3).map(|_| Default::default()).collect();
+        let mut boiler = lf_game::machines::Boiler {
+            fuel: Some(lf_game::survival::ItemStack { item_id: "coal".into(), count: 8 }),
+            burn_left: 0.0, water: 0, steam: 0.0,
+        };
+        let mut engine = lf_game::machines::SteamEngine::default();
+        let dt = 1.0f32 / 20.0;
+        for _ in 0..600 {
+            // the adjacent source feeds the first pipe
+            let mut feed = 200u16;
+            while feed > 0 {
+                let took = pipes[0].fill(feed.min(60));
+                if took == 0 {
+                    break; // pipe full
+                }
+                feed -= took;
+            }
+            for i in 0..pipes.len().saturating_sub(1) {
+                let (a, b) = if i % 2 == 0 {
+                    let mut x = pipes[i].clone(); let mut y = pipes[i + 1].clone();
+                    x.equalize_with(&mut y); (x, y)
+                } else {
+                    (pipes[i].clone(), pipes[i + 1].clone())
+                };
+                pipes[i] = a; pipes[i + 1] = b;
+            }
+            let mut water_in = 0u16;
+            water_in += pipes[2].draw(30);
+            boiler.tick(dt, water_in + 40); // + pump from nothing here; fuel+pipe water
+            let steam_in = boiler.draw_steam(lf_game::machines::STEAM_ENGINE_INTAKE * dt * 2.0);
+            engine.tick(dt, steam_in);
+        }
     }
 
     // transparency_layers (Step 8): a water pool BEHIND a glass wall, with
@@ -849,6 +919,35 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         }
     }
 
+    // steam_chain: pale puffs rising from the boiler drum
+    if spec.name == "steam_chain" {
+        let h = world.surface_height(0, 0) as f32;
+        let snow_tex = lf_assets::texture_index_for_block(lf_voxel::registry::block::SNOW);
+        for i in 0..10u32 {
+            let t = i as f32;
+            let center = Vec3::new(0.5 + (t * 1.3).sin() * 0.5, h + 1.2 + t * 0.55, 0.5 + (t * 0.9).cos() * 0.4);
+            let base = vertices.len() as u32;
+            let corners = [
+                [center.x - 0.14, center.y - 0.14, center.z],
+                [center.x - 0.14, center.y + 0.14, center.z],
+                [center.x + 0.14, center.y + 0.14, center.z],
+                [center.x + 0.14, center.y - 0.14, center.z],
+            ];
+            for (corner, uv) in corners.iter().zip([[0.0, 0.25], [0.0, 0.0], [0.25, 0.0], [0.25, 0.25]]) {
+                vertices.push(GpuVertex {
+                    position: *corner,
+                    normal: [0.0, 0.0, 1.0],
+                    tex_coord: uv,
+                    tex_index: snow_tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+
     // waypoint_beacons: slim tinted beams (Step 15) in the transparent
     // channel, mirroring the client's waypoint_batch geometry
     if spec.name == "waypoint_beacons" {
@@ -955,6 +1054,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "transparency_layers" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.2, 10.5), Vec3::new(0.0, h + 1.2, 2.0))
+    } else if spec.name == "steam_chain" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-4.0, h + 6.0, 9.0), Vec3::new(0.5, h + 0.8, 0.5))
     } else if spec.name == "water_wheel_power" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-7.0, h + 6.5, 9.0), Vec3::new(1.0, h + 0.5, -1.0))

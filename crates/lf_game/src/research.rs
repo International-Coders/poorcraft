@@ -10,8 +10,9 @@ pub enum Era {
     Electrical,
     /// Branch eras (V1REBRAND doc 03): unlockable in any order relative to
     /// each other once Industrial is reached — a player can rush coal
-    /// generators exactly as before, or bootstrap on rivers instead.
+    /// generators exactly as before, or bootstrap on rivers/boilers instead.
     Water,
+    Steam,
 }
 
 impl Era {
@@ -22,6 +23,7 @@ impl Era {
             Era::Industrial => "Industrial Age",
             Era::Electrical => "Electrical Age",
             Era::Water => "Water Age",
+            Era::Steam => "Steam Age",
         }
     }
 
@@ -37,7 +39,7 @@ impl Era {
     /// True when this is a branch era (unlocked via the graph, not the
     /// mainline chain).
     pub fn is_branch(self) -> bool {
-        matches!(self, Era::Water)
+        matches!(self, Era::Water | Era::Steam)
     }
 
     /// Era prerequisites (the graph edges; mainline chain + branches).
@@ -45,13 +47,13 @@ impl Era {
         match self {
             Era::Bronze => &[Era::Primitive],
             Era::Industrial => &[Era::Bronze],
-            Era::Electrical | Era::Water => &[Era::Industrial],
+            Era::Electrical | Era::Water | Era::Steam => &[Era::Industrial],
             Era::Primitive => &[],
         }
     }
 
     /// Every era card the tech tree shows, in display order.
-    pub const CARDS: [Era; 5] = [Era::Primitive, Era::Bronze, Era::Industrial, Era::Electrical, Era::Water];
+    pub const CARDS: [Era; 6] = [Era::Primitive, Era::Bronze, Era::Industrial, Era::Electrical, Era::Water, Era::Steam];
 
     /// Materials to advance TO this era (item, count).
     pub fn cost(self) -> &'static [(&'static str, u8)] {
@@ -62,6 +64,8 @@ impl Era {
             // Water Age (doc 04): cheap, early, buildable — planks + stone +
             // a little iron for axles; the river does the rest for free.
             Era::Water => &[("planks", 16), ("stone", 24), ("iron_ingot", 4)],
+            // Steam Age (doc 04): the boiler-room commitment — iron + gears
+            Era::Steam => &[("iron_ingot", 12), ("iron_gear", 4), ("coal", 16)],
             Era::Primitive => &[],
         }
     }
@@ -72,6 +76,7 @@ impl Era {
             "coal_generator" | "crusher" | "assembler" | "research_bench" => Era::Industrial,
             "electric_furnace" => Era::Electrical,
             "water_wheel" | "battery" => Era::Water,
+            "pipe" | "boiler" | "steam_engine" => Era::Steam,
             "steel_chestplate" | "bronze_chestplate" => Era::Bronze,
             "basic_circuit" | "machine_frame" => Era::Industrial,
             _ => Era::Primitive,
@@ -253,6 +258,21 @@ mod tests {
         let mut inv = slots(&[("planks", 3), ("stone", 24), ("iron_ingot", 4)]);
         assert_eq!(r.unlock(Era::Water, &mut inv), None);
         assert!(!r.unlocked(Era::Water));
+    }
+
+    /// Doc 03: Water and Steam are independent branches — either order.
+    #[test]
+    fn steam_unlocks_independently_of_water() {
+        let mut r = ResearchState { era: Era::Industrial, branches: vec![Era::Water] };
+        assert!(r.can_unlock(Era::Steam), "Steam does not require Water");
+        let mut inv = slots(&[("iron_ingot", 12), ("iron_gear", 4), ("coal", 16)]);
+        assert_eq!(r.unlock(Era::Steam, &mut inv), Some(Era::Steam));
+        assert_eq!(Era::required_for("boiler"), Era::Steam);
+        assert_eq!(Era::required_for("steam_engine"), Era::Steam);
+        assert_eq!(Era::required_for("pipe"), Era::Steam);
+        // and the reverse order works from scratch
+        let mut r2 = ResearchState { era: Era::Industrial, branches: vec![Era::Steam] };
+        assert!(r2.can_unlock(Era::Water));
     }
 
     /// Old saves (no branches field) deserialize with branches empty.

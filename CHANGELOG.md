@@ -683,3 +683,11 @@
   future ones.
 - 194 tests green; 31/31 vistest (water_wheel_power proof); runtimes
   rebuilt; pushed.
+
+## Loop 316 — P30 Steam Age
+- Steam branch research (independent of Water, tested); Pipe/Boiler/
+  SteamEngine machines (equal-share pipes, fuel+water->steam boiler,
+  16 EU/s engine) with 4 tests including the full chain; blocks through
+  the content pipeline with UI panels and burning-boiler steam puffs.
+- 199 tests green; 32/32 vistest (steam_chain proof, AI-verified); smoke
+  OK; runtimes rebuilt; pushed.

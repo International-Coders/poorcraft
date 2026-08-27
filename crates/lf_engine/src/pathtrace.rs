@@ -57,6 +57,9 @@ fn palette() -> [[f32; 4]; 64] {
     set(&mut p, 44, [0.92, 0.27, 0.27, 1.0]);     // wildflower
     set(&mut p, 45, [0.66, 0.52, 0.31, 1.0]);     // water wheel
     set(&mut p, 46, [0.80, 0.72, 0.62, 1.0]);     // battery
+    set(&mut p, 47, [0.78, 0.43, 0.24, 1.0]);     // pipe
+    set(&mut p, 48, [0.55, 0.53, 0.50, 1.0]);     // boiler
+    set(&mut p, 49, [0.62, 0.58, 0.54, 1.0]);     // steam engine
     // Fallback for ids > 46 (future content): a stable muted color per id
     // so new blocks are never invisible/wrong in RT before they get a
     // hand-tuned entry (registry-driven palette fix, P29).

@@ -236,6 +236,9 @@ pub enum BlockEntity {
     Assembler(lf_game::machines::Assembler),
     WaterWheel(lf_game::machines::WaterWheel),
     Battery(lf_game::machines::BatteryCell),
+    Pipe(lf_game::machines::Pipe),
+    Boiler(lf_game::machines::Boiler),
+    SteamEngine(lf_game::machines::SteamEngine),
 }
 
 #[derive(Clone, Debug)]
@@ -1568,13 +1571,101 @@ impl GameState {
                 BlockEntity::Battery(b) => {
                     sources.push((*pos, PowerSource::Battery(b.clone())));
                 }
-                BlockEntity::ElectricFurnace(_) | BlockEntity::Crusher(_) | BlockEntity::Assembler(_) => {
-                    machine_positions.push(*pos);
-                }
+                BlockEntity::SteamEngine(_) => {} // fed in the steam pass below
+                BlockEntity::Pipe(_) | BlockEntity::Boiler(_) => {} // steam pass below
                 BlockEntity::Furnace(f) => {
                     f.tick(dt);
                 }
+                BlockEntity::ElectricFurnace(_) | BlockEntity::Crusher(_) | BlockEntity::Assembler(_) => {
+                    machine_positions.push(*pos);
+                }
                 BlockEntity::Chest { .. } => {}
+            }
+        }
+        // Steam Age pass: equalize adjacent pipes pairwise (canonical
+        // direction per pair), then feed boilers from adjacent water
+        // sources (like a pump) and pipes.
+        {
+            let keys: Vec<(i32, i32, i32)> = self.block_entities.keys().copied().collect();
+            for i in 0..keys.len() {
+                for j in (i + 1)..keys.len() {
+                    let (a, b) = (keys[i], keys[j]);
+                    let manhattan = (a.0 - b.0).abs() + (a.1 - b.1).abs() + (a.2 - b.2).abs();
+                    if manhattan != 1 {
+                        continue;
+                    }
+                    let (Some(BlockEntity::Pipe(mut x)), Some(BlockEntity::Pipe(mut y))) =
+                        (self.block_entities.remove(&a), self.block_entities.remove(&b))
+                    else {
+                        continue;
+                    };
+                    x.equalize_with(&mut y);
+                    self.block_entities.insert(a, BlockEntity::Pipe(x));
+                    self.block_entities.insert(b, BlockEntity::Pipe(y));
+                }
+            }
+            for k in keys.clone() {
+                let neighbors = [
+                    (k.0 + 1, k.1, k.2), (k.0 - 1, k.1, k.2),
+                    (k.0, k.1, k.2 + 1), (k.0, k.1, k.2 - 1),
+                    (k.0, k.1 - 1, k.2),
+                ];
+                let mut water_in = 0u16;
+                for n in &neighbors {
+                    if self.world.get_block(n.0, n.1, n.2).id() == registry::block::WATER {
+                        water_in += 40; // pump-like: sources are not consumed
+                    }
+                }
+                for n in &neighbors {
+                    if let Some(BlockEntity::Pipe(p)) = self.block_entities.get_mut(n) {
+                        water_in += p.draw(30);
+                    }
+                }
+                if let Some(BlockEntity::Boiler(b)) = self.block_entities.get_mut(&k) {
+                    let burning = b.tick(dt, water_in);
+                    if burning && self.settings.particles && self.frame % 6 == 0 {
+                        // steam puffs rise from the drum
+                        let tex = lf_assets::texture_index_for_block(registry::block::SNOW);
+                        let seed = (k.0 as u32).wrapping_mul(31).wrapping_add(k.2 as u32).wrapping_add(self.frame as u32);
+                        let r1 = (seed % 97) as f32 / 97.0;
+                        self.particles.push(Particle {
+                            position: Vec3::new(k.0 as f32 + 0.3 + r1 * 0.4, k.1 as f32 + 1.05, k.2 as f32 + 0.5),
+                            velocity: Vec3::new((r1 - 0.5) * 0.4, 1.4 + r1, (r1 - 0.5) * 0.4),
+                            life: 0.9,
+                            tex,
+                            uv_off: [0.0, 0.0],
+                        });
+                    }
+                }
+            }
+            // engines drink from adjacent boilers, then buffer power
+            for k in keys.clone() {
+                let is_engine = matches!(self.block_entities.get(&k), Some(BlockEntity::SteamEngine(_)));
+                if !is_engine {
+                    continue;
+                }
+                let mut e = match self.block_entities.get(&k) {
+                    Some(BlockEntity::SteamEngine(e)) => e.clone(),
+                    _ => continue,
+                };
+                let neighbors = [
+                    (k.0 + 1, k.1, k.2), (k.0 - 1, k.1, k.2),
+                    (k.0, k.1, k.2 + 1), (k.0, k.1, k.2 - 1),
+                    (k.0, k.1 - 1, k.2), (k.0, k.1 + 1, k.2),
+                ];
+                let mut steam_in = 0.0f32;
+                for n in &neighbors {
+                    if let Some(BlockEntity::Boiler(b)) = self.block_entities.get_mut(n) {
+                        steam_in += b.draw_steam(lf_game::machines::STEAM_ENGINE_INTAKE * dt * 2.0);
+                    }
+                }
+                e.tick(dt, steam_in);
+                if let Some(entity) = self.block_entities.get_mut(&k) {
+                    if let BlockEntity::SteamEngine(target) = entity {
+                        *target = e.clone();
+                    }
+                }
+                sources.push((k, PowerSource::Engine(e)));
             }
         }
         let need = lf_game::machines::DRAW_RATE * dt;
@@ -1584,6 +1675,7 @@ impl GameState {
                 PowerSource::Generator(g) => BlockEntity::Generator(g),
                 PowerSource::Wheel(w) => BlockEntity::WaterWheel(w),
                 PowerSource::Battery(b) => BlockEntity::Battery(b),
+                PowerSource::Engine(e) => BlockEntity::SteamEngine(e),
             };
             self.block_entities.insert(spos, entity);
         }
@@ -1780,7 +1872,9 @@ impl GameState {
                                     BlockEntity::ElectricFurnace(f) => vec![f.input, f.output],
                                     BlockEntity::Crusher(c) => vec![c.input, c.output],
                                     BlockEntity::Assembler(a) => vec![a.input_a, a.input_b, a.output],
-                                    BlockEntity::WaterWheel(_) | BlockEntity::Battery(_) => vec![],
+                                    BlockEntity::WaterWheel(_) | BlockEntity::Battery(_)
+                                    | BlockEntity::Pipe(_) | BlockEntity::SteamEngine(_) => vec![],
+                                    BlockEntity::Boiler(b) => vec![b.fuel],
                                 };
                                 for s in stacks.into_iter().flatten() {
                                     self.spawn_drop(&s.item_id, s.count,
@@ -1826,7 +1920,10 @@ impl GameState {
                     | registry::block::CRUSHER
                     | registry::block::ASSEMBLER
                     | registry::block::WATER_WHEEL
-                    | registry::block::BATTERY => {
+                    | registry::block::BATTERY
+                    | registry::block::PIPE
+                    | registry::block::BOILER
+                    | registry::block::STEAM_ENGINE => {
                         let key = (pos.x, pos.y, pos.z);
                         let block_id_here = self.world.get_block(pos.x, pos.y, pos.z).id();
                         self.block_entities.entry(key).or_insert_with(|| match block_id_here {
@@ -1835,6 +1932,9 @@ impl GameState {
                             registry::block::CRUSHER => BlockEntity::Crusher(Default::default()),
                             registry::block::WATER_WHEEL => BlockEntity::WaterWheel(Default::default()),
                             registry::block::BATTERY => BlockEntity::Battery(Default::default()),
+                            registry::block::PIPE => BlockEntity::Pipe(Default::default()),
+                            registry::block::BOILER => BlockEntity::Boiler(Default::default()),
+                            registry::block::STEAM_ENGINE => BlockEntity::SteamEngine(Default::default()),
                             _ => BlockEntity::Assembler(Default::default()),
                         });
                         self.ui_open = UiOpen::Machine(key);
@@ -1928,6 +2028,12 @@ impl GameState {
                                             self.block_entities.insert(key, BlockEntity::WaterWheel(Default::default()));
                                         } else if b == registry::block::BATTERY {
                                             self.block_entities.insert(key, BlockEntity::Battery(Default::default()));
+                                        } else if b == registry::block::PIPE {
+                                            self.block_entities.insert(key, BlockEntity::Pipe(Default::default()));
+                                        } else if b == registry::block::BOILER {
+                                            self.block_entities.insert(key, BlockEntity::Boiler(Default::default()));
+                                        } else if b == registry::block::STEAM_ENGINE {
+                                            self.block_entities.insert(key, BlockEntity::SteamEngine(Default::default()));
                                         }
                                         self.remesh_around(place.x, place.z);
                                         // a placed block can dam water or

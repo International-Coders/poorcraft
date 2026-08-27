@@ -1703,6 +1703,50 @@ impl GameState {
                         self.draw_storage_rows(ui);
                         self.block_entities.insert(pos, BlockEntity::Battery(b));
                     }
+                    BlockEntity::Pipe(mut pipe) => {
+                        let frac = pipe.water as f32 / lf_game::machines::PIPE_CAP as f32;
+                        top_bar(ui, frac, "water", egui::Color32::from_rgb(90, 160, 210));
+                        ui.label(egui::RichText::new(
+                            format!("{} / {} mB — pipes equalize between neighbors", pipe.water, lf_game::machines::PIPE_CAP),
+                        ).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Pipe(pipe));
+                    }
+                    BlockEntity::Boiler(mut b) => {
+                        let heat = (b.burn_left / 80.0).clamp(0.0, 1.0);
+                        top_bar(ui, heat, "fire", egui::Color32::from_rgb(250, 150, 60));
+                        top_bar(ui, b.steam / lf_game::machines::BOILER_STEAM_CAP, "steam", egui::Color32::from_gray(230));
+                        ui.horizontal(|ui| {
+                            let mut fuel = b.fuel.take();
+                            let mut cursor = self.cursor_stack.take();
+                            let out = slot_button(ui, &mut fuel, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
+                            b.fuel = fuel;
+                            ui.label(egui::RichText::new("fuel (coal/log/planks)").small().color(Theme::TEXT_DIM));
+                        });
+                        ui.label(egui::RichText::new(
+                            format!("water tank: {} mB (feed with pipes or place against water)", b.water),
+                        ).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Boiler(b));
+                    }
+                    BlockEntity::SteamEngine(mut e) => {
+                        let frac = e.buffer / 600.0;
+                        top_bar(ui, frac, "output", Theme::ACCENT);
+                        ui.label(egui::RichText::new(if e.steam_avail > 0.0 {
+                            "hisss — the engine drinks the boiler's steam"
+                        } else {
+                            "cold — place against a fueled, watered boiler"
+                        }).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::SteamEngine(e));
+                    }
                     BlockEntity::Generator(mut g) => {
                         top_bar(ui, g.buffer / lf_game::machines::GEN_CAPACITY, &format!("{:.0} / {} EU", g.buffer, lf_game::machines::GEN_CAPACITY), Theme::XP);
                         let mut fuel = g.fuel.take();
@@ -1882,7 +1926,7 @@ impl GameState {
                 // order relative to each other, right here in the tree.
                 let mut branch_unlocked = None;
                 ui.horizontal(|ui| {
-                    for e in [Era::Water] {
+                    for e in [Era::Water, Era::Steam] {
                         let owned = self.research.unlocked(e);
                         let can = self.research.can_unlock(e);
                         let color = if owned { Theme::OK } else if can { Theme::ACCENT } else { egui::Color32::from_gray(110) };
