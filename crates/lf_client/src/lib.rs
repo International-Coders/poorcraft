@@ -1981,16 +1981,13 @@ impl GameState {
         }
     }
 
-    /// Is the player's biome cold enough for snow?
+    /// Is the player's biome cold enough for snow? (Step 19: the actual
+    /// biome field via the map's generator, not the old block proxy.)
     fn gen_biome_temp_at_player(&self) -> bool {
-        // The client doesn't own a WorldGen; approximate coldness from the
-        // surface block under the player.
-        let under = self.world.get_block(
+        self.map.biome_at(
             self.player.position.x as i32,
-            (self.player.position.y as i32 - 1).max(0),
             self.player.position.z as i32,
-        ).id();
-        matches!(under, registry::block::SNOW | registry::block::ICE)
+        ).is_cold()
     }
 
     fn consume_selected(&mut self, n: u8) {
@@ -2331,7 +2328,15 @@ impl GameState {
             self.next_spawn_attempt = Instant::now() + Duration::from_secs(2);
             let seed = self.frame.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(0x51ed270b);
             let is_day = self.time.is_day();
-            if let Some(kind) = roll_spawn(seed, is_day) {
+            // spawn point's biome decides the fauna (Step 18)
+            let spawn_cold = {
+                let ang2 = (seed % 360) as f32 / 57.3;
+                let dist2 = 20.0 + ((seed >> 9) % 20) as f32;
+                let bx = (player.x + ang2.cos() * dist2) as i32;
+                let bz = (player.z + ang2.sin() * dist2) as i32;
+                self.map.biome_at(bx, bz).is_cold()
+            };
+            if let Some(kind) = roll_spawn(seed, is_day, spawn_cold) {
                 // random point 20-40 blocks out
                 let ang = (seed % 360) as f32 / 57.3;
                 let dist = 20.0 + ((seed >> 9) % 20) as f32;

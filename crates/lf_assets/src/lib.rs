@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 54] = [
+pub const TEXTURE_NAMES: [&str; 57] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -23,10 +23,17 @@ pub const TEXTURE_NAMES: [&str; 54] = [
     // waypoint beacon column tints (Step 15) — translucent, drawn in the
     // transparent pass as world-space beams
     "waypoint_0", "waypoint_1", "waypoint_2", "waypoint_3", "waypoint_4", "waypoint_5",
+    // biome-identity surfaces (Step 16-17)
+    "jungle_grass", "savanna_grass", "flower",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
 pub const WAYPOINT_LAYERS: [u32; 6] = [48, 49, 50, 51, 52, 53];
+
+/// Atlas layers of the biome-identity grasses (Step 16).
+pub const JUNGLE_GRASS_LAYER: u32 = 54;
+pub const SAVANNA_GRASS_LAYER: u32 = 55;
+pub const FLOWER_LAYER: u32 = 56;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -36,6 +43,9 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         3 => 2, // dirt
         4 => 3, // sand
         5 => 4, // mycelium
+        42 => 54, // jungle grass
+        43 => 55, // savanna grass
+        44 => 56, // wildflower
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -118,6 +128,42 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     } else {
                         let v = 110 + ((x * 5 + y * 9) % 15);
                         Rgba([ch(v), 90, 50, 255])
+                    }
+                }
+                // biome-identity grasses (Step 16): same construction as
+                // grass but distinct palettes — jungle deep saturated green,
+                // savanna dry gold
+                "jungle_grass" => {
+                    if y < 4 {
+                        Rgba([40, 140, 50, 255])
+                    } else {
+                        let v = 70 + ((x * 7 + y * 5) % 15);
+                        Rgba([ch(v), 60, 32, 255])
+                    }
+                }
+                "savanna_grass" => {
+                    if y < 4 {
+                        Rgba([178, 168, 74, 255])
+                    } else {
+                        let v = 120 + ((x * 5 + y * 11) % 18);
+                        Rgba([ch(v), 96, 42, 255])
+                    }
+                }
+                // wildflower: cutout bloom — green stem pixels plus red
+                // petals with transparent gaps (non-solid plant block)
+                "flower" => {
+                    let stem = x >= 7 && x <= 8 && y >= 8;
+                    let petal = (x as i32 - 8).abs() <= 2 && (y as i32 - 6).abs() <= 2
+                        && !((x as i32 - 8).abs() == 2 && (y as i32 - 6).abs() == 2);
+                    let center = x == 7 && y >= 5 && y <= 6;
+                    if petal {
+                        Rgba([235, 70, 70, 255])
+                    } else if center {
+                        Rgba([250, 210, 90, 255])
+                    } else if stem {
+                        Rgba([60, 150, 60, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
                     }
                 }
                 "dirt" => {
@@ -1138,6 +1184,13 @@ mod tests {
             assert_eq!(tex.width(), 16);
             assert_eq!(tex.height(), 16);
             // fully opaque except water (transparent pass)
+            if name == "flower" {
+                // cutout plant: transparent gaps plus solid stem/petals
+                let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
+                let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
+                assert!(holes > 100 && solid > 20, "flower holes={} solid={}", holes, solid);
+                continue;
+            }
             if name == "glass" {
                 // frame opaque, pane translucent
                 continue;

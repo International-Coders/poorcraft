@@ -190,14 +190,23 @@ impl MobEntity {
 }
 
 /// Which mob type should spawn given the time of day.
-pub fn roll_spawn(rand: u64, is_day: bool) -> Option<MobType> {
+/// Day spawns are biome-appropriate (Step 18): Woolbeasts are cold-biome
+/// fauna, Boars temperate; night hostiles are global.
+pub fn roll_spawn(rand: u64, is_day: bool, cold_biome: bool) -> Option<MobType> {
     use MobType::*;
     let v = (rand * 2654435761) % 100;
     if is_day {
-        match v {
-            0..=39 => Some(Boar),
-            40..=69 => Some(Woolbeast),
-            _ => None,
+        if cold_biome {
+            match v {
+                0..=59 => Some(Woolbeast),
+                _ => None,
+            }
+        } else {
+            match v {
+                0..=39 => Some(Boar),
+                40..=49 => Some(Woolbeast), // shaggy stragglers roam the edges
+                _ => None,
+            }
         }
     } else {
         match v {
@@ -279,10 +288,10 @@ mod tests {
     #[test]
     fn spawn_rules_respond_to_day_night() {
         let day: std::collections::HashSet<MobType> = (0..1000)
-            .filter_map(|i| roll_spawn(i, true))
+            .filter_map(|i| roll_spawn(i, true, false))
             .collect();
         let night: std::collections::HashSet<MobType> = (0..1000)
-            .filter_map(|i| roll_spawn(i, false))
+            .filter_map(|i| roll_spawn(i, false, false))
             .collect();
         assert!(day.contains(&MobType::Boar) && !night.contains(&MobType::Boar));
         assert!(night.contains(&MobType::Glitchling) && !day.contains(&MobType::Glitchling));

@@ -46,6 +46,18 @@ pub enum Biome {
 }
 
 impl Biome {
+    /// Every variant, declaration order (contact sheets + tests).
+    pub const ALL: [Biome; 30] = [
+        Biome::Meadow, Biome::FlowerForest, Biome::Forest, Biome::BirchForest,
+        Biome::DarkForest, Biome::PaleGarden, Biome::CherryGrove, Biome::Taiga,
+        Biome::SnowyTaiga, Biome::GiantTaiga, Biome::Tundra, Biome::IceSpikes,
+        Biome::SnowySlope, Biome::SnowyPeaks, Biome::FrozenOcean, Biome::Jungle,
+        Biome::Swamp, Biome::Savanna, Biome::WindsweptSavanna, Biome::Desert,
+        Biome::Badlands, Biome::Beach, Biome::StonyShore, Biome::Ocean,
+        Biome::DeepOcean, Biome::WarmOcean, Biome::Highlands, Biome::Mountains,
+        Biome::WindsweptHills, Biome::MushroomHollow,
+    ];
+
     pub fn name(self) -> &'static str {
         use Biome::*;
         match self {
@@ -91,12 +103,34 @@ impl Biome {
             IceSpikes => block::ICE,
             Desert | Beach => block::SAND,
             Badlands => block::RED_SAND,
-            Savanna | WindsweptSavanna => block::GRASS,
+            Savanna | WindsweptSavanna => block::SAVANNA_GRASS,
             Swamp => block::MOSS,
+            Jungle => block::JUNGLE_GRASS,
+            MushroomHollow => block::MYCELIUM,
             StonyShore | Mountains => block::STONE,
             Ocean | DeepOcean | WarmOcean => block::SAND,
             _ => block::GRASS,
         }
+    }
+
+    /// Sub-surface filler under the surface band.
+    pub fn filler_block(self) -> u32 {
+        use lf_voxel::registry::block;
+        use Biome::*;
+        match self {
+            Badlands => block::TERRACOTTA,
+            Desert | Beach => block::SAND,
+            StonyShore | Mountains | SnowyPeaks => block::STONE,
+            _ => block::DIRT,
+        }
+    }
+
+    /// Cold biomes: snow/taiga family — drives snow weather (Step 19) and
+    /// cold-adapted passive spawns (Step 18).
+    pub fn is_cold(self) -> bool {
+        use Biome::*;
+        matches!(self, Tundra | SnowyTaiga | GiantTaiga | IceSpikes | SnowySlope
+            | SnowyPeaks | FrozenOcean)
     }
 
     /// Tree shape used by worldgen (None = treeless).
@@ -115,7 +149,8 @@ impl Biome {
             Swamp => TreeKind::OakSparse,
             Savanna => TreeKind::OakSparse,
             WindsweptSavanna => TreeKind::OakSparse,
-            Tundra | SnowySlope => TreeKind::Spruce,
+            Tundra => TreeKind::SpruceSparse,
+            SnowySlope => TreeKind::Spruce,
             _ => TreeKind::None,
         }
     }
@@ -132,6 +167,8 @@ pub enum TreeKind {
     None,
     OakSparse,
     Oak,
+    /// Sparse wind-bent conifers — Tundra's marker vs the dense SnowyTaiga.
+    SpruceSparse,
     Birch,
     DarkOak,
     Spruce,
@@ -150,7 +187,7 @@ impl TreeKind {
             TreeKind::OakSparse | TreeKind::Oak => (block::LOG, block::LEAVES, 4, 2),
             TreeKind::Birch => (block::BIRCH_LOG, block::BIRCH_LEAVES, 6, 2),
             TreeKind::DarkOak => (block::DARK_LOG, block::DARK_LEAVES, 5, 3),
-            TreeKind::Spruce => (block::SPRUCE_LOG, block::SPRUCE_LEAVES, 6, 2),
+            TreeKind::Spruce | TreeKind::SpruceSparse => (block::SPRUCE_LOG, block::SPRUCE_LEAVES, 6, 2),
             TreeKind::GiantSpruce => (block::SPRUCE_LOG, block::SPRUCE_LEAVES, 12, 3),
             TreeKind::Jungle => (block::LOG, block::LEAVES, 9, 3),
             TreeKind::Cherry => (block::CHERRY_LOG, block::CHERRY_LEAVES, 5, 3),

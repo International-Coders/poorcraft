@@ -360,6 +360,42 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "biome_contact_sheet",
+            desc: "all 30 biomes as side-by-side strips of their real surface materials — the identity proof",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the sheet in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "weather_snow",
+            desc: "cold biome weather: snowfall over a snow field (biome-driven, Step 19)",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the field in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "weather_dry",
+            desc: "dry biome weather: clear skies over desert sand (no precipitation, Step 19)",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the desert in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "transparency_layers",
             desc: "water pool behind a glass wall with particles on both sides: transparent pass layering, pixel-checked",
             default_seed: 12345,
@@ -453,6 +489,64 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         for x in -3..=3 {
             for y in h..h + 4 {
                 world.set_block(x, y, 0, lf_voxel::BlockState(block::PLANKS));
+            }
+        }
+    }
+
+    // biome_contact_sheet (Step 16): 30 strips, each paved with that
+    // biome's REAL surface + filler from the biome table, separated by
+    // stone walls — a photograph of the identity data itself.
+    if spec.name == "biome_contact_sheet" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        let biomes = lf_worldgen::Biome::ALL;
+        for (i, b) in biomes.iter().enumerate() {
+            let x0 = (i as i32) * 4 - 60;
+            for x in x0..x0 + 4 {
+                for z in -8..8 {
+                    world.set_block(x, h - 1, z, lf_voxel::BlockState(b.surface_block()));
+                    world.set_block(x, h - 2, z, lf_voxel::BlockState(b.filler_block()));
+                    for y in h..h + 12 {
+                        world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                    }
+                }
+            }
+            if i % 2 == 1 {
+                // separating wall so strips read as distinct panels
+                for z in -8..8 {
+                    for y in h..h + 2 {
+                        world.set_block(x0 + 4, y, z, lf_voxel::BlockState(block::STONE));
+                    }
+                }
+            }
+        }
+    }
+
+    // weather_snow: a snow field with falling flakes (Step 19)
+    if spec.name == "weather_snow" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -10..10 {
+            for z in -10..10 {
+                for y in h..h + 10 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::SNOW));
+            }
+        }
+    }
+
+    // weather_dry: desert sand under a clear sky (Step 19)
+    if spec.name == "weather_dry" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -10..10 {
+            for z in -10..10 {
+                for y in h..h + 10 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::SAND));
+                world.set_block(x, h - 2, z, lf_voxel::BlockState(block::SAND));
             }
         }
     }
@@ -666,6 +760,37 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
             push_quad(&mut vertices, &mut indices, corners, uvs, normal, sand_tex);
         }
     }
+    // weather_snow: falling flakes as translucent billboards (Step 19),
+    // mirroring atmosphere::weather_particles(cold=true)
+    if spec.name == "weather_snow" {
+        let snow_tex = lf_assets::WAYPOINT_LAYERS[1]; // pale blue tint layer
+        for i in 0..40u32 {
+            let t = i as f32;
+            let (x, z) = (((t * 2.3).sin()) * 9.0, ((t * 1.7).cos()) * 9.0);
+            let y = 4.0 + (t * 3.1).sin() * 3.0 + (t % 5.0);
+            let center = Vec3::new(x, world.surface_height(0, 0) as f32 + y, z);
+            let base = water_vertices.len() as u32;
+            let corners = [
+                [center.x - 0.09, center.y - 0.09, center.z],
+                [center.x - 0.09, center.y + 0.09, center.z],
+                [center.x + 0.09, center.y + 0.09, center.z],
+                [center.x + 0.09, center.y - 0.09, center.z],
+            ];
+            for (corner, uv) in corners.iter().zip([[0.2, 0.3], [0.2, 0.2], [0.3, 0.2], [0.3, 0.3]]) {
+                water_vertices.push(GpuVertex {
+                    position: *corner,
+                    normal: [0.0, 0.0, 1.0],
+                    tex_coord: uv,
+                    tex_index: snow_tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            water_indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+
     // waypoint_beacons: slim tinted beams (Step 15) in the transparent
     // channel, mirroring the client's waypoint_batch geometry
     if spec.name == "waypoint_beacons" {
@@ -772,6 +897,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "transparency_layers" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.2, 10.5), Vec3::new(0.0, h + 1.2, 2.0))
+    } else if spec.name == "biome_contact_sheet" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.0, h + 16.0, 26.0), Vec3::new(0.0, h - 1.0, 0.0))
+    } else if spec.name == "weather_snow" || spec.name == "weather_dry" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-12.0, h + 8.0, 14.0), Vec3::new(0.0, h + 1.0, 0.0))
     } else if spec.name == "waypoint_beacons" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(11.0, h + 14.0, 12.0), Vec3::new(0.0, h + 6.0, 0.0))

@@ -528,3 +528,21 @@ Step-13 combined persist); vistest 27/27; waypoint_beacons proof
 AI-verified; `make smoke` SMOKE OK (user session ended, so the real smoke
 ran) and the boot log shows [MOD SMOKE TEST] OK with 3 mods. Runtimes
 rebuilt; pushed.
+
+### 2026-08-27 — Loop 314: Steps 16-19 (biome identity, spawns, weather)
+**WHAT**: The "biomes feel the same" complaint structurally fixed at the
+worldgen level (on top of loop 311's color grade), plus biome-aware
+spawns and biome-field weather.
+**HOW**: registry ids 42-44 (JUNGLE_GRASS/SAVANNA_GRASS/FLOWER; flower
+non-solid non-opaque cutout, is_plant); biome.rs surface_block/filler_
+block/is_cold/SpruceSparse/Biome::ALL; worldgen flower pass (1/9 columns,
+FlowerForest-only), boulder pass (SnowySlope/WindsweptHills/Windswept-
+Savanna), GEN_VERSION 2; lf_assets 3 layers + drops (dirt; flower
+shatters) + shovel family; mobs roll_spawn(rand, is_day, cold_biome);
+client spawn site + gen_biome_temp_at_player now use Biome::is_cold.
+**VERIFICATION**: biome_identity_markers_are_distinct (pairwise
+surface+filler+tree+structure+exclusive; caught SnowyPeaks/FrozenOcean
+and Savanna/WindsweptSavanna twins — fixed via filler key + savanna
+boulders); contact sheet pixel check = exactly 30 distinct quantized
+strip colors; AI-verified families; 188 tests / 0; vistest 30/30
+(3 new scenes). Runtimes rebuilt; pushed.

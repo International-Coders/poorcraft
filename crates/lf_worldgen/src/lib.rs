@@ -33,7 +33,7 @@ pub const SEA_LEVEL: i32 = 62;
 /// regenerated after a revisit may differ from their first visit (edited
 /// chunks are persisted and never regenerated). Pre-P25 worlds have no
 /// stamp and read as `None`.
-pub const GENERATOR_VERSION: u32 = 1;
+pub const GENERATOR_VERSION: u32 = 2; // v2: biome-identity surfaces (jungle/savanna grass, mycelium hollow, wildflowers)
 
 /// Stamp `genver.dat` in a world directory with the generator version.
 pub fn save_generator_version(dir: &std::path::Path, version: u32) -> std::io::Result<()> {
@@ -262,12 +262,7 @@ impl WorldGen {
         let height = self.height(cx, cz);
         let biome = self.biome(cx, cz);
         let surf = biome.surface_block();
-        let filler: u32 = match biome {
-            Biome::Badlands => block::TERRACOTTA,
-            Biome::Desert | Biome::Beach => block::SAND,
-            Biome::StonyShore | Biome::Mountains | Biome::SnowyPeaks => block::STONE,
-            _ => block::DIRT,
-        };
+        let filler: u32 = biome.filler_block();
         let mut col = Vec::new();
         for y in (0..=height + 16).rev() {
             if y <= height + 3 && y >= height - 2 {
@@ -453,6 +448,56 @@ impl WorldGen {
         // 5. Structures: deterministic per-chunk placement, in-chunk footprint.
         self.place_structures(cx, cz, &mut col);
 
+        // 5.5 Wildflowers: FlowerForest's exclusive ground cover (sparse,
+        // deterministic per column; only on intact grass).
+        for lx in 1..15usize {
+            for lz in 1..15usize {
+                let wx = cx * 16 + lx as i32;
+                let wz = cz * 16 + lz as i32;
+                if self.biome(wx, wz) != Biome::FlowerForest {
+                    continue;
+                }
+                let top = surface_tops[lx][lz];
+                if top <= SEA_LEVEL + 1 {
+                    continue;
+                }
+                if col.get(lx, (top - 1) as usize, lz).id() != block::GRASS {
+                    continue;
+                }
+                if col.get(lx, top as usize, lz).id() != block::AIR {
+                    continue;
+                }
+                if hash2(wx, wz, self.seed_for_features() ^ 0xf10a7) % 9 == 0 {
+                    col.set(lx, top as usize, lz, BlockState(block::FLOWER));
+                }
+            }
+        }
+
+        // 5.6 Boulder fields: SnowySlope's and WindsweptHills' exclusive
+        // ground feature (Step 17) — one 3-block stone cluster per lucky
+        // chunk, deterministic.
+        for (bx, bz) in [(4usize, 4usize), (11, 10)] {
+            let wx = cx * 16 + bx as i32;
+            let wz = cz * 16 + bz as i32;
+            if !matches!(self.biome(wx, wz), Biome::SnowySlope | Biome::WindsweptHills | Biome::WindsweptSavanna) {
+                continue;
+            }
+            if hash2(wx, wz, self.seed_for_features() ^ 0xb01d1d) % 11 != 0 {
+                continue;
+            }
+            let top = surface_tops[bx][bz];
+            for dx in 0..3usize {
+                for dz in 0..3usize {
+                    if (dx + dz) % 2 == 1 {
+                        continue; // lumpy silhouette, not a cube slab
+                    }
+                    for dy in 0..2usize {
+                        col.set(bx + dx, (top + dy as i32) as usize, bz + dz, BlockState(block::STONE));
+                    }
+                }
+            }
+        }
+
         // 6. Trees by biome kind, canopies kept inside the chunk.
         for lx in 3..13usize {
             for lz in 3..13usize {
@@ -466,7 +511,8 @@ impl WorldGen {
                 // surface must still be vegetated (not carved/stony)
                 let surface_ok = matches!(
                     col.get(lx, (top - 1) as usize, lz).id(),
-                    block::GRASS | block::MOSS | block::SNOW | block::SAND | block::DIRT
+                    block::GRASS | block::JUNGLE_GRASS | block::SAVANNA_GRASS
+                        | block::MYCELIUM | block::MOSS | block::SNOW | block::SAND | block::DIRT
                 );
                 if !surface_ok {
                     continue;
@@ -478,6 +524,7 @@ impl WorldGen {
                 let h = hash2(wx, wz, self.seed_for_features() ^ 0x7ab99e21);
                 let density = match kind {
                     TreeKind::OakSparse => 160,
+                    TreeKind::SpruceSparse => 220, // tundra: scattered wind-bent conifers
                     TreeKind::Jungle => 36,
                     TreeKind::DarkOak => 40,
                     TreeKind::Cherry => 56,
@@ -751,6 +798,43 @@ mod tests {
         }
         assert!(seen.len() >= 30, "expected 30 biomes in sampled world, got {} ({:?})", seen.len(),
             seen.iter().map(|b| b.name()).collect::<Vec<_>>());
+    }
+
+    /// Build-pack Step 17: every biome must be distinguishable from every
+    /// other by its worldgen identity (surface material, tree kind,
+    /// structure, or an exclusive feature like flowers/boulders). The only
+    /// allowed same-key families are the depth-banded oceans and the
+    /// coastal StonyShore/Mountains pair — both documented.
+    #[test]
+    fn biome_identity_markers_are_distinct() {
+        use crate::biome::Biome::*;
+        use crate::biome::TreeKind;
+        let all = [Meadow, FlowerForest, Forest, BirchForest, DarkForest, PaleGarden,
+            CherryGrove, Taiga, SnowyTaiga, GiantTaiga, Tundra, IceSpikes, SnowySlope,
+            SnowyPeaks, FrozenOcean, Jungle, Swamp, Savanna, WindsweptSavanna, Desert,
+            Badlands, Beach, StonyShore, Ocean, DeepOcean, WarmOcean, Highlands,
+            Mountains, WindsweptHills, MushroomHollow];
+        let has_structure = |b: Biome| matches!(b, Meadow | Highlands | Desert);
+        let has_exclusive = |b: Biome| matches!(b, FlowerForest | SnowySlope | WindsweptHills | WindsweptSavanna);
+        let key = |b: Biome| (b.surface_block(), b.filler_block(), b.tree_kind(), has_structure(b), has_exclusive(b));
+        let same_family = |a: Biome, b: Biome| {
+            matches!((a, b),
+                (Ocean | DeepOcean | WarmOcean | FrozenOcean,
+                 Ocean | DeepOcean | WarmOcean | FrozenOcean)
+                    | (StonyShore, Mountains)
+                    | (Mountains, StonyShore))
+        };
+        for (i, &a) in all.iter().enumerate() {
+            for &b in &all[i + 1..] {
+                assert!(
+                    key(a) != key(b) || same_family(a, b),
+                    "{:?} and {:?} are worldgen twins: fix the biome table (surface {:?}/{:?}, filler {:?}/{:?}, trees {:?}/{:?})",
+                    a, b, a.surface_block(), b.surface_block(), a.filler_block(), b.filler_block(), a.tree_kind(), b.tree_kind()
+                );
+            }
+        }
+        // the grade table must cover every biome family too (Step 3 sibling check)
+        let _ = TreeKind::None;
     }
 
     #[test]

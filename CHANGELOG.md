@@ -658,3 +658,15 @@
   waypoint_beacons proof scene.
 - 187 tests green; 27/27 vistest; SMOKE OK with the live boot log showing
   "[MOD SMOKE TEST] OK — smoke_test mod loaded successfully" (3 mods).
+
+## Loop 314 — Steps 16-19: biomes finally read as different places
+- New identity surfaces: jungle grass, savanna grass (gold), mycelium
+  hollow, moss swamp, FlowerForest wildflowers; Tundra spruce-sparse vs
+  SnowyTaiga dense; boulder fields on the three windswept/snow-slope
+  biomes. Generator v2. Contact sheet measures 30/30 distinct strip
+  colors; pairwise identity regression test with two documented families
+  exempt (it caught two real twins while being written — both fixed).
+- Biome-aware day spawns (woolbeast= cold, boar= temperate) with test;
+  weather coldness from the biome field; weather_snow + weather_dry
+  proof scenes.
+- 188 tests green; 30/30 vistest scenes; runtimes rebuilt; pushed.

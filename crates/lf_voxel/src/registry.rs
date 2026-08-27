@@ -17,7 +17,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 100;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 41;
+pub const MAX_VANILLA_BLOCK: u32 = 44;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -103,6 +103,10 @@ pub mod block {
     pub const CRUSHER: u32 = 39;
     pub const ASSEMBLER: u32 = 40;
     pub const RESEARCH_BENCH: u32 = 41;
+    // biome-identity surfaces (build-pack Step 16-17)
+    pub const JUNGLE_GRASS: u32 = 42;
+    pub const SAVANNA_GRASS: u32 = 43;
+    pub const FLOWER: u32 = 44;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -118,6 +122,9 @@ pub mod block {
             AIR => "Air",
             STONE => "Stone",
             GRASS => "Grass",
+            JUNGLE_GRASS => "Jungle Grass",
+            SAVANNA_GRASS => "Savanna Grass",
+            FLOWER => "Wildflower",
             DIRT => "Dirt",
             SAND => "Sand",
             MYCELIUM => "Mycelium",
@@ -176,6 +183,7 @@ pub fn is_solid(b: BlockState) -> bool {
         return mod_block(id).map(|d| d.solid).unwrap_or(true);
     }
     id != block::AIR && id != block::WATER && id != block::TORCH && id != block::LANTERN
+        && id != block::FLOWER
 }
 
 /// Blocks that hide the neighboring face when meshing. Air, water and leaves
@@ -187,11 +195,17 @@ pub fn is_opaque(b: BlockState) -> bool {
     }
     id != block::AIR && id != block::WATER && id != block::LEAVES && id != block::TORCH
         && id != block::LANTERN && id != block::GLASS && id != block::ICE
+        && id != block::FLOWER
 }
 
 /// Blocks the crosshair can target (mining/placing raycast hits).
 pub fn is_targetable(b: BlockState) -> bool {
     b.id() != block::AIR && b.id() != block::WATER
+}
+
+/// Cross-plants: non-solid cutout blocks that sit on the ground.
+pub fn is_plant(id: u32) -> bool {
+    id == block::FLOWER
 }
 
 /// Granular blocks that fall when the block under them is removed (they do
@@ -200,7 +214,8 @@ pub fn is_targetable(b: BlockState) -> bool {
 pub fn has_gravity(id: u32) -> bool {
     use block as b;
     id == b::SAND || id == b::RED_SAND || id == b::SNOW
-        || id == b::DIRT || id == b::GRASS || id == b::MOSS || id == b::MYCELIUM
+        || id == b::DIRT || id == b::GRASS || id == b::JUNGLE_GRASS
+        || id == b::SAVANNA_GRASS || id == b::MOSS || id == b::MYCELIUM
 }
 
 #[cfg(test)]

@@ -348,3 +348,31 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       player's waypoints and drawn in the transparent pass; proof scene
       waypoint_beacons (AI-verified: three colored translucent beams,
       no artifacts)
+
+## Loop 314 — build-pack Steps 16-19 (biome identity, spawns, weather)
+- [x] Step 16 BIOME SURFACES: JUNGLE_GRASS (deep saturated) + SAVANNA_GRASS
+      (dry gold) blocks (ids 42/43) with atlas layers; Jungle/Savanna/
+      WindsweptSavanna now wear them; Swamp keeps MOSS; MushroomHollow now
+      generates on previously-unused MYCELIUM; wildflower cutout plant
+      (FLOWER, id 44) sparsely covers FlowerForest — breaking its twin
+      with Forest. GENERATOR_VERSION -> 2 (unedited chunks regenerate).
+- [x] Step 16 CONTACT SHEET: biome_contact_sheet scene — 30 strips paved
+      with each biome's REAL surface+filler from the table; pixel check
+      measures exactly 30 distinct quantized strip colors; AI-verified all
+      palette families present with no identical groups
+- [x] Step 17 EXCLUSIVITY: Tundra gets SpruceSparse conifers (vs dense
+      SnowyTaiga); boulder fields are SnowySlope/WindsweptHills/
+      WindsweptSavanna's exclusive feature; regression test
+      biome_identity_markers_are_distinct enforces pairwise uniqueness
+      (surface+filler+tree+structure+exclusive) with only two documented
+      families exempt (depth-banded oceans incl. FrozenOcean; coastal
+      StonyShore/Mountains) — the test caught two real twins during
+      development and both were fixed
+- [x] Step 18 SPAWNS: roll_spawn is biome-aware (cold biomes: woolbeasts
+      only; temperate: boars + rare woolbeasts); night hostiles global;
+      tested (day_spawns_are_biome_appropriate). Structures were already
+      biome-gated (loop-309 audit)
+- [x] Step 19 WEATHER: cold = the actual biome field (Biome::is_cold via
+      the map's generator), not the old surface-block proxy; proofs:
+      weather_snow (flakes over a snow field) + weather_dry (clear desert)
+      join clouds_weather (rain)

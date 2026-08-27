@@ -18,7 +18,7 @@ impl ToolKind {
         match self {
             ToolKind::Pickaxe => &[block::STONE, block::COAL_ORE, block::IRON_ORE],
             ToolKind::Axe => &[block::LOG, block::PLANKS, block::CRAFTING_TABLE, block::CHEST],
-            ToolKind::Shovel => &[block::DIRT, block::GRASS, block::SAND, block::SNOW, block::MYCELIUM],
+            ToolKind::Shovel => &[block::DIRT, block::GRASS, block::JUNGLE_GRASS, block::SAVANNA_GRASS, block::SAND, block::SNOW, block::MYCELIUM],
             ToolKind::Sword => &[block::LEAVES],
             ToolKind::Bow => &[],
         }
@@ -194,8 +194,9 @@ pub fn registered_mod_items() -> Vec<ItemDef> {
 pub fn block_drop(block_id: u32) -> Option<String> {
     use lf_voxel::registry::block;
     match block_id {
-        block::GRASS => Some("dirt".into()),
+        block::GRASS | block::JUNGLE_GRASS | block::SAVANNA_GRASS => Some("dirt".into()),
         block::DIRT => Some("dirt".into()),
+        block::FLOWER => None, // petals shatter (no item yet — note in BACKLOG)
         block::STONE => Some("stone".into()),
         block::SAND => Some("sand".into()),
         block::MYCELIUM => Some("mycelium".into()),
