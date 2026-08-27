@@ -546,3 +546,20 @@ and Savanna/WindsweptSavanna twins — fixed via filler key + savanna
 boulders); contact sheet pixel check = exactly 30 distinct quantized
 strip colors; AI-verified families; 188 tests / 0; vistest 30/30
 (3 new scenes). Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 315: P29 Water Age
+**WHAT**: The first new power age: graph-based research with the Water
+branch, water wheel + battery machines, a pure power-distribution step,
+and the riverside proof scene.
+**HOW**: research.rs (Era::Water, prereqs(), is_branch, branches vec with
+serde default, unlock(); tech-tree branch card + Unlock button);
+machines.rs (WaterWheel/BatteryCell/PowerSource/distribute_power, pure and
+tested); registry ids 45/46 + lf_assets layers 57/58 + items + recipes +
+drops; client BlockEntity variants, tick rewired through distribute_power
+(wheel adjacency check on 5 neighbors), UI panels, spill/placement arms;
+pathtrace palette entries 42-46 + stable hash fallback; water_wheel_power
+vistest scene (river carved, real power step run 30 sim-seconds).
+**VERIFICATION**: 194 tests / 0 (8 new: 5 research incl. save-compat, 3
+water-age machines); vistest 31/31; water_wheel_power AI-verified (wheel
+against water, battery + crusher in field, reads as a riverside power
+station). Runtimes rebuilt; pushed.

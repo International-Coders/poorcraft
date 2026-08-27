@@ -284,3 +284,245 @@ mod tests {
         assert_eq!(f.output, stack("iron_ingot", 1), "5s powered should smelt one");
     }
 }
+
+// ------------------------------------------------------------------
+// Water Age (V1REBRAND doc 04 / build-pack Step 23)
+
+/// EU per second a water wheel produces while sitting in water — enough
+/// for one early machine plus a trickle, deliberately below the coal
+/// generator's 20 (the wheel is free but river-gated).
+pub const WHEEL_RATE: f32 = 12.0;
+pub const WHEEL_CAPACITY: f32 = 600.0;
+/// Battery storage: covers intermittent sources and blackout gaps.
+pub const BATTERY_CAP: f32 = 4000.0;
+
+/// A wheel placed against water. `has_water` is decided by the caller
+/// (adjacent water blocks); the wheel itself has no fuel loop.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct WaterWheel {
+    pub buffer: f32,
+}
+
+impl WaterWheel {
+    pub fn tick(&mut self, dt: f32, has_water: bool) {
+        if has_water {
+            self.buffer = (self.buffer + WHEEL_RATE * dt).min(WHEEL_CAPACITY);
+        }
+    }
+
+    pub fn draw(&mut self, want: f32) -> f32 {
+        let take = want.min(self.buffer);
+        self.buffer -= take;
+        take
+    }
+}
+
+/// Rechargeable cell: charges from producer surplus, discharges only when
+/// producers in range cannot cover the machines (blackout prevention).
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct BatteryCell {
+    pub charge: f32,
+}
+
+impl BatteryCell {
+    pub fn charge(&mut self, offer: f32) -> f32 {
+        let take = offer.min(BATTERY_CAP - self.charge).max(0.0);
+        self.charge += take;
+        take
+    }
+
+    pub fn draw(&mut self, want: f32) -> f32 {
+        let take = want.min(self.charge);
+        self.charge -= take;
+        take
+    }
+}
+
+/// One power node in the field (position + source), for distribute_power.
+#[derive(Clone, Debug)]
+pub enum PowerSource {
+    Generator(Generator),
+    Wheel(WaterWheel),
+    Battery(BatteryCell),
+}
+
+impl PowerSource {
+    fn is_producer(&self) -> bool {
+        !matches!(self, PowerSource::Battery(_))
+    }
+
+    fn draw(&mut self, want: f32) -> f32 {
+        match self {
+            PowerSource::Generator(g) => g.draw(want),
+            PowerSource::Wheel(w) => w.draw(want),
+            PowerSource::Battery(b) => b.draw(want),
+        }
+    }
+
+    /// How much buffered energy the node holds (UI/debug).
+    pub fn stored(&self) -> f32 {
+        match self {
+            PowerSource::Generator(g) => g.buffer,
+            PowerSource::Wheel(w) => w.buffer,
+            PowerSource::Battery(b) => b.charge,
+        }
+    }
+}
+
+/// The proximity-field power step, pure so tests (and the vistest scene)
+/// can run it headless — the client feeds real block entities through
+/// this every tick. Phase 1: machines draw from PRODUCERS in range; phase
+/// 2: still-starved machines draw from batteries in range; phase 3:
+/// producer surplus charges batteries in range. Returns EU granted per
+/// machine (same order as `machines`).
+pub fn distribute_power(
+    sources: &mut [((i32, i32, i32), PowerSource)],
+    machines: &[(i32, i32, i32)],
+    need: f32,
+) -> Vec<f32> {
+    let in_range = |s: (i32, i32, i32), m: (i32, i32, i32)| {
+        let d = ((s.0 - m.0).pow(2) + (s.1 - m.1).pow(2) + (s.2 - m.2).pow(2)) as f32;
+        d.sqrt() <= POWER_RANGE
+    };
+    let mut granted = vec![0.0f32; machines.len()];
+    // phase 1: producers
+    for (mi, &mpos) in machines.iter().enumerate() {
+        let deficit = need - granted[mi];
+        if deficit <= 0.0 {
+            continue;
+        }
+        for (spos, src) in sources.iter_mut() {
+            if *spos == mpos || !in_range(*spos, mpos) {
+                continue;
+            }
+            if !src.is_producer() {
+                continue;
+            }
+            let got = src.draw(deficit);
+            granted[mi] += got;
+            if granted[mi] >= need {
+                break;
+            }
+        }
+    }
+    // phase 2: batteries cover the remainder
+    for (mi, &mpos) in machines.iter().enumerate() {
+        let deficit = need - granted[mi];
+        if deficit <= 0.0 {
+            continue;
+        }
+        for (spos, src) in sources.iter_mut() {
+            if !in_range(*spos, mpos) || src.is_producer() {
+                continue;
+            }
+            let got = src.draw(deficit);
+            granted[mi] += got;
+            if granted[mi] >= need {
+                break;
+            }
+        }
+    }
+    // phase 3: producer surplus charges batteries in range (indexed so
+    // both ends can mutate)
+    for i in 0..sources.len() {
+        if !sources[i].1.is_producer() {
+            continue;
+        }
+        let mut offer = sources[i].1.stored();
+        if offer <= 0.0 {
+            continue;
+        }
+        for j in 0..sources.len() {
+            if i == j || sources[j].1.is_producer() {
+                continue;
+            }
+            if !in_range(sources[i].0, sources[j].0) {
+                continue;
+            }
+            if offer <= 0.0 {
+                break;
+            }
+            let took = if let PowerSource::Battery(b) = &mut sources[j].1 {
+                b.charge(offer)
+            } else {
+                0.0
+            };
+            offer -= took;
+            match &mut sources[i].1 {
+                PowerSource::Generator(g) => g.buffer -= took,
+                PowerSource::Wheel(w) => w.buffer -= took,
+                PowerSource::Battery(_) => {}
+            }
+        }
+    }
+    granted
+}
+
+#[cfg(test)]
+mod water_age_tests {
+    use super::*;
+
+    fn wheel_charged(v: f32) -> ((i32, i32, i32), PowerSource) {
+        ((0, 0, 0), PowerSource::Wheel(WaterWheel { buffer: v }))
+    }
+
+    #[test]
+    fn wheel_trickles_only_in_water() {
+        let mut w = WaterWheel::default();
+        w.tick(1.0, false);
+        assert_eq!(w.buffer, 0.0, "dry wheel produces nothing");
+        w.tick(1.0, true);
+        assert!((w.buffer - WHEEL_RATE).abs() < 1e-4);
+        for _ in 0..1000 {
+            w.tick(1.0, true);
+        }
+        assert!(w.buffer <= WHEEL_CAPACITY + 1e-3, "wheel buffer is capped");
+    }
+
+    #[test]
+    fn wheel_powers_a_machine_and_battery_covers_gaps() {
+        let machine = (2, 0, 0);
+        // one wheel, fully spun up: covers the machine's draw
+        let mut sources = vec![wheel_charged(WHEEL_CAPACITY)];
+        let granted = distribute_power(&mut sources, &[machine], DRAW_RATE);
+        assert!(granted[0] >= DRAW_RATE, "wheel covers one machine, got {}", granted[0]);
+
+        // no producers, charged battery: still covers (blackout prevention)
+        let mut sources = vec![((0, 0, 0), PowerSource::Battery(BatteryCell { charge: BATTERY_CAP }))];
+        let granted = distribute_power(&mut sources, &[machine], DRAW_RATE);
+        assert!(granted[0] >= DRAW_RATE, "battery bridges the gap");
+
+        // empty battery: machine starves
+        let mut sources = vec![((0, 0, 0), PowerSource::Battery(BatteryCell { charge: 0.0 }))];
+        let granted = distribute_power(&mut sources, &[machine], DRAW_RATE);
+        assert_eq!(granted[0], 0.0);
+    }
+
+    #[test]
+    fn surplus_charges_batteries_in_range() {
+        let mut sources = vec![
+            ((0, 0, 0), PowerSource::Wheel(WaterWheel { buffer: WHEEL_CAPACITY })),
+            ((1, 0, 0), PowerSource::Battery(BatteryCell { charge: 0.0 })),
+        ];
+        let machine = (0, 0, 2);
+        distribute_power(&mut sources, &[machine], DRAW_RATE);
+        let (_, wheel) = &sources[0];
+        let stored = wheel.stored();
+        let batt = match &sources[1].1 {
+            PowerSource::Battery(b) => b.charge,
+            _ => unreachable!(),
+        };
+        assert!(batt > 0.0, "surplus flows into the battery");
+        assert!(stored < WHEEL_CAPACITY, "the wheel gave up buffer");
+        // out-of-range battery gets nothing
+        let mut far = vec![
+            ((0, 0, 0), PowerSource::Wheel(WaterWheel { buffer: WHEEL_CAPACITY })),
+            ((50, 0, 0), PowerSource::Battery(BatteryCell { charge: 0.0 })),
+        ];
+        distribute_power(&mut far, &[], 0.0);
+        match &far[1].1 {
+            PowerSource::Battery(b) => assert_eq!(b.charge, 0.0, "field radius respected"),
+            _ => unreachable!(),
+        }
+    }
+}

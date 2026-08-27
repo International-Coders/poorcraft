@@ -670,3 +670,16 @@
   weather coldness from the biome field; weather_snow + weather_dry
   proof scenes.
 - 188 tests green; 30/30 vistest scenes; runtimes rebuilt; pushed.
+
+## Loop 315 — P29 Water Age
+- Research is a graph now: the Water branch (Industrial prereq,
+  independent of Electrical), unlockable from the tech-tree screen with
+  material costs; pre-branch saves load unchanged (serde default).
+- Machines: WaterWheel (12 EU/s free while touching water) + Battery
+  (4000 EU) and a pure, tested distribute_power (producers → batteries
+  cover gaps → surplus recharges) that the client tick and the vistest
+  scene both run. Water Wheel + Battery blocks craftable (Water-era
+  gated) with UI panels. RT palette covers new ids + stable fallback for
+  future ones.
+- 194 tests green; 31/31 vistest (water_wheel_power proof); runtimes
+  rebuilt; pushed.

@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 57] = [
+pub const TEXTURE_NAMES: [&str; 59] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -25,6 +25,8 @@ pub const TEXTURE_NAMES: [&str; 57] = [
     "waypoint_0", "waypoint_1", "waypoint_2", "waypoint_3", "waypoint_4", "waypoint_5",
     // biome-identity surfaces (Step 16-17)
     "jungle_grass", "savanna_grass", "flower",
+    // Water Age machines (P29)
+    "water_wheel", "battery",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -34,6 +36,8 @@ pub const WAYPOINT_LAYERS: [u32; 6] = [48, 49, 50, 51, 52, 53];
 pub const JUNGLE_GRASS_LAYER: u32 = 54;
 pub const SAVANNA_GRASS_LAYER: u32 = 55;
 pub const FLOWER_LAYER: u32 = 56;
+pub const WATER_WHEEL_LAYER: u32 = 57;
+pub const BATTERY_LAYER: u32 = 58;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -46,6 +50,8 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         42 => 54, // jungle grass
         43 => 55, // savanna grass
         44 => 56, // wildflower
+        45 => 57, // water wheel
+        46 => 58, // battery
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -162,6 +168,41 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([250, 210, 90, 255])
                     } else if stem {
                         Rgba([60, 150, 60, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                // Water Age machines (P29)
+                "water_wheel" => {
+                    let dx = (x as i32 - 8).abs();
+                    let dy = (y as i32 - 8).abs();
+                    let ring = (dx * dx + dy * dy) >= 9 && (dx * dx + dy * dy) <= 64;
+                    let spoke = dx <= 1 || dy <= 1;
+                    let axle = dx <= 2 && dy <= 2;
+                    if axle {
+                        Rgba([120, 84, 46, 255])
+                    } else if ring && spoke {
+                        Rgba([92, 62, 34, 255])
+                    } else if ring {
+                        // paddles: alternating planks with gaps that read as slats
+                        let slat = (x + y) % 5 < 3;
+                        let v = if slat { 168 } else { 120 };
+                        Rgba([ch(v), ch(v - 40), ch(v - 90), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "battery" => {
+                    let shell = x >= 2 && x <= 13 && y >= 4 && y <= 13;
+                    let terminal = (x >= 4 && x <= 6 || x >= 9 && x <= 11) && y >= 2 && y <= 4;
+                    let stripe = shell && y >= 6 && y <= 7;
+                    if terminal {
+                        Rgba([210, 120, 60, 255]) // copper tops
+                    } else if stripe {
+                        Rgba([240, 200, 90, 255]) // charge stripe
+                    } else if shell {
+                        let v = 150 + ((x * 7 + y * 3) % 22);
+                        Rgba([ch(v), ch(v), ch(v + 8), 255])
                     } else {
                         Rgba([0, 0, 0, 0])
                     }
@@ -1184,6 +1225,12 @@ mod tests {
             assert_eq!(tex.width(), 16);
             assert_eq!(tex.height(), 16);
             // fully opaque except water (transparent pass)
+            if name == "water_wheel" || name == "battery" {
+                // machine shells with hollow details
+                let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
+                assert!(solid > 40, "{} too sparse", name);
+                continue;
+            }
             if name == "flower" {
                 // cutout plant: transparent gaps plus solid stem/petals
                 let holes = tex.pixels().filter(|p| p.0[3] == 0).count();

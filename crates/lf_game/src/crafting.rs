@@ -42,6 +42,18 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("iron_ingot")],
         vec![Some("torch")],
     ]));
+    // Water Age (P29, gated to the Water era by Era::required_for):
+    // wheel = planks frame + iron axle; battery = iron shell + copper
+    book.push(r("water_wheel", 1, vec![
+        vec![Some("planks"), Some("iron_ingot"), Some("planks")],
+        vec![Some("planks"), None, Some("planks")],
+        vec![Some("planks"), Some("stick"), Some("planks")],
+    ]));
+    book.push(r("battery", 1, vec![
+        vec![Some("iron_ingot"), Some("copper_wire"), Some("iron_ingot")],
+        vec![Some("copper_wire"), Some("coal"), Some("copper_wire")],
+        vec![Some("iron_ingot"), Some("copper_wire"), Some("iron_ingot")],
+    ]));
     // 3 iron ingots in a V -> bucket (scoop/place water sources)
     book.push(r("bucket", 1, vec![
         vec![Some("iron_ingot"), None, Some("iron_ingot")],

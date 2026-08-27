@@ -1679,6 +1679,30 @@ impl GameState {
                     ui.add_space(4.0);
                 };
                 match entity {
+                    BlockEntity::WaterWheel(mut w) => {
+                        // Water Age (P29): the wheel spins for free while
+                        // water touches it (checked in the client tick)
+                        let frac = w.buffer / lf_game::machines::WHEEL_CAPACITY;
+                        top_bar(ui, frac, "spin-up", Theme::ACCENT);
+                        ui.label(egui::RichText::new(if frac <= 0.0 {
+                            "still — place against flowing or standing water"
+                        } else {
+                            "the river turns the wheel"
+                        }).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::WaterWheel(w));
+                    }
+                    BlockEntity::Battery(mut b) => {
+                        let frac = b.charge / lf_game::machines::BATTERY_CAP;
+                        top_bar(ui, frac, "charge", Theme::OK);
+                        ui.label(egui::RichText::new(
+                            format!("{:.0} / {:.0} EU — covers machines when producers dip", b.charge, lf_game::machines::BATTERY_CAP),
+                        ).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Battery(b));
+                    }
                     BlockEntity::Generator(mut g) => {
                         top_bar(ui, g.buffer / lf_game::machines::GEN_CAPACITY, &format!("{:.0} / {} EU", g.buffer, lf_game::machines::GEN_CAPACITY), Theme::XP);
                         let mut fuel = g.fuel.take();
@@ -1853,6 +1877,48 @@ impl GameState {
                         }
                     }
                 });
+                ui.add_space(8.0);
+                // Branch eras (Water now, Steam later): unlockable in any
+                // order relative to each other, right here in the tree.
+                let mut branch_unlocked = None;
+                ui.horizontal(|ui| {
+                    for e in [Era::Water] {
+                        let owned = self.research.unlocked(e);
+                        let can = self.research.can_unlock(e);
+                        let color = if owned { Theme::OK } else if can { Theme::ACCENT } else { egui::Color32::from_gray(110) };
+                        egui::Frame::new()
+                            .fill(egui::Color32::from_black_alpha(120))
+                            .stroke(egui::Stroke::new(if can && !owned { 2.5 } else { 1.0 }, color))
+                            .corner_radius(8.0)
+                            .inner_margin(8.0)
+                            .show(ui, |ui| {
+                                ui.set_min_size(egui::vec2(150.0, 90.0));
+                                ui.heading(egui::RichText::new(e.name()).size(15.0).color(color));
+                                ui.label(egui::RichText::new(if owned { "done" } else { "branch — parallel to the chain" }).small().color(color));
+                                if !owned {
+                                    ui.add_space(4.0);
+                                    let mut affordable = true;
+                                    for (item, n) in e.cost() {
+                                        let got = have.iter().find(|(id, _)| id == item).map(|(_, c)| *c).unwrap_or(0);
+                                        let ok = got >= *n as u16;
+                                        affordable &= ok;
+                                        let cc = if ok { Theme::OK } else { egui::Color32::from_rgb(230, 130, 130) };
+                                        ui.horizontal(|ui| {
+                                            let (r, _) = ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::hover());
+                                            paint_item(ui, r, &ItemStack { item_id: item.to_string(), count: 1 }, &self.icons);
+                                            ui.label(egui::RichText::new(format!("{}/{}", got.min(*n as u16), n)).small().color(cc));
+                                        });
+                                    }
+                                    if can && affordable && ui.button("Unlock").clicked() {
+                                        branch_unlocked = Some(e);
+                                    }
+                                }
+                            });
+                    }
+                });
+                if let Some(e) = branch_unlocked {
+                    let _ = self.research.unlock(e, &mut self.inventory.slots);
+                }
                 ui.add_space(8.0);
                 ui.separator();
                 let hint = match era.next() {

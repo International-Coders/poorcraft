@@ -234,6 +234,8 @@ pub enum BlockEntity {
     ElectricFurnace(lf_game::machines::ElectricFurnace),
     Crusher(lf_game::machines::Crusher),
     Assembler(lf_game::machines::Assembler),
+    WaterWheel(lf_game::machines::WaterWheel),
+    Battery(lf_game::machines::BatteryCell),
 }
 
 #[derive(Clone, Debug)]
@@ -1541,45 +1543,60 @@ impl GameState {
         self.survival_tick(dt);
         self.update_drops(dt);
         // Furnaces and machines tick whether or not their UI is open.
-        // Generators are taken out while machines draw from them (single
-        // mutable owner at a time), then reinserted.
-        let mut generators: Vec<((i32, i32, i32), lf_game::machines::Generator)> = Vec::new();
-        let mut machine_positions: Vec<((i32, i32, i32), u32)> = Vec::new();
+        // Power: sources (generator/wheel/battery) are pulled out, the pure
+        // distribute_power runs the field (producers first, batteries cover
+        // gaps, surplus recharges), then everything is reinserted.
+        use lf_game::machines::PowerSource;
+        let mut sources: Vec<((i32, i32, i32), PowerSource)> = Vec::new();
+        let mut machine_positions: Vec<(i32, i32, i32)> = Vec::new();
         for (pos, entity) in self.block_entities.iter_mut() {
             match entity {
                 BlockEntity::Generator(g) => {
                     g.tick(dt);
-                    generators.push((*pos, g.clone()));
+                    sources.push((*pos, PowerSource::Generator(g.clone())));
+                }
+                BlockEntity::WaterWheel(w) => {
+                    // river-gated: any adjacent water (4 sides + below) spins it
+                    let has_water = [
+                        (pos.0 + 1, pos.1, pos.2), (pos.0 - 1, pos.1, pos.2),
+                        (pos.0, pos.1, pos.2 + 1), (pos.0, pos.1, pos.2 - 1),
+                        (pos.0, pos.1 - 1, pos.2),
+                    ].iter().any(|p| self.world.get_block(p.0, p.1, p.2).id() == registry::block::WATER);
+                    w.tick(dt, has_water);
+                    sources.push((*pos, PowerSource::Wheel(w.clone())));
+                }
+                BlockEntity::Battery(b) => {
+                    sources.push((*pos, PowerSource::Battery(b.clone())));
                 }
                 BlockEntity::ElectricFurnace(_) | BlockEntity::Crusher(_) | BlockEntity::Assembler(_) => {
-                    machine_positions.push((*pos, 1));
+                    machine_positions.push(*pos);
                 }
                 BlockEntity::Furnace(f) => {
                     f.tick(dt);
                 }
-                _ => {}
+                BlockEntity::Chest { .. } => {}
             }
         }
         let need = lf_game::machines::DRAW_RATE * dt;
-        for (mpos, _) in &machine_positions {
-            let mut powered = 0.0;
-            for (gpos, gen) in generators.iter_mut() {
-                let d = ((gpos.0 - mpos.0).pow(2) + (gpos.1 - mpos.1).pow(2) + (gpos.2 - mpos.2).pow(2)) as f32;
-                if d.sqrt() <= lf_game::machines::POWER_RANGE && powered < need {
-                    powered += gen.draw(need - powered);
-                }
-            }
+        let granted = lf_game::machines::distribute_power(&mut sources, &machine_positions, need);
+        for (spos, src) in sources {
+            let entity = match src {
+                PowerSource::Generator(g) => BlockEntity::Generator(g),
+                PowerSource::Wheel(w) => BlockEntity::WaterWheel(w),
+                PowerSource::Battery(b) => BlockEntity::Battery(b),
+            };
+            self.block_entities.insert(spos, entity);
+        }
+        for (mi, mpos) in machine_positions.iter().enumerate() {
+            let powered = granted[mi];
             if let Some(entity) = self.block_entities.get_mut(mpos) {
                 match entity {
                     BlockEntity::ElectricFurnace(f) => { f.tick(dt, powered); }
-                    BlockEntity::Crusher(c) => { c.tick(dt, powered); }
+                    BlockEntity::Crusher(cr) => { cr.tick(dt, powered); }
                     BlockEntity::Assembler(a) => { a.tick(dt, powered); }
                     _ => {}
                 }
             }
-        }
-        for (gpos, gen) in generators {
-            self.block_entities.insert(gpos, BlockEntity::Generator(gen));
         }
 
         // Water simulation + animated falling blocks.
@@ -1763,6 +1780,7 @@ impl GameState {
                                     BlockEntity::ElectricFurnace(f) => vec![f.input, f.output],
                                     BlockEntity::Crusher(c) => vec![c.input, c.output],
                                     BlockEntity::Assembler(a) => vec![a.input_a, a.input_b, a.output],
+                                    BlockEntity::WaterWheel(_) | BlockEntity::Battery(_) => vec![],
                                 };
                                 for s in stacks.into_iter().flatten() {
                                     self.spawn_drop(&s.item_id, s.count,
@@ -1806,13 +1824,17 @@ impl GameState {
                     registry::block::COAL_GENERATOR
                     | registry::block::ELECTRIC_FURNACE
                     | registry::block::CRUSHER
-                    | registry::block::ASSEMBLER => {
+                    | registry::block::ASSEMBLER
+                    | registry::block::WATER_WHEEL
+                    | registry::block::BATTERY => {
                         let key = (pos.x, pos.y, pos.z);
                         let block_id_here = self.world.get_block(pos.x, pos.y, pos.z).id();
                         self.block_entities.entry(key).or_insert_with(|| match block_id_here {
                             registry::block::COAL_GENERATOR => BlockEntity::Generator(Default::default()),
                             registry::block::ELECTRIC_FURNACE => BlockEntity::ElectricFurnace(Default::default()),
                             registry::block::CRUSHER => BlockEntity::Crusher(Default::default()),
+                            registry::block::WATER_WHEEL => BlockEntity::WaterWheel(Default::default()),
+                            registry::block::BATTERY => BlockEntity::Battery(Default::default()),
                             _ => BlockEntity::Assembler(Default::default()),
                         });
                         self.ui_open = UiOpen::Machine(key);
@@ -1902,6 +1924,10 @@ impl GameState {
                                             self.block_entities.insert(key, BlockEntity::Crusher(Default::default()));
                                         } else if b == registry::block::ASSEMBLER {
                                             self.block_entities.insert(key, BlockEntity::Assembler(Default::default()));
+                                        } else if b == registry::block::WATER_WHEEL {
+                                            self.block_entities.insert(key, BlockEntity::WaterWheel(Default::default()));
+                                        } else if b == registry::block::BATTERY {
+                                            self.block_entities.insert(key, BlockEntity::Battery(Default::default()));
                                         }
                                         self.remesh_around(place.x, place.z);
                                         // a placed block can dam water or

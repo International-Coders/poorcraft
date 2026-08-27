@@ -376,3 +376,25 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       the map's generator), not the old surface-block proxy; proofs:
       weather_snow (flakes over a snow field) + weather_dry (clear desert)
       join clouds_weather (rain)
+
+## Loop 315 — P29 Water Age (V1REBRAND doc 04 / build-pack Step 23)
+- [x] research prerequisite GRAPH: Era::Water branch (prereq Industrial,
+      independent of Electrical — doc 03's either-order rule);
+      ResearchState.branches (serde-default, pre-branch saves load);
+      can_unlock/unlocked/unlock() with material costs (16 planks + 24
+      stone + 4 iron — cheap/early per doc 04); tech-tree screen gains the
+      branch card with a live Unlock button; 5 new tests incl. save-compat
+- [x] machines: WaterWheel (12 EU/s while water touches it, river-gated,
+      free — lowest tier below the coal generator's 20) + BatteryCell
+      (4000 EU) + a PURE lf_game::machines::distribute_power (producers
+      first, batteries cover gaps = blackout prevention, surplus recharges
+      batteries in the 4-block field) — 3 tests
+- [x] blocks: WATER_WHEEL (45) + BATTERY (46) through the full content
+      pipeline (registry, atlas layers + procedural textures, items,
+      Water-era-gated recipes, drops); machine UI panels (spin-up + charge
+      bars); client power tick now runs every source through the pure step
+- [x] RT palette: ids 42-46 hand-set + a stable hash fallback for all
+      future ids so new blocks are never invisible/wrong in path tracing
+- [x] proof: water_wheel_power scene (river carved, wheel + battery +
+      crusher, the real power step spins the wheel for 30 sim-seconds) —
+      AI-verified as a riverside power station

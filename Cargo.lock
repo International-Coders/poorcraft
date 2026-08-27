@@ -1322,6 +1322,7 @@ dependencies = [
 name = "lf_game"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "glam",
  "lf_voxel",
  "serde",

@@ -51,6 +51,24 @@ fn palette() -> [[f32; 4]; 64] {
     for id in 32..=41u32 {
         set(&mut p, id, [0.5, 0.5, 0.52, 1.0]);  // machines/ores
     }
+    // ids 42..47: biome-identity surfaces + Water Age machines
+    set(&mut p, 42, [0.16, 0.55, 0.20, 1.0]);     // jungle grass
+    set(&mut p, 43, [0.70, 0.66, 0.29, 1.0]);     // savanna grass
+    set(&mut p, 44, [0.92, 0.27, 0.27, 1.0]);     // wildflower
+    set(&mut p, 45, [0.66, 0.52, 0.31, 1.0]);     // water wheel
+    set(&mut p, 46, [0.80, 0.72, 0.62, 1.0]);     // battery
+    // Fallback for ids > 46 (future content): a stable muted color per id
+    // so new blocks are never invisible/wrong in RT before they get a
+    // hand-tuned entry (registry-driven palette fix, P29).
+    let mut id = 47usize;
+    while id < p.len() {
+        let h = (id as u32).wrapping_mul(2654435761);
+        let r = 0.35 + (h & 0xFF) as f32 / 255.0 * 0.3;
+        let g = 0.35 + ((h >> 8) & 0xFF) as f32 / 255.0 * 0.3;
+        let b = 0.38 + ((h >> 16) & 0xFF) as f32 / 255.0 * 0.3;
+        p[id] = [r, g, b, 1.0];
+        id += 1;
+    }
     p
 }
 

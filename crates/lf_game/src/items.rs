@@ -107,6 +107,8 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "apple", name: "Apple", kind: ItemKind::Food(4), max_stack: 64 },
         ItemDef { id: "porkchop", name: "Porkchop", kind: ItemKind::Food(8), max_stack: 64 },
         // fluids
+        ItemDef { id: "water_wheel", name: "Water Wheel", kind: ItemKind::Block(block::WATER_WHEEL), max_stack: 1 },
+        ItemDef { id: "battery", name: "Battery", kind: ItemKind::Block(block::BATTERY), max_stack: 1 },
         ItemDef { id: "bucket", name: "Bucket", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "water_bucket", name: "Water Bucket", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "mutton", name: "Mutton", kind: ItemKind::Food(6), max_stack: 64 },
@@ -197,6 +199,8 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::GRASS | block::JUNGLE_GRASS | block::SAVANNA_GRASS => Some("dirt".into()),
         block::DIRT => Some("dirt".into()),
         block::FLOWER => None, // petals shatter (no item yet — note in BACKLOG)
+        block::WATER_WHEEL => Some("water_wheel".into()),
+        block::BATTERY => Some("battery".into()),
         block::STONE => Some("stone".into()),
         block::SAND => Some("sand".into()),
         block::MYCELIUM => Some("mycelium".into()),
