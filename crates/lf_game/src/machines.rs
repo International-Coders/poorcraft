@@ -1312,3 +1312,80 @@ pub fn distribute_power_relayed(
     }
     granted
 }
+
+// ------------------------------------------------------------------
+// Step 27: the item belt backbone — a held stack that pushes into the
+// first machine input it faces, on a cooldown.
+
+/// Seconds between belt pushes.
+pub const BELT_CD: f32 = 1.5;
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct Belt {
+    pub stack: Option<ItemStack>,
+    #[serde(default)]
+    pub cooldown: f32,
+}
+
+/// Push the belt's stack into an adjacent machine's first fitting
+/// input. Returns true when the stack moved (the caller empties it).
+pub fn belt_push(belt: &Belt, target: &mut BlockEntityRef) -> bool {
+    let Some(stack) = &belt.stack else { return false };
+    let accepts = |slot: &mut Option<ItemStack>, item: &str, max: u8| -> bool {
+        match slot {
+            None => {
+                *slot = Some(ItemStack { item_id: item.to_string(), count: 1 });
+                true
+            }
+            Some(s) if s.item_id == item && s.count < max => {
+                s.count += 1;
+                true
+            }
+            _ => false,
+        }
+    };
+    let item = stack.item_id.as_str();
+    match target {
+        BlockEntityRef::Furnace(f) => accepts(&mut f.input, item, 64),
+        BlockEntityRef::ElectricFurnace(f) => accepts(&mut f.input, item, 64),
+        BlockEntityRef::Crusher(cr) => accepts(&mut cr.input, item, 64),
+        BlockEntityRef::Assembler(a) => accepts(&mut a.input_a, item, 64) || accepts(&mut a.input_b, item, 64),
+        BlockEntityRef::Boiler(b) => accepts(&mut b.fuel, item, 64),
+        _ => false,
+    }
+}
+
+/// The machine faces a belt can feed (dispatch for belt_push).
+#[derive(Debug)]
+pub enum BlockEntityRef<'a> {
+    Furnace(&'a mut crate::smelting::Furnace),
+    ElectricFurnace(&'a mut ElectricFurnace),
+    Crusher(&'a mut Crusher),
+    Assembler(&'a mut Assembler),
+    Boiler(&'a mut Boiler),
+    None,
+}
+
+#[cfg(test)]
+mod belt_tests {
+    use super::*;
+
+    #[test]
+    fn belts_feed_machine_inputs_on_a_cooldown() {
+        let belt = Belt {
+            stack: Some(ItemStack { item_id: "raw_iron".into(), count: 1 }),
+            cooldown: 0.0,
+        };
+        let mut furnace = crate::smelting::Furnace::default();
+        assert!(belt_push(&belt, &mut BlockEntityRef::Furnace(&mut furnace)));
+        assert_eq!(furnace.input.as_ref().unwrap().item_id, "raw_iron");
+        // a full or mismatched slot refuses
+        furnace.input = Some(ItemStack { item_id: "stone".into(), count: 64 });
+        assert!(!belt_push(&belt, &mut BlockEntityRef::Furnace(&mut furnace)), "mismatched input refused");
+        // assembler takes either slot
+        let mut asm = Assembler::default();
+        asm.input_a = Some(ItemStack { item_id: "stone".into(), count: 64 });
+        assert!(belt_push(&belt, &mut BlockEntityRef::Assembler(&mut asm)));
+        assert_eq!(asm.input_b.as_ref().unwrap().item_id, "raw_iron");
+    }
+}

@@ -766,3 +766,11 @@
   scanning (tested), the full mods/README authoring guide, and
   `xtask new-mod` scaffolding (live-verified + loader-tested).
 - 253 tests green (+5); smoke OK; runtimes rebuilt; pushed.
+
+## Loop 326 — P28 leftovers + Step 40
+- Connected stone/planks surfaces, HUD text shadows + the on-kit audit,
+  in-play chronicle toasts + the cross-system lore-anchor test, and the
+  item belt backbone (tested pure push + client pass). Final honesty
+  pass recorded in BACKLOG + STATUS.
+- 256 tests green (+3); 47/47 vistest scenes; smoke OK; runtimes
+  rebuilt; pushed.

@@ -746,3 +746,13 @@ scaffold-parses loader test.
 **VERIFICATION**: 253 tests / 0 failed (+5). new-mod run live
 (scaffold + duplicate refusal observed). Smoke OK. Runtimes rebuilt;
 pushed.
+
+### 2026-08-27 — Loop 326: P28 leftovers + Step 40 honesty pass
+**WHAT**: The last deferred build-pack items + the honest final audit.
+**HOW**: atlas +stone_conn/planks_conn/belt with neighbor-aware face
+picking in mesh_section (conn contract test); ui_kit::text_shadowed on
+the air gauge; chronicle_toast state + HUD render; lore_anchors_span_
+three_systems test; lf_game::machines Belt + belt_push + BlockEntityRef
+(test) + the client belt pass; STATUS.md rewritten as the true state.
+**VERIFICATION**: 256 tests / 0 failed (+3). vistest 47/47. Smoke OK.
+Runtimes rebuilt; pushed.

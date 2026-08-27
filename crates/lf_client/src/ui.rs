@@ -536,7 +536,18 @@ impl GameState {
                     });
                 });
                 if self.air < 10 {
-                    ui.label(egui::RichText::new(format!("air {}", "·".repeat(self.air as usize))).color(Theme::XP));
+                    let (r, _) = ui.allocate_exact_size(egui::vec2(90.0, 14.0), egui::Sense::hover());
+                    kit::text_shadowed(ui.painter(), r.left_center(), egui::Align2::LEFT_CENTER,
+                        format!("air {}", "·".repeat(self.air as usize)),
+                        egui::FontId::proportional(12.0), Theme::XP);
+                }
+                // Steps 21-22: the chronicle toasts live milestones in play
+                if let Some((text, t)) = &self.chronicle_toast {
+                    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 18.0), egui::Sense::hover());
+                    let alpha = (t / 4.0).clamp(0.0, 1.0);
+                    kit::text_shadowed(ui.painter(), r.center(), egui::Align2::CENTER_CENTER,
+                        text.clone(), egui::FontId::proportional(14.0),
+                        egui::Color32::from_rgba_unmultiplied(Theme::ACCENT.r(), Theme::ACCENT.g(), Theme::ACCENT.b(), (alpha * 255.0) as u8));
                 }
                 // XP bar mirroring the hotbar width, with level chip + gain flash
                 let frac = (self.xp_progress as f32 / lf_game::combat::xp_for_level(self.xp_level).max(1) as f32).clamp(0.0, 1.0);

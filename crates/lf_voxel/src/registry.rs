@@ -20,7 +20,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 100;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 66;
+pub const MAX_VANILLA_BLOCK: u32 = 67;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -140,6 +140,8 @@ pub mod block {
     pub const COMPUTER: u32 = 65;
     // P36: the roost marker + rare crafting material
     pub const DRAGON_EGG: u32 = 66;
+    // Step 27: the item belt backbone
+    pub const BELT: u32 = 67;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -180,6 +182,7 @@ pub mod block {
             AC_UNIT => "Climate Unit",
             COMPUTER => "Computer Screen",
             DRAGON_EGG => "Dragon Egg",
+            BELT => "Item Belt",
             DIRT => "Dirt",
             SAND => "Sand",
             MYCELIUM => "Mycelium",

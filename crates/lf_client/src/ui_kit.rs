@@ -452,3 +452,18 @@ mod tests {
         assert!(full.len() > quarter.len(), "more progress = more arc points");
     }
 }
+
+/// Step 12 (HUD legibility): text with a hard shadow so labels stay
+/// readable over snow, sand and bright sky alike.
+pub fn text_shadowed(
+    p: &egui::Painter,
+    pos: egui::Pos2,
+    anchor: egui::Align2,
+    text: String,
+    font: egui::FontId,
+    color: egui::Color32,
+) {
+    p.text(pos + egui::vec2(1.0, 1.0), anchor, text.clone(), font.clone(),
+        egui::Color32::from_black_alpha(180));
+    p.text(pos, anchor, text, font, color);
+}

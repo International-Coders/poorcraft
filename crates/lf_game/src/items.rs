@@ -144,6 +144,7 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "ac_unit", name: "Climate Unit", kind: ItemKind::Block(block::AC_UNIT), max_stack: 8 },
         ItemDef { id: "computer", name: "Computer Screen", kind: ItemKind::Block(block::COMPUTER), max_stack: 8 },
         ItemDef { id: "dragon_scale", name: "Dragon Scale", kind: ItemKind::Material, max_stack: 16 },
+        ItemDef { id: "belt", name: "Item Belt", kind: ItemKind::Block(block::BELT), max_stack: 16 },
         // P37 ornate professional-tier items (path-gated)
         ItemDef { id: "precision_gear", name: "Precision Gear", kind: ItemKind::Material, max_stack: 8 },
         ItemDef { id: "master_blueprint", name: "Master Blueprint", kind: ItemKind::Material, max_stack: 4 },
@@ -256,6 +257,7 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::REFINERY => Some("refinery".into()),
         block::COMBUSTION_GENERATOR => Some("combustion_generator".into()),
         block::DRAGON_EGG => Some("dragon_scale".into()),
+        block::BELT => Some("belt".into()),
         block::CONDUIT => Some("conduit".into()),
         block::ELEVATOR => Some("elevator".into()),
         block::AC_UNIT => Some("ac_unit".into()),

@@ -127,6 +127,10 @@ pub fn recipes() -> &'static [Recipe] {
         vec![None, Some("iron_ingot"), None],
         vec![None, Some("stick"), None],
     ]));
+    // Step 27: the item belt backbone
+    book.push(r("belt", 6, vec![
+        vec![Some("iron_ingot"), Some("iron_gear"), Some("iron_ingot")],
+    ]));
     // P37 ornate professional-tier recipes (path-gated via paths::gate_for)
     book.push(r("precision_gear", 1, vec![
         vec![Some("machine_frame"), Some("iron_gear"), Some("machine_frame")],

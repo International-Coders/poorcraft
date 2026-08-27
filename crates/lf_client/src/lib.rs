@@ -251,6 +251,7 @@ pub enum BlockEntity {
     Reactor(lf_game::machines::Reactor),
     Conduit,
     Screen { page: u8 },
+    Belt(lf_game::machines::Belt),
 }
 
 #[derive(Clone, Debug)]
@@ -1009,6 +1010,9 @@ struct GameState {
     pub mounted_dragon: Option<u64>,
     /// P37: path standings + focus (accrued by play, never decay).
     pub paths: lf_game::paths::Paths,
+    /// Steps 21-22: the chronicle surfaces DURING play — milestone
+    /// events toast across the top for a few seconds.
+    pub chronicle_toast: Option<(String, f32)>,
     /// P34 blueprints: first corner marker, the captured clipboard, and
     /// the file it came from.
     pub bp_corner_a: Option<(i32, i32, i32)>,
@@ -1250,6 +1254,7 @@ impl GameState {
             spellbook,
             runed_tools: runed,
             paths,
+            chronicle_toast: None,
             imbue: lf_game::magic::ImbueMinigame::new(3),
             symmetry_plane: None,
             producer_positions: Vec::new(),
@@ -1795,6 +1800,7 @@ impl GameState {
                     // P35: relays extend the field (positions only)
                     conduit_positions.push(*pos);
                 }
+                BlockEntity::Belt(_) => {} // belt pass below
                 BlockEntity::Screen { .. } => {}
                 BlockEntity::Furnace(f) => {
                     f.tick(dt);
@@ -2047,6 +2053,61 @@ impl GameState {
             }
         }
 
+        // Step 27 belt pass: on cooldown, push the held stack into the
+        // first adjacent machine input that takes it.
+        {
+            let keys: Vec<(i32, i32, i32)> = self.block_entities.keys().copied().collect();
+            for k in keys.clone() {
+                let (stack, mut cd) = match self.block_entities.get(&k) {
+                    Some(BlockEntity::Belt(b)) => (b.stack.clone(), b.cooldown),
+                    _ => continue,
+                };
+                cd -= dt;
+                if cd > 0.0 {
+                    if let Some(BlockEntity::Belt(b)) = self.block_entities.get_mut(&k) {
+                        b.cooldown = cd;
+                    }
+                    continue;
+                }
+                let Some(stack) = stack else { continue };
+                let neighbors = [
+                    (k.0 + 1, k.1, k.2), (k.0 - 1, k.1, k.2),
+                    (k.0, k.1, k.2 + 1), (k.0, k.1, k.2 - 1),
+                ];
+                let mut moved = false;
+                for n in &neighbors {
+                    let target = self.block_entities.get_mut(n);
+                    let r = match target {
+                        Some(BlockEntity::Furnace(f)) => Some(lf_game::machines::BlockEntityRef::Furnace(f)),
+                        Some(BlockEntity::ElectricFurnace(f)) => Some(lf_game::machines::BlockEntityRef::ElectricFurnace(f)),
+                        Some(BlockEntity::Crusher(cr)) => Some(lf_game::machines::BlockEntityRef::Crusher(cr)),
+                        Some(BlockEntity::Assembler(a)) => Some(lf_game::machines::BlockEntityRef::Assembler(a)),
+                        Some(BlockEntity::Boiler(b)) => Some(lf_game::machines::BlockEntityRef::Boiler(b)),
+                        _ => None,
+                    };
+                    if let Some(mut r) = r {
+                        let belt = lf_game::machines::Belt { stack: Some(stack.clone()), cooldown: 0.0 };
+                        if lf_game::machines::belt_push(&belt, &mut r) {
+                            moved = true;
+                            break;
+                        }
+                    }
+                }
+                if let Some(BlockEntity::Belt(b)) = self.block_entities.get_mut(&k) {
+                    if moved {
+                        // consume one from the held stack
+                        if stack.count > 1 {
+                            b.stack = Some(ItemStack { count: stack.count - 1, ..stack });
+                        } else {
+                            b.stack = None;
+                        }
+                        b.cooldown = lf_game::machines::BELT_CD;
+                    } else {
+                        b.cooldown = lf_game::machines::BELT_CD;
+                    }
+                }
+            }
+        }
         // Water simulation + animated falling blocks.
         self.update_falling_blocks(dt);
         self.tick_fluids();
@@ -2120,6 +2181,12 @@ impl GameState {
             }
         }
 
+        if let Some((_, t)) = &mut self.chronicle_toast {
+            *t -= dt;
+            if *t <= 0.0 {
+                self.chronicle_toast = None;
+            }
+        }
         self.elapsed += dt;
 
         // Break particles: gravity + simple ground stop.
@@ -2304,6 +2371,7 @@ impl GameState {
                                     BlockEntity::Combustion(c) => vec![c.fuel],
                                     BlockEntity::Reactor(r) => vec![r.fuel],
                                     BlockEntity::Conduit | BlockEntity::Screen { .. } => vec![],
+                                    BlockEntity::Belt(b) => vec![b.stack],
                                 };
                                 for s in stacks.into_iter().flatten() {
                                     self.spawn_drop(&s.item_id, s.count,
@@ -3336,6 +3404,8 @@ impl GameState {
     }
 
     pub fn chronicle_event(&mut self, event_type: EventType, payload: String) {
+        // Steps 21-22: the saga is visible while playing, not only in the J log
+        self.chronicle_toast = Some((format!("✦ {}", payload), 4.0));
         self.chronicle.push(ChronicleEvent {
             id: format!("e{}", self.chronicle.len() + 1),
             event_type,
@@ -5125,6 +5195,35 @@ mod tests {
             }
         }
         assert!(greens > 0, "the grid page shows the green share");
+    }
+
+    /// Steps 21-22: the lore anchors (the Smith, the Null, the river
+    /// wardens) are consistent ACROSS systems — books, items, and the
+    /// NPC who trades them.
+    #[test]
+    fn lore_anchors_span_three_systems() {
+        // books (lore/books.toml)
+        let books_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lore/books.toml");
+        let lib = crate::lore::LoreLibrary::load(&books_path);
+        assert!(lib.books.len() >= 3);
+        let all_pages: String = lib.books.iter()
+            .flat_map(|b| b.pages.iter().map(|p| p.as_str()))
+            .collect::<Vec<_>>().join(" ");
+        for anchor in ["the smith", "null", "river"] {
+            assert!(all_pages.to_lowercase().contains(anchor),
+                "anchor {:?} missing from the books", anchor);
+        }
+        // items: each tome maps to its book
+        for item in ["tome_of_the_forge", "tome_of_the_null", "wardens_ledger"] {
+            assert!(lib.for_item(item).is_some(), "no book behind item {}", item);
+            assert!(lf_game::items::item_def(item).is_some(), "tome item {} missing", item);
+        }
+        // the NPC: the Lorekeeper trades all three tomes
+        let trades = lf_npc::trade_offers(lf_npc::VillagerJob::Lorekeeper);
+        for item in ["tome_of_the_forge", "tome_of_the_null", "wardens_ledger"] {
+            assert!(trades.iter().any(|(give, _, _, _)| give == &item),
+                "the Lorekeeper does not trade {}", item);
+        }
     }
 
     /// ClientSave bincode round trip (the same path save_world/load use).

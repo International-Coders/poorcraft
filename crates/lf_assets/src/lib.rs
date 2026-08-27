@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 83] = [
+pub const TEXTURE_NAMES: [&str; 86] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -43,6 +43,10 @@ pub const TEXTURE_NAMES: [&str; 83] = [
     "conduit", "elevator", "ac_unit", "computer", "screen",
     // P36 dragons
     "dragon_scale_block", "dragon_egg",
+    // Step 11: connected (edgeless) variants for large flat surfaces
+    "stone_conn", "planks_conn",
+    // Step 27: the item belt
+    "belt",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -83,6 +87,19 @@ pub const SCREEN_LAYER: u32 = 80;
 /// tints its cubes with).
 pub const DRAGON_BODY_LAYER: u32 = 81;
 pub const DRAGON_EGG_LAYER: u32 = 82;
+/// Step 11: when the neighbor on a face is the SAME block, that face
+/// samples the edgeless variant so big surfaces stop gridding.
+pub const STONE_CONN_LAYER: u32 = 83;
+pub const PLANKS_CONN_LAYER: u32 = 84;
+
+/// The connected variant for a block's atlas layer, if it has one.
+pub fn connected_variant(layer: u32) -> Option<u32> {
+    match layer {
+        0 => Some(STONE_CONN_LAYER),      // stone
+        15 => Some(PLANKS_CONN_LAYER),    // planks
+        _ => None,
+    }
+}
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -117,6 +134,7 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         64 => 78, // climate unit
         65 => 79, // computer (its FACE shows the dynamic screen layer)
         66 => 82, // dragon egg
+        67 => 85, // item belt
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -532,6 +550,30 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     } else {
                         Rgba([0, 0, 0, 0])
                     }
+                }
+                "belt" => {
+                    // angled rollers + a moving-load stripe
+                    let frame = (x >= 2 && x <= 13) && (y >= 6 && y <= 9);
+                    let roller = frame && (x % 3 == 0);
+                    let load = frame && (y == 7) && ((x + 2) % 5 < 2);
+                    if load {
+                        Rgba([240, 200, 90, 255])
+                    } else if roller {
+                        Rgba([90, 90, 100, 255])
+                    } else if frame {
+                        Rgba([140, 140, 150, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "stone_conn" => {
+                    let v = 112 + ((x * 5 + y * 7) % 18);
+                    Rgba([ch(v), ch(v - 2), ch(v - 4), 255])
+                }
+                "planks_conn" => {
+                    let grain = ((y * 3 + (x / 4) * 5) % 9) < 2;
+                    let v = if grain { 148 } else { 172 };
+                    Rgba([ch(v), ch(v - 46), ch(v - 92), 255])
                 }
                 "screen" => {
                     // default face: dark glass with a faint scanline (the
@@ -1927,7 +1969,7 @@ mod tests {
             if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine"
                 || name == "pump" || name == "refinery" || name == "combustion_generator"
                 || name == "reactor" || name == "enchanting_table" || name == "warding_pylon"
-                || name == "scaffold" || name == "statue" || name == "conduit" || name == "elevator" || name == "dragon_egg"
+                || name == "scaffold" || name == "statue" || name == "conduit" || name == "elevator" || name == "dragon_egg" || name == "belt"
                 || name == "ac_unit" || name == "computer" {
                 // machine shells with hollow details
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();

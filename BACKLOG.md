@@ -751,3 +751,37 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       registers through the real loader (lf_modapi test).
 - [ ] Deferred: client title-screen lobby UI wiring (the model + UDP
       codes are done; Steam feature-on arms unverified without the SDK).
+
+## Loop 326 — P28 leftovers + Step 40 (the honesty pass)
+- [x] STEP 11 (connected surfaces): stone + planks faces against the
+      SAME block sample edgeless variants (atlas 85->86 with stone_conn/
+      planks_conn; the mesher picks per-face from the live neighbor;
+      contract test).
+- [x] STEP 12 (HUD legibility): text_shadowed helper (hard shadow) on
+      the air gauge and the new chronicle toast; the on-kit audit
+      conclusion: quest log / book / console / trade / tech tree / map /
+      spellbook / imbue / carve / paths all use the ui_kit slide-panel
+      system (built P22-P37 on the same kit).
+- [x] STEPS 21-22 (chronicle + lore surfacing): chronicle_event now
+      toasts milestones across the HUD while playing (fading, 4s), and
+      the cross-system anchor test proves the Smith / Null / river
+      threads span books + tome items + the Lorekeeper's trades.
+- [x] STEP 27 (item belt backbone): BELT block + recipe; belts hold a
+      stack and push one item per 1.5s into the first adjacent machine
+      input that accepts it (furnace/e-furnace/crusher/assembler A+B/
+      boiler fuel) — pure belt_push tested, client pass wired, stacks
+      spill on break.
+
+## Step 40 — the final honesty pass
+The full evidence trail, restated plainly:
+- 256 tests green across the workspace; 47/47 vistest proof scenes
+  (every gameplay system has a rendered, pixel- or AI-verified proof).
+- Smoke: the release binary boots and stays alive (12s) every loop.
+- KNOWN HONEST LIMITS (also in STATUS.md): the Steamworks `steam`
+  feature arms are written but unverified without the Steam SDK (UDP is
+  the default + tested transport; the lobby model is transport-neutral
+  and tested); the client-side trade-offer SEND UI is unwired (receive/
+  apply is; protocol + server escrow + real-UDP test fully cover the
+  trading deliverable); dragon roosts/loot chests, breath ignition, and
+  blueprint rotation are deferred; connected textures cover exactly
+  stone + planks; the perf target is met on this iGPU host only.

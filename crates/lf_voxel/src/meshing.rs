@@ -41,6 +41,16 @@ pub fn water_surface_height(block: BlockState) -> f32 {
 /// state + face to a texture atlas layer index (per-face materials); light is
 /// smoothed per vertex by averaging the four cells around each corner, and
 /// ambient occlusion darkens corners occluded by neighboring blocks.
+/// Step 11: connected-variant table (mirrors lf_assets::connected_
+/// variant — lf_voxel cannot depend on lf_assets).
+fn lf_assets_conn(layer: u32) -> Option<u32> {
+    match layer {
+        0 => Some(83),  // stone_conn
+        15 => Some(84), // planks_conn
+        _ => None,
+    }
+}
+
 pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, neighbor_nx: Option<&VoxelSection>,
                      neighbor_py: Option<&VoxelSection>, neighbor_ny: Option<&VoxelSection>, neighbor_pz: Option<&VoxelSection>, neighbor_nz: Option<&VoxelSection>,
                      tex_of: &dyn Fn(BlockState, Face) -> u32,
@@ -135,6 +145,21 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
             lights[i] = ((sky / 4) << 4) | (blk / 4);
         }
         (aos, lights)
+    };
+
+    /// Step 11 (connected surfaces): when the block a face is drawn
+    /// against is the SAME block (full cube), sample the edgeless
+    /// variant so large stone/plank surfaces read as continuous.
+    let conn_tex = |block: BlockState, nb: BlockState, face_tex: u32| -> u32 {
+        if nb.id() == block.id()
+            && nb.shape() == crate::Shape::Cube
+            && block.id() != crate::registry::block::WATER
+        {
+            if let Some(conn) = lf_assets_conn(face_tex) {
+                return conn;
+            }
+        }
+        face_tex
     };
 
     /// P34 shapes: emit a slab or stair as 1-2 boxes with exactly the
@@ -274,7 +299,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                         let t = side_top(nb);
                         let corners = [[fx, fy, fz], [fx, t, fz], [fx, t, fz1], [fx, fy, fz1]];
                         let (ao, light) = corner_shades(cell, [-1, 0, 0], &corners, [fx, fy, fz]);
-                        push_face(&mut vertices, &mut indices, corners, UVS_A, [-1.0, 0.0, 0.0], tex_of(block, Face::Side), ao, light, sway);
+                        push_face(&mut vertices, &mut indices, corners, UVS_A, [-1.0, 0.0, 0.0], conn_tex(block, nb, tex_of(block, Face::Side)), ao, light, sway);
                     }
                 }
                 // +X face
@@ -284,20 +309,22 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                         let t = side_top(nb);
                         let corners = [[fx1, fy, fz1], [fx1, t, fz1], [fx1, t, fz], [fx1, fy, fz]];
                         let (ao, light) = corner_shades(cell, [1, 0, 0], &corners, [fx, fy, fz]);
-                        push_face(&mut vertices, &mut indices, corners, UVS_A, [1.0, 0.0, 0.0], tex_of(block, Face::Side), ao, light, sway);
+                        push_face(&mut vertices, &mut indices, corners, UVS_A, [1.0, 0.0, 0.0], conn_tex(block, nb, tex_of(block, Face::Side)), ao, light, sway);
                     }
                 }
                 // -Y face (corners wound so the outward normal points down)
                 if face_visible(get_block(x as i32, y as i32 - 1, z as i32)) {
+                    let nb = get_block(x as i32, y as i32 - 1, z as i32);
                     let corners = [[fx, fy, fz], [fx, fy, fz1], [fx1, fy, fz1], [fx1, fy, fz]];
                     let (ao, light) = corner_shades(cell, [0, -1, 0], &corners, [fx, fy, fz]);
-                    push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, -1.0, 0.0], tex_of(block, Face::Bottom), ao, light, sway);
+                    push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, -1.0, 0.0], conn_tex(block, nb, tex_of(block, Face::Bottom)), ao, light, sway);
                 }
                 // +Y face
                 if face_visible(get_block(x as i32, y as i32 + 1, z as i32)) {
+                    let nb = get_block(x as i32, y as i32 + 1, z as i32);
                     let corners = [[fx, wy1, fz1], [fx, wy1, fz], [fx1, wy1, fz], [fx1, wy1, fz1]];
                     let (ao, light) = corner_shades(cell, [0, 1, 0], &corners, [fx, fy, fz]);
-                    push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 1.0, 0.0], tex_of(block, Face::Top), ao, light, sway);
+                    push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 1.0, 0.0], conn_tex(block, nb, tex_of(block, Face::Top)), ao, light, sway);
                 }
                 // -Z face
                 {
@@ -306,7 +333,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                         let t = side_top(nb);
                         let corners = [[fx1, fy, fz], [fx1, t, fz], [fx, t, fz], [fx, fy, fz]];
                         let (ao, light) = corner_shades(cell, [0, 0, -1], &corners, [fx, fy, fz]);
-                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, -1.0], tex_of(block, Face::Side), ao, light, sway);
+                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, -1.0], conn_tex(block, nb, tex_of(block, Face::Side)), ao, light, sway);
                     }
                 }
                 // +Z face
@@ -316,7 +343,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                         let t = side_top(nb);
                         let corners = [[fx, fy, fz1], [fx, t, fz1], [fx1, t, fz1], [fx1, fy, fz1]];
                         let (ao, light) = corner_shades(cell, [0, 0, 1], &corners, [fx, fy, fz]);
-                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, 1.0], tex_of(block, Face::Side), ao, light, sway);
+                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, 1.0], conn_tex(block, nb, tex_of(block, Face::Side)), ao, light, sway);
                     }
                 }
             }
@@ -577,5 +604,14 @@ mod tests {
         let slab_bottoms = mesh.vertices.iter()
             .filter(|v| v.normal == [0.0, -1.0, 0.0] && (v.position[1] - 8.0).abs() < 1e-4).count();
         assert_eq!(slab_bottoms, 0, "the slab's own bottom face is culled at y=8");
+    }
+
+    /// Step 11: the connected-variant contract — stone/planks faces
+    /// against the SAME block swap to the edgeless layers.
+    #[test]
+    fn connected_variants_map_the_two_families() {
+        assert_eq!(lf_assets_conn(0), Some(83), "stone -> stone_conn");
+        assert_eq!(lf_assets_conn(15), Some(84), "planks -> planks_conn");
+        assert_eq!(lf_assets_conn(1), None, "grass has no variant");
     }
 }
