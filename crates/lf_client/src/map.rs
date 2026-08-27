@@ -388,9 +388,17 @@ impl GameState {
         let loaded: HashSet<(i32, i32)> = self.batches.keys().copied().collect();
         self.map.refresh(&self.world, &loaded, &self.saved_set, &self.dirty, center_chunk, 6);
         let center = (p.x, p.z);
+        let zoom = self.settings.minimap_zoom.clamp(0.5, 3.0);
         let existing = self.map.minimap_tex.take();
-        let tex = self.map.composite(ctx, "minimap", existing, (MINIMAP_PX, MINIMAP_PX), center, 1.0);
+        let tex = self.map.composite(ctx, "minimap", existing, (MINIMAP_PX, MINIMAP_PX), center, zoom);
         self.map.minimap_tex = Some(tex.clone());
+        // Step 15 rotation: facing direction maps to screen-up; texture and
+        // markers share the same rotation so they stay aligned.
+        let look = self.player.look_dir();
+        let ang = look.x.atan2(look.z);
+        let rotate = self.settings.rotate_minimap;
+        // rotation by (ang + PI) sends the facing vector (sin a, cos a) to (0, -1)
+        let (rc, rs) = ((ang + std::f32::consts::PI).cos(), (ang + std::f32::consts::PI).sin());
 
         egui::Area::new(egui::Id::new("minimap"))
             .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 34.0))
@@ -399,15 +407,55 @@ impl GameState {
                 let (rect, response) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
                 let paint = ui.painter();
                 paint.rect_filled(rect, 8.0, FOG);
-                let uv = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0));
-                paint.image(tex.id(), rect, uv, Color32::WHITE);
+                if rotate {
+                    // rotated texture draw: custom mesh with UVs rotated by
+                    // the inverse angle around the texture center
+                    let inv = -(ang + std::f32::consts::PI);
+                    let (ic, is) = (inv.cos(), inv.sin());
+                    let corners = [
+                        (rect.left_top(), Vec2::new(-0.5, -0.5)),
+                        (rect.right_top(), Vec2::new(0.5, -0.5)),
+                        (rect.right_bottom(), Vec2::new(0.5, 0.5)),
+                        (rect.left_bottom(), Vec2::new(-0.5, 0.5)),
+                    ];
+                    let mut verts = Vec::with_capacity(4);
+                    for (pos, off) in corners {
+                        let uv = Pos2::new(0.5 + off.x * ic - off.y * is, 0.5 + off.x * is + off.y * ic);
+                        verts.push(egui::epaint::Vertex { pos, uv, color: Color32::WHITE });
+                    }
+                    let mut mesh = egui::Mesh::default();
+                    mesh.vertices = verts;
+                    mesh.indices = vec![0, 1, 2, 0, 2, 3];
+                    mesh.texture_id = tex.id();
+                    paint.add(egui::Shape::Mesh(std::sync::Arc::new(mesh)));
+                } else {
+                    let uv = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0));
+                    paint.image(tex.id(), rect, uv, Color32::WHITE);
+                }
                 paint.rect_stroke(rect, 8.0, egui::Stroke::new(2.0, Theme::ACCENT_DIM), egui::StrokeKind::Middle);
-                paint.rect_filled(Rect::from_center_size(rect.center_top(), egui::vec2(18.0, 12.0)), 3.0, Theme::BG);
-                paint.text(rect.center_top() + Vec2::new(0.0, 6.0), egui::Align2::CENTER_CENTER, "N",
+                // north chip: pinned at the top when north-up, riding the
+                // rotated rim when the map spins
+                let north_pos = if rotate {
+                    let half = size / 2.0 - 8.0;
+                    rect.center() + Vec2::new(-0.0 * rc - (-half) * rs, -0.0 * rs + (-half) * rc)
+                } else {
+                    rect.center_top() + Vec2::new(0.0, 6.0)
+                };
+                paint.rect_filled(Rect::from_center_size(north_pos, egui::vec2(18.0, 12.0)), 3.0, Theme::BG);
+                paint.text(north_pos, egui::Align2::CENTER_CENTER, "N",
                     egui::FontId::proportional(10.0), Theme::ACCENT);
 
                 let to_screen = |wx: f32, wz: f32| -> Pos2 {
-                    Pos2::new(rect.left() + (wx - center.0) + size / 2.0, rect.top() + (wz - center.1) + size / 2.0)
+                    let dx = (wx - center.0) * zoom;
+                    let dz = (wz - center.1) * zoom;
+                    if rotate {
+                        Pos2::new(
+                            rect.center().x + dx * rc - dz * rs,
+                            rect.center().y + dx * rs + dz * rc,
+                        )
+                    } else {
+                        Pos2::new(rect.left() + dx + size / 2.0, rect.top() + dz + size / 2.0)
+                    }
                 };
                 for mob in &self.mobs {
                     let c = if mob.mob_type.is_hostile() { Theme::BAD } else { Theme::TEXT_DIM };
@@ -425,11 +473,10 @@ impl GameState {
                     paint.circle_filled(pos, 3.5, col);
                     paint.circle_stroke(pos, 3.5, egui::Stroke::new(1.0, Theme::BG));
                 }
-                // player arrow pointing along the look direction
-                let look = self.player.look_dir();
-                let ang = look.x.atan2(look.z);
+                // player arrow: points along the look direction, or straight
+                // up when the map itself rotates with the player
                 let c = rect.center();
-                let dir = Vec2::new(ang.sin(), ang.cos());
+                let dir = if rotate { Vec2::new(0.0, -1.0) } else { Vec2::new(ang.sin(), ang.cos()) };
                 let tip = c + dir * 7.0;
                 let left = c + Vec2::new(-dir.y, dir.x) * 4.0 - dir * 4.0;
                 let right = c - Vec2::new(-dir.y, dir.x) * 4.0 - dir * 4.0;

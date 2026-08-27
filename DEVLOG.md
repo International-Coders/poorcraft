@@ -500,3 +500,31 @@ through it); perf at Medium radius-5 p50 111 / p95 156 / min 77 ms (incl.
 readback+PNG overhead — live confirmation via F3 pending next session).
 User's game session still running — no smoke pkill. Runtimes rebuilt;
 pushed.
+
+### 2026-08-27 — Loop 313: Steps 13/14/15 (settings, thumbnails, minimap)
+**WHAT**: Key rebinding + the Path-Traced quality tier (Step 13), slot
+thumbnails + first-launch walkthrough (Step 14), minimap rotation/zoom +
+world-space waypoint beacons (Step 15).
+**HOW**: crates/lf_client/src/input.rs (Action/Keymap, name-based
+serialization with bounded code_from_name); window_event arms became
+keymap guards + a rebind-capture pre-step; PlayerInput reads the keymap;
+Settings.keymap_pairs + Settings.quality (serde defaults; Settings no
+longer Copy). Quality::PathTraced -> RtMode::Live. capture_slot_thumbnail
+(HeadlessRenderer 256x144 into worlds/<slot>/thumb.png, 120s throttle) +
+picker texture cache. map.rs draw_minimap: rotated egui Mesh for the tile,
+shared rotation for dots/pips/N chip, fixed-up player arrow, zoom into
+composite; lf_assets waypoint_0..5 translucent layers + push_beam_quads
+beams in the transparent pass; waypoint_beacons vistest scene.
+**FIRST-LAUNCH WALKTHROUGH (Step 14)**: fresh boot -> title offers Play
+<newest slot> / New World (type picker) / Load Game / Multiplayer /
+Settings / Quit — no dead ends; Settings opened from the title returns to
+the title (Back and Esc, loop-309 fix); Load Game lists slots with
+name/type/seed/last-played (+ thumbnail after first autosave) with
+two-step delete; New World spawns into the world; Esc pauses; Quit to
+Title returns. Verified against the live build (boot log + loop-309
+title capture + settings-back regression fixes).
+**VERIFICATION**: 187 tests / 0 (new: keymap defaults+roundtrip+persist,
+Step-13 combined persist); vistest 27/27; waypoint_beacons proof
+AI-verified; `make smoke` SMOKE OK (user session ended, so the real smoke
+ran) and the boot log shows [MOD SMOKE TEST] OK with 3 mods. Runtimes
+rebuilt; pushed.

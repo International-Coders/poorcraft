@@ -348,6 +348,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "waypoint_beacons",
+            desc: "world-space waypoint beams rising from the terrain, three colors, transparent pass",
+            default_seed: 12345,
+            time_of_day: 0.55,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the beams in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "transparency_layers",
             desc: "water pool behind a glass wall with particles on both sides: transparent pass layering, pixel-checked",
             default_seed: 12345,
@@ -654,6 +666,41 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
             push_quad(&mut vertices, &mut indices, corners, uvs, normal, sand_tex);
         }
     }
+    // waypoint_beacons: slim tinted beams (Step 15) in the transparent
+    // channel, mirroring the client's waypoint_batch geometry
+    if spec.name == "waypoint_beacons" {
+        let h = world.surface_height(0, 0) as f32;
+        let mut push_beam = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                             cx: f32, cz: f32, tex: u32| {
+            let r = 0.35f32;
+            let (y0, y1) = (h, h + 24.0);
+            let faces: [([f32; 3], [[f32; 3]; 4]); 4] = [
+                ([0.0, 0.0, -1.0], [[cx - r, y0, cz - r], [cx - r, y1, cz - r], [cx + r, y1, cz - r], [cx + r, y0, cz - r]]),
+                ([0.0, 0.0, 1.0], [[cx + r, y0, cz + r], [cx + r, y1, cz + r], [cx - r, y1, cz + r], [cx - r, y0, cz + r]]),
+                ([-1.0, 0.0, 0.0], [[cx - r, y0, cz + r], [cx - r, y1, cz + r], [cx - r, y1, cz - r], [cx - r, y0, cz - r]]),
+                ([1.0, 0.0, 0.0], [[cx + r, y0, cz - r], [cx + r, y1, cz - r], [cx + r, y1, cz + r], [cx + r, y0, cz + r]]),
+            ];
+            for (normal, corners) in faces {
+                let base = vertices.len() as u32;
+                for (corner, uv) in corners.iter().zip([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]) {
+                    vertices.push(GpuVertex {
+                        position: *corner,
+                        normal,
+                        tex_coord: uv,
+                        tex_index: tex,
+                        ao: 1.0,
+                        light: 0xF0,
+                        sway: 0.0,
+                    });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        };
+        push_beam(&mut water_vertices, &mut water_indices, 0.5, 0.5, lf_assets::WAYPOINT_LAYERS[0]);
+        push_beam(&mut water_vertices, &mut water_indices, 4.5, -2.5, lf_assets::WAYPOINT_LAYERS[1]);
+        push_beam(&mut water_vertices, &mut water_indices, -4.5, 3.5, lf_assets::WAYPOINT_LAYERS[3]);
+    }
+
     // transparency_layers: debris billboards on both sides of the glass —
     // the near pair must render over the pane, the far pair through it
     if spec.name == "transparency_layers" {
@@ -725,6 +772,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "transparency_layers" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.2, 10.5), Vec3::new(0.0, h + 1.2, 2.0))
+    } else if spec.name == "waypoint_beacons" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(11.0, h + 14.0, 12.0), Vec3::new(0.0, h + 6.0, 0.0))
     } else if spec.first_person {
         // Find a viewpoint with an open vista: a local rise whose best look
         // direction drops the most over 30 blocks, so the frame shows both

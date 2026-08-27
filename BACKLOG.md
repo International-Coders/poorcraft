@@ -320,3 +320,31 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       perf, Medium(radius-5) numbers recorded in DECISIONS (target device
       = this host's iGPU); live >=30fps confirmation pending next play
       session's F3 reading
+
+## Loop 313 — build-pack Steps 13, 14, 15 (settings completeness + picker + minimap)
+- [x] Step 13 KEY REBINDING: new lf_client::input (Action x Keymap,
+      defaults = the original hardcoded keys); window_event + movement read
+      the keymap; Settings > Controls tab with click-then-press capture
+      rows; persisted via Settings.keymap_pairs in ClientSave (serde
+      default; junk input falls back to defaults). Digits 1-9 + Escape
+      stay fixed by design. Persistence test:
+      rebind_and_quality_tier_persist_through_client_save
+- [x] Step 13 PATH-TRACED TIER: Quality::PathTraced added — Medium raster
+      base + RtMode::Live; Low/Medium/High now explicitly set rt Off;
+      active tier stored in Settings.quality and shown in the preset row
+- [x] Step 14 THUMBNAILS: save_world captures a 256x144 live-view PNG to
+      worlds/<slot>/thumb.png (throttled ~2 min so the 30s autosave stays
+      cheap); the slot picker lazily loads and shows it beside
+      name/type/seed/last-played
+- [x] Step 14 FIRST-LAUNCH WALKTHROUGH: documented in DEVLOG (title ->
+      Play/New/Load/Multiplayer/Settings, no dead ends; Settings-from-
+      title returns to title — fixed in the loop-309 audit; legacy
+      worlds/default pre-load removed loop 308)
+- [x] Step 15 MINIMAP: rotate-with-view (custom rotated mesh + shared
+      marker rotation + N chip rides the rim) + zoom 0.5-3x (Interface
+      settings), both persisted
+- [x] Step 15 BEACONS: per-color translucent atlas layers
+      (waypoint_0..5) + world-space beams rebuilt per frame from the
+      player's waypoints and drawn in the transparent pass; proof scene
+      waypoint_beacons (AI-verified: three colored translucent beams,
+      no artifacts)

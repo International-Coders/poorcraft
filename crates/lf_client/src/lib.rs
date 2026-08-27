@@ -27,6 +27,7 @@ use winit::{
 };
 
 pub mod console;
+pub mod input;
 pub mod icons;
 pub mod map;
 pub mod slots;
@@ -303,10 +304,13 @@ pub enum Quality {
     Low,
     Medium,
     High,
+    /// Raster look at Medium + the live path-traced view on top (Pillar 4:
+    /// the showcase, not the baseline).
+    PathTraced,
 }
 
 /// Player-tunable settings, persisted with the world save.
-#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     pub sensitivity: f32,
     pub invert_y: bool,
@@ -324,6 +328,26 @@ pub struct Settings {
     pub show_minimap: bool,
     #[serde(default = "default_ui_scale")]
     pub ui_scale: f32,
+    /// Rebindable keys as (action-index, key-name) pairs (Step 13).
+    #[serde(default)]
+    pub keymap_pairs: Vec<(u8, String)>,
+    /// Active quality tier 0=Low 1=Medium 2=High 3=Path-Traced.
+    #[serde(default = "default_quality")]
+    pub quality: u8,
+    /// Corner minimap rotates with the player (Step 15).
+    #[serde(default = "default_true")]
+    pub rotate_minimap: bool,
+    /// Corner minimap zoom, px per block (Step 15).
+    #[serde(default = "default_minimap_zoom")]
+    pub minimap_zoom: f32,
+}
+
+fn default_minimap_zoom() -> f32 {
+    1.0
+}
+
+fn default_quality() -> u8 {
+    1
 }
 
 fn default_true() -> bool {
@@ -351,6 +375,10 @@ impl Default for Settings {
             show_fps: false,
             show_minimap: true,
             ui_scale: 1.0,
+            keymap_pairs: Vec::new(),
+            quality: default_quality(),
+            rotate_minimap: true,
+            minimap_zoom: 1.0,
         }
     }
 }
@@ -369,13 +397,27 @@ impl Settings {
                 self.view_distance = 5;
                 self.clouds = true;
                 self.particles = true;
+                self.rt_mode = RtMode::Off;
             }
             Quality::High => {
                 self.view_distance = 7;
                 self.clouds = true;
                 self.particles = true;
+                self.rt_mode = RtMode::Off;
+            }
+            Quality::PathTraced => {
+                self.view_distance = 5;
+                self.clouds = true;
+                self.particles = true;
+                self.rt_mode = RtMode::Live;
             }
         }
+        self.quality = match q {
+            Quality::Low => 0,
+            Quality::Medium => 1,
+            Quality::High => 2,
+            Quality::PathTraced => 3,
+        };
     }
 }
 
@@ -470,6 +512,25 @@ impl ApplicationHandler for App {
                         WindowEvent::KeyboardInput { event: key, .. } => {
                             if let PhysicalKey::Code(code) = key.physical_key {
                                 let pressed = key.state == ElementState::Pressed;
+                                // Step 13: a pending rebind captures the next press
+                                if pressed {
+                                    if let Some(action) = state.rebind_capture.take() {
+                                        state.keymap.rebind(action, code);
+                                        state.settings.keymap_pairs = state.keymap.to_pairs();
+                                        return;
+                                    }
+                                }
+                                // Step 13: rebindable action keys (settings > controls)
+                                let chat_key = state.keymap.key(crate::input::Action::Chat);
+                                let console_key = state.keymap.key(crate::input::Action::Console);
+                                let map_key = state.keymap.key(crate::input::Action::Map);
+                                let tech_key = state.keymap.key(crate::input::Action::TechTree);
+                                let quest_key = state.keymap.key(crate::input::Action::QuestLog);
+                                let inv_key = state.keymap.key(crate::input::Action::Inventory);
+                                let fly_key = state.keymap.key(crate::input::Action::Fly);
+                                let shot_key = state.keymap.key(crate::input::Action::Screenshot);
+                                let dbg_key = state.keymap.key(crate::input::Action::DebugInfo);
+                                let rt_key = state.keymap.key(crate::input::Action::RtCapture);
                                 if pressed {
                                     match code {
                                         KeyCode::Escape => {
@@ -505,14 +566,14 @@ impl ApplicationHandler for App {
                                             }
                                             return;
                                         }
-                                        KeyCode::KeyT => {
+                                        k if k == chat_key => {
                                             if state.net.is_some() && state.ui_open == UiOpen::None && state.stats.health > 0.0 {
                                                 state.chat_input = Some(String::new());
                                                 state.unlock_cursor();
                                                 return;
                                             }
                                         }
-                                        KeyCode::Backquote => {
+                                        k if k == console_key => {
                                             if matches!(state.ui_open, UiOpen::None) && state.stats.health > 0.0 {
                                                 state.console_open();
                                                 return;
@@ -525,7 +586,7 @@ impl ApplicationHandler for App {
                                                 return;
                                             }
                                         }
-                                        KeyCode::KeyM => {
+                                        k if k == map_key => {
                                             if matches!(state.ui_open, UiOpen::None | UiOpen::Map) && state.stats.health > 0.0 {
                                                 if state.ui_open == UiOpen::Map {
                                                     state.close_ui();
@@ -538,7 +599,7 @@ impl ApplicationHandler for App {
                                                 return;
                                             }
                                         }
-                                        KeyCode::KeyK => {
+                                        k if k == tech_key => {
                                             if matches!(state.ui_open, UiOpen::None | UiOpen::TechTree) && state.stats.health > 0.0 {
                                                 if state.ui_open == UiOpen::TechTree {
                                                     state.close_ui();
@@ -549,7 +610,7 @@ impl ApplicationHandler for App {
                                                 return;
                                             }
                                         }
-                                        KeyCode::KeyJ => {
+                                        k if k == quest_key => {
                                             if matches!(state.ui_open, UiOpen::None | UiOpen::QuestLog) && state.stats.health > 0.0 {
                                                 if state.ui_open == UiOpen::QuestLog {
                                                     state.close_ui();
@@ -560,7 +621,7 @@ impl ApplicationHandler for App {
                                                 return;
                                             }
                                         }
-                                        KeyCode::KeyE => {
+                                        k if k == inv_key => {
                                             if state.stats.health > 0.0 {
                                                 if state.ui_open == UiOpen::Inventory {
                                                     state.close_ui();
@@ -571,15 +632,15 @@ impl ApplicationHandler for App {
                                                 return;
                                             }
                                         }
-                                        KeyCode::KeyF => {
+                                        k if k == fly_key => {
                                             state.player.flying = !state.player.flying;
                                             state.player.velocity = Vec3::ZERO;
                                         }
-                                        KeyCode::F2 => state.take_screenshot(),
-                                        KeyCode::F3 => {
+                                        k if k == shot_key => state.take_screenshot(),
+                                        k if k == dbg_key => {
                                             state.show_debug = !state.show_debug;
                                         }
-                                        KeyCode::KeyR => { if state.settings.rt_mode == crate::RtMode::Captures { state.take_raytraced_screenshot(); } }
+                                        k if k == rt_key => { if state.settings.rt_mode == crate::RtMode::Captures { state.take_raytraced_screenshot(); } }
                                         KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3
                                         | KeyCode::Digit4 | KeyCode::Digit5 | KeyCode::Digit6
                                         | KeyCode::Digit7 | KeyCode::Digit8 | KeyCode::Digit9 => {
@@ -701,6 +762,14 @@ struct GameState {
     pub audio: Option<lf_audio::Audio>,
     /// Screen-shake amplitude (impact pulse on heavy breaks), decays fast.
     pub shake: f32,
+    /// Rebindable action -> key map (Step 13), persisted via Settings.
+    pub keymap: crate::input::Keymap,
+    /// When Some, the next key press rebinds this action (Controls tab).
+    pub rebind_capture: Option<crate::input::Action>,
+    /// Last slot-thumbnail capture (throttled; Step 14).
+    last_thumb: Instant,
+    /// Loaded save-slot thumbnails for the picker (Step 14).
+    pub slot_thumbs: std::collections::HashMap<String, egui::TextureHandle>,
     pub forge: lf_game::smithing::ForgeMinigame,
     pub research: ResearchState,
     pub xp_level: u32,
@@ -765,6 +834,8 @@ struct GameState {
     cloud_batch: Option<MeshBatch>,
     sky_batch: Option<MeshBatch>,
     weather_batch: Option<MeshBatch>,
+    /// World-space waypoint beacon beams (Step 15), transparent pass.
+    waypoint_batch: Option<MeshBatch>,
     last_cloud_rebuild: Instant,
     pub settings: Settings,
     pub world_type: lf_worldgen::WorldType,
@@ -958,6 +1029,10 @@ impl GameState {
             grade_sat: 1.0,
             audio: lf_audio::Audio::new(),
             shake: 0.0,
+            keymap: crate::input::Keymap::from_pairs(&settings.keymap_pairs),
+            rebind_capture: None,
+            last_thumb: Instant::now() - Duration::from_secs(600), // capture soon after boot
+            slot_thumbs: std::collections::HashMap::new(),
             forge: lf_game::smithing::ForgeMinigame::new(3),
             xp_level: 0,
             xp_progress: 0,
@@ -1009,6 +1084,7 @@ impl GameState {
             cloud_batch: None,
             sky_batch: None,
             weather_batch: None,
+            waypoint_batch: None,
             last_cloud_rebuild: Instant::now() - Duration::from_secs(5),
             air: 10,
             spawn_point,
@@ -1179,6 +1255,7 @@ impl GameState {
         self.chronicle = chronicle;
         self.research = research;
         self.settings = settings;
+        self.keymap = crate::input::Keymap::from_pairs(&self.settings.keymap_pairs);
         self.waypoints = waypoints;
         self.xp_level = 0;
         self.xp_progress = 0;
@@ -1272,7 +1349,7 @@ impl GameState {
             chronicle: self.chronicle.clone(),
             world_type: Some(self.world_type),
             research: Some(self.research.clone()),
-            settings: Some(self.settings),
+            settings: Some(self.settings.clone()),
             waypoints: self.waypoints.clone(),
         };
         if let Ok(bytes) = bincode::serialize(&extras) {
@@ -1290,6 +1367,7 @@ impl GameState {
             updated_secs: slots::now_secs(),
         };
         slots::write_meta(&self.world_dir, &meta);
+        self.capture_slot_thumbnail();
         self.slot_meta = meta;
         let _ = self.storage.save_seed(self.world_seed);
         tracing::info!("world '{}' saved to {}", self.slot_meta.name, self.world_dir.display());
@@ -1427,16 +1505,19 @@ impl GameState {
 
         let playing = matches!(self.ui_open, UiOpen::None) && self.stats.health > 0.0;
         let input = if playing {
+            // Step 13: movement reads the rebindable keymap
+            let km = &self.keymap;
+            use crate::input::Action as A;
             PlayerInput {
-                forward: self.input.held(KeyCode::KeyW),
-                back: self.input.held(KeyCode::KeyS),
-                left: self.input.held(KeyCode::KeyA),
-                right: self.input.held(KeyCode::KeyD),
-                jump: self.input.held(KeyCode::Space),
-                sneak: self.input.held(KeyCode::ShiftLeft),
-                sprint: self.input.held(KeyCode::ControlLeft),
-                fly_up: self.input.held(KeyCode::Space),
-                fly_down: self.input.held(KeyCode::ShiftLeft),
+                forward: self.input.held(km.key(A::Forward)),
+                back: self.input.held(km.key(A::Back)),
+                left: self.input.held(km.key(A::Left)),
+                right: self.input.held(km.key(A::Right)),
+                jump: self.input.held(km.key(A::Jump)),
+                sneak: self.input.held(km.key(A::Sneak)),
+                sprint: self.input.held(km.key(A::Sprint)),
+                fly_up: self.input.held(km.key(A::FlyUp)),
+                fly_down: self.input.held(km.key(A::FlyDown)),
                 // Mouse right (dx>0) turns the view right (yaw+); mouse down
                 // (dy>0) looks down (pitch-). Matches standard FPS feel.
                 yaw_delta: self.input.mouse_dx * self.settings.sensitivity,
@@ -1881,6 +1962,22 @@ impl GameState {
             self.weather_batch = Some(MeshBatch::new(&self.device, &self.resources, &wv, &wi));
         } else {
             self.weather_batch = None;
+        }
+        // waypoint beacons (Step 15): slim translucent beams rising from
+        // the ground under each waypoint, tinted by its color
+        {
+            let (mut bv, mut bi) = (Vec::new(), Vec::new());
+            for wp in &self.waypoints {
+                let ground = self.world.surface_height(wp.x as i32, wp.z as i32).max(wp.y as i32 - 2) as f32;
+                let layer = lf_assets::WAYPOINT_LAYERS[wp.color_idx % lf_assets::WAYPOINT_LAYERS.len()];
+                push_beam_quads(&mut bv, &mut bi,
+                    wp.x as f32 + 0.5, ground, wp.z as f32 + 0.5, 24.0, layer);
+            }
+            self.waypoint_batch = if bv.is_empty() {
+                None
+            } else {
+                Some(MeshBatch::new(&self.device, &self.resources, &bv, &bi))
+            };
         }
     }
 
@@ -2681,6 +2778,31 @@ impl GameState {
         }
     }
 
+    /// Step 14: a small thumbnail of the live view for the save-slot
+    /// picker (worlds/<slot>/thumb.png). Throttled to ~2 min so the 30s
+    /// autosave does not pay GPU capture cost every time.
+    fn capture_slot_thumbnail(&mut self) {
+        if self.last_thumb.elapsed() < Duration::from_secs(120) {
+            return;
+        }
+        self.last_thumb = Instant::now();
+        let mut vertices: Vec<GpuVertex> = Vec::new();
+        let mut indices: Vec<u32> = Vec::new();
+        for (v, i) in self.cpu_meshes.values() {
+            let base = vertices.len() as u32;
+            vertices.extend_from_slice(v);
+            indices.extend(i.iter().map(|idx| idx + base));
+        }
+        let camera = self.camera();
+        let env = self.env();
+        let textures = lf_assets::generate_atlas();
+        let path = self.world_dir.join("thumb.png");
+        match lf_engine::headless::render_to_png(&vertices, &indices, &[], &[], &textures, &camera, &env, self.clear_color(), 256, 144, &path, None) {
+            Ok(()) => {}
+            Err(e) => tracing::debug!("thumbnail capture failed: {}", e),
+        }
+    }
+
     fn clear_color(&self) -> [f64; 4] {
         let env = self.env();
         let mut c = env.fog_color;
@@ -2704,6 +2826,9 @@ impl GameState {
             batch.update_camera(&self.queue, &camera, &env);
         }
         for batch in self.water_batches.values() {
+            batch.update_camera(&self.queue, &camera, &env);
+        }
+        if let Some(batch) = &self.waypoint_batch {
             batch.update_camera(&self.queue, &camera, &env);
         }
         self.outline.update_camera(&self.queue, &camera);
@@ -2783,6 +2908,10 @@ impl GameState {
                 batch.draw(&mut pass, resources, true);
             }
             if let Some(batch) = &self.weather_batch {
+                batch.draw(&mut pass, resources, true);
+            }
+            // waypoint beacons ride the transparent pass
+            if let Some(batch) = &self.waypoint_batch {
                 batch.draw(&mut pass, resources, true);
             }
             // Item drops ride the opaque pass.
@@ -3093,6 +3222,37 @@ fn load_client_save(dir: &Path)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.
+/// Four vertical quads forming a slim translucent beam column (waypoint
+/// beacons, Step 15). One texture tile tall so the in-texture falloff fades
+/// the beam toward its top.
+fn push_beam_quads(vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                   cx: f32, ground_y: f32, cz: f32, height: f32, tex: u32) {
+    let r = 0.35f32;
+    let y0 = ground_y;
+    let y1 = ground_y + height;
+    let faces: [([f32; 3], [[f32; 3]; 4]); 4] = [
+        ([0.0, 0.0, -1.0], [[cx - r, y0, cz - r], [cx - r, y1, cz - r], [cx + r, y1, cz - r], [cx + r, y0, cz - r]]),
+        ([0.0, 0.0, 1.0], [[cx + r, y0, cz + r], [cx + r, y1, cz + r], [cx - r, y1, cz + r], [cx - r, y0, cz + r]]),
+        ([-1.0, 0.0, 0.0], [[cx - r, y0, cz + r], [cx - r, y1, cz + r], [cx - r, y1, cz - r], [cx - r, y0, cz - r]]),
+        ([1.0, 0.0, 0.0], [[cx + r, y0, cz - r], [cx + r, y1, cz - r], [cx + r, y1, cz + r], [cx + r, y0, cz + r]]),
+    ];
+    for (normal, corners) in faces {
+        let base = vertices.len() as u32;
+        for (corner, uv) in corners.iter().zip([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]) {
+            vertices.push(GpuVertex {
+                position: *corner,
+                normal,
+                tex_coord: uv,
+                tex_index: tex,
+                ao: 1.0,
+                light: 0xF0,
+                sway: 0.0,
+            });
+        }
+        indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+    }
+}
+
 fn pseudo_random(seed: u64) -> u64 {
     let mut h = seed.wrapping_mul(0x9E3779B97F4A7C15);
     h ^= h >> 31;
@@ -3371,6 +3531,27 @@ mod tests {
     /// Step 3 impact pulse: heavier blocks + heavier tools shake more, the
     /// shake decays to nothing, and the camera offset stays tiny (an impact,
     /// not a wobble) and zeroes below the noise floor.
+    /// Step 13 done-when: a rebound key AND the quality tier survive a
+    /// ClientSave bincode round trip (the same path save_world/load use).
+    #[test]
+    fn rebind_and_quality_tier_persist_through_client_save() {
+        let mut save = ClientSave::default();
+        let mut settings = Settings::default();
+        let mut km = crate::input::Keymap::default();
+        km.rebind(crate::input::Action::Jump, KeyCode::KeyN);
+        settings.keymap_pairs = km.to_pairs();
+        settings.apply_quality(Quality::PathTraced);
+        save.settings = Some(settings);
+        let bytes = bincode::serialize(&save).expect("serialize ClientSave");
+        let loaded: ClientSave = bincode::deserialize(&bytes).expect("deserialize ClientSave");
+        let s = loaded.settings.expect("settings survived");
+        assert_eq!(s.quality, 3, "PathTraced tier persists");
+        assert_eq!(s.rt_mode, RtMode::Live, "tier drives the render path");
+        let km2 = crate::input::Keymap::from_pairs(&s.keymap_pairs);
+        assert_eq!(km2.key(crate::input::Action::Jump), KeyCode::KeyN, "rebound jump persists");
+        assert_eq!(km2.key(crate::input::Action::Forward), KeyCode::KeyW, "untouched binding keeps default");
+    }
+
     #[test]
     fn screen_shake_envelope() {
         assert!(break_shake(4.5, 2) > break_shake(1.5, 0), "harder block + heavier tool shakes more");

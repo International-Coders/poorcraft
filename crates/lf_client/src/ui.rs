@@ -4,6 +4,7 @@
 //! the real pixel-art icons from `crate::icons`.
 
 use egui_wgpu::Renderer;
+use image;
 use egui_winit::State as EguiWinitState;
 
 use crate::ui_kit::{self as kit, Theme};
@@ -1368,7 +1369,7 @@ impl GameState {
                             ui.heading(egui::RichText::new("Settings").size(26.0).color(Theme::TEXT));
                             ui.add_space(8.0);
                             ui.horizontal(|ui| {
-                                for (i, label) in ["Video", "Interface", "Audio", "Gameplay"].iter().enumerate() {
+                                for (i, label) in ["Video", "Interface", "Audio", "Controls", "Gameplay"].iter().enumerate() {
                                     let on = self.settings_tab == i;
                                     let btn = egui::Button::new(egui::RichText::new(*label)
                                         .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))
@@ -1383,6 +1384,7 @@ impl GameState {
                                 0 => self.settings_video(ui),
                                 1 => self.settings_interface(ui),
                                 2 => self.settings_audio(ui),
+                                3 => self.settings_controls(ui),
                                 _ => self.settings_gameplay(ui),
                             }
                             ui.add_space(10.0);
@@ -1428,9 +1430,24 @@ impl GameState {
         kit::section_header(ui, "Quality preset", 1.0);
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            if ui.button("Low").clicked() { self.settings.apply_quality(crate::Quality::Low); }
-            if ui.button("Medium").clicked() { self.settings.apply_quality(crate::Quality::Medium); }
-            if ui.button("High").clicked() { self.settings.apply_quality(crate::Quality::High); }
+            let tiers = [
+                ("Low", crate::Quality::Low),
+                ("Medium", crate::Quality::Medium),
+                ("High", crate::Quality::High),
+                ("Path-Traced", crate::Quality::PathTraced),
+            ];
+            for (label, tier) in tiers {
+                let on = self.settings.quality == match tier {
+                    crate::Quality::Low => 0,
+                    crate::Quality::Medium => 1,
+                    crate::Quality::High => 2,
+                    crate::Quality::PathTraced => 3,
+                };
+                if ui.add(egui::Button::new(egui::RichText::new(label)
+                    .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))).clicked() {
+                    self.settings.apply_quality(tier);
+                }
+            }
         });
     }
 
@@ -1439,6 +1456,8 @@ impl GameState {
         ui.add_space(6.0);
         let s = &mut self.settings;
         kit::toggle(ui, "Show minimap", &mut s.show_minimap);
+        kit::toggle(ui, "Rotate minimap with view", &mut s.rotate_minimap);
+        kit::setting_slider(ui, "Minimap zoom", &mut s.minimap_zoom, (0.5, 3.0), &|v| format!("{:.1}x", v));
         kit::setting_slider(ui, "UI scale", &mut s.ui_scale, (0.7, 1.6), &|v| format!("{:.0}%", v * 100.0));
         ui.label(egui::RichText::new("minimap top-right · M opens the world map · shift-click slots to quick-move")
             .small().color(Theme::TEXT_DIM));
@@ -1454,6 +1473,33 @@ impl GameState {
         ui.add_space(8.0);
         ui.label(egui::RichText::new("drives the procedural break/place sound engine live")
             .small().color(Theme::TEXT_DIM));
+    }
+
+    /// Step 13: click an action, press a key. Digits 1-9 and Escape stay
+    /// fixed; bindings persist in ClientSave via Settings.keymap_pairs.
+    fn settings_controls(&mut self, ui: &mut egui::Ui) {
+        kit::section_header(ui, "Key bindings", 1.0);
+        ui.add_space(6.0);
+        ui.label(egui::RichText::new("click a key, then press the new binding. hotbar digits 1-9 and Escape stay fixed.").small().color(Theme::TEXT_DIM));
+        ui.add_space(8.0);
+        egui::Grid::new("controls_grid").num_columns(2).spacing([190.0, 4.0]).show(ui, |ui| {
+            for action in crate::input::Action::ALL {
+                ui.label(egui::RichText::new(action.label()).small().color(Theme::TEXT));
+                if self.rebind_capture == Some(action) {
+                    let waiting = egui::Button::new(egui::RichText::new("press a key…").color(Theme::ACCENT))
+                        .min_size(egui::vec2(110.0, 20.0));
+                    if ui.add(waiting).clicked() {
+                        self.rebind_capture = None; // click again cancels
+                    }
+                } else {
+                    let name = format!("{:?}", self.keymap.key(action));
+                    if ui.add(egui::Button::new(name).min_size(egui::vec2(110.0, 20.0))).clicked() {
+                        self.rebind_capture = Some(action);
+                    }
+                }
+                ui.end_row();
+            }
+        });
     }
 
     fn settings_gameplay(&mut self, ui: &mut egui::Ui) {
@@ -1869,6 +1915,24 @@ impl GameState {
                                     .inner_margin(8.0)
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
+                                            // Step 14: live thumbnail captured by the autosave
+                                            let thumb_path = crate::slots::slot_dir(&meta.name).join("thumb.png");
+                                            let key = meta.name.clone();
+                                            if !self.slot_thumbs.contains_key(&key) {
+                                                let decoded = image::ImageReader::open(&thumb_path)
+                                                    .map_err(|e| e.to_string())
+                                                    .and_then(|mut r| r.decode().map_err(|e| e.to_string()));
+                                                if let Ok(img) = decoded.map(|d| d.to_rgba8()) {
+                                                    let size = [img.width() as usize, img.height() as usize];
+                                                    let color = egui::ColorImage::from_rgba_unmultiplied(size, &img);
+                                                    let tex = ui.ctx().load_texture(format!("thumb_{key}"), color, egui::TextureOptions::LINEAR);
+                                                    self.slot_thumbs.insert(key.clone(), tex);
+                                                }
+                                            }
+                                            if let Some(tex) = self.slot_thumbs.get(&key) {
+                                                ui.image((tex.id(), egui::vec2(96.0, 54.0)))
+                                                    .on_hover_text("last autosave view");
+                                            }
                                             ui.vertical(|ui| {
                                                 ui.label(egui::RichText::new(&meta.name).size(16.0)
                                                     .color(if current { Theme::ACCENT } else { Theme::TEXT }));

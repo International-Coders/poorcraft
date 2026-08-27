@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 48] = [
+pub const TEXTURE_NAMES: [&str; 54] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -20,7 +20,13 @@ pub const TEXTURE_NAMES: [&str; 48] = [
     // progressive crack decal stages for the mining overlay
     "crack_0", "crack_1", "crack_2", "crack_3",
     "mod",
+    // waypoint beacon column tints (Step 15) — translucent, drawn in the
+    // transparent pass as world-space beams
+    "waypoint_0", "waypoint_1", "waypoint_2", "waypoint_3", "waypoint_4", "waypoint_5",
 ];
+
+/// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
+pub const WAYPOINT_LAYERS: [u32; 6] = [48, 49, 50, 51, 52, 53];
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -371,6 +377,14 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([ch(v), ch(v - 30), ch(v + 40), 255])
                     }
                 }
+                // waypoint beacon columns (Step 15): solid translucent tint
+                // with a soft vertical falloff, one per waypoint color
+                "waypoint_0" => beacon_pixel(x, y, [235, 80, 80]),
+                "waypoint_1" => beacon_pixel(x, y, [90, 170, 240]),
+                "waypoint_2" => beacon_pixel(x, y, [120, 220, 130]),
+                "waypoint_3" => beacon_pixel(x, y, [240, 200, 90]),
+                "waypoint_4" => beacon_pixel(x, y, [200, 120, 235]),
+                "waypoint_5" => beacon_pixel(x, y, [235, 140, 200]),
                 "water" => {
                     let v = 40 + ((x * 3 + y * 5) % 14);
                     Rgba([30, ch(60 + v / 2), ch(150 + v / 3), 170])
@@ -469,6 +483,21 @@ fn crack_pixel(x: u32, y: u32, stage: u32) -> Rgba<u8> {
 }
 
 /// The full atlas, one 16x16 layer per entry in TEXTURE_NAMES.
+/// One beacon-layer pixel: mostly transparent so stacked quads glow, with
+/// a bright core column and an alpha falloff toward the top of the tile
+/// (the mesh tiles it vertically; higher repeats read fainter).
+fn beacon_pixel(x: u32, y: u32, rgb: [u32; 3]) -> Rgba<u8> {
+    let (x, y) = (x as usize, y as usize);
+    let dx = (x as i32 - 8).abs();
+    let core = dx <= 2;
+    let edge = dx <= 4;
+    // fade out toward the tile's top so tall beams taper
+    let top_fade = 1.0 - (y as f32 / 16.0) * 0.55;
+    let base = if core { 255 } else if edge { 90 } else { 20 };
+    let alpha = base as f32 * top_fade;
+    Rgba([rgb[0] as u8, rgb[1] as u8, rgb[2] as u8, alpha as u8])
+}
+
 pub fn generate_atlas() -> Vec<RgbaImage> {
     TEXTURE_NAMES.iter().map(|n| generate_block_texture(n)).collect()
 }
@@ -1118,7 +1147,7 @@ mod tests {
                 assert!(tex.pixels().all(|p| p.0[3] == 200));
                 continue;
             }
-            if name.starts_with("crack_") {
+            if name.starts_with("crack_") || name.starts_with("waypoint_") {
                 // decal: mostly transparent, some opaque crack pixels
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(solid > 4, "{} too sparse", name);

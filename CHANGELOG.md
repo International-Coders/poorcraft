@@ -644,3 +644,17 @@
   perf at Medium radius-5: p50 111 / p95 156 / min 77 ms incl. readback +
   PNG encode; DECISIONS names this host's iGPU as the low-end target.
 - 184 tests green; 26/26 vistest scenes; runtimes rebuilt; pushed.
+
+## Loop 313 — Steps 13/14/15: settings completeness, thumbnails, minimap
+- Key rebinding: lf_client::input Keymap (Action-keyed, name-serialized,
+  junk-safe load), Controls tab with capture rows, movement + UI keys
+  rebound live, persisted in ClientSave; PathTraced quality tier drives
+  RtMode::Live; both round-trip tested.
+- Save-slot thumbnails: throttled live-view capture at save time, shown in
+  the picker.
+- Minimap: rotation with the view (rotated texture mesh + marker/N-chip
+  rotation) and 0.5-3x zoom, persisted; world-space waypoint beacons
+  (six tint layers, transparent pass, per-frame rebuild) with the
+  waypoint_beacons proof scene.
+- 187 tests green; 27/27 vistest; SMOKE OK with the live boot log showing
+  "[MOD SMOKE TEST] OK — smoke_test mod loaded successfully" (3 mods).
