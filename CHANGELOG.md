@@ -735,3 +735,11 @@
   capture/ghost/paste with material bills, chisel statue carving, and
   the modapi light fix + decor_pack. 233 tests green (+10); 42/42
   vistest scenes; smoke OK; runtimes rebuilt; pushed.
+
+## Loop 322 — Smart building (P35)
+- Conduit-relayed power distribution (4-hop field chains), the physics
+  elevator, climate comfort regen, and the computer screen with the
+  engine's first dynamic-texture path (data-change-gated atlas layer
+  rewrites showing research/chronicle/grid readouts).
+- 238 tests green (+5); 43/43 vistest scenes; smoke OK; runtimes
+  rebuilt; pushed.

@@ -992,6 +992,24 @@ mod oil_age_tests {
             && COMBUSTION_RATE < 40.0);
     }
 
+    /// P35: relays carry the field past the raw radius.
+    #[test]
+    fn conduits_relay_the_power_field() {
+        let mut sources = vec![((0, 0, 0), PowerSource::Generator(Generator {
+            fuel: Some(ItemStack { item_id: "coal".into(), count: 4 }),
+            burn_left: 30.0,
+            buffer: 2000.0,
+        }))];
+        let machine = (10, 0, 0);
+        // raw: out of reach
+        let g0 = distribute_power_relayed(&mut sources.clone(), &[], &[machine], DRAW_RATE);
+        assert_eq!(g0[0], 0.0, "10 blocks is beyond the raw field");
+        // relayed through two conduits
+        let conduits = [(3, 0, 0), (7, 0, 0)];
+        let g1 = distribute_power_relayed(&mut sources, &conduits, &[machine], DRAW_RATE);
+        assert!(g1[0] >= DRAW_RATE * 0.99, "conduits carry the field, got {}", g1[0]);
+    }
+
     /// The full P31 chain headless: pump -> pipes -> refinery -> fuel ->
     /// combustion generator -> a machine via the real distribute_power.
     #[test]
@@ -1243,4 +1261,54 @@ mod nuclear_tests {
         assert!(r.heat < UNSCRAM_BELOW, "flooding cools the core, heat={}", r.heat);
         assert!(r.try_unscram());
     }
+}
+
+/// P35: conduit-relayed distribute_power — identical three-phase logic,
+/// but a source reaches a machine through chains of conduits (see
+/// building::relayed_reachable; unified field + relays per doc 04).
+pub fn distribute_power_relayed(
+    sources: &mut [((i32, i32, i32), PowerSource)],
+    conduits: &[(i32, i32, i32)],
+    machines: &[(i32, i32, i32)],
+    need: f32,
+) -> Vec<f32> {
+    let connected =
+        |s: (i32, i32, i32), m: (i32, i32, i32)| crate::building::relayed_reachable(s, m, conduits);
+    let mut granted = vec![0.0f32; machines.len()];
+    for (mi, &mpos) in machines.iter().enumerate() {
+        let deficit = need - granted[mi];
+        if deficit <= 0.0 {
+            continue;
+        }
+        for (spos, src) in sources.iter_mut() {
+            if *spos == mpos || !connected(*spos, mpos) {
+                continue;
+            }
+            if !src.is_producer() {
+                continue;
+            }
+            let got = src.draw(deficit);
+            granted[mi] += got;
+            if granted[mi] >= need {
+                break;
+            }
+        }
+    }
+    for (mi, &mpos) in machines.iter().enumerate() {
+        let deficit = need - granted[mi];
+        if deficit <= 0.0 {
+            continue;
+        }
+        for (spos, src) in sources.iter_mut() {
+            if !connected(*spos, mpos) || src.is_producer() {
+                continue;
+            }
+            let got = src.draw(deficit);
+            granted[mi] += got;
+            if granted[mi] >= need {
+                break;
+            }
+        }
+    }
+    granted
 }

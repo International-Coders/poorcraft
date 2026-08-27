@@ -20,7 +20,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 100;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 61;
+pub const MAX_VANILLA_BLOCK: u32 = 65;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -133,6 +133,11 @@ pub mod block {
     // Construction (P34)
     pub const SCAFFOLD: u32 = 60;
     pub const STATUE: u32 = 61;
+    // Smart building (P35)
+    pub const CONDUIT: u32 = 62;
+    pub const ELEVATOR: u32 = 63;
+    pub const AC_UNIT: u32 = 64;
+    pub const COMPUTER: u32 = 65;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -168,6 +173,10 @@ pub mod block {
             WARDING_PYLON => "Warding Pylon",
             SCAFFOLD => "Scaffolding",
             STATUE => "Chiseled Statue",
+            CONDUIT => "Power Conduit",
+            ELEVATOR => "Elevator",
+            AC_UNIT => "Climate Unit",
+            COMPUTER => "Computer Screen",
             DIRT => "Dirt",
             SAND => "Sand",
             MYCELIUM => "Mycelium",

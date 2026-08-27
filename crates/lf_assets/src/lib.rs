@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 76] = [
+pub const TEXTURE_NAMES: [&str; 81] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -39,6 +39,8 @@ pub const TEXTURE_NAMES: [&str; 76] = [
     "enchanting_table", "lumen_block", "warding_pylon",
     // Construction (P34)
     "scaffold", "statue",
+    // Smart building (P35): relays, ride, climate, and the dynamic screen
+    "conduit", "elevator", "ac_unit", "computer", "screen",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -68,6 +70,13 @@ pub const LUMEN_LAYER: u32 = 72;
 pub const WARDING_LAYER: u32 = 73;
 pub const SCAFFOLD_LAYER: u32 = 74;
 pub const STATUE_LAYER: u32 = 75;
+pub const CONDUIT_LAYER: u32 = 76;
+pub const ELEVATOR_LAYER: u32 = 77;
+pub const AC_LAYER: u32 = 78;
+pub const COMPUTER_LAYER: u32 = 79;
+/// The dynamic screen layer (P35): the client rewrites its pixels when
+/// the displayed page or data changes (data-change-driven uploads).
+pub const SCREEN_LAYER: u32 = 80;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -97,6 +106,10 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         59 => 73, // warding pylon
         60 => 74, // scaffolding
         61 => 75, // chiseled statue
+        62 => 76, // conduit
+        63 => 77, // elevator
+        64 => 78, // climate unit
+        65 => 79, // computer (its FACE shows the dynamic screen layer)
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -419,6 +432,83 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([230, 214, 168, 255])
                     } else {
                         Rgba([120, 108, 84, 255])
+                    }
+                }
+                "conduit" => {
+                    // slim cable with glow pulses: two vertical rails +
+                    // cross ties that read as energy flow
+                    let rail = x >= 6 && x <= 9 && y >= 1 && y <= 14;
+                    let tie = rail && (y % 3 == 1);
+                    let pulse = rail && ((x + y * 2) % 7 < 2);
+                    if pulse {
+                        Rgba([255, 230, 140, 255])
+                    } else if tie {
+                        Rgba([210, 170, 80, 255])
+                    } else if rail {
+                        Rgba([90, 80, 70, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "elevator" => {
+                    // platform pad with a lit rim + arrows
+                    let pad = x >= 2 && x <= 13 && y >= 10 && y <= 13;
+                    let rim = (x == 2 || x == 13 || y == 10) && x >= 2 && x <= 13 && y <= 13;
+                    let up_arrow = (x as i32 - 8).abs() + (3 - y as i32).abs() <= 2 && y <= 6;
+                    let down_arrow = (x as i32 - 8).abs() + (y as i32 - 9).abs() <= 2 && y >= 7 && y <= 9;
+                    if up_arrow || down_arrow {
+                        Rgba([140, 230, 235, 255])
+                    } else if rim {
+                        Rgba([90, 220, 230, 255])
+                    } else if pad {
+                        let v = 120 + ((x * 7 + y * 3) % 20);
+                        Rgba([ch(v), ch(v - 6), ch(v - 16), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "ac_unit" => {
+                    // vented box: slats + a small status LED
+                    let box_ = x >= 2 && x <= 13 && y >= 4 && y <= 14;
+                    let slat = box_ && (y % 2 == 0) && x >= 4 && x <= 11;
+                    let led = x >= 11 && x <= 12 && y >= 5 && y <= 6;
+                    if led {
+                        Rgba([120, 240, 160, 255])
+                    } else if slat {
+                        Rgba([60, 62, 70, 255])
+                    } else if box_ {
+                        let v = 130 + ((x * 5 + y * 7) % 18);
+                        Rgba([ch(v), ch(v), ch(v + 10), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "computer" => {
+                    // monitor frame around the dynamic screen area; the
+                    // center pixels come from the SCREEN layer at render
+                    // time (this texture is the case/stand)
+                    let frame = x >= 2 && x <= 13 && y >= 2 && y <= 12;
+                    let inner = x >= 4 && x <= 11 && y >= 4 && y <= 10;
+                    let stand = x >= 7 && x <= 8 && y >= 13 && y <= 14;
+                    if stand {
+                        Rgba([90, 90, 100, 255])
+                    } else if inner {
+                        Rgba([10, 14, 20, 255]) // behind the dynamic face
+                    } else if frame {
+                        let v = 110 + ((x * 3 + y * 9) % 16);
+                        Rgba([ch(v), ch(v - 6), ch(v - 14), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "screen" => {
+                    // default face: dark glass with a faint scanline (the
+                    // client rewrites these pixels per page)
+                    let scan = (y % 3) == 0;
+                    if scan {
+                        Rgba([26, 36, 48, 255])
+                    } else {
+                        Rgba([14, 20, 28, 255])
                     }
                 }
                 "scaffold" => {
@@ -1761,7 +1851,8 @@ mod tests {
             if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine"
                 || name == "pump" || name == "refinery" || name == "combustion_generator"
                 || name == "reactor" || name == "enchanting_table" || name == "warding_pylon"
-                || name == "scaffold" || name == "statue" {
+                || name == "scaffold" || name == "statue" || name == "conduit" || name == "elevator"
+                || name == "ac_unit" || name == "computer" {
                 // machine shells with hollow details
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(solid > 40, "{} too sparse", name);

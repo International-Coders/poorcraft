@@ -135,6 +135,30 @@ impl Player {
                 self.velocity.y = JUMP_VELOCITY;
                 self.on_ground = false;
             }
+            // P35 elevator: standing ON an elevator platform, jump rides
+            // you to the next platform up (a launch that physics lands
+            // naturally), sneak descends to the one below.
+            {
+                let p = self.position;
+                let feet = (p.x as i32, (p.y - 0.05) as i32, p.z as i32);
+                if world.get_block(feet.0, feet.1, feet.2).id() == lf_voxel::registry::block::ELEVATOR {
+                    if input.jump {
+                        if let Some(stand_y) = crate::building::next_elevator_y(world, feet.0, feet.1, feet.2, true) {
+                            let dy = (stand_y as f32 - p.y).max(1.0);
+                            self.velocity.y = (2.0 * GRAVITY * dy).sqrt() * 1.05;
+                            self.on_ground = false;
+                        } else if self.on_ground {
+                            self.velocity.y = JUMP_VELOCITY;
+                            self.on_ground = false;
+                        }
+                    } else if input.sneak {
+                        if let Some(stand_y) = crate::building::next_elevator_y(world, feet.0, feet.1, feet.2, false) {
+                            self.position.y = stand_y as f32 + 0.01;
+                            self.velocity.y = 0.0;
+                        }
+                    }
+                }
+            }
             // P34 scaffolding: overlapping a scaffold cell lets you climb
             // (hold jump to rise, sneak to slide down) — like a ladder
             // that costs nothing and comes down in one hit.

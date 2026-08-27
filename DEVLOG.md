@@ -686,3 +686,20 @@ slab/stairs/chisel/blueprint/scroll/rune art.
 placement, 1 carve, 2 blueprint, 1 decor light). vistest 42/42;
 build_tools AI-verified (slab steps, scaffold, statue, ghost cubes).
 Smoke OK. Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 322: P35 Smart building
+**WHAT**: The smart-building tier — relays, ride, climate, live screens.
+**HOW**: lf_game::building (relayed_reachable BFS + hop cap,
+next_elevator_y, climate_comfort; 3 tests) + distribute_power_relayed
+(reuses the 3-phase logic with relayed reachability; test); registry
+62-65 + atlas 81 layers (conduit/elevator/ac/computer/screen); engine
+SceneResources::write_atlas_layer (exposes the atlas texture, rewrites
+a layer's mip chain); client: conduit positions collected per tick +
+relayed distribute, producer_positions for AC/elevator checks, physics
+elevator launch/descend, cadenced climate regen, Screen block entity +
+page cycling + compose_screen_face with signature-gated uploads;
+modern_wing vistest scene (in-scene assert that the conduits actually
+carry the field).
+**VERIFICATION**: 238 tests / 0 failed (+5). vistest 43/43;
+modern_wing AI-verified (conduits, elevator, climate unit, screen,
+upper machines). Smoke OK. Runtimes rebuilt; pushed.

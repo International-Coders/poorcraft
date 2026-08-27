@@ -633,3 +633,30 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       Shape enum is the extension point), decoration texture overrides
       (decor blocks currently use the mod texture slot), blueprint
       rotation on paste.
+
+## Loop 322 — P35 Smart building
+- [x] CONDUITS (62): power-field relays — distribute_power_relayed runs
+      the same three-phase field but reachability hops through conduit
+      chains (BFS, <=4 hops of POWER_RANGE each; unified field + relays
+      per DECISIONS). Tests: 10 blocks bridged by two conduits, broken
+      chains and the 4-hop cap rejected, the relaying distribute test.
+- [x] ELEVATOR (63): powered-by-field vertical ride — jump on a platform
+      launches physics-exactly to the next platform up (velocity from
+      the height), sneak descends. next_elevator_y shaft tests.
+- [x] CLIMATE UNIT (64): a unit with a producer in its range within 4
+      blocks of the player regenerates health on a cadence (climate_
+      comfort tests: unpowered does nothing, producer near the unit
+      comforts, too far doesn't).
+- [x] COMPUTER SCREEN (65): the dynamic texture path — SceneResources::
+      write_atlas_layer rewrites one atlas layer (mips regenerated) at
+      runtime; the screen block shows live data as a styled 16x16
+      readout (page 1 research pips, page 2 chronicle rows, page 3 the
+      green/red grid split) rewritten only when a data signature changes
+      (hash-gated upload). Right-click cycles pages. compose_screen_face
+      unit test reads the pixels back.
+- [x] Proof: modern_wing ("one wing wired for electricity") — glass
+      wall, slab mezzanine, the generator feeding upper machines ONLY
+      through the conduit chain (asserted in-scene), elevator shaft,
+      climate unit, computer; AI-verified all five elements.
+- [ ] Deferred: screen text glyphs (the readout is styled pips/bars),
+      elevator door animation, conduit visual connection stretching.

@@ -127,6 +127,22 @@ pub fn recipes() -> &'static [Recipe] {
         vec![None, Some("iron_ingot"), None],
         vec![None, Some("stick"), None],
     ]));
+    // Smart building (P35)
+    book.push(r("conduit", 8, vec![
+        vec![Some("copper_wire"), Some("iron_ingot"), Some("copper_wire")],
+    ]));
+    book.push(r("elevator", 2, vec![
+        vec![Some("iron_ingot"), Some("machine_frame"), Some("iron_ingot")],
+        vec![Some("planks"), Some("copper_wire"), Some("planks")],
+    ]));
+    book.push(r("ac_unit", 1, vec![
+        vec![Some("iron_ingot"), Some("copper_wire"), Some("iron_ingot")],
+        vec![Some("machine_frame"), Some("glass"), Some("machine_frame")],
+    ]));
+    book.push(r("computer", 1, vec![
+        vec![Some("glass"), Some("basic_circuit"), Some("glass")],
+        vec![Some("machine_frame"), Some("basic_circuit"), Some("machine_frame")],
+    ]));
     book.push(r("blueprint", 1, vec![
         vec![None, Some("iron_ingot"), None],
         vec![Some("iron_ingot"), Some("book"), Some("iron_ingot")],

@@ -528,6 +528,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "modern_wing",
+            desc: "Smart building (P35): one wing wired for electricity — conduits relaying the field, elevator shaft, climate unit, computer screens, powered machines",
+            default_seed: 12345,
+            time_of_day: 0.34,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "grid_overlay",
             desc: "power-grid overlay (Step 25): green tint cube over the powered furnace, red over a starved crusher out of range",
             default_seed: 12345,
@@ -1081,6 +1093,68 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         // hearthlight's temporary light + one placed lumen (the crossover)
         world.set_block(-2, h, 0, lf_voxel::BlockState(block::LUMEN_BLOCK));
         world.set_block(2, h, 1, lf_voxel::BlockState(block::ENCHANTING_TABLE));
+    }
+
+    // modern_wing (P35): "one wing wired for electricity" — a two-storey
+    // wing: conduits relay a distant generator's field to the upper
+    // floor machines, an elevator shaft climbs the side, a climate unit
+    // hums on the wall, and a computer screen shows the grid page.
+    if spec.name == "modern_wing" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -8..10 {
+            for z in -6..6 {
+                for y in h..h + 12 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::PLANKS));
+            }
+        }
+        // ground floor slab + upper floor
+        for x in -7..9 {
+            for z in -5..5 {
+                world.set_block(x, h + 4, z, lf_voxel::BlockState(block::PLANKS)
+                    .with_shape(lf_voxel::Shape::SlabTop));
+            }
+        }
+        // back wall
+        for x in -7..9 {
+            for y in h..h + 9 {
+                world.set_block(x, y, -5, lf_voxel::BlockState(block::GLASS));
+            }
+        }
+        // the generator far west (beyond raw range of the east machines —
+        // the conduits bridge it, same as the distribute test)
+        world.set_block(-3, h, -4, lf_voxel::BlockState(block::COAL_GENERATOR));
+        for x in [-1i32, 2, 5] {
+            world.set_block(x, h + 1, -4, lf_voxel::BlockState(block::CONDUIT));
+            world.set_block(x, h + 5, -4, lf_voxel::BlockState(block::CONDUIT));
+        }
+        world.set_block(4, h + 4, -2, lf_voxel::BlockState(block::CONDUIT));
+        // upper-floor machines fed through the relay
+        world.set_block(4, h + 5, 0, lf_voxel::BlockState(block::ELECTRIC_FURNACE));
+        world.set_block(6, h + 5, 0, lf_voxel::BlockState(block::CRUSHER));
+        // elevator shaft on the east wall
+        for y in 0..9 {
+            world.set_block(8, h + y, 2, lf_voxel::BlockState(block::ELEVATOR));
+        }
+        // climate unit + computer on the upper floor
+        world.set_block(0, h + 5, -4, lf_voxel::BlockState(block::AC_UNIT));
+        world.set_block(-3, h + 5, 0, lf_voxel::BlockState(block::COMPUTER));
+        // pre-run the real relayed power so the machines run mid-proof
+        use lf_game::machines::{self, PowerSource};
+        let mut gen = machines::Generator {
+            fuel: Some(lf_game::survival::ItemStack { item_id: "coal".into(), count: 6 }),
+            burn_left: 60.0,
+            buffer: 1500.0,
+        };
+        gen.tick(1.0);
+        let mut sources = vec![((-3, h, -4), PowerSource::Generator(gen))];
+        let conduits = [(-1, h + 1, -4), (2, h + 1, -4), (5, h + 1, -4), (4, h + 4, -2)];
+        let granted = machines::distribute_power_relayed(
+            &mut sources, &conduits, &[(4, h + 5, 0), (6, h + 5, 0)], machines::DRAW_RATE * 0.5);
+        assert!(granted[0] > 0.0 && granted[1] > 0.0,
+            "the conduits really carry the field to the upper machines in the proof");
     }
 
     // build_tools (P34): the construction kit in one frame — a slab
@@ -1670,6 +1744,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "grid_overlay" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-4.0, h + 7.0, 13.0), Vec3::new(2.0, h + 0.6, 0.0))
+    } else if spec.name == "modern_wing" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-6.0, h + 9.0, 10.0), Vec3::new(0.5, h + 3.0, -1.0))
     } else if spec.name == "build_tools" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-9.0, h + 8.0, 9.0), Vec3::new(0.0, h + 1.5, 0.0))

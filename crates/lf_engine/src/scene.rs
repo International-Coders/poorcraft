@@ -83,9 +83,44 @@ pub struct SceneResources {
     water_pipeline: wgpu::RenderPipeline,
     diffuse_bind_group: wgpu::BindGroup,
     uniform_bind_group_layout: wgpu::BindGroupLayout,
+    /// The atlas array texture (P35 dynamic-layer writes).
+    diffuse_texture: wgpu::Texture,
 }
 
 impl SceneResources {
+    /// P35 dynamic texture path: rewrite one atlas layer's pixels (and
+    /// its mip chain) at runtime — the computer screen uses this to show
+    /// live data without rebuilding the atlas. Data-change-driven by the
+    /// caller (call only when the image actually changed).
+    pub fn write_atlas_layer(
+        &self,
+        queue: &wgpu::Queue,
+        layer: u32,
+        img: &image::RgbaImage,
+    ) {
+        const MIP_LEVELS: u32 = 5;
+        let mut level = img.clone();
+        for mip in 0..MIP_LEVELS {
+            let (w, h) = level.dimensions();
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &self.diffuse_texture,
+                    mip_level: mip,
+                    origin: wgpu::Origin3d { x: 0, y: 0, z: layer },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                level.as_raw(),
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * w),
+                    rows_per_image: Some(h),
+                },
+                wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+            );
+            level = downsample_2x(&level);
+        }
+    }
+
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, target_format: wgpu::TextureFormat,
                textures: &[RgbaImage]) -> Self {
         let texture_size = wgpu::Extent3d {
@@ -240,6 +275,7 @@ impl SceneResources {
         let water_pipeline = make_pipeline("Water Pipeline", Some(wgpu::BlendState::ALPHA_BLENDING), false);
 
         Self {
+            diffuse_texture: diffuse_texture.clone(),
             render_pipeline,
             water_pipeline,
             diffuse_bind_group,

@@ -248,6 +248,8 @@ pub enum BlockEntity {
     Refinery(lf_game::machines::Refinery),
     Combustion(lf_game::machines::CombustionGenerator),
     Reactor(lf_game::machines::Reactor),
+    Conduit,
+    Screen { page: u8 },
 }
 
 #[derive(Clone, Debug)]
@@ -982,6 +984,10 @@ struct GameState {
     pub imbue: lf_game::magic::ImbueMinigame,
     /// P34: symmetry plane x (mirrors place/break across it).
     pub symmetry_plane: Option<f32>,
+    /// P35: live producer positions (elevator/climate power checks).
+    pub producer_positions: Vec<(i32, i32, i32)>,
+    /// P35: the screen texture is rewritten only when its data changes.
+    screen_signature: u64,
     /// P34 blueprints: first corner marker, the captured clipboard, and
     /// the file it came from.
     pub bp_corner_a: Option<(i32, i32, i32)>,
@@ -1224,6 +1230,8 @@ impl GameState {
             runed_tools: runed,
             imbue: lf_game::magic::ImbueMinigame::new(3),
             symmetry_plane: None,
+            producer_positions: Vec::new(),
+            screen_signature: 0,
             bp_corner_a: None,
             bp_clip: None,
             bp_path: None,
@@ -1727,6 +1735,7 @@ impl GameState {
         use lf_game::machines::PowerSource;
         let mut sources: Vec<((i32, i32, i32), PowerSource)> = Vec::new();
         let mut machine_positions: Vec<(i32, i32, i32)> = Vec::new();
+        let mut conduit_positions: Vec<(i32, i32, i32)> = Vec::new();
         for (pos, entity) in self.block_entities.iter_mut() {
             match entity {
                 BlockEntity::Generator(g) => {
@@ -1757,6 +1766,11 @@ impl GameState {
                     // powered consumers — ticked in the granted loop below
                     machine_positions.push(*pos);
                 }
+                BlockEntity::Conduit => {
+                    // P35: relays extend the field (positions only)
+                    conduit_positions.push(*pos);
+                }
+                BlockEntity::Screen { .. } => {}
                 BlockEntity::Furnace(f) => {
                     f.tick(dt);
                 }
@@ -1852,6 +1866,9 @@ impl GameState {
                 sources.push((k, PowerSource::Engine(e)));
             }
         }
+        // P35: remember where the producers are (elevator/climate power
+        // checks read this without touching the source structs).
+        let producer_positions: Vec<(i32, i32, i32)> = sources.iter().map(|(p, _)| *p).collect();
         // Oil Age pass: refineries drink crude from adjacent pipes before
         // the power step (fluid movement is free; refining is not).
         let mut refinery_feed: std::collections::HashMap<(i32, i32, i32), u16> =
@@ -1928,9 +1945,11 @@ impl GameState {
                 sources.push((k, PowerSource::Reactor(reactor)));
             }
         }
+        self.producer_positions = producer_positions;
         let need = lf_game::machines::DRAW_RATE * dt;
         self.machine_power.clear();
-        let granted = lf_game::machines::distribute_power(&mut sources, &machine_positions, need);        for (spos, src) in sources {
+        let granted = lf_game::machines::distribute_power_relayed(
+            &mut sources, &conduit_positions, &machine_positions, need);        for (spos, src) in sources {
             let entity = match src {
                 PowerSource::Generator(g) => BlockEntity::Generator(g),
                 PowerSource::Wheel(w) => BlockEntity::WaterWheel(w),
@@ -1939,6 +1958,7 @@ impl GameState {
                 PowerSource::Combustion(c) => BlockEntity::Combustion(c),
                 PowerSource::Reactor(r) => BlockEntity::Reactor(r),
             };
+            let _ = &conduit_positions;
             self.block_entities.insert(spos, entity);
         }
         for (mi, mpos) in machine_positions.iter().enumerate() {
@@ -2220,6 +2240,7 @@ impl GameState {
                                     BlockEntity::Refinery(r) => vec![r.fuel_out, r.tar_out],
                                     BlockEntity::Combustion(c) => vec![c.fuel],
                                     BlockEntity::Reactor(r) => vec![r.fuel],
+                                    BlockEntity::Conduit | BlockEntity::Screen { .. } => vec![],
                                 };
                                 for s in stacks.into_iter().flatten() {
                                     self.spawn_drop(&s.item_id, s.count,
@@ -2241,6 +2262,30 @@ impl GameState {
             self.input.place_pressed = false; // one action per click
             if let Some((pos, _)) = target {
                 match self.world.get_block(pos.x, pos.y, pos.z).id() {
+                    registry::block::COMPUTER => {
+                        // P35: the screen cycles its page on interact —
+                        // tech tree / chronicle / grid status
+                        let key = (pos.x, pos.y, pos.z);
+                        let page = match self.block_entities.entry(key) {
+                            std::collections::hash_map::Entry::Occupied(mut e) => {
+                                if let BlockEntity::Screen { page } = e.get_mut() {
+                                    *page = *page % 3 + 1;
+                                    *page
+                                } else {
+                                    1
+                                }
+                            }
+                            std::collections::hash_map::Entry::Vacant(v) => {
+                                v.insert(BlockEntity::Screen { page: 1 });
+                                1
+                            }
+                        };
+                        self.push_hint(match page {
+                            1 => "screen: research status",
+                            2 => "screen: chronicle",
+                            _ => "screen: power grid",
+                        });
+                    }
                     registry::block::ENCHANTING_TABLE => {
                         self.ui_open = UiOpen::Imbue;
                         self.menu_reveal = 0.0;
@@ -2583,6 +2628,10 @@ impl GameState {
                                             self.block_entities.insert(key, BlockEntity::Combustion(Default::default()));
                                         } else if b == registry::block::REACTOR {
                                             self.block_entities.insert(key, BlockEntity::Reactor(Default::default()));
+                                        } else if b == registry::block::CONDUIT {
+                                            self.block_entities.insert(key, BlockEntity::Conduit);
+                                        } else if b == registry::block::COMPUTER {
+                                            self.block_entities.insert(key, BlockEntity::Screen { page: 1 });
                                         }
                                         self.remesh_around(place.x, place.z);
                                         // a placed block can dam water or
@@ -2673,6 +2722,35 @@ impl GameState {
 
     /// P33: cast the spell in a slot (Z/X/C). The pure gating lives in
     /// lf_game::magic; this applies the effect to the world/player.
+    /// P35: compose the computer screen's 16x16 face from live data and
+    /// upload it to the dynamic atlas layer when (and only when) the data
+    /// changed. Pages: 1 = research, 2 = chronicle, 3 = power grid.
+    fn update_screen_texture(&mut self) {
+        let (page, owned_screen) = self.block_entities.values().find_map(|e| match e {
+            BlockEntity::Screen { page } => Some((*page, true)),
+            _ => None,
+        }).unwrap_or((1, false));
+        let powered = self.machine_power.values().filter(|r| **r >= 0.9).count();
+        let starved = self.machine_power.values().filter(|r| **r < 0.9).count();
+        let era = self.research.era as u8;
+        let branches = self.research.branches.len() as u8;
+        let events = self.chronicle.len().min(255) as u8;
+        if !owned_screen {
+            return;
+        }
+        // signature: every datum the face shows
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (page, powered, starved, era, branches, events).hash(&mut h);
+        let sig = h.finish();
+        if sig == self.screen_signature {
+            return;
+        }
+        self.screen_signature = sig;
+        let img = compose_screen_face(page, era, branches, events, powered, starved);
+        self.resources.write_atlas_layer(&self.queue, lf_assets::SCREEN_LAYER, &img);
+    }
+
     /// P34: a builder's hint line in the chat log.
     fn push_hint(&mut self, msg: &str) {
         self.chat_log.push(msg.to_string());
@@ -3051,6 +3129,18 @@ impl GameState {
         // P33: mana regenerates passively (clamped at the pool).
         self.stats.mana = (self.stats.mana + lf_game::magic::MANA_REGEN * dt)
             .min(self.stats.max_mana);
+        // P35: a powered climate unit nearby regenerates a little health
+        // (checked on a cadence — the scan is a 9x6x9 box).
+        if self.frame % 30 == 0 {
+            let p = (self.player.position.x as i32, self.player.position.y as i32, self.player.position.z as i32);
+            if lf_game::building::climate_comfort(&self.world, p, &self.producer_positions)
+                && self.stats.hunger > 6.0
+            {
+                self.stats.health = (self.stats.health + 0.5).min(self.stats.max_health);
+            }
+        }
+        // P35: rewrite the dynamic screen layer only when its data changed
+        self.update_screen_texture();
         // P32: radiation residue poisons anyone standing near it until the
         // crater is scrubbed clean (the blocks are breakable).
         let p = self.player.position;
@@ -4342,6 +4432,67 @@ fn load_client_save(dir: &Path)
 /// Four vertical quads forming a slim translucent beam column (waypoint
 /// beacons, Step 15). One texture tile tall so the in-texture falloff fades
 /// the beam toward its top.
+/// P35: the computer screen's 16x16 face — a styled readout, not text:
+/// page 1 shows era pips (mainline + branches), page 2 chronicle rows,
+/// page 3 a green/red power bar split. Pure + unit-tested.
+pub fn compose_screen_face(
+    page: u8,
+    era: u8,
+    branches: u8,
+    events: u8,
+    powered: usize,
+    starved: usize,
+) -> image::RgbaImage {
+    let mut img = image::RgbaImage::new(16, 16);
+    let px = |img: &mut image::RgbaImage, x: u32, y: u32, r: u8, g: u8, b: u8| {
+        if x < 16 && y < 16 {
+            img.put_pixel(x, y, image::Rgba([r, g, b, 255]));
+        }
+    };
+    for y in 0..16 {
+        for x in 0..16 {
+            let bg = if (y % 4) == 0 { 20 } else { 12 };
+            px(&mut img, x, y, bg, bg + 6, bg + 14);
+        }
+    }
+    match page {
+        1 => {
+            // mainline era pips (bottom-up) + branch ticks on the right
+            for i in 0..(era.min(4) as u32) {
+                for x in 2..6 {
+                    px(&mut img, x, 13 - i * 3, 120, 220, 255);
+                }
+            }
+            for i in 0..(branches.min(3) as u32) {
+                for y in 3..6 {
+                    px(&mut img, 9 + i * 2, y, 185, 130, 255);
+                }
+            }
+        }
+        2 => {
+            // chronicle rows: one bar per 12 events (max 9 rows)
+            let rows = ((events as u32) / 12).min(9);
+            for i in 0..rows {
+                for x in 2..14 {
+                    px(&mut img, x, 2 + i, 240, 200, 120);
+                }
+            }
+        }
+        _ => {
+            // power grid: powered green left, starved red right
+            let total = (powered + starved).max(1) as f32;
+            let green_w = ((powered as f32 / total) * 12.0).round() as u32;
+            for x in 0..12 {
+                let color = if x < green_w { (110, 240, 130) } else { (250, 90, 80) };
+                for y in 6..10 {
+                    px(&mut img, x + 2, y, color.0, color.1, color.2);
+                }
+            }
+        }
+    }
+    img
+}
+
 fn push_beam_quads(vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
                    cx: f32, ground_y: f32, cz: f32, height: f32, tex: u32) {
     let r = 0.35f32;
@@ -4739,6 +4890,28 @@ mod tests {
         let book = loaded.spellbook.unwrap();
         assert!(book.knows(lf_game::magic::Spell::Firebolt));
         assert!((loaded.mana - 12.5).abs() < 1e-4);
+    }
+
+    /// P35: the screen face is a live readout of real state.
+    #[test]
+    fn screen_face_pages_read_out_state() {
+        let p1 = compose_screen_face(1, 3, 2, 40, 0, 0);
+        // era 3 -> pips at rows 13, 10, 7; branches 2 -> two violet ticks
+        let has_pip = p1.get_pixel(3, 13).0[1] > 200;
+        assert!(has_pip, "era pips render");
+        let p2 = compose_screen_face(2, 0, 0, 36, 0, 0);
+        assert!(p2.get_pixel(6, 2).0[0] > 200, "chronicle rows render (36 events = 3 rows)");
+        let p3 = compose_screen_face(3, 0, 0, 0, 3, 1);
+        let mut greens = 0u32;
+        for y in 0..16u32 {
+            for x in 0..16u32 {
+                let px = p3.get_pixel(x, y).0;
+                if px[1] > 200 && px[0] < 200 {
+                    greens += 1;
+                }
+            }
+        }
+        assert!(greens > 0, "the grid page shows the green share");
     }
 
     /// ClientSave bincode round trip (the same path save_world/load use).
