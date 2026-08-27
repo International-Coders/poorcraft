@@ -60,10 +60,15 @@ fn palette() -> [[f32; 4]; 64] {
     set(&mut p, 47, [0.78, 0.43, 0.24, 1.0]);     // pipe
     set(&mut p, 48, [0.55, 0.53, 0.50, 1.0]);     // boiler
     set(&mut p, 49, [0.62, 0.58, 0.54, 1.0]);     // steam engine
-    // Fallback for ids > 46 (future content): a stable muted color per id
+    // Oil Age (P31)
+    set(&mut p, 50, [0.06, 0.05, 0.04, 1.0]);     // crude oil
+    set(&mut p, 51, [0.33, 0.29, 0.25, 1.0]);     // pumpjack
+    set(&mut p, 52, [0.45, 0.42, 0.38, 1.0]);     // refinery
+    set(&mut p, 53, [0.50, 0.33, 0.20, 1.0]);     // combustion generator
+    // Fallback for ids > 53 (future content): a stable muted color per id
     // so new blocks are never invisible/wrong in RT before they get a
     // hand-tuned entry (registry-driven palette fix, P29).
-    let mut id = 47usize;
+    let mut id = 54usize;
     while id < p.len() {
         let h = (id as u32).wrapping_mul(2654435761);
         let r = 0.35 + (h & 0xFF) as f32 / 255.0 * 0.3;

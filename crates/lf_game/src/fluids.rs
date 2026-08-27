@@ -20,27 +20,44 @@ use lf_voxel::{water_level, water_with_level, BlockState, World};
 
 /// Maximum horizontal flow distance from a source.
 pub const MAX_SPREAD: u8 = 7;
+/// Crude is sluggish: it barely creeps away from a source (P31).
+pub const OIL_SPREAD: u8 = 3;
 
 pub type Cell = (i32, i32, i32);
 
-/// Evaluate one cell of the water simulation, applying edits directly to
-/// the world and returning them so the caller can remesh/broadcast and
-/// enqueue the affected neighborhoods.
+/// Evaluate one cell of the fluid simulation (water or crude oil), applying
+/// edits directly to the world and returning them so the caller can
+/// remesh/broadcast and enqueue the affected neighborhoods. The two fluids
+/// share the level packing and the event rules; oil just spreads less far
+/// and never feeds water cells (and vice versa).
 pub fn step_cell(world: &mut World, x: i32, y: i32, z: i32) -> Vec<(Cell, BlockState)> {
     let mut edits = Vec::new();
     let b = world.get_block(x, y, z);
-    if b.id() != registry::block::WATER {
+    let fluid = b.id();
+    if fluid != registry::block::WATER && fluid != registry::block::OIL {
         return edits;
     }
-    let level = water_level(b);
+    let spread_max = if fluid == registry::block::OIL { OIL_SPREAD } else { MAX_SPREAD };
+    let level = if fluid == registry::block::OIL {
+        lf_voxel::oil_level(b)
+    } else {
+        water_level(b)
+    };
+    let with_level = |lvl: u8| -> BlockState {
+        if fluid == registry::block::OIL { lf_voxel::oil_with_level(lvl) } else { water_with_level(lvl) }
+    };
+    let same_fluid = |state: BlockState| state.id() == fluid;
+    let level_of = |state: BlockState| -> u8 {
+        if fluid == registry::block::OIL { lf_voxel::oil_level(state) } else { water_level(state) }
+    };
 
-    // A source is always supported; flowing water needs a shorter-path
-    // neighbor or water above it.
+    // A source is always supported; flowing fluid needs a shorter-path
+    // neighbor or fluid above it.
     let supported = level == 0
-        || world.get_block(x, y + 1, z).id() == registry::block::WATER
+        || same_fluid(world.get_block(x, y + 1, z))
         || [(x - 1, z), (x + 1, z), (x, z - 1), (x, z + 1)].iter().any(|&(nx, nz)| {
             let nb = world.get_block(nx, y, nz);
-            nb.id() == registry::block::WATER && water_level(nb) < level
+            same_fluid(nb) && level_of(nb) < level
         });
     if !supported {
         world.set_block(x, y, z, BlockState::AIR);
@@ -48,27 +65,27 @@ pub fn step_cell(world: &mut World, x: i32, y: i32, z: i32) -> Vec<(Cell, BlockS
         return edits;
     }
 
-    // Fall first: water pouring into air (or onto far-flow) goes down,
-    // becoming falling water at level 1.
+    // Fall first: fluid pouring into air (or onto far-flow) goes down,
+    // becoming falling fluid at level 1.
     let below = world.get_block(x, y - 1, z);
     if below.id() == registry::block::AIR {
-        world.set_block(x, y - 1, z, water_with_level(1));
-        edits.push(((x, y - 1, z), water_with_level(1)));
+        world.set_block(x, y - 1, z, with_level(1));
+        edits.push(((x, y - 1, z), with_level(1)));
         return edits;
     }
-    if below.id() == registry::block::WATER && water_level(below) > 1 {
-        // normalize the column: anything directly under water is fed from
+    if same_fluid(below) && level_of(below) > 1 {
+        // normalize the column: anything directly under fluid is fed from
         // above, not from a long horizontal path
-        world.set_block(x, y - 1, z, water_with_level(1));
-        edits.push(((x, y - 1, z), water_with_level(1)));
+        world.set_block(x, y - 1, z, with_level(1));
+        edits.push(((x, y - 1, z), with_level(1)));
         return edits;
     }
 
     // Blocked below (solid or a source): spread sideways with decay.
-    if level < MAX_SPREAD {
+    if level < spread_max {
         for (nx, nz) in [(x - 1, z), (x + 1, z), (x, z - 1), (x, z + 1)] {
             if world.get_block(nx, y, nz).id() == registry::block::AIR {
-                let flowed = water_with_level(level + 1);
+                let flowed = with_level(level + 1);
                 world.set_block(nx, y, nz, flowed);
                 edits.push(((nx, y, nz), flowed));
             }
@@ -128,9 +145,10 @@ pub fn settle_gravity(world: &mut World, x: i32, z: i32) -> usize {
             let below = world.get_block(x, y - 1, z);
             let can_fall = below.id() == registry::block::AIR
                 || below.id() == registry::block::WATER
+                || below.id() == registry::block::OIL
                 || !registry::is_solid(below) && !registry::is_opaque(below);
             if can_fall {
-                // falling displaces water (and crushes nothing else v1)
+                // falling displaces water/oil (and crushes nothing else v1)
                 world.set_block(x, y - 1, z, b);
                 world.set_block(x, y, z, BlockState::AIR);
                 moved += 1;
@@ -258,6 +276,41 @@ mod tests {
         }
         assert_eq!(w.get_block(0, 4, 0), BlockState::AIR);
         assert_eq!(w.get_block(2, 1, 0).id(), block::STONE, "stone floats (it is not granular)");
+    }
+
+    /// Oil creeps only OIL_SPREAD cells and never feeds water (P31).
+    #[test]
+    fn oil_creeps_three_cells_and_stays_crude() {
+        let mut w = world_with_ground();
+        for x in -1..=8 {
+            w.set_block(x, 1, -1, BlockState::STONE);
+            w.set_block(x, 1, 1, BlockState::STONE);
+        }
+        for z in -1..=1 {
+            w.set_block(-1, 1, z, BlockState::STONE);
+        }
+        w.set_block(0, 1, 0, lf_voxel::oil_with_level(0));
+        let mut q = VecDeque::new();
+        enqueue_around(&mut q, (0, 1, 0));
+        settle(&mut w, &mut q, 10_000);
+        for lvl in 1..=OIL_SPREAD as i32 {
+            let b = w.get_block(lvl, 1, 0);
+            assert_eq!(b.id(), block::OIL, "cell at +{} should be crude", lvl);
+            assert_eq!(lf_voxel::oil_level(b) as i32, lvl);
+        }
+        assert_eq!(w.get_block(OIL_SPREAD as i32 + 1, 1, 0), BlockState::AIR,
+            "crude stops creeping at OIL_SPREAD");
+        // adjacent water and oil never convert each other
+        w.set_block(0, 3, 0, lf_voxel::oil_with_level(0));
+        w.set_block(1, 3, 0, water_with_level(0));
+        let mut q = VecDeque::new();
+        enqueue_around(&mut q, (0, 3, 0));
+        enqueue_around(&mut q, (1, 3, 0));
+        settle(&mut w, &mut q, 10_000);
+        assert!(lf_voxel::oil_level(w.get_block(0, 2, 0)) == 1
+            || w.get_block(0, 2, 0).id() == block::OIL);
+        assert_ne!(w.get_block(2, 3, 0).id(), block::OIL,
+            "water flow must not become crude");
     }
 
     /// Falling sand displaces water and lands on the pool floor.

@@ -17,7 +17,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 100;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 49;
+pub const MAX_VANILLA_BLOCK: u32 = 53;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -114,6 +114,11 @@ pub mod block {
     pub const PIPE: u32 = 47;
     pub const BOILER: u32 = 48;
     pub const STEAM_ENGINE: u32 = 49;
+    // Oil Age (P31): crude fluid + extraction/power machines
+    pub const OIL: u32 = 50;
+    pub const PUMP: u32 = 51;
+    pub const REFINERY: u32 = 52;
+    pub const COMBUSTION_GENERATOR: u32 = 53;
     // industrial ores
     pub const COPPER_ORE: u32 = 32;
     pub const TIN_ORE: u32 = 33;
@@ -137,6 +142,10 @@ pub mod block {
             PIPE => "Pipe",
             BOILER => "Boiler",
             STEAM_ENGINE => "Steam Engine",
+            OIL => "Crude Oil",
+            PUMP => "Pumpjack",
+            REFINERY => "Refinery",
+            COMBUSTION_GENERATOR => "Combustion Generator",
             DIRT => "Dirt",
             SAND => "Sand",
             MYCELIUM => "Mycelium",
@@ -194,8 +203,8 @@ pub fn is_solid(b: BlockState) -> bool {
     if id >= MOD_BLOCK_BASE {
         return mod_block(id).map(|d| d.solid).unwrap_or(true);
     }
-    id != block::AIR && id != block::WATER && id != block::TORCH && id != block::LANTERN
-        && id != block::FLOWER
+    id != block::AIR && id != block::WATER && id != block::OIL && id != block::TORCH
+        && id != block::LANTERN && id != block::FLOWER
 }
 
 /// Blocks that hide the neighboring face when meshing. Air, water and leaves
@@ -205,14 +214,15 @@ pub fn is_opaque(b: BlockState) -> bool {
     if id >= MOD_BLOCK_BASE {
         return mod_block(id).map(|d| d.opaque).unwrap_or(true);
     }
-    id != block::AIR && id != block::WATER && id != block::LEAVES && id != block::TORCH
-        && id != block::LANTERN && id != block::GLASS && id != block::ICE
-        && id != block::FLOWER
+    id != block::AIR && id != block::WATER && id != block::OIL && id != block::LEAVES
+        && id != block::TORCH && id != block::LANTERN && id != block::GLASS
+        && id != block::ICE && id != block::FLOWER
 }
 
-/// Blocks the crosshair can target (mining/placing raycast hits).
+/// Blocks the crosshair can target (mining/placing raycast hits). Fluids
+/// are scooped with the bucket via the face-adjacent cell instead.
 pub fn is_targetable(b: BlockState) -> bool {
-    b.id() != block::AIR && b.id() != block::WATER
+    b.id() != block::AIR && b.id() != block::WATER && b.id() != block::OIL
 }
 
 /// Cross-plants: non-solid cutout blocks that sit on the ground.

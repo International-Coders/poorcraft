@@ -444,6 +444,30 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "oil_chain",
+            desc: "Oil Age (P31): oil pool -> pumpjack -> pipes -> refinery -> combustion generator -> powered furnace, pre-run through the real machine code",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the derrick line in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "grid_overlay",
+            desc: "power-grid overlay (Step 25): green tint cube over the powered furnace, red over a starved crusher out of range",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO, // framed at the same build in run_scene
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "transparency_layers",
             desc: "water pool behind a glass wall with particles on both sides: transparent pass layering, pixel-checked",
             default_seed: 12345,
@@ -603,6 +627,8 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
     // the wheel placed against it, a battery and a crusher in the field;
     // the wheel is ticked through the actual machine/power code so the
     // crusher runs on river power in the proof.
+    // grid_overlay fills this with (pos, powered) pairs for the tint cubes.
+    let mut grid_cubes: Vec<((i32, i32, i32), bool)> = Vec::new();
     if spec.name == "water_wheel_power" {
         use lf_voxel::registry::block;
         let h = world.surface_height(0, 0);
@@ -680,7 +706,7 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
             // the adjacent source feeds the first pipe
             let mut feed = 200u16;
             while feed > 0 {
-                let took = pipes[0].fill(feed.min(60));
+                let took = pipes[0].fill(lf_game::machines::FluidKind::Water, feed.min(60));
                 if took == 0 {
                     break; // pipe full
                 }
@@ -696,7 +722,7 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
                 pipes[i] = a; pipes[i + 1] = b;
             }
             let mut water_in = 0u16;
-            water_in += pipes[2].draw(30);
+            water_in += pipes[2].draw(lf_game::machines::FluidKind::Water, 30);
             boiler.tick(dt, water_in + 40); // + pump from nothing here; fuel+pipe water
             let steam_in = boiler.draw_steam(lf_game::machines::STEAM_ENGINE_INTAKE * dt * 2.0);
             engine.tick(dt, steam_in);
@@ -718,6 +744,126 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         }
         // the seam-straddling torch, one block west of the border
         world.set_block(15, h, 0, lf_voxel::BlockState(block::TORCH));
+    }
+
+    // oil_chain + grid_overlay (P31/Step 25): the derrick line — an oil
+    // pool in a pit, the pumpjack over it, pipes to the refinery, the
+    // combustion generator powering everything, an electric furnace as the
+    // visible consumer. Pre-run through the REAL machine code (the same
+    // chain the client ticks) so the proof shows it mid-operation; the
+    // grid variant classifies the machines with the same ratio rule the
+    // client overlay uses and records the tint cubes.
+    if spec.name == "oil_chain" || spec.name == "grid_overlay" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -9..10 {
+            for z in -6..6 {
+                for y in h..h + 12 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // oil pit: two-deep pool of crude sources at the west end
+        for x in -7..=-3 {
+            for z in -1..=1 {
+                world.set_block(x, h - 1, z, lf_voxel::oil_with_level(0));
+                world.set_block(x, h - 2, z, lf_voxel::oil_with_level(0));
+            }
+        }
+        let pump_pos = (-5i32, h, 0i32);
+        let refinery_pos = (-1, h, 0);
+        let furnace_pos = (0, h, 0);
+        let gen_pos = (-2, h, 2);
+        let coal_pos = (-6, h, 2); // bootstraps the pump while oil flows
+        let crusher_pos = (8, h, 0); // grid variant only: far out of range
+        world.set_block(pump_pos.0, pump_pos.1, pump_pos.2, lf_voxel::BlockState(block::PUMP));
+        for x in -4..=-2 {
+            world.set_block(x, h, 0, lf_voxel::BlockState(block::PIPE));
+        }
+        world.set_block(refinery_pos.0, refinery_pos.1, refinery_pos.2, lf_voxel::BlockState(block::REFINERY));
+        world.set_block(furnace_pos.0, furnace_pos.1, furnace_pos.2, lf_voxel::BlockState(block::ELECTRIC_FURNACE));
+        world.set_block(gen_pos.0, gen_pos.1, gen_pos.2, lf_voxel::BlockState(block::COMBUSTION_GENERATOR));
+        world.set_block(coal_pos.0, coal_pos.1, coal_pos.2, lf_voxel::BlockState(block::COAL_GENERATOR));
+        if spec.name == "grid_overlay" {
+            world.set_block(crusher_pos.0, crusher_pos.1, crusher_pos.2, lf_voxel::BlockState(block::CRUSHER));
+        }
+
+        // pre-run the real chain for 200 sim-seconds
+        use lf_game::machines::{self, FluidKind, PowerSource};
+        let mut pump = machines::PumpJack::default();
+        let mut pipes: Vec<machines::Pipe> = (0..3).map(|_| Default::default()).collect();
+        let mut refinery = machines::Refinery::default();
+        let mut gen = machines::CombustionGenerator {
+            fuel: Some(lf_game::survival::ItemStack { item_id: "refined_fuel".into(), count: 8 }),
+            ..Default::default()
+        };
+        // the pumpjack boots on coal until the oil chain spins up (one
+        // combustion generator feeds two machines, not three — 26 EU/s
+        // vs 10 per machine; the overlay shows exactly that truth)
+        let mut coal = machines::Generator {
+            fuel: Some(lf_game::survival::ItemStack { item_id: "coal".into(), count: 20 }),
+            burn_left: 60.0,
+            buffer: 500.0,
+        };
+        let dt = 1.0f32 / 20.0;
+        let need = machines::DRAW_RATE * dt;
+        for _ in 0..4000 {
+            // power first (combustion covers everything in range)
+            coal.tick(dt);
+            let mut sources = vec![
+                (coal_pos, PowerSource::Generator(coal.clone())),
+                (gen_pos, PowerSource::Combustion(gen.clone())),
+            ];
+            let mut machines_list = vec![pump_pos, refinery_pos, furnace_pos];
+            if spec.name == "grid_overlay" {
+                machines_list.push(crusher_pos);
+            }
+            let granted = machines::distribute_power(&mut sources, &machines_list, need);
+            for (spos, src) in sources {
+                match src {
+                    PowerSource::Combustion(c) if spos == gen_pos => gen = c,
+                    PowerSource::Generator(g) if spos == coal_pos => coal = g,
+                    _ => {}
+                }
+            }
+            // pump lifts into the first pipe
+            let mut lifted = pump.tick(dt, granted[0], true);
+            while lifted > 0 {
+                let took = pipes[0].fill(FluidKind::Crude, lifted.min(60));
+                if took == 0 {
+                    break;
+                }
+                lifted -= took;
+            }
+            for i in 0..pipes.len() - 1 {
+                let (mut x, mut y) = (pipes[i].clone(), pipes[i + 1].clone());
+                x.equalize_with(&mut y);
+                pipes[i] = x;
+                pipes[i + 1] = y;
+            }
+            let mut crude_in = pipes[2].draw(FluidKind::Crude, 40);
+            crude_in += pipes[1].draw(FluidKind::Crude, 20);
+            refinery.tick(dt, granted[1], crude_in);
+            // haul finished fuel to the generator
+            if let Some(out) = refinery.fuel_out.take() {
+                match &mut gen.fuel {
+                    Some(f) => f.count += out.count,
+                    None => gen.fuel = Some(out),
+                }
+            }
+            gen.tick(dt);
+            // grid classification exactly like the client overlay
+            if spec.name == "grid_overlay" {
+                for (mi, mpos) in machines_list.iter().enumerate() {
+                    if *mpos == pump_pos || *mpos == refinery_pos {
+                        continue; // overlay shows consumer machines only
+                    }
+                    let ratio = granted[mi] / need.max(1e-6);
+                    grid_cubes.push((*mpos, ratio >= 0.9));
+                }
+            }
+        }
     }
 
     // transparency_layers (Step 8): a water pool BEHIND a glass wall, with
@@ -989,6 +1135,70 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
         }
     }
 
+    // oil_chain: dark flare smoke rising from the refinery columns (P31)
+    if spec.name == "oil_chain" {
+        let h = world.surface_height(0, 0) as f32;
+        let oil_tex = lf_assets::OIL_LAYER;
+        for i in 0..9u32 {
+            let t = i as f32;
+            let center = Vec3::new(-0.5 + (t * 1.1).sin() * 0.5, h + 1.3 + t * 0.5, 0.5 + (t * 0.8).cos() * 0.4);
+            let base = vertices.len() as u32;
+            let corners = [
+                [center.x - 0.15, center.y - 0.15, center.z],
+                [center.x - 0.15, center.y + 0.15, center.z],
+                [center.x + 0.15, center.y + 0.15, center.z],
+                [center.x + 0.15, center.y - 0.15, center.z],
+            ];
+            for (corner, uv) in corners.iter().zip([[0.0, 0.25], [0.0, 0.0], [0.25, 0.0], [0.25, 0.25]]) {
+                vertices.push(GpuVertex {
+                    position: *corner,
+                    normal: [0.0, 0.0, 1.0],
+                    tex_coord: uv,
+                    tex_index: oil_tex,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+
+    // grid_overlay (Step 25): the tint cubes ride the transparent channel
+    // — the same 6-face translucent-cube construction the client's
+    // push_overlay_cube uses, classified by the same ratio rule.
+    if spec.name == "grid_overlay" && grid_cubes.len() >= 2 {
+        let last = &grid_cubes[grid_cubes.len() - 2..];
+        for ((bx, by, bz), powered) in last.iter().copied() {
+            let tex = if powered { lf_assets::GRID_OK_LAYER } else { lf_assets::GRID_STARVED_LAYER };
+            let e = 0.51f32;
+            let (cx, cy, cz) = (bx as f32 + 0.5, by as f32 + 0.5, bz as f32 + 0.5);
+            let faces: [([[f32; 3]; 4]); 6] = [
+                [[cx - e, cy - e, cz - e], [cx - e, cy + e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy - e, cz - e]],
+                [[cx + e, cy - e, cz + e], [cx + e, cy + e, cz + e], [cx - e, cy + e, cz + e], [cx - e, cy - e, cz + e]],
+                [[cx - e, cy - e, cz + e], [cx - e, cy + e, cz + e], [cx - e, cy + e, cz - e], [cx - e, cy - e, cz - e]],
+                [[cx + e, cy - e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy + e, cz + e], [cx + e, cy - e, cz + e]],
+                [[cx - e, cy + e, cz + e], [cx - e, cy + e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy + e, cz + e]],
+                [[cx - e, cy - e, cz - e], [cx + e, cy - e, cz - e], [cx + e, cy - e, cz + e], [cx - e, cy - e, cz + e]],
+            ];
+            for corners in faces {
+                let base = water_vertices.len() as u32;
+                for (corner, uv) in corners.iter().zip([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]) {
+                    water_vertices.push(GpuVertex {
+                        position: *corner,
+                        normal: [0.0, 1.0, 0.0],
+                        tex_coord: uv,
+                        tex_index: tex,
+                        ao: 1.0,
+                        light: 0xF0,
+                        sway: 0.0,
+                    });
+                }
+                water_indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+    }
+
     // waypoint_beacons: slim tinted beams (Step 15) in the transparent
     // channel, mirroring the client's waypoint_batch geometry
     if spec.name == "waypoint_beacons" {
@@ -1101,6 +1311,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "steam_chain" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-4.0, h + 6.0, 9.0), Vec3::new(0.5, h + 0.8, 0.5))
+    } else if spec.name == "oil_chain" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-8.0, h + 6.5, 9.0), Vec3::new(-1.0, h + 0.6, 0.0))
+    } else if spec.name == "grid_overlay" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-4.0, h + 7.0, 13.0), Vec3::new(2.0, h + 0.6, 0.0))
     } else if spec.name == "water_wheel_power" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-7.0, h + 6.5, 9.0), Vec3::new(1.0, h + 0.5, -1.0))

@@ -241,6 +241,9 @@ pub enum BlockEntity {
     Pipe(lf_game::machines::Pipe),
     Boiler(lf_game::machines::Boiler),
     SteamEngine(lf_game::machines::SteamEngine),
+    Pump(lf_game::machines::PumpJack),
+    Refinery(lf_game::machines::Refinery),
+    Combustion(lf_game::machines::CombustionGenerator),
 }
 
 #[derive(Clone, Debug)]
@@ -538,6 +541,7 @@ impl ApplicationHandler for App {
                                 let shot_key = state.keymap.key(crate::input::Action::Screenshot);
                                 let dbg_key = state.keymap.key(crate::input::Action::DebugInfo);
                                 let rt_key = state.keymap.key(crate::input::Action::RtCapture);
+                                let grid_key = state.keymap.key(crate::input::Action::GridOverlay);
                                 if pressed {
                                     match code {
                                         KeyCode::Escape => {
@@ -648,6 +652,15 @@ impl ApplicationHandler for App {
                                             state.show_debug = !state.show_debug;
                                         }
                                         k if k == rt_key => { if state.settings.rt_mode == crate::RtMode::Captures { state.take_raytraced_screenshot(); } }
+                                        k if k == grid_key => {
+                                            if matches!(state.ui_open, UiOpen::None) && state.stats.health > 0.0 {
+                                                state.grid_overlay = !state.grid_overlay;
+                                                if !state.grid_overlay {
+                                                    state.overlay_batch = None;
+                                                }
+                                                return;
+                                            }
+                                        }
                                         KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3
                                         | KeyCode::Digit4 | KeyCode::Digit5 | KeyCode::Digit6
                                         | KeyCode::Digit7 | KeyCode::Digit8 | KeyCode::Digit9 => {
@@ -848,6 +861,12 @@ struct GameState {
     weather_batch: Option<MeshBatch>,
     /// World-space waypoint beacon beams (Step 15), transparent pass.
     waypoint_batch: Option<MeshBatch>,
+    /// Power-grid overlay (Step 25): on = tint cubes over every machine,
+    /// green = powered, red = starved. `machine_power` holds the EU ratio
+    /// granted last tick per machine position.
+    pub grid_overlay: bool,
+    pub machine_power: std::collections::HashMap<(i32, i32, i32), f32>,
+    overlay_batch: Option<MeshBatch>,
     last_cloud_rebuild: Instant,
     pub settings: Settings,
     pub world_type: lf_worldgen::WorldType,
@@ -1100,6 +1119,9 @@ impl GameState {
             sky_batch: None,
             weather_batch: None,
             waypoint_batch: None,
+            grid_overlay: false,
+            machine_power: std::collections::HashMap::new(),
+            overlay_batch: None,
             last_cloud_rebuild: Instant::now() - Duration::from_secs(5),
             air: 10,
             spawn_point,
@@ -1583,6 +1605,14 @@ impl GameState {
                 }
                 BlockEntity::SteamEngine(_) => {} // fed in the steam pass below
                 BlockEntity::Pipe(_) | BlockEntity::Boiler(_) => {} // steam pass below
+                BlockEntity::Combustion(c) => {
+                    c.tick(dt);
+                    sources.push((*pos, PowerSource::Combustion(c.clone())));
+                }
+                BlockEntity::Pump(_) | BlockEntity::Refinery(_) => {
+                    // powered consumers — ticked in the granted loop below
+                    machine_positions.push(*pos);
+                }
                 BlockEntity::Furnace(f) => {
                     f.tick(dt);
                 }
@@ -1628,7 +1658,7 @@ impl GameState {
                 }
                 for n in &neighbors {
                     if let Some(BlockEntity::Pipe(p)) = self.block_entities.get_mut(n) {
-                        water_in += p.draw(30);
+                        water_in += p.draw(lf_game::machines::FluidKind::Water, 30);
                     }
                 }
                 if let Some(BlockEntity::Boiler(b)) = self.block_entities.get_mut(&k) {
@@ -1678,25 +1708,91 @@ impl GameState {
                 sources.push((k, PowerSource::Engine(e)));
             }
         }
+        // Oil Age pass: refineries drink crude from adjacent pipes before
+        // the power step (fluid movement is free; refining is not).
+        let mut refinery_feed: std::collections::HashMap<(i32, i32, i32), u16> =
+            std::collections::HashMap::new();
+        {
+            let keys: Vec<(i32, i32, i32)> = self.block_entities.keys().copied().collect();
+            for k in keys {
+                if !matches!(self.block_entities.get(&k), Some(BlockEntity::Refinery(_))) {
+                    continue;
+                }
+                let neighbors = [
+                    (k.0 + 1, k.1, k.2), (k.0 - 1, k.1, k.2),
+                    (k.0, k.1, k.2 + 1), (k.0, k.1, k.2 - 1),
+                    (k.0, k.1 - 1, k.2), (k.0, k.1 + 1, k.2),
+                ];
+                let mut crude_in = 0u16;
+                for n in &neighbors {
+                    if let Some(BlockEntity::Pipe(p)) = self.block_entities.get_mut(n) {
+                        crude_in += p.draw(lf_game::machines::FluidKind::Crude, 40);
+                    }
+                }
+                refinery_feed.insert(k, crude_in);
+            }
+        }
         let need = lf_game::machines::DRAW_RATE * dt;
-        let granted = lf_game::machines::distribute_power(&mut sources, &machine_positions, need);
-        for (spos, src) in sources {
+        self.machine_power.clear();
+        let granted = lf_game::machines::distribute_power(&mut sources, &machine_positions, need);        for (spos, src) in sources {
             let entity = match src {
                 PowerSource::Generator(g) => BlockEntity::Generator(g),
                 PowerSource::Wheel(w) => BlockEntity::WaterWheel(w),
                 PowerSource::Battery(b) => BlockEntity::Battery(b),
                 PowerSource::Engine(e) => BlockEntity::SteamEngine(e),
+                PowerSource::Combustion(c) => BlockEntity::Combustion(c),
             };
             self.block_entities.insert(spos, entity);
         }
         for (mi, mpos) in machine_positions.iter().enumerate() {
             let powered = granted[mi];
+            // grid overlay (Step 25): remember this frame's power verdict as
+            // a ratio (granted / needed) so the tint cubes can classify
+            self.machine_power.insert(*mpos, powered / need.max(1e-6));
+            // pumpjacks lift crude while powered and sitting on oil
+            let mut pump_out: Vec<((i32, i32, i32), u16)> = Vec::new();
+            let pump_adjacent_oil = matches!(self.block_entities.get(mpos), Some(BlockEntity::Pump(_))) && [
+                (mpos.0 + 1, mpos.1, mpos.2), (mpos.0 - 1, mpos.1, mpos.2),
+                (mpos.0, mpos.1, mpos.2 + 1), (mpos.0, mpos.1, mpos.2 - 1),
+                (mpos.0, mpos.1 - 1, mpos.2),
+            ].iter().any(|p| {
+                let b = self.world.get_block(p.0, p.1, p.2);
+                b.id() == registry::block::OIL && lf_voxel::oil_level(b) == 0
+            });
             if let Some(entity) = self.block_entities.get_mut(mpos) {
                 match entity {
                     BlockEntity::ElectricFurnace(f) => { f.tick(dt, powered); }
                     BlockEntity::Crusher(cr) => { cr.tick(dt, powered); }
                     BlockEntity::Assembler(a) => { a.tick(dt, powered); }
+                    BlockEntity::Pump(p) => {
+                        let mb = p.tick(dt, powered, pump_adjacent_oil);
+                        if mb > 0 {
+                            pump_out.push((*mpos, mb));
+                        }
+                    }
+                    BlockEntity::Refinery(r) => {
+                        let feed = refinery_feed.remove(mpos).unwrap_or(0);
+                        r.tick(dt, powered, feed);
+                    }
                     _ => {}
+                }
+            }
+            // pumped crude flows into adjacent pipes
+            for (ppos, mb) in pump_out {
+                let neighbors = [
+                    (ppos.0 + 1, ppos.1, ppos.2), (ppos.0 - 1, ppos.1, ppos.2),
+                    (ppos.0, ppos.1, ppos.2 + 1), (ppos.0, ppos.1, ppos.2 - 1),
+                    (ppos.0, ppos.1 - 1, ppos.2),
+                ];
+                let mut left = mb;
+                for n in &neighbors {
+                    if left == 0 {
+                        break;
+                    }
+                    if let Some(BlockEntity::Pipe(p)) = self.block_entities.get_mut(n) {
+                        let took = p.fill(lf_game::machines::FluidKind::Crude, left);
+                        left -= took;
+                    }
                 }
             }
         }
@@ -1883,8 +1979,11 @@ impl GameState {
                                     BlockEntity::Crusher(c) => vec![c.input, c.output],
                                     BlockEntity::Assembler(a) => vec![a.input_a, a.input_b, a.output],
                                     BlockEntity::WaterWheel(_) | BlockEntity::Battery(_)
-                                    | BlockEntity::Pipe(_) | BlockEntity::SteamEngine(_) => vec![],
+                                    | BlockEntity::Pipe(_) | BlockEntity::SteamEngine(_)
+                                    | BlockEntity::Pump(_) => vec![],
                                     BlockEntity::Boiler(b) => vec![b.fuel],
+                                    BlockEntity::Refinery(r) => vec![r.fuel_out, r.tar_out],
+                                    BlockEntity::Combustion(c) => vec![c.fuel],
                                 };
                                 for s in stacks.into_iter().flatten() {
                                     self.spawn_drop(&s.item_id, s.count,
@@ -1933,7 +2032,10 @@ impl GameState {
                     | registry::block::BATTERY
                     | registry::block::PIPE
                     | registry::block::BOILER
-                    | registry::block::STEAM_ENGINE => {
+                    | registry::block::STEAM_ENGINE
+                    | registry::block::PUMP
+                    | registry::block::REFINERY
+                    | registry::block::COMBUSTION_GENERATOR => {
                         let key = (pos.x, pos.y, pos.z);
                         let block_id_here = self.world.get_block(pos.x, pos.y, pos.z).id();
                         self.block_entities.entry(key).or_insert_with(|| match block_id_here {
@@ -1945,6 +2047,9 @@ impl GameState {
                             registry::block::PIPE => BlockEntity::Pipe(Default::default()),
                             registry::block::BOILER => BlockEntity::Boiler(Default::default()),
                             registry::block::STEAM_ENGINE => BlockEntity::SteamEngine(Default::default()),
+                            registry::block::PUMP => BlockEntity::Pump(Default::default()),
+                            registry::block::REFINERY => BlockEntity::Refinery(Default::default()),
+                            registry::block::COMBUSTION_GENERATOR => BlockEntity::Combustion(Default::default()),
                             _ => BlockEntity::Assembler(Default::default()),
                         });
                         self.ui_open = UiOpen::Machine(key);
@@ -1990,15 +2095,35 @@ impl GameState {
                     self.unlock_cursor();
                     return;
                 }
-                // buckets: scoop a water source / pour one. The raycast
-                // skips water, so the target cell is the face-adjacent one.
+                // buckets: scoop a water/oil source or pour one. The raycast
+                // skips fluids, so the target cell is the face-adjacent one.
+                // An oil bucket aimed at a refinery feeds its tank instead.
                 if let Some(stack) = &held {
-                    if stack.item_id == "bucket" || stack.item_id == "water_bucket" {
+                    if matches!(stack.item_id.as_str(), "bucket" | "water_bucket" | "oil_bucket") {
                         if let Some((pos, normal)) = target {
+                            if stack.item_id == "oil_bucket"
+                                && self.world.get_block(pos.x, pos.y, pos.z).id() == registry::block::REFINERY
+                            {
+                                let key = (pos.x, pos.y, pos.z);
+                                let fed = match self.block_entities.get_mut(&key) {
+                                    Some(BlockEntity::Refinery(r)) => r.pour_bucket(),
+                                    _ => false,
+                                };
+                                if fed {
+                                    self.inventory.slots[self.hotbar_index] =
+                                        Some(ItemStack { item_id: "bucket".into(), count: 1 });
+                                }
+                                return;
+                            }
                             let cell = pos + normal;
                             let state_there = self.world.get_block(cell.x, cell.y, cell.z);
-                            let holding_water = stack.item_id == "water_bucket";
-                            if !holding_water
+                            let held_id = stack.item_id.clone();
+                            let pour = match held_id.as_str() {
+                                "water_bucket" => Some(lf_voxel::water_with_level(0)),
+                                "oil_bucket" => Some(lf_voxel::oil_with_level(0)),
+                                _ => None,
+                            };
+                            if pour.is_none()
                                 && state_there.id() == registry::block::WATER
                                 && lf_voxel::water_level(state_there) == 0
                             {
@@ -2006,8 +2131,16 @@ impl GameState {
                                 self.after_edit(cell.x, cell.y, cell.z);
                                 self.inventory.slots[self.hotbar_index] =
                                     Some(ItemStack { item_id: "water_bucket".into(), count: 1 });
-                            } else if holding_water && state_there == BlockState::AIR {
-                                self.apply_sim_edit(cell.x, cell.y, cell.z, lf_voxel::water_with_level(0));
+                            } else if pour.is_none()
+                                && state_there.id() == registry::block::OIL
+                                && lf_voxel::oil_level(state_there) == 0
+                            {
+                                self.apply_sim_edit(cell.x, cell.y, cell.z, BlockState::AIR);
+                                self.after_edit(cell.x, cell.y, cell.z);
+                                self.inventory.slots[self.hotbar_index] =
+                                    Some(ItemStack { item_id: "oil_bucket".into(), count: 1 });
+                            } else if let Some(fluid) = pour.filter(|_| state_there == BlockState::AIR) {
+                                self.apply_sim_edit(cell.x, cell.y, cell.z, fluid);
                                 self.after_edit(cell.x, cell.y, cell.z);
                                 self.inventory.slots[self.hotbar_index] =
                                     Some(ItemStack { item_id: "bucket".into(), count: 1 });
@@ -2054,6 +2187,12 @@ impl GameState {
                                             self.block_entities.insert(key, BlockEntity::Boiler(Default::default()));
                                         } else if b == registry::block::STEAM_ENGINE {
                                             self.block_entities.insert(key, BlockEntity::SteamEngine(Default::default()));
+                                        } else if b == registry::block::PUMP {
+                                            self.block_entities.insert(key, BlockEntity::Pump(Default::default()));
+                                        } else if b == registry::block::REFINERY {
+                                            self.block_entities.insert(key, BlockEntity::Refinery(Default::default()));
+                                        } else if b == registry::block::COMBUSTION_GENERATOR {
+                                            self.block_entities.insert(key, BlockEntity::Combustion(Default::default()));
                                         }
                                         self.remesh_around(place.x, place.z);
                                         // a placed block can dam water or
@@ -2140,6 +2279,25 @@ impl GameState {
             self.player.position.x as i32,
             self.player.position.z as i32,
         ).is_cold()
+    }
+
+    /// Step 25 grid overlay: one translucent tint cube per powered machine
+    /// (green = fed, red = starved), rebuilt every few frames while on.
+    fn rebuild_overlay_batch(&mut self) {
+        let (mut bv, mut bi) = (Vec::new(), Vec::new());
+        for (pos, ratio) in &self.machine_power {
+            let layer = if *ratio >= 0.9 {
+                lf_assets::GRID_OK_LAYER
+            } else {
+                lf_assets::GRID_STARVED_LAYER
+            };
+            push_overlay_cube(&mut bv, &mut bi, pos.0 as f32, pos.1 as f32, pos.2 as f32, layer);
+        }
+        self.overlay_batch = if bv.is_empty() {
+            None
+        } else {
+            Some(MeshBatch::new(&self.device, &self.resources, &bv, &bi))
+        };
     }
 
     fn consume_selected(&mut self, n: u8) {
@@ -2988,6 +3146,16 @@ impl GameState {
         if let Some(batch) = &self.waypoint_batch {
             batch.update_camera(&self.queue, &camera, &env);
         }
+        // Step 25 grid overlay cubes (rebuilt periodically while enabled)
+        if self.grid_overlay && (self.frame % 15 == 0 || self.overlay_batch.is_none()) {
+            self.rebuild_overlay_batch();
+        }
+        if !self.grid_overlay {
+            self.overlay_batch = None;
+        }
+        if let Some(batch) = &self.overlay_batch {
+            batch.update_camera(&self.queue, &camera, &env);
+        }
         self.outline.update_camera(&self.queue, &camera);
 
         let output = match self.surface.get_current_texture() {
@@ -3069,6 +3237,10 @@ impl GameState {
             }
             // waypoint beacons ride the transparent pass
             if let Some(batch) = &self.waypoint_batch {
+                batch.draw(&mut pass, resources, true);
+            }
+            // power-grid overlay cubes (Step 25) ride the transparent pass
+            if let Some(batch) = &self.overlay_batch {
                 batch.draw(&mut pass, resources, true);
             }
             // Item drops ride the opaque pass.
@@ -3410,8 +3582,41 @@ fn push_beam_quads(vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
     }
 }
 
-fn pseudo_random(seed: u64) -> u64 {
-    let mut h = seed.wrapping_mul(0x9E3779B97F4A7C15);
+/// A translucent tint cube over one block (Step 25 power-grid overlay):
+/// six faces slightly inflated so they don't z-fight the machine block,
+/// drawn in the transparent pass like the waypoint beams.
+fn push_overlay_cube(vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                     bx: f32, by: f32, bz: f32, tex: u32) {
+    let e = 0.51f32; // half-extent inflated past the unit block
+    let cx = bx + 0.5;
+    let cy = by + 0.5;
+    let cz = bz + 0.5;
+    let faces: [([f32; 3], [[f32; 3]; 4]); 6] = [
+        ([0.0, 0.0, -1.0], [[cx - e, cy - e, cz - e], [cx - e, cy + e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy - e, cz - e]]),
+        ([0.0, 0.0, 1.0], [[cx + e, cy - e, cz + e], [cx + e, cy + e, cz + e], [cx - e, cy + e, cz + e], [cx - e, cy - e, cz + e]]),
+        ([-1.0, 0.0, 0.0], [[cx - e, cy - e, cz + e], [cx - e, cy + e, cz + e], [cx - e, cy + e, cz - e], [cx - e, cy - e, cz - e]]),
+        ([1.0, 0.0, 0.0], [[cx + e, cy - e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy + e, cz + e], [cx + e, cy - e, cz + e]]),
+        ([0.0, 1.0, 0.0], [[cx - e, cy + e, cz + e], [cx - e, cy + e, cz - e], [cx + e, cy + e, cz - e], [cx + e, cy + e, cz + e]]),
+        ([0.0, -1.0, 0.0], [[cx - e, cy - e, cz - e], [cx + e, cy - e, cz - e], [cx + e, cy - e, cz + e], [cx - e, cy - e, cz + e]]),
+    ];
+    for (normal, corners) in faces {
+        let base = vertices.len() as u32;
+        for (corner, uv) in corners.iter().zip([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]) {
+            vertices.push(GpuVertex {
+                position: *corner,
+                normal,
+                tex_coord: uv,
+                tex_index: tex,
+                ao: 1.0,
+                light: 0xF0,
+                sway: 0.0,
+            });
+        }
+        indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+    }
+}
+
+fn pseudo_random(seed: u64) -> u64 {    let mut h = seed.wrapping_mul(0x9E3779B97F4A7C15);
     h ^= h >> 31;
     h.wrapping_mul(0xC2B2AE3D27D4EB4F)
 }

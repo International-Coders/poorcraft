@@ -42,3 +42,13 @@
 - P28 (goal Section 3): biome atmosphere = shader color grade (uniform tint multiply + saturation pull toward luma, applied post-lighting/post-fog) + client-side clear-color mirror; per-biome grade table with ~0.3s lerp across boundaries. Deliberately NOT a separate full-screen post pass — same visual class, zero extra render targets, works headless for proofs.
 - P38 (build-pack Step 4): audio = new lf_audio crate on rodio (cpal backend) — procedural PCM synthesis (no asset files, matching the procedural textures), categories wood/stone/metal/glass/soft, silent Option<Audio> fallback when no output device, 30ms rate limit, volumes from the persisted sliders. kira was the older BACKLOG note; rodio chosen for minimal one-shot playback of synthesized buffers. CI ubuntu jobs now install libasound2-dev.
 - P28 (build-pack Step 9): low-end target device = THIS dev host (Intel x64 Mac, integrated GPU) — the machine friends-testing builds run on. `make perf` (xtask perf, persistent HeadlessRenderer, radius-5 plot = Medium view distance, 800x600): terrain_vista p50 111ms / p95 156ms / min 77ms per frame INCLUDING ~50-90ms of GPU readback + PNG encode that live frames do not pay. Live target: >=30 fps at Medium verified via F3 in a play session (confirmation logged in DEVLOG); the headless bench is the tracked regression signal (watch p50/min drift, not just live feel).
+
+### Loop 318 — one combustion generator feeds two machines (not three)
+COMBUSTION_RATE 26 EU/s vs DRAW_RATE 10 per machine means a third
+in-range consumer genuinely starves — the grid_overlay proof caught this
+live (the furnace classified red on a single generator). This is the
+intended balance, not a bug: bootstrapping extraction on a coal
+generator while the oil chain spins up is the honest progression, and
+the Step 25 overlay exists precisely to make that starvation visible in
+world. Tiering stays: wheel 12 < steam 16 < coal 20 < combustion 26 <
+nuclear (P32 will sit on top).

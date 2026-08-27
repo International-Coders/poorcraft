@@ -43,6 +43,20 @@ pub fn water_with_level(level: u8) -> BlockState {
     BlockState(registry::block::WATER | (((level as u32) & 0x0F) << 24))
 }
 
+/// Flow distance of a crude-oil block (same packing as water).
+pub fn oil_level(state: BlockState) -> u8 {
+    if state.id() == registry::block::OIL {
+        state.state_flags() & 0x0F
+    } else {
+        0
+    }
+}
+
+/// A crude-oil block with the given flow level (0 = source).
+pub fn oil_with_level(level: u8) -> BlockState {
+    BlockState(registry::block::OIL | (((level as u32) & 0x0F) << 24))
+}
+
 /// A 16x16x16 section of voxels with palette compression.
 pub const SECTION_SIZE: usize = 16;
 pub const SECTION_VOLUME: usize = SECTION_SIZE * SECTION_SIZE * SECTION_SIZE;

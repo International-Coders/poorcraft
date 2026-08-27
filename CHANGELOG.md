@@ -700,3 +700,11 @@
   warden threads), on-kit paginated reader, Lorekeeper trades, icons;
   file-load test + AI-verified lore_book proof scene.
 - 201 tests green; 34/34 vistest; smoke OK; runtimes rebuilt; pushed.
+
+## Loop 318 — Oil Age (P31) + power-grid overlay (Step 25)
+- Crude oil in worldgen (desert/swamp pools + surface seeps), typed
+  pipes, pumpjack/refinery/combustion generator, Oil research branch
+  (Steam-or-Electrical either-or), oil buckets, tar byproduct.
+- G toggles the power-grid overlay: green/red tint cubes over machines.
+- 209 tests green (+8); 36/36 vistest scenes; smoke OK; runtimes
+  rebuilt; pushed.

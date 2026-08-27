@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 62] = [
+pub const TEXTURE_NAMES: [&str; 68] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -29,6 +29,10 @@ pub const TEXTURE_NAMES: [&str; 62] = [
     "water_wheel", "battery",
     // Steam Age machines (P30)
     "pipe", "boiler", "steam_engine",
+    // Oil Age (P31): crude fluid + machines, and the power-grid overlay
+    // tints (translucent, transparent pass like the waypoint beams)
+    "oil", "pump", "refinery", "combustion_generator",
+    "grid_ok", "grid_starved",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -43,6 +47,13 @@ pub const BATTERY_LAYER: u32 = 58;
 pub const PIPE_LAYER: u32 = 59;
 pub const BOILER_LAYER: u32 = 60;
 pub const STEAM_ENGINE_LAYER: u32 = 61;
+pub const OIL_LAYER: u32 = 62;
+pub const PUMP_LAYER: u32 = 63;
+pub const REFINERY_LAYER: u32 = 64;
+pub const COMBUSTION_LAYER: u32 = 65;
+/// Power-grid overlay tints (Step 25): green = powered, red = starved.
+pub const GRID_OK_LAYER: u32 = 66;
+pub const GRID_STARVED_LAYER: u32 = 67;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -60,6 +71,10 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         47 => 59, // pipe
         48 => 60, // boiler
         49 => 61, // steam engine
+        50 => 62, // crude oil
+        51 => 63, // pumpjack
+        52 => 64, // refinery
+        53 => 65, // combustion generator
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -226,6 +241,87 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([ch(v), ch(v - 4), ch(v - 16), 255])
                     } else {
                         Rgba([0, 0, 0, 0])
+                    }
+                }
+                // Oil Age (P31)
+                "oil" => {
+                    // full-tile glossy crude: near-black with brown swirls
+                    // and a light-streak highlight, mirroring water's style
+                    let swirl = ((x * 3 + y * 5) % 11 < 3) || ((x * 7 + y * 2) % 13 < 2);
+                    let sheen = (x + y) % 9 == 2 && x > 3 && x < 12;
+                    if sheen {
+                        Rgba([88, 74, 48, 255])
+                    } else if swirl {
+                        Rgba([30, 24, 16, 255])
+                    } else {
+                        Rgba([16, 13, 9, 255])
+                    }
+                }
+                "pump" => {
+                    // derrick: steel lattice tower with a walking beam
+                    let lattice = x >= 3 && x <= 12 && y >= 2 && y <= 13
+                        && (x == 3 || x == 12 || y == 13
+                            || (x + y) % 9 == 0 || ((x as i32) - (y as i32)).rem_euclid(9) == 0);
+                    let beam = y >= 5 && y <= 7 && x >= 5 && x <= 11;
+                    let head = (x as i32 - 5).abs() <= 1 && y <= 4 && y >= 2;
+                    if beam {
+                        Rgba([210, 160, 70, 255])
+                    } else if head {
+                        Rgba([180, 130, 60, 255])
+                    } else if lattice {
+                        let v = 120 + ((x * 5 + y * 11) % 18);
+                        Rgba([ch(v - 20), ch(v - 22), ch(v - 16), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "refinery" => {
+                    // two fractioning columns + pipe run + flare stub
+                    let col_a = x >= 3 && x <= 5 && y >= 2 && y <= 13;
+                    let col_b = x >= 8 && x <= 10 && y >= 4 && y <= 13;
+                    let pipes = y >= 10 && y <= 11 && x >= 3 && x <= 13;
+                    let flare = x >= 12 && x <= 13 && y >= 1 && y <= 4;
+                    if flare {
+                        Rgba([250, 170, 60, 255])
+                    } else if col_a || col_b {
+                        let v = 140 + ((x * 9 + y * 3) % 20);
+                        Rgba([ch(v), ch(v - 6), ch(v - 18), 255])
+                    } else if pipes {
+                        Rgba([198, 110, 62, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "combustion_generator" => {
+                    // engine block with exhaust stack and hot glow grille
+                    let body = x >= 2 && x <= 13 && y >= 6 && y <= 14;
+                    let stack = x >= 10 && x <= 12 && y >= 2 && y <= 6;
+                    let grille = body && y >= 9 && y <= 12 && x >= 4 && x <= 7;
+                    if stack {
+                        Rgba([120, 120, 128, 255])
+                    } else if grille {
+                        Rgba([240, 130, 50, 255])
+                    } else if body {
+                        let v = 135 + ((x * 7 + y * 5) % 22);
+                        Rgba([ch(v), ch(v - 8), ch(v - 20), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "grid_ok" => {
+                    // power-grid overlay tint (transparent pass): opaque
+                    // wireframe cage over a translucent green fill
+                    if x % 4 == 0 || y % 4 == 0 {
+                        Rgba([120, 255, 150, 255])
+                    } else {
+                        Rgba([90, 230, 120, 60])
+                    }
+                }
+                "grid_starved" => {
+                    if x % 4 == 0 || y % 4 == 0 {
+                        Rgba([255, 110, 100, 255])
+                    } else {
+                        Rgba([230, 70, 60, 60])
                     }
                 }
                 // Water Age machines (P29)
@@ -658,7 +754,7 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "wooden_shovel", "stone_shovel", "iron_shovel",
     "wooden_sword", "stone_sword", "iron_sword",
     "apple", "porkchop", "mutton", "book", "bow", "arrow",
-    "bucket", "water_bucket",
+    "bucket", "water_bucket", "oil_bucket", "refined_fuel", "tar",
     "tome_of_the_forge", "tome_of_the_null", "wardens_ledger",
     "bronze_chestplate", "steel_chestplate",
     "raw_copper", "copper_ingot", "raw_tin", "tin_ingot",
@@ -1224,6 +1320,22 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
             'w' => Rgba([64, 120, 200, 255]), 'W' => Rgba([110, 170, 235, 255]),
             _ => Rgba([0, 0, 0, 0]),
         }),
+        "oil_bucket" => paint_sprite(BUCKET_ART, |c| match c {
+            'm' => Rgba([198, 198, 206, 255]), 'M' => Rgba([232, 232, 240, 255]),
+            'd' => Rgba([140, 140, 150, 255]),
+            'w' => Rgba([28, 22, 14, 255]), 'W' => Rgba([70, 58, 36, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "refined_fuel" => paint_sprite(BUCKET_ART, |c| match c {
+            'm' => Rgba([210, 140, 60, 255]), 'M' => Rgba([240, 180, 90, 255]),
+            'd' => Rgba([150, 90, 34, 255]),
+            'w' => Rgba([250, 170, 60, 255]), 'W' => Rgba([255, 220, 140, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "tar" => paint_sprite(SULFUR_ART, |c| match c {
+            'y' => Rgba([26, 22, 20, 255]), 'Y' => Rgba([70, 62, 56, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
         "bronze_chestplate" | "steel_chestplate" => {
             let base = if item_id.starts_with("bronze") {
                 (Rgba([205, 127, 50, 255]), Rgba([235, 165, 90, 255]))
@@ -1297,7 +1409,8 @@ mod tests {
             assert_eq!(tex.width(), 16);
             assert_eq!(tex.height(), 16);
             // fully opaque except water (transparent pass)
-            if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine" {
+            if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine"
+                || name == "pump" || name == "refinery" || name == "combustion_generator" {
                 // machine shells with hollow details
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(solid > 40, "{} too sparse", name);
@@ -1319,7 +1432,7 @@ mod tests {
                 assert!(tex.pixels().all(|p| p.0[3] == 200));
                 continue;
             }
-            if name.starts_with("crack_") || name.starts_with("waypoint_") {
+            if name.starts_with("crack_") || name.starts_with("waypoint_") || name.starts_with("grid_") {
                 // decal: mostly transparent, some opaque crack pixels
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(solid > 4, "{} too sparse", name);

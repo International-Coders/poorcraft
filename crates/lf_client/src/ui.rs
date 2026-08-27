@@ -1802,6 +1802,73 @@ impl GameState {
                         self.draw_storage_rows(ui);
                         self.block_entities.insert(pos, BlockEntity::SteamEngine(e));
                     }
+                    BlockEntity::Pump(mut p) => {
+                        ui.label(egui::RichText::new(format!(
+                            "lifetime crude: {} mB", p.lifetime_mb
+                        )).small().color(Theme::TEXT_DIM));
+                        ui.label(egui::RichText::new(
+                            "needs power in range and an oil source below/adjacent; feeds neighbor pipes",
+                        ).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Pump(p));
+                    }
+                    BlockEntity::Refinery(mut r) => {
+                        top_bar(ui, r.crude as f32 / 20_000.0, "crude", egui::Color32::from_rgb(40, 32, 20));
+                        top_bar(ui, r.progress / lf_game::machines::REFINERY_TIME, "refining", Theme::ACCENT);
+                        ui.horizontal(|ui| {
+                            let mut fuel = r.fuel_out.take();
+                            let mut tar = r.tar_out.take();
+                            let mut cursor = self.cursor_stack.take();
+                            let out_f = slot_button(ui, &mut fuel, &mut cursor, false, &self.icons);
+                            let out_t = slot_button(ui, &mut tar, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            for mut q in [out_f.quick_moved, out_t.quick_moved].into_iter().flatten() {
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
+                            r.fuel_out = fuel;
+                            r.tar_out = tar;
+                            ui.label(egui::RichText::new("refined fuel / tar").small().color(Theme::TEXT_DIM));
+                        });
+                        let held = self.inventory.slots[self.hotbar_index].clone();
+                        let holding_oil = held.as_ref().map(|s| s.item_id == "oil_bucket").unwrap_or(false);
+                        let can_pour = holding_oil && r.crude + lf_game::machines::OIL_BUCKET_MB <= 20_000;
+                        if ui.add_enabled(can_pour, egui::Button::new("pour held crude bucket (+1000 mB)")).clicked() {
+                            if r.pour_bucket() {
+                                self.inventory.slots[self.hotbar_index] =
+                                    Some(ItemStack { item_id: "bucket".into(), count: 1 });
+                            }
+                        }
+                        ui.label(egui::RichText::new(
+                            "feed crude with pipes or buckets; needs power in range",
+                        ).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Refinery(r));
+                    }
+                    BlockEntity::Combustion(mut c) => {
+                        top_bar(ui, c.buffer / lf_game::machines::COMBUSTION_CAP,
+                            &format!("{:.0} / {} EU", c.buffer, lf_game::machines::COMBUSTION_CAP), Theme::XP);
+                        ui.horizontal(|ui| {
+                            let mut fuel = c.fuel.take();
+                            let mut cursor = self.cursor_stack.take();
+                            let out = slot_button(ui, &mut fuel, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
+                            c.fuel = fuel;
+                            ui.label(egui::RichText::new("fuel (refined fuel only)").small().color(Theme::TEXT_DIM));
+                        });
+                        ui.label(egui::RichText::new(if c.burn_left > 0.0 {
+                            format!("burning — {:.0}s left", c.burn_left)
+                        } else {
+                            "cold — it only drinks what the refinery makes".to_string()
+                        }).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Combustion(c));
+                    }
                     BlockEntity::Generator(mut g) => {
                         top_bar(ui, g.buffer / lf_game::machines::GEN_CAPACITY, &format!("{:.0} / {} EU", g.buffer, lf_game::machines::GEN_CAPACITY), Theme::XP);
                         let mut fuel = g.fuel.take();
@@ -1977,11 +2044,11 @@ impl GameState {
                     }
                 });
                 ui.add_space(8.0);
-                // Branch eras (Water now, Steam later): unlockable in any
-                // order relative to each other, right here in the tree.
+                // Branch eras (Water/Steam/Oil): unlockable in any order
+                // relative to each other, right here in the tree.
                 let mut branch_unlocked = None;
                 ui.horizontal(|ui| {
-                    for e in [Era::Water, Era::Steam] {
+                    for e in [Era::Water, Era::Steam, Era::Oil] {
                         let owned = self.research.unlocked(e);
                         let can = self.research.can_unlock(e);
                         let color = if owned { Theme::OK } else if can { Theme::ACCENT } else { egui::Color32::from_gray(110) };
@@ -1993,7 +2060,13 @@ impl GameState {
                             .show(ui, |ui| {
                                 ui.set_min_size(egui::vec2(150.0, 90.0));
                                 ui.heading(egui::RichText::new(e.name()).size(15.0).color(color));
-                                ui.label(egui::RichText::new(if owned { "done" } else { "branch — parallel to the chain" }).small().color(color));
+                                ui.label(egui::RichText::new(if owned {
+                                    "done"
+                                } else if e == Era::Oil {
+                                    "branch — needs Steam or Electrical"
+                                } else {
+                                    "branch — parallel to the chain"
+                                }).small().color(color));
                                 if !owned {
                                     ui.add_space(4.0);
                                     let mut affordable = true;

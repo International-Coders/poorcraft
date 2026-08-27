@@ -598,3 +598,29 @@ load; icons test caught the missing tome art — fixed with gemmed covers);
 vistest 34/34; night seam max step 1.92 (python-measured); lore reader
 AI-verified (title/page/readable text/buttons). Smoke OK. Runtimes
 rebuilt; pushed.
+
+### 2026-08-27 — Loop 318: P31 Oil Age + Step 25 grid overlay
+**WHAT**: The Oil Age end-to-end — deposits in the ground, extraction,
+refining, top-below-nuclear power — plus a craft-first power-grid
+visualization.
+**HOW**: registry ids 50-53 (OIL fluid like WATER: non-solid/non-opaque/
+untargetable); worldgen oil pass after ores (noise 0.63 over 8..44,
+Desert|Swamp columns only, 1/700 surface seeps); atlas 62->68 layers
+(oil/pump/refinery/combustion + grid_ok/grid_starved overlay tints);
+FluidKind-typed Pipe channels (serde-default `crude`); PumpJack/
+Refinery/CombustionGenerator in machines.rs + oil_age_tests (typed
+pipes, pump gating, exact refinery mass balance, refined-fuel-only
+burn, full chain via distribute_power); Era::Oil either-or prereqs in
+research.rs meets_prereqs; fluids.rs step_cell fluid-generic with
+OIL_SPREAD=3; client oil pass + UI panels + 3-bucket arm + refinery
+feed; Action::GridOverlay (G) + machine_power ratio map + translucent
+push_overlay_cube in the transparent pass; vistest oil_chain +
+grid_overlay scenes pre-running the real machine code 200 sim-seconds.
+**VERIFICATION**: 209 tests / 0 failed (+8: oil gating scan, 5 oil-age
+machine tests, oil creep, oil research either-or). vistest 36/36.
+Pixel checks: crude-dark pixels present; green tint 141px / red 116px
+localized to the two machines. AI-verified both scenes (green cube =
+powered furnace, red cube = starved crusher, coherent oil chain). The
+first grid_overlay render caught a REAL balance truth (furnace starved
+on one generator) — fixed honestly with a coal bootstrap generator in
+the scene, not by fudging numbers. Smoke OK. Runtimes rebuilt; pushed.

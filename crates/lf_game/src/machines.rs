@@ -345,6 +345,7 @@ pub enum PowerSource {
     Wheel(WaterWheel),
     Battery(BatteryCell),
     Engine(SteamEngine),
+    Combustion(CombustionGenerator),
 }
 
 impl PowerSource {
@@ -358,6 +359,7 @@ impl PowerSource {
             PowerSource::Wheel(w) => w.draw(want),
             PowerSource::Battery(b) => b.draw(want),
             PowerSource::Engine(e) => e.draw(want),
+            PowerSource::Combustion(c) => c.draw(want),
         }
     }
 
@@ -368,6 +370,7 @@ impl PowerSource {
             PowerSource::Wheel(w) => w.buffer,
             PowerSource::Battery(b) => b.charge,
             PowerSource::Engine(e) => e.buffer,
+            PowerSource::Combustion(c) => c.buffer,
         }
     }
 }
@@ -455,6 +458,7 @@ pub fn distribute_power(
                 PowerSource::Generator(g) => g.buffer -= took,
                 PowerSource::Wheel(w) => w.buffer -= took,
                 PowerSource::Engine(e) => e.buffer -= took,
+                PowerSource::Combustion(c) => c.buffer -= took,
                 PowerSource::Battery(_) => {}
             }
         }
@@ -547,35 +551,74 @@ pub const STEAM_ENGINE_RATE: f32 = 16.0;
 /// Steam the engine consumes per second.
 pub const STEAM_ENGINE_INTAKE: f32 = 20.0;
 
-/// One pipe segment: carries water between neighbors (equal-share, no
-/// pressure sim — DECISIONS entry). Ticked by the client per segment.
+/// One pipe segment: carries water AND crude on separate channels (P31
+/// pipes v2 — fluid typing; the channels never mix, and an empty channel
+/// has no identity so adjacent pipes connect per fluid). Equal-share, no
+/// pressure sim — DECISIONS entry. Ticked by the client per segment.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Pipe {
     pub water: u16,
+    #[serde(default)]
+    pub crude: u16,
 }
 
 impl Pipe {
-    /// Equalize with one neighbor (call per adjacent pair, one direction
-    /// per tick to avoid double-transfer). Returns self's new level.
+    /// Equalize both channels with one neighbor (call per adjacent pair,
+    /// one direction per tick to avoid double-transfer).
     pub fn equalize_with(&mut self, neighbor: &mut Pipe) {
-        let total = self.water as u32 + neighbor.water as u32;
-        let share = (total / 2) as u16;
-        let rem = (total % 2) as u16;
-        self.water = share + rem;
-        neighbor.water = share;
+        let total_w = self.water as u32 + neighbor.water as u32;
+        let rem_w = (total_w % 2) as u16;
+        self.water = (total_w / 2) as u16 + rem_w;
+        neighbor.water = (total_w / 2) as u16;
+        let total_c = self.crude as u32 + neighbor.crude as u32;
+        let rem_c = (total_c % 2) as u16;
+        self.crude = (total_c / 2) as u16 + rem_c;
+        neighbor.crude = (total_c / 2) as u16;
     }
 
-    /// Pull up to `want` mB (a boiler drinking).
-    pub fn draw(&mut self, want: u16) -> u16 {
-        let take = want.min(self.water);
-        self.water -= take;
+    /// Pull up to `want` mB of one fluid (a boiler or refinery drinking).
+    pub fn draw(&mut self, kind: FluidKind, want: u16) -> u16 {
+        let channel = match kind {
+            FluidKind::Water => &mut self.water,
+            FluidKind::Crude => &mut self.crude,
+        };
+        let take = want.min(*channel);
+        *channel -= take;
         take
     }
 
-    pub fn fill(&mut self, offer: u16) -> u16 {
-        let take = offer.min(PIPE_CAP - self.water);
-        self.water += take;
+    pub fn fill(&mut self, kind: FluidKind, offer: u16) -> u16 {
+        let channel = match kind {
+            FluidKind::Water => &mut self.water,
+            FluidKind::Crude => &mut self.crude,
+        };
+        let take = offer.min(PIPE_CAP - *channel);
+        *channel += take;
         take
+    }
+
+    pub fn amount(&self, kind: FluidKind) -> u16 {
+        match kind {
+            FluidKind::Water => self.water,
+            FluidKind::Crude => self.crude,
+        }
+    }
+}
+
+/// What a pipe or tank carries. Water feeds boilers; crude feeds refineries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum FluidKind {
+    #[default]
+    Water,
+    Crude,
+}
+
+impl FluidKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            FluidKind::Water => "water",
+            FluidKind::Crude => "crude oil",
+        }
     }
 }
 
@@ -666,7 +709,7 @@ mod steam_age_tests {
     use super::*;
 
     fn pipe(w: u16) -> Pipe {
-        Pipe { water: w }
+        Pipe { water: w, ..Default::default() }
     }
 
     #[test]
@@ -683,9 +726,9 @@ mod steam_age_tests {
         assert_eq!(c.water + d.water, 3);
         // fill/draw respect the cap
         let mut p = pipe(900);
-        assert_eq!(p.fill(500), 100);
+        assert_eq!(p.fill(FluidKind::Water, 500), 100);
         assert_eq!(p.water, PIPE_CAP);
-        assert_eq!(p.draw(400), 400);
+        assert_eq!(p.draw(FluidKind::Water, 400), 400);
     }
 
     #[test]
@@ -742,5 +785,250 @@ mod steam_age_tests {
         let mut sources = vec![((0, 0, 0), PowerSource::Engine(engine))];
         let granted = distribute_power(&mut sources, &[machine], DRAW_RATE * dt);
         assert!(granted[0] >= DRAW_RATE * dt * 0.99, "chain covers a machine, got {}", granted[0]);
+    }
+}
+
+// ------------------------------------------------------------------
+// Oil Age (V1REBRAND doc 04 / build-pack Step 25)
+
+/// mB of crude a powered pumpjack lifts per second from an adjacent pool.
+pub const PUMP_RATE: u16 = 120;
+/// Crude mB consumed per refined-fuel batch.
+pub const REFINERY_BATCH: u16 = 240;
+/// Seconds a powered refinery works per batch.
+pub const REFINERY_TIME: f32 = 6.0;
+/// mB an oil bucket pours into a refinery.
+pub const OIL_BUCKET_MB: u16 = 1000;
+/// EU/s the combustion generator makes from refined fuel — above the coal
+/// generator's 20, deliberately below the nuclear reactor (P32 lands on
+/// top; doc 04: "top-below-nuclear output").
+pub const COMBUSTION_RATE: f32 = 26.0;
+/// Seconds one refined fuel unit burns.
+pub const COMBUSTION_FUEL_SECONDS: f32 = 45.0;
+pub const COMBUSTION_CAP: f32 = 3000.0;
+
+/// Pumpjack: a powered consumer that lifts crude from adjacent oil sources
+/// into pipes. The client decides adjacency and where the crude goes; the
+/// machine itself only meters the rate.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct PumpJack {
+    /// Lifetime crude lifted in mB (debug/chronicle fodder).
+    pub lifetime_mb: u64,
+}
+
+impl PumpJack {
+    pub fn tick(&mut self, dt: f32, powered: f32, oil_adjacent: bool) -> u16 {
+        if powered <= 0.0 || !oil_adjacent {
+            return 0;
+        }
+        let mb = (PUMP_RATE as f32 * dt).round() as u16;
+        self.lifetime_mb += mb as u64;
+        mb
+    }
+}
+
+/// Refinery: crude (piped or bucketed) + power -> refined fuel + tar.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct Refinery {
+    pub crude: u16,
+    pub fuel_out: Option<ItemStack>,
+    pub tar_out: Option<ItemStack>,
+    pub progress: f32,
+}
+
+impl Refinery {
+    /// One tick. `crude_in` is what adjacent pipes fed this tick. Returns
+    /// true while actively refining (drives particles/UI).
+    pub fn tick(&mut self, dt: f32, powered: f32, crude_in: u16) -> bool {
+        self.crude = (self.crude + crude_in).min(20_000);
+        let room = self.fuel_out.as_ref().map(|s| s.count < 64).unwrap_or(true)
+            && self.tar_out.as_ref().map(|s| s.count < 64).unwrap_or(true);
+        if powered <= 0.0 || self.crude < REFINERY_BATCH || !room {
+            self.progress = (self.progress - dt * 0.5).max(0.0);
+            return false;
+        }
+        self.progress += dt;
+        if self.progress >= REFINERY_TIME {
+            self.progress = 0.0;
+            self.crude -= REFINERY_BATCH;
+            match &mut self.fuel_out {
+                Some(s) => s.count += 1,
+                None => self.fuel_out = Some(ItemStack { item_id: "refined_fuel".into(), count: 1 }),
+            }
+            match &mut self.tar_out {
+                Some(s) => s.count += 1,
+                None => self.tar_out = Some(ItemStack { item_id: "tar".into(), count: 1 }),
+            }
+        }
+        true
+    }
+
+    /// Pour an oil bucket in (the UI/bucket hook calls this).
+    pub fn pour_bucket(&mut self) -> bool {
+        if self.crude + OIL_BUCKET_MB > 20_000 {
+            return false;
+        }
+        self.crude += OIL_BUCKET_MB;
+        true
+    }
+}
+
+/// Combustion generator: burns refined fuel into EU at the top-below-
+/// nuclear tier. Only refined_fuel lights (crude is for the refinery).
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct CombustionGenerator {
+    pub fuel: Option<ItemStack>,
+    pub burn_left: f32,
+    pub buffer: f32,
+}
+
+impl CombustionGenerator {
+    pub fn tick(&mut self, dt: f32) -> bool {
+        let mut burning = false;
+        if self.burn_left <= 0.0 {
+            let lights = self.fuel.as_ref().map(|f| f.item_id == "refined_fuel").unwrap_or(false);
+            if lights {
+                self.burn_left = COMBUSTION_FUEL_SECONDS;
+                let fuel = self.fuel.as_mut().unwrap();
+                fuel.count -= 1;
+                if fuel.count == 0 {
+                    self.fuel = None;
+                }
+            }
+        }
+        if self.burn_left > 0.0 {
+            self.burn_left = (self.burn_left - dt).max(0.0);
+            self.buffer = (self.buffer + COMBUSTION_RATE * dt).min(COMBUSTION_CAP);
+            burning = true;
+        }
+        burning
+    }
+
+    pub fn draw(&mut self, want: f32) -> f32 {
+        let given = want.min(self.buffer);
+        self.buffer -= given;
+        given
+    }
+}
+
+#[cfg(test)]
+mod oil_age_tests {
+    use super::*;
+
+    #[test]
+    fn typed_pipes_never_mix_fluids() {
+        let mut a = Pipe { water: 1000, crude: 0 };
+        let mut b = Pipe { water: 0, crude: 800 };
+        a.equalize_with(&mut b);
+        assert_eq!(a.water, 500);
+        assert_eq!(b.water, 500);
+        assert_eq!(a.crude, 400);
+        assert_eq!(b.crude, 400);
+        // fill/draw are channel-aware
+        let mut p = Pipe::default();
+        assert_eq!(p.fill(FluidKind::Crude, 700), 700);
+        assert_eq!(p.amount(FluidKind::Water), 0, "crude never becomes water");
+        assert_eq!(p.draw(FluidKind::Water, 100), 0);
+        assert_eq!(p.draw(FluidKind::Crude, 100), 100);
+    }
+
+    #[test]
+    fn pump_needs_both_power_and_oil() {
+        let mut p = PumpJack::default();
+        assert_eq!(p.tick(1.0, 0.0, true), 0, "unpowered pump lifts nothing");
+        assert_eq!(p.tick(1.0, 1.0, false), 0, "dry pump lifts nothing");
+        let mb = p.tick(1.0, 1.0, true);
+        assert_eq!(mb, PUMP_RATE);
+        assert_eq!(p.lifetime_mb, PUMP_RATE as u64);
+    }
+
+    #[test]
+    fn refinery_mass_balance_is_exact() {
+        let mut r = Refinery { crude: REFINERY_BATCH * 3, ..Default::default() };
+        let dt = 1.0f32 / 20.0;
+        let mut batches = 0usize;
+        for _ in 0..(REFINERY_TIME * 20.0 * 4.0) as usize {
+            if r.tick(dt, DRAW_RATE, 0) {
+                batches += 1;
+            }
+        }
+        assert_eq!(r.fuel_out.as_ref().map(|s| s.count), Some(3), "3 batches of fuel");
+        assert_eq!(r.tar_out.as_ref().map(|s| s.count), Some(3), "byproduct tar per batch");
+        assert_eq!(r.crude, 0, "every mB accounted for");
+        assert!(batches >= 3 * (REFINERY_TIME * 20.0 - 1.0) as usize);
+        // unpowered or dry: stalls and decays progress
+        let mut s = Refinery { crude: REFINERY_BATCH, ..Default::default() };
+        s.tick(1.0, 0.0, 0);
+        assert_eq!(s.fuel_out, None);
+    }
+
+    #[test]
+    fn combustion_burns_refined_fuel_only() {
+        let mut c = CombustionGenerator {
+            fuel: Some(ItemStack { item_id: "refined_fuel".into(), count: 3 }),
+            ..Default::default()
+        };
+        for _ in 0..50 {
+            c.tick(1.0);
+        }
+        assert!(c.buffer > 500.0, "45s at 26 EU/s charges well, got {}", c.buffer);
+        assert_eq!(c.fuel.as_ref().map(|f| f.count), Some(1),
+            "50s burns one full unit and lights the next");
+        // crude/coal do not light it
+        let mut bad = CombustionGenerator {
+            fuel: Some(ItemStack { item_id: "coal".into(), count: 5 }),
+            ..Default::default()
+        };
+        bad.tick(10.0);
+        assert_eq!(bad.buffer, 0.0);
+        // tiering: steam < coal < combustion < (nuclear, P32)
+        assert!(STEAM_ENGINE_RATE < GENERATE_RATE && GENERATE_RATE < COMBUSTION_RATE
+            && COMBUSTION_RATE < 40.0);
+    }
+
+    /// The full P31 chain headless: pump -> pipes -> refinery -> fuel ->
+    /// combustion generator -> a machine via the real distribute_power.
+    #[test]
+    fn oil_chain_powers_a_machine() {
+        let dt = 1.0f32 / 20.0;
+        let mut pump = PumpJack::default();
+        let mut pipes = vec![Pipe::default(); 4];
+        let mut refinery = Refinery::default();
+        let mut gen = CombustionGenerator::default();
+        let mut fuel_pool = 0u8;
+        for _ in 0..4000 {
+            // pump feeds the first pipe (adjacent oil assumed)
+            let mut lifted = pump.tick(dt, DRAW_RATE * dt, true);
+            while lifted > 0 {
+                let took = pipes[0].fill(FluidKind::Crude, lifted.min(60));
+                if took == 0 { break; }
+                lifted -= took;
+            }
+            for i in 0..pipes.len() - 1 {
+                let (mut x, mut y) = (pipes[i].clone(), pipes[i + 1].clone());
+                x.equalize_with(&mut y);
+                pipes[i] = x;
+                pipes[i + 1] = y;
+            }
+            // refinery drinks from the last pipe
+            let mut crude_in = pipes[3].draw(FluidKind::Crude, 40);
+            crude_in += pipes[2].draw(FluidKind::Crude, 20);
+            refinery.tick(dt, DRAW_RATE * dt, crude_in);
+            // haul finished fuel to the generator
+            if let Some(out) = refinery.fuel_out.take() {
+                fuel_pool += out.count;
+                if fuel_pool > 0 && gen.fuel.is_none() {
+                    gen.fuel = Some(ItemStack { item_id: "refined_fuel".into(), count: fuel_pool });
+                    fuel_pool = 0;
+                }
+            }
+            gen.tick(dt);
+        }
+        assert_eq!(pump.lifetime_mb > 0, true);
+        let machine = (2, 0, 0);
+        let mut sources = vec![((0, 0, 0), PowerSource::Combustion(gen))];
+        let granted = distribute_power(&mut sources, &[machine], DRAW_RATE * dt);
+        assert!(granted[0] >= DRAW_RATE * dt * 0.99,
+            "the oil chain covers a machine, got {}", granted[0]);
     }
 }

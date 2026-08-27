@@ -428,6 +428,38 @@ impl WorldGen {
             }
         }
 
+        // 3.5 Oil (P31, doc 04): biome-gated crude pools replace deep stone
+        //     under desert/swamp — the derrick is river-less power, so the
+        //     deposits live where the terrain says they should. Rare
+        //     surface seeps are the visible clue.
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                let wx = cx * 16 + lx as i32;
+                let wz = cz * 16 + lz as i32;
+                if !matches!(self.biome(wx, wz), Biome::Desert | Biome::Swamp) {
+                    continue;
+                }
+                let wx_f = wx as f32;
+                let wz_f = wz as f32;
+                for y in 8..44i32 {
+                    if col.get(lx, y as usize, lz) != BlockState::STONE {
+                        continue;
+                    }
+                    let oil_n = self.noise_ore.get_noise_3d(wx_f + 6000.0, y as f32, wz_f);
+                    if oil_n > 0.63 {
+                        col.set(lx, y as usize, lz, lf_voxel::oil_with_level(0));
+                    }
+                }
+                // surface seep: one source pond in the surface block
+                if hash2(wx, wz, self.seed_for_features() ^ 0x011CE) % 700 == 0 {
+                    let top = surface_tops[lx][lz];
+                    if top > SEA_LEVEL + 1 && col.get(lx, (top - 1) as usize, lz).id() != block::AIR {
+                        col.set(lx, (top - 1) as usize, lz, lf_voxel::oil_with_level(0));
+                    }
+                }
+            }
+        }
+
         // 4. Water fills open space up to sea level; freezing biomes cap
         //    the surface with ice.
         for lx in 0..16usize {
@@ -732,6 +764,41 @@ mod tests {
         assert_eq!(a.humidity(10, 20), b.humidity(10, 20));
         assert_eq!(a.biome(10, 20), b.biome(10, 20));
         assert_eq!(a.generate_chunk(3, 3).get(5, 60, 5), b.generate_chunk(3, 3).get(5, 60, 5));
+    }
+
+    /// P31 (doc 04): crude exists (desert/swamp-gated), stays underground in
+    /// the 8..44 band, and never appears in columns of other biomes.
+    #[test]
+    fn oil_is_biome_gated_and_banded() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(20260827));
+        let mut oil_total = 0usize;
+        let mut checked = 0usize;
+        for cx in -6..6i32 {
+            for cz in -6..6i32 {
+                let col = gen.generate_chunk(cx, cz);
+                for lx in 0..16usize {
+                    for lz in 0..16usize {
+                        let biome = gen.biome(cx * 16 + lx as i32, cz * 16 + lz as i32);
+                        let oil_biome = matches!(biome, Biome::Desert | Biome::Swamp);
+                        for y in 0..80usize {
+                            let b = col.get(lx, y, lz);
+                            if b.id() == block::OIL {
+                                oil_total += 1;
+                                assert!(oil_biome,
+                                    "oil in {:?} at chunk ({},{})", biome, cx, cz);
+                                assert!((8..44).contains(&y) || y as i32 >= gen.surface_top(
+                                    cx * 16 + lx as i32, cz * 16 + lz as i32) - 2,
+                                    "seep or pool band only, got y={}", y);
+                            }
+                        }
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        assert!(oil_total > 50, "a 16x16-chunk scan should find real deposits, got {}", oil_total);
+        assert!(checked > 30_000);
     }
 
     #[test]

@@ -31,10 +31,11 @@ pub enum Action {
     Screenshot,
     DebugInfo,
     RtCapture,
+    GridOverlay,
 }
 
 impl Action {
-    pub const ALL: [Action; 19] = [
+    pub const ALL: [Action; 20] = [
         Action::Forward,
         Action::Back,
         Action::Left,
@@ -54,6 +55,7 @@ impl Action {
         Action::Screenshot,
         Action::DebugInfo,
         Action::RtCapture,
+        Action::GridOverlay,
     ];
 
     pub fn label(self) -> &'static str {
@@ -77,6 +79,7 @@ impl Action {
             Action::Screenshot => "Screenshot",
             Action::DebugInfo => "Debug overlay",
             Action::RtCapture => "Path-traced capture",
+            Action::GridOverlay => "Power-grid overlay",
         }
     }
 }
@@ -139,6 +142,7 @@ impl Default for Keymap {
         set(Action::Screenshot, F2);
         set(Action::DebugInfo, F3);
         set(Action::RtCapture, KeyR);
+        set(Action::GridOverlay, KeyG);
         Self { bindings }
     }
 }

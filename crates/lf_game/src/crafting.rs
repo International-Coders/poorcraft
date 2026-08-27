@@ -70,6 +70,23 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("machine_frame"), Some("iron_gear"), Some("machine_frame")],
         vec![Some("iron_ingot"), Some("copper_wire"), Some("iron_ingot")],
     ]));
+    // Oil Age (P31): extraction kit is Industrial-gated; the combustion
+    // generator is Oil-era (Era::required_for) and drinks refined fuel.
+    book.push(r("pump", 1, vec![
+        vec![Some("iron_ingot"), Some("pipe"), Some("iron_ingot")],
+        vec![Some("iron_gear"), Some("machine_frame"), Some("iron_gear")],
+        vec![Some("pipe"), Some("iron_ingot"), Some("pipe")],
+    ]));
+    book.push(r("refinery", 1, vec![
+        vec![Some("iron_ingot"), Some("glass"), Some("iron_ingot")],
+        vec![Some("pipe"), Some("machine_frame"), Some("pipe")],
+        vec![Some("copper_ingot"), Some("furnace"), Some("copper_ingot")],
+    ]));
+    book.push(r("combustion_generator", 1, vec![
+        vec![Some("iron_ingot"), Some("iron_gear"), Some("iron_ingot")],
+        vec![Some("copper_wire"), Some("machine_frame"), Some("copper_wire")],
+        vec![Some("iron_ingot"), Some("iron_ingot"), Some("iron_ingot")],
+    ]));
     // 3 iron ingots in a V -> bucket (scoop/place water sources)
     book.push(r("bucket", 1, vec![
         vec![Some("iron_ingot"), None, Some("iron_ingot")],

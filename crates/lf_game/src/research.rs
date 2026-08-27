@@ -13,6 +13,9 @@ pub enum Era {
     /// generators exactly as before, or bootstrap on rivers/boilers instead.
     Water,
     Steam,
+    /// Oil Age (doc 04): requires Industrial AND (Steam or Electrical) —
+    /// appended last so bincode variant indices in existing saves stay valid.
+    Oil,
 }
 
 impl Era {
@@ -24,6 +27,7 @@ impl Era {
             Era::Electrical => "Electrical Age",
             Era::Water => "Water Age",
             Era::Steam => "Steam Age",
+            Era::Oil => "Oil Age",
         }
     }
 
@@ -39,21 +43,26 @@ impl Era {
     /// True when this is a branch era (unlocked via the graph, not the
     /// mainline chain).
     pub fn is_branch(self) -> bool {
-        matches!(self, Era::Water | Era::Steam)
+        matches!(self, Era::Water | Era::Steam | Era::Oil)
     }
 
     /// Era prerequisites (the graph edges; mainline chain + branches).
+    /// For Oil this is the necessary set only — the Steam-or-Electrical
+    /// half lives in [`ResearchState::meets_prereqs`].
     pub fn prereqs(self) -> &'static [Era] {
         match self {
             Era::Bronze => &[Era::Primitive],
             Era::Industrial => &[Era::Bronze],
-            Era::Electrical | Era::Water | Era::Steam => &[Era::Industrial],
+            Era::Electrical | Era::Water | Era::Steam | Era::Oil => &[Era::Industrial],
             Era::Primitive => &[],
         }
     }
 
     /// Every era card the tech tree shows, in display order.
-    pub const CARDS: [Era; 6] = [Era::Primitive, Era::Bronze, Era::Industrial, Era::Electrical, Era::Water, Era::Steam];
+    pub const CARDS: [Era; 7] = [
+        Era::Primitive, Era::Bronze, Era::Industrial, Era::Electrical,
+        Era::Water, Era::Steam, Era::Oil,
+    ];
 
     /// Materials to advance TO this era (item, count).
     pub fn cost(self) -> &'static [(&'static str, u8)] {
@@ -66,6 +75,9 @@ impl Era {
             Era::Water => &[("planks", 16), ("stone", 24), ("iron_ingot", 4)],
             // Steam Age (doc 04): the boiler-room commitment — iron + gears
             Era::Steam => &[("iron_ingot", 12), ("iron_gear", 4), ("coal", 16)],
+            // Oil Age (doc 04): you must have RUN the machinery to earn it —
+            // refined fuel proves the extraction chain actually works.
+            Era::Oil => &[("refined_fuel", 4), ("iron_ingot", 8), ("machine_frame", 1)],
             Era::Primitive => &[],
         }
     }
@@ -77,6 +89,10 @@ impl Era {
             "electric_furnace" => Era::Electrical,
             "water_wheel" | "battery" => Era::Water,
             "pipe" | "boiler" | "steam_engine" => Era::Steam,
+            // Oil Age (P31): extraction kit is Industrial-era engineering;
+            // the era itself gates the combustion generator.
+            "pump" | "refinery" => Era::Industrial,
+            "combustion_generator" => Era::Oil,
             "steel_chestplate" | "bronze_chestplate" => Era::Bronze,
             "basic_circuit" | "machine_frame" => Era::Industrial,
             _ => Era::Primitive,
@@ -102,6 +118,18 @@ impl Default for ResearchState {
 }
 
 impl ResearchState {
+    /// Prerequisite satisfaction, including the Oil either-or edge
+    /// (Industrial AND at least one of Steam/Electrical — doc 04).
+    fn meets_prereqs(&self, e: Era) -> bool {
+        match e {
+            Era::Oil => {
+                self.unlocked(Era::Industrial)
+                    && (self.unlocked(Era::Steam) || self.unlocked(Era::Electrical))
+            }
+            other => other.prereqs().iter().all(|p| self.unlocked(*p)),
+        }
+    }
+
     /// Is this era's content available?
     pub fn unlocked(&self, e: Era) -> bool {
         if e.is_branch() {
@@ -113,7 +141,7 @@ impl ResearchState {
 
     /// Can the player unlock this era right now (prereqs met, not owned)?
     pub fn can_unlock(&self, e: Era) -> bool {
-        !self.unlocked(e) && e.prereqs().iter().all(|p| self.unlocked(*p))
+        !self.unlocked(e) && self.meets_prereqs(e)
     }
 
     /// Count how many of each cost item the inventory holds.
@@ -282,6 +310,27 @@ mod tests {
         let old: ResearchState = bincode::deserialize(&bytes).unwrap();
         assert_eq!(old.era, Era::Bronze);
         assert!(!old.unlocked(Era::Water));
+    }
+
+    /// Doc 04: Oil needs Industrial AND (Steam or Electrical) — either
+    /// branch route qualifies, Industrial alone does not.
+    #[test]
+    fn oil_needs_steam_or_electrical() {
+        let mut r = ResearchState { era: Era::Industrial, branches: vec![] };
+        assert!(!r.can_unlock(Era::Oil), "Industrial alone is not enough");
+        r.branches.push(Era::Steam);
+        assert!(r.can_unlock(Era::Oil), "the Steam route opens Oil");
+        // the Electrical route works from scratch too
+        let mut r2 = ResearchState { era: Era::Electrical, branches: vec![] };
+        assert!(r2.can_unlock(Era::Oil), "the Electrical route opens Oil");
+        // unlock consumes the refined-fuel cost
+        let mut inv = slots(&[("refined_fuel", 4), ("iron_ingot", 8), ("machine_frame", 1)]);
+        assert_eq!(r2.unlock(Era::Oil, &mut inv), Some(Era::Oil));
+        assert!(r2.unlocked(Era::Oil));
+        assert!(ResearchState::have_counts(&inv).iter().find(|(id, _)| id == "refined_fuel").is_none());
+        assert_eq!(Era::required_for("combustion_generator"), Era::Oil);
+        assert_eq!(Era::required_for("pump"), Era::Industrial);
+        assert_eq!(Era::required_for("refinery"), Era::Industrial);
     }
 
     #[test]

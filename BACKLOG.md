@@ -442,3 +442,57 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       item mapping, lore anchors present). Proof: lore_book scene reading
       the REAL file — AI-verified finished reader with readable story
       text.
+
+## Loop 318 — P31 Oil Age + Step 25 power-grid overlay
+- [x] OIL worldgen (id 50): biome-gated crude pools replace deep stone
+      (y 8..44, desert/swamp only) + rare surface seeps (1/700 columns);
+      regression test `oil_is_biome_gated_and_banded` scans 144 chunks
+      and asserts every crude block sits in a desert/swamp column.
+      Existing worlds keep their generated chunks (no GEN_VERSION marker
+      exists in this codebase; oil appears in newly generated terrain —
+      same policy as every prior ore addition).
+- [x] Pipes v2: fluid typing (FluidKind Water/Crude on separate channels,
+      serde-defaulted so existing pipe entities load unchanged); channels
+      never mix (test). Boiler drinks Water; pump/refinery move Crude.
+- [x] Crude oil fluid sim: step_cell is now fluid-generic — oil creeps
+      only OIL_SPREAD=3 cells (sluggish vs water's 7), fall-first, and
+      water/oil never convert each other (test). Sand sinks through oil.
+- [x] PUMPJACK (51) / REFINERY (52) / COMBUSTION_GENERATOR (53): pump
+      lifts 120 mB/s while powered + adjacent to an oil source, feeds
+      neighbor pipes; refinery = crude 240 mB + power -> refined fuel +
+      tar per 6s batch (exact mass-balance test); combustion burns
+      refined_fuel only (45s/unit) at 26 EU/s — steam 16 < coal 20 <
+      combustion 26 < nuclear (P32). Full-chain headless test through the
+      real distribute_power.
+- [x] Research: Era::Oil branch (bincode-appended, saves safe) gated
+      Industrial AND (Steam OR Electrical) — meets_prereqs handles the
+      either-or edge; cost = 4 refined fuel + 8 iron + 1 frame (you must
+      have RUN the chain to earn it); pump/refinery gate at Industrial
+      (extraction is iron-age kit), combustion generator at Oil. Tech
+      tree shows the third branch card with the either-or hint.
+- [x] Items/crafting: pump/refinery/combustion recipes; oil_bucket
+      (scoop crude sources or pour; right-click a refinery to feed its
+      tank +1000 mB), refined_fuel, tar (P34 construction fodder).
+      Bucket arm handles all three buckets.
+- [x] Client wiring: BlockEntity Pump/Refinery/Combustion; oil pass
+      (refineries drink from adjacent pipes pre-power, pumpjacks lift
+      post-power into adjacent pipes); machine UI panels (refinery with
+      fuel/tar slots + pour button); spill-on-break for the new
+      containers; keymap rebinding-aware.
+- [x] Step 25 POWER-GRID OVERLAY: G toggles translucent tint cubes over
+      every machine in the power field — green = granted >= 90% of draw,
+      red = starved (same ratio rule as the client overlay). Rebuilt
+      every 15 frames while on; rides the transparent pass with the
+      waypoint beams. Rebindable Action::GridOverlay.
+- [x] Proofs: oil_chain (pool -> pumpjack -> pipes -> refinery ->
+      combustion -> powered furnace, 200 sim-seconds pre-run through the
+      real machine code; AI-verified coherent chain with flare smoke)
+      and grid_overlay (green cube on the powered furnace, red on a
+      starved crusher out of range; AI-verified both cubes). The scene
+      needed an honest bootstrap: one combustion generator (26 EU/s)
+      cannot feed three 10 EU/s consumers — a coal generator runs the
+      pumpjack while the oil chain spins up, exactly the balance the
+      overlay exists to show (DECISIONS entry).
+- [ ] Deferred: derrick silhouette reads small at distance (AI feedback)
+      — texture polish for a later visual pass; GEN_VERSION-style save
+      re-generation marker still doesn't exist in this codebase.
