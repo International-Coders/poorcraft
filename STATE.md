@@ -1,9 +1,9 @@
 # STATE
-loop_count: 318
-current_milestone: P31 Oil Age + Step 25 grid overlay
-last_done: "Oil Age: crude worldgen (desert/swamp pools + seeps, gating test), typed pipes v2, pumpjack/refinery/combustion generator (26 EU/s top-below-nuclear, exact mass-balance tests), Era::Oil branch (Steam-or-Electrical), oil buckets + tar, machine UIs; Step 25 power-grid overlay (G: green/red tint cubes, ratio rule, transparent pass). 209 tests, 36/36 vistest (oil_chain + grid_overlay AI-verified)"
-next_task: "P32 Nuclear (uranium OreHook deep y8-24, fuel rods via assembler, reactor + heat/SCRAM + meltdown with radiation residue cleanup, reactor_safety research node, DECISIONS ceiling entry) — then P33 Magic"
+loop_count: 319
+current_milestone: P32 Nuclear (the ceiling)
+last_done: "Nuclear tier capped: uranium worldgen (deep y8-24), fuel rods, 32 EU/s reactor with pinned heat curve (equilibrium cooling, auto-SCRAM, residual decay heat, meltdown -> r=3 crater + glowing radiation residue that damages until scrubbed + chronicle event), reactor_safety certification gating Era::Nuclear, reactor UI with SCRAM. 213 tests, 38/38 vistest (reactor_control + meltdown_aftermath AI-verified)"
+next_task: "P33 Magic foundation (mana + HUD bar, 4 bounded spells + spell slots + spellbook screen, wizard NPC + tower worldgen, enchanting table + imbue minigame, crossover items) — then P34 Construction"
 build: GREEN
-tests: 209 passing
+tests: 213 passing
 last_screenshot: shots/audit_transparency.png
 blockers: "none"

@@ -52,3 +52,13 @@ generator while the oil chain spins up is the honest progression, and
 the Step 25 overlay exists precisely to make that starvation visible in
 world. Tiering stays: wheel 12 < steam 16 < coal 20 < combustion 26 <
 nuclear (P32 will sit on top).
+
+### Loop 319 — nuclear is the ceiling (Pillar 5)
+The reactor (32 EU/s) is the top of the power ladder by design; nothing
+out-tiers it in any planned phase. Its cost is not just materials: the
+Nuclear era refuses to unlock without the reactor_safety certification,
+and even then a neglected core is never silently safe — SCRAM halts
+fission but decay heat keeps climbing without coolant, and a meltdown
+leaves radiation residue that damages anyone near the crater until it is
+physically scrubbed. Cooling constants are test-pinned: full coolant
+(-5/s) must beat fission heat (+4/s) so a tended core holds equilibrium.

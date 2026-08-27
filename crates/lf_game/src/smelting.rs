@@ -11,6 +11,8 @@ pub fn smelt_result(input: &str) -> Option<&'static str> {
         "raw_iron" => Some("iron_ingot"),
         "raw_copper" => Some("copper_ingot"),
         "raw_tin" => Some("tin_ingot"),
+        // nuclear line (P32): the ore drops raw_uranium
+        "raw_uranium" => Some("uranium_ingot"),
         "sand" => Some("glass"),
         _ => mod_smelt(input),
     }

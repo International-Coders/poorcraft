@@ -624,3 +624,25 @@ powered furnace, red cube = starved crusher, coherent oil chain). The
 first grid_overlay render caught a REAL balance truth (furnace starved
 on one generator) — fixed honestly with a coal bootstrap generator in
 the scene, not by fudging numbers. Smoke OK. Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 319: P32 Nuclear
+**WHAT**: The capped nuclear tier — deep uranium, the reactor with a
+heat/coolant/SCRAM curve, meltdowns that leave glowing damage-dealing
+residue, and the safety certification that gates the era.
+**HOW**: registry ids 54-56 + RADIATION emission 7; atlas 68->71
+(uranium_ore, reactor with a glowing core window, radiation crust);
+worldgen deep band y8..24 thr 0.68; smelt/assembler nuclear line;
+machines.rs Reactor + ReactorEvent with pinned thermal constants and 4
+tests (ceiling tiering, equilibrium, scram->meltdown, coolant rescue +
+gated unscram); research Era::Nuclear + reactor_safety (serde-defaulted)
++ REACTOR_SAFETY_COST; client nuclear pass (coolant, live meltdown,
+vent particles), apply_meltdown (r=3 destruction + <=14 residue + shake
++ chronicle Meltdown), radiation proximity damage; reactor UI panel with
+SCRAM; tech-tree safety certification row. Vistest reactor_control (60s
+equilibrium pre-run, asserted) + meltdown_aftermath.
+**VERIFICATION**: 213 tests / 0 failed. vistest 38/38. Pixel checks:
+reactor core-window teal + green uranium flecks present; meltdown glow
+clusters. AI-verified both scenes. Debug-built world state confirmed 14
+residue blocks placed before trusting the render. Framing bug chased and
+fixed (surface_top vs surface_height convention). Smoke OK. Runtimes
+rebuilt; pushed.

@@ -708,3 +708,12 @@
 - G toggles the power-grid overlay: green/red tint cubes over machines.
 - 209 tests green (+8); 36/36 vistest scenes; smoke OK; runtimes
   rebuilt; pushed.
+
+## Loop 319 — Nuclear tier, capped (P32)
+- Uranium (deep rare band), fuel rods, the 32 EU/s reactor with a real
+  heat curve (equilibrium cooling, auto-SCRAM, residual decay heat,
+  meltdown with glowing radiation residue + chronicle event), the
+  reactor_safety certification gating Era::Nuclear, reactor UI with the
+  big red button.
+- 213 tests green (+4); 38/38 vistest scenes; smoke OK; runtimes
+  rebuilt; pushed.

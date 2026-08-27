@@ -415,6 +415,12 @@ impl WorldGen {
                     if y < 40 && sulf_n > 0.58 {
                         col.set(lx, y as usize, lz, BlockState(block::SULFUR_ORE));
                     }
+                    // uranium (P32): the ceiling tier — deep (8..24), rare,
+                    // tiny veins (the same hook the mods use, built in)
+                    let ur_n = self.noise_ore.get_noise_3d(wx + 7000.0, y as f32, wz);
+                    if y >= 8 && y <= 24 && ur_n > 0.68 {
+                        col.set(lx, y as usize, lz, BlockState(block::URANIUM_ORE));
+                    }
                     // mod ore veins
                     for hook in lf_ore_hooks() {
                         if y >= hook.y_min && y <= hook.y_max {

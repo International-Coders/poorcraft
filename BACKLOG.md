@@ -496,3 +496,44 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [ ] Deferred: derrick silhouette reads small at distance (AI feedback)
       — texture polish for a later visual pass; GEN_VERSION-style save
       re-generation marker still doesn't exist in this codebase.
+
+## Loop 319 — P32 Nuclear (the ceiling)
+- [x] URANIUM_ORE (id 54) via the deep band: y 8..24, threshold 0.68
+      (rare, tiny) in the standard ore pass; drops raw_uranium; smelts to
+      uranium_ingot; assembler makes fuel_rod (2 ingots + 1 iron).
+- [x] REACTOR (55): 32 EU/s — the top of the ladder (wheel 12 < steam 16
+      < coal 20 < combustion 26 < reactor 32; tier test). Heat/output
+      curve: fission +4 heat/s, full coolant -5/s (a cooled core holds
+      equilibrium — caught by test, constant fixed from 3), passive -0.5/s.
+      Auto-SCRAM at 80, unscram below 60, MELTDOWN at 100. Residual decay
+      heat +0.8/s while scrammed WITH rods loaded: a scrammed core without
+      coolant still melts (test proves the sequence scram -> meltdown).
+      Coolant: 60 mB/s from adjacent pipes (water channel) or water blocks.
+- [x] Meltdown in the world: apply_meltdown destroys the r=3 sphere,
+      crusts up to 14 RADIATION (56) residue blocks through the crater
+      (they glow — emission 7 — and damage anyone within ~3 blocks until
+      scrubbed), blast debris + camera shake + a chronicle Meltdown event
+      (new EventType, bincode-appended).
+- [x] Research: Era::Nuclear branch (Nuclear-era gated reactor + fuel
+      rod) requiring Oil AND the new reactor_safety certification
+      (glass 8 + basic_circuit 2 + book 1, studied in the tech tree).
+      reactor_safety is serde-defaulted — old saves load uncertified.
+      DECISIONS: nuclear is the ceiling (Pillar 5) — nothing above it.
+- [x] Client: nuclear pass (coolant from adjacent water/pipes, tick,
+      meltdown applied live, venting steam particles while scrammed),
+      reactor UI (heat/coolant/output bars, fuel-rod slot, SCRAM +
+      restart buttons with the honest warning), radiation damage in
+      survival_tick.
+- [x] Proofs: reactor_control (uranium vein in a cut wall, water+pipe
+      cooling line, reactor run to thermal equilibrium through the real
+      tick code — asserted heat<30/buffer>1000 — furnace+crusher
+      consumers; AI-verified core window + green-flecked vein) and
+      meltdown_aftermath (crater + ~dozen glowing residue blocks +
+      wrecked machines at dusk; AI-verified). Framing lesson recorded:
+      scene builders place at world.surface_height but the framing
+      convention uses gen.surface_top — new scenes must mirror the
+      steam_chain pattern verbatim.
+- [ ] Deferred: radiation suit/scrubbing tools; reactor neighbor
+      destruction of other machines' block entities (entities in the
+      crater are dropped today via generic spill-on-break only for the
+      reactor itself).

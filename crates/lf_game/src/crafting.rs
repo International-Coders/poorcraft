@@ -87,6 +87,12 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("copper_wire"), Some("machine_frame"), Some("copper_wire")],
         vec![Some("iron_ingot"), Some("iron_ingot"), Some("iron_ingot")],
     ]));
+    // Nuclear (P32, Nuclear-era gated): the containment vessel itself
+    book.push(r("reactor", 1, vec![
+        vec![Some("iron_ingot"), Some("glass"), Some("iron_ingot")],
+        vec![Some("machine_frame"), Some("basic_circuit"), Some("machine_frame")],
+        vec![Some("iron_ingot"), Some("iron_gear"), Some("iron_ingot")],
+    ]));
     // 3 iron ingots in a V -> bucket (scoop/place water sources)
     book.push(r("bucket", 1, vec![
         vec![Some("iron_ingot"), None, Some("iron_ingot")],

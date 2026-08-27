@@ -10,6 +10,8 @@ pub fn emission(block_id: u32) -> u8 {
     match block_id {
         registry::block::TORCH => 14,
         registry::block::LANTERN => 15,
+        // meltdown residue glows an unhealthy green (P32)
+        registry::block::RADIATION => 7,
         _ => 0,
     }
 }

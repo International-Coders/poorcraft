@@ -128,6 +128,8 @@ pub fn alloy_recipes() -> &'static [(&'static str, u8, &'static str, u8, &'stati
         ("iron_ingot", 1, "coal", 2, "steel_ingot", 1),
         ("copper_wire", 2, "tin_ingot", 1, "basic_circuit", 1),
         ("copper_wire", 4, "iron_gear", 2, "machine_frame", 1),
+        // nuclear line (P32): enriched rods assembled from smelted ore
+        ("uranium_ingot", 2, "iron_ingot", 1, "fuel_rod", 1),
     ]
 }
 
@@ -346,6 +348,7 @@ pub enum PowerSource {
     Battery(BatteryCell),
     Engine(SteamEngine),
     Combustion(CombustionGenerator),
+    Reactor(Reactor),
 }
 
 impl PowerSource {
@@ -360,6 +363,7 @@ impl PowerSource {
             PowerSource::Battery(b) => b.draw(want),
             PowerSource::Engine(e) => e.draw(want),
             PowerSource::Combustion(c) => c.draw(want),
+            PowerSource::Reactor(r) => r.draw(want),
         }
     }
 
@@ -371,6 +375,7 @@ impl PowerSource {
             PowerSource::Battery(b) => b.charge,
             PowerSource::Engine(e) => e.buffer,
             PowerSource::Combustion(c) => c.buffer,
+            PowerSource::Reactor(r) => r.buffer,
         }
     }
 }
@@ -459,6 +464,7 @@ pub fn distribute_power(
                 PowerSource::Wheel(w) => w.buffer -= took,
                 PowerSource::Engine(e) => e.buffer -= took,
                 PowerSource::Combustion(c) => c.buffer -= took,
+                PowerSource::Reactor(r) => r.buffer -= took,
                 PowerSource::Battery(_) => {}
             }
         }
@@ -1030,5 +1036,211 @@ mod oil_age_tests {
         let granted = distribute_power(&mut sources, &[machine], DRAW_RATE * dt);
         assert!(granted[0] >= DRAW_RATE * dt * 0.99,
             "the oil chain covers a machine, got {}", granted[0]);
+    }
+}
+
+// ------------------------------------------------------------------
+// Nuclear tier (P32) — the ceiling (DECISIONS Pillar 5)
+
+/// EU/s the reactor produces while burning a rod: above everything
+/// (wheel 12 < steam 16 < coal 20 < combustion 26 < REACTOR 32).
+pub const REACTOR_RATE: f32 = 32.0;
+/// Seconds one fuel rod lasts.
+pub const ROD_SECONDS: f32 = 120.0;
+/// Heat units gained per second while fissioning.
+pub const HEAT_UP_RATE: f32 = 4.0;
+/// Heat lost per second while fully cooled — MUST exceed HEAT_UP_RATE so
+/// a properly-cooled running core reaches equilibrium, not SCRAM.
+pub const HEAT_COOL_RATE: f32 = 5.0;
+/// Passive heat loss per second (even uncooled).
+pub const HEAT_PASSIVE_LOSS: f32 = 0.5;
+/// Residual heat per second after SCRAM while rods remain loaded —
+/// the reason you cannot walk away from a scrammed core.
+pub const HEAT_RESIDUAL: f32 = 0.8;
+/// mB of cooling water per second the core demands.
+pub const REACTOR_COOLANT_RATE: u16 = 60;
+/// Auto-SCRAM threshold.
+pub const SCRAM_AT: f32 = 80.0;
+/// Manual un-SCRAM is allowed below this.
+pub const UNSCRAM_BELOW: f32 = 60.0;
+/// Meltdown threshold — never silently survivable.
+pub const MELTDOWN_AT: f32 = 100.0;
+pub const REACTOR_CAP: f32 = 6000.0;
+
+/// What one reactor tick reports back to the client.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReactorEvent {
+    Idle,
+    Running,
+    /// Automatic safety drop: fission halted, decay heat continues.
+    Scrammed,
+    /// The end: the caller must destroy the surroundings and place
+    /// radiation residue.
+    Meltdown,
+}
+
+/// Fission reactor: fuel rods + cooling water -> the highest EU output in
+/// the game, with a heat curve that punishes neglect. Never silently
+/// safe: a scrammed core still cooks itself without coolant.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct Reactor {
+    pub fuel: Option<ItemStack>,
+    pub burn_left: f32,
+    pub heat: f32,
+    pub scram: bool,
+    pub coolant: u16,
+    pub buffer: f32,
+    /// Lifetime mB of coolant burned (debug/chronicle).
+    pub lifetime_coolant: u64,
+}
+
+impl Reactor {
+    /// One tick. `coolant_in` = mB the environment (pipes/adjacent water)
+    /// delivered this tick. Returns the event for this tick.
+    pub fn tick(&mut self, dt: f32, coolant_in: u16) -> ReactorEvent {
+        self.coolant = (self.coolant + coolant_in).min(20_000);
+        // thermal balance first: cooling beats heating when supplied
+        let demand = (REACTOR_COOLANT_RATE as f32 * dt).round() as u16;
+        let cooled = self.coolant.saturating_sub(demand.min(self.coolant)) == self.coolant.saturating_sub(demand)
+            && self.coolant >= demand;
+        if self.coolant >= demand {
+            self.coolant -= demand;
+            self.lifetime_coolant += demand as u64;
+            self.heat = (self.heat - HEAT_COOL_RATE * dt).max(0.0);
+        } else {
+            self.heat = (self.heat - HEAT_PASSIVE_LOSS * dt).max(0.0);
+        }
+        // fission
+        let mut event = ReactorEvent::Idle;
+        if !self.scram {
+            if self.burn_left <= 0.0 {
+                if let Some(f) = &mut self.fuel {
+                    if f.item_id == "fuel_rod" {
+                        self.burn_left = ROD_SECONDS;
+                        f.count -= 1;
+                        if f.count == 0 {
+                            self.fuel = None;
+                        }
+                    }
+                }
+            }
+            if self.burn_left > 0.0 {
+                self.burn_left = (self.burn_left - dt).max(0.0);
+                self.buffer = (self.buffer + REACTOR_RATE * dt).min(REACTOR_CAP);
+                self.heat += HEAT_UP_RATE * dt;
+                event = ReactorEvent::Running;
+            }
+        } else if self.fuel.is_some() || self.burn_left > 0.0 {
+            // decay heat keeps rising even with fission halted
+            self.heat += HEAT_RESIDUAL * dt;
+            event = ReactorEvent::Scrammed;
+        }
+        // thresholds
+        if self.heat >= MELTDOWN_AT {
+            self.heat = MELTDOWN_AT;
+            self.burn_left = 0.0;
+            self.fuel = None;
+            self.buffer = 0.0;
+            return ReactorEvent::Meltdown;
+        }
+        if self.heat >= SCRAM_AT {
+            self.scram = true;
+            if event == ReactorEvent::Running {
+                event = ReactorEvent::Scrammed;
+            }
+        }
+        event
+    }
+
+    /// Manual SCRAM (the big red button) and its cautious reverse.
+    pub fn scram(&mut self) {
+        self.scram = true;
+    }
+
+    pub fn try_unscram(&mut self) -> bool {
+        if self.heat < UNSCRAM_BELOW {
+            self.scram = false;
+            return true;
+        }
+        false
+    }
+
+    pub fn draw(&mut self, want: f32) -> f32 {
+        let given = want.min(self.buffer);
+        self.buffer -= given;
+        given
+    }
+}
+
+#[cfg(test)]
+mod nuclear_tests {
+    use super::*;
+
+    #[test]
+    fn reactor_output_is_the_ceiling() {
+        assert!(WHEEL_RATE < STEAM_ENGINE_RATE);
+        assert!(STEAM_ENGINE_RATE < GENERATE_RATE);
+        assert!(GENERATE_RATE < COMBUSTION_RATE);
+        assert!(COMBUSTION_RATE < REACTOR_RATE, "doc 04: nuclear sits on top");
+    }
+
+    #[test]
+    fn cooled_reactor_runs_cold() {
+        let mut r = Reactor {
+            fuel: Some(ItemStack { item_id: "fuel_rod".into(), count: 4 }),
+            ..Default::default()
+        };
+        // feed exactly the coolant demand (60 mB/s) for 60s
+        let dt = 1.0 / 20.0;
+        for _ in 0..1200 {
+            let ev = r.tick(dt, (REACTOR_COOLANT_RATE as f32 * dt).ceil() as u16);
+            assert_eq!(ev, ReactorEvent::Running);
+        }
+        assert!(r.heat < 30.0, "full cooling holds the core cold, heat={}", r.heat);
+        assert!(r.buffer > REACTOR_RATE * 55.0, "1200 ticks at 32 EU/s charge the buffer");
+    }
+
+    #[test]
+    fn uncooled_reactor_scrams_then_melts_down() {
+        let mut r = Reactor {
+            fuel: Some(ItemStack { item_id: "fuel_rod".into(), count: 9 }),
+            ..Default::default()
+        };
+        let dt = 1.0 / 20.0;
+        let mut saw_scram = false;
+        let mut melted = false;
+        for _ in 0..4000 {
+            match r.tick(dt, 0) {
+                ReactorEvent::Scrammed => saw_scram = true,
+                ReactorEvent::Meltdown => {
+                    melted = true;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        assert!(saw_scram, "neglect triggers the auto-SCRAM first");
+        assert!(melted, "and residual heat still melts it down - never silently safe");
+        assert!(r.fuel.is_none() && r.buffer == 0.0, "the core is spent");
+    }
+
+    fn coolant_saves_a_scrammed_core_and_unscram_is_gated() {
+        let mut r = Reactor {
+            fuel: Some(ItemStack { item_id: "fuel_rod".into(), count: 9 }),
+            ..Default::default()
+        };
+        let dt = 1.0 / 20.0;
+        // run hot into SCRAM with no coolant
+        while !r.scram {
+            r.tick(dt, 0);
+        }
+        assert!(!r.try_unscram(), "no unscram while hot");
+        // now flood it: heat falls below the gate and the core comes back
+        let dt_c = (REACTOR_COOLANT_RATE as f32 * dt).ceil() as u16;
+        for _ in 0..800 {
+            r.tick(dt, dt_c * 4);
+        }
+        assert!(r.heat < UNSCRAM_BELOW, "flooding cools the core, heat={}", r.heat);
+        assert!(r.try_unscram());
     }
 }

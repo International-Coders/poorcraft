@@ -456,6 +456,30 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "reactor_control",
+            desc: "Nuclear (P32): a cooled reactor at equilibrium powering machines — uranium ore vein visible in a cut wall",
+            default_seed: 12345,
+            time_of_day: 0.5,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "meltdown_aftermath",
+            desc: "Nuclear (P32): the crater a neglected reactor leaves — glowing radiation residue through the wreckage",
+            default_seed: 12345,
+            time_of_day: 0.88,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "grid_overlay",
             desc: "power-grid overlay (Step 25): green tint cube over the powered furnace, red over a starved crusher out of range",
             default_seed: 12345,
@@ -864,6 +888,96 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
                 }
             }
         }
+    }
+
+    // reactor_control (P32): a uranium vein exposed in a cut wall, a
+    // water-cooled reactor at thermal equilibrium running machines through
+    // the real tick code (60 sim-seconds, full coolant).
+    if spec.name == "reactor_control" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -6..8 {
+            for z in -6..6 {
+                for y in h..h + 10 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // uranium vein exposed in a cut stone wall at the east end
+        for vx in 5..=6i32 {
+            for vz in -1..=1i32 {
+                for vy in h..h + 3 {
+                    world.set_block(vx, vy, vz, lf_voxel::BlockState(block::STONE));
+                }
+            }
+        }
+        for (vx, vy, vz) in [(4, h, 0), (4, h + 1, 0), (5, h + 1, 1), (5, h, 1)] {
+            world.set_block(vx, vy, vz, lf_voxel::BlockState(block::URANIUM_ORE));
+        }
+        // cooling water channel feeding the reactor from the west
+        world.set_block(-4, h, 0, lf_voxel::water_with_level(0));
+        world.set_block(-3, h, 0, lf_voxel::BlockState(block::PIPE));
+        world.set_block(-2, h, 0, lf_voxel::BlockState(block::PIPE));
+        let reactor_pos = (-1i32, h, 0i32);
+        world.set_block(reactor_pos.0, reactor_pos.1, reactor_pos.2, lf_voxel::BlockState(block::REACTOR));
+        world.set_block(1, h, 0, lf_voxel::BlockState(block::ELECTRIC_FURNACE));
+        world.set_block(1, h, 2, lf_voxel::BlockState(block::CRUSHER));
+        // run the real reactor: equilibrium at full coolant
+        use lf_game::machines::Reactor;
+        let mut reactor = Reactor {
+            fuel: Some(lf_game::survival::ItemStack { item_id: "fuel_rod".into(), count: 4 }),
+            ..Default::default()
+        };
+        let dt = 1.0f32 / 20.0;
+        for _ in 0..1200 {
+            reactor.tick(dt, (lf_game::machines::REACTOR_COOLANT_RATE as f32 * dt).ceil() as u16);
+        }
+        assert!(reactor.heat < 30.0 && reactor.buffer > 1000.0, "equilibrium core for the proof");
+    }
+
+    // meltdown_aftermath (P32): what neglect leaves — a blast crater with
+    // glowing radiation residue, generated through the same placement rule
+    // the client's apply_meltdown uses.
+    if spec.name == "meltdown_aftermath" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        // a small machine hall, now ruined
+        for x in -6..7 {
+            for z in -5..5 {
+                for y in h..h + 8 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        let center = (0i32, h + 1, 0i32);
+        let r = 3i32;
+        let mut placed = 0usize;
+        for dx in -r..=r {
+            for dy in -r..=r {
+                for dz in -r..=r {
+                    if dx * dx + dy * dy + dz * dz > r * r {
+                        continue;
+                    }
+                    let (x, y, z) = (center.0 + dx, center.1 + dy, center.2 + dz);
+                    if y < h - 1 {
+                        continue;
+                    }
+                    let residue = (x * 7 + y * 13 + z * 5).rem_euclid(3) == 0;
+                    let b = if residue && placed < 14 {
+                        placed += 1;
+                        block::RADIATION
+                    } else {
+                        block::AIR
+                    };
+                    world.set_block(x, y, z, lf_voxel::BlockState(b));
+                }
+            }
+        }
+        // the wrecked machines that used to run the hall, flanking the crater
+        world.set_block(-3, h, 2, lf_voxel::BlockState(block::CRUSHER));
+        world.set_block(3, h, 1, lf_voxel::BlockState(block::COMBUSTION_GENERATOR));
     }
 
     // transparency_layers (Step 8): a water pool BEHIND a glass wall, with
@@ -1317,6 +1431,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "grid_overlay" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-4.0, h + 7.0, 13.0), Vec3::new(2.0, h + 0.6, 0.0))
+    } else if spec.name == "reactor_control" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-5.0, h + 6.0, 9.0), Vec3::new(0.5, h + 0.8, 0.0))
+    } else if spec.name == "meltdown_aftermath" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-3.5, h + 3.0, 7.0), Vec3::new(0.0, h + 0.5, 0.0))
     } else if spec.name == "water_wheel_power" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-7.0, h + 6.5, 9.0), Vec3::new(1.0, h + 0.5, -1.0))

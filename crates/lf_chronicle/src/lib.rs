@@ -23,6 +23,8 @@ pub enum EventType {
     ActCompleted,
     RuneApplied,
     ItemCrafted,
+    /// P32: a reactor cooked itself — local destruction + residue.
+    Meltdown,
 }
 
 impl std::fmt::Display for EventType {

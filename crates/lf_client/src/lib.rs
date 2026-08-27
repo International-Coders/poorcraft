@@ -244,6 +244,7 @@ pub enum BlockEntity {
     Pump(lf_game::machines::PumpJack),
     Refinery(lf_game::machines::Refinery),
     Combustion(lf_game::machines::CombustionGenerator),
+    Reactor(lf_game::machines::Reactor),
 }
 
 #[derive(Clone, Debug)]
@@ -1609,6 +1610,7 @@ impl GameState {
                     c.tick(dt);
                     sources.push((*pos, PowerSource::Combustion(c.clone())));
                 }
+                BlockEntity::Reactor(_) => {} // nuclear pass below
                 BlockEntity::Pump(_) | BlockEntity::Refinery(_) => {
                     // powered consumers — ticked in the granted loop below
                     machine_positions.push(*pos);
@@ -1732,6 +1734,58 @@ impl GameState {
                 refinery_feed.insert(k, crude_in);
             }
         }
+        // Nuclear pass (P32): reactors drink coolant from adjacent pipes
+        // and water, tick the heat/output curve, and a meltdown is applied
+        // to the world immediately (never silently safe).
+        {
+            let keys: Vec<(i32, i32, i32)> = self.block_entities.keys().copied().collect();
+            for k in keys {
+                let mut reactor = match self.block_entities.get(&k) {
+                    Some(BlockEntity::Reactor(r)) => r.clone(),
+                    _ => continue,
+                };
+                let neighbors = [
+                    (k.0 + 1, k.1, k.2), (k.0 - 1, k.1, k.2),
+                    (k.0, k.1, k.2 + 1), (k.0, k.1, k.2 - 1),
+                    (k.0, k.1 - 1, k.2), (k.0, k.1 + 1, k.2),
+                ];
+                let mut coolant_in = 0u16;
+                for n in &neighbors {
+                    if self.world.get_block(n.0, n.1, n.2).id() == registry::block::WATER {
+                        coolant_in += 40;
+                    }
+                }
+                for n in &neighbors {
+                    if let Some(BlockEntity::Pipe(p)) = self.block_entities.get_mut(n) {
+                        coolant_in += p.draw(lf_game::machines::FluidKind::Water, 30);
+                    }
+                }
+                let event = reactor.tick(dt, coolant_in);
+                if event == lf_game::machines::ReactorEvent::Meltdown {
+                    self.apply_meltdown(k);
+                    continue;
+                }
+                if event == lf_game::machines::ReactorEvent::Scrammed
+                    && self.settings.particles && self.frame % 10 == 0
+                {
+                    // steam venting from a hot core
+                    let tex = lf_assets::texture_index_for_block(registry::block::SNOW);
+                    self.particles.push(Particle {
+                        position: Vec3::new(k.0 as f32 + 0.5, k.1 as f32 + 1.1, k.2 as f32 + 0.5),
+                        velocity: Vec3::new(0.0, 2.2, 0.0),
+                        life: 0.7,
+                        tex,
+                        uv_off: [0.0, 0.0],
+                    });
+                }
+                if let Some(entity) = self.block_entities.get_mut(&k) {
+                    if let BlockEntity::Reactor(target) = entity {
+                        *target = reactor.clone();
+                    }
+                }
+                sources.push((k, PowerSource::Reactor(reactor)));
+            }
+        }
         let need = lf_game::machines::DRAW_RATE * dt;
         self.machine_power.clear();
         let granted = lf_game::machines::distribute_power(&mut sources, &machine_positions, need);        for (spos, src) in sources {
@@ -1741,6 +1795,7 @@ impl GameState {
                 PowerSource::Battery(b) => BlockEntity::Battery(b),
                 PowerSource::Engine(e) => BlockEntity::SteamEngine(e),
                 PowerSource::Combustion(c) => BlockEntity::Combustion(c),
+                PowerSource::Reactor(r) => BlockEntity::Reactor(r),
             };
             self.block_entities.insert(spos, entity);
         }
@@ -1984,6 +2039,7 @@ impl GameState {
                                     BlockEntity::Boiler(b) => vec![b.fuel],
                                     BlockEntity::Refinery(r) => vec![r.fuel_out, r.tar_out],
                                     BlockEntity::Combustion(c) => vec![c.fuel],
+                                    BlockEntity::Reactor(r) => vec![r.fuel],
                                 };
                                 for s in stacks.into_iter().flatten() {
                                     self.spawn_drop(&s.item_id, s.count,
@@ -2035,7 +2091,8 @@ impl GameState {
                     | registry::block::STEAM_ENGINE
                     | registry::block::PUMP
                     | registry::block::REFINERY
-                    | registry::block::COMBUSTION_GENERATOR => {
+                    | registry::block::COMBUSTION_GENERATOR
+                    | registry::block::REACTOR => {
                         let key = (pos.x, pos.y, pos.z);
                         let block_id_here = self.world.get_block(pos.x, pos.y, pos.z).id();
                         self.block_entities.entry(key).or_insert_with(|| match block_id_here {
@@ -2050,6 +2107,7 @@ impl GameState {
                             registry::block::PUMP => BlockEntity::Pump(Default::default()),
                             registry::block::REFINERY => BlockEntity::Refinery(Default::default()),
                             registry::block::COMBUSTION_GENERATOR => BlockEntity::Combustion(Default::default()),
+                            registry::block::REACTOR => BlockEntity::Reactor(Default::default()),
                             _ => BlockEntity::Assembler(Default::default()),
                         });
                         self.ui_open = UiOpen::Machine(key);
@@ -2193,6 +2251,8 @@ impl GameState {
                                             self.block_entities.insert(key, BlockEntity::Refinery(Default::default()));
                                         } else if b == registry::block::COMBUSTION_GENERATOR {
                                             self.block_entities.insert(key, BlockEntity::Combustion(Default::default()));
+                                        } else if b == registry::block::REACTOR {
+                                            self.block_entities.insert(key, BlockEntity::Reactor(Default::default()));
                                         }
                                         self.remesh_around(place.x, place.z);
                                         // a placed block can dam water or
@@ -2281,6 +2341,64 @@ impl GameState {
         ).is_cold()
     }
 
+    /// P32: a reactor meltdown — the core and everything near it is
+    /// destroyed, radiation residue is scattered through the crater, and
+    /// the chronicle records it. The crater glows an unhealthy green.
+    fn apply_meltdown(&mut self, pos: (i32, i32, i32)) {
+        self.block_entities.remove(&pos);
+        let mut edits: Vec<(i32, i32)> = Vec::new();
+        let r = 3i32;
+        let mut placed_residue = 0usize;
+        for dx in -r..=r {
+            for dy in -r..=r {
+                for dz in -r..=r {
+                    if dx * dx + dy * dy + dz * dz > r * r {
+                        continue;
+                    }
+                    let (x, y, z) = (pos.0 + dx, pos.1 + dy, pos.2 + dz);
+                    let here = self.world.get_block(x, y, z);
+                    if here.id() == registry::block::AIR || !registry::is_solid(here) {
+                        continue;
+                    }
+                    // residue crusts onto roughly a third of the crater
+                    let residue = (x * 7 + y * 13 + z * 5).rem_euclid(3) == 0;
+                    let block = if residue && placed_residue < 14 {
+                        placed_residue += 1;
+                        BlockState(registry::block::RADIATION)
+                    } else {
+                        BlockState::AIR
+                    };
+                    if self.world.set_block(x, y, z, block).is_some() {
+                        edits.push((x, z));
+                    }
+                }
+            }
+        }
+        for (x, z) in edits {
+            self.remesh_around(x, z);
+        }
+        // blast debris
+        if self.settings.particles {
+            let tex = lf_assets::RADIATION_LAYER;
+            for i in 0..24u32 {
+                let a = i as f32 * 0.26;
+                let speed = 4.0 + (i % 5) as f32;
+                self.particles.push(Particle {
+                    position: Vec3::new(pos.0 as f32 + 0.5, pos.1 as f32 + 1.0, pos.2 as f32 + 0.5),
+                    velocity: Vec3::new(a.cos() * speed, 5.0 + (i % 4) as f32, a.sin() * speed),
+                    life: 1.2,
+                    tex,
+                    uv_off: [0.0, 0.0],
+                });
+            }
+        }
+        self.shake = (self.shake + 0.35).min(0.5);
+        self.chronicle_event(
+            lf_chronicle::EventType::Meltdown,
+            "a reactor cooks itself — the crater still glows".into(),
+        );
+    }
+
     /// Step 25 grid overlay: one translucent tint cube per powered machine
     /// (green = fed, red = starved), rebuilt every few frames while on.
     fn rebuild_overlay_batch(&mut self) {
@@ -2356,6 +2474,24 @@ impl GameState {
             return; // dead: nothing ticks
         }
         let now = Instant::now();
+        // P32: radiation residue poisons anyone standing near it until the
+        // crater is scrubbed clean (the blocks are breakable).
+        let p = self.player.position;
+        let mut irradiated = false;
+        for dx in -3..=3i32 {
+            for dy in -2..=3i32 {
+                for dz in -3..=3i32 {
+                    if self.world.get_block(p.x as i32 + dx, p.y as i32 + dy, p.z as i32 + dz).id()
+                        == registry::block::RADIATION
+                    {
+                        irradiated = true;
+                    }
+                }
+            }
+        }
+        if irradiated {
+            self.damage(2.0 * dt);
+        }
         // Fall damage on landing.
         if self.player.just_landed && !self.player.flying {
             let impact = -self.player.last_impact;

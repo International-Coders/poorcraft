@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 68] = [
+pub const TEXTURE_NAMES: [&str; 71] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -33,6 +33,8 @@ pub const TEXTURE_NAMES: [&str; 68] = [
     // tints (translucent, transparent pass like the waypoint beams)
     "oil", "pump", "refinery", "combustion_generator",
     "grid_ok", "grid_starved",
+    // Nuclear tier (P32): deep uranium, the reactor, meltdown residue
+    "uranium_ore", "reactor", "radiation",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -54,6 +56,9 @@ pub const COMBUSTION_LAYER: u32 = 65;
 /// Power-grid overlay tints (Step 25): green = powered, red = starved.
 pub const GRID_OK_LAYER: u32 = 66;
 pub const GRID_STARVED_LAYER: u32 = 67;
+pub const URANIUM_LAYER: u32 = 68;
+pub const REACTOR_LAYER: u32 = 69;
+pub const RADIATION_LAYER: u32 = 70;
 
 /// Texture atlas layer for a block id (see lf_voxel::BlockState / lf_worldgen::BlockId).
 pub fn texture_index_for_block(block_id: u32) -> u32 {
@@ -75,6 +80,9 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         51 => 63, // pumpjack
         52 => 64, // refinery
         53 => 65, // combustion generator
+        54 => 68, // uranium ore
+        55 => 69, // reactor
+        56 => 70, // radiation residue
         6 => 5, // snow
         7 => 6, // log
         8 => 7, // leaves
@@ -322,6 +330,48 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([255, 110, 100, 255])
                     } else {
                         Rgba([230, 70, 60, 60])
+                    }
+                }
+                // Nuclear tier (P32)
+                "uranium_ore" => {
+                    // stone matrix with glowing green flecks
+                    let fleck = (x * 7 + y * 13) % 23 < 3;
+                    if fleck {
+                        Rgba([120, 240, 90, 255])
+                    } else {
+                        let v = 110 + ((x * 5 + y * 7) % 18);
+                        Rgba([ch(v), ch(v - 2), ch(v - 4), 255])
+                    }
+                }
+                "reactor" => {
+                    // heavy containment vessel: thick steel ring + core window
+                    let shell = x >= 1 && x <= 14 && y >= 1 && y <= 14;
+                    let ring = (x as i32 - 7).pow(2) + (y as i32 - 7).pow(2);
+                    let window = ring <= 9;
+                    let bolts = ring >= 36 && ring <= 49 && (x + y) % 3 == 0;
+                    if window {
+                        // the core glows through the water
+                        let pulse = (x * 3 + y * 5) % 7 < 3;
+                        if pulse { Rgba([140, 240, 190, 255]) } else { Rgba([40, 150, 110, 255]) }
+                    } else if bolts {
+                        Rgba([235, 235, 190, 255])
+                    } else if shell {
+                        let v = 118 + ((x * 11 + y * 3) % 16);
+                        Rgba([ch(v), ch(v - 4), ch(v - 12), 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "radiation" => {
+                    // sickly glowing residue crust
+                    let glow = (x * 5 + y * 3) % 17 < 4;
+                    let crust = (x * 3 + y * 9) % 13 < 5;
+                    if glow {
+                        Rgba([170, 255, 120, 255])
+                    } else if crust {
+                        Rgba([70, 120, 60, 255])
+                    } else {
+                        Rgba([34, 60, 34, 255])
                     }
                 }
                 // Water Age machines (P29)
@@ -761,6 +811,7 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "aluminum_ingot", "sulfur", "bronze_ingot", "steel_ingot",
     "copper_wire", "iron_gear", "machine_frame", "basic_circuit",
     "glitch_dust", "null_shard",
+    "raw_uranium", "uranium_ingot", "fuel_rod",
 ];
 
 fn paint_sprite(art: [&str; 16], colors: impl Fn(char) -> Rgba<u8>) -> RgbaImage {
@@ -1048,6 +1099,31 @@ const BUCKET_ART: [&str; 16] = [
     "................",
     "................",
 ];
+
+const FUEL_ROD_ART: [&str; 16] = [
+    "................",
+    ".......M........",
+    "......mMm.......",
+    ".....mMgMm......",
+    ".....mGgGm......",
+    ".....mGgGm......",
+    ".....mMgMm......",
+    ".....mGgGm......",
+    ".....mGgGm......",
+    ".....mMgMm......",
+    ".....mGgGm......",
+    ".....mMgMm......",
+    "......mMm.......",
+    ".......M........",
+    "................",
+    "................",
+];
+
+fn ingot_palette2(base: Rgba<u8>, top: Rgba<u8>, dark: Rgba<u8>) -> RgbaImage {
+    paint_sprite(INGOT_ART, |c| match c {
+        'I' => base, 'H' => top, 'i' => dark, 'd' => dark, _ => Rgba([0, 0, 0, 0]),
+    })
+}
 
 const CHESTPLATE_ART: [&str; 16] = [
     "................",
@@ -1347,6 +1423,13 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
             })
         }
         "raw_iron" => raw_chunk(Rgba([172, 146, 126, 255]), Rgba([210, 185, 160, 255])),
+        "raw_uranium" => raw_chunk(Rgba([70, 130, 55, 255]), Rgba([140, 230, 100, 255])),
+        "uranium_ingot" => ingot_palette2(Rgba([90, 160, 70, 255]), Rgba([140, 230, 105, 255]), Rgba([55, 105, 45, 255])),
+        "fuel_rod" => paint_sprite(FUEL_ROD_ART, |c| match c {
+            'm' => Rgba([170, 180, 190, 255]), 'M' => Rgba([215, 225, 235, 255]),
+            'g' => Rgba([120, 240, 90, 255]), 'G' => Rgba([180, 255, 150, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
         "raw_copper" => raw_chunk(Rgba([160, 98, 74, 255]), Rgba([200, 140, 100, 255])),
         "raw_tin" => raw_chunk(Rgba([150, 148, 145, 255]), Rgba([192, 192, 196, 255])),
         "sulfur" => paint_sprite(SULFUR_ART, |c| match c {
@@ -1410,7 +1493,8 @@ mod tests {
             assert_eq!(tex.height(), 16);
             // fully opaque except water (transparent pass)
             if name == "water_wheel" || name == "battery" || name == "pipe" || name == "boiler" || name == "steam_engine"
-                || name == "pump" || name == "refinery" || name == "combustion_generator" {
+                || name == "pump" || name == "refinery" || name == "combustion_generator"
+                || name == "reactor" {
                 // machine shells with hollow details
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(solid > 40, "{} too sparse", name);

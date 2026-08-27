@@ -123,6 +123,11 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "oil_bucket", name: "Bucket of Crude", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "refined_fuel", name: "Refined Fuel", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "tar", name: "Tar", kind: ItemKind::Material, max_stack: 64 },
+        // Nuclear tier (P32)
+        ItemDef { id: "raw_uranium", name: "Raw Uranium", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "uranium_ingot", name: "Uranium Ingot", kind: ItemKind::Material, max_stack: 64 },
+        ItemDef { id: "fuel_rod", name: "Fuel Rod", kind: ItemKind::Material, max_stack: 16 },
+        ItemDef { id: "reactor", name: "Reactor", kind: ItemKind::Block(block::REACTOR), max_stack: 1 },
         ItemDef { id: "bucket", name: "Bucket", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "water_bucket", name: "Water Bucket", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "mutton", name: "Mutton", kind: ItemKind::Food(6), max_stack: 64 },
@@ -221,6 +226,9 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::PUMP => Some("pump".into()),
         block::REFINERY => Some("refinery".into()),
         block::COMBUSTION_GENERATOR => Some("combustion_generator".into()),
+        block::URANIUM_ORE => Some("raw_uranium".into()),
+        block::REACTOR => Some("reactor".into()),
+        block::RADIATION => None, // residue is scrubbed, not collected
         block::OIL => None, // scooped with a bucket, not mined
         block::STONE => Some("stone".into()),
         block::SAND => Some("sand".into()),

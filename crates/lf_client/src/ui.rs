@@ -1869,6 +1869,56 @@ impl GameState {
                         self.draw_storage_rows(ui);
                         self.block_entities.insert(pos, BlockEntity::Combustion(c));
                     }
+                    BlockEntity::Reactor(mut r) => {
+                        let heat_frac = (r.heat / lf_game::machines::MELTDOWN_AT).clamp(0.0, 1.0);
+                        let heat_color = if r.heat >= lf_game::machines::SCRAM_AT {
+                            egui::Color32::from_rgb(255, 90, 80)
+                        } else if r.heat > lf_game::machines::UNSCRAM_BELOW {
+                            egui::Color32::from_rgb(255, 170, 60)
+                        } else {
+                            Theme::OK
+                        };
+                        top_bar(ui, heat_frac, &format!("heat {:.0}/{}", r.heat, lf_game::machines::MELTDOWN_AT as u8), heat_color);
+                        top_bar(ui, r.coolant as f32 / 20_000.0, "coolant", egui::Color32::from_rgb(90, 160, 210));
+                        top_bar(ui, r.buffer / lf_game::machines::REACTOR_CAP,
+                            &format!("{:.0} / {} EU", r.buffer, lf_game::machines::REACTOR_CAP), Theme::XP);
+                        ui.horizontal(|ui| {
+                            let mut fuel = r.fuel.take();
+                            let mut cursor = self.cursor_stack.take();
+                            let out = slot_button(ui, &mut fuel, &mut cursor, false, &self.icons);
+                            self.cursor_stack = cursor;
+                            if let Some(mut q) = out.quick_moved {
+                                quick_insert(&mut self.inventory.slots[..36], &mut q);
+                            }
+                            r.fuel = fuel;
+                            ui.label(egui::RichText::new("fuel rods").small().color(Theme::TEXT_DIM));
+                        });
+                        ui.horizontal(|ui| {
+                            if ui.button("SCRAM").clicked() {
+                                r.scram();
+                            }
+                            let can_unscram = r.scram && r.heat < lf_game::machines::UNSCRAM_BELOW;
+                            if ui.add_enabled(can_unscram, egui::Button::new("restart core")).clicked() {
+                                r.try_unscram();
+                            }
+                            let status = if r.scram {
+                                "SCRAMMED — keep the coolant flowing or it still melts".to_string()
+                            } else if r.burn_left > 0.0 {
+                                format!("fissioning — rod: {:.0}s left", r.burn_left)
+                            } else {
+                                "idle — load a fuel rod and keep water on it".to_string()
+                            };
+                            ui.label(egui::RichText::new(status)
+                                .small()
+                                .color(if r.scram { heat_color } else { Theme::TEXT_DIM }));
+                        });
+                        ui.label(egui::RichText::new(
+                            "feed cooling water with pipes or place it against water",
+                        ).small().color(Theme::TEXT_DIM));
+                        ui.add_space(4.0);
+                        self.draw_storage_rows(ui);
+                        self.block_entities.insert(pos, BlockEntity::Reactor(r));
+                    }
                     BlockEntity::Generator(mut g) => {
                         top_bar(ui, g.buffer / lf_game::machines::GEN_CAPACITY, &format!("{:.0} / {} EU", g.buffer, lf_game::machines::GEN_CAPACITY), Theme::XP);
                         let mut fuel = g.fuel.take();
@@ -2048,7 +2098,7 @@ impl GameState {
                 // relative to each other, right here in the tree.
                 let mut branch_unlocked = None;
                 ui.horizontal(|ui| {
-                    for e in [Era::Water, Era::Steam, Era::Oil] {
+                    for e in [Era::Water, Era::Steam, Era::Oil, Era::Nuclear] {
                         let owned = self.research.unlocked(e);
                         let can = self.research.can_unlock(e);
                         let color = if owned { Theme::OK } else if can { Theme::ACCENT } else { egui::Color32::from_gray(110) };
@@ -2064,6 +2114,12 @@ impl GameState {
                                     "done"
                                 } else if e == Era::Oil {
                                     "branch — needs Steam or Electrical"
+                                } else if e == Era::Nuclear {
+                                    if self.research.reactor_safety {
+                                        "the ceiling — needs the Oil Age"
+                                    } else {
+                                        "locked — earn the safety certification below"
+                                    }
                                 } else {
                                     "branch — parallel to the chain"
                                 }).small().color(color));
@@ -2090,6 +2146,25 @@ impl GameState {
                 });
                 if let Some(e) = branch_unlocked {
                     let _ = self.research.unlock(e, &mut self.inventory.slots);
+                }
+                // P32: the reactor safety certification — study gates the
+                // Nuclear branch (glass containment + circuits + a book).
+                if self.research.unlocked(Era::Oil) && !self.research.reactor_safety {
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Reactor Safety Certification").small().color(Theme::ACCENT));
+                        let have = lf_game::research::ResearchState::have_counts(&self.inventory.slots);
+                        let mut affordable = true;
+                        for (item, n) in lf_game::research::ResearchState::REACTOR_SAFETY_COST {
+                            let got = have.iter().find(|(id, _)| id == item).map(|(_, c)| *c).unwrap_or(0);
+                            affordable &= got >= n as u16;
+                            let cc = if got >= n as u16 { Theme::OK } else { egui::Color32::from_rgb(230, 130, 130) };
+                            ui.label(egui::RichText::new(format!("{} {}/{}", item, got.min(n as u16), n)).small().color(cc));
+                        }
+                        if affordable && ui.button("Study").clicked() {
+                            self.research.unlock_reactor_safety(&mut self.inventory.slots);
+                        }
+                    });
                 }
                 ui.add_space(8.0);
                 ui.separator();
