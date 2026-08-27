@@ -100,6 +100,7 @@ pub fn biome_color(b: Biome) -> Color32 {
         Mountains => c(130, 128, 125),
         WindsweptHills => c(145, 150, 120),
         MushroomHollow => c(150, 120, 145),
+        Volcanic => c(72, 60, 58),
     }
 }
 
@@ -127,6 +128,24 @@ pub const WAYPOINT_COLORS: [Color32; 6] = [
     Color32::from_rgb(255, 255, 255), // white
 ];
 
+/// A2: blend the faction color over the terrain tile — alpha ~0.30, light
+/// enough that hillshade still reads, strong enough to claim the region.
+fn apply_territory_tint(mut px: Vec<Color32>, tint: Option<Color32>) -> Vec<Color32> {
+    if let Some(t) = tint {
+        for p in px.iter_mut() {
+            let a = 0.30;
+            let blended = [
+                (p.r() as f32 * (1.0 - a) + t.r() as f32 * a) as u8,
+                (p.g() as f32 * (1.0 - a) + t.g() as f32 * a) as u8,
+                (p.b() as f32 * (1.0 - a) + t.b() as f32 * a) as u8,
+                p.a(),
+            ];
+            *p = Color32::from_rgba_unmultiplied(blended[0], blended[1], blended[2], blended[3]);
+        }
+    }
+    px
+}
+
 fn shade(c: Color32, f: f32) -> Color32 {
     Color32::from_rgba_unmultiplied(
         (c.r() as f32 * f).clamp(0.0, 255.0) as u8,
@@ -147,6 +166,8 @@ enum TileSource {
 struct Tile {
     px: Vec<Color32>, // 16*16
     source: TileSource,
+    /// Territory tint (faction color) applied over the terrain shading.
+    tint: Option<Color32>,
 }
 
 /// Per-client map cache + view state.
@@ -164,6 +185,12 @@ pub struct MapState {
     pub zoom: f32,
     pub center: (f32, f32),
     pub following: bool,
+    /// lore-and-visuals A2: biome -> faction territory color. Set by the
+    /// client from lore data; tiles built while empty stay untinted.
+    pub faction_tints: HashMap<Biome, Color32>,
+    /// lore-and-visuals D3: discovered structure icons (x, z, faction
+    /// color), drawn like waypoints on both map surfaces.
+    pub structure_icons: Vec<(f32, f32, Color32)>,
 }
 
 impl MapState {
@@ -180,7 +207,15 @@ impl MapState {
             zoom: 2.0,
             center: (0.0, 0.0),
             following: true,
+            faction_tints: HashMap::new(),
+            structure_icons: Vec::new(),
         }
+    }
+
+    /// Territory tint for a chunk (faction color, chunk-center biome).
+    fn territory_tint(&self, cx: i32, cz: i32) -> Option<Color32> {
+        let biome = self.gen.biome(cx * 16 + 8, cz * 16 + 8);
+        self.faction_tints.get(&biome).copied()
     }
 
     pub fn biome_at(&self, x: i32, z: i32) -> Biome {
@@ -210,18 +245,22 @@ impl MapState {
             for dz in -radius..=radius {
                 let pos = (center_chunk.0 + dx, center_chunk.1 + dz);
                 if loaded.contains(&pos) {
-                    let stale = !matches!(self.tiles.get(&pos), Some(t) if t.source == TileSource::Loaded)
+                    let tint = self.territory_tint(pos.0, pos.1);
+                    let stale = !matches!(self.tiles.get(&pos), Some(t) if t.source == TileSource::Loaded && t.tint == tint)
                         || dirty.contains(&pos);
                     if stale {
                         let px = tile_from_world(world, pos.0, pos.1);
-                        self.tiles.insert(pos, Tile { px, source: TileSource::Loaded });
+                        let px = apply_territory_tint(px, tint);
+                        self.tiles.insert(pos, Tile { px, source: TileSource::Loaded, tint });
                         bumped = true;
                     }
                 } else if saved.contains(&pos) {
-                    let stale = !matches!(self.tiles.get(&pos), Some(t) if t.source == TileSource::Approx);
+                    let tint = self.territory_tint(pos.0, pos.1);
+                    let stale = !matches!(self.tiles.get(&pos), Some(t) if t.source == TileSource::Approx && t.tint == tint);
                     if stale {
                         let px = tile_from_gen(&self.gen, pos.0, pos.1);
-                        self.tiles.insert(pos, Tile { px, source: TileSource::Approx });
+                        let px = apply_territory_tint(px, tint);
+                        self.tiles.insert(pos, Tile { px, source: TileSource::Approx, tint });
                         bumped = true;
                     }
                 } else if self.tiles.remove(&pos).is_some() {
@@ -464,6 +503,21 @@ impl GameState {
                 for v in &self.villagers {
                     paint.circle_filled(to_screen(v.position[0], v.position[2]), 2.0, Theme::OK);
                 }
+                // lore-and-visuals D3: discovered faction structures — a
+                // small faction-color diamond at their world position
+                for (ix, iz, col) in &self.map.structure_icons {
+                    let mut pos = to_screen(*ix, *iz);
+                    pos.x = pos.x.clamp(rect.left() + 6.0, rect.right() - 6.0);
+                    pos.y = pos.y.clamp(rect.top() + 6.0, rect.bottom() - 6.0);
+                    let r = 4.0;
+                    let diamond = vec![
+                        pos + Vec2::new(0.0, -r),
+                        pos + Vec2::new(r, 0.0),
+                        pos + Vec2::new(0.0, r),
+                        pos + Vec2::new(-r, 0.0),
+                    ];
+                    paint.add(egui::Shape::convex_polygon(diamond, *col, egui::Stroke::new(1.0, Theme::BG)));
+                }
                 // waypoint pips (clamped to the edge when off-map)
                 for wp in &self.waypoints {
                     let mut pos = to_screen(wp.x, wp.z);
@@ -578,6 +632,19 @@ impl GameState {
                             Color32::from_rgb(240, 120, 140),
                             egui::Stroke::new(1.5, Theme::BG),
                         ));
+                        // lore-and-visuals D3: faction structure icons
+                        for (ix, iz, col) in &self.map.structure_icons {
+                            let pos = to_screen(*ix, *iz);
+                            if rect.contains(pos) {
+                                let r = 5.0;
+                                paint.add(egui::Shape::convex_polygon(
+                                    vec![pos + Vec2::new(0.0, -r), pos + Vec2::new(r, 0.0),
+                                         pos + Vec2::new(0.0, r), pos + Vec2::new(-r, 0.0)],
+                                    *col,
+                                    egui::Stroke::new(1.5, Theme::BG),
+                                ));
+                            }
+                        }
                         // waypoints
                         for wp in self.waypoints.iter() {
                             let pos = to_screen(wp.x, wp.z);

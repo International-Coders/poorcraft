@@ -37,3 +37,29 @@ code, tests, and rendered proof:
   blueprint rotation, slopes beyond stairs, more runes/spells (bounded
   by design), belt extraction direction UI.
 - Perf: measured on this Intel iGPU host only.
+
+## lore-and-visuals build (2026-08-27, loop 327)
+
+- Six factions with per-player standing (−100..+100, The Nameless start
+  at −50) — all data-driven from lore/factions.toml through the new
+  lf_lore crate. Standing gates real behavior: hostile standing refuses
+  trading, friendly gets 10% off, companions need ≥+75.
+- Twelve faction quests with the docs' narrative text; new quest event
+  kinds (Break/Place/Interact/Reach-tags/any-food) all fire from real
+  gameplay.
+- Hireable companions: trust + morale + daily wages at sunrise, the full
+  command menu, 2-4 block follow AI that defends you, morale-zero quits
+  that cost faction standing. Everything persists in the save.
+- 38 new blocks (faction sets, biome-exclusive surfaces, stained glass,
+  banners, carved tiers), a 31st Volcanic biome, deep slate at depth,
+  coral reefs, ember-glowstone formations.
+- Six faction structures generate in their home biomes and settle their
+  NPCs (including the three named ones); discovering one writes the
+  chronicle and drops a faction-color icon on the map. Territory itself
+  is tinted on both map surfaces.
+- Entity identity: faction villager skins, companion skins with a trust
+  badge at ≥50, six distinct mob skins with biome-tint variants.
+- Honest limits: The Unmarked's interview dialogue is a single
+  interaction (not the 5-choice tree), companion Craft is stubbed, haul
+  pathing is simplified, camp chests initialize empty (raiders carry the
+  loot). All in BACKLOG.md.

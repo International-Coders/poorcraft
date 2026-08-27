@@ -10,9 +10,9 @@ use wgpu::util::DeviceExt;
 pub const CLIP_DIMS: (u32, u32, u32) = (128, 64, 128);
 
 /// RGB palette indexed by block id (procedural colors mirroring lf_assets).
-fn palette() -> [[f32; 4]; 64] {
-    let mut p = [[0.0f32; 4]; 64];
-    let set = |p: &mut [[f32; 4]; 64], id: u32, c: [f32; 4]| {
+fn palette() -> [[f32; 4]; 128] {
+    let mut p = [[0.0f32; 4]; 128];
+    let set = |p: &mut [[f32; 4]; 128], id: u32, c: [f32; 4]| {
         if (id as usize) < p.len() {
             p[id as usize] = c;
         }
@@ -65,9 +65,9 @@ fn palette() -> [[f32; 4]; 64] {
     set(&mut p, 51, [0.33, 0.29, 0.25, 1.0]);     // pumpjack
     set(&mut p, 52, [0.45, 0.42, 0.38, 1.0]);     // refinery
     set(&mut p, 53, [0.50, 0.33, 0.20, 1.0]);     // combustion generator
-    // Fallback for ids > 53 (future content): a stable muted color per id
-    // so new blocks are never invisible/wrong in RT before they get a
-    // hand-tuned entry (registry-driven palette fix, P29).
+    // Fallback for ids beyond the hand-tuned set (future content): a stable
+    // muted color per id so new blocks are never invisible/wrong in RT
+    // before they get a hand-tuned entry (registry-driven palette fix, P29).
     let mut id = 54usize;
     while id < p.len() {
         let h = (id as u32).wrapping_mul(2654435761);
@@ -77,6 +77,46 @@ fn palette() -> [[f32; 4]; 64] {
         p[id] = [r, g, b, 1.0];
         id += 1;
     }
+    // lore-and-visuals blocks (68..=105): hand-tuned to their atlas art so
+    // faction structures read correctly in RT captures
+    set(&mut p, 68, [0.55, 0.57, 0.62, 1.0]);    // accord stone
+    set(&mut p, 69, [0.58, 0.60, 0.65, 1.0]);    // accord pillar
+    set(&mut p, 70, [0.37, 0.27, 0.20, 1.0]);    // ironborn brick
+    set(&mut p, 71, [0.36, 0.32, 0.29, 0.7]);    // ironborn grate
+    set(&mut p, 72, [0.17, 0.14, 0.11, 1.0]);    // covenantwood
+    set(&mut p, 73, [0.83, 0.59, 0.26, 1.0]);    // ember glowstone (emissive-ish)
+    set(&mut p, 74, [0.77, 0.65, 0.40, 1.0]);    // freeholds thatch
+    set(&mut p, 75, [0.86, 0.83, 0.76, 1.0]);    // freeholds daub
+    set(&mut p, 76, [0.79, 0.80, 0.82, 1.0]);    // ashen marble
+    set(&mut p, 77, [0.50, 0.48, 0.50, 1.0]);    // ashen bookshelf
+    set(&mut p, 78, [0.34, 0.29, 0.23, 1.0]);    // nameless rotwood
+    set(&mut p, 79, [0.22, 0.20, 0.19, 1.0]);    // nameless scorched
+    set(&mut p, 80, [0.80, 0.20, 0.15, 1.0]);    // mushroom cap
+    set(&mut p, 81, [0.92, 0.52, 0.39, 1.0]);    // coral block
+    set(&mut p, 82, [0.38, 0.44, 0.52, 1.0]);    // permafrost
+    set(&mut p, 83, [0.18, 0.16, 0.17, 1.0]);    // volcanic basalt
+    set(&mut p, 84, [0.16, 0.17, 0.22, 1.0]);    // deep slate
+    set(&mut p, 85, [0.85, 0.47, 0.27, 1.0]);    // mesa terracotta
+    set(&mut p, 86, [0.72, 0.62, 0.25, 1.0]);    // gilded grass
+    set(&mut p, 87, [0.20, 0.16, 0.12, 1.0]);    // bog peat
+    set(&mut p, 88, [0.68, 0.53, 0.34, 1.0]);    // carved oak
+    set(&mut p, 89, [0.50, 0.51, 0.53, 1.0]);    // carved stone
+    set(&mut p, 90, [0.55, 0.53, 0.55, 1.0]);    // carved iron
+    set(&mut p, 91, [0.80, 0.18, 0.18, 0.55]);   // stained glass red
+    set(&mut p, 92, [0.90, 0.52, 0.12, 0.55]);   // stained glass orange
+    set(&mut p, 93, [0.90, 0.82, 0.20, 0.55]);   // stained glass yellow
+    set(&mut p, 94, [0.24, 0.71, 0.28, 0.55]);   // stained glass green
+    set(&mut p, 95, [0.24, 0.43, 0.82, 0.55]);   // stained glass blue
+    set(&mut p, 96, [0.59, 0.28, 0.78, 0.55]);   // stained glass purple
+    set(&mut p, 97, [0.12, 0.12, 0.14, 0.7]);    // stained glass black
+    set(&mut p, 98, [0.92, 0.92, 0.92, 0.55]);   // stained glass white
+    set(&mut p, 99, [0.29, 0.48, 0.71, 1.0]);    // banner accord
+    set(&mut p, 100, [0.55, 0.27, 0.07, 1.0]);   // banner ironborn
+    set(&mut p, 101, [0.77, 0.38, 0.16, 1.0]);   // banner covenant
+    set(&mut p, 102, [0.42, 0.56, 0.14, 1.0]);   // banner freeholds
+    set(&mut p, 103, [0.69, 0.69, 0.69, 1.0]);   // banner ashen
+    set(&mut p, 104, [0.18, 0.18, 0.18, 1.0]);   // banner nameless
+    set(&mut p, 105, [1.0, 0.85, 0.5, 1.0]);     // hanging lantern (emissive)
     p
 }
 

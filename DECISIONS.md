@@ -75,3 +75,28 @@ mesh. Mount implemented: bare-hand right-click bonds the ride, the
 player tracks the dragon's position each tick, sneak dismounts. If a
 future dragon speed exceeds streaming margins, re-run this audit — the
 numbers are recorded here for that reason.
+
+## 2026-08-27 — lore-and-visuals build (factions, companions, skins)
+
+- MOD_BLOCK_BASE 100 -> 200: the 38 new vanilla blocks occupy ids 68..=105
+  (crossing the old mod boundary at 100). Mods re-register at their new
+  hash-derived ids on boot; previously-placed mod blocks in old saves
+  re-register too (the name-keyed registry keeps them stable per session —
+  a one-time id shift, not data loss). GENERATOR_VERSION 2 -> 3 for the
+  worldgen changes.
+- Faction biome mapping (the docs name biomes that don't exist verbatim in
+  the 31-biome world): plains/meadow->Meadow+Forest family, volcanic->new
+  Volcanic biome (hot+dry variant band), highland forest->Highlands/Taiga,
+  bog->Swamp, coastal->Beach, marble highlands->WindsweptHills,
+  ruins/scorched->PaleGarden/DarkForest. Documented in lore/factions.toml.
+- Biome-tint mob variants are atlas palette-swap layers (one per common
+  hostile per variant), not a shader uniform: the entity renderer picks the
+  layer by the player's biome. Same geometry, accents (eyes/glow) constant
+  — the visual contract of ENTITY_SKIN_SPEC without new vertex attributes.
+- Companion commands open on right-click-interact while looking at an
+  active companion (no new keybind; matches the dragon-mount precedent).
+- vistest structure scenes plant buildings on a flattened display pedestal
+  (y=112) — in-world placement is proven by the worldgen determinism test,
+  the pedestal only guarantees an unobstructed camera.
+- Deep slate is depth-gated (y<18 replaces stone, ores embed in it too) —
+  the docs' "deep cave biome" maps to a depth band, not a surface variant.

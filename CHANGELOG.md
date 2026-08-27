@@ -1,5 +1,47 @@
 # CHANGELOG
 
+## 2026-08-27 — lore-and-visuals: factions, companions, skins (loop 327)
+- Six-faction standing system (–100..+100, Nameless start –50) loaded from
+  lore/factions.toml; threshold titles, rivals-drift on honored crossings,
+  standing events (quest ±, trade, structure destroy/discover) all
+  data-driven via the new lf_lore crate. Chronicle entries reference the
+  canonical world events (Era/Year dates from lore/world_events.toml).
+- 12 faction quests (2 per faction) from lore/quests_factions.toml with
+  narrative text from the faction docs; new quest mechanics: tagged Reach
+  (road markers / ember formations / new biomes), Break, Place, Interact,
+  and any-food Collect. Quest log shows them; faction NPCs grant them on
+  first contact.
+- Hireable companions: hire at standing ≥75 with a fee (trade UI), up to
+  3 active; trust (0-100) and morale (0-100) with the documented event
+  table, daily wages paid at sunrise (unpaid → morale loss → quit at 0,
+  "word gets around" −5 faction), dismiss returns them to their schedule
+  with trust remembered. Command menu on interact (follow/stay/rest/mine/
+  chop/haul/guard/pay/dismiss); 2-4 block follow AI that defends the
+  player against the mob that hit them; contextual dialogue lines from
+  lore/dialogue.toml; trust badge on the skin at ≥50.
+- 38 new blocks (12 faction-themed, 8 biome-exclusive, 18 decoration
+  including 8 stained glasses and 6 banners) with procedural 16x16
+  textures, drops, and 24 recipes; MOD_BLOCK_BASE 100→200 (DECISIONS).
+- Volcanic biome (31st) + biome surface identity updates (gilded savanna
+  grass, bog peat, permafrost tundra, mesa terracotta badlands), deep
+  slate depth band, coral heads, natural ember-glowstone formations,
+  accord road markers.
+- Six faction structures (embassy, forge camp, grove shrine, longhouse,
+  library, nameless camp) placed deterministically in their home biomes;
+  banner markers settle the faction's NPCs (incl. named The Unmarked,
+  Maren Voss, Dag Holtz) and drive discovery chronicle + map icons.
+- Entity visual identity: 6 faction villager skins + 2 named NPC skins,
+  6 companion skins with trust-badge variants, 6 mob skins with distinct
+  silhouettes, 9 biome-tint variants of the common hostiles, Nameless
+  Raider mob (food+loot drops).
+- Map: faction territory tint (30% blend over terrain shading) on the
+  minimap and world map + faction-color structure icons. HUD: faction
+  standing widget (bottom-right, pulse on change) + companion status
+  tiles (top-left). Trade gates: hostile standing refuses trade,
+  friendly gets a 10% discount. Ambient ember particles for
+  ember_glowstone. 13 new vistest scenes, all pixel-verified.
+
+
 ## 2026-08-26 — P27: fix "objects disappear when looking up" (frustum culling, loop 307)
 - The chunk-column frustum test approximated each 16x16xH column with a
   sphere of radius `max(half_h, 11.4)`. That covers the footprint only

@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 86] = [
+pub const TEXTURE_NAMES: [&str; 160] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -47,6 +47,41 @@ pub const TEXTURE_NAMES: [&str; 86] = [
     "stone_conn", "planks_conn",
     // Step 27: the item belt
     "belt",
+    // Faction blocks (lore-and-visuals C1, 86-97)
+    "accord_stone", "accord_pillar", "ironborn_brick", "ironborn_grate",
+    "ember_covenantwood", "ember_glowstone", "freeholds_thatch", "freeholds_daub",
+    "ashen_marble", "ashen_bookshelf", "nameless_rotwood", "nameless_scorched",
+    // Biome-exclusive blocks (98-105)
+    "mushroom_cap", "coral_block", "permafrost", "volcanic_basalt",
+    "deep_slate", "mesa_terracotta", "gilded_grass", "bog_peat",
+    // Decoration blocks (106-123)
+    "carved_oak", "carved_stone", "carved_iron",
+    "stained_glass_red", "stained_glass_orange", "stained_glass_yellow",
+    "stained_glass_green", "stained_glass_blue", "stained_glass_purple",
+    "stained_glass_black", "stained_glass_white",
+    "banner_accord", "banner_ironborn", "banner_covenant",
+    "banner_freeholds", "banner_ashen", "banner_nameless",
+    "lantern_hanging",
+    // Villager faction skins (C2, 124-131)
+    "villager_accord", "villager_ironborn", "villager_covenant",
+    "villager_freeholds", "villager_ashen", "villager_nameless",
+    "villager_unmarked", "villager_maren",
+    // Companion skins + trust-badge variants (132-143)
+    "companion_accord_warden", "companion_ironborn_artisan",
+    "companion_covenant_channeler", "companion_freeholds_scout",
+    "companion_ashen_scribe", "companion_nameless_rover",
+    "companion_accord_warden_trusted", "companion_ironborn_artisan_trusted",
+    "companion_covenant_channeler_trusted", "companion_freeholds_scout_trusted",
+    "companion_ashen_scribe_trusted", "companion_nameless_rover_trusted",
+    // Mob skins (C2 refresh, 144-149)
+    "mob_boar", "mob_woolbeast", "mob_glitchling", "mob_stalker",
+    "mob_crawler", "mob_null_knight",
+    // Biome-tint variants of the common hostiles (150-158)
+    "mob_glitchling_desert", "mob_stalker_desert", "mob_crawler_desert",
+    "mob_glitchling_snow", "mob_stalker_snow", "mob_crawler_snow",
+    "mob_glitchling_swamp", "mob_stalker_swamp", "mob_crawler_swamp",
+    // Ambient ember particle core (C4)
+    "ember",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -91,6 +126,64 @@ pub const DRAGON_EGG_LAYER: u32 = 82;
 /// samples the edgeless variant so big surfaces stop gridding.
 pub const STONE_CONN_LAYER: u32 = 83;
 pub const PLANKS_CONN_LAYER: u32 = 84;
+
+// Faction + biome + decoration block layers (lore-and-visuals C1).
+// Vanilla block ids 68..=105 map to layers id+18 (86..=123).
+pub const ACCORD_STONE_LAYER: u32 = 86;
+pub const ACCORD_PILLAR_LAYER: u32 = 87;
+pub const IRONBORN_BRICK_LAYER: u32 = 88;
+pub const IRONBORN_GRATE_LAYER: u32 = 89;
+pub const EMBER_COVENANTWOOD_LAYER: u32 = 90;
+pub const EMBER_GLOWSTONE_LAYER: u32 = 91;
+pub const FREEHOLDS_THATCH_LAYER: u32 = 92;
+pub const FREEHOLDS_DAUB_LAYER: u32 = 93;
+pub const ASHEN_MARBLE_LAYER: u32 = 94;
+pub const ASHEN_BOOKSHELF_LAYER: u32 = 95;
+pub const NAMELESS_ROTWOOD_LAYER: u32 = 96;
+pub const NAMELESS_SCORCHED_LAYER: u32 = 97;
+pub const MUSHROOM_CAP_LAYER: u32 = 98;
+pub const CORAL_BLOCK_LAYER: u32 = 99;
+pub const PERMAFROST_LAYER: u32 = 100;
+pub const VOLCANIC_BASALT_LAYER: u32 = 101;
+pub const DEEP_SLATE_LAYER: u32 = 102;
+pub const MESA_TERRACOTTA_LAYER: u32 = 103;
+pub const GILDED_GRASS_LAYER: u32 = 104;
+pub const BOG_PEAT_LAYER: u32 = 105;
+
+// Entity skins (C2): villager faction variants, companion skins (+ the
+// trust-badge swap at trust >= 50), mob refresh, biome-tint variants.
+pub const VILLAGER_ACCORD_LAYER: u32 = 124;
+pub const VILLAGER_IRONBORN_LAYER: u32 = 125;
+pub const VILLAGER_COVENANT_LAYER: u32 = 126;
+pub const VILLAGER_FREEHOLDS_LAYER: u32 = 127;
+pub const VILLAGER_ASHEN_LAYER: u32 = 128;
+pub const VILLAGER_NAMELESS_LAYER: u32 = 129;
+pub const VILLAGER_UNMARKED_LAYER: u32 = 130;
+pub const VILLAGER_MAREN_LAYER: u32 = 131;
+pub const COMPANION_LAYERS: [(&str, u32); 6] = [
+    ("accord_warden", 132),
+    ("ironborn_artisan", 133),
+    ("covenant_channeler", 134),
+    ("freeholds_scout", 135),
+    ("ashen_scribe", 136),
+    ("nameless_rover", 137),
+];
+/// The trust-badge variant of a companion layer (trust >= 50).
+pub fn trusted_companion_layer(layer: u32) -> u32 {
+    if (132..=137).contains(&layer) { layer + 6 } else { layer }
+}
+pub const MOB_BOAR_LAYER: u32 = 144;
+pub const MOB_WOOLBEAST_LAYER: u32 = 145;
+pub const MOB_GLITCHLING_LAYER: u32 = 146;
+pub const MOB_STALKER_LAYER: u32 = 147;
+pub const MOB_CRAWLER_LAYER: u32 = 148;
+pub const MOB_NULL_KNIGHT_LAYER: u32 = 149;
+/// (desert, snow, swamp) biome-tint layers per common hostile.
+pub const MOB_GLITCHLING_TINTS: [u32; 3] = [150, 153, 156];
+pub const MOB_STALKER_TINTS: [u32; 3] = [151, 154, 157];
+pub const MOB_CRAWLER_TINTS: [u32; 3] = [152, 155, 158];
+/// Ambient ember particle core (C4).
+pub const EMBER_LAYER: u32 = 159;
 
 /// The connected variant for a block's atlas layer, if it has one.
 pub fn connected_variant(layer: u32) -> Option<u32> {
@@ -171,7 +264,10 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         39 => 37, // crusher
         40 => 38, // assembler
         41 => 39, // research bench
-        id if id >= 100 => 47, // mod blocks (registry::MOD_BLOCK_BASE)
+        // lore-and-visuals blocks: ids 68..=105 map consecutively to
+        // layers 86..=123 (faction, biome, decoration)
+        id @ 68..=105 => id + 18,
+        id if id >= 200 => 47, // mod blocks (registry::MOD_BLOCK_BASE)
         _ => 0,
     }
 }
@@ -192,6 +288,19 @@ pub fn texture_index_for_face(block_id: u32, face: lf_voxel::meshing::Face) -> u
         (block::GRASS, Face::Top) => GRASS_TOP_LAYER,
         (block::GRASS, Face::Bottom) => texture_index_for_block(block::DIRT),
         (id, Face::Top) | (id, Face::Bottom) if is_log => LOG_TOP_LAYER,
+        // golden savanna grass: gold blades on top, plain dirt sides
+        (block::GILDED_GRASS, Face::Top) => GILDED_GRASS_LAYER,
+        (block::GILDED_GRASS, Face::Bottom) | (block::GILDED_GRASS, Face::Side) => {
+            texture_index_for_block(block::DIRT)
+        }
+        // carved column: plain accord stone caps, fluted face
+        (block::ACCORD_PILLAR, Face::Top) | (block::ACCORD_PILLAR, Face::Bottom) => {
+            ACCORD_STONE_LAYER
+        }
+        // bookshelf: marble shelf caps
+        (block::ASHEN_BOOKSHELF, Face::Top) | (block::ASHEN_BOOKSHELF, Face::Bottom) => {
+            ASHEN_MARBLE_LAYER
+        }
         _ => texture_index_for_block(block_id),
     }
 }
@@ -951,6 +1060,273 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     let v = ring + ((x * 3 + y * 7) % 12);
                     Rgba([ch(v), ch((v * 3) / 4), ch(v / 2), 255])
                 }
+                // ---- faction blocks (lore-and-visuals C1) ----------------
+                "accord_stone" => {
+                    // smooth stone with a faint corner-to-corner inlay groove
+                    let groove = x == y || x + y == 15;
+                    let v = 130 + ((x * 7 + y * 13) % 12) as i32 - if groove { 22 } else { 0 };
+                    Rgba([ch(v as u32), ch((v + 4) as u32), ch((v + 10) as u32), 255])
+                }
+                "accord_pillar" => {
+                    // fluted column face — vertical grooves, lighter edges
+                    let flute = matches!(x, 2 | 5 | 8 | 11 | 14);
+                    let edge = x <= 1 || x >= 14;
+                    let base = if flute { 112 } else if edge { 152 } else { 134 };
+                    let v = base + ((x * 3 + y * 11) % 9) as i32;
+                    Rgba([ch(v as u32), ch((v + 4) as u32), ch((v + 10) as u32), 255])
+                }
+                "ironborn_brick" => {
+                    let row = y / 4;
+                    let joint = y % 4 == 0 || (x + if row % 2 == 1 { 4 } else { 0 }) % 8 == 0;
+                    let fleck = pixel_hash(x, y, "ironborn") % 23 == 0;
+                    if joint {
+                        Rgba([58, 50, 44, 255])
+                    } else if fleck {
+                        Rgba([150, 138, 140, 255])
+                    } else {
+                        let v = (x * 5 + y * 9 + row * 17) % 10;
+                        Rgba([ch(88 + v), ch(62 + v), ch(44 + v), 255])
+                    }
+                }
+                "ironborn_grate" => {
+                    // iron frame with punched round holes (translucent pass)
+                    let hole = [(3u32, 3u32), (3, 11), (11, 3), (11, 11), (7, 7)]
+                        .iter()
+                        .any(|(cx, cy)| (x as i32 - *cx as i32).abs() <= 1 && (y as i32 - *cy as i32).abs() <= 1);
+                    if hole {
+                        Rgba([0, 0, 0, 0])
+                    } else if x <= 1 || x >= 14 || y <= 1 || y >= 14 {
+                        Rgba([72, 64, 58, 255])
+                    } else {
+                        Rgba([92, 82, 74, 170])
+                    }
+                }
+                "ember_covenantwood" => {
+                    let plank = y % 5 == 0;
+                    let rune = matches!((x, y), (4, 4) | (5, 4) | (4, 6) | (11, 3)
+                        | (11, 5) | (12, 4) | (6, 11) | (8, 11) | (7, 12));
+                    if rune {
+                        Rgba([168, 78, 32, 255])
+                    } else if plank {
+                        Rgba([24, 20, 17, 255])
+                    } else {
+                        let v = (x * 7 + y * 5) % 7;
+                        Rgba([ch(40 + v), ch(33 + v), ch(28 + v), 255])
+                    }
+                }
+                "ember_glowstone" => {
+                    // muted amber, glow-flecked (emits light 8)
+                    let v = (x * 3 + y * 7) % 13;
+                    let px = if v < 3 { [242, 192, 92] } else if v > 10 { [172, 110, 44] } else { [204, 142, 62] };
+                    Rgba([px[0], px[1], px[2], 255])
+                }
+                "freeholds_thatch" => {
+                    let weave = (x + y) % 4 < 2;
+                    let v = (x * 5 + y * 3) % 9;
+                    if weave {
+                        Rgba([ch(172 + v), ch(142 + v), ch(74 + v), 255])
+                    } else {
+                        Rgba([ch(202 + v), ch(174 + v), ch(100 + v), 255])
+                    }
+                }
+                "freeholds_daub" => {
+                    let v = (x * 5 + y * 3) % 11;
+                    let blotch = pixel_hash(x, y, "daub") % 17 == 0;
+                    if blotch {
+                        Rgba([198, 190, 170, 255])
+                    } else {
+                        Rgba([ch(220 + v / 2), ch(212 + v / 2), ch(194 + v / 2), 255])
+                    }
+                }
+                "ashen_marble" => {
+                    let vein = (x as i32 - (y as i32 * 2)).rem_euclid(16) == 0
+                        || (x as i32 + (y as i32 * 3)).rem_euclid(16) == 15;
+                    let v = (x * 7 + y * 5) % 8;
+                    let base = if vein { 150 } else { 204 + v };
+                    Rgba([ch(base as u32), ch((base + 2) as u32), ch((base + 4) as u32), 255])
+                }
+                "ashen_bookshelf" => {
+                    let shelf = y % 5 == 4;
+                    if shelf {
+                        Rgba([188, 190, 194, 255])
+                    } else {
+                        // book spines: grey / off-white / dark blue / dark red
+                        let spine = (x / 3) % 4;
+                        let gap = x % 3 == 2;
+                        let c = match spine {
+                            0 => [118, 120, 126],
+                            1 => [208, 204, 196],
+                            2 => [58, 68, 110],
+                            _ => [112, 52, 52],
+                        };
+                        if gap { Rgba([84, 84, 88, 255]) } else { Rgba([c[0], c[1], c[2], 255]) }
+                    }
+                }
+                "nameless_rotwood" => {
+                    let rot = pixel_hash(x, y, "rotwood") % 13 < 3;
+                    let crack = (x + y * 3) % 17 < 1;
+                    if crack {
+                        Rgba([26, 22, 18, 255])
+                    } else if rot {
+                        Rgba([54, 46, 38, 255])
+                    } else {
+                        let v = (x * 3 + y * 11) % 8;
+                        Rgba([ch(84 + v), ch(72 + v), ch(58 + v), 255])
+                    }
+                }
+                "nameless_scorched" => {
+                    let crack = (x * 7 + y * 5) % 29 < 1;
+                    let edge = x <= 1 || x >= 14 || y <= 1 || y >= 14;
+                    if crack {
+                        Rgba([148, 74, 30, 255])
+                    } else if edge {
+                        Rgba([88, 84, 82, 255])
+                    } else {
+                        let v = (x * 5 + y * 9) % 9;
+                        Rgba([ch(52 + v), ch(50 + v), ch(48 + v), 255])
+                    }
+                }
+                // ---- biome-exclusive blocks ------------------------------
+                "mushroom_cap" => {
+                    let spot = [(4u32, 4u32), (12, 7), (7, 12), (13, 13)]
+                        .iter()
+                        .any(|(cx, cy)| (x as i32 - *cx as i32).abs() <= 1 && (y as i32 - *cy as i32).abs() <= 1);
+                    let v = (x * 5 + y * 3) % 10;
+                    if spot {
+                        Rgba([240, 235, 225, 255])
+                    } else {
+                        Rgba([ch(198 + v), ch(48 + v / 2), ch(38 + v / 2), 255])
+                    }
+                }
+                "coral_block" => {
+                    let mottle = pixel_hash(x, y, "coral") % 7;
+                    let px = match mottle {
+                        0 | 1 => [216, 104, 84],
+                        2 => [246, 162, 122],
+                        _ => [235, 132, 100],
+                    };
+                    Rgba([px[0], px[1], px[2], 255])
+                }
+                "permafrost" => {
+                    let ice = pixel_hash(x, y, "frost") % 11 < 2;
+                    let v = (x * 3 + y * 7) % 9;
+                    if ice {
+                        Rgba([182, 212, 238, 255])
+                    } else {
+                        Rgba([ch(92 + v), ch(108 + v), ch(128 + v), 255])
+                    }
+                }
+                "volcanic_basalt" => {
+                    let heat = (x * 3 + y * 5) % 19 < 1;
+                    let v = (x * 7 + y * 3) % 7;
+                    if heat {
+                        Rgba([206, 92, 38, 255])
+                    } else {
+                        Rgba([ch(42 + v), ch(40 + v), ch(42 + v), 255])
+                    }
+                }
+                "deep_slate" => {
+                    let strata = y % 6 == 0;
+                    let v = (x * 5 + y * 11) % 6;
+                    let base = if strata { 32 } else { 38 + v };
+                    Rgba([ch(base as u32), ch((base + 4) as u32), ch((base + 16) as u32), 255])
+                }
+                "mesa_terracotta" => {
+                    let band = (y / 4) as usize;
+                    let palettes = [[214, 120, 70], [196, 96, 60], [224, 140, 88], [182, 82, 54]];
+                    let p = palettes[band % 4];
+                    let v = (x * 3 + y * 5) % 8;
+                    Rgba([ch(p[0] as u32 + v), ch(p[1] as u32 + v), ch(p[2] as u32 + v), 255])
+                }
+                "gilded_grass" => {
+                    // golden dry blades (top face of the savanna grass)
+                    let blade = x % 2 == 0;
+                    let v = (x * 5 + y * 3) % 8;
+                    if (x * 7 + y * 11) % 23 < 1 {
+                        Rgba([218, 196, 112, 255])
+                    } else if blade {
+                        Rgba([ch(188 + v), ch(168 + v), ch(72 + v), 255])
+                    } else {
+                        Rgba([ch(168 + v), ch(148 + v), ch(58 + v), 255])
+                    }
+                }
+                "bog_peat" => {
+                    let root = (x * 5 + y * 3) % 13 < 1;
+                    let wet = pixel_hash(x, y, "peat") % 19 < 1;
+                    let v = (x * 7 + y * 5) % 7;
+                    if root {
+                        Rgba([72, 58, 40, 255])
+                    } else if wet {
+                        Rgba([64, 56, 44, 255])
+                    } else {
+                        Rgba([ch(46 + v), ch(37 + v), ch(27 + v), 255])
+                    }
+                }
+                // ---- decoration blocks -----------------------------------
+                "carved_oak" => {
+                    let relief = (x as i32 - 8).abs() + (y as i32 - 8).abs();
+                    let groove = relief == 4 || relief == 5;
+                    let v = (x * 5 + y * 9) % 9;
+                    if groove {
+                        Rgba([122, 94, 58, 255])
+                    } else {
+                        Rgba([ch(170 + v), ch(134 + v), ch(86 + v), 255])
+                    }
+                }
+                "carved_stone" => {
+                    let relief = (x as i32 - 8).abs() + (y as i32 - 8).abs();
+                    let v = (x * 7 + y * 5) % 10;
+                    if relief == 5 {
+                        Rgba([96, 98, 104, 255])
+                    } else if relief == 6 {
+                        Rgba([152, 154, 160, 255])
+                    } else {
+                        Rgba([ch(122 + v), ch(124 + v), ch(128 + v), 255])
+                    }
+                }
+                "carved_iron" => {
+                    let relief = x as i32 == y as i32;
+                    let dent = pixel_hash(x, y, "carvediron") % 13;
+                    let base = 138 + (dent % 4) * 4;
+                    if relief {
+                        Rgba([108, 104, 110, 255])
+                    } else {
+                        Rgba([ch(base as u32), ch((base - 2) as u32), ch((base + 2) as u32), 255])
+                    }
+                }
+                "lantern_hanging" => {
+                    // shared lantern art + the chain hook at the top
+                    if (x == 7 || x == 8) && y < 4 {
+                        Rgba([96, 92, 88, 255])
+                    } else if x <= 2 || x >= 13 || y <= 3 || y >= 13 {
+                        Rgba([88, 78, 60, 255])
+                    } else {
+                        let v = (x * 5 + y * 7) % 12;
+                        Rgba([ch(250), ch(210 + v), ch(120 + v), 255])
+                    }
+                }
+                name if name.starts_with("stained_glass_") => {
+                    let tint = stained_glass_tint(name);
+                    if x <= 1 || x >= 14 || y <= 1 || y >= 14 {
+                        Rgba([ch(tint[0] / 2 + 40), ch(tint[1] / 2 + 40), ch(tint[2] / 2 + 40), 210])
+                    } else {
+                        Rgba([tint[0] as u8, tint[1] as u8, tint[2] as u8, 140])
+                    }
+                }
+                name if name.starts_with("banner_") => banner_pixel(x, y, name),
+                // ---- entity skins (C2) ------------------------------------
+                name if name.starts_with("villager_") => villager_pixel(x, y, name),
+                name if name.starts_with("companion_") => companion_pixel(x, y, name),
+                name if name.starts_with("mob_") => mob_pixel(x, y, name),
+                "ember" => {
+                    // solid amber particle core with a bright center
+                    let d = ((x as i32 - 8).abs() + (y as i32 - 8).abs()) as u32;
+                    if d <= 3 {
+                        Rgba([255, 214, 122, 255])
+                    } else {
+                        Rgba([228, 148, 58, 255])
+                    }
+                }
                 name if name.starts_with("crack_") => {
                     // progressive mining cracks on a transparent decal
                     let stage: u32 = name[6..].parse().unwrap_or(0);
@@ -1048,6 +1424,263 @@ fn beacon_pixel(x: u32, y: u32, rgb: [u32; 3]) -> Rgba<u8> {
     Rgba([rgb[0] as u8, rgb[1] as u8, rgb[2] as u8, alpha as u8])
 }
 
+// ------------------------------------------------------------------
+// lore-and-visuals C1/C2 pixel helpers
+
+fn stained_glass_tint(name: &str) -> [u32; 3] {
+    match name.strip_prefix("stained_glass_").unwrap_or(name) {
+        "red" => [200, 40, 40],
+        "orange" => [230, 130, 30],
+        "yellow" => [230, 210, 50],
+        "green" => [60, 180, 70],
+        "blue" => [60, 110, 210],
+        "purple" => [150, 70, 200],
+        "black" => [30, 30, 35],
+        _ => [235, 235, 235], // white
+    }
+}
+
+/// Faction banner: cutout cloth (faction color + symbol) on a pole, drawn
+/// flat like a sign (cross-plant render path).
+fn banner_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
+    let (color, symbol, symbol_color): ([u32; 3], &str, [u32; 3]) = match name {
+        "banner_accord" => ([74, 122, 181], "scale", [240, 244, 250]),
+        "banner_ironborn" => ([139, 69, 19], "hammer", [235, 228, 220]),
+        "banner_covenant" => ([196, 96, 42], "flame", [52, 38, 32]),
+        "banner_freeholds" => ([107, 142, 35], "wheat", [240, 232, 200]),
+        "banner_ashen" => ([176, 176, 176], "book", [62, 66, 74]),
+        _ => ([45, 45, 45], "chain", [140, 140, 140]), // nameless
+    };
+    // pole at the left, cloth 4..=12 x 2..=13 with a swallowtail cut
+    if x == 3 {
+        return Rgba([104, 82, 52, 255]);
+    }
+    if x == 2 && y == 1 {
+        return Rgba([104, 82, 52, 255]); // finial
+    }
+    let in_cloth = (4..=12).contains(&x) && (2..=13).contains(&y)
+        && !(y == 13 && x % 2 == 1); // zigzag fly edge
+    if !in_cloth {
+        return Rgba([0, 0, 0, 0]);
+    }
+    // symbol glyphs in the cloth middle (6..=10 x 5..=10)
+    let sym = match symbol {
+        "scale" => (y == 6 && (5..=11).contains(&x)) || x == 8 && (6..=10).contains(&y)
+            || (y == 10 && (6..=10).contains(&x)),
+        "hammer" => (y == 6 && (6..=10).contains(&x)) || (x == 8 && (7..=10).contains(&y)),
+        "flame" => ((x == 8 && (5..=9).contains(&y)) || (x == 7 && (7..=9).contains(&y))
+            || (x == 9 && (7..=9).contains(&y))) && !(y == 9 && x != 8),
+        "wheat" => (matches!(x, 6 | 8 | 10) && (5..=10).contains(&y)),
+        "book" => (y == 8 && (6..=10).contains(&x)) || (y == 9 && (6..=10).contains(&x))
+            || (x == 8 && (6..=10).contains(&y)),
+        _ => (x == 7 && (6..=8).contains(&y)) || (x == 9 && (8..=10).contains(&y))
+            || (y == 8 && (6..=10).contains(&x)), // chain, deliberately broken
+    };
+    if sym {
+        return Rgba([symbol_color[0] as u8, symbol_color[1] as u8, symbol_color[2] as u8, 255]);
+    }
+    let v = (x * 3 + y * 5) % 7;
+    Rgba([ch(color[0] + v), ch(color[1] + v), ch(color[2] + v), 255])
+}
+
+/// Humanoid outfit used by villagers and companions: hair, face, robe with
+/// faction trim + chest symbol, legs. The same texture wraps every cube
+/// face, so it reads as an outfit at glance distance.
+fn outfit_pixel(
+    x: u32,
+    y: u32,
+    robe: [u32; 3],
+    trim: Option<[u32; 3]>,
+    hair: [u32; 3],
+    symbol: Option<(&str, [u32; 3])>,
+) -> Rgba<u8> {
+    let v = (x * 3 + y * 5) % 7;
+    if y < 4 {
+        return Rgba([ch(hair[0] + v), ch(hair[1] + v), ch(hair[2] + v), 255]);
+    }
+    if (4..6).contains(&y) {
+        // face with eyes
+        if y == 5 && matches!(x, 4 | 5 | 10 | 11) {
+            return Rgba([38, 38, 58, 255]);
+        }
+        return Rgba([224, 188, 152, 255]);
+    }
+    if (12..16).contains(&y) {
+        // legs + boots
+        return if y == 15 { Rgba([52, 46, 40, 255]) } else { Rgba([70, 62, 54, 255]) };
+    }
+    // robe band 6..12
+    if let Some((kind, sc)) = symbol {
+        let sym = match kind {
+            "scale" => (y == 8 && (6..=10).contains(&x)) || (x == 8 && (8..=10).contains(&y)),
+            "hammer" => (y == 8 && (7..=9).contains(&x)) || (x == 8 && (9..=10).contains(&y)),
+            "flame" => x == 8 && (8..=10).contains(&y),
+            "wheat" => matches!(x, 7 | 9) && (8..=10).contains(&y),
+            "book" => (y == 9 && (6..=10).contains(&x)) || (x == 8 && (8..=10).contains(&y)),
+            _ => (x == 7 && (8..=9).contains(&y)) || (x == 9 && y == 9), // chain
+        };
+        if sym {
+            return Rgba([sc[0] as u8, sc[1] as u8, sc[2] as u8, 255]);
+        }
+    }
+    if let Some(t) = trim {
+        if y == 6 || y == 11 {
+            return Rgba([t[0] as u8, t[1] as u8, t[2] as u8, 255]);
+        }
+    }
+    Rgba([ch(robe[0] + v), ch(robe[1] + v), ch(robe[2] + v), 255])
+}
+
+fn villager_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
+    let hair = [45, 36, 28];
+    match name {
+        "villager_accord" => outfit_pixel(x, y, [74, 122, 181], Some([236, 240, 246]), hair, Some(("scale", [240, 244, 250]))),
+        "villager_ironborn" => outfit_pixel(x, y, [139, 69, 19], Some([58, 40, 26]), hair, Some(("hammer", [235, 228, 220]))),
+        "villager_covenant" => outfit_pixel(x, y, [74, 56, 46], Some([196, 96, 42]), hair, Some(("flame", [232, 148, 60]))),
+        "villager_freeholds" => outfit_pixel(x, y, [107, 142, 35], Some([210, 190, 140]), hair, Some(("wheat", [240, 232, 200]))),
+        "villager_ashen" => outfit_pixel(x, y, [176, 176, 176], Some([236, 233, 226]), hair, Some(("book", [62, 66, 74]))),
+        "villager_nameless" => outfit_pixel(x, y, [45, 45, 45], None, hair, Some(("chain", [140, 140, 140]))),
+        // The Unmarked: Nameless clothes, ash-grey hair, no symbol anywhere
+        "villager_unmarked" => {
+            let mut px = outfit_pixel(x, y, [45, 45, 45], None, [172, 172, 172], None);
+            if y < 4 {
+                px = Rgba([ch(172 + (x * 3 + y * 5) % 9), ch(170 + (x * 3 + y * 5) % 9), ch(168 + (x * 3 + y * 5) % 9), 255]);
+            }
+            px
+        }
+        // Archivist Maren Voss: Order robes + the journal under one arm and
+        // a decorative hem at the robe's bottom edge
+        _ => {
+            let mut px = outfit_pixel(x, y, [176, 176, 176], Some([236, 233, 226]), hair, Some(("book", [62, 66, 74])));
+            if (12..=14).contains(&x) && (9..=12).contains(&y) {
+                px = Rgba([122, 92, 62, 255]); // the journal
+            }
+            if y == 11 {
+                px = Rgba([124, 128, 138, 255]); // hem
+            }
+            px
+        }
+    }
+}
+
+fn companion_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
+    let trusted = name.ends_with("_trusted");
+    let base = name.trim_end_matches("_trusted");
+    let hair = [42, 34, 26];
+    let (robe, trim, symbol): ([u32; 3], Option<[u32; 3]>, (&str, [u32; 3])) = match base {
+        "companion_accord_warden" => ([86, 108, 148], Some([224, 230, 240]), ("scale", [240, 244, 250])),
+        "companion_ironborn_artisan" => ([126, 74, 34], Some([196, 168, 120]), ("hammer", [235, 228, 220])),
+        "companion_covenant_channeler" => ([66, 50, 42], Some([214, 116, 48]), ("flame", [238, 160, 70])),
+        "companion_freeholds_scout" => ([96, 128, 36], Some([206, 188, 138]), ("wheat", [240, 232, 200])),
+        "companion_ashen_scribe" => ([168, 168, 172], Some([236, 233, 226]), ("book", [62, 66, 74])),
+        _ => ([52, 52, 54], None, ("chain", [150, 150, 150])),
+    };
+    let mut px = outfit_pixel(x, y, robe, trim, hair, Some(symbol));
+    // archetype detail rows
+    match base {
+        "companion_accord_warden" if y == 7 => px = Rgba([120, 134, 156, 255]), // pauldrons
+        "companion_ironborn_artisan" if (5..=10).contains(&x) && (9..=12).contains(&y) => {
+            px = Rgba([148, 104, 58, 255]) // leather apron + tool belt
+        }
+        "companion_ironborn_artisan" if y == 10 && (5..=10).contains(&x) => px = Rgba([90, 70, 44, 255]),
+        "companion_covenant_channeler" if y == 12 => px = Rgba([234, 152, 62, 255]), // glow cuffs
+        "companion_freeholds_scout" if y < 3 => px = Rgba([86, 112, 40, 255]), // hood
+        "companion_ashen_scribe" if (12..=14).contains(&x) && (9..=12).contains(&y) => {
+            px = Rgba([122, 92, 62, 255]) // journal
+        }
+        "companion_nameless_rover" if (x + y) % 7 == 3 => px = Rgba([70, 70, 74, 255]), // patches
+        _ => {}
+    }
+    // trust badge (>= 50): a small warm gold mark on the chest
+    if trusted && (7..=8).contains(&x) && (8..=9).contains(&y) {
+        px = Rgba([244, 204, 120, 255]);
+    }
+    px
+}
+
+/// Mob skins: distinct palettes per type; the common hostiles share a
+/// pattern helper so biome-tint variants are palette swaps of the same art
+/// (accent pixels — eyes/glow — stay constant across variants).
+fn mob_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
+    let v = (x * 5 + y * 3) % 8;
+    match name {
+        "mob_boar" => {
+            if y == 12 && (6..=9).contains(&x) {
+                Rgba([182, 134, 104, 255]) // snout
+            } else if pixel_hash(x, y, "boar") % 9 < 2 {
+                Rgba([104, 72, 48, 255]) // coarse bristle
+            } else {
+                Rgba([ch(132 + v), ch(92 + v), ch(62 + v), 255])
+            }
+        }
+        "mob_woolbeast" => {
+            if y > 12 {
+                Rgba([122, 112, 102, 255]) // legs
+            } else if pixel_hash(x, y, "wool") % 7 < 2 {
+                Rgba([208, 202, 192, 255]) // fleece mottle
+            } else {
+                Rgba([ch(232 + v / 2), ch(226 + v / 2), ch(216 + v / 2), 255])
+            }
+        }
+        "mob_glitchling" | "mob_glitchling_desert" | "mob_glitchling_snow" | "mob_glitchling_swamp" => {
+            let body = match name {
+                "mob_glitchling_desert" => [196u32, 172, 110],
+                "mob_glitchling_snow" => [206, 222, 238],
+                "mob_glitchling_swamp" => [96, 110, 80],
+                _ => [70, 180, 140],
+            };
+            if y % 4 == 1 {
+                Rgba([ch(body[0] / 2), ch(body[1] / 2), ch(body[2] / 2), 255]) // scanline
+            } else if pixel_hash(x, y, "glitch") % 19 < 1 {
+                Rgba([222, 255, 242, 255]) // hot pixels (accent, untinted)
+            } else {
+                Rgba([ch(body[0] + v), ch(body[1] + v), ch(body[2] + v), 255])
+            }
+        }
+        "mob_stalker" | "mob_stalker_desert" | "mob_stalker_snow" | "mob_stalker_swamp" => {
+            let body = match name {
+                "mob_stalker_desert" => [186, 158, 106],
+                "mob_stalker_snow" => [176, 196, 222],
+                "mob_stalker_swamp" => [82, 96, 66],
+                _ => [112, 56, 40],
+            };
+            if y == 3 && matches!(x, 3 | 12) {
+                Rgba([250, 240, 180, 255]) // eyes (accent, untinted)
+            } else if x % 3 == 0 {
+                Rgba([ch((body[0] * 4) / 5), ch((body[1] * 4) / 5), ch((body[2] * 4) / 5), 255])
+            } else {
+                Rgba([ch(body[0] + v), ch(body[1] + v), ch(body[2] + v), 255])
+            }
+        }
+        "mob_crawler" | "mob_crawler_desert" | "mob_crawler_snow" | "mob_crawler_swamp" => {
+            let body = match name {
+                "mob_crawler_desert" => [172, 142, 92],
+                "mob_crawler_snow" => [168, 184, 208],
+                "mob_crawler_swamp" => [76, 88, 62],
+                _ => [72, 62, 56],
+            };
+            // ember glow patches are a heat property — never tinted
+            if pixel_hash(x, y, "crawler") % 7 < 2 {
+                Rgba([222, 122, 42, 255])
+            } else if pixel_hash(x, y, "crawler") % 5 == 0 {
+                Rgba([ch(body[0] * 3 / 4), ch(body[1] * 3 / 4), ch(body[2] * 3 / 4), 255])
+            } else {
+                Rgba([ch(body[0] + v), ch(body[1] + v), ch(body[2] + v), 255])
+            }
+        }
+        _ => {
+            // Null Knight: near-black armor with grey void-glow at the joints
+            if y == 5 && (6..=9).contains(&x) {
+                Rgba([96, 96, 118, 255]) // visor
+            } else if x % 5 == 0 && y % 5 == 0 {
+                Rgba([142, 142, 154, 255]) // joint glow
+            } else {
+                Rgba([ch(28 + v), ch(28 + v), ch(34 + v), 255])
+            }
+        }
+    }
+}
+
 pub fn generate_atlas() -> Vec<RgbaImage> {
     TEXTURE_NAMES.iter().map(|n| generate_block_texture(n)).collect()
 }
@@ -1077,6 +1710,7 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "rune_of_haste", "rune_of_warding", "chisel", "blueprint",
     "stone_slab", "planks_slab", "stone_stairs", "dragon_scale",
     "precision_gear", "master_blueprint", "battlestaff", "master_chisel",
+    "iron_plate", "bog_grass", "torn_archive_page", "anima_crystal",
 ];
 
 fn paint_sprite(art: [&str; 16], colors: impl Fn(char) -> Rgba<u8>) -> RgbaImage {
@@ -1821,6 +2455,25 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
             })
         }
         "raw_iron" => raw_chunk(Rgba([172, 146, 126, 255]), Rgba([210, 185, 160, 255])),
+        // lore-and-visuals materials: flat plate, grass bundle, torn page,
+        // and the Anima crystal (Covenant channeler wage)
+        "iron_plate" => paint_sprite(INGOT_ART, |c| match c {
+            'I' => Rgba([188, 192, 200, 255]), 'i' => Rgba([160, 164, 174, 255]),
+            'H' => Rgba([214, 218, 226, 255]), 'd' => Rgba([120, 124, 134, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "bog_grass" => paint_sprite(STICK_ART, |c| match c {
+            'h' => Rgba([96, 122, 58, 255]), 'H' => Rgba([130, 158, 74, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        "torn_archive_page" => paint_sprite(BLUEPRINT_ART, |c| match c {
+            'p' => Rgba([232, 226, 208, 255]), 'P' => Rgba([248, 244, 232, 255]),
+            'l' => Rgba([120, 124, 138, 255]), _ => Rgba([0, 0, 0, 0]),
+        }),
+        "anima_crystal" => paint_sprite(SULFUR_ART, |c| match c {
+            'y' => Rgba([214, 128, 44, 255]), 'Y' => Rgba([248, 192, 96, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
         "raw_uranium" => raw_chunk(Rgba([70, 130, 55, 255]), Rgba([140, 230, 100, 255])),
         "scroll_of_firebolt" => paint_sprite(SCROLL_ART, |c| match c {
             'p' => Rgba([238, 226, 196, 255]), 'r' => Rgba([120, 72, 40, 255]),
@@ -1987,6 +2640,25 @@ mod tests {
                 // frame opaque, pane translucent
                 continue;
             }
+            if name.starts_with("stained_glass_") {
+                // tinted pane, translucent like glass
+                assert!(tex.pixels().all(|p| p.0[3] == 140 || p.0[3] == 210), "{} unexpected alpha", name);
+                continue;
+            }
+            if name == "ironborn_grate" {
+                // punched holes + translucent iron between them
+                let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
+                assert!(holes > 20, "grate holes={}", holes);
+                assert!(tex.pixels().all(|p| matches!(p.0[3], 0 | 170 | 255)));
+                continue;
+            }
+            if name.starts_with("banner_") {
+                // cutout cloth: transparent around the banner, solid on it
+                let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
+                let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
+                assert!(holes > 100 && solid > 30, "{} holes={} solid={}", name, holes, solid);
+                continue;
+            }
             if name == "ice" {
                 // translucent pane everywhere
                 assert!(tex.pixels().all(|p| p.0[3] == 200));
@@ -2038,18 +2710,18 @@ mod tests {
         assert_eq!(name_of(1, Face::Top), "stone");
         assert_eq!(name_of(1, Face::Bottom), "stone");
         assert_eq!(name_of(41, Face::Side), "research_bench");
-        assert_eq!(name_of(100, Face::Top), "mod");
+        assert_eq!(name_of(200, Face::Top), "mod");
     }
 
     #[test]
     fn test_atlas_covers_all_blocks() {
         let atlas = generate_atlas();
         assert_eq!(atlas.len(), TEXTURE_NAMES.len());
-        // every known block id maps to a valid layer (all vanilla ids 1..=41 + mods)
-        for id in 1u32..=41 {
+        // every known block id maps to a valid layer (all vanilla ids + mods)
+        for id in 1u32..=lf_voxel::registry::MAX_VANILLA_BLOCK {
             assert!(texture_index_for_block(id) < atlas.len() as u32, "block {} unmapped", id);
         }
-        assert!(texture_index_for_block(100) < atlas.len() as u32, "mod blocks unmapped");
+        assert!(texture_index_for_block(200) < atlas.len() as u32, "mod blocks unmapped");
         // spot-check the wiring so wood variants and machines stop falling back to stone
         let name = |id: u32| TEXTURE_NAMES[texture_index_for_block(id) as usize];
         assert_eq!(name(19), "birch_log");
@@ -2058,7 +2730,16 @@ mod tests {
         assert_eq!(name(37), "coal_generator");
         assert_eq!(name(41), "research_bench");
         assert_eq!(name(13), "lantern");
-        assert_eq!(name(100), "mod");
+        assert_eq!(name(200), "mod");
+        // the lore-and-visuals expansion: every new block hits its own layer
+        assert_eq!(name(68), "accord_stone");
+        assert_eq!(name(73), "ember_glowstone");
+        assert_eq!(name(83), "volcanic_basalt");
+        assert_eq!(name(87), "bog_peat");
+        assert_eq!(name(98), "stained_glass_white");
+        assert_eq!(name(104), "banner_nameless");
+        assert_eq!(name(105), "lantern_hanging");
+        assert_eq!(name(100), "banner_ironborn", "id 100 is a vanilla banner now");
     }
 
     #[test]

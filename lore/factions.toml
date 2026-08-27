@@ -1,0 +1,187 @@
+# Factions of Valdenmoor — canonical data (source: docs/lore-and-visuals/factions/)
+# Home biome names use the lf_worldgen Biome variant names. The design docs
+# name biomes that don't exist verbatim in the 30-biome world; the mapping
+# below is the agreed one (see DECISIONS.md "faction biome mapping"):
+#   "Plains/meadow" -> Meadow, "temperate forest" -> Forest/FlowerForest/BirchForest,
+#   "volcanic" -> Volcanic, "highland forest" -> Highlands/Taiga,
+#   "bog/swamp" -> Swamp, "coastal" -> Beach, "marble highlands" -> WindsweptHills,
+#   "ruins/scorched" -> PaleGarden/DarkForest, "rural plains" -> Meadow family.
+
+[[faction]]
+id = "accord"
+full_name = "The Accord of Ashenmoor"
+short_name = "The Accord"
+ideology = "coalition"
+alignment = "lawful"
+home_biomes = ["Meadow", "Forest", "FlowerForest", "BirchForest"]
+color = [74, 122, 181]       # #4a7ab5 blue-grey
+symbol = "SCALES"            # a balanced scale carved in accord_stone
+
+[faction.titles]
+honored = "Accord Champion"  # >= +75
+friendly = "Accord Ally"     # >= +50
+known = "Accord Friend"      # >= +30
+cold = "Accord Suspect"      # <= -30
+enemy = "Accord Enemy"       # <= -75
+
+[[faction]]
+id = "ironborn"
+full_name = "The Ironborn Guild"
+short_name = "The Ironborn"
+ideology = "industrial"
+alignment = "lawful"
+home_biomes = ["Mountains", "Badlands", "Volcanic"]
+color = [139, 69, 19]        # #8b4513 iron-brown
+symbol = "HAMMER"            # a hammer over an anvil
+
+[faction.titles]
+honored = "Guild Master"
+friendly = "Guild Member"
+known = "Guild Contact"
+cold = "Guild Blacklisted"
+enemy = "Guild Banned"
+
+[[faction]]
+id = "ember_covenant"
+full_name = "The Ember Covenant"
+short_name = "The Covenant"
+ideology = "arcane"
+alignment = "neutral"
+home_biomes = ["Highlands", "Taiga", "MushroomHollow", "Swamp"]
+color = [196, 96, 42]        # #c4602a ember-orange
+symbol = "FLAME"             # a flame inside a circle of leaves
+
+[faction.titles]
+honored = "Covenant Elder"
+friendly = "Covenant Initiate"
+known = "Covenant Acquaintance"
+cold = "Covenant Wary"
+enemy = "Covenant Shunned"
+
+[[faction]]
+id = "free_holds"
+full_name = "The Free Holds"
+short_name = "The Free Holds"
+ideology = "traditionalist"
+alignment = "neutral"
+home_biomes = ["Savanna", "WindsweptSavanna", "Beach"]
+color = [107, 142, 35]       # #6b8e23 earthy green
+symbol = "WHEAT"             # three bound wheat stalks
+
+[faction.titles]
+honored = "Free Holds Friend"
+friendly = "Hold Keeper"
+known = "Free Traveler"
+cold = "Free Holds Cold"
+enemy = "Free Holds Hostile"
+
+[[faction]]
+id = "ashen_order"
+full_name = "The Ashen Order"
+short_name = "The Ashen Order"
+ideology = "scholar"
+alignment = "neutral"
+home_biomes = ["WindsweptHills", "Tundra"]
+color = [176, 176, 176]      # #b0b0b0 pale grey
+symbol = "BOOK"              # an open book
+
+[faction.titles]
+honored = "Order Scholar"
+friendly = "Order Reader"
+known = "Order Visitor"
+cold = "Order Flagged"
+enemy = "Order Refused"
+
+[[faction]]
+id = "nameless"
+full_name = "The Nameless"
+short_name = "The Nameless"
+ideology = "outlaw"
+alignment = "hostile"
+home_biomes = ["PaleGarden", "DarkForest"]
+color = [45, 45, 45]         # #2d2d2d near-black
+symbol = "CHAIN"             # a broken chain
+starting_standing = -50
+
+[faction.titles]
+honored = "The Recognized"
+friendly = "The Trusted"
+known = "Known Name"
+cold = "The Known"
+enemy = "One of Us"
+
+# Faction-to-faction relationships (FACTIONS_OVERVIEW matrix, directed rows).
+# Negative-ish relations (enemy/tense/cold/wary) mark rivals: when the player
+# crosses +75 with a faction, every rival of that faction drifts -10.
+[[relationship]]
+from = "accord"
+to = "ironborn"
+relation = "allied"
+[[relationship]]
+from = "accord"
+to = "ember_covenant"
+relation = "tense"
+[[relationship]]
+from = "accord"
+to = "free_holds"
+relation = "cold"
+[[relationship]]
+from = "accord"
+to = "ashen_order"
+relation = "neutral"
+[[relationship]]
+from = "accord"
+to = "nameless"
+relation = "enemy"
+[[relationship]]
+from = "ironborn"
+to = "ember_covenant"
+relation = "wary"
+[[relationship]]
+from = "ironborn"
+to = "free_holds"
+relation = "neutral"
+[[relationship]]
+from = "ironborn"
+to = "ashen_order"
+relation = "neutral"
+[[relationship]]
+from = "ironborn"
+to = "nameless"
+relation = "enemy"
+[[relationship]]
+from = "ember_covenant"
+to = "free_holds"
+relation = "friendly"
+[[relationship]]
+from = "ember_covenant"
+to = "ashen_order"
+relation = "friendly"
+[[relationship]]
+from = "ember_covenant"
+to = "nameless"
+relation = "cold"
+[[relationship]]
+from = "free_holds"
+to = "ashen_order"
+relation = "friendly"
+[[relationship]]
+from = "free_holds"
+to = "nameless"
+relation = "wary"
+[[relationship]]
+from = "ashen_order"
+to = "nameless"
+relation = "cold"
+
+# Standard standing-change events (FACTIONS_OVERVIEW table).
+[standing_events]
+quest_complete = 15
+quest_fail = -10
+trade_ten_items = 2
+attack_npc = -20
+kill_npc = -35
+destroy_structure_block = -5
+build_faction_blocks = 3
+discover_structure = 5
+rival_honored = -10

@@ -1,0 +1,268 @@
+# Dialogue (source: npcs/DIALOGUE_FRAMEWORK.md). State-conditional, no
+# branching engine: the NPC's current line is selected from these nodes by
+# the player's standing with the NPC's faction (plus contextual flags).
+# Conditions: comparisons over standing_<faction>, biome, morale, trust,
+# structure_discovered, joined by "and"; bare flags lore_book_found and
+# near_machine. Actions: close, open_menu, open_menu_plus.
+
+# --- The Accord ----------------------------------------------------------
+
+[[dialogue_node]]
+npc_archetype = "accord_herald"
+condition = "standing_accord < -30"
+text = "You're not welcome here. Leave, before the Accord makes you."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "accord_herald"
+condition = "standing_accord >= -30 and standing_accord < 30"
+text = "What can the Accord do for you, traveler?"
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "accord_herald"
+condition = "standing_accord >= 30 and standing_accord < 75"
+text = "Ah, a friend of the Accord. What do you need?"
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "accord_herald"
+condition = "standing_accord >= 75"
+text = "Champion. The Accord is grateful for your service. What do you need?"
+action = "open_menu_plus"
+
+# --- The Ironborn --------------------------------------------------------
+
+[[dialogue_node]]
+npc_archetype = "ironborn_artisan"
+condition = "standing_ironborn < -30"
+text = "Guild charcoal lists your name. Walk off, before I fetch the foreman."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "ironborn_artisan"
+condition = "standing_ironborn >= -30 and standing_ironborn < 30"
+text = "Coin or ore, traveler. Which have you brought?"
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "ironborn_artisan"
+condition = "standing_ironborn >= 30 and standing_ironborn < 75"
+text = "Guild's seen your work. Good enough to trade on. What do you need?"
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "ironborn_artisan"
+condition = "standing_ironborn >= 75"
+text = "Guild Master in all but charter. The forge is yours to use. What will you make?"
+action = "open_menu_plus"
+
+[[dialogue_node]]
+npc_archetype = "dag_holtz"
+condition = "standing_ironborn < -30"
+text = "I've nothing to say that a blacklist needs to hear. Go."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "dag_holtz"
+condition = "standing_ironborn >= -30"
+text = "Talk fast, work faster. Which is it?"
+action = "open_menu"
+
+# --- The Ember Covenant --------------------------------------------------
+
+[[dialogue_node]]
+npc_archetype = "covenant_herbalist"
+condition = "standing_ember_covenant < -30"
+text = "The shrine's warmth is not for those who scorch what we tend. Go."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "covenant_herbalist"
+condition = "standing_ember_covenant >= -30 and standing_ember_covenant < 30"
+text = "Anima moves through you like weather. What brings you to the grove?"
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "covenant_herbalist"
+condition = "standing_ember_covenant >= 30 and standing_ember_covenant < 75"
+text = "The bog trusts you, and so do we. What do you need?"
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "covenant_herbalist"
+condition = "standing_ember_covenant >= 75"
+text = "Elder. The shrine's stores are open to you — even the fragments we keep quiet about."
+action = "open_menu_plus"
+
+# --- The Free Holds ------------------------------------------------------
+
+[[dialogue_node]]
+npc_archetype = "freeholds_elder"
+condition = "standing_free_holds < -30"
+text = "We don't call for Accord help and we won't call for yours. Off our ground."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "freeholds_elder"
+condition = "standing_free_holds >= -30 and standing_free_holds < 30"
+text = "Stranger's welcome: one meal, one night, no questions. After that, you earn it."
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "freeholds_elder"
+condition = "standing_free_holds >= 30 and standing_free_holds < 75"
+text = "You've done right by the Holds. Sit; the table's yours."
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "freeholds_elder"
+condition = "standing_free_holds >= 75"
+text = "Friend of the Holds — that's a title we give to maybe two people a generation. What do you need?"
+action = "open_menu_plus"
+
+[[dialogue_node]]
+npc_archetype = "freeholds_scout"
+condition = "standing_free_holds < -30"
+text = "Keep walking. The grass here remembers faces."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "freeholds_scout"
+condition = "standing_free_holds >= -30"
+text = "Roads are roads. I know the good ones. Want a hand, or want to trade?"
+action = "open_menu"
+
+# --- The Ashen Order -----------------------------------------------------
+
+[[dialogue_node]]
+npc_archetype = "ashen_archivist"
+condition = "standing_ashen_order < -30"
+text = "Your access to the Archive is noted as revoked. The note is the last thing you'll be given."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "ashen_archivist"
+condition = "standing_ashen_order >= -30 and standing_ashen_order < 30"
+text = "Reading room's open. Handle the spines gently. What do you need?"
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "ashen_archivist"
+condition = "standing_ashen_order >= 30 and standing_ashen_order < 75"
+text = "Your patronage is recorded with appreciation. Rarely. Appreciated, regardless."
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "ashen_archivist"
+condition = "standing_ashen_order >= 75"
+text = "Scholar. The restricted shelves — the E3Y180 survey copies — are open to you."
+action = "open_menu_plus"
+
+[[dialogue_node]]
+npc_archetype = "maren_voss"
+condition = "standing_ashen_order < -30"
+text = "I make no scene. I simply note that you are no longer welcome, and close the door."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "maren_voss"
+condition = "standing_ashen_order >= -30"
+text = "Your visit is noted in the record. Neutrally. What do you need?"
+action = "open_menu"
+
+# --- The Nameless --------------------------------------------------------
+
+[[dialogue_node]]
+npc_archetype = "nameless_drifter"
+condition = "standing_nameless < -30"
+text = "You reek of compacts and signatures. Run."
+action = "close"
+
+[[dialogue_node]]
+npc_archetype = "nameless_drifter"
+condition = "standing_nameless >= -30 and standing_nameless < 30"
+text = "Approach slow and keep the blade away. What do you want?"
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "nameless_drifter"
+condition = "standing_nameless >= 30 and standing_nameless < 75"
+text = "You break their stakes and ask their questions. Maybe you're worth talking to."
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "nameless_drifter"
+condition = "standing_nameless >= 75"
+text = "The Recognized. Sit at our fire. Nobody will give you a name here — that's the honor."
+action = "open_menu_plus"
+
+[[dialogue_node]]
+npc_archetype = "the_unmarked"
+condition = "standing_nameless >= -30"
+text = "You came without a warrant and without a banner. Sit. I have questions, not orders."
+action = "open_menu"
+
+[[dialogue_node]]
+npc_archetype = "the_unmarked"
+condition = "standing_nameless < -30"
+text = "..."
+action = "close"
+
+# --- Companion contextual chat lines -------------------------------------
+# archetype "any" applies to every active companion.
+
+[[companion_line]]
+archetype = "accord_warden"
+condition = "biome = Volcanic"
+text = "I don't like the heat here. The Ironborn like this place — that says something."
+
+[[companion_line]]
+archetype = "accord_warden"
+condition = "standing_accord > 75"
+text = "The Accord would be glad to know you're out here."
+
+[[companion_line]]
+archetype = "ironborn_artisan"
+condition = "near_machine"
+text = "Decent setup. Could run hotter, but decent."
+
+[[companion_line]]
+archetype = "covenant_channeler"
+condition = "biome = MushroomHollow"
+text = "These grew during the Long Winter. The world made something beautiful out of the Ruin. Worth remembering."
+
+[[companion_line]]
+archetype = "freeholds_scout"
+condition = "structure_discovered = accord_embassy"
+text = "Accord post. Don't sign anything they put in front of you."
+
+[[companion_line]]
+archetype = "nameless_rover"
+condition = "standing_accord < -50"
+text = "You're burning your Accord bridges. Good. They were holding you back."
+
+[[companion_line]]
+archetype = "ashen_scribe"
+condition = "lore_book_found"
+text = "That document — may I read it? I'll tell you what it says."
+
+[[companion_line]]
+archetype = "any"
+condition = "morale = 0"
+text = "I've had enough. I'm going."
+
+[[companion_line]]
+archetype = "any"
+condition = "morale < 30"
+text = "I need to rest. Give me an hour."
+
+[[companion_line]]
+archetype = "any"
+condition = "trust > 75"
+text = "You and I have been on the road a long time. I've stopped counting the days."
+
+[[companion_line]]
+archetype = "any"
+condition = "biome = Tundra"
+text = "Cold country. Good for thinking, bad for toes."

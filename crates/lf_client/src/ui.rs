@@ -442,6 +442,7 @@ impl GameState {
             UiOpen::Console => self.draw_console(ctx),
             UiOpen::Slots => self.draw_slots(ctx),
             UiOpen::Death => self.draw_death(ctx),
+            UiOpen::CompanionMenu => self.draw_companion_menu(ctx),
         }
         // Cursor stack follows the pointer (icon + count).
         if let Some(cursor) = &self.cursor_stack {
@@ -633,6 +634,96 @@ impl GameState {
             .show(ctx, |ui| {
                 ui.label(egui::RichText::new(info).small().color(egui::Color32::from_rgba_premultiplied(Theme::TEXT.r(), Theme::TEXT.g(), Theme::TEXT.b(), 200)));
             });
+        // lore-and-visuals A3/C4: companion status tiles under the info
+        // line (one per active companion, trust + morale bars, state chip)
+        if !self.companions.is_empty() {
+            egui::Area::new(egui::Id::new("companion_tiles"))
+                .anchor(egui::Align2::LEFT_TOP, egui::vec2(10.0, 26.0))
+                .show(ctx, |ui| {
+                    ui.vertical(|ui| {
+                        for c in &self.companions {
+                            let color = c.faction_id.as_deref()
+                                .and_then(|f| self.lore_data.faction(f))
+                                .map(|f| egui::Color32::from_rgb(f.color[0], f.color[1], f.color[2]))
+                                .unwrap_or(Theme::TEXT_DIM);
+                            egui::Frame::new()
+                                .fill(Theme::PANEL)
+                                .corner_radius(6.0)
+                                .inner_margin(4.0)
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        // portrait tile: faction color + archetype initial
+                                        let (r, _) = ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::hover());
+                                        ui.painter().rect_filled(r, 4.0, color);
+                                        ui.put(r, egui::Label::new(egui::RichText::new(
+                                            c.display_name.chars().next().unwrap_or('?').to_string())
+                                            .small().strong().color(Theme::BG)).selectable(false));
+                                        ui.vertical(|ui| {
+                                            ui.label(egui::RichText::new(match &c.state {
+                                                lf_game::companions::CompanionState::Idle => "IDLE".into(),
+                                                lf_game::companions::CompanionState::Following => "FOLLOW".into(),
+                                                lf_game::companions::CompanionState::Guarding { .. } => "GUARD".into(),
+                                                lf_game::companions::CompanionState::Resting => "REST".into(),
+                                                lf_game::companions::CompanionState::Working => {
+                                                    format!("WORK·{}", c.assigned_task.as_ref().map(|t| t.label()).unwrap_or(""))
+                                                }
+                                            }).small().color(Theme::TEXT_DIM));
+                                            let bar = |ui: &mut egui::Ui, v: i32, color: egui::Color32| {
+                                                let (r, _) = ui.allocate_exact_size(egui::vec2(64.0, 3.0), egui::Sense::hover());
+                                                ui.painter().rect_filled(r, 1.5, egui::Color32::from_black_alpha(150));
+                                                ui.painter().rect_filled(
+                                                    egui::Rect::from_min_size(r.min, egui::vec2(r.width() * v as f32 / 100.0, r.height())),
+                                                    1.5, color);
+                                            };
+                                            bar(ui, c.trust, Theme::ACCENT);
+                                            bar(ui, c.morale, Theme::OK);
+                                        });
+                                    });
+                                });
+                        }
+                    });
+                });
+        }
+        // lore-and-visuals A3/C4: faction standing widget (bottom-right,
+        // above the hotbar; only in territory or near a faction structure).
+        // Pulses briefly via the faction_pulse timer when standing changes.
+        if let Some(fdef) = self.standing_widget_faction() {
+            let standing = self.standings.get(&fdef.id);
+            let widget_color = egui::Color32::from_rgb(fdef.color[0], fdef.color[1], fdef.color[2]);
+            let value_color = if standing > 15 { Theme::ACCENT } else if standing < -15 { Theme::BAD } else { Theme::TEXT_DIM };
+            let pulse = kit::ease_out_cubic(self.faction_pulse);
+            let scale = 1.0 + pulse * 0.18;
+            egui::Area::new(egui::Id::new("faction_widget"))
+                .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -96.0))
+                .show(ctx, |ui| {
+                    egui::Frame::new()
+                        .fill(egui::Color32::from_rgba_premultiplied(Theme::PANEL.r(), Theme::PANEL.g(), Theme::PANEL.b(), 210))
+                        .corner_radius((8.0 * scale).min(11.0))
+                        .inner_margin(egui::Margin::symmetric(8, 5))
+                        .stroke(egui::Stroke::new(1.0 + pulse * 2.0, widget_color))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let (r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                                ui.painter().rect_filled(r, 2.0, widget_color);
+                                ui.label(egui::RichText::new(fdef.symbol.clone()).small().color(widget_color));
+                                ui.label(egui::RichText::new(fdef.short_name.clone()).small().color(Theme::TEXT));
+                                // standing bar: red -> grey -> gold
+                                let (bar, _) = ui.allocate_exact_size(egui::vec2(46.0, 5.0), egui::Sense::hover());
+                                ui.painter().rect_filled(bar, 2.0, egui::Color32::from_black_alpha(150));
+                                let frac = (standing + 100) as f32 / 200.0;
+                                let bar_color = if standing >= 0 {
+                                    egui::Color32::from_rgb(240, 200, 120) // warm gold
+                                } else {
+                                    Theme::BAD // red
+                                };
+                                ui.painter().rect_filled(
+                                    egui::Rect::from_min_max(bar.left_top(), egui::pos2(bar.left() + bar.width() * frac, bar.bottom())),
+                                    2.0, bar_color);
+                                ui.label(egui::RichText::new(format!("{:+}", standing)).small().color(value_color));
+                            });
+                        });
+                });
+        }
         // F3 debug readout: exposes every gate that can kill input.
         if self.show_debug {
             egui::Area::new(egui::Id::new("debug_readout"))
@@ -1552,18 +1643,65 @@ impl GameState {
             self.close_ui();
             return;
         };
-        egui::Window::new(format!("Trading with {} the {:?}", villager.name, villager.job))
+        // lore-and-visuals D1: the dialogue layer + standing gates. The
+        // faction line for the current standing heads the window; hostile
+        // standing refuses trading; friendly standing gets a 10% discount.
+        let archetype = villager.archetype.clone();
+        let faction = villager.faction.clone().unwrap_or_default();
+        let standing = self.standings.get(&faction);
+        let refuses = !faction.is_empty() && self.standings.refuses_trade(&faction);
+        let friendly = !faction.is_empty() && self.standings.offers_bonus_trade(&faction);
+        let dialogue: Option<String> = archetype.as_deref().and_then(|a| {
+            let biome = self.map.biome_at(self.player.position.x as i32, self.player.position.z as i32);
+            let biome_key = format!("{:?}", biome);
+            let ctx = lf_lore::ConditionCtx {
+                standings: Some(&self.standings),
+                biome: Some(&biome_key),
+                ..Default::default()
+            };
+            self.lore_data.dialogue_for(a, &ctx).map(|n| n.text.clone())
+        });
+        let hire_info = archetype.as_deref().and_then(|a| self.lore_data.villager_archetype(a))
+            .filter(|a| a.hireable)
+            .map(|a| (a.hire_standing, a.hire_fee.clone(), a.companion_form.clone()));
+        egui::Window::new(format!("{} — {}", villager.name, crate::factions::job_label(villager.job)))
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
+                // faction standing chip + dialogue line
+                if let Some(fdef) = self.lore_data.faction(&faction) {
+                    let color = egui::Color32::from_rgb(fdef.color[0], fdef.color[1], fdef.color[2]);
+                    let polarity = if standing > 15 { Theme::OK } else if standing < -15 { Theme::BAD } else { Theme::TEXT_DIM };
+                    ui.horizontal(|ui| {
+                        let (r, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                        ui.painter().rect_filled(r, 2.0, color);
+                        ui.label(egui::RichText::new(format!("{} {}", fdef.symbol, fdef.short_name)).color(color));
+                        ui.label(egui::RichText::new(format!("standing {}", standing)).color(polarity));
+                    });
+                    ui.add_space(2.0);
+                }
+                if let Some(line) = &dialogue {
+                    ui.label(egui::RichText::new(format!("\u{201C}{}\u{201D}", line)).italics().color(Theme::TEXT));
+                    ui.add_space(6.0);
+                }
+                if refuses {
+                    ui.label(egui::RichText::new("They will not trade with you.").color(Theme::BAD));
+                    ui.separator();
+                    ui.label(egui::RichText::new("Esc to close").small());
+                    return;
+                }
+                // every completed trade nudges standing (10+ items traded = +2)
+                let mut traded_items = 0u16;
                 for (give, give_n, get, get_n) in trade_offers(villager.job) {
+                    // friendly discount: round the price down ~10%
+                    let give_n_eff = if friendly { (*give_n as f32 * 0.9).ceil() as u8 } else { *give_n };
                     let have = self.inventory.slots.iter()
                         .filter_map(|s| s.as_ref())
                         .filter(|s| s.item_id == *give)
                         .map(|s| s.count as u16)
                         .sum::<u16>();
-                    let enough = have >= *give_n as u16;
+                    let enough = have >= give_n_eff as u16;
                     egui::Frame::new()
                         .fill(egui::Color32::from_black_alpha(130))
                         .corner_radius(7.0)
@@ -1575,7 +1713,12 @@ impl GameState {
                                 let (r, resp) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
                                 paint_item(ui, r, &give_stack, &self.icons);
                                 kit::hover_item_tooltip(&resp, &give_stack, &self.icons);
-                                ui.label(egui::RichText::new(format!("x{}", give_n))
+                                let price_label = if friendly {
+                                    format!("x{} (friendly: {})", give_n, give_n_eff)
+                                } else {
+                                    format!("x{}", give_n_eff)
+                                };
+                                ui.label(egui::RichText::new(price_label)
                                     .color(if enough { Theme::OK } else { Theme::BAD }));
                                 ui.label(egui::RichText::new("→").color(Theme::TEXT_DIM));
                                 let (r2, _) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
@@ -1583,7 +1726,7 @@ impl GameState {
                                 ui.label(egui::RichText::new(format!("x{}", get_n)).color(Theme::TEXT));
                                 ui.label(egui::RichText::new(format!("(have {})", have)).small().color(Theme::TEXT_DIM));
                                 if ui.add_enabled(enough, egui::Button::new("Trade")).clicked() {
-                                    let mut left = *give_n as u16;
+                                    let mut left = give_n_eff as u16;
                                     'pay: for slot in self.inventory.slots.iter_mut() {
                                         if let Some(stack) = slot {
                                             if stack.item_id == *give {
@@ -1597,6 +1740,7 @@ impl GameState {
                                             }
                                         }
                                     }
+                                    traded_items += *get_n as u16;
                                     let leftover = self.inventory.add_item(get, *get_n);
                                     if leftover > 0 {
                                         self.spawn_drop(get, leftover, self.player.eye_position() + self.player.look_dir());
@@ -1605,6 +1749,139 @@ impl GameState {
                             });
                         });
                 }
+                // trade accrues standing (FACTIONS_OVERVIEW: 10+ items = +2)
+                if traded_items > 0 && !faction.is_empty() {
+                    let bump = self.lore_data.standing_events.trade_ten_items;
+                    self.add_standing(&faction, bump);
+                }
+                // B2: the hire button for hireable archetypes
+                if let Some((hire_standing, fee, _form)) = hire_info {
+                    ui.separator();
+                    let fee_str = fee.iter()
+                        .map(|(i, n)| format!("{} x{}", i, n))
+                        .collect::<Vec<_>>().join(", ");
+                    let standing_ok = standing >= hire_standing;
+                    let slots_ok = self.companions.len() < lf_game::companions::MAX_ACTIVE_COMPANIONS;
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(
+                            if standing_ok { format!("Hire companion — fee: {} (needs standing {})", fee_str, hire_standing) }
+                            else { format!("Hire — the {} require standing {} (yours: {})", faction, hire_standing, standing) }
+                        ).small().color(if standing_ok { Theme::TEXT_DIM } else { Theme::BAD }));
+                        if ui.add_enabled(standing_ok && slots_ok, egui::Button::new("Hire")).clicked() {
+                            let msg = self.try_hire(index);
+                            self.push_hint(&msg);
+                            self.close_ui();
+                        }
+                    });
+                }
+                ui.separator();
+                ui.label(egui::RichText::new("Esc to close").small());
+            });
+    }
+
+    /// B3: the companion command menu — every command from the spec, with
+    /// the trust/morale readout and the roster identity.
+    fn draw_companion_menu(&mut self, ctx: &egui::Context) {
+        let Some(ci) = self.companion_menu else {
+            self.ui_open = UiOpen::None;
+            return;
+        };
+        let Some(c) = self.companions.get(ci).cloned() else {
+            self.companion_menu = None;
+            self.ui_open = UiOpen::None;
+            return;
+        };
+        let faction_color = c.faction_id.as_deref()
+            .and_then(|f| self.lore_data.faction(f))
+            .map(|f| egui::Color32::from_rgb(f.color[0], f.color[1], f.color[2]))
+            .unwrap_or(Theme::TEXT_DIM);
+        let state_label = match &c.state {
+            lf_game::companions::CompanionState::Idle => "IDLE".to_string(),
+            lf_game::companions::CompanionState::Following => "FOLLOW".to_string(),
+            lf_game::companions::CompanionState::Guarding { .. } => "GUARD".to_string(),
+            lf_game::companions::CompanionState::Resting => "REST".to_string(),
+            lf_game::companions::CompanionState::Working => {
+                format!("WORK — {}", c.assigned_task.as_ref().map(|t| t.label()).unwrap_or(""))
+            }
+        };
+        let target = self.crosshair_block_pos();
+        egui::Window::new(format!("{} — commands", c.display_name))
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                // identity + relationship readout (on-kit)
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(egui::vec2(22.0, 22.0), egui::Sense::hover());
+                    ui.painter().rect_filled(r, 5.0, faction_color);
+                    ui.label(egui::RichText::new(c.display_name.chars().next().unwrap_or('?').to_string())
+                        .strong().color(Theme::BG));
+                    ui.label(egui::RichText::new(state_label.clone()).small().color(Theme::TEXT_DIM));
+                });
+                let bar = |ui: &mut egui::Ui, label: &str, v: i32, color: egui::Color32| {
+                    let (r, _) = ui.allocate_exact_size(egui::vec2(150.0, 8.0), egui::Sense::hover());
+                    ui.painter().rect_filled(r, 4.0, egui::Color32::from_black_alpha(140));
+                    let filled = egui::Rect::from_min_size(r.min, egui::vec2(r.width() * v as f32 / 100.0, r.height()));
+                    ui.painter().rect_filled(filled, 4.0, color);
+                    ui.put(r, egui::Label::new(egui::RichText::new(format!("{} {}/100", label, v))
+                        .small().color(Theme::TEXT)).selectable(false));
+                };
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        bar(ui, "Trust", c.trust, Theme::ACCENT);
+                        ui.add_space(2.0);
+                        bar(ui, "Morale", c.morale, Theme::OK);
+                    });
+                });
+                if !c.cargo.is_empty() {
+                    let cargo = c.cargo.iter().map(|(i, n)| format!("{} x{}", i, n)).collect::<Vec<_>>().join(", ");
+                    ui.label(egui::RichText::new(format!("cargo: {}", cargo)).small().color(Theme::TEXT_DIM));
+                }
+                ui.separator();
+                macro_rules! cmd {
+                    ($ui:expr, $label:expr, $command:expr) => {
+                        if $ui.button($label).clicked() {
+                            let msg = self.companion_command(ci, $command);
+                            self.push_hint(&msg);
+                        }
+                    };
+                }
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        cmd!(ui, "Follow me", lf_game::companions::CompanionCommand::FollowMe);
+                        if let Some(p) = target {
+                            cmd!(ui, "Mine this", lf_game::companions::CompanionCommand::MineThis { target: [p.0, p.1, p.2] });
+                            cmd!(ui, "Chop nearby", lf_game::companions::CompanionCommand::ChopNearby { center: [p.0, p.1, p.2] });
+                        } else {
+                            ui.add_enabled(false, egui::Button::new("Mine this"));
+                            cmd!(ui, "Chop nearby", lf_game::companions::CompanionCommand::ChopNearby {
+                                center: [self.player.position.x as i32, self.player.position.y as i32, self.player.position.z as i32],
+                            });
+                        }
+                        cmd!(ui, "Rest", lf_game::companions::CompanionCommand::Rest);
+                        ui.add_enabled(false, egui::Button::new("Craft (recipes soon)"));
+                    });
+                    ui.vertical(|ui| {
+                        let here = self.player.position;
+                        cmd!(ui, "Stay here", lf_game::companions::CompanionCommand::StayHere {
+                            pos: [here.x, here.y, here.z],
+                        });
+                        cmd!(ui, "Haul to chest", lf_game::companions::CompanionCommand::HaulToChest {
+                            src: [here.x as i32, here.y as i32, here.z as i32],
+                            dst: [here.x as i32, here.y as i32, here.z as i32],
+                        });
+                        cmd!(ui, "Guard area", lf_game::companions::CompanionCommand::GuardArea {
+                            area: [here.x as i32, here.y as i32, here.z as i32],
+                        });
+                        if ui.button("Pay now").clicked() {
+                            let msg = self.companion_pay_now(ci);
+                            self.push_hint(&msg);
+                        }
+                        if ui.button(egui::RichText::new("Dismiss").color(Theme::BAD)).clicked() {
+                            self.dismiss_companion(ci);
+                        }
+                    });
+                });
                 ui.separator();
                 ui.label(egui::RichText::new("Esc to close").small());
             });

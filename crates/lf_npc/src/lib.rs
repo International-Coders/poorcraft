@@ -96,6 +96,14 @@ pub struct Villager {
     pub schedule: VillagerSchedule,
     pub position: [f32; 3],
     pub reputation: f32,
+    /// Faction id (lore-and-visuals A): drives the faction skin + standing
+    /// gates in trade.
+    #[serde(default)]
+    pub faction: Option<String>,
+    /// NPC roster archetype id (hireable villagers carry their companion
+    /// form + hire fee in lore/npcs.toml).
+    #[serde(default)]
+    pub archetype: Option<String>,
 }
 
 impl Villager {
@@ -107,6 +115,8 @@ impl Villager {
             schedule: Default::default(),
             position,
             reputation: 0.0,
+            faction: None,
+            archetype: None,
         }
     }
 

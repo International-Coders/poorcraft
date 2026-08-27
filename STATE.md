@@ -1,9 +1,9 @@
 # STATE
-loop_count: 326
-current_milestone: Complete — all V1REBRAND + build-pack points shipped
-last_done: "P28 leftovers (connected stone/planks surfaces, HUD text shadows + on-kit audit, in-play chronicle toasts + cross-system lore anchor test, item belt backbone) + the Step 40 honesty pass. 256 tests, 47/47 vistest, smoke OK"
-next_task: "NONE — the goal (all V1REBRAND P28-P39 + build-pack Steps 1-40 points) is shipped and pushed; see STATUS.md for honest limits"
+loop_count: 327
+current_milestone: Complete — all V1REBRAND + build-pack + lore-and-visuals (Sections A-D) shipped
+last_done: "lore-and-visuals build: lf_lore faction data layer + standing, 12 faction quests, hireable companions (trust/morale/wages/commands), 38 blocks + Volcanic biome, 6 faction structures, entity skins + biome tints, map territory tint + icons, faction HUD widgets, ember particles, D1-D3 integration. vistest 60/60"
+next_task: "NONE — the lore-and-visuals goal is shipped and pushed; deferred notes in BACKLOG.md (Unmarked interview tree, companion Craft, chest pathing)"
 build: GREEN
-tests: 256 passing
-last_screenshot: shots/audit_transparency.png
+tests: see DEVLOG verification line for the fresh count
+last_screenshot: shots/vistest_faction_map.png
 blockers: "none"

@@ -21,6 +21,9 @@ pub fn emission(block_id: u32) -> u8 {
         registry::block::RADIATION => 7,
         // the crossover light block: fuelless, full-bright (P33)
         registry::block::LUMEN_BLOCK => 15,
+        // Covenant altar stone: warm amber, muted per SKIN_MANIFEST (C1)
+        registry::block::EMBER_GLOWSTONE => 8,
+        registry::block::LANTERN_HANGING => 15,
         _ => 0,
     }
 }

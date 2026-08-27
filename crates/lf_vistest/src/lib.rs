@@ -611,6 +611,47 @@ pub fn scenes() -> Vec<SceneSpec> {
             eye: Vec3::ZERO, // framed straight at the stack in run_scene
             target: Vec3::ZERO,
         },
+        // lore-and-visuals: vistest scenes (blocks, structures, skins, HUD)
+        SceneSpec { name: "faction_blocks",
+            desc: "contact sheet of the 38 lore blocks (faction, biome-exclusive, decoration) on a display field",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "accord_embassy", desc: "The Accord's walled courtyard: accord_stone walls, pillar gatehouse, banner (C3)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "ironborn_forge_camp", desc: "Ironborn industrial camp: brick walls, grate windows, furnace, banner (C3)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "covenant_grove_shrine", desc: "Ember Covenant shrine: covenantwood post ring around a glowstone altar (C3)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "freeholds_longhouse", desc: "Free Holds longhouse: daub walls, thatch roof, log posts (C3)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "ashen_library", desc: "Ashen Order library: marble walls, bookshelf interior, lore chest (C3)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "nameless_camp", desc: "Nameless derelict camp: broken rotwood palisade, scorched firepit, loot chest (C3)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "entity_skins", desc: "contact sheet: 6 faction villager skins, 6 companion skins (+badge variants), 6 mob skins, 3 biome tints (C2)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "ember_glow", desc: "ember_glowstone formation with rising amber sparks (ambient C4 particles)",
+            default_seed: 12345, time_of_day: 0.75, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "companion_follow", desc: "an Accord Warden companion standing off at follow distance with the HUD companion tile visible (B3/B4)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "faction_map", desc: "world map with two+ faction territories tinted in faction colors + structure icons (A2/D3)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "faction_hud", desc: "HUD with the faction standing widget (name, colored bar, standing number) + companion tile (A3/C4)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "companion_commands", desc: "the B3 companion command menu: follow/stay/rest/mine/chop/haul/guard/pay/dismiss",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
     ]
 }
 
@@ -665,6 +706,94 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
                 }
             }
         }
+    }
+
+    // ---- lore-and-visuals PRE-MESH world edits ----------------------
+    // faction_blocks: every new block id 68..=105 on a display field (C1)
+    if spec.name == "faction_blocks" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -6..34 {
+            for z in -10..12 {
+                for y in h..h + 14 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        let mut id = 68u32;
+        'fill: for row in 0..4i32 {
+            for col in 0..10i32 {
+                if id > 105 { break 'fill; }
+                let x = -5 + col * 4;
+                let z = -8 + row * 6;
+                world.set_block(x, h, z, lf_voxel::BlockState(id));
+                id += 1;
+            }
+        }
+    }
+
+    // the six faction structures planted via the public builder (C3),
+    // into the chunk containing (8,8), BEFORE meshing
+    if matches!(spec.name, "accord_embassy" | "ironborn_forge_camp" | "covenant_grove_shrine"
+        | "freeholds_longhouse" | "ashen_library" | "nameless_camp") {
+        let kind = match spec.name {
+            "accord_embassy" => lf_worldgen::FactionStructure::AccordEmbassy,
+            "ironborn_forge_camp" => lf_worldgen::FactionStructure::IronbornForgeCamp,
+            "covenant_grove_shrine" => lf_worldgen::FactionStructure::CovenantGroveShrine,
+            "freeholds_longhouse" => lf_worldgen::FactionStructure::FreeholdsLonghouse,
+            "ashen_library" => lf_worldgen::FactionStructure::AshenLibrary,
+            _ => lf_worldgen::FactionStructure::NamelessCamp,
+        };
+        // flatten the site so the structure is unobstructed (a display
+        // pedestal: dirt to display height, air above), then plant with a
+        // uniform ground
+        use lf_voxel::registry::block;
+        let base = 112i32;  // above the tallest local terrain (~106)
+        for x in -8..22i32 {
+            for z in -8..22i32 {
+                let top = gen.surface_top(x, z).clamp(base - 6, 250);
+                for y in top..(base + 12) {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                // fill dips under the display level so nothing floats
+                if (0..16).contains(&x) && (0..16).contains(&z) {
+                    for y in (base - 4)..base {
+                        if !lf_voxel::registry::is_solid(world.get_block(x, y, z)) {
+                            world.set_block(x, y, z, lf_voxel::BlockState(block::DIRT));
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(col) = world.chunks.get_mut(&(0, 0)) {
+            let g = |_lx: usize, _lz: usize| -> usize { base as usize };
+            lf_worldgen::build_faction_structure(kind, col, &g);
+        }
+    }
+
+    // entity_skins: flat display ground (C2)
+    if spec.name == "entity_skins" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -12..30 {
+            for z in -10..14 {
+                for y in h..h + 12 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+    }
+
+    // ember_glow: the glowstone cluster itself (C4)
+    if spec.name == "ember_glow" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        world.set_block(0, h, 0, lf_voxel::BlockState(block::EMBER_GLOWSTONE));
+        world.set_block(0, h + 1, 0, lf_voxel::BlockState(block::EMBER_GLOWSTONE));
+        world.set_block(1, h, 0, lf_voxel::BlockState(block::EMBER_GLOWSTONE));
+        world.set_block(0, h, 1, lf_voxel::BlockState(block::EMBER_GLOWSTONE));
     }
 
     if spec.name == "mining_feedback" {
@@ -1455,6 +1584,149 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
                 [0.0, 0.0, 1.0], stone_tex);
         }
     }
+    // ---- lore-and-visuals POST-MESH appends -------------------------
+    // entity_skins: skin-wearing cubes in rows (C2)
+    if spec.name == "entity_skins" {
+        let h = world.surface_height(0, 0);
+        let mut skins: Vec<u32> = vec![
+            lf_assets::VILLAGER_ACCORD_LAYER, lf_assets::VILLAGER_IRONBORN_LAYER,
+            lf_assets::VILLAGER_COVENANT_LAYER, lf_assets::VILLAGER_FREEHOLDS_LAYER,
+            lf_assets::VILLAGER_ASHEN_LAYER, lf_assets::VILLAGER_NAMELESS_LAYER,
+            lf_assets::VILLAGER_UNMARKED_LAYER, lf_assets::VILLAGER_MAREN_LAYER,
+        ];
+        for (_, layer) in lf_assets::COMPANION_LAYERS {
+            skins.push(layer);
+            skins.push(lf_assets::trusted_companion_layer(layer));
+        }
+        skins.extend([
+            lf_assets::MOB_BOAR_LAYER, lf_assets::MOB_WOOLBEAST_LAYER,
+            lf_assets::MOB_GLITCHLING_LAYER, lf_assets::MOB_STALKER_LAYER,
+            lf_assets::MOB_CRAWLER_LAYER, lf_assets::MOB_NULL_KNIGHT_LAYER,
+            lf_assets::MOB_GLITCHLING_TINTS[0], lf_assets::MOB_GLITCHLING_TINTS[1],
+            lf_assets::MOB_GLITCHLING_TINTS[2],
+        ]);
+        for (i, tex) in skins.iter().enumerate() {
+            let row = i as i32 / 8;
+            let col = i as i32 % 8;
+            let cx = -10.5 + col as f32 * 3.0;
+            let cz = -6.5 + row as f32 * 3.0;
+            let cy = h as f32 + 1.0;
+            let r = 0.55f32;
+            let base = vertices.len() as u32;
+            let faces: [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] = [
+                ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+                ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+                ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ];
+            for (normal, corners, uvs) in faces {
+                for (corner, uv) in corners.iter().zip(uvs.iter()) {
+                    vertices.push(GpuVertex {
+                        position: [cx + corner[0], cy + corner[1], cz + corner[2]],
+                        normal, tex_coord: *uv, tex_index: *tex,
+                        ao: 1.0, light: 0xF0, sway: 0.0,
+                    });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+    }
+
+    // ember_glow: rising amber sparks over the cluster (C4)
+    if spec.name == "ember_glow" {
+        let h = world.surface_height(0, 0);
+        for i in 0..14u32 {
+            let t = i as f32;
+            let x = 0.5 + (t * 1.1).sin() * 0.4;
+            let z = 0.5 + (t * 0.7).cos() * 0.4;
+            let y = h as f32 + 2.0 + t * 0.42;
+            let sz = 0.07 + (t % 3.0) * 0.012;
+            let base = water_vertices.len() as u32;
+            let u0 = 0.3 + (i % 3) as f32 * 0.1;
+            let corners = [
+                [x - sz, y - sz, z], [x - sz, y + sz, z],
+                [x + sz, y + sz, z], [x + sz, y - sz, z],
+            ];
+            for (corner, uv) in corners.iter().zip([[u0, 0.45], [u0, 0.35], [u0 + 0.1, 0.35], [u0 + 0.1, 0.45]]) {
+                water_vertices.push(GpuVertex {
+                    position: *corner, normal: [0.0, 0.0, 1.0], tex_coord: uv,
+                    tex_index: lf_assets::EMBER_LAYER, ao: 1.0, light: 0xF0, sway: 0.0,
+                });
+            }
+            water_indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+
+    // structure scenes: the faction's villager NPC at the gate (C3 proof
+    // requires the NPC present with the building)
+    if matches!(spec.name, "accord_embassy" | "ironborn_forge_camp" | "covenant_grove_shrine"
+        | "freeholds_longhouse" | "ashen_library" | "nameless_camp") {
+        let tex = match spec.name {
+            "accord_embassy" => lf_assets::VILLAGER_ACCORD_LAYER,
+            "ironborn_forge_camp" => lf_assets::VILLAGER_IRONBORN_LAYER,
+            "covenant_grove_shrine" => lf_assets::VILLAGER_COVENANT_LAYER,
+            "freeholds_longhouse" => lf_assets::VILLAGER_FREEHOLDS_LAYER,
+            "ashen_library" => lf_assets::VILLAGER_MAREN_LAYER,
+            _ => lf_assets::VILLAGER_NAMELESS_LAYER,
+        };
+        let (cx, cy, cz) = (8.5f32, 113.4f32, 5.5f32);
+        let r = 0.45f32;
+        let base = vertices.len() as u32;
+        let faces: [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] = [
+            ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+            ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+            ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+        ];
+        for (normal, corners, uvs) in faces {
+            for (corner, uv) in corners.iter().zip(uvs.iter()) {
+                vertices.push(GpuVertex {
+                    position: [cx + corner[0], cy + corner[1], cz + corner[2]],
+                    normal, tex_coord: *uv, tex_index: tex,
+                    ao: 1.0, light: 0xF0, sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+
+    // companion_follow: the warden cube at follow distance (B3/B4)
+    if spec.name == "companion_follow" {
+        let h = world.surface_height(0, 0) as f32;
+        let mut push_skin_cube = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                                  c: (f32, f32, f32), r: f32, tex: u32| {
+            let (cx, cy, cz) = c;
+            let base = vertices.len() as u32;
+            let faces: [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] = [
+                ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+                ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+                ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+                ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
+            ];
+            for (normal, corners, uvs) in faces {
+                for (corner, uv) in corners.iter().zip(uvs.iter()) {
+                    vertices.push(GpuVertex {
+                        position: [cx + corner[0], cy + corner[1], cz + corner[2]],
+                        normal, tex_coord: *uv, tex_index: tex,
+                        ao: 1.0, light: 0xF0, sway: 0.0,
+                    });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        };
+        let warden = lf_assets::COMPANION_LAYERS.iter().find(|(id, _)| *id == "accord_warden").unwrap().1;
+        push_skin_cube(&mut vertices, &mut indices, (0.5, h + 1.4, 3.5), 0.55,
+            lf_assets::trusted_companion_layer(warden));
+        push_skin_cube(&mut vertices, &mut indices, (-3.5, h + 0.9, 1.5), 0.45, lf_assets::VILLAGER_IRONBORN_LAYER);
+        push_skin_cube(&mut vertices, &mut indices, (4.5, h + 1.1, -1.5), 0.55, lf_assets::MOB_GLITCHLING_LAYER);
+    }
+
     // falling_sand: one granular block caught mid-fall above the settled
     // pile (the client renders these as near-full cubes with the block's
     // own texture — same shape here, appended post-mesh)
@@ -1943,6 +2215,22 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "waypoint_beacons" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(11.0, h + 14.0, 12.0), Vec3::new(0.0, h + 6.0, 0.0))
+    } else if matches!(spec.name, "accord_embassy" | "ironborn_forge_camp" | "covenant_grove_shrine"
+        | "freeholds_longhouse" | "ashen_library" | "nameless_camp") {
+        // display pedestal planted at y=100 in build_scene_mesh
+        (Vec3::new(-9.0, 120.5, -9.0), Vec3::new(8.5, 113.5, 8.5))
+    } else if spec.name == "faction_blocks" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(14.0, h + 16.0, 20.0), Vec3::new(12.0, h - 1.0, -2.0))
+    } else if spec.name == "entity_skins" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(1.0, h + 12.0, 18.0), Vec3::new(0.0, h + 0.5, -4.0))
+    } else if spec.name == "ember_glow" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-5.0, h + 4.0, 6.0), Vec3::new(0.5, h + 1.6, 0.5))
+    } else if spec.name == "companion_follow" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.5, h + 2.6, 0.5), Vec3::new(0.5, h + 1.4, 3.5))
     } else if spec.first_person {
         // Find a viewpoint with an open vista: a local rise whose best look
         // direction drops the most over 30 blocks, so the frame shows both
@@ -2022,7 +2310,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         || spec.name == "menu_preview" || spec.name == "settings_preview"
         || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud"
         || spec.name == "console_preview" || spec.name == "lore_book"
-        || spec.name == "spellbook" || spec.name == "paths_screen" || spec.name == "trade_p2p";
+        || spec.name == "spellbook" || spec.name == "paths_screen" || spec.name == "trade_p2p"
+        || spec.name == "faction_map" || spec.name == "faction_hud"
+        || spec.name == "companion_commands" || spec.name == "companion_follow";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
@@ -2063,6 +2353,15 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "paths_screen" {
                 draw_paths_preview(ctx);
+            }
+            if spec.name == "faction_map" {
+                draw_faction_map_preview(ctx);
+            }
+            if spec.name == "faction_hud" || spec.name == "companion_follow" {
+                draw_faction_hud_preview(ctx);
+            }
+            if spec.name == "companion_commands" {
+                draw_companion_menu_preview(ctx);
             }
             if spec.name == "trade_p2p" {
                 draw_trade_p2p_preview(ctx);
@@ -2388,6 +2687,213 @@ fn map_image(gen: &WorldGen, center: (f32, f32), wh: (usize, usize), px_per_bloc
         wz += step;
     }
     egui::ColorImage { size: [wh.0, wh.1], pixels }
+}
+
+/// lore-and-visuals A2: faction home biomes -> colors (the canonical six).
+pub fn preview_faction_homes() -> Vec<(&'static str, [u8; 3], Vec<Biome>)> {
+    use Biome::*;
+    vec![
+        ("accord", [74, 122, 181], vec![Meadow, Forest, FlowerForest, BirchForest]),
+        ("ironborn", [139, 69, 19], vec![Mountains, Badlands, Volcanic]),
+        ("ember_covenant", [196, 96, 42], vec![Highlands, Taiga, MushroomHollow, Swamp]),
+        ("free_holds", [107, 142, 35], vec![Savanna, WindsweptSavanna, Beach]),
+        ("ashen_order", [176, 176, 176], vec![WindsweptHills, Tundra]),
+        ("nameless", [45, 45, 45], vec![PaleGarden, DarkForest]),
+    ]
+}
+
+/// map_image with the faction territory tint blended over home biomes
+/// (same 0.30 blend as the client's apply_territory_tint).
+fn faction_tinted_map_image(gen: &WorldGen, center: (f32, f32), wh: (usize, usize), px_per_block: f32) -> egui::ColorImage {
+    let homes = preview_faction_homes();
+    let mut img = map_image(gen, center, wh, px_per_block);
+    for (wz_i, row) in img.pixels.chunks_mut(wh.0).enumerate() {
+        for (wx_i, px) in row.iter_mut().enumerate() {
+            let wx = center.0 - wh.0 as f32 / (2.0 * px_per_block) + wx_i as f32 / px_per_block;
+            let wz = center.1 - wh.1 as f32 / (2.0 * px_per_block) + wz_i as f32 / px_per_block;
+            let biome = gen.biome(wx.floor() as i32, wz.floor() as i32);
+            if let Some((_, col, _)) = homes.iter().find(|(_, _, biomes)| biomes.contains(&biome)) {
+                let a = 0.30f32;
+                *px = egui::Color32::from_rgba_unmultiplied(
+                    (px.r() as f32 * (1.0 - a) + col[0] as f32 * a) as u8,
+                    (px.g() as f32 * (1.0 - a) + col[1] as f32 * a) as u8,
+                    (px.b() as f32 * (1.0 - a) + col[2] as f32 * a) as u8,
+                    px.a(),
+                );
+            }
+        }
+    }
+    img
+}
+
+/// A2/D3 proof: the world map with territory tints + structure icons.
+fn draw_faction_map_preview(ctx: &egui::Context) {
+    let gen = WorldGen::new(Seed(12345));
+    let panel = egui::Color32::from_rgba_premultiplied(18, 22, 30, 235);
+    let accent = egui::Color32::from_rgb(240, 200, 120);
+    egui::CentralPanel::default().frame(egui::Frame::new().fill(panel)).show(ctx, |ui| {
+        ui.vertical_centered(|ui| {
+            ui.add_space(10.0);
+            ui.label(egui::RichText::new("World Map — faction territories").strong().color(accent));
+            ui.add_space(6.0);
+            let size = egui::vec2(560.0, 380.0);
+            let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+            let img = faction_tinted_map_image(&gen, (0.0, 0.0), (size.x as usize, size.y as usize), 0.7);
+            let tex = ui.ctx().load_texture("faction_map", img, egui::TextureOptions::NEAREST);
+            ui.painter().image(tex.id(), rect,
+                egui::Rect::from_min_max(egui::Pos2::ZERO, egui::Pos2::new(1.0, 1.0)),
+                egui::Color32::WHITE);
+            ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(2.0, accent), egui::StrokeKind::Middle);
+            // structure icons: faction-color diamonds at fixed world spots
+            let to_screen = |wx: f32, wz: f32| -> egui::Pos2 {
+                egui::Pos2::new(
+                    rect.left() + (wx + 400.0) / 800.0 * rect.width(),
+                    rect.top() + (wz + 270.0) / 540.0 * rect.height(),
+                )
+            };
+            let icons = [
+                (60.0, 40.0, [74, 122, 181], "embassy"),
+                (-120.0, 90.0, [139, 69, 19], "forge camp"),
+                (150.0, -80.0, [196, 96, 42], "shrine"),
+                (-40.0, -140.0, [107, 142, 35], "longhouse"),
+                (200.0, 150.0, [176, 176, 176], "library"),
+                (-220.0, -30.0, [45, 45, 45], "camp"),
+            ];
+            for (wx, wz, col, label) in icons {
+                let pos = to_screen(wx, wz);
+                let r = 6.0;
+                ui.painter().add(egui::Shape::convex_polygon(vec![
+                    pos + egui::vec2(0.0, -r), pos + egui::vec2(r, 0.0),
+                    pos + egui::vec2(0.0, r), pos + egui::vec2(-r, 0.0),
+                ], egui::Color32::from_rgb(col[0], col[1], col[2]),
+                    egui::Stroke::new(1.5, egui::Color32::from_gray(20))));
+                ui.painter().text(pos + egui::vec2(0.0, 12.0), egui::Align2::CENTER_CENTER, label,
+                    egui::FontId::proportional(10.0), egui::Color32::from_gray(235));
+            }
+            // player arrow
+            let p = to_screen(0.0, 0.0);
+            ui.painter().add(egui::Shape::convex_polygon(vec![
+                p + egui::vec2(0.0, -7.0), p + egui::vec2(5.0, 5.0), p + egui::vec2(-5.0, 5.0),
+            ], egui::Color32::WHITE, egui::Stroke::new(1.0, egui::Color32::from_gray(20))));
+            // legend
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                for (name, col, _) in preview_faction_homes() {
+                    let (swatch, _) = ui.allocate_exact_size(egui::vec2(9.0, 9.0), egui::Sense::hover());
+                    ui.painter().rect_filled(swatch, 2.0, egui::Color32::from_rgb(col[0], col[1], col[2]));
+                    ui.label(egui::RichText::new(name).small().color(egui::Color32::from_gray(200)));
+                    ui.add_space(8.0);
+                }
+            });
+        });
+    });
+}
+
+/// A3/C4 proof: the faction standing widget (bottom-right) + the companion
+/// HUD tile (top-left) over the standard HUD.
+fn draw_faction_hud_preview(ctx: &egui::Context) {
+    draw_hud_preview(ctx);
+    let panel = egui::Color32::from_rgba_premultiplied(18, 22, 30, 210);
+    let accent = egui::Color32::from_rgb(240, 200, 120);
+    let ok = egui::Color32::from_rgb(120, 210, 130);
+    // companion tile: Accord-blue initial + trust/morale bars
+    egui::Area::new(egui::Id::new("preview_companion_tile"))
+        .anchor(egui::Align2::LEFT_TOP, egui::vec2(10.0, 26.0))
+        .show(ctx, |ui| {
+            egui::Frame::new().fill(panel).corner_radius(6.0).inner_margin(4.0).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::hover());
+                    ui.painter().rect_filled(r, 4.0, egui::Color32::from_rgb(74, 122, 181));
+                    ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "H",
+                        egui::FontId::proportional(12.0), egui::Color32::from_gray(16));
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new("FOLLOW").small().color(egui::Color32::from_gray(150)));
+                        let bar = |ui: &mut egui::Ui, v: i32, color: egui::Color32| {
+                            let (r, _) = ui.allocate_exact_size(egui::vec2(64.0, 3.0), egui::Sense::hover());
+                            ui.painter().rect_filled(r, 1.5, egui::Color32::from_black_alpha(150));
+                            ui.painter().rect_filled(egui::Rect::from_min_size(r.min,
+                                egui::vec2(r.width() * v as f32 / 100.0, r.height())), 1.5, color);
+                        };
+                        bar(ui, 62, accent);
+                        ui.add_space(2.0);
+                        bar(ui, 48, ok);
+                    });
+                });
+            });
+        });
+    // faction widget: name, colored standing bar, number (Ironborn, +34)
+    egui::Area::new(egui::Id::new("preview_faction_widget"))
+        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -96.0))
+        .show(ctx, |ui| {
+            egui::Frame::new().fill(panel).corner_radius(9.0)
+                .inner_margin(egui::Margin::symmetric(8, 5))
+                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(139, 69, 19)))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let (r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                        ui.painter().rect_filled(r, 2.0, egui::Color32::from_rgb(139, 69, 19));
+                        ui.label(egui::RichText::new("HAMMER").small().color(egui::Color32::from_rgb(200, 140, 90)));
+                        ui.label(egui::RichText::new("The Ironborn").small().color(egui::Color32::from_gray(235)));
+                        let (bar, _) = ui.allocate_exact_size(egui::vec2(46.0, 5.0), egui::Sense::hover());
+                        ui.painter().rect_filled(bar, 2.0, egui::Color32::from_black_alpha(150));
+                        let frac = (34 + 100) as f32 / 200.0;
+                        ui.painter().rect_filled(egui::Rect::from_min_max(bar.left_top(),
+                            egui::pos2(bar.left() + bar.width() * frac, bar.bottom())), 2.0, accent);
+                        ui.label(egui::RichText::new("+34").small().color(accent));
+                    });
+                });
+        });
+}
+
+/// B3 proof: the companion command menu.
+fn draw_companion_menu_preview(ctx: &egui::Context) {
+    let panel = egui::Color32::from_rgba_premultiplied(18, 22, 30, 235);
+    let accent = egui::Color32::from_rgb(240, 200, 120);
+    let bad = egui::Color32::from_rgb(230, 120, 110);
+    let ok = egui::Color32::from_rgb(120, 210, 130);
+    egui::Window::new("Herald Aldis — commands")
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
+        .collapsible(false).resizable(false)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(egui::vec2(22.0, 22.0), egui::Sense::hover());
+                ui.painter().rect_filled(r, 5.0, egui::Color32::from_rgb(74, 122, 181));
+                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "H",
+                    egui::FontId::proportional(14.0), egui::Color32::from_gray(16));
+                ui.label(egui::RichText::new("FOLLOW").small().color(egui::Color32::from_gray(150)));
+            });
+            let bar = |ui: &mut egui::Ui, label: &str, v: i32, color: egui::Color32| {
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(egui::vec2(150.0, 8.0), egui::Sense::hover());
+                    ui.painter().rect_filled(r, 4.0, egui::Color32::from_black_alpha(140));
+                    ui.painter().rect_filled(egui::Rect::from_min_size(r.min,
+                        egui::vec2(r.width() * v as f32 / 100.0, r.height())), 4.0, color);
+                    ui.label(egui::RichText::new(format!("{} {}/100", label, v)).small().color(egui::Color32::from_gray(235)));
+                });
+            };
+            bar(ui, "Trust", 62, accent);
+            bar(ui, "Morale", 48, ok);
+            ui.label(egui::RichText::new("cargo: iron_ore x6").small().color(egui::Color32::from_gray(150)));
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.button("Follow me");
+                    ui.button("Mine this");
+                    ui.button("Chop nearby");
+                    ui.button("Rest");
+                    ui.add_enabled(false, egui::Button::new("Craft (recipes soon)"));
+                });
+                ui.vertical(|ui| {
+                    ui.button("Stay here");
+                    ui.button("Haul to chest");
+                    ui.button("Guard area");
+                    ui.button("Pay now");
+                    ui.button(egui::RichText::new("Dismiss").color(bad));
+                });
+            });
+            ui.separator();
+            ui.label(egui::RichText::new("Esc to close").small());
+        });
 }
 
 /// Preview palette matching the client's 30-biome table (subset used here).

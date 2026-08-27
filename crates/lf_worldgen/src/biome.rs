@@ -43,11 +43,13 @@ pub enum Biome {
     Mountains,
     WindsweptHills,
     MushroomHollow,
+    // lore-and-visuals C1: the volcanic belt (Ironborn home)
+    Volcanic,
 }
 
 impl Biome {
     /// Every variant, declaration order (contact sheets + tests).
-    pub const ALL: [Biome; 30] = [
+    pub const ALL: [Biome; 31] = [
         Biome::Meadow, Biome::FlowerForest, Biome::Forest, Biome::BirchForest,
         Biome::DarkForest, Biome::PaleGarden, Biome::CherryGrove, Biome::Taiga,
         Biome::SnowyTaiga, Biome::GiantTaiga, Biome::Tundra, Biome::IceSpikes,
@@ -55,7 +57,7 @@ impl Biome {
         Biome::Swamp, Biome::Savanna, Biome::WindsweptSavanna, Biome::Desert,
         Biome::Badlands, Biome::Beach, Biome::StonyShore, Biome::Ocean,
         Biome::DeepOcean, Biome::WarmOcean, Biome::Highlands, Biome::Mountains,
-        Biome::WindsweptHills, Biome::MushroomHollow,
+        Biome::WindsweptHills, Biome::MushroomHollow, Biome::Volcanic,
     ];
 
     pub fn name(self) -> &'static str {
@@ -91,6 +93,7 @@ impl Biome {
             Mountains => "Mountains",
             WindsweptHills => "Windswept Hills",
             MushroomHollow => "Mushroom Hollow",
+            Volcanic => "Volcanic",
         }
     }
 
@@ -99,16 +102,20 @@ impl Biome {
         use lf_voxel::registry::block;
         use Biome::*;
         match self {
-            Tundra | SnowyTaiga | SnowySlope | SnowyPeaks | FrozenOcean => block::SNOW,
+            SnowyTaiga | SnowySlope | SnowyPeaks | FrozenOcean => block::SNOW,
             IceSpikes => block::ICE,
             Desert | Beach => block::SAND,
             Badlands => block::RED_SAND,
-            Savanna | WindsweptSavanna => block::SAVANNA_GRASS,
-            Swamp => block::MOSS,
+            Savanna => block::GILDED_GRASS,
+            WindsweptSavanna => block::SAVANNA_GRASS,
+            Swamp => block::BOG_PEAT,
             Jungle => block::JUNGLE_GRASS,
             MushroomHollow => block::MYCELIUM,
             StonyShore | Mountains => block::STONE,
+            Volcanic => block::VOLCANIC_BASALT,
             Ocean | DeepOcean | WarmOcean => block::SAND,
+            // Tundra: blueish icy soil, its marker vs the snow family (C1)
+            Tundra => block::PERMAFROST,
             _ => block::GRASS,
         }
     }
@@ -118,9 +125,9 @@ impl Biome {
         use lf_voxel::registry::block;
         use Biome::*;
         match self {
-            Badlands => block::TERRACOTTA,
+            Badlands => block::MESA_TERRACOTTA,
             Desert | Beach => block::SAND,
-            StonyShore | Mountains | SnowyPeaks => block::STONE,
+            StonyShore | Mountains | SnowyPeaks | Volcanic => block::STONE,
             _ => block::DIRT,
         }
     }
@@ -151,6 +158,8 @@ impl Biome {
             WindsweptSavanna => TreeKind::OakSparse,
             Tundra => TreeKind::SpruceSparse,
             SnowySlope => TreeKind::Spruce,
+            // C1: giant mushrooms grew during the Long Winter
+            MushroomHollow => TreeKind::Mushroom,
             _ => TreeKind::None,
         }
     }
@@ -176,6 +185,8 @@ pub enum TreeKind {
     Jungle,
     Cherry,
     Pale,
+    /// Giant mushroom: pale trunk, red-cap canopy (MushroomHollow).
+    Mushroom,
 }
 
 impl TreeKind {
@@ -192,6 +203,7 @@ impl TreeKind {
             TreeKind::Jungle => (block::LOG, block::LEAVES, 9, 3),
             TreeKind::Cherry => (block::CHERRY_LOG, block::CHERRY_LEAVES, 5, 3),
             TreeKind::Pale => (block::LOG, block::PALE_LEAVES, 5, 2),
+            TreeKind::Mushroom => (block::BIRCH_LOG, block::MUSHROOM_CAP, 3, 2),
         }
     }
 
@@ -241,6 +253,8 @@ pub fn biome_from(t: f32, h: f32, height: i32, variant: f32) -> Biome {
     if t > 0.75 {
         // hot
         if h < 0.35 {
+            // the volcanic belt: the rarest slice of hot dry land (C1)
+            if v < 0.10 && height > 64 && height < 150 { return Volcanic; }
             return if v > 0.82 { Badlands } else if v > 0.66 { WindsweptSavanna } else { Desert };
         }
         return Savanna;

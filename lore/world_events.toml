@@ -1,0 +1,122 @@
+# Named historical events of Valdenmoor (source: lore/WORLD_HISTORY.md).
+# Dates are canonical — Era + Year. The player's game begins Era IV Year 1.
+# `trigger` says which in-game happening can surface this event in the
+# chronicle: quest_completed (a faction quest for one of `factions` was
+# completed), structure_discovered, standing_honored (standing crossed +75).
+
+[[world_event]]
+id = "ashenmoor_compact"
+era = 1
+year = 12
+name = "The Ashenmoor Compact"
+description = "The first formal trade agreement between the Alder-kin and the Ashborn, struck at a crossing of two rivers, creating the settlement of Ashenmoor."
+factions = ["accord"]
+triggers = ["quest_completed"]
+
+[[world_event]]
+id = "great_smelter"
+era = 1
+year = 214
+name = "The Great Smelter of Ashenmoor"
+description = "The Ashborn's masterwork — a multi-floor industrial forge built into the cliffside above Ashenmoor. Still partially standing; the Ironborn revere it."
+factions = ["ironborn"]
+triggers = ["quest_completed"]
+
+[[world_event]]
+id = "first_mages"
+era = 1
+year = 301
+name = "The First Mages"
+description = "Isolated scholars in the highland forests began formalizing knowledge of natural energy flow — the seed of what became the Ember Covenant."
+factions = ["ember_covenant"]
+triggers = ["quest_completed"]
+
+[[world_event]]
+id = "the_sundering"
+era = 2
+year = 1
+name = "The Sundering"
+description = "A catastrophic event described differently by every faction, which destroyed Ashenmoor's upper city and scattered both root peoples."
+factions = ["accord", "ironborn", "ember_covenant", "ashen_order"]
+triggers = ["structure_discovered"]
+
+[[world_event]]
+id = "long_winter"
+era = 2
+year = 80
+name = "The Long Winter"
+description = "A multi-decade cold period following the Sundering. The mushroom forests grew explosively — the Covenant believes this was the world healing."
+factions = ["ember_covenant"]
+triggers = ["quest_completed"]
+
+[[world_event]]
+id = "wandering_century"
+era = 2
+year = 200
+name = "The Wandering Century"
+description = "The nomadic era with no fixed governance, during which the Nameless formed as a cultural identity of those who rejected all authority."
+factions = ["nameless"]
+triggers = ["quest_completed"]
+
+[[world_event]]
+id = "covenant_founded"
+era = 2
+year = 340
+name = "The Ember Covenant Founded"
+description = "Scholars and druidic survivors formed a formal order in the highland forests and built the first Covenant shrines."
+factions = ["ember_covenant"]
+triggers = ["standing_honored"]
+
+[[world_event]]
+id = "ironborn_chartered"
+era = 2
+year = 410
+name = "The Ironborn Guild Chartered"
+description = "The Ashborn remnants reorganized as a craft-and-trade guild rather than a people, deliberately choosing industrial identity over ethnic identity."
+factions = ["ironborn"]
+triggers = ["standing_honored"]
+
+[[world_event]]
+id = "accord_of_ashenmoor"
+era = 3
+year = 1
+name = "The Accord of Ashenmoor"
+description = "The governance compact that named the faction. The Free Holds refused to sign — their founding act of independence."
+factions = ["accord", "free_holds"]
+triggers = ["quest_completed", "standing_honored"]
+
+[[world_event]]
+id = "ashen_archive_founded"
+era = 3
+year = 55
+name = "The Ashen Archive Founded"
+description = "Neutral scholars established an independent library in a marble outcrop in the central highlands. The Ashen Order was born."
+factions = ["ashen_order"]
+triggers = ["structure_discovered"]
+
+[[world_event]]
+id = "nameless_raids"
+era = 3
+year = 120
+name = "The Nameless Raids"
+description = "A violent escalation of bandit activity that threatened to undo the Rebuild — the Accord's first military response, and the Nameless' counter-identity."
+factions = ["nameless", "accord"]
+triggers = ["quest_completed"]
+
+[[world_event]]
+id = "great_map"
+era = 3
+year = 180
+name = "The Great Map"
+description = "The Ashen Order completed the first comprehensive map of the known world. A copy exists in every Ashen Library."
+factions = ["ashen_order"]
+triggers = ["quest_completed"]
+
+[[world_event]]
+id = "coal_compact"
+era = 3
+year = 220
+name = "The Coal Compact"
+description = "The Ironborn and the Accord jointly agreed that coal, oil, and nuclear extraction require joint authorization — the root of Ironborn veto power."
+factions = ["ironborn", "accord"]
+triggers = ["quest_completed"]

@@ -17,6 +17,7 @@ pub mod construction;
 pub mod building;
 pub mod dragons;
 pub mod paths;
+pub mod companions;
 
 /// Game time with a 20-minute day/night cycle as per spec.
 #[derive(Clone, Debug, Serialize, Deserialize)]

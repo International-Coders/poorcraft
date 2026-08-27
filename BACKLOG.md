@@ -785,3 +785,63 @@ The full evidence trail, restated plainly:
   trading deliverable); dragon roosts/loot chests, breath ignition, and
   blueprint rotation are deferred; connected textures cover exactly
   stone + planks; the perf target is met on this iGPU host only.
+
+## lore-and-visuals build (2026-08-27, loop 327)
+
+Done (verified — tests + vistest PNGs listed in DEVLOG):
+
+- [x] A1 lore data layer: lf_lore + lore/*.toml (factions, world events,
+      NPC roster, dialogue); standing in ClientSave; Nameless start −50
+- [x] A2 faction territory tint on minimap + world map (30% blend,
+      height shading still reads); unclaimed biomes untinted
+- [x] A3/C4 faction standing HUD widget (name, symbol, colored bar,
+      standing number, pulse on change via faction_pulse) — bottom-right
+- [x] A4 twelve faction quests load, fire their objective types (incl.
+      new Break/Place/Interact/Reach-tag/any-food events), completing
+      moves standing (+15 issuer, documented ripples)
+- [x] B1 companion model + serde round-trip (trust/morale/wage/state/
+      tasks/cargo all persist in ClientSave)
+- [x] B2 hire flow: standing ≥75 gate, fee deduction, villager→companion
+      transition, chronicle entry; 4th hire refused with the doc line
+- [x] B3 command menu on interact (follow/stay/rest/mine/chop/haul/
+      guard/pay-now/dismiss) + trust/morale readout; low morale refuses
+      work ("I need rest.")
+- [x] B4 follow AI: 2-4 block standoff (never clings), defends against
+      the player's attacker, working tasks break real blocks into cargo,
+      contextual dialogue lines in chat
+- [x] B5 morale-zero quit (chronicle + faction −5 + trust memory −15);
+      unpaid wages −10 morale/day with warning; pay-now +2 trust
+- [x] C1 38 new blocks with distinct non-stretched textures (contact
+      sheet vistest_faction_blocks.png); catalog/recipe tests green
+- [x] C2 6 villager faction skins (+2 named NPC skins), 6 companion
+      skins + trust-badge variants at ≥50, 6 mob skins with distinct
+      silhouettes, 9 biome-tint variants (vistest_entity_skins.png)
+- [x] C3 six faction structures in home biomes (determinism + biome
+      gating tested) with banner markers settling faction NPCs
+      (vistest_<structure>.png x6, NPC cube in frame)
+- [x] C4 companion HUD tiles; ember particles (vistest_ember_glow.png);
+      AO verified present (mesher+shader); biome grade verified per
+      biome incl. Volcanic (automated vistest grade test)
+- [x] D1 standing-driven NPC behavior: ≤−30 refuses trade + hostile
+      dialogue line; ≥+50 friendly pricing (10% discount)
+- [x] D2 chronicle integration: standing titles on threshold crossings,
+      companion hired/dismissed/quit, quest completions, structure
+      discoveries — with world-event references by name + Era/Year
+- [x] D3 map structure icons (faction-color diamonds) + territory tint
+      re-verified with structures placed (vistest_faction_map.png)
+
+Deferred (honest notes):
+
+- [ ] The Unmarked's 5-choice dialogue interview (nameless_q2 completes
+      via interaction; the variable-outcome interview tree is future
+      dialogue work — the quest itself is playable)
+- [ ] Ashen library's "readable lore book" is the chest + existing tome
+      system; no library-exclusive book text written yet
+- [ ] Companion Craft command is stubbed in the menu (recipes they know
+      exist in the roster data; autonomous crafting is future work)
+- [ ] Haul moves cargo to the companion's cargo-clearing behavior; chest
+      targeting is simplified (nearest-chest pathing not implemented)
+- [ ] Nameless camp chest loot is spawn-table based (raiders drop
+      torn_archive_page); the chest itself initializes empty
+- [ ] Named-NPC uniqueness ("one per world, largest camp") is
+      first-settled-wins, not largest-camp-search

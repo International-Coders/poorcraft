@@ -756,3 +756,56 @@ three_systems test; lf_game::machines Belt + belt_push + BlockEntityRef
 (test) + the client belt pass; STATUS.md rewritten as the true state.
 **VERIFICATION**: 256 tests / 0 failed (+3). vistest 47/47. Smoke OK.
 Runtimes rebuilt; pushed.
+
+### 2026-08-27 — Loop 327: lore-and-visuals build (Sections A-D)
+**WHAT**: The full lore/factions/companions/visuals pack — six-faction
+standing system with TOML lore data layer, 12 faction quests, hireable
+companions with trust/morale/wages, 38 new blocks, six faction structures,
+entity skins with biome variants, map territory tint + structure icons,
+faction HUD widgets, ember particles, and the integration pass.
+**HOW**:
+- new `crates/lf_lore` (factions/world-events/npc-roster/dialogue/quests
+  TOML loaders + StandingState + threshold titles + rivals-drift rule);
+  data in `lore/{factions,world_events,npcs,dialogue,quests_factions}.toml`.
+- lf_story: quest faction fields + Break/Place/Interact/Reached events.
+- lf_voxel: block ids 68..=105 (12 faction, 8 biome-exclusive, 18
+  decoration), MOD_BLOCK_BASE->200, ember_glowstone emission 8. lf_assets:
+  atlas 86->160 layers (38 block textures + 36 entity/particle layers).
+  lf_game: items/drops/24 recipes + ironborn iron_plate + anima_crystal.
+- lf_worldgen: Volcanic biome (31st), surface swaps (gilded grass/peat/
+  permafrost/mesa terracotta), deep slate band, coral heads, ember
+  formations, accord road markers, `build_faction_structure` (public) +
+  placement for all six; GENERATOR_VERSION 3.
+- lf_game::companions: Companion model + commands + 2-4-block follow AI +
+  wage days + quit path (unit-tested incl. serde round-trip).
+- lf_client: factions.rs (standing+chronicle+world-event references, NPC
+  settling from banner markers, hire/dismiss/quit via pure cores, map
+  sync, ember emitter); trade UI dialogue layer + hire button + standing
+  gates (hostile refuse / friendly 10% discount); companion command menu;
+  faction standing widget + companion HUD tiles; map territory tint +
+  structure icons; entity rendering with faction/companion/mob skins +
+  trust badge + biome variants; NamelessRaider mob; quest tag emissions
+  (road markers, ember formations, new biomes, break/place events,
+  any_food); wages at sunrise (day rollover); ClientSave round-trips all
+  new state.
+- vistest: 13 new scenes (faction_blocks, six structures + faction NPC,
+  entity_skins, ember_glow, companion_follow, faction_map, faction_hud,
+  companion_commands) with mirrored previews.
+**VERIFICATION**: cargo test --workspace 282 passed / 0 failed (was 256;
++26 new: lf_lore 11, companions 7, client factions 5, worldgen structure
+tests 2 rewritten, + misc). vistest 60/60 (47 prior + 13 new), PNGs
+pixel-analyzed: structures distinct (unique md5s; embassy ~5.9k
+accord-stone px, shrine amber px, longhouse/camp/library/forge distinct),
+map shows two+ distinct territory tints + icon diamonds, HUD widget +
+companion tile present, command menu renders, ember sparks present.
+Two test bugs found and fixed during verification (proofs bite):
+companion rest-recovery rounded per-frame deltas to zero (fractional
+rest_bank now), and the attack/follow tests used a floorless mock world
+where unbounded gravity drift broke the work range (floored mock).
+AO verified in mesher+shader (pre-existing); biome grade table +
+Volcanic entry, automated grade test green. Smoke OK (12s alive, mods
+load, gen v2->v3 save migration warning correct). Runtimes rebuilt
+(dmg + linux tarball); windows cross not installed on this host.
+Structure-test note: the worldgen scan predicts placement with the same
+per-chunk hash the generator uses (the old luck-based 6400-chunk scan
+was flaky AND slow); seed 2026 pinned for savanna coverage.

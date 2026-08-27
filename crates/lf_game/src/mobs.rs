@@ -17,11 +17,15 @@ pub enum MobType {
     /// P36: roost boss — never rolls naturally; the client settles them
     /// at mountain roosts. Rendered multi-part on the client.
     Dragon,
+    /// lore-and-visuals: The Nameless' raiders — spawn near nameless
+    /// camps, pay in food, carry stolen archive pages.
+    NamelessRaider,
 }
 
 impl MobType {
     pub fn is_hostile(self) -> bool {
-        matches!(self, MobType::Glitchling | MobType::Stalker | MobType::Crawler | MobType::NullKnight)
+        matches!(self, MobType::Glitchling | MobType::Stalker | MobType::Crawler | MobType::NullKnight
+            | MobType::NamelessRaider)
     }
 
     pub fn stats(self) -> MobStats {
@@ -34,6 +38,7 @@ impl MobType {
             Crawler => MobStats { max_health: 15.0, damage: 3.0, speed: 3.6, size: 0.5, detect: 14.0 },
             NullKnight => MobStats { max_health: 250.0, damage: 15.0, speed: 2.2, size: 1.4, detect: 32.0 },
             Dragon => MobStats { max_health: 400.0, damage: 18.0, speed: 6.0, size: 2.2, detect: 32.0 },
+            NamelessRaider => MobStats { max_health: 22.0, damage: 5.0, speed: 3.0, size: 0.45, detect: 18.0 },
         }
     }
 
@@ -47,6 +52,7 @@ impl MobType {
             Crawler => [0.6, 0.3, 0.3],
             NullKnight => [0.15, 0.1, 0.25],
             Dragon => [0.45, 0.12, 0.1],
+            NamelessRaider => [0.12, 0.12, 0.13],
         }
     }
 
@@ -61,6 +67,8 @@ impl MobType {
             Crawler => &[("glitch_dust", 1)],
             NullKnight => &[("iron_ingot", 4), ("null_shard", 1)],
             Dragon => &[("dragon_scale", 3), ("raw_iron", 4)],
+            // the Nameless pay in food and carry what they've stolen
+            NamelessRaider => &[("porkchop", 1), ("apple", 1), ("torn_archive_page", 1)],
         }
     }
 }
@@ -205,8 +213,13 @@ impl MobEntity {
 
 /// Which mob type should spawn given the time of day.
 /// Day spawns are biome-appropriate (Step 18): Woolbeasts are cold-biome
-/// fauna, Boars temperate; night hostiles are global.
+/// fauna, Boars temperate; night hostiles are global. `nameless_biome`
+/// (lore-and-visuals) rolls Nameless raiders — the camps' garrison.
 pub fn roll_spawn(rand: u64, is_day: bool, cold_biome: bool) -> Option<MobType> {
+    roll_spawn_full(rand, is_day, cold_biome, false)
+}
+
+pub fn roll_spawn_full(rand: u64, is_day: bool, cold_biome: bool, nameless_biome: bool) -> Option<MobType> {
     use MobType::*;
     let v = (rand * 2654435761) % 100;
     if is_day {
@@ -221,6 +234,13 @@ pub fn roll_spawn(rand: u64, is_day: bool, cold_biome: bool) -> Option<MobType> 
                 40..=49 => Some(Woolbeast), // shaggy stragglers roam the edges
                 _ => None,
             }
+        }
+    } else if nameless_biome {
+        match v {
+            0..=24 => Some(NamelessRaider),
+            25..=49 => Some(Glitchling),
+            50..=64 => Some(Crawler),
+            _ => None,
         }
     } else {
         match v {

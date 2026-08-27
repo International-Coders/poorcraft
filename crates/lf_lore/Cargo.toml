@@ -1,0 +1,10 @@
+[package]
+name = "lf_lore"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse", "display"] }
+lf_worldgen = { path = "../lf_worldgen" }
+lf_story = { path = "../lf_story" }

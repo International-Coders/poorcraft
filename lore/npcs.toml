@@ -1,0 +1,223 @@
+# NPC roster (source: npcs/NPC_ROSTER.md + the per-faction companion types).
+# villager archetypes spawn at faction structures; `companion_form` names the
+# companion archetype a hireable villager becomes. Companion archetypes carry
+# wages (per in-game day), skills, and combat stats used by companion AI.
+
+# --- generic archetypes (name-randomized, many per world) ---------------
+
+[[npc]]
+id = "accord_herald"
+kind = "villager"
+faction = "accord"
+role = "Quest-giver; sells Accord building blocks and maps"
+name_pool = ["Herald Aldis", "Herald Cora", "Herald Venner"]
+structure = "accord_embassy"
+spawn_min = 1
+spawn_max = 2
+hireable = true
+companion_form = "accord_warden"
+hire_standing = 75
+hire_fee = [["iron_ingot", 12]]
+opening_hire_dialogue = "The Accord pays well and asks little — follow the law and keep to your contract. Can you do that?"
+
+[[npc]]
+id = "ironborn_artisan"
+kind = "villager"
+faction = "ironborn"
+role = "Trader; sells iron, ore, and recipes; runs the forge-camp furnace"
+name_pool = ["Brunn", "Sela Ironhanded", "Osk", "Terna"]
+structure = "ironborn_forge_camp"
+spawn_min = 1
+spawn_max = 1
+hireable = true
+companion_form = "ironborn_artisan"
+hire_standing = 75
+hire_fee = [["iron_ingot", 10]]
+opening_hire_dialogue = "I work for coin and good iron. Don't waste either and we'll get along."
+
+[[npc]]
+id = "covenant_herbalist"
+kind = "villager"
+faction = "ember_covenant"
+role = "Trades potions, herbs, and reagents"
+name_pool = ["Sister Yarrow", "Brother Lichen", "Sister Mirelle"]
+structure = "covenant_grove_shrine"
+spawn_min = 1
+spawn_max = 2
+hireable = true
+companion_form = "covenant_channeler"
+hire_standing = 75
+hire_fee = [["iron_ingot", 8], ["apple", 4]]
+opening_hire_dialogue = "The world is not a place to move through alone. Walk with me if you want, wanderer."
+
+[[npc]]
+id = "freeholds_elder"
+kind = "villager"
+faction = "free_holds"
+role = "Quest-giver; barters rather than trades"
+name_pool = ["Elder Maida", "Elder Ruarc", "Elder Tilde"]
+structure = "freeholds_longhouse"
+spawn_min = 1
+spawn_max = 1
+hireable = false
+opening_hire_dialogue = ""
+
+[[npc]]
+id = "freeholds_scout"
+kind = "villager"
+faction = "free_holds"
+role = "Wandering scout near the longhouse"
+name_pool = ["Tam", "Wren", "Hale"]
+structure = "freeholds_longhouse"
+spawn_min = 0
+spawn_max = 1
+hireable = true
+companion_form = "freeholds_scout"
+hire_standing = 75
+hire_fee = [["apple", 10]]
+opening_hire_dialogue = "You've proven you're not just another Accord messenger. I'll walk with you — for a fair share of what we find."
+
+[[npc]]
+id = "ashen_archivist"
+kind = "villager"
+faction = "ashen_order"
+role = "Trader; lore books, paper, ink, maps; reads found books aloud"
+name_pool = ["Archivist Pell", "Archivist Ona", "Archivist Grell"]
+structure = "ashen_library"
+spawn_min = 1
+spawn_max = 1
+hireable = true
+companion_form = "ashen_scribe"
+hire_standing = 75
+hire_fee = [["book", 2], ["iron_ingot", 4]]
+opening_hire_dialogue = "I record events. Traveling with you would produce... considerably more of them."
+
+[[npc]]
+id = "nameless_drifter"
+kind = "villager"
+faction = "nameless"
+role = "Quest-giver at standing >= -30; hostile below"
+name_pool = ["the Drifter", "the Quiet One", "the Grey Hand"]
+structure = "nameless_camp"
+spawn_min = 2
+spawn_max = 4
+hireable = true
+companion_form = "nameless_rover"
+hire_standing = 75
+hire_fee = [["porkchop", 8]]
+opening_hire_dialogue = "I don't work for anyone. But I'll walk next to you — for now."
+
+# --- named NPCs (one per world, fixed) ----------------------------------
+
+[[npc]]
+id = "the_unmarked"
+kind = "villager"
+named = true
+faction = "nameless"
+role = "Elder and philosopher; quest-giver for nameless_q2_the_philosophy"
+name_pool = ["The Unmarked"]
+structure = "nameless_camp"
+spawn_min = 1
+spawn_max = 1
+hireable = false
+opening_hire_dialogue = ""
+
+[[npc]]
+id = "maren_voss"
+kind = "villager"
+named = true
+faction = "ashen_order"
+role = "The Order's primary contact at the Ashen Archive"
+name_pool = ["Archivist Maren Voss"]
+structure = "ashen_library"
+spawn_min = 1
+spawn_max = 1
+hireable = false
+opening_hire_dialogue = ""
+
+[[npc]]
+id = "dag_holtz"
+kind = "villager"
+named = true
+faction = "ironborn"
+role = "Ironborn foreman; primary contact at the largest forge camp"
+name_pool = ["Foreman Dag Holtz"]
+structure = "ironborn_forge_camp"
+spawn_min = 1
+spawn_max = 1
+hireable = false
+opening_hire_dialogue = ""
+
+# --- companion forms (what a hireable villager becomes) -----------------
+
+[[npc]]
+id = "accord_warden"
+kind = "companion"
+faction = "accord"
+role = "Combat guard; crafts Accord-tier building blocks"
+skills = ["combat", "accord_blocks"]
+health = 40
+damage = 6
+speed = 3.4
+starter_tools = [["iron_sword", 1]]
+daily_wage = [["iron_ingot", 8]]
+
+[[npc]]
+id = "ironborn_artisan"
+kind = "companion"
+faction = "ironborn"
+role = "Smelting, crafting, mining — automated production"
+skills = ["smelting", "crafting", "mining"]
+health = 35
+damage = 5
+speed = 3.0
+starter_tools = [["iron_pickaxe", 1]]
+daily_wage = [["iron_ingot", 6], ["coal", 3]]
+
+[[npc]]
+id = "covenant_channeler"
+kind = "companion"
+faction = "ember_covenant"
+role = "Ward support; herb gathering; reads lore books aloud"
+skills = ["ward", "herbs", "lore"]
+health = 30
+damage = 4
+speed = 3.6
+starter_tools = [["apple", 2]]
+daily_wage = [["apple", 4]]
+
+[[npc]]
+id = "freeholds_scout"
+kind = "companion"
+faction = "free_holds"
+role = "Ranged combat, tracking, foraging"
+skills = ["ranged", "tracking", "foraging"]
+health = 32
+damage = 5
+speed = 3.8
+starter_tools = [["bow", 1]]
+daily_wage = [["apple", 5]]
+
+[[npc]]
+id = "ashen_scribe"
+kind = "companion"
+faction = "ashen_order"
+role = "Item identification, chronicle dictation, paper crafting"
+skills = ["identify", "chronicle", "paper"]
+health = 26
+damage = 3
+speed = 3.2
+starter_tools = [["book", 1]]
+daily_wage = [["book", 3]]
+
+[[npc]]
+id = "nameless_rover"
+kind = "companion"
+faction = "nameless"
+role = "Stealth, lockpicking, knife combat"
+skills = ["stealth", "lockpick", "knife"]
+health = 30
+damage = 6
+speed = 4.0
+starter_tools = [["iron_sword", 1]]
+daily_wage = [["porkchop", 6]]

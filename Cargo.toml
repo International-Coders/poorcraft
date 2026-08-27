@@ -7,6 +7,7 @@ members = [
     "crates/lf_worldgen",
     "crates/lf_game",
     "crates/lf_story",
+    "crates/lf_lore",
     "crates/lf_npc",
     "crates/lf_chronicle",
     "crates/lf_modapi",
@@ -36,6 +37,7 @@ rust-version = "1.82"
 # rayon, postcard, ron.)
 [workspace.dependencies]
 lf_audio = { path = "crates/lf_audio" }
+lf_lore = { path = "crates/lf_lore" }
 # Windowing & graphics (version-locked trio: wgpu 24 / winit 0.30 / egui 0.31)
 winit = "0.30"
 wgpu = "24.0"

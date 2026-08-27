@@ -33,7 +33,7 @@ pub const SEA_LEVEL: i32 = 62;
 /// regenerated after a revisit may differ from their first visit (edited
 /// chunks are persisted and never regenerated). Pre-P25 worlds have no
 /// stamp and read as `None`.
-pub const GENERATOR_VERSION: u32 = 2; // v2: biome-identity surfaces (jungle/savanna grass, mycelium hollow, wildflowers)
+pub const GENERATOR_VERSION: u32 = 3; // v3: lore-and-visuals — volcanic biome, biome-exclusive surfaces, faction structures, deep slate, ember formations, accord road markers
 
 /// Stamp `genver.dat` in a world directory with the generator version.
 pub fn save_generator_version(dir: &std::path::Path, version: u32) -> std::io::Result<()> {
@@ -379,6 +379,20 @@ impl WorldGen {
             }
         }
 
+        // 2.5 Deep slate: the deepest stone band darkens (C1's deep-cave
+        //     block — no underground biome dimension, so depth is the biome).
+        if self.world_type != WorldType::Superflat {
+            for lx in 0..16usize {
+                for lz in 0..16usize {
+                    for y in 6..18usize {
+                        if col.get(lx, y, lz) == BlockState::STONE {
+                            col.set(lx, y, lz, BlockState(block::DEEP_SLATE));
+                        }
+                    }
+                }
+            }
+        }
+
         // 3. Ores replace stone: coal shallow and common, iron deeper.
         for lx in 0..16usize {
             for lz in 0..16usize {
@@ -386,7 +400,8 @@ impl WorldGen {
                 let wz = (cz * 16 + lz as i32) as f32;
                 let top = (surface_tops[lx][lz] - 5).max(6);
                 for y in 6..top {
-                    if col.get(lx, y as usize, lz) != BlockState::STONE {
+                    // ores embed in the deep-slate band as well as stone
+                    if !matches!(col.get(lx, y as usize, lz), BlockState::STONE | BlockState(block::DEEP_SLATE)) {
                         continue;
                     }
                     let coal_n = self.noise_ore.get_noise_3d(wx, y as f32, wz);
@@ -448,7 +463,8 @@ impl WorldGen {
                 let wx_f = wx as f32;
                 let wz_f = wz as f32;
                 for y in 8..44i32 {
-                    if col.get(lx, y as usize, lz) != BlockState::STONE {
+                    // deep slate replaced stone below y=18; oil embeds in both
+                    if !matches!(col.get(lx, y as usize, lz), BlockState::STONE | BlockState(block::DEEP_SLATE)) {
                         continue;
                     }
                     let oil_n = self.noise_ore.get_noise_3d(wx_f + 6000.0, y as f32, wz_f);
@@ -536,6 +552,59 @@ impl WorldGen {
             }
         }
 
+        // 5.7 Coral heads: the reef exclusive on WarmOcean floors (C1) —
+        //     small live-topped clusters, deterministic per column.
+        for lx in 1..15usize {
+            for lz in 1..15usize {
+                let wx = cx * 16 + lx as i32;
+                let wz = cz * 16 + lz as i32;
+                if self.biome(wx, wz) != Biome::WarmOcean {
+                    continue;
+                }
+                if hash2(wx, wz, self.seed_for_features() ^ 0xc0aa1) % 23 != 0 {
+                    continue;
+                }
+                let top = surface_tops[lx][lz];
+                if top >= SEA_LEVEL || top < 8 {
+                    continue;
+                }
+                col.set(lx, top as usize, lz, BlockState(block::CORAL_BLOCK));
+                if hash2(wx, wz, self.seed_for_features() ^ 0xc0aa2) % 2 == 0 && lx < 15 && top + 1 < SEA_LEVEL {
+                    col.set(lx + 1, top as usize, lz, BlockState(block::CORAL_BLOCK));
+                }
+            }
+        }
+
+        // 5.8 Natural ember-glowstone formations (Covenant quest markers,
+        //     covenant_q2): rare Anima concentrations on the faction's
+        //     home highlands. Placed as a small standing cluster.
+        if matches!(self.biome(cx * 16 + 8, cz * 16 + 8), Biome::Highlands | Biome::Taiga | Biome::MushroomHollow)
+            && hash2(cx, cz, self.seed_for_features() ^ 0xe3b3b) % 173 == 0
+        {
+            let top = surface_tops[8][8];
+            if top > SEA_LEVEL + 1 && top < 200 {
+                col.set(8, top as usize, 8, BlockState(block::EMBER_GLOWSTONE));
+                if top + 1 < 256 {
+                    col.set(8, (top + 1) as usize, 8, BlockState(block::EMBER_GLOWSTONE));
+                }
+            }
+        }
+
+        // 5.9 Accord survey markers along the trade roads (accord_q1 reach
+        //     targets; the Nameless pay to break them). A two-block
+        //     accord_pillar post, rare per chunk in Accord territory.
+        if matches!(self.biome(cx * 16 + 8, cz * 16 + 8), Biome::Meadow | Biome::Forest)
+            && hash2(cx, cz, self.seed_for_features() ^ 0x0a2c) % 211 == 0
+        {
+            let top = surface_tops[8][8];
+            if top > SEA_LEVEL + 1 && top < 200 {
+                col.set(8, top as usize, 8, BlockState(block::ACCORD_PILLAR));
+                if top + 1 < 256 {
+                    col.set(8, (top + 1) as usize, 8, BlockState(block::ACCORD_PILLAR));
+                }
+            }
+        }
+
         // 6. Trees by biome kind, canopies kept inside the chunk.
         for lx in 3..13usize {
             for lz in 3..13usize {
@@ -551,6 +620,7 @@ impl WorldGen {
                     col.get(lx, (top - 1) as usize, lz).id(),
                     block::GRASS | block::JUNGLE_GRASS | block::SAVANNA_GRASS
                         | block::MYCELIUM | block::MOSS | block::SNOW | block::SAND | block::DIRT
+                        | block::GILDED_GRASS | block::PERMAFROST | block::BOG_PEAT
                 );
                 if !surface_ok {
                     continue;
@@ -786,9 +856,253 @@ impl WorldGen {
             // P36: dragon roosts — mountain peaks only, very rare
             Biome::Mountains if h0 % 89 == 0 => build_roost(col),
             Biome::SnowyPeaks if h0 % 101 == 0 => build_roost(col),
+            // Faction structures (lore-and-visuals C3): one per faction, in
+            // its home biomes. The banner block is the NPC-settle marker.
+            Biome::Meadow | Biome::Forest if h0 % 131 == 0 => {
+                build_faction_structure(FactionStructure::AccordEmbassy, col, &ground)
+            }
+            Biome::Mountains | Biome::Badlands | Biome::Volcanic if h0 % 139 == 0 => {
+                build_faction_structure(FactionStructure::IronbornForgeCamp, col, &ground)
+            }
+            Biome::Highlands | Biome::Taiga | Biome::MushroomHollow if h0 % 149 == 0 => {
+                build_faction_structure(FactionStructure::CovenantGroveShrine, col, &ground)
+            }
+            Biome::Savanna | Biome::WindsweptSavanna if h0 % 157 == 0 => {
+                build_faction_structure(FactionStructure::FreeholdsLonghouse, col, &ground)
+            }
+            Biome::WindsweptHills | Biome::Tundra if h0 % 167 == 0 => {
+                build_faction_structure(FactionStructure::AshenLibrary, col, &ground)
+            }
+            Biome::PaleGarden | Biome::DarkForest if h0 % 173 == 0 => {
+                build_faction_structure(FactionStructure::NamelessCamp, col, &ground)
+            }
             _ => {}
         }
     }
+}
+
+/// The six faction structures (lore-and-visuals C3). Built in-chunk from
+/// each faction's themed blocks; the banner block doubles as the marker
+/// the client scans to settle faction NPCs there. Public so vistest can
+/// plant one deterministically for proof shots.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum FactionStructure {
+    AccordEmbassy,
+    IronbornForgeCamp,
+    CovenantGroveShrine,
+    FreeholdsLonghouse,
+    AshenLibrary,
+    NamelessCamp,
+}
+
+impl FactionStructure {
+    pub fn marker_block(self) -> u32 {
+        use lf_voxel::registry::block;
+        match self {
+            FactionStructure::AccordEmbassy => block::BANNER_ACCORD,
+            FactionStructure::IronbornForgeCamp => block::BANNER_IRONBORN,
+            FactionStructure::CovenantGroveShrine => block::BANNER_COVENANT,
+            FactionStructure::FreeholdsLonghouse => block::BANNER_FREEHOLDS,
+            FactionStructure::AshenLibrary => block::BANNER_ASHEN,
+            FactionStructure::NamelessCamp => block::BANNER_NAMELESS,
+        }
+    }
+
+    /// Data-file structure key matching lore/npcs.toml `structure` fields.
+    pub fn key(self) -> &'static str {
+        match self {
+            FactionStructure::AccordEmbassy => "accord_embassy",
+            FactionStructure::IronbornForgeCamp => "ironborn_forge_camp",
+            FactionStructure::CovenantGroveShrine => "covenant_grove_shrine",
+            FactionStructure::FreeholdsLonghouse => "freeholds_longhouse",
+            FactionStructure::AshenLibrary => "ashen_library",
+            FactionStructure::NamelessCamp => "nameless_camp",
+        }
+    }
+}
+
+/// Build a faction structure into a chunk column. `ground(lx, lz)` gives
+/// the surface y for that column cell; footprints stay in-chunk.
+pub fn build_faction_structure(
+    kind: FactionStructure,
+    col: &mut lf_voxel::ChunkColumn,
+    ground: &dyn Fn(usize, usize) -> usize,
+) {
+    use lf_voxel::BlockState;
+    use lf_voxel::registry::block;
+    let set = |col: &mut lf_voxel::ChunkColumn, x: usize, y: usize, z: usize, b: u32| {
+        if y < 256 {
+            col.set(x, y, z, BlockState(b));
+        }
+    };
+    let base_y = ground(8, 8);
+    if base_y <= SEA_LEVEL as usize || base_y > 200 {
+        return;
+    }
+    let b = base_y as usize;
+    match kind {
+        FactionStructure::AccordEmbassy => {
+            // Walled courtyard with a gatehouse: accord_stone walls, two
+            // accord_pillar gate posts, banner at the center.
+            for dx in 5..=11usize {
+                for dz in 5..=11usize {
+                    let edge = dx == 5 || dx == 11 || dz == 5 || dz == 11;
+                    if edge {
+                        for dy in 0..3usize {
+                            set(col, dx, b + dy, dz, block::ACCORD_STONE);
+                        }
+                    } else {
+                        set(col, dx, b, dz, block::ACCORD_STONE); // paved court
+                    }
+                }
+            }
+            // gate opening + flanking pillars (south side)
+            for dy in 1..3usize {
+                set(col, 8, b + dy, 5, block::AIR);
+                set(col, 7, b + dy, 5, block::ACCORD_PILLAR);
+                set(col, 9, b + dy, 5, block::ACCORD_PILLAR);
+            }
+            set(col, 8, b + 1, 8, block::BANNER_ACCORD);
+            set(col, 6, b + 1, 8, block::TORCH);
+            set(col, 10, b + 1, 8, block::TORCH);
+        }
+        FactionStructure::IronbornForgeCamp => {
+            // Compact industrial shelter: brick walls, grate windows, a
+            // working furnace and the guild banner.
+            for dx in 5..=11usize {
+                for dz in 6..=11usize {
+                    let edge = dx == 5 || dx == 11 || dz == 6 || dz == 11;
+                    if edge {
+                        for dy in 0..3usize {
+                            set(col, dx, b + dy, dz, block::IRONBORN_BRICK);
+                        }
+                    } else {
+                        set(col, dx, b, dz, block::IRONBORN_BRICK);
+                    }
+                }
+            }
+            // grate windows on the long wall
+            set(col, 6, b + 1, 6, block::IRONBORN_GRATE);
+            set(col, 10, b + 1, 6, block::IRONBORN_GRATE);
+            // door
+            set(col, 8, b + 1, 6, block::AIR);
+            set(col, 8, b + 2, 6, block::AIR);
+            set(col, 7, b + 1, 9, block::FURNACE);
+            set(col, 8, b + 1, 8, block::BANNER_IRONBORN);
+            set(col, 6, b + 1, 8, block::LANTERN);
+        }
+        FactionStructure::CovenantGroveShrine => {
+            // Ring of covenantwood posts around a central ember-glowstone
+            // altar.
+            let posts = [(8usize, 4usize), (11, 6), (11, 10), (8, 12), (5, 10), (5, 6)];
+            for (px, pz) in posts {
+                let py = ground(px, pz).min(250) as usize;
+                if py <= SEA_LEVEL as usize || py > 200 {
+                    continue;
+                }
+                set(col, px, py, pz, block::EMBER_COVENANTWOOD);
+                set(col, px, py + 1, pz, block::EMBER_COVENANTWOOD);
+            }
+            set(col, 8, b, 8, block::EMBER_GLOWSTONE);
+            set(col, 8, b + 1, 8, block::EMBER_GLOWSTONE);
+            set(col, 8, b + 2, 8, block::BANNER_COVENANT);
+        }
+        FactionStructure::FreeholdsLonghouse => {
+            // Thatch-roofed daub longhouse, log posts, a chest and table.
+            for dx in 4..=12usize {
+                for dz in 5..=11usize {
+                    let edge = dx == 4 || dx == 12 || dz == 5 || dz == 11;
+                    let corner = (dx == 4 || dx == 12) && (dz == 5 || dz == 11);
+                    if corner {
+                        for dy in 0..3usize {
+                            set(col, dx, b + dy, dz, block::LOG);
+                        }
+                    } else if edge {
+                        for dy in 0..3usize {
+                            set(col, dx, b + dy, dz, block::FREEHOLDS_DAUB);
+                        }
+                    } else {
+                        set(col, dx, b, dz, block::FREEHOLDS_DAUB);
+                    }
+                }
+            }
+            // thatch roof (two overlapping caps so it reads from afar)
+            for dx in 4..=12usize {
+                for dz in 5..=11usize {
+                    set(col, dx, b + 3, dz, block::FREEHOLDS_THATCH);
+                }
+            }
+            for dx in 5..=11usize {
+                for dz in 6..=10usize {
+                    set(col, dx, b + 4, dz, block::FREEHOLDS_THATCH);
+                }
+            }
+            set(col, 8, b + 1, 5, block::AIR);
+            set(col, 8, b + 2, 5, block::AIR);
+            set(col, 6, b + 1, 8, block::CHEST);
+            set(col, 7, b + 1, 8, block::CRAFTING_TABLE);
+            set(col, 9, b + 1, 8, block::BANNER_FREEHOLDS);
+            set(col, 10, b + 1, 8, block::TORCH);
+        }
+        FactionStructure::AshenLibrary => {
+            // Small marble library: bookshelf interior, a lore chest, the
+            // banner, and light to read by.
+            for dx in 5..=11usize {
+                for dz in 5..=11usize {
+                    let edge = dx == 5 || dx == 11 || dz == 5 || dz == 11;
+                    if edge {
+                        for dy in 0..4usize {
+                            set(col, dx, b + dy, dz, block::ASHEN_MARBLE);
+                        }
+                    } else {
+                        set(col, dx, b, dz, block::ASHEN_MARBLE);
+                    }
+                }
+            }
+            set(col, 8, b + 1, 5, block::AIR);
+            set(col, 8, b + 2, 5, block::AIR);
+            set(col, 8, b + 3, 5, block::AIR);
+            // interior shelves
+            for dz in 7..=9usize {
+                set(col, 5, b + 1, dz, block::ASHEN_BOOKSHELF);
+                set(col, 11, b + 1, dz, block::ASHEN_BOOKSHELF);
+            }
+            set(col, 7, b + 1, 8, block::CHEST);
+            set(col, 9, b + 1, 8, block::BANNER_ASHEN);
+            set(col, 8, b + 1, 9, block::TORCH);
+        }
+        FactionStructure::NamelessCamp => {
+            // Derelict camp: a broken rotwood palisade with gaps, a
+            // scorched firepit, one loot chest. Banner flies torn.
+            for dx in 5..=11usize {
+                for dz in 5..=11usize {
+                    let edge = dx == 5 || dx == 11 || dz == 5 || dz == 11;
+                    if !edge {
+                        continue;
+                    }
+                    // gaps: every third wall cell is missing (derelict)
+                    if (dx + dz) % 3 == 0 {
+                        continue;
+                    }
+                    let h = if (dx * 7 + dz * 13) % 4 < 2 { 1 } else { 2 };
+                    for dy in 0..h {
+                        set(col, dx, b + dy, dz, block::NAMELESS_ROTWOOD);
+                    }
+                }
+            }
+            // scorched firepit ring
+            set(col, 7, b, 8, block::NAMELESS_SCORCHED);
+            set(col, 9, b, 8, block::NAMELESS_SCORCHED);
+            set(col, 8, b, 7, block::NAMELESS_SCORCHED);
+            set(col, 8, b, 9, block::NAMELESS_SCORCHED);
+            set(col, 8, b, 8, block::NAMELESS_SCORCHED);
+            set(col, 6, b + 1, 6, block::CHEST);
+            set(col, 10, b + 1, 10, block::BANNER_NAMELESS);
+        }
+    }
+}
+
+impl WorldGen {
     /// Superflat tail: water fill + sparse trees only.
     fn finish_flat(&self, mut col: lf_voxel::ChunkColumn, cx: i32, cz: i32,
         surface_tops: &[[i32; 16]; 16]) -> lf_voxel::ChunkColumn {
@@ -865,7 +1179,87 @@ mod tests {
 
     /// P33: wizard towers generate (enchanting table on top), only in the
     /// gated biomes, rare.
+    /// lore-and-visuals C3: all six faction structures generate (their
+    /// banner markers appear), only in their factions' home biomes,
+    /// deterministically. Placement is predicted with the same per-chunk
+    /// hash the generator uses (cheap), then verified on the real chunk.
     #[test]
+    fn faction_structures_generate_in_home_biomes() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(2026));
+        let feats = gen.seed_for_features();
+        // (marker, structure name, home biomes, placement modulus)
+        let markers: [(u32, &str, Vec<Biome>, u64); 6] = [
+            (block::BANNER_ACCORD, "accord_embassy", vec![Biome::Meadow, Biome::Forest], 131),
+            (block::BANNER_IRONBORN, "ironborn_forge_camp", vec![Biome::Mountains, Biome::Badlands, Biome::Volcanic], 139),
+            (block::BANNER_COVENANT, "covenant_grove_shrine", vec![Biome::Highlands, Biome::Taiga, Biome::MushroomHollow], 149),
+            (block::BANNER_FREEHOLDS, "freeholds_longhouse", vec![Biome::Savanna, Biome::WindsweptSavanna], 157),
+            (block::BANNER_ASHEN, "ashen_library", vec![Biome::WindsweptHills, Biome::Tundra], 167),
+            (block::BANNER_NAMELESS, "nameless_camp", vec![Biome::PaleGarden, Biome::DarkForest], 173),
+        ];
+        let has_marker = |col: &lf_voxel::ChunkColumn, marker: u32| {
+            (0..16).any(|lx| (0..16).any(|lz|
+                (40..200).any(|y| col.get(lx, y, lz).id() == marker)))
+        };
+        for (marker, name, homes, modulus) in &markers {
+            // find the chunk the generator WILL build this structure in
+            let mut built = 0;
+            'find: for cx in -120..120i32 {
+                for cz in -120..120i32 {
+                    let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                    if !homes.contains(&b) {
+                        continue;
+                    }
+                    let h0 = hash2(cx, cz, feats ^ 0x5bd1e995);
+                    if h0 % *modulus != 0 {
+                        continue;
+                    }
+                    // this chunk should carry the banner — and must not in
+                    // a foreign biome (the match arm guards it by construction)
+                    let col = gen.generate_chunk(cx, cz);
+                    assert!(has_marker(&col, *marker),
+                        "{} predicted at ({},{}) {:?} but no banner generated", name, cx, cz, b);
+                    // determinism: same chunk, same banner
+                    let col2 = gen.generate_chunk(cx, cz);
+                    assert!(has_marker(&col2, *marker), "{} marker not deterministic", name);
+                    built += 1;
+                    if built >= 1 {
+                        break 'find;
+                    }
+                }
+            }
+            assert!(built >= 1, "no chunk in a 240x240 scan places {} — check the placement hash", name);
+        }
+    }
+
+    /// The planted faction structures are buildable standalone (vistest
+    /// uses this) and carry their faction blocks.
+    #[test]
+    fn planted_faction_structures_carry_faction_blocks() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(7));
+        let ground = |_lx: usize, _lz: usize| -> usize { 80 };
+        let cases: [(FactionStructure, u32, u32); 6] = [
+            (FactionStructure::AccordEmbassy, block::ACCORD_STONE, block::BANNER_ACCORD),
+            (FactionStructure::IronbornForgeCamp, block::IRONBORN_BRICK, block::BANNER_IRONBORN),
+            (FactionStructure::CovenantGroveShrine, block::EMBER_COVENANTWOOD, block::BANNER_COVENANT),
+            (FactionStructure::FreeholdsLonghouse, block::FREEHOLDS_THATCH, block::BANNER_FREEHOLDS),
+            (FactionStructure::AshenLibrary, block::ASHEN_MARBLE, block::BANNER_ASHEN),
+            (FactionStructure::NamelessCamp, block::NAMELESS_ROTWOOD, block::BANNER_NAMELESS),
+        ];
+        for (kind, themed, marker) in cases {
+            let mut col = lf_voxel::ChunkColumn::empty();
+            build_faction_structure(kind, &mut col, &ground);
+            let count = |id: u32| (0..16).flat_map(|lx| (0..16).map(move |lz| (lx, lz)))
+                .filter(|(lx, lz)| (40..200).any(|y| col.get(*lx, y, *lz).id() == id)).count();
+            assert!(count(themed) > 4, "{:?} lacks its themed block", kind);
+            assert!(count(marker) >= 1, "{:?} lacks its banner marker", kind);
+            assert_eq!(count(marker), 1, "{:?} has duplicate markers", kind);
+        }
+        let _ = gen;
+    }
+
+#[test]
     fn wizard_towers_generate_in_gated_biomes() {
         let mut towers = 0usize;
         let gen = WorldGen::new(Seed(42));

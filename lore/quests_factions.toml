@@ -1,0 +1,182 @@
+# Faction quest chains (source: the "Two starter quests" sections of
+# factions/THE_*.md — narrative text is canonical, lightly trimmed for the
+# quest log). Objective types match lf_story::QuestType; `target` semantics:
+#   Collect — item id ("any_food" matches any food item)
+#   Craft   — item id produced
+#   Kill    — mob kind id, or "hostile" wildcard
+#   Reach   — a world tag reached ("road_marker", "ember_formation",
+#             "new_biome", "the_unmarked"); "depth" keeps its legacy meaning
+#   Break   — block name broken
+#   Place   — block name placed
+#   Interact— npc archetype id
+
+[[quest]]
+id = "accord_q1_road_survey"
+title = "The Broken Road"
+faction = "accord"
+act = 1
+standing_reward = 15
+description = "The road between Ashenmoor and the eastern settlements has been disrupted. We need someone to walk it and confirm which sections are passable. No fighting required — we simply need eyes on the ground. Survey the stone markers along the trade road."
+[[quest.objectives]]
+type = "Reach"
+target = "road_marker"
+count = 3
+
+[[quest]]
+id = "accord_q2_nameless_camp"
+title = "The Camp at Miller's Crossing"
+faction = "accord"
+act = 1
+standing_reward = 15
+description = "A Nameless camp has established itself near Miller's Crossing, raiding grain shipments. The Free Holds won't act — it's too close to their territory and they distrust us. I need someone to remove it. Break up the raiders, then return to the Herald."
+[[quest.objectives]]
+type = "Kill"
+target = "nameless_raider"
+count = 4
+[[quest.objectives]]
+type = "Interact"
+target = "accord_herald"
+count = 1
+
+[quest.other_standing]
+free_holds = -5
+
+[[quest]]
+id = "ironborn_q1_ore_survey"
+title = "The Vein Finder"
+faction = "ironborn"
+act = 1
+standing_reward = 15
+description = "We don't give Guild standing to wanderers who talk well. Bring us 20 iron ore — raw, not smelted. We'll smelt it ourselves. That's how we know you can find ore, not just buy it."
+[[quest.objectives]]
+type = "Collect"
+target = "raw_iron"
+count = 20
+
+[[quest]]
+id = "ironborn_q2_machine_parts"
+title = "Parts for the Press"
+faction = "ironborn"
+act = 1
+standing_reward = 15
+description = "The old press needs new faceplates. Iron, smelted clean, and cut flat. You know the recipe now — three ingots and coal in the forge makes five plates. Bring me five."
+[[quest.objectives]]
+type = "Craft"
+target = "iron_plate"
+count = 5
+
+[[quest]]
+id = "covenant_q1_healing_herbs"
+title = "What the Bog Gives"
+faction = "ember_covenant"
+act = 1
+standing_reward = 15
+description = "The shrine's healing stores are low. The bog gives freely to those who know where to look — and to those who approach it without fear. Bring me ten bundles of what you find there."
+[[quest.objectives]]
+type = "Collect"
+target = "bog_grass"
+count = 10
+
+[[quest]]
+id = "covenant_q2_ember_stone"
+title = "Tend the Ember Stone"
+faction = "ember_covenant"
+act = 1
+standing_reward = 15
+description = "The ember stones mark where Anima concentrates in the highland. We tend them — not to extract their power, but to remind the world we're watching. Visit the natural formations, then craft and place one of our blessed stones yourself."
+[[quest.objectives]]
+type = "Reach"
+target = "ember_formation"
+count = 3
+[[quest.objectives]]
+type = "Craft"
+target = "ember_glowstone"
+count = 1
+
+[[quest]]
+id = "freeholds_q1_harvest"
+title = "Hands on the Harvest"
+faction = "free_holds"
+act = 1
+standing_reward = 15
+description = "I don't care what the Accord says you are. If you can bring twenty good harvests, you're useful. We've been short this season and I'd rather have a stranger's help than an Accord official's permission."
+[[quest.objectives]]
+type = "Collect"
+target = "any_food"
+count = 20
+
+[quest.other_standing]
+accord = -3
+
+[[quest]]
+id = "freeholds_q2_boundary_markers"
+title = "Our Ground, Our Markers"
+faction = "free_holds"
+act = 1
+standing_reward = 15
+description = "The Accord keeps redrawing maps and calling our land 'unclaimed territory.' It's not unclaimed. Craft daub markers and place five at the boundary, so any cartographer who walks through knows this is Free Holds ground. I don't care if the Accord argues — the stones will be there."
+[[quest.objectives]]
+type = "Craft"
+target = "freeholds_daub"
+count = 5
+[[quest.objectives]]
+type = "Place"
+target = "freeholds_daub"
+count = 5
+
+[quest.other_standing]
+accord = -5
+
+[[quest]]
+id = "ashen_q1_document_recovery"
+title = "The Missing Page"
+faction = "ashen_order"
+act = 1
+standing_reward = 15
+description = "A page from our Third Era survey was taken — probably by Nameless, probably meaninglessly. But it's a real document and we'd like it back. It describes a mountain survey from E3Y180. If you happen across it in your travels, we'd appreciate its return."
+[[quest.objectives]]
+type = "Collect"
+target = "torn_archive_page"
+count = 1
+
+[[quest]]
+id = "ashen_q2_biome_survey"
+title = "Three New Corners"
+faction = "ashen_order"
+act = 1
+standing_reward = 15
+description = "Our maps are comprehensive but not current — the Great Map is two hundred years old. We know the biomes exist; we don't have recent accounts of what's in them. Walk into three places you haven't been, and come back. Your observations, even informal ones, help us."
+[[quest.objectives]]
+type = "Reach"
+target = "new_biome"
+count = 3
+
+[[quest]]
+id = "nameless_q1_accord_marker"
+title = "Unmarked"
+faction = "nameless"
+act = 1
+standing_reward = 20
+description = "They put their markers on everything. This field, that road, this hill. It was here before they were. Break three of their stakes — I don't care which — and come back. No one else will pay you to do this. We will."
+[[quest.objectives]]
+type = "Break"
+target = "accord_pillar"
+count = 3
+
+[quest.other_standing]
+accord = -10
+
+[[quest]]
+id = "nameless_q2_the_philosophy"
+title = "What We Decided"
+faction = "nameless"
+act = 1
+standing_reward = 20
+description = "The Unmarked has heard of you. Find them in the deepest of the Nameless camps and speak with them honestly — the interview, not the errand, is the quest. Thoughtful answers earn more than agreement."
+[[quest.objectives]]
+type = "Interact"
+target = "the_unmarked"
+count = 1
+
+[quest.other_standing]
+accord = -10

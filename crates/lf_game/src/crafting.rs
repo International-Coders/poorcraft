@@ -178,6 +178,103 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("iron_ingot"), None, Some("iron_ingot")],
         vec![None, Some("iron_ingot"), None],
     ]));
+    // Faction + decoration blocks (lore-and-visuals C1)
+    book.push(r("accord_stone", 4, vec![
+        vec![Some("stone"), Some("stone")],
+        vec![Some("stone"), Some("stone")],
+    ]));
+    book.push(r("accord_pillar", 3, vec![
+        vec![Some("accord_stone")],
+        vec![Some("accord_stone")],
+        vec![Some("accord_stone")],
+    ]));
+    book.push(r("ironborn_brick", 4, vec![
+        vec![Some("stone"), Some("raw_iron")],
+        vec![Some("raw_iron"), Some("stone")],
+    ]));
+    book.push(r("ironborn_grate", 2, vec![
+        vec![Some("iron_ingot"), None, Some("iron_ingot")],
+        vec![None, Some("iron_ingot"), None],
+        vec![Some("iron_ingot"), None, Some("iron_ingot")],
+    ]));
+    book.push(r("ember_covenantwood", 4, vec![
+        vec![Some("log"), Some("log")],
+    ]));
+    book.push(r("ember_glowstone", 1, vec![
+        vec![Some("ember_covenantwood")],
+        vec![Some("coal"), Some("coal")],
+    ]));
+    book.push(r("freeholds_thatch", 4, vec![
+        vec![Some("stick"), Some("stick"), Some("stick")],
+    ]));
+    book.push(r("freeholds_daub", 4, vec![
+        vec![Some("dirt"), Some("dirt")],
+        vec![Some("sand"), Some("sand")],
+    ]));
+    book.push(r("ashen_marble", 2, vec![
+        vec![Some("stone"), Some("stone"), Some("stone")],
+        vec![None, Some("coal"), None],
+    ]));
+    book.push(r("ashen_bookshelf", 1, vec![
+        vec![Some("ashen_marble"), Some("book"), Some("ashen_marble")],
+        vec![Some("ashen_marble"), Some("book"), Some("ashen_marble")],
+    ]));
+    book.push(r("carved_oak", 2, vec![
+        vec![Some("planks"), Some("planks")],
+        vec![None, Some("stick")],
+    ]));
+    book.push(r("carved_stone", 2, vec![
+        vec![Some("stone"), Some("stone")],
+        vec![None, Some("stick")],
+    ]));
+    book.push(r("carved_iron", 2, vec![
+        vec![Some("iron_ingot"), Some("iron_ingot")],
+        vec![None, Some("stone")],
+    ]));
+    // stained glass: 3 glass + one tint item (uses real materials)
+    for (tint, out) in [
+        ("apple", "stained_glass_red"),
+        ("raw_copper", "stained_glass_orange"),
+        ("sulfur", "stained_glass_yellow"),
+        ("leaves", "stained_glass_green"),
+        ("null_shard", "stained_glass_blue"),
+        ("glitch_dust", "stained_glass_purple"),
+        ("coal", "stained_glass_black"),
+        ("snow", "stained_glass_white"),
+    ] {
+        book.push(r(out, 3, vec![
+            vec![Some("glass"), Some("glass"), Some("glass")],
+            vec![None, Some(tint), None],
+        ]));
+    }
+    // banners: 2 sticks + the faction's material
+    for (mat, out) in [
+        ("accord_stone", "banner_accord"),
+        ("ironborn_brick", "banner_ironborn"),
+        ("ember_covenantwood", "banner_covenant"),
+        ("freeholds_thatch", "banner_freeholds"),
+        ("ashen_marble", "banner_ashen"),
+        ("nameless_rotwood", "banner_nameless"),
+    ] {
+        book.push(r(out, 1, vec![
+            vec![Some(mat), Some(mat), Some(mat)],
+            vec![None, Some("stick"), None],
+            vec![None, Some("stick"), None],
+        ]));
+    }
+    book.push(r("lantern_hanging", 1, vec![
+        vec![Some("iron_ingot"), None, Some("iron_ingot")],
+        vec![None, Some("lantern"), None],
+    ]));
+    // Ironborn quest recipe: the press faceplates (ironborn_q2)
+    book.push(r("iron_plate", 5, vec![
+        vec![Some("iron_ingot"), Some("iron_ingot"), Some("iron_ingot")],
+        vec![None, Some("coal"), None],
+    ]));
+    // Covenant channeler wage: concentrated Anima in crystal form
+    book.push(r("anima_crystal", 1, vec![
+        vec![Some("ember_glowstone"), Some("coal")],
+    ]));
     // pickaxes (3x3): material row + 2 sticks
     for (mat, out) in [("planks", "wooden_pickaxe"), ("stone", "stone_pickaxe")] {
         book.push(r(out, 1, vec![

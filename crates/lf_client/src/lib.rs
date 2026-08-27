@@ -27,6 +27,7 @@ use winit::{
 };
 
 pub mod console;
+pub mod factions;
 pub mod input;
 pub mod lore;
 pub mod icons;
@@ -229,6 +230,8 @@ pub enum UiOpen {
     Settings,
     Death,
     Paths,
+    /// B3: the companion command menu (index held in `companion_menu`).
+    CompanionMenu,
 }
 
 /// State attached to placed functional blocks.
@@ -468,6 +471,24 @@ pub struct ClientSave {
     pub runed: Vec<(String, String)>,
     #[serde(default)]
     pub paths: Option<lf_game::paths::Paths>,
+    // lore-and-visuals (Sections A + B)
+    /// Per-faction standing (-100..+100); None = fresh defaults.
+    #[serde(default)]
+    pub faction_standing: Option<lf_lore::StandingState>,
+    #[serde(default)]
+    pub companions: Vec<lf_game::companions::Companion>,
+    /// Trust remembered across dismiss/quit/re-hire (archetype -> trust).
+    #[serde(default)]
+    pub companion_memory: std::collections::HashMap<String, i32>,
+    /// Biome variant names the player has visited (ashen_q2 tracking).
+    #[serde(default)]
+    pub visited_biomes: Vec<String>,
+    /// First-time-discovered faction structures (key, x, y, z).
+    #[serde(default)]
+    pub discovered_structures: Vec<(String, i32, i32, i32)>,
+    /// Absolute in-game day count (wages/re-hire timing; TimeOfDay wraps).
+    #[serde(default)]
+    pub day_index: u64,
 }
 
 fn default_mana() -> f32 {
@@ -516,6 +537,12 @@ impl From<LegacyClientSave> for ClientSave {
             spellbook: None,
             runed: Vec::new(),
             paths: None,
+            faction_standing: None,
+            companions: Vec::new(),
+            companion_memory: std::collections::HashMap::new(),
+            visited_biomes: Vec::new(),
+            discovered_structures: Vec::new(),
+            day_index: 0,
         }
     }
 }
@@ -1010,6 +1037,44 @@ struct GameState {
     pub mounted_dragon: Option<u64>,
     /// P37: path standings + focus (accrued by play, never decay).
     pub paths: lf_game::paths::Paths,
+    /// Lore-and-visuals: factions, world events, roster, dialogue (A1) —
+    /// loaded from lore/*.toml at boot, never serialized.
+    pub lore_data: lf_lore::LoreRegistry,
+    /// Per-faction standing (A1), persisted in ClientSave.
+    pub standings: lf_lore::StandingState,
+    /// Active hired companions (Section B), persisted in ClientSave.
+    pub companions: Vec<lf_game::companions::Companion>,
+    /// Trust remembered across dismiss/re-hire (archetype -> trust).
+    pub companion_memory: std::collections::HashMap<String, i32>,
+    /// Trust-memory view for re-hire ("they remember what happened").
+    pub visited_biomes: std::collections::HashSet<String>,
+    /// Discovered faction structures (key, x, y, z) — map icons + D2.
+    pub discovered_structures: Vec<(String, i32, i32, i32)>,
+    /// Absolute in-game day count (wages at sunrise).
+    pub day_index: u64,
+    /// Previous day-fraction (sunrise edge detection).
+    prev_day_fraction: f32,
+    /// Companion attack cooldowns (parallel to `companions`).
+    companion_cooldowns: Vec<f32>,
+    /// Per-companion contextual-line timers (seconds until next line).
+    companion_line_timers: Vec<f32>,
+    /// The companion the command menu is open for (index).
+    pub companion_menu: Option<usize>,
+    /// Standing-change pulse for the HUD widget (1 -> 0).
+    pub faction_pulse: f32,
+    /// The faction whose widget is shown (id, value) for pulse detection.
+    faction_widget_state: Option<(String, i32)>,
+    /// Ambient ember emission accumulator (C4).
+    ember_timer: f32,
+    /// Faction villagers spawned this session keyed by marker block pos
+    /// (prevents re-settling after save/load churn).
+    settled_markers: std::collections::HashSet<(i32, i32, i32)>,
+    /// Index of the mob that most recently damaged the player (companions
+    /// defend them, B4); cleared when the mob dies or cools down.
+    last_attacker: Option<usize>,
+    /// Quest-tag cells already fired (road markers / ember formations).
+    road_cells: std::collections::HashSet<(i32, i32)>,
+    ember_cells: std::collections::HashSet<(i32, i32)>,
     /// Steps 21-22: the chronicle surfaces DURING play — milestone
     /// events toast across the top for a few seconds.
     pub chronicle_toast: Option<(String, f32)>,
@@ -1103,8 +1168,11 @@ impl GameState {
         let mut slot_meta = slots::boot_slot();
         let world_dir = slots::slot_dir(&slot_meta.name);
         slots::sync_generator_version(&world_dir);
-        let (inventory, mut stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths) =
-            load_client_save(&world_dir);
+        // lore-and-visuals: factions, world events, roster, dialogue
+        let lore_reg = lf_lore::LoreRegistry::load(Path::new("lore"));
+        let (inventory, mut stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths, lore_extras) =
+            load_client_save(&world_dir, &lore_reg);
+        let start_day_fraction = time.fraction();
         slot_meta.world_type = world_type; // save (or default) wins over meta
         let storage = WorldStorage::open(&world_dir);
         let world_seed = storage.load_seed().unwrap_or_else(|| {
@@ -1255,6 +1323,24 @@ impl GameState {
             runed_tools: runed,
             paths,
             chronicle_toast: None,
+            lore_data: lore_reg,
+            standings: lore_extras.standings,
+            companions: lore_extras.companions.clone(),
+            companion_memory: lore_extras.companion_memory,
+            visited_biomes: lore_extras.visited_biomes,
+            discovered_structures: lore_extras.discovered_structures,
+            day_index: lore_extras.day_index,
+            prev_day_fraction: start_day_fraction,
+            companion_cooldowns: vec![0.0; lore_extras.companions.len()],
+            companion_line_timers: vec![8.0; lore_extras.companions.len()],
+            companion_menu: None,
+            faction_pulse: 0.0,
+            faction_widget_state: None,
+            ember_timer: 0.0,
+            settled_markers: std::collections::HashSet::new(),
+            last_attacker: None,
+            road_cells: std::collections::HashSet::new(),
+            ember_cells: std::collections::HashSet::new(),
             imbue: lf_game::magic::ImbueMinigame::new(3),
             symmetry_plane: None,
             producer_positions: Vec::new(),
@@ -1443,8 +1529,10 @@ impl GameState {
         slots::sync_generator_version(&dir);
         self.save_world();
         // state from the slot's save files
+        let lore_reg = lf_lore::LoreRegistry::load(Path::new("lore"));
         let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log,
-             chronicle, research, settings, world_type, waypoints, spellbook, runed, paths) = load_client_save(&dir);
+             chronicle, research, settings, world_type, waypoints, spellbook, runed, paths, lore) = load_client_save(&dir, &lore_reg);
+        let load_day_fraction = time.fraction();
         let storage = WorldStorage::open(&dir);
         let seed = storage.load_seed().unwrap_or(meta.seed);
         let saved_set = storage.saved_chunks();
@@ -1465,6 +1553,20 @@ impl GameState {
         self.chronicle = chronicle;
         self.runed_tools = runed;
         self.paths = paths;
+        self.lore_data = lore_reg;
+        self.standings = lore.standings;
+        self.prev_day_fraction = load_day_fraction;
+        self.companions = lore.companions;
+        self.companion_memory = lore.companion_memory;
+        self.visited_biomes = lore.visited_biomes;
+        self.discovered_structures = lore.discovered_structures;
+        self.day_index = lore.day_index;
+        self.companion_cooldowns = vec![0.0; self.companions.len()];
+        self.companion_line_timers = vec![8.0; self.companions.len()];
+        self.companion_menu = None;
+        self.settled_markers.clear();
+        self.road_cells.clear();
+        self.ember_cells.clear();
         self.research = research;
         self.settings = settings;
         self.keymap = crate::input::Keymap::from_pairs(&self.settings.keymap_pairs);
@@ -1567,6 +1669,12 @@ impl GameState {
             spellbook: Some(self.spellbook.clone()),
             runed: self.runed_tools.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
             paths: Some(self.paths.clone()),
+            faction_standing: Some(self.standings.clone()),
+            companions: self.companions.clone(),
+            companion_memory: self.companion_memory.clone(),
+            visited_biomes: self.visited_biomes.iter().cloned().collect(),
+            discovered_structures: self.discovered_structures.clone(),
+            day_index: self.day_index,
         };
         // JSON (self-describing) so future field additions with
         // serde(default) load old bytes — bincode EOFs on them instead.
@@ -2119,6 +2227,23 @@ impl GameState {
         self.update_mobs(dt);
         self.update_villagers(dt);
         self.update_arrows(dt);
+        // lore-and-visuals: companions, world tags, day/wage rollover,
+        // faction NPC settling, ambient embers, HUD pulse decay.
+        if playing {
+            self.update_companions(dt);
+            self.quest_tag_checks();
+            self.ambient_ember_particles(dt);
+            self.faction_pulse = (self.faction_pulse - dt * 1.4).max(0.0);
+            let now_fraction = self.time.fraction();
+            if self.prev_day_fraction < 0.2 && now_fraction >= 0.2 {
+                self.on_day_rollover();
+            }
+            self.prev_day_fraction = now_fraction;
+            if self.frame % 60 == 0 {
+                self.try_settle_faction_npcs();
+                self.sync_map_faction_data();
+            }
+        }
         // bow: hold RMB to charge
         if playing && self.input.place_pressed {
             let held_id = self.inventory.slots[self.hotbar_index].as_ref().map(|s| s.item_id.clone());
@@ -2263,7 +2388,7 @@ impl GameState {
                         if matches!(kind, MobType::Dragon | MobType::NullKnight) {
                             let _ = self.paths.accrue(lf_game::paths::PathEvent::BossSlain);
                         }
-                        let kind_name = format!("{:?}", kind);
+                        let kind_name = factions::mob_kind_id(kind).to_string();
                         self.quest_event(QuestEvent::Killed(kind_name.clone()));
                         tracing::info!("killed a {:?}", kind);
                         self.mobs.remove(mob_hit);
@@ -2316,6 +2441,18 @@ impl GameState {
                                 self.spawn_break_particles(block_id, (pos.x, pos.y, pos.z), 16);
                             }
                             self.use_durability();
+                            // lore-and-visuals: quest Break events + the
+                            // destroy-structure-block standing penalty
+                            {
+                                // quest targets use the item-id form (accord_pillar)
+                                let broke_key = lf_game::items::block_drop(block_id)
+                                    .unwrap_or_else(|| registry::block::name(block_id).to_string());
+                                self.quest_event(QuestEvent::Broke(broke_key));
+                                if let Some(faction) = factions::faction_of_block(block_id) {
+                                    let penalty = self.lore_data.standing_events.destroy_structure_block;
+                                    self.add_standing(&faction, penalty);
+                                }
+                            }
                             // P34: breaking a scaffold drops the whole
                             // connected column above it (bulk-remove)
                             if block_id == registry::block::SCAFFOLD {
@@ -2492,8 +2629,28 @@ impl GameState {
                 }
             }
             if self.ui_open == UiOpen::None {
-                // villager in the crosshair? trade instead
+                // lore-and-visuals B3: an active companion in the
+                // crosshair opens the command menu instead
+                if let Some(ci) = self.companion_in_crosshair() {
+                    self.companion_menu = Some(ci);
+                    self.ui_open = UiOpen::CompanionMenu;
+                    self.unlock_cursor();
+                    return;
+                }
+                // villager in the crosshair? trade instead — faction NPCs
+                // greet through the dialogue layer first (A4/D1)
                 if let Some(vi) = self.villager_in_crosshair() {
+                    if let Some(archetype) = self.villagers.get(vi)
+                        .and_then(|v| v.archetype.clone())
+                    {
+                        if let Some((line, close)) = self.npc_interact(&archetype) {
+                            self.push_hint(&line);
+                            if close {
+                                // hostile standing: the door stays shut
+                                return;
+                            }
+                        }
+                    }
                     self.ui_open = UiOpen::Trade(vi);
                     self.unlock_cursor();
                     return;
@@ -2749,6 +2906,10 @@ impl GameState {
                                 }
                                 if !self.block_intersects_player(place) {
                                     if self.world.set_block(place.x, place.y, place.z, BlockState(b)).is_some() {
+                                        // lore-and-visuals: quest Place events
+                                        // (targets use the item-id form)
+                                        let placed_item = stack.item_id.clone();
+                                        self.quest_event(QuestEvent::Placed(placed_item));
                                         if let Some(n) = &self.net {
                                             n.send_block(place.x, place.y, place.z, b);
                                         }
@@ -3396,10 +3557,14 @@ impl GameState {
     pub fn quest_event(&mut self, event: QuestEvent) {
         let finished = self.quest_log.record_event(&event);
         for id in finished {
-            let title = self.quest_log.quests.iter().find(|q| q.id == id)
-                .map(|q| q.title.clone()).unwrap_or_default();
+            let quest = self.quest_log.quests.iter().find(|q| q.id == id).cloned();
+            let title = quest.as_ref().map(|q| q.title.clone()).unwrap_or_default();
             tracing::info!("quest complete: {}", title);
             self.chronicle_event(EventType::ActCompleted, format!("completed quest '{}'", title));
+            // A4: faction quests move standing (issuing faction + ripples)
+            if let Some(q) = quest {
+                self.apply_quest_standing(&q);
+            }
         }
     }
 
@@ -3652,6 +3817,28 @@ impl GameState {
         best.map(|(_, i)| i)
     }
 
+    /// An active companion roughly under the crosshair (B3 command menu).
+    fn companion_in_crosshair(&self) -> Option<usize> {
+        let eye = self.player.eye_position();
+        let look = self.player.look_dir();
+        let mut best: Option<(f32, usize)> = None;
+        for (i, c) in self.companions.iter().enumerate() {
+            let center = c.position + glam::Vec3::new(0.0, 0.9, 0.0);
+            let to = center - eye;
+            let t = to.dot(look);
+            if t < 0.0 || t > REACH + 1.0 {
+                continue;
+            }
+            let closest = eye + look * t;
+            if (closest - center).length() < 1.1 {
+                if best.map(|(d, _)| t < d).unwrap_or(true) {
+                    best = Some((t, i));
+                }
+            }
+        }
+        best.map(|(_, i)| i)
+    }
+
     /// Index of the nearest mob roughly under the crosshair, within reach.
     fn mob_in_crosshair(&self) -> Option<usize> {
         let eye = self.player.eye_position();
@@ -3683,8 +3870,9 @@ impl GameState {
         let player = self.player.position;
         let world = &self.world;
         let mut damage_to_player = 0.0;
+        let mut attacker_of_frame: Option<usize> = None;
         let mut breathers: Vec<glam::Vec3> = Vec::new();
-        for mob in self.mobs.iter_mut() {
+        for (mi, mob) in self.mobs.iter_mut().enumerate() {
             if mob.mob_type == lf_game::mobs::MobType::Dragon && mob.roost.is_some() {
                 // P36: the dragon's flight brain owns its position
                 let roost = mob.roost.unwrap();
@@ -3702,7 +3890,12 @@ impl GameState {
             }
             if let Some(dmg) = mob.update(dt, world, player) {
                 damage_to_player += dmg;
+                attacker_of_frame = Some(mi);
             }
+        }
+        // companions remember who hit the player this frame (B4 defense)
+        if let Some(mi) = attacker_of_frame {
+            self.last_attacker = Some(mi);
         }
         if damage_to_player > 0.0 {
             self.damage(damage_to_player);
@@ -3749,14 +3942,15 @@ impl GameState {
             let seed = self.frame.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(0x51ed270b);
             let is_day = self.time.is_day();
             // spawn point's biome decides the fauna (Step 18)
-            let spawn_cold = {
+            let (spawn_cold, spawn_nameless) = {
                 let ang2 = (seed % 360) as f32 / 57.3;
                 let dist2 = 20.0 + ((seed >> 9) % 20) as f32;
                 let bx = (player.x + ang2.cos() * dist2) as i32;
                 let bz = (player.z + ang2.sin() * dist2) as i32;
-                self.map.biome_at(bx, bz).is_cold()
+                let biome = self.map.biome_at(bx, bz);
+                (biome.is_cold(), matches!(biome, lf_worldgen::Biome::PaleGarden | lf_worldgen::Biome::DarkForest))
             };
-            if let Some(kind) = roll_spawn(seed, is_day, spawn_cold) {
+            if let Some(kind) = lf_game::mobs::roll_spawn_full(seed, is_day, spawn_cold, spawn_nameless) {
                 // random point 20-40 blocks out
                 let ang = (seed % 360) as f32 / 57.3;
                 let dist = 20.0 + ((seed >> 9) % 20) as f32;
@@ -3967,6 +4161,10 @@ impl GameState {
         for item in collected {
             let first_ever = self.chronicle.is_empty();
             self.quest_event(QuestEvent::Collected(item.clone()));
+            // "any_food" quest targets match any collected food item
+            if matches!(item_def(&item).map(|d| d.kind), Some(ItemKind::Food(_))) {
+                self.quest_event(QuestEvent::Collected("any_food".into()));
+            }
             if first_ever && item == "log" {
                 self.chronicle_event(EventType::FirstCraft, "collected the first logs".into());
             }
@@ -4403,7 +4601,8 @@ impl GameState {
     /// Rebuild the single batch holding item-drop and mob cubes.
     /// Rebuild the single batch holding item-drop and mob cubes.
     fn rebuild_drop_batch(&mut self) {
-        if self.drops.is_empty() && self.mobs.is_empty() && self.falling_blocks.is_empty() {
+        if self.drops.is_empty() && self.mobs.is_empty() && self.falling_blocks.is_empty()
+            && self.companions.is_empty() {
             self.drop_batch = None;
             return;
         }
@@ -4430,14 +4629,35 @@ impl GameState {
             let tex = lf_assets::texture_index_for_block(fb.block.id());
             push_cube(fb.position.x, fb.position.y, fb.position.z, 0.48, tex, &mut vertices, &mut indices);
         }
-        // mobs (white cubes tinted by hurt flash; unique colors arrive with P7 mobs art)
+        // mobs: per-type skins (C2 refresh) with biome-tint variants for
+        // the common hostiles — palette swaps of the same art, accents
+        // (eyes/glow) stay constant per ENTITY_SKIN_SPEC.
+        let player_biome = self.map.biome_at(self.player.position.x as i32, self.player.position.z as i32);
         for mob in &self.mobs {
             let size = mob.mob_type.stats().size;
             let tex = match mob.mob_type {
-                MobType::NullKnight => lf_assets::texture_index_for_block(registry::block::STONE),
+                MobType::NullKnight => lf_assets::MOB_NULL_KNIGHT_LAYER,
                 MobType::Dragon => lf_assets::DRAGON_BODY_LAYER,
-                m if m.is_hostile() => lf_assets::texture_index_for_block(registry::block::MYCELIUM),
-                _ => lf_assets::texture_index_for_block(registry::block::SNOW),
+                MobType::Boar => lf_assets::MOB_BOAR_LAYER,
+                MobType::Woolbeast => lf_assets::MOB_WOOLBEAST_LAYER,
+                MobType::NamelessRaider => lf_assets::VILLAGER_NAMELESS_LAYER,
+                common => {
+                    let (base, tints) = match common {
+                        MobType::Glitchling => (lf_assets::MOB_GLITCHLING_LAYER, lf_assets::MOB_GLITCHLING_TINTS),
+                        MobType::Stalker => (lf_assets::MOB_STALKER_LAYER, lf_assets::MOB_STALKER_TINTS),
+                        _ => (lf_assets::MOB_CRAWLER_LAYER, lf_assets::MOB_CRAWLER_TINTS),
+                    };
+                    match player_biome {
+                        lf_worldgen::Biome::Desert | lf_worldgen::Biome::Badlands
+                        | lf_worldgen::Biome::Volcanic | lf_worldgen::Biome::Savanna => tints[0],
+                        lf_worldgen::Biome::Tundra | lf_worldgen::Biome::SnowyTaiga
+                        | lf_worldgen::Biome::SnowySlope | lf_worldgen::Biome::SnowyPeaks
+                        | lf_worldgen::Biome::IceSpikes => tints[1],
+                        lf_worldgen::Biome::Swamp | lf_worldgen::Biome::PaleGarden
+                        | lf_worldgen::Biome::DarkForest => tints[2],
+                        _ => base,
+                    }
+                }
             };
             if mob.mob_type == MobType::Dragon {
                 // P36: multi-part assembly — body/head/wings/tail with
@@ -4448,7 +4668,15 @@ impl GameState {
                     push_cube(p.x, p.y, p.z, part_size, tex, &mut vertices, &mut indices);
                 }
             } else {
-                push_cube(mob.position.x, mob.position.y + size, mob.position.z, size, tex, &mut vertices, &mut indices);
+                // silhouette differentiation (C2): crawler low+wide,
+                // stalker tall+lean, raider slim, knight imposing
+                let (r, lift) = match mob.mob_type {
+                    MobType::Crawler => (size * 1.35, size * 0.55),
+                    MobType::Stalker => (size * 0.85, size * 1.25),
+                    MobType::NamelessRaider => (size * 0.9, size * 1.1),
+                    _ => (size, size),
+                };
+                push_cube(mob.position.x, mob.position.y + lift, mob.position.z, r, tex, &mut vertices, &mut indices);
             }
         }
         // arrows render as thin pale streaks
@@ -4461,18 +4689,47 @@ impl GameState {
             push_cube(bolt.position.x, bolt.position.y, bolt.position.z, 0.12,
                 lf_assets::texture_index_for_block(registry::block::LANTERN), &mut vertices, &mut indices);
         }
-        // villagers render as earthy cubes
+        // villagers: faction skins where the roster says a faction, the
+        // original job-tinted skins otherwise (C2)
         for v in &self.villagers {
-            let tex = match v.job {
-                VillagerJob::Farmer => lf_assets::texture_index_for_block(registry::block::GRASS),
-                VillagerJob::Smith => lf_assets::texture_index_for_block(registry::block::IRON_ORE),
-                VillagerJob::Trader => lf_assets::texture_index_for_block(registry::block::SAND),
-                VillagerJob::Guard => lf_assets::texture_index_for_block(registry::block::STONE),
-                VillagerJob::Bard => lf_assets::texture_index_for_block(registry::block::CHERRY_LEAVES),
-                VillagerJob::Lorekeeper => lf_assets::texture_index_for_block(registry::block::CRAFTING_TABLE),
-                VillagerJob::Wizard => lf_assets::ENCHANTING_LAYER,
+            let tex = match v.archetype.as_deref() {
+                Some("the_unmarked") => lf_assets::VILLAGER_UNMARKED_LAYER,
+                Some("maren_voss") => lf_assets::VILLAGER_MAREN_LAYER,
+                Some(_) => match v.faction.as_deref() {
+                    Some("accord") => lf_assets::VILLAGER_ACCORD_LAYER,
+                    Some("ironborn") => lf_assets::VILLAGER_IRONBORN_LAYER,
+                    Some("ember_covenant") => lf_assets::VILLAGER_COVENANT_LAYER,
+                    Some("free_holds") => lf_assets::VILLAGER_FREEHOLDS_LAYER,
+                    Some("ashen_order") => lf_assets::VILLAGER_ASHEN_LAYER,
+                    Some("nameless") => lf_assets::VILLAGER_NAMELESS_LAYER,
+                    _ => lf_assets::texture_index_for_block(registry::block::SAND),
+                },
+                None => match v.job {
+                    VillagerJob::Farmer => lf_assets::texture_index_for_block(registry::block::GRASS),
+                    VillagerJob::Smith => lf_assets::texture_index_for_block(registry::block::IRON_ORE),
+                    VillagerJob::Trader => lf_assets::texture_index_for_block(registry::block::SAND),
+                    VillagerJob::Guard => lf_assets::texture_index_for_block(registry::block::STONE),
+                    VillagerJob::Bard => lf_assets::texture_index_for_block(registry::block::CHERRY_LEAVES),
+                    VillagerJob::Lorekeeper => lf_assets::texture_index_for_block(registry::block::CRAFTING_TABLE),
+                    VillagerJob::Wizard => lf_assets::ENCHANTING_LAYER,
+                },
             };
             push_cube(v.position[0], v.position[1] + 0.9, v.position[2], 0.45, tex, &mut vertices, &mut indices);
+        }
+        // companions: their archetype skin, swapping to the trust-badge
+        // variant at trust >= 50 (ENTITY_SKIN_SPEC)
+        for c in &self.companions {
+            let base = lf_assets::COMPANION_LAYERS
+                .iter()
+                .find(|(id, _)| *id == c.npc_archetype_id)
+                .map(|(_, layer)| *layer)
+                .unwrap_or(lf_assets::VILLAGER_ACCORD_LAYER);
+            let tex = if c.trust >= lf_game::companions::TRUST_BADGE {
+                lf_assets::trusted_companion_layer(base)
+            } else {
+                base
+            };
+            push_cube(c.position.x, c.position.y + 0.9, c.position.z, 0.46, tex, &mut vertices, &mut indices);
         }
         // remote players render as pale cubes
         if let Some(n) = &self.net {
@@ -4650,8 +4907,20 @@ fn bounds_of(vertices: &[GpuVertex], water: &[GpuVertex]) -> (f32, f32) {
     }
 }
 
-fn load_client_save(dir: &Path)
-    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType, Vec<map::Waypoint>, lf_game::magic::Spellbook, std::collections::HashMap<String, String>, lf_game::paths::Paths) {
+/// lore-and-visuals save extras (Sections A + B) bundled so the load
+/// tuple stays manageable.
+#[derive(Default)]
+pub struct LoreExtras {
+    pub standings: lf_lore::StandingState,
+    pub companions: Vec<lf_game::companions::Companion>,
+    pub companion_memory: std::collections::HashMap<String, i32>,
+    pub visited_biomes: std::collections::HashSet<String>,
+    pub discovered_structures: Vec<(String, i32, i32, i32)>,
+    pub day_index: u64,
+}
+
+fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
+    -> (Inventory, PlayerStats, lf_game::TimeOfDay, HashMap<(i32, i32, i32), BlockEntity>, Vec<MobEntity>, Vec<Villager>, u32, QuestLog, Vec<ChronicleEvent>, ResearchState, Settings, lf_worldgen::WorldType, Vec<map::Waypoint>, lf_game::magic::Spellbook, std::collections::HashMap<String, String>, lf_game::paths::Paths, LoreExtras) {
     let mut inventory = Inventory::new();
     let mut stats = PlayerStats::default();
     let time = lf_game::TimeOfDay::from_fraction(0.30);
@@ -4671,6 +4940,10 @@ fn load_client_save(dir: &Path)
     let mut chronicle = Vec::new();
     let mut research = ResearchState::default();
     let mut settings = Settings::default();
+    let mut lore = LoreExtras {
+        standings: lf_lore::StandingState::starting(lore_reg),
+        ..Default::default()
+    };
     // P33: extras are JSON now; the old bincode file migrates through the
     // frozen LegacyClientSave shape (never a silent extras reset).
     let loaded: Option<ClientSave> = (|| {
@@ -4705,10 +4978,18 @@ fn load_client_save(dir: &Path)
             let spellbook = save.spellbook.unwrap_or_default();
             let runed = save.runed.into_iter().collect();
             let paths = save.paths.unwrap_or_default();
-            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths);
+            if let Some(s) = save.faction_standing {
+                lore.standings = s;
+            }
+            lore.companions = save.companions;
+            lore.companion_memory = save.companion_memory;
+            lore.visited_biomes = save.visited_biomes.into_iter().collect();
+            lore.discovered_structures = save.discovered_structures;
+            lore.day_index = save.day_index;
+            return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths, lore);
         }
     }
-    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal, Vec::new(), lf_game::magic::Spellbook::default(), std::collections::HashMap::new(), lf_game::paths::Paths::default())
+    (inventory, stats, time, entities, mobs, villagers, kills, quest_log, chronicle, research, settings, lf_worldgen::WorldType::Normal, Vec::new(), lf_game::magic::Spellbook::default(), std::collections::HashMap::new(), lf_game::paths::Paths::default(), lore)
 }
 
 /// Tiny deterministic-enough hash for cosmetic randomness.
@@ -4897,6 +5178,8 @@ pub fn biome_grade(b: lf_worldgen::Biome) -> ([f32; 3], f32) {
         B::Swamp | B::Jungle => ([0.93, 1.05, 0.95], 1.00),
         B::MushroomHollow => ([0.96, 0.94, 1.04], 0.80),
         B::Ocean | B::DeepOcean | B::WarmOcean => ([0.94, 1.00, 1.05], 0.96),
+        // the volcanic belt: warm, desaturated, slightly dark (C1)
+        B::Volcanic => ([1.05, 0.98, 0.94], 0.88),
         _ => ([1.0, 1.0, 1.0], 1.0),
     }
 }

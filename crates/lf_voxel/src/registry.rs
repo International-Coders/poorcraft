@@ -16,11 +16,14 @@ pub struct ModBlockDef {
     pub light: u8,
 }
 
-/// Mod blocks start here, far above the vanilla range.
-pub const MOD_BLOCK_BASE: u32 = 100;
+/// Mod blocks start here, far above the vanilla range. Bumped 100 -> 200
+/// by the lore-and-visuals block expansion: 38 new vanilla blocks occupy
+/// 68..=105 (DECISIONS.md "MOD_BLOCK_BASE 200"). Old worlds keep loading;
+/// previously-placed mod blocks re-register at their new hash ids.
+pub const MOD_BLOCK_BASE: u32 = 200;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 67;
+pub const MAX_VANILLA_BLOCK: u32 = 105;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -147,6 +150,50 @@ pub mod block {
     pub const TIN_ORE: u32 = 33;
     pub const BAUXITE_ORE: u32 = 34;
     pub const SULFUR_ORE: u32 = 35;
+    // Faction-themed blocks (lore-and-visuals C1) — used by faction
+    // structures and territory building.
+    pub const ACCORD_STONE: u32 = 68;
+    pub const ACCORD_PILLAR: u32 = 69;
+    pub const IRONBORN_BRICK: u32 = 70;
+    pub const IRONBORN_GRATE: u32 = 71;
+    pub const EMBER_COVENANTWOOD: u32 = 72;
+    pub const EMBER_GLOWSTONE: u32 = 73;
+    pub const FREEHOLDS_THATCH: u32 = 74;
+    pub const FREEHOLDS_DAUB: u32 = 75;
+    pub const ASHEN_MARBLE: u32 = 76;
+    pub const ASHEN_BOOKSHELF: u32 = 77;
+    pub const NAMELESS_ROTWOOD: u32 = 78;
+    pub const NAMELESS_SCORCHED: u32 = 79;
+    // Biome-exclusive blocks (one per biome group filling the 30-biome gaps)
+    pub const MUSHROOM_CAP: u32 = 80;
+    pub const CORAL_BLOCK: u32 = 81;
+    pub const PERMAFROST: u32 = 82;
+    pub const VOLCANIC_BASALT: u32 = 83;
+    pub const DEEP_SLATE: u32 = 84;
+    pub const MESA_TERRACOTTA: u32 = 85;
+    pub const GILDED_GRASS: u32 = 86;
+    pub const BOG_PEAT: u32 = 87;
+    // Decoration blocks
+    pub const CARVED_OAK: u32 = 88;
+    pub const CARVED_STONE: u32 = 89;
+    pub const CARVED_IRON: u32 = 90;
+    pub const STAINED_GLASS_RED: u32 = 91;
+    pub const STAINED_GLASS_ORANGE: u32 = 92;
+    pub const STAINED_GLASS_YELLOW: u32 = 93;
+    pub const STAINED_GLASS_GREEN: u32 = 94;
+    pub const STAINED_GLASS_BLUE: u32 = 95;
+    pub const STAINED_GLASS_PURPLE: u32 = 96;
+    pub const STAINED_GLASS_BLACK: u32 = 97;
+    pub const STAINED_GLASS_WHITE: u32 = 98;
+    pub const BANNER_ACCORD: u32 = 99;
+    pub const BANNER_IRONBORN: u32 = 100;
+    pub const BANNER_COVENANT: u32 = 101;
+    pub const BANNER_FREEHOLDS: u32 = 102;
+    pub const BANNER_ASHEN: u32 = 103;
+    pub const BANNER_NAMELESS: u32 = 104;
+    /// Ceiling/chain-mounted lantern (shares lantern art; different
+    /// placement, per SKIN_MANIFEST).
+    pub const LANTERN_HANGING: u32 = 105;
 
     pub fn name(id: u32) -> &'static str {
         if let Some(def) = crate::registry::mod_block(id) {
@@ -222,6 +269,44 @@ pub mod block {
             CRUSHER => "Crusher",
             ASSEMBLER => "Assembler",
             RESEARCH_BENCH => "Research Bench",
+            ACCORD_STONE => "Accord Stone",
+            ACCORD_PILLAR => "Accord Pillar",
+            IRONBORN_BRICK => "Ironborn Brick",
+            IRONBORN_GRATE => "Ironborn Grate",
+            EMBER_COVENANTWOOD => "Covenantwood",
+            EMBER_GLOWSTONE => "Ember Glowstone",
+            FREEHOLDS_THATCH => "Free Holds Thatch",
+            FREEHOLDS_DAUB => "Free Holds Daub",
+            ASHEN_MARBLE => "Ashen Marble",
+            ASHEN_BOOKSHELF => "Ashen Bookshelf",
+            NAMELESS_ROTWOOD => "Rotwood",
+            NAMELESS_SCORCHED => "Scorched Stone",
+            MUSHROOM_CAP => "Mushroom Cap",
+            CORAL_BLOCK => "Coral Block",
+            PERMAFROST => "Permafrost",
+            VOLCANIC_BASALT => "Volcanic Basalt",
+            DEEP_SLATE => "Deep Slate",
+            MESA_TERRACOTTA => "Mesa Terracotta",
+            GILDED_GRASS => "Gilded Grass",
+            BOG_PEAT => "Bog Peat",
+            CARVED_OAK => "Carved Oak",
+            CARVED_STONE => "Carved Stone",
+            CARVED_IRON => "Carved Iron",
+            STAINED_GLASS_RED => "Red Stained Glass",
+            STAINED_GLASS_ORANGE => "Orange Stained Glass",
+            STAINED_GLASS_YELLOW => "Yellow Stained Glass",
+            STAINED_GLASS_GREEN => "Green Stained Glass",
+            STAINED_GLASS_BLUE => "Blue Stained Glass",
+            STAINED_GLASS_PURPLE => "Purple Stained Glass",
+            STAINED_GLASS_BLACK => "Black Stained Glass",
+            STAINED_GLASS_WHITE => "White Stained Glass",
+            BANNER_ACCORD => "Accord Banner",
+            BANNER_IRONBORN => "Ironborn Banner",
+            BANNER_COVENANT => "Covenant Banner",
+            BANNER_FREEHOLDS => "Free Holds Banner",
+            BANNER_ASHEN => "Ashen Banner",
+            BANNER_NAMELESS => "Nameless Banner",
+            LANTERN_HANGING => "Hanging Lantern",
             _ => "Unknown",
         }
     }
@@ -241,7 +326,8 @@ pub fn is_solid(b: BlockState) -> bool {
         return mod_block(id).map(|d| d.solid).unwrap_or(true);
     }
     id != block::AIR && id != block::WATER && id != block::OIL && id != block::TORCH
-        && id != block::LANTERN && id != block::FLOWER
+        && id != block::LANTERN && id != block::FLOWER && id != block::LANTERN_HANGING
+        && !is_banner(id)
 }
 
 /// Blocks that hide the neighboring face when meshing. Air, water and leaves
@@ -251,9 +337,27 @@ pub fn is_opaque(b: BlockState) -> bool {
     if id >= MOD_BLOCK_BASE {
         return mod_block(id).map(|d| d.opaque).unwrap_or(true);
     }
+    if is_stained_glass(id) || is_banner(id) || id == block::IRONBORN_GRATE {
+        return false;
+    }
     id != block::AIR && id != block::WATER && id != block::OIL && id != block::LEAVES
         && id != block::TORCH && id != block::LANTERN && id != block::GLASS
         && id != block::ICE && id != block::FLOWER
+}
+
+/// The eight stained-glass tint variants (translucent pane like glass).
+pub fn is_stained_glass(id: u32) -> bool {
+    use block as b;
+    matches!(id, b::STAINED_GLASS_RED | b::STAINED_GLASS_ORANGE | b::STAINED_GLASS_YELLOW
+        | b::STAINED_GLASS_GREEN | b::STAINED_GLASS_BLUE | b::STAINED_GLASS_PURPLE
+        | b::STAINED_GLASS_BLACK | b::STAINED_GLASS_WHITE)
+}
+
+/// Faction banners: non-solid cutout blocks rendered as flat sign quads.
+pub fn is_banner(id: u32) -> bool {
+    use block as b;
+    matches!(id, b::BANNER_ACCORD | b::BANNER_IRONBORN | b::BANNER_COVENANT
+        | b::BANNER_FREEHOLDS | b::BANNER_ASHEN | b::BANNER_NAMELESS)
 }
 
 /// Collision boxes (block-local 0..1 coordinates) for shaped blocks —
@@ -285,9 +389,10 @@ pub fn is_targetable(b: BlockState) -> bool {
     b.id() != block::AIR && b.id() != block::WATER && b.id() != block::OIL
 }
 
-/// Cross-plants: non-solid cutout blocks that sit on the ground.
+/// Cross-plants: non-solid cutout blocks that sit on the ground. Banners
+/// render through the same flat-quad path (sign-style, per SKIN_MANIFEST).
 pub fn is_plant(id: u32) -> bool {
-    id == block::FLOWER
+    id == block::FLOWER || is_banner(id)
 }
 
 /// Granular blocks that fall when the block under them is removed (they do
@@ -298,6 +403,7 @@ pub fn has_gravity(id: u32) -> bool {
     id == b::SAND || id == b::RED_SAND || id == b::SNOW
         || id == b::DIRT || id == b::GRASS || id == b::JUNGLE_GRASS
         || id == b::SAVANNA_GRASS || id == b::MOSS || id == b::MYCELIUM
+        || id == b::GILDED_GRASS || id == b::PERMAFROST || id == b::BOG_PEAT
 }
 
 #[cfg(test)]
@@ -319,24 +425,24 @@ mod tests {
 
     #[test]
     fn mod_blocks_register_and_behave() {
-        assert!(register_mod_block(150, ModBlockDef {
+        assert!(register_mod_block(250, ModBlockDef {
             name: "ember_ores:ember_ore".into(),
             solid: true,
             opaque: true,
             drop: Some("ember_ores:ember_ingot".into()), light: 0 }));
-        assert!(register_mod_block(150, ModBlockDef {
+        assert!(register_mod_block(250, ModBlockDef {
             name: "ember_ores:ember_ore".into(),
             solid: true,
             opaque: true,
             drop: Some("ember_ores:ember_ingot".into()), light: 0 }), "idempotent re-register");
-        assert!(!register_mod_block(150, ModBlockDef {
+        assert!(!register_mod_block(250, ModBlockDef {
             name: "other:clash".into(), solid: true, opaque: true, drop: None, light: 0 }), "id collision with a different mod rejected");
         assert!(!register_mod_block(5, ModBlockDef {
             name: "low:id".into(), solid: true, opaque: true, drop: None, light: 0 }), "vanilla id range rejected");
-        assert!(is_solid(BlockState(150)));
-        assert!(is_opaque(BlockState(150)));
-        assert_eq!(block::name(150), "ember_ores:ember_ore");
-        assert_eq!(mod_block(150).unwrap().drop.as_deref(), Some("ember_ores:ember_ingot"));
+        assert!(is_solid(BlockState(250)));
+        assert!(is_opaque(BlockState(250)));
+        assert_eq!(block::name(250), "ember_ores:ember_ore");
+        assert_eq!(mod_block(250).unwrap().drop.as_deref(), Some("ember_ores:ember_ingot"));
     }
 
     #[test]

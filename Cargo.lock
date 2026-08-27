@@ -1283,6 +1283,7 @@ dependencies = [
  "lf_chronicle",
  "lf_engine",
  "lf_game",
+ "lf_lore",
  "lf_modapi",
  "lf_npc",
  "lf_protocol",
@@ -1329,6 +1330,16 @@ dependencies = [
  "lf_voxel",
  "serde",
  "tempfile",
+]
+
+[[package]]
+name = "lf_lore"
+version = "0.1.0"
+dependencies = [
+ "lf_story",
+ "lf_worldgen",
+ "serde",
+ "toml",
 ]
 
 [[package]]

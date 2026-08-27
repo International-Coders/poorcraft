@@ -21,6 +21,7 @@ lf_assets = { path = "../lf_assets" }
 lf_story = { path = "../lf_story" }
 lf_chronicle = { path = "../lf_chronicle" }
 lf_npc = { path = "../lf_npc" }
+lf_lore = { path = "../lf_lore" }
 lf_protocol = { path = "../lf_protocol" }
 lf_steam = { path = "../lf_steam" }
 lf_modapi = { path = "../lf_modapi" }
