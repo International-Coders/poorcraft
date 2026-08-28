@@ -878,6 +878,26 @@ Deferred (honest notes):
 - [ ] Named-NPC uniqueness ("one per world, largest camp") is
       first-settled-wins, not largest-camp-search
 
+## Loop 330 — Phase A timber (master fix plan)
+
+- [x] Valheim-style tree felling: `lf_game::timber` (find_tree / fall_plan /
+  tree_parts, all pure + tested), client FallingTree entity with rigid
+  rotated-cube animation around the stump hinge, landing as horizontal log
+  blocks (ids 111-120, X/Z per species) with directional mesher faces so
+  ring ends face along the log, canopy shatter + TreeCreak/TreeCrash
+  sounds + camera shake. Proofs: tree_fall_mid (seeded angles +
+  GPU animation-diff test), tree_fall_landed, falling_blocks_deep.
+- [x] Deep falling-block animation: per-faller tumble (deterministic
+  fibonacci-hashed axis), one 0.18-restitution bounce with dust, scalar
+  physics untouched; perf gate p50 116.8ms vs 111 baseline (noise).
+- [x] Fixed en route: birch/spruce/dark/cherry logs had no items (breaking
+  them dropped stone) — four species log items + planks recipes now exist.
+- [ ] Deferred (honest): remote clients see the fell result (block edits)
+  but not the fall animation (the breaking client runs the entity);
+  horizontal logs from player placement orient by face but there is no
+  axe/stripping variant; giant-spruce falls render up to ~70 cubes (still
+  noise vs chunk meshes, noted in DEVLOG).
+
 ## Loop 329 deferred (honest)
 - [ ] beds/spawn setting, doors/signs, wool decor (P5 leftovers, untouched)
 - [ ] music/ambient audio: the Music volume slider still drives nothing

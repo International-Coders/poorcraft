@@ -38,6 +38,10 @@ pub enum Sfx {
     Hurt,
     /// XP level up: two-note ascending chime.
     Xp,
+    /// A felled trunk starts to lean (loop 330 timber): low wavering creak.
+    TreeCreak,
+    /// A felled tree hits the ground: heavy crash with a low thud.
+    TreeCrash,
     /// Footstep on the given material family.
     Footstep(Category),
 }
@@ -151,6 +155,42 @@ pub fn synth_sfx(sfx: Sfx) -> Vec<f32> {
                 Category::Soft => (85.0, 0.07, 37),
             };
             noise_burst(dur, 90.0, 0.12, lp_k, seed)
+        }
+        Sfx::TreeCreak => {
+            // ~0.5s: low tone with a slow wobble (frequency wobbles around
+            // 110 Hz like stressed wood fibers), light noise
+            let n = (SAMPLE_RATE as f32 * 0.5) as usize;
+            let mut noise = Noise::new(0xC7EA);
+            let mut lp = 0.0f32;
+            (0..n)
+                .map(|i| {
+                    let t = i as f32 / n as f32;
+                    let env = (t * 3.0).min(1.0) * (1.0 - t) * 0.8;
+                    let wobble = (t * 34.0).sin() * 18.0;
+                    let tone = (i as f32 * (110.0 + wobble) / SAMPLE_RATE as f32
+                        * std::f32::consts::TAU).sin();
+                    let raw = noise.next_f32() * 2.0 - 1.0;
+                    lp += (raw - lp) * 0.1;
+                    ((tone * 0.75 + lp * 0.25) * env).clamp(-1.0, 1.0)
+                })
+                .collect()
+        }
+        Sfx::TreeCrash => {
+            // ~0.45s: two-layer impact — a big bright noise burst over a
+            // low 70 Hz thud, both decaying quadratically
+            let n = (SAMPLE_RATE as f32 * 0.45) as usize;
+            let mut noise = Noise::new(0xC1A5);
+            let mut lp = 0.0f32;
+            (0..n)
+                .map(|i| {
+                    let t = i as f32 / n as f32;
+                    let env = (1.0 - t) * (1.0 - t);
+                    let thud = (i as f32 * 70.0 / SAMPLE_RATE as f32 * std::f32::consts::TAU).sin();
+                    let raw = noise.next_f32() * 2.0 - 1.0;
+                    lp += (raw - lp) * 0.5;
+                    ((lp * 0.65 + thud * 0.35) * env * 1.1).clamp(-1.0, 1.0)
+                })
+                .collect()
         }
     }
 }
@@ -329,6 +369,8 @@ mod tests {
             Sfx::Eat,
             Sfx::Hurt,
             Sfx::Xp,
+            Sfx::TreeCreak,
+            Sfx::TreeCrash,
             Sfx::Footstep(Category::Wood),
             Sfx::Footstep(Category::Stone),
             Sfx::Footstep(Category::Metal),
@@ -338,7 +380,12 @@ mod tests {
         for sfx in all {
             let s = synth_sfx(sfx);
             assert!(!s.is_empty(), "{:?} produced no samples", sfx);
-            assert!(s.len() < SAMPLE_RATE as usize / 3, "{:?} too long", sfx);
+            // one-shots stay under a third of a second; the timber pair
+            // (creak/crash) may breathe for up to 0.6s
+            let cap = matches!(sfx, Sfx::TreeCreak | Sfx::TreeCrash)
+                .then(|| SAMPLE_RATE as usize * 2 / 3)
+                .unwrap_or(SAMPLE_RATE as usize / 3);
+            assert!(s.len() < cap, "{:?} too long ({} >= {})", sfx, s.len(), cap);
             assert!(s.iter().all(|v| v.abs() <= 1.0), "{:?} clipped", sfx);
             let tail: f32 = s[s.len() - 16..].iter().map(|v| v.abs()).sum();
             assert!(tail < 0.08, "{:?} does not decay to silence (tail {})", sfx, tail);

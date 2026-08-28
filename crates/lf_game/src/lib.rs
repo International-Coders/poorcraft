@@ -12,6 +12,7 @@ pub mod combat;
 pub mod machines;
 pub mod research;
 pub mod fluids;
+pub mod timber;
 pub mod magic;
 pub mod construction;
 pub mod building;

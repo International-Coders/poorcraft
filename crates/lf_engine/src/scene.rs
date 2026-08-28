@@ -294,6 +294,45 @@ pub struct MeshBatch {
     uniform_bind_group: wgpu::BindGroup,
 }
 
+/// Six faces of a cube of half-size `r` centered at `center`, rotated by
+/// `angle` radians around the unit `axis` (loop 330: falling granular
+/// blocks tumble; felled trees are rigid rotated cubes). Returns
+/// (corners CCW from outside, outward normal) per face — winding matches
+/// the mesher's push_face so the batch needs no special handling.
+pub fn rotated_cube_faces(
+    center: glam::Vec3,
+    r: f32,
+    axis: glam::Vec3,
+    angle: f32,
+) -> Vec<([[f32; 3]; 4], [f32; 3])> {
+    let axis = axis.normalize_or_zero();
+    let (sin, cos) = angle.sin_cos();
+    let rot = |v: glam::Vec3| -> glam::Vec3 {
+        // Rodrigues
+        v * cos + axis.cross(v) * sin + axis * (axis.dot(v) * (1.0 - cos))
+    };
+    // the six axis-aligned faces as (normal, 4 corner offsets)
+    let faces: [([f32; 3], [[f32; 3]; 4]); 6] = [
+        ([0.0, 0.0, -1.0], [[-r, -r, -r], [-r, r, -r], [r, r, -r], [r, -r, -r]]),
+        ([0.0, 0.0, 1.0], [[r, -r, r], [r, r, r], [-r, r, r], [-r, -r, r]]),
+        ([0.0, -1.0, 0.0], [[-r, -r, -r], [r, -r, -r], [r, -r, r], [-r, -r, r]]),
+        ([0.0, 1.0, 0.0], [[-r, r, r], [r, r, r], [r, r, -r], [-r, r, -r]]),
+        ([-1.0, 0.0, 0.0], [[-r, -r, r], [-r, r, r], [-r, r, -r], [-r, -r, -r]]),
+        ([1.0, 0.0, 0.0], [[r, -r, -r], [r, r, -r], [r, r, r], [r, -r, r]]),
+    ];
+    faces
+        .iter()
+        .map(|(n, corners)| {
+            let rn = rot(glam::Vec3::from_array(*n));
+            let cs = corners.map(|c| {
+                let p = rot(glam::Vec3::from_array(c)) + center;
+                [p.x, p.y, p.z]
+            });
+            (cs, [rn.x, rn.y, rn.z])
+        })
+        .collect()
+}
+
 impl MeshBatch {
     pub fn new(device: &wgpu::Device, resources: &SceneResources,
                vertices: &[GpuVertex], indices: &[u32]) -> Self {

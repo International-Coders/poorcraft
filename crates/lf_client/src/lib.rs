@@ -295,6 +295,50 @@ pub struct FallingBlock {
     pub position: Vec3,
     pub velocity: f32,
     pub block: BlockState,
+    // loop 330 deep-fall polish: render-only tumble + one landing bounce
+    pub tumble_axis: Vec3,
+    pub angle: f32,
+    pub angvel: f32,
+    pub bounced: bool,
+}
+
+/// Tumble advances linearly in angvel (the physics stays the scalar drop).
+fn tumble_step(angle: f32, angvel: f32, dt: f32) -> f32 {
+    angle + angvel * dt
+}
+
+/// What happens when a faller touches down: fast first impacts bounce once
+/// (restitution 0.18, upward velocity returned), everything else settles.
+enum FallerLanding {
+    Place,
+    Bounce(f32),
+}
+
+fn faller_landing(velocity: f32, bounced: bool) -> FallerLanding {
+    if !bounced && velocity > 6.0 {
+        FallerLanding::Bounce(velocity * 0.18)
+    } else {
+        FallerLanding::Place
+    }
+}
+
+/// Deterministic per-faller tumble axis (visual variety without RNG).
+fn faller_tumble_axis(seed: u64) -> Vec3 {
+    // fibonacci-hash first: nearby cell coords must not give near-identical axes
+    let h = seed.wrapping_mul(0x9E3779B97F4A7C15);
+    let a = ((h >> 20) % 1000) as f32 / 1000.0 - 0.5;
+    let b = ((h >> 44) % 1000) as f32 / 1000.0 - 0.5;
+    Vec3::new(0.5 + a, 0.0, 0.5 + b).normalize()
+}
+
+/// A felled tree mid-fall (loop 330): the blocks are already removed from
+/// the world; the entity renders the rigid rotation and lands into the
+/// fall_plan's horizontal log row.
+pub struct FallingTree {
+    pub tree: lf_game::timber::Tree,
+    pub dir: lf_game::timber::FallDir,
+    pub angle: f32,
+    pub angvel: f32,
 }
 
 /// Ray-tracing mode: off, R-key captures only, or a live path-traced view.
@@ -955,6 +999,7 @@ struct GameState {
     /// Granular blocks mid-fall (sand/dirt-family), animated until they
     /// land and re-place themselves.
     pub falling_blocks: Vec<FallingBlock>,
+    pub falling_trees: Vec<FallingTree>,
     /// Pending water-simulation cells (deduplicated by `fluid_queued`).
     fluid_queue: VecDeque<(i32, i32, i32)>,
     fluid_queued: HashSet<(i32, i32, i32)>,
@@ -1325,6 +1370,7 @@ impl GameState {
             villagers: Vec::new(),
             arrows: Vec::new(),
             falling_blocks: Vec::new(),
+            falling_trees: Vec::new(),
             fluid_queue: VecDeque::new(),
             fluid_queued: HashSet::new(),
             grade_tint: [1.0, 1.0, 1.0],
@@ -2017,6 +2063,7 @@ impl GameState {
 
         self.player.update(dt, &input, &self.world);
         self.footstep_tick(dt);
+        self.update_falling_trees(dt);
         self.survival_tick(dt);
         self.update_drops(dt);
         // Furnaces and machines tick whether or not their UI is open.
@@ -2591,6 +2638,10 @@ impl GameState {
                     if m.progress >= m.total {
                         self.mining = None;
                         if self.world.set_block(pos.x, pos.y, pos.z, BlockState::AIR).is_some() {
+                            // loop 330: breaking a trunk fells the whole tree
+                            if registry::is_log(block_id) {
+                                self.try_fell_tree(pos);
+                            }
                             self.break_block_drops(block_id, pos);
                             self.play_block_sound(block_id, lf_audio::Action::Break);
                             self.break_impulse(block_id);
@@ -4271,10 +4322,15 @@ impl GameState {
             if let Some(n) = &self.net {
                 n.send_block(x, y + 1, z, registry::block::AIR);
             }
+            let seed = ((x as u64) << 32) ^ ((y as u64) << 8) ^ (z as u64);
             self.falling_blocks.push(FallingBlock {
                 position: Vec3::new(x as f32 + 0.5, y as f32 + 1.5, z as f32 + 0.5),
                 velocity: 0.0,
                 block: above,
+                tumble_axis: faller_tumble_axis(seed),
+                angle: 0.0,
+                angvel: 1.2 + (seed % 13) as f32 / 13.0,
+                bounced: false,
             });
             self.spawn_faller_from_above(x, y + 1, z);
         }
@@ -4286,6 +4342,7 @@ impl GameState {
     fn update_falling_blocks(&mut self, dt: f32) {
         let mut landed: Vec<(i32, i32, i32, BlockState)> = Vec::new();
         let mut dropped_items: Vec<BlockState> = Vec::new();
+        let mut dust: Vec<Vec3> = Vec::new();
         self.falling_blocks.retain_mut(|f| {
             let cell = (f.position.x.floor() as i32, f.position.y.floor() as i32, f.position.z.floor() as i32);
             let in_water = self.world.get_block(cell.0, cell.1, cell.2).id() == registry::block::WATER;
@@ -4293,24 +4350,45 @@ impl GameState {
             if in_water {
                 f.velocity = f.velocity.min(2.5); // sinks, does not rocket through the pool
             }
+            f.angle = tumble_step(f.angle, f.angvel, dt);
             let new_y = f.position.y - f.velocity * dt;
             let feet_cell = (new_y - 0.5).floor() as i32;
             if feet_cell < 0 {
                 return false; // fell out of the world
             }
             if self.world.is_solid(cell.0, feet_cell, cell.2) {
-                let land_y = feet_cell + 1;
-                let occupied = self.world.get_block(cell.0, land_y, cell.2);
-                if registry::is_solid(occupied) {
-                    dropped_items.push(f.block);
-                } else {
-                    landed.push((cell.0, land_y, cell.2, f.block));
+                // loop 330: one small bounce on a hard fast impact (dust +
+                // recoil), then the settle lands for real
+                match faller_landing(f.velocity, f.bounced) {
+                    FallerLanding::Bounce(up) => {
+                        f.bounced = true;
+                        f.velocity = -up;
+                        dust.push(f.position);
+                        return true;
+                    }
+                    FallerLanding::Place => {
+                        let land_y = feet_cell + 1;
+                        let occupied = self.world.get_block(cell.0, land_y, cell.2);
+                        if registry::is_solid(occupied) {
+                            dropped_items.push(f.block);
+                        } else {
+                            landed.push((cell.0, land_y, cell.2, f.block));
+                        }
+                        return false;
+                    }
                 }
-                return false;
             }
             f.position.y = new_y;
             true
         });
+        for d in dust {
+            // impact puff — the block's own texture, budget-capped
+            if self.settings.particles {
+                self.spawn_break_particles(
+                    self.falling_blocks.first().map(|f| f.block.id()).unwrap_or(registry::block::SAND),
+                    (d.x as i32, d.y as i32, d.z as i32), 4);
+            }
+        }
         for (x, y, z, b) in landed {
             self.apply_sim_edit(x, y, z, b);
             self.after_edit(x, y, z);
@@ -4319,6 +4397,73 @@ impl GameState {
             if let Some(item) = lf_game::items::block_drop(b.id()) {
                 self.spawn_drop(&item, 1, self.player.eye_position() + self.player.look_dir());
             }
+        }
+    }
+
+    /// Loop 330 felling: a broken trunk removes the whole tree (trunk +
+    /// canopy, each cell broadcast), spawns the falling-tree entity, and
+    /// the timber creak plays. Valheim-style: what falls is everything
+    /// above the cut.
+    fn try_fell_tree(&mut self, stump: glam::IVec3) {
+        let above = [stump.x, stump.y + 1, stump.z];
+        let Some(tree) = lf_game::timber::find_tree(&self.world, above) else {
+            return;
+        };
+        for cell in tree.trunk.iter().chain(tree.leaves.iter()) {
+            if self.world.set_block(cell[0], cell[1], cell[2], BlockState::AIR).is_some() {
+                if let Some(n) = &self.net {
+                    n.send_block(cell[0], cell[1], cell[2], registry::block::AIR);
+                }
+            }
+        }
+        self.remesh_around(stump.x, stump.z);
+        let look = self.player.look_dir();
+        let dir = lf_game::timber::FallDir::from_look(look.x, look.z);
+        self.falling_trees.push(FallingTree { tree, dir, angle: 0.0, angvel: 0.55 });
+        self.play_sfx(lf_audio::Sfx::TreeCreak, 1.0);
+    }
+
+    /// Advance felled trees; impact applies the landing plan (horizontal
+    /// log row, drops for blocked cells, canopy shatter), with crash sound
+    /// and camera shake scaled to the tree.
+    fn update_falling_trees(&mut self, dt: f32) {
+        let mut landed: Vec<(lf_game::timber::Tree, lf_game::timber::FallDir)> = Vec::new();
+        for t in &mut self.falling_trees {
+            t.angvel += 1.9 * dt; // gravity torque on the leaning trunk
+            t.angle += t.angvel * dt;
+            if t.angle >= lf_game::timber::LAND_ANGLE {
+                landed.push((t.tree.clone(), t.dir));
+            }
+        }
+        self.falling_trees.retain(|t| t.angle < lf_game::timber::LAND_ANGLE);
+        for (tree, dir) in landed {
+            let is_free = |cell: [i32; 3]| {
+                !registry::is_solid(self.world.get_block(cell[0], cell[1], cell[2]))
+            };
+            let plan = lf_game::timber::fall_plan(&tree, dir, is_free);
+            for (cell, h_id) in &plan.place {
+                self.apply_sim_edit(cell[0], cell[1], cell[2], BlockState(*h_id));
+            }
+            let [dvx, dvz] = dir.vec();
+            let hinge = Vec3::new(
+                tree.base[0] as f32 + 0.5,
+                tree.base[1] as f32 + 0.5,
+                tree.base[2] as f32 + 0.5,
+            );
+            for item in &plan.drop_items {
+                self.spawn_drop(item, 1, hinge + Vec3::new(dvx * 1.5, 0.2, dvz * 1.5));
+            }
+            // canopy shatter: debris where the rotated canopy lands
+            if self.settings.particles {
+                let parts = lf_game::timber::tree_parts(&tree, lf_game::timber::LAND_ANGLE, dir);
+                for (c, _) in parts.iter().skip(tree.trunk.len()).step_by(2) {
+                    self.spawn_break_particles(
+                        tree.leaf_id,
+                        (c[0] as i32, c[1] as i32, c[2] as i32), 3);
+                }
+            }
+            self.play_sfx(lf_audio::Sfx::TreeCrash, 1.0);
+            self.shake = (self.shake + (0.12 + 0.025 * tree.trunk.len() as f32).min(0.5)).min(0.6);
         }
     }
 
@@ -4850,17 +4995,18 @@ impl GameState {
     /// Rebuild the single batch holding item-drop and mob cubes.
     fn rebuild_drop_batch(&mut self) {
         if self.drops.is_empty() && self.mobs.is_empty() && self.falling_blocks.is_empty()
-            && self.companions.is_empty() {
+            && self.companions.is_empty() && self.falling_trees.is_empty() {
             self.drop_batch = None;
             return;
         }
         let (mut vertices, mut indices) = (Vec::new(), Vec::new());
-        let mut push_cube = |cx: f32, cy: f32, cz: f32, r: f32, tex: u32, vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>| {
-            let base = vertices.len() as u32;
-            for (normal, corners, uvs) in cube_faces(r) {
+        let mut push_faces = |faces: Vec<([[f32; 3]; 4], [f32; 3])>, tex: u32,
+                              uvs: &[[f32; 2]; 4], vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>| {
+            for (corners, normal) in faces {
+                let base = vertices.len() as u32;
                 for (c, uv) in corners.iter().zip(uvs.iter()) {
                     vertices.push(GpuVertex {
-                        position: [cx + c[0], cy + c[1], cz + c[2]],
+                        position: *c,
                         normal,
                         tex_coord: *uv,
                         tex_index: tex,
@@ -4872,10 +5018,30 @@ impl GameState {
                 indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
             }
         };
-        // falling granular blocks render near-full-size with their own texture
+        let mut push_cube = |cx: f32, cy: f32, cz: f32, r: f32, tex: u32, vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>| {
+            let faces = cube_faces(r).into_iter()
+                .map(|(normal, corners, _)| (corners, normal)).collect();
+            push_faces(faces, tex, &UVS_CUBE, vertices, indices);
+        };
+        // falling granular blocks: tumbling cubes (loop 330 deep-fall)
         for fb in &self.falling_blocks {
             let tex = lf_assets::texture_index_for_block(fb.block.id());
-            push_cube(fb.position.x, fb.position.y, fb.position.z, 0.48, tex, &mut vertices, &mut indices);
+            let faces = lf_engine::scene::rotated_cube_faces(fb.position, 0.48, fb.tumble_axis, fb.angle);
+            push_faces(faces, tex, &UVS_CUBE, &mut vertices, &mut indices);
+        }
+        // felled trees: the rigid rotated assembly from the pure layout fn
+        for ft in &self.falling_trees {
+            let bark = lf_assets::texture_index_for_block(ft.tree.log_id);
+            let leaf = lf_assets::texture_index_for_block(ft.tree.leaf_id);
+            let (axis, sign) = lf_game::timber::fall_rotation(ft.dir);
+            let axis = Vec3::from_array(axis);
+            let parts = lf_game::timber::tree_parts(&ft.tree, ft.angle, ft.dir);
+            for (i, (c, half)) in parts.iter().enumerate() {
+                let tex = if i < ft.tree.trunk.len() { bark } else { leaf };
+                let faces = lf_engine::scene::rotated_cube_faces(
+                    Vec3::from_slice(c), half[0], axis, sign * ft.angle);
+                push_faces(faces, tex, &UVS_CUBE, &mut vertices, &mut indices);
+            }
         }
         // mobs: per-type skins (C2 refresh) with biome-tint variants for
         // the common hostiles — palette swaps of the same art, accents
@@ -5099,6 +5265,9 @@ impl GameState {
         }
     }
 }
+
+/// The standard full-face UVs for dynamic cubes (loop 330).
+const UVS_CUBE: [[f32; 2]; 4] = [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
 
 fn cube_faces(r: f32) -> [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] {
     [
@@ -5502,6 +5671,32 @@ mod tests {
         for b in HOTBAR {
             assert_ne!(registry::block::name(b), "Unknown", "unnamed hotbar block {}", b);
         }
+    }
+
+    /// Loop 330 deep-fall: tumble advances monotonically, fast first
+    /// impacts bounce exactly once with restitution, slow ones settle.
+    #[test]
+    fn fallers_bounce_once_then_settle() {
+        // tumble: linear in dt
+        assert!((tumble_step(1.0, 2.0, 0.5) - 2.0).abs() < 1e-5);
+        // fast first impact bounces with 0.18 restitution
+        match faller_landing(10.0, false) {
+            FallerLanding::Bounce(up) => assert!((up - 1.8).abs() < 1e-5),
+            FallerLanding::Place => panic!("10 m/s must bounce"),
+        }
+        // a bounced faller never bounces again
+        assert!(matches!(faller_landing(10.0, true), FallerLanding::Place));
+        // slow settle lands immediately
+        assert!(matches!(faller_landing(3.0, false), FallerLanding::Place));
+    }
+
+    #[test]
+    fn faller_tumble_axes_are_deterministic_and_unit() {
+        let a = faller_tumble_axis(0xDEAD_BEEF);
+        let b = faller_tumble_axis(0xDEAD_BEEF);
+        assert_eq!(a, b, "same seed, same axis");
+        assert!((a.length() - 1.0).abs() < 1e-4, "normalized, got {}", a.length());
+        assert_ne!(faller_tumble_axis(1), faller_tumble_axis(2), "varied per block");
     }
 
     #[test]

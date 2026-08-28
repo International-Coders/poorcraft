@@ -27,6 +27,11 @@ pub fn recipes() -> &'static [Recipe] {
     let mut book = Vec::new();
     // log -> 4 planks (shapeless-ish: single cell)
     book.push(r("planks", 4, vec![vec![Some("log")]]));
+    // every trunk species saws into the same planks (loop 330: the species
+    // logs became real items — before this, breaking a birch tree dropped stone)
+    for log_id in ["birch_log", "spruce_log", "dark_log", "cherry_log"] {
+        book.push(r("planks", 4, vec![vec![Some(log_id)]]));
+    }
     // 2 planks (vertical) -> 4 sticks
     book.push(r("stick", 4, vec![vec![Some("planks")], vec![Some("planks")]]));
     // 2x2 planks -> crafting table

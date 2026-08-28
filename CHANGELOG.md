@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## 2026-08-28 — timber: Valheim tree felling + deep falling blocks (loop 330, master-plan Phase A)
+- **Tree felling**: chopping a trunk now fells the whole tree. The new pure
+  `lf_game::timber` system identifies the standing tree from the break
+  (`find_tree`: same-species trunk column, canopy scan, 24-block cap, lone
+  placed logs never fall), removes trunk + canopy (every cell broadcast),
+  and animates a rigid fall — angular acceleration around the stump hinge,
+  rendered as rotated cubes via the shared `tree_parts` layout fn (the
+  dragon_parts idiom; client + proofs run the same code). On impact the
+  `fall_plan` lands the trunk as **horizontal log blocks** along the fall
+  direction (cells blocked by terrain convert to drops), the canopy
+  shatters into debris, a crash sound plays and the camera shakes with
+  tree size. Two new procedural sounds: TreeCreak (wobbling low creak) on
+  the tip and TreeCrash (noise burst over a 70 Hz thud) on impact.
+- **Horizontal logs**: 10 new vanilla blocks (ids 111-120: X/Z variants of
+  the five trunk species). The mesher's `Face` enum gained directional
+  variants (West/East/North/South) so a lying log's cut ends show the
+  ring texture along its axis — all other faces stay bark. Drops map back
+  to the species' log item.
+- **Bug fix found on the way**: birch/spruce/dark/cherry logs had no items —
+  breaking them fell through to the stone fallback. Each species now drops
+  its own log item and saws into planks.
+- **Deep falling-block animation**: granular fallers tumble while falling
+  (deterministic per-block axis + angular velocity, fibonacci-hashed from
+  the cell), fast first impacts bounce once (restitution 0.18) with an
+  impact dust puff, then settle. Physics stays the cheap scalar drop;
+  rotation is render-only CPU quads in the existing per-frame batch.
+  Perf bench after the change: terrain_vista p50 116.8 ms / p95 158.6 ms
+  (baseline 111/156 — within run variance; the rotated path only runs
+  while fallers/trees are airborne).
+- **Proofs**: tree_fall_mid (oak caught mid-rotation at a seeded angle;
+  the tree_fall_animates_between_frames GPU test renders two angles and
+  demands pixel differences with a deterministic same-angle control),
+  tree_fall_landed (the real fall_plan applied headless: horizontal log
+  row with visible ring ends), falling_blocks_deep (three independently
+  tumbling cubes). All with pixel claims (bark/ring/leaf counts).
+
 ## 2026-08-28 — assets-and-menus: complete asset set, centered UIs, creative mode (loop 329)
 - Menus centered, everywhere: the New World and Multiplayer panels were
   anchored top-left (a fresh top_down egui cursor starts at 0,0) — now both

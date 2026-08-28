@@ -7,7 +7,15 @@ use crate::registry;
 pub enum Face {
     Top,
     Bottom,
+    /// Any of the four lateral faces (shape meshes and water use this —
+    /// neither is ever direction-dependent).
     Side,
+    /// Directional lateral faces (loop 330): only horizontal logs care —
+    /// their ring-end faces are the pair along their axis.
+    West,
+    East,
+    North,
+    South,
 }
 
 #[repr(C)]
@@ -299,7 +307,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                         let t = side_top(nb);
                         let corners = [[fx, fy, fz], [fx, t, fz], [fx, t, fz1], [fx, fy, fz1]];
                         let (ao, light) = corner_shades(cell, [-1, 0, 0], &corners, [fx, fy, fz]);
-                        push_face(&mut vertices, &mut indices, corners, UVS_A, [-1.0, 0.0, 0.0], conn_tex(block, nb, tex_of(block, Face::Side)), ao, light, sway);
+                        push_face(&mut vertices, &mut indices, corners, UVS_A, [-1.0, 0.0, 0.0], conn_tex(block, nb, tex_of(block, Face::West)), ao, light, sway);
                     }
                 }
                 // +X face
@@ -309,7 +317,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                         let t = side_top(nb);
                         let corners = [[fx1, fy, fz1], [fx1, t, fz1], [fx1, t, fz], [fx1, fy, fz]];
                         let (ao, light) = corner_shades(cell, [1, 0, 0], &corners, [fx, fy, fz]);
-                        push_face(&mut vertices, &mut indices, corners, UVS_A, [1.0, 0.0, 0.0], conn_tex(block, nb, tex_of(block, Face::Side)), ao, light, sway);
+                        push_face(&mut vertices, &mut indices, corners, UVS_A, [1.0, 0.0, 0.0], conn_tex(block, nb, tex_of(block, Face::East)), ao, light, sway);
                     }
                 }
                 // -Y face (corners wound so the outward normal points down)
@@ -333,7 +341,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                         let t = side_top(nb);
                         let corners = [[fx1, fy, fz], [fx1, t, fz], [fx, t, fz], [fx, fy, fz]];
                         let (ao, light) = corner_shades(cell, [0, 0, -1], &corners, [fx, fy, fz]);
-                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, -1.0], conn_tex(block, nb, tex_of(block, Face::Side)), ao, light, sway);
+                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, -1.0], conn_tex(block, nb, tex_of(block, Face::North)), ao, light, sway);
                     }
                 }
                 // +Z face
@@ -343,7 +351,7 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                         let t = side_top(nb);
                         let corners = [[fx, fy, fz1], [fx, t, fz1], [fx1, t, fz1], [fx1, fy, fz1]];
                         let (ao, light) = corner_shades(cell, [0, 0, 1], &corners, [fx, fy, fz]);
-                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, 1.0], conn_tex(block, nb, tex_of(block, Face::Side)), ao, light, sway);
+                        push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 0.0, 1.0], conn_tex(block, nb, tex_of(block, Face::South)), ao, light, sway);
                     }
                 }
             }
@@ -437,7 +445,9 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState(2)); // grass
         let mesh = mesh_section(&s, None, None, None, None, None, None,
-            &|_b, f| match f { Face::Top => 100, Face::Bottom => 101, Face::Side => 102 },
+            &|_b, f| match f {
+                Face::Top => 100, Face::Bottom => 101, _ => 102,
+            },
             &|_, _, _| 0xFF);
         for v in &mesh.vertices {
             let expected = if v.normal[1] > 0.5 {

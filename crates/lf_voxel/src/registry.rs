@@ -23,7 +23,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 200;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 110;
+pub const MAX_VANILLA_BLOCK: u32 = 120;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -200,6 +200,19 @@ pub mod block {
     pub const CACTUS: u32 = 108;
     pub const DEAD_SHRUB: u32 = 109;
     pub const LAVA: u32 = 110;
+    // Loop 330 timber: felled trees land as horizontal logs — one X- and
+    // one Z-aligned variant per species (the atlas reuses each species'
+    // existing bark/log_top layers through the per-face mapping).
+    pub const LOG_X: u32 = 111;
+    pub const LOG_Z: u32 = 112;
+    pub const BIRCH_LOG_X: u32 = 113;
+    pub const BIRCH_LOG_Z: u32 = 114;
+    pub const SPRUCE_LOG_X: u32 = 115;
+    pub const SPRUCE_LOG_Z: u32 = 116;
+    pub const DARK_LOG_X: u32 = 117;
+    pub const DARK_LOG_Z: u32 = 118;
+    pub const CHERRY_LOG_X: u32 = 119;
+    pub const CHERRY_LOG_Z: u32 = 120;
 
     pub fn name(id: u32) -> &'static str {
         if let Some(def) = crate::registry::mod_block(id) {
@@ -256,6 +269,11 @@ pub mod block {
             SPRUCE_LOG => "Spruce Log",
             DARK_LOG => "Dark Oak Log",
             CHERRY_LOG => "Cherry Log",
+            LOG_X | LOG_Z => "Log",
+            BIRCH_LOG_X | BIRCH_LOG_Z => "Birch Log",
+            SPRUCE_LOG_X | SPRUCE_LOG_Z => "Spruce Log",
+            DARK_LOG_X | DARK_LOG_Z => "Dark Oak Log",
+            CHERRY_LOG_X | CHERRY_LOG_Z => "Cherry Log",
             BIRCH_LEAVES => "Birch Leaves",
             SPRUCE_LEAVES => "Spruce Leaves",
             DARK_LEAVES => "Dark Oak Leaves",
@@ -328,6 +346,72 @@ pub fn is_leaf(id: u32) -> bool {
     use block as b;
     id == b::LEAVES || id == b::BIRCH_LEAVES || id == b::SPRUCE_LEAVES
         || id == b::DARK_LEAVES || id == b::CHERRY_LEAVES || id == b::PALE_LEAVES
+}
+
+/// The five trunk species that form trees (mushroom "trunks" are birch).
+pub fn is_log(id: u32) -> bool {
+    log_axis(id).is_some() || matches!(id,
+        block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG | block::DARK_LOG | block::CHERRY_LOG)
+}
+
+/// Alignment of a horizontal log variant: Some(Axis::X) for `LOG_X`-style
+/// ids, Some(Axis::Z) for `LOG_Z`-style, None for vertical (or non-log)
+/// blocks. Vertical trunks are the un-marked default so old saves and
+/// worldgen need no change.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+pub fn log_axis(id: u32) -> Option<Axis> {
+    use block as b;
+    match id {
+        b::LOG_X | b::BIRCH_LOG_X | b::SPRUCE_LOG_X | b::DARK_LOG_X | b::CHERRY_LOG_X => Some(Axis::X),
+        b::LOG_Z | b::BIRCH_LOG_Z | b::SPRUCE_LOG_Z | b::DARK_LOG_Z | b::CHERRY_LOG_Z => Some(Axis::Z),
+        _ => None,
+    }
+}
+
+/// The vertical trunk block a species' horizontal variants come from (used
+/// for drops and for texture-layer reuse).
+pub fn horizontal_log_base(id: u32) -> Option<u32> {
+    use block as b;
+    match id {
+        b::LOG_X | b::LOG_Z => Some(b::LOG),
+        b::BIRCH_LOG_X | b::BIRCH_LOG_Z => Some(b::BIRCH_LOG),
+        b::SPRUCE_LOG_X | b::SPRUCE_LOG_Z => Some(b::SPRUCE_LOG),
+        b::DARK_LOG_X | b::DARK_LOG_Z => Some(b::DARK_LOG),
+        b::CHERRY_LOG_X | b::CHERRY_LOG_Z => Some(b::CHERRY_LOG),
+        _ => None,
+    }
+}
+
+/// The X-aligned horizontal variant of a vertical trunk species.
+pub fn log_horizontal_x(vertical_id: u32) -> Option<u32> {
+    use block as b;
+    match vertical_id {
+        b::LOG => Some(b::LOG_X),
+        b::BIRCH_LOG => Some(b::BIRCH_LOG_X),
+        b::SPRUCE_LOG => Some(b::SPRUCE_LOG_X),
+        b::DARK_LOG => Some(b::DARK_LOG_X),
+        b::CHERRY_LOG => Some(b::CHERRY_LOG_X),
+        _ => None,
+    }
+}
+
+/// The Z-aligned horizontal variant of a vertical trunk species.
+pub fn log_horizontal_z(vertical_id: u32) -> Option<u32> {
+    use block as b;
+    match vertical_id {
+        b::LOG => Some(b::LOG_Z),
+        b::BIRCH_LOG => Some(b::BIRCH_LOG_Z),
+        b::SPRUCE_LOG => Some(b::SPRUCE_LOG_Z),
+        b::DARK_LOG => Some(b::DARK_LOG_Z),
+        b::CHERRY_LOG => Some(b::CHERRY_LOG_Z),
+        _ => None,
+    }
 }
 
 /// Blocks entities collide with. Water is not solid; leaves are.
@@ -423,6 +507,36 @@ pub fn has_gravity(id: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Loop 330 timber: the horizontal log variants know their axis and
+    /// their species, drop-path helpers round-trip, and they are plain
+    /// opaque solid cubes like the vertical trunks.
+    #[test]
+    fn horizontal_logs_map_axis_and_species() {
+        use block as b;
+        assert_eq!(log_axis(b::LOG), None);
+        assert_eq!(log_axis(b::LOG_X), Some(Axis::X));
+        assert_eq!(log_axis(b::LOG_Z), Some(Axis::Z));
+        assert_eq!(log_axis(b::CHERRY_LOG_X), Some(Axis::X));
+        assert_eq!(log_axis(b::BIRCH_LOG_Z), Some(Axis::Z));
+        // every horizontal variant maps back to its species trunk
+        for (vertical, x_id, z_id) in [
+            (b::LOG, b::LOG_X, b::LOG_Z),
+            (b::BIRCH_LOG, b::BIRCH_LOG_X, b::BIRCH_LOG_Z),
+            (b::SPRUCE_LOG, b::SPRUCE_LOG_X, b::SPRUCE_LOG_Z),
+            (b::DARK_LOG, b::DARK_LOG_X, b::DARK_LOG_Z),
+            (b::CHERRY_LOG, b::CHERRY_LOG_X, b::CHERRY_LOG_Z),
+        ] {
+            assert_eq!(horizontal_log_base(x_id), Some(vertical));
+            assert_eq!(horizontal_log_base(z_id), Some(vertical));
+            assert_eq!(log_horizontal_x(vertical), Some(x_id));
+            assert_eq!(log_horizontal_z(vertical), Some(z_id));
+            assert!(is_log(x_id) && is_log(z_id) && is_log(vertical));
+            // plain cubes: solid + opaque like the vertical trunk
+            assert!(is_solid(BlockState(x_id)) && is_opaque(BlockState(x_id)));
+            assert!(is_targetable(BlockState(z_id)));
+        }
+    }
 
     #[test]
     fn registry_properties() {

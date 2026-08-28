@@ -1050,3 +1050,58 @@ Smoke OK. Runtimes rebuilt.
 - Music/ambient audio still absent (the Music slider drives nothing).
 - Armor slots accept any piece (no per-slot equip restrictions).
 - Multiplayer connect still hardcodes the player name "smith".
+
+## 2026-08-28 — timber + deep fall (loop 330, master-plan Phase A)
+**WHAT**: Valheim-style tree felling (cut a trunk, the whole tree falls and
+lands as horizontal log blocks) plus deeper falling-block animation, per
+the user's request; executed as Phase A of the approved master fix plan
+(A→B→C→D→E recorded in the loop-329 DEVLOG entry and STATE.md next_task).
+
+**HOW**:
+- A1 horizontal logs: 10 vanilla ids (111-120, X/Z × 5 species);
+  `lf_voxel::meshing::Face` gained West/East/North/South (blast radius: the
+  plain-cube mesher's ±X/±Z tex calls + `texture_index_for_face`, which now
+  routes a lying log's ring ends along its axis and collapses directionals
+  to `Side` for everything else); registry helpers log_axis/horizontal_log_
+  base/log_horizontal_x/z + MAX_VANILLA_BLOCK 120. Found + fixed en route:
+  the 4 non-oak species logs had NO items — block_drop fell through to
+  stone; added birch/spruce/dark/cherry log items + planks recipes.
+- A2 pure timber (`lf_game::timber`): find_tree (species trunk column,
+  canopy scan, 24 cap, >=2 cells so placed logs never fall), fall_plan
+  (landing row of horizontal ids along the cardinal fall, blocked cells →
+  drops, leaves shatter), tree_parts (rigid rotation about the stump-cell
+  center — lands exactly on the placed cell centers at LAND_ANGLE≈81°),
+  fall_rotation (axis+sign mapping so renderer cubes tilt with the trunk;
+  pinned against rot() by a Rodrigues test).
+- A3 client: try_fell_tree on log breaks (cells AIRed + broadcast, one
+  remesh), FallingTree {tree, dir, angle, angvel} with gravity torque,
+  landing applies the plan through apply_sim_edit, leaf debris at the
+  rotated canopy positions, TreeCreak/TreeCrash synth arms, shake scaled
+  by trunk length.
+- A4 deep fall: FallingBlock gained tumble_axis/angle/angvel/bounced;
+  physics stays the scalar drop; rotation is render-only via
+  `lf_engine::scene::rotated_cube_faces` (Rodrigues, mesher-compatible
+  winding) pushed into the per-frame drop batch; fast first impacts bounce
+  once (0.18) with a dust puff. Pure helpers tumble_step/faller_landing/
+  faller_tumble_axis (fibonacci-hashed axis) unit-tested.
+- Proofs: tree_fall_mid (seeded fall angle; GPU test
+  tree_fall_animates_between_frames renders angle 0.30 vs 0.85 → pixels
+  differ, same angle → identical), tree_fall_landed (real fall_plan applied
+  headless; bark-row + ring-end claims), falling_blocks_deep (three
+  independent tumbles, sky-region claim).
+
+**VERIFICATION**: cargo build --workspace clean; cargo test --workspace
+318 passed / 0 failed (14 new: 1 registry axis map, 1 assets face routing,
+1 drops, 8 timber, 1 rotation consistency, 2 faller helpers, audio bound
+extended for the timber pair). vistest 76/76 with the 3 new scenes'
+pixel claims green; human-eye pass on all three PNGs (tilt reads, ring
+ends visible, tumbles distinct). Perf gate: terrain_vista p50 116.8 /
+p95 158.6 / min 84.0 (baseline 111/156/77 — inside run variance; the
+rotated path runs only while fallers/trees are airborne). Smoke OK.
+Runtimes rebuilt.
+
+**HONESTLY DEFERRED**: remote clients receive the block edits but not the
+fall animation (single-sim-owner v1); no axe variant/stripping; a giant-
+spruce fall renders up to ~70 cubes (~420 quads — same noise class as the
+dragon precedent, recorded in DECISIONS terms); Phase B-E of the master
+plan queued in STATE.md.

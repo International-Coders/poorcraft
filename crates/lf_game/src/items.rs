@@ -77,6 +77,13 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "mycelium", name: "Mycelium", kind: ItemKind::Block(block::MYCELIUM), max_stack: 64 },
         ItemDef { id: "snow", name: "Snow", kind: ItemKind::Block(block::SNOW), max_stack: 64 },
         ItemDef { id: "log", name: "Oak Log", kind: ItemKind::Block(block::LOG), max_stack: 64 },
+        // loop 330 fix: the four other trunk species had NO items, so
+        // block_drop fell through to the stone fallback — breaking a birch
+        // tree yielded stone. Each species now drops itself.
+        ItemDef { id: "birch_log", name: "Birch Log", kind: ItemKind::Block(block::BIRCH_LOG), max_stack: 64 },
+        ItemDef { id: "spruce_log", name: "Spruce Log", kind: ItemKind::Block(block::SPRUCE_LOG), max_stack: 64 },
+        ItemDef { id: "dark_log", name: "Dark Oak Log", kind: ItemKind::Block(block::DARK_LOG), max_stack: 64 },
+        ItemDef { id: "cherry_log", name: "Cherry Log", kind: ItemKind::Block(block::CHERRY_LOG), max_stack: 64 },
         ItemDef { id: "leaves", name: "Oak Leaves", kind: ItemKind::Block(block::LEAVES), max_stack: 64 },
         ItemDef { id: "torch", name: "Torch", kind: ItemKind::Block(block::TORCH), max_stack: 64 },
         ItemDef { id: "lantern", name: "Lantern", kind: ItemKind::Block(block::LANTERN), max_stack: 64 },
@@ -330,6 +337,14 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::MYCELIUM => Some("mycelium".into()),
         block::SNOW => Some("snow".into()),
         block::LOG => Some("log".into()),
+        block::BIRCH_LOG => Some("birch_log".into()),
+        block::SPRUCE_LOG => Some("spruce_log".into()),
+        block::DARK_LOG => Some("dark_log".into()),
+        block::CHERRY_LOG => Some("cherry_log".into()),
+        // felled-trunk blocks drop their species' log item (loop 330)
+        id if lf_voxel::registry::log_axis(id).is_some() => {
+            lf_voxel::registry::horizontal_log_base(id).map(|b| block_drop(b).unwrap_or_else(|| "log".into()))
+        }
         block::LEAVES => Some("leaves".into()), // apples are a rare bonus handled by the caller
         block::TORCH => Some("torch".into()),
         block::LANTERN => Some("lantern".into()),
@@ -403,6 +418,21 @@ mod tests {
         assert_eq!(super::slab_merge(a, a).unwrap(), lf_voxel::BlockState(lf_voxel::registry::block::STONE));
         let p = shaped_placement("planks_slab", 0.0).unwrap();
         assert!(super::slab_merge(a, p).is_none(), "different materials do not merge");
+    }
+
+    /// Loop 330: species logs drop themselves (the stone-fallback bug),
+    /// horizontal felled trunks drop their species' log item.
+    #[test]
+    fn species_logs_drop_their_own_item() {
+        use lf_voxel::registry::block;
+        assert_eq!(block_drop(block::LOG).as_deref(), Some("log"));
+        assert_eq!(block_drop(block::BIRCH_LOG).as_deref(), Some("birch_log"));
+        assert_eq!(block_drop(block::SPRUCE_LOG).as_deref(), Some("spruce_log"));
+        assert_eq!(block_drop(block::DARK_LOG).as_deref(), Some("dark_log"));
+        assert_eq!(block_drop(block::CHERRY_LOG).as_deref(), Some("cherry_log"));
+        assert_eq!(block_drop(block::LOG_X).as_deref(), Some("log"));
+        assert_eq!(block_drop(block::BIRCH_LOG_Z).as_deref(), Some("birch_log"));
+        assert_eq!(block_drop(block::CHERRY_LOG_X).as_deref(), Some("cherry_log"));
     }
 
     use super::*;

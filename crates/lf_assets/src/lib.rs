@@ -282,6 +282,13 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         108 => CACTUS_LAYER,
         109 => DEAD_SHRUB_LAYER,
         110 => LAVA_LAYER,
+        // loop 330: horizontal logs reuse their species' bark layer (the
+        // ring-end faces are routed per-face in texture_index_for_face)
+        111 | 112 => 6,  // log bark
+        113 | 114 => 17, // birch bark
+        115 | 116 => 18, // spruce bark
+        117 | 118 => 19, // dark log bark
+        119 | 120 => 20, // cherry bark
         id if id >= 200 => 47, // mod blocks (registry::MOD_BLOCK_BASE)
         _ => 0,
     }
@@ -297,12 +304,26 @@ pub const CRACK_LAYERS: [u32; 4] = [43, 44, 45, 46];
 pub fn texture_index_for_face(block_id: u32, face: lf_voxel::meshing::Face) -> u32 {
     use lf_voxel::meshing::Face;
     use lf_voxel::registry::block;
+    // loop 330: a horizontal log's cut ends face along its axis — an
+    // X-aligned log rings East/West, a Z-aligned log rings North/South.
+    let horizontal_end = matches!(
+        (lf_voxel::registry::log_axis(block_id), face),
+        (Some(lf_voxel::registry::Axis::X), Face::East | Face::West)
+            | (Some(lf_voxel::registry::Axis::Z), Face::North | Face::South),
+    );
+    // Directional laterals collapse to `Side` for every non-log purpose
+    // (shapes, water, grass, ... are never direction-dependent).
+    let face = match face {
+        Face::West | Face::East | Face::North | Face::South => Face::Side,
+        other => other,
+    };
     let is_log = matches!(block_id, block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG
         | block::DARK_LOG | block::CHERRY_LOG);
     match (block_id, face) {
         (block::GRASS, Face::Top) => GRASS_TOP_LAYER,
         (block::GRASS, Face::Bottom) => texture_index_for_block(block::DIRT),
         (id, Face::Top) | (id, Face::Bottom) if is_log => LOG_TOP_LAYER,
+        _ if horizontal_end => LOG_TOP_LAYER,
         // golden savanna grass: gold blades on top, plain dirt sides
         (block::GILDED_GRASS, Face::Top) => GILDED_GRASS_LAYER,
         (block::GILDED_GRASS, Face::Bottom) | (block::GILDED_GRASS, Face::Side) => {
@@ -2905,6 +2926,38 @@ mod tests {
         assert_eq!(name(104), "banner_nameless");
         assert_eq!(name(105), "lantern_hanging");
         assert_eq!(name(100), "banner_ironborn", "id 100 is a vanilla banner now");
+        // loop 330: horizontal logs reuse their species' bark layer
+        assert_eq!(name(111), "log");
+        assert_eq!(name(114), "birch_log");
+        assert_eq!(name(120), "cherry_log");
+    }
+
+    /// Loop 330: a horizontal log's cut ends are the faces along its axis
+    /// (X-log rings East/West, Z-log rings North/South); every other face
+    /// is bark, and non-log blocks are unaffected by the new variants.
+    #[test]
+    fn horizontal_log_faces_route_ring_ends() {
+        use lf_voxel::meshing::Face;
+        let name_of = |id: u32, f: Face| TEXTURE_NAMES[texture_index_for_face(id, f) as usize];
+        // X-aligned oak log: rings East/West, bark elsewhere
+        assert_eq!(name_of(111, Face::East), "log_top");
+        assert_eq!(name_of(111, Face::West), "log_top");
+        assert_eq!(name_of(111, Face::North), "log");
+        assert_eq!(name_of(111, Face::South), "log");
+        assert_eq!(name_of(111, Face::Top), "log");
+        assert_eq!(name_of(111, Face::Bottom), "log");
+        // Z-aligned spruce log: rings North/South
+        assert_eq!(name_of(116, Face::North), "log_top");
+        assert_eq!(name_of(116, Face::South), "log_top");
+        assert_eq!(name_of(116, Face::East), "spruce_log");
+        assert_eq!(name_of(116, Face::West), "spruce_log");
+        // vertical trunk unchanged
+        assert_eq!(name_of(7, Face::Top), "log_top");
+        assert_eq!(name_of(7, Face::Side), "log");
+        // non-log blocks: directional laterals collapse to plain sides
+        assert_eq!(name_of(1, Face::East), "stone");
+        assert_eq!(name_of(2, Face::South), "grass");
+        assert_eq!(name_of(2, Face::West), "grass");
     }
 
     #[test]

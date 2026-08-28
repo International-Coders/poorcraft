@@ -678,6 +678,16 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "asset_catalog", desc: "loop 329 assets: every registered item icon rendered; per-cell pixel claim",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        // ---- loop 330 timber + deep fall ----
+        SceneSpec { name: "tree_fall_mid", desc: "loop 330 timber: a felled oak caught mid-rotation (real tree_parts + rotated cubes)",
+            default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-8.0, 0.0, 10.0), target: Vec3::new(1.5, 0.0, 0.0) },
+        SceneSpec { name: "tree_fall_landed", desc: "loop 330 timber: the landing plan placed the trunk as a horizontal log row",
+            default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-6.0, 0.0, 10.0), target: Vec3::new(2.5, 0.0, 0.0) },
+        SceneSpec { name: "falling_blocks_deep", desc: "loop 330 deep fall: granular blocks mid-air with independent tumble",
+            default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-4.0, 0.0, 9.0), target: Vec3::new(0.5, 0.0, 0.0) },
         SceneSpec { name: "preview_orbit_a", desc: "B2 preview orbit at t=0",
             default_seed: 0, time_of_day: 0.45, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
@@ -1550,6 +1560,60 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         lf_game::fluids::settle_gravity(&mut world, 0, 0);
     }
 
+    // loop 330 timber: a flat pad with a standard oak; the stump cell is
+    // air (the player broke the bottom log). Mid-fall renders the real
+    // tree_parts layout; landed applies the real fall_plan to the world.
+    if spec.name == "tree_fall_mid" || spec.name == "tree_fall_landed" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -9..9 {
+            for z in -9..9 {
+                for y in h..h + 12 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h, z, lf_voxel::BlockState(block::GRASS));
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        // full oak: trunk h+1..=h+5, plus-shaped canopy around the top
+        for y in h + 1..=h + 5 {
+            world.set_block(0, y, 0, lf_voxel::BlockState(block::LOG));
+        }
+        for (dx, dy, dz) in [(0, 1, 0), (1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1)] {
+            world.set_block(dx, h + 5 + dy, dz, lf_voxel::BlockState(block::LEAVES));
+        }
+        // the break: the bottom log pops
+        world.set_block(0, h + 1, 0, lf_voxel::BlockState(block::AIR));
+        let tree = lf_game::timber::find_tree(&world, [0, h + 2, 0])
+            .expect("setup built a felling-eligible oak");
+        // the client removes the standing tree and animates the entity
+        for cell in tree.trunk.iter().chain(tree.leaves.iter()) {
+            world.set_block(cell[0], cell[1], cell[2], lf_voxel::BlockState(block::AIR));
+        }
+        if spec.name == "tree_fall_landed" {
+            let plan = lf_game::timber::fall_plan(&tree, lf_game::timber::FallDir::PosX,
+                |c| !world.is_solid(c[0], c[1], c[2]));
+            for (cell, log_h) in &plan.place {
+                world.set_block(cell[0], cell[1], cell[2], lf_voxel::BlockState(*log_h));
+            }
+        }
+    }
+    // loop 330 deep fall: three granular blocks mid-air (rendered as
+    // independently tumbling cubes below)
+    if spec.name == "falling_blocks_deep" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -6..6 {
+            for z in -6..6 {
+                for y in h..h + 8 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+                world.set_block(x, h, z, lf_voxel::BlockState(block::SAND));
+            }
+        }
+    }
+
     let to_gpu = |vs: &[lf_voxel::meshing::Vertex]| -> Vec<GpuVertex> {
         vs.iter().map(|v| GpuVertex {
             position: v.position,
@@ -1870,6 +1934,69 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
                 });
             }
             indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+
+    // loop 330 timber + deep fall: rotated-cube dynamic geometry through
+    // the same engine helper the client renders with
+    if spec.name == "tree_fall_mid" || spec.name == "falling_blocks_deep" {
+        let push_rot = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                        faces: Vec<([[f32; 3]; 4], [f32; 3])>, tex: u32| {
+            for (corners, normal) in faces {
+                let base = vertices.len() as u32;
+                for (c, uv) in corners.iter().zip(UVS_DYNAMIC.iter()) {
+                    vertices.push(GpuVertex {
+                        position: *c,
+                        normal,
+                        tex_coord: *uv,
+                        tex_index: tex,
+                        ao: 1.0,
+                        light: 0xF0,
+                        sway: 0.0,
+                    });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        };
+        if spec.name == "tree_fall_mid" {
+            let h = world.surface_height(0, 0) as f32;
+            // rebuild the Tree struct exactly as setup left it (4 trunk
+            // cells above the broken stump) and tilt by the scene seed
+            let tree = lf_game::timber::Tree {
+                base: [0, h as i32 + 1, 0],
+                trunk: (1..=4).map(|i| [0, h as i32 + 1 + i, 0]).collect(),
+                leaves: [(0i32, 1i32, 0i32), (1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1)]
+                    .iter().map(|(dx, dy, dz)| [*dx, h as i32 + 5 + dy, *dz]).collect(),
+                log_id: lf_voxel::registry::block::LOG,
+                leaf_id: lf_voxel::registry::block::LEAVES,
+            };
+            let angle = match seed { 1 => 0.30, 2 => 0.85, _ => 0.55 };
+            let dir = lf_game::timber::FallDir::PosX;
+            let (axis, sign) = lf_game::timber::fall_rotation(dir);
+            let axis = Vec3::from_array(axis);
+            let bark = lf_assets::texture_index_for_block(lf_voxel::registry::block::LOG);
+            let leaf = lf_assets::texture_index_for_block(lf_voxel::registry::block::LEAVES);
+            for (i, (c, half)) in lf_game::timber::tree_parts(&tree, angle, dir).iter().enumerate() {
+                let tex = if i < tree.trunk.len() { bark } else { leaf };
+                let faces = lf_engine::scene::rotated_cube_faces(
+                    Vec3::from_slice(c), half[0], axis, sign * angle);
+                push_rot(&mut vertices, &mut indices, faces, tex);
+            }
+        }
+        if spec.name == "falling_blocks_deep" {
+            let h = world.surface_height(0, 0) as f32;
+            let sand = lf_assets::texture_index_for_block(lf_voxel::registry::block::SAND);
+            let dirt = lf_assets::texture_index_for_block(lf_voxel::registry::block::DIRT);
+            let grass = lf_assets::texture_index_for_block(lf_voxel::registry::block::GRASS);
+            let cubes = [
+                (Vec3::new(-2.0, h + 2.4, 0.5), Vec3::new(0.2, 1.0, 0.9), 0.8, sand),
+                (Vec3::new(0.5, h + 3.1, 0.5), Vec3::new(0.9, 0.4, 0.2), 1.9, dirt),
+                (Vec3::new(3.0, h + 2.0, 0.5), Vec3::new(0.5, 0.6, 1.0), 2.7, grass),
+            ];
+            for (center, axis, angle, tex) in cubes {
+                let faces = lf_engine::scene::rotated_cube_faces(center, 0.48, axis, angle);
+                push_rot(&mut vertices, &mut indices, faces, tex);
+            }
         }
     }
 
@@ -2249,6 +2376,15 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "falling_sand" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-7.0, h + 5.0, 8.0), Vec3::new(0.5, h - 1.0, 0.5))
+    } else if spec.name == "tree_fall_mid" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-7.5, h + 7.0, 9.0), Vec3::new(1.5, h + 3.0, 0.0))
+    } else if spec.name == "tree_fall_landed" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-5.5, h + 4.5, 9.5), Vec3::new(2.5, h + 1.0, 0.0))
+    } else if spec.name == "falling_blocks_deep" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-3.5, h + 5.0, 8.5), Vec3::new(0.5, h + 2.2, 0.0))
     } else if spec.name == "texture_tiling" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.6, 9.5), Vec3::new(0.5, h + 1.5, 0.0))
@@ -2652,7 +2788,8 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
     let needs_check = matches!(scene,
         "menu_preview" | "new_world_screen" | "multiplayer_screen" | "crafting_workbench"
         | "menus_centered_small" | "menus_centered" | "menus_centered_wide"
-        | "journal" | "asset_catalog");
+        | "journal" | "asset_catalog"
+        | "tree_fall_mid" | "tree_fall_landed" | "falling_blocks_deep");
     if !needs_check {
         return Ok(());
     }
@@ -2784,6 +2921,52 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
             assert!(green > 8, "journal: completed-quest green missing ({})", green);
             let acc = count_in(0, 0, w, h, accent, 40);
             assert!(acc > 4, "journal: accent tab underline / progress missing ({})", acc);
+        }
+        // loop 330 timber: mid-fall shows bark + canopy; landed shows the
+        // horizontal row's bark run plus the lighter ring ends
+        "tree_fall_mid" | "tree_fall_landed" => {
+            let mut bark = 0usize;
+            let mut ring = 0usize;
+            let mut leaves = 0usize;
+            for y in (0..h).step_by(2) {
+                for x in (0..w).step_by(2) {
+                    let c = px(x, y);
+                    let (r, g, b) = (c[0], c[1], c[2]);
+                    // bark: brown, R > G > B, dark-to-mid
+                    if (40..120).contains(&r) && r > g && g > b && r - g > 10 {
+                        bark += 1;
+                    }
+                    // ring ends: much lighter warm tone
+                    if r > 110 && r > g && g > b {
+                        ring += 1;
+                    }
+                    // leaves: green-dominant
+                    if g > r + 20 && g > b + 20 && g > 60 {
+                        leaves += 1;
+                    }
+                }
+            }
+            assert!(bark > 120, "{}: felled-trunk bark pixels missing ({})", scene, bark);
+            if scene == "tree_fall_mid" {
+                assert!(leaves > 60, "tree_fall_mid: canopy leaves missing ({})", leaves);
+            }
+            if scene == "tree_fall_landed" {
+                assert!(ring > 25, "tree_fall_landed: log-top ring ends missing ({})", ring);
+            }
+        }
+        "falling_blocks_deep" => {
+            // the flat sand pad is the floor; the tumbling cubes float in
+            // the sky region — count warm bright pixels in the upper half
+            let mut warm = 0usize;
+            for y in (0..h / 2).step_by(2) {
+                for x in (0..w).step_by(2) {
+                    let c = px(x, y);
+                    if c[0] > 150 && c[1] > 120 && c[0] > c[2] + 30 {
+                        warm += 1;
+                    }
+                }
+            }
+            assert!(warm > 60, "falling_blocks_deep: no tumbling cubes in the sky region ({})", warm);
         }
         "asset_catalog" => {
             // same grid math as draw_asset_catalog_preview: every cell must
@@ -3098,6 +3281,9 @@ fn draw_asset_catalog_preview(ctx: &egui::Context) {
         }
     });
 }
+
+/// Standard full-face UVs for dynamic rotated cubes (loop 330).
+const UVS_DYNAMIC: [[f32; 2]; 4] = [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
 
 const UW_TEXT: egui::Color32 = egui::Color32::from_rgb(0xf0, 0xea, 0xd6);
 const UW_MUTED: egui::Color32 = egui::Color32::from_rgb(0x8a, 0x7f, 0x6e);
@@ -4662,6 +4848,27 @@ mod tests {
         for p in paths {
             let _ = std::fs::remove_file(p);
         }
+    }
+
+    /// Loop 330: the felled-tree proof renders through the real GPU
+    /// pipeline at two fall angles (seeded) — different angles must differ
+    /// in pixels, and the same angle must be pixel-identical (the fall
+    /// animation is deterministic).
+    #[test]
+    fn tree_fall_animates_between_frames() {
+        let out = std::env::temp_dir().join("loreforge_tree_fall_anim");
+        std::fs::create_dir_all(&out).unwrap();
+        let a = out.join("a.png");
+        let b = out.join("b.png");
+        let a2 = out.join("a2.png");
+        run_scene("tree_fall_mid", Some(1), &a).unwrap();
+        run_scene("tree_fall_mid", Some(2), &b).unwrap();
+        run_scene("tree_fall_mid", Some(1), &a2).unwrap();
+        let pa = image::open(&a).unwrap().to_rgba8();
+        let pb = image::open(&b).unwrap().to_rgba8();
+        let pa2 = image::open(&a2).unwrap().to_rgba8();
+        assert_ne!(pa.as_raw(), pb.as_raw(), "different fall angles must render differently");
+        assert_eq!(pa.as_raw(), pa2.as_raw(), "same fall angle must be deterministic");
     }
 
     #[test]
