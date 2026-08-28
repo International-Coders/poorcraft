@@ -961,3 +961,27 @@ looking (dry-slot bed, coast-fade). Smoke OK. Runtimes rebuilt.
 - Search bar intentionally absent (CRAFTING_REVAMP: add at >200 recipes).
 - Windows cross-build still not installed on this host (dmg + linux
   tarball shipped).
+
+## 2026-08-28 — dev-loop skill (tooling, no game code)
+**WHAT**: New project-local ZCode skill `.agents/skills/dev-loop/SKILL.md` —
+the self-driving development loop: Orient (STATE/BACKLOG/CHANGELOG/DEVLOG/
+AUDIT + git) → Pick (explicit ask > next_task > newest HONESTLY DEFERRED >
+AUDIT open items > derived gaps; one shippable job per pass, split rule) →
+Plan (5-line: files/layers/tests/proof/docs) → Implement (idioms, tests
+alongside, continuous `cargo test --workspace`, AGENTS gotchas) → Verify
+ladder (build → tests → vistest + pixel claims + human-eye pass → smoke →
+perf; bugs found by proofs fixed before commit) → Bookkeep (STATE loop_count,
+CHANGELOG, BACKLOG, DEVLOG, Makefile) → Ship (make runtimes, ls dist, commit,
+git push github HEAD, artifact paths) → repeat with clean checkpoints only.
+**HOW**: Authored with skill-creator against the real loop discipline
+(AGENTS.md rules, loop-328 bookkeeping formats, gotchas); placed in
+`.agents/skills/dev-loop/` (project scope, cross-tool discovery path).
+Dry-run validated with "keep building — run the next dev loop": Orient+Pick
+correctly resolves next_task=NONE to the loop-328 deferrals (Creative
+behavior, faction recipe gates, per-biome fog) and AUDIT open items (q4
+Collected producers, spawn-or-cut mobs) as the next queue.
+**VERIFICATION**: Markdown-only change — no Rust touched, so the 297-test
+green from loop 328 is unaffected by construction. Skill discoverable at
+`.agents/skills/dev-loop/SKILL.md` (frontmatter name matches dir).
+Runtimes intentionally not rebuilt: dist/ binaries unchanged. Pushed to
+github; commit is tooling-only by design (stated here to keep rule 1 honest).
