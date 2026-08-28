@@ -1,5 +1,47 @@
 # CHANGELOG
 
+## 2026-08-28 — assets-and-menus: complete asset set, centered UIs, creative mode (loop 329)
+- Menus centered, everywhere: the New World and Multiplayer panels were
+  anchored top-left (a fresh top_down egui cursor starts at 0,0) — now both
+  sit on `ui_kit::centered_panel_rect` (clamped, both axes); pause, settings,
+  Load World, spellbook, imbue, carve and paths vertically center via
+  `ui_kit::center_vertically` (the pause screen's fixed 18% guess is gone).
+  `ui_kit::apply_kit_style` pushes the LOREFORGE palette into egui's global
+  style so every plain widget and `egui::Window` screen (trade, furnace,
+  chest, tech tree, machine panels, smithing) wears the kit instead of
+  egui's cool-blue defaults.
+- Quest log redesigned: the raw default-styled window pinned top-left is now
+  a centered Journal panel with tabs (Quests n / Chronicle), faction chips,
+  per-objective progress bars, standing rewards and completion tinting.
+- Multiplayer screen developed: styled host-world rows (selection accent,
+  seed readouts, empty-state line), clearer sections, honest friends copy.
+- Window-size robustness is a proven contract: `centered_panel_rect` is
+  unit-tested (symmetry + clamping on small screens) and three new vistest
+  scenes render a real-helper menu panel at 640x420, 800x600 and 1280x800
+  with a largest-connected-component pixel claim that the panel bounding box
+  is symmetric in both axes at every size (menus_centered_small /
+  menus_centered / menus_centered_wide).
+- Asset completion: the armor set is real — bronze/steel helmet, leggings
+  and boots (items, pixel-art icons, Bronze-era recipes, research gates);
+  the inventory's four trailing armor slots are honored (worn_armor_points
+  sums 36..=39; bronze kit 10 pts, steel 17) and drawn as a labeled
+  head/chest/legs/feet row with a live armor readout in the workbench strip.
+- Audio completion: new procedural Sfx set (ui click, eat crunch, hurt
+  thud, xp chime, per-material footsteps) in lf_audio with bounded/decaying/
+  distinct synth tests; wired live — screen transitions click, eating
+  crunches, damage thuds, level-ups chime, ground travel steps by material.
+- Asset testing: every registered item must generate real art and every
+  icon pair must differ (registry-derived tests, not a hand-list); the new
+  asset_catalog vistest scene renders ALL ~190 registered item icons through
+  the real ItemIcons with a per-cell non-uniform pixel claim.
+- Creative mode plays like creative: no damage, no hunger drain, infinite
+  items (consume_selected no-ops), instant mining, F toggles flight
+  (survival lost the old ungated debug fly) — five pure gates on GameMode
+  with tests; the New World screen note now describes the real behavior.
+- Journal/workbench/new-world/multiplayer proof replicas now draw through
+  the client kit's real layout helper + style, and the workbench replica
+  mirrors the client's vignette+wash treatment (judge-flagged contrast).
+
 ## 2026-08-27 — ui-world-craft: title identity, world creation, terrain rivers, workbench (loop 328)
 - Title screen rebuilt on the LOREFORGE palette (parchment/ember/iron-brown
   across every screen via the ui_kit Theme): logotype top-left with

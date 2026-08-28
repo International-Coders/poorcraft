@@ -101,6 +101,8 @@ impl Era {
             "combustion_generator" => Era::Oil,
             "reactor" | "fuel_rod" => Era::Nuclear,
             "steel_chestplate" | "bronze_chestplate" => Era::Bronze,
+            "bronze_helmet" | "bronze_leggings" | "bronze_boots"
+            | "steel_helmet" | "steel_leggings" | "steel_boots" => Era::Bronze,
             "basic_circuit" | "machine_frame" => Era::Industrial,
             _ => Era::Primitive,
         }

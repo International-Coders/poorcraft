@@ -172,6 +172,14 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "research_bench", name: "Research Bench", kind: ItemKind::Block(41), max_stack: 8 },
         ItemDef { id: "bronze_chestplate", name: "Bronze Chestplate", kind: ItemKind::Armor(4), max_stack: 1 },
         ItemDef { id: "steel_chestplate", name: "Steel Chestplate", kind: ItemKind::Armor(7), max_stack: 1 },
+        // loop 329: the full kit — helmet/leggings/boots complete both tiers
+        // (bronze 2+4+3+1 = 10 pts, steel 3+7+5+2 = 17 pts)
+        ItemDef { id: "bronze_helmet", name: "Bronze Helmet", kind: ItemKind::Armor(2), max_stack: 1 },
+        ItemDef { id: "bronze_leggings", name: "Bronze Leggings", kind: ItemKind::Armor(3), max_stack: 1 },
+        ItemDef { id: "bronze_boots", name: "Bronze Boots", kind: ItemKind::Armor(1), max_stack: 1 },
+        ItemDef { id: "steel_helmet", name: "Steel Helmet", kind: ItemKind::Armor(3), max_stack: 1 },
+        ItemDef { id: "steel_leggings", name: "Steel Leggings", kind: ItemKind::Armor(5), max_stack: 1 },
+        ItemDef { id: "steel_boots", name: "Steel Boots", kind: ItemKind::Armor(2), max_stack: 1 },
         // industrial materials (ores land with P15 worldgen)
         ItemDef { id: "raw_copper", name: "Raw Copper", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "copper_ingot", name: "Copper Ingot", kind: ItemKind::Material, max_stack: 64 },

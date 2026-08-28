@@ -25,6 +25,23 @@ pub enum Action {
     Place,
 }
 
+/// Loop 329: the rest of the game's sound set — interface, body, and
+/// movement feedback beyond block break/place. All synthesized like the
+/// block sounds (no asset files, deterministic for the tests).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Sfx {
+    /// Menu/screen transitions (also hover-confirm on links).
+    UiClick,
+    /// Eating: short double crunch.
+    Eat,
+    /// Player takes damage: descending thud.
+    Hurt,
+    /// XP level up: two-note ascending chime.
+    Xp,
+    /// Footstep on the given material family.
+    Footstep(Category),
+}
+
 const SAMPLE_RATE: u32 = 22_050;
 
 /// Deterministic LCG noise so synthesized sounds (and the tests that
@@ -83,6 +100,95 @@ pub fn scaled(samples: &[f32], volume: f32) -> Vec<f32> {
     samples.iter().map(|s| s * volume.clamp(0.0, 1.0)).collect()
 }
 
+/// One synthesized non-block one-shot. Same envelope/noise machinery as
+/// `synth`, distinct parameter sets per event.
+pub fn synth_sfx(sfx: Sfx) -> Vec<f32> {
+    match sfx {
+        Sfx::UiClick => {
+            // 28ms tick: bright short tone, minimal noise
+            tone_burst(28.0, 1400.0, 0.85, 0.15, 0.5, 3, 1.0)
+        }
+        Sfx::Eat => {
+            // double crunch: two noise bursts separated by a dip
+            let mut a = noise_burst(70.0, 420.0, 0.2, 0.9, 1);
+            let b = noise_burst(70.0, 380.0, 0.2, 0.9, 7);
+            let gap = vec![0.0; SAMPLE_RATE as usize / 200]; // 5ms
+            a.extend(gap);
+            a.extend(b);
+            a
+        }
+        Sfx::Hurt => {
+            // 160ms descending tone (400 -> 170 Hz) + dull noise
+            let n = (SAMPLE_RATE as f32 * 0.16) as usize;
+            let mut noise = Noise::new(0xA11C5);
+            let mut lp = 0.0f32;
+            (0..n)
+                .map(|i| {
+                    let t = i as f32 / n as f32;
+                    let env = (1.0 - t) * (1.0 - t);
+                    let hz = 400.0 - 230.0 * t;
+                    let tone = (i as f32 * hz / SAMPLE_RATE as f32 * std::f32::consts::TAU).sin();
+                    let raw = noise.next_f32() * 2.0 - 1.0;
+                    lp += (raw - lp) * 0.15;
+                    ((tone * 0.7 + lp * 0.3) * env * 0.6).clamp(-1.0, 1.0)
+                })
+                .collect()
+        }
+        Sfx::Xp => {
+            // two-note ascending chime (660, 990), each 90ms
+            let mut a = tone_burst(90.0, 660.0, 0.95, 0.05, 0.55, 11, 0.5);
+            let b = tone_burst(110.0, 990.0, 0.95, 0.05, 0.6, 13, 0.5);
+            a.extend(b);
+            a
+        }
+        Sfx::Footstep(cat) => {
+            // short soft noise step, colored by the material family
+            let (dur, lp_k, seed) = match cat {
+                Category::Wood => (75.0, 0.12, 21),
+                Category::Stone => (70.0, 0.2, 23),
+                Category::Metal => (65.0, 0.3, 29),
+                Category::Glass => (60.0, 0.35, 31),
+                Category::Soft => (85.0, 0.07, 37),
+            };
+            noise_burst(dur, 90.0, 0.12, lp_k, seed)
+        }
+    }
+}
+
+/// Shared tone+noise burst used by the sfx arms.
+fn tone_burst(dur_ms: f32, hz: f32, tone_mix: f32, noise_mix: f32, punch: f32, seed: u64, tail: f32) -> Vec<f32> {
+    let n = (SAMPLE_RATE as f32 * dur_ms / 1000.0) as usize;
+    let mut noise = Noise::new(seed);
+    let mut lp = 0.0f32;
+    (0..n)
+        .map(|i| {
+            let t = i as f32 / n as f32;
+            let env = (1.0 - t).powf(1.0 + tail) * punch;
+            let tone = (i as f32 * hz / SAMPLE_RATE as f32 * std::f32::consts::TAU).sin();
+            let raw = noise.next_f32() * 2.0 - 1.0;
+            lp += (raw - lp) * 0.3;
+            ((tone * tone_mix + lp * noise_mix) * env * 0.5).clamp(-1.0, 1.0)
+        })
+        .collect()
+}
+
+/// Noise-dominant burst with a faint body tone.
+fn noise_burst(dur_ms: f32, body_hz: f32, body_mix: f32, lp_k: f32, seed: u64) -> Vec<f32> {
+    let n = (SAMPLE_RATE as f32 * dur_ms / 1000.0) as usize;
+    let mut noise = Noise::new(seed);
+    let mut lp = 0.0f32;
+    (0..n)
+        .map(|i| {
+            let t = i as f32 / n as f32;
+            let env = (1.0 - t) * (1.0 - t) * 0.55;
+            let body = (i as f32 * body_hz / SAMPLE_RATE as f32 * std::f32::consts::TAU).sin();
+            let raw = noise.next_f32() * 2.0 - 1.0;
+            lp += (raw - lp) * lp_k.clamp(0.01, 0.95);
+            ((body * body_mix + lp * (1.0 - body_mix)) * env).clamp(-1.0, 1.0)
+        })
+        .collect()
+}
+
 /// Which material family a block sounds like.
 pub fn block_category(block_id: u32) -> Category {
     use lf_voxel::registry::block as b;
@@ -125,7 +231,25 @@ impl Audio {
             return;
         }
         self.last = now;
-        let samples = scaled(&synth(category, action), volume);
+        self.append(&synth(category, action), volume);
+    }
+
+    /// Play a non-block one-shot (ui/body/movement). Same rate limit as
+    /// block sounds — footsteps at sprint cadence must not stack.
+    pub fn play_sfx(&mut self, sfx: Sfx, volume: f32) {
+        if volume <= 0.01 {
+            return;
+        }
+        let now = Instant::now();
+        if now.duration_since(self.last).as_millis() < 30 {
+            return;
+        }
+        self.last = now;
+        self.append(&synth_sfx(sfx), volume);
+    }
+
+    fn append(&self, samples: &[f32], volume: f32) {
+        let samples = scaled(samples, volume);
         let player = rodio::Player::connect_new(&self.mixer);
         player.append(rodio::buffer::SamplesBuffer::new(
             std::num::NonZero::<u16>::new(1).unwrap(),
@@ -195,5 +319,38 @@ mod tests {
         let peak = |v: &[f32]| v.iter().fold(0.0f32, |m, x| m.max(x.abs()));
         assert!((peak(&half) - peak(&s) * 0.5).abs() < 1e-4);
         assert!(scaled(&s, 0.0).iter().all(|v| *v == 0.0));
+    }
+
+    /// Loop 329: the non-block sound set is bounded, decaying, and distinct.
+    #[test]
+    fn sfx_set_is_bounded_decaying_and_distinct() {
+        let all = [
+            Sfx::UiClick,
+            Sfx::Eat,
+            Sfx::Hurt,
+            Sfx::Xp,
+            Sfx::Footstep(Category::Wood),
+            Sfx::Footstep(Category::Stone),
+            Sfx::Footstep(Category::Metal),
+            Sfx::Footstep(Category::Glass),
+            Sfx::Footstep(Category::Soft),
+        ];
+        for sfx in all {
+            let s = synth_sfx(sfx);
+            assert!(!s.is_empty(), "{:?} produced no samples", sfx);
+            assert!(s.len() < SAMPLE_RATE as usize / 3, "{:?} too long", sfx);
+            assert!(s.iter().all(|v| v.abs() <= 1.0), "{:?} clipped", sfx);
+            let tail: f32 = s[s.len() - 16..].iter().map(|v| v.abs()).sum();
+            assert!(tail < 0.08, "{:?} does not decay to silence (tail {})", sfx, tail);
+        }
+        // distinct events have distinct waveforms
+        let click = synth_sfx(Sfx::UiClick);
+        let hurt = synth_sfx(Sfx::Hurt);
+        assert_ne!(click, hurt);
+        // footsteps are the shortest family member (fast cadence)
+        let step = synth_sfx(Sfx::Footstep(Category::Wood));
+        assert!(step.len() < hurt.len(), "footstep should be shorter than hurt");
+        // material families differ (soft vs stone step)
+        assert_ne!(synth_sfx(Sfx::Footstep(Category::Soft)), synth_sfx(Sfx::Footstep(Category::Stone)));
     }
 }

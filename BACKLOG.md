@@ -105,7 +105,10 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [x] planks + glass blocks (glass renders in transparent pass)
 - [x] iron tool tier (pick/axe/shovel) + wooden/stone/iron swords + all recipes
 - [x] block entities persist with the world; catalog consistency test
-- [ ] armor, beds/doors/signs, wool/decor variants (fold into later passes)
+- [x] armor (loop 329): full bronze/steel kit — helmet/leggings/boots items,
+      icons, Bronze-era recipes; the inventory's four armor slots are
+      honored (worn_armor_points sums 36..=39) and drawn in the workbench
+      strip with a live readout. Beds/doors/signs, wool/decor variants still open.
 - [ ] smithing table integration (with P6 combat loot)
 
 ## P6 — Mobs & combat
@@ -119,6 +122,10 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 ## P7 — Structures, weather, sound, menus
 - [x] structures: meadow huts (torch/crafting table/furnace), highlands watchtowers, desert pyramids — deterministic (+1 test)
 - [x] title screen (Play/Quit) and pause menu with sensitivity/FOV settings
+- [x] loop 329 menu pass: every panel centered (new world + multiplayer were
+      top-left anchored), global kit theming for egui windows/widgets,
+      Journal quest-log redesign, multiplayer screen developed, resize
+      robustness pixel-proven at 640x420 / 800x600 / 1280x800
 - [x] UI proof screenshots: hud_preview scene renders the real egui HUD offscreen
 - [x] weather particles (rain/snow by biome) — sound lands in P17
 - [x] world types superflat/amplified with title-screen selection
@@ -870,3 +877,15 @@ Deferred (honest notes):
       torn_archive_page); the chest itself initializes empty
 - [ ] Named-NPC uniqueness ("one per world, largest camp") is
       first-settled-wins, not largest-camp-search
+
+## Loop 329 deferred (honest)
+- [ ] beds/spawn setting, doors/signs, wool decor (P5 leftovers, untouched)
+- [ ] music/ambient audio: the Music volume slider still drives nothing
+  (the loop-329 Sfx set covers ui/body/movement feedback only)
+- [ ] vistest UI proofs for the title-flow screens render kit-driven
+  replicas (real layout helper + real ItemIcons), not the literal
+  GameState::draw_* screens — pixel-testing the real screens needs a
+  windowless GameState constructor (GameState::new requires a winit
+  window + surface today)
+- [ ] multiplayer connect still hardcodes the player name "smith"
+- [ ] armor has no per-slot equip restrictions (any piece in any armor slot)

@@ -1779,6 +1779,8 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "bucket", "water_bucket", "oil_bucket", "refined_fuel", "tar",
     "tome_of_the_forge", "tome_of_the_null", "wardens_ledger",
     "bronze_chestplate", "steel_chestplate",
+    "bronze_helmet", "bronze_leggings", "bronze_boots",
+    "steel_helmet", "steel_leggings", "steel_boots",
     "raw_copper", "copper_ingot", "raw_tin", "tin_ingot",
     "aluminum_ingot", "sulfur", "bronze_ingot", "steel_ingot",
     "copper_wire", "iron_gear", "machine_frame", "basic_circuit",
@@ -2254,6 +2256,65 @@ const CHESTPLATE_ART: [&str; 16] = [
     "................",
 ];
 
+/// Loop 329 armor set: helmet (brow + dome), leggings (waist + legs),
+/// boots (feet) — same m/M palette language as the chestplate.
+const HELMET_ART: [&str; 16] = [
+    "................",
+    "................",
+    "................",
+    "....MMMMMMMM....",
+    "...MMmmmmmmMM...",
+    "..MMmmmmmmmmMM..",
+    "..MmmmmmmmmmmM..",
+    "..Mmm......mmM..",
+    "..Mm........mM..",
+    "..Mm........mM..",
+    "..mm........mm..",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
+const LEGGINGS_ART: [&str; 16] = [
+    "................",
+    "................",
+    "..mmmmmmmmmmmm..",
+    "..mmmmmmmmmmmm..",
+    "..mmmMMMMMMmmm..",
+    "..mmm.mmmm.mmm..",
+    "..mm...mm...mm..",
+    "..mm...mm...mm..",
+    "..mm...mm...mm..",
+    "..mm...mm...mm..",
+    ".mmm...mm...mmm.",
+    ".mm....mm....mm.",
+    "................",
+    "................",
+    "................",
+    "................",
+];
+
+const BOOTS_ART: [&str; 16] = [
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "..mm......mm....",
+    "..mm......mm....",
+    "..mm......mm....",
+    "..mmm....mmm....",
+    "..mMMM..mMMM....",
+    "..mmmm..mmmm....",
+    "................",
+    "................",
+];
+
 const WIRE_ART: [&str; 16] = [
     "................",
     "................",
@@ -2529,6 +2590,25 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
                 (Rgba([172, 182, 198, 255]), Rgba([208, 218, 234, 255]))
             };
             paint_sprite(CHESTPLATE_ART, |c| match c {
+                'm' => base.0, 'M' => base.1, _ => Rgba([0, 0, 0, 0]),
+            })
+        }
+        // loop 329: the rest of the kit shares the chestplate palette
+        "bronze_helmet" | "steel_helmet" | "bronze_leggings" | "steel_leggings"
+        | "bronze_boots" | "steel_boots" => {
+            let base = if item_id.starts_with("bronze") {
+                (Rgba([205, 127, 50, 255]), Rgba([235, 165, 90, 255]))
+            } else {
+                (Rgba([172, 182, 198, 255]), Rgba([208, 218, 234, 255]))
+            };
+            let art = if item_id.ends_with("helmet") {
+                HELMET_ART
+            } else if item_id.ends_with("leggings") {
+                LEGGINGS_ART
+            } else {
+                BOOTS_ART
+            };
+            paint_sprite(art, |c| match c {
                 'm' => base.0, 'M' => base.1, _ => Rgba([0, 0, 0, 0]),
             })
         }

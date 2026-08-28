@@ -985,3 +985,68 @@ green from loop 328 is unaffected by construction. Skill discoverable at
 `.agents/skills/dev-loop/SKILL.md` (frontmatter name matches dir).
 Runtimes intentionally not rebuilt: dist/ binaries unchanged. Pushed to
 github; commit is tooling-only by design (stated here to keep rule 1 honest).
+
+## 2026-08-28 — assets-and-menus (loop 329)
+**WHAT**: Three-part pack: (1) every menu centered + kit-themed, quest log
+redesigned, multiplayer developed; (2) the asset set completed and tested
+end-to-end (armor set, sound set, registry-derived completeness tests,
+asset_catalog proof); (3) creative mode made real. Motivated by the user
+ask: "make ALL assets + test them; fix the menus — many not centered, not
+well developed", plus the session goal "ALL UIs visually confirmed via
+screenshots at different window sizes".
+
+**HOW**:
+- Centering: found the root bug — `draw_new_world`/`draw_multiplayer`
+  allocated their panel from a fresh top_down cursor (top-left corner) and
+  every slide-panel screen hung from the top edge. New `ui_kit::centered_panel_rect`
+  (clamped, both axes) + `ui_kit::center_vertically` applied to new world,
+  multiplayer, slots, settings, pause, spellbook, imbue, carve, paths.
+  `ui_kit::apply_kit_style(ctx)` (called per frame in draw_ui) pushes the
+  palette into egui's global visuals so all `egui::Window` screens and
+  plain widgets wear the kit. Quest log rewritten as the centered Journal
+  (tabs, faction chips, objective progress bars, standing rewards);
+  multiplayer host list rebuilt as kit rows.
+- Assets: 6 armor items (bronze/steel helmet/leggings/boots) through the
+  full pipeline (items.rs defs, crafting.rs recipes, Bronze-era research
+  gates, HELMET/LEGGINGS/BOOTS_ART icons, ITEM_TEXTURE_IDS);
+  `worn_armor_points` now sums the four trailing slots (36..=39; the
+  inventory already allocated them) and the workbench strip draws the
+  labeled armor row + live total. lf_audio gains `Sfx` (UiClick/Eat/Hurt/
+  Xp/Footstep(Category)) with `synth_sfx`/`play_sfx`; client wires screen-
+  transition clicks (prev_ui_open), eat, hurt, xp level-ups, and footsteps
+  (step_distance accumulator over ground travel, material from the block
+  underfoot).
+- Creative: five pure gates on `slots::GameMode` (takes_damage/drains_hunger/
+  consumes_items/may_fly/instant_mining) wired at damage(), the hunger tick,
+  consume_selected, mining break_time and the F-fly toggle (survival loses
+  the old ungated debug fly). New World screen note updated.
+- Proof harness: lf_vistest now depends on lf_client so previews draw
+  through the REAL `ui_kit::centered_panel_rect` + `apply_kit_style` and the
+  real `ItemIcons`; per-scene UI canvas (`ui_canvas`) renders menus_centered
+  at 640x420 / 800x600 / 1280x800; new scenes menus_centered_{small,,wide},
+  journal, asset_catalog (~190 real item icons, per-cell non-uniform pixel
+  claim). Panel-centering claims measure the largest 4-connected component
+  of the panel fill and assert both-axis margin symmetry <= 10px. The HUD
+  backdrop no longer draws behind title-flow previews (in the real game
+  those screens have no HUD; the backdrop panel also shrank the clip rect
+  and falsified centering). Workbench/new-world replicas reworked after
+  judge feedback (vignette+wash mirrored from the client, footer collision
+  fixed, armor row added, dim labels brightened).
+
+**VERIFICATION**: cargo build --workspace clean; cargo test --workspace
+304 passed / 0 failed (new: centered_panel_rect + center_vertically kit
+tests, armor slot-sum test, creative gate test, sfx synth test, every-
+registered-item-has-art + pairwise-distinct icon tests). vistest 73/73
+with per-scene pixel claims (68 prior + 5 new). Visual acceptance: judge
+pass on 9 UI screenshots (menus_centered x3, journal, new world,
+multiplayer, asset catalog, title, workbench) after two fix rounds.
+Smoke OK. Runtimes rebuilt.
+
+**HONESTLY DEFERRED**:
+- vistest UI proofs for title-flow screens draw kit-driven replicas (real
+  helper + real icons), not the literal GameState::draw_* screens — that
+  needs a windowless GameState (new() requires a winit window + surface).
+- Beds/spawn setting, doors/signs, wool decor untouched (P5 leftovers).
+- Music/ambient audio still absent (the Music slider drives nothing).
+- Armor slots accept any piece (no per-slot equip restrictions).
+- Multiplayer connect still hardcodes the player name "smith".

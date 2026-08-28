@@ -147,6 +147,56 @@ mod tests {
         }
     }
 
+    /// Loop 329 asset completeness: every registered non-block item must
+    /// produce real pixel art — the flat-color fallback is only allowed for
+    /// unknown/mod ids, never for anything the registry ships.
+    #[test]
+    fn every_registered_item_has_art() {
+        for def in lf_game::items::items() {
+            if matches!(def.kind, ItemKind::Block(_)) {
+                // block items reuse their atlas layer
+                let layer = lf_assets::texture_index_for_block(match def.kind {
+                    ItemKind::Block(b) => b,
+                    _ => unreachable!(),
+                });
+                assert!(layer < lf_assets::TEXTURE_NAMES.len() as u32,
+                    "block item {} maps past the atlas", def.id);
+                continue;
+            }
+            let img = lf_assets::generate_item_texture(def.id)
+                .unwrap_or_else(|| panic!("no icon art for registered item {}", def.id));
+            assert_eq!((img.width(), img.height()), (16, 16), "{} wrong size", def.id);
+            assert!(img.pixels().any(|p| p.0[3] > 0), "{} icon fully transparent", def.id);
+        }
+    }
+
+    /// Loop 329: no two registered items may share one icon — a hand
+    /// update that reuses a palette is exactly the bug this catches.
+    #[test]
+    fn item_icons_are_pairwise_distinct() {
+        let mut icons: Vec<(String, image::RgbaImage)> = Vec::new();
+        for def in lf_game::items::items() {
+            match def.kind {
+                ItemKind::Block(b) => {
+                    let layer = lf_assets::texture_index_for_block(b) as usize;
+                    icons.push((def.id.to_string(),
+                        lf_assets::generate_block_texture(lf_assets::TEXTURE_NAMES[layer])));
+                }
+                _ => {
+                    if let Some(img) = lf_assets::generate_item_texture(def.id) {
+                        icons.push((def.id.to_string(), img));
+                    }
+                }
+            }
+        }
+        for i in 0..icons.len() {
+            for j in (i + 1)..icons.len() {
+                assert_ne!(icons[i].1.as_raw(), icons[j].1.as_raw(),
+                    "items '{}' and '{}' share one icon", icons[i].0, icons[j].0);
+            }
+        }
+    }
+
     #[test]
     fn mod_items_get_stable_gem_icons() {
         let ctx = egui::Context::default();

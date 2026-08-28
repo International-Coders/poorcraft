@@ -47,18 +47,22 @@ pub fn mitigate(damage: f32, armor_points: u8) -> f32 {
     (damage - armor_points as f32).max(1.0)
 }
 
-/// Total armor points worn from equipped chest slot (simplified: any armor
-/// in the hotbar-adjacent "armor" slot index 36 counts).
+/// Total armor points worn across the four armor slots (36=head, 37=chest,
+/// 38=legs, 39=feet — loop 329: the full bronze/steel kit sums to 10/17).
+/// Armor in a "wrong" slot still counts; the slot row exists so the player
+/// can see what is worn.
 pub fn worn_armor_points(slots: &[Option<ItemStack>]) -> u8 {
     slots
-        .get(36)
-        .and_then(|s| s.as_ref())
-        .and_then(|s| item_def(&s.item_id))
+        .iter()
+        .skip(36)
+        .take(4)
+        .filter_map(|s| s.as_ref())
+        .filter_map(|s| item_def(&s.item_id))
         .map(|d| match d.kind {
             ItemKind::Armor(p) => p,
             _ => 0,
         })
-        .unwrap_or(0)
+        .sum()
 }
 
 #[cfg(test)]
@@ -95,5 +99,34 @@ mod tests {
         assert_eq!(mitigate(10.0, 20), 1.0);
         let slots = vec![None; 37];
         assert_eq!(worn_armor_points(&slots), 0);
+    }
+
+    /// Loop 329: the four armor slots sum — a full bronze kit reads 10
+    /// points, steel 17, and a 36-slot legacy save (no armor slots) is 0.
+    #[test]
+    fn armor_sums_across_all_four_slots() {
+        let stack = |id: &str| Some(ItemStack { item_id: id.into(), count: 1 });
+        let mut slots = vec![None; 41];
+        slots[36] = stack("bronze_helmet");
+        slots[37] = stack("bronze_chestplate");
+        slots[38] = stack("bronze_leggings");
+        slots[39] = stack("bronze_boots");
+        assert_eq!(worn_armor_points(&slots), 10, "full bronze kit");
+        slots[36] = stack("steel_helmet");
+        slots[37] = stack("steel_chestplate");
+        slots[38] = stack("steel_leggings");
+        slots[39] = stack("steel_boots");
+        assert_eq!(worn_armor_points(&slots), 17, "full steel kit");
+        // mixed pieces count individually
+        let mut mixed = vec![None; 41];
+        mixed[36] = stack("steel_helmet");
+        mixed[39] = stack("bronze_boots");
+        assert_eq!(worn_armor_points(&mixed), 4);
+        // legacy 36-slot inventory (pre-armor-row save) is safe
+        assert_eq!(worn_armor_points(&vec![None; 36]), 0);
+        // non-armor in an armor slot contributes nothing
+        let mut junk = vec![None; 41];
+        junk[36] = stack("stone");
+        assert_eq!(worn_armor_points(&junk), 0);
     }
 }

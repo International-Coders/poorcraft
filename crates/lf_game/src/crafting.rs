@@ -350,6 +350,22 @@ pub fn recipes() -> &'static [Recipe] {
         vec![Some("steel_ingot"), Some("steel_ingot"), Some("steel_ingot")],
         vec![Some("steel_ingot"), Some("steel_ingot"), Some("steel_ingot")],
     ]));
+    // loop 329: helmets (cap + brow), leggings (waist + legs), boots (feet)
+    for (mat, tier) in [("bronze_ingot", "bronze"), ("steel_ingot", "steel")] {
+        book.push(r(&format!("{}_helmet", tier), 1, vec![
+            vec![Some(mat), Some(mat), Some(mat)],
+            vec![Some(mat), None, Some(mat)],
+        ]));
+        book.push(r(&format!("{}_leggings", tier), 1, vec![
+            vec![Some(mat), Some(mat), Some(mat)],
+            vec![Some(mat), None, Some(mat)],
+            vec![Some(mat), None, Some(mat)],
+        ]));
+        book.push(r(&format!("{}_boots", tier), 1, vec![
+            vec![Some(mat), None, Some(mat)],
+            vec![Some(mat), None, Some(mat)],
+        ]));
+    }
     // industrial intermediates
     book.push(r("copper_wire", 6, vec![vec![Some("copper_ingot"), Some("copper_ingot"), Some("copper_ingot")]]));
     book.push(r("iron_gear", 1, vec![

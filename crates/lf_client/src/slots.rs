@@ -76,6 +76,27 @@ impl GameMode {
     }
 
     pub const ALL: [GameMode; 2] = [GameMode::Survival, GameMode::Creative];
+
+    /// Loop 329: creative behaviors as pure gates so the wiring sites read
+    /// clearly and the mode semantics are testable.
+    pub fn takes_damage(self) -> bool {
+        self == GameMode::Survival
+    }
+    pub fn drains_hunger(self) -> bool {
+        self == GameMode::Survival
+    }
+    /// Creative never consumes from the inventory (infinite blocks, scrolls
+    /// stay after learning, buckets pour without emptying).
+    pub fn consumes_items(self) -> bool {
+        self == GameMode::Survival
+    }
+    pub fn may_fly(self) -> bool {
+        self == GameMode::Creative
+    }
+    /// Creative breaks any block in one hit.
+    pub fn instant_mining(self) -> bool {
+        self == GameMode::Creative
+    }
 }
 
 /// Slot metadata, persisted as `meta.dat` inside the slot directory.
@@ -321,6 +342,17 @@ pub fn hash_seed_string(s: &str) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Loop 329: creative mode semantics — the five behavior gates.
+    #[test]
+    fn creative_mode_gates_behaviors() {
+        use GameMode::{Creative, Survival};
+        assert!(Survival.takes_damage() && !Creative.takes_damage());
+        assert!(Survival.drains_hunger() && !Creative.drains_hunger());
+        assert!(Survival.consumes_items() && !Creative.consumes_items());
+        assert!(Creative.may_fly() && !Survival.may_fly());
+        assert!(Creative.instant_mining() && !Survival.instant_mining());
+    }
 
     #[test]
     fn sanitize_keeps_filesystem_safe_names() {

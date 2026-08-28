@@ -411,6 +411,13 @@ fn hud_visible(ui_open: &UiOpen, settings_from_title: bool) -> bool {
 impl GameState {
     /// Draw every UI surface for this frame.
     pub fn draw_ui(&mut self, ctx: &egui::Context) {
+        // every plain widget + egui::Window inherits the kit palette
+        kit::apply_kit_style(ctx);
+        // soft click whenever the open screen changes (loop 329 audio set)
+        if self.ui_open != self.prev_ui_open {
+            self.play_sfx(lf_audio::Sfx::UiClick, 0.5);
+        }
+        self.prev_ui_open = self.ui_open;
         // UI scale = user preference × viewport size (720p reference), on
         // top of the native display density egui-winit provides.
         let native_pts_h = self.config.height as f32 / self.window.scale_factor() as f32;
@@ -899,7 +906,7 @@ impl GameState {
                                 }
                                 let text_col = if selected { Theme::TEXT }
                                     else if resp.hovered() { Theme::TEXT_BRIGHT }
-                                    else { Theme::TEXT_DIM };
+                                    else { egui::Color32::from_rgb(0xb5, 0xa8, 0x93) };
                                 let icon_x = rect.left() + 12.0;
                                 let icon_rect = egui::Rect::from_center_size(
                                     egui::Pos2::new(icon_x, rect.center().y), egui::vec2(18.0, 18.0));
@@ -1395,6 +1402,32 @@ impl GameState {
     /// Player storage + hotbar below a container screen; shift-click sends
     /// slots across the inventory (storage <-> hotbar).
     fn draw_storage_rows(&mut self, ui: &mut egui::Ui) {
+        // armor row (loop 329): head/chest/legs/feet + the total worn readout
+        ui.horizontal(|ui| {
+            for (i, label) in [36, 37, 38, 39].iter().zip(["head", "chest", "legs", "feet"]) {
+                ui.vertical(|ui| {
+                    let mut stack = self.inventory.slots[*i].clone();
+                    let mut cursor = self.cursor_stack.take();
+                    let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
+                    self.cursor_stack = cursor;
+                    if let Some(mut q) = out.quick_moved {
+                        quick_insert(&mut self.inventory.slots[..36], &mut q);
+                    }
+                    self.inventory.slots[*i] = stack;
+                    let (r, _) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE, 11.0), egui::Sense::hover());
+                    ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label,
+                        egui::FontId::proportional(9.0), Theme::TEXT_DISABLED);
+                });
+                ui.add_space(4.0);
+            }
+            let armor = lf_game::combat::worn_armor_points(&self.inventory.slots);
+            let (r, _) = ui.allocate_exact_size(egui::vec2(110.0, SLOT_SIZE), egui::Sense::hover());
+            ui.painter().text(r.left_center(), egui::Align2::LEFT_CENTER,
+                format!("armor {}", armor),
+                egui::FontId::proportional(13.0),
+                if armor > 0 { Theme::OK } else { Theme::TEXT_DISABLED });
+        });
+        ui.add_space(4.0);
         for row in 0..3 {
             ui.horizontal(|ui| {
                 for col in 0..9 {
@@ -1425,34 +1458,132 @@ impl GameState {
         });
     }
 
+    /// Quest log (loop 329 redesign): a centered kit panel with two tabs —
+    /// active quests as cards with per-objective progress bars, and the
+    /// full chronicle — replacing the raw default-styled window that used
+    /// to hang off the top-left corner.
     fn draw_quest_log(&mut self, ctx: &egui::Context) {
-        egui::Window::new("Quest Log — J to close")
-            .anchor(egui::Align2::LEFT_TOP, egui::vec2(12.0, 12.0))
-            .collapsible(false)
-            .resizable(false)
+        let reveal = kit::ease_out_cubic((self.menu_reveal / 0.35).clamp(0.0, 1.0));
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(150)))
             .show(ctx, |ui| {
-                for quest in &self.quest_log.quests {
-                    let heading_color = if quest.completed {
-                        egui::Color32::from_rgb(120, 200, 120)
-                    } else {
-                        egui::Color32::from_rgb(240, 210, 140)
-                    };
-                    ui.heading(egui::RichText::new(&quest.title).size(18.0).color(heading_color));
-                    ui.label(egui::RichText::new(format!("Act {} — {}", quest.act, quest.description)).small());
-                    for obj in &quest.objectives {
-                        let mark = if obj.completed { "[x]" } else { "[ ]" };
-                        ui.label(format!("  {} {} — {}/{}", mark, obj.target, obj.progress.min(obj.count), obj.count));
-                    }
-                    ui.add_space(6.0);
-                }
-                if !self.chronicle.is_empty() {
-                    ui.separator();
-                    ui.heading("Chronicle");
-                    let md = lf_chronicle::SagaGenerator::export_markdown(&self.chronicle);
-                    egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
-                        ui.label(egui::RichText::new(md).small().monospace());
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    kit::center_vertically(ui, 480.0);
+                    kit::slide_panel(ui, reveal, |ui| {
+                        ui.set_width(600.0);
+                        ui.vertical(|ui| {
+                            ui.add_space(12.0);
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("Journal").size(24.0).color(Theme::TEXT));
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(egui::RichText::new("J or Esc to close").small().color(Theme::TEXT_DISABLED));
+                                });
+                            });
+                            ui.add_space(4.0);
+                            ui.painter().line_segment(
+                                [ui.cursor().min, ui.cursor().min + egui::vec2(ui.available_width(), 0.0)],
+                                egui::Stroke::new(1.0, Theme::BORDER));
+                            ui.add_space(8.0);
+                            // tabs: Quests (n active) | Chronicle
+                            let tabs = [
+                                format!("Quests ({})", self.quest_log.quests.iter().filter(|q| !q.completed).count()),
+                                "Chronicle".to_string(),
+                            ];
+                            ui.horizontal(|ui| {
+                                for (i, label) in tabs.iter().enumerate() {
+                                    let on = self.quest_tab == i;
+                                    if kit::menu_link(ui, label, &format!("journal-tab-{}", i), 1.0, on, true) {
+                                        self.quest_tab = i;
+                                    }
+                                    ui.add_space(10.0);
+                                }
+                            });
+                            ui.add_space(6.0);
+                            if self.quest_tab == 0 {
+                                egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
+                                    if self.quest_log.quests.is_empty() {
+                                        ui.label(egui::RichText::new(
+                                            "No quests yet — the world will find you.").color(Theme::TEXT_DIM));
+                                    }
+                                    for quest in &self.quest_log.quests {
+                                        let title_col = if quest.completed { Theme::OK } else { Theme::TEXT };
+                                        egui::Frame::new()
+                                            .fill(if quest.completed { Color32::from_rgba_premultiplied(0x2a, 0x30, 0x1e, 210) }
+                                                  else { Color32::from_rgba_premultiplied(0x24, 0x1c, 0x14, 220) })
+                                            .stroke(egui::Stroke::new(1.0, if quest.completed { Theme::OK } else { Theme::BORDER }))
+                                            .corner_radius(0.0)
+                                            .inner_margin(10.0)
+                                            .show(ui, |ui| {
+                                                ui.set_min_width(ui.available_width());
+                                                ui.horizontal(|ui| {
+                                                    ui.label(egui::RichText::new(&quest.title).size(17.0).color(title_col).strong());
+                                                    if let Some(f) = &quest.faction {
+                                                        if let Some(fdef) = self.lore_data.faction(f) {
+                                                            let col = egui::Color32::from_rgb(fdef.color[0], fdef.color[1], fdef.color[2]);
+                                                            ui.label(egui::RichText::new(format!("{} {}", fdef.symbol, fdef.short_name)).small().color(col));
+                                                        }
+                                                    }
+                                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                        let done = quest.objectives.iter().filter(|o| o.completed).count();
+                                                        ui.label(egui::RichText::new(format!(
+                                                            "Act {} · {}/{}", quest.act, done, quest.objectives.len()))
+                                                            .small().color(Theme::TEXT_DIM));
+                                                        if quest.completed {
+                                                            let reward = if quest.standing_reward != 0 {
+                                                                format!(" · +{} {}", quest.standing_reward, quest.faction.clone().unwrap_or_default())
+                                                            } else { String::new() };
+                                                            ui.label(egui::RichText::new(format!("complete{}", reward)).small().color(Theme::OK));
+                                                        }
+                                                    });
+                                                });
+                                                ui.label(egui::RichText::new(&quest.description).small().color(Theme::TEXT_DIM));
+                                                ui.add_space(4.0);
+                                                for obj in &quest.objectives {
+                                                    let frac = (obj.progress as f32 / obj.count.max(1) as f32).clamp(0.0, 1.0);
+                                                    ui.horizontal(|ui| {
+                                                        let mark = if obj.completed { "✓" } else { "·" };
+                                                        let (r, _) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
+                                                        ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, mark,
+                                                            egui::FontId::proportional(13.0),
+                                                            if obj.completed { Theme::OK } else { Theme::TEXT_DISABLED });
+                                                        ui.label(egui::RichText::new(&obj.target).size(13.0)
+                                                            .color(if obj.completed { Theme::TEXT_DIM } else { Theme::TEXT }));
+                                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                            ui.label(egui::RichText::new(format!("{}/{}", obj.progress.min(obj.count), obj.count))
+                                                                .small().monospace()
+                                                                .color(if obj.completed { Theme::OK } else { Theme::TEXT_DIM }));
+                                                        });
+                                                    });
+                                                    let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 4.0), egui::Sense::hover());
+                                                    ui.painter().rect_filled(bar, 2.0, egui::Color32::from_black_alpha(160));
+                                                    let w = bar.width() * frac;
+                                                    if w > 1.0 {
+                                                        let fill = if obj.completed { Theme::OK } else { Theme::ACCENT };
+                                                        ui.painter().rect_filled(egui::Rect::from_min_size(bar.min, egui::vec2(w, 4.0)), 2.0, fill);
+                                                    }
+                                                    ui.add_space(2.0);
+                                                }
+                                            });
+                                        ui.add_space(6.0);
+                                    }
+                                });
+                            } else {
+                                // chronicle tab
+                                if self.chronicle.is_empty() {
+                                    ui.label(egui::RichText::new(
+                                        "The chronicle is empty — every milestone will be inked here.").color(Theme::TEXT_DIM));
+                                } else {
+                                    let md = lf_chronicle::SagaGenerator::export_markdown(&self.chronicle);
+                                    egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
+                                        ui.set_min_width(ui.available_width());
+                                        ui.label(egui::RichText::new(md).small().monospace().color(Theme::TEXT));
+                                    });
+                                }
+                            }
+                            ui.add_space(10.0);
+                        });
                     });
-                }
+                });
             });
     }
 
@@ -1584,7 +1715,8 @@ impl GameState {
             .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(130)))
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    ui.add_space(ui.available_height() * 0.18);
+                    // true two-axis centering (was a fixed 18% top guess)
+                    kit::center_vertically(ui, 430.0);
                     let t = self.menu_reveal;
                     kit::slide_panel(ui, (t / 0.5).clamp(0.0, 1.0), |ui| {
                         ui.set_width(360.0);
@@ -1654,7 +1786,7 @@ impl GameState {
             .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(110)))
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    ui.add_space(30.0);
+                    kit::center_vertically(ui, 400.0);
                     kit::slide_panel(ui, (t / 0.5).clamp(0.0, 1.0), |ui| {
                         ui.set_width(560.0);
                         ui.horizontal(|ui| {
@@ -2095,6 +2227,7 @@ impl GameState {
             .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(140)))
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    kit::center_vertically(ui, 360.0);
                     ui.add_space(30.0);
                     kit::slide_panel(ui, (t / 0.5).clamp(0.0, 1.0), |ui| {
                         ui.set_width(460.0);
@@ -2210,6 +2343,7 @@ impl GameState {
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     let panel_w = 460.0_f32.min(ui.available_width() - 24.0);
+                    kit::center_vertically(ui, 430.0);
                     kit::slide_panel(ui, reveal, |ui| {
                         egui::Frame::new()
                             .fill(Theme::BG)
@@ -2311,6 +2445,7 @@ impl GameState {
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     let panel_w = 430.0_f32.min(ui.available_width() - 24.0);
+                    kit::center_vertically(ui, 400.0);
                     kit::slide_panel(ui, reveal, |ui| {
                         egui::Frame::new()
                             .fill(Theme::BG)
@@ -2425,6 +2560,7 @@ impl GameState {
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     let panel_w = 400.0_f32.min(ui.available_width() - 24.0);
+                    kit::center_vertically(ui, 360.0);
                     kit::slide_panel(ui, reveal, |ui| {
                         egui::Frame::new()
                             .fill(Theme::BG)
@@ -2497,6 +2633,7 @@ impl GameState {
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     let panel_w = 480.0_f32.min(ui.available_width() - 24.0);
+                    kit::center_vertically(ui, 430.0);
                     kit::slide_panel(ui, reveal, |ui| {
                         egui::Frame::new()
                             .fill(Theme::BG)
@@ -3080,6 +3217,8 @@ impl GameState {
             .frame(egui::Frame::new())
             .show(ctx, |ui| {
                 kit::vignette(ui, 170);
+                // vertical centering: header + list + footer ≈ 480px tall
+                kit::center_vertically(ui, 480.0);
                 kit::slide_panel(ui, reveal, |ui| {
                     ui.set_width(560.0);
                     ui.vertical(|ui| {
@@ -3233,7 +3372,9 @@ impl GameState {
                 let screen = ctx.screen_rect();
                 let panel_w = (screen.width() * 0.5).clamp(420.0, 560.0);
                 let panel_h = 470.0;
-                let (rect, _) = ui.allocate_exact_size(egui::vec2(panel_w, panel_h), egui::Sense::hover());
+                // centered on both axes (loop 329: the panel used to anchor
+                // top-left because a fresh top_down cursor starts at 0,0)
+                let rect = kit::centered_panel_rect(screen, panel_w, panel_h);
                 let painter = ui.painter_at(screen);
                 painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(0x33, 0x2a, 0x1c, 242));
                 painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
@@ -3271,7 +3412,7 @@ impl GameState {
                         let modes = ["Survival", "Creative"];
                         kit::segment_row(ui, "nw-mode", &modes, &mut self.new_world_mode_idx);
                         if self.new_world_mode_idx == 1 {
-                            ui.label(egui::RichText::new("Creative plays like Survival for now; the flag is saved.")
+                            ui.label(egui::RichText::new("Creative: no damage or hunger, infinite blocks, instant mining — F to fly.")
                                 .size(11.0).color(Theme::TEXT_DISABLED));
                         }
                         ui.add_space(12.0);
@@ -3329,7 +3470,8 @@ impl GameState {
                 kit::vignette(ui, 170);
                 let screen = ctx.screen_rect();
                 let panel_w = (screen.width() * 0.5).clamp(420.0, 560.0);
-                let (rect, _) = ui.allocate_exact_size(egui::vec2(panel_w, 420.0), egui::Sense::hover());
+                // centered on both axes (same top-left fix as New World)
+                let rect = kit::centered_panel_rect(screen, panel_w, 420.0);
                 let painter = ui.painter_at(screen);
                 painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(0x33, 0x2a, 0x1c, 242));
                 painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
@@ -3357,19 +3499,46 @@ impl GameState {
                         }
                         ui.add_space(16.0);
                         ui.label(egui::RichText::new("Host World").size(13.0).color(Theme::TEXT_DIM));
+                        if slots.is_empty() {
+                            ui.label(egui::RichText::new("No worlds to host — create one first.")
+                                .size(12.0).color(Theme::TEXT_DISABLED));
+                        }
                         egui::ScrollArea::vertical().max_height(120.0).show(ui, |ui| {
                             for meta in &slots {
-                                ui.horizontal(|ui| {
-                                    let selected = slots[self.mp_host_idx.min(slots.len() - 1)].name == meta.name;
-                                    if ui.add(egui::Button::new(egui::RichText::new(
-                                        format!("▸ {}", meta.name))
-                                        .color(if selected { Theme::ACCENT } else { Theme::TEXT_DIM })
-                                        .size(13.0))).clicked() {
-                                        self.mp_host_idx = slots.iter().position(|s| s.name == meta.name).unwrap_or(0);
-                                    }
-                                });
+                                let selected = slots[self.mp_host_idx.min(slots.len() - 1)].name == meta.name;
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    egui::vec2(ui.available_width(), 30.0), egui::Sense::click());
+                                if selected {
+                                    ui.painter().rect_filled(rect, 0.0,
+                                        Color32::from_rgba_premultiplied(0x3d, 0x30, 0x1e, 235));
+                                    ui.painter().rect_filled(
+                                        egui::Rect::from_min_size(rect.left_top(), egui::vec2(3.0, rect.height())),
+                                        0.0, Theme::ACCENT);
+                                } else if resp.hovered() {
+                                    ui.painter().rect_filled(rect, 0.0,
+                                        Color32::from_rgba_premultiplied(0x4a, 0x3c, 0x26, 160));
+                                }
+                                ui.painter().text(
+                                    egui::Pos2::new(rect.left() + 12.0, rect.center().y),
+                                    egui::Align2::LEFT_CENTER,
+                                    if selected { "▸" } else { " " },
+                                    egui::FontId::proportional(13.0), Theme::ACCENT);
+                                ui.painter().text(
+                                    egui::Pos2::new(rect.left() + 32.0, rect.center().y),
+                                    egui::Align2::LEFT_CENTER, &meta.name,
+                                    egui::FontId::proportional(14.0),
+                                    if selected { Theme::TEXT } else { Theme::TEXT_DIM });
+                                ui.painter().text(
+                                    egui::Pos2::new(rect.right() - 10.0, rect.center().y),
+                                    egui::Align2::RIGHT_CENTER,
+                                    format!("seed {}", format_seed(meta.seed)),
+                                    egui::FontId::proportional(11.0), Theme::TEXT_DISABLED);
+                                if resp.clicked() {
+                                    self.mp_host_idx = slots.iter().position(|s| s.name == meta.name).unwrap_or(0);
+                                }
                             }
                         });
+                        ui.add_space(4.0);
                         ui.horizontal(|ui| {
                             if kit::menu_link(ui, "Start Server", "mp-host", reveal, true, !slots.is_empty()) {
                                 let idx = self.mp_host_idx.min(slots.len().saturating_sub(1));
@@ -3382,8 +3551,8 @@ impl GameState {
                         });
                         ui.add_space(16.0);
                         ui.label(egui::RichText::new("Friends").size(13.0).color(Theme::TEXT_DIM));
-                        ui.label(egui::RichText::new("Steam lobby integration coming soon.")
-                            .size(12.0).color(Theme::TEXT_DISABLED));
+                        ui.label(egui::RichText::new("Steam lobbies arrive with the Steam release — direct connect and hosting work today.")
+                            .size(11.0).color(Theme::TEXT_DISABLED));
                         ui.add_space(20.0);
                         if kit::menu_link(ui, "Back", "mp-back", reveal, false, true) {
                             go_back = true;

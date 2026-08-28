@@ -769,8 +769,12 @@ impl ApplicationHandler for App {
                                             }
                                         }
                                         k if k == fly_key => {
-                                            state.player.flying = !state.player.flying;
-                                            state.player.velocity = Vec3::ZERO;
+                                            // creative-only since loop 329 (was
+                                            // an ungated debug toggle in survival)
+                                            if state.game_mode.may_fly() {
+                                                state.player.flying = !state.player.flying;
+                                                state.player.velocity = Vec3::ZERO;
+                                            }
                                         }
                                         k if k == shot_key => state.take_screenshot(),
                                         k if k == dbg_key => {
@@ -1039,6 +1043,10 @@ struct GameState {
     pub xp_flash: f32,
     pub hotbar_pick_time: f32,
     last_hotbar_index: usize,
+    /// Ground distance since the last footstep (loop 329 audio set).
+    step_distance: f32,
+    /// Previous frame's open screen — drives the ui transition click.
+    pub prev_ui_open: UiOpen,
     // ---- workbench state (ui-world-craft F) ----
     /// The earned recipe set (pickups + eras), persisted with the world.
     pub recipe_book: workbench::RecipeBook,
@@ -1050,6 +1058,8 @@ struct GameState {
     pub wb_qty: u32,
     /// "Add to Queue" placeholder queue (output, batch size).
     pub craft_queue: Vec<(String, u32)>,
+    /// Quest log tab: 0 = active quests, 1 = chronicle.
+    pub quest_tab: usize,
     pub last_fps: f32,
     pub quest_log: QuestLog,
     pub chronicle: Vec<ChronicleEvent>,
@@ -1412,11 +1422,14 @@ impl GameState {
             xp_flash: 0.0,
             hotbar_pick_time: 0.0,
             last_hotbar_index: 0,
+            step_distance: 0.0,
+            prev_ui_open: UiOpen::Title,
             recipe_book: workbench::RecipeBook::default(),
             wb_category: 0,
             wb_selected: None,
             wb_qty: 1,
             craft_queue: Vec::new(),
+            quest_tab: 0,
             last_fps: 0.0,
             quest_log,
             chronicle,
@@ -2003,6 +2016,7 @@ impl GameState {
         }
 
         self.player.update(dt, &input, &self.world);
+        self.footstep_tick(dt);
         self.survival_tick(dt);
         self.update_drops(dt);
         // Furnaces and machines tick whether or not their UI is open.
@@ -2545,6 +2559,10 @@ impl GameState {
                 let block_id = self.world.get_block(pos.x, pos.y, pos.z).id();
                 let held = self.inventory.slots[self.hotbar_index].clone();
                 let mut total = break_time(block_id, held.as_ref()).unwrap_or(f32::INFINITY);
+                // creative (loop 329): any block pops in one hit
+                if self.game_mode.instant_mining() {
+                    total = 0.0;
+                }
                 // P33: a bound Rune of Haste speeds the held tool
                 if let Some(h) = held.as_ref() {
                     if let Some(rune_id) = self.runed_tools.get(&h.item_id) {
@@ -2623,6 +2641,9 @@ impl GameState {
                             // wake water + drop unsupported granular blocks
                             self.after_edit(pos.x, pos.y, pos.z);
                             let (l, p) = grant_xp(self.xp_level, self.xp_progress, 1);
+                            if l > self.xp_level {
+                                self.play_sfx(lf_audio::Sfx::Xp, 0.8);
+                            }
                             self.xp_level = l;
                             self.xp_progress = p;
                             self.xp_flash = 1.0;
@@ -3041,6 +3062,7 @@ impl GameState {
                         Some(ItemKind::Food(heal)) if self.stats.hunger < self.stats.max_hunger => {
                             self.stats.hunger = (self.stats.hunger + heal as f32).min(self.stats.max_hunger);
                             self.consume_selected(1);
+                            self.play_sfx(lf_audio::Sfx::Eat, 0.9);
                         }
                         Some(ItemKind::Block(b)) => {
                             if let Some((pos, normal)) = target {
@@ -3386,6 +3408,9 @@ impl GameState {
                     }
                     self.kills += 1;
                     let (l, pr) = lf_game::combat::grant_xp(self.xp_level, self.xp_progress, 5);
+                    if l > self.xp_level {
+                        self.play_sfx(lf_audio::Sfx::Xp, 0.8);
+                    }
                     self.xp_level = l;
                     self.xp_progress = pr;
                     self.xp_flash = 1.0;
@@ -3547,6 +3572,10 @@ impl GameState {
     }
 
     fn consume_selected(&mut self, n: u8) {
+        // creative (loop 329): the inventory is infinite
+        if !self.game_mode.consumes_items() {
+            return;
+        }
         if let Some(stack) = &mut self.inventory.slots[self.hotbar_index] {
             stack.count = stack.count.saturating_sub(n);
             if stack.count == 0 {
@@ -3662,8 +3691,8 @@ impl GameState {
             self.air = (self.air + 1).min(10);
         }
         // Hunger drains slowly; the difficulty sets the pace (Hard is
-        // stricter, Peaceful doesn't starve you).
-        if now >= self.next_hunger_tick {
+        // stricter, Peaceful doesn't starve you). Creative doesn't eat.
+        if self.game_mode.drains_hunger() && now >= self.next_hunger_tick {
             let rate = self.difficulty.hunger_rate();
             if rate > 0.0 {
                 self.next_hunger_tick = now + Duration::from_secs((45.0 / rate) as u64);
@@ -3685,11 +3714,16 @@ impl GameState {
     }
 
     pub fn damage(&mut self, amount: f32) {
+        // creative (loop 329): nothing ever hurts
+        if !self.game_mode.takes_damage() {
+            return;
+        }
         if self.ward_timer > 0.0 {
             // the ward drinks it (P33); the timer still runs down in tick
             self.hud_flash = 1.0;
             return;
         }
+        self.play_sfx(lf_audio::Sfx::Hurt, 0.9);
         let mut armor = worn_armor_points(&self.inventory.slots);
         // P33: a held Rune of Warding tool adds flat armor
         if let Some(h) = self.inventory.slots[self.hotbar_index].as_ref() {
@@ -4157,6 +4191,39 @@ impl GameState {
         let volume = self.settings.volume_master * self.settings.volume_sfx;
         if let Some(a) = &mut self.audio {
             a.play(lf_audio::block_category(block_id), action, volume);
+        }
+    }
+
+    /// Non-block one-shot (loop 329): ui click / eat / hurt / xp / step.
+    fn play_sfx(&mut self, sfx: lf_audio::Sfx, volume: f32) {
+        let volume = self.settings.volume_master * self.settings.volume_sfx * volume;
+        if let Some(a) = &mut self.audio {
+            a.play_sfx(sfx, volume);
+        }
+    }
+
+    /// Footsteps (loop 329): every ~2.1 blocks of ground travel plays a
+    /// soft step colored by the material underfoot. Silent in the air.
+    fn footstep_tick(&mut self, dt: f32) {
+        if !self.player.on_ground || self.ui_open != UiOpen::None {
+            self.step_distance = 1.2; // first step lands promptly on landing
+            return;
+        }
+        let v = self.player.velocity;
+        let speed = (v.x * v.x + v.z * v.z).sqrt();
+        if speed < 0.5 {
+            return;
+        }
+        self.step_distance += speed * dt;
+        if self.step_distance >= 2.1 {
+            self.step_distance = 0.0;
+            let (x, y, z) = (
+                self.player.position.x as i32,
+                (self.player.position.y - 0.6) as i32,
+                self.player.position.z as i32,
+            );
+            let ground = self.world.get_block(x, y, z).id();
+            self.play_sfx(lf_audio::Sfx::Footstep(lf_audio::block_category(ground)), 0.45);
         }
     }
 

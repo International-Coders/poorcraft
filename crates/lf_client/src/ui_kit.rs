@@ -54,6 +54,60 @@ impl Theme {
     pub const MANA: Color32 = Color32::from_rgb(185, 130, 255);
 }
 
+/// Push the LOREFORGE palette into egui's global style so every plain
+/// widget (buttons in windows, sliders, checkboxes, scroll areas) and every
+/// `egui::Window` inherits the kit instead of egui's cool-blue defaults.
+/// Called once per frame from `GameState::draw_ui`; idempotent.
+pub fn apply_kit_style(ctx: &egui::Context) {
+    let mut style = (*ctx.style()).clone();
+    let v = &mut style.visuals;
+    v.dark_mode = true;
+    v.override_text_color = Some(Theme::TEXT);
+    v.panel_fill = Theme::BG_MID;
+    v.window_fill = Theme::PANEL;
+    v.extreme_bg_color = Theme::BG; // scroll areas, slider tracks
+    v.faint_bg_color = Theme::BG; // striped rows / alt backgrounds
+    // square kit corners everywhere
+    v.window_corner_radius = egui::CornerRadius::ZERO;
+    v.menu_corner_radius = egui::CornerRadius::ZERO;
+    v.window_stroke = Stroke::new(1.0, Theme::BORDER);
+    v.window_shadow = egui::Shadow::NONE;
+    v.popup_shadow = egui::Shadow::NONE;
+    v.widgets.noninteractive.bg_fill = Theme::BG_MID;
+    v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, Theme::TEXT_DIM);
+    v.widgets.inactive.bg_fill = Color32::from_rgba_premultiplied(0x3d, 0x30, 0x1e, 220);
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0, Theme::TEXT);
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, Theme::BORDER);
+    v.widgets.hovered.bg_fill = Color32::from_rgba_premultiplied(0x4a, 0x3c, 0x26, 235);
+    v.widgets.hovered.fg_stroke = Stroke::new(1.0, Theme::TEXT_BRIGHT);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, Theme::ACCENT);
+    v.widgets.active.bg_fill = Theme::ACCENT_DIM;
+    v.widgets.active.fg_stroke = Stroke::new(1.0, Theme::TEXT);
+    v.selection.bg_fill = Theme::ACCENT_DIM;
+    v.selection.stroke = Stroke::new(1.0, Theme::ACCENT);
+    ctx.style_mut(|s| *s = style.clone());
+}
+
+// ------------------------------------------------------------------
+// Centering
+
+/// The screen-anchored rect for a centered panel of the requested size,
+/// clamped to leave a margin on every side (small windows never overflow).
+pub fn centered_panel_rect(screen: Rect, w: f32, h: f32) -> Rect {
+    let w = w.min(screen.width() - 24.0).max(120.0);
+    let h = h.min(screen.height() - 24.0).max(60.0);
+    Rect::from_center_size(screen.center(), Vec2::new(w, h))
+}
+
+/// Vertically center the next widget block of the given estimated height
+/// inside a `top_down` layout: emit the top spacer, return nothing. The
+/// caller keeps `Align::Center` for the horizontal axis.
+pub fn center_vertically(ui: &mut Ui, panel_h: f32) {
+    let avail = ui.available_height();
+    let top = ((avail - panel_h) / 2.0).max(0.0);
+    ui.add_space(top);
+}
+
 // ------------------------------------------------------------------
 // Easing
 
@@ -615,6 +669,51 @@ pub fn paint_hunger(ui: &mut Ui, hunger: f32, max: f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The menus-centering contract: every dialog panel lands on the
+    /// screen's center, and a too-big panel clamps instead of overflowing.
+    #[test]
+    fn centered_panel_rect_is_symmetric_and_clamped() {
+        let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 720.0));
+        // new world (560x470) and multiplayer (560x420) sizes
+        for (w, h) in [(560.0, 470.0), (560.0, 420.0), (460.0, 320.0), (360.0, 300.0)] {
+            let r = centered_panel_rect(screen, w, h);
+            assert!((r.center().x - screen.center().x).abs() < 0.5, "{}x{} not h-centered", w, h);
+            assert!((r.center().y - screen.center().y).abs() < 0.5, "{}x{} not v-centered", w, h);
+            assert_eq!(r.width(), w, "{}x{} should fit unclamped", w, h);
+        }
+        // clamping: an oversized panel keeps the margin on every side
+        let r = centered_panel_rect(screen, 4000.0, 2000.0);
+        assert_eq!(r.width(), screen.width() - 24.0);
+        assert_eq!(r.height(), screen.height() - 24.0);
+        assert!((r.center().x - screen.center().x).abs() < 0.5);
+        // a tiny screen still yields a usable rect (never inverted)
+        let tiny = Rect::from_min_size(Pos2::ZERO, Vec2::new(320.0, 200.0));
+        let r = centered_panel_rect(tiny, 560.0, 470.0);
+        assert!(r.width() > 100.0 && r.height() > 50.0);
+        assert!((r.center().x - tiny.center().x).abs() < 0.5);
+    }
+
+    /// The vertical-center spacer must be non-negative and split the
+    /// leftover space evenly (a panel of the available height adds none).
+    #[test]
+    fn center_vertically_splits_leftover_space() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))),
+            ..Default::default()
+        };
+        ctx.begin_pass(raw);
+        let panel = egui::CentralPanel::default().show(&ctx, |ui| {
+            center_vertically(ui, 300.0);
+            ui.cursor().top()
+        });
+        // 600px screen, 300px panel -> ~150px of top space (panel chrome
+        // takes a little; the spacer must never be negative)
+        let top = panel.inner;
+        assert!((150.0 - top).abs() < 6.0, "expected ~150 top spacer, got {}", top);
+        assert!(top >= 0.0);
+    }
 
     #[test]
     fn easing_curves() {

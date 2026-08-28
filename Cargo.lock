@@ -1404,6 +1404,7 @@ dependencies = [
  "glam",
  "image",
  "lf_assets",
+ "lf_client",
  "lf_engine",
  "lf_game",
  "lf_voxel",
