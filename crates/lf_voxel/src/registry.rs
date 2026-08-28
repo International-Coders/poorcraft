@@ -23,7 +23,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 200;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 105;
+pub const MAX_VANILLA_BLOCK: u32 = 110;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -194,6 +194,12 @@ pub mod block {
     /// Ceiling/chain-mounted lantern (shares lantern art; different
     /// placement, per SKIN_MANIFEST).
     pub const LANTERN_HANGING: u32 = 105;
+    // ui-world-craft D3/E3: cave lava + biome surface decoration
+    pub const TALL_GRASS: u32 = 106;
+    pub const DRY_GRASS: u32 = 107;
+    pub const CACTUS: u32 = 108;
+    pub const DEAD_SHRUB: u32 = 109;
+    pub const LAVA: u32 = 110;
 
     pub fn name(id: u32) -> &'static str {
         if let Some(def) = crate::registry::mod_block(id) {
@@ -307,6 +313,11 @@ pub mod block {
             BANNER_ASHEN => "Ashen Banner",
             BANNER_NAMELESS => "Nameless Banner",
             LANTERN_HANGING => "Hanging Lantern",
+            TALL_GRASS => "Tall Grass",
+            DRY_GRASS => "Dry Grass",
+            CACTUS => "Cactus",
+            DEAD_SHRUB => "Dead Shrub",
+            LAVA => "Lava",
             _ => "Unknown",
         }
     }
@@ -327,6 +338,7 @@ pub fn is_solid(b: BlockState) -> bool {
     }
     id != block::AIR && id != block::WATER && id != block::OIL && id != block::TORCH
         && id != block::LANTERN && id != block::FLOWER && id != block::LANTERN_HANGING
+        && id != block::TALL_GRASS && id != block::DRY_GRASS && id != block::DEAD_SHRUB
         && !is_banner(id)
 }
 
@@ -343,6 +355,7 @@ pub fn is_opaque(b: BlockState) -> bool {
     id != block::AIR && id != block::WATER && id != block::OIL && id != block::LEAVES
         && id != block::TORCH && id != block::LANTERN && id != block::GLASS
         && id != block::ICE && id != block::FLOWER
+        && id != block::TALL_GRASS && id != block::DRY_GRASS && id != block::DEAD_SHRUB
 }
 
 /// The eight stained-glass tint variants (translucent pane like glass).
@@ -392,7 +405,8 @@ pub fn is_targetable(b: BlockState) -> bool {
 /// Cross-plants: non-solid cutout blocks that sit on the ground. Banners
 /// render through the same flat-quad path (sign-style, per SKIN_MANIFEST).
 pub fn is_plant(id: u32) -> bool {
-    id == block::FLOWER || is_banner(id)
+    id == block::FLOWER || id == block::TALL_GRASS || id == block::DRY_GRASS
+        || id == block::DEAD_SHRUB || is_banner(id)
 }
 
 /// Granular blocks that fall when the block under them is removed (they do

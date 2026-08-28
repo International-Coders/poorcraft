@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 160] = [
+pub const TEXTURE_NAMES: [&str; 165] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -82,6 +82,8 @@ pub const TEXTURE_NAMES: [&str; 160] = [
     "mob_glitchling_swamp", "mob_stalker_swamp", "mob_crawler_swamp",
     // Ambient ember particle core (C4)
     "ember",
+    // ui-world-craft D3/E3: lava + biome surface decoration (160-164)
+    "tall_grass", "dry_grass", "cactus", "dead_shrub", "lava",
 ];
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -89,6 +91,12 @@ pub const WAYPOINT_LAYERS: [u32; 6] = [48, 49, 50, 51, 52, 53];
 
 /// Atlas layers of the biome-identity grasses (Step 16).
 pub const JUNGLE_GRASS_LAYER: u32 = 54;
+/// ui-world-craft D3/E3 decoration + lava layers.
+pub const TALL_GRASS_LAYER: u32 = 160;
+pub const DRY_GRASS_LAYER: u32 = 161;
+pub const CACTUS_LAYER: u32 = 162;
+pub const DEAD_SHRUB_LAYER: u32 = 163;
+pub const LAVA_LAYER: u32 = 164;
 pub const SAVANNA_GRASS_LAYER: u32 = 55;
 pub const FLOWER_LAYER: u32 = 56;
 pub const WATER_WHEEL_LAYER: u32 = 57;
@@ -267,6 +275,13 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         // lore-and-visuals blocks: ids 68..=105 map consecutively to
         // layers 86..=123 (faction, biome, decoration)
         id @ 68..=105 => id + 18,
+        // ui-world-craft: lava + surface decoration (explicit — id+18 would
+        // collide with the villager skin layers)
+        106 => TALL_GRASS_LAYER,
+        107 => DRY_GRASS_LAYER,
+        108 => CACTUS_LAYER,
+        109 => DEAD_SHRUB_LAYER,
+        110 => LAVA_LAYER,
         id if id >= 200 => 47, // mod blocks (registry::MOD_BLOCK_BASE)
         _ => 0,
     }
@@ -1325,6 +1340,69 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([255, 214, 122, 255])
                     } else {
                         Rgba([228, 148, 58, 255])
+                    }
+                }
+                // ui-world-craft E3: ground-cover plants are cutout sprites —
+                // grass blades with transparent gaps, like the wildflower
+                "tall_grass" => {
+                    let blade = |bx: u32, h: u32| x >= bx && x < bx + 1 && y >= 16 - h;
+                    let n = (x * 13 + y * 7) % 5;
+                    if blade(2, 6) || blade(5, 9) || blade(8, 12) || blade(11, 8) || blade(14, 5)
+                        || (x == 3 && n < 2 && y >= 12) || (x == 12 && n < 3 && y >= 11)
+                    {
+                        let v = 90 + ((x * 7 + y * 11) % 30);
+                        Rgba([ch(v - 20), ch(v + 40), 50, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "dry_grass" => {
+                    let blade = |bx: u32, h: u32| x >= bx && x < bx + 1 && y >= 16 - h;
+                    if blade(3, 7) || blade(7, 10) || blade(10, 6) || blade(13, 8) {
+                        let v = 150 + ((x * 5 + y * 9) % 40);
+                        Rgba([ch(v + 30), ch(v), 70, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "dead_shrub" => {
+                    // bare branches: a trunk stub with two offshoots
+                    let trunk = x >= 7 && x <= 8 && y >= 6;
+                    let arm_l = x >= 4 && x <= 6 && y >= 7 && y <= 8;
+                    let arm_r = x >= 9 && x <= 12 && y >= 9 && y <= 10;
+                    if trunk || arm_l || arm_r {
+                        let v = 90 + ((x * 3 + y * 5) % 25);
+                        Rgba([ch(v), ch(v - 20), 40, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "cactus" => {
+                    // ribbed green column (solid block: fully opaque), pale
+                    // spine dots down the ribs
+                    let spine = (x == 5 || x == 10) && y % 5 == 2;
+                    let rib = (x + y) % 4 == 0;
+                    let edge = x < 2 || x > 13;
+                    if spine {
+                        Rgba([230, 230, 190, 255])
+                    } else if edge {
+                        Rgba([36, 80, 36, 255])
+                    } else if rib {
+                        Rgba([44, 98, 44, 255])
+                    } else {
+                        let v = 58 + ((x * 3 + y * 5) % 12);
+                        Rgba([ch(v), ch(v + 66), ch(v - 4), 255])
+                    }
+                }
+                "lava" => {
+                    // slow convection: orange crust with bright cracks
+                    let v = (x * x * 3 + y * y * 7) % 23;
+                    if v < 4 {
+                        Rgba([255, 216, 120, 255])
+                    } else if v < 10 {
+                        Rgba([240, 130, 40, 255])
+                    } else {
+                        Rgba([196, 70, 18, 255])
                     }
                 }
                 name if name.starts_with("crack_") => {
@@ -2634,6 +2712,13 @@ mod tests {
                 let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
                 assert!(holes > 100 && solid > 20, "flower holes={} solid={}", holes, solid);
+                continue;
+            }
+            if matches!(name, "tall_grass" | "dry_grass" | "dead_shrub") {
+                // cutout ground-cover plants (E3): transparent gaps + blades
+                let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
+                let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
+                assert!(holes > 100 && solid > 20, "{} holes={} solid={}", name, holes, solid);
                 continue;
             }
             if name == "glass" {

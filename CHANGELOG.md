@@ -1,5 +1,47 @@
 # CHANGELOG
 
+## 2026-08-27 — ui-world-craft: title identity, world creation, terrain rivers, workbench (loop 328)
+- Title screen rebuilt on the LOREFORGE palette (parchment/ember/iron-brown
+  across every screen via the ui_kit Theme): logotype top-left with
+  "Build. Rule. Endure.", underline-on-hover link column, radial vignette,
+  version + preview-seed display bottom-right. The title world is now
+  seeded from the game version (Fibonacci-hash mix — every release shows a
+  different recognizable world) and orbits on a 90s elliptical path with a
+  57.3s altitude oscillation; the preview generates in memory and never
+  writes to worlds/.
+- World creation flow: New World screen (name, visible seed with reroll,
+  world type / game mode / difficulty segment toggles, Back + Create
+  World), Load World picker with seed-rendered cached thumbnails,
+  world-type glyphs, difficulty + last-played metadata and a real delete
+  confirmation; Multiplayer screen with working Direct Connect, Host World
+  (dedicated server spawn) and an honest Steam-lobby stub. Worlds save
+  difficulty (Peaceful blocks hostile spawns; Easy/Normal/Hard scale mob
+  damage and hunger pace), game mode (Creative saved as a flag) and
+  creation metadata; old slot metas upgrade in place.
+- Terrain rework (gen v4): two-layer continental terrain — flat lowlands
+  hugging the sea, ridged highlands, ocean shelf — measured at a 0.409
+  mean flat fraction across 5 seeds vs 0.275 mountains. Rivers meander
+  through the whole lowland (OpenSimplex2 zero-crossings, hard highland
+  cutoff, 3-7 blocks wide widening toward the coast, carved to a bed that
+  actually fills with water). Caves: surface-breach ramp, deep-slate biome
+  below y=30, lava lakes below y=10, stalactites/stalagmites. Structures
+  (huts to faction camps) adapt to terrain: no floating floors, filled
+  platforms on slopes, underwater sites refused.
+- Biome identity: every biome scatters its own ground cover at its own
+  density (tall grass/flower meadows, flower-dominant forests, cactus and
+  dead shrubs in the deserts, dry savanna grass, mushroom/volcanic
+  signatures) with five new decoration blocks + lava; transition bands
+  interleave both biomes' covers via the climate dither.
+- Crafting workbench: the 3x3 grid is gone. A three-zone workbench
+  (category sidebar with craftable counts, recipe list sorted
+  craftable-first with locked rows hidden, detail panel with flavor text,
+  real have/need counts, batch quantity and Craft / Add to Queue) opens
+  from the inventory (basics) or a crafting table (everything). Recipes
+  are EARNED: a base survival set is visible from minute one, era-tagged
+  recipes surface when the era lands, and picking up any ingredient for
+  the first time unlocks its recipes with an amber toast. The set
+  persists in the save.
+
 ## 2026-08-27 — lore-and-visuals: factions, companions, skins (loop 327)
 - Six-faction standing system (–100..+100, Nameless start –50) loaded from
   lore/factions.toml; threshold titles, rivals-drift on honored crossings,

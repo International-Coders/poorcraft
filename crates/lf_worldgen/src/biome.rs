@@ -168,6 +168,46 @@ impl Biome {
     pub fn freezes(self) -> bool {
         matches!(self, Biome::FrozenOcean | Biome::IceSpikes)
     }
+
+    /// Ground-cover identity (ui-world-craft E3): (density 0..1, feature
+    /// blocks). Density is the fraction of surface columns carrying a
+    /// feature; which feature wins on a given column is hash-driven. This
+    /// is the second half of the 5-second test — palette + one thing no
+    /// other biome has.
+    pub fn surface_features(self) -> (f32, &'static [u32]) {
+        use lf_voxel::registry::block;
+        use Biome::*;
+        match self {
+            // lush temperate band — grass dominates, flowers accent
+            // (a meadow that's half red blooms reads as noise, not identity)
+            Meadow => (0.15, &[block::TALL_GRASS, block::TALL_GRASS, block::FLOWER]),
+            FlowerForest => (0.35, &[block::FLOWER, block::FLOWER, block::TALL_GRASS]),
+            Forest | BirchForest => (0.30, &[block::TALL_GRASS, block::TALL_GRASS, block::FLOWER]),
+            DarkForest => (0.35, &[block::TALL_GRASS]),
+            PaleGarden => (0.15, &[block::DEAD_SHRUB]),
+            CherryGrove => (0.30, &[block::TALL_GRASS, block::FLOWER]),
+            Jungle => (0.40, &[block::TALL_GRASS, block::TALL_GRASS, block::FLOWER]),
+            // wet cold band
+            Taiga => (0.12, &[block::DEAD_SHRUB]),
+            GiantTaiga => (0.14, &[block::DEAD_SHRUB, block::MOSS]),
+            SnowyTaiga => (0.08, &[block::DEAD_SHRUB]),
+            Tundra => (0.02, &[block::DEAD_SHRUB]),
+            // dry hot band
+            Savanna => (0.18, &[block::DRY_GRASS]),
+            WindsweptSavanna => (0.12, &[block::DRY_GRASS, block::DEAD_SHRUB]),
+            Desert => (0.05, &[block::CACTUS, block::DEAD_SHRUB]),
+            Badlands => (0.04, &[block::DEAD_SHRUB]),
+            // wet hot band
+            Swamp => (0.25, &[block::DEAD_SHRUB, block::TALL_GRASS]),
+            MushroomHollow => (0.35, &[block::MUSHROOM_CAP]),
+            // heights & shores: bare by nature
+            Highlands => (0.04, &[block::FLOWER]),
+            Mountains | WindsweptHills => (0.02, &[block::STONE]),
+            Volcanic => (0.06, &[block::VOLCANIC_BASALT]),
+            Beach | StonyShore | IceSpikes | SnowySlope | SnowyPeaks => (0.0, &[]),
+            Ocean | DeepOcean | WarmOcean | FrozenOcean => (0.0, &[]),
+        }
+    }
 }
 
 /// Distinct tree shapes worldgen can build.

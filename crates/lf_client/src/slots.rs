@@ -8,14 +8,105 @@ pub const WORLDS_ROOT: &str = "worlds";
 /// The legacy pre-slot world directory.
 pub const LEGACY_DIR: &str = "worlds/default";
 
+/// How the world threatens the player (ui-world-craft C1). Saved per
+/// world; Peaceful skips hostile spawns, Easy/Normal/Hard scale mob
+/// damage and hunger pace.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+pub enum Difficulty {
+    Peaceful,
+    #[default]
+    Easy,
+    Normal,
+    Hard,
+}
+
+impl Difficulty {
+    pub fn label(self) -> &'static str {
+        match self {
+            Difficulty::Peaceful => "Peaceful",
+            Difficulty::Easy => "Easy",
+            Difficulty::Normal => "Normal",
+            Difficulty::Hard => "Hard",
+        }
+    }
+
+    pub const ALL: [Difficulty; 4] = [
+        Difficulty::Peaceful,
+        Difficulty::Easy,
+        Difficulty::Normal,
+        Difficulty::Hard,
+    ];
+
+    /// Mob melee damage multiplier.
+    pub fn mob_damage(self) -> f32 {
+        match self {
+            Difficulty::Peaceful => 0.0,
+            Difficulty::Easy => 0.7,
+            Difficulty::Normal => 1.0,
+            Difficulty::Hard => 1.5,
+        }
+    }
+
+    /// Hunger drain multiplier (Hard is stricter).
+    pub fn hunger_rate(self) -> f32 {
+        match self {
+            Difficulty::Peaceful => 0.0,
+            Difficulty::Easy => 0.85,
+            Difficulty::Normal => 1.0,
+            Difficulty::Hard => 1.3,
+        }
+    }
+}
+
+/// Survival vs Creative (ui-world-craft C1). Creative is saved to the
+/// world so the toggle is real, but does not gate content yet.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+pub enum GameMode {
+    #[default]
+    Survival,
+    Creative,
+}
+
+impl GameMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            GameMode::Survival => "Survival",
+            GameMode::Creative => "Creative",
+        }
+    }
+
+    pub const ALL: [GameMode; 2] = [GameMode::Survival, GameMode::Creative];
+}
+
 /// Slot metadata, persisted as `meta.dat` inside the slot directory.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct SlotMeta {
     pub name: String,
     pub world_type: lf_worldgen::WorldType,
     pub seed: u64,
     /// Unix seconds of the last save (for ordering in the picker).
     pub updated_secs: u64,
+    /// Unix seconds of creation (C2 shows it in the picker).
+    #[serde(default)]
+    pub created_secs: u64,
+    #[serde(default)]
+    pub difficulty: Difficulty,
+    #[serde(default)]
+    pub game_mode: GameMode,
+    /// LOREFORGE version that created this world.
+    #[serde(default)]
+    pub version_created: String,
+}
+
+/// The pre-ui-world-craft meta shape (name/type/seed/updated only).
+/// bincode can't apply serde defaults to a short file, so old metas read
+/// through this and gain the new fields with sensible values.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct LegacySlotMeta {
+    name: String,
+    world_type: lf_worldgen::WorldType,
+    seed: u64,
+    updated_secs: u64,
 }
 
 /// A fresh OS-entropy seed (time ^ pid, splitmix-mixed). A process-local
@@ -64,7 +155,32 @@ pub fn write_meta(dir: &Path, meta: &SlotMeta) {
 
 pub fn read_meta(dir: &Path) -> Option<SlotMeta> {
     let bytes = std::fs::read(dir.join("meta.dat")).ok()?;
-    bincode::deserialize(&bytes).ok()
+    match bincode::deserialize::<SlotMeta>(&bytes) {
+        Ok(meta) => Some(meta),
+        Err(_) => {
+            // worlds saved before the creation flow: 4-field metas upgrade
+            // in place (created = last played, standard difficulty)
+            let legacy: LegacySlotMeta = bincode::deserialize(&bytes).ok()?;
+            let meta = SlotMeta {
+                created_secs: legacy.updated_secs,
+                difficulty: Difficulty::Easy,
+                game_mode: GameMode::Survival,
+                version_created: String::new(),
+                ..legacy_into_meta(legacy)
+            };
+            Some(meta)
+        }
+    }
+}
+
+fn legacy_into_meta(l: LegacySlotMeta) -> SlotMeta {
+    SlotMeta {
+        name: l.name,
+        world_type: l.world_type,
+        seed: l.seed,
+        updated_secs: l.updated_secs,
+        ..Default::default()
+    }
 }
 
 /// Stamp `genver.dat` with the current generator version, warning loudly
@@ -141,6 +257,10 @@ pub fn migrate_legacy_in(root: &Path) {
             world_type: lf_worldgen::WorldType::Normal,
             seed,
             updated_secs: 0,
+            created_secs: now_secs(),
+            difficulty: Difficulty::Easy,
+            game_mode: GameMode::Survival,
+            version_created: env!("CARGO_PKG_VERSION").into(),
         });
         tracing::info!("migrated legacy world -> {} (seed {})", target.display(), seed);
     }
@@ -162,6 +282,10 @@ pub fn boot_slot_in(root: &Path) -> SlotMeta {
         world_type: lf_worldgen::WorldType::Normal,
         seed: random_seed(),
         updated_secs: 0,
+        created_secs: now_secs(),
+        difficulty: Difficulty::Easy,
+        game_mode: GameMode::Survival,
+        version_created: env!("CARGO_PKG_VERSION").into(),
     };
     let dir = slot_dir_in(root, &meta.name);
     let _ = std::fs::create_dir_all(&dir);
@@ -176,6 +300,22 @@ pub fn now_secs() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
+}
+
+/// Hash a non-numeric world-seed string to a u64. Stable across runs and
+/// machines (std's DefaultHasher is NOT — its keys are randomized), so a
+/// shared seed string always builds the same world.
+pub fn hash_seed_string(s: &str) -> u64 {
+    // FNV-1a 64 over the UTF-8 bytes, then splitmix-mixed for good spread.
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in s.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    let mut z = h;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+    z ^ (z >> 31)
 }
 
 #[cfg(test)]
@@ -207,12 +347,55 @@ mod tests {
             world_type: lf_worldgen::WorldType::Amplified,
             seed: 987654321,
             updated_secs: 42,
+            created_secs: 40,
+            difficulty: Difficulty::Hard,
+            game_mode: GameMode::Creative,
+            version_created: "0.4.2".into(),
         };
         write_meta(dir.path(), &meta);
         let back = read_meta(dir.path()).expect("meta readable");
         assert_eq!(back.name, "Test");
         assert_eq!(back.seed, 987654321);
         assert_eq!(back.world_type, lf_worldgen::WorldType::Amplified);
+        assert_eq!(back.difficulty, Difficulty::Hard);
+        assert_eq!(back.game_mode, GameMode::Creative);
+        assert_eq!(back.version_created, "0.4.2");
+    }
+
+    /// Pre-creation-flow worlds carry 4-field bincode metas; reading them
+    /// must upgrade in place instead of dropping the slot.
+    #[test]
+    fn legacy_meta_upgrades_with_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let legacy = LegacySlotMeta {
+            name: "Old".into(),
+            world_type: lf_worldgen::WorldType::Normal,
+            seed: 1234,
+            updated_secs: 77,
+        };
+        std::fs::create_dir_all(dir.path()).unwrap();
+        std::fs::write(dir.path().join("meta.dat"), bincode::serialize(&legacy).unwrap()).unwrap();
+        let back = read_meta(dir.path()).expect("legacy meta readable");
+        assert_eq!(back.name, "Old");
+        assert_eq!(back.seed, 1234);
+        assert_eq!(back.created_secs, 77, "created falls back to last played");
+        assert_eq!(back.difficulty, Difficulty::Easy);
+        assert_eq!(back.game_mode, GameMode::Survival);
+    }
+
+    #[test]
+    fn difficulty_and_mode_tables() {
+        assert_eq!(Difficulty::Peaceful.mob_damage(), 0.0);
+        assert!(Difficulty::Hard.mob_damage() > Difficulty::Normal.mob_damage());
+        assert!(Difficulty::Hard.hunger_rate() > Difficulty::Easy.hunger_rate());
+    }
+
+    #[test]
+    fn seed_strings_hash_stably() {
+        let a = hash_seed_string("mountains-please");
+        assert_eq!(a, hash_seed_string("mountains-please"), "same string, same world");
+        assert_ne!(a, hash_seed_string("Mountains-Please"), "case matters");
+        assert_ne!(a, hash_seed_string("mountains-pleas"), "every character matters");
     }
 
     #[test]
@@ -226,7 +409,7 @@ mod tests {
         assert_eq!(slots.len(), 1);
         // a second, newer slot sorts first
         let meta2 = SlotMeta { name: "Adventure".into(), world_type: lf_worldgen::WorldType::Amplified,
-            seed: 777, updated_secs: boot.updated_secs + 100 };
+            seed: 777, updated_secs: boot.updated_secs + 100, ..Default::default() };
         let dir2 = slot_dir_in(root.path(), "Adventure");
         std::fs::create_dir_all(&dir2).unwrap();
         write_meta(&dir2, &meta2);

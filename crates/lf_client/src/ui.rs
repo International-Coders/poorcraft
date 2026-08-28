@@ -4,15 +4,17 @@
 //! the real pixel-art icons from `crate::icons`.
 
 use egui_wgpu::Renderer;
+use egui::Color32;
 use image;
 use egui_winit::State as EguiWinitState;
 
 use crate::ui_kit::{self as kit, Theme};
+use crate::workbench;
 use crate::{BlockEntity, GameState, RtMode, UiOpen};
-use lf_game::crafting::{consume_ingredients, match_recipe};
 use lf_game::items::{item_def, ItemKind};
 use lf_game::research::Era;
 use lf_game::survival::ItemStack;
+use crate::QuestEvent;
 use lf_npc::trade_offers;
 
 pub struct EguiPlatform {
@@ -151,7 +153,7 @@ fn paint_count(ui: &mut egui::Ui, rect: egui::Rect, count: u8) {
     ui.painter().text(pos + egui::vec2(1.0, 1.0), egui::Align2::RIGHT_BOTTOM, format!("{}", count),
         egui::FontId::proportional(13.0), egui::Color32::from_black_alpha(200));
     ui.painter().text(pos, egui::Align2::RIGHT_BOTTOM, format!("{}", count),
-        egui::FontId::proportional(13.0), egui::Color32::WHITE);
+        egui::FontId::proportional(13.0), Theme::TEXT);
 }
 
 struct SlotOutcome {
@@ -424,8 +426,11 @@ impl GameState {
             UiOpen::Settings => self.draw_settings(ctx),
             UiOpen::QuestLog => self.draw_quest_log(ctx),
             UiOpen::Chat => {}
-            UiOpen::Inventory => self.draw_inventory(ctx, 2),
-            UiOpen::CraftingTable => self.draw_inventory(ctx, 3),
+            // ui-world-craft F: the workbench replaces the grid everywhere.
+            // By hand (E) only the always-known basics; a crafting table
+            // shows everything earned.
+            UiOpen::Inventory => self.draw_workbench(ctx, true),
+            UiOpen::CraftingTable => self.draw_workbench(ctx, false),
             UiOpen::Furnace(pos) => self.draw_furnace(ctx, pos),
             UiOpen::Chest(pos) => self.draw_chest(ctx, pos),
             UiOpen::Trade(index) => self.draw_trade(ctx, index),
@@ -441,6 +446,8 @@ impl GameState {
             UiOpen::Map => self.draw_map_screen(ctx),
             UiOpen::Console => self.draw_console(ctx),
             UiOpen::Slots => self.draw_slots(ctx),
+            UiOpen::NewWorld => self.draw_new_world(ctx),
+            UiOpen::Multiplayer => self.draw_multiplayer(ctx),
             UiOpen::Death => self.draw_death(ctx),
             UiOpen::CompanionMenu => self.draw_companion_menu(ctx),
         }
@@ -458,7 +465,7 @@ impl GameState {
                 }
                 if cursor.count > 1 {
                     painter.text(rect.right_bottom(), egui::Align2::RIGHT_BOTTOM, format!("{}", cursor.count),
-                        egui::FontId::proportional(12.0), egui::Color32::WHITE);
+                        egui::FontId::proportional(12.0), Theme::TEXT);
                 }
             }
         }
@@ -792,148 +799,13 @@ impl GameState {
         }
     }
 
-    fn draw_inventory(&mut self, ctx: &egui::Context, grid: usize) {
-        let title = if grid == 3 { "Crafting Table" } else { "Inventory" };
-        let book = self.recipe_book_open;
-        egui::Window::new(title)
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            // crafting grid
-                            ui.vertical(|ui| {
-                                kit::section_header(ui, if grid == 3 { "Craft" } else { "2x2" }, 1.0);
-                                ui.add_space(8.0);
-                                for row in 0..grid {
-                                    ui.horizontal(|ui| {
-                                        for col in 0..grid {
-                                            let idx = row * grid + col;
-                                            let mut stack = self.craft_grid[idx].clone();
-                                            let mut cursor = self.cursor_stack.take();
-                                            let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
-                                            self.cursor_stack = cursor;
-                                            if let Some(mut q) = out.quick_moved {
-                                                quick_insert(&mut self.inventory.slots[..36], &mut q);
-                                            }
-                                            self.craft_grid[idx] = stack;
-                                        }
-                                    });
-                                }
-                            });
-                            ui.add_space(10.0);
-                            // result slot
-                            ui.vertical(|ui| {
-                                ui.add_space(12.0);
-                                let grid_ref: Vec<Option<ItemStack>> = self.craft_grid.iter().take(grid * grid).cloned().collect();
-                                let result = match_recipe(&grid_ref);
-                                // P37: the generalized gate (era branches
-                                // honored via unlocked(), path standing for
-                                // the ornate tier — fixes the branch-era
-                                // bench lock bug)
-                                let locked = match &result {
-                                    Some((out, _)) => {
-                                        !lf_game::paths::gate_for(out).passes(&self.research, &self.paths)
-                                    }
-                                    None => false,
-                                };
-                                let (rect, response) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE + 8.0, SLOT_SIZE + 8.0), egui::Sense::click());
-                                ui.painter().rect_filled(rect, 6.0, egui::Color32::from_black_alpha(170));
-                                ui.painter().rect_stroke(rect, 6.0, egui::Stroke::new(2.0,
-                                    if result.is_some() && !locked { Theme::ACCENT } else { egui::Color32::from_gray(90) }), egui::StrokeKind::Middle);
-                                if let Some((out, n)) = &result {
-                                    let stack = ItemStack { item_id: out.clone(), count: *n };
-                                    paint_item(ui, rect.shrink(4.0), &stack, &self.icons);
-                                    paint_count(ui, rect, *n);
-                                    if locked {
-                                        // dark veil + era note
-                                        ui.painter().rect_filled(rect, 6.0, egui::Color32::from_black_alpha(140));
-                                        ui.painter().text(rect.center_bottom() + egui::vec2(0.0, 10.0), egui::Align2::CENTER_CENTER,
-                                            lf_game::paths::gate_for(out).label(),
-                                            egui::FontId::proportional(10.0), egui::Color32::from_rgb(230, 130, 130));
-                                    } else {
-                                        kit::hover_item_tooltip(&response, &stack, &self.icons);
-                                    }
-                                }
-                                if response.clicked() {
-                                    if let Some((out, n)) = result {
-                                        if !locked {
-                                            let crafted = ItemStack { item_id: out, count: n };
-                                            let can_take = match &self.cursor_stack {
-                                                None => true,
-                                                Some(c) => c.item_id == crafted.item_id
-                                                    && c.count as u16 + n as u16 <= item_def(&crafted.item_id).map(|d| d.max_stack).unwrap_or(64) as u16,
-                                            };
-                                            if can_take {
-                                                match &mut self.cursor_stack {
-                                                    None => self.cursor_stack = Some(crafted.clone()),
-                                                    Some(c) => c.count += n,
-                                                }
-                                                let mut grid_slots: Vec<Option<ItemStack>> =
-                                                    self.craft_grid.iter().take(grid * grid).cloned().collect();
-                                                consume_ingredients(&mut grid_slots);
-                                                for (i, s) in grid_slots.into_iter().enumerate() {
-                                                    self.craft_grid[i] = s;
-                                                }
-                                                self.quest_event(crate::QuestEvent::Crafted(crafted.item_id.clone()));
-                                            }
-                                        }
-                                    }
-                                }
-                            });
-                        });
-                        ui.add_space(8.0);
-                        // storage 9x3 (shift-click bounces to the hotbar and back)
-                        for row in 0..3 {
-                            ui.horizontal(|ui| {
-                                for col in 0..9 {
-                                    let idx = 9 + row * 9 + col;
-                                    let mut stack = self.inventory.slots[idx].clone();
-                                    let mut cursor = self.cursor_stack.take();
-                                    let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
-                                    self.cursor_stack = cursor;
-                                    if let Some(mut q) = out.quick_moved {
-                                        quick_insert(&mut self.inventory.slots[..9], &mut q);
-                                    }
-                                    self.inventory.slots[idx] = stack;
-                                }
-                            });
-                        }
-                        ui.add_space(4.0);
-                        // hotbar row (shift-click bounces to storage)
-                        ui.horizontal(|ui| {
-                            for i in 0..9 {
-                                let mut stack = self.inventory.slots[i].clone();
-                                let mut cursor = self.cursor_stack.take();
-                                let out = slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index, &self.icons);
-                                self.cursor_stack = cursor;
-                                if let Some(mut q) = out.quick_moved {
-                                    quick_insert(&mut self.inventory.slots[9..36], &mut q);
-                                }
-                                self.inventory.slots[i] = stack;
-                            }
-                        });
-                    });
-                    if book {
-                        self.draw_recipe_book(ui, grid);
-                    } else {
-                        ui.vertical(|ui| {
-                            ui.add_space(60.0);
-                            if kit::menu_button(ui, "Recipes", 1.0, false) {
-                                self.recipe_book_open = true;
-                            }
-                            ui.label(egui::RichText::new("browse &\nauto-fill").small().color(Theme::TEXT_DIM));
-                        });
-                    }
-                });
-            });
-    }
 
-    /// The recipe book side panel: unified catalog with search, station
-    /// filters, have/need coloring and click-to-auto-fill.
-    fn draw_recipe_book(&mut self, ui: &mut egui::Ui, grid: usize) {
+    /// The crafting workbench (ui-world-craft Section F): three zones over
+    /// a vignette — category sidebar, recipe list, detail panel — with the
+    /// player's inventory strip at the bottom so materials stay in view.
+    /// `basic_only` (inventory route) shows the always-known survival set;
+    /// a crafting table shows everything the player has earned.
+    fn draw_workbench(&mut self, ctx: &egui::Context, basic_only: bool) {
         let catalog = build_catalog();
         let have: std::collections::HashMap<String, u16> = {
             let mut h = std::collections::HashMap::new();
@@ -942,175 +814,440 @@ impl GameState {
             }
             h
         };
-        ui.vertical(|ui| {
-            ui.set_width(340.0);
-            kit::section_header(ui, "Recipe Book", 1.0);
-            if kit::menu_button(ui, "× close", 1.0, false) {
-                self.recipe_book_open = false;
+        // visibility + sorting: craftable first, then partial, then
+        // visible-but-unaffordable, then locked — a workbench conversation
+        // starts with what you can make
+        let era = self.research.era;
+        let mut visible: Vec<(&CatalogEntry, bool, bool)> = Vec::new(); // (entry, can_craft, partial)
+        let mut locked: Vec<&CatalogEntry> = Vec::new();
+        for e in &catalog {
+            let ings: Vec<String> = e.ingredients.iter().map(|(id, _)| id.clone()).collect();
+            if basic_only && !kit_workbench_always(&e.output) {
+                continue;
             }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.recipe_search).desired_width(150.0).hint_text("search..."));
-                let stations = [("All", usize::MAX), ("Craft", 0), ("Smelt", 1), ("Alloy", 2), ("Crush", 3)];
-                for (label, idx) in stations {
-                    let on = if idx == usize::MAX { self.recipe_station == usize::MAX } else { self.recipe_station == idx };
-                    if ui.add(egui::Button::new(egui::RichText::new(label)
-                        .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))).clicked() {
-                        self.recipe_station = idx;
-                    }
-                }
-            });
-            if ui.add(egui::Button::new(egui::RichText::new(if self.recipe_craftable_only {
-                "✓ craftable only"
-            } else {
-                "craftable only"
-            }).color(if self.recipe_craftable_only { Theme::OK } else { Theme::TEXT_DIM }))).clicked() {
-                self.recipe_craftable_only = !self.recipe_craftable_only;
+            if !self.recipe_book.is_visible(&e.output, &ings, era) {
+                continue;
             }
-            ui.add_space(4.0);
-            let search = self.recipe_search.to_lowercase();
-            let station_of = |e: &CatalogEntry| match e.station {
-                Station::Craft => 0,
-                Station::Smelt => 1,
-                Station::Alloy => 2,
-                Station::Crush => 3,
+            let gate_ok = lf_game::paths::gate_for(&e.output).passes(&self.research, &self.paths);
+            if !gate_ok {
+                locked.push(e);
+                continue;
+            }
+            let mut all = true;
+            let mut some = false;
+            for (id, n) in &e.ingredients {
+                let got = have.get(id).copied().unwrap_or(0);
+                if got >= *n as u16 { some = true; } else { all = false; }
+            }
+            visible.push((e, all && !e.ingredients.is_empty(), some && !all));
+        }
+        visible.sort_by(|a, b| {
+            let rank = |x: &( &CatalogEntry, bool, bool )| {
+                if x.1 { 0 } else if x.2 { 1 } else { 2 }
             };
-            egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
-                for entry in &catalog {
-                    if self.recipe_station != usize::MAX && station_of(entry) != self.recipe_station {
-                        continue;
-                    }
-                    let name = item_def(&entry.output).map(|d| d.name).unwrap_or(&entry.output);
-                    if !search.is_empty() && !name.to_lowercase().contains(&search) {
-                        continue;
-                    }
-                    let era_ok = Era::required_for(&entry.output) <= self.research.era;
-                    let have_all = entry.ingredients.iter().all(|(id, n)| have.get(id).copied().unwrap_or(0) >= *n as u16);
-                    let fits_grid = entry.station != Station::Craft || entry.grid_size <= grid;
-                    let craftable = era_ok && have_all && fits_grid;
-                    if self.recipe_craftable_only && !craftable {
-                        continue;
-                    }
-                    let selected_entry = entry.station == Station::Craft && fits_grid;
-                    egui::Frame::new()
-                        .fill(if craftable { egui::Color32::from_rgba_premultiplied(34, 40, 32, 220) }
-                              else { egui::Color32::from_black_alpha(150) })
-                        .stroke(egui::Stroke::new(if craftable { 1.6 } else { 1.0 },
-                            if craftable { Theme::ACCENT_DIM } else { egui::Color32::from_gray(60) }))
-                        .corner_radius(7.0)
-                        .inner_margin(6.0)
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                let (orect, _) = ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
-                                paint_item(ui, orect, &ItemStack { item_id: entry.output.clone(), count: 1 }, &self.icons);
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(name).size(13.0)
-                                            .color(if era_ok { Theme::TEXT } else { egui::Color32::from_rgb(230, 130, 130) }));
-                                        if entry.output_count > 1 {
-                                            ui.label(egui::RichText::new(format!("x{}", entry.output_count)).small().color(Theme::TEXT_DIM));
-                                        }
-                                        if !era_ok {
-                                            ui.label(egui::RichText::new(format!("[{}]", Era::required_for(&entry.output).name())).small().color(Theme::BAD));
-                                        } else if entry.station == Station::Craft && !fits_grid {
-                                            ui.label(egui::RichText::new("[needs table]").small().color(Theme::TEXT_DIM));
-                                        }
-                                    });
-                                    // ingredient icons with have/need counts
-                                    ui.horizontal(|ui| {
-                                        for (id, n) in &entry.ingredients {
-                                            let got = have.get(id).copied().unwrap_or(0);
-                                            let ok = got >= *n as u16;
-                                            let (irect, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
-                                            paint_item(ui, irect, &ItemStack { item_id: id.clone(), count: 1 }, &self.icons);
-                                            ui.label(egui::RichText::new(format!("{}", n)).small()
-                                                .color(if ok { Theme::OK } else { Theme::BAD }));
-                                            let short_name = item_def(id).map(|d| d.name).unwrap_or(id);
-                                            ui.label(egui::RichText::new(short_name).small().color(Theme::TEXT_DIM));
-                                        }
-                                    });
-                                });
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.label(egui::RichText::new(entry.station.label()).small().color(Theme::TEXT_DIM));
-                                    if selected_entry && ui.add_enabled(craftable, egui::Button::new("fill")).clicked() {
-                                        if let Some(pattern) = &entry.pattern {
-                                            self.autofill_recipe(pattern);
-                                        }
+            rank(a).cmp(&rank(b)).then_with(|| a.0.output.cmp(&b.0.output))
+        });
+
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new())
+            .show(ctx, |ui| {
+                kit::vignette(ui, 190);
+                let screen = ctx.screen_rect();
+                // dark wash: the workbench is a screen, not a tooltip —
+                // text must out-shout the world behind it
+                ui.painter_at(screen).rect_filled(screen, 0.0,
+                    Color32::from_rgba_unmultiplied(kit::Theme::BG.r(), kit::Theme::BG.g(), kit::Theme::BG.b(), 195));
+                let strip_h = 4.0 * (SLOT_SIZE + 8.0) + 32.0;
+                let zone_h = screen.height() - strip_h - 48.0;
+                // zone 1: category sidebar (~15%)
+                let sidebar_w = (screen.width() * 0.15).clamp(130.0, 190.0);
+                let list_w = (screen.width() * 0.34).clamp(240.0, 420.0);
+                let detail_w = screen.width() - sidebar_w - list_w - 48.0;
+                // header
+                ui.painter().text(
+                    egui::Pos2::new(screen.left() + 24.0, screen.top() + 20.0),
+                    egui::Align2::LEFT_CENTER,
+                    if basic_only { "CRAFT — by hand" } else { "CRAFTING TABLE" },
+                    egui::FontId::proportional(24.0), Theme::TEXT);
+                ui.painter().text(
+                    egui::Pos2::new(screen.right() - 24.0, screen.top() + 20.0),
+                    egui::Align2::RIGHT_CENTER,
+                    "press E or Esc to close",
+                    egui::FontId::proportional(11.0), Theme::TEXT_DISABLED);
+                ui.add_space(36.0);
+                ui.horizontal(|ui| {
+                    // ---------- Zone 1: categories ----------
+                    ui.allocate_ui(egui::vec2(sidebar_w, zone_h), |ui| {
+                        ui.vertical(|ui| {
+                            for (i, cat_ref) in workbench::CATEGORIES.iter().enumerate() {
+                                let cat = *cat_ref;
+                                let selected = i == self.wb_category;
+                                let cat_entries: Vec<&(&CatalogEntry, bool, bool)> = visible.iter()
+                                    .filter(|(e, _, _)| workbench::categorize(&e.output) == cat)
+                                    .collect();
+                                let craftable_n = cat_entries.iter().filter(|(_, can, _)| *can).count();
+                                let total_n = cat_entries.len() + locked.iter()
+                                    .filter(|e| workbench::categorize(&e.output) == cat).count();
+                                let _ = selected;
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    egui::vec2(sidebar_w - 8.0, 30.0), egui::Sense::click());
+                                if selected {
+                                    // left accent border — NOT a filled background
+                                    ui.painter().rect_filled(
+                                        egui::Rect::from_min_size(rect.left_top(), egui::vec2(3.0, rect.height())),
+                                        0.0, Theme::ACCENT);
+                                }
+                                let text_col = if selected { Theme::TEXT }
+                                    else if resp.hovered() { Theme::TEXT_BRIGHT }
+                                    else { Theme::TEXT_DIM };
+                                let icon_x = rect.left() + 12.0;
+                                let icon_rect = egui::Rect::from_center_size(
+                                    egui::Pos2::new(icon_x, rect.center().y), egui::vec2(18.0, 18.0));
+                                paint_item(ui, icon_rect, &ItemStack {
+                                    item_id: cat.icon_item().to_string(), count: 1,
+                                }, &self.icons);
+                                ui.painter().text(
+                                    egui::Pos2::new(rect.left() + 26.0, rect.center().y),
+                                    egui::Align2::LEFT_CENTER, cat.label(),
+                                    egui::FontId::proportional(14.0), text_col);
+                                ui.painter().text(
+                                    egui::Pos2::new(rect.right() - 8.0, rect.center().y),
+                                    egui::Align2::RIGHT_CENTER,
+                                    format!("{}/{}", craftable_n, total_n),
+                                    egui::FontId::proportional(11.0),
+                                    if craftable_n > 0 { Theme::OK } else { Theme::TEXT_DISABLED });
+                                if resp.clicked() {
+                                    self.wb_category = i;
+                                    self.wb_selected = None;
+                                    self.wb_qty = 1;
+                                }
+                            }
+                            // queue badge lives at the sidebar's foot
+                            ui.add_space(8.0);
+                            if !self.craft_queue.is_empty() {
+                                ui.painter().text(
+                                    egui::Pos2::new(ui.cursor().min.x + 8.0, ui.cursor().min.y + 8.0),
+                                    egui::Align2::LEFT_TOP,
+                                    format!("Queue: {}", self.craft_queue.len()),
+                                    egui::FontId::proportional(11.0), Theme::WARNING);
+                            }
+                        });
+                    });
+                    ui.add_space(8.0);
+                    // ---------- Zone 2: recipe list ----------
+                    ui.allocate_ui(egui::vec2(list_w, zone_h), |ui| {
+                        ui.vertical(|ui| {
+                            let cat = workbench::CATEGORIES[self.wb_category.min(workbench::CATEGORIES.len() - 1)];
+                            egui::ScrollArea::vertical().max_height(zone_h - 8.0).show(ui, |ui| {
+                                let mut rows: Vec<&(&CatalogEntry, bool, bool)> = visible.iter()
+                                    .filter(|(e, _, _)| workbench::categorize(&e.output) == cat)
+                                    .collect();
+                                let locked_rows: Vec<&&CatalogEntry> = locked.iter()
+                                    .filter(|e| workbench::categorize(&e.output) == cat).collect();
+                                if rows.is_empty() && locked_rows.is_empty() {
+                                    ui.label(egui::RichText::new("Nothing here yet. Gather, and the workbench will teach you.")
+                                        .color(Theme::TEXT_DIM).size(12.0));
+                                }
+                                for (e, can_craft, partial) in rows.drain(..) {
+                                    let name = item_def(&e.output).map(|d| d.name).unwrap_or(&e.output);
+                                    let selected = self.wb_selected.as_deref() == Some(e.output.as_str());
+                                    // row height follows its content: one line for
+                                    // the name, one for the material summary
+                                    let (rect, resp) = ui.allocate_exact_size(
+                                        egui::vec2(list_w - 8.0, 44.0), egui::Sense::click());
+                                    let bg = if selected {
+                                        Color32::from_rgba_premultiplied(0x3d, 0x30, 0x1e, 235)
+                                    } else if resp.hovered() {
+                                        Color32::from_rgba_premultiplied(0x2e, 0x25, 0x1a, 220)
+                                    } else {
+                                        Color32::TRANSPARENT
+                                    };
+                                    if bg != Color32::TRANSPARENT {
+                                        ui.painter().rect_filled(rect, 0.0, bg);
                                     }
-                                });
-                            });
-                            // hover preview: pattern mini-grid + output tooltip
-                            let resp = ui.allocate_response(egui::vec2(ui.available_width(), 0.0), egui::Sense::hover());
-                            let entry_out = entry.output.clone();
-                            let icons_ptr = &self.icons;
-                            let pattern = entry.pattern.clone();
-                            resp.on_hover_ui(|ui| {
-                                let stack = ItemStack { item_id: entry_out.clone(), count: 1 };
-                                kit::item_tooltip_body(ui, &stack, icons_ptr);
-                                if let Some(pattern) = &pattern {
-                                    ui.add_space(4.0);
-                                    let h = pattern.len();
-                                    let w = pattern.iter().map(|r| r.len()).max().unwrap_or(0);
-                                    ui.horizontal(|ui| {
-                                        for row in 0..h {
-                                            ui.vertical(|ui| {
-                                                for col in 0..w {
-                                                    let cell = pattern[row].get(col).copied().flatten();
-                                                    let (rect, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover());
-                                                    let p = ui.painter();
-                                                    p.rect_filled(rect, 4.0, egui::Color32::from_black_alpha(170));
-                                                    p.rect_stroke(rect, 4.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Middle);
-                                                    if let Some(id) = cell {
-                                                        paint_item(ui, rect, &ItemStack { item_id: id.to_string(), count: 1 }, icons_ptr);
-                                                    }
-                                                }
-                                            });
-                                        }
-                                    });
+                                    if selected {
+                                        ui.painter().rect_stroke(rect, 0.0,
+                                            egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+                                    }
+                                    let icon_rect = egui::Rect::from_center_size(
+                                        egui::Pos2::new(rect.left() + 18.0, rect.center().y),
+                                        egui::vec2(26.0, 26.0));
+                                    paint_item(ui, icon_rect, &ItemStack {
+                                        item_id: e.output.clone(), count: 1,
+                                    }, &self.icons);
+                                    ui.painter().text(
+                                        egui::Pos2::new(rect.left() + 40.0, rect.top() + 8.0),
+                                        egui::Align2::LEFT_CENTER, name,
+                                        egui::FontId::proportional(14.0),
+                                        if *can_craft { Theme::TEXT } else { Theme::TEXT_DIM });
+                                    // inline material summary (top 2 by quantity)
+                                    let mut ings: Vec<&(String, u8)> = e.ingredients.iter().collect();
+                                    ings.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
+                                    let summary: Vec<String> = ings.iter().take(2)
+                                        .map(|(id, n)| {
+                                            let short = item_def(id).map(|d| d.name).unwrap_or(id);
+                                            format!("{}x {}", n, short)
+                                        }).collect();
+                                    let more = ings.len().saturating_sub(2);
+                                    let summary = if more > 0 {
+                                        format!("{} +{}", summary.join(", "), more)
+                                    } else {
+                                        summary.join(", ")
+                                    };
+                                    ui.painter().text(
+                                        egui::Pos2::new(rect.left() + 40.0, rect.bottom() - 9.0),
+                                        egui::Align2::LEFT_CENTER, summary,
+                                        egui::FontId::proportional(11.0), Theme::TEXT_DIM);
+                                    // craftable check is DRAWN (the shipped
+                                    // font has no check glyph); a dot otherwise
+                                    if *can_craft {
+                                        kit::paint_check(ui.painter(),
+                                            egui::Pos2::new(rect.right() - 14.0, rect.center().y),
+                                            Theme::OK, 1.8);
+                                    } else {
+                                        ui.painter().text(
+                                            egui::Pos2::new(rect.right() - 12.0, rect.center().y),
+                                            egui::Align2::RIGHT_CENTER, ".",
+                                            egui::FontId::proportional(16.0), Theme::TEXT_DIM);
+                                    }
+                                    if resp.clicked() {
+                                        self.wb_selected = Some(e.output.clone());
+                                        self.wb_qty = 1;
+                                    }
+                                }
+                                // locked: greyed, last, no recipe shown
+                                for e in locked_rows {
+                                    let name = item_def(&e.output).map(|d| d.name).unwrap_or(&e.output);
+                                    let gate = lf_game::paths::gate_for(&e.output);
+                                    let (rect, _resp) = ui.allocate_exact_size(
+                                        egui::vec2(list_w - 8.0, 26.0), egui::Sense::hover());
+                                    ui.painter().text(
+                                        egui::Pos2::new(rect.left() + 8.0, rect.center().y),
+                                        egui::Align2::LEFT_CENTER,
+                                        format!("{} — locked, needs {}", name, gate.label()),
+                                        egui::FontId::proportional(12.0), Theme::TEXT_DISABLED);
                                 }
                             });
                         });
-                }
-                if catalog.is_empty() {
-                    ui.label(egui::RichText::new("no recipes match").small().color(Theme::TEXT_DIM));
-                }
+                    });
+                    ui.add_space(8.0);
+                    // ---------- Zone 3: detail panel ----------
+                    ui.allocate_ui(egui::vec2(detail_w, zone_h), |ui| {
+                        ui.vertical(|ui| {
+                            let cat = workbench::CATEGORIES[self.wb_category.min(workbench::CATEGORIES.len() - 1)];
+                            let selected_entry = visible.iter()
+                                .find(|(e, _, _)| self.wb_selected.as_deref() == Some(e.output.as_str()))
+                                .map(|(e, can, _)| (*e, *can));
+                            let Some((e, can_craft)) = selected_entry else {
+                                // empty state: the category speaks
+                                ui.add_space(zone_h * 0.30);
+                                ui.label(egui::RichText::new(workbench::flavor_for_or_greeting(cat))
+                                    .size(13.0).color(Theme::TEXT_DIM));
+                                ui.add_space(8.0);
+                                ui.label(egui::RichText::new("Select a recipe to see details.")
+                                    .size(12.0).color(Theme::TEXT_DISABLED));
+                                return;
+                            };
+                            let name = item_def(&e.output).map(|d| d.name).unwrap_or(&e.output);
+                            let category = workbench::categorize(&e.output);
+                            let big_icon = egui::Rect::from_min_size(
+                                ui.cursor().min, egui::vec2(56.0, 56.0));
+                            paint_item(ui, big_icon, &ItemStack {
+                                item_id: e.output.clone(), count: 1,
+                            }, &self.icons);
+                            ui.painter().text(
+                                egui::Pos2::new(big_icon.right() + 12.0, big_icon.center().y - 12.0),
+                                egui::Align2::LEFT_CENTER, name,
+                                egui::FontId::proportional(20.0), Theme::TEXT);
+                            ui.painter().text(
+                                egui::Pos2::new(big_icon.right() + 12.0, big_icon.center().y + 12.0),
+                                egui::Align2::LEFT_CENTER,
+                                format!("{} · {}", category.label(), e.station.label()),
+                                egui::FontId::proportional(12.0), Theme::TEXT_DIM);
+                            ui.add_space(64.0);
+                            // flavor text between two hairlines
+                            let flavor = workbench::flavor_for(&e.output);
+                            ui.painter().line_segment(
+                                [ui.cursor().min, ui.cursor().min + egui::vec2(ui.available_width(), 0.0)],
+                                egui::Stroke::new(1.0, Theme::BORDER));
+                            ui.label(egui::RichText::new(flavor).size(12.0).color(Theme::TEXT_DIM).italics());
+                            ui.painter().line_segment(
+                                [ui.cursor().min, ui.cursor().min + egui::vec2(ui.available_width(), 0.0)],
+                                egui::Stroke::new(1.0, Theme::BORDER));
+                            ui.add_space(10.0);
+                            ui.label(egui::RichText::new("INGREDIENTS").size(11.0).color(Theme::TEXT_DIM));
+                            let qty = self.wb_qty.max(1);
+                            let mut all_available = true;
+                            for (id, n) in &e.ingredients {
+                                let need = (*n as u32 * qty).min(u8::MAX as u32) as u8;
+                                let got = have.get(id).copied().unwrap_or(0);
+                                let (mark, col) = if got as u32 >= need as u32 {
+                                    ("+", Theme::OK)
+                                } else if got > 0 {
+                                    ("~", Theme::WARNING)
+                                } else {
+                                    ("x", Theme::BAD)
+                                };
+                                if (got as u32) < (need as u32) {
+                                    all_available = false;
+                                }
+                                let (irect, _) = ui.allocate_exact_size(
+                                    egui::vec2(ui.available_width(), 22.0), egui::Sense::hover());
+                                let ing_icon = egui::Rect::from_center_size(
+                                    egui::Pos2::new(irect.left() + 10.0, irect.center().y),
+                                    egui::vec2(16.0, 16.0));
+                                paint_item(ui, ing_icon, &ItemStack {
+                                    item_id: id.clone(), count: 1,
+                                }, &self.icons);
+                                let ing_name = item_def(id).map(|d| d.name).unwrap_or(id);
+                                ui.painter().text(
+                                    egui::Pos2::new(irect.left() + 24.0, irect.center().y),
+                                    egui::Align2::LEFT_CENTER,
+                                    format!("{}x {}", need, ing_name),
+                                    egui::FontId::proportional(13.0), Theme::TEXT);
+                                ui.painter().text(
+                                    egui::Pos2::new(irect.right() - 4.0, irect.center().y),
+                                    egui::Align2::RIGHT_CENTER,
+                                    format!("{} have {}", mark, got),
+                                    egui::FontId::proportional(12.0), col);
+                            }
+                            ui.add_space(6.0);
+                            ui.painter().text(
+                                egui::Pos2::new(ui.cursor().min.x + 4.0, ui.cursor().min.y + 10.0),
+                                egui::Align2::LEFT_CENTER,
+                                format!("makes {}x {}", e.output_count as u32 * qty, name),
+                                egui::FontId::proportional(14.0), Theme::TEXT);
+                            ui.add_space(24.0);
+                            // quantity selector: [-] [n] [+], underline links
+                            ui.label(egui::RichText::new("QUANTITY").size(11.0).color(Theme::TEXT_DIM));
+                            ui.horizontal(|ui| {
+                                if kit::menu_link(ui, "[ - ]", "wb-minus", 1.0, false, qty > 1) {
+                                    self.wb_qty = (qty - 1).max(1);
+                                }
+                                ui.painter().text(
+                                    egui::Pos2::new(ui.cursor().min.x + 30.0, ui.cursor().min.y + 14.0),
+                                    egui::Align2::CENTER_CENTER, format!("{} ", qty),
+                                    egui::FontId::proportional(15.0), Theme::TEXT);
+                                ui.allocate_exact_size(egui::vec2(60.0, 28.0), egui::Sense::hover());
+                                if kit::menu_link(ui, "[ + ]", "wb-plus", 1.0, false, qty < 64) {
+                                    self.wb_qty = (qty + 1).min(64);
+                                }
+                                if kit::menu_link(ui, "x8", "wb-x8", 1.0, false, qty != 8) {
+                                    self.wb_qty = 8;
+                                }
+                            });
+                            ui.add_space(12.0);
+                            // the single craft action
+                            if all_available {
+                                if kit::menu_link(ui, &format!("Craft {}", qty), "wb-craft", 1.0, true, true) {
+                                    self.craft_from_workbench(&e.ingredients, &e.output, e.output_count, qty);
+                                    self.wb_qty = 1;
+                                }
+                            } else {
+                                ui.painter().text(
+                                    egui::Pos2::new(ui.cursor().min.x + 8.0, ui.cursor().min.y + 14.0),
+                                    egui::Align2::LEFT_CENTER, "Missing materials",
+                                    egui::FontId::proportional(15.0), Theme::TEXT_DISABLED);
+                            }
+                            ui.add_space(4.0);
+                            if kit::menu_link(ui, "Add to Queue", "wb-queue", 1.0, false, true) {
+                                self.craft_queue.push((e.output.clone(), qty));
+                                self.chat_log.push(format!("queued: {}x {}", qty, name));
+                                if self.chat_log.len() > 6 { self.chat_log.remove(0); }
+                            }
+                        });
+                    });
+                });
+                // ---------- inventory strip ----------
+                let strip_y = screen.bottom() - strip_h;
+                ui.painter().line_segment(
+                    [egui::Pos2::new(screen.left() + 16.0, strip_y - 10.0),
+                     egui::Pos2::new(screen.right() - 16.0, strip_y - 10.0)],
+                    egui::Stroke::new(1.0, Theme::BORDER));
+                ui.allocate_ui_at_rect(
+                    egui::Rect::from_min_size(
+                        egui::Pos2::new(screen.left() + 24.0, strip_y),
+                        egui::vec2(screen.width() - 48.0, strip_h)), |ui| {
+                        ui.vertical(|ui| {
+                            // needed-ingredient highlight map
+                            let needed: Vec<String> = self.wb_selected.as_ref().and_then(|sel| {
+                                visible.iter().find(|(e, _, _)| e.output == *sel)
+                                    .map(|(e, _, _)| e.ingredients.iter().map(|(id, _)| id.clone()).collect())
+                            }).unwrap_or_default();
+                            for row in 0..4 {
+                                ui.horizontal(|ui| {
+                                    for col in 0..9 {
+                                        let idx = if row == 0 { col } else { 9 + (row - 1) * 9 + col };
+                                        let srect = ui.cursor();
+                                        let mut stack = self.inventory.slots[idx].clone();
+                                        let mut cursor = self.cursor_stack.take();
+                                        let out = slot_button(ui, &mut stack, &mut cursor,
+                                            row == 0 && col == self.hotbar_index, &self.icons);
+                                        self.cursor_stack = cursor;
+                                        if let Some(mut q) = out.quick_moved {
+                                            quick_insert(&mut self.inventory.slots[..36], &mut q);
+                                        }
+                                        self.inventory.slots[idx] = stack;
+                                        if let Some(s) = &self.inventory.slots[idx] {
+                                            if needed.iter().any(|id| id == &s.item_id) {
+                                                // faint accent border: this slot matters
+                                                ui.painter().rect_stroke(srect, 5.0,
+                                                    egui::Stroke::new(1.5, Theme::ACCENT),
+                                                    egui::StrokeKind::Middle);
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    });
             });
-        });
     }
 
-    /// Move the current grid contents back to the inventory, then pull the
-    /// recipe's ingredients into the grid (only if everything is available).
-    fn autofill_recipe(&mut self, pattern: &[Vec<Option<&'static str>>]) {
-        // return whatever is in the grid first
-        let grid = std::mem::take(&mut self.craft_grid);
-        for s in grid.into_iter().flatten() {
-            let leftover = self.inventory.add_item(&s.item_id, s.count);
-            if leftover > 0 {
-                self.spawn_drop(&s.item_id, leftover, self.player.eye_position() + self.player.look_dir());
-            }
-        }
-        // count needs, verify availability
-        let mut needed: std::collections::HashMap<&str, u8> = std::collections::HashMap::new();
-        for row in pattern {
-            for cell in row.iter().flatten() {
-                *needed.entry(cell).or_insert(0) += 1;
-            }
-        }
-        for (id, n) in &needed {
-            let got: u16 = self.inventory.slots.iter().take(36).flatten()
+    /// Consume a batch from the inventory and grant the output (the craft
+    /// button's action). Ingredients are re-verified here; the UI button is
+    /// only enabled when they check out, but state can change between frames.
+    fn craft_from_workbench(&mut self, ingredients: &[(String, u8)], output: &str,
+                            output_count: u8, qty: u32) {
+        // verify
+        for (id, n) in ingredients {
+            let need = (*n as u32) * qty;
+            let got: u32 = self.inventory.slots.iter().take(36).flatten()
                 .filter(|s| s.item_id == *id)
-                .map(|s| s.count as u16).sum();
-            if got < *n as u16 {
-                return; // not enough — leave the grid empty rather than partial
+                .map(|s| s.count as u32).sum();
+            if got < need {
+                self.chat_log.push(format!("missing materials for {}", output));
+                return;
             }
         }
-        for (y, row) in pattern.iter().enumerate() {
-            for (x, cell) in row.iter().enumerate() {
-                if let Some(id) = cell {
-                    self.craft_grid[y * 3 + x] = take_one(&mut self.inventory.slots, id);
+        // consume
+        for (id, n) in ingredients {
+            let mut left = (*n as u32) * qty;
+            for slot in self.inventory.slots.iter_mut().take(36) {
+                if left == 0 { break; }
+                if let Some(s) = slot {
+                    if s.item_id == *id {
+                        let take = (s.count as u32).min(left) as u8;
+                        s.count -= take;
+                        left -= take as u32;
+                        if s.count == 0 { *slot = None; }
+                    }
                 }
             }
         }
+        // grant
+        let total = output_count as u32 * qty;
+        let mut remaining = total;
+        while remaining > 0 {
+            let batch = remaining.min(u8::MAX as u32) as u8;
+            let leftover = self.inventory.add_item(output, batch);
+            if leftover > 0 {
+                self.spawn_drop(output, leftover, self.player.eye_position());
+                break;
+            }
+            remaining -= batch as u32;
+        }
+        self.quest_event(QuestEvent::Crafted(output.to_string()));
     }
 
     fn draw_furnace(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
@@ -1319,96 +1456,125 @@ impl GameState {
             });
     }
 
+    /// The title screen (ui-world-craft Section A): the live world render
+    /// shows through, a radial vignette sinks the edges into `#1a1410`, the
+    /// LOREFORGE logotype hangs top-left with the tagline under it, the
+    /// menu is a left-hand column of underline-on-hover links, and the
+    /// version + preview seed sit in the bottom-right corner. No panels,
+    /// no glow, no drop shadows — the logotype stands on its own.
     fn draw_title(&mut self, ctx: &egui::Context) {
-        // subtle dark vignette over the orbiting world background
+        let t = self.menu_reveal;
+        let screen = ctx.screen_rect();
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(90)))
+            .frame(egui::Frame::new())
             .show(ctx, |ui| {
-                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    ui.add_space(ui.available_height() * 0.10);
-                    let t = self.menu_reveal;
-                    let reveal = kit::ease_out_cubic((t / 0.7).clamp(0.0, 1.0));
-                    let glow = Theme::title_glow(t);
-                    ui.label(egui::RichText::new("LOREFORGE")
-                        .size(64.0 * (0.8 + 0.2 * reveal))
-                        .color(glow)
-                        .strong());
-                    let sub_r = kit::ease_out_cubic(((t - 0.4) / 0.6).clamp(0.0, 1.0));
-                    ui.label(egui::RichText::new("a voxel saga of forge & industry")
-                        .size(17.0)
-                        .color(egui::Color32::from_rgba_premultiplied(Theme::TEXT.r(), Theme::TEXT.g(), Theme::TEXT.b(), ((200.0 * sub_r) as u8).min(255))));
-                    ui.add_space(26.0);
-                    let btn = |ui: &mut egui::Ui, label: &str, delay: f32, accent: bool| -> bool {
-                        let r = ((t - delay) / 0.45).clamp(0.0, 1.0);
-                        kit::menu_button(ui, label, r, accent)
-                    };
-                    if btn(ui, &format!("Play — {}", self.slot_meta.name), 0.7, true) {
-                        self.close_ui();
-                    }
-                    ui.add_space(8.0);
-                    if btn(ui, "New World", 0.85, false) {
-                        self.title_show_new = !self.title_show_new;
-                    }
-                    if self.title_show_new {
-                        ui.horizontal(|ui| {
-                            if btn(ui, "Normal", 0.95, false) {
-                                self.new_world_named(&format!("World {}", crate::slots::list_slots().len() + 1),
-                                    lf_worldgen::WorldType::Normal);
-                            }
-                            ui.add_space(6.0);
-                            if btn(ui, "Superflat", 1.0, false) {
-                                self.new_world_named(&format!("World {}", crate::slots::list_slots().len() + 1),
-                                    lf_worldgen::WorldType::Superflat);
-                            }
-                            ui.add_space(6.0);
-                            if btn(ui, "Amplified", 1.05, false) {
-                                self.new_world_named(&format!("World {}", crate::slots::list_slots().len() + 1),
-                                    lf_worldgen::WorldType::Amplified);
-                            }
-                        });
-                    }
-                    ui.add_space(8.0);
-                    if btn(ui, "Load Game", 1.1, false) {
-                        self.ui_open = UiOpen::Slots;
-                        self.menu_reveal = 0.0;
-                    }
-                    ui.add_space(8.0);
-                    let transport = if lf_steam::preferred_transport() == lf_steam::Transport::Udp {
-                        "localhost"
-                    } else {
-                        "Steam P2P"
-                    };
-                    if btn(ui, &format!("Multiplayer ({})", transport), 1.2, false) {
-                        match crate::net::NetClient::connect("127.0.0.1:25565", "smith") {
-                            Ok(n) => {
-                                self.net = Some(n);
-                                self.chat_log = vec!["joining localhost:25565...".to_string()];
-                                self.close_ui();
-                            }
-                            Err(e) => {
-                                self.chat_log = vec![format!("connect failed: {}", e)];
+                // vignette first, content above it
+                kit::vignette(ui, 200);
+                // logotype: top-left at 10% across, ~1/6 of the screen tall,
+                // warm off-white — no glow, no shadow (A1)
+                let left_x = screen.left() + screen.width() * 0.10;
+                let reveal = kit::ease_out_cubic((t / 0.7).clamp(0.0, 1.0));
+                let logo_size = (screen.height() / 7.5).clamp(48.0, 104.0);
+                let logo_y = screen.top() + screen.height() * 0.16;
+                let alpha = ((255.0 * reveal) as u8).min(255);
+                let painter = ui.painter_at(screen);
+                painter.text(
+                    egui::Pos2::new(left_x, logo_y),
+                    egui::Align2::LEFT_CENTER,
+                    "LOREFORGE",
+                    egui::FontId::proportional(logo_size),
+                    egui::Color32::from_rgba_premultiplied(
+                        kit::Theme::TEXT.r(), kit::Theme::TEXT.g(), kit::Theme::TEXT.b(), alpha),
+                );
+                // tagline: single line, muted, directly under the logotype
+                let sub_r = kit::ease_out_cubic(((t - 0.4) / 0.6).clamp(0.0, 1.0));
+                painter.text(
+                    egui::Pos2::new(left_x + 4.0, logo_y + logo_size * 0.62),
+                    egui::Align2::LEFT_CENTER,
+                    "Build. Rule. Endure.",
+                    egui::FontId::proportional((logo_size * 0.22).clamp(13.0, 22.0)),
+                    egui::Color32::from_rgba_premultiplied(
+                        kit::Theme::TEXT_DIM.r(), kit::Theme::TEXT_DIM.g(), kit::Theme::TEXT_DIM.b(),
+                        ((230.0 * sub_r) as u8).min(255)),
+                );
+
+                // menu: left-aligned column at 10% across, seated in the
+                // 55-70% height band so the logotype keeps its room (A2).
+                // Button labels are short but not uniformly so — width comes
+                // from the text, never a fixed grid.
+                let col_x = screen.left() + screen.width() * 0.10;
+                let col_top = screen.top() + screen.height() * 0.55;
+                let row_h = (screen.height() * 0.052).clamp(34.0, 46.0);
+                let items = [
+                    "New World",
+                    "Load World",
+                    "Multiplayer",
+                    "Settings",
+                    "Quit",
+                ];
+                ui.vertical(|ui| {
+                    ui.allocate_space(egui::vec2(col_x - screen.left(), col_top - screen.top()));
+                    for (i, label) in items.iter().enumerate() {
+                        let r = ((t - 0.7 - i as f32 * 0.09) / 0.4).clamp(0.0, 1.0);
+                        let clicked = ui
+                            .allocate_ui_at_rect(
+                                egui::Rect::from_min_size(
+                                    egui::Pos2::new(col_x, col_top + i as f32 * row_h),
+                                    egui::vec2(screen.width() * 0.3, row_h),
+                                ),
+                                |ui| kit::menu_link(ui, label, label, r, false, true),
+                            )
+                            .inner;
+                        if clicked {
+                            match *label {
+                                "New World" => {
+                                    self.open_new_world_screen();
+                                }
+                                "Load World" => {
+                                    self.ui_open = UiOpen::Slots;
+                                    self.menu_reveal = 0.0;
+                                }
+                                "Multiplayer" => {
+                                    self.ui_open = UiOpen::Multiplayer;
+                                    self.menu_reveal = 0.0;
+                                }
+                                "Settings" => {
+                                    self.ui_open = UiOpen::Settings;
+                                    self.settings_from_title = true;
+                                    self.menu_reveal = 0.0;
+                                }
+                                "Quit" => self.quit_requested = true,
+                                _ => {}
                             }
                         }
                     }
-                    ui.add_space(8.0);
-                    if btn(ui, "Settings", 1.3, false) {
-                        self.ui_open = UiOpen::Settings;
-                        self.settings_from_title = true;
-                        self.menu_reveal = 0.0;
-                    }
-                    ui.add_space(8.0);
-                    if btn(ui, "Quit", 1.4, false) {
-                        self.quit_requested = true;
-                    }
                 });
             });
-        egui::TopBottomPanel::bottom("title_footer")
-            .frame(egui::Frame::none())
-            .show_separator_line(false)
+        // version + preview seed, bottom-right, always visible (A3 + B1):
+        // the same version string that derives the preview world seed.
+        egui::Area::new(egui::Id::new("title_version"))
+            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -12.0))
+            .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new(env!("CARGO_PKG_VERSION")).small().color(Theme::TEXT_DIM));
-                    ui.label(egui::RichText::new("LOREFORGE 0.1  ·  ").small().color(Theme::TEXT_DIM));
+                ui.vertical(|ui| {
+                    ui.set_max_width(240.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+                        ui.label(
+                            egui::RichText::new(format!("LOREFORGE v{}", env!("CARGO_PKG_VERSION")))
+                                .size(11.0)
+                                .color(kit::Theme::TEXT_DIM),
+                        );
+                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "Seed: {}",
+                                format_seed(lf_worldgen::preview::version_preview_seed())
+                            ))
+                            .size(11.0)
+                            .color(kit::Theme::TEXT_DIM),
+                        );
+                    });
                 });
             });
     }
@@ -1490,35 +1656,42 @@ impl GameState {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     ui.add_space(30.0);
                     kit::slide_panel(ui, (t / 0.5).clamp(0.0, 1.0), |ui| {
-                        ui.set_width(520.0);
-                        ui.vertical(|ui| {
-                            ui.add_space(10.0);
-                            ui.heading(egui::RichText::new("Settings").size(26.0).color(Theme::TEXT));
-                            ui.add_space(8.0);
-                            ui.horizontal(|ui| {
+                        ui.set_width(560.0);
+                        ui.horizontal(|ui| {
+                            // left sidebar: hover-underline categories (the
+                            // MAIN_MENU_REDESIGN brief spec — settings
+                            // navigation is the same species as the menu)
+                            ui.vertical(|ui| {
+                                ui.add_space(10.0);
+                                ui.label(egui::RichText::new("Settings").size(24.0).color(Theme::TEXT));
+                                ui.add_space(10.0);
                                 for (i, label) in ["Video", "Interface", "Audio", "Controls", "Gameplay"].iter().enumerate() {
                                     let on = self.settings_tab == i;
-                                    let btn = egui::Button::new(egui::RichText::new(*label)
-                                        .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))
-                                        .min_size(egui::vec2(90.0, 28.0));
-                                    if ui.add(btn).clicked() {
+                                    if kit::menu_link(ui, label, &format!("settings-{}", label), 1.0, on, true) {
                                         self.settings_tab = i;
                                     }
+                                    ui.add_space(2.0);
+                                }
+                                ui.add_space(12.0);
+                                if kit::menu_link(ui, "Back", "settings-back", 1.0, false, true) {
+                                    self.close_settings();
                                 }
                             });
-                            ui.separator();
-                            match self.settings_tab {
-                                0 => self.settings_video(ui),
-                                1 => self.settings_interface(ui),
-                                2 => self.settings_audio(ui),
-                                3 => self.settings_controls(ui),
-                                _ => self.settings_gameplay(ui),
-                            }
-                            ui.add_space(10.0);
-                            if kit::menu_button(ui, "Back", 1.0, true) {
-                                self.close_settings();
-                            }
-                            ui.add_space(10.0);
+                            ui.add_space(12.0);
+                            // 1px warm divider between sidebar and content
+                            let (rect, _) = ui.allocate_exact_size(egui::vec2(1.0, 320.0), egui::Sense::hover());
+                            ui.painter().rect_filled(rect, 0.0, Theme::BORDER);
+                            ui.add_space(12.0);
+                            ui.vertical(|ui| {
+                                ui.add_space(10.0);
+                                match self.settings_tab {
+                                    0 => self.settings_video(ui),
+                                    1 => self.settings_interface(ui),
+                                    2 => self.settings_audio(ui),
+                                    3 => self.settings_controls(ui),
+                                    _ => self.settings_gameplay(ui),
+                                }
+                            });
                         });
                     });
                 });
@@ -1720,7 +1893,7 @@ impl GameState {
                                 };
                                 ui.label(egui::RichText::new(price_label)
                                     .color(if enough { Theme::OK } else { Theme::BAD }));
-                                ui.label(egui::RichText::new("→").color(Theme::TEXT_DIM));
+                                ui.label(egui::RichText::new("->").color(Theme::TEXT_DIM));
                                 let (r2, _) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
                                 paint_item(ui, r2, &get_stack, &self.icons);
                                 ui.label(egui::RichText::new(format!("x{}", get_n)).color(Theme::TEXT));
@@ -2091,7 +2264,7 @@ impl GameState {
                                     ui.horizontal(|ui| {
                                         ui.heading(egui::RichText::new(spell.name()).size(14.0).color(Theme::MANA));
                                         ui.label(egui::RichText::new(format!("{} mana", spell.cost() as u8)).small().color(Theme::TEXT_DIM));
-                                        if ui.button("→ slot").clicked() {
+                                        if ui.button("-> slot").clicked() {
                                             assign = Some((slots.iter().position(|s| s.is_none()).unwrap_or(2), Some(*spell)));
                                         }
                                         if let Some(si) = slots.iter().position(|s| *s == Some(*spell)) {
@@ -2729,7 +2902,7 @@ impl GameState {
                                     paint_item(ui, r, &ItemStack { item_id: id.to_string(), count: 1 }, &self.icons);
                                     ui.label(egui::RichText::new(format!("x{} +", n)).small().color(Theme::TEXT_DIM));
                                 }
-                                ui.label(egui::RichText::new("→").color(Theme::TEXT_DIM));
+                                ui.label(egui::RichText::new("->").color(Theme::TEXT_DIM));
                                 let (r, _) = ui.allocate_exact_size(egui::vec2(22.0, 22.0), egui::Sense::hover());
                                 paint_item(ui, r, &ItemStack { item_id: out.to_string(), count: 1 }, &self.icons);
                                 ui.label(egui::RichText::new(format!("x{}", out_n)).small().color(Theme::OK));
@@ -2790,7 +2963,7 @@ impl GameState {
                                 }
                             });
                         if e != Era::Electrical {
-                            ui.label(egui::RichText::new("→").color(Theme::TEXT_DIM));
+                            ui.label(egui::RichText::new("->").color(Theme::TEXT_DIM));
                         }
                     }
                 });
@@ -2895,81 +3068,108 @@ impl GameState {
             });
     }
 
-    /// Save-slot picker: list worlds (Load / Delete) + create a new one
-    /// with a custom name and type.
+    /// Load World screen (ui-world-craft C2): one slot per row — seed-
+    /// rendered thumbnail, world-type glyph, name, difficulty, last-played —
+    /// plus a delete flow with the honest "cannot be undone" prompt.
     fn draw_slots(&mut self, ctx: &egui::Context) {
         let reveal = kit::ease_out_cubic((self.menu_reveal / 0.35).clamp(0.0, 1.0));
         let mut open_game = None;
         let mut delete_slot: Option<String> = None;
-        let mut create: Option<(String, lf_worldgen::WorldType)> = None;
         let slots = crate::slots::list_slots();
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(150)))
+            .frame(egui::Frame::new())
             .show(ctx, |ui| {
+                kit::vignette(ui, 170);
                 kit::slide_panel(ui, reveal, |ui| {
-                    ui.set_width(460.0);
+                    ui.set_width(560.0);
                     ui.vertical(|ui| {
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new("Load World").size(24.0).color(Theme::TEXT));
+                        ui.add_space(4.0);
+                        ui.painter().line_segment(
+                            [ui.cursor().min, ui.cursor().min + egui::vec2(ui.available_width(), 0.0)],
+                            egui::Stroke::new(1.0, Theme::BORDER));
                         ui.add_space(10.0);
-                        ui.label(egui::RichText::new("Save Slots").size(26.0).color(Theme::TEXT).strong());
-                        ui.label(egui::RichText::new(format!("current: {}", self.slot_meta.name)).small().color(Theme::TEXT_DIM));
-                        ui.add_space(10.0);
-                        ui.separator();
-                        egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                        egui::ScrollArea::vertical().max_height(330.0).show(ui, |ui| {
                             if slots.is_empty() {
-                                ui.label(egui::RichText::new("no saved worlds yet").color(Theme::TEXT_DIM));
+                                ui.label(egui::RichText::new("No worlds yet. Create one from the title screen.")
+                                    .color(Theme::TEXT_DIM));
                             }
                             for meta in &slots {
                                 let current = meta.name == self.slot_meta.name;
                                 egui::Frame::new()
-                                    .fill(if current { egui::Color32::from_rgba_premultiplied(34, 40, 32, 220) }
-                                          else { egui::Color32::from_black_alpha(130) })
-                                    .stroke(egui::Stroke::new(if current { 1.6 } else { 1.0 },
-                                        if current { Theme::ACCENT_DIM } else { egui::Color32::from_gray(60) }))
-                                    .corner_radius(7.0)
+                                    .fill(if current { Color32::from_rgba_premultiplied(0x3d, 0x30, 0x1e, 235) }
+                                          else { Color32::from_rgba_premultiplied(0x24, 0x1c, 0x14, 220) })
+                                    .stroke(egui::Stroke::new(if current { 1.5 } else { 1.0 },
+                                        if current { Theme::ACCENT } else { Theme::BORDER }))
+                                    .corner_radius(0.0)
                                     .inner_margin(8.0)
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
-                                            // Step 14: live thumbnail captured by the autosave
-                                            let thumb_path = crate::slots::slot_dir(&meta.name).join("thumb.png");
-                                            let key = meta.name.clone();
-                                            if !self.slot_thumbs.contains_key(&key) {
-                                                let decoded = image::ImageReader::open(&thumb_path)
-                                                    .map_err(|e| e.to_string())
-                                                    .and_then(|mut r| r.decode().map_err(|e| e.to_string()));
-                                                if let Ok(img) = decoded.map(|d| d.to_rgba8()) {
-                                                    let size = [img.width() as usize, img.height() as usize];
-                                                    let color = egui::ColorImage::from_rgba_unmultiplied(size, &img);
-                                                    let tex = ui.ctx().load_texture(format!("thumb_{key}"), color, egui::TextureOptions::LINEAR);
-                                                    self.slot_thumbs.insert(key.clone(), tex);
+                                            // thumbnail: cached seed render, else the
+                                            // live autosave view, else a type-colored tile
+                                            let thumb_key = meta.name.clone();
+                                            if !self.slot_thumbs.contains_key(&thumb_key) {
+                                                let tex = load_slot_thumbnail(ui, &meta.name, meta.seed, meta.world_type);
+                                                if let Some(tex) = tex {
+                                                    self.slot_thumbs.insert(thumb_key.clone(), tex);
                                                 }
                                             }
-                                            if let Some(tex) = self.slot_thumbs.get(&key) {
-                                                ui.image((tex.id(), egui::vec2(96.0, 54.0)))
-                                                    .on_hover_text("last autosave view");
+                                            let (trect, _) = ui.allocate_exact_size(egui::vec2(96.0, 54.0), egui::Sense::hover());
+                                            match self.slot_thumbs.get(&thumb_key) {
+                                                Some(tex) => {
+                                                    ui.painter().image(tex.id(), trect,
+                                                        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                                                        Color32::WHITE);
+                                                }
+                                                None => {
+                                                    ui.painter().rect_filled(trect, 0.0, placeholder_color(meta.world_type));
+                                                    ui.painter().text(trect.center(), egui::Align2::CENTER_CENTER,
+                                                        world_type_glyph(meta.world_type),
+                                                        egui::FontId::proportional(20.0), Theme::TEXT_DIM);
+                                                }
                                             }
+                                            ui.painter().rect_stroke(trect, 0.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
                                             ui.vertical(|ui| {
-                                                ui.label(egui::RichText::new(&meta.name).size(16.0)
-                                                    .color(if current { Theme::ACCENT } else { Theme::TEXT }));
-                                                ui.label(egui::RichText::new(format!("{:?} · seed {} · saved {}",
-                                                    meta.world_type, meta.seed, time_ago(meta.updated_secs)))
+                                                ui.horizontal(|ui| {
+                                                    ui.label(egui::RichText::new(&meta.name).size(16.0)
+                                                        .color(if current { Theme::ACCENT } else { Theme::TEXT }));
+                                                    ui.label(egui::RichText::new(world_type_glyph(meta.world_type))
+                                                        .color(Theme::TEXT_DIM));
+                                                });
+                                                ui.label(egui::RichText::new(format!(
+                                                    "{:?} · {} · seed {}",
+                                                    meta.world_type,
+                                                    meta.difficulty.label(),
+                                                    format_seed(meta.seed)))
                                                     .small().color(Theme::TEXT_DIM));
+                                                ui.label(egui::RichText::new(format!(
+                                                    "last played {} · created {}",
+                                                    time_ago(meta.updated_secs),
+                                                    if meta.created_secs > 0 { time_ago(meta.created_secs) } else { "before v0.4".into() }))
+                                                    .small().color(Theme::TEXT_DISABLED));
                                             });
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                                let del_id = egui::Id::new(("delslot", &meta.name));
-                                                let confirming = ui.ctx().data(|d| d.get_temp::<bool>(del_id).unwrap_or(false));
-                                                if ui.button(if confirming { "really delete?" } else { "Delete" }).clicked() {
-                                                    if confirming {
+                                                let confirming = self.delete_confirm.as_deref() == Some(meta.name.as_str());
+                                                if confirming {
+                                                    ui.label(egui::RichText::new(format!("Delete '{}'? This cannot be undone.", meta.name))
+                                                        .small().color(Theme::BAD));
+                                                    if ui.add(egui::Button::new(egui::RichText::new("Yes").color(Theme::BAD))).clicked() {
+                                                        self.delete_confirm = None;
                                                         delete_slot = Some(meta.name.clone());
-                                                        ui.ctx().data_mut(|d| d.insert_temp(del_id, false));
-                                                    } else {
-                                                        ui.ctx().data_mut(|d| d.insert_temp(del_id, true));
                                                     }
-                                                }
-                                                if confirming && ui.button("keep").clicked() {
-                                                    ui.ctx().data_mut(|d| d.insert_temp(del_id, false));
-                                                }
-                                                if ui.button("Load").clicked() {
-                                                    open_game = Some(meta.name.clone());
+                                                    if ui.button("No").clicked() {
+                                                        self.delete_confirm = None;
+                                                    }
+                                                } else {
+                                                    if ui.button("Delete").clicked() {
+                                                        self.delete_confirm = Some(meta.name.clone());
+                                                    }
+                                                    if ui.add(egui::Button::new(egui::RichText::new(
+                                                        if current { "Play" } else { "Load" })
+                                                        .color(Theme::WARNING))).clicked() {
+                                                        open_game = Some(meta.name.clone());
+                                                    }
                                                 }
                                             });
                                         });
@@ -2977,36 +3177,21 @@ impl GameState {
                                 ui.add_space(4.0);
                             }
                         });
-                        ui.add_space(8.0);
-                        ui.separator();
-                        ui.label(egui::RichText::new("New World").size(17.0).color(Theme::ACCENT));
+                        ui.add_space(10.0);
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("name").small().color(Theme::TEXT_DIM));
-                            ui.add(egui::TextEdit::singleline(&mut self.slot_name_input).desired_width(160.0).hint_text("My World"));
-                            for (label, wt) in [("Normal", lf_worldgen::WorldType::Normal),
-                                                ("Superflat", lf_worldgen::WorldType::Superflat),
-                                                ("Amplified", lf_worldgen::WorldType::Amplified)] {
-                                let on = self.slot_new_type == wt;
-                                if ui.add(egui::Button::new(egui::RichText::new(label)
-                                    .color(if on { Theme::ACCENT } else { Theme::TEXT_DIM }))).clicked() {
-                                    self.slot_new_type = wt;
+                            // Back: plain navigation — underline only on hover
+                            if kit::menu_link(ui, "Back", "slots-back", 1.0, false, true) {
+                                self.ui_open = UiOpen::Title;
+                                self.menu_reveal = 0.0;
+                            }
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                // action link: underline pinned on (action, not navigation)
+                                if kit::menu_link(ui, "New World", "slots-new", 1.0, true, true) {
+                                    self.open_new_world_screen();
                                 }
-                            }
-                            if ui.button("Create").clicked() {
-                                let name = if self.slot_name_input.trim().is_empty() {
-                                    format!("World {}", crate::slots::list_slots().len() + 1)
-                                } else {
-                                    self.slot_name_input.clone()
-                                };
-                                create = Some((name, self.slot_new_type));
-                            }
+                            });
                         });
-                        ui.add_space(10.0);
-                        if kit::menu_button(ui, "Back", 1.0, true) {
-                            self.ui_open = UiOpen::Title;
-                            self.menu_reveal = 0.0;
-                        }
-                        ui.add_space(10.0);
+                        ui.add_space(8.0);
                     });
                 });
             });
@@ -3019,12 +3204,211 @@ impl GameState {
                 // deleted the live world — fall back to the newest other slot
                 match crate::slots::list_slots().into_iter().next() {
                     Some(meta) => { let _ = self.load_world(&meta.name); }
-                    None => self.new_world_named("World 1", lf_worldgen::WorldType::Normal),
+                    None => {
+                        let seed = crate::slots::random_seed();
+                        self.create_world("World 1", seed, lf_worldgen::WorldType::Normal,
+                            crate::slots::Difficulty::Easy, crate::slots::GameMode::Survival);
+                        self.ui_open = UiOpen::Title;
+                        self.menu_reveal = 0.0;
+                    }
                 }
             }
         }
-        if let Some((name, wt)) = create {
-            self.new_world_named(&name, wt);
+    }
+
+    /// New World screen (ui-world-craft C1): one panel, five field groups —
+    /// name, visible seed with a Roll link, world type, game mode,
+    /// difficulty — then Back (navigation link) and Create World (pinned
+    /// action link). Strings that don't parse as numbers hash to seeds;
+    /// an empty name is the only error, and it says so in danger red.
+    fn draw_new_world(&mut self, ctx: &egui::Context) {
+        let reveal = kit::ease_out_cubic((self.menu_reveal / 0.35).clamp(0.0, 1.0));
+        let mut rolled = false;
+        let mut go_back = false;
+        let mut create: Option<()> = None;
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new())
+            .show(ctx, |ui| {
+                kit::vignette(ui, 170);
+                let screen = ctx.screen_rect();
+                let panel_w = (screen.width() * 0.5).clamp(420.0, 560.0);
+                let panel_h = 470.0;
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(panel_w, panel_h), egui::Sense::hover());
+                let painter = ui.painter_at(screen);
+                painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(0x33, 0x2a, 0x1c, 242));
+                painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+                ui.allocate_ui_at_rect(rect.shrink(32.0), |ui| {
+                    ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                        ui.label(egui::RichText::new("New World").size(24.0).color(Theme::TEXT));
+                        ui.add_space(4.0);
+                        ui.painter().line_segment(
+                            [ui.cursor().min, ui.cursor().min + egui::vec2(ui.available_width(), 0.0)],
+                            egui::Stroke::new(1.0, Theme::BORDER));
+                        ui.add_space(16.0);
+                        ui.label(egui::RichText::new("Name").size(13.0).color(Theme::TEXT_DIM));
+                        let name_error = self.new_world_error.clone().unwrap_or_default();
+                        kit::text_input(ui, &mut self.new_world_name, "nw-name", "Name your world...", panel_w - 64.0);
+                        if !name_error.is_empty() {
+                            ui.label(egui::RichText::new(name_error).size(12.0).color(Theme::BAD));
+                        }
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new("Seed").size(13.0).color(Theme::TEXT_DIM));
+                        ui.horizontal(|ui| {
+                            kit::text_input(ui, &mut self.new_world_seed, "nw-seed", "numbers or any words", panel_w - 150.0);
+                            // [Roll] is a text link in muted, not a button widget
+                            if kit::menu_link(ui, "[ Roll ]", "nw-roll", 1.0, false, true) {
+                                rolled = true;
+                            }
+                        });
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new("World Type").size(13.0).color(Theme::TEXT_DIM));
+                        let types = ["Normal", "Superflat", "Amplified"];
+                        if kit::segment_row(ui, "nw-type", &types, &mut self.new_world_type_idx) {
+                            // selection drives generation on create
+                        }
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new("Game Mode").size(13.0).color(Theme::TEXT_DIM));
+                        let modes = ["Survival", "Creative"];
+                        kit::segment_row(ui, "nw-mode", &modes, &mut self.new_world_mode_idx);
+                        if self.new_world_mode_idx == 1 {
+                            ui.label(egui::RichText::new("Creative plays like Survival for now; the flag is saved.")
+                                .size(11.0).color(Theme::TEXT_DISABLED));
+                        }
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new("Difficulty").size(13.0).color(Theme::TEXT_DIM));
+                        let diffs = ["Peaceful", "Easy", "Normal", "Hard"];
+                        kit::segment_row(ui, "nw-diff", &diffs, &mut self.new_world_diff_idx);
+                        let diff_hint = match crate::slots::Difficulty::ALL[self.new_world_diff_idx.min(3)] {
+                            crate::slots::Difficulty::Peaceful => "No hostile mobs. Nothing fights back.",
+                            crate::slots::Difficulty::Easy => "Mobs exist, hits hurt less.",
+                            crate::slots::Difficulty::Normal => "The world as intended.",
+                            crate::slots::Difficulty::Hard => "Harder hits, faster hunger.",
+                        };
+                        ui.label(egui::RichText::new(diff_hint).size(11.0).color(Theme::TEXT_DISABLED));
+                        ui.add_space(20.0);
+                        ui.horizontal(|ui| {
+                            if kit::menu_link(ui, "Back", "nw-back", reveal, false, true) {
+                                go_back = true;
+                            }
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if kit::menu_link(ui, "Create World", "nw-create", reveal, true, true) {
+                                    create = Some(());
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+        if rolled {
+            self.new_world_seed = crate::slots::random_seed().to_string();
+            self.new_world_error = None;
+        }
+        if go_back {
+            self.ui_open = UiOpen::Title;
+            self.menu_reveal = 0.0;
+        }
+        if create.is_some() {
+            if self.create_world_from_screen().is_ok() {
+                self.menu_reveal = 0.0;
+            }
+        }
+    }
+
+    /// Multiplayer screen (ui-world-craft C3): Direct Connect (IP + port +
+    /// Connect), Host World (pick a slot, start the dedicated server), and
+    /// the honest Steam-lobby stub.
+    fn draw_multiplayer(&mut self, ctx: &egui::Context) {
+        let reveal = kit::ease_out_cubic((self.menu_reveal / 0.35).clamp(0.0, 1.0));
+        let mut go_back = false;
+        let mut connect: Option<String> = None;
+        let mut host_slot: Option<String> = None;
+        let slots = crate::slots::list_slots();
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new())
+            .show(ctx, |ui| {
+                kit::vignette(ui, 170);
+                let screen = ctx.screen_rect();
+                let panel_w = (screen.width() * 0.5).clamp(420.0, 560.0);
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(panel_w, 420.0), egui::Sense::hover());
+                let painter = ui.painter_at(screen);
+                painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(0x33, 0x2a, 0x1c, 242));
+                painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+                ui.allocate_ui_at_rect(rect.shrink(32.0), |ui| {
+                    ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                        ui.label(egui::RichText::new("Multiplayer").size(24.0).color(Theme::TEXT));
+                        ui.add_space(4.0);
+                        ui.painter().line_segment(
+                            [ui.cursor().min, ui.cursor().min + egui::vec2(ui.available_width(), 0.0)],
+                            egui::Stroke::new(1.0, Theme::BORDER));
+                        ui.add_space(16.0);
+                        ui.label(egui::RichText::new("Direct Connect").size(13.0).color(Theme::TEXT_DIM));
+                        ui.horizontal(|ui| {
+                            kit::text_input(ui, &mut self.mp_address, "mp-addr", "IP address", panel_w * 0.42);
+                            kit::text_input(ui, &mut self.mp_port, "mp-port", "port", 96.0);
+                            if kit::menu_link(ui, "Connect", "mp-connect", reveal, true, true) {
+                                let addr = format!("{}:{}",
+                                    if self.mp_address.trim().is_empty() { "127.0.0.1" } else { self.mp_address.trim() },
+                                    self.mp_port.trim());
+                                connect = Some(addr);
+                            }
+                        });
+                        if let Some(status) = &self.mp_status {
+                            ui.label(egui::RichText::new(status).size(12.0).color(Theme::WARNING));
+                        }
+                        ui.add_space(16.0);
+                        ui.label(egui::RichText::new("Host World").size(13.0).color(Theme::TEXT_DIM));
+                        egui::ScrollArea::vertical().max_height(120.0).show(ui, |ui| {
+                            for meta in &slots {
+                                ui.horizontal(|ui| {
+                                    let selected = slots[self.mp_host_idx.min(slots.len() - 1)].name == meta.name;
+                                    if ui.add(egui::Button::new(egui::RichText::new(
+                                        format!("▸ {}", meta.name))
+                                        .color(if selected { Theme::ACCENT } else { Theme::TEXT_DIM })
+                                        .size(13.0))).clicked() {
+                                        self.mp_host_idx = slots.iter().position(|s| s.name == meta.name).unwrap_or(0);
+                                    }
+                                });
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            if kit::menu_link(ui, "Start Server", "mp-host", reveal, true, !slots.is_empty()) {
+                                let idx = self.mp_host_idx.min(slots.len().saturating_sub(1));
+                                if let Some(meta) = slots.get(idx) {
+                                    host_slot = Some(meta.name.clone());
+                                }
+                            }
+                            ui.label(egui::RichText::new("runs the dedicated LOREFORGE server, then connects")
+                                .size(11.0).color(Theme::TEXT_DISABLED));
+                        });
+                        ui.add_space(16.0);
+                        ui.label(egui::RichText::new("Friends").size(13.0).color(Theme::TEXT_DIM));
+                        ui.label(egui::RichText::new("Steam lobby integration coming soon.")
+                            .size(12.0).color(Theme::TEXT_DISABLED));
+                        ui.add_space(20.0);
+                        if kit::menu_link(ui, "Back", "mp-back", reveal, false, true) {
+                            go_back = true;
+                        }
+                    });
+                });
+            });
+        if go_back {
+            self.ui_open = UiOpen::Title;
+            self.menu_reveal = 0.0;
+        }
+        if let Some(addr) = connect {
+            match crate::net::NetClient::connect(&addr, "smith") {
+                Ok(n) => {
+                    self.net = Some(n);
+                    self.chat_log = vec![format!("joining {}...", addr)];
+                    self.close_ui();
+                }
+                Err(e) => {
+                    self.mp_status = Some(format!("connect failed: {}", e));
+                }
+            }
+        }
+        if let Some(slot) = host_slot {
+            self.mp_status = Some(start_dedicated_server(&slot, &self.mp_port));
         }
     }
 
@@ -3147,6 +3531,12 @@ mod tests {
 }
 
 /// Human-friendly "how long ago" for the slot list.
+/// Workbench visibility shortcut: the always-known survival set (the
+/// inventory's by-hand crafting route shows only these).
+fn kit_workbench_always(output: &str) -> bool {
+    crate::workbench::ALWAYS_VISIBLE.contains(&output)
+}
+
 fn time_ago(secs: u64) -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -3163,3 +3553,104 @@ fn time_ago(secs: u64) -> String {
         format!("{}d ago", delta / 86400)
     }
 }
+
+/// Thousands-separated seed for the version display (B1: "Seed:
+/// 14,203,847,923" — a detail players notice and share).
+fn format_seed(seed: u64) -> String {
+    let s = seed.to_string();
+    let bytes = s.as_bytes();
+    let mut out = String::with_capacity(s.len() + s.len() / 3);
+    for (i, b) in bytes.iter().enumerate() {
+        if i > 0 && (bytes.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(*b as char);
+    }
+    out
+}
+
+/// The Load World thumbnail for a slot: the cached `thumbnail.png` seed
+/// render if one exists (generated here on first open), else the live
+/// autosave view, else a freshly generated seed thumbnail that is written
+/// to the slot for next time.
+fn load_slot_thumbnail(ui: &egui::Ui, name: &str, seed: u64, world_type: lf_worldgen::WorldType) -> Option<egui::TextureHandle> {
+    let dir = crate::slots::slot_dir(name);
+    let path = dir.join("thumbnail.png");
+    // try the cache, then the older live-view thumb.png
+    let decoded: Option<image::RgbaImage> = (|| {
+        for p in [path.clone(), dir.join("thumb.png")] {
+            if let Ok(mut r) = image::ImageReader::open(&p) {
+                if let Ok(d) = r.decode() {
+                    return Some(d.to_rgba8());
+                }
+            }
+        }
+        None
+    })();
+    match decoded {
+        Some(img) => {
+            let size = [img.width() as usize, img.height() as usize];
+            let color = egui::ColorImage::from_rgba_unmultiplied(size, &img);
+            Some(ui.ctx().load_texture(format!("thumb_{name}"), color, egui::TextureOptions::LINEAR))
+        }
+        None => {
+            // generate once from the seed and cache it (C2)
+            let side = 4usize;
+            let rgba = crate::map::seed_thumbnail_rgba(seed, world_type, side);
+            let side_px = (side * 16) as u32;
+            let img = image::RgbaImage::from_fn(side_px, side_px, |x, y| {
+                let i = ((y * side_px + x) * 4) as usize;
+                image::Rgba([rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]])
+            });
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = img.save(&path);
+            let color = egui::ColorImage::from_rgba_unmultiplied([side_px as usize, side_px as usize], &rgba);
+            Some(ui.ctx().load_texture(format!("thumb_{name}"), color, egui::TextureOptions::LINEAR))
+        }
+    }
+}
+
+/// Placeholder tile color while a thumbnail cannot exist yet — keyed by
+/// world type so the placeholder still tells the truth.
+fn placeholder_color(world_type: lf_worldgen::WorldType) -> Color32 {
+    match world_type {
+        lf_worldgen::WorldType::Normal => Color32::from_rgb(0x3a, 0x4a, 0x2e),
+        lf_worldgen::WorldType::Superflat => Color32::from_rgb(0x4a, 0x42, 0x2e),
+        lf_worldgen::WorldType::Amplified => Color32::from_rgb(0x4a, 0x32, 0x22),
+    }
+}
+
+/// Tiny per-type glyph drawn next to the world name (C2): mountains for
+/// Normal, a flat line for Superflat, a tall peak for Amplified.
+fn world_type_glyph(world_type: lf_worldgen::WorldType) -> &'static str {
+    match world_type {
+        lf_worldgen::WorldType::Normal => "▲▲",
+        lf_worldgen::WorldType::Superflat => "▭",
+        lf_worldgen::WorldType::Amplified => "△",
+    }
+}
+
+/// Spawn the dedicated server binary for a slot (C3 Host World). Returns a
+/// user-facing status line: honest about a missing binary instead of
+/// pretending a server started.
+fn start_dedicated_server(slot: &str, port: &str) -> String {
+    let candidates = ["target/release/loreforge-server", "./loreforge-server", "../loreforge-server"];
+    let bin = candidates.iter().find(|c| std::path::Path::new(c).exists());
+    match bin {
+        Some(bin) => {
+            let port_num: u16 = port.parse().unwrap_or(25565);
+            match std::process::Command::new(bin)
+                .arg("--world").arg(slot)
+                .arg("--port").arg(port_num.to_string())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+            {
+                Ok(_) => format!("server for '{}' starting on :{} — connect to 127.0.0.1:{}", slot, port_num, port_num),
+                Err(e) => format!("could not launch server: {}", e),
+            }
+        }
+        None => "no server binary found — build apps/loreforge-server (cargo build --release) to host".into(),
+    }
+}
+

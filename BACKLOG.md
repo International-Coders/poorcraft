@@ -36,6 +36,29 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [x] xtask vistest/screenshot commands producing real PNGs (P0)
 - [x] real item icons + tooltips + recipe book + minimap/world map/waypoints (P22)
 
+## ui-world-craft pack (loop 328)
+
+- [x] LOREFORGE title identity: logotype + tagline, vignette, left link
+      column, version/seed display; palette unified across ui_kit
+- [x] version-seeded preview world (in-memory, never saved) + 90s
+      elliptical orbit camera with altitude oscillation
+- [x] New World screen (name/seed/reroll/type/mode/difficulty) with real
+      difficulty gameplay (spawn gating, damage, hunger)
+- [x] Load World picker: seed-rendered cached thumbnails, world-type
+      glyphs, metadata, delete confirmation
+- [x] Multiplayer screen: direct connect, host world, lobby stub
+- [x] two-layer terrain: flat lowlands vs ridged highlands (measured
+      0.41 flat fraction across seeds) + ocean shelf
+- [x] rivers: meandering lowland channels that actually hold water
+- [x] caves: breach ramp, deep slate < y30, lava lakes < y10,
+      stalactites/stalagmites
+- [x] structures terrain-adapted (support fill, slope platforms,
+      underwater refusal) — huts through faction camps
+- [x] per-biome ground cover with densities + transition interleaving
+      (5 new plant/lava blocks)
+- [x] crafting workbench: three zones, batch craft, Add to Queue, earned
+      recipe visibility (always-visible / era / first-pickup) with toasts
+
 ## P1 — First-person core
 - [x] keyboard/mouse input (WASD, jump, sneak, sprint, mouse look, cursor lock;
       audit fix: sneak was captured but never read — now a 0.45x careful walk)
@@ -67,7 +90,9 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 ## P4 — Survival & inventory UI
 - [x] egui HUD (crosshair, hearts, hunger, air bubbles, 9-slot hotbar, mining progress, clock)
 - [x] inventory screen: click pick/place/swap/merge, right-click split; shift-click quick-move (P22)
-- [x] crafting 2x2 in inventory + crafting table 3x3; shaped recipes with translation matching (+8 tests)
+- [x] crafting: the 3x3 grid was replaced by the ui-world-craft workbench
+      (three zones, earned recipe visibility, batch craft) — the shaped
+      matching engine stays in lf_game for mods/tests; the grid UI is gone
 - [x] hold-to-mine with hardness, tool speed multipliers, harvest gating (iron needs stone pick), durability that breaks tools
 - [x] item drop entities with gravity + magnet pickup + bobbing render
 - [x] hunger drain, regen when fed, fall damage, drowning with air, death screen + respawn

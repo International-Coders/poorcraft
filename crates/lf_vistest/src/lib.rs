@@ -652,6 +652,31 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "companion_commands", desc: "the B3 companion command menu: follow/stay/rest/mine/chop/haul/guard/pay/dismiss",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
+        // ---- ui-world-craft pack (A/B/C/D/E/F) ----
+        SceneSpec { name: "new_world_screen", desc: "C1 world creation: name, seed+roll, world type, game mode, difficulty, Back/Create",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "multiplayer_screen", desc: "C3 multiplayer: direct connect, host world list, lobby stub",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "crafting_workbench", desc: "F: three-zone workbench (categories, recipes, detail) + inventory strip",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "preview_orbit_a", desc: "B2 preview orbit at t=0",
+            default_seed: 0, time_of_day: 0.45, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "preview_orbit_b", desc: "B2 preview orbit at t=30s (half a lap, higher)",
+            default_seed: 0, time_of_day: 0.45, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "preview_orbit_c", desc: "B2 preview orbit at t=60s (past the look offset, low altitude)",
+            default_seed: 0, time_of_day: 0.45, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "river_valley", desc: "D2: a river cutting flat lowland toward the coast (ui-world-craft)",
+            default_seed: 3, time_of_day: 0.45, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "biome_ground_cover", desc: "E3: two adjacent biomes with distinct ground cover in one frame",
+            default_seed: 4242, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
     ]
 }
 
@@ -659,10 +684,17 @@ pub fn scenes() -> Vec<SceneSpec> {
 /// centered at (0,0), using the real World + chunk-column pipeline.
 pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches: bool, machines_param: bool)
     -> (Vec<GpuVertex>, Vec<u32>, Vec<GpuVertex>, Vec<u32>) {
+    build_scene_mesh_centered(spec, seed, (0, 0), radius_chunks, torches, machines_param)
+}
+
+/// Same, with the chunk plot centered on an arbitrary chunk (ui-world-craft
+/// river_valley: the camera has to meet the river where it flows).
+pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32), radius_chunks: i32,
+    torches: bool, machines_param: bool) -> (Vec<GpuVertex>, Vec<u32>, Vec<GpuVertex>, Vec<u32>) {
     let gen = WorldGen::new(Seed(seed));
     let mut world = World::new();
-    for cx in -radius_chunks..=radius_chunks {
-        for cz in -radius_chunks..=radius_chunks {
+    for cx in center.0 - radius_chunks..=center.0 + radius_chunks {
+        for cz in center.1 - radius_chunks..=center.1 + radius_chunks {
             world.chunks.insert((cx, cz), gen.generate_chunk(cx, cz));
         }
     }
@@ -1517,8 +1549,8 @@ pub fn build_scene_mesh(spec: &SceneSpec, seed: u64, radius_chunks: i32, torches
     let mut indices: Vec<u32> = Vec::new();
     let mut water_vertices: Vec<GpuVertex> = Vec::new();
     let mut water_indices: Vec<u32> = Vec::new();
-    for cx in -radius_chunks..=radius_chunks {
-        for cz in -radius_chunks..=radius_chunks {
+    for cx in center.0 - radius_chunks..=center.0 + radius_chunks {
+        for cz in center.1 - radius_chunks..=center.1 + radius_chunks {
             let mesh = world.mesh_column(cx, cz, &|b, face| lf_assets::texture_index_for_face(b.id(), face));
             let base = vertices.len() as u32;
             vertices.extend(to_gpu(&mesh.opaque.vertices));
@@ -2132,7 +2164,53 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     let spec = scenes().into_iter().find(|s| s.name == name)
         .ok_or_else(|| format!("unknown scene '{}'; known: {:?}", name, scenes().iter().map(|s| s.name).collect::<Vec<_>>()))?;
     let seed = seed_override.unwrap_or(spec.default_seed);
-    let (vertices, indices, water_vertices, water_indices) = build_scene_mesh(&spec, seed, 3, spec.torches, spec.machines);
+    // ui-world-craft scenes: the orbit needs a wide plot (80-block ring),
+    // river_valley centers the plot on a real river channel.
+    let wide = spec.name.starts_with("preview_orbit_") || spec.name == "biome_ground_cover";
+    let mesh_center = if spec.name == "river_valley" {
+        let gen = WorldGen::new(Seed(seed));
+        let sea = lf_worldgen::SEA_LEVEL;
+        // find a banked channel (guaranteed water: every open column below
+        // sea level fills in the water pass) nearest the origin, and center
+        // the chunk plot on it
+        let mut best: Option<(i32, i32)> = None;
+        let mut best_r = i32::MAX;
+        'find: for r in 2..110i32 {
+            for cx in -r..=r {
+                for cz in -r..=r {
+                    if cx.abs().max(cz.abs()) != r {
+                        continue; // ring scan, nearest channel wins
+                    }
+                    for dx in (-24..24).step_by(4) {
+                        for dz in (-24..24).step_by(4) {
+                            let x = cx * 16 + 8 + dx;
+                            let z = cz * 16 + 8 + dz;
+                            // inland channel: river-carved (rf confirms the
+                            // meander field), water-filled, banked on both
+                            // sides — an estuary would be open sea
+                            if gen.river_factor(x, z) > 0.5
+                                && gen.continental_factor(x, z) > 0.04
+                                && gen.height(x, z) < sea - 1
+                                && gen.height(x + 5, z) > sea
+                                && gen.height(x - 5, z) > sea
+                            {
+                                best = Some((cx, cz));
+                                best_r = r;
+                                break 'find;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let _ = best_r;
+        best.unwrap_or((0, 0))
+    } else {
+        (0, 0)
+    };
+    let radius = if spec.name.starts_with("preview_orbit_") { 7 } else if wide || spec.name == "river_valley" { 6 } else { 3 };
+    let (vertices, indices, water_vertices, water_indices) =
+        build_scene_mesh_centered(&spec, seed, mesh_center, radius, spec.torches, spec.machines);
     if vertices.is_empty() {
         return Err(format!("scene '{}' produced an empty mesh", name));
     }
@@ -2267,6 +2345,74 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         let h = gen.surface_top(best_pos.0, best_pos.1);
         let eye = Vec3::new(best_pos.0 as f32 + 0.5, h as f32 + 1.62, best_pos.1 as f32 + 0.5);
         (eye, eye + dirs[best_dir].normalize() * 40.0)
+    } else if spec.name == "river_valley" {
+        // the plot is centered on a banked channel; aim across the water
+        let sea = lf_worldgen::SEA_LEVEL;
+        let mut wx = mesh_center.0 * 16 + 8;
+        let mut wz = mesh_center.1 * 16 + 8;
+        'water: for dx in (-24..24).step_by(4) {
+            for dz in (-24..24).step_by(4) {
+                let x = mesh_center.0 * 16 + 8 + dx;
+                let z = mesh_center.1 * 16 + 8 + dz;
+                if gen.height(x, z) < sea - 1
+                    && gen.height(x + 5, z) > sea
+                    && gen.height(x - 5, z) > sea
+                {
+                    wx = x;
+                    wz = z;
+                    break 'water;
+                }
+            }
+        }
+        // near-top-down: the channel reads as a water line through the
+        // lowland (shallow angles lose it in fog). The eye must clear the
+        // terrain at ITS OWN column — transition-zone dunes can top 110.
+        // find a second water point along the channel and shoot ALONG the
+        // river — a water line stretching into the distance reads as a
+        // river; a flush 2-deep slot from above reads as a shadow
+        let mut wx2 = wx;
+        let mut wz2 = wz;
+        let mut best_d = 0i32;
+        for d in (8..48).step_by(4) {
+            for (ax, az) in [(wx + d, wz), (wx - d, wz), (wx, wz + d), (wx, wz - d)] {
+                if gen.height(ax, az) < sea - 1 && gen.river_factor(ax, az) > 0.4 {
+                    let dd = (ax - wx).abs() + (az - wz).abs();
+                    if dd > best_d {
+                        best_d = dd;
+                        wx2 = ax;
+                        wz2 = az;
+                    }
+                }
+            }
+        }
+        // eye above the first point, offset sideways off the bank
+        let side = if gen.height(wx + 8, wz) > sea { (8i32, 0i32) } else { (0, 8) };
+        let ex = wx + side.0;
+        let ez = wz + side.1;
+        let eye_y = (gen.surface_top(ex, ez) as f32 + 9.0).max(sea as f32 + 10.0);
+        let eye = Vec3::new(ex as f32, eye_y, ez as f32);
+        let target = Vec3::new(wx2 as f32, sea as f32 + 0.5, wz2 as f32);
+        (eye, target)
+    } else if spec.name == "biome_ground_cover" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-44.0, h + 52.0, 92.0), Vec3::new(18.0, h + 8.0, 0.0))
+    } else if spec.name.starts_with("preview_orbit_") {
+        // B2: the shared scenic orbit over the version-seeded preview world
+        let t = if spec.name == "preview_orbit_b" {
+            30.0
+        } else if spec.name == "preview_orbit_c" {
+            60.0
+        } else {
+            0.0
+        };
+        let preview_seed = lf_worldgen::preview::version_preview_seed();
+        let gen = WorldGen::new(Seed(preview_seed));
+        let spawn = [0.5, gen.surface_top(0, 0) as f32 + 0.2, 0.5];
+        let (eye_p, look_p) = lf_worldgen::preview::preview_camera(t, spawn);
+        (
+            Vec3::from_slice(&eye_p),
+            Vec3::from_slice(&look_p),
+        )
     } else {
         let h_eye = gen.surface_top(spec.eye.x as i32, spec.eye.z as i32);
         let h_target = gen.surface_top(spec.target.x as i32, spec.target.z as i32);
@@ -2312,7 +2458,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         || spec.name == "console_preview" || spec.name == "lore_book"
         || spec.name == "spellbook" || spec.name == "paths_screen" || spec.name == "trade_p2p"
         || spec.name == "faction_map" || spec.name == "faction_hud"
-        || spec.name == "companion_commands" || spec.name == "companion_follow";
+        || spec.name == "companion_commands" || spec.name == "companion_follow"
+        || spec.name == "new_world_screen" || spec.name == "multiplayer_screen"
+        || spec.name == "crafting_workbench";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         let raw = egui::RawInput {
@@ -2329,6 +2477,15 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "menu_preview" {
                 draw_menu_preview(ctx);
+            }
+            if spec.name == "new_world_screen" {
+                draw_new_world_preview(ctx);
+            }
+            if spec.name == "multiplayer_screen" {
+                draw_multiplayer_preview(ctx);
+            }
+            if spec.name == "crafting_workbench" {
+                draw_crafting_workbench_preview(ctx);
             }
             if spec.name == "settings_preview" {
                 draw_settings_preview(ctx);
@@ -2392,7 +2549,124 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     }
     let textures = lf_assets::generate_atlas();
     lf_engine::headless::render_to_png(&vertices, &indices, &water_vertices, &water_indices, &textures, &camera, &env, spec.sky_color(), 800, 600, out_path, overlay.as_ref())?;
-    verify_render(out_path)
+    verify_render(out_path)?;
+    verify_scene_pixels(out_path, &spec.name)
+}
+
+/// Scene-specific pixel claims (ui-world-craft): the redesign's design
+/// rules are checkable — palette-only colors, left-aligned menu, vignette
+/// gradient, panel placement. A passing luma check proves it rendered;
+/// THESE checks prove it rendered as designed.
+fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
+    let needs_check = matches!(scene,
+        "menu_preview" | "new_world_screen" | "multiplayer_screen" | "crafting_workbench");
+    if !needs_check {
+        return Ok(());
+    }
+    let img = image::open(out_path).map_err(|e| format!("reopen {}: {e}", out_path.display()))?;
+    let rgba = img.to_rgba8();
+    let (w, h) = (rgba.width() as usize, rgba.height() as usize);
+    let px = |x: usize, y: usize| -> [i32; 3] {
+        let p = rgba.get_pixel(x as u32, y as u32).0;
+        [p[0] as i32, p[1] as i32, p[2] as i32]
+    };
+    let near = |c: [i32; 3], target: [i32; 3], tol: i32| {
+        c.iter().zip(target.iter()).all(|(a, b)| (a - b).abs() <= tol)
+    };
+    let count_in = |x0: usize, y0: usize, x1: usize, y1: usize, target: [i32; 3], tol: i32| -> usize {
+        let mut n = 0usize;
+        for y in (y0..y1).step_by(2) {
+            for x in (x0..x1).step_by(2) {
+                if near(px(x, y), target, tol) {
+                    n += 1;
+                }
+            }
+        }
+        n
+    };
+    let parchment = [0xf0, 0xea, 0xd6];
+    let muted = [0x8a, 0x7f, 0x6e];
+    let accent = [0xc4, 0x60, 0x2a];
+    let panel = [0x33, 0x2a, 0x1c];
+    match scene {
+        "menu_preview" => {
+            // logotype: parchment glyphs in the top-left quadrant
+            let logo = count_in(0, 0, w / 2, (h as f32 * 0.35) as usize, parchment, 24);
+            assert!(logo > 120, "menu: logotype parchment pixels missing in top-left ({})", logo);
+            // left column: the five menu links live at 8..40% width, 50..80% height
+            let links = count_in(w * 8 / 100, h / 2, w * 40 / 100, h * 4 / 5, parchment, 40);
+            assert!(links > 60, "menu: left-aligned button column missing ({})", links);
+            // no centered button column: the same rows at 40..60% width have
+            // far fewer parchment pixels than the left column
+            let center = count_in(w * 45 / 100, h / 2 + h / 10, w * 60 / 100, h * 4 / 5, parchment, 40);
+            assert!(links > center * 3, "menu: buttons look centered (left {} vs center {})", links, center);
+            // vignette: the same sky patch darkens toward the corner
+            // (compare sky-to-sky — the world center may be dark terrain)
+            let sky_luma = |x0: usize, y0: usize, x1: usize, y1: usize| -> (i32, i32) {
+                let (mut sum, mut n) = (0i32, 0i32);
+                for y in (y0..y1).step_by(2) {
+                    for x in (x0..x1).step_by(2) {
+                        let c = px(x, y);
+                        if c[2] > c[0] + 10 {
+                            // blue-dominant = sky
+                            sum += (c[0] + c[1] + c[2]) / 3;
+                            n += 1;
+                        }
+                    }
+                }
+                if n > 0 { (sum / n, n) } else { (i32::MAX, 0) }
+            };
+            let (top_sky, top_n) = sky_luma(w / 2 - 40, 4, w / 2 + 40, 30);
+            let (corner_sky, corner_n) = sky_luma(0, 0, 34, 34);
+            assert!(top_n > 10 && corner_n > 10, "menu: sky not found for vignette check");
+            assert!(corner_sky < top_sky - 25,
+                "menu: vignette not darkening corners (corner {} vs top-center {})", corner_sky, top_sky);
+            // version + seed line: warm-grey glyph pixels bottom-right.
+            // 11pt anti-aliased text never hits its nominal color exactly,
+            // so match low-saturation mid-luma pixels (the text reads as
+            // muted warm grey over any world material)
+            let mut vers = 0usize;
+            for y in (h * 88 / 100..h).step_by(2) {
+                for x in (w * 55 / 100..w).step_by(2) {
+                    let c = px(x, y);
+                    let luma = (c[0] + c[1] + c[2]) / 3;
+                    let sat = c.iter().max().unwrap() - c.iter().min().unwrap();
+                    if sat < 45 && (70..200).contains(&luma) {
+                        vers += 1;
+                    }
+                }
+            }
+            assert!(vers > 25, "menu: version/seed display missing bottom-right ({})", vers);
+        }
+        "new_world_screen" => {
+            let panel_px = count_in(w * 20 / 100, h * 10 / 100, w * 80 / 100, h * 90 / 100, panel, 14);
+            assert!(panel_px > 800, "new world: panel background missing ({})", panel_px);
+            let field = count_in(w * 25 / 100, h * 15 / 100, w * 75 / 100, h * 85 / 100, [0x1a, 0x14, 0x10], 12);
+            assert!(field > 60, "new world: input fields missing ({})", field);
+            let acc = count_in(w * 20 / 100, h * 30 / 100, w * 80 / 100, h, accent, 45);
+            assert!(acc > 6, "new world: accent action underline missing ({})", acc);
+        }
+        "multiplayer_screen" => {
+            let panel_px = count_in(w * 20 / 100, h * 10 / 100, w * 80 / 100, h * 90 / 100, panel, 14);
+            assert!(panel_px > 800, "multiplayer: panel background missing ({})", panel_px);
+            let stub = count_in(w * 20 / 100, h * 40 / 100, w * 85 / 100, h * 90 / 100, [0x4a, 0x44, 0x38], 16);
+            assert!(stub > 4, "multiplayer: lobby stub text missing ({})", stub);
+        }
+        "crafting_workbench" => {
+            // success green checkmarks + counts in the recipe zone
+            let green = count_in(w * 10 / 100, h * 8 / 100, w * 55 / 100, h * 70 / 100, [0x6b, 0x8e, 0x23], 24);
+            assert!(green > 6, "workbench: craftable checkmarks missing ({})", green);
+            // accent: category selection border + pinned craft underline
+            let acc = count_in(w / 20, h * 6 / 100, w * 19 / 20, h * 75 / 100, accent, 40);
+            assert!(acc > 4, "workbench: accent selection/craft marks missing ({})", acc);
+            // inventory strip: dark slot backdrops across the bottom rows
+            // (slot fills are 67%-black over the world, so tolerance is wide)
+            let strip = count_in(w * 5 / 100, h * 66 / 100, w * 60 / 100, h, [0, 0, 0], 34);
+            assert!(strip > 150, "workbench: inventory strip missing ({})", strip);
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Post-render proof check: reopen the written PNG and assert it contains a
@@ -2426,83 +2700,423 @@ fn verify_render(out_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Title-menu proof overlay mirroring the animated client screen.
+/// Title-menu proof overlay mirroring the redesigned client screen
+/// (ui-world-craft A): vignette, top-left logotype + tagline, left-hand
+/// link column, bottom-right version. Kept visually in sync with
+/// lf_client::ui::draw_title by construction — same geometry constants.
 fn draw_menu_preview(ctx: &egui::Context) {
+    let text = egui::Color32::from_rgb(0xf0, 0xea, 0xd6);
+    let muted = egui::Color32::from_rgb(0x8a, 0x7f, 0x6e);
+    let accent = egui::Color32::from_rgb(0xc4, 0x60, 0x2a);
     egui::CentralPanel::default()
-        .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(90)))
+        .frame(egui::Frame::new())
         .show(ctx, |ui| {
-            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                ui.add_space(50.0);
-                ui.label(egui::RichText::new("LOREFORGE").size(58.0)
-                    .color(egui::Color32::from_rgb(250, 220, 160)).strong());
-                ui.label(egui::RichText::new("a voxel saga of forge & industry").size(16.0)
-                    .color(egui::Color32::from_rgb(200, 205, 212)));
-                ui.add_space(24.0);
-                let items = [("Play — World 1", true), ("New World", false), ("Load Game", false),
-                             ("Multiplayer (localhost)", false), ("Settings", false), ("Quit", false)];
-                for (label, accent) in items {
-                    let (rect, response) = ui.allocate_exact_size(egui::vec2(300.0, 50.0), egui::Sense::click());
-                    let _ = response;
-                    let fill = if accent {
-                        egui::Color32::from_rgba_premultiplied(60, 48, 22, 235)
-                    } else {
-                        egui::Color32::from_rgba_premultiplied(28, 33, 44, 225)
-                    };
-                    ui.painter().rect_filled(rect, 10.0, fill);
-                    let stroke = if accent {
-                        egui::Color32::from_rgb(240, 200, 120)
-                    } else {
-                        egui::Color32::from_rgb(90, 98, 112)
-                    };
-                    ui.painter().rect_stroke(rect, 10.0, egui::Stroke::new(2.0, stroke), egui::StrokeKind::Middle);
-                    if accent {
-                        let bar = egui::Rect::from_min_size(
-                            egui::Pos2::new(rect.left() + 4.0, rect.center().y - 16.0),
-                            egui::vec2(3.0, 32.0),
-                        );
-                        ui.painter().rect_filled(bar, 2.0, egui::Color32::from_rgb(240, 200, 120));
+            let screen = ctx.screen_rect();
+            // vignette: vertex-colored grid — same construction as
+            // ui_kit::vignette (keep in sync)
+            {
+                let painter = ui.painter_at(screen);
+                let grid = 12usize;
+                let cw = screen.width() / grid as f32;
+                let ch = screen.height() / grid as f32;
+                let center = screen.center();
+                let max_r = ((screen.width().powi(2) + screen.height().powi(2)).sqrt()) * 0.5;
+                let alpha_at = |p: egui::Pos2| -> u8 {
+                    let d = (p - center).length();
+                    let t = (d / max_r).clamp(0.0, 1.0);
+                    let s = t * t * (3.0 - 2.0 * t);
+                    (200.0 * s) as u8
+                };
+                let mut mesh = egui::Mesh::default();
+                for gy in 0..=grid {
+                    for gx in 0..=grid {
+                        let p = egui::pos2(screen.left() + gx as f32 * cw, screen.top() + gy as f32 * ch);
+                        mesh.colored_vertex(p,
+                            egui::Color32::from_rgba_unmultiplied(0x1a, 0x14, 0x10, alpha_at(p)));
                     }
-                    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, label,
-                        egui::FontId::proportional(20.0), egui::Color32::from_rgb(235, 238, 242));
                 }
-            });
+                for gy in 0..grid {
+                    for gx in 0..grid {
+                        let v = |gx: usize, gy: usize| (gy * (grid + 1) + gx) as u32;
+                        let (a, b, c, d) = (v(gx, gy), v(gx + 1, gy), v(gx + 1, gy + 1), v(gx, gy + 1));
+                        mesh.add_triangle(a, b, c);
+                        mesh.add_triangle(a, c, d);
+                    }
+                }
+                painter.add(egui::Shape::Mesh(std::sync::Arc::new(mesh)));
+            }
+            let left_x = screen.left() + screen.width() * 0.10;
+            let logo_size = (screen.height() / 7.5).clamp(48.0, 104.0);
+            let logo_y = screen.top() + screen.height() * 0.16;
+            let painter = ui.painter_at(screen);
+            painter.text(egui::Pos2::new(left_x, logo_y), egui::Align2::LEFT_CENTER,
+                "LOREFORGE", egui::FontId::proportional(logo_size), text);
+            painter.text(egui::Pos2::new(left_x + 4.0, logo_y + logo_size * 0.62),
+                egui::Align2::LEFT_CENTER, "Build. Rule. Endure.",
+                egui::FontId::proportional((logo_size * 0.22).clamp(13.0, 22.0)), muted);
+            // left column links with underlines (hover state shown on the
+            // first entry so the proof shows the interaction design)
+            let col_top = screen.top() + screen.height() * 0.55;
+            let row_h = (screen.height() * 0.052).clamp(34.0, 46.0);
+            for (i, label) in ["New World", "Load World", "Multiplayer", "Settings", "Quit"]
+                .iter().enumerate() {
+                let y = col_top + i as f32 * row_h;
+                let hovered = i == 0;
+                painter.text(egui::Pos2::new(left_x + if hovered { 4.0 } else { 0.0 }, y),
+                    egui::Align2::LEFT_CENTER, *label,
+                    egui::FontId::proportional(19.0),
+                    if hovered { egui::Color32::from_rgb(0xff, 0xf8, 0xee) } else { text });
+                if hovered {
+                    let galley = painter.layout_no_wrap(label.to_string(),
+                        egui::FontId::proportional(19.0), text);
+                    let w = galley.size().x;
+                    painter.line_segment(
+                        [egui::Pos2::new(left_x + 4.0, y + 13.0), egui::Pos2::new(left_x + 4.0 + w, y + 13.0)],
+                        egui::Stroke::new(1.0, accent));
+                }
+            }
+            // version + preview seed, bottom-right
+            painter.text(screen.right_bottom() + egui::vec2(-16.0, -26.0), egui::Align2::RIGHT_BOTTOM,
+                format!("LOREFORGE v{}", env!("CARGO_PKG_VERSION")),
+                egui::FontId::proportional(11.0), muted);
+            painter.text(screen.right_bottom() + egui::vec2(-16.0, -10.0), egui::Align2::RIGHT_BOTTOM,
+                format!("Seed: {}", lf_worldgen::preview::version_preview_seed()),
+                egui::FontId::proportional(11.0), muted);
         });
+}
+
+/// Shared warm-palette helpers for the ui-world-craft previews.
+const UW_TEXT: egui::Color32 = egui::Color32::from_rgb(0xf0, 0xea, 0xd6);
+const UW_MUTED: egui::Color32 = egui::Color32::from_rgb(0x8a, 0x7f, 0x6e);
+const UW_BORDER: egui::Color32 = egui::Color32::from_rgb(0x4a, 0x3f, 0x2e);
+const UW_ACCENT: egui::Color32 = egui::Color32::from_rgb(0xc4, 0x60, 0x2a);
+const UW_PANEL: egui::Color32 = egui::Color32::from_rgba_premultiplied(0x33, 0x2a, 0x1c, 242);
+
+fn uw_panel(p: &egui::Painter, w: f32, h: f32) -> egui::Rect {
+    // painted into the CONTENT painter's layer — a separate layer created
+    // inside the panel pass would z-order ABOVE the panel's own text
+    let screen = p.clip_rect();
+    let rect = egui::Rect::from_center_size(screen.center(), egui::vec2(w, h));
+    p.rect_filled(rect, 0.0, UW_PANEL);
+    p.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
+    rect
+}
+
+fn uw_field(p: &egui::Painter, rect: egui::Rect, text: &str, focused: bool) {
+    p.rect_filled(rect, 0.0, egui::Color32::from_rgba_premultiplied(0x1a, 0x14, 0x10, 235));
+    p.rect_stroke(rect, 0.0, egui::Stroke::new(if focused { 1.5 } else { 1.0 },
+        if focused { UW_ACCENT } else { UW_BORDER }), egui::StrokeKind::Middle);
+    p.text(rect.left_center() + egui::vec2(8.0, 0.0), egui::Align2::LEFT_CENTER, text,
+        egui::FontId::proportional(15.0), UW_TEXT);
+}
+
+fn uw_label(p: &egui::Painter, pos: egui::Pos2, anchor: egui::Align2, text: &str,
+            size: f32, col: egui::Color32) {
+    p.text(pos, anchor, text, egui::FontId::proportional(size), col);
+}
+
+fn uw_segments(p: &egui::Painter, pos: egui::Pos2, options: &[&str], selected: usize,
+               hover: usize) -> f32 {
+    let mut x = pos.x;
+    for (i, opt) in options.iter().enumerate() {
+        let w = 24.0 + opt.len() as f32 * 8.2;
+        let r = egui::Rect::from_min_size(egui::Pos2::new(x, pos.y), egui::vec2(w, 26.0));
+        if i == selected {
+            p.rect_filled(r, 0.0, UW_BORDER);
+        }
+        let col = if i == selected {
+            UW_TEXT
+        } else if i == hover {
+            egui::Color32::from_rgb(0xff, 0xf8, 0xee)
+        } else {
+            UW_MUTED
+        };
+        p.text(r.center(), egui::Align2::CENTER_CENTER, *opt, egui::FontId::proportional(14.0), col);
+        x += w + 8.0;
+    }
+    x - pos.x
+}
+
+/// C1 proof: the world-creation panel with all five field groups.
+fn draw_new_world_preview(ctx: &egui::Context) {
+    egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
+        let screen = ctx.screen_rect();
+        let p = ui.painter_at(screen);
+        let rect = uw_panel(&p, 470.0, 428.0);
+        let mut y = rect.top() + 28.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER,
+            "New World", 24.0, UW_TEXT);
+        y += 22.0;
+        p.line_segment([egui::Pos2::new(rect.left() + 32.0, y), egui::Pos2::new(rect.right() - 32.0, y)],
+            egui::Stroke::new(1.0, UW_BORDER));
+        y += 22.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER, "Name", 13.0, UW_MUTED);
+        y += 20.0;
+        uw_field(&p, egui::Rect::from_min_size(egui::Pos2::new(rect.left() + 32.0, y),
+            egui::vec2(rect.width() - 64.0, 30.0)), "World 1", true);
+        y += 44.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER, "Seed", 13.0, UW_MUTED);
+        y += 20.0;
+        uw_field(&p, egui::Rect::from_min_size(egui::Pos2::new(rect.left() + 32.0, y),
+            egui::vec2(rect.width() - 150.0, 30.0)), "48291055634", false);
+        uw_label(&p, egui::Pos2::new(rect.right() - 32.0, y + 15.0), egui::Align2::RIGHT_CENTER,
+            "[ Roll ]", 14.0, UW_MUTED);
+        y += 46.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER, "World Type", 13.0, UW_MUTED);
+        y += 22.0;
+        uw_segments(&p, egui::Pos2::new(rect.left() + 32.0, y), &["Normal", "Superflat", "Amplified"], 0, usize::MAX);
+        y += 44.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER, "Game Mode", 13.0, UW_MUTED);
+        y += 22.0;
+        uw_segments(&p, egui::Pos2::new(rect.left() + 32.0, y), &["Survival", "Creative"], 0, usize::MAX);
+        y += 44.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER, "Difficulty", 13.0, UW_MUTED);
+        y += 22.0;
+        uw_segments(&p, egui::Pos2::new(rect.left() + 32.0, y), &["Peaceful", "Easy", "Normal", "Hard"], 1, usize::MAX);
+        y += 18.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER,
+            "Mobs exist, hits hurt less.", 11.0, egui::Color32::from_rgb(0x4a, 0x44, 0x38));
+        // footer: Back (nav) + Create World (pinned action underline)
+        let foot = rect.bottom() - 34.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, foot), egui::Align2::LEFT_CENTER, "Back", 17.0, UW_TEXT);
+        uw_label(&p, egui::Pos2::new(rect.right() - 32.0, foot - 9.0), egui::Align2::RIGHT_CENTER,
+            "Create World", 17.0, egui::Color32::from_rgb(0xff, 0xf8, 0xee));
+        p.line_segment([egui::Pos2::new(rect.right() - 118.0, foot + 11.0), egui::Pos2::new(rect.right() - 32.0, foot + 11.0)],
+            egui::Stroke::new(2.0, UW_ACCENT));
+    });
+}
+
+/// C3 proof: direct connect, host-world list, honest lobby stub.
+fn draw_multiplayer_preview(ctx: &egui::Context) {
+    egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
+        let screen = ctx.screen_rect();
+        let p = ui.painter_at(screen);
+        let rect = uw_panel(&p, 470.0, 380.0);
+        let mut y = rect.top() + 28.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER,
+            "Multiplayer", 24.0, UW_TEXT);
+        y += 22.0;
+        p.line_segment([egui::Pos2::new(rect.left() + 32.0, y), egui::Pos2::new(rect.right() - 32.0, y)],
+            egui::Stroke::new(1.0, UW_BORDER));
+        y += 24.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER, "Direct Connect", 13.0, UW_MUTED);
+        y += 24.0;
+        uw_field(&p, egui::Rect::from_min_size(egui::Pos2::new(rect.left() + 32.0, y),
+            egui::vec2(rect.width() * 0.42, 30.0)), "127.0.0.1", false);
+        uw_field(&p, egui::Rect::from_min_size(egui::Pos2::new(rect.left() + 42.0 + rect.width() * 0.42, y),
+            egui::vec2(96.0, 30.0)), "25565", false);
+        uw_label(&p, egui::Pos2::new(rect.right() - 32.0, y + 15.0), egui::Align2::RIGHT_CENTER,
+            "Connect", 16.0, egui::Color32::from_rgb(0xff, 0xf8, 0xee));
+        p.line_segment([egui::Pos2::new(rect.right() - 76.0, y + 27.0), egui::Pos2::new(rect.right() - 32.0, y + 27.0)],
+            egui::Stroke::new(2.0, UW_ACCENT));
+        y += 52.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER, "Host World", 13.0, UW_MUTED);
+        y += 24.0;
+        for (i, (name, sel)) in [("World 1", true), ("Adventure", false)].iter().enumerate() {
+            let col = if *sel { UW_ACCENT } else { UW_MUTED };
+            uw_label(&p, egui::Pos2::new(rect.left() + 40.0 + i as f32 * 8.0, y), egui::Align2::LEFT_CENTER,
+                &format!("▸ {}", name), 14.0, col);
+            y += 26.0;
+        }
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y + 4.0), egui::Align2::LEFT_CENTER,
+            "Start Server", 16.0, egui::Color32::from_rgb(0xff, 0xf8, 0xee));
+        p.line_segment([egui::Pos2::new(rect.left() + 32.0, y + 16.0), egui::Pos2::new(rect.left() + 122.0, y + 16.0)],
+            egui::Stroke::new(2.0, UW_ACCENT));
+        uw_label(&p, egui::Pos2::new(rect.right() - 32.0, y + 4.0), egui::Align2::RIGHT_CENTER,
+            "runs the dedicated LOREFORGE server, then connects", 11.0,
+            egui::Color32::from_rgb(0x4a, 0x44, 0x38));
+        y += 46.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER, "Friends", 13.0, UW_MUTED);
+        y += 22.0;
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, y), egui::Align2::LEFT_CENTER,
+            "Steam lobby integration coming soon.", 12.0, egui::Color32::from_rgb(0x4a, 0x44, 0x38));
+        uw_label(&p, egui::Pos2::new(rect.left() + 32.0, rect.bottom() - 34.0), egui::Align2::LEFT_CENTER,
+            "Back", 17.0, UW_TEXT);
+    });
+}
+
+/// F proof: the three-zone workbench with a real inventory strip.
+fn draw_crafting_workbench_preview(ctx: &egui::Context) {
+    egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
+        let screen = ctx.screen_rect();
+        let p = ui.painter_at(screen);
+        // dark wash: same panel treatment as the client screen
+        p.rect_filled(screen, 0.0, egui::Color32::from_rgba_unmultiplied(0x1a, 0x14, 0x10, 195));
+        uw_label(&p, egui::Pos2::new(screen.left() + 24.0, screen.top() + 20.0),
+            egui::Align2::LEFT_CENTER, "CRAFTING TABLE", 24.0, UW_TEXT);
+        uw_label(&p, egui::Pos2::new(screen.right() - 24.0, screen.top() + 20.0),
+            egui::Align2::RIGHT_CENTER, "press E or Esc to close", 11.0,
+            egui::Color32::from_rgb(0x4a, 0x44, 0x38));
+        let strip_h = 4.0 * 52.0 + 32.0;
+        let zone_h = screen.height() - strip_h - 48.0;
+        let side_w = (screen.width() * 0.15).clamp(130.0, 190.0);
+        let list_w = (screen.width() * 0.34).clamp(240.0, 420.0);
+        let left = screen.left() + 24.0;
+        let top = screen.top() + 48.0;
+        // zone 1: categories with counts + accent left border on selection
+        let cats = [("Materials", "3/12", true), ("Tools", "1/9", false), ("Building", "2/14", false),
+                    ("Food", "0/6", false), ("Machines", "0/4", false), ("Magic", "0/3", false),
+                    ("Armor", "0/4", false), ("Deco", "1/5", false)];
+        for (i, (label, count, sel)) in cats.iter().enumerate() {
+            let y = top + i as f32 * 30.0;
+            if *sel {
+                p.rect_filled(egui::Rect::from_min_size(
+                    egui::Pos2::new(left, y), egui::vec2(3.0, 26.0)), 0.0, UW_ACCENT);
+            }
+            let col = if *sel { UW_TEXT } else { UW_MUTED };
+            // category icon swatch
+            p.rect_filled(egui::Rect::from_center_size(
+                egui::Pos2::new(left + 13.0, y + 13.0), egui::vec2(16.0, 16.0)),
+                0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+            uw_label(&p, egui::Pos2::new(left + 28.0, y + 13.0), egui::Align2::LEFT_CENTER, label, 14.0, col);
+            uw_label(&p, egui::Pos2::new(left + side_w - 8.0, y + 13.0), egui::Align2::RIGHT_CENTER, count, 11.0,
+                if *sel { egui::Color32::from_rgb(0x6b, 0x8e, 0x23) } else { egui::Color32::from_rgb(0x4a, 0x44, 0x38) });
+        }
+        // zone 2: recipe rows (2-line rows, varying summary length)
+        let list_x = left + side_w + 8.0;
+        let rows = [
+            ("Planks", "4x Log", true, true),
+            ("Stick", "2x Planks", true, true),
+            ("Torch", "1x Coal, 1x Stick", true, true),
+            ("Crafting Table", "4x Planks", false, true),
+            ("Chest", "8x Planks", false, false),
+            ("Furnace", "8x Stone", false, false),
+        ];
+        for (i, (name, summary, can, have)) in rows.iter().enumerate() {
+            let y = top + i as f32 * 48.0;
+            let r = egui::Rect::from_min_size(egui::Pos2::new(list_x, y), egui::vec2(list_w - 8.0, 44.0));
+            if i == 0 {
+                p.rect_filled(r, 0.0, egui::Color32::from_rgba_premultiplied(0x3d, 0x30, 0x1e, 235));
+                p.rect_stroke(r, 0.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
+            }
+            p.rect_filled(egui::Rect::from_center_size(
+                egui::Pos2::new(r.left() + 18.0, r.center().y), egui::vec2(24.0, 24.0)),
+                0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+            uw_label(&p, egui::Pos2::new(r.left() + 40.0, r.top() + 8.0), egui::Align2::LEFT_CENTER, name, 14.0,
+                if *have { UW_TEXT } else { UW_MUTED });
+            uw_label(&p, egui::Pos2::new(r.left() + 40.0, r.bottom() - 9.0), egui::Align2::LEFT_CENTER, summary, 11.0, UW_MUTED);
+            if *can {
+                // drawn check (shipped font has no check glyph)
+                let c = egui::Pos2::new(r.right() - 14.0, r.center().y);
+                p.line_segment([c + egui::vec2(-5.0, 0.0), c + egui::vec2(-1.25, 3.5)],
+                    egui::Stroke::new(1.8, egui::Color32::from_rgb(0x6b, 0x8e, 0x23)));
+                p.line_segment([c + egui::vec2(-1.25, 3.5), c + egui::vec2(5.0, -4.0)],
+                    egui::Stroke::new(1.8, egui::Color32::from_rgb(0x6b, 0x8e, 0x23)));
+            } else {
+                uw_label(&p, egui::Pos2::new(r.right() - 12.0, r.center().y), egui::Align2::RIGHT_CENTER,
+                    ".", 16.0, UW_MUTED);
+            }
+        }
+        // a locked row, last, no recipe shown
+        let ly = top + rows.len() as f32 * 48.0 + 6.0;
+        uw_label(&p, egui::Pos2::new(list_x + 8.0, ly), egui::Align2::LEFT_CENTER,
+            "Boiler — locked, needs the Steam era", 12.0, egui::Color32::from_rgb(0x4a, 0x44, 0x38));
+        // zone 3: detail panel
+        let det_x = list_x + list_w + 8.0;
+        let det_w = screen.right() - det_x - 24.0;
+        let mut y = top + 6.0;
+        p.rect_filled(egui::Rect::from_min_size(egui::Pos2::new(det_x, y), egui::vec2(52.0, 52.0)),
+            0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+        uw_label(&p, egui::Pos2::new(det_x + 64.0, y + 16.0), egui::Align2::LEFT_CENTER, "Planks", 20.0, UW_TEXT);
+        uw_label(&p, egui::Pos2::new(det_x + 64.0, y + 38.0), egui::Align2::LEFT_CENTER, "Materials · Crafting Table", 12.0, UW_MUTED);
+        y += 64.0;
+        p.line_segment([egui::Pos2::new(det_x, y), egui::Pos2::new(det_x + det_w, y)], egui::Stroke::new(1.0, UW_BORDER));
+        y += 14.0;
+        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER,
+            "Sawn from the log, square and honest.", 12.0, UW_MUTED);
+        y += 22.0;
+        p.line_segment([egui::Pos2::new(det_x, y), egui::Pos2::new(det_x + det_w, y)], egui::Stroke::new(1.0, UW_BORDER));
+        y += 16.0;
+        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER, "INGREDIENTS", 11.0, UW_MUTED);
+        y += 22.0;
+        for (name, need, have, col) in [("Log", "1x", "Have 14", "ok"), ("nothing else", "", "", "none")] {
+            let _ = name;
+            let _ = need;
+            let _ = have;
+            let _ = col;
+        }
+        uw_label(&p, egui::Pos2::new(det_x + 24.0, y), egui::Align2::LEFT_CENTER, "1x Log", 13.0, UW_TEXT);
+        uw_label(&p, egui::Pos2::new(det_x + det_w, y), egui::Align2::RIGHT_CENTER, "+ have 14",
+            12.0, egui::Color32::from_rgb(0x6b, 0x8e, 0x23));
+        y += 24.0;
+        uw_label(&p, egui::Pos2::new(det_x + 4.0, y), egui::Align2::LEFT_CENTER, "makes 4x Planks", 14.0, UW_TEXT);
+        y += 24.0;
+        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER, "QUANTITY", 11.0, UW_MUTED);
+        y += 24.0;
+        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER, "[ − ]      [ + ]      x8", 15.0, UW_TEXT);
+        uw_label(&p, egui::Pos2::new(det_x + 38.0, y), egui::Align2::CENTER_CENTER, "1", 15.0, UW_TEXT);
+        y += 30.0;
+        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER, "Craft 1", 16.0,
+            egui::Color32::from_rgb(0xff, 0xf8, 0xee));
+        p.line_segment([egui::Pos2::new(det_x, y + 12.0), egui::Pos2::new(det_x + 58.0, y + 12.0)],
+            egui::Stroke::new(2.0, UW_ACCENT));
+        uw_label(&p, egui::Pos2::new(det_x + 80.0, y), egui::Align2::LEFT_CENTER, "Add to Queue", 14.0, UW_MUTED);
+        // inventory strip (hotbar + storage, non-scrollable)
+        let strip_y = screen.bottom() - strip_h;
+        p.line_segment([egui::Pos2::new(screen.left() + 16.0, strip_y - 10.0),
+                        egui::Pos2::new(screen.right() - 16.0, strip_y - 10.0)], egui::Stroke::new(1.0, UW_BORDER));
+        for row in 0..4 {
+            for col in 0..9 {
+                let idx = if row == 0 { col } else { 9 + (row - 1) * 9 + col };
+                let slot = egui::Rect::from_min_size(
+                    egui::Pos2::new(screen.left() + 24.0 + col as f32 * 50.0,
+                                    strip_y + row as f32 * 52.0),
+                    egui::vec2(44.0, 44.0));
+                p.rect_filled(slot, 5.0, egui::Color32::from_black_alpha(170));
+                p.rect_stroke(slot, 5.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Middle);
+                if idx < 5 {
+                    p.rect_filled(slot.shrink(8.0), 2.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+                }
+                if idx == 0 {
+                    // the selected recipe's ingredient glows accent
+                    p.rect_stroke(slot, 5.0, egui::Stroke::new(1.5, UW_ACCENT), egui::StrokeKind::Middle);
+                }
+            }
+        }
+    });
 }
 
 /// Settings proof overlay mirroring the tabbed client screen.
 fn draw_settings_preview(ctx: &egui::Context) {
+    // ui-world-craft brief spec: left sidebar of hover-underline categories
+    // with a 1px warm divider, content panel right, Back as a plain link.
     egui::Window::new("Settings")
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -10.0))
-        .min_size(egui::vec2(520.0, 380.0))
+        .min_size(egui::vec2(560.0, 380.0))
         .collapsible(false).resizable(false)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                for (label, on) in [("Video", true), ("Interface", false), ("Audio", false), ("Gameplay", false)] {
-                    let btn = egui::Button::new(egui::RichText::new(label)
-                        .color(if on { ACCENT } else { TEXT_DIM }))
-                        .min_size(egui::vec2(90.0, 28.0));
-                    let _ = ui.add(btn);
-                }
-            });
-            ui.separator();
-            ui.label(egui::RichText::new("Video").size(17.0).color(egui::Color32::from_rgb(240, 200, 120)));
-            ui.add(egui::Slider::new(&mut 70.0f32, 50.0..=110.0).text("Field of view"));
-            ui.add(egui::Slider::new(&mut 5.0f32, 3.0..=8.0).text("View distance"));
-            ui.checkbox(&mut true, "Clouds");
-            ui.checkbox(&mut true, "Weather particles");
-            ui.add_space(6.0);
-            ui.label(egui::RichText::new("Ray Tracing").size(17.0).color(egui::Color32::from_rgb(240, 200, 120)));
-            ui.horizontal(|ui| {
-                ui.label("Mode");
-                ui.button(egui::RichText::new("Live  (cycle)").color(egui::Color32::from_rgb(240, 200, 120)));
-                ui.label(egui::RichText::new("live path-traced view (GPU heavy)").small()
-                    .color(egui::Color32::from_rgb(150, 156, 165)));
-            });
-            ui.add(egui::Slider::new(&mut 0.25f32, 0.1..=0.5).text("RT internal scale"));
-            ui.add_space(6.0);
-            ui.label(egui::RichText::new("Quality preset").size(17.0).color(egui::Color32::from_rgb(240, 200, 120)));
-            ui.horizontal(|ui| {
-                ui.button("Low"); ui.button("Medium"); ui.button("High");
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new("Settings").size(22.0).color(TEXT));
+                    ui.add_space(8.0);
+                    for (i, label) in ["Video", "Interface", "Audio", "Controls", "Gameplay"].iter().enumerate() {
+                        let on = i == 0;
+                        let col = if on { TEXT } else { TEXT_DIM };
+                        ui.label(egui::RichText::new(*label).size(15.0).color(col));
+                        if on {
+                            let r = ui.cursor();
+                            ui.painter().rect_filled(
+                                egui::Rect::from_min_size(r.left_top(), egui::vec2(2.0, 20.0)),
+                                0.0, ACCENT);
+                        }
+                        ui.add_space(4.0);
+                    }
+                });
+                ui.add_space(10.0);
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(1.0, 300.0), egui::Sense::hover());
+                ui.painter().rect_filled(rect, 0.0, BORDER);
+                ui.add_space(16.0);
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new("Video").size(15.0).color(ACCENT));
+                    ui.add(egui::Slider::new(&mut 70.0f32, 50.0..=110.0).text("Field of view"));
+                    ui.add(egui::Slider::new(&mut 5.0f32, 3.0..=8.0).text("View distance"));
+                    ui.checkbox(&mut true, "Clouds");
+                    ui.checkbox(&mut true, "Weather particles");
+                    ui.add_space(6.0);
+                    ui.label(egui::RichText::new("Ray Tracing").size(15.0).color(ACCENT));
+                    ui.label(egui::RichText::new("Mode: Live — live path-traced view (GPU heavy)").small()
+                        .color(TEXT_DIM));
+                });
             });
         });
 }
@@ -2579,7 +3193,7 @@ fn draw_trade_preview(ctx: &egui::Context) {
                             let (r, _) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
                             icons.paint(ui, r, give);
                             ui.label(egui::RichText::new(format!("x{}", give_n)).color(if enough { OK } else { BAD }));
-                            ui.label(egui::RichText::new("→").color(TEXT_DIM));
+                            ui.label(egui::RichText::new("->").color(TEXT_DIM));
                             let (r2, _) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::hover());
                             icons.paint(ui, r2, get);
                             ui.label(egui::RichText::new(format!("x{}", get_n)).color(egui::Color32::from_rgb(235, 238, 242)));
@@ -2596,8 +3210,11 @@ fn draw_trade_preview(ctx: &egui::Context) {
 // ------------------------------------------------------------------
 // Preview helpers: real icon textures + map images from real worldgen.
 
-const ACCENT: egui::Color32 = egui::Color32::from_rgb(240, 200, 120);
-const TEXT_DIM: egui::Color32 = egui::Color32::from_rgb(150, 156, 165);
+/// ui-world-craft palette (MAIN_MENU_REDESIGN.md) — previews mirror it.
+const ACCENT: egui::Color32 = egui::Color32::from_rgb(0xc4, 0x60, 0x2a);
+const TEXT_DIM: egui::Color32 = egui::Color32::from_rgb(0x8a, 0x7f, 0x6e);
+const TEXT: egui::Color32 = egui::Color32::from_rgb(0xf0, 0xea, 0xd6);
+const BORDER: egui::Color32 = egui::Color32::from_rgb(0x4a, 0x3f, 0x2e);
 const OK: egui::Color32 = egui::Color32::from_rgb(120, 210, 130);
 const BAD: egui::Color32 = egui::Color32::from_rgb(230, 120, 110);
 
@@ -3771,7 +4388,7 @@ fn draw_spellbook_preview(ctx: &egui::Context) {
                                 ui.heading(RichText::new(name).size(14.0).color(purple));
                                 ui.label(RichText::new(format!("{} mana", cost)).small().color(dim));
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.small_button("→ slot");
+                                    ui.small_button("-> slot");
                                 });
                             });
                             ui.label(RichText::new(desc).small().color(dim));

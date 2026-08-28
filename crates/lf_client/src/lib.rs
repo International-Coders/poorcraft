@@ -36,6 +36,7 @@ pub mod slots;
 pub mod net;
 pub mod ui;
 pub mod ui_kit;
+pub mod workbench;
 
 use lf_engine::camera::Camera;
 use lf_engine::outline::OutlineScene;
@@ -227,6 +228,10 @@ pub enum UiOpen {
     Carve,
     Console,
     Slots,
+    /// C1: the world-creation screen (name, seed, type, mode, difficulty).
+    NewWorld,
+    /// C3: direct connect / host world / lobby stub.
+    Multiplayer,
     Settings,
     Death,
     Paths,
@@ -489,6 +494,12 @@ pub struct ClientSave {
     /// Absolute in-game day count (wages/re-hire timing; TimeOfDay wraps).
     #[serde(default)]
     pub day_index: u64,
+    /// F3: the earned recipe set (first pickups drive unlocks).
+    #[serde(default)]
+    pub recipe_book: Option<workbench::RecipeBook>,
+    /// The workbench "Add to Queue" placeholder queue (output, batch).
+    #[serde(default)]
+    pub craft_queue: Vec<(String, u32)>,
 }
 
 fn default_mana() -> f32 {
@@ -543,6 +554,8 @@ impl From<LegacyClientSave> for ClientSave {
             visited_biomes: Vec::new(),
             discovered_structures: Vec::new(),
             day_index: 0,
+            recipe_book: None,
+            craft_queue: Vec::new(),
         }
     }
 }
@@ -669,6 +682,14 @@ impl ApplicationHandler for App {
                                                     // screen when opened
                                                     // from there
                                                     state.close_settings();
+                                                    return;
+                                                }
+                                                // fullscreen menu screens opened
+                                                // from the title: Esc returns to
+                                                // the title, not into the world
+                                                UiOpen::Slots | UiOpen::NewWorld | UiOpen::Multiplayer => {
+                                                    state.ui_open = UiOpen::Title;
+                                                    state.menu_reveal = 0.0;
                                                     return;
                                                 }
                                                 _ => {
@@ -891,7 +912,10 @@ struct GameState {
     column_bounds: HashMap<(i32, i32), (f32, f32)>,
     outline: OutlineScene,
     world: World,
-    storage: WorldStorage,
+    /// Save-slot storage. `None` on the title screen's version-seeded
+    /// preview world (ui-world-craft B): the preview generates in memory,
+    /// displays, and never touches `worlds/`.
+    storage: Option<WorldStorage>,
     dirty: HashSet<(i32, i32)>,
     saved_set: HashSet<(i32, i32)>,
     streamer: Streamer,
@@ -904,6 +928,12 @@ struct GameState {
     pub ui_open: UiOpen,
     pub craft_grid: [Option<ItemStack>; 9],
     pub mining: Option<MiningState>,
+    /// The active world's difficulty (C1). Drives mob damage, hunger pace
+    /// and hostile spawns; Peaceful keeps hostiles out entirely.
+    pub difficulty: slots::Difficulty,
+    /// The active world's game mode (C1). Saved with the world; Creative
+    /// is a stub that plays like Survival until content gates exist.
+    pub game_mode: slots::GameMode,
     /// (target, stage) the crack decal batch was built for.
     crack_state: Option<((i32, i32, i32), u32)>,
     crack_batch: Option<MeshBatch>,
@@ -980,6 +1010,23 @@ struct GameState {
     pub slot_new_type: lf_worldgen::WorldType,
     /// Title screen: "New World" sub-menu expanded.
     pub title_show_new: bool,
+    // ---- world-creation screen state (ui-world-craft C1) ----
+    pub new_world_name: String,
+    /// The seed field: a number OR an arbitrary string (strings hash).
+    pub new_world_seed: String,
+    pub new_world_type_idx: usize,
+    pub new_world_mode_idx: usize,
+    pub new_world_diff_idx: usize,
+    /// "World needs a name." — shown after a failed Create click.
+    pub new_world_error: Option<String>,
+    // ---- load-screen state (C2) ----
+    /// Slot awaiting a delete confirmation ("This cannot be undone.").
+    pub delete_confirm: Option<String>,
+    // ---- multiplayer screen state (C3) ----
+    pub mp_address: String,
+    pub mp_port: String,
+    pub mp_host_idx: usize,
+    pub mp_status: Option<String>,
     /// Real pixel-art item icons (one egui texture per item id).
     pub icons: icons::ItemIcons,
     /// Minimap + world-map state (tile cache, view, waypoints view state).
@@ -992,11 +1039,17 @@ struct GameState {
     pub xp_flash: f32,
     pub hotbar_pick_time: f32,
     last_hotbar_index: usize,
-    /// Recipe book panel state.
-    pub recipe_book_open: bool,
-    pub recipe_search: String,
-    pub recipe_station: usize,
-    pub recipe_craftable_only: bool,
+    // ---- workbench state (ui-world-craft F) ----
+    /// The earned recipe set (pickups + eras), persisted with the world.
+    pub recipe_book: workbench::RecipeBook,
+    /// Selected sidebar category (index into workbench::CATEGORIES).
+    pub wb_category: usize,
+    /// The recipe whose detail is open (output item id).
+    pub wb_selected: Option<String>,
+    /// Craft batch size in the detail panel.
+    pub wb_qty: u32,
+    /// "Add to Queue" placeholder queue (output, batch size).
+    pub craft_queue: Vec<(String, u32)>,
     pub last_fps: f32,
     pub quest_log: QuestLog,
     pub chronicle: Vec<ChronicleEvent>,
@@ -1160,38 +1213,28 @@ impl GameState {
             tracing::info!("{line}");
         }
 
-        // Persistence + world bootstrap: the slot owns the directory AND the
-        // seed (fresh random seed for a brand-new world). Player extras come
-        // from the booted slot — the old pre-slot code loaded the legacy
-        // worlds/default before boot_slot() ran, so a slotted player booted
-        // with default inventory/settings until they clicked Play.
-        let mut slot_meta = slots::boot_slot();
-        let world_dir = slots::slot_dir(&slot_meta.name);
-        slots::sync_generator_version(&world_dir);
-        // lore-and-visuals: factions, world events, roster, dialogue
+        // Persistence: the title screen sits on a version-seeded PREVIEW
+        // world (ui-world-craft B1) — generated in memory from the game
+        // version, never persisted, so no `worlds/` directory is touched
+        // until the player creates or loads a real slot. Player extras load
+        // with the slot when one is opened.
         let lore_reg = lf_lore::LoreRegistry::load(Path::new("lore"));
-        let (inventory, mut stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths, lore_extras) =
-            load_client_save(&world_dir, &lore_reg);
+        let (inventory, stats, time, block_entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths, lore_extras) = {
+            // a path that never exists: load_client_save degrades to fresh
+            // defaults for the preview session; real values arrive with the
+            // loaded slot
+            load_client_save(Path::new(""), &lore_reg)
+        };
         let start_day_fraction = time.fraction();
-        slot_meta.world_type = world_type; // save (or default) wins over meta
-        let storage = WorldStorage::open(&world_dir);
-        let world_seed = storage.load_seed().unwrap_or_else(|| {
-            let s = slot_meta.seed;
-            let _ = storage.save_seed(s);
-            s
-        });
-        slot_meta.seed = world_seed;
-        let saved_set = storage.saved_chunks();
+        let world_seed = lf_worldgen::preview::version_preview_seed();
+        let world_dir = std::path::PathBuf::new(); // no slot: nothing saves
+        let saved_set = HashSet::new();
+        let storage: Option<WorldStorage> = None;
         let gen = WorldGen::with_type(Seed(world_seed), world_type);
         let mut world = World::new();
         for cx in -BOOT_RADIUS..=BOOT_RADIUS {
             for cz in -BOOT_RADIUS..=BOOT_RADIUS {
-                let col = if saved_set.contains(&(cx, cz)) {
-                    storage.load_chunk(cx, cz).unwrap_or_else(|| gen.generate_chunk(cx, cz))
-                } else {
-                    gen.generate_chunk(cx, cz)
-                };
-                world.chunks.insert((cx, cz), col);
+                world.chunks.insert((cx, cz), gen.generate_chunk(cx, cz));
             }
         }
 
@@ -1216,17 +1259,11 @@ impl GameState {
         let outline = OutlineScene::new(&device, config.format);
         let (depth_texture, depth_view) = MeshBatch::create_depth_texture(&device, config.width, config.height);
 
-        // Player: restore from save when present, else spawn on the surface.
+        // Player: the preview session spawns fresh on the surface; a real
+        // slot restores its saved player in load_world.
         let spawn_point = Vec3::new(0.5, world.surface_height(0, 0) as f32 + 0.2, 0.5);
-        let mut player = match storage.load_player() {
-            Some(p) => Player::new(Vec3::from(p.position)).with_look(p.yaw, p.pitch),
-            None => Player::new(spawn_point),
-        };
+        let mut player = Player::new(spawn_point);
         player.flying = false;
-
-        // Inventory/stats/time from the extras file.
-
-
         let egui = EguiPlatform::new(&device, config.format, &window);
         let icons = icons::ItemIcons::new(&egui.ctx);
 
@@ -1312,10 +1349,29 @@ impl GameState {
             console: console::ConsoleState::default(),
             world_seed,
             world_dir,
-            slot_meta,
+            slot_meta: slots::SlotMeta {
+                name: "Preview".into(),
+                world_type,
+                seed: world_seed,
+                updated_secs: 0,
+                ..Default::default()
+            },
+            difficulty: slots::Difficulty::Easy,
+            game_mode: slots::GameMode::Survival,
             slot_name_input: String::new(),
             slot_new_type: lf_worldgen::WorldType::Normal,
             title_show_new: false,
+            new_world_name: String::new(),
+            new_world_seed: String::new(),
+            new_world_type_idx: 0,
+            new_world_mode_idx: 0,
+            new_world_diff_idx: 1,
+            new_world_error: None,
+            delete_confirm: None,
+            mp_address: String::new(),
+            mp_port: "25565".to_string(),
+            mp_host_idx: 0,
+            mp_status: None,
             icons,
             map: map::MapState::new(world_type, world_seed),
             waypoints,
@@ -1356,10 +1412,11 @@ impl GameState {
             xp_flash: 0.0,
             hotbar_pick_time: 0.0,
             last_hotbar_index: 0,
-            recipe_book_open: true,
-            recipe_search: String::new(),
-            recipe_station: usize::MAX,
-            recipe_craftable_only: false,
+            recipe_book: workbench::RecipeBook::default(),
+            wb_category: 0,
+            wb_selected: None,
+            wb_qty: 1,
+            craft_queue: Vec::new(),
             last_fps: 0.0,
             quest_log,
             chronicle,
@@ -1442,33 +1499,95 @@ impl GameState {
 
     /// Switch to a brand-new save slot with a fresh random seed.
     pub fn new_world(&mut self, world_type: lf_worldgen::WorldType) {
-        self.new_world_named("World 1", world_type);
+        self.create_world("World 1", slots::random_seed(), world_type,
+            slots::Difficulty::Easy, slots::GameMode::Survival);
     }
 
     /// Create (or fully reset) the named slot with a fresh random seed.
     pub fn new_world_named(&mut self, name: &str, world_type: lf_worldgen::WorldType) {
+        self.create_world(name, slots::random_seed(), world_type,
+            slots::Difficulty::Easy, slots::GameMode::Survival);
+    }
+
+    /// C1: open the world-creation screen with fresh defaults — the world
+    /// gets the next free "World N" name and a visible random seed the
+    /// player can reroll or replace.
+    pub fn open_new_world_screen(&mut self) {
+        let n = crate::slots::list_slots().len() + 1;
+        self.new_world_name = format!("World {}", n);
+        self.new_world_seed = slots::random_seed().to_string();
+        self.new_world_type_idx = 0;
+        self.new_world_mode_idx = 0;
+        self.new_world_diff_idx = 1;
+        self.new_world_error = None;
+        self.ui_open = UiOpen::NewWorld;
+        self.menu_reveal = 0.0;
+    }
+
+    /// C1: create a world from the New World screen's fields. The seed is
+    /// a number (parsed) or any other string (hashed) — a string seed is
+    /// never an error. Returns Err with a user-facing message on invalid
+    /// input (empty name).
+    pub fn create_world_from_screen(&mut self) -> Result<(), String> {
+        let name = self.new_world_name.trim().to_string();
+        if name.is_empty() {
+            self.new_world_error = Some("World needs a name.".into());
+            return Err(self.new_world_error.clone().unwrap());
+        }
+        let seed = match self.new_world_seed.trim().parse::<u64>() {
+            Ok(v) => v,
+            Err(_) => {
+                    let s = self.new_world_seed.trim();
+                    if s.is_empty() {
+                        slots::random_seed()
+                    } else {
+                        crate::slots::hash_seed_string(s)
+                    }
+            }
+        };
+        let world_type = [
+            lf_worldgen::WorldType::Normal,
+            lf_worldgen::WorldType::Superflat,
+            lf_worldgen::WorldType::Amplified,
+        ][self.new_world_type_idx];
+        let difficulty = slots::Difficulty::ALL[self.new_world_diff_idx.min(3)];
+        let game_mode = slots::GameMode::ALL[self.new_world_mode_idx.min(1)];
+        self.create_world(&name, seed, world_type, difficulty, game_mode);
+        Ok(())
+    }
+
+    /// Create (or fully reset) the named slot with an explicit seed and
+    /// ruleset — the one true world-creation path.
+    pub fn create_world(&mut self, name: &str, seed: u64,
+        world_type: lf_worldgen::WorldType, difficulty: slots::Difficulty,
+        game_mode: slots::GameMode) {
         self.save_world();
         let name = slots::sanitize(name);
         let dir = slots::slot_dir(&name);
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::create_dir_all(&dir);
-        let seed = slots::random_seed();
         let meta = slots::SlotMeta {
             name: name.clone(),
             world_type,
             seed,
             updated_secs: slots::now_secs(),
+            created_secs: slots::now_secs(),
+            difficulty,
+            game_mode,
+            version_created: env!("CARGO_PKG_VERSION").into(),
         };
         let _ = std::fs::create_dir_all(&dir);
         let _ = WorldStorage::open(&dir).save_seed(seed);
         let _ = lf_worldgen::save_generator_version(&dir, lf_worldgen::GENERATOR_VERSION);
         slots::write_meta(&dir, &meta);
         // point the client at the new slot
-        self.storage = WorldStorage::open(&dir);
+        self.storage = Some(WorldStorage::open(&dir));
         self.world_dir = dir;
         self.slot_meta = meta;
         self.world_seed = seed;
         self.world_type = world_type;
+        self.difficulty = difficulty;
+        self.game_mode = game_mode;
         // fresh state
         self.inventory = Inventory::new();
         self.stats = PlayerStats::default();
@@ -1538,8 +1657,9 @@ impl GameState {
         let saved_set = storage.saved_chunks();
         self.world_dir = dir;
         self.slot_meta = slots::SlotMeta { seed, updated_secs: meta.updated_secs, ..meta };
+        self.difficulty = self.slot_meta.difficulty;
+        self.game_mode = self.slot_meta.game_mode;
         self.world_seed = seed;
-        self.storage = storage;
         self.world_type = world_type;
         self.saved_set = saved_set.clone();
         self.inventory = inventory;
@@ -1561,6 +1681,8 @@ impl GameState {
         self.visited_biomes = lore.visited_biomes;
         self.discovered_structures = lore.discovered_structures;
         self.day_index = lore.day_index;
+        self.recipe_book = lore.recipe_book.clone();
+        self.craft_queue = lore.craft_queue.clone();
         self.companion_cooldowns = vec![0.0; self.companions.len()];
         self.companion_line_timers = vec![8.0; self.companions.len()];
         self.companion_menu = None;
@@ -1591,7 +1713,7 @@ impl GameState {
         for cx in -BOOT_RADIUS..=BOOT_RADIUS {
             for cz in -BOOT_RADIUS..=BOOT_RADIUS {
                 let col = if saved_set.contains(&(cx, cz)) {
-                    self.storage.load_chunk(cx, cz).unwrap_or_else(|| gen.generate_chunk(cx, cz))
+                    storage.load_chunk(cx, cz).unwrap_or_else(|| gen.generate_chunk(cx, cz))
                 } else {
                     gen.generate_chunk(cx, cz)
                 };
@@ -1603,11 +1725,12 @@ impl GameState {
         worker_skip.extend(self.world.chunks.keys().copied());
         self.restart_streamer(seed, worker_skip);
         self.spawn_point = Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5);
-        self.player = match self.storage.load_player() {
+        self.player = match storage.load_player() {
             Some(p) => Player::new(Vec3::from(p.position)).with_look(p.yaw, p.pitch),
             None => Player::new(self.spawn_point),
         };
         self.player.flying = false;
+        self.storage = Some(storage);
         self.update_title();
         self.close_ui();
         Ok(())
@@ -1632,10 +1755,12 @@ impl GameState {
     }
 
     fn save_world(&mut self) {
+        // The version-seeded preview world has no slot: nothing to save.
+        let Some(storage) = &self.storage else { return };
         let dirty: Vec<(i32, i32)> = self.dirty.drain().collect();
         for pos in dirty {
             if let Some(col) = self.world.chunk(pos.0, pos.1) {
-                if let Err(e) = self.storage.save_chunk(pos.0, pos.1, col) {
+                if let Err(e) = storage.save_chunk(pos.0, pos.1, col) {
                     tracing::error!("save chunk {:?} failed: {}", pos, e);
                 } else {
                     self.saved_set.insert(pos);
@@ -1647,7 +1772,7 @@ impl GameState {
             yaw: self.player.yaw,
             pitch: self.player.pitch,
         };
-        if let Err(e) = self.storage.save_player(&player) {
+        if let Err(e) = storage.save_player(&player) {
             tracing::error!("save player failed: {}", e);
         }
         let extras = ClientSave {
@@ -1675,6 +1800,8 @@ impl GameState {
             visited_biomes: self.visited_biomes.iter().cloned().collect(),
             discovered_structures: self.discovered_structures.clone(),
             day_index: self.day_index,
+            recipe_book: Some(self.recipe_book.clone()),
+            craft_queue: self.craft_queue.clone(),
         };
         // JSON (self-describing) so future field additions with
         // serde(default) load old bytes — bincode EOFs on them instead.
@@ -1691,11 +1818,21 @@ impl GameState {
             world_type: self.world_type,
             seed: self.world_seed,
             updated_secs: slots::now_secs(),
+            created_secs: self.slot_meta.created_secs,
+            difficulty: self.difficulty,
+            game_mode: self.game_mode,
+            version_created: if self.slot_meta.version_created.is_empty() {
+                env!("CARGO_PKG_VERSION").to_string()
+            } else {
+                self.slot_meta.version_created.clone()
+            },
         };
         slots::write_meta(&self.world_dir, &meta);
         self.capture_slot_thumbnail();
         self.slot_meta = meta;
-        let _ = self.storage.save_seed(self.world_seed);
+        if let Some(storage) = &self.storage {
+            let _ = storage.save_seed(self.world_seed);
+        }
         tracing::info!("world '{}' saved to {}", self.slot_meta.name, self.world_dir.display());
     }
 
@@ -1813,7 +1950,9 @@ impl GameState {
         // UI frame.
         self.menu_reveal = (self.menu_reveal + dt).min(3.0);
         if self.ui_open == UiOpen::Title {
-            self.title_orbit += dt * 0.05; // slow menu camera orbit
+            // title_orbit now counts seconds; the orbit period lives in
+            // lf_worldgen::preview (B2: one scenic lap every 90s).
+            self.title_orbit += dt;
         }
         // HUD feedback timers + hotbar switch detection.
         self.hud_flash = (self.hud_flash - dt * 1.6).max(0.0);
@@ -2572,6 +2711,19 @@ impl GameState {
                         if let Some(next) = self.research.advance(&mut self.inventory.slots) {
                             tracing::info!("researched the {}", next.name());
                             self.chronicle_event(lf_chronicle::EventType::ActCompleted, format!("entered the {}", next.name()));
+                            // F3: era unlocks surface their recipes in the
+                            // workbench — count what just came into view
+                            let known = workbench::catalog_pairs().into_iter()
+                                .filter(|(out, _)| {
+                                    let req = lf_game::research::Era::required_for(out);
+                                    req != lf_game::research::Era::Primitive && req == next
+                                })
+                                .count();
+                            if known > 0 {
+                                let plural = if known == 1 { "recipe" } else { "recipes" };
+                                self.chronicle_toast = Some((
+                                    format!("Recipes unlocked: {} new {}", known, plural), 4.0));
+                            }
                         } else if era.next().is_none() {
                             self.chat_log.push("final era reached".into());
                         } else {
@@ -3509,10 +3661,16 @@ impl GameState {
         } else if self.air < 10 && self.frame % 4 == 0 {
             self.air = (self.air + 1).min(10);
         }
-        // Hunger drains slowly.
+        // Hunger drains slowly; the difficulty sets the pace (Hard is
+        // stricter, Peaceful doesn't starve you).
         if now >= self.next_hunger_tick {
-            self.next_hunger_tick = now + Duration::from_secs(45);
-            self.stats.hunger = (self.stats.hunger - 1.0).max(0.0);
+            let rate = self.difficulty.hunger_rate();
+            if rate > 0.0 {
+                self.next_hunger_tick = now + Duration::from_secs((45.0 / rate) as u64);
+                self.stats.hunger = (self.stats.hunger - 1.0).max(0.0);
+            } else {
+                self.next_hunger_tick = now + Duration::from_secs(45);
+            }
         }
         // Regen when well fed; starve at zero.
         if now >= self.next_regen_tick {
@@ -3898,7 +4056,10 @@ impl GameState {
             self.last_attacker = Some(mi);
         }
         if damage_to_player > 0.0 {
-            self.damage(damage_to_player);
+            let scaled = damage_to_player * self.difficulty.mob_damage();
+            if scaled > 0.0 {
+                self.damage(scaled);
+            }
         }
         // P36: fire breath scorches the player in range
         for mouth in breathers {
@@ -3951,6 +4112,9 @@ impl GameState {
                 (biome.is_cold(), matches!(biome, lf_worldgen::Biome::PaleGarden | lf_worldgen::Biome::DarkForest))
             };
             if let Some(kind) = lf_game::mobs::roll_spawn_full(seed, is_day, spawn_cold, spawn_nameless) {
+                // Peaceful keeps hostiles out entirely (C1)
+                let peaceful_skip = kind.is_hostile() && self.difficulty == slots::Difficulty::Peaceful;
+                if !peaceful_skip {
                 // random point 20-40 blocks out
                 let ang = (seed % 360) as f32 / 57.3;
                 let dist = 20.0 + ((seed >> 9) % 20) as f32;
@@ -3980,6 +4144,7 @@ impl GameState {
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -4158,6 +4323,7 @@ impl GameState {
         for i in to_remove.into_iter().rev() {
             self.drops.remove(i);
         }
+        let catalog_pairs_ref = workbench::catalog_pairs();
         for item in collected {
             let first_ever = self.chronicle.is_empty();
             self.quest_event(QuestEvent::Collected(item.clone()));
@@ -4167,6 +4333,14 @@ impl GameState {
             }
             if first_ever && item == "log" {
                 self.chronicle_event(EventType::FirstCraft, "collected the first logs".into());
+            }
+            // F3: a first pickup unlocks every recipe this item is an
+            // ingredient of; the workbench whispers what's now possible
+            let unlocked = self.recipe_book.unlock_on_pickup(&item, &catalog_pairs_ref, self.research.era);
+            if unlocked > 0 {
+                let plural = if unlocked == 1 { "recipe" } else { "recipes" };
+                self.chronicle_toast = Some((
+                    format!("Recipes unlocked: {} new {}", unlocked, plural), 4.0));
             }
         }
     }
@@ -4187,7 +4361,7 @@ impl GameState {
                 }
                 let pos = (center.0 + dx, center.1 + dz);
                 if self.world.chunk(pos.0, pos.1).is_none() && self.saved_set.contains(&pos) {
-                    if let Some(col) = self.storage.load_chunk(pos.0, pos.1) {
+                    if let Some(col) = self.storage.as_ref().and_then(|s| s.load_chunk(pos.0, pos.1)) {
                         self.world.chunks.insert(pos, col);
                         self.add_column_batch(pos.0, pos.1);
                         loaded += 1;
@@ -4242,7 +4416,9 @@ impl GameState {
         for pos in far {
             if self.dirty.remove(&pos) {
                 if let Some(col) = self.world.chunk(pos.0, pos.1) {
-                    let _ = self.storage.save_chunk(pos.0, pos.1, col);
+                    if let Some(storage) = &self.storage {
+                        let _ = storage.save_chunk(pos.0, pos.1, col);
+                    }
                     self.saved_set.insert(pos);
                 }
             }
@@ -4334,16 +4510,21 @@ impl GameState {
 
     fn camera(&self) -> Camera {
         if self.ui_open == UiOpen::Title {
-            let r = 34.0;
-            let cx = self.spawn_point.x + self.title_orbit.cos() * r;
-            let cz = self.spawn_point.z + self.title_orbit.sin() * r;
-            // The old fixed spawn+14 buried the camera inside ring terrain
-            // on hilly worlds (audit Step 1: World_5 had 12/64 orbit points
-            // under higher ground — a flat-dark title backdrop). Unloaded
-            // columns report surface 0, which keeps the classic offset.
-            let ground_at_eye = self.world.surface_height(cx as i32, cz as i32);
-            let cy = title_eye_y(self.spawn_point.y, ground_at_eye);
-            let mut camera = Camera::new(glam::Vec3::new(cx, cy, cz), self.spawn_point + glam::Vec3::new(0.0, 2.0, 0.0));
+            // B2: scenic elliptical orbit with a slow altitude oscillation,
+            // looking at a point offset from the world center. Parameters
+            // live in lf_worldgen::preview so the vistest harness drives
+            // the identical path.
+            let c = [self.spawn_point.x, self.spawn_point.y, self.spawn_point.z];
+            let (eye, look) =
+                lf_worldgen::preview::preview_camera(self.title_orbit as f64, c);
+            // Never sink the eye into ring terrain (audit Step 1), and
+            // unloaded columns report surface 0 (keeps the classic offset).
+            let ground_at_eye = self.world.surface_height(eye[0] as i32, eye[2] as i32);
+            let cy = title_eye_y(self.spawn_point.y, ground_at_eye).max(eye[1]);
+            let mut camera = Camera::new(
+                glam::Vec3::new(eye[0], cy, eye[2]),
+                glam::Vec3::from_slice(&look),
+            );
             camera.set_aspect(self.config.width, self.config.height);
             camera.fovy = self.settings.fov_degrees.to_radians();
             return camera;
@@ -4917,6 +5098,9 @@ pub struct LoreExtras {
     pub visited_biomes: std::collections::HashSet<String>,
     pub discovered_structures: Vec<(String, i32, i32, i32)>,
     pub day_index: u64,
+    /// F3: the earned recipe set + workbench queue, restored with the slot.
+    pub recipe_book: workbench::RecipeBook,
+    pub craft_queue: Vec<(String, u32)>,
 }
 
 fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
@@ -4986,6 +5170,8 @@ fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
             lore.visited_biomes = save.visited_biomes.into_iter().collect();
             lore.discovered_structures = save.discovered_structures;
             lore.day_index = save.day_index;
+            lore.recipe_book = save.recipe_book.unwrap_or_default();
+            lore.craft_queue = save.craft_queue;
             return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths, lore);
         }
     }

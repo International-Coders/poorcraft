@@ -809,3 +809,155 @@ load, gen v2->v3 save migration warning correct). Runtimes rebuilt
 Structure-test note: the worldgen scan predicts placement with the same
 per-chunk hash the generator uses (the old luck-based 6400-chunk scan
 was flaky AND slow); seed 2026 pinned for savanna coverage.
+
+### 2026-08-27 — Loop 328: ui-world-craft build (Sections A–F)
+**WHAT**: The full UI/world/crafting polish pack — LOREFORGE title identity
+(logotype + tagline + vignette + left link column + version/seed display),
+version-seeded preview world with the scenic elliptical orbit, the world
+creation flow (New World screen, Load World picker with seed-rendered
+thumbnails, Multiplayer screen), the worldgen rework (two-layer continental
+terrain, rivers, deep caves + lava, climate-biome ground cover,
+terrain-adapted structures), and the crafting workbench (three zones, earned
+recipe visibility, no grid).
+**HOW**:
+- lf_client/src/ui_kit.rs: Theme redefined to the LOREFORGE palette
+  (#1a1410/#2a2018/#332a1c backgrounds, #f0ead6 parchment text, #8a7f6e
+  muted, #c4602a ember accent, #8b4513 iron-brown, #4a3f2e borders,
+  #6b8e23/#c4a02a/#8b2020 status) — every screen that referenced Theme
+  re-skins consistently; title_glow removed (no glow on the logotype, ever).
+  New widgets: `menu_link` (underline-sweeps-in-on-hover navigation link,
+  +4px hover shift, pinned variant for action buttons), `vignette`
+  (vertex-colored radial mesh: clear center, edges sink to #1a1410),
+  `segment_row` (world-type/difficulty segmented toggles), `text_input`
+  (deep-field input with ember focus border), `paint_check` (drawn
+  checkmark — the shipped font has no check glyph; tofu boxes are the most
+  AI-looking thing a UI can show). menu_button re-skinned to sharp corners
+  + warm iron fill.
+- ui.rs `draw_title` rewritten: logotype at 10% left / 16% top at ~1/6
+  screen height, "Build. Rule. Endure." tagline, five-link left column at
+  55-70% height, LOREFORGE v{version} + Seed display bottom-right (A1/A2/
+  A3). grep for "poorcraft" in crates/: zero hits (window title was already
+  LOREFORGE). Settings screen restyled to the sidebar + hover-underline
+  layout (MAIN_MENU_REDESIGN brief spec).
+- lf_worldgen/src/preview.rs (new): `preview_world_seed_from_version`
+  (Fibonacci-hash mix; v0.4.1 vs v0.4.2 produce different worlds), orbit
+  constants + `preview_camera` (90s elliptical orbit 80x60, ±8 blocks on a
+  57.3s prime period, look target offset +20x). Client boots into the
+  preview world: `storage` is now Option — the title world is in-memory
+  only, nothing touches worlds/ until Create/Load (save_world no-ops in
+  preview; streamer runs for the view). `title_orbit` counts seconds.
+- C1/C2/C3: UiOpen::NewWorld + Multiplayer screens; create_world(name,
+  seed, type, difficulty, mode) is the one creation path (numeric seeds
+  parse, strings hash via slots::hash_seed_string FNV+splitmix — stable
+  across machines); SlotMeta gains created_secs/difficulty/game_mode/
+  version_created with a LegacySlotMeta bincode fallback (old metas
+  upgrade, tested). Difficulty is REAL gameplay: Peaceful blocks hostile
+  spawns, mob damage ×(0/0.7/1/1.5), hunger interval scales. Load World
+  shows per-slot seed-rendered thumbnails (map::seed_thumbnail_rgba,
+  cached to thumbnail.png on first open; placeholder tiles keyed by world
+  type; world-type glyphs ▲▲/▭/△); delete has the "cannot be undone"
+  confirm. Multiplayer: Direct Connect (functional), Host World (spawns
+  the dedicated server binary if present, honest status otherwise),
+  "Steam lobby integration coming soon" stub.
+- D1: two-layer terrain in WorldGen::height — continental factor
+  (smoothstep(0.51,0.68) of stretched 1/1200 fbm; calibrated against the
+  measured noise quantiles), lowland = sea+1+7·detail, highland =
+  sea+36+30·detail+48·ridge (ridge = (1-|n|)^2.5), ocean shelf pulls
+  cf<0.40 down to -30. Amplified doubles relief; Superflat unchanged.
+- D2: rivers — zero-crossings of a 1/400 OpenSimplex2 meander field,
+  hard highland cutoff (rf=0 above cf 0.55), width 0.05+0.06·coast
+  (3-7 blocks, wider downstream), carve ramp (rf·1.6) to bed SEA-4.
+  BUG FOUND BY THE PROOF: the bed originally at SEA-2 stayed above the
+  water-fill line (top = h+4 ≤ SEA needs h ≤ 58) — rivers were dry grass
+  slots; the vistest shot caught it, bed moved to SEA-4, water fills 4
+  deep. Also: coast-fade strength made inland channels uncarvable
+  (rf ≤ coast < 0.7 for cf > 0.165) — replaced with a hard highland
+  cutoff, rivers now run the whole lowland.
+- D3: cave breach ramp (threshold 0.40 below y=48 tightening to 0.72 by
+  y=56), deep slate below y=30 (dithered fringe), lava floods cave pockets
+  y ≤ 10 (new LAVA block, light 12), stalactites (15%, 1-4 down) and
+  stalagmites (10%, 1-3 up) on stone with 2+ solid neighbors, material
+  follows the host block.
+- D5: structures terrain-adapted — 5-sample footprint check, >50%
+  underwater refused, variance >4 fills a platform from the biome filler,
+  and an unconditional support-fill sweeps open space beneath the floor
+  down to solid ground (caves/overhangs can hollow ground the heightmap
+  trusts). Applied to huts/watchtowers/pyramids/wizard towers/roosts and
+  inside build_faction_structure.
+- E3/E2: biome.rs `surface_features` — density + block table per biome
+  (meadow tall-grass w/ flower accent, FlowerForest flower-dominant,
+  desert cactus/dead shrub, savanna dry grass, swamp/mushroom/volcanic
+  signatures, bare shores/peaks); generate_chunk places them post-trees on
+  intact ground (cactus 2-3 tall, stone/basalt spikes 1-2). Transition
+  bands ride the existing climate dither: borders flip biome per column,
+  so both covers interleave. New blocks: TALL_GRASS, DRY_GRASS, CACTUS,
+  DEAD_SHRUB (cutout plants), LAVA; ids 106-110, atlas layers 160-164,
+  MAX_VANILLA_BLOCK 110. Meadow flower density was tuned DOWN after the
+  first proof read as red noise (0.25 [tg,f] → 0.15 [tg,tg,f]).
+- F: lf_client/src/workbench.rs (new) — Category table (8 categories with
+  icons + in-world greeting lines), categorize(), flavor_for() (iconic
+  items get real lines; category fallbacks as data), RecipeBook
+  (seen_items-based visibility: always-visible survival set, era-tagged
+  recipes unlock with the era, everything else unlocks on first pickup of
+  an ingredient), catalog_pairs(). UI: draw_workbench replaces the 2x2/3x3
+  grid everywhere — Zone 1 category sidebar (icon + craftable/visible
+  count + 3px accent border on selection), Zone 2 recipe list (2-line
+  rows: name + inline material summary + drawn ✓/., locked rows last as
+  "needs [gate]" with no recipe shown), Zone 3 detail (56px icon, name,
+  flavor between hairlines, per-ingredient have/need colored +/~/x,
+  quantity [- n +] x8, Craft N pinned underline / "Missing materials"
+  disabled, Add to Queue badge), inventory strip at the bottom with
+  accent-highlighted ingredient slots. Craft consumes from the real
+  inventory, re-verifies, grants with stacking, fires QuestEvent::Crafted.
+  Recipe unlocks toast via chronicle_toast ("Recipes unlocked: N new
+  recipes"); era-advance hook counts the newly surfaced set.
+  ClientSave persists recipe_book + craft_queue (serde-defaulted).
+- vistest: scenes new_world_screen, multiplayer_screen,
+  crafting_workbench, preview_orbit_a/b/c (t=0/30/60 over the version
+  seed), river_valley (banked-channel scan centers the plot; seed 3
+  pinned), biome_ground_cover; menu_preview + settings_preview rewritten
+  to mirror the new screens. verify_scene_pixels adds per-scene design
+  claims (parchment logotype top-left, left column dominance vs center,
+  sky-darkening vignette, panel/field/accent presence, workbench green
+  checks + strip, version text bottom-right).
+**5-SECOND TEST (E1, per biome, human-eye on proofs)**: Meadow Y/Y/Y/Y
+(grass+flowers vs desert sand), Desert Y/Y/Y/Y (sand+cactus+pyramids),
+Snowy family Y/Y/Y/Y (snow surfaces+conifers), Volcanic Y/Y/Y/Y
+(basalt+embers, prior pack), Swamp/Bog Y/Y/Y/Y (peat+dead shrubs),
+Forest vs Birch vs Dark Y/Y/partial/Y (distinct canopies; ground covers
+shared tall-grass — flowers/tree kind carry the identity), oceans Y (color
++ coral). The grade pass (prior pack) handles palette; verified alive in
+every proof shot.
+**FLAT-LAND MEASUREMENT (D evidence, 5 seeds, ±6 of sea level)**: seed 1:
+0.433, seed 2: 0.421, seed 12345: 0.443, seed 999999: 0.311 (rides
+mountainous — allowed by the per-seed floor), seed 20260827: 0.437; mean
+0.409 vs mountains 0.275 — the 60:40 flat:mountain target holds in
+aggregate (asserted in lowlands_dominate_mountains_across_seeds).
+**VERIFICATION**: cargo test --workspace all green (297 passed / 0 failed across 35 suites; new:
+preview seed/orbit 2, slots legacy-meta+hash 2, difficulty tables 1,
+workbench 3, worldgen lowlands/rivers/caves/cover/footprints 5,
+map thumbnail 1, plus rewrites). vistest 68/68 (60 prior + 8 new) with
+per-scene pixel claims green; orbit trio md5-distinct with large frame
+deltas (A-B 894k, B-C 788k units) — no symmetric framing. Human-eye pass
+on every new proof (Principle 5): title reads as designed; New World
+panel legible; workbench reads as a workbench; river proof shows a
+blue channel between grassy banks after two design bugs were caught by
+looking (dry-slot bed, coast-fade). Smoke OK. Runtimes rebuilt.
+**HONESTLY DEFERRED**:
+- Creative mode is a saved flag + honest note on the screen; no
+  unlimited-blocks/no-damage behavior yet (no content gates exist to
+  relax — spec explicitly allows the stub).
+- Thumbnails are seed-rendered color maps (top-down WorldGen approx),
+  not live-GPU renders of each world; live autosave thumbs still load
+  when present (thumb.png).
+- Faction-locked recipe visibility: the RecipeBook has no faction gate
+  wired (no faction recipes exist yet); era + pickup + always-visible
+  tiers are live.
+- The inventory strip is 4 rows (hotbar + 27 storage) at readable slot
+  size rather than a squeezed 2-row strip; 800px-wide proof canvas
+  cannot fit 18 readable slots per row.
+- Biome fog colors remain the global time-of-day sky/fog (grade pass
+  carries biome palette); per-biome fog curves are engine work deferred.
+- Search bar intentionally absent (CRAFTING_REVAMP: add at >200 recipes).
+- Windows cross-build still not installed on this host (dmg + linux
+  tarball shipped).

@@ -754,6 +754,26 @@ pub fn compass_facing(yaw: f32) -> &'static str {
     }
 }
 
+/// A seed-derived top-down thumbnail (ui-world-craft C2): a grid of
+/// WorldGen-approximated map tiles rendered top-down, RGBA8, row-major.
+/// Pure generation — no GPU, no live world — so the Load World screen can
+/// cache one to `thumbnail.png` per slot on first open.
+pub fn seed_thumbnail_rgba(seed: u64, world_type: lf_worldgen::WorldType, chunks_per_side: usize) -> Vec<u8> {
+    let gen = WorldGen::with_type(Seed(seed), world_type);
+    let side = chunks_per_side as i32;
+    let half = side / 2;
+    let mut out = Vec::with_capacity(16 * 16 * chunks_per_side * chunks_per_side * 4);
+    for cz in -half..=(side - 1 - half) {
+        for cx in -half..=(side - 1 - half) {
+            for px in tile_from_gen(&gen, cx, cz) {
+                let [r, g, b, a] = px.to_array();
+                out.extend_from_slice(&[r, g, b, a]);
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -823,5 +843,20 @@ mod tests {
             let f = compass_facing(yaw);
             assert!(f.len() <= 2);
         }
+    }
+
+    /// ui-world-craft C2: seed thumbnails are pure generation, sized right,
+    /// deterministic, and distinct between seeds.
+    #[test]
+    fn seed_thumbnail_is_deterministic_and_distinct() {
+        let side = 4usize;
+        let a = seed_thumbnail_rgba(TEST_SEED, lf_worldgen::WorldType::Normal, side);
+        let b = seed_thumbnail_rgba(TEST_SEED, lf_worldgen::WorldType::Normal, side);
+        assert_eq!(a.len(), b.len());
+        assert_eq!(a.len(), 16 * 16 * side * side * 4, "16px tiles, RGBA");
+        assert!(a.chunks(4).any(|px| px != [20, 24, 32, 255]), "not pure fog");
+        // different seeds look different (statistically: some pixel differs)
+        let c = seed_thumbnail_rgba(TEST_SEED + 1, lf_worldgen::WorldType::Normal, side);
+        assert_ne!(a, c, "different seeds must render different worlds");
     }
 }

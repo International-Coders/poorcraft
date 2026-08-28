@@ -1,9 +1,9 @@
 # STATE
-loop_count: 327
-current_milestone: Complete — all V1REBRAND + build-pack + lore-and-visuals (Sections A-D) shipped
-last_done: "lore-and-visuals build: lf_lore faction data layer + standing, 12 faction quests, hireable companions (trust/morale/wages/commands), 38 blocks + Volcanic biome, 6 faction structures, entity skins + biome tints, map territory tint + icons, faction HUD widgets, ember particles, D1-D3 integration. vistest 60/60"
-next_task: "NONE — the lore-and-visuals goal is shipped and pushed; deferred notes in BACKLOG.md (Unmarked interview tree, companion Craft, chest pathing)"
+loop_count: 328
+current_milestone: Complete — ui-world-craft pack (Sections A-F) shipped
+last_done: "ui-world-craft build: LOREFORGE title identity + palette (logotype/tagline/vignette/link column/version-seed display), version-seeded in-memory preview world + 90s elliptical orbit, world creation flow (New World screen, Load World picker with seed thumbnails, Multiplayer), worldgen v4 (two-layer terrain, rivers that hold water, deep caves + lava + stalactites, terrain-adapted structures, per-biome ground cover), crafting workbench (3 zones, earned recipe visibility, no grid). vistest 68/68"
+next_task: "NONE — the ui-world-craft goal is shipped; deferred notes in BACKLOG.md/DEVLOG.md (Creative behavior, per-biome fog curves, faction recipe gates, 2-row strip)"
 build: GREEN
 tests: see DEVLOG verification line for the fresh count
-last_screenshot: shots/vistest_faction_map.png
+last_screenshot: shots/vistest_river_valley.png
 blockers: "none"

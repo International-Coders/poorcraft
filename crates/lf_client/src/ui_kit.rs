@@ -11,27 +11,47 @@ use lf_game::survival::ItemStack;
 // ------------------------------------------------------------------
 // Theme
 
+/// The LOREFORGE palette — the only colors the UI is allowed to use
+/// (docs/ui-world-craft/menu/MAIN_MENU_REDESIGN.md). Anything else in UI
+/// chrome is a bug. Parchment text, ember accents, iron-brown borders: the
+/// interface is built by people who live in Valdenmoor.
 pub struct Theme;
 
 impl Theme {
-    pub const BG: Color32 = Color32::from_rgb(16, 18, 24);
-    pub const PANEL: Color32 = Color32::from_rgba_premultiplied(18, 22, 30, 235);
-    pub const ACCENT: Color32 = Color32::from_rgb(240, 200, 120);      // warm gold
-    pub const ACCENT_DIM: Color32 = Color32::from_rgb(120, 96, 52);
-    pub const TEXT: Color32 = Color32::from_rgb(235, 238, 242);
-    pub const TEXT_DIM: Color32 = Color32::from_rgb(150, 156, 165);
-    pub const OK: Color32 = Color32::from_rgb(120, 210, 130);
-    pub const BAD: Color32 = Color32::from_rgb(230, 120, 110);
+    /// Very dark warm brown-black (the world at night).
+    pub const BG: Color32 = Color32::from_rgb(0x1a, 0x14, 0x10);
+    /// Slightly lighter, for large surfaces behind panels.
+    pub const BG_MID: Color32 = Color32::from_rgb(0x2a, 0x20, 0x18);
+    /// Visible panel background.
+    pub const PANEL: Color32 = Color32::from_rgb(0x33, 0x2a, 0x1c);
+    /// Aged parchment.
+    pub const TEXT: Color32 = Color32::from_rgb(0xf0, 0xea, 0xd6);
+    /// Muted warm grey, secondary text.
+    pub const TEXT_DIM: Color32 = Color32::from_rgb(0x8a, 0x7f, 0x6e);
+    /// Locked/unavailable.
+    pub const TEXT_DISABLED: Color32 = Color32::from_rgb(0x4a, 0x44, 0x38);
+    /// Ember-orange: emphasis, never decoration.
+    pub const ACCENT: Color32 = Color32::from_rgb(0xc4, 0x60, 0x2a);
+    /// Iron-brown (the Ironborn's color).
+    pub const ACCENT_DIM: Color32 = Color32::from_rgb(0x8b, 0x45, 0x13);
+    /// Warm dark brown for dividers and borders.
+    pub const BORDER: Color32 = Color32::from_rgb(0x4a, 0x3f, 0x2e);
+    /// Earthy green (the Free Holds).
+    pub const OK: Color32 = Color32::from_rgb(0x6b, 0x8e, 0x23);
+    /// Amber-gold, for positive-but-urgent notices.
+    pub const WARNING: Color32 = Color32::from_rgb(0xc4, 0xa0, 0x2a);
+    /// Dark red.
+    pub const BAD: Color32 = Color32::from_rgb(0x8b, 0x20, 0x20);
+    /// Hovered menu text: a touch brighter than parchment.
+    pub const TEXT_BRIGHT: Color32 = Color32::from_rgb(0xff, 0xf8, 0xee);
+
+    // HUD glyphs keep their semantic colors (a heart is red, hunger is
+    // amber) — they are game-world signals, not UI chrome.
     pub const HEART: Color32 = Color32::from_rgb(225, 60, 70);
     pub const HUNGER: Color32 = Color32::from_rgb(210, 150, 50);
     pub const XP: Color32 = Color32::from_rgb(110, 220, 255);
     /// P33 magic: a violet that reads "arcane" against every biome so far.
     pub const MANA: Color32 = Color32::from_rgb(185, 130, 255);
-
-    pub fn title_glow(t: f32) -> Color32 {
-        let pulse = 0.5 + 0.5 * (t * 1.4).sin();
-        Color32::from_rgba_premultiplied(240, 210, 140, (200.0 + 40.0 * pulse) as u8)
-    }
 }
 
 // ------------------------------------------------------------------
@@ -94,8 +114,9 @@ impl Reveal {
 // ------------------------------------------------------------------
 // Animated widgets
 
-/// Primary menu button: rounded frame, hover glow + slight grow, spring
-/// press. Returns true when clicked.
+/// Primary menu button: a heavy iron-and-wood plate — sharp corners, warm
+/// panel fill, 1px border that warms on hover, spring press. Returns true
+/// when clicked.
 pub fn menu_button(ui: &mut Ui, label: &str, reveal: f32, accent: bool) -> bool {
     let size = Vec2::new(300.0, 52.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
@@ -115,25 +136,25 @@ pub fn menu_button(ui: &mut Ui, label: &str, reveal: f32, accent: bool) -> bool 
     let full = rect * reveal;
     let grow = hover_amt * 3.0 - press_amt * 5.0;
     let r = full.expand(grow);
-    let rounding = 10.0;
+    // LOREFORGE aesthetic: sharp edges. A rounded rect is somebody else's UI.
     let fill = if accent {
-        Color32::from_rgba_premultiplied(60 + (40.0 * hover_amt) as u8, 48, 22, (235.0 * reveal) as u8)
+        Color32::from_rgba_premultiplied(0x4a, 0x2c, 0x18, (235.0 * reveal) as u8)
     } else {
-        Color32::from_rgba_premultiplied(28, 33, 44, (225.0 * reveal) as u8)
+        Color32::from_rgba_premultiplied(0x2a, 0x20, 0x18, (235.0 * reveal) as u8)
     };
-    ui.painter().rect_filled(r, rounding, fill);
+    ui.painter().rect_filled(r, 0.0, fill);
     let stroke_col = if accent {
-        Color32::from_rgba_premultiplied(240, 200, 120, ((200.0 + 55.0 * hover_amt) as u8).min(255))
+        blend_stroke(Theme::ACCENT, Theme::ACCENT_DIM, hover_amt)
     } else {
-        Color32::from_rgba_premultiplied(90, 98, 112, ((120.0 + 120.0 * hover_amt) as u8).min(255))
+        blend_stroke(Theme::BORDER, Theme::ACCENT_DIM, hover_amt)
     };
-    ui.painter().rect_stroke(r, rounding, Stroke::new(1.5 + hover_amt * 1.5, stroke_col), egui::StrokeKind::Middle);
+    ui.painter().rect_stroke(r, 0.0, Stroke::new(1.0 + hover_amt, stroke_col), egui::StrokeKind::Middle);
     if hover_amt > 0.01 {
         let bar = Rect::from_min_size(
             Pos2::new(r.left() + 4.0, r.center().y - 16.0 * hover_amt),
             Vec2::new(3.0, 32.0 * hover_amt),
         );
-        ui.painter().rect_filled(bar, 2.0, Theme::ACCENT);
+        ui.painter().rect_filled(bar, 0.0, Theme::ACCENT);
     }
     let text_col = Color32::from_rgba_premultiplied(
         Theme::TEXT.r(), Theme::TEXT.g(), Theme::TEXT.b(),
@@ -150,12 +171,174 @@ pub fn menu_button(ui: &mut Ui, label: &str, reveal: f32, accent: bool) -> bool 
     response.clicked()
 }
 
+/// Linear blend between two stroke colors.
+fn blend_stroke(a: Color32, b: Color32, t: f32) -> Color32 {
+    let mix = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t) as u8;
+    Color32::from_rgba_premultiplied(
+        mix(a.r(), b.r()), mix(a.g(), b.g()), mix(a.b(), b.b()),
+        mix(a.a(), b.a()),
+    )
+}
+
+/// The LOREFORGE navigation link: left-aligned parchment text with a thin
+/// ember underline that sweeps in on hover (120ms ease-out), the text
+/// nudging +4px right. Press pulls it back 2px. `pinned` keeps the
+/// underline permanently visible — reserved for action buttons (Create
+/// World, Apply), never for plain navigation.
+pub fn menu_link(ui: &mut Ui, label: &str, id: &str, reveal: f32, pinned: bool, enabled: bool) -> bool {
+    let reveal = ease_out_cubic(reveal);
+    let font = egui::FontId::proportional(19.0);
+    let painter_at = ui.painter_at(ui.max_rect());
+    // measure the text first so the underline matches its width
+    let galley = painter_at.layout_no_wrap(label.to_string(), font.clone(), Theme::TEXT);
+    let text_w = galley.size().x;
+    let size = Vec2::new(text_w + 8.0, 30.0);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let hovered = enabled && response.hovered();
+    let pressed = enabled && response.is_pointer_button_down_on();
+    let hover_amt = ui.ctx().animate_value_with_time(
+        egui::Id::new(format!("link-h:{}", id)),
+        if hovered || pinned { 1.0 } else { 0.0 },
+        0.12,
+    );
+    let press_amt = ui.ctx().animate_value_with_time(
+        egui::Id::new(format!("link-p:{}", id)),
+        if pressed { 1.0 } else { 0.0 },
+        0.06,
+    );
+    let base_x = rect.left() + hover_amt * 4.0 - press_amt * 2.0;
+    let text_col = if !enabled {
+        Theme::TEXT_DISABLED
+    } else if pressed {
+        Theme::ACCENT
+    } else if pinned || hover_amt > 0.6 {
+        Theme::TEXT_BRIGHT
+    } else {
+        Theme::TEXT
+    };
+    let col = Color32::from_rgba_premultiplied(text_col.r(), text_col.g(), text_col.b(),
+        ((255.0 * reveal) as u8).min(255));
+    ui.painter().text(
+        Pos2::new(base_x, rect.center().y),
+        Align2::LEFT_CENTER,
+        label,
+        font,
+        col,
+    );
+    if enabled && (hover_amt > 0.01 || pinned) {
+        let w = if pinned { text_w } else { text_w * hover_amt };
+        let y = rect.center().y + 13.0;
+        let alpha = ((255.0 * reveal) as u8).min(255);
+        ui.painter().line_segment(
+            [Pos2::new(base_x, y), Pos2::new(base_x + w, y)],
+            Stroke::new(1.0, Color32::from_rgba_premultiplied(Theme::ACCENT.r(), Theme::ACCENT.g(), Theme::ACCENT.b(), alpha)),
+        );
+    }
+    enabled && response.clicked()
+}
+
+/// Radial vignette: a gradient fade from the world render to a dark edge,
+/// painted as concentric translucent frames. The center stays fully
+/// visible; corners sink into `#1a1410`. Used by every fullscreen overlay.
+pub fn vignette(ui: &mut Ui, max_alpha: u8) {
+    let rect = ui.max_rect();
+    let painter = ui.painter_at(rect);
+    // true radial falloff as a vertex-colored grid: egui interpolates the
+    // vertex colors, so alpha ramps smoothly from 0 at the center to
+    // max_alpha at the corners — the frame edges sink into BG and the
+    // middle of the screen stays fully visible.
+    let grid = 12usize;
+    let cw = rect.width() / grid as f32;
+    let ch = rect.height() / grid as f32;
+    let center = rect.center();
+    let max_r = ((rect.width().powi(2) + rect.height().powi(2)).sqrt()) * 0.5;
+    let alpha_at = |p: egui::Pos2| -> u8 {
+        let d = (p - center).length();
+        let t = (d / max_r).clamp(0.0, 1.0);
+        // smoothstep keeps the center clear, then the edge sinks fast
+        let s = t * t * (3.0 - 2.0 * t);
+        (max_alpha as f32 * s) as u8
+    };
+    let mut mesh = egui::Mesh::default();
+    for gy in 0..=grid {
+        for gx in 0..=grid {
+            let p = egui::pos2(rect.left() + gx as f32 * cw, rect.top() + gy as f32 * ch);
+            let a = alpha_at(p);
+            mesh.colored_vertex(p,
+                Color32::from_rgba_unmultiplied(Theme::BG.r(), Theme::BG.g(), Theme::BG.b(), a));
+        }
+    }
+    for gy in 0..grid {
+        for gx in 0..grid {
+            let v = |gx: usize, gy: usize| (gy * (grid + 1) + gx) as u32;
+            let (a, b, c, d) = (v(gx, gy), v(gx + 1, gy), v(gx + 1, gy + 1), v(gx, gy + 1));
+            mesh.add_triangle(a, b, c);
+            mesh.add_triangle(a, c, d);
+        }
+    }
+    painter.add(egui::Shape::Mesh(std::sync::Arc::new(mesh)));
+}
+
+/// A drawn checkmark — the shipped font has no check glyph, and a tofu
+/// box is the most AI-looking thing a UI can show. Three line segments.
+pub fn paint_check(p: &egui::Painter, center: egui::Pos2, color: Color32, width: f32) {
+    let s = 5.0;
+    p.line_segment(
+        [center + egui::vec2(-s, 0.0), center + egui::vec2(-s * 0.25, s * 0.7)],
+        Stroke::new(width, color),
+    );
+    p.line_segment(
+        [center + egui::vec2(-s * 0.25, s * 0.7), center + egui::vec2(s, -s * 0.8)],
+        Stroke::new(width, color),
+    );
+}
+
+/// LOREFORGE text input: deep-background field, 1px warm border that
+/// brightens to ember while focused. No rounded corners.
+pub fn text_input(ui: &mut Ui, text: &mut String, id: &str, hint: &str, width: f32) -> bool {
+    let before = text.clone();
+    let response = egui::TextEdit::singleline(text)
+        .id(egui::Id::new(id))
+        .hint_text(egui::RichText::new(hint).color(Theme::TEXT_DISABLED))
+        .desired_width(width)
+        .font(egui::TextStyle::Button)
+        .show(ui)
+        .response;
+    let focused = response.has_focus();
+    // paint the frame after the fact — egui's default frame is blue-grey
+    let rect = response.rect;
+    ui.painter_at(ui.max_rect()).rect_stroke(rect, 0.0,
+        Stroke::new(if focused { 1.5 } else { 1.0 },
+            if focused { Theme::ACCENT } else { Theme::BORDER }), egui::StrokeKind::Middle);
+    let bg = Color32::from_rgba_premultiplied(Theme::BG.r(), Theme::BG.g(), Theme::BG.b(), 235);
+    ui.painter_at(ui.max_rect()).rect_filled(rect, 0.0, bg);
+    // repaint the text above the fill we just laid down
+    let text_col = if text.is_empty() && !focused { Theme::TEXT_DISABLED } else { Theme::TEXT };
+    let shown: String = if text.is_empty() && !focused { hint.to_string() } else { text.clone() };
+    let painter = ui.painter_at(ui.max_rect());
+    painter.text(rect.left_center() + egui::vec2(8.0, 0.0), Align2::LEFT_CENTER, shown.clone(),
+        egui::FontId::proportional(16.0), text_col);
+    // keep the cursor visible when focused: re-run egui's own cursor line
+    if focused {
+        let galley = painter.layout_no_wrap(shown, egui::FontId::proportional(16.0), text_col);
+        let cx = rect.left() + 8.0 + galley.size().x.min(width - 16.0);
+        let blink = (ui.input(|i| i.time) * 2.0).fract() < 0.6;
+        if blink {
+            painter.line_segment([Pos2::new(cx, rect.top() + 6.0), Pos2::new(cx, rect.bottom() - 6.0)],
+                Stroke::new(1.0, Theme::TEXT));
+        }
+    }
+    &before != text
+}
+
 /// Slide+fade container; draws children with an opacity-adjusted panel.
 pub fn slide_panel(ui: &mut Ui, reveal: f32, add_contents: impl FnOnce(&mut Ui)) {
     let e = ease_out_cubic(reveal);
     let frame = egui::Frame::new()
-        .fill(Color32::from_rgba_premultiplied(18, 22, 30, ((235.0 * e) as u8).min(255)))
-        .corner_radius(14.0);
+        .fill(Color32::from_rgba_premultiplied(0x2a, 0x20, 0x18, ((242.0 * e) as u8).min(255)))
+        .stroke(Stroke::new(1.0, Color32::from_rgba_premultiplied(
+            Theme::BORDER.r(), Theme::BORDER.g(), Theme::BORDER.b(), ((255.0 * e) as u8).min(255))))
+        .corner_radius(0.0);
     frame.show(ui, |ui| {
         ui.set_opacity(e);
         add_contents(ui);
@@ -173,16 +356,49 @@ pub fn toggle(ui: &mut Ui, label: &str, value: &mut bool) -> bool {
         }
         let target = if *value { 1.0 } else { 0.0 };
         let amt = ui.ctx().animate_value_with_time(egui::Id::new(format!("tg:{}", label)), target, 0.14);
-        let track = if amt > 0.5 { Theme::OK } else { Color32::from_rgb(60, 64, 72) };
-        ui.painter().rect_filled(rect, 12.0, Color32::from_rgb(40, 44, 52));
+        let track = if amt > 0.5 { Theme::OK } else { Theme::BORDER };
+        ui.painter().rect_filled(rect, 0.0, Theme::BG);
         ui.painter().rect_filled(
             Rect::from_min_size(Pos2::new(rect.left() + 2.0, rect.top() + 2.0), Vec2::new(42.0, 20.0)),
-            10.0,
+            0.0,
             Color32::from_rgba_premultiplied(track.r(), track.g(), track.b(), ((255.0 * (0.3 + 0.7 * amt)) as u8).min(255)),
         );
         let knob_x = rect.left() + 4.0 + amt * 22.0;
         ui.painter().circle_filled(Pos2::new(knob_x + 8.0, rect.center().y), 9.0, Theme::TEXT);
         ui.label(egui::RichText::new(label).color(Theme::TEXT));
+    });
+    changed
+}
+
+/// A row of flat text segments where exactly one is selected — the
+/// world-type / difficulty / game-mode control. Selected: `#4a3f2e`
+/// backing, parchment text. Unselected: muted text that brightens on
+/// hover. Returns true when the selection changed.
+pub fn segment_row(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        for (i, opt) in options.iter().enumerate() {
+            let on = i == *selected;
+            let (rect, resp) = ui.allocate_exact_size(
+                egui::vec2(24.0 + opt.len() as f32 * 8.2, 26.0), Sense::click());
+            let hover_amt = ui.ctx().animate_value_with_time(
+                egui::Id::new(format!("seg:{}:{}", id, i)), if resp.hovered() && !on { 1.0 } else { 0.0 }, 0.12);
+            if on {
+                ui.painter().rect_filled(rect, 0.0, Theme::BORDER);
+            }
+            let text = if on {
+                Theme::TEXT
+            } else {
+                blend_stroke(Theme::TEXT_DIM, Theme::TEXT, hover_amt)
+            };
+            ui.painter().text(rect.center(), Align2::CENTER_CENTER, *opt,
+                egui::FontId::proportional(15.0), text);
+            if resp.clicked() && !on {
+                *selected = i;
+                changed = true;
+            }
+        }
     });
     changed
 }
@@ -226,9 +442,9 @@ fn tooltip_line(ui: &mut Ui, label: &str, value: &str, color: Color32) {
 /// container the caller set up (on_hover_ui, popup below...).
 pub fn item_tooltip_body(ui: &mut Ui, stack: &ItemStack, icons: &crate::icons::ItemIcons) {
     egui::Frame::new()
-        .fill(Color32::from_rgba_premultiplied(14, 17, 24, 248))
-        .corner_radius(8.0)
-        .stroke(egui::Stroke::new(1.0, Theme::ACCENT_DIM))
+        .fill(Color32::from_rgba_premultiplied(0x1a, 0x14, 0x10, 248))
+        .corner_radius(0.0)
+        .stroke(egui::Stroke::new(1.0, Theme::BORDER))
         .inner_margin(egui::Margin::same(10))
         .show(ui, |ui| {
             ui.set_min_width(190.0);
