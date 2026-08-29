@@ -607,6 +607,7 @@ impl From<LegacyClientSave> for ClientSave {
 
 struct App {
     state: Option<GameState>,
+    autostart: bool,
 }
 
 impl ApplicationHandler for App {
@@ -619,6 +620,13 @@ impl ApplicationHandler for App {
             )
             .expect("Window build failed");
         self.state = Some(pollster::block_on(GameState::new(Arc::new(window))));
+        if self.autostart {
+            if let Some(state) = &mut self.state {
+                // the exact code path the single-player New World screen runs
+                state.open_new_world_screen();
+                let _ = state.create_world_from_screen();
+            }
+        }
     }
 
     fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: winit::event::DeviceId, event: DeviceEvent) {
@@ -933,6 +941,13 @@ impl ApplicationHandler for App {
 }
 
 pub fn run() {
+    run_with_autostart(false);
+}
+
+/// `autostart` (debug harness): boot straight into a freshly created
+/// world, skipping the title-screen clicks, so the menu → game render
+/// transition can be exercised without a pointer.
+pub fn run_with_autostart(autostart: bool) {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
@@ -940,7 +955,7 @@ pub fn run() {
         .init();
 
     let event_loop = EventLoop::new().expect("EventLoop failed");
-    let mut app = App { state: None };
+    let mut app = App { state: None, autostart };
     event_loop.run_app(&mut app);
 }
 
@@ -3298,13 +3313,21 @@ impl GameState {
         self.shake = shake_decay(self.shake, dt);
         // Sky bodies every frame (they rotate); clouds drift (rebuild 2/s).
         let eye = self.player.eye_position();
+        if self.frame == 600 {
+
+        }
         let (sv, si) = lf_engine::atmosphere::sky_bodies(eye, self.time.fraction());
+        if self.frame == 600 {
+            tracing::warn!("BLACKBOX DEBUG: sky_vertices={} first={:?}",
+                sv.len(), sv.first().map(|v| v.position));
+        }
         self.sky_batch = Some(MeshBatch::new(&self.device, &self.resources, &sv, &si));
         if !self.settings.clouds {
             self.cloud_batch = None; // the toggle was previously unwired
         } else if self.last_cloud_rebuild.elapsed() >= Duration::from_millis(500) {
             self.last_cloud_rebuild = now;
             let (cv, ci) = lf_engine::atmosphere::cloud_mesh(eye, self.frame as f32 / 60.0);
+
             self.cloud_batch = Some(MeshBatch::new(&self.device, &self.resources, &cv, &ci));
         }
         if self.weather_raining && self.settings.particles {
@@ -5061,6 +5084,29 @@ impl GameState {
         if let Some(batch) = &self.overlay_batch {
             batch.update_camera(&self.queue, &camera, &env);
         }
+        // fix: black-square artifact — these batches were never given the
+        // camera, so they rendered with MeshBatch::new's IDENTITY uniform:
+        // any entity cube within ±1 unit of the world origin (the spawn!)
+        // landed inside the clip volume and filled the screen with a giant
+        // black rectangle, while the sun/moon/clouds/drops were invisible.
+        if let Some(batch) = &self.sky_batch {
+            batch.update_camera(&self.queue, &camera, &env);
+        }
+        if let Some(batch) = &self.cloud_batch {
+            batch.update_camera(&self.queue, &camera, &env);
+        }
+        if let Some(batch) = &self.weather_batch {
+            batch.update_camera(&self.queue, &camera, &env);
+        }
+        if let Some(batch) = &self.drop_batch {
+            batch.update_camera(&self.queue, &camera, &env);
+        }
+        if let Some(batch) = &self.crack_batch {
+            batch.update_camera(&self.queue, &camera, &env);
+        }
+        if let Some(batch) = &self.particle_batch {
+            batch.update_camera(&self.queue, &camera, &env);
+        }
         self.outline.update_camera(&self.queue, &camera);
 
         let output = match self.surface.get_current_texture() {
@@ -5351,6 +5397,7 @@ impl GameState {
             let bob = (drop.age * 2.0).sin() * 0.05;
             push_cube(drop.position.x, drop.position.y + 0.15 + bob, drop.position.z, 0.15, tex, &mut vertices, &mut indices);
         }
+
         self.drop_batch = Some(MeshBatch::new(&self.device, &self.resources, &vertices, &indices));
     }
 }

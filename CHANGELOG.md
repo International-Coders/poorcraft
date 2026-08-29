@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-08-29 — the in-game black screen: root cause found and fixed (loop 333)
+- **The bug**: after starting a single-player game the view showed a giant
+  static black rectangle over the world (HUD still drew on top). Reproduced
+  live with a new `loreforge --autostart` debug harness (boots straight
+  into a fresh world through the exact menu code path) and macOS screen
+  captures, then bisected the frame with draw toggles and instrumented
+  batch geometry: the drop_batch carried an entity cube near the world
+  origin rendered with `MeshBatch::new`'s **identity view_proj** — six
+  per-frame batches (sky/cloud/weather/drop/crack/particle) never got
+  `update_camera` in the live render loop, so any geometry within ±1 unit
+  of the origin (right where the player spawns) landed inside the clip
+  volume and filled the screen with black. The same bug made the sun,
+  moon, stars, clouds, item drops, mob cubes, crack decals and particles
+  invisible in live play (they only ever rendered in headless vistest,
+  which updates all cameras — why proofs never caught it).
+- **The fix**: `update_camera` for all six batches every frame. Verified
+  with real screen captures at t=15s and t=23s of a fresh world: fully
+  rendered terrain, river, sky and HUD, no black rectangle — and the
+  sky bodies/clouds/drops now actually visible in live play.
+
 ## 2026-08-28 — ai-npc-assets: mob AI state machine, living NPCs, connected textures, generator (loop 332, Sections A-G)
 - **Mob AI (B)**: mobs got a real behaviour machine — Idle / Wander /
   Chase / Attack / Flee / Investigate / Disengage with all 11 spec

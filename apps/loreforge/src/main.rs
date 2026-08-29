@@ -5,6 +5,9 @@ fn main() {
     if args.iter().any(|a| a == "--smoke") {
         std::process::exit(lf_client::smoke::run());
     }
+    // debug: boot straight into a freshly created world (menu-flow
+    // reproduction harness — skips the title clicks)
+    let autostart = args.iter().any(|a| a == "--autostart");
     if args.iter().any(|a| a == "--headless") {
         let mut scene = "spawn_plains_dawn".to_string();
         let mut seed: Option<u64> = None;
@@ -33,5 +36,5 @@ fn main() {
             }
         }
     }
-    lf_client::run();
+    lf_client::run_with_autostart(autostart);
 }

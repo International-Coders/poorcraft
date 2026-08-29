@@ -1219,3 +1219,38 @@ overrides yet; hostile-faction NPCs joining fights is not implemented
 session-state; block-noise has no placeholder registry for batch
 generation; NullKnight keeps the generic machine (no boss AI exists;
 freezing it would be a regression). Full list in BACKLOG.md loop 332.
+
+## 2026-08-29 — loop 333: in-game black screen root-caused and fixed
+
+**WHAT**: The user-reported black screen after starting a single-player
+game (a giant static black rectangle over the world view, HUD drawing on
+top). Root cause: six per-frame batches (sky, cloud, weather, drop,
+crack, particle) never received `update_camera` in the live render loop,
+so they rendered with `MeshBatch::new`'s identity view_proj; any entity
+cube within ±1 unit of the world origin — exactly where the player
+spawns — landed inside the clip volume and painted a huge black quad.
+The same defect silently hid the sun/moon/stars/clouds/item drops/mob
+cubes in live play (they rendered only in headless vistest, which
+updates all cameras — the reason no proof ever caught it).
+
+**HOW**: Reproduced with a new `loreforge --autostart` debug harness
+(boots straight into a fresh world via the exact menu code path — kept
+as a documented tool) plus macOS `screencapture` of the real window;
+bisected the frame with temporary `LF_NO_*` draw toggles; instrumented
+batch geometry (`drop_batch vertices=24 first=(-0.7,-0.7,-0.7)` — an
+entity cube at the origin inside clip space). Fix: `update_camera` for
+all six batches every frame in `GameState::render` (crates/lf_client/
+src/lib.rs, with a fix-tagged comment); debug toggles removed,
+`--autostart` kept.
+
+**VERIFICATION**: real screen captures of the fixed binary at t=15s and
+t=23s of a fresh autostart world show the fully rendered world (terrain,
+river, sky, fog, HUD) with NO black rectangle, and — for the first time
+in live play — sun/moon/stars/clouds/drops actually visible.
+`cargo test --workspace` 338 passed / 0 failed. Vistest unaffected
+(headless already updated all cameras; suite re-run green before push).
+
+**HONESTLY DEFERRED**: none for this fix. (Follow-up observation, not a
+defect: the sun/moon billboards render as plain white squares — the
+pre-existing art choice, now finally visible; proper sun/moon art can
+ride a later visual pass.)
