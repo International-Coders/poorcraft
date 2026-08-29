@@ -85,6 +85,9 @@ pub struct SceneResources {
     uniform_bind_group_layout: wgpu::BindGroupLayout,
     /// The atlas array texture (P35 dynamic-layer writes).
     diffuse_texture: wgpu::Texture,
+    /// The CTM strip atlas (Section E); kept alive for the bind group.
+    #[allow(dead_code)]
+    ctm_texture: wgpu::Texture,
 }
 
 impl SceneResources {
@@ -195,14 +198,63 @@ impl SceneResources {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                // Section E (connected textures): the CTM strip atlas, a
+                // plain 192x512 texture the mesher sub-UVs per tile
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
             ],
             label: Some("diffuse_bind_group_layout"),
         });
+        // CTM strip atlas (Section E): 192x512, 5-mip chain, uploaded like
+        // the base atlas so distance filtering behaves the same
+        let ctm_img = lf_assets::generate_ctm_strip_atlas();
+        let ctm_texture = device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d { width: ctm_img.width(), height: ctm_img.height(), depth_or_array_layers: 1 },
+            mip_level_count: MIP_LEVELS,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            label: Some("ctm_strip_texture"),
+            view_formats: &[],
+        });
+        {
+            let mut level = ctm_img.clone();
+            for mip in 0..MIP_LEVELS {
+                let (w, h) = level.dimensions();
+                queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &ctm_texture,
+                        mip_level: mip,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    level.as_raw(),
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * w),
+                        rows_per_image: Some(h),
+                    },
+                    wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                );
+                level = downsample_2x(&level);
+            }
+        }
+        let ctm_texture_view = ctm_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &diffuse_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&diffuse_texture_view) },
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&diffuse_sampler) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&ctm_texture_view) },
             ],
             label: Some("diffuse_bind_group"),
         });
@@ -276,6 +328,7 @@ impl SceneResources {
 
         Self {
             diffuse_texture: diffuse_texture.clone(),
+            ctm_texture,
             render_pipeline,
             water_pipeline,
             diffuse_bind_group,

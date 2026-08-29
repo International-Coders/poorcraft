@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+mod gen;
+
 fn copy_dir(src: &str, dst: std::path::PathBuf) {
     let root = PathBuf::from(src);
     let _ = std::fs::create_dir_all(&dst);
@@ -176,12 +178,136 @@ fn main() {
                 }
             }
         }
+        "gen-texture" => {
+            // F1: gen-texture <type> <output.png> [--seed N] [--faction id]
+            //                    [--base-color RRGGBB] [--variation 0..50]
+            let ty = args.get(2).map(String::as_str).unwrap_or("");
+            let out = args.get(3).cloned().unwrap_or_default();
+            let mut seed = 0u64;
+            let mut faction = String::new();
+            let mut base = [106u8, 106, 106];
+            let mut variation = 12i32;
+            let mut i = 4;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--seed" if i + 1 < args.len() => { seed = args[i + 1].parse().unwrap_or(0); i += 1; }
+                    "--faction" if i + 1 < args.len() => { faction = args[i + 1].clone(); i += 1; }
+                    "--base-color" if i + 1 < args.len() => {
+                        if let Ok(c) = gen::parse_hex(&args[i + 1]) { base = c; }
+                        i += 1;
+                    }
+                    "--variation" if i + 1 < args.len() => { variation = args[i + 1].parse().unwrap_or(12); i += 1; }
+                    _ => {}
+                }
+                i += 1;
+            }
+            let result = match ty {
+                "grass-ctm-strip" if !out.is_empty() => gen::grass_ctm_strip(seed).save(&out).map_err(|e| e.to_string()),
+                "stone-ctm-strip" if !out.is_empty() => gen::stone_ctm_strip(seed).save(&out).map_err(|e| e.to_string()),
+                "entity-skin" if !out.is_empty() => {
+                    match gen::FACTIONS.iter().position(|f| f.id == faction) {
+                        Some(idx) => gen::entity_skin(idx, seed).save(&out).map_err(|e| e.to_string()),
+                        None => Err(format!("unknown faction {:?} (want one of: {:?})", faction,
+                            gen::FACTIONS.iter().map(|f| f.id).collect::<Vec<_>>())),
+                    }
+                }
+                "block-noise" if !out.is_empty() => gen::block_noise(base, variation, 16, seed).save(&out).map_err(|e| e.to_string()),
+                _ => Err("usage: gen-texture <grass-ctm-strip|stone-ctm-strip|entity-skin|block-noise> <out.png> [--seed N] [--faction id] [--base-color RRGGBB] [--variation 0..50]".into()),
+            };
+            if let Err(e) = result {
+                eprintln!("gen-texture failed: {}", e);
+                std::process::exit(1);
+            }
+            println!("wrote {}", out);
+        }
+        "gen-ctm" => {
+            // E6: bootstrap a block's CTM strip PNG from its in-game art
+            let block = args.get(2).map(String::as_str).unwrap_or("");
+            let out = format!("assets/ctm/{}.png", block);
+            match lf_assets::CTM_BLOCKS.iter().find(|b| b.art == block) {
+                Some(_) => {
+                    if std::path::Path::new(&out).exists() {
+                        println!("SKIP (exists): {}", out);
+                    } else {
+                        let _ = std::fs::create_dir_all("assets/ctm");
+                        match gen::grass_ctm_strip(0).save(&out) {
+                            Ok(()) => println!("wrote {} (seed 0 = the exact in-game strip)", out),
+                            Err(e) => { eprintln!("gen-ctm failed: {}", e); std::process::exit(1); }
+                        }
+                    }
+                }
+                None => {
+                    eprintln!("gen-ctm: unknown block {:?}; CTM blocks: {:?}", block,
+                        lf_assets::CTM_BLOCKS.iter().map(|b| b.art).collect::<Vec<_>>());
+                    std::process::exit(1);
+                }
+            }
+        }
+        "gen-all-textures" => {
+            // F2: every CTM strip + every faction skin; existing files are
+            // skipped (never overwrite hand-crafted assets)
+            for line in gen::gen_all(std::path::Path::new(".")) {
+                println!("{}", line);
+            }
+        }
         _ => {
             println!("LOREFORGE xtask automation");
             println!("  cargo xtask vistest [out-dir]       render all scenes to PNGs");
             println!("  cargo xtask screenshot <scene> [out] [seed]  render one scene");
             println!("  cargo xtask perf [scene] [n]        frame-time benchmark (p50/p95)");
             println!("  cargo xtask package                build release artifacts (P11)");
+            println!("  cargo xtask gen-texture <type> <out.png> [--seed N] [--faction id] [--base-color RRGGBB] [--variation N]");
+            println!("  cargo xtask gen-ctm <block>         write a block's CTM strip to assets/ctm/");
+            println!("  cargo xtask gen-all-textures        all CTM strips + faction skins (skips existing)");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// Failure meaning: the asset generator is not deterministic — the
+    /// same seed must produce bit-identical output on any machine (F3).
+    #[test]
+    fn asset_generator_grass_output() {
+        let a = crate::gen::grass_ctm_strip(42);
+        let b = crate::gen::grass_ctm_strip(42);
+        assert_eq!(a.as_raw(), b.as_raw(), "grass strip (seed 42) must be bit-identical");
+        assert_eq!(a.dimensions(), (192, 512), "full 8-block strip layout");
+        // the strip is not blank and not absurd: it has colour variety and
+        // no pure-white / pure-black pixels (pixel-art Rule 1)
+        let mut colors = std::collections::HashSet::new();
+        for p in a.pixels() {
+            assert!((p[0] as u32) + (p[1] as u32) + (p[2] as u32) > 0, "pure-black pixel in strip");
+            assert!((p[0] as u32) + (p[1] as u32) + (p[2] as u32) < 765, "pure-white pixel");
+            colors.insert(p.0);
+        }
+        assert!(colors.len() > 32, "strip has only {} distinct colors", colors.len());
+    }
+
+    /// Failure meaning: the other generator paths lost determinism or the
+    /// output guard stopped protecting hand-crafted files.
+    #[test]
+    fn generator_outputs_are_deterministic_and_guarded() {
+        let s1 = crate::gen::stone_ctm_strip(7);
+        let s2 = crate::gen::stone_ctm_strip(7);
+        assert_eq!(s1.as_raw(), s2.as_raw());
+        let e1 = crate::gen::entity_skin(0, 42);
+        let e2 = crate::gen::entity_skin(0, 42);
+        assert_eq!(e1.as_raw(), e2.as_raw(), "entity skin must be deterministic");
+        assert_eq!(e1.dimensions(), (64, 32));
+        let n1 = crate::gen::block_noise([90, 138, 42], 12, 16, 5);
+        let n2 = crate::gen::block_noise([90, 138, 42], 12, 16, 5);
+        assert_eq!(n1.as_raw(), n2.as_raw());
+        // gen_all only writes NEW files: seed the temp tree, rerun, verify
+        // the SKIP paths report (never overwrite)
+        let dir = std::env::temp_dir().join(format!("lf_gen_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let first = crate::gen::gen_all(&dir);
+        assert_eq!(first.iter().filter(|l| l.starts_with("wrote")).count(), 14);
+        let second = crate::gen::gen_all(&dir);
+        assert_eq!(second.iter().filter(|l| l.starts_with("SKIP")).count(), 14,
+            "second run must skip everything: {:?}", second);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

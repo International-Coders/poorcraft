@@ -22,9 +22,15 @@ run: ## Play the game (title screen)
 server: ## Run the dedicated multiplayer server
 	cargo run --release -p loreforge-server
 
-smoke: ## Launch the game in the background for ~12s and verify it stays up
-	@./target/release/loreforge & sleep 12; \
-	if pgrep -f target/release/loreforge > /dev/null; then echo "SMOKE OK"; else echo "SMOKE FAIL"; exit 1; fi; \
+smoke: release ## Headless logic smoke (300 ticks: worldgen, mob AI, NPC schedule, craft, mine) + 12s GUI liveness
+	@./target/release/loreforge --smoke > smoke_run.log 2>&1; \
+	code=$$?; \
+	if [ $$code -ne 0 ]; then echo "SMOKE FAIL (logic exit $$code)"; cat smoke_run.log; exit 1; fi; \
+	if grep -qE "(PANIC|thread.*panicked|ERROR.*wgpu|vulkan.*error)" smoke_run.log; then \
+		echo "SMOKE FAIL (error pattern in log)"; grep -E "(PANIC|thread.*panicked|ERROR.*wgpu|vulkan.*error)" smoke_run.log; exit 1; fi; \
+	echo "smoke (headless logic): OK"; \
+	./target/release/loreforge > /dev/null 2>&1 & sleep 12; \
+	if pgrep -f target/release/loreforge > /dev/null; then echo "SMOKE OK"; else echo "SMOKE FAIL (gui)"; exit 1; fi; \
 	pkill -f target/release/loreforge || true
 
 perf: ## Frame-time benchmark (p50/p95) of a representative scene

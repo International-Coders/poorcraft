@@ -1473,6 +1473,250 @@ fn pixel_hash(x: u32, y: u32, name: &str) -> u32 {
     h ^ (h >> 13)
 }
 
+
+// ---------------------------------------------------------------------------
+// Connected textures (ai-npc-assets Section E)
+//
+// A block whose face is surrounded by the same block samples one of 47
+// CTM tiles instead of the plain 1x1 layer, so a 3x3 field of grass reads
+// as one surface with edge definition instead of nine repeated tiles.
+// The tiles live as extra atlas layers appended after the base 165 —
+// the mesher picks `first_layer + ctm_tile_index(bitmask)` for faces of
+// CTM-enabled blocks (see lf_voxel/src/meshing.rs, which mirrors the
+// layer table because the dependency goes one way only).
+// ---------------------------------------------------------------------------
+
+/// Tiles per CTM strip (the classic 47-tile CTM set).
+pub const CTM_TILES: u32 = 47;
+/// CTM strip atlas: 12 tiles per row, 4 rows per block (47 tiles), 8 blocks.
+pub const CTM_STRIP_WIDTH: u32 = 192; // 12 * 16
+pub const CTM_STRIP_HEIGHT: u32 = 512; // 8 blocks * 4 rows * 16
+/// Vertex tex_index values >= this marker base mean "sample the CTM strip
+/// texture with the per-tile UVs the mesher baked into tex_coord".
+pub const CTM_MARKER_BASE: u32 = 165;
+
+/// One CTM-enabled block: which base art the strip derives from and the
+/// marker index its connected faces carry.
+pub struct CtmBlock {
+    /// Base-face layer the strip derives from (the layer a plain face uses).
+    pub face_layer: u32,
+    /// Marker tex_index for connected faces of this block.
+    pub marker: u32,
+    /// TEXTURE_NAMES art name the tiles are generated from.
+    pub art: &'static str,
+}
+
+/// E5: the initial CTM set, in strip order (strip row block = index).
+pub const CTM_BLOCKS: [CtmBlock; 8] = [
+    CtmBlock { face_layer: 41,  marker: 165, art: "grass_top" },
+    CtmBlock { face_layer: 3,   marker: 166, art: "sand" },
+    CtmBlock { face_layer: 10,  marker: 167, art: "water" },
+    CtmBlock { face_layer: 5,   marker: 168, art: "snow" },
+    CtmBlock { face_layer: 105, marker: 169, art: "bog_peat" },
+    CtmBlock { face_layer: 100, marker: 170, art: "permafrost" },
+    CtmBlock { face_layer: 86,  marker: 171, art: "accord_stone" },
+    CtmBlock { face_layer: 94,  marker: 172, art: "ashen_marble" },
+];
+
+/// The CTM marker for a rendered face layer, if the block has CTM at all.
+pub fn ctm_first_layer(face_layer: u32) -> Option<u32> {
+    CTM_BLOCKS.iter().find(|b| b.face_layer == face_layer).map(|b| b.marker)
+}
+
+/// The full CTM strip atlas (192x512): 8 blocks stacked, each with its 47
+/// tiles in a 12-wide row-major layout (4 rows, last row partial).
+pub fn generate_ctm_strip_atlas() -> image::RgbaImage {
+    generate_ctm_strip_atlas_seeded(0)
+}
+
+/// Seed variant for the xtask `gen-texture` tool: the seed mixes into the
+/// per-tile variation/detail hashes; seed 0 is the in-game art (bit-identical
+/// to the unseeded form).
+pub fn generate_ctm_strip_atlas_seeded(seed: u64) -> image::RgbaImage {
+    let mut img = image::RgbaImage::new(CTM_STRIP_WIDTH, CTM_STRIP_HEIGHT);
+    for (b, block) in CTM_BLOCKS.iter().enumerate() {
+        for tile in 0..CTM_TILES as u8 {
+            let t = tile as u32;
+            let col = t % 12;
+            let row = b as u32 * 4 + t / 12;
+            let tile_img = generate_ctm_tile_seeded(block.art, tile, seed);
+            image::imageops::replace(&mut img, &tile_img, (col * 16) as i64, (row * 16) as i64);
+        }
+        // the 48th slot of each block's 4th row is unused by the 47-tile
+        // set — fill it with the isolated tile so no slot samples empty
+        let filler = generate_ctm_tile_seeded(block.art, 46, seed);
+        image::imageops::replace(&mut img, &filler, 176, (b as u32 * 4 + 3) as i64 * 16);
+    }
+    img
+}
+
+/// Bit layout (top face, looking down): NW=7 N=6 NE=5 / W=4 . E=3 / SW=2 S=1 SE=0.
+const BIT_N: u8 = 1 << 6;
+const BIT_E: u8 = 1 << 3;
+const BIT_S: u8 = 1 << 1;
+const BIT_W: u8 = 1 << 4;
+const BIT_NW: u8 = 1 << 7;
+const BIT_NE: u8 = 1 << 5;
+const BIT_SW: u8 = 1 << 2;
+const BIT_SE: u8 = 1 << 0;
+
+/// A raw neighbour bitmask is "well-formed" when every diagonal is backed
+/// by both of its cardinals — the standard CTM corner rule that prevents
+/// edge artifacts. Exactly 47 of the 256 masks are well-formed.
+pub const fn ctm_well_formed(m: u8) -> bool {
+    let nw = m & BIT_NW != 0;
+    let ne = m & BIT_NE != 0;
+    let sw = m & BIT_SW != 0;
+    let se = m & BIT_SE != 0;
+    let n = m & BIT_N != 0;
+    let e = m & BIT_E != 0;
+    let s = m & BIT_S != 0;
+    let w = m & BIT_W != 0;
+    (!nw || (n && w)) && (!ne || (n && e)) && (!sw || (s && w)) && (!se || (s && e))
+}
+
+/// Clear diagonal bits whose cardinals are not both present.
+pub const fn ctm_canonicalize(m: u8) -> u8 {
+    let mut m = m;
+    if !(m & BIT_N != 0 && m & BIT_W != 0) { m &= !BIT_NW; }
+    if !(m & BIT_N != 0 && m & BIT_E != 0) { m &= !BIT_NE; }
+    if !(m & BIT_S != 0 && m & BIT_W != 0) { m &= !BIT_SW; }
+    if !(m & BIT_S != 0 && m & BIT_E != 0) { m &= !BIT_SE; }
+    m
+}
+
+/// Rank of a well-formed mask among the 47, in DESCENDING mask order so
+/// tile 0 = 0xFF (fully surrounded interior) and tile 46 = 0x00 (isolated).
+const fn ctm_rank(m: u8) -> u8 {
+    let mut rank = 0u8;
+    let mut w = 0u32;
+    while w < 256 {
+        let wm = w as u8;
+        if ctm_well_formed(wm) && wm > m {
+            rank += 1;
+        }
+        w += 1;
+    }
+    rank
+}
+
+/// Standard 47-tile CTM lookup: every possible 8-bit neighbour bitmask →
+/// tile index 0..46 (derived, not transcribed: canonicalize, then rank).
+pub const CTM_TABLE: [u8; 256] = {
+    let mut t = [0u8; 256];
+    let mut i = 0usize;
+    while i < 256 {
+        t[i] = ctm_rank(ctm_canonicalize(i as u8));
+        i += 1;
+    }
+    t
+};
+
+/// Tile index for a raw neighbour bitmask.
+pub fn ctm_tile_index(bitmask: u8) -> u8 {
+    CTM_TABLE[bitmask as usize]
+}
+
+/// The well-formed neighbour mask a tile index stands for.
+pub fn ctm_tile_mask(tile: u8) -> u8 {
+    // rank is a bijection on the 47 well-formed masks; invert by scan
+    let mut w = 0u32;
+    while w < 256 {
+        let wm = w as u8;
+        if ctm_well_formed(wm) && ctm_rank(wm) == tile {
+            return wm;
+        }
+        w += 1;
+    }
+    0
+}
+
+/// One 16x16 tile of a CTM strip: the block's base art with edge
+/// definition on exposed sides (E6/F1 rules), interior dapple, and a
+/// whisper of per-tile variation. Deterministic.
+pub fn generate_ctm_tile(art: &str, tile: u8) -> image::RgbaImage {
+    generate_ctm_tile_seeded(art, tile, 0)
+}
+
+/// Seed variant: `seed` mixes into every hash call (0 = the in-game art).
+pub fn generate_ctm_tile_seeded(art: &str, tile: u8, seed: u64) -> image::RgbaImage {
+    let sm = seed as u32;
+    let base = generate_block_texture(art);
+    let mask = ctm_tile_mask(tile);
+    let mut img = base.clone();
+    let shade = |p: &mut image::Rgba<u8>, f: f32| {
+        let d = p.0;
+        // pixel-art Rule 1: never fully black, never fully white
+        *p = image::Rgba([
+            ((d[0] as f32) * f).round().clamp(5.0, 250.0) as u8,
+            ((d[1] as f32) * f).round().clamp(5.0, 250.0) as u8,
+            ((d[2] as f32) * f).round().clamp(5.0, 250.0) as u8,
+            d[3],
+        ]);
+    };
+    // subtle per-tile brightness variation (skip tile 0 so interior tiles
+    // of the same field read identically)
+    if tile != 0 {
+        // per-tile whisper of brightness; the table never includes 1.0 so
+        // an unshaded tile can never equal the base art
+        let v = match pixel_hash(tile as u32 ^ sm, 7 ^ sm, "ctm_tile") % 6 {
+            0 => 0.96,
+            1 => 0.97,
+            2 => 0.98,
+            3 => 1.02,
+            4 => 1.03,
+            _ => 1.04,
+        };
+        for y in 0..16 {
+            for x in 0..16 {
+                shade(img.get_pixel_mut(x, y), v);
+            }
+        }
+    }
+    // exposed edges get a 1px darker border
+    let edge_f = 0.80;
+    if mask & BIT_N == 0 {
+        for x in 0..16 { shade(img.get_pixel_mut(x, 0), edge_f); }
+    }
+    if mask & BIT_S == 0 {
+        for x in 0..16 { shade(img.get_pixel_mut(x, 15), edge_f); }
+    }
+    if mask & BIT_W == 0 {
+        for y in 0..16 { shade(img.get_pixel_mut(0, y), edge_f); }
+    }
+    if mask & BIT_E == 0 {
+        for y in 0..16 { shade(img.get_pixel_mut(15, y), edge_f); }
+    }
+    // exposed corners: rounded-corner detail
+    let corner_f = 0.62;
+    if mask & BIT_N == 0 && mask & BIT_W == 0 { shade(img.get_pixel_mut(0, 0), corner_f); }
+    if mask & BIT_N == 0 && mask & BIT_E == 0 { shade(img.get_pixel_mut(15, 0), corner_f); }
+    if mask & BIT_S == 0 && mask & BIT_W == 0 { shade(img.get_pixel_mut(0, 15), corner_f); }
+    if mask & BIT_S == 0 && mask & BIT_E == 0 { shade(img.get_pixel_mut(15, 15), corner_f); }
+    // interior corners (both cardinals connected, the diagonal missing):
+    // a single soft shadow pixel where the neighbour turns the corner
+    let inner_f = 0.86;
+    if mask & BIT_NW == 0 && mask & BIT_N != 0 && mask & BIT_W != 0 { shade(img.get_pixel_mut(0, 0), inner_f); }
+    if mask & BIT_NE == 0 && mask & BIT_N != 0 && mask & BIT_E != 0 { shade(img.get_pixel_mut(15, 0), inner_f); }
+    if mask & BIT_SW == 0 && mask & BIT_S != 0 && mask & BIT_W != 0 { shade(img.get_pixel_mut(0, 15), inner_f); }
+    if mask & BIT_SE == 0 && mask & BIT_S != 0 && mask & BIT_E != 0 { shade(img.get_pixel_mut(15, 15), inner_f); }
+    // interior tiles get bright dapple (meadow light); every other tile
+    // gets one darker detail pixel seeded by its index so tiles with the
+    // same shading pattern still read (and test) distinct
+    if mask == 0xFF {
+        for i in 0..3u32 {
+            let x = pixel_hash(i ^ sm, tile as u32 ^ sm, "ctm_dapple_x") % 16;
+            let y = pixel_hash(i ^ sm, tile as u32 ^ sm, "ctm_dapple_y") % 16;
+            shade(img.get_pixel_mut(x, y), 1.25);
+        }
+    } else if tile != 0 {
+        let x = pixel_hash(tile as u32 ^ sm, 11 ^ sm, "ctm_detail_x") % 16;
+        let y = pixel_hash(tile as u32 ^ sm, 11 ^ sm, "ctm_detail_y") % 16;
+        shade(img.get_pixel_mut(x, y), 0.88);
+    }
+    img
+}
+
 /// One pixel of the stage-N crack decal: dark crooked lines radiating from
 /// the block center; more/longer cracks as the stage grows.
 fn crack_pixel(x: u32, y: u32, stage: u32) -> Rgba<u8> {
@@ -2897,6 +3141,45 @@ mod tests {
         assert_eq!(name_of(1, Face::Bottom), "stone");
         assert_eq!(name_of(41, Face::Side), "research_bench");
         assert_eq!(name_of(200, Face::Top), "mod");
+    }
+
+
+    /// Failure meaning: the derived CTM table does not implement the
+    /// standard 47-tile mapping (interior=0, isolated=46, bijective).
+    #[test]
+    fn ctm_table_is_the_standard_47_tile_mapping() {
+        // endpoints
+        assert_eq!(ctm_tile_index(0xFF), 0, "fully surrounded = interior tile");
+        assert_eq!(ctm_tile_index(0x00), 46, "isolated = the 47th tile");
+        // exactly 47 distinct tiles, each mask maps into 0..=46
+        let mut seen = [false; 47];
+        for m in 0..=255u32 {
+            let t = ctm_tile_index(m as u8);
+            assert!(t < 47, "mask {:#04x} → tile {} out of range", m, t);
+            seen[t as usize] = true;
+        }
+        assert!(seen.iter().all(|&s| s), "some tile index is never used");
+        // canonicalization clears stray diagonals before lookup
+        assert_eq!(ctm_canonicalize(0x80), 0x00, "lone NW diagonal is dropped");
+        assert_eq!(ctm_canonicalize(0xF8), 0xF8, "backed diagonals survive");
+        // every mask round-trips through its well-formed representative
+        for m in 0..=255u32 {
+            let canon = ctm_canonicalize(m as u8);
+            assert_eq!(ctm_tile_mask(ctm_tile_index(m as u8)), canon,
+                "mask {:#04x} does not round-trip", m);
+        }
+        // the strip order: grass first, ashen_marble last, markers dense
+        assert_eq!(CTM_BLOCKS[0].art, "grass_top");
+        assert_eq!(CTM_BLOCKS[0].marker, CTM_MARKER_BASE);
+        assert_eq!(CTM_BLOCKS[7].marker, CTM_MARKER_BASE + 7);
+        // the strip atlas has room for every tile
+        let strip = generate_ctm_strip_atlas();
+        assert_eq!(strip.width(), CTM_STRIP_WIDTH);
+        assert_eq!(strip.height(), CTM_STRIP_HEIGHT);
+        // the grass interior tile differs from the grass isolated tile
+        let t0 = generate_ctm_tile("grass_top", 0);
+        let t46 = generate_ctm_tile("grass_top", 46);
+        assert_ne!(t0.as_raw(), t46.as_raw(), "interior and isolated tiles differ");
     }
 
     #[test]

@@ -125,7 +125,7 @@ impl State {
                 section.set(x, 2, z, lf_voxel::BlockState::GRASS);
             }
         }
-        let mesh = lf_voxel::meshing::mesh_section(&section, None, None, None, None, None, None,
+        let mesh = lf_voxel::meshing::mesh_section(&section, None, None, None, None, None, None, None, None, None, None,
             &|b, face| lf_assets::texture_index_for_face(b.id(), face), &|_, _, _| 0xF0);
         let vertices: Vec<GpuVertex> = mesh.vertices.iter().map(|v| GpuVertex {
             position: v.position,

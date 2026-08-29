@@ -158,6 +158,12 @@ impl World {
             let neighbor_nx = self.chunks.get(&(cx - 1, cz)).map(|c| &c.sections[sy]);
             let neighbor_pz = self.chunks.get(&(cx, cz + 1)).map(|c| &c.sections[sy]);
             let neighbor_nz = self.chunks.get(&(cx, cz - 1)).map(|c| &c.sections[sy]);
+            // Section E: diagonal sections so CTM bitmasks at section
+            // corners still see their diagonal neighbours
+            let diag_px_pz = self.chunks.get(&(cx + 1, cz + 1)).map(|c| &c.sections[sy]);
+            let diag_px_nz = self.chunks.get(&(cx + 1, cz - 1)).map(|c| &c.sections[sy]);
+            let diag_nx_pz = self.chunks.get(&(cx - 1, cz + 1)).map(|c| &c.sections[sy]);
+            let diag_nx_nz = self.chunks.get(&(cx - 1, cz - 1)).map(|c| &c.sections[sy]);
             let neighbor_py = col.sections.get(sy + 1);
             let neighbor_ny = if sy > 0 { col.sections.get(sy - 1) } else { None };
             let oy_us = sy * 16;
@@ -165,6 +171,7 @@ impl World {
             let mesh = meshing::mesh_section(
                 section,
                 neighbor_px, neighbor_nx, neighbor_py, neighbor_ny, neighbor_pz, neighbor_nz,
+                diag_px_pz, diag_px_nz, diag_nx_pz, diag_nx_nz,
                 tex_of,
                 &light_of,
             );
@@ -176,7 +183,7 @@ impl World {
                     position: [v.position[0], v.position[1] + oy, v.position[2]],
                     ..*v
                 };
-                if v.tex_index == WATER_TEX_LAYER {
+                if meshing::is_water_layer(v.tex_index) {
                     remap[vi] = water.vertices.len() as u32;
                     water.vertices.push(world_v);
                 } else {
@@ -186,7 +193,7 @@ impl World {
             }
             for i in mesh.indices {
                 let vi = i as usize;
-                if mesh.vertices[vi].tex_index == WATER_TEX_LAYER {
+                if meshing::is_water_layer(mesh.vertices[vi].tex_index) {
                     water.indices.push(remap[vi]);
                 } else {
                     opaque.indices.push(remap[vi]);

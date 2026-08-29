@@ -26,6 +26,12 @@ var<uniform> uniforms: Uniforms;
 
 @group(1) @binding(0)
 var t_diffuse: texture_2d_array<f32>;
+
+// Section E (connected textures): the CTM strip atlas. Vertices whose
+// tex_index is >= 165 carry a CTM marker instead of an atlas layer; their
+// tex_coord already points at the right 16x16 tile of this texture.
+@group(1) @binding(2)
+var t_ctm: texture_2d<f32>;
 @group(1) @binding(1)
 var s_diffuse: sampler;
 
@@ -65,7 +71,14 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let color = textureSample(t_diffuse, s_diffuse, in.tex_coord, in.tex_index);
+    // textureSample requires uniform control flow, so the CTM branch uses
+    // textureSampleBias (bias 0 = the same automatic LOD).
+    var color: vec4<f32>;
+    if (in.tex_index >= 165u) {
+        color = textureSampleBias(t_ctm, s_diffuse, in.tex_coord, 0.0);
+    } else {
+        color = textureSample(t_diffuse, s_diffuse, in.tex_coord, in.tex_index);
+    }
     // alpha cutout (leaves, glass panes, crack decals). Water (a ~0.67) and
     // ice (~0.78) sit above the threshold and render solid/blended.
     if (color.a < 0.5) { discard; }

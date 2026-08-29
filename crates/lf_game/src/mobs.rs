@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use glam::Vec3;
 use lf_voxel::World;
 
+use crate::mob_pathfind::{self, BlockPos, CachedPath};
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MobType {
     // Passive
@@ -26,6 +27,24 @@ impl MobType {
     pub fn is_hostile(self) -> bool {
         matches!(self, MobType::Glitchling | MobType::Stalker | MobType::Crawler | MobType::NullKnight
             | MobType::NamelessRaider)
+    }
+
+    /// Boss-tier mobs own their AI elsewhere (the dragon flies via
+    /// `DragonBrain`). The generic behaviour machine never drives them.
+    /// The NullKnight keeps the generic machine for now — it has no boss
+    /// brain yet, and freezing it solid would be a regression, not a
+    /// "boss phase" (full boss AI is its own task).
+    pub fn use_boss_ai(self) -> bool {
+        matches!(self, MobType::Dragon)
+    }
+
+    /// B3: mobs can belong to a lore faction; the player's standing with
+    /// that faction widens or calms their aggro radius.
+    pub fn faction(self) -> Option<&'static str> {
+        match self {
+            MobType::NamelessRaider => Some("nameless"),
+            _ => None,
+        }
     }
 
     pub fn stats(self) -> MobStats {
@@ -84,6 +103,63 @@ pub struct MobStats {
     pub detect: f32,
 }
 
+/// B1: the mob behaviour state machine. One variant per intention; the
+/// update loop reads the variant, acts, and transitions. The sim has a
+/// single targetable actor (the player), so Chase/Attack carry no target
+/// id — if pets or multi-actor combat arrive, the target rides here.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MobBehaviourState {
+    /// Default: exploring territory, no target
+    Wander { timer: f32, next_pos: Option<BlockPos> },
+    /// Target acquired, moving toward it. `aggro_timer` accumulates the
+    /// whole engagement (shared with Attack via `combat_time`), `react_delay`
+    /// is the group-aggro reaction pause, `unseen_for` counts lost LOS.
+    Chase { aggro_timer: f32, react_delay: f32, unseen_for: f32 },
+    /// Taking damage, moving away from threat
+    Flee { threat_pos: [f32; 3], flee_timer: f32 },
+    /// Cannot see target, searching last known position
+    Investigate { last_known: BlockPos, search_timer: f32 },
+    /// In combat range, executing attack
+    Attack { cooldown: f32 },
+    /// After long combat with no kill, mob disengages
+    Disengage { cooldown: f32 },
+    /// Mob is idle (passive mobs, or between behaviours)
+    Idle { timer: f32 },
+}
+
+impl Default for MobBehaviourState {
+    fn default() -> Self {
+        MobBehaviourState::Wander { timer: 0.0, next_pos: None }
+    }
+}
+
+/// B2 (ai-npc-assets): cheap DDA voxel raycast from `from` to `to`.
+/// False when a solid block blocks the ray or the target is beyond 32
+/// blocks. Callers cache the result per mob per tick.
+pub fn has_line_of_sight(from: Vec3, to: Vec3, world: &World) -> bool {
+    let delta = to - from;
+    let dist = delta.length();
+    if dist > 32.0 {
+        return false;
+    }
+    if dist < 0.05 {
+        return true;
+    }
+    // stop just short of the target cell so the target's own body cell
+    // never counts as an obstruction
+    let hit = lf_voxel::raycast::raycast_voxel(from, delta / dist, dist - 0.25, |cell| {
+        world.is_solid(cell.x, cell.y, cell.z)
+    });
+    hit.is_none()
+}
+
+/// B3: standing modulates the aggro radius. +100 standing → 0.0 (mob
+/// ignores the player entirely unless attacked), −100 → double radius.
+pub fn effective_aggro_radius(base_radius: f32, standing: i32) -> f32 {
+    let standing_factor = 1.0 - (standing as f32 / 100.0).clamp(-1.0, 1.0);
+    base_radius * standing_factor
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MobEntity {
     pub id: u64,
@@ -103,6 +179,25 @@ pub struct MobEntity {
     pub dragon: Option<crate::dragons::DragonBrain>,
     #[serde(default)]
     pub roost: Option<[f32; 3]>,
+    /// B1: current behaviour (serde-defaulted so pre-upgrade saves load).
+    #[serde(default)]
+    pub behaviour: MobBehaviourState,
+    /// B3: lore faction this mob belongs to, if any.
+    #[serde(default)]
+    pub faction_id: Option<String>,
+    /// B2: LOS cache, recomputed at most once per update tick.
+    #[serde(default)]
+    pub los_to_player: bool,
+    /// B1: total time spent in this engagement (Chase + Attack).
+    #[serde(default)]
+    pub combat_time: f32,
+    /// B4: set for one tick when this mob aggroes on its own so the
+    /// owner can let first-order neighbours join (never chains).
+    #[serde(default)]
+    pub group_ping: bool,
+    /// B5: cached A* route for Chase/Investigate.
+    #[serde(default)]
+    pub path: Option<CachedPath>,
 }
 
 impl MobEntity {
@@ -121,56 +216,350 @@ impl MobEntity {
             age: 0.0,
             dragon: (mob_type == MobType::Dragon).then(crate::dragons::DragonBrain::default),
             roost: None,
+            behaviour: MobBehaviourState::Wander { timer: 0.0, next_pos: None },
+            faction_id: mob_type.faction().map(str::to_string),
+            los_to_player: false,
+            combat_time: 0.0,
+            group_ping: false,
+            path: None,
         }
     }
 
-    /// One AI + physics step. Returns Some(damage_to_player) when this mob
-    /// lands an attack this frame.
+    /// One AI + physics step (no faction standing; equivalent to
+    /// standing 0). Returns Some(damage_to_player) when this mob lands
+    /// an attack this frame.
     pub fn update(&mut self, dt: f32, world: &World, player_pos: Vec3) -> Option<f32> {
+        self.update_with_standing(dt, world, player_pos, 0)
+    }
+
+    /// B4 hook: when a mob aggroes on its own it pings once; the owner
+    /// (client) calls this so nearby same-type mobs join the chase with
+    /// a 0.5s reaction delay. First-order neighbours only (mobs already
+    /// in Chase/Attack never re-propagate), group capped at 5, and a
+    /// fleeing passive never drags anyone into a fight.
+    pub fn propagate_group_aggro(mobs: &mut [MobEntity], origin: usize, target: Vec3) {
+        let Some(origin_mob) = mobs.get(origin) else { return };
+        if !origin_mob.mob_type.is_hostile() {
+            return;
+        }
+        let kind = origin_mob.mob_type;
+        let opos = origin_mob.position;
+        let group: Vec<usize> = (0..mobs.len())
+            .filter(|&i| {
+                mobs[i].mob_type == kind && mobs[i].position.distance(opos) <= 8.0
+            })
+            .collect();
+        if group.len() > 5 {
+            return; // too big a pack: perf and player experience both suffer
+        }
+        for &i in &group {
+            if i == origin {
+                continue;
+            }
+            if matches!(
+                mobs[i].behaviour,
+                MobBehaviourState::Chase { .. } | MobBehaviourState::Attack { .. }
+            ) {
+                continue; // already fighting; never chains beyond first-order
+            }
+            mobs[i].behaviour = MobBehaviourState::Chase {
+                aggro_timer: 0.0,
+                react_delay: 0.5,
+                unseen_for: 0.0,
+            };
+            mobs[i].combat_time = 0.0;
+        }
+        let _ = target;
+    }
+
+    /// Deterministic per-mob pseudo-random in 0..N (id-hashed, stable).
+    fn hash_mod(&self, salt: u64, n: u64) -> u64 {
+        (self.id.wrapping_mul(2654435761).wrapping_add(salt)) % n
+    }
+
+    fn eye(&self) -> Vec3 {
+        Vec3::new(self.position.x, self.position.y + 0.9, self.position.z)
+    }
+
+    fn feet_block(&self) -> BlockPos {
+        [
+            self.position.x.floor() as i32,
+            self.position.y.floor() as i32,
+            self.position.z.floor() as i32,
+        ]
+    }
+
+    /// B5: steer toward `goal_block` along a cached A* path, recomputing
+    /// when stale (older than 2s, goal drifted >4 blocks, or exhausted).
+    /// Falls back to the direct wish when the goal is out of A* range or
+    /// no path exists. Returns the movement wish.
+    fn path_wish(&mut self, goal_block: BlockPos, world: &World, dt: f32) -> (f32, f32) {
+        let start = self.feet_block();
+        let in_range = mob_pathfind::path_distance(start, goal_block) <= mob_pathfind::MAX_PATH_RANGE;
+        if in_range {
+            match &mut self.path {
+                Some(p) if p.age < 2.0 && mob_pathfind::path_distance(p.goal, goal_block) <= 4 => {
+                    p.age += dt;
+                }
+                _ => {
+                    self.path = mob_pathfind::find_path(start, goal_block, world, mob_pathfind::MAX_PATH_NODES)
+                        .map(|nodes| CachedPath { nodes, goal: goal_block, age: 0.0, cursor: 0 });
+                }
+            }
+        } else {
+            self.path = None;
+        }
+        if let Some(p) = &mut self.path {
+            // advance the cursor past nodes we are standing on
+            while let Some(node) = p.nodes.get(p.cursor) {
+                let dx = node[0] as f32 + 0.5 - self.position.x;
+                let dz = node[2] as f32 + 0.5 - self.position.z;
+                if dx * dx + dz * dz < 0.45 * 0.45 {
+                    p.cursor += 1;
+                } else {
+                    break;
+                }
+            }
+            let target = match p.nodes.get(p.cursor) {
+                Some(node) => Vec3::new(node[0] as f32 + 0.5, self.position.y, node[2] as f32 + 0.5),
+                None => Vec3::new(
+                    goal_block[0] as f32 + 0.5,
+                    self.position.y,
+                    goal_block[2] as f32 + 0.5,
+                ),
+            };
+            let d = target - self.position;
+            let len = (d.x * d.x + d.z * d.z).sqrt();
+            if len > 0.05 {
+                return (d.x / len, d.z / len);
+            }
+            return (0.0, 0.0);
+        }
+        // fallback: direct steering (also covers out-of-range goals)
+        let d = Vec3::new(
+            goal_block[0] as f32 + 0.5 - self.position.x,
+            0.0,
+            goal_block[2] as f32 + 0.5 - self.position.z,
+        );
+        let len = (d.x * d.x + d.z * d.z).sqrt();
+        if len > 0.05 {
+            (d.x / len, d.z / len)
+        } else {
+            (0.0, 0.0)
+        }
+    }
+
+    /// One AI + physics step with the player's faction standing applied
+    /// (B3). `standing` is the player's standing with THIS mob's faction
+    /// (0 when the mob is unaffiliated).
+    pub fn update_with_standing(&mut self, dt: f32, world: &World, player_pos: Vec3, standing: i32) -> Option<f32> {
         self.age += dt;
         self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
         self.hurt_flash = (self.hurt_flash - dt * 3.0).max(0.0);
         let stats = self.mob_type.stats();
 
-        // --- AI
+        // Bosses with their own brain are owned by the client flight loop.
+        if self.mob_type.use_boss_ai() && self.dragon.is_some() {
+            return None;
+        }
+
         let to_player = player_pos - self.position;
         let dist = to_player.length();
+        let player_block: BlockPos = [
+            player_pos.x.floor() as i32,
+            player_pos.y.floor() as i32,
+            player_pos.z.floor() as i32,
+        ];
+        let aggro_radius = effective_aggro_radius(stats.detect, standing);
+
         let mut wish: (f32, f32) = (0.0, 0.0);
-        if self.mob_type.is_hostile() && dist < stats.detect {
-            // chase the player
-            if dist > 1.2 {
-                let dir = to_player.normalize();
-                wish = (dir.x, dir.z);
-            }
-            // attack when close
-            if dist < 1.9 && self.attack_cooldown <= 0.0 && to_player.y.abs() < 2.0 {
-                self.attack_cooldown = 1.0;
-                return Some(stats.damage);
-            }
-        } else {
-            // wander / flee
-            self.wander_cooldown -= dt;
-            if self.hurt_flash > 0.0 && !self.mob_type.is_hostile() {
-                // flee straight away from the last hit (stored in yaw)
-                wish = (-self.yaw.sin(), -self.yaw.cos());
-            } else if self.wander_cooldown <= 0.0 {
-                self.wander_cooldown = 2.0 + ((self.id * 2654435761) % 3000) as f32 / 1000.0;
-                if (self.id + self.age as u64) % 3 == 0 {
-                    self.wander_dir = (0.0, 0.0); // idle
+        let mut speed_mult = 1.0f32;
+        let mut strike: Option<f32> = None;
+
+        match self.behaviour.clone() {
+            MobBehaviourState::Idle { mut timer } => {
+                timer -= dt;
+                if timer <= 0.0 {
+                    // Idle → Wander after a random 3–8s pause
+                    self.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+                    self.wander_cooldown = 0.0;
                 } else {
-                    let a = ((self.id * 7919 + (self.age as u64 * 13)) % 360) as f32 / 57.3;
-                    self.wander_dir = (a.sin(), a.cos());
+                    self.behaviour = MobBehaviourState::Idle { timer };
                 }
             }
-            wish = self.wander_dir;
+            MobBehaviourState::Wander { timer, next_pos } => {
+                // Wander → Chase: hostile, inside the (standing-modulated)
+                // aggro radius, and the player is actually visible.
+                if self.mob_type.is_hostile() && aggro_radius > 0.0 && dist < aggro_radius {
+                    self.los_to_player = has_line_of_sight(
+                        self.eye(),
+                        Vec3::new(player_pos.x, player_pos.y + 1.2, player_pos.z),
+                        world,
+                    );
+                    if self.los_to_player {
+                        self.combat_time = 0.0;
+                        self.group_ping = true;
+                        self.behaviour = MobBehaviourState::Chase {
+                            aggro_timer: 0.0,
+                            react_delay: 0.0,
+                            unseen_for: 0.0,
+                        };
+                    } else {
+                        self.behaviour = MobBehaviourState::Wander { timer, next_pos };
+                        self.wander_step(dt, timer, next_pos, &mut wish);
+                    }
+                } else {
+                    self.wander_step(dt, timer, next_pos, &mut wish);
+                }
+            }
+            MobBehaviourState::Chase { aggro_timer, mut react_delay, mut unseen_for } => {
+                self.combat_time += dt;
+                if self.combat_time > 30.0 {
+                    // Chase → Disengage: long fight, no kill — break off
+                    self.path = None;
+                    self.behaviour = MobBehaviourState::Disengage { cooldown: 8.0 };
+                } else {
+                    self.los_to_player = has_line_of_sight(
+                        self.eye(),
+                        Vec3::new(player_pos.x, player_pos.y + 1.2, player_pos.z),
+                        world,
+                    );
+                    if self.los_to_player {
+                        unseen_for = 0.0;
+                    } else {
+                        unseen_for += dt;
+                    }
+                    if unseen_for > 2.0 {
+                        // Chase → Investigate: lost sight for >2s
+                        self.path = None;
+                        let search = 8.0 + self.hash_mod(11, 8) as f32;
+                        self.behaviour = MobBehaviourState::Investigate {
+                            last_known: player_block,
+                            search_timer: search,
+                        };
+                    } else if dist <= 1.5 && to_player.y.abs() < 2.0 {
+                        // Chase → Attack: in melee range
+                        self.behaviour = MobBehaviourState::Attack { cooldown: 0.0 };
+                    } else {
+                        if react_delay > 0.0 {
+                            // group-aggro reaction pause: stand, then commit
+                            react_delay -= dt;
+                            self.behaviour = MobBehaviourState::Chase {
+                                aggro_timer: aggro_timer + dt,
+                                react_delay,
+                                unseen_for,
+                            };
+                        } else {
+                            wish = self.path_wish(player_block, world, dt);
+                            self.behaviour = MobBehaviourState::Chase {
+                                aggro_timer: aggro_timer + dt,
+                                react_delay: 0.0,
+                                unseen_for,
+                            };
+                        }
+                    }
+                }
+            }
+            MobBehaviourState::Attack { mut cooldown } => {
+                self.combat_time += dt;
+                if self.combat_time > 30.0 {
+                    // the whole engagement (Chase + Attack) timed out
+                    self.path = None;
+                    self.behaviour = MobBehaviourState::Disengage { cooldown: 8.0 };
+                } else if dist > 1.5 {
+                    // Attack → Chase: target slipped out of melee range
+                    self.behaviour = MobBehaviourState::Chase {
+                        aggro_timer: 0.0,
+                        react_delay: 0.0,
+                        unseen_for: 0.0,
+                    };
+                } else {
+                    cooldown = cooldown.max(0.0) - dt;
+                    if cooldown <= 0.0 && to_player.y.abs() < 2.0 {
+                        cooldown = 1.0;
+                        strike = Some(stats.damage);
+                    }
+                    self.behaviour = MobBehaviourState::Attack { cooldown };
+                }
+            }
+            MobBehaviourState::Flee { threat_pos, mut flee_timer } => {
+                flee_timer -= dt;
+                let threat = Vec3::from(threat_pos);
+                let threat_visible = has_line_of_sight(
+                    self.eye(),
+                    Vec3::new(threat.x, threat.y + 1.2, threat.z),
+                    world,
+                );
+                if !threat_visible {
+                    // Flee → Wander: lost sight of the threat (even early)
+                    self.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+                    self.wander_cooldown = 0.0;
+                } else if flee_timer < -5.0 {
+                    // threat still visible but we have fled long enough
+                    self.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+                    self.wander_cooldown = 0.0;
+                } else {
+                    let away = self.position - threat;
+                    let len = (away.x * away.x + away.z * away.z).sqrt().max(0.001);
+                    wish = (away.x / len, away.z / len);
+                    speed_mult = 1.5;
+                    self.behaviour = MobBehaviourState::Flee { threat_pos, flee_timer };
+                }
+            }
+            MobBehaviourState::Investigate { last_known, mut search_timer } => {
+                self.los_to_player = self.mob_type.is_hostile()
+                    && dist < stats.detect
+                    && has_line_of_sight(
+                        self.eye(),
+                        Vec3::new(player_pos.x, player_pos.y + 1.2, player_pos.z),
+                        world,
+                    );
+                if self.los_to_player {
+                    // Investigate → Chase: target spotted again
+                    self.combat_time = 0.0;
+                    self.group_ping = true;
+                    self.behaviour = MobBehaviourState::Chase {
+                        aggro_timer: 0.0,
+                        react_delay: 0.0,
+                        unseen_for: 0.0,
+                    };
+                } else {
+                    search_timer -= dt;
+                    if search_timer <= 0.0 {
+                        // Investigate → Wander: gave up the search
+                        self.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+                        self.wander_cooldown = 0.0;
+                    } else {
+                        let here = self.feet_block();
+                        let arrived = (here[0] - last_known[0]).abs() <= 1
+                            && (here[2] - last_known[2]).abs() <= 1;
+                        if !arrived {
+                            wish = self.path_wish(last_known, world, dt);
+                        }
+                        self.behaviour = MobBehaviourState::Investigate { last_known, search_timer };
+                    }
+                }
+            }
+            MobBehaviourState::Disengage { mut cooldown } => {
+                cooldown -= dt;
+                if cooldown <= 0.0 {
+                    let idle = 3.0 + self.hash_mod(7, 5) as f32;
+                    self.behaviour = MobBehaviourState::Idle { timer: idle };
+                } else {
+                    self.behaviour = MobBehaviourState::Disengage { cooldown };
+                }
+            }
         }
-        let wish_len = (wish.0 * wish.0 + wish.1 * wish.1).sqrt();
+
+        if let Some(damage) = strike {
+            return Some(damage);
+        }        let wish_len = (wish.0 * wish.0 + wish.1 * wish.1).sqrt();
         if wish_len > 0.001 {
             self.yaw = wish.0.atan2(wish.1);
         }
 
         // --- physics: horizontal move with step-up jumping, gravity
-        let speed = if self.hurt_flash > 0.0 && !self.mob_type.is_hostile() { stats.speed * 2.0 } else { stats.speed };
+        let speed = stats.speed * speed_mult;
         self.velocity.x = wish.0 / wish_len.max(1.0) * speed;
         self.velocity.z = wish.1 / wish_len.max(1.0) * speed;
         self.velocity.y -= 24.0 * dt;
@@ -199,6 +588,51 @@ impl MobEntity {
         None
     }
 
+    /// Wander steering: pick a territory target within ~6 blocks, walk
+    /// there, occasionally pause (the "creature with a home" feel).
+    fn wander_step(
+        &mut self,
+        dt: f32,
+        timer: f32,
+        next_pos: Option<BlockPos>,
+        wish: &mut (f32, f32),
+    ) {
+        self.wander_cooldown -= dt;
+        let here = self.feet_block();
+        let arrived = next_pos
+            .map(|p| (p[0] - here[0]).abs() + (p[2] - here[2]).abs() <= 0)
+            .unwrap_or(true);
+        if self.wander_cooldown <= 0.0 || arrived {
+            self.wander_cooldown = 2.0 + self.hash_mod(3, 3000) as f32 / 1000.0;
+            if self.hash_mod(5, 3) == 0 {
+                // stand still and look around for a while (proper Idle so
+                // the pause actually lasts a couple of seconds)
+                self.behaviour = MobBehaviourState::Idle {
+                    timer: 2.0 + self.hash_mod(19, 4) as f32,
+                };
+                *wish = (0.0, 0.0);
+                return;
+            }
+            let a = (self.hash_mod(13, 360) as f32) / 57.3;
+            let r = 2 + self.hash_mod(17, 5) as i32;
+            let target: BlockPos = [
+                here[0] + (a.sin() * r as f32).round() as i32,
+                here[1],
+                here[2] + (a.cos() * r as f32).round() as i32,
+            ];
+            self.behaviour = MobBehaviourState::Wander { timer: timer + dt, next_pos: Some(target) };
+            *wish = (a.sin(), a.cos());
+        } else if let Some(p) = next_pos {
+            let dx = p[0] as f32 + 0.5 - self.position.x;
+            let dz = p[2] as f32 + 0.5 - self.position.z;
+            let len = (dx * dx + dz * dz).sqrt();
+            if len > 0.1 {
+                *wish = (dx / len, dz / len);
+            }
+            self.behaviour = MobBehaviourState::Wander { timer: timer + dt, next_pos };
+        }
+    }
+
     /// Player attack: apply damage + knockback. Returns true if this kills.
     pub fn take_hit(&mut self, damage: f32, from: Vec3) -> bool {
         self.health -= damage;
@@ -207,6 +641,24 @@ impl MobEntity {
         self.velocity.x = push.x;
         self.velocity.z = push.z;
         self.velocity.y = 4.0;
+        // B1: being attacked overrides the current intention. Passives
+        // bolt; fighters commit even at honored standing (the only way
+        // past `effective_aggro_radius == 0`).
+        if self.mob_type.is_hostile() {
+            self.combat_time = self.combat_time.max(0.0);
+            self.group_ping = true;
+            self.behaviour = MobBehaviourState::Chase {
+                aggro_timer: 0.0,
+                react_delay: 0.0,
+                unseen_for: 0.0,
+            };
+        } else {
+            self.path = None;
+            self.behaviour = MobBehaviourState::Flee {
+                threat_pos: [from.x, from.y, from.z],
+                flee_timer: 5.0,
+            };
+        }
         self.health <= 0.0
     }
 }
@@ -260,16 +712,28 @@ mod tests {
 
     fn flat_world() -> World {
         let mut w = World::new();
-        w.ensure_chunk(0, 0);
-        w.ensure_chunk(0, 1);
-        w.ensure_chunk(1, 0);
-        w.ensure_chunk(1, 1);
+        // chunks for the full -20..19 strip (set_block silently drops
+        // edits in chunks that were never ensured)
+        for cx in -2..=1 {
+            for cz in -2..=1 {
+                w.ensure_chunk(cx, cz);
+            }
+        }
         for x in 0..40 {
             for z in 0..40 {
                 w.set_block(x - 20, 0, z - 20, BlockState::STONE);
             }
         }
         w
+    }
+
+    /// Wall through the whole playable strip so LOS across z=0 dies.
+    fn wall(w: &mut World, x: i32) {
+        for z in -20..20 {
+            w.set_block(x, 1, z, BlockState::STONE);
+            w.set_block(x, 2, z, BlockState::STONE);
+            w.set_block(x, 3, z, BlockState::STONE);
+        }
     }
 
     #[test]
@@ -307,6 +771,7 @@ mod tests {
         }
         // no attack ever
         assert!(!m.mob_type.is_hostile());
+        assert!(matches!(m.behaviour, MobBehaviourState::Wander { .. } | MobBehaviourState::Idle { .. }));
     }
 
     #[test]
@@ -315,6 +780,7 @@ mod tests {
         assert!(!m.take_hit(10.0, Vec3::new(1.0, 5.0, 0.0)));
         assert!(m.hurt_flash > 0.0);
         assert!(m.velocity.x < 0.0, "knocked away from attacker");
+        assert!(matches!(m.behaviour, MobBehaviourState::Chase { .. }), "hostile commits when struck");
         assert!(m.take_hit(20.0, Vec3::new(1.0, 5.0, 0.0)));
         assert!(m.health <= 0.0);
     }
@@ -330,5 +796,197 @@ mod tests {
         assert!(day.contains(&MobType::Boar) && !night.contains(&MobType::Boar));
         assert!(night.contains(&MobType::Glitchling) && !day.contains(&MobType::Glitchling));
         assert!(night.contains(&MobType::NullKnight));
+    }
+
+    /// Failure meaning: the mob state machine has a broken transition.
+    /// Walks every edge in the B1 transition table.
+    #[test]
+    fn mob_ai_state_transitions() {
+        let mut w = flat_world();
+        let far = Vec3::new(60.0, 1.0, 60.0); // beyond every aggro radius
+
+        // Idle → Wander after the idle timer expires
+        let mut m = MobEntity::spawn(21, MobType::Glitchling, Vec3::new(2.0, 1.0, 0.0));
+        m.behaviour = MobBehaviourState::Idle { timer: 0.3 };
+        m.update(0.4, &w, far);
+        assert!(matches!(m.behaviour, MobBehaviourState::Wander { .. }), "{:?}", m.behaviour);
+
+        // Wander → Chase when a hostile sees the player
+        m.position = Vec3::new(6.0, 1.0, 0.0);
+        m.update(0.05, &w, Vec3::new(0.0, 1.0, 0.0));
+        assert!(matches!(m.behaviour, MobBehaviourState::Chase { react_delay: 0.0, .. }), "{:?}", m.behaviour);
+        assert!(m.group_ping, "self-aggro pings the group");
+
+        // Chase → Attack at melee range; the strike lands on the next
+        // tick (cooldown starts at 0 and expires immediately)
+        m.position = Vec3::new(1.2, 1.0, 0.0);
+        let hit1 = m.update(0.05, &w, Vec3::new(0.0, 1.0, 0.0));
+        assert!(matches!(m.behaviour, MobBehaviourState::Attack { .. }), "{:?}", m.behaviour);
+        assert_eq!(hit1, None, "entry tick only transitions");
+        let hit2 = m.update(0.05, &w, Vec3::new(0.0, 1.0, 0.0));
+        assert_eq!(hit2, Some(4.0), "attack lands once the cooldown expires");
+        m.position = Vec3::new(4.0, 1.0, 0.0);
+        m.update(0.05, &w, Vec3::new(0.0, 1.0, 0.0));
+        assert!(matches!(m.behaviour, MobBehaviourState::Chase { .. }), "{:?}", m.behaviour);
+
+        // Chase → Investigate after >2s without line of sight (the mob
+        // starts far enough that it cannot reach or hop the wall first)
+        wall(&mut w, 3);
+        m.position = Vec3::new(12.0, 1.0, 0.0);
+        m.behaviour = MobBehaviourState::Chase { aggro_timer: 0.0, react_delay: 0.0, unseen_for: 0.0 };
+        let mut saw_investigate = false;
+        for _ in 0..60 {
+            m.update(0.05, &w, Vec3::new(0.0, 1.0, 0.0));
+            if let MobBehaviourState::Investigate { last_known, .. } = &m.behaviour {
+                assert_eq!(last_known, &[0, 1, 0], "remembers the last known player block");
+                saw_investigate = true;
+                break;
+            }
+        }
+        assert!(saw_investigate, "never lost the trail through the wall");
+
+        // Investigate → Chase when the target steps back into view
+        w.set_block(3, 1, -15, BlockState::AIR); // breach the wall low at z=-15
+        m.position = Vec3::new(4.0, 1.0, -15.0);
+        m.update(0.05, &w, Vec3::new(0.0, 1.0, -15.0));
+        assert!(matches!(m.behaviour, MobBehaviourState::Chase { .. }), "{:?}", m.behaviour);
+        // close the breach again
+        w.set_block(3, 1, -15, BlockState::STONE);
+
+        // Investigate → Wander when the search timer runs out
+        m.behaviour = MobBehaviourState::Investigate { last_known: [0, 1, 0], search_timer: 0.2 };
+        m.update(0.3, &w, Vec3::new(20.0, 1.0, 0.0));
+        assert!(matches!(m.behaviour, MobBehaviourState::Wander { .. }), "{:?}", m.behaviour);
+
+        // Wander → Flee when a passive is struck; Flee → Wander when the threat is unseen
+        let mut boar = MobEntity::spawn(22, MobType::Boar, Vec3::new(0.0, 1.0, 0.0));
+        boar.take_hit(3.0, Vec3::new(2.0, 1.0, 0.0));
+        assert!(matches!(boar.behaviour, MobBehaviourState::Flee { .. }), "{:?}", boar.behaviour);
+        let before = boar.position;
+        boar.update(0.1, &w, Vec3::new(2.0, 1.0, 0.0));
+        assert!(boar.position.distance(before) > 0.05, "fleeing boar actually moves");
+        // wall the boar off from the threat: LOS dies → back to Wander
+        wall(&mut w, 5);
+        boar.position = Vec3::new(8.0, 1.0, 0.0);
+        boar.behaviour = MobBehaviourState::Flee { threat_pos: [2.0, 1.0, 0.0], flee_timer: 4.0 };
+        boar.update(0.05, &w, Vec3::new(2.0, 1.0, 0.0));
+        assert!(matches!(boar.behaviour, MobBehaviourState::Wander { .. }), "{:?}", boar.behaviour);
+        w.set_block(5, 1, -25, BlockState::AIR);
+        w.set_block(5, 2, -25, BlockState::AIR);
+        w.set_block(5, 3, -25, BlockState::AIR);
+
+        // Chase → Disengage after 30s of combat without a kill; Disengage → Idle
+        // (kept inside the floor strip: outside it the mob falls out of the world)
+        let mut stalker = MobEntity::spawn(23, MobType::Stalker, Vec3::new(14.0, 1.0, 0.0));
+        stalker.behaviour = MobBehaviourState::Chase { aggro_timer: 0.0, react_delay: 0.0, unseen_for: 0.0 };
+        let mut disengaged = false;
+        for _ in 0..(33 * 20) {
+            stalker.update(0.05, &w, Vec3::new(14.5, 1.0, 0.0));
+            if matches!(stalker.behaviour, MobBehaviourState::Disengage { .. }) {
+                disengaged = true;
+                break;
+            }
+        }
+        assert!(disengaged, "a 30s fight with no kill must break off");
+        stalker.behaviour = MobBehaviourState::Disengage { cooldown: 0.1 };
+        stalker.update(0.2, &w, Vec3::new(60.0, 1.0, 60.0));
+        assert!(matches!(stalker.behaviour, MobBehaviourState::Idle { .. }), "{:?}", stalker.behaviour);
+    }
+
+    /// Failure meaning: the LOS raycast sees through (or is blocked by)
+    /// blocks it should not.
+    #[test]
+    fn mob_los_check() {
+        let w = flat_world();
+        let from = Vec3::new(0.5, 1.9, 0.5);
+        let to = Vec3::new(6.5, 1.9, 0.5);
+        assert!(has_line_of_sight(from, to, &w), "open flat ground is visible");
+        let mut w = flat_world();
+        w.set_block(3, 1, 0, BlockState::STONE);
+        w.set_block(3, 2, 0, BlockState::STONE);
+        w.set_block(3, 3, 0, BlockState::STONE);
+        assert!(!has_line_of_sight(from, to, &w), "a wall between breaks LOS");
+        let very_far = Vec3::new(0.5, 1.9, 40.5);
+        assert!(!has_line_of_sight(from, very_far, &w), "beyond 32 blocks LOS is false");
+        assert!(has_line_of_sight(from, from + Vec3::new(0.01, 0.0, 0.0), &w), "trivial case");
+    }
+
+    /// Failure meaning: group aggro either fails to recruit nearby
+    /// same-type mobs or ignores its caps.
+    #[test]
+    fn mob_group_aggro() {
+        let mut mobs = Vec::new();
+        // three glitchlings clustered at the origin, one far away,
+        // one passive boar in the cluster
+        for i in 0..3 {
+            let mut m = MobEntity::spawn(30 + i, MobType::Glitchling, Vec3::new(i as f32 * 2.0, 1.0, 0.0));
+            m.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+            mobs.push(m);
+        }
+        let mut far = MobEntity::spawn(40, MobType::Glitchling, Vec3::new(60.0, 1.0, 0.0));
+        far.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+        let mut boar = MobEntity::spawn(41, MobType::Boar, Vec3::new(1.0, 1.0, 3.0));
+        boar.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+        mobs.push(far);
+        mobs.push(boar);
+
+        mobs[0].group_ping = true;
+        MobEntity::propagate_group_aggro(&mut mobs, 0, Vec3::new(0.0, 1.0, 20.0));
+        assert!(matches!(mobs[1].behaviour, MobBehaviourState::Chase { react_delay, .. } if react_delay == 0.5), "{:?}", mobs[1].behaviour);
+        assert!(matches!(mobs[2].behaviour, MobBehaviourState::Chase { react_delay, .. } if react_delay == 0.5));
+        assert!(matches!(mobs[3].behaviour, MobBehaviourState::Wander { .. }), "distant same-type stays calm");
+        assert!(matches!(mobs[4].behaviour, MobBehaviourState::Wander { .. }), "passives never join");
+        // the origin keeps its own (immediate) chase
+        assert!(matches!(mobs[0].behaviour, MobBehaviourState::Wander { .. } | MobBehaviourState::Chase { .. }));
+
+        // pack cap: 6 same-type mobs all within 8 blocks → nobody joins
+        let mut pack: Vec<MobEntity> = (0..6)
+            .map(|i| {
+                let mut m = MobEntity::spawn(50 + i, MobType::Crawler, Vec3::new(i as f32 * 1.5, 1.0, 0.0));
+                m.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+                m
+            })
+            .collect();
+        MobEntity::propagate_group_aggro(&mut pack, 0, Vec3::ZERO);
+        assert!(matches!(pack[1].behaviour, MobBehaviourState::Wander { .. }), "groups >5 never mass-aggro");
+
+        // no chain: recruited mobs never set group_ping (only self-aggro
+        // and taking a hit do), so the owner never propagates from them
+        let duo_world = flat_world();
+        let mut duo: Vec<MobEntity> = (0..2)
+            .map(|i| {
+                let mut m = MobEntity::spawn(60 + i, MobType::Stalker, Vec3::new(i as f32 * 3.0 + 5.0, 1.0, 0.0));
+                m.behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+                m
+            })
+            .collect();
+        MobEntity::propagate_group_aggro(&mut duo, 0, Vec3::ZERO);
+        assert!(matches!(duo[1].behaviour, MobBehaviourState::Chase { .. }));
+        for _ in 0..20 {
+            duo[1].update(0.05, &duo_world, Vec3::new(50.0, 1.0, 0.0));
+        }
+        assert!(!duo[1].group_ping, "a recruited mob must not re-ping (no chains)");
+    }
+
+    /// Failure meaning: faction standing does not actually gate aggro.
+    #[test]
+    fn faction_standing_gates_aggro() {
+        let w = flat_world();
+        let mut m = MobEntity::spawn(70, MobType::NamelessRaider, Vec3::new(3.0, 1.0, 0.0));
+        assert_eq!(m.faction_id.as_deref(), Some("nameless"));
+        // honored to the brim (+100): radius 0 → ignores the player entirely
+        m.update_with_standing(0.05, &w, Vec3::new(0.0, 1.0, 0.0), 100);
+        assert!(!matches!(m.behaviour, MobBehaviourState::Chase { .. } | MobBehaviourState::Attack { .. }),
+            "at +100 standing the mob must never aggro, got {:?}", m.behaviour);
+        // ...unless attacked
+        m.take_hit(2.0, Vec3::new(0.0, 1.0, 0.0));
+        assert!(matches!(m.behaviour, MobBehaviourState::Chase { .. }));
+        // honored-but-not-max (+75): radius shrinks to a quarter, still aggroes up close
+        let mut m2 = MobEntity::spawn(71, MobType::NamelessRaider, Vec3::new(2.0, 1.0, 0.0));
+        m2.update_with_standing(0.05, &w, Vec3::new(0.0, 1.0, 0.0), 75);
+        assert!(matches!(m2.behaviour, MobBehaviourState::Chase { .. }), "{:?}", m2.behaviour);
+        assert_eq!(effective_aggro_radius(18.0, 75), 4.5);
+        assert_eq!(effective_aggro_radius(18.0, -100), 36.0);
+        assert_eq!(effective_aggro_radius(18.0, 0), 18.0);
     }
 }

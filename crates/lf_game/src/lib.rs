@@ -3,6 +3,7 @@ use serde::{Serialize, Deserialize};
 pub mod survival;
 pub mod smithing;
 pub mod mobs;
+pub mod mob_pathfind;
 pub mod player;
 pub mod items;
 pub mod mining;

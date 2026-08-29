@@ -1131,3 +1131,91 @@ above the cross band; `seed_comparison` fails if both halves look alike);
 
 **HONESTLY DEFERRED**: banners still use their own render path (by
 design); plants do not sway per-instance phase (shared sway weight).
+
+## 2026-08-28 — loop 332: ai-npc-assets (Sections A–G of docs/ai-npc-assets/)
+
+**WHAT**: (A) The reported black-square class is closed from both ends: the
+compositor alpha fix landed in loop 331, and this loop removed the two
+remaining stale-frame paths (Live-RT pathtracer + displayed egui image
+survived world transitions; empty column meshes registered draw batches).
+New `no_black_square` scene plus a pure-black run-length assertion over
+eight daytime gameplay scenes (menus excluded — dark panels are legit;
+night scenes excluded — dark skies are legit). (B) `MobBehaviourState`
+(Idle/Wander/Chase/Attack/Flee/Investigate/Disengage) with every spec
+transition; `has_line_of_sight` (DDA, ≤32 blocks, cached per tick);
+`effective_aggro_radius` (standing → radius, +100 = ignore unless
+attacked); `propagate_group_aggro` (first-order neighbours, 0.5s delay,
+≤5 pack, no chains — self-aggro pings once, recruited mobs never do);
+`lf_game::mob_pathfind::find_path` (cardinal + 1-up steps, Manhattan
+heuristic, 256-node cap, jump-up cost 6) with a 2s/goal-drift cached path
+driving Chase/Investigate; wander now picks territory targets with idle
+pauses. Client: `update_with_standing` with the player's faction standing,
+group propagation per frame. (C) Enriched canonical day
+(sleep/eat/work/socialize/return) with locations; `NpcActivityState`
+drives movement target, render pose (sleep prone, work/eat bob) and
+dialogue posture (sleep = talk-only); reaction lines for structure
+damage, combat panic (villagers flee 10s), gifts (use item on villager =
++2 standing + memory), companion quit at zero morale, and the once-per-
+crossing +75 acknowledgement; `NpcMemory` (last two `InteractionRecord`s,
+5-day window, greeting lines) rides the villager JSON save. Trades,
+completed quests and gifts write memory. (D) `loreforge --smoke` (300
+ticks: superflat seed 42, boar + glitchling AI, NPC schedule, planks
+craft, mine; exit 0/1 + log grep), `make smoke` = logic smoke + 12s GUI
+liveness; scenes `mob_ai_visible` (120-tick sim, moved ≥ 1.0 claim) and
+`npc_schedule_time` (0.5 = Work slot + boundary checks). (E) Connected
+textures: `top_face_bitmask` (corner rule) per top face; the 47-tile
+mapping is DERIVED (canonicalize stray diagonals, descending rank over
+the 47 well-formed masks — const-evaluated, bijective; 0xFF→0, 0x00→46);
+strip art per block with exposed-edge borders, interior-corner shadows,
+interior dapple; a 192×512 strip texture bound at group 1 binding 2;
+mesher bakes per-tile UVs behind marker ids ≥165 (water marker 167 routes
+to the water pass); shader reroutes markers via textureSampleBias. All 8
+E5 blocks. `mesh_section` gained 4 diagonal-neighbour sections so corner
+blocks see their diagonal neighbours. (F) `xtask gen-texture`
+(grass-ctm-strip delegates to the game's seeded strip generator so export
+and runtime art can never drift; stone-ctm-strip, entity-skin, block-
+noise are rule-driven with xorshift64 + integer avalanche noise),
+`gen-ctm <block>`, `gen-all-textures` (writes assets/ctm/*.png +
+assets/skins/npc/*.png, skips existing). (G) 338 tests / 82 vistest /
+smoke green; runtimes rebuilt.
+
+**BUG FIXED EN ROUTE**: lf_voxel's DDA raycast computed the idle-axis
+boundary distance as 0 × ∞ = NaN when the ray was axis-aligned AND the
+origin sat exactly on a voxel boundary — the walk stopped after the
+origin cell, so rays were blind along exactly the lines mobs (and the
+mining crosshair) most often cast. Regression test
+`axis_aligned_ray_from_boundary_origin_walks_the_line`.
+
+**HOW (files)**: lf_game (mobs.rs rewrite, new mob_pathfind.rs, lib.rs
+mod), lf_client (lib.rs standing+group wiring, Live-RT invalidation,
+batch guards, honoured_ack, villager tick/interact/gift/break/combat
+hooks, new smoke.rs), lf_npc (schedule/activity/reaction/memory core +
+tests), lf_voxel (meshing.rs CTM + diagonal sections + tests, world.rs
+diagonal sections + water routing, raycast.rs NaN fix + regression),
+lf_assets (CTM table/tiles/strip atlas + tests), lf_engine (scene.rs
+second texture binding + strip upload, shader.wgsl marker branch),
+lf_vistest (4 new scenes + pixel claims), xtask (gen.rs + dispatch +
+tests), Makefile (smoke), apps/loreforge (--smoke), BACKLOG/CHANGELOG/
+STATE/DEVLOG.
+
+**VERIFICATION**: cargo build --workspace clean; cargo test --workspace
+338 passed / 0 failed; `xtask vistest shots` 82/82 with per-scene pixel
+claims (human-eye pass on no_black_square, connected_textures_grass_3x3,
+mob_ai_visible, dawn meadow — meadow reads as one surface with edge
+definition, no tiling stripes, no black rectangles); `make smoke` green
+(headless logic + GUI liveness); runtimes in dist/.
+
+**VISUAL INSPECTION (F3)**: generated the grass CTM strip with seed 42
+and inspected it: it reads as a plausible meadow sheet — greens vary
+subtly tile to tile, exposed edges carry a clear darker border, no pure
+white, no pure black.
+
+**HONESTLY DEFERRED**: CTM ships as a runtime strip TEXTURE + shader
+branch (assets/ctm/*.png are exports for review, not runtime-loaded —
+the engine has no PNG loader); CTM is top-face only per spec; NPC
+schedules are the canonical lf_npc table, no per-archetype TOML
+overrides yet; hostile-faction NPCs joining fights is not implemented
+(no hostile villager roster exists); the +75 acknowledgement flag is
+session-state; block-noise has no placeholder registry for batch
+generation; NullKnight keeps the generic machine (no boss AI exists;
+freezing it would be a regression). Full list in BACKLOG.md loop 332.

@@ -59,8 +59,48 @@ fn lf_assets_conn(layer: u32) -> Option<u32> {
     }
 }
 
+/// Section E (connected textures): a rendered top-face layer whose block
+/// has a CTM strip returns the strip's FIRST atlas layer; the mesher adds
+/// `lf_assets::ctm_tile_index(bitmask)` to land on the right of the 47
+/// tiles. Mirrors lf_assets::ctm_first_layer (one-way dependency).
+/// Section E: a rendered top-face layer whose block has a CTM strip
+/// returns the block's CTM MARKER (>= 165). The shader reroutes markers
+/// to the CTM strip texture using the per-tile UVs the mesher bakes into
+/// tex_coord. Mirrors lf_assets::ctm_first_layer (one-way dependency).
+fn lf_assets_ctm(face_layer: u32) -> Option<u32> {
+    match face_layer {
+        41 => Some(165),  // grass_top
+        3 => Some(166),   // sand
+        10 => Some(167),  // water
+        5 => Some(168),   // snow
+        105 => Some(169), // bog_peat
+        100 => Some(170), // permafrost
+        86 => Some(171),  // accord_stone
+        94 => Some(172),  // ashen_marble
+        _ => None,
+    }
+}
+
+/// Tile rect for a CTM face: 12 tiles per strip row, 4 rows per block,
+/// blocks stacked in marker order (matches lf_assets::generate_ctm_strip_
+/// atlas). Texture V runs top-down over the PNG rows (v=0 = first row),
+/// and the corner mapping puts the tile's image top at world north.
+fn ctm_tile_uvs(marker: u32, tile: u8) -> [[f32; 2]; 4] {
+    let block = marker - 165;
+    let t = tile as u32;
+    let col = (t % 12) as f32;
+    let row = block * 4 + t / 12;
+    let (u0, v0) = (col * 16.0 / 192.0, row as f32 * 16.0 / 512.0);
+    let (du, dv) = (16.0 / 192.0, 16.0 / 512.0);
+    // corners: [S-W, N-W, N-E, S-E] (top face, -z = north)
+    [[u0, v0 + dv], [u0, v0], [u0 + du, v0], [u0 + du, v0 + dv]]
+}
+
+
 pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, neighbor_nx: Option<&VoxelSection>,
                      neighbor_py: Option<&VoxelSection>, neighbor_ny: Option<&VoxelSection>, neighbor_pz: Option<&VoxelSection>, neighbor_nz: Option<&VoxelSection>,
+                     diag_px_pz: Option<&VoxelSection>, diag_px_nz: Option<&VoxelSection>,
+                     diag_nx_pz: Option<&VoxelSection>, diag_nx_nz: Option<&VoxelSection>,
                      tex_of: &dyn Fn(BlockState, Face) -> u32,
                      light_of: &dyn Fn(i32, i32, i32) -> u32) -> MeshData {
     let mut vertices = Vec::new();
@@ -88,6 +128,32 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
             // available, approximate as air (same policy as a missing
             // face neighbor)
             BlockState::AIR
+        }
+    };
+
+    // CTM sampler: resolves (x±1, z±1) through the diagonal sections so
+    // corner blocks of a section still see their diagonal neighbours
+    let ctm_sample = |x: i32, y: i32, z: i32| -> BlockState {
+        let in_range = |v: i32| (0..16).contains(&v);
+        let (ox, oz) = (!in_range(x), !in_range(z));
+        if !ox && !oz {
+            section.get(x as usize, y as usize, z as usize)
+        } else if !ox {
+            if z < 0 { neighbor_nz.map_or(BlockState::AIR, |n| n.get(x as usize, y as usize, (z + 16) as usize)) }
+            else { neighbor_pz.map_or(BlockState::AIR, |n| n.get(x as usize, y as usize, (z - 16) as usize)) }
+        } else if !oz {
+            if x < 0 { neighbor_nx.map_or(BlockState::AIR, |n| n.get((x + 16) as usize, y as usize, z as usize)) }
+            else { neighbor_px.map_or(BlockState::AIR, |n| n.get((x - 16) as usize, y as usize, z as usize)) }
+        } else {
+            let (pos_x, pos_z) = (x > 0, z > 0);
+            let d = match (pos_x, pos_z) {
+                (true, true) => diag_px_pz,
+                (true, false) => diag_px_nz,
+                (false, true) => diag_nx_pz,
+                (false, false) => diag_nx_nz,
+            };
+            let (lx, lz) = ((x.rem_euclid(16)) as usize, (z.rem_euclid(16)) as usize);
+            d.map_or(BlockState::AIR, |n| n.get(lx, y as usize, lz))
         }
     };
 
@@ -356,12 +422,21 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                     let (ao, light) = corner_shades(cell, [0, -1, 0], &corners, [fx, fy, fz]);
                     push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, -1.0, 0.0], conn_tex(block, nb, tex_of(block, Face::Bottom)), ao, light, sway);
                 }
-                // +Y face
+                // +Y face. Connected textures (Section E): a CTM-enabled
+                // block picks one of 47 strip tiles by neighbour bitmask,
+                // so a field of the same block reads as one surface.
                 if face_visible(get_block(x as i32, y as i32 + 1, z as i32)) {
                     let nb = get_block(x as i32, y as i32 + 1, z as i32);
                     let corners = [[fx, wy1, fz1], [fx, wy1, fz], [fx1, wy1, fz], [fx1, wy1, fz1]];
                     let (ao, light) = corner_shades(cell, [0, 1, 0], &corners, [fx, fy, fz]);
-                    push_face(&mut vertices, &mut indices, corners, UVS_B, [0.0, 1.0, 0.0], conn_tex(block, nb, tex_of(block, Face::Top)), ao, light, sway);
+                    let face_tex = tex_of(block, Face::Top);
+                    let (top_tex, top_uvs) = if let Some(marker) = lf_assets_ctm(face_tex) {
+                        let bitmask = top_face_bitmask(x as i32, y as i32, z as i32, block.id(), &ctm_sample);
+                        (marker, ctm_tile_uvs(marker, ctm_tile_index(bitmask)))
+                    } else {
+                        (conn_tex(block, nb, face_tex), UVS_B)
+                    };
+                    push_face(&mut vertices, &mut indices, corners, top_uvs, [0.0, 1.0, 0.0], top_tex, ao, light, sway);
                 }
                 // -Z face
                 {
@@ -390,6 +465,92 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
     MeshData { vertices, indices }
 }
 
+
+/// Mirrors lf_assets's derived CTM table (lf_voxel cannot depend on
+/// lf_assets — same reason lf_assets_conn above is a copy). Bit layout
+/// NW=7 N=6 NE=5 / W=4 . E=3 / SW=2 S=1 SE=0; tile 0 = 0xFF interior,
+/// tile 46 = 0x00 isolated, descending rank over the 47 well-formed masks.
+const BIT_N: u8 = 1 << 6;
+const BIT_E: u8 = 1 << 3;
+const BIT_S: u8 = 1 << 1;
+const BIT_W: u8 = 1 << 4;
+const BIT_NW: u8 = 1 << 7;
+const BIT_NE: u8 = 1 << 5;
+const BIT_SW: u8 = 1 << 2;
+const BIT_SE: u8 = 1 << 0;
+
+const fn ctm_well_formed(m: u8) -> bool {
+    let nw = m & BIT_NW != 0;
+    let ne = m & BIT_NE != 0;
+    let sw = m & BIT_SW != 0;
+    let se = m & BIT_SE != 0;
+    let n = m & BIT_N != 0;
+    let e = m & BIT_E != 0;
+    let s = m & BIT_S != 0;
+    let w = m & BIT_W != 0;
+    (!nw || (n && w)) && (!ne || (n && e)) && (!sw || (s && w)) && (!se || (s && e))
+}
+
+const fn ctm_canonicalize(m: u8) -> u8 {
+    let mut m = m;
+    if !(m & BIT_N != 0 && m & BIT_W != 0) { m &= !BIT_NW; }
+    if !(m & BIT_N != 0 && m & BIT_E != 0) { m &= !BIT_NE; }
+    if !(m & BIT_S != 0 && m & BIT_W != 0) { m &= !BIT_SW; }
+    if !(m & BIT_S != 0 && m & BIT_E != 0) { m &= !BIT_SE; }
+    m
+}
+
+const fn ctm_rank(m: u8) -> u8 {
+    let mut rank = 0u8;
+    let mut w = 0u32;
+    while w < 256 {
+        let wm = w as u8;
+        if ctm_well_formed(wm) && wm > m {
+            rank += 1;
+        }
+        w += 1;
+    }
+    rank
+}
+
+pub const CTM_TABLE: [u8; 256] = {
+    let mut t = [0u8; 256];
+    let mut i = 0usize;
+    while i < 256 {
+        t[i] = ctm_rank(ctm_canonicalize(i as u8));
+        i += 1;
+    }
+    t
+};
+
+pub fn ctm_tile_index(bitmask: u8) -> u8 {
+    CTM_TABLE[bitmask as usize]
+}
+
+/// Water faces (base + CTM strip) render in the water pass.
+pub fn is_water_layer(tex: u32) -> bool {
+    tex == 10 || tex == 167
+}
+
+/// E2: 8-bit top-face neighbour bitmask (same-block connectivity, corner
+/// rule: a diagonal counts only when both adjacent cardinals are set).
+fn top_face_bitmask(x: i32, y: i32, z: i32, block_id: u32, get_block: &dyn Fn(i32, i32, i32) -> BlockState) -> u8 {
+    let same = |dx: i32, dz: i32| -> bool {
+        get_block(x + dx, y, z + dz).id() == block_id
+    };
+    let n = same(0, -1);
+    let s = same(0, 1);
+    let e = same(1, 0);
+    let w = same(-1, 0);
+    let ne = n && e && same(1, -1);
+    let nw = n && w && same(-1, -1);
+    let se = s && e && same(1, 1);
+    let sw = s && w && same(-1, 1);
+    (nw as u8) << 7 | (n as u8) << 6 | (ne as u8) << 5
+        | (w as u8) << 4 | (e as u8) << 3
+        | (sw as u8) << 2 | (s as u8) << 1 | (se as u8)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -400,7 +561,7 @@ mod tests {
     fn single_block_emits_six_faces() {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE);
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         assert_eq!(mesh.vertices.len(), 24);
         assert_eq!(mesh.indices.len(), 36);
     }
@@ -410,7 +571,7 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE);
         s.set(9, 8, 8, BlockState::DIRT);
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         // 10 exposed faces instead of 12
         assert_eq!(mesh.vertices.len(), 40);
     }
@@ -422,7 +583,7 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE);
         s.set(4, 4, 4, BlockState(6)); // second block, different corner
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         let centers = [[8.5f32, 8.5, 8.5], [4.5f32, 4.5, 4.5]];
         let mut checked = 0;
         for center in centers {
@@ -464,7 +625,7 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE);
         s.set(8, 8, 9, BlockState(6)); // snow
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &|b, _| (b.0 * 2) as u32, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &|b, _| (b.0 * 2) as u32, &|_, _, _| 0xFF);
         let indices: std::collections::HashSet<u32> = mesh.vertices.iter().map(|v| v.tex_index).collect();
         assert!(indices.contains(&2) && indices.contains(&12), "got {:?}", indices);
     }
@@ -473,14 +634,14 @@ mod tests {
     fn per_face_textures_land_on_the_right_faces() {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState(2)); // grass
-        let mesh = mesh_section(&s, None, None, None, None, None, None,
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None,
             &|_b, f| match f {
-                Face::Top => 100, Face::Bottom => 101, _ => 102,
+                Face::Top => 130, Face::Bottom => 101, _ => 102,
             },
             &|_, _, _| 0xFF);
         for v in &mesh.vertices {
             let expected = if v.normal[1] > 0.5 {
-                100 // top
+                130 // top
             } else if v.normal[1] < -0.5 {
                 101 // bottom
             } else {
@@ -496,7 +657,7 @@ mod tests {
         s.set(8, 8, 8, BlockState::STONE);
         // occluder diagonal above, beside the x=7 edge of the top face
         s.set(7, 9, 8, BlockState::STONE);
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         // only the lower block's top face sits at y=9 (the occluder's is at y=10)
         let top: Vec<&Vertex> = mesh.vertices.iter()
             .filter(|v| v.normal[1] > 0.5 && v.position[1] == 9.0).collect();
@@ -515,7 +676,7 @@ mod tests {
         // sky light triples with x. The four cells touching a top-face corner
         // are the 2x2 block-adjacent ones: corner x=8 averages cells {7,8}
         // -> (0+3)*2/4 = 1; corner x=9 averages cells {8,9} -> (3+6)*2/4 = 4.
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex,
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex,
             &|x, _y, _z| (((x - 7) * 3).clamp(0, 15) as u32) << 4);
         let sky_at = |pos: [f32; 3]| -> u32 {
             mesh.vertices.iter().find(|v| v.normal[1] > 0.5 && v.position == pos)
@@ -530,11 +691,11 @@ mod tests {
     fn leaves_sway_stone_does_not() {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState(8)); // leaves
-        let leaf_mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let leaf_mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         assert!(leaf_mesh.vertices.iter().all(|v| v.sway == 1.0), "leaf vertices sway");
         let mut s2 = VoxelSection::new_empty();
         s2.set(8, 8, 8, BlockState::STONE);
-        let stone_mesh = mesh_section(&s2, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let stone_mesh = mesh_section(&s2, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         assert!(stone_mesh.vertices.iter().all(|v| v.sway == 0.0), "stone vertices do not");
     }
 
@@ -548,7 +709,7 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(7, 8, 8, BlockState(crate::registry::block::PLANKS));
         s.set(8, 8, 8, BlockState(crate::registry::block::PLANKS));
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         let front: Vec<&Vertex> = mesh.vertices.iter()
             .filter(|v| v.normal[2] > 0.5)
             .collect();
@@ -571,7 +732,7 @@ mod tests {
         s.set(8, 7, 8, BlockState::STONE);
         s.set(7, 8, 8, crate::water_with_level(0)); // source: full cell
         s.set(8, 8, 8, crate::water_with_level(4)); // flowing: lowered
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         let has_top_at = |y: f32, x: f32| -> bool {
             mesh.vertices.iter()
                 .any(|v| v.normal[1] > 0.5 && v.position[0] == x && (v.position[1] - y).abs() < 1e-3)
@@ -588,7 +749,7 @@ mod tests {
         use crate::Shape;
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE.with_shape(Shape::SlabBottom));
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         // 5 visible faces (no culling neighbors): 4 sides + top + bottom = 6
         assert_eq!(mesh.vertices.len(), 24, "slab = 6 faces like a cube, at half height");
         let tops: Vec<&Vertex> = mesh.vertices.iter()
@@ -615,7 +776,7 @@ mod tests {
         use crate::Shape;
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE.with_shape(Shape::StairSouth));
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         // slab(6 faces) + back box(5 faces: no bottom) + low strip top... the
         // slab's top is ONLY the low strip, so total = 4 sides + slab-bottom
         // + low-strip-top + 4 back sides + back top = 11 faces
@@ -636,7 +797,7 @@ mod tests {
         let mut s = VoxelSection::new_empty();
         s.set(8, 8, 8, BlockState::STONE.with_shape(Shape::SlabBottom));
         s.set(8, 7, 8, BlockState::STONE); // full cube below: bottom face culled
-        let mesh = mesh_section(&s, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
+        let mesh = mesh_section(&s, None, None, None, None, None, None, None, None, None, None, &tex, &|_, _, _| 0xFF);
         // slab = 5 faces (its bottom culled by the cube below) + the
         // supporting cube = 5 faces (its top culled by the slab)
         assert_eq!(mesh.vertices.len(), 40, "slab over a cube = 10 faces, got {}", mesh.vertices.len());
@@ -656,13 +817,98 @@ mod tests {
 
     /// Loop 331: a cross-plant renders as exactly two diagonal quads x2
     /// sides (16 vertices, all inside the cell) — no cube faces.
+
+    /// Failure meaning: connected textures do not select strip tiles by
+    /// neighbour bitmask (Section E). A 3x3 grass field must render its
+    /// centre from the interior tile (165+0) while an isolated grass
+    /// block renders from the isolated tile (165+46).
+    #[test]
+    fn connected_texture_uv_3x3() {
+        let grass = BlockState(crate::registry::block::GRASS);
+        // the tex_of the game uses for grass tops (mirrors lf_assets):
+        // top face → layer 41, everything else → something else
+        let tex = |b: BlockState, f: Face| {
+            if b.id() == crate::registry::block::GRASS && f == Face::Top { 41 } else { 0 }
+        };
+        let none: [Option<&VoxelSection>; 4] = [None, None, None, None];
+
+        // 3x3 grass pad, centre at (8,8,8)
+        let mut sec = VoxelSection::new_empty();
+        for x in 7..=9 {
+            for z in 7..=9 {
+                sec.set(x, 8, z, grass);
+            }
+        }
+        // unit-level: the centre block's bitmask is fully surrounded
+        let get = |x: i32, y: i32, z: i32| {
+            if (7..=9).contains(&x) && y == 8 && (7..=9).contains(&z) { grass } else { BlockState::AIR }
+        };
+        assert_eq!(top_face_bitmask(8, 8, 8, crate::registry::block::GRASS, &get), 0xFF);
+        // and a corner block sees exactly its in-pad neighbours
+        assert_eq!(top_face_bitmask(7, 8, 7, crate::registry::block::GRASS, &get), 0x0B, "S+E+SE at the pad's -x,-z corner");
+
+        let mesh = mesh_section(&sec, None, None, None, None, None, None, none[0], none[1], none[2], none[3], &tex, &|_, _, _| 0xFF);
+        // centre top-face vertices (y=9, x/z within block 8) carry the
+        // INTERIOR strip tile: first_layer 165 + tile 0
+        let centre: Vec<&Vertex> = mesh.vertices.iter()
+            .filter(|v| v.position[1] == 9.0
+                && v.position[0] >= 8.0 && v.position[0] <= 9.0
+                && v.position[2] >= 8.0 && v.position[2] <= 9.0
+                && v.tex_index >= 165) // top-face vertices carry the marker
+            .collect();
+        // the centre point is shared by all nine top faces: 16 vertices sit
+        // in this window, and exactly the centre face's 4 use the interior
+        // tile (every other mask ranks above tile 0)
+        assert_eq!(centre.len(), 16, "centre window vertex count: {}", centre.len());
+        assert!(centre.iter().all(|v| v.tex_index == 165), "every top face must carry the grass CTM marker");
+        // per-triangle: all 9 top faces (18 tris) carry the marker, and
+        // exactly one face (2 tris) samples the INTERIOR tile rect (tile 0
+        // = strip col 0, row 0)
+        let (mut marker_tris, mut interior_tris) = (0u32, 0u32);
+        let dv0 = 1.0 / 32.0;
+        for tri in mesh.indices.chunks(3) {
+            let vs: Vec<&Vertex> = tri.iter().map(|&i| &mesh.vertices[i as usize]).collect();
+            if vs.iter().any(|v| v.tex_index != 165) || vs[0].position[1] != 9.0 {
+                continue;
+            }
+            marker_tris += 1;
+            let (mut u0, mut v0) = (f32::MAX, f32::MAX);
+            for v in &vs {
+                u0 = u0.min(v.tex_coord[0]);
+                v0 = v0.min(v.tex_coord[1]);
+            }
+            // tile 0 = strip col 0, image-top row 0 → mirrored V origin
+            if u0 < 1e-6 && v0 < 1e-6 {
+                interior_tris += 1;
+            }
+        }
+        assert_eq!(marker_tris, 18, "9 CTM top faces x 2 tris, got {}", marker_tris);
+        assert_eq!(interior_tris, 2, "exactly the centre face uses the interior tile");
+
+        // isolated grass block: bitmask 0 → tile 46 (strip col 10, row 3)
+        let mut lone = VoxelSection::new_empty();
+        lone.set(4, 4, 4, grass);
+        let mesh_lone = mesh_section(&lone, None, None, None, None, None, None, none[0], none[1], none[2], none[3], &tex, &|_, _, _| 0xFF);
+        let iso: Vec<&Vertex> = mesh_lone.vertices.iter()
+            .filter(|v| v.position[1] == 5.0 && v.tex_index == 165)
+            .collect();
+        assert_eq!(iso.len(), 4, "isolated block top face not found");
+        let (eu, ev) = (10.0 / 12.0, 3.0 / 32.0);
+        let (du, dv) = (1.0 / 12.0, 1.0 / 32.0);
+        for v in &iso {
+            let (u, vv) = (v.tex_coord[0], v.tex_coord[1]);
+            assert!(u >= eu - 1e-6 && u <= eu + du + 1e-6 && vv >= ev - 1e-6 && vv <= ev + dv + 1e-6,
+                "isolated must use tile 46's rect, got ({}, {})", u, vv);
+        }
+    }
+
     #[test]
     fn cross_plants_emit_diagonal_quads_not_cubes() {
         let mut sec = crate::VoxelSection::new_empty();
         sec.set(8, 8, 8, BlockState(crate::registry::block::TALL_GRASS));
         let tex_of = &|_b, _f| 7u32;
         let light_of = &|_, _, _| 0xF0u32;
-        let mesh = mesh_section(&sec, None, None, None, None, None, None, tex_of, light_of);
+        let mesh = mesh_section(&sec, None, None, None, None, None, None, None, None, None, None, tex_of, light_of);
         assert_eq!(mesh.vertices.len(), 16, "4 quads x 4 verts, got {}",
             mesh.vertices.len());
         assert_eq!(mesh.indices.len(), 24, "4 quads x 6 indices");
@@ -678,7 +924,7 @@ mod tests {
         // control: a stone cube in the same spot emits the usual culled cube
         let mut sec2 = crate::VoxelSection::new_empty();
         sec2.set(8, 8, 8, BlockState(crate::registry::block::STONE));
-        let cube = mesh_section(&sec2, None, None, None, None, None, None, tex_of, light_of);
+        let cube = mesh_section(&sec2, None, None, None, None, None, None, None, None, None, None, tex_of, light_of);
         assert!(cube.vertices.len() > 16, "a cube has more geometry than a cross");
     }
 }

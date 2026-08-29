@@ -259,6 +259,8 @@ impl GameState {
             self.chronicle_event(EventType::Discovery, payload);
             // honored crossing: rivals drift colder (FACTIONS_OVERVIEW)
             if band == StandingBand::Honored {
+                // C3: every NPC of the faction acknowledges it on next talk
+                self.honored_ack.insert(faction.to_string());
                 let rivals = self.lore_data.rivals_of(faction);
                 let amount = self.lore_data.standing_events.rival_honored;
                 for rival in &rivals {
@@ -295,6 +297,13 @@ impl GameState {
         self.add_standing(&faction, reward);
         for (other, delta) in quest.other_standing.clone() {
             self.add_standing(&other, delta);
+        }
+        // C4: the faction's NPCs remember the completed quest
+        let day = self.day_index as u32;
+        if let Some(v) = self.villagers.iter_mut()
+            .find(|v| v.faction.as_deref() == Some(faction.as_str()))
+        {
+            v.record_interaction(lf_npc::NpcEvent::QuestCompleted, day);
         }
         self.chronicle_world_event(WorldEventTrigger::QuestCompleted, &faction);
     }
@@ -430,6 +439,7 @@ impl GameState {
         v.faction = arch.faction.clone();
         v.archetype = Some(archetype_id.to_string());
         v.schedule.location = pos;
+        v.workstation_pos = self.scan_workstation(v.position, 14);
         self.villagers.push(v);
         self.next_mob_id += 1;
     }
@@ -565,6 +575,16 @@ impl GameState {
             "{} says: \"I've had enough. Find someone else.\" {} has left your service.",
             name, name
         ));
+        // C3: a same-faction NPC within 24 blocks comments on the quit
+        let here = [px, self.player.position.y, pz];
+        let reactor = self.villagers.iter().find(|v| {
+            v.faction == c.faction_id
+                && (glam::Vec3::from(v.position) - glam::Vec3::from(here)).length() < 24.0
+        }).map(|v| v.name.clone());
+        if let Some(reactor) = reactor {
+            self.push_hint(&lf_npc::reaction_line(&reactor,
+                &lf_npc::NpcReactionEvent::CompanionMoraleZero { companion_name: name.clone() }));
+        }
         let payload = quit_consequence(&self.lore_data, &mut self.standings, &mut self.companion_memory, &c, (px, pz));
         self.chronicle_event(EventType::Discovery, payload);
     }

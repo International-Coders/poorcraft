@@ -2058,6 +2058,10 @@ impl GameState {
                 if traded_items > 0 && !faction.is_empty() {
                     let bump = self.lore_data.standing_events.trade_ten_items;
                     self.add_standing(&faction, bump);
+                    // C4: the NPC remembers the trade
+                    if let Some(v) = self.villagers.get_mut(index) {
+                        v.record_interaction(lf_npc::NpcEvent::Traded, self.day_index as u32);
+                    }
                 }
                 // B2: the hire button for hireable archetypes
                 if let Some((hire_standing, fee, _form)) = hire_info {

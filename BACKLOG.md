@@ -909,3 +909,68 @@ Deferred (honest notes):
   window + surface today)
 - [ ] multiplayer connect still hardcodes the player name "smith"
 - [ ] armor has no per-slot equip restrictions (any piece in any armor slot)
+
+## Loop 332 — ai-npc-assets (Sections A-G, docs/ai-npc-assets/)
+
+- [x] A black-square artifact: root causes addressed — the compositor
+  alpha fix shipped in loop 331 (CompositeAlphaMode::Opaque), plus Live-RT
+  invalidation on world transitions (stale voxel clip + stale egui image
+  covered the viewport after load_world) and empty-column-batch guards at
+  all three upload sites. `no_black_square` scene + pure-black run-length
+  assertion on 8 daytime gameplay scenes.
+- [x] B mob AI: `MobBehaviourState` machine (Idle/Wander/Chase/Attack/
+  Flee/Investigate/Disengage, all 11 transitions), DDA line-of-sight
+  (cached per tick, 32-block cap), faction standing modulating aggro
+  radius (`effective_aggro_radius`, +100 = ignore unless attacked), group
+  aggro (first-order neighbours, 0.5s reaction, ≤5 pack, no chains), A*
+  pathfinding in `lf_game::mob_pathfind` (cardinal + 1-up jumps, 256-node
+  cap, cached 2s / goal-drift invalidation, direct-steer fallback).
+  Client wired: standing lookup + group propagation per frame.
+- [x] C NPC behaviour: enriched 5-slot day (sleep/eat/work/socialize/
+  return) with locations, `NpcActivityState` driving movement + render
+  pose + dialogue posture (sleeping NPCs refuse trade), reaction lines
+  (structure damage, combat panic, gifts, companion quit, +75 ack), NPC
+  memory (last two interactions, 5-day window, greeting references)
+  persisted via the ClientSave villager JSON. Gift = use-item-on-villager.
+- [x] D testing: vistest scenes `mob_ai_visible` (real 120-tick mob sim,
+  world-state assert), `npc_schedule_time` (midday = Work slot);
+  `--smoke` headless flag (300 ticks: worldgen seed 42 superflat, 1
+  passive + 1 hostile mob AI, NPC schedule, planks craft, block mine —
+  exit-code + log-pattern checked); `make smoke` now runs the logic
+  smoke AND the 12s GUI liveness check.
+- [x] E connected textures: neighbour bitmask (corner rule), derived
+  47-tile CTM table (const-evaluated, bijective, 0xFF→0 / 0x00→46), strip
+  art generated per block with exposed-edge shading + interior dapple,
+  second texture binding (192×512 strip atlas) + shader branch on CTM
+  markers, mesher computes the bitmask (with diagonal neighbour sections)
+  and bakes per-tile UVs. All 8 E5 blocks. Tests: `connected_texture_
+  uv_3x3` (centre = interior tile rect, isolated = tile 46 rect) + table
+  bijection test + vistest scene `connected_textures_grass_3x3`.
+- [x] F asset generator: `xtask gen-texture` (grass-ctm-strip /
+  stone-ctm-strip / entity-skin / block-noise, seeded xorshift64 +
+  integer hash noise), `gen-ctm <block>`, `gen-all-textures` (skip
+  existing). Deterministic: `asset_generator_grass_output` pins seed-42
+  bit-identity; no pure black/white in output.
+- [x] G wrap-up: full suite + vistest + smoke green; runtimes rebuilt.
+
+Deferred (honest notes):
+
+- [ ] E uses a single 192×512 strip TEXTURE + shader branch instead of the
+  reference doc's per-block separate files (assets/ctm/*.png are exports
+  for human review, not runtime-loaded) — the runtime has no PNG loader;
+  the export/import split is documented in DEVLOG.
+- [ ] CTM applies to top faces only (E5 grass-side stays dirt-side by
+  spec); side/bottom faces of accord_stone walls are not connected.
+- [ ] NPC schedule is the canonical table in lf_npc (+ per-slot client
+  resolution); per-archetype TOML schedule overrides in lore/npcs.toml
+  are not parsed yet (the TOML path exists for dialogue/quests only).
+- [ ] "Hostile faction NPCs join the fight" (C3) is not implemented —
+  there is no hostile-faction villager roster to react; only flee/panic.
+- [ ] Gift flow consumes from the hotbar slot via right-click; there is
+  no dropped-item-pickup path for NPCs.
+- [ ] The honored "+75 acknowledgement" flag is session-state (lost on
+  save/reload); memory itself persists.
+- [ ] gen-all-textures covers the 8 strips + 6 skins; block-noise has no
+  placeholder-block registry to drive batch generation (on-demand only).
+- [ ] NullKnight keeps the generic behaviour machine (freezing it with no
+  boss AI would be a regression); `use_boss_ai` gates dragons only.

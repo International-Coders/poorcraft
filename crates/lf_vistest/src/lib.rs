@@ -694,6 +694,18 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "seed_comparison", desc: "loop 331: two seeds side by side — the Create-a-Game seed generator visibly changes the world",
             default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(0.5, 0.0, 26.0), target: Vec3::new(0.5, 0.0, 0.0) },
+        SceneSpec { name: "no_black_square", desc: "ai-npc-assets A: gameplay view must never contain a large pure-black rectangle",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(0.5, 3.0, 18.0), target: Vec3::new(0.5, 2.0, 0.0) },
+        SceneSpec { name: "connected_textures_grass_3x3", desc: "ai-npc-assets E: a 3x3 grass pad reads as one surface; an isolated block shows borders",
+            default_seed: 99999, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(0.5, 0.0, 0.0), target: Vec3::new(0.5, 0.0, 0.0) },
+        SceneSpec { name: "mob_ai_visible", desc: "ai-npc-assets D: a spawned mob steps its AI 120 ticks and actually moves",
+            default_seed: 77777, time_of_day: 0.4, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-8.0, 0.0, 12.0), target: Vec3::new(0.5, 0.0, 0.0) },
+        SceneSpec { name: "npc_schedule_time", desc: "ai-npc-assets D: at midday (0.5) the NPC schedule is in the Work slot",
+            default_seed: 11111, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-6.0, 0.0, 10.0), target: Vec3::new(0.5, 0.0, 0.0) },
         SceneSpec { name: "preview_orbit_a", desc: "B2 preview orbit at t=0",
             default_seed: 0, time_of_day: 0.45, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
@@ -1566,6 +1578,29 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         lf_game::fluids::settle_gravity(&mut world, 0, 0);
     }
 
+    // ai-npc-assets E: connected_textures_grass_3x3 — a clean 3x3 grass
+    // pad plus an isolated grass block, both over stone, nothing else in
+    // the plot so the top-down camera sees exactly the two cases
+    if spec.name == "connected_textures_grass_3x3" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -6..7 {
+            for z in -6..7 {
+                for y in h..h + 10 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                    world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+                    world.set_block(x, h - 2, z, lf_voxel::BlockState(block::STONE));
+                }
+            }
+        }
+        for x in -1..=1 {
+            for z in -1..=1 {
+                world.set_block(x, h, z, lf_voxel::BlockState(block::GRASS));
+            }
+        }
+        // the isolated block, 3 blocks east of the pad edge
+        world.set_block(4, h, 0, lf_voxel::BlockState(block::GRASS));
+    }
     // loop 331: plants_cross — a row of the four ground plants on grass;
     // seed_comparison — left half seed A, right half seed B (same chunk grid)
     if spec.name == "plants_cross" {
@@ -2418,6 +2453,57 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "tree_fall_landed" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-5.5, h + 4.5, 9.5), Vec3::new(2.5, h + 1.0, 0.0))
+    } else if spec.name == "mob_ai_visible" {
+        // D1 (ai-npc-assets): a real mob sim — spawn, tick the behaviour
+        // state machine 120 ticks against real terrain, and require that
+        // the mob actually went somewhere. No pixel claim; the assertion
+        // is the world state.
+        let mut sim_world = World::new();
+        for cx in -1..=2 {
+            for cz in -1..=1 {
+                sim_world.chunks.insert((cx, cz), gen.generate_chunk(cx, cz));
+            }
+        }
+        let spawn = Vec3::new(0.5, gen.surface_top(0, 0) as f32 + 0.2, 0.5);
+        let px = 8.5;
+        let player = Vec3::new(px, gen.surface_top(8, 0) as f32 + 0.2, 0.5);
+        let mut mob = lf_game::mobs::MobEntity::spawn(1, lf_game::mobs::MobType::Glitchling, spawn);
+        for _ in 0..120 {
+            mob.update(1.0 / 20.0, &sim_world, player);
+        }
+        let moved = (mob.position - spawn).length();
+        assert!(moved >= 1.0, "mob_ai_visible: mob never left its spawn (moved {:.2}, behaviour {:?})",
+            moved, mob.behaviour);
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-8.0, h + 8.0, 12.0), Vec3::new(0.5, h + 1.0, 0.0))
+    } else if spec.name == "npc_schedule_time" {
+        // D1: at midday the enriched schedule must put NPCs in the Work
+        // slot (same pure table the client's update_villagers ticks)
+        let entry = lf_npc::enriched_slot_at(&lf_npc::default_schedule_entries(), 0.5);
+        assert_eq!(entry.activity, lf_npc::ScheduleSlot::Work,
+            "npc_schedule_time: midday must be the Work slot ({:?})", entry.activity);
+        let mut villager = lf_npc::Villager::new(1, lf_npc::VillagerJob::Smith, "Smoke".into(), [0.5, 64.0, 0.5]);
+        villager.activity = lf_npc::activity_state_for(&entry, false);
+        assert_eq!(villager.activity, lf_npc::NpcActivityState::Working);
+        // and the boundaries move (0.1 sleeping, 0.8 socializing)
+        let night = lf_npc::enriched_slot_at(&lf_npc::default_schedule_entries(), 0.1);
+        assert_eq!(lf_npc::activity_state_for(&night, false), lf_npc::NpcActivityState::Sleeping);
+        let evening = lf_npc::enriched_slot_at(&lf_npc::default_schedule_entries(), 0.8);
+        assert_eq!(lf_npc::activity_state_for(&evening, false), lf_npc::NpcActivityState::Socializing);
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-6.0, h + 7.0, 10.0), Vec3::new(0.5, h + 1.0, 0.0))
+    } else if spec.name == "connected_textures_grass_3x3" {
+        // mostly-down but tilted: a perfectly vertical look vector is
+        // degenerate for the camera's up vector
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.5, h + 8.0, 5.5), Vec3::new(0.5, h + 0.5, 0.0))
+    } else if spec.name == "no_black_square" {
+        // terrain-aware horizon view: above the taller of the two ends of
+        // the sight line so hills never bury the lens
+        let h0 = gen.surface_top(0, 0) as f32;
+        let h1 = gen.surface_top(0, 30) as f32;
+        let top = h0.max(h1);
+        (Vec3::new(0.5, top + 5.0, 30.0), Vec3::new(0.5, top + 1.0, 0.0))
     } else if spec.name == "falling_blocks_deep" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-3.5, h + 5.0, 8.5), Vec3::new(0.5, h + 2.2, 0.0))
@@ -2832,7 +2918,8 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "menus_centered_small" | "menus_centered" | "menus_centered_wide"
         | "journal" | "asset_catalog"
         | "tree_fall_mid" | "tree_fall_landed" | "falling_blocks_deep"
-        | "plants_cross" | "seed_comparison");
+        | "plants_cross" | "seed_comparison" | "no_black_square"
+        | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time");
     if !needs_check {
         return Ok(());
     }
@@ -2861,6 +2948,71 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
     let muted = [0x8a, 0x7f, 0x6e];
     let accent = [0xc4, 0x60, 0x2a];
     let panel = [0x33, 0x2a, 0x1c];
+    // ai-npc-assets Section A: gameplay frames must not contain a large
+    // pure-black rectangle in the view (the black-square artifact class).
+    // Daytime gameplay scenes only — menus legitimately use dark panels
+    // and night scenes have legitimately dark skies.
+    if matches!(scene, "no_black_square" | "spawn_plains_dawn" | "terrain_vista"
+        | "river_valley" | "first_person_view" | "mining_feedback"
+        | "terrain_features" | "foliage_canopy") {
+        let (x0, x1) = (w / 10, w - w / 10);
+        let (y0, y1) = (h / 4, h - h / 10); // below the sky band
+        for y in y0..y1 {
+            let mut run = 0usize;
+            for x in x0..x1 {
+                let c = px(x, y);
+                if c[0] < 8 && c[1] < 8 && c[2] < 8 {
+                    run += 1;
+                    assert!(run <= 64, "{}: pure-black run of {} px at row {} (black-square artifact)", scene, run, y);
+                } else {
+                    run = 0;
+                }
+            }
+        }
+    }
+    if scene == "connected_textures_grass_3x3" {
+        // E: the pad's top must read as ONE surface — its interior uses
+        // seamless interior tiles while the isolated block (bitmask 0)
+        // carries the fully-bordered tile. Sample boxes match the fixed
+        // camera: pad centre, a thin band over the pad's west tile ring
+        // (where the 1px exposed-edge border lives), and the lone block.
+        let is_grass = |c: [i32; 3]| c[1] > 110 && c[1] > c[0] + 30 && c[1] > c[2] + 30;
+        let sample = |x0: i32, x1: i32, y0: i32, y1: i32| -> (f32, f32) {
+            // pass 1: mean; pass 2: fraction of grass pixels well below
+            // that mean (the 1px exposed-edge border of a CTM tile)
+            let (mut sum, mut n) = (0f32, 0f32);
+            let mut lumas: Vec<f32> = Vec::new();
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let c = px(x.max(0) as usize, y.max(0) as usize);
+                    if is_grass(c) {
+                        let luma = (c[0] + c[1] + c[2]) as f32 / 3.0;
+                        sum += luma;
+                        n += 1.0;
+                        lumas.push(luma);
+                    }
+                }
+            }
+            if n == 0.0 {
+                return (0.0, 0.0);
+            }
+            let mean = sum / n;
+            let dark = lumas.iter().filter(|&&l| l < mean * 0.88).count() as f32 / n;
+            (mean, dark)
+        };
+        let (inner, inner_dark) = sample(330, 460, 250, 380); // pad interior tiles
+        let (rim, _) = sample(262, 292, 240, 400); // pad's west ring incl. border
+        let (lone, lone_dark) = sample(668, 758, 286, 340); // isolated block top
+        assert!(inner > 0.0, "connected_textures: pad interior not visible");
+        assert!(rim > 0.0, "connected_textures: pad rim not visible");
+        assert!(lone > 0.0, "connected_textures: isolated block not visible");
+        // the bordered tiles carry a dark ring; the seamless interior has
+        // measurably fewer dark pixels — the CTM visual claim, checked
+        // relatively so lighting changes cannot fake it
+        assert!(rim < inner, "connected_textures: pad rim ({:.1}) must be darker than the interior ({:.1})", rim, inner);
+        assert!(lone_dark > inner_dark * 1.25,
+            "connected_textures: isolated block dark-ring fraction {:.3} vs interior {:.3} — the bordered tile is not showing", lone_dark, inner_dark);
+    }
     match scene {
         "menu_preview" => {
             // logotype: parchment glyphs in the top-left quadrant

@@ -1,5 +1,10 @@
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    // D3 (ai-npc-assets): headless logic smoke — 300 ticks of worldgen,
+    // mob AI, NPC schedule, craft and mine with no window and no GPU.
+    if args.iter().any(|a| a == "--smoke") {
+        std::process::exit(lf_client::smoke::run());
+    }
     if args.iter().any(|a| a == "--headless") {
         let mut scene = "spawn_plains_dawn".to_string();
         let mut seed: Option<u64> = None;

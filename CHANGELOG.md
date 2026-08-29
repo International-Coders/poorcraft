@@ -1,5 +1,57 @@
 # CHANGELOG
 
+## 2026-08-28 — ai-npc-assets: mob AI state machine, living NPCs, connected textures, generator (loop 332, Sections A-G)
+- **Mob AI (B)**: mobs got a real behaviour machine — Idle / Wander /
+  Chase / Attack / Flee / Investigate / Disengage with all 11 spec
+  transitions (lost-sight investigation, 30s disengage, flee-while-seen).
+  DDA line-of-sight (cached per tick, 32-block cap) gates aggro and flee;
+  faction standing widens or calms the aggro radius (+100 standing =
+  ignore unless attacked); group aggro recruits nearby same-type mobs
+  with a 0.5s reaction delay (first-order only, ≤5 pack); A*
+  pathfinding (`lf_game::mob_pathfind`, cardinal + 1-up steps, 256-node
+  cap, 2s cache) drives Chase/Investigate with direct-steer fallback.
+  Client ticks mobs with the player's faction standing and propagates
+  group pings. En route: fixed a pre-existing engine bug — axis-aligned
+  rays from block-boundary origins produced NaN in the DDA and stopped
+  after one cell (rays were blind along exactly the lines mobs shoot).
+- **NPC behaviour (C)**: the canonical enriched day (sleep / eat / work /
+  socialize / return-home) now drives movement, an `NpcActivityState`
+  that bends the render pose (sleeping lies low, working bobs), and
+  dialogue posture (sleeping NPCs only murmur; no trade). Reactions:
+  structure damage call-outs, combat panic (flee 10s), gifts (use an
+  item on a villager: +2 standing, thanks, memory), companion-quit
+  comments, and a once-per-crossing "+75 honoured" acknowledgement. NPCs
+  remember the last two interactions per world (5-day window) and open
+  with memory lines; trades and completed quests write the memory.
+- **Black-square hardening (A)**: Live-RT pathtracer + displayed image
+  are invalidated on world transitions (a stale frame of the previous
+  world covered the new one), and empty column meshes never register a
+  draw batch. `no_black_square` scene + pure-black run-length assertion
+  on eight daytime gameplay scenes.
+- **Testing (D)**: `loreforge --smoke` runs 300 headless logic ticks
+  (superflat worldgen seed 42, passive+hostile mob AI, NPC schedule, a
+  planks craft, a block mine) with exit-code + log-pattern checks;
+  `make smoke` = logic smoke + 12s GUI liveness. New scenes:
+  `mob_ai_visible` (real 120-tick mob sim, moved-distance claim),
+  `npc_schedule_time` (midday = Work slot), `no_black_square`,
+  `connected_textures_grass_3x3`.
+- **Connected textures (E)**: top faces of grass, sand, water, snow,
+  bog peat, permafrost, accord stone and ashen marble pick one of 47
+  strip tiles by an 8-neighbour bitmask (standard CTM corner rule,
+  derived table), so fields read as one surface with edge definition.
+  The strips live in a second 192×512 texture bound alongside the atlas;
+  the mesher bakes per-tile UVs behind marker layer ids and the shader
+  reroutes them. Proofs: `connected_texture_uv_3x3` (centre of a 3×3 =
+  interior tile, isolated block = bordered tile) + a vistest scene with
+  a dark-ring pixel claim.
+- **Asset generator (F)**: `xtask gen-texture` (grass/stone CTM strips,
+  faction entity skins, block noise — seeded xorshift64 + integer hash
+  noise, bit-identical per seed), `gen-ctm <block>`, `gen-all-textures`
+  (skips existing). `asset_generator_grass_output` pins seed-42
+  determinism and the no-pure-black/white pixel-art rule.
+- **Suite**: 338 tests (was 322), 82/82 vistest scenes, headless+GUI
+  smoke green.
+
 ## 2026-08-28 — plants render as crosses + seed-field contract + opaque surface (loop 331)
 - **Ground plants are Minecraft-style crosses**: flower / tall grass / dry
   grass / dead shrub render as two diagonal cutout quads (each emitted

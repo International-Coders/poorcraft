@@ -33,6 +33,7 @@ pub mod lore;
 pub mod icons;
 pub mod map;
 pub mod slots;
+pub mod smoke;
 pub mod net;
 pub mod ui;
 pub mod ui_kit;
@@ -1170,6 +1171,9 @@ struct GameState {
     pub companion_menu: Option<usize>,
     /// Standing-change pulse for the HUD widget (1 -> 0).
     pub faction_pulse: f32,
+    /// C3: factions whose +75 acknowledgement is still pending (consumed
+    /// on the next interaction with any NPC of that faction).
+    pub honored_ack: std::collections::HashSet<String>,
     /// The faction whose widget is shown (id, value) for pulse detection.
     faction_widget_state: Option<(String, i32)>,
     /// Ambient ember emission accumulator (C4).
@@ -1312,7 +1316,10 @@ impl GameState {
         for (cx, cz) in world.chunks.keys().copied().collect::<Vec<_>>() {
             let (v, i, wv, wi) = mesh_column_gpu(&world, cx, cz);
             let (min_y, max_y) = bounds_of(&v, &wv);
-            batches.insert((cx, cz), MeshBatch::new(&device, &resources, &v, &i));
+            // fix: black-square artifact — empty meshes get no batch
+            if !v.is_empty() {
+                batches.insert((cx, cz), MeshBatch::new(&device, &resources, &v, &i));
+            }
             if !wv.is_empty() {
                 water_batches.insert((cx, cz), MeshBatch::new(&device, &resources, &wv, &wi));
             }
@@ -1456,6 +1463,7 @@ impl GameState {
             companion_line_timers: vec![8.0; lore_extras.companions.len()],
             companion_menu: None,
             faction_pulse: 0.0,
+            honored_ack: Default::default(),
             faction_widget_state: None,
             ember_timer: 0.0,
             settled_markers: std::collections::HashSet::new(),
@@ -1688,6 +1696,13 @@ impl GameState {
             }
         }
         worker_skip.extend(self.world.chunks.keys().copied());
+        // fix: black-square artifact — the Live RT pathtracer kept the
+        // previous world's voxel clip (`upload_voxels` early-returns on an
+        // unchanged center) and the egui handle kept the previous world's
+        // composited image, so a stale frame covered the new world after a
+        // transition. Drop both; the tracer is rebuilt on the next tick.
+        self.live_tracer = None;
+        self.live_rt_texture = None;
         self.restart_streamer(seed, worker_skip);
         self.spawn_point = Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5);
         self.player = Player::new(self.spawn_point);
@@ -1782,6 +1797,13 @@ impl GameState {
         worker_skip.extend(saved_set);
         worker_skip.extend(self.world.chunks.keys().copied());
         self.restart_streamer(seed, worker_skip);
+        // fix: black-square artifact — the Live RT pathtracer kept the
+        // previous world's voxel clip (`upload_voxels` early-returns on an
+        // unchanged center) and the egui handle kept the previous world's
+        // composited image, so a stale frame covered the new world after a
+        // transition. Drop both; the tracer is rebuilt on the next tick.
+        self.live_tracer = None;
+        self.live_rt_texture = None;
         self.spawn_point = Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5);
         self.player = match storage.load_player() {
             Some(p) => Player::new(Vec3::from(p.position)).with_look(p.yaw, p.pitch),
@@ -2658,6 +2680,17 @@ impl GameState {
                                 if let Some(faction) = factions::faction_of_block(block_id) {
                                     let penalty = self.lore_data.standing_events.destroy_structure_block;
                                     self.add_standing(&faction, penalty);
+                                    // C3: nearby same-faction NPCs call it out
+                                    let here = [pos.x as f32, pos.y as f32, pos.z as f32];
+                                    let reactor = self.villagers.iter().find(|v| {
+                                        v.faction.as_deref() == Some(faction)
+                                            && (glam::Vec3::from(v.position) - glam::Vec3::from(here)).length() < 24.0
+                                    }).map(|v| v.name.clone());
+                                    if let Some(name) = reactor {
+                                        let line = lf_npc::reaction_line(&name,
+                                            &lf_npc::NpcReactionEvent::BlockBrokenInStructure);
+                                        self.push_hint(&line);
+                                    }
                                 }
                             }
                             // P34: breaking a scaffold drops the whole
@@ -2863,15 +2896,63 @@ impl GameState {
                 // villager in the crosshair? trade instead — faction NPCs
                 // greet through the dialogue layer first (A4/D1)
                 if let Some(vi) = self.villager_in_crosshair() {
-                    if let Some(archetype) = self.villagers.get(vi)
-                        .and_then(|v| v.archetype.clone())
-                    {
+                    let vinfo = self.villagers.get(vi).map(|v| {
+                        (v.name.clone(), v.faction.clone(), v.archetype.clone(), v.activity, v.memory.clone())
+                    });
+                    let Some((vname, vfaction, archetype, vactivity, vmem)) = vinfo else {
+                        return;
+                    };
+                    // C3: holding an item gifts it (one from the stack)
+                    let held = self.inventory.slots[self.hotbar_index].clone();
+                    if let Some(stack) = held {
+                        let slot = &mut self.inventory.slots[self.hotbar_index];
+                        match slot {
+                            Some(st) if st.count > 1 => st.count -= 1,
+                            _ => *slot = None,
+                        }
+                        if let Some(faction) = vfaction.as_deref() {
+                            self.add_standing(faction, 2);
+                        }
+                        let line = lf_npc::reaction_line(&vname,
+                            &lf_npc::NpcReactionEvent::GiftedItem { item_id: stack.item_id.clone() });
+                        self.push_hint(&line);
+                        if let Some(v) = self.villagers.get_mut(vi) {
+                            v.record_interaction(lf_npc::NpcEvent::Gifted, self.day_index as u32);
+                        }
+                        return;
+                    }
+                    // C2: sleeping NPCs only murmur; no trade, no quests
+                    if vactivity == lf_npc::NpcActivityState::Sleeping {
+                        self.push_hint(&format!("[{}]: {}", vname,
+                            lf_npc::activity_opening(vactivity)));
+                        return;
+                    }
+                    // C3: +75 acknowledgement (once per faction crossing)
+                    if let Some(faction) = vfaction.as_deref() {
+                        if self.honored_ack.remove(faction) {
+                            let title = self.lore_data.faction(faction)
+                                .map(|f| lf_lore::StandingBand::Honored.title(f).to_string())
+                                .unwrap_or_else(|| "honored".into());
+                            self.push_hint(&lf_npc::reaction_line(&vname,
+                                &lf_npc::NpcReactionEvent::FactionHonored { title }));
+                        }
+                    }
+                    // C4: fresh memory colors the greeting
+                    if let Some(ev) = vmem.recall(self.day_index as u32) {
+                        if let Some(line) = lf_npc::memory_greeting(ev) {
+                            self.push_hint(&format!("[{}]: {}", vname, line));
+                        }
+                    }
+                    if let Some(archetype) = archetype {
                         if let Some((line, close)) = self.npc_interact(&archetype) {
                             self.push_hint(&line);
                             if close {
                                 // hostile standing: the door stays shut
                                 return;
                             }
+                        }
+                        if let Some(v) = self.villagers.get_mut(vi) {
+                            v.record_interaction(lf_npc::NpcEvent::QuestGiven, self.day_index as u32);
                         }
                     }
                     self.ui_open = UiOpen::Trade(vi);
@@ -3874,24 +3955,79 @@ impl GameState {
         }
     }
 
+    /// C1: nearest furnace around a spawn point — the workstation anchor
+    /// NPCs walk to during the Work slot (None → they work at home).
+    fn scan_workstation(&self, center: [f32; 3], radius: i32) -> Option<[i32; 3]> {
+        let (cx, cy, cz) = (center[0] as i32, center[1] as i32, center[2] as i32);
+        let mut best = None;
+        let mut best_d = i32::MAX;
+        for dx in -radius..=radius {
+            for dy in -6..=8 {
+                for dz in -radius..=radius {
+                    let (x, y, z) = (cx + dx, cy + dy, cz + dz);
+                    if self.world.get_block(x, y, z).id() == registry::block::FURNACE {
+                        let d = dx * dx + dy * dy + dz * dz;
+                        if d < best_d {
+                            best_d = d;
+                            best = Some([x, y, z]);
+                        }
+                    }
+                }
+            }
+        }
+        best
+    }
+
     /// Villagers wander by day and rest at night (schedule data).
     fn update_villagers(&mut self, dt: f32) {
         if self.stats.health <= 0.0 {
             return;
         }
-        let hour = (self.time.fraction() * 24.0) as i32;
+        let day_fraction = self.time.fraction() as f32;
+        let now_ticks = self.time.ticks;
+        let frame = self.frame;
+        let world = &self.world;
+        let table = lf_npc::default_schedule_entries();
         for (i, villager) in self.villagers.iter_mut().enumerate() {
+            // C1: the enriched day (sleep/eat/work/socialize/return) picks
+            // the activity; the workstation anchor is resolved at spawn
+            let entry = lf_npc::enriched_slot_at(&table, day_fraction);
+            let target: [f32; 3] = match (entry.activity, villager.workstation_pos) {
+                (lf_npc::ScheduleSlot::Work, Some([wx, wy, wz])) => {
+                    [wx as f32 + 0.5, wy as f32 + 0.2, wz as f32 + 0.5]
+                }
+                _ => villager.schedule.location,
+            };
+            let pos = glam::Vec3::from(villager.position);
+            let flat = (glam::Vec3::new(target[0], pos.y, target[2]) - pos).length();
+            let panicking = villager.flee_until_ticks > now_ticks;
+            villager.activity = if panicking {
+                lf_npc::NpcActivityState::Walking
+            } else {
+                lf_npc::activity_state_for(&entry, flat > 1.5)
+            };
             // deterministic per-villager wander seed
-            let t = self.frame as u64 / 30; // change direction ~every half second
+            let t = frame as u64 / 30; // change direction ~every half second
             let seed = (villager.id).wrapping_mul(2654435761).wrapping_add(t).wrapping_add(i as u64);
-            let resting = villager.should_rest(hour);
-            if !resting && seed % 3 == 0 {
+            let speed = if panicking { 2.4 } else { 1.2 };
+            let mut wish = None;
+            if villager.activity == lf_npc::NpcActivityState::Walking {
+                if flat > 1.0 {
+                    wish = Some((target[0] - pos.x, target[2] - pos.z));
+                } else if panicking {
+                    let a = (seed % 360) as f32 / 57.3;
+                    wish = Some((a.cos(), a.sin()));
+                }
+            } else if villager.activity == lf_npc::NpcActivityState::Socializing && seed % 3 == 0 {
                 let a = (seed % 360) as f32 / 57.3;
-                let speed = 1.2;
-                let next = glam::Vec3::from(villager.position) + glam::Vec3::new(a.cos() * speed * dt, 0.0, a.sin() * speed * dt);
+                wish = Some((a.cos(), a.sin()));
+            }
+            if let Some((dx, dz)) = wish {
+                let len = (dx * dx + dz * dz).sqrt().max(0.001);
+                let next = pos + glam::Vec3::new(dx / len * speed * dt, 0.0, dz / len * speed * dt);
                 // stay on ground
-                if !self.world.is_solid(next.x as i32, next.y as i32, next.z as i32) {
-                    if self.world.is_solid(next.x as i32, (next.y - 1.0) as i32, next.z as i32) {
+                if !world.is_solid(next.x as i32, next.y as i32, next.z as i32) {
+                    if world.is_solid(next.x as i32, (next.y - 1.0) as i32, next.z as i32) {
                         villager.position = [next.x, next.y, next.z];
                     }
                 }
@@ -3975,8 +4111,10 @@ impl GameState {
                 VillagerJob::Wizard => "Ysolde",
             };
             let spawn = if self.world.is_solid(hx, hy - 1, hz + 2) { (hx, hy, hz + 2) } else { (hx, hy, hz) };
-            self.villagers.push(Villager::new(id, job, name.to_string(),
-                [spawn.0 as f32 + 0.5, spawn.1 as f32 + 0.2, spawn.2 as f32 + 0.5]));
+            let mut v = Villager::new(id, job, name.to_string(),
+                [spawn.0 as f32 + 0.5, spawn.1 as f32 + 0.2, spawn.2 as f32 + 0.5]);
+            v.workstation_pos = self.scan_workstation(v.position, 12);
+            self.villagers.push(v);
             tracing::info!("villager {} the {:?} settled a hamlet", name, job);
             return; // one per check
         }
@@ -4130,14 +4268,39 @@ impl GameState {
                 }
                 continue;
             }
-            if let Some(dmg) = mob.update(dt, world, player) {
+            // B3: the player's standing with this mob's faction widens or
+            // calms its aggro radius (unaffiliated mobs use standing 0)
+            let standing = mob.faction_id.as_deref().map(|f| self.standings.get(f)).unwrap_or(0);
+            if let Some(dmg) = mob.update_with_standing(dt, world, player, standing) {
                 damage_to_player += dmg;
                 attacker_of_frame = Some(mi);
             }
         }
+        // B4: first-order group aggro — self-aggroed mobs pinged once this
+        // frame; neighbours join with a 0.5s reaction delay (never chains)
+        let pings: Vec<usize> = self
+            .mobs
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.group_ping)
+            .map(|(i, _)| i)
+            .collect();
+        for i in pings {
+            lf_game::mobs::MobEntity::propagate_group_aggro(&mut self.mobs, i, player);
+        }
+        for m in &mut self.mobs {
+            m.group_ping = false;
+        }
         // companions remember who hit the player this frame (B4 defense)
         if let Some(mi) = attacker_of_frame {
             self.last_attacker = Some(mi);
+            // C3: NPCs within 24 blocks of combat bolt for a while
+            let flee_until = self.time.ticks + 200; // 10s of world ticks
+            for v in &mut self.villagers {
+                if (glam::Vec3::from(v.position) - player).length() < 24.0 {
+                    v.flee_until_ticks = flee_until;
+                }
+            }
         }
         if damage_to_player > 0.0 {
             let scaled = damage_to_player * self.difficulty.mob_damage();
@@ -4613,7 +4776,15 @@ impl GameState {
     fn add_column_batch(&mut self, cx: i32, cz: i32) {
         let (v, i, wv, wi) = mesh_column_gpu(&self.world, cx, cz);
         let (min_y, max_y) = bounds_of(&v, &wv);
-        self.batches.insert((cx, cz), MeshBatch::new(&self.device, &self.resources, &v, &i));
+        // fix: black-square artifact — an empty column mesh must never
+        // register a batch; a zero-filled vertex buffer drawn as a quad
+        // reads as a black rectangle where the chunk should be (water
+        // already had this guard).
+        if v.is_empty() {
+            self.batches.remove(&(cx, cz));
+        } else {
+            self.batches.insert((cx, cz), MeshBatch::new(&self.device, &self.resources, &v, &i));
+        }
         if wv.is_empty() {
             self.water_batches.remove(&(cx, cz));
         } else {
@@ -4681,7 +4852,12 @@ impl GameState {
             }
             let (v, i, wv, wi) = mesh_column_gpu(&self.world, bx, bz);
             let (min_y, max_y) = bounds_of(&v, &wv);
-            self.batches.insert((bx, bz), MeshBatch::new(&self.device, &self.resources, &v, &i));
+            // fix: black-square artifact — same guard as add_column_batch
+            if v.is_empty() {
+                self.batches.remove(&(bx, bz));
+            } else {
+                self.batches.insert((bx, bz), MeshBatch::new(&self.device, &self.resources, &v, &i));
+            }
             if wv.is_empty() {
                 self.water_batches.remove(&(bx, bz));
             } else {
@@ -5137,7 +5313,15 @@ impl GameState {
                     VillagerJob::Wizard => lf_assets::ENCHANTING_LAYER,
                 },
             };
-            push_cube(v.position[0], v.position[1] + 0.9, v.position[2], 0.45, tex, &mut vertices, &mut indices);
+            // C2: the activity state bends the pose — sleeping lies low,
+            // working/eating bobs at the workstation/table
+            let lift = match v.activity {
+                lf_npc::NpcActivityState::Sleeping => 0.22,
+                lf_npc::NpcActivityState::Working => 0.9 + 0.05 * (self.elapsed * 3.0).sin(),
+                lf_npc::NpcActivityState::Eating => 0.9 + 0.04 * (self.elapsed * 5.0).sin(),
+                _ => 0.9,
+            };
+            push_cube(v.position[0], v.position[1] + lift, v.position[2], 0.45, tex, &mut vertices, &mut indices);
         }
         // companions: their archetype skin, swapping to the trust-badge
         // variant at trust >= 50 (ENTITY_SKIN_SPEC)
