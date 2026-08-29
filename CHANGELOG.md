@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-08-28 — plants render as crosses + seed-field contract + opaque surface (loop 331)
+- **Ground plants are Minecraft-style crosses**: flower / tall grass / dry
+  grass / dead shrub render as two diagonal cutout quads (each emitted
+  twice so backface culling keeps both sides), lit by their own cell with
+  foliage wind sway — no more solid green cubes. Proof `plants_cross`
+  pixel-claims plant colors AND sky visible above the band (a cube would
+  block it); mesher test pins 16 verts / 24 indices inside the cell.
+- **Seed field contract**: the Create-a-Game seed field is now one tested
+  helper (`slots::parse_seed_field`): trimmed number = literal, empty =
+  fresh random, any other text = deterministic hash (same words → same
+  world forever). World-level proof: `seed_comparison` renders half a
+  scene from seed A and half from seed B through the same generator and
+  fails if the halves look alike; `same_seed_same_world_...` pins
+  reproducibility.
+- **Black-box fix (compositor)**: the surface now requests
+  `CompositeAlphaMode::Opaque` — with a premultiplied/inherited mode the
+  desktop behind the window blended through pixels whose alpha was not 1
+  (water, ice, unlit regions), which read as a dark box while playing.
+
 ## 2026-08-28 — timber: Valheim tree felling + deep falling blocks (loop 330, master-plan Phase A)
 - **Tree felling**: chopping a trunk now fells the whole tree. The new pure
   `lf_game::timber` system identifies the standing tree from the break

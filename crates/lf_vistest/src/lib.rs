@@ -688,6 +688,12 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "falling_blocks_deep", desc: "loop 330 deep fall: granular blocks mid-air with independent tumble",
             default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(-4.0, 0.0, 9.0), target: Vec3::new(0.5, 0.0, 0.0) },
+        SceneSpec { name: "plants_cross", desc: "loop 331: ground plants render Minecraft-style as diagonal cutout quads (see-through)",
+            default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-5.0, 0.0, 8.0), target: Vec3::new(1.5, 0.0, 0.0) },
+        SceneSpec { name: "seed_comparison", desc: "loop 331: two seeds side by side — the Create-a-Game seed generator visibly changes the world",
+            default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(0.5, 0.0, 26.0), target: Vec3::new(0.5, 0.0, 0.0) },
         SceneSpec { name: "preview_orbit_a", desc: "B2 preview orbit at t=0",
             default_seed: 0, time_of_day: 0.45, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
@@ -1560,6 +1566,36 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         lf_game::fluids::settle_gravity(&mut world, 0, 0);
     }
 
+    // loop 331: plants_cross — a row of the four ground plants on grass;
+    // seed_comparison — left half seed A, right half seed B (same chunk grid)
+    if spec.name == "plants_cross" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -14..16 {
+            for z in -10..12 {
+                for y in h..h + 8 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h, z, lf_voxel::BlockState(block::GRASS));
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+        for (i, plant) in [block::FLOWER, block::TALL_GRASS, block::DRY_GRASS, block::DEAD_SHRUB]
+            .iter().enumerate() {
+            world.set_block(-3 + i as i32 * 2, h + 1, 0, lf_voxel::BlockState(*plant));
+        }
+    }
+    if spec.name == "seed_comparison" {
+        // the LEFT half keeps the default-seed world; the RIGHT half is
+        // regenerated from a different seed through the same generator —
+        // every chunk at cx >= 0 so the seam is one clean midline
+        let gen_b = WorldGen::new(Seed(987654321));
+        for cx in 0..=3 {
+            for cz in -3..=3 {
+                world.chunks.insert((cx, cz), gen_b.generate_chunk(cx, cz));
+            }
+        }
+    }
     // loop 330 timber: a flat pad with a standard oak; the stump cell is
     // air (the player broke the bottom log). Mid-fall renders the real
     // tree_parts layout; landed applies the real fall_plan to the world.
@@ -2385,6 +2421,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "falling_blocks_deep" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-3.5, h + 5.0, 8.5), Vec3::new(0.5, h + 2.2, 0.0))
+    } else if spec.name == "plants_cross" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(1.5, h + 3.2, 11.0), Vec3::new(0.5, h + 1.0, 0.0))
+    } else if spec.name == "seed_comparison" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.5, h + 26.0, 30.0), Vec3::new(0.5, h, 0.0))
     } else if spec.name == "texture_tiling" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.6, 9.5), Vec3::new(0.5, h + 1.5, 0.0))
@@ -2789,7 +2831,8 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         "menu_preview" | "new_world_screen" | "multiplayer_screen" | "crafting_workbench"
         | "menus_centered_small" | "menus_centered" | "menus_centered_wide"
         | "journal" | "asset_catalog"
-        | "tree_fall_mid" | "tree_fall_landed" | "falling_blocks_deep");
+        | "tree_fall_mid" | "tree_fall_landed" | "falling_blocks_deep"
+        | "plants_cross" | "seed_comparison");
     if !needs_check {
         return Ok(());
     }
@@ -2967,6 +3010,56 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
                 }
             }
             assert!(warm > 60, "falling_blocks_deep: no tumbling cubes in the sky region ({})", warm);
+        }
+        // loop 331 plants: plant pixels present AND sky visible through the
+        // cross quads above the ground (a solid cube would block the sky)
+        "plants_cross" => {
+            let mut plant_px = 0usize;
+            let mut sky_in_band = 0usize;
+            for y in (0..h).step_by(2) {
+                for x in (0..w).step_by(2) {
+                    let c = px(x, y);
+                    // flower red / grass-green family
+                    if (c[0] > 150 && c[1] < 90 && c[2] < 90)
+                        || (c[1] > 120 && c[1] > c[0] + 30 && c[1] > c[2] + 30) {
+                        plant_px += 1;
+                    }
+                }
+            }
+            assert!(plant_px > 150, "plants_cross: plant pixels missing ({})", plant_px);
+            // the cell band above ground (upper third of the frame): a flat
+            // blue band = the crosses are see-through; a wall of green would
+            // mean cube geometry
+            for y in (0..h / 3).step_by(2) {
+                for x in (0..w).step_by(2) {
+                    let c = px(x, y);
+                    if c[2] > c[0] + 20 && c[2] > 150 {
+                        sky_in_band += 1;
+                    }
+                }
+            }
+            assert!(sky_in_band > 200, "plants_cross: sky not visible through/above plants ({})", sky_in_band);
+        }
+        "seed_comparison" => {
+            // the two halves must differ substantially: compare sampled
+            // columns left vs right of the midline
+            let mut diff = 0usize;
+            let mut total = 0usize;
+            let mid = w / 2;
+            for y in (0..h).step_by(4) {
+                for k in 1..20 {
+                    let xl = mid - k * 6;
+                    let xr = mid + k * 6;
+                    if xl < 0 || xr >= w { continue; }
+                    total += 1;
+                    let (cl, cr) = (px(xl as usize, y), px(xr as usize, y));
+                    let d = cl.iter().zip(cr.iter()).map(|(a, b)| (a - b).abs()).sum::<i32>();
+                    if d > 40 { diff += 1; }
+                }
+            }
+            assert!(total > 100, "seed_comparison: sampling failed ({})", total);
+            let frac = diff as f32 / total as f32;
+            assert!(frac > 0.25, "seed_comparison: the two seed halves look the same (differing {:.2})", frac);
         }
         "asset_catalog" => {
             // same grid math as draw_asset_catalog_preview: every cell must

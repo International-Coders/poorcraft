@@ -254,6 +254,35 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
                 if block == BlockState::AIR {
                     continue;
                 }
+                // Loop 331: ground plants render Minecraft-style — two
+                // diagonal cutout quads (each emitted twice so the backface
+                // cull keeps them visible from both sides), lit by their own
+                // cell, with the foliage wind sway. No cube faces at all.
+                if registry::is_plant(block.id()) && !registry::is_banner(block.id()) {
+                    let l = light_of(x as i32, y as i32, z as i32);
+                    let light = [l, l, l, l];
+                    let ao = [1.0f32; 4];
+                    let tex = tex_of(block, Face::Side);
+                    let (x0, z0) = (x as f32 + 0.146, z as f32 + 0.146);
+                    let (x1, z1) = (x as f32 + 0.854, z as f32 + 0.854);
+                    let mut quad = |vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>,
+                                    corners: [[f32; 3]; 4], normal: [f32; 3]| {
+                        push_face(vertices, indices, corners, UVS_A, normal, tex, ao, light, 1.0);
+                    };
+                    // diagonal A: (-z..+x), front and back
+                    let (fy0, fy1) = (y as f32, y as f32 + 1.0);
+                    let a = [[x0, fy0, z0], [x0, fy1, z0], [x1, fy1, z1], [x1, fy0, z1]];
+                    quad(&mut vertices, &mut indices, a, [0.0, 0.0, -1.0]);
+                    let a_rev = [a[3], a[2], a[1], a[0]];
+                    quad(&mut vertices, &mut indices, a_rev, [0.0, 0.0, 1.0]);
+                    // diagonal B: (+x..+z), front and back
+                    let b = [[x1, fy0, z0], [x1, fy1, z0], [x0, fy1, z1], [x0, fy0, z1]];
+                    quad(&mut vertices, &mut indices, b, [1.0, 0.0, 0.0]);
+                    let b_rev = [b[3], b[2], b[1], b[0]];
+                    quad(&mut vertices, &mut indices, b_rev, [-1.0, 0.0, 0.0]);
+                    continue;
+                }
+
                 // P34: shaped blocks take their own emission path; plain
                 // cubes keep the original code untouched below
                 let shape = block.shape();
@@ -623,5 +652,33 @@ mod tests {
         assert_eq!(lf_assets_conn(0), Some(83), "stone -> stone_conn");
         assert_eq!(lf_assets_conn(15), Some(84), "planks -> planks_conn");
         assert_eq!(lf_assets_conn(1), None, "grass has no variant");
+    }
+
+    /// Loop 331: a cross-plant renders as exactly two diagonal quads x2
+    /// sides (16 vertices, all inside the cell) — no cube faces.
+    #[test]
+    fn cross_plants_emit_diagonal_quads_not_cubes() {
+        let mut sec = crate::VoxelSection::new_empty();
+        sec.set(8, 8, 8, BlockState(crate::registry::block::TALL_GRASS));
+        let tex_of = &|_b, _f| 7u32;
+        let light_of = &|_, _, _| 0xF0u32;
+        let mesh = mesh_section(&sec, None, None, None, None, None, None, tex_of, light_of);
+        assert_eq!(mesh.vertices.len(), 16, "4 quads x 4 verts, got {}",
+            mesh.vertices.len());
+        assert_eq!(mesh.indices.len(), 24, "4 quads x 6 indices");
+        // every vertex stays inside the plant cell and touches only two
+        // diagonal corner pairs (x==z or x+z==1 within the cell)
+        for v in &mesh.vertices {
+            let (lx, ly, lz) = (v.position[0] - 8.0, v.position[1] - 8.0, v.position[2] - 8.0);
+            assert!((0.0..=1.0).contains(&lx) && (0.0..=1.0).contains(&ly) && (0.0..=1.0).contains(&lz));
+            let on_diag_a = (lx - lz).abs() < 0.01;
+            let on_diag_b = (lx + lz - 1.0).abs() < 0.01;
+            assert!(on_diag_a || on_diag_b, "vertex off the diagonals: {:?}", v.position);
+        }
+        // control: a stone cube in the same spot emits the usual culled cube
+        let mut sec2 = crate::VoxelSection::new_empty();
+        sec2.set(8, 8, 8, BlockState(crate::registry::block::STONE));
+        let cube = mesh_section(&sec2, None, None, None, None, None, None, tex_of, light_of);
+        assert!(cube.vertices.len() > 16, "a cube has more geometry than a cross");
     }
 }

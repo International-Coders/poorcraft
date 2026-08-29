@@ -134,6 +134,21 @@ struct LegacySlotMeta {
 /// counter is mixed in so two calls in the same clock tick still differ —
 /// the audit run caught random_seeds_vary_and_are_huge failing exactly
 /// that way.
+/// The Create-a-Game seed field's contract (loop 331): a trimmed number is
+/// used literally, an empty field rolls a fresh random seed, any other
+/// text hashes deterministically (same words -> same world, forever).
+pub fn parse_seed_field(raw: &str) -> u64 {
+    let s = raw.trim();
+    if let Ok(v) = s.parse::<u64>() {
+        return v;
+    }
+    if s.is_empty() {
+        random_seed()
+    } else {
+        hash_seed_string(s)
+    }
+}
+
 pub fn random_seed() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static SEQ: AtomicU64 = AtomicU64::new(0);
@@ -360,6 +375,38 @@ mod tests {
         assert_eq!(sanitize("../../../etc"), "etc");
         assert_eq!(sanitize("   "), "World");
         assert_eq!(sanitize("a-really-long-name-that-should-be-cut"), "a-really-long-name-that-");
+    }
+
+    #[test]
+    fn seed_field_parses_numbers_words_and_rolls_empty() {
+        assert_eq!(parse_seed_field("48291055634"), 48291055634);
+        assert_eq!(parse_seed_field("  12345  "), 12345, "trimmed");
+        assert_eq!(parse_seed_field("0"), 0);
+        assert_eq!(parse_seed_field(u64::MAX.to_string().as_str()), u64::MAX);
+        // words hash deterministically; different words differ
+        assert_eq!(parse_seed_field("valdenmoor"), parse_seed_field("  valdenmoor "));
+        assert_ne!(parse_seed_field("valdenmoor"), parse_seed_field("moorvalden"));
+        // empty rolls fresh random seeds (varying, not zero)
+        let a = parse_seed_field("");
+        let b = parse_seed_field("");
+        assert_ne!(a, b, "two empty rolls differ");
+        assert_ne!(a, 0);
+    }
+
+    /// The contract the player cares about: the same typed seed produces
+    /// the same world, a different seed produces different terrain.
+    #[test]
+    fn same_seed_same_world_different_seed_different_world() {
+        use lf_worldgen::{Seed, WorldGen};
+        let heights = |seed: u64| {
+            let gen = WorldGen::new(Seed(seed));
+            (0..8).map(|x| gen.surface_top(x * 3, x * 5)).collect::<Vec<_>>()
+        };
+        assert_eq!(heights(48291055634), heights(48291055634), "reproducible");
+        assert_eq!(heights(parse_seed_field("valdenmoor")), heights(parse_seed_field("valdenmoor")));
+        let a = heights(12345);
+        let b = heights(54321);
+        assert_ne!(a, b, "different seeds, different terrain");
     }
 
     #[test]

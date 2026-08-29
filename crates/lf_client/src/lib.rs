@@ -1252,7 +1252,16 @@ impl GameState {
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::AutoVsync,
-            alpha_mode: caps.alpha_modes[0],
+            // Opaque (loop 331): the compositor must ignore framebuffer
+            // alpha. With a premultiplied/inherited mode the desktop behind
+            // the window blended through pixels whose alpha wasn't 1
+            // (water, ice, unlit regions) — the reported "black box" while
+            // playing was the dark window behind showing through.
+            alpha_mode: if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::Opaque) {
+                wgpu::CompositeAlphaMode::Opaque
+            } else {
+                caps.alpha_modes[0]
+            },
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
@@ -1593,17 +1602,7 @@ impl GameState {
             self.new_world_error = Some("World needs a name.".into());
             return Err(self.new_world_error.clone().unwrap());
         }
-        let seed = match self.new_world_seed.trim().parse::<u64>() {
-            Ok(v) => v,
-            Err(_) => {
-                    let s = self.new_world_seed.trim();
-                    if s.is_empty() {
-                        slots::random_seed()
-                    } else {
-                        crate::slots::hash_seed_string(s)
-                    }
-            }
-        };
+        let seed = slots::parse_seed_field(&self.new_world_seed);
         let world_type = [
             lf_worldgen::WorldType::Normal,
             lf_worldgen::WorldType::Superflat,
@@ -4291,6 +4290,16 @@ impl GameState {
     fn after_edit(&mut self, x: i32, y: i32, z: i32) {
         self.enqueue_fluid_around(x, y, z);
         self.spawn_faller_from_above(x, y, z);
+        // loop 331: ground plants pop when their support breaks
+        let above = self.world.get_block(x, y + 1, z).id();
+        if registry::is_plant(above) && !registry::is_banner(above) {
+            if self.world.set_block(x, y + 1, z, BlockState::AIR).is_some() {
+                self.remesh_around(x, z);
+                if let Some(n) = &self.net {
+                    n.send_block(x, y + 1, z, registry::block::AIR);
+                }
+            }
+        }
     }
 
     fn enqueue_fluid_around(&mut self, x: i32, y: i32, z: i32) {

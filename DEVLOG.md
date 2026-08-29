@@ -1105,3 +1105,29 @@ fall animation (single-sim-owner v1); no axe variant/stripping; a giant-
 spruce fall renders up to ~70 cubes (~420 quads — same noise class as the
 dragon precedent, recorded in DECISIONS terms); Phase B-E of the master
 plan queued in STATE.md.
+
+## 2026-08-28 — loop 331: plant crosses, seed field, opaque surface
+
+**WHAT**: Ground plants (flower/tall_grass/dry_grass/dead_shrub) render
+Minecraft-style as diagonal cutout quads with wind sway instead of solid
+cubes; the Create-a-Game seed field got a single tested contract
+(number literal / empty = random / text = stable hash) with a world-level
+side-by-side proof; the wgpu surface now requests CompositeAlphaMode::Opaque
+so the desktop cannot bleed through non-opaque framebuffer pixels (the
+reported in-play "black box").
+
+**HOW**: `lf_voxel/src/meshing.rs` (cross-quad emission + cell-light +
+sway, `is_plant && !is_banner` gate before the cube path);
+`lf_voxel/src/registry.rs` (is_plant helper); `lf_client/src/slots.rs`
+(`parse_seed_field` + tests); `lf_client/src/lib.rs` (seed field plumbing,
+after_edit pops unsupported plants above broken blocks, alpha mode);
+`lf_vistest/src/lib.rs` (`plants_cross`, `seed_comparison` scenes with
+pixel claims).
+
+**VERIFICATION**: cargo build clean; cargo test --workspace 322 passed /
+0 failed; vistest 78/78 (`plants_cross` claims plant pixels + sky visible
+above the cross band; `seed_comparison` fails if both halves look alike);
+12 s GUI smoke OK.
+
+**HONESTLY DEFERRED**: banners still use their own render path (by
+design); plants do not sway per-instance phase (shared sway weight).

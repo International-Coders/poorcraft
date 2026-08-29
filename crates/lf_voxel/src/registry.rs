@@ -551,6 +551,24 @@ mod tests {
         assert!(is_targetable(BlockState(block::LOG)));
     }
 
+    /// Loop 331: ground plants are cross-plant decor — walked through,
+    /// targeted for breaking, not gravity fallers, and banners excluded.
+    #[test]
+    fn plants_are_walk_through_decor() {
+        use block as b;
+        for plant in [b::FLOWER, b::TALL_GRASS, b::DRY_GRASS, b::DEAD_SHRUB] {
+            assert!(is_plant(plant), "{} is a plant", plant);
+            assert!(!is_solid(BlockState(plant)), "plants are walked through");
+            assert!(is_targetable(BlockState(plant)), "plants breakable");
+            assert!(!has_gravity(plant), "plants pop, not fall");
+        }
+        // banners share is_plant but stay wall decor
+        assert!(is_plant(b::BANNER_ACCORD));
+        // trunks and stone are unaffected
+        assert!(is_solid(BlockState(b::LOG)));
+        assert!(!is_plant(b::LOG));
+    }
+
     #[test]
     fn mod_blocks_register_and_behave() {
         assert!(register_mod_block(250, ModBlockDef {
