@@ -22,3 +22,11 @@ hardness = 1.4
 harvest_level = 1
 light = 0
 
+[[blocks]]
+id = "mud_brick:mud_brick_arch"
+name = "Mud Brick Arch"
+texture = "mud_brick_arch.png"
+hardness = 1.5
+harvest_level = 1
+light = 0
+

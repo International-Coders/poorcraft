@@ -14,3 +14,11 @@ hardness = 3.0
 harvest_level = 2
 light = 3
 
+[[blocks]]
+id = "runestone:warded_runestone"
+name = "Warded Runestone"
+texture = "warded_runestone.png"
+hardness = 3.4
+harvest_level = 2
+light = 9
+

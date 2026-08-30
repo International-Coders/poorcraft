@@ -1253,6 +1253,10 @@ impl GameState {
                         | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
                     required_limits: wgpu::Limits {
                         max_sampled_textures_per_shader_stage: 32,
+                        // king-quest asset pass: the atlas (194 named + one
+                        // generated layer per mod block) can exceed the 256
+                        // default; Metal/Vulkan adapters expose 2048+
+                        max_texture_array_layers: 512,
                         ..wgpu::Limits::default()
                     },
                     memory_hints: wgpu::MemoryHints::default(),
@@ -5376,10 +5380,10 @@ impl GameState {
                 }
             };
             let animal_tex = match mob.mob_type {
-                MobType::Chicken => Some(lf_assets::MOB_CHICKEN_LAYER),
-                MobType::Wolf => Some(lf_assets::MOB_WOLF_LAYER),
-                MobType::Dog => Some(lf_assets::MOB_DOG_LAYER),
-                MobType::Bear => Some(lf_assets::MOB_BEAR_LAYER),
+                MobType::Chicken => Some(lf_assets::mob_chicken_layer()),
+                MobType::Wolf => Some(lf_assets::mob_wolf_layer()),
+                MobType::Dog => Some(lf_assets::mob_dog_layer()),
+                MobType::Bear => Some(lf_assets::mob_bear_layer()),
                 _ => None,
             };
             if mob.mob_type == MobType::Dragon {

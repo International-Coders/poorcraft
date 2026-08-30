@@ -22,3 +22,11 @@ hardness = 1.9
 harvest_level = 1
 light = 0
 
+[[blocks]]
+id = "slate_roofing:slate_ridge_tile"
+name = "Slate Ridge Tile"
+texture = "slate_ridge_tile.png"
+hardness = 1.9
+harvest_level = 1
+light = 0
+

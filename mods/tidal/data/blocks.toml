@@ -14,3 +14,11 @@ hardness = 2.2
 harvest_level = 1
 light = 0
 
+[[blocks]]
+id = "tidal:tidal_glass"
+name = "Tidal Glass"
+texture = "tidal_glass.png"
+hardness = 0.7
+harvest_level = 0
+light = 0
+

@@ -1008,3 +1008,18 @@ Deferred (honest notes):
   yields today).
 - [ ] Villager TOML schedule overrides per archetype (canonical enriched
   schedule is the single default table).
+
+## Loop 335 — asset-gap closure
+
+- [x] Unique generated 16x16 atlas art per mod block (100 blocks),
+  deterministic per namespaced id, palette-ruled (3+ colors, no pure
+  black/white), pairwise-distinct (tested), one atlas layer per block.
+- [x] 7 ring-top layers for the new tree species (per-face routing) and
+  12 packs gained a signature block (mod blocks 88 -> 100).
+- [x] Fixed the loop-B atlas drift (hand-counted layer constants were
+  +4 off; all king-quest layers now derive from layer_of(name)) and
+  raised max_texture_array_layers to 512 (the atlas is 294 deep).
+- [x] Asset ledger: 320 new discrete assets across loops 334-335 — the
+  300 target is cleared.
+- [ ] Steam P2P/overlay/achievements remain BLOCKED on having a Steam
+  client, an SDK runtime and a real AppID (documented in loop 334).

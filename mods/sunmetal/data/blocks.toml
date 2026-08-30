@@ -14,3 +14,11 @@ hardness = 6.0
 harvest_level = 3
 light = 6
 
+[[blocks]]
+id = "sunmetal:sunmetal_pillar"
+name = "Sunmetal Pillar"
+texture = "sunmetal_pillar.png"
+hardness = 5.5
+harvest_level = 3
+light = 10
+

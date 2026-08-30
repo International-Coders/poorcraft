@@ -1320,3 +1320,46 @@ multi-chunk city sprawl (the Bastion is single-chunk by the per-chunk
 structure system); unique mod-block art per pack; more tree shapes per
 biome; vassal loyalty/wage mechanics (flat yields today); villager TOML
 schedule overrides. Full list in BACKLOG.md.
+
+## 2026-08-30 — loop 335: unique per-mod-block atlas art + atlas drift fix
+
+**WHAT**: The asset-gap closure. Every one of the 100 mod blocks now gets
+its OWN generated 16x16 atlas layer — deterministic per namespaced id
+(fnv1a -> integer 6-sector hue wheel + hue-offset accent + one of 8 pixel
+pattern families: speckle/strata/ore-dots/planks/bricks/crystal/scales/
+rings), palette-ruled (no near-black, no near-white, >=3 distinct colors
+with an explicit 3-color fallback stamp), appended after the 194-name
+base atlas and routed by `mod_block_layer_for`. Plus 7 new ring-top
+layers so the new tree species show cut-end rings on Top/Bottom faces,
+and 12 packs gained one signature block each (mod blocks 88 -> 100).
+
+**BUG FIXED EN ROUTE (atlas drift)**: the loop-B layer constants were
+hand-counted and wrong — the "ember" particle layer and the E3
+decoration band shifted the appended tail by +4, so every biome block
+(palm log through salt) routed to the WRONG art (palm logs textured as
+dry grass, animal skins as cactus/dead-shrub). All king-quest layers now
+derive from `layer_of(name)` (TEXTURE_NAMES index by name — single
+source of truth), and the per-face routing test covers the 7 new
+species. Also: the diffuse texture array needed
+`max_texture_array_layers: 512` (default 256) in all three device
+descriptors — the atlas with 100 mod layers is 294 deep.
+
+**TESTS**: `mod_block_art_is_deterministic_and_palette_ruled` (lf_assets,
+bit-identity + palette rules); `king_quest_layers_resolve_by_name`
+(layer drift regression); the lf_modapi contract test now asserts one
+generated layer per mod block, correct routing, palette rules, and
+pairwise-distinct art across all 100 blocks (scoped to the pack — other
+tests share the process-global registry).
+
+**VERIFICATION**: cargo build --workspace clean; 346 passed / 0 failed;
+smoke green; live autostart boot with 54 mods + the 294-layer atlas ran
+18s+ without validation errors.
+
+**ASSET LEDGER (300 target)**: previous loop 201 + 100 generated mod-
+block layers + 7 ring tops + 12 new mod blocks = **320 new discrete
+assets**. Target cleared.
+
+**HONESTLY DEFERRED**: unchanged from loop 334 — Steam P2P/overlay/
+achievements blocked on a Steam client, SDK runtime and a real AppID
+(the workshop UGC loading + feature compile that ARE shipped stay);
+multi-chunk city sprawl; per-mod tree shapes.

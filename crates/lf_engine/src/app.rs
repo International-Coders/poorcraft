@@ -92,6 +92,10 @@ impl State {
                         | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
                     required_limits: wgpu::Limits {
                         max_sampled_textures_per_shader_stage: 32,
+                        // king-quest asset pass: the atlas (194 named + one
+                        // generated layer per mod block) can exceed the 256
+                        // default; Metal/Vulkan adapters expose 2048+
+                        max_texture_array_layers: 512,
                         ..wgpu::Limits::default()
                     },
                     memory_hints: wgpu::MemoryHints::default(),

@@ -1346,6 +1346,7 @@ dependencies = [
 name = "lf_modapi"
 version = "0.1.0"
 dependencies = [
+ "lf_assets",
  "lf_game",
  "lf_voxel",
  "lf_worldgen",

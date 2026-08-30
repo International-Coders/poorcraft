@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 187] = [
+pub const TEXTURE_NAMES: [&str; 194] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -92,14 +92,44 @@ pub const TEXTURE_NAMES: [&str; 187] = [
     "maple_log", "maple_leaves", "aspen_leaves", "willow_leaves",
     "baobab_log", "ember_log", "ember_leaves", "lavender",
     "sunflower", "salt",
+    // king-quest B: cut-end ring tops for the new tree species (183-191)
+    "palm_log_top", "acacia_log_top", "mangrove_log_top", "redwood_log_top",
+    "maple_log_top", "baobab_log_top", "ember_log_top",
+    // generic log-top reuses the shared log_top; aspen reuses birch's
 ];
 
-/// king-quest B: atlas layers for the 15 new biomes' blocks (block id - 121
-/// + 165 gives the layer, in TEXTURE_NAMES order above).
-pub const PALM_LOG_LAYER: u32 = 165;
+/// king-quest B: block ids 121..=138 map to their named layers, in this
+/// order (names are the single source of truth — never hand-count).
+const BIOME_BLOCK_NAMES: [&str; 18] = [
+    "palm_log", "palm_leaves", "acacia_log", "acacia_leaves",
+    "mangrove_log", "mangrove_leaves", "redwood_log", "redwood_leaves",
+    "maple_log", "maple_leaves", "aspen_leaves", "willow_leaves",
+    "baobab_log", "ember_log", "ember_leaves", "lavender",
+    "sunflower", "salt",
+];
+
+/// First appended layer for per-mod-block generated art (after the whole
+/// named base atlas — derived, never hand-counted).
+pub const MOD_BLOCK_LAYER_BASE: u32 = TEXTURE_NAMES.len() as u32;
 /// king-quest B: block id (121..=138) -> its atlas layer (165..=182).
 pub fn biome_block_layer(block_id: u32) -> u32 {
-    block_id - 121 + 165
+    layer_of(BIOME_BLOCK_NAMES[(block_id - 121) as usize])
+}
+
+/// Atlas layer of a named texture: its index in TEXTURE_NAMES. All
+/// king-quest layers derive from this — hand-counted constants drifted
+/// when layers were appended across loops and silently swapped art.
+pub fn layer_of(name: &str) -> u32 {
+    static IDX: std::sync::OnceLock<std::collections::HashMap<&'static str, u32>> =
+        std::sync::OnceLock::new();
+    let map = IDX.get_or_init(|| {
+        TEXTURE_NAMES
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (*n, i as u32))
+            .collect()
+    });
+    *map.get(name).unwrap_or_else(|| panic!("no atlas layer named {name}"))
 }
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
@@ -197,11 +227,11 @@ pub fn trusted_companion_layer(layer: u32) -> u32 {
     if (132..=137).contains(&layer) { layer + 6 } else { layer }
 }
 pub const MOB_BOAR_LAYER: u32 = 144;
-/// king-quest C animal skins (TEXTURE_NAMES order: after the swamp mob tints).
-pub const MOB_CHICKEN_LAYER: u32 = 165;
-pub const MOB_WOLF_LAYER: u32 = 166;
-pub const MOB_DOG_LAYER: u32 = 167;
-pub const MOB_BEAR_LAYER: u32 = 168;
+/// king-quest C animal skins (name-derived; see layer_of).
+pub fn mob_chicken_layer() -> u32 { layer_of("mob_chicken") }
+pub fn mob_wolf_layer() -> u32 { layer_of("mob_wolf") }
+pub fn mob_dog_layer() -> u32 { layer_of("mob_dog") }
+pub fn mob_bear_layer() -> u32 { layer_of("mob_bear") }
 pub const MOB_WOOLBEAST_LAYER: u32 = 145;
 pub const MOB_GLITCHLING_LAYER: u32 = 146;
 pub const MOB_STALKER_LAYER: u32 = 147;
@@ -312,7 +342,8 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         115 | 116 => 18, // spruce bark
         117 | 118 => 19, // dark log bark
         119 | 120 => 20, // cherry bark
-        id if id >= 200 => 47, // mod blocks (registry::MOD_BLOCK_BASE)
+        // mod blocks: one generated, palette-distinct layer per block
+        id if id >= lf_voxel::registry::MOD_BLOCK_BASE => mod_block_layer_for(id),
         _ => 0,
     }
 }
@@ -336,6 +367,28 @@ pub fn texture_index_for_face(block_id: u32, face: lf_voxel::meshing::Face) -> u
     );
     // Directional laterals collapse to `Side` for every non-log purpose
     // (shapes, water, grass, ... are never direction-dependent).
+    // king-quest B: the new species' cut ends show their own rings
+    let is_cut_end = matches!(
+        (block_id, face),
+        (block::PALM_LOG, Face::Top | Face::Bottom)
+            | (block::ACACIA_LOG, Face::Top | Face::Bottom)
+            | (block::MANGROVE_LOG, Face::Top | Face::Bottom)
+            | (block::REDWOOD_LOG, Face::Top | Face::Bottom)
+            | (block::MAPLE_LOG, Face::Top | Face::Bottom)
+            | (block::BAOBAB_LOG, Face::Top | Face::Bottom)
+            | (block::EMBER_LOG, Face::Top | Face::Bottom)
+    );
+    if is_cut_end {
+        return match block_id {
+            block::PALM_LOG => palm_log_top_layer(),
+            block::ACACIA_LOG => acacia_log_top_layer(),
+            block::MANGROVE_LOG => mangrove_log_top_layer(),
+            block::REDWOOD_LOG => redwood_log_top_layer(),
+            block::MAPLE_LOG => maple_log_top_layer(),
+            block::BAOBAB_LOG => baobab_log_top_layer(),
+            _ => ember_log_top_layer(),
+        };
+    }
     let face = match face {
         Face::West | Face::East | Face::North | Face::South => Face::Side,
         other => other,
@@ -1119,6 +1172,46 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     let v = ring + ((x * 3 + y * 7) % 12);
                     Rgba([ch(v), ch((v * 3) / 4), ch(v / 2), 255])
                 }
+                "palm_log_top" => {
+                    let d = ((x as i32 - 8).abs()).max((y as i32 - 8).abs());
+                    let ring = if d % 2 == 0 { 168 } else { 122 };
+                    let v = ring + ((x * 5 + y * 3) % 14);
+                    Rgba([ch(v), ch(v - 26), ch(v - 74), 255])
+                }
+                "acacia_log_top" => {
+                    let d = ((x as i32 - 8).abs()).max((y as i32 - 8).abs());
+                    let ring = if d % 3 == 0 { 150 } else { 104 };
+                    Rgba([ch(ring + 30), ch(ring - 30), 56, 255])
+                }
+                "mangrove_log_top" => {
+                    let d = ((x as i32 - 8).abs()).max((y as i32 - 8).abs());
+                    let ring = if d % 2 == 0 { 132 } else { 96 };
+                    Rgba([ch(ring + 12), ch(ring - 36), ch(ring - 18), 255])
+                }
+                "redwood_log_top" => {
+                    let d = ((x as i32 - 8).abs()).max((y as i32 - 8).abs());
+                    let ring = if d % 2 == 0 { 148 } else { 104 };
+                    Rgba([ch(ring + 28), ch(ring - 26), ch(ring - 54), 255])
+                }
+                "maple_log_top" => {
+                    let d = ((x as i32 - 8).abs()).max((y as i32 - 8).abs());
+                    let ring = if d % 2 == 0 { 138 } else { 112 };
+                    Rgba([ch(ring), ch(ring), ch(ring - 8), 255])
+                }
+                "baobab_log_top" => {
+                    let d = ((x as i32 - 8).abs()).max((y as i32 - 8).abs());
+                    let ring = if d % 2 == 0 { 158 } else { 128 };
+                    Rgba([ch(ring), ch(ring - 32), ch(ring - 40), 255])
+                }
+                "ember_log_top" => {
+                    let d = ((x as i32 - 8).abs()).max((y as i32 - 8).abs());
+                    let crack = (x * 5 + y * 3) % 9 == 0;
+                    if crack { Rgba([206, 92, 30, 255]) }
+                    else {
+                        let ring = if d % 2 == 0 { 58 } else { 44 };
+                        Rgba([ring, ring - 6, ring - 8, 255])
+                    }
+                }
                 // ---- faction blocks (lore-and-visuals C1) ----------------
                 "accord_stone" => {
                     // smooth stone with a faint corner-to-corner inlay groove
@@ -1639,6 +1732,30 @@ pub const CTM_BLOCKS: [CtmBlock; 8] = [
     CtmBlock { face_layer: 86,  marker: 171, art: "accord_stone" },
     CtmBlock { face_layer: 94,  marker: 172, art: "ashen_marble" },
 ];
+
+fn palm_log_top_layer() -> u32 { layer_of("palm_log_top") }
+fn acacia_log_top_layer() -> u32 { layer_of("acacia_log_top") }
+fn mangrove_log_top_layer() -> u32 { layer_of("mangrove_log_top") }
+fn redwood_log_top_layer() -> u32 { layer_of("redwood_log_top") }
+fn maple_log_top_layer() -> u32 { layer_of("maple_log_top") }
+fn baobab_log_top_layer() -> u32 { layer_of("baobab_log_top") }
+fn ember_log_top_layer() -> u32 { layer_of("ember_log_top") }
+
+/// The generated atlas layer for a mod block: its slot in the sorted
+/// registry listing, offset past the base atlas. Falls back to the shared
+/// "mod" layer when the registry has no such id (e.g. a headless render
+/// with mods unloaded).
+pub fn mod_block_layer_for(id: u32) -> u32 {
+    static CACHE: std::sync::OnceLock<Vec<(u32, u32)>> = std::sync::OnceLock::new();
+    let map = CACHE.get_or_init(|| {
+        lf_voxel::registry::registered_mod_blocks()
+            .iter()
+            .enumerate()
+            .map(|(slot, (id, _))| (*id, MOD_BLOCK_LAYER_BASE + slot as u32))
+            .collect()
+    });
+    map.iter().find(|(i, _)| *i == id).map(|(_, l)| *l).unwrap_or(47)
+}
 
 /// The CTM marker for a rendered face layer, if the block has CTM at all.
 pub fn ctm_first_layer(face_layer: u32) -> Option<u32> {
@@ -2166,7 +2283,70 @@ fn mob_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
 }
 
 pub fn generate_atlas() -> Vec<RgbaImage> {
-    TEXTURE_NAMES.iter().map(|n| generate_block_texture(n)).collect()
+    let mut atlas: Vec<RgbaImage> = TEXTURE_NAMES.iter().map(|n| generate_block_texture(n)).collect();
+    // king-quest asset pass: every registered mod block gets its own
+    // palette-distinct generated layer, appended after the base atlas and
+    // addressed by `mod_block_layer_for`. Deterministic per block name.
+    for (_, def) in lf_voxel::registry::registered_mod_blocks() {
+        atlas.push(mod_block_art(&def.name));
+    }
+    atlas
+}
+
+/// king-quest asset pass: a unique 16x16 texture for one mod block,
+/// derived deterministically from its namespaced id. Palette rule: the
+/// fnv1a hash picks a wide-space base hue, a hue-offset accent, and one
+/// of eight pixel pattern families — no pure black, no pure white, at
+/// least three distinct colours per tile.
+pub fn mod_block_art(name: &str) -> RgbaImage {
+    let h = fnv1a(name);
+    let hue = (h % 360) as i32;
+    let accent = (24 + (h >> 9) % 60) as i32;
+    let pattern = ((h >> 15) % 8) as u32;
+    // hue -> approx RGB (integer 6-sector wheel; no floats, deterministic)
+    let sector = (hue / 60) as i32;
+    let frac = ((hue % 60) * 170) / 60;
+    let (r, g, b) = match sector {
+        0 => (170, frac, 40),
+        1 => (170 - frac, 170, 40),
+        2 => (40, 170, frac),
+        3 => (40, 170 - frac, 170),
+        4 => (frac, 40, 170),
+        _ => (170, 40, 170 - frac),
+    };
+    let mix = |c: i32, d: i32| (c + d).clamp(6, 249) as u8;
+    let base = [mix(r, 0), mix(g, 0), mix(b, 0)];
+    let light = [mix(r, accent), mix(g, accent), mix(b, accent)];
+    let dark = [mix(r, -accent), mix(g, -accent), mix(b, -accent)];
+    let mut img = RgbaImage::new(16, 16);
+    for y in 0..16u32 {
+        for x in 0..16u32 {
+            let n = (x * 7 + y * 13 + ((h >> (pattern + 3)) % 16) as u32) % 16;
+            let px = match pattern {
+                0 => if n < 3 { light } else if n > 12 { dark } else { base },      // speckle
+                1 => if y % 4 == 0 { dark } else if y % 4 == 2 { light } else { base }, // strata
+                2 => if (x * 3 + y * 5) % 11 == 0 { light } else if (x + y) % 7 == 0 { dark } else { base }, // ore dots
+                3 => if y % 5 == 0 { dark } else if (x + 2 * y) % 8 == 0 { light } else { base },   // planks
+                4 => if x % 4 == 0 || y % 4 == 0 { dark } else if (x % 4 == 2 && y % 4 == 2) { light } else { base }, // bricks
+                5 => if x == 0 || y == 0 || x == 15 || y == 15 { dark }
+                     else if (x as i32 - y as i32).abs() < 2 || (15 - x as i32 - y as i32).abs() < 2 { light } else { base }, // crystal veins
+                6 => if (x / 2 + y / 2) % 2 == 0 { light } else if x % 8 == 3 && y % 8 == 3 { dark } else { base }, // scales
+                _ => if x == 8 && y == 8 { light }
+                     else if ((x as i32 - 8).abs().max((y as i32 - 8).abs())) % 3 == 0 { dark } else { base }, // rings
+            };
+            img.put_pixel(x, y, Rgba([px[0], px[1], px[2], 255]));
+        }
+    }
+    // palette guarantee: some (hue, pattern) pairs can collapse to two
+    // visible colours after clamping — stamp the three roles explicitly
+    let distinct: std::collections::HashSet<[u8; 3]> =
+        img.pixels().map(|p| [p[0], p[1], p[2]]).collect();
+    if distinct.len() < 3 {
+        img.put_pixel(0, 0, Rgba([base[0], base[1], base[2], 255]));
+        img.put_pixel(15, 0, Rgba([light[0], light[1], light[2], 255]));
+        img.put_pixel(0, 15, Rgba([dark[0], dark[1], dark[2], 255]));
+    }
+    img
 }
 
 // ------------------------------------------------------------------
@@ -3277,6 +3457,16 @@ mod tests {
             assert_eq!(name_of(log_id, Face::Bottom), "log_top", "log {}", log_id);
             assert_ne!(name_of(log_id, Face::Side), "log_top");
         }
+        // king-quest B: the 7 new species carry their OWN ring tops
+        for (log_id, top_name) in [
+            (121u32, "palm_log_top"), (123, "acacia_log_top"),
+            (125, "mangrove_log_top"), (127, "redwood_log_top"),
+            (129, "maple_log_top"), (133, "baobab_log_top"),
+            (134, "ember_log_top"),
+        ] {
+            assert_eq!(name_of(log_id, Face::Top), top_name, "log {}", log_id);
+            assert_ne!(name_of(log_id, Face::Side), top_name, "log {}", log_id);
+        }
         // blocks without distinct faces are unchanged on every face
         assert_eq!(name_of(1, Face::Top), "stone");
         assert_eq!(name_of(1, Face::Bottom), "stone");
@@ -3287,6 +3477,47 @@ mod tests {
 
     /// Failure meaning: the derived CTM table does not implement the
     /// standard 47-tile mapping (interior=0, isolated=46, bijective).
+    /// Failure meaning: king-quest atlas layers drifted again — a named
+    /// layer must resolve to its own index, biome blocks to their own
+    /// art, and the mod-block base must sit after the whole named atlas.
+    #[test]
+    fn king_quest_layers_resolve_by_name() {
+        assert_eq!(layer_of("palm_log"), 169, "appended tail starts after ember/tall_grass/..");
+        assert_eq!(TEXTURE_NAMES[layer_of("lavender") as usize], "lavender");
+        assert_eq!(TEXTURE_NAMES[layer_of("mob_chicken") as usize], "mob_chicken");
+        assert_eq!(MOD_BLOCK_LAYER_BASE as usize, TEXTURE_NAMES.len());
+        // biome blocks route to their own names
+        for (i, name) in ["palm_log", "palm_leaves", "acacia_log", "salt"].iter().enumerate() {
+            let id = 121 + i as u32;
+            let via_id = if id == 124 { 2 } else { id }; // 124 maps below too
+            let _ = via_id;
+            let layer = if *name == "salt" { biome_block_layer(138) } else { biome_block_layer(121 + i as u32) };
+            assert_eq!(TEXTURE_NAMES[layer as usize], *name, "block {} -> {}", id, name);
+        }
+        assert_eq!(TEXTURE_NAMES[biome_block_layer(138) as usize], "salt");
+    }
+
+    /// Failure meaning: the generated per-mod-block art lost its
+    /// determinism or drifted outside the pixel-art palette rules.
+    #[test]
+    fn mod_block_art_is_deterministic_and_palette_ruled() {
+        let a = mod_block_art("riftstone:riftstone");
+        let b = mod_block_art("riftstone:riftstone");
+        assert_eq!(a.as_raw(), b.as_raw(), "same name -> bit-identical art");
+        assert_ne!(a.as_raw(), mod_block_art("sunmetal:sunmetal_ore").as_raw());
+        for name in ["riftstone:riftstone", "moonstone:moonstone_ore",
+                     "cactus_pack:cactus_bricks", "brewmaster:brewing_keg"] {
+            let img = mod_block_art(name);
+            let mut colors = std::collections::HashSet::new();
+            for p in img.pixels() {
+                assert!(p[0] >= 6 && p[1] >= 6 && p[2] >= 6, "{} has near-black", name);
+                assert!(p[0] <= 249 && p[1] <= 249 && p[2] <= 249, "{} has near-white", name);
+                colors.insert([p[0], p[1], p[2]]);
+            }
+            assert!(colors.len() >= 3, "{} has only {} colors", name, colors.len());
+        }
+    }
+
     #[test]
     fn ctm_table_is_the_standard_47_tile_mapping() {
         // endpoints

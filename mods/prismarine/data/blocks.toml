@@ -14,3 +14,11 @@ hardness = 2.6
 harvest_level = 2
 light = 0
 
+[[blocks]]
+id = "prismarine:prismarine_lantern_block"
+name = "Prismarine Lantern"
+texture = "prismarine_lantern_block.png"
+hardness = 1.5
+harvest_level = 2
+light = 11
+

@@ -461,7 +461,7 @@ name = "Ember Ingot"
             }
             smelts += m.smelting_recipes.len();
         }
-        assert!(blocks >= 88, "pack block count regressed: {}", blocks);
+        assert!(blocks >= 100, "pack block count regressed: {}", blocks);
         assert!(ores >= 14, "pack should add worldgen ore veins: {}", ores);
         assert!(lights >= 14, "pack should add light-emitting blocks: {}", lights);
         assert!(smelts >= 10, "pack smelting recipes: {}", smelts);
@@ -474,6 +474,34 @@ name = "Ember Ingot"
         assert!(lf_game::items::item_def("riftstone:rift_shard").is_some());
         // *_ore hooks reach worldgen (y 8..50 veins per the README contract)
         assert!(lf_game::items::item_def("sunmetal:sunmetal_ingot").is_some());
+        // king-quest asset pass: every mod block gets its own generated
+        // 16x16 layer — pairwise distinct, palette-ruled, and appended to
+        // the atlas after the 194 named layers
+        let atlas = lf_assets::generate_atlas();
+        let base = lf_assets::MOD_BLOCK_LAYER_BASE as usize;
+        // other tests in this binary also register blocks, so the registry
+        // can exceed the pack — the pack's own blocks must at least all be
+        // present, each routed to its own generated layer
+        assert!(atlas.len() >= base + ids.len(),
+            "atlas must carry a generated layer per mod block");
+        let mut arts = std::collections::HashSet::new();
+        for id in &ids {
+            let layer = lf_assets::mod_block_layer_for(*id) as usize;
+            assert!(layer >= base && layer < atlas.len(), "mod block {id} routes outside the generated tail");
+            let img = &atlas[layer];
+            arts.insert(img.as_raw().clone());
+            assert_eq!(lf_assets::texture_index_for_block(*id) as usize, layer,
+                "mod block {id} routes to the wrong layer");
+            let mut colors = std::collections::HashSet::new();
+            for p in img.pixels() {
+                assert!(p[0] >= 6 && p[1] >= 6 && p[2] >= 6, "near-black in block {id}");
+                assert!(p[0] <= 249 && p[1] <= 249 && p[2] <= 249, "near-white in block {id}");
+                colors.insert([p[0], p[1], p[2]]);
+            }
+            assert!(colors.len() >= 3, "block {id}: palette rule wants >=3 colors");
+        }
+        assert_eq!(arts.len(), ids.len(),
+            "generated mod art must be pairwise distinct across all packs");
     }
 
     fn smoke_test_mod_loads_from_the_real_folder() {

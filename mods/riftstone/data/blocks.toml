@@ -22,3 +22,11 @@ hardness = 4.0
 harvest_level = 2
 light = 6
 
+[[blocks]]
+id = "riftstone:polished_riftstone"
+name = "Polished Riftstone"
+texture = "polished_riftstone.png"
+hardness = 2.2
+harvest_level = 1
+light = 0
+

@@ -22,3 +22,11 @@ hardness = 1.0
 harvest_level = 1
 light = 6
 
+[[blocks]]
+id = "lantern_co:candle_chandelier"
+name = "Candle Chandelier"
+texture = "candle_chandelier.png"
+hardness = 1.0
+harvest_level = 1
+light = 13
+

@@ -10,3 +10,4 @@ lf_voxel = { path = "../lf_voxel" }
 lf_game = { path = "../lf_game" }
 lf_worldgen = { path = "../lf_worldgen" }
 tempfile = "3.10"
+lf_assets = { path = "../lf_assets" }

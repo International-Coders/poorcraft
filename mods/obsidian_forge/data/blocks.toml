@@ -14,3 +14,11 @@ hardness = 4.0
 harvest_level = 3
 light = 8
 
+[[blocks]]
+id = "obsidian_forge:obsidian_pillar"
+name = "Obsidian Pillar"
+texture = "obsidian_pillar.png"
+hardness = 5.2
+harvest_level = 3
+light = 0
+

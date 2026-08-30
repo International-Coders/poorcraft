@@ -22,3 +22,11 @@ hardness = 1.5
 harvest_level = 1
 light = 0
 
+[[blocks]]
+id = "terracotta_arts:terracotta_mosaic"
+name = "Terracotta Mosaic"
+texture = "terracotta_mosaic.png"
+hardness = 1.6
+harvest_level = 1
+light = 0
+

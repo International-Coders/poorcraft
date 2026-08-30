@@ -22,3 +22,11 @@ hardness = 0.8
 harvest_level = 0
 light = 12
 
+[[blocks]]
+id = "arcane_lamps:arcane_beacon_core"
+name = "Arcane Beacon Core"
+texture = "arcane_beacon_core.png"
+hardness = 1.4
+harvest_level = 1
+light = 15
+

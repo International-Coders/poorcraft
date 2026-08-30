@@ -6,3 +6,11 @@ hardness = 4.8
 harvest_level = 2
 light = 5
 
+[[blocks]]
+id = "gobber:gobber_block"
+name = "Gobber Block"
+texture = "gobber_block.png"
+hardness = 5.8
+harvest_level = 3
+light = 3
+
