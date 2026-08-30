@@ -361,7 +361,7 @@ pub fn scenes() -> Vec<SceneSpec> {
         },
         SceneSpec {
             name: "biome_contact_sheet",
-            desc: "all 30 biomes as side-by-side strips of their real surface materials — the identity proof",
+            desc: "all 46 biomes as side-by-side strips of their real surface materials — the identity proof",
             default_seed: 12345,
             time_of_day: 0.5,
             first_person: false,
@@ -910,7 +910,7 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         let h = world.surface_height(0, 0);
         let biomes = lf_worldgen::Biome::ALL;
         for (i, b) in biomes.iter().enumerate() {
-            let x0 = (i as i32) * 4 - 60;
+            let x0 = (i as i32) * 4 - 92;
             for x in x0..x0 + 4 {
                 for z in -8..8 {
                     world.set_block(x, h - 1, z, lf_voxel::BlockState(b.surface_block()));
@@ -2565,8 +2565,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-7.0, h + 6.5, 9.0), Vec3::new(1.0, h + 0.5, -1.0))
     } else if spec.name == "biome_contact_sheet" {
+        // pulled back + raised: 46 strips x 4 blocks now span 184 blocks
         let h = gen.surface_top(0, 0) as f32;
-        (Vec3::new(0.0, h + 16.0, 26.0), Vec3::new(0.0, h - 1.0, 0.0))
+        (Vec3::new(16.0, h + 34.0, 62.0), Vec3::new(16.0, h - 1.0, 0.0))
     } else if spec.name == "weather_snow" || spec.name == "weather_dry" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-12.0, h + 8.0, 14.0), Vec3::new(0.0, h + 1.0, 0.0))

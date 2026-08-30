@@ -974,3 +974,37 @@ Deferred (honest notes):
   placeholder-block registry to drive batch generation (on-demand only).
 - [ ] NullKnight keeps the generic behaviour machine (freezing it with no
   boss AI would be a regression); `use_boss_ai` gates dragons only.
+
+## Loop 334 — king-quest mega-loop
+
+- [x] 50 community mods (88 blocks / 79 items / 10 smelts; ores reach
+  worldgen, lights reach the light engine, tools carry damage/durability)
+  with a load-all contract test.
+- [x] 15 new biomes with 18 new blocks, 9 new tree species, per-biome
+  ground cover, climate-grid classification, extended structure gates,
+  and the 46-strip contact sheet.
+- [x] 4 animals (chicken, wolf, dog, bear): multi-part cube rendering,
+  skins, spawn rules, combat behaviour.
+- [x] The Accord Bastion walled city + frontier watchtowers + desert
+  ruins, biome-gated by seeded hash (a biome may or may not carry one).
+- [x] The Vassal system: recruit at Honored standing, daily deterministic
+  yields, collect from the vassal, persistent on the villager save.
+- [x] Steam honest pass: Workshop UGC dir loads in client + server;
+  `lf_steam --features steam` compiles.
+
+Deferred (honest notes):
+
+- [ ] Steam P2P transport, overlay and achievements: no Steam client,
+  SDK runtime or real AppID on this host (dev AppID 480). The transport
+  selector compiles but is not exercised end-to-end.
+- [ ] Multi-chunk city sprawl: the Accord Bastion is a single-chunk
+  walled town (the structure system is per-chunk); a sprawling capital
+  needs a cross-chunk placement system.
+- [ ] Unique block art per mod pack (mod blocks share the generic
+  mod-block atlas layer today) — the largest remaining gap vs the
+  300-asset ask; ~200 new discrete assets shipped this loop.
+- [ ] More tree shape variants per biome (9 new species shipped; one
+  shape each) and vassal loyalty/wage mechanics (flat deterministic
+  yields today).
+- [ ] Villager TOML schedule overrides per archetype (canonical enriched
+  schedule is the single default table).

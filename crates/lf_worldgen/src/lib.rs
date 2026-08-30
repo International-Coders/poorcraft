@@ -1026,6 +1026,122 @@ impl WorldGen {
             col.set(8, base_y + 7, 8, BlockState(block::TORCH));
         };
 
+        // king-quest: the Accord Bastion — a walled mini-city. Walls with
+        // merlons and a south gate, four timber houses, a two-storey stone
+        // keep flying the Accord banner (the NPC-settle marker), accord
+        // pillars flanking the keep door, torch-lit roads.
+        let build_city = |col: &mut lf_voxel::ChunkColumn| {
+            let base_y = match prepare(col, 1, 14, 1, 14) { Some(b) => b, None => return };
+            let wall = |dx: usize, dz: usize| dx <= 1 || dx >= 14 || dz <= 1 || dz >= 14;
+            for dx in 1..=14usize {
+                for dz in 1..=14usize {
+                    let y0 = base_y;
+                    if wall(dx, dz) {
+                        // south gate gap
+                        let gate = dz == 14 && (dx == 7 || dx == 8);
+                        for dy in 0..4usize {
+                            let y = y0 + dy;
+                            let merlon = dy == 3 && (dx + dz) % 2 == 0;
+                            if gate || merlon {
+                                col.set(dx, y, dz, BlockState::AIR);
+                            } else {
+                                col.set(dx, y, dz, BlockState(block::STONE));
+                            }
+                        }
+                    } else if ((dx == 7 || dx == 8) && dz >= 9) || (dx == 7 || dx == 8) || (dz == 7 || dz == 8) {
+                        // gate road + cross roads, cut into the terrain fill
+                        col.set(dx, y0, dz, BlockState(block::STONE));
+                    }
+                }
+            }
+            // four timber houses in the quadrants
+            for (hx, hz) in [(3usize, 3usize), (11, 3), (3, 10), (11, 10)] {
+                for dx in hx..hx + 3 {
+                    for dz in hz..hz + 3 {
+                        let edge = dx == hx || dx == hx + 2 || dz == hz || dz == hz + 2;
+                        for dy in 0..3usize {
+                            let y = base_y + dy;
+                            if dy == 0 {
+                                col.set(dx, y, dz, BlockState(block::PLANKS));
+                            } else if edge {
+                                let corner = (dx == hx || dx == hx + 2) && (dz == hz || dz == hz + 2);
+                                col.set(dx, y, dz, BlockState(if corner { block::LOG } else { block::PLANKS }));
+                            } else {
+                                col.set(dx, y, dz, BlockState::AIR);
+                            }
+                        }
+                        col.set(dx, base_y + 3, dz, BlockState(block::LOG));
+                    }
+                }
+                col.set(hx + 1, base_y + 1, hz, BlockState::AIR); // door
+                col.set(hx + 1, base_y + 1, hz + 2, BlockState(block::TORCH));
+            }
+            // the keep: two-storey stone hall with the Accord banner
+            for dx in 6..=9usize {
+                for dz in 6..=9usize {
+                    let edge = dx == 6 || dx == 9 || dz == 6 || dz == 9;
+                    for dy in 0..6usize {
+                        let y = base_y + dy;
+                        if !edge {
+                            col.set(dx, y, dz, BlockState::AIR);
+                        } else if dy == 5 {
+                            col.set(dx, y, dz, BlockState(block::LOG));
+                        } else {
+                            col.set(dx, y, dz, BlockState(block::STONE));
+                        }
+                    }
+                }
+            }
+            col.set(7, base_y + 1, 6, BlockState::AIR);
+            col.set(8, base_y + 1, 6, BlockState::AIR);
+            col.set(7, base_y + 2, 6, BlockState::AIR);
+            col.set(8, base_y + 2, 6, BlockState::AIR);
+            col.set(7, base_y + 6, 7, BlockState(block::BANNER_ACCORD));
+            col.set(6, base_y + 1, 5, BlockState(block::ACCORD_PILLAR));
+            col.set(9, base_y + 1, 5, BlockState(block::ACCORD_PILLAR));
+            col.set(6, base_y + 3, 9, BlockState(block::TORCH));
+            col.set(9, base_y + 3, 9, BlockState(block::TORCH));
+        };
+
+        // frontier wooden watchtower in the new forest biomes
+        let build_wood_tower = |col: &mut lf_voxel::ChunkColumn| {
+            let base_y = match prepare(col, 5, 10, 5, 10) { Some(b) => b, None => return };
+            for dy in 0..9usize {
+                let y = base_y + dy;
+                for dx in 6..=10usize {
+                    for dz in 6..=10usize {
+                        let edge = dx == 6 || dx == 10 || dz == 6 || dz == 10;
+                        let pillar = (dx == 6 || dx == 10) && (dz == 6 || dz == 10);
+                        if pillar || (dy >= 7 && edge) || dy == 0 {
+                            col.set(dx, y, dz, BlockState(if dy >= 7 { block::LOG } else { block::LOG }));
+                        } else {
+                            col.set(dx, y, dz, BlockState::AIR);
+                        }
+                    }
+                }
+            }
+            col.set(8, base_y + 8, 8, BlockState(block::TORCH));
+            col.set(7, base_y + 1, 6, BlockState::AIR);
+            col.set(8, base_y + 1, 6, BlockState::AIR);
+        };
+
+        // sun-baked ruin in the new desert biomes
+        let build_desert_ruin = |col: &mut lf_voxel::ChunkColumn| {
+            let base_y = match prepare(col, 4, 11, 4, 11) { Some(b) => b, None => return };
+            for dx in 4..=11usize {
+                for dz in 4..=11usize {
+                    let remnant = (dx + dz) % 3 != 0 && (dx == 4 || dx == 11 || dz == 4 || dz == 11);
+                    for dy in 0..2usize {
+                        let y = base_y + dy;
+                        if remnant && !(dy == 1 && (dx + dz) % 2 == 0) {
+                            col.set(dx, y, dz, BlockState(block::STONE));
+                        }
+                    }
+                }
+            }
+            col.set(8, base_y + 1, 8, BlockState(block::TORCH));
+        };
+
         let build_pyramid = |col: &mut lf_voxel::ChunkColumn| {
             let base_y = match prepare(col, 2, 14, 2, 14) { Some(b) => b, None => return };
             for layer in 0..4usize {
@@ -1101,7 +1217,16 @@ impl WorldGen {
         };
 
         match center_biome {
-            Biome::Meadow if h0 % 37 == 0 => build_hut(col),
+            // king-quest: the Accord Bastion — a full walled city, rare,
+            // in the accord's meadow heartland. The banner on the keep
+            // makes it a real NPC settlement.
+            Biome::Meadow | Biome::SunflowerPlains if h0 % 331 == 0 => build_city(col),
+            // king-quest B: frontier towers and ruins in the new biomes
+            Biome::RedwoodForest | Biome::PineBarrens | Biome::FoggyFjord
+            | Biome::MapleForest | Biome::WillowWetlands if h0 % 43 == 0 => build_wood_tower(col),
+            Biome::Oasis | Biome::PaintedDunes if h0 % 47 == 0 => build_desert_ruin(col),
+            Biome::Meadow | Biome::SunflowerPlains | Biome::AspenGrove
+            | Biome::MapleForest | Biome::LavenderFields if h0 % 37 == 0 => build_hut(col),
             Biome::Highlands if h0 % 41 == 0 => build_watchtower(col),
             Biome::Desert if h0 % 29 == 0 => build_pyramid(col),
             // P33: wizard towers — rare, forested, and the only place the
@@ -1113,7 +1238,8 @@ impl WorldGen {
             Biome::SnowyPeaks if h0 % 101 == 0 => build_roost(col),
             // Faction structures (lore-and-visuals C3): one per faction, in
             // its home biomes. The banner block is the NPC-settle marker.
-            Biome::Meadow | Biome::Forest if h0 % 131 == 0 => {
+            Biome::Meadow | Biome::Forest | Biome::SunflowerPlains | Biome::LavenderFields
+            if h0 % 131 == 0 => {
                 build_faction_structure(FactionStructure::AccordEmbassy, col, &ground)
             }
             Biome::Mountains | Biome::Badlands | Biome::Volcanic if h0 % 139 == 0 => {
@@ -1573,7 +1699,9 @@ mod tests {
             for cz in -30..30i32 {
                 // sample meadow-ish columns via the biome fn before generating
                 let biome = gen.biome(cx * 16 + 8, cz * 16 + 8);
-                if !matches!(biome, Biome::Meadow | Biome::Forest | Biome::FlowerForest | Biome::Jungle) {
+                if !matches!(biome, Biome::Meadow | Biome::Forest | Biome::FlowerForest | Biome::Jungle
+                    | Biome::SunflowerPlains | Biome::AspenGrove | Biome::MapleForest | Biome::LavenderFields
+                    | Biome::RedwoodForest) {
                     continue;
                 }
                 let col = gen.generate_chunk(cx, cz);
@@ -1605,7 +1733,8 @@ mod tests {
         'find: for cx in -80..80i32 {
             for cz in -80..80i32 {
                 let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
-                if !matches!(b, Biome::Meadow | Biome::Forest) {
+                if !matches!(b, Biome::Meadow | Biome::Forest | Biome::SunflowerPlains
+                    | Biome::AspenGrove | Biome::MapleForest | Biome::LavenderFields) {
                     continue;
                 }
                 if hash2(cx, cz, feats ^ 0x5bd1e995) % 37 != 0 {
@@ -1705,7 +1834,9 @@ mod tests {
                 (40..200).any(|y| col.get(lx, y, lz).id() == marker)))
         };
         for (marker, name, homes, modulus) in &markers {
-            // find the chunk the generator WILL build this structure in
+            // terrain `prepare` may refuse a predicted site (water/slope),
+            // so walk the candidates in order and assert at least one
+            // chunk actually carries the banner
             let mut built = 0;
             'find: for cx in -120..120i32 {
                 for cz in -120..120i32 {
@@ -1717,11 +1848,13 @@ mod tests {
                     if h0 % *modulus != 0 {
                         continue;
                     }
-                    // this chunk should carry the banner — and must not in
-                    // a foreign biome (the match arm guards it by construction)
+                    // this chunk is a predicted site: it only counts once
+                    // the terrain actually accepts the build (prepare may
+                    // refuse underwater/steep sites)
                     let col = gen.generate_chunk(cx, cz);
-                    assert!(has_marker(&col, *marker),
-                        "{} predicted at ({},{}) {:?} but no banner generated", name, cx, cz, b);
+                    if !has_marker(&col, *marker) {
+                        continue; // site refused by terrain; try the next
+                    }
                     // determinism: same chunk, same banner
                     let col2 = gen.generate_chunk(cx, cz);
                     assert!(has_marker(&col2, *marker), "{} marker not deterministic", name);
@@ -1834,16 +1967,17 @@ mod tests {
             ((0.5, 0.5, 52, 0.2), Beach),
             ((0.1, 0.8, 80, 0.3), SnowyTaiga),
             ((0.1, 0.8, 80, 0.8), GiantTaiga),
-            ((0.1, 0.5, 70, 0.95), IceSpikes),
+            ((0.1, 0.5, 70, 0.95), FrostMeadow),
+            ((0.1, 0.5, 70, 0.82), IceSpikes),
             ((0.1, 0.5, 70, 0.3), Tundra),
             ((0.15, 0.5, 35, 0.5), FrozenOcean),
             ((0.85, 0.9, 70, 0.5), Savanna),
             ((0.85, 0.2, 70, 0.9), Badlands),
             ((0.85, 0.2, 70, 0.75), WindsweptSavanna),
-            ((0.85, 0.2, 70, 0.3), Desert),
+            ((0.85, 0.2, 70, 0.4), Desert),
             ((0.3, 0.9, 80, 0.3), Taiga),
             ((0.3, 0.9, 80, 0.85), Swamp),
-            ((0.3, 0.6, 80, 0.9), BirchForest),
+            ((0.3, 0.6, 80, 0.9), MapleForest),
             ((0.3, 0.6, 80, 0.45), Forest),
             ((0.3, 0.3, 80, 0.4), Tundra),
             ((0.65, 0.9, 80, 0.9), PaleGarden),
@@ -1851,6 +1985,23 @@ mod tests {
             ((0.65, 0.7, 80, 0.85), CherryGrove),
             ((0.65, 0.7, 80, 0.3), Forest),
             ((0.65, 0.7, 80, 0.55), FlowerForest),
+            // king-quest B: the 15 new biomes are reachable
+            ((0.85, 0.2, 70, 0.12), Oasis),
+            ((0.85, 0.2, 70, 0.22), PaintedDunes),
+            ((0.7, 0.2, 70, 0.08), SaltFlats),
+            ((0.85, 0.9, 70, 0.05), BaobabFields),
+            ((0.8, 0.15, 80, 0.04), Emberwood),
+            ((0.8, 0.15, 80, 0.08), Volcanic),
+            ((0.5, 0.9, 80, 0.03), MushroomHollow),
+            ((0.5, 0.9, 80, 0.09), RedwoodForest),
+            ((0.65, 0.7, 80, 0.75), WillowWetlands),
+            ((0.65, 0.7, 80, 0.65), LavenderFields),
+            ((0.65, 0.7, 80, 0.2), AspenGrove),
+            ((0.3, 0.6, 80, 0.85), MapleForest),
+            ((0.3, 0.4, 80, 0.9), PineBarrens),
+            ((0.1, 0.5, 70, 0.92), FrostMeadow),
+            ((0.15, 0.5, 52, 0.6), FoggyFjord),
+            ((0.45, 0.5, 80, 0.7), SunflowerPlains),
             ((0.55, 0.3, 80, 0.4), Meadow),
             ((0.6, 0.5, 80, 0.9), Jungle),
             ((0.6, 0.5, 80, 0.7), Swamp),
@@ -1870,7 +2021,7 @@ mod tests {
             let _ = id;
         }
         let all: HashSet<&str> = cases.iter().map(|(_, b)| b.name()).collect();
-        assert!(all.len() >= 29, "expected ~30 distinct biomes, got {}", all.len());
+        assert!(all.len() >= 40, "expected ~46 distinct biomes, got {}", all.len());
     }
 
     #[test]
@@ -2134,64 +2285,130 @@ mod tests {
             n
         };
         let (mut hut, mut pyramid, mut tower) = (false, false, false);
-        // cheap biome-guided chunk selection (full brute scans are too slow
-        // at the larger P23 biome scale)
-        let mut picked: Vec<(i32, i32)> = Vec::new();
-        'pick: for cx in -90..90i32 {
-            for cz in -90..90i32 {
-                let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
-                if matches!(b, Biome::Desert | Biome::Badlands | Biome::Meadow
-                    | Biome::Forest | Biome::Mountains | Biome::SnowyPeaks) {
-                    picked.push((cx, cz));
-                    if picked.len() >= 150 {
-                        break 'pick;
+        // biome-guided per-target chunk selection: terrain `prepare` may
+        // refuse a matching chunk (water/steepness), so scan until each
+        // structure is actually FOUND, not merely predicted
+        let targets: [(u32, &[Biome]); 3] = [
+            (block::CRAFTING_TABLE, &[Biome::Meadow, Biome::Forest,
+                Biome::SunflowerPlains, Biome::AspenGrove, Biome::MapleForest,
+                Biome::LavenderFields]),
+            (block::SAND, &[Biome::Desert, Biome::Badlands]),
+            (block::STONE, &[Biome::Mountains, Biome::SnowyPeaks]),
+        ];
+        for (marker, biomes) in targets {
+            'find: for cx in -90..90i32 {
+                for cz in -90..90i32 {
+                    let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                    if !biomes.contains(&b) {
+                        continue;
                     }
-                }
-            }
-        }
-        for (cx, cz) in picked {
-            {
-                let a = gen.generate_chunk(cx, cz);
-                let tables = count(&a, block::CRAFTING_TABLE, 60, 200);
-                if tables > 0 {
-                    hut = true;
-                    assert!(count(&a, block::FURNACE, 60, 200) > 0, "hut has a furnace");
-                    let b = gen.generate_chunk(cx, cz);
-                    assert_eq!(count(&b, block::CRAFTING_TABLE, 60, 200), tables,
-                        "hut placement not deterministic at ({},{})", cx, cz);
-                }
-                for y in 60..180 {
-                    let mut sand = 0;
-                    for lx in 2..14 {
-                        for lz in 2..14 {
-                            if a.get(lx, y, lz).id() == block::SAND || a.get(lx, y, lz).id() == block::RED_SAND {
-                                sand += 1;
-                            }
-                        }
+                    let a = gen.generate_chunk(cx, cz);
+                    let found = if marker == block::CRAFTING_TABLE {
+                        let tables = count(&a, block::CRAFTING_TABLE, 60, 200);
+                        if tables > 0 {
+                            assert!(count(&a, block::FURNACE, 60, 200) > 0, "hut has a furnace");
+                            let b2 = gen.generate_chunk(cx, cz);
+                            assert_eq!(count(&b2, block::CRAFTING_TABLE, 60, 200), tables,
+                                "hut placement not deterministic at ({},{})", cx, cz);
+                            true
+                        } else { false }
+                    } else if marker == block::SAND {
+                        (60..180).any(|y| {
+                            (2..14).any(|lx| (2..14).any(|lz|
+                                a.get(lx, y, lz).id() == block::SAND
+                                    || a.get(lx, y, lz).id() == block::RED_SAND))
+                                && {
+                                    let mut sand = 0;
+                                    for lx in 2..14 { for lz in 2..14 {
+                                        if a.get(lx, y, lz).id() == block::SAND
+                                            || a.get(lx, y, lz).id() == block::RED_SAND { sand += 1; }
+                                    }}
+                                    sand > 25
+                                }
+                        })
+                    } else {
+                        let mut stone_high = 0;
+                        for lx in 6..=10 { for lz in 6..=10 { for y in 120..220 {
+                            if a.get(lx, y, lz).id() == block::STONE { stone_high += 1; }
+                        }}}
+                        stone_high > 40
+                    };
+                    if found {
+                        if marker == block::CRAFTING_TABLE { hut = true; }
+                        else if marker == block::SAND { pyramid = true; }
+                        else { tower = true; }
+                        break 'find;
                     }
-                    if sand > 25 {
-                        pyramid = true;
-                        break;
-                    }
-                }
-                let mut stone_high = 0;
-                for lx in 6..=10 {
-                    for lz in 6..=10 {
-                        for y in 120..220 {
-                            if a.get(lx, y, lz).id() == block::STONE {
-                                stone_high += 1;
-                            }
-                        }
-                    }
-                }
-                if stone_high > 40 {
-                    tower = true;
                 }
             }
         }
         assert!(hut, "no huts found in scan");
         assert!(pyramid, "no pyramids found in scan");
         assert!(tower, "no watchtowers found in scan");
+    }
+
+    /// king-quest: the Accord Bastion (walled city) generates rarely in
+    /// the accord meadowlands, and the new frontier biomes carry their
+    /// own towers and ruins. Terrain `prepare` may refuse candidate
+    /// sites, so each scan walks candidates until the structure is FOUND.
+    #[test]
+    fn accord_bastion_and_frontier_structures_generate() {
+        use lf_voxel::registry::block;
+        let gen = WorldGen::new(Seed(777));
+        let feats = gen.seed_for_features();
+        let matches_at = |cx: i32, cz: i32, biomes: &[Biome], modulus: u64| -> bool {
+            let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
+            biomes.contains(&b) && hash2(cx, cz, feats ^ 0x5bd1e995) % modulus == 0
+        };
+        // the bastion: banner over a stone keep, inside stone walls
+        let mut city = false;
+        'city: for cx in -160..160i32 {
+            for cz in -160..160i32 {
+                if !matches_at(cx, cz, &[Biome::Meadow, Biome::SunflowerPlains], 331) { continue; }
+                let col = gen.generate_chunk(cx, cz);
+                for y in 60..200 {
+                    if col.get(7, y, 7).id() == block::BANNER_ACCORD {
+                        let mut stone = 0;
+                        for ly in y.saturating_sub(6)..(y + 4).min(255) {
+                            for lx in 0..16 { for lz in 0..16 {
+                                if col.get(lx, ly as usize, lz).id() == block::STONE { stone += 1; }
+                            }}
+                        }
+                        assert!(stone > 150, "bastion keep+walls missing (stone={})", stone);
+                        city = true;
+                        break 'city;
+                    }
+                }
+            }
+        }
+        assert!(city, "no Accord Bastion in the 320x320 scan");
+        // frontier wooden tower: log frame in the new forest biomes
+        let mut tower = false;
+        'tower: for cx in -160..160i32 {
+            for cz in -160..160i32 {
+                if !matches_at(cx, cz, &[Biome::RedwoodForest, Biome::PineBarrens,
+                    Biome::FoggyFjord, Biome::MapleForest, Biome::WillowWetlands], 43) { continue; }
+                let col = gen.generate_chunk(cx, cz);
+                let logs = (0..16).map(|lx| (0..16).map(move |lz| (lx, lz)))
+                    .flatten()
+                    .filter(|(lx, lz)| (40..200).any(|y| col.get(*lx, y, *lz).id() == block::LOG))
+                    .count();
+                if logs >= 8 { tower = true; break 'tower; }
+            }
+        }
+        assert!(tower, "no frontier watchtower in the 320x320 scan");
+        // desert ruin: torch-marked remnant walls in the new desert biomes
+        let mut ruin = false;
+        'ruin: for cx in -160..160i32 {
+            for cz in -160..160i32 {
+                if !matches_at(cx, cz, &[Biome::Oasis, Biome::PaintedDunes], 47) { continue; }
+                let col = gen.generate_chunk(cx, cz);
+                let torch = (0..16).any(|lx| (0..16).any(|lz|
+                    (40..200).any(|y| col.get(lx, y, lz).id() == block::TORCH)));
+                if torch { ruin = true; break 'ruin; }
+            }
+        }
+        assert!(ruin, "no desert ruin in the 320x320 scan");
     }
 
     #[test]

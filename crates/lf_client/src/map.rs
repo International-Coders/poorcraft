@@ -101,6 +101,21 @@ pub fn biome_color(b: Biome) -> Color32 {
         WindsweptHills => c(145, 150, 120),
         MushroomHollow => c(150, 120, 145),
         Volcanic => c(72, 60, 58),
+        Oasis => c(196, 186, 120),
+        RedwoodForest => c(96, 66, 48),
+        Mangrove => c(70, 104, 74),
+        AspenGrove => c(188, 186, 130),
+        BaobabFields => c(178, 158, 84),
+        WillowWetlands => c(88, 118, 84),
+        PaintedDunes => c(206, 142, 96),
+        FrostMeadow => c(206, 216, 222),
+        Emberwood => c(88, 62, 52),
+        LavenderFields => c(150, 128, 196),
+        MapleForest => c(178, 96, 58),
+        PineBarrens => c(92, 112, 92),
+        SaltFlats => c(232, 230, 222),
+        FoggyFjord => c(128, 142, 148),
+        SunflowerPlains => c(198, 186, 78),
     }
 }
 

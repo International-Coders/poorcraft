@@ -70,10 +70,10 @@ impl FallDir {
 /// The inventory item a species' trunk yields.
 fn log_item(log_id: u32) -> &'static str {
     match log_id {
-        block::BIRCH_LOG => "birch_log",
-        block::SPRUCE_LOG => "spruce_log",
-        block::DARK_LOG => "dark_log",
-        block::CHERRY_LOG => "cherry_log",
+        block::BIRCH_LOG | block::MANGROVE_LOG => "birch_log",
+        block::SPRUCE_LOG | block::REDWOOD_LOG => "spruce_log",
+        block::DARK_LOG | block::EMBER_LOG => "dark_log",
+        block::CHERRY_LOG | block::MAPLE_LOG => "cherry_log",
         _ => "log",
     }
 }
@@ -86,6 +86,12 @@ fn canopy_id_for(log_id: u32) -> u32 {
         block::SPRUCE_LOG => block::SPRUCE_LEAVES,
         block::DARK_LOG => block::DARK_LEAVES,
         block::CHERRY_LOG => block::CHERRY_LEAVES,
+        block::PALM_LOG => block::PALM_LEAVES,
+        block::ACACIA_LOG | block::BAOBAB_LOG => block::ACACIA_LEAVES,
+        block::MANGROVE_LOG => block::MANGROVE_LEAVES,
+        block::REDWOOD_LOG => block::REDWOOD_LEAVES,
+        block::MAPLE_LOG => block::MAPLE_LEAVES,
+        block::EMBER_LOG => block::EMBER_LEAVES,
         _ => block::LEAVES,
     }
 }

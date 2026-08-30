@@ -305,6 +305,19 @@ pub fn registered_mod_items() -> Vec<ItemDef> {
 /// The item id a broken block drops (None = nothing).
 pub fn block_drop(block_id: u32) -> Option<String> {
     use lf_voxel::registry::block;
+    use lf_voxel::registry as reg;
+    // king-quest B biome blocks: new logs fall back to their family's item,
+    // new leaves/plants shatter (no items yet), salt crumbles
+    if reg::is_log(block_id) && block_id > reg::block::CHERRY_LOG_Z {
+        return Some("log".into());
+    }
+    if reg::is_leaf(block_id) && block_id > reg::block::PALE_LEAVES {
+        return None;
+    }
+    if block_id == reg::block::LAVENDER || block_id == reg::block::SUNFLOWER
+        || block_id == reg::block::SALT {
+        return None;
+    }
     match block_id {
         block::GRASS | block::JUNGLE_GRASS | block::SAVANNA_GRASS => Some("dirt".into()),
         block::DIRT => Some("dirt".into()),

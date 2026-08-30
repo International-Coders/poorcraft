@@ -21,12 +21,17 @@ pub enum MobType {
     /// lore-and-visuals: The Nameless' raiders — spawn near nameless
     /// camps, pay in food, carry stolen archive pages.
     NamelessRaider,
+    // king-quest C: animals (multi-part cube rendering, own spawn rules)
+    Chicken,
+    Wolf,
+    Dog,
+    Bear,
 }
 
 impl MobType {
     pub fn is_hostile(self) -> bool {
         matches!(self, MobType::Glitchling | MobType::Stalker | MobType::Crawler | MobType::NullKnight
-            | MobType::NamelessRaider)
+            | MobType::NamelessRaider | MobType::Wolf | MobType::Bear)
     }
 
     /// Boss-tier mobs own their AI elsewhere (the dragon flies via
@@ -58,6 +63,10 @@ impl MobType {
             NullKnight => MobStats { max_health: 250.0, damage: 15.0, speed: 2.2, size: 1.4, detect: 32.0 },
             Dragon => MobStats { max_health: 400.0, damage: 18.0, speed: 6.0, size: 2.2, detect: 32.0 },
             NamelessRaider => MobStats { max_health: 22.0, damage: 5.0, speed: 3.0, size: 0.45, detect: 18.0 },
+            Chicken => MobStats { max_health: 4.0, damage: 0.0, speed: 1.6, size: 0.3, detect: 0.0 },
+            Wolf => MobStats { max_health: 14.0, damage: 3.0, speed: 3.4, size: 0.45, detect: 14.0 },
+            Dog => MobStats { max_health: 10.0, damage: 0.0, speed: 2.2, size: 0.45, detect: 0.0 },
+            Bear => MobStats { max_health: 40.0, damage: 8.0, speed: 2.6, size: 0.9, detect: 10.0 },
         }
     }
 
@@ -72,6 +81,10 @@ impl MobType {
             NullKnight => [0.15, 0.1, 0.25],
             Dragon => [0.45, 0.12, 0.1],
             NamelessRaider => [0.12, 0.12, 0.13],
+            Chicken => [0.94, 0.92, 0.86],
+            Wolf => [0.58, 0.58, 0.6],
+            Dog => [0.62, 0.46, 0.3],
+            Bear => [0.36, 0.26, 0.18],
         }
     }
 
@@ -88,6 +101,10 @@ impl MobType {
             Dragon => &[("dragon_scale", 3), ("raw_iron", 4)],
             // the Nameless pay in food and carry what they've stolen
             NamelessRaider => &[("porkchop", 1), ("apple", 1), ("torn_archive_page", 1)],
+            Chicken => &[("porkchop", 1)],
+            Wolf => &[("mutton", 1)],
+            Dog => &[],
+            Bear => &[("porkchop", 3)],
         }
     }
 }
@@ -663,12 +680,69 @@ impl MobEntity {
     }
 }
 
+/// king-quest C: multi-part cube layouts for the animals (the
+/// dragon_parts idiom). Each entry is (world offset, half-size); the
+/// client pushes them into the drop batch with the mob's skin layer.
+/// `t` drives a small walk/waddle wobble so the animals feel alive.
+pub fn animal_parts(kind: MobType, t: f32, yaw: f32) -> Vec<([f32; 3], f32)> {
+    use MobType::*;
+    let wobble = (t * 6.0).sin() * 0.03;
+    let mut parts: Vec<([f32; 3], f32)> = Vec::new();
+    match kind {
+        Chicken => {
+            parts.push(([0.0, 0.3 + wobble, 0.0], 0.2));            // body
+            parts.push(([0.0, 0.58 + wobble, 0.12], 0.13));         // head
+            parts.push(([0.0, 0.54 + wobble, 0.27], 0.05));         // beak
+            parts.push(([0.09, 0.06, 0.0], 0.04));                  // legs
+            parts.push(([-0.09, 0.06, 0.0], 0.04));
+        }
+        Wolf | Dog => {
+            let coat = if kind == Wolf { 0.32 } else { 0.3 };
+            parts.push(([0.0, 0.42 + wobble, 0.0], coat));          // body
+            parts.push(([0.0, 0.58 + wobble, 0.34], 0.17));         // head
+            parts.push(([0.07, 0.72 + wobble, 0.3], 0.05));         // ears
+            parts.push(([-0.07, 0.72 + wobble, 0.3], 0.05));
+            parts.push(([0.0, 0.52 + wobble, -0.42], 0.06));        // tail
+            for (dx, dz) in [(0.14, 0.18), (-0.14, 0.18), (0.14, -0.18), (-0.14, -0.18)] {
+                parts.push(([dx, 0.08, dz], 0.07));                 // legs
+            }
+        }
+        Bear => {
+            parts.push(([0.0, 0.55 + wobble * 0.6, 0.0], 0.5));     // body
+            parts.push(([0.0, 0.72 + wobble * 0.6, 0.52], 0.28));   // head
+            for (dx, dz) in [(0.3, 0.3), (-0.3, 0.3), (0.3, -0.3), (-0.3, -0.3)] {
+                parts.push(([dx, 0.14, dz], 0.13));                 // legs
+            }
+        }
+        _ => parts.push(([0.0, 0.0, 0.0], 0.0)),
+    }
+    let _ = yaw;
+    parts
+}
+
 /// Which mob type should spawn given the time of day.
 /// Day spawns are biome-appropriate (Step 18): Woolbeasts are cold-biome
 /// fauna, Boars temperate; night hostiles are global. `nameless_biome`
 /// (lore-and-visuals) rolls Nameless raiders — the camps' garrison.
 pub fn roll_spawn(rand: u64, is_day: bool, cold_biome: bool) -> Option<MobType> {
     roll_spawn_full(rand, is_day, cold_biome, false)
+}
+
+/// king-quest C: ambient animal spawns. Chickens peck around temperate
+/// land by day, wolves hunt the cold night, bears keep to the deep
+/// forests, dogs den near settlements. Deterministic in `rand`.
+pub fn roll_animal_spawn(rand: u64, is_day: bool, cold: bool, forest: bool, settlement: bool) -> Option<MobType> {
+    let v = (rand ^ 0x9E3779B97F4A7C15) % 100;
+    if is_day {
+        if settlement && v < 18 { return Some(MobType::Dog); }
+        if forest && v < 22 { return Some(MobType::Bear); }
+        if !cold && v < 40 { return Some(MobType::Chicken); }
+        None
+    } else if cold && v < 30 {
+        Some(MobType::Wolf)
+    } else {
+        None
+    }
 }
 
 pub fn roll_spawn_full(rand: u64, is_day: bool, cold_biome: bool, nameless_biome: bool) -> Option<MobType> {
@@ -966,6 +1040,55 @@ mod tests {
             duo[1].update(0.05, &duo_world, Vec3::new(50.0, 1.0, 0.0));
         }
         assert!(!duo[1].group_ping, "a recruited mob must not re-ping (no chains)");
+    }
+
+    /// Failure meaning: the animal set (chicken/wolf/dog/bear) lost its
+    /// stats, multi-part layout, or deterministic spawn rules.
+    #[test]
+    fn animals_spawn_render_and_behave() {
+        // stats: chicken/dog passive, wolf/bear hostile
+        assert!(!MobType::Chicken.is_hostile() && !MobType::Dog.is_hostile());
+        assert!(MobType::Wolf.is_hostile() && MobType::Bear.is_hostile());
+        assert_eq!(MobType::Bear.stats().max_health, 40.0);
+        // multi-part layouts: every part within the mob's local bounds
+        for kind in [MobType::Chicken, MobType::Wolf, MobType::Dog, MobType::Bear] {
+            let parts = animal_parts(kind, 0.4, 0.0);
+            assert!(!parts.is_empty(), "{:?} has no parts", kind);
+            for (off, half) in &parts {
+                assert!(*half > 0.0, "{:?} degenerate part", kind);
+                let mag = (off[0].abs() + off[1].abs() + off[2].abs()) + half;
+                assert!(mag < 3.0, "{:?} part strays from the body: {:?}", kind, off);
+            }
+        }
+        // chicken parts = body+head+beak+2 legs; bear = body+head+4 legs
+        assert_eq!(animal_parts(MobType::Chicken, 0.0, 0.0).len(), 5);
+        assert_eq!(animal_parts(MobType::Bear, 0.0, 0.0).len(), 6);
+        // spawn rules: chickens by temperate day, wolves on cold nights,
+        // bears in deep-forest days, dogs near settlements
+        let day: Vec<MobType> = (0..200)
+            .filter_map(|i| roll_animal_spawn(i, true, false, false, false))
+            .collect();
+        assert!(day.contains(&MobType::Chicken) && !day.contains(&MobType::Wolf));
+        let night_cold: Vec<MobType> = (0..200)
+            .filter_map(|i| roll_animal_spawn(i, false, true, false, false))
+            .collect();
+        assert!(night_cold.contains(&MobType::Wolf));
+        let forest_day: Vec<MobType> = (0..200)
+            .filter_map(|i| roll_animal_spawn(i, true, false, true, false))
+            .collect();
+        assert!(forest_day.contains(&MobType::Bear));
+        let village: Vec<MobType> = (0..200)
+            .filter_map(|i| roll_animal_spawn(i, true, false, false, true))
+            .collect();
+        assert!(village.contains(&MobType::Dog));
+        // a bear chases and lands hits through the behaviour machine
+        let w = flat_world();
+        let mut bear = MobEntity::spawn(99, MobType::Bear, Vec3::new(6.0, 1.0, 0.0));
+        let mut hit = false;
+        for _ in 0..600 {
+            if bear.update(0.05, &w, Vec3::new(0.0, 1.0, 0.0)).is_some() { hit = true; }
+        }
+        assert!(hit, "a bear should reach and maul the player");
     }
 
     /// Failure meaning: faction standing does not actually gate aggro.

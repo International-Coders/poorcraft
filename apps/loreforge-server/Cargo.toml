@@ -9,3 +9,4 @@ lf_server = { path = "../../crates/lf_server" }
 lf_voxel = { path = "../../crates/lf_voxel" }
 lf_worldgen = { path = "../../crates/lf_worldgen" }
 lf_modapi = { path = "../../crates/lf_modapi" }
+lf_steam = { path = "../../crates/lf_steam" }

@@ -23,7 +23,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 200;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 120;
+pub const MAX_VANILLA_BLOCK: u32 = 138;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -213,6 +213,25 @@ pub mod block {
     pub const DARK_LOG_Z: u32 = 118;
     pub const CHERRY_LOG_X: u32 = 119;
     pub const CHERRY_LOG_Z: u32 = 120;
+    // king-quest B: 15 new biomes need their own trees/ground (ids 121-138)
+    pub const PALM_LOG: u32 = 121;
+    pub const PALM_LEAVES: u32 = 122;
+    pub const ACACIA_LOG: u32 = 123;
+    pub const ACACIA_LEAVES: u32 = 124;
+    pub const MANGROVE_LOG: u32 = 125;
+    pub const MANGROVE_LEAVES: u32 = 126;
+    pub const REDWOOD_LOG: u32 = 127;
+    pub const REDWOOD_LEAVES: u32 = 128;
+    pub const MAPLE_LOG: u32 = 129;
+    pub const MAPLE_LEAVES: u32 = 130;
+    pub const ASPEN_LEAVES: u32 = 131;
+    pub const WILLOW_LEAVES: u32 = 132;
+    pub const BAOBAB_LOG: u32 = 133;
+    pub const EMBER_LOG: u32 = 134;
+    pub const EMBER_LEAVES: u32 = 135;
+    pub const LAVENDER: u32 = 136;
+    pub const SUNFLOWER: u32 = 137;
+    pub const SALT: u32 = 138;
 
     pub fn name(id: u32) -> &'static str {
         if let Some(def) = crate::registry::mod_block(id) {
@@ -274,6 +293,25 @@ pub mod block {
             SPRUCE_LOG_X | SPRUCE_LOG_Z => "Spruce Log",
             DARK_LOG_X | DARK_LOG_Z => "Dark Oak Log",
             CHERRY_LOG_X | CHERRY_LOG_Z => "Cherry Log",
+            PALM_LOG => "Palm Log",
+            PALM_LEAVES => "Palm Leaves",
+            ACACIA_LOG => "Acacia Log",
+            ACACIA_LEAVES => "Acacia Leaves",
+            MANGROVE_LOG => "Mangrove Log",
+            MANGROVE_LEAVES => "Mangrove Leaves",
+            REDWOOD_LOG => "Redwood Log",
+            REDWOOD_LEAVES => "Redwood Leaves",
+            MAPLE_LOG => "Maple Log",
+            MAPLE_LEAVES => "Maple Leaves",
+            ASPEN_LEAVES => "Aspen Leaves",
+            WILLOW_LEAVES => "Willow Leaves",
+            BAOBAB_LOG => "Baobab Log",
+            EMBER_LOG => "Ember Log",
+            EMBER_LEAVES => "Ember Leaves",
+            LAVENDER => "Lavender",
+            SUNFLOWER => "Sunflower",
+            SALT => "Salt Flat",
+
             BIRCH_LEAVES => "Birch Leaves",
             SPRUCE_LEAVES => "Spruce Leaves",
             DARK_LEAVES => "Dark Oak Leaves",
@@ -346,12 +384,17 @@ pub fn is_leaf(id: u32) -> bool {
     use block as b;
     id == b::LEAVES || id == b::BIRCH_LEAVES || id == b::SPRUCE_LEAVES
         || id == b::DARK_LEAVES || id == b::CHERRY_LEAVES || id == b::PALE_LEAVES
+        || id == b::PALM_LEAVES || id == b::ACACIA_LEAVES || id == b::MANGROVE_LEAVES
+        || id == b::REDWOOD_LEAVES || id == b::MAPLE_LEAVES || id == b::ASPEN_LEAVES
+        || id == b::WILLOW_LEAVES || id == b::EMBER_LEAVES
 }
 
 /// The five trunk species that form trees (mushroom "trunks" are birch).
 pub fn is_log(id: u32) -> bool {
     log_axis(id).is_some() || matches!(id,
-        block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG | block::DARK_LOG | block::CHERRY_LOG)
+        block::LOG | block::BIRCH_LOG | block::SPRUCE_LOG | block::DARK_LOG | block::CHERRY_LOG
+        | block::PALM_LOG | block::ACACIA_LOG | block::MANGROVE_LOG | block::REDWOOD_LOG
+        | block::MAPLE_LOG | block::BAOBAB_LOG | block::EMBER_LOG)
 }
 
 /// Alignment of a horizontal log variant: Some(Axis::X) for `LOG_X`-style
@@ -436,7 +479,7 @@ pub fn is_opaque(b: BlockState) -> bool {
     if is_stained_glass(id) || is_banner(id) || id == block::IRONBORN_GRATE {
         return false;
     }
-    id != block::AIR && id != block::WATER && id != block::OIL && id != block::LEAVES
+    id != block::AIR && id != block::WATER && id != block::OIL && !is_leaf(id)
         && id != block::TORCH && id != block::LANTERN && id != block::GLASS
         && id != block::ICE && id != block::FLOWER
         && id != block::TALL_GRASS && id != block::DRY_GRASS && id != block::DEAD_SHRUB
@@ -490,7 +533,8 @@ pub fn is_targetable(b: BlockState) -> bool {
 /// render through the same flat-quad path (sign-style, per SKIN_MANIFEST).
 pub fn is_plant(id: u32) -> bool {
     id == block::FLOWER || id == block::TALL_GRASS || id == block::DRY_GRASS
-        || id == block::DEAD_SHRUB || is_banner(id)
+        || id == block::DEAD_SHRUB || id == block::LAVENDER || id == block::SUNFLOWER
+        || is_banner(id)
 }
 
 /// Granular blocks that fall when the block under them is removed (they do

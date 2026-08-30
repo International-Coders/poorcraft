@@ -1,5 +1,7 @@
 use serde::{Serialize, Deserialize};
 
+pub mod vassals;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VillagerJob {
     Farmer,
@@ -312,6 +314,10 @@ pub struct Villager {
     /// C4: the last two significant interactions with the player.
     #[serde(default)]
     pub memory: NpcMemory,
+    /// king-quest: sworn vassal state — Some once the player (at Honored
+    /// standing) has pressed this villager into service.
+    #[serde(default)]
+    pub vassal: Option<vassals::VassalState>,
 }
 
 impl Villager {
@@ -329,6 +335,7 @@ impl Villager {
             flee_until_ticks: 0,
             workstation_pos: None,
             memory: NpcMemory::default(),
+            vassal: None,
         }
     }
 

@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 165] = [
+pub const TEXTURE_NAMES: [&str; 187] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -80,11 +80,27 @@ pub const TEXTURE_NAMES: [&str; 165] = [
     "mob_glitchling_desert", "mob_stalker_desert", "mob_crawler_desert",
     "mob_glitchling_snow", "mob_stalker_snow", "mob_crawler_snow",
     "mob_glitchling_swamp", "mob_stalker_swamp", "mob_crawler_swamp",
+    // king-quest C animal skins
+    "mob_chicken", "mob_wolf", "mob_dog", "mob_bear",
     // Ambient ember particle core (C4)
     "ember",
     // ui-world-craft D3/E3: lava + biome surface decoration (160-164)
     "tall_grass", "dry_grass", "cactus", "dead_shrub", "lava",
+    // king-quest B: 18 layers for the 15 new biomes' trees/ground (165-182)
+    "palm_log", "palm_leaves", "acacia_log", "acacia_leaves",
+    "mangrove_log", "mangrove_leaves", "redwood_log", "redwood_leaves",
+    "maple_log", "maple_leaves", "aspen_leaves", "willow_leaves",
+    "baobab_log", "ember_log", "ember_leaves", "lavender",
+    "sunflower", "salt",
 ];
+
+/// king-quest B: atlas layers for the 15 new biomes' blocks (block id - 121
+/// + 165 gives the layer, in TEXTURE_NAMES order above).
+pub const PALM_LOG_LAYER: u32 = 165;
+/// king-quest B: block id (121..=138) -> its atlas layer (165..=182).
+pub fn biome_block_layer(block_id: u32) -> u32 {
+    block_id - 121 + 165
+}
 
 /// Atlas layers of the waypoint beacon tints, indexed by waypoint color.
 pub const WAYPOINT_LAYERS: [u32; 6] = [48, 49, 50, 51, 52, 53];
@@ -181,6 +197,11 @@ pub fn trusted_companion_layer(layer: u32) -> u32 {
     if (132..=137).contains(&layer) { layer + 6 } else { layer }
 }
 pub const MOB_BOAR_LAYER: u32 = 144;
+/// king-quest C animal skins (TEXTURE_NAMES order: after the swamp mob tints).
+pub const MOB_CHICKEN_LAYER: u32 = 165;
+pub const MOB_WOLF_LAYER: u32 = 166;
+pub const MOB_DOG_LAYER: u32 = 167;
+pub const MOB_BEAR_LAYER: u32 = 168;
 pub const MOB_WOOLBEAST_LAYER: u32 = 145;
 pub const MOB_GLITCHLING_LAYER: u32 = 146;
 pub const MOB_STALKER_LAYER: u32 = 147;
@@ -275,6 +296,8 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         // lore-and-visuals blocks: ids 68..=105 map consecutively to
         // layers 86..=123 (faction, biome, decoration)
         id @ 68..=105 => id + 18,
+        // king-quest B biome blocks (121..=138 -> 165..=182)
+        id @ 121..=138 => biome_block_layer(id),
         // ui-world-craft: lava + surface decoration (explicit — id+18 would
         // collide with the villager skin layers)
         106 => TALL_GRASS_LAYER,
@@ -1386,6 +1409,105 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([0, 0, 0, 0])
                     }
                 }
+                "palm_log" => {
+                    // ringed tan trunk
+                    let ring = y % 4 == 0;
+                    let v = if ring { 120 } else { 148 } + ((x * 7 + y * 3) % 14);
+                    Rgba([ch(v), ch(v - 26), ch(v - 74), 255])
+                }
+                "palm_leaves" => {
+                    // dense fan canopy (top half) with ragged frond notches
+                    let frond = y < 13 && (x + y) % 7 != 1;
+                    if frond { Rgba([58, ch(150 - (y % 13) * 5), 62, 255]) } else { Rgba([0, 0, 0, 0]) }
+                }
+                "acacia_log" => {
+                    // dark red-brown bark
+                    let v = 96 + ((x * 5 + y * 7) % 20);
+                    Rgba([ch(v + 24), ch(v - 34), 52, 255])
+                }
+                "acacia_leaves" => {
+                    // flat olive canopy with lighter flecks
+                    let fleck = (x * 3 + y * 5) % 9 == 0;
+                    Rgba([if fleck { 148 } else { 112 }, if fleck { 168 } else { 142 }, 58, 255])
+                }
+                "mangrove_log" => {
+                    // grey-red waterlogged bark
+                    let v = 104 + ((x * 3 + y * 11) % 18);
+                    Rgba([ch(v + 16), ch(v - 40), ch(v - 24), 255])
+                }
+                "mangrove_leaves" => {
+                    // deep glossy green
+                    let v = (x * 7 + y * 3) % 22;
+                    Rgba([36, ch(118 + v), 52, 255])
+                }
+                "redwood_log" => {
+                    // tall rusty-red bark with deep furrows
+                    let furrow = x % 4 == 0;
+                    let v = if furrow { 92 } else { 128 } + ((x * 3 + y) % 12);
+                    Rgba([ch(v + 24), ch(v - 30), ch(v - 62), 255])
+                }
+                "redwood_leaves" => {
+                    // dark feathery needles
+                    let needle = (x + y) % 3 != 0;
+                    if needle { Rgba([38, ch(96 + ((x * 5 + y * 3) % 20)), 48, 255]) } else { Rgba([0, 0, 0, 0]) }
+                }
+                "maple_log" => {
+                    // grey bark
+                    let v = 108 + ((x * 5 + y * 5) % 16);
+                    Rgba([ch(v), ch(v), ch(v - 6), 255])
+                }
+                "maple_leaves" => {
+                    // autumn crimson-orange
+                    let warm = (x * 5 + y * 7) % 6;
+                    Rgba([ch(168 + warm * 8), ch(74 + warm * 10), 38, 255])
+                }
+                "aspen_leaves" => {
+                    // pale gold quaking leaves
+                    let v = (x * 7 + y * 5) % 26;
+                    Rgba([ch(196 + v), ch(178 + v), 96, 255])
+                }
+                "willow_leaves" => {
+                    // drooping sage strands
+                    let strand = (x % 4 == 1) || y % 3 == 0;
+                    if strand { Rgba([96, ch(132 + ((x + y) % 20)), 78, 255]) } else { Rgba([0, 0, 0, 0]) }
+                }
+                "baobab_log" => {
+                    // fat grey-pink trunk
+                    let v = 148 + ((x * 3 + y * 5) % 18);
+                    Rgba([ch(v), ch(v - 34), ch(v - 42), 255])
+                }
+                "ember_log" => {
+                    // charred trunk with ember cracks
+                    let crack = (x * 5 + y * 3) % 11 == 0;
+                    if crack { Rgba([214, 96, 32, 255]) } else { Rgba([46, 38, 36, 255]) }
+                }
+                "ember_leaves" => {
+                    // smoldering ash-grey canopy with orange flecks
+                    let fleck = (x * 3 + y * 5) % 8 == 0;
+                    if fleck { Rgba([196, 88, 36, 255]) } else { Rgba([88, 82, 80, 255]) }
+                }
+                "lavender" => {
+                    // purple bloom spikes with green stems (cutout plant)
+                    let stem = x >= 7 && x <= 8;
+                    let bloom = y <= 9 && (x + y) % 3 != 0;
+                    if bloom { Rgba([ch(148 + (y % 5) * 8), 108, 196, 255]) }
+                    else if stem { Rgba([74, 118, 66, 255]) }
+                    else { Rgba([0, 0, 0, 0]) }
+                }
+                "sunflower" => {
+                    // tall stem with a yellow head
+                    if y <= 6 && x >= 4 && x <= 11 {
+                        let petal = (x == 4 || x == 11 || y <= 1);
+                        if petal { Rgba([236, 196, 48, 255]) } else { Rgba([120, 88, 32, 255]) }
+                    } else if x >= 7 && x <= 8 && y > 6 {
+                        Rgba([74, 118, 66, 255])
+                    } else { Rgba([0, 0, 0, 0]) }
+                }
+                "salt" => {
+                    // crusty white flats with faint grey pits
+                    let pit = (x * 7 + y * 5) % 13 == 0;
+                    Rgba([if pit { 206 } else { 234 }, if pit { 204 } else { 232 }, if pit { 198 } else { 226 }, 255])
+                }
                 "dead_shrub" => {
                     // bare branches: a trunk stub with two offshoots
                     let trunk = x >= 7 && x <= 8 && y >= 6;
@@ -1947,6 +2069,25 @@ fn companion_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
 fn mob_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
     let v = (x * 5 + y * 3) % 8;
     match name {
+        "mob_chicken" => {
+            let comb = y <= 3 && (5..=10).contains(&x);
+            if comb { Rgba([196, 60, 44, 255]) }
+            else if y > 13 { Rgba([226, 150, 60, 255]) }
+            else { Rgba([ch(234 - (x % 5) * 4), ch(230 - (y % 5) * 4), 214, 255]) }
+        }
+        "mob_wolf" => {
+            if y > 13 { Rgba([70, 70, 74, 255]) }
+            else if (x < 3 || x > 12) && y < 8 { Rgba([88, 88, 92, 255]) }
+            else { Rgba([ch(148 + (pixel_hash(x, y, "wolf") % 26)), ch(148 + (pixel_hash(x, y, "wolf") % 26)), ch(156 + (pixel_hash(x, y, "wolf") % 26)), 255]) }
+        }
+        "mob_dog" => {
+            if y > 13 { Rgba([96, 72, 48, 255]) }
+            else { Rgba([ch(158 + (pixel_hash(x, y, "dog") % 20)), ch(116 + (pixel_hash(x, y, "dog") % 16)), ch(76 + (pixel_hash(x, y, "dog") % 12)), 255]) }
+        }
+        "mob_bear" => {
+            if y == 12 && (5..=10).contains(&x) { Rgba([96, 66, 46, 255]) }
+            else { Rgba([ch(92 + (pixel_hash(x, y, "bear") % 22)), ch(66 + (pixel_hash(x, y, "bear") % 16)), ch(46 + (pixel_hash(x, y, "bear") % 10)), 255]) }
+        }
         "mob_boar" => {
             if y == 12 && (6..=9).contains(&x) {
                 Rgba([182, 134, 104, 255]) // snout
@@ -3052,7 +3193,7 @@ mod tests {
                 assert!(solid > 40, "{} too sparse", name);
                 continue;
             }
-            if name == "flower" {
+            if name == "flower" || name == "lavender" || name == "sunflower" {
                 // cutout plant: transparent gaps plus solid stem/petals
                 let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
                 let solid = tex.pixels().filter(|p| p.0[3] == 255).count();

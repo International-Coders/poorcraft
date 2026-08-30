@@ -1,4 +1,4 @@
-//! Biome table: 30 biomes with surfaces, tree kinds, and classification.
+//! Biome table: 46 biomes with surfaces, tree kinds, and classification.
 
 use lf_voxel::BlockState;
 
@@ -45,11 +45,28 @@ pub enum Biome {
     MushroomHollow,
     // lore-and-visuals C1: the volcanic belt (Ironborn home)
     Volcanic,
+    // king-quest B: 15 new biomes (variant-channel splits of the climate
+    // grid, so each spawns where its lore palette belongs)
+    Oasis,
+    RedwoodForest,
+    Mangrove,
+    AspenGrove,
+    BaobabFields,
+    WillowWetlands,
+    PaintedDunes,
+    FrostMeadow,
+    Emberwood,
+    LavenderFields,
+    MapleForest,
+    PineBarrens,
+    SaltFlats,
+    FoggyFjord,
+    SunflowerPlains,
 }
 
 impl Biome {
     /// Every variant, declaration order (contact sheets + tests).
-    pub const ALL: [Biome; 31] = [
+    pub const ALL: [Biome; 46] = [
         Biome::Meadow, Biome::FlowerForest, Biome::Forest, Biome::BirchForest,
         Biome::DarkForest, Biome::PaleGarden, Biome::CherryGrove, Biome::Taiga,
         Biome::SnowyTaiga, Biome::GiantTaiga, Biome::Tundra, Biome::IceSpikes,
@@ -58,6 +75,11 @@ impl Biome {
         Biome::Badlands, Biome::Beach, Biome::StonyShore, Biome::Ocean,
         Biome::DeepOcean, Biome::WarmOcean, Biome::Highlands, Biome::Mountains,
         Biome::WindsweptHills, Biome::MushroomHollow, Biome::Volcanic,
+        Biome::Oasis, Biome::RedwoodForest, Biome::Mangrove, Biome::AspenGrove,
+        Biome::BaobabFields, Biome::WillowWetlands, Biome::PaintedDunes,
+        Biome::FrostMeadow, Biome::Emberwood, Biome::LavenderFields,
+        Biome::MapleForest, Biome::PineBarrens, Biome::SaltFlats,
+        Biome::FoggyFjord, Biome::SunflowerPlains,
     ];
 
     pub fn name(self) -> &'static str {
@@ -94,6 +116,21 @@ impl Biome {
             WindsweptHills => "Windswept Hills",
             MushroomHollow => "Mushroom Hollow",
             Volcanic => "Volcanic",
+            Oasis => "Oasis",
+            RedwoodForest => "Redwood Forest",
+            Mangrove => "Mangrove",
+            AspenGrove => "Aspen Grove",
+            BaobabFields => "Baobab Fields",
+            WillowWetlands => "Willow Wetlands",
+            PaintedDunes => "Painted Dunes",
+            FrostMeadow => "Frost Meadow",
+            Emberwood => "Emberwood",
+            LavenderFields => "Lavender Fields",
+            MapleForest => "Maple Forest",
+            PineBarrens => "Pine Barrens",
+            SaltFlats => "Salt Flats",
+            FoggyFjord => "Foggy Fjord",
+            SunflowerPlains => "Sunflower Plains",
         }
     }
 
@@ -116,6 +153,12 @@ impl Biome {
             Ocean | DeepOcean | WarmOcean => block::SAND,
             // Tundra: blueish icy soil, its marker vs the snow family (C1)
             Tundra => block::PERMAFROST,
+            // king-quest B identities
+            SaltFlats => block::SALT,
+            PaintedDunes => block::RED_SAND,
+            Emberwood => block::VOLCANIC_BASALT,
+            Mangrove | WillowWetlands => block::BOG_PEAT,
+            FrostMeadow => block::SNOW,
             _ => block::GRASS,
         }
     }
@@ -127,7 +170,8 @@ impl Biome {
         match self {
             Badlands => block::MESA_TERRACOTTA,
             Desert | Beach => block::SAND,
-            StonyShore | Mountains | SnowyPeaks | Volcanic => block::STONE,
+            StonyShore | Mountains | SnowyPeaks | Volcanic | Emberwood => block::STONE,
+            SaltFlats | PaintedDunes => block::SAND,
             _ => block::DIRT,
         }
     }
@@ -137,7 +181,7 @@ impl Biome {
     pub fn is_cold(self) -> bool {
         use Biome::*;
         matches!(self, Tundra | SnowyTaiga | GiantTaiga | IceSpikes | SnowySlope
-            | SnowyPeaks | FrozenOcean)
+            | SnowyPeaks | FrozenOcean | FrostMeadow | FoggyFjord)
     }
 
     /// Tree shape used by worldgen (None = treeless).
@@ -160,6 +204,19 @@ impl Biome {
             SnowySlope => TreeKind::Spruce,
             // C1: giant mushrooms grew during the Long Winter
             MushroomHollow => TreeKind::Mushroom,
+            // king-quest B: the new biomes carry their own species
+            Oasis => TreeKind::Palm,
+            RedwoodForest => TreeKind::Redwood,
+            Mangrove => TreeKind::Mangrove,
+            AspenGrove => TreeKind::Aspen,
+            BaobabFields => TreeKind::Baobab,
+            WillowWetlands => TreeKind::Willow,
+            FrostMeadow => TreeKind::SpruceSparse,
+            Emberwood => TreeKind::Ember,
+            MapleForest => TreeKind::Maple,
+            PineBarrens => TreeKind::SpruceSparse,
+            FoggyFjord => TreeKind::SpruceSparse,
+            SunflowerPlains => TreeKind::OakSparse,
             _ => TreeKind::None,
         }
     }
@@ -206,6 +263,22 @@ impl Biome {
             Volcanic => (0.06, &[block::VOLCANIC_BASALT]),
             Beach | StonyShore | IceSpikes | SnowySlope | SnowyPeaks => (0.0, &[]),
             Ocean | DeepOcean | WarmOcean | FrozenOcean => (0.0, &[]),
+            // king-quest B identities
+            Oasis => (0.10, &[block::TALL_GRASS, block::CACTUS]),
+            RedwoodForest => (0.20, &[block::TALL_GRASS, block::MOSS]),
+            Mangrove => (0.30, &[block::DEAD_SHRUB, block::TALL_GRASS]),
+            AspenGrove => (0.25, &[block::TALL_GRASS, block::FLOWER]),
+            BaobabFields => (0.15, &[block::DRY_GRASS]),
+            WillowWetlands => (0.30, &[block::TALL_GRASS, block::DEAD_SHRUB]),
+            PaintedDunes => (0.03, &[block::DEAD_SHRUB]),
+            FrostMeadow => (0.08, &[block::FLOWER, block::DEAD_SHRUB]),
+            Emberwood => (0.05, &[block::DEAD_SHRUB]),
+            LavenderFields => (0.45, &[block::LAVENDER, block::LAVENDER, block::TALL_GRASS]),
+            MapleForest => (0.20, &[block::TALL_GRASS, block::FLOWER]),
+            PineBarrens => (0.10, &[block::DEAD_SHRUB, block::MOSS]),
+            SaltFlats => (0.0, &[]),
+            FoggyFjord => (0.03, &[block::MOSS]),
+            SunflowerPlains => (0.40, &[block::SUNFLOWER, block::SUNFLOWER, block::TALL_GRASS]),
         }
     }
 }
@@ -227,6 +300,16 @@ pub enum TreeKind {
     Pale,
     /// Giant mushroom: pale trunk, red-cap canopy (MushroomHollow).
     Mushroom,
+    // king-quest B: nine new species so each new biome has its own tree
+    Palm,
+    Acacia,
+    Mangrove,
+    Redwood,
+    Maple,
+    Aspen,
+    Willow,
+    Baobab,
+    Ember,
 }
 
 impl TreeKind {
@@ -244,12 +327,21 @@ impl TreeKind {
             TreeKind::Cherry => (block::CHERRY_LOG, block::CHERRY_LEAVES, 5, 3),
             TreeKind::Pale => (block::LOG, block::PALE_LEAVES, 5, 2),
             TreeKind::Mushroom => (block::BIRCH_LOG, block::MUSHROOM_CAP, 3, 2),
+            TreeKind::Palm => (block::PALM_LOG, block::PALM_LEAVES, 7, 2),
+            TreeKind::Acacia => (block::ACACIA_LOG, block::ACACIA_LEAVES, 5, 4),
+            TreeKind::Mangrove => (block::MANGROVE_LOG, block::MANGROVE_LEAVES, 6, 3),
+            TreeKind::Redwood => (block::REDWOOD_LOG, block::REDWOOD_LEAVES, 13, 3),
+            TreeKind::Maple => (block::MAPLE_LOG, block::MAPLE_LEAVES, 5, 3),
+            TreeKind::Aspen => (block::BIRCH_LOG, block::ASPEN_LEAVES, 7, 1),
+            TreeKind::Willow => (block::LOG, block::WILLOW_LEAVES, 6, 4),
+            TreeKind::Baobab => (block::BAOBAB_LOG, block::ACACIA_LEAVES, 6, 5),
+            TreeKind::Ember => (block::EMBER_LOG, block::EMBER_LEAVES, 4, 2),
         }
     }
 
     /// Cone-shaped canopies (spruce) layer differently from blobs.
     pub fn is_conifer(self) -> bool {
-        matches!(self, TreeKind::Spruce | TreeKind::GiantSpruce)
+        matches!(self, TreeKind::Spruce | TreeKind::GiantSpruce | TreeKind::Redwood)
     }
 }
 
@@ -275,43 +367,65 @@ pub fn biome_from(t: f32, h: f32, height: i32, variant: f32) -> Biome {
     }
     // --- shores
     if height <= 53 {
-        return if t < 0.25 { FrozenOcean } else if t > 0.8 && h < 0.4 { Beach } else if v > 0.75 { StonyShore } else { Beach };
+        if t < 0.25 { return if v > 0.5 { FoggyFjord } else { FrozenOcean }; }
+        return if t > 0.8 && h < 0.4 { Beach } else if v > 0.75 { StonyShore } else { Beach };
     }
 
     // --- land climate grid
     if t < 0.2 {
         // frigid
         if h > 0.7 { return if v > 0.7 { GiantTaiga } else { SnowyTaiga }; }
+        if v > 0.9 { return FrostMeadow; }
         return if v > 0.78 { IceSpikes } else { Tundra };
     }
     if t < 0.4 {
         // cool: taiga / cold forests
         if h > 0.75 { return if v > 0.6 { Swamp } else { Taiga }; }
-        if h > 0.45 { return if v > 0.66 { BirchForest } else if v > 0.33 { Forest } else { Taiga }; }
+        if h > 0.45 {
+            return if v > 0.78 { MapleForest }
+                else if v > 0.66 { BirchForest }
+                else if v > 0.33 { Forest }
+                else { Taiga };
+        }
+        if v > 0.85 { return PineBarrens; }
         return if v > 0.5 { Taiga } else { Tundra };
     }
     if t > 0.75 {
         // hot
         if h < 0.35 {
-            // the volcanic belt: the rarest slice of hot dry land (C1)
+            // the volcanic belt: the rarest slice of hot dry land (C1);
+            // king-quest B splits its siblings off the same variant channel
+            if v < 0.05 && height > 64 && height < 150 { return Emberwood; }
             if v < 0.10 && height > 64 && height < 150 { return Volcanic; }
+            if v < 0.16 { return Oasis; }
+            if v < 0.30 { return PaintedDunes; }
             return if v > 0.82 { Badlands } else if v > 0.66 { WindsweptSavanna } else { Desert };
         }
+        if v < 0.12 { return BaobabFields; }
         return Savanna;
     }
     if t > 0.6 && h < 0.45 {
+        if v < 0.15 { return SaltFlats; }
         return if v > 0.7 { Savanna } else { Desert };
     }
     // temperate
     if h > 0.8 {
-        if v < 0.12 && t > 0.35 { return MushroomHollow; }
+        if v < 0.06 && t > 0.35 { return MushroomHollow; }
+        if v < 0.12 && t > 0.35 { return RedwoodForest; }
         return if v > 0.72 { PaleGarden } else if v > 0.36 { DarkForest } else { Forest };
     }
     if h > 0.6 {
-        return if v > 0.78 { CherryGrove } else if v > 0.5 { FlowerForest } else if v > 0.25 { Forest } else { BirchForest };
+        return if v > 0.78 { CherryGrove }
+            else if v > 0.72 { WillowWetlands }
+            else if v > 0.62 { LavenderFields }
+            else if v > 0.5 { FlowerForest }
+            else if v > 0.25 { Forest }
+            else if v > 0.12 { AspenGrove }
+            else { BirchForest };
     }
     if h > 0.35 && t > 0.55 {
         return if v > 0.8 { Jungle } else if v > 0.6 { Swamp } else { Forest };
     }
+    if v > 0.6 { return SunflowerPlains; }
     Meadow
 }

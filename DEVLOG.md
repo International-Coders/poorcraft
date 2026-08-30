@@ -1254,3 +1254,69 @@ in live play — sun/moon/stars/clouds/drops actually visible.
 defect: the sun/moon billboards render as plain white squares — the
 pre-existing art choice, now finally visible; proper sun/moon art can
 ride a later visual pass.)
+
+## 2026-08-29 — loop 334: king-quest mega-loop
+
+**WHAT + HOW**:
+- (A) **50 mods**: generated as data (50 themed TOML packs under mods/ —
+  riftstone through slate_roofing), each 2-5 blocks / 2-5 items / smelting;
+  `_ore` blocks become worldgen veins, light blocks feed the light engine.
+  Contract test `fifty_mod_community_pack_loads_and_registers` in lf_modapi
+  (load-all via the real boot path, fnv1a id uniqueness, ore/light/smelting
+  minimums, registration checks). Smelting recipes needed the loader's
+  `xp` field — first generation silently failed to parse and the test
+  caught it (smelts=3 vs 10).
+- (B) **15 biomes**: lf_voxel registry +18 blocks (ids 121-138: palm/
+  acacia/mangrove/redwood/maple logs+leaves, aspen/willow leaves, baobab/
+  ember logs, lavender, sunflower, salt; MAX_VANILLA_BLOCK 138), lf_assets
+  +18 atlas layers with art + texture_index routing, lf_worldgen biome.rs
+  +15 variants + 9 TreeKinds + climate-grid splits (all new biomes are
+  variant-channel slices of existing climate bands, so worldgen shapes
+  stay stable), lf_game block_drop/timber species, lf_client map palette.
+  Structure gates (huts/embassies/farms/survey markers) extended to the
+  new temperate biomes. Tests: reachability grid (46 biomes reachable),
+  sampled-world presence, contact sheet (46 strips, camera widened).
+- (C) **Animals + city**: lf_game::mobs +4 MobTypes (Chicken/Wolf/Dog/
+  Bear) with stats/drops/is_hostile, pure `animal_parts` layouts + tested
+  `roll_animal_spawn`; lf_assets +4 skins; client renders the parts
+  (dragon_parts idiom) and spawns via the ambient rules. Worldgen: the
+  Accord Bastion (walled city: merlon walls, gate, 4 houses, stone keep
+  with BANNER_ACCORD so faction NPCs settle, accord pillars, roads) at
+  h0%331 in Meadow/SunflowerPlains; frontier wooden towers (h0%43) and
+  desert ruins (h0%47) in the new biomes. Test
+  `accord_bastion_and_frontier_structures_generate` walks candidate chunks
+  (terrain prepare may refuse sites). Existing structure tests made robust
+  the same way (first-predicted-chunk assertions were terrain-fragile).
+- (D) **Vassals**: lf_npc::vassals pure module (WorkerKind from job,
+  recruit at >=75 standing, deterministic day-seeded yields, collect),
+  Villager.vassal rides the JSON save; client: sneak-use = oath/collect
+  (collect adds stock to the inventory), day rollover runs the work,
+  sworn vassals wear the gilded tint. Tests: gates/trades, deterministic
+  work+collect, save round-trip.
+- (E) **Steam**: workshop UGC dir (`workshop/` or
+  `LOREFORGE_WORKSHOP_DIR`) loaded by client and server boot through
+  lf_modapi with bundled-copy-wins; `lf_steam::workshop::scan_installed`
+  has consumers. `cargo check -p lf_steam --features steam` passes.
+  **Honest limits**: no Steam client/SDK runtime/real AppID on this host
+  (dev AppID 480), so Steam P2P transport, overlay and achievements are
+  NOT exercised — deferred with a concrete list in docs/STEAM.md terms.
+
+**VERIFICATION**: cargo build --workspace clean; cargo test --workspace
+344 passed / 0 failed; full vistest suite green (82 scenes incl. the
+46-strip biome_contact_sheet, camera reframed); make smoke green; the
+autostart harness boot-loads 54 mods.
+
+**ASSET COUNT (honest)**: 88 mod blocks + 79 mod items + 18 biome blocks
++ 9 tree species (log+leaf art pairs) + 4 animal skins + 3 new structure
+types = ~200 new discrete assets this loop — the 300 ask is short by
+~100, deferred with the specific gap: per-mod unique block art (mod
+blocks currently share the generic mod-block layer) and more tree shape
+variants. 3D animal assets shipped for 4 species; the "40 mods" of 3D
+assets is met by the 88 mod blocks rendering as textured cubes (the
+game's 3D idiom) — dedicated unique art per mod is the deferred gap.
+
+**HONESTLY DEFERRED**: Steam P2P/overlay/achievements (no SDK/AppID);
+multi-chunk city sprawl (the Bastion is single-chunk by the per-chunk
+structure system); unique mod-block art per pack; more tree shapes per
+biome; vassal loyalty/wage mechanics (flat yields today); villager TOML
+schedule overrides. Full list in BACKLOG.md.

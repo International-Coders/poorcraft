@@ -1287,7 +1287,25 @@ impl GameState {
         surface.configure(&device, &config);
 
         // Load mods into the live registries before touching the world.
-        let mods = lf_modapi::load_mods_dir(Path::new("mods"));
+        // Steam Workshop items installed into `workshop/` (UGC staging dir
+        // — the Steam client delivers here in a packaged build) load with
+        // exactly the same path as bundled mods.
+        let mut mods = lf_modapi::load_mods_dir(Path::new("mods"));
+        let workshop = std::env::var("LOREFORGE_WORKSHOP_DIR")
+            .unwrap_or_else(|_| "workshop".into());
+        let installed = lf_steam::workshop::scan_installed(Path::new(&workshop));
+        if !installed.is_empty() {
+            for item in &installed {
+                if let Ok(data) = lf_modapi::load_mod(std::path::Path::new(&item.path)) {
+                    if mods.iter().any(|m| m.manifest.id == data.manifest.id) {
+                        continue; // bundled copy wins
+                    }
+                    lf_modapi::apply_mod(&data);
+                    mods.push(data);
+                    tracing::info!("workshop mod loaded: {} ({})", item.title, item.id);
+                }
+            }
+        }
         if !mods.is_empty() {
             tracing::info!("loaded {} mod(s): {:?}", mods.len(),
                 mods.iter().map(|m| m.manifest.id.clone()).collect::<Vec<_>>());
@@ -2917,6 +2935,45 @@ impl GameState {
                     let Some((vname, vfaction, archetype, vactivity, vmem)) = vinfo else {
                         return;
                     };
+                    // king-quest: SNEAK-use is the oath/collect gesture
+                    if self.input.held(self.keymap.key(crate::input::Action::Sneak)) {
+                        let is_vassal = self.villagers.get(vi).map(|v| v.vassal.is_some()).unwrap_or(false);
+                        if is_vassal {
+                            // the liege collects the vassal's stacked work
+                            let take = self.villagers.get_mut(vi)
+                                .map(|v| lf_npc::vassals::collect(v.vassal.as_mut().unwrap()));
+                            if let Some(stock) = take {
+                                let mut total = 0;
+                                for (item, count) in stock {
+                                    total += count as u32;
+                                    let leftover = self.inventory.add_item(&item, count as u8);
+                                    if leftover > 0 {
+                                        self.spawn_drop(&item, leftover, self.player.eye_position());
+                                    }
+                                }
+                                if total > 0 {
+                                    self.push_hint(&format!("[{}]: Your share, my liege — {} goods delivered.", vname, total));
+                                } else {
+                                    self.push_hint(&format!("[{}]: Nothing stockpiled yet — give me a day.", vname));
+                                }
+                            }
+                            return;
+                        }
+                        let standing = vfaction.as_deref().map(|f| self.standings.get(f)).unwrap_or(0);
+                        if lf_npc::vassals::can_recruit(standing, false) {
+                            let job = self.villagers.get(vi).map(|v| v.job).unwrap_or(VillagerJob::Trader);
+                            let day = self.day_index as u32;
+                            if let Some(v) = self.villagers.get_mut(vi) {
+                                v.vassal = Some(lf_npc::vassals::recruit(job, day));
+                            }
+                            self.push_hint(&format!(
+                                "[{}]: I kneel. From today my work is yours, my liege.", vname));
+                        } else {
+                            self.push_hint(&format!(
+                                "[{}]: I serve no crown but my own. Earn our trust first. ({}/75 standing)", vname, standing));
+                        }
+                        return;
+                    }
                     // C3: holding an item gifts it (one from the stack)
                     let held = self.inventory.slots[self.hotbar_index].clone();
                     if let Some(stack) = held {
@@ -4381,7 +4438,21 @@ impl GameState {
                 let biome = self.map.biome_at(bx, bz);
                 (biome.is_cold(), matches!(biome, lf_worldgen::Biome::PaleGarden | lf_worldgen::Biome::DarkForest))
             };
-            if let Some(kind) = lf_game::mobs::roll_spawn_full(seed, is_day, spawn_cold, spawn_nameless) {
+            // king-quest C: ambient animals (chickens/wolves/bears/dogs)
+            let (spawn_forest, spawn_settlement) = {
+                let ang2 = (seed % 360) as f32 / 57.3;
+                let dist2 = 20.0 + ((seed >> 9) % 20) as f32;
+                let bx = (player.x + ang2.cos() * dist2) as i32;
+                let bz = (player.z + ang2.sin() * dist2) as i32;
+                let biome = self.map.biome_at(bx, bz);
+                let forest = matches!(biome, lf_worldgen::Biome::Forest | lf_worldgen::Biome::DarkForest | lf_worldgen::Biome::RedwoodForest
+                    | lf_worldgen::Biome::Taiga | lf_worldgen::Biome::SnowyTaiga | lf_worldgen::Biome::PineBarrens | lf_worldgen::Biome::MapleForest);
+                (forest, self.villagers.iter().any(|v| {
+                    (glam::Vec3::from(v.position) - player).length() < 60.0
+                }))
+            };
+            if let Some(kind) = lf_game::mobs::roll_animal_spawn(
+                seed ^ 0x51ed270b, is_day, spawn_cold, spawn_forest, spawn_settlement) {
                 // Peaceful keeps hostiles out entirely (C1)
                 let peaceful_skip = kind.is_hostile() && self.difficulty == slots::Difficulty::Peaceful;
                 if !peaceful_skip {
@@ -5304,6 +5375,13 @@ impl GameState {
                     }
                 }
             };
+            let animal_tex = match mob.mob_type {
+                MobType::Chicken => Some(lf_assets::MOB_CHICKEN_LAYER),
+                MobType::Wolf => Some(lf_assets::MOB_WOLF_LAYER),
+                MobType::Dog => Some(lf_assets::MOB_DOG_LAYER),
+                MobType::Bear => Some(lf_assets::MOB_BEAR_LAYER),
+                _ => None,
+            };
             if mob.mob_type == MobType::Dragon {
                 // P36: multi-part assembly — body/head/wings/tail with
                 // sine animation from the shared layout fn
@@ -5311,6 +5389,13 @@ impl GameState {
                 for (offset, part_size) in lf_game::dragons::dragon_parts(t, mob.yaw) {
                     let p = mob.position + offset + Vec3::new(0.0, size, 0.0);
                     push_cube(p.x, p.y, p.z, part_size, tex, &mut vertices, &mut indices);
+                }
+            } else if let Some(animal) = animal_tex {
+                // king-quest C: animals render their multi-part layout
+                let t = self.elapsed;
+                for (off, part_size) in lf_game::mobs::animal_parts(mob.mob_type, t, mob.yaw) {
+                    let p = mob.position + Vec3::new(off[0], off[1] + size, off[2]);
+                    push_cube(p.x, p.y, p.z, part_size, animal, &mut vertices, &mut indices);
                 }
             } else {
                 // silhouette differentiation (C2): crawler low+wide,
@@ -5358,6 +5443,12 @@ impl GameState {
                     VillagerJob::Lorekeeper => lf_assets::texture_index_for_block(registry::block::CRAFTING_TABLE),
                     VillagerJob::Wizard => lf_assets::ENCHANTING_LAYER,
                 },
+            };
+            // king-quest: sworn vassals wear the gilded cloak tint
+            let tex = if v.vassal.is_some() {
+                lf_assets::texture_index_for_block(registry::block::GILDED_GRASS)
+            } else {
+                tex
             };
             // C2: the activity state bends the pose — sleeping lies low,
             // working/eating bobs at the workstation/table

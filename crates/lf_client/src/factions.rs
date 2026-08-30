@@ -49,6 +49,10 @@ pub fn mob_kind_id(kind: lf_game::mobs::MobType) -> &'static str {
         MobType::NullKnight => "null_knight",
         MobType::Dragon => "dragon",
         MobType::NamelessRaider => "nameless_raider",
+        MobType::Chicken => "chicken",
+        MobType::Wolf => "wolf",
+        MobType::Dog => "dog",
+        MobType::Bear => "bear",
     }
 }
 
@@ -600,6 +604,13 @@ impl GameState {
     /// Sunrise: advance the day, pay wages (or suffer), handle quits.
     pub fn on_day_rollover(&mut self) {
         self.day_index += 1;
+        // king-quest: every sworn vassal works their trade for the liege
+        let day = self.day_index as u32;
+        for v in &mut self.villagers {
+            if let Some(state) = &mut v.vassal {
+                lf_npc::vassals::work_day(state, v.id, day);
+            }
+        }
         let mut quitters = Vec::new();
         let mut lines = Vec::new();
         for i in 0..self.companions.len() {

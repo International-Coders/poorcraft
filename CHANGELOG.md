@@ -1,5 +1,40 @@
 # CHANGELOG
 
+## 2026-08-29 — king-quest: 50 mods, 15 biomes, animals, the Accord Bastion, vassal workers (loop 334)
+- **50 community mods** (`mods/`): ores & metals, food & farming, magic,
+  building & decoration packs — 88 blocks (with worldgen ore veins and
+  light emitters), 79 items including tools with damage/durability, 10
+  smelting recipes. A load-all contract test pins parsing, unique fnv1a
+  block ids, and the ore/light/smelting minimums.
+- **15 new biomes**: Oasis, Redwood Forest, Mangrove, Aspen Grove, Baobab
+  Fields, Willow Wetlands, Painted Dunes, Frost Meadow, Emberwood,
+  Lavender Fields, Maple Forest, Pine Barrens, Salt Flats, Foggy Fjord,
+  Sunflower Plains — 18 new blocks (logs/leaves/plants/salt) with their
+  own atlas art, **9 new tree species**, per-biome ground cover, and
+  climate-grid classification (variant-channel splits, reachability-
+  tested). Structure gates extended so the new biomes spawn huts,
+  embassies, farms and roads.
+- **Animals**: chickens (temperate days), wolves (cold nights), bears
+  (deep forests), dogs (settlements) — multi-part cube layouts with a
+  walk wobble, four new skins, own spawn rules and combat behaviour.
+- **The Accord Bastion**: a walled mini-city in the accord meadowlands —
+  perimeter walls with merlons, a south gate, four timber houses, a
+  two-storey stone keep flying the Accord banner (NPCs settle it), accord
+  pillars and torch-lit roads — plus frontier wooden watchtowers in the
+  new forests and sun-baked ruins in the new deserts, each biome-gated
+  (a biome may or may not carry its structure, by seeded hash).
+- **The Vassal system**: at Honored (+75) standing, sneak-use a villager
+  to swear them in — Smiths/Lorekeepers mine, Guards/Traders/Bards
+  lumber, Farmers farm. Each in-game day vassals stack the yield for
+  their liege; sneak-use again to collect. State rides the villager JSON
+  save, all rules pure and deterministic.
+- **Steam (honest pass)**: Workshop items installed in `workshop/` now
+  load in the client and dedicated server through the same mod pipeline
+  (`lf_steam::workshop` has real consumers); `lf_steam --features steam`
+  compiles. Steam P2P/achievements stay deferred — no Steam client, SDK
+  runtime or real AppID exists on this host (dev AppID is Valve's 480).
+- **Suite**: 344 tests (was 338), full vistest suite, smoke green.
+
 ## 2026-08-29 — the in-game black screen: root cause found and fixed (loop 333)
 - **The bug**: after starting a single-player game the view showed a giant
   static black rectangle over the world (HUD still drew on top). Reproduced

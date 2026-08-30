@@ -33,7 +33,18 @@ fn main() {
     }
     // Load mods/ the same way the client does so mod block ids (>= 100) are
     // registered and pass SetBlock validation (P25).
-    let mods = lf_modapi::load_mods_dir(std::path::Path::new("mods"));
+    let mut mods = lf_modapi::load_mods_dir(std::path::Path::new("mods"));
+    let workshop = std::env::var("LOREFORGE_WORKSHOP_DIR").unwrap_or_else(|_| "workshop".into());
+    for item in lf_steam::workshop::scan_installed(std::path::Path::new(&workshop)) {
+        if let Ok(data) = lf_modapi::load_mod(std::path::Path::new(&item.path)) {
+            if mods.iter().any(|m| m.manifest.id == data.manifest.id) {
+                continue; // bundled copy wins
+            }
+            lf_modapi::apply_mod(&data);
+            mods.push(data);
+            println!("workshop mod loaded: {} ({})", item.title, item.id);
+        }
+    }
     if mods.is_empty() {
         println!("no mods loaded (mods/ dir missing or empty)");
     } else {

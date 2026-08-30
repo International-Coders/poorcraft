@@ -1527,6 +1527,7 @@ dependencies = [
  "lf_modapi",
  "lf_protocol",
  "lf_server",
+ "lf_steam",
  "lf_voxel",
  "lf_worldgen",
 ]
