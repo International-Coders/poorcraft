@@ -44,6 +44,8 @@ pub struct Player {
     pub flying: bool,
     /// True during the frame the player landed (for landing effects later).
     pub just_landed: bool,
+    /// king-quest: crouching (CTRL) — lowered camera + ledge edge-lock.
+    pub sneak: bool,
     /// Fall speed (blocks/s, negative) captured at the last landing.
     pub last_impact: f32,
 }
@@ -58,6 +60,7 @@ impl Player {
             on_ground: false,
             flying: false,
             just_landed: false,
+            sneak: false,
             last_impact: 0.0,
         }
     }
@@ -69,8 +72,15 @@ impl Player {
         self
     }
 
+    /// king-quest: true while the player crouches (CTRL) — drives the
+    /// lowered camera and the ledge edge-lock.
+    pub fn sneaking(&self) -> bool {
+        self.sneak
+    }
+
     pub fn eye_position(&self) -> Vec3 {
-        Vec3::new(self.position.x, self.position.y + EYE_HEIGHT, self.position.z)
+        let eye = if self.sneak { EYE_HEIGHT - 0.28 } else { EYE_HEIGHT };
+        Vec3::new(self.position.x, self.position.y + eye, self.position.z)
     }
 
     /// Unit look direction from yaw/pitch.
@@ -106,6 +116,7 @@ impl Player {
     }
 
     fn substep(&mut self, dt: f32, input: &PlayerInput, world: &World) {
+        self.sneak = input.sneak;
         // Horizontal wish direction in world space from yaw.
         let (sin_y, cos_y) = self.yaw.sin_cos();
         let forward = Vec3::new(sin_y, 0.0, -cos_y);
@@ -176,6 +187,21 @@ impl Player {
             } else {
                 self.velocity.y = (self.velocity.y - GRAVITY * dt).max(TERMINAL_VELOCITY);
             }
+        }
+
+        // king-quest: crouch ledge-lock — while crouching on the ground,
+        // movement that would leave the supporting block is cancelled per
+        // axis, so you can never walk off an edge (Minecraft rule).
+        if input.sneak && self.on_ground && !self.flying {
+            let dt2 = Vec3::new(self.velocity.x * dt, 0.0, self.velocity.z * dt);
+            if has_ground_support(world, self.position + Vec3::new(dt2.x, 0.0, 0.0)) {
+                self.position.x += dt2.x;
+            }
+            if has_ground_support(world, self.position + Vec3::new(0.0, 0.0, dt2.z)) {
+                self.position.z += dt2.z;
+            }
+            self.move_axis(world, Axis::Y, self.velocity.y * dt);
+            return;
         }
 
         // Axis-separated integrate + collide.
@@ -255,6 +281,20 @@ fn aabb_of(pos: Vec3) -> Aabb {
         min: Vec3::new(pos.x - PLAYER_HALF_WIDTH, pos.y, pos.z - PLAYER_HALF_WIDTH),
         max: Vec3::new(pos.x + PLAYER_HALF_WIDTH, pos.y + PLAYER_HEIGHT, pos.z + PLAYER_HALF_WIDTH),
     }
+}
+
+/// king-quest: does the player footprint at `pos` still stand on solid
+/// ground? Checks the four footprint corners for a solid block just below
+/// the feet (the Minecraft "sneak can't fall" predicate).
+fn has_ground_support(world: &World, pos: Vec3) -> bool {
+    let y = (pos.y - 0.1) as i32;
+    let hw = PLAYER_HALF_WIDTH;
+    for (dx, dz) in [(-hw, -hw), (hw, -hw), (-hw, hw), (hw, hw)] {
+        if world.is_solid((pos.x + dx) as i32, y, (pos.z + dz) as i32) {
+            return true;
+        }
+    }
+    false
 }
 
 fn intersects_solid(world: &World, aabb: &Aabb) -> bool {
@@ -489,5 +529,73 @@ mod tests {
         assert!(!intersects_solid(&w, &front), "the open half above the step is free");
         let back = Aabb { min: Vec3::new(0.2, 1.6, 0.55), max: Vec3::new(0.8, 2.3, 0.95) };
         assert!(intersects_solid(&w, &back), "the rise of the step is solid");
+    }
+
+    /// king-quest: crouch edge-lock — sneaking on a ledge must NEVER let
+    /// the player fall off, no matter how long they walk into the void.
+    #[test]
+    fn crouch_edge_lock_never_falls_off() {
+        let mut w = lf_voxel::World::new();
+        for cx in 0..2 { for cz in 0..2 { w.ensure_chunk(cx, cz); } }
+        // a 3x3 platform at y=10, floating in the void
+        for x in 0..3 { for z in 0..3 {
+            w.set_block(x, 10, z, lf_voxel::BlockState::STONE);
+        }}
+        let stand = Vec3::new(1.0, 11.02, 1.0); // platform centre
+        let mut crouch = Player::new(stand);
+        crouch.position.y = 11.02;
+        let input = PlayerInput {
+            forward: true, // straight toward the edge
+            ..Default::default()
+        };
+        // face +Z... Player::new yaw=0 looks -Z; use back to walk +Z onto x/z edge at z=2
+        let input = PlayerInput { back: true, ..input };
+        let mut fell = false;
+        for _ in 0..600 {
+            crouch.sneak = true;
+            let inp = PlayerInput { sneak: true, ..input };
+            crouch.update(1.0 / 20.0, &inp, &w);
+            if crouch.position.y < 10.5 { fell = true; break; }
+        }
+        assert!(!fell, "crouching into the edge must hold the ledge, at {:?}", crouch.position);
+        // sanity: the same walk WITHOUT sneak does fall off
+        let mut walker = Player::new(stand);
+        walker.position.y = 11.02;
+        let input2 = PlayerInput { back: true, ..Default::default() };
+        let mut fell2 = false;
+        for _ in 0..600 {
+            walker.update(1.0 / 20.0, &input2, &w);
+            if walker.position.y < 10.5 { fell2 = true; break; }
+        }
+        assert!(fell2, "walking without sneak should fall off the ledge (test validity)");
+    }
+
+    /// king-quest: sneaking lowers the eye (camera) and walking speed,
+    /// sprinting is distinctly faster than walking.
+    #[test]
+    fn sneak_eye_and_sprint_speed() {
+        let mut p = Player::new(Vec3::new(0.0, 65.0, 0.0));
+        let stand_eye = p.eye_position().y - p.position.y;
+        p.sneak = true;
+        let sneak_eye = p.eye_position().y - p.position.y;
+        assert!(sneak_eye < stand_eye - 0.1, "sneak lowers the eye: {} vs {}", sneak_eye, stand_eye);
+
+        let mut w = lf_voxel::World::new();
+        for cx in 0..2 { for cz in 0..2 { w.ensure_chunk(cx, cz); } }
+        for x in -20..20 { for z in -20..20 {
+            w.set_block(x, 30, z, lf_voxel::BlockState::STONE);
+        }}
+        let floor = Vec3::new(0.0, 31.02, 0.0);
+        let run = |sprint: bool, sneak: bool| -> f32 {
+            let mut p = Player::new(floor);
+            let input = PlayerInput { forward: true, sprint, sneak, ..Default::default() };
+            for _ in 0..50 { p.update(1.0 / 20.0, &input, &w); }
+            (p.position.x.abs().max(p.position.z.abs()))
+        };
+        let walk_d = run(false, false);
+        let sprint_d = run(true, false);
+        let sneak_d = run(false, true);
+        assert!(sprint_d > walk_d * 1.2, "sprint {} must beat walk {}", sprint_d, walk_d);
+        assert!(sneak_d < walk_d * 0.6, "sneak {} must be slower than walk {}", sneak_d, walk_d);
     }
 }

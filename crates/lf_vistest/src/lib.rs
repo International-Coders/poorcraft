@@ -228,6 +228,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "hud_small",
+            desc: "king-quest UI: the smart HUD at a tiny 640x360 window — bands hold, nothing overlaps",
+            default_seed: 12345,
+            time_of_day: 0.42,
+            first_person: true,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5),
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "torchlit_night",
             desc: "night scene lit by torches placed on the terrain",
             default_seed: 12345,
@@ -2734,7 +2746,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     }
     let (vertices, indices, water_vertices, water_indices) = (vertices, indices, water_vertices, water_indices);
 
-    let ui = spec.name == "hud_preview" || spec.name == "village_trading" || spec.name == "tech_tree"
+    let ui = spec.name == "hud_preview" || spec.name == "hud_small" || spec.name == "village_trading" || spec.name == "tech_tree"
         || spec.name == "menu_preview" || spec.name == "settings_preview"
         || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud"
         || spec.name == "console_preview" || spec.name == "lore_book"
@@ -2756,7 +2768,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             ..Default::default()
         };
         let draws_hud_backdrop = matches!(spec.name,
-            "hud_preview" | "minimap_hud" | "faction_hud" | "companion_follow"
+            "hud_preview" | "hud_small" | "minimap_hud" | "faction_hud" | "companion_follow"
             | "village_trading" | "tech_tree" | "settings_preview" | "crafting_ui"
             | "map_screen" | "console_preview" | "lore_book" | "spellbook"
             | "paths_screen" | "trade_p2p" | "companion_commands" | "crafting_workbench");
@@ -2920,6 +2932,7 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "journal" | "asset_catalog"
         | "tree_fall_mid" | "tree_fall_landed" | "falling_blocks_deep"
         | "plants_cross" | "seed_comparison" | "no_black_square"
+        | "hud_small"
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time");
     if !needs_check {
         return Ok(());
@@ -3163,6 +3176,44 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
                 }
             }
             assert!(warm > 60, "falling_blocks_deep: no tumbling cubes in the sky region ({})", warm);
+        }
+        "hud_small" => {
+            // SMART HUD proof at 640x360: hotbar slots fill the bottom
+            // band, the minimap fills the top-right, and the two regions
+            // never touch (the "never overlap" guarantee, in pixels).
+            let hotband_top = h - 130;
+            let mut slot_pixels = 0usize;
+            for y in (hotband_top + 30..h).step_by(2) {
+                for x in (w / 2 - 160..w / 2 + 160).step_by(2) {
+                    let c = px(x, y);
+                    if c[0].abs_diff(30) < 22 && c[1].abs_diff(30) < 22 && c[2].abs_diff(34) < 22 {
+                        slot_pixels += 1;
+                    }
+                }
+            }
+            assert!(slot_pixels > 40, "hud_small: hotbar slots missing ({})", slot_pixels);
+            let mut mini_pixels = 0usize;
+            for y in (0..hotband_top).step_by(2) {
+                for x in (w * 3 / 4..w).step_by(2) {
+                    let c = px(x, y);
+                    if c[1] > 90 && c[1] > c[2] + 20 && c[1] > c[0] {
+                        mini_pixels += 1;
+                    }
+                }
+            }
+            assert!(mini_pixels > 40, "hud_small: minimap missing ({})", mini_pixels);
+            // no hotbar-colored pixel above the band top on the left half:
+            // the chat/info bands stay clear of the slots
+            let mut stray_slots = 0usize;
+            for y in (0..hotband_top).step_by(2) {
+                for x in (4..w / 2).step_by(2) {
+                    let c = px(x, y);
+                    if c[0].abs_diff(30) < 10 && c[1].abs_diff(30) < 10 && c[2].abs_diff(34) < 10 {
+                        stray_slots += 1;
+                    }
+                }
+            }
+            assert!(stray_slots < 20, "hud_small: slot-colored pixels leaked into the upper bands ({})", stray_slots);
         }
         // loop 331 plants: plant pixels present AND sky visible through the
         // cross quads above the ground (a solid cube would block the sky)
@@ -3541,6 +3592,7 @@ const UW_PANEL: egui::Color32 = egui::Color32::from_rgba_premultiplied(0x33, 0x2
 /// centering contract is proven beyond the default 800x600.
 fn ui_canvas(scene: &str) -> (u32, u32) {
     match scene {
+        "hud_small" => (640, 360),
         "menus_centered_small" => (640, 420),
         "menus_centered_wide" => (1280, 800),
         "menus_centered" => (800, 600),

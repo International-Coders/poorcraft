@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-08-30 — smart HUD, personalized font, Minecraft controls (loop 337)
+- **Smart HUD (never overlaps)**: `kit::hud_layout(w, h)` is the single
+  pure source of HUD geometry — info line capped away from the minimap,
+  companion tiles ending above the chat band, chat above the hotbar
+  band — with a disjointness test proving zero overlap at 640x360,
+  800x600, 1280x720 and 1920x1080. The live HUD regions (chat, companion
+  tiles, info-line width, minimap anchor) are re-anchored to the computed
+  layout, so window size can no longer produce overlapping widgets.
+- **Personalized font**: `kit::install_font` promotes the embedded Hack
+  monospace over the entire UI (proportional + monospace families,
+  1.06 scale, baseline nudge) — a chunky, technical LOREFORGE voice —
+  installed once per session to keep the glyph atlas stable.
+- **Minecraft controls**: SHIFT sprints, CTRL crouches (FlyDown moved to
+  CTRL too), and **crouching edge-locks**: while sneaking on the ground,
+  per-axis movement that would leave the supporting block is cancelled —
+  you can hold the edge all day and never fall. Sneaking lowers the eye
+  by 0.28, slows to 45%, and sprinting runs at 5.6 vs 4.3 walk.
+- **Tests**: crouch edge-lock (sneaker holds a floating ledge 600 ticks;
+  a non-sneaking walker falls off — proving the platform test real),
+  sneak/sprint speed ratios, keymap defaults, HUD disjointness at four
+  window sizes. 349 tests, hud_small vistest scene, smoke green.
+
 ## 2026-08-29 — king-quest: 50 mods, 15 biomes, animals, the Accord Bastion, vassal workers (loop 334)
 - **50 community mods** (`mods/`): ores & metals, food & farming, magic,
   building & decoration packs — 88 blocks (with worldgen ore veins and

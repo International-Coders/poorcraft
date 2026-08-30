@@ -496,7 +496,8 @@ impl GameState {
         let chat_lines = net_chat.unwrap_or_else(|| self.chat_log.clone());
         if !chat_lines.is_empty() {
             egui::Area::new(egui::Id::new("chat"))
-                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(8.0, -150.0))
+                .anchor(egui::Align2::LEFT_BOTTOM,
+                    egui::vec2(8.0, -(kit::HUD_BOTTOM_BAND + 8.0)))
                 .show(ctx, |ui| {
                     for line in &chat_lines {
                         ui.label(egui::RichText::new(line).small().color(egui::Color32::from_gray(230)));
@@ -643,16 +644,20 @@ impl GameState {
         if self.settings.rt_mode == RtMode::Live {
             info.push_str(" · RT");
         }
+        let slots = kit::hud_layout(ctx.screen_rect().width(), ctx.screen_rect().height());
+        let max_w = slots[0].rect.width();
         egui::Area::new(egui::Id::new("info_line"))
             .anchor(egui::Align2::LEFT_TOP, egui::vec2(10.0, 8.0))
             .show(ctx, |ui| {
+                ui.set_max_width(max_w);
                 ui.label(egui::RichText::new(info).small().color(egui::Color32::from_rgba_premultiplied(Theme::TEXT.r(), Theme::TEXT.g(), Theme::TEXT.b(), 200)));
             });
         // lore-and-visuals A3/C4: companion status tiles under the info
         // line (one per active companion, trust + morale bars, state chip)
         if !self.companions.is_empty() {
             egui::Area::new(egui::Id::new("companion_tiles"))
-                .anchor(egui::Align2::LEFT_TOP, egui::vec2(10.0, 26.0))
+                .anchor(egui::Align2::LEFT_TOP,
+                    egui::vec2(10.0, 10.0 + kit::HUD_INFO_LINE_H + 4.0))
                 .show(ctx, |ui| {
                     ui.vertical(|ui| {
                         for c in &self.companions {

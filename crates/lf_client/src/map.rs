@@ -455,7 +455,7 @@ impl GameState {
         let (rc, rs) = ((ang + std::f32::consts::PI).cos(), (ang + std::f32::consts::PI).sin());
 
         egui::Area::new(egui::Id::new("minimap"))
-            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 34.0))
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 10.0))
             .show(ctx, |ui| {
                 let size = MINIMAP_PX as f32;
                 let (rect, response) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());

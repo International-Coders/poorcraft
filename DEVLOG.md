@@ -1423,3 +1423,42 @@ feature build compiles); 346 passed / 0 failed unchanged.
 **HONESTLY DEFERRED**: the two-process live P2P exchange requires two
 distinct Steam identities (second account or partner AppID + two
 machines/licenses) — one command finishes it, no code change needed.
+
+## 2026-08-30 — loop 337: smart HUD + personalized font + Minecraft controls
+
+**WHAT**: (1) The HUD became layout-computed: `kit::hud_layout(w, h)`
+returns every HUD region (info line, companion tiles, minimap, chat,
+hotbar band) as rects with margins and separation rules; a disjointness
+test walks 640x360/800x600/1280x720/1920x1080 and fails on any overlap
+or window escape — and it caught a real one on its first run (companion
+tiles sank into chat at 640x360), now fixed by deriving the companions
+band from the chat top. Live HUD regions re-anchored: chat sits above
+the hotbar band, companion tiles one info line down, the info line is
+width-capped so it can never run under the minimap, the minimap anchors
+to the top-right margin. (2) `kit::install_font` promotes the embedded
+Hack monospace over both font families with a 1.06 scale + baseline
+tweak — the personalized LOREFORGE voice — installed once (not per
+frame) to keep the glyph atlas stable. (3) Controls: defaults swapped so
+SHIFT sprints and CTRL crouches (FlyDown follows CTRL); crouching
+edge-locks per axis while grounded (the Minecraft rule) via
+`has_ground_support` over the footprint corners; sneaking lowers the eye
+by 0.28.
+
+**HOW**: lf_client/src/input.rs (defaults + test), lf_game/src/player.rs
+(sneak field, eye height, edge-lock + has_ground_support + 2 tests),
+lf_client/src/ui_kit.rs (install_font, HUD_BOTTOM_BAND, hud_layout +
+HudSlot, disjointness test, repaired a botched append that had nested
+the test inside text_shadowed), lf_client/src/ui.rs (chat/companion/
+info re-anchor), lf_client/src/map.rs (minimap anchor), lf_vistest
+(hud_small scene, 640x360 canvas, pixel claims: hotbar band populated,
+minimap present, no slot-colored pixels in the upper bands).
+
+**VERIFICATION**: cargo build --workspace clean; cargo test --workspace
+349 passed / 0 failed; full vistest suite green (83 scenes incl.
+hud_small); make smoke green.
+
+**HONESTLY DEFERRED**: a true custom pixel TTF font (the current voice
+is the embedded Hack monospace re-stacked + shadowed text — shipping a
+licensed pixel font is the next step); HUD layout does not yet reflow
+mid-window resizes every frame (it recomputes from the window size each
+draw, which covers it); vassal/Steam items remain as documented.

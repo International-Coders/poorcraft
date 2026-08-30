@@ -1,10 +1,9 @@
 # STATE
-loop_count: 335
-current_milestone: Complete — king-quest + asset gap + Steam exercised live
-last_done: "loop 335 asset gap + Steam live: every mod block (100) got its own generated palette-ruled 16x16 atlas layer (deterministic per id, pairwise-distinct, tested) routed via mod_block_layer_for; 7 ring-top layers for the new tree species (per-face routing); 12 packs gained a signature block; FIXED the loop-B atlas drift (hand-counted constants +4 off — biome blocks/animal skins rendered wrong art; all king-quest layers now derive from layer_of(name)); raised max_texture_array_layers to 512 (atlas 294 deep). Asset ledger 320 > 300. Steam EXERCISED LIVE on this host (client was installed): init PASS, real Steam ID, stats request PASS, matchmaking lobby create/leave PASS, preferred_transport -> SteamP2p live, boot logs the transport; overlay needs launch-through-Steam (user step), achievements need a partner AppID, ISteamNetworkingSockets socket swap remains. 346 tests, 82/82 vistest, smoke green."
-
-next_task: "Deferred king-quest follow-ups in BACKLOG (multi-chunk city sprawl, villager TOML schedule overrides, more mod-block art) or master-plan Phase C."
+loop_count: 337
+current_milestone: Complete — smart HUD + personalized font + Minecraft controls
+last_done: "loop 337 menus-and-controls: (1) SMART HUD — kit::hud_layout(w,h) computes every HUD region (info line capped away from the minimap, companion tiles ending above chat, chat above the hotbar band) with a disjointness test proving zero overlap at 640x360/800x600/1280x720/1920x1080, and the live HUD regions (chat, companion tiles, info line width, minimap) re-anchored to the computed layout; (2) personalized font — kit::install_font promotes the embedded Hack monospace over the whole UI with a 1.06 scale tweak (installed once, not per frame); (3) Minecraft controls — SHIFT sprints, CTRL crouches (defaults swapped, FlyDown=CTRL), and crouching edge-locks: movement that would leave the supporting block is cancelled per axis while sneaking on the ground (tested: sneaker holds the 3x3 ledge 600 ticks, walker falls; sneak slower than walk, sprint faster); sneak lowers the eye 0.28. hud_small vistest scene (640x360) pixel-proves hotbar/minimap/info bands hold. 349 tests, vistest suite, smoke green."
+next_task: "Deferred: bigger UI overhaul (custom pixel TTF font is the next step — needs a font asset), more HUD polish; or master-plan Phase C (docs/MASTER-PLAN.md)."
 build: GREEN
-tests: 346 passed / 0 failed (loop 335)
-last_screenshot: shots/vistest_biome_contact_sheet.png
+tests: 349 passed / 0 failed (loop 337)
+last_screenshot: shots/vistest_hud_small.png
 blockers: "none"

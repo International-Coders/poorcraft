@@ -146,11 +146,12 @@ impl Default for Keymap {
         set(Action::Left, KeyA);
         set(Action::Right, KeyD);
         set(Action::Jump, Space);
-        set(Action::Sneak, ShiftLeft);
-        set(Action::Sprint, ControlLeft);
+        // king-quest controls (Minecraft scheme): SHIFT runs, CTRL crouches
+        set(Action::Sneak, ControlLeft);
+        set(Action::Sprint, ShiftLeft);
         set(Action::Fly, KeyF);
         set(Action::FlyUp, Space);
-        set(Action::FlyDown, ShiftLeft);
+        set(Action::FlyDown, ControlLeft);
         set(Action::Inventory, KeyE);
         set(Action::QuestLog, KeyJ);
         set(Action::TechTree, KeyK);
@@ -217,10 +218,13 @@ mod tests {
         use KeyCode::*;
         assert_eq!(km.key(Action::Forward), KeyW);
         assert_eq!(km.key(Action::Jump), Space);
-        assert_eq!(km.key(Action::Sneak), ShiftLeft);
         assert_eq!(km.key(Action::Inventory), KeyE);
         assert_eq!(km.key(Action::Map), KeyM);
         assert_eq!(km.action_for(KeyK), Some(Action::TechTree));
+        // king-quest controls: SHIFT runs, CTRL crouches (Minecraft scheme)
+        assert_eq!(km.key(Action::Sprint), ShiftLeft);
+        assert_eq!(km.key(Action::Sneak), ControlLeft);
+        assert_eq!(km.key(Action::FlyDown), ControlLeft);
     }
 
     /// Step 13 done-when: a rebinding survives a save/reload round trip

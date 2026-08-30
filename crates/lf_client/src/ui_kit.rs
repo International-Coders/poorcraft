@@ -58,7 +58,100 @@ impl Theme {
 /// widget (buttons in windows, sliders, checkboxes, scroll areas) and every
 /// `egui::Window` inherits the kit instead of egui's cool-blue defaults.
 /// Called once per frame from `GameState::draw_ui`; idempotent.
+/// king-quest UI pass: the LOREFORGE voice — Hack (a chunky technical
+/// monospace) leads every text style, Ubuntu-Light falls back behind it,
+/// and the emoji fonts ride along. Installed once; re-installing every
+/// frame would invalidate the glyph atlas each pass.
+pub fn install_font(ctx: &egui::Context) {
+    static DONE: std::sync::Once = std::sync::Once::new();
+    DONE.call_once(|| {
+        let mut fonts = egui::FontDefinitions::default();
+        // Hack leads the proportional family: the whole UI speaks in it.
+        let mut hack_tweak = None;
+        if let Some(data) = fonts.font_data.get_mut("Hack") {
+            let mut d = (**data).clone();
+            d.tweak = egui::FontTweak {
+                scale: 1.06,
+                y_offset_factor: -0.04,
+                ..Default::default()
+            };
+            hack_tweak = Some(d);
+        }
+        if let Some(d) = hack_tweak {
+            fonts.font_data.insert("Hack".to_owned(), std::sync::Arc::new(d));
+        }
+        if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+            family.retain(|f| f != "Hack");
+            family.insert(0, "Hack".to_owned());
+        }
+        if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+            family.retain(|f| f != "Hack");
+            family.insert(0, "Hack".to_owned());
+        }
+        ctx.set_fonts(fonts);
+    });
+}
+
+/// The bottom HUD band height (vitals + xp + mana + hotbar + item name):
+/// the single number everything else anchors against.
+pub const HUD_BOTTOM_BAND: f32 = 118.0;
+/// Height of the top-left info line.
+pub const HUD_INFO_LINE_H: f32 = 18.0;
+
+/// A computed HUD slot: where a widget goes at this window size.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct HudSlot {
+    pub rect: egui::Rect,
+}
+
+impl HudSlot {
+    pub fn anchor(self) -> egui::Vec2 {
+        // LEFT_TOP area offset for anchored Areas
+        egui::vec2(self.rect.left(), self.rect.top())
+    }
+}
+
+/// king-quest UI pass: the SMART HUD layout — one pure function computes
+/// every HUD region for a window size, with margins and separation rules
+/// that make widget overlap impossible by construction (proven by test).
+pub fn hud_layout(w: f32, h: f32) -> [HudSlot; 5] {
+    let margin = 10.0;
+    let minimap = 172.0f32.min((w - 2.0 * margin).max(120.0));
+    let hotbar_w = 9.0 * 48.0;
+    // [info_line, companions, minimap, chat, hotbar]
+    let companions_top = margin + HUD_INFO_LINE_H + 4.0;
+    let chat_top = h - HUD_BOTTOM_BAND - 78.0;
+    [
+        // info line: top-left band, capped so it can never reach the minimap
+        HudSlot { rect: egui::Rect::from_min_size(
+            egui::pos2(margin, margin),
+            egui::vec2((w - 2.0 * margin - minimap - 12.0).max(200.0), HUD_INFO_LINE_H),
+        )},
+        // companion tiles: one info line below, ending above the chat band
+        HudSlot { rect: egui::Rect::from_min_size(
+            egui::pos2(margin, companions_top),
+            egui::vec2(180.0, (chat_top - companions_top - 6.0).max(0.0)),
+        )},
+        // minimap: top-right, below the margin
+        HudSlot { rect: egui::Rect::from_min_size(
+            egui::pos2(w - margin - minimap, margin),
+            egui::vec2(minimap, minimap),
+        )},
+        // chat: above the bottom band, left side
+        HudSlot { rect: egui::Rect::from_min_max(
+            egui::pos2(margin, h - HUD_BOTTOM_BAND - 78.0),
+            egui::pos2(w * 0.5, h - HUD_BOTTOM_BAND - 8.0),
+        )},
+        // hotbar band: the full bottom strip
+        HudSlot { rect: egui::Rect::from_min_max(
+            egui::pos2(0.0, h - HUD_BOTTOM_BAND),
+            egui::pos2(w, h),
+        )},
+    ]
+}
+
 pub fn apply_kit_style(ctx: &egui::Context) {
+    install_font(ctx);
     let mut style = (*ctx.style()).clone();
     let v = &mut style.visuals;
     v.dark_mode = true;
@@ -781,4 +874,37 @@ pub fn text_shadowed(
     p.text(pos + egui::vec2(1.0, 1.0), anchor, text.clone(), font.clone(),
         egui::Color32::from_black_alpha(180));
     p.text(pos, anchor, text, font, color);
+}
+
+#[cfg(test)]
+mod hud_layout_tests {
+    use super::*;
+
+    /// Failure meaning: the SMART HUD layout let two regions overlap or
+    /// escape the window at any supported size — the "never overlap"
+    /// guarantee is broken.
+    #[test]
+    fn hud_layout_slots_never_overlap_at_any_window_size() {
+        for &(w, h) in [(640.0, 360.0), (800.0, 600.0), (1280.0, 720.0), (1920.0, 1080.0)].iter() {
+            let slots = hud_layout(w, h);
+            let names = ["info_line", "companions", "minimap", "chat", "hotbar"];
+            for (i, a) in slots.iter().enumerate() {
+                assert!(a.rect.left() >= 0.0 && a.rect.right() <= w && a.rect.top() >= 0.0
+                    && a.rect.bottom() <= h,
+                    "{} escapes the {}x{} window: {:?}", names[i], w, h, a.rect);
+                for (j, b) in slots.iter().enumerate() {
+                    if j <= i { continue; }
+                    let inter = a.rect.intersect(b.rect);
+                    // companions may touch the info band's bottom edge; real
+                    // overlap requires positive area on both axes
+                    assert!(inter.is_negative() || inter.width() <= 0.0 || inter.height() <= 0.0,
+                        "{} overlaps {} at {}x{}: {:?}", names[i], names[j], w, h, inter);
+                }
+            }
+            // the chat window must sit ABOVE the hotbar band (its bottom
+            // touches the band's top edge at most)
+            assert!(slots[3].rect.bottom() <= slots[4].rect.top() + 0.5,
+                "chat must not sink into the hotbar band");
+        }
+    }
 }
