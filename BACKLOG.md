@@ -1051,3 +1051,14 @@ Deferred (honest notes):
   limitation. Finishes with two distinct Steam identities (second
   account / partner AppID + second machine), one command, no code change.
 - [ ] Achievements: partner AppID. Overlay: launch-through-Steam.
+
+## Loop 337b — roadmap + Steam loopback test SHIPPED
+
+- [x] docs/ROADMAP-100.md: the researched 100-step plan (10 phases).
+- [x] ISteamNetworkingSockets loopback pair shim (raw CreateSocketPair
+  via steamworks-sys) + `steam_pair_test` example — protocol-v4
+  Hello/Welcome exchange PASSES in-process, no second account.
+- [x] Fixed: create_local_pair client lifetime (drop = SteamAPI_Shutdown
+  = segfault); client handle now returned with the pair.
+- [ ] Two-process cross-session P2P: needs two distinct Steam
+  identities (user resource). Roadmap step 87 documents the recipe.

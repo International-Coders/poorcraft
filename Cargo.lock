@@ -1389,6 +1389,7 @@ dependencies = [
  "lf_protocol",
  "serde",
  "steamworks",
+ "steamworks-sys",
  "tempfile",
 ]
 

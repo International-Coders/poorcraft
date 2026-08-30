@@ -1462,3 +1462,37 @@ is the embedded Hack monospace re-stacked + shadowed text — shipping a
 licensed pixel font is the next step); HUD layout does not yet reflow
 mid-window resizes every frame (it recomputes from the window size each
 draw, which covers it); vassal/Steam items remain as documented.
+
+## 2026-08-30 — loop 337b: ROADMAP-100 + Steam loopback transport test SHIPPED
+
+**WHAT**: (1) docs/ROADMAP-100.md — the researched 100-step roadmap
+(HoMM5/Skyrim/Minecraft comparison basis: faction towns + weekly growth
++ initiative combat; 18 use-based skills + quest/dungeon flow; explicit
+progression ladder + achievements + respawnable boss) mapped against the
+LOREFORGE inventory (gaps: win condition, currency, farming,
+doors/beds, achievements/music, skill perks, dungeons, mob sync,
+unspawnable bosses, act-2+ quests) into 10 phases x 10 steps of small
+testable wins. (2) The Steam P2P testing answer, SHIPPED as code:
+steamworks-sys 0.12.2 exposes Valve's `CreateSocketPair` loopback API
+(the safe steamworks wrapper does not), so `lf_steam::net_steam::
+create_local_pair` now creates two already-connected loopback
+connections in-process and `examples/steam_pair_test` drives the full
+protocol-v4 exchange (Hello(4) -> Welcome) through real
+ISteamNetworkingSockets send/receive — **no second Steam account
+needed**. Live run: PAIR PASS / HELLO PASS / EXCHANGE PASS /
+PAIRTEST PASS (exit 0).
+
+**BUG FIXED EN ROUTE**: `create_local_pair` originally dropped the
+`Client` it initialized — dropping the last client handle calls
+`SteamAPI_Shutdown()`, and the loopback pointers segfaulted (exit 139).
+The client handle is now returned alongside the pair and documented as
+must-outlive-it.
+
+**Two-process cross-session P2P still needs**: two distinct Steam
+identities (second account on an isolated client instance, or partner
+AppID + two machines) — Valve constraint, documented in
+docs/STEAM.md/BACKLOG.
+
+**VERIFICATION**: steam_pair_test exit 0 (live); cargo build --workspace
+clean; cargo test --workspace 349 passed / 0 failed (feature off by
+default; the sys shim is feature-gated).

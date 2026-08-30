@@ -349,3 +349,102 @@ impl SteamGameServerHost {
         self.peers.iter_mut().find(|(p, _)| *p == peer).map(|(_, c)| c)
     }
 }
+
+// ===== king-quest Steam pass: local loopback pair (Valve's test API) ====
+//
+// steamworks-rs 0.12 does not wrap ISteamNetworkingSockets::
+// CreateSocketPair, but steamworks-sys does. The pair gives two
+// already-connected loopback connections IN PROCESS — Valve built it
+// "for testing", and it lets us exercise the full host/client message
+// path (protocol-v4 codec, poll, decode, reply) with a single Steam
+// identity and no network.
+
+fn raw_sockets() -> *mut steamworks_sys::ISteamNetworkingSockets {
+    unsafe { steamworks_sys::SteamAPI_SteamNetworkingSockets_SteamAPI_v012() }
+}
+
+/// One end of a local loopback connection pair (raw sys wrapper).
+pub struct PairConnection {
+    sockets: *mut steamworks_sys::ISteamNetworkingSockets,
+    handle: steamworks_sys::HSteamNetConnection,
+}
+unsafe impl Send for PairConnection {}
+
+impl PairConnection {
+    /// UNRELIABLE by default; pass `reliable` for the reliable lane.
+    pub fn send_raw(&mut self, data: &[u8], reliable: bool) -> bool {
+        let flags: i32 = if reliable { 8 } else { 0 }; // k_nSteamNetworkingSend_Reliable
+        let mut out: i64 = 0;
+        let (sockets, handle) = (self.sockets, self.handle);
+        let r = unsafe {
+            steamworks_sys::SteamAPI_ISteamNetworkingSockets_SendMessageToConnection(
+                sockets, handle, data.as_ptr() as *const _, data.len() as u32, flags, &mut out,
+            )
+        };
+        r == steamworks_sys::EResult::k_EResultOK
+    }
+
+    /// Drain inbound payloads (released messages are copied out).
+    pub fn receive_raw(&mut self, max: usize) -> Vec<Vec<u8>> {
+        let mut arr: [*mut steamworks_sys::SteamNetworkingMessage_t; 16] =
+            [std::ptr::null_mut(); 16];
+        let (sockets, handle) = (self.sockets, self.handle);
+        let n = unsafe {
+            steamworks_sys::SteamAPI_ISteamNetworkingSockets_ReceiveMessagesOnConnection(
+                sockets, handle, arr.as_mut_ptr(), max as i32,
+            )
+        };
+        (0..n.max(0) as usize)
+            .map(|i| unsafe {
+                let m = arr[i];
+                let data = std::slice::from_raw_parts(
+                    (*m).m_pData as *const u8,
+                    (*m).m_cbSize as usize,
+                )
+                .to_vec();
+                if let Some(release) = (*m).m_pfnRelease {
+                    release(m);
+                }
+                data
+            })
+            .collect()
+    }
+
+    pub fn flush(&mut self) {
+        let (sockets, handle) = (self.sockets, self.handle);
+        unsafe {
+            steamworks_sys::SteamAPI_ISteamNetworkingSockets_FlushMessagesOnConnection(
+                sockets, handle,
+            );
+        }
+    }
+}
+
+/// Create two already-connected loopback connections in-process. The
+/// returned `Client` must stay alive while the pair is used — dropping it
+/// tears down the SteamAPI session the pair rides on.
+pub fn create_local_pair() -> Result<(PairConnection, PairConnection, Client), String> {
+    // the loopback pair rides on the SteamAPI session: initialize it
+    // (idempotent — the probe/game has usually already done this)
+    let client = Client::init().map_err(|e| format!("steam init: {e}"))?;
+    client.run_callbacks();
+    let sockets = raw_sockets();
+    if sockets.is_null() {
+        return Err("SteamNetworkingSockets interface not initialized — start the Steam client first".into());
+    }
+    let (mut a, mut b): (steamworks_sys::HSteamNetConnection, steamworks_sys::HSteamNetConnection) =
+        (0, 0);
+    let ok = unsafe {
+        steamworks_sys::SteamAPI_ISteamNetworkingSockets_CreateSocketPair(
+            sockets, &mut a, &mut b, true, std::ptr::null(), std::ptr::null(),
+        )
+    };
+    if !ok || a == 0 || b == 0 {
+        return Err("CreateSocketPair failed".into());
+    }
+    Ok((
+        PairConnection { sockets, handle: a },
+        PairConnection { sockets, handle: b },
+        client,
+    ))
+}
