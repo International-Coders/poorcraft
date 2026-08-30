@@ -1,0 +1,8 @@
+[[blocks]]
+id = "mithril_veins:mithril_ore"
+name = "Mithril Ore"
+texture = "mithril_ore.png"
+hardness = 5.2
+harvest_level = 3
+light = 4
+

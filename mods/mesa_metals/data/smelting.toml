@@ -1,0 +1,5 @@
+[[smelting]]
+input = "mesa_metals:mesa_copper_ore"
+output = "mesa_metals:mesa_copper"
+xp = 0.7
+

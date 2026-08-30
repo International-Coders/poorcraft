@@ -1,0 +1,10 @@
+[[items]]
+id = "tidal:pearl"
+name = "Pearl"
+texture = "pearl.png"
+
+[[items]]
+id = "tidal:tidal_prism"
+name = "Tidal Prism"
+texture = "tidal_prism.png"
+

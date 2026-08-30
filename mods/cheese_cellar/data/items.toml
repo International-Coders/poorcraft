@@ -1,0 +1,10 @@
+[[items]]
+id = "cheese_cellar:cheese_wheel"
+name = "Cheese Wheel"
+texture = "cheese_wheel.png"
+
+[[items]]
+id = "cheese_cellar:aged_cheese"
+name = "Aged Cheese"
+texture = "aged_cheese.png"
+

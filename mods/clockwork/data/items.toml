@@ -1,0 +1,15 @@
+[[items]]
+id = "clockwork:clock_spring"
+name = "Clock Spring"
+texture = "clock_spring.png"
+
+[[items]]
+id = "clockwork:brass_cog"
+name = "Brass Cog"
+texture = "brass_cog.png"
+
+[[items]]
+id = "clockwork:pendulum"
+name = "Pendulum"
+texture = "pendulum.png"
+

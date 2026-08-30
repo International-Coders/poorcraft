@@ -1,0 +1,8 @@
+[[blocks]]
+id = "duskmoth:dusk_silk_block"
+name = "Dusk Silk Block"
+texture = "dusk_silk_block.png"
+hardness = 0.4
+harvest_level = 0
+light = 0
+

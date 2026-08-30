@@ -1,0 +1,8 @@
+# Slate Roofing — generated community pack (see mods/README.md)
+id = "slate_roofing"
+name = "Slate Roofing"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]

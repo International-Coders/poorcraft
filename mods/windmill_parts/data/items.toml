@@ -1,0 +1,10 @@
+[[items]]
+id = "windmill_parts:sail_cloth"
+name = "Sail Cloth"
+texture = "sail_cloth.png"
+
+[[items]]
+id = "windmill_parts:axle_shaft"
+name = "Axle Shaft"
+texture = "axle_shaft.png"
+

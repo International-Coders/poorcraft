@@ -1,0 +1,10 @@
+[[items]]
+id = "duskmoth:dusk_silk"
+name = "Dusk Silk"
+texture = "dusk_silk.png"
+
+[[items]]
+id = "duskmoth:duskmoth_lantern_kit"
+name = "Duskmoth Lantern Kit"
+texture = "duskmoth_lantern_kit.png"
+

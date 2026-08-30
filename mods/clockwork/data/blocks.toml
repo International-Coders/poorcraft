@@ -1,0 +1,8 @@
+[[blocks]]
+id = "clockwork:clockwork_block"
+name = "Clockwork Block"
+texture = "clockwork_block.png"
+hardness = 2.8
+harvest_level = 2
+light = 0
+

@@ -1,0 +1,8 @@
+[[blocks]]
+id = "cactus_pack:cactus_bricks"
+name = "Cactus Bricks"
+texture = "cactus_bricks.png"
+hardness = 1.2
+harvest_level = 1
+light = 0
+

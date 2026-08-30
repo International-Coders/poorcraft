@@ -1,0 +1,16 @@
+[[blocks]]
+id = "mesa_metals:mesa_copper_ore"
+name = "Mesa Copper Ore"
+texture = "mesa_copper_ore.png"
+hardness = 3.6
+harvest_level = 2
+light = 0
+
+[[blocks]]
+id = "mesa_metals:rusty_block"
+name = "Rusty Block"
+texture = "rusty_block.png"
+hardness = 2.8
+harvest_level = 2
+light = 0
+

@@ -1,0 +1,15 @@
+[[items]]
+id = "spice_road:pepper"
+name = "Pepper"
+texture = "pepper.png"
+
+[[items]]
+id = "spice_road:paprika"
+name = "Paprika"
+texture = "paprika.png"
+
+[[items]]
+id = "spice_road:curry_mix"
+name = "Curry Mix"
+texture = "curry_mix.png"
+

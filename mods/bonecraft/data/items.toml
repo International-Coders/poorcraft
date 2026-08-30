@@ -1,0 +1,10 @@
+[[items]]
+id = "bonecraft:bone_meal_pack"
+name = "Bone Meal Pack"
+texture = "bone_meal_pack.png"
+
+[[items]]
+id = "bonecraft:bone_carving"
+name = "Bone Carving"
+texture = "bone_carving.png"
+

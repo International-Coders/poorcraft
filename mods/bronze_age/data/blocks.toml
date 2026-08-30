@@ -1,0 +1,8 @@
+[[blocks]]
+id = "bronze_age:bronze_block"
+name = "Bronze Block"
+texture = "bronze_block.png"
+hardness = 4.0
+harvest_level = 2
+light = 0
+

@@ -1,0 +1,5 @@
+[[smelting]]
+input = "titansteel:titansteel_ore"
+output = "titansteel:titansteel_ingot"
+xp = 0.7
+

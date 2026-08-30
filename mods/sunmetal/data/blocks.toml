@@ -1,0 +1,16 @@
+[[blocks]]
+id = "sunmetal:sunmetal_ore"
+name = "Sunmetal Ore"
+texture = "sunmetal_ore.png"
+hardness = 5.0
+harvest_level = 3
+light = 9
+
+[[blocks]]
+id = "sunmetal:sunmetal_block"
+name = "Sunmetal Block"
+texture = "sunmetal_block.png"
+hardness = 6.0
+harvest_level = 3
+light = 6
+

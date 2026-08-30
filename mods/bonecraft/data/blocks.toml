@@ -1,0 +1,16 @@
+[[blocks]]
+id = "bonecraft:bone_bricks"
+name = "Bone Bricks"
+texture = "bone_bricks.png"
+hardness = 1.6
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "bonecraft:bone_ore"
+name = "Fossil Bone Ore"
+texture = "bone_ore.png"
+hardness = 3.8
+harvest_level = 1
+light = 0
+

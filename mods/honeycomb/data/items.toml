@@ -1,0 +1,15 @@
+[[items]]
+id = "honeycomb:honeycomb"
+name = "Honeycomb"
+texture = "honeycomb.png"
+
+[[items]]
+id = "honeycomb:beeswax"
+name = "Beeswax"
+texture = "beeswax.png"
+
+[[items]]
+id = "honeycomb:mead_bottle"
+name = "Mead Bottle"
+texture = "mead_bottle.png"
+

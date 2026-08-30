@@ -1,0 +1,15 @@
+[[items]]
+id = "healer_kit:bandage"
+name = "Bandage"
+texture = "bandage.png"
+
+[[items]]
+id = "healer_kit:salve_jar"
+name = "Salve Jar"
+texture = "salve_jar.png"
+
+[[items]]
+id = "healer_kit:tonic"
+name = "Tonic"
+texture = "tonic.png"
+

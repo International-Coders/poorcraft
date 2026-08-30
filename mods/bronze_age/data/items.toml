@@ -1,0 +1,23 @@
+[[items]]
+id = "bronze_age:bronze_ingot"
+name = "Bronze Ingot"
+texture = "bronze_ingot.png"
+
+[[items]]
+id = "bronze_age:bronze_sword"
+name = "Bronze Sword"
+texture = "bronze_sword.png"
+damage = 7
+durability = 500
+harvest_level = 2
+mining_speed = 1.0
+
+[[items]]
+id = "bronze_age:bronze_pickaxe"
+name = "Bronze Pickaxe"
+texture = "bronze_pickaxe.png"
+damage = 4
+durability = 500
+harvest_level = 2
+mining_speed = 4.0
+

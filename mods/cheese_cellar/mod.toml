@@ -1,0 +1,8 @@
+# Cheese Cellar — generated community pack (see mods/README.md)
+id = "cheese_cellar"
+name = "Cheese Cellar"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]

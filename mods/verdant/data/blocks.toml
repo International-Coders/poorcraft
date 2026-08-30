@@ -1,0 +1,16 @@
+[[blocks]]
+id = "verdant:fertile_soil"
+name = "Fertile Soil"
+texture = "fertile_soil.png"
+hardness = 0.6
+harvest_level = 0
+light = 0
+
+[[blocks]]
+id = "verdant:compost_block"
+name = "Compost Block"
+texture = "compost_block.png"
+hardness = 0.5
+harvest_level = 0
+light = 0
+

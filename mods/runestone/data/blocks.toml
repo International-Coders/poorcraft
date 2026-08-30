@@ -1,0 +1,16 @@
+[[blocks]]
+id = "runestone:runestone"
+name = "Runestone"
+texture = "runestone.png"
+hardness = 3.0
+harvest_level = 2
+light = 6
+
+[[blocks]]
+id = "runestone:rune_carved_stone"
+name = "Rune-Carved Stone"
+texture = "rune_carved_stone.png"
+hardness = 3.0
+harvest_level = 2
+light = 3
+

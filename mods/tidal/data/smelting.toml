@@ -1,0 +1,5 @@
+[[smelting]]
+input = "tidal:tidal_ore"
+output = "tidal:tidal_prism"
+xp = 0.7
+

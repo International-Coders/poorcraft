@@ -1,0 +1,16 @@
+[[blocks]]
+id = "jungle_ruins:mossy_ruin_bricks"
+name = "Mossy Ruin Bricks"
+texture = "mossy_ruin_bricks.png"
+hardness = 2.0
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "jungle_ruins:cracked_idol"
+name = "Cracked Idol"
+texture = "cracked_idol.png"
+hardness = 2.5
+harvest_level = 1
+light = 0
+

@@ -1,0 +1,5 @@
+[[smelting]]
+input = "glacies:glacite_ore"
+output = "glacies:glacite"
+xp = 0.7
+

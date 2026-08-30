@@ -1,0 +1,5 @@
+[[smelting]]
+input = "riftstone:rift_ore"
+output = "riftstone:rift_shard"
+xp = 0.7
+

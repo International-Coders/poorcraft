@@ -1,0 +1,15 @@
+[[items]]
+id = "alchemy_basics:mortar"
+name = "Mortar"
+texture = "mortar.png"
+
+[[items]]
+id = "alchemy_basics:reagent_flask"
+name = "Reagent Flask"
+texture = "reagent_flask.png"
+
+[[items]]
+id = "alchemy_basics:catalyst_powder"
+name = "Catalyst Powder"
+texture = "catalyst_powder.png"
+

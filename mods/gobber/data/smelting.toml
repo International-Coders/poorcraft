@@ -1,0 +1,5 @@
+[[smelting]]
+input = "gobber:gobber_ore"
+output = "gobber:gobber_ingot"
+xp = 0.7
+

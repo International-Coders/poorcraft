@@ -1,0 +1,24 @@
+[[blocks]]
+id = "sandstone_brigade:cut_sandstone"
+name = "Cut Sandstone"
+texture = "cut_sandstone.png"
+hardness = 1.4
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "sandstone_brigade:chiseled_sandstone"
+name = "Chiseled Sandstone"
+texture = "chiseled_sandstone.png"
+hardness = 1.6
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "sandstone_brigade:smooth_sandstone"
+name = "Smooth Sandstone"
+texture = "smooth_sandstone.png"
+hardness = 1.8
+harvest_level = 1
+light = 0
+

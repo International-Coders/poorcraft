@@ -1,0 +1,10 @@
+[[items]]
+id = "verdant:compost"
+name = "Compost"
+texture = "compost.png"
+
+[[items]]
+id = "verdant:seed_bundle"
+name = "Seed Bundle"
+texture = "seed_bundle.png"
+

@@ -1,0 +1,24 @@
+[[blocks]]
+id = "carpet_kingdom:royal_carpet"
+name = "Royal Carpet"
+texture = "royal_carpet.png"
+hardness = 0.3
+harvest_level = 0
+light = 0
+
+[[blocks]]
+id = "carpet_kingdom:patterned_carpet"
+name = "Patterned Carpet"
+texture = "patterned_carpet.png"
+hardness = 0.3
+harvest_level = 0
+light = 0
+
+[[blocks]]
+id = "carpet_kingdom:runner_carpet"
+name = "Runner Carpet"
+texture = "runner_carpet.png"
+hardness = 0.3
+harvest_level = 0
+light = 0
+

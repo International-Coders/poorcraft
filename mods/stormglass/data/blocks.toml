@@ -1,0 +1,16 @@
+[[blocks]]
+id = "stormglass:stormglass"
+name = "Stormglass"
+texture = "stormglass.png"
+hardness = 2.5
+harvest_level = 1
+light = 5
+
+[[blocks]]
+id = "stormglass:charged_dust_ore"
+name = "Charged Dust Ore"
+texture = "charged_dust_ore.png"
+hardness = 4.0
+harvest_level = 2
+light = 3
+

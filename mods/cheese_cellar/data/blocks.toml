@@ -1,0 +1,8 @@
+[[blocks]]
+id = "cheese_cellar:cheese_rack"
+name = "Cheese Rack"
+texture = "cheese_rack.png"
+hardness = 1.0
+harvest_level = 1
+light = 0
+

@@ -430,6 +430,52 @@ name = "Ember Ingot"
         assert_eq!(lf_voxel::light::emission(plinth), 0);
     }
 
+    /// Failure meaning: the 50-mod community pack shipped in mods/ does
+    /// not load, registers colliding block ids, or lost its ore/light/
+    /// smelting content. This is the pack's contract with players.
+    #[test]
+    fn fifty_mod_community_pack_loads_and_registers() {
+        let repo_mods = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join("mods");
+        let all = load_mods_dir(&repo_mods);
+        assert!(all.len() >= 54, "expected the 50 generated packs + 4 shipped mods, got {}", all.len());
+        // every manifest parses with a unique namespace
+        let mut namespaces = std::collections::HashSet::new();
+        for m in &all {
+            assert!(!m.manifest.id.is_empty());
+            assert!(namespaces.insert(m.manifest.id.clone()), "duplicate mod id {}", m.manifest.id);
+        }
+        assert!(namespaces.contains("riftstone") && namespaces.contains("slate_roofing"),
+            "the generated pack bounds are present");
+        // stable block ids must not collide across the whole pack
+        let mut ids = std::collections::HashSet::new();
+        let (mut blocks, mut ores, mut lights) = (0usize, 0usize, 0usize);
+        let mut smelts = 0usize;
+        for m in &all {
+            for b in &m.blocks {
+                blocks += 1;
+                if b.light > 0 { lights += 1; }
+                if b.id.ends_with("_ore") { ores += 1; }
+                let short = b.id.split(':').last().unwrap();
+                assert!(ids.insert(mod_block_id(&m.manifest.id, short)),
+                    "fnv1a block-id collision for {}", b.id);
+            }
+            smelts += m.smelting_recipes.len();
+        }
+        assert!(blocks >= 88, "pack block count regressed: {}", blocks);
+        assert!(ores >= 14, "pack should add worldgen ore veins: {}", ores);
+        assert!(lights >= 14, "pack should add light-emitting blocks: {}", lights);
+        assert!(smelts >= 10, "pack smelting recipes: {}", smelts);
+        // apply them all — the boot path — and verify registration sticks
+        for m in &all {
+            apply_mod(m);
+        }
+        assert!(lf_voxel::registry::mod_block(mod_block_id("riftstone", "riftstone")).is_some());
+        assert!(lf_voxel::registry::mod_block(mod_block_id("sunmetal", "sunmetal_ore")).is_some());
+        assert!(lf_game::items::item_def("riftstone:rift_shard").is_some());
+        // *_ore hooks reach worldgen (y 8..50 veins per the README contract)
+        assert!(lf_game::items::item_def("sunmetal:sunmetal_ingot").is_some());
+    }
+
     fn smoke_test_mod_loads_from_the_real_folder() {
         let repo_mods = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join("mods/smoke_test");
         let data = load_mod(&repo_mods).expect("mods/smoke_test parses");

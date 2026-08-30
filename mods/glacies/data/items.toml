@@ -1,0 +1,14 @@
+[[items]]
+id = "glacies:glacite"
+name = "Glacite"
+texture = "glacite.png"
+
+[[items]]
+id = "glacies:glacite_pickaxe"
+name = "Glacite Pickaxe"
+texture = "glacite_pickaxe.png"
+damage = 5
+durability = 700
+harvest_level = 3
+mining_speed = 6.0
+

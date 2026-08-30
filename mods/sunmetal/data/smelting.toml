@@ -1,0 +1,5 @@
+[[smelting]]
+input = "sunmetal:sunmetal_ore"
+output = "sunmetal:sunmetal_ingot"
+xp = 0.7
+

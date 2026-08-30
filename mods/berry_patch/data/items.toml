@@ -1,0 +1,10 @@
+[[items]]
+id = "berry_patch:blueberries"
+name = "Blueberries"
+texture = "blueberries.png"
+
+[[items]]
+id = "berry_patch:rowan_berries"
+name = "Rowan Berries"
+texture = "rowan_berries.png"
+

@@ -1,0 +1,15 @@
+[[items]]
+id = "baker_stock:fresh_loaf"
+name = "Fresh Loaf"
+texture = "fresh_loaf.png"
+
+[[items]]
+id = "baker_stock:honey_cake"
+name = "Honey Cake"
+texture = "honey_cake.png"
+
+[[items]]
+id = "baker_stock:pie"
+name = "Berry Pie"
+texture = "pie.png"
+

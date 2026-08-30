@@ -1,0 +1,24 @@
+[[blocks]]
+id = "feywood:feywood_log"
+name = "Feywood Log"
+texture = "feywood_log.png"
+hardness = 1.2
+harvest_level = 1
+light = 1
+
+[[blocks]]
+id = "feywood:feywood_planks"
+name = "Feywood Planks"
+texture = "feywood_planks.png"
+hardness = 0.9
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "feywood:feywood_leaves"
+name = "Feywood Leaves"
+texture = "feywood_leaves.png"
+hardness = 0.3
+harvest_level = 0
+light = 1
+

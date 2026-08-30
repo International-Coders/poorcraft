@@ -1,0 +1,24 @@
+[[blocks]]
+id = "arcane_lamps:arcane_lamp"
+name = "Arcane Lamp"
+texture = "arcane_lamp.png"
+hardness = 1.2
+harvest_level = 1
+light = 15
+
+[[blocks]]
+id = "arcane_lamps:dim_arcane_lamp"
+name = "Dim Arcane Lamp"
+texture = "dim_arcane_lamp.png"
+hardness = 1.2
+harvest_level = 1
+light = 5
+
+[[blocks]]
+id = "arcane_lamps:witchlight_orb"
+name = "Witchlight Orb"
+texture = "witchlight_orb.png"
+hardness = 0.8
+harvest_level = 0
+light = 12
+

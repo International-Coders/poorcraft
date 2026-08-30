@@ -1,0 +1,15 @@
+[[items]]
+id = "fisherman_delight:cooked_fish_platter"
+name = "Cooked Fish Platter"
+texture = "cooked_fish_platter.png"
+
+[[items]]
+id = "fisherman_delight:fishing_lure"
+name = "Fishing Lure"
+texture = "fishing_lure.png"
+
+[[items]]
+id = "fisherman_delight:tackle_box_kit"
+name = "Tackle Box Kit"
+texture = "tackle_box_kit.png"
+

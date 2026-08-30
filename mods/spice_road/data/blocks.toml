@@ -1,0 +1,8 @@
+[[blocks]]
+id = "spice_road:spice_sack_block"
+name = "Spice Sack Block"
+texture = "spice_sack_block.png"
+hardness = 0.5
+harvest_level = 0
+light = 0
+

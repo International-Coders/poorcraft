@@ -1,0 +1,8 @@
+[[blocks]]
+id = "golem_core:golem_core_block"
+name = "Golem Core Block"
+texture = "golem_core_block.png"
+hardness = 4.5
+harvest_level = 3
+light = 5
+

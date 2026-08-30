@@ -1,0 +1,10 @@
+[[items]]
+id = "golem_core:golem_heart"
+name = "Golem Heart"
+texture = "golem_heart.png"
+
+[[items]]
+id = "golem_core:clay_body_plates"
+name = "Clay Body Plates"
+texture = "clay_body_plates.png"
+

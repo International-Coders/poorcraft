@@ -1,0 +1,16 @@
+[[blocks]]
+id = "swamp_timbers:bog_oak_log"
+name = "Bog Oak Log"
+texture = "bog_oak_log.png"
+hardness = 1.4
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "swamp_timbers:bog_oak_planks"
+name = "Bog Oak Planks"
+texture = "bog_oak_planks.png"
+hardness = 1.0
+harvest_level = 1
+light = 0
+

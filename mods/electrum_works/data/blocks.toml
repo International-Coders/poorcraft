@@ -1,0 +1,16 @@
+[[blocks]]
+id = "electrum_works:electrum_ore"
+name = "Electrum Ore"
+texture = "electrum_ore.png"
+hardness = 4.6
+harvest_level = 3
+light = 2
+
+[[blocks]]
+id = "electrum_works:electrum_block"
+name = "Electrum Block"
+texture = "electrum_block.png"
+hardness = 5.5
+harvest_level = 3
+light = 0
+

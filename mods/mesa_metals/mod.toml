@@ -1,0 +1,8 @@
+# Mesa Metals — generated community pack (see mods/README.md)
+id = "mesa_metals"
+name = "Mesa Metals"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]

@@ -1,0 +1,10 @@
+[[items]]
+id = "cactus_pack:cactus_fruit"
+name = "Cactus Fruit"
+texture = "cactus_fruit.png"
+
+[[items]]
+id = "cactus_pack:cactus_spine"
+name = "Cactus Spine"
+texture = "cactus_spine.png"
+

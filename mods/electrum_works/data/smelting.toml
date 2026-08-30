@@ -1,0 +1,5 @@
+[[smelting]]
+input = "electrum_works:electrum_ore"
+output = "electrum_works:electrum_ingot"
+xp = 0.7
+

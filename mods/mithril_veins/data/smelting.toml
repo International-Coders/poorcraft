@@ -1,0 +1,5 @@
+[[smelting]]
+input = "mithril_veins:mithril_ore"
+output = "mithril_veins:mithril_ingot"
+xp = 0.7
+

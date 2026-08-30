@@ -1,0 +1,16 @@
+[[blocks]]
+id = "glacies:packed_frost"
+name = "Packed Frost"
+texture = "packed_frost.png"
+hardness = 0.8
+harvest_level = 0
+light = 0
+
+[[blocks]]
+id = "glacies:glacite_ore"
+name = "Glacite Ore"
+texture = "glacite_ore.png"
+hardness = 4.5
+harvest_level = 2
+light = 3
+

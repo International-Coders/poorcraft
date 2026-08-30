@@ -1,0 +1,16 @@
+[[blocks]]
+id = "voidshard:voidstone"
+name = "Voidstone"
+texture = "voidstone.png"
+hardness = 3.5
+harvest_level = 2
+light = 0
+
+[[blocks]]
+id = "voidshard:voidshard_ore"
+name = "Voidshard Ore"
+texture = "voidshard_ore.png"
+hardness = 5.5
+harvest_level = 3
+light = 2
+

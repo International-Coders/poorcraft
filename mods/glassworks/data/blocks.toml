@@ -1,0 +1,16 @@
+[[blocks]]
+id = "glassworks:framed_glass"
+name = "Framed Glass"
+texture = "framed_glass.png"
+hardness = 0.6
+harvest_level = 0
+light = 0
+
+[[blocks]]
+id = "glassworks:tinted_glass"
+name = "Tinted Glass"
+texture = "tinted_glass.png"
+hardness = 0.7
+harvest_level = 0
+light = 0
+

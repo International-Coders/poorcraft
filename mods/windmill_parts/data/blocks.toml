@@ -1,0 +1,8 @@
+[[blocks]]
+id = "windmill_parts:windmill_sail_block"
+name = "Windmill Sail Block"
+texture = "windmill_sail_block.png"
+hardness = 1.2
+harvest_level = 1
+light = 0
+

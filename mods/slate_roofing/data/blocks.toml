@@ -1,0 +1,24 @@
+[[blocks]]
+id = "slate_roofing:slate_shingles"
+name = "Slate Shingles"
+texture = "slate_shingles.png"
+hardness = 1.7
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "slate_roofing:deep_slate_shingles"
+name = "Deep Slate Shingles"
+texture = "deep_slate_shingles.png"
+hardness = 2.2
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "slate_roofing:copper_shingles"
+name = "Copper Shingles"
+texture = "copper_shingles.png"
+hardness = 1.9
+harvest_level = 1
+light = 0
+

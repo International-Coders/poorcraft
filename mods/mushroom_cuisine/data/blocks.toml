@@ -1,0 +1,8 @@
+[[blocks]]
+id = "mushroom_cuisine:mushroom_stem_block"
+name = "Mushroom Stem Block"
+texture = "mushroom_stem_block.png"
+hardness = 0.4
+harvest_level = 0
+light = 0
+

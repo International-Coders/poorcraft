@@ -1,0 +1,14 @@
+[[items]]
+id = "mithril_veins:mithril_ingot"
+name = "Mithril Ingot"
+texture = "mithril_ingot.png"
+
+[[items]]
+id = "mithril_veins:mithril_pickaxe"
+name = "Mithril Pickaxe"
+texture = "mithril_pickaxe.png"
+damage = 5
+durability = 1200
+harvest_level = 4
+mining_speed = 9.0
+

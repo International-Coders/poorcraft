@@ -1,0 +1,16 @@
+[[blocks]]
+id = "titansteel:titansteel_block"
+name = "Titansteel Block"
+texture = "titansteel_block.png"
+hardness = 7.0
+harvest_level = 4
+light = 0
+
+[[blocks]]
+id = "titansteel:titansteel_ore"
+name = "Titansteel Ore"
+texture = "titansteel_ore.png"
+hardness = 6.0
+harvest_level = 3
+light = 0
+

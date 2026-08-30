@@ -1,0 +1,8 @@
+[[blocks]]
+id = "tundra_furs:fur_rug_block"
+name = "Fur Rug Block"
+texture = "fur_rug_block.png"
+hardness = 0.3
+harvest_level = 0
+light = 0
+

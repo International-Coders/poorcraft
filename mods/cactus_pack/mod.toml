@@ -1,0 +1,8 @@
+# Cactus Pack — generated community pack (see mods/README.md)
+id = "cactus_pack"
+name = "Cactus Pack"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]

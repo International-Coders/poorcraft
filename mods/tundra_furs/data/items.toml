@@ -1,0 +1,15 @@
+[[items]]
+id = "tundra_furs:wolf_pelt"
+name = "Wolf Pelt"
+texture = "wolf_pelt.png"
+
+[[items]]
+id = "tundra_furs:bear_fur"
+name = "Bear Fur"
+texture = "bear_fur.png"
+
+[[items]]
+id = "tundra_furs:fur_cloak_kit"
+name = "Fur Cloak Kit"
+texture = "fur_cloak_kit.png"
+

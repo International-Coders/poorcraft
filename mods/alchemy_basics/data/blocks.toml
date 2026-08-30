@@ -1,0 +1,8 @@
+[[blocks]]
+id = "alchemy_basics:alchemy_bench_top"
+name = "Alchemy Bench Top"
+texture = "alchemy_bench_top.png"
+hardness = 1.8
+harvest_level = 1
+light = 0
+

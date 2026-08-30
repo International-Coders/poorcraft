@@ -1,0 +1,8 @@
+# Riftstone — generated community pack (see mods/README.md)
+id = "riftstone"
+name = "Riftstone"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]

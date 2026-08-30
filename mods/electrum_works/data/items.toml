@@ -1,0 +1,5 @@
+[[items]]
+id = "electrum_works:electrum_ingot"
+name = "Electrum Ingot"
+texture = "electrum_ingot.png"
+

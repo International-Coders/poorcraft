@@ -1,0 +1,15 @@
+[[items]]
+id = "mushroom_cuisine:roast_mushroom"
+name = "Roast Mushroom"
+texture = "roast_mushroom.png"
+
+[[items]]
+id = "mushroom_cuisine:mushroom_stew"
+name = "Mushroom Stew"
+texture = "mushroom_stew.png"
+
+[[items]]
+id = "mushroom_cuisine:spore_pouch"
+name = "Spore Pouch"
+texture = "spore_pouch.png"
+

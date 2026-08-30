@@ -1,0 +1,10 @@
+[[items]]
+id = "rail_and_gear:iron_gear"
+name = "Iron Gear"
+texture = "iron_gear.png"
+
+[[items]]
+id = "rail_and_gear:steel_rod"
+name = "Steel Rod"
+texture = "steel_rod.png"
+

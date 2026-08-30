@@ -1,0 +1,16 @@
+[[blocks]]
+id = "moonstone:moonstone_ore"
+name = "Moonstone Ore"
+texture = "moonstone_ore.png"
+hardness = 4.4
+harvest_level = 2
+light = 7
+
+[[blocks]]
+id = "moonstone:moonstone_block"
+name = "Moonstone Block"
+texture = "moonstone_block.png"
+hardness = 5.0
+harvest_level = 2
+light = 10
+

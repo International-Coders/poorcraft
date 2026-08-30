@@ -1,0 +1,8 @@
+[[blocks]]
+id = "gobber:gobber_ore"
+name = "Gobber Ore"
+texture = "gobber_ore.png"
+hardness = 4.8
+harvest_level = 2
+light = 5
+

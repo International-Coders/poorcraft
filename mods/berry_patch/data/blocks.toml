@@ -1,0 +1,8 @@
+[[blocks]]
+id = "berry_patch:berry_bush_block"
+name = "Berry Bush Block"
+texture = "berry_bush_block.png"
+hardness = 0.3
+harvest_level = 0
+light = 0
+

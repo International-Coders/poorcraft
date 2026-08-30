@@ -1,0 +1,8 @@
+[[blocks]]
+id = "baker_stock:brick_oven_block"
+name = "Brick Oven Block"
+texture = "brick_oven_block.png"
+hardness = 2.2
+harvest_level = 1
+light = 4
+

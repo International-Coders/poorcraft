@@ -1,0 +1,24 @@
+[[blocks]]
+id = "lantern_co:brass_lantern_block"
+name = "Brass Lantern Block"
+texture = "brass_lantern_block.png"
+hardness = 1.0
+harvest_level = 1
+light = 14
+
+[[blocks]]
+id = "lantern_co:paper_lantern"
+name = "Paper Lantern"
+texture = "paper_lantern.png"
+hardness = 0.4
+harvest_level = 0
+light = 9
+
+[[blocks]]
+id = "lantern_co:soul_lantern"
+name = "Soul Lantern"
+texture = "soul_lantern.png"
+hardness = 1.0
+harvest_level = 1
+light = 6
+

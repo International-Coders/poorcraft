@@ -1,0 +1,5 @@
+[[smelting]]
+input = "voidshard:voidshard_ore"
+output = "voidshard:voidshard"
+xp = 0.7
+

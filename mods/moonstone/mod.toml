@@ -1,0 +1,8 @@
+# Moonstone — generated community pack (see mods/README.md)
+id = "moonstone"
+name = "Moonstone"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]

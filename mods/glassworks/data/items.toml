@@ -1,0 +1,5 @@
+[[items]]
+id = "glassworks:glass_shard"
+name = "Glass Shard"
+texture = "glass_shard.png"
+

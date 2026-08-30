@@ -1,0 +1,8 @@
+# Spice Road — generated community pack (see mods/README.md)
+id = "spice_road"
+name = "Spice Road"
+version = "1.0.0"
+api_version = "1"
+side = "both"
+dependencies = ["core"]
+permissions = ["world.read", "world.write"]

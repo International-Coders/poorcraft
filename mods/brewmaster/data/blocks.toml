@@ -1,0 +1,8 @@
+[[blocks]]
+id = "brewmaster:brewing_keg"
+name = "Brewing Keg"
+texture = "brewing_keg.png"
+hardness = 2.0
+harvest_level = 1
+light = 0
+

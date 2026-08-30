@@ -1,0 +1,8 @@
+[[blocks]]
+id = "fisherman_delight:drying_rack_block"
+name = "Drying Rack Block"
+texture = "drying_rack_block.png"
+hardness = 1.0
+harvest_level = 1
+light = 0
+

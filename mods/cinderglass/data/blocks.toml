@@ -1,0 +1,16 @@
+[[blocks]]
+id = "cinderglass:cinderglass"
+name = "Cinderglass"
+texture = "cinderglass.png"
+hardness = 1.8
+harvest_level = 1
+light = 3
+
+[[blocks]]
+id = "cinderglass:cinder_ash_block"
+name = "Cinder Ash Block"
+texture = "cinder_ash_block.png"
+hardness = 0.5
+harvest_level = 0
+light = 0
+

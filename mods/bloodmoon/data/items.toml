@@ -1,0 +1,10 @@
+[[items]]
+id = "bloodmoon:blood_vial"
+name = "Blood Vial"
+texture = "blood_vial.png"
+
+[[items]]
+id = "bloodmoon:rite_charm"
+name = "Rite Charm"
+texture = "rite_charm.png"
+

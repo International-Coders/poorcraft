@@ -1,0 +1,16 @@
+[[blocks]]
+id = "obsidian_forge:obsidian_bricks"
+name = "Obsidian Bricks"
+texture = "obsidian_bricks.png"
+hardness = 5.0
+harvest_level = 3
+light = 0
+
+[[blocks]]
+id = "obsidian_forge:forge_core"
+name = "Forge Core"
+texture = "forge_core.png"
+hardness = 4.0
+harvest_level = 3
+light = 8
+

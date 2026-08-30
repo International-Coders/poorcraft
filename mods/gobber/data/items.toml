@@ -1,0 +1,14 @@
+[[items]]
+id = "gobber:gobber_ingot"
+name = "Gobber Ingot"
+texture = "gobber_ingot.png"
+
+[[items]]
+id = "gobber:gobber_sword"
+name = "Gobber Sword"
+texture = "gobber_sword.png"
+damage = 9
+durability = 850
+harvest_level = 3
+mining_speed = 1.0
+

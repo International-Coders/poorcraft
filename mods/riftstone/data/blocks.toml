@@ -1,0 +1,24 @@
+[[blocks]]
+id = "riftstone:riftstone"
+name = "Riftstone"
+texture = "riftstone.png"
+hardness = 1.5
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "riftstone:riftstone_bricks"
+name = "Riftstone Bricks"
+texture = "riftstone_bricks.png"
+hardness = 2.0
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "riftstone:rift_ore"
+name = "Rift Ore"
+texture = "rift_ore.png"
+hardness = 4.0
+harvest_level = 2
+light = 6
+

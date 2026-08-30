@@ -1,0 +1,14 @@
+[[items]]
+id = "voidshard:voidshard"
+name = "Voidshard"
+texture = "voidshard.png"
+
+[[items]]
+id = "voidshard:void_blade"
+name = "Void Blade"
+texture = "void_blade.png"
+damage = 11
+durability = 900
+harvest_level = 3
+mining_speed = 1.0
+

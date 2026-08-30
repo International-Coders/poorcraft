@@ -1,0 +1,10 @@
+[[items]]
+id = "brewmaster:ale_barrel_kit"
+name = "Ale Barrel Kit"
+texture = "ale_barrel_kit.png"
+
+[[items]]
+id = "brewmaster:stout_bottle"
+name = "Stout Bottle"
+texture = "stout_bottle.png"
+

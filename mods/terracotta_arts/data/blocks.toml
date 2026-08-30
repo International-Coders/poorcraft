@@ -1,0 +1,24 @@
+[[blocks]]
+id = "terracotta_arts:terracotta_tile"
+name = "Terracotta Tile"
+texture = "terracotta_tile.png"
+hardness = 1.5
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "terracotta_arts:glazed_terracotta"
+name = "Glazed Terracotta"
+texture = "glazed_terracotta.png"
+hardness = 1.5
+harvest_level = 1
+light = 0
+
+[[blocks]]
+id = "terracotta_arts:painted_terracotta"
+name = "Painted Terracotta"
+texture = "painted_terracotta.png"
+hardness = 1.5
+harvest_level = 1
+light = 0
+
