@@ -42,6 +42,8 @@ fn steamworks_init_ok() -> bool {
 }
 
 pub mod lobbies;
+#[cfg(feature = "steam")]
+pub mod net_steam;
 pub mod workshop;
 
 #[cfg(test)]

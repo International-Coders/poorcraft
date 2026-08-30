@@ -1397,3 +1397,29 @@ cargo build --workspace clean; 346 passed / 0 failed.
 **HONESTLY DEFERRED**: overlay needs a launch-through-Steam (user
 action, one click); achievements + P2P socket swap need a partner AppID
 / protocol work — both remain in BACKLOG with concrete steps.
+
+## 2026-08-30 — loop 336: ISteamNetworkingSockets transport implemented; two-process live exchange externally blocked
+
+**WHAT**: `lf_steam::net_steam` (cfg `steam`): `SteamHost` (P2P listen
+socket + public lobby stamped with `lf_host_steamid` + poll-group
+accept/decode of protocol-v4 frames), `SteamClientNet` (lobby-join
+discovery + `connect_direct`), per-connection send/receive with
+`lf_protocol` codec bytes unchanged. Examples `steam_host` /
+`steam_client` implement the end-to-end exercise.
+
+**EXERCISE RESULT (live)**: host bound a lobby + listen socket; client
+joined the lobby, read the host datum, and called `connect_p2p` — Steam
+rejected the session because **both processes run as the same Steam
+identity and Steam refuses self-connections**. A gameserver-identity
+host (NoAuthentication, AppID 480) was also attempted and hit a
+steamworks-rs 0.12 limitation: its `networking_sockets()` accessor
+routes through the user pipe ("SteamNetworkingSockets012 before
+SteamAPI_Init succeeded"). Both blockers are external/binding-level,
+documented in docs/STEAM.md with the exact finish command.
+
+**VERIFICATION**: cargo build --workspace clean (feature off by default;
+feature build compiles); 346 passed / 0 failed unchanged.
+
+**HONESTLY DEFERRED**: the two-process live P2P exchange requires two
+distinct Steam identities (second account or partner AppID + two
+machines/licenses) — one command finishes it, no code change needed.

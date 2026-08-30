@@ -71,3 +71,25 @@ Still requires a Steamworks partner account to unlock:
   init and transport selection are proven; swapping the UDP socket for
   ISteamNetworkingSockets remains the one structural step (protocol v4
   escrow already rides either transport).
+
+---
+
+## Loop 336 — ISteamNetworkingSockets transport (implemented; live two-process exchange blocked externally)
+
+- `lf_steam::net_steam` (behind `steam`): `SteamHost` (P2P listen socket +
+  public lobby stamped with `lf_host_steamid` + poll-group accept/decode),
+  `SteamClientNet` (join lobby -> read host identity -> connect_p2p, or
+  `connect_direct`), both carrying protocol-v4 codec frames unchanged.
+- Probes: `steam_host` / `steam_client` examples. Exercise attempted live
+  on this host: the client reached `connect_p2p`, which Steam rejected —
+  **both processes run as the same Steam identity, and Steam refuses
+  self-connections**. A gameserver-identity host was also attempted
+  (NoAuthentication, AppID 480) and hit a steamworks-rs 0.12 limitation:
+  `networking_sockets()` routes through the user pipe accessor only.
+- To finish the exercise: EITHER run the host on a machine/account pair
+  with two logged-in Steam users (`steam_host` as account A, `steam_client
+  <lobby_id>` as account B) OR with a partner AppID + two licenses. No
+  code change is needed for that path — it is the exact flow above.
+- Also: `net_steam` compiles default-off; the default game transport is
+  UDP. Achievements still require a partner AppID; overlay still requires
+  launch-through-Steam.

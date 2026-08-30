@@ -1038,3 +1038,16 @@ Deferred (honest notes):
 - [ ] ISteamNetworkingSockets as the in-game multiplayer transport
   (replacing UDP): the binding/init/selection are proven; only the
   socket swap remains.
+
+## Loop 336 — P2P transport implemented; live two-process exercise blocked externally
+
+- [x] ISteamNetworkingSockets transport in lf_steam::net_steam (SteamHost
+  lobby+listen+accept+decode; SteamClientNet lobby-join discovery +
+  connect_direct; protocol-v4 codec bytes unchanged; UDP untouched).
+- [x] Probes steam_host / steam_client implementing the exchange.
+- [ ] Two-process live exchange: BLOCKED — Steam refuses self-connections
+  (both processes here share one logged-in identity), and the
+  gameserver-identity workaround hits a steamworks-rs 0.12 pipe
+  limitation. Finishes with two distinct Steam identities (second
+  account / partner AppID + second machine), one command, no code change.
+- [ ] Achievements: partner AppID. Overlay: launch-through-Steam.

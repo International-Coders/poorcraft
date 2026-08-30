@@ -9,6 +9,7 @@ serde = { workspace = true, features = ["derive"] }
 # dynamically and requires the Steam client at runtime; everything else
 # builds and runs without it (UDP transport).
 steamworks = { version = "0.12", optional = true }
+lf_protocol = { path = "../lf_protocol" }
 
 [features]
 default = []

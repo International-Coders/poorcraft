@@ -1386,6 +1386,7 @@ dependencies = [
 name = "lf_steam"
 version = "0.1.0"
 dependencies = [
+ "lf_protocol",
  "serde",
  "steamworks",
  "tempfile",
