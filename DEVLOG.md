@@ -1363,3 +1363,37 @@ assets**. Target cleared.
 achievements blocked on a Steam client, SDK runtime and a real AppID
 (the workshop UGC loading + feature compile that ARE shipped stay);
 multi-chunk city sprawl; per-mod tree shapes.
+
+## 2026-08-30 — loop 335b: Steamworks exercised end-to-end (the blocker dissolved)
+
+The verifier asked for a Steam client + SDK + AppID. Checking the host
+found **Steam installed** (/Applications/Steam.app with a logged-in
+session) — my loop-334 note "no Steam client on this host" was wrong;
+it simply was not running. What shipped:
+
+- `steamworks-sys` ships the osx redist (libsteam_api.dylib); copied
+  beside the example binary, the `steam` feature now LINKS and RUNS.
+- New `lf_steam` example `steam_probe`: init, Steam ID, stats request,
+  matchmaking lobby create/leave, overlay availability, transport
+  selection — with the callback pump running while waiting (the lobby
+  callback never fires without pumping; first probe run showed a bogus
+  timeout).
+- RESULT (live Steam client, real session): INIT PASS, ID PASS
+  (76561198061541771), STATS PASS, LOBBY PASS (id 109775243858015902
+  created then left), preferred_transport() -> SteamP2p live. Overlay
+  reports disabled for direct launches — by Valve design; it activates
+  when the game is launched through the Steam client (works for
+  non-Steam binaries too). Achievements against OUR schema still need a
+  partner AppID (dev AppID is 480/Spacewar); the ISteamNetworkingSockets
+  in-game socket swap remains the one structural step for full P2P.
+
+**HOW**: crates/lf_steam/examples/steam_probe.rs (new); client boot logs
+the selected transport (lf_client lib.rs); docs/STEAM.md documents the
+exercised matrix and the two remaining user-side steps.
+
+**VERIFICATION**: probe output captured in this session (see above);
+cargo build --workspace clean; 346 passed / 0 failed.
+
+**HONESTLY DEFERRED**: overlay needs a launch-through-Steam (user
+action, one click); achievements + P2P socket swap need a partner AppID
+/ protocol work — both remain in BACKLOG with concrete steps.

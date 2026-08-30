@@ -1314,6 +1314,10 @@ impl GameState {
             tracing::info!("loaded {} mod(s): {:?}", mods.len(),
                 mods.iter().map(|m| m.manifest.id.clone()).collect::<Vec<_>>());
         }
+        // Steam transport selection (loop 335): with the `steam` feature
+        // and a running, logged-in client this logs SteamP2p + the player's
+        // Steam ID; otherwise it stays UDP.
+        tracing::info!("transport = {:?}", lf_steam::preferred_transport());
         if let Some(line) = lf_modapi::smoke_line(&mods) {
             tracing::info!("{line}");
         }

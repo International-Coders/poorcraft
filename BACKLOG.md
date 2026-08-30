@@ -1023,3 +1023,18 @@ Deferred (honest notes):
   300 target is cleared.
 - [ ] Steam P2P/overlay/achievements remain BLOCKED on having a Steam
   client, an SDK runtime and a real AppID (documented in loop 334).
+
+## Loop 335b — Steam exercised live
+
+- [x] Steamworks end-to-end exercised on this host with the real client:
+  init, Steam ID, stats request, matchmaking lobby create/leave, and
+  live transport selection (preferred_transport() -> SteamP2p). Probe:
+  `cargo run -p lf_steam --features steam --example steam_probe`.
+- [x] Client boot logs the selected transport + feature wiring.
+- [ ] Overlay activation: needs launching the game THROUGH the Steam
+  client (works for non-Steam games too) — user-side step, not code.
+- [ ] Game achievements/leaderboards: need a real partner AppID
+  (current dev AppID is Valve's 480/Spacewar).
+- [ ] ISteamNetworkingSockets as the in-game multiplayer transport
+  (replacing UDP): the binding/init/selection are proven; only the
+  socket swap remains.
