@@ -1124,3 +1124,13 @@ Deferred (honest notes):
 - [x] Species-true patterns for all of them; variance-floor test.
 - [ ] Machine/trade/companion/tech-tree/book/smithing kit conversion.
 - [ ] Build-mode HUD (shape picker, symmetry indicator).
+
+## Loop 343 — HUD completion SHIPPED
+
+- [x] kit_shell helper; machine (x13)/trade/companion/tech-tree/lore-book/
+      smithing converted — no egui::Window chrome outside chat input.
+- [x] Building HUD: BuildShape chips (R cycles / click), symmetry chip
+      (V / click), slab+stairs placement for any held solid block.
+- [x] build_hud vistest scene + claims; build_shape_state unit test.
+- [ ] Shaped 3x3 crafting grid; drop networking (protocol v5);
+      prop-vs-prop collision; carried-prop outline; dragon corpse topple.

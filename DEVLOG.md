@@ -1755,3 +1755,36 @@ HONESTLY DEFERRED: machine/trade/companion/tech-tree windows still on
 egui::Window chrome (mechanical shell conversion, precisely scoped in
 STATE next_task); build-mode HUD (shape picker + symmetry indicator);
 prop-vs-prop collision; networked drops.
+
+
+## 2026-09-01 — loop 343: HUD completion — kit everywhere + building HUD
+
+WHAT: The last six pre-kit screens (machines x13, trade, companion menu,
+tech tree, lore book, smithing) wear the design kit, and the building HUD
+ships: a shape picker (block/slab/stairs for any held solid block) and the
+symmetry indicator above the hotbar.
+
+HOW: ui.rs — new kit_shell(ctx, title, width, body) = the loop-341
+furnace shell extracted (CentralPanel wash + vignette + framed panel +
+title + ScrollArea); six egui::Window headers replaced with kit_shell
+calls (identical closure shape, mechanical). draw_build_hud: anchored
+strip above the hotbar band with three clickable shape chips (selected =
+accent fill) + the symmetry chip (olive when live, shows the mirror x);
+drawn while the held item is a Block or symmetry is on. input.rs —
+Action::BuildShape (default R) cycles the shape. lf_game/items.rs —
+BuildShape enum + build_shape_state(base, shape, yaw) shapes any solid
+block via with_shape (slab bottom / yaw-facing stair via the extracted
+stair_facing; air + water refuse), plus the cycle/label helpers and a
+unit test covering all facings + merge + refusal. Placement path — the
+ItemKind::Block arm applies build_shape_state and reuses slab_merge for
+slab-on-slab. lf_vistest — build_hud scene (mirrored strip over the
+world backdrop) with chip-rect pixel claims calibrated against the
+deterministic render.
+
+VERIFICATION: cargo test --workspace 367 passed / 0 failed (366 + the
+build-shape test); vistest 88/88 ok (87 + build_hud); smoke release
+binary alive 12s; make runtimes refreshed.
+
+HONESTLY DEFERRED: shaped 3x3 crafting grid; drop/mob entity networking
+(protocol v5); prop-vs-prop collision; carried-prop outline highlight;
+dragon corpse topple; additive entity hurt tint.

@@ -414,6 +414,41 @@ pub fn block_drop(block_id: u32) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// Failure meaning: the building-HUD shape picker stopped shaping held
+    /// blocks (slab bottom / yaw-facing stairs / merge-back cube).
+    #[test]
+    fn build_shape_picker_shapes_any_solid_block() {
+        use lf_voxel::registry::block;
+        let stone = lf_voxel::BlockState(block::STONE);
+        assert_eq!(build_shape_state(stone, BuildShape::Block, 0.0), Some(stone));
+        assert_eq!(build_shape_state(stone, BuildShape::Slab, 0.7).unwrap().shape(),
+            Shape::SlabBottom);
+        // stairs face the yaw: 0 -> north, 90 -> east, 180 -> south, 270 -> west
+        assert_eq!(build_shape_state(stone, BuildShape::Stairs, 0.0).unwrap().shape(),
+            Shape::StairNorth);
+        assert_eq!(build_shape_state(stone, BuildShape::Stairs, 90.0_f32.to_radians()).unwrap().shape(),
+            Shape::StairEast);
+        assert_eq!(build_shape_state(stone, BuildShape::Stairs, 200.0_f32.to_radians()).unwrap().shape(),
+            Shape::StairSouth);
+        assert_eq!(build_shape_state(stone, BuildShape::Stairs, 300.0_f32.to_radians()).unwrap().shape(),
+            Shape::StairWest);
+        // the shape survives on mod blocks too (any solid id)
+        assert_eq!(build_shape_state(lf_voxel::BlockState(200), BuildShape::Slab, 0.0).unwrap().shape(),
+            Shape::SlabBottom);
+        // air and water refuse shaping
+        assert_eq!(build_shape_state(lf_voxel::BlockState(block::AIR), BuildShape::Slab, 0.0), None);
+        assert_eq!(build_shape_state(lf_voxel::BlockState(block::WATER), BuildShape::Stairs, 0.0), None);
+        // R cycles block -> slab -> stairs -> block
+        assert_eq!(BuildShape::Block.next(), BuildShape::Slab);
+        assert_eq!(BuildShape::Slab.next(), BuildShape::Stairs);
+        assert_eq!(BuildShape::Stairs.next(), BuildShape::Block);
+        // two matching bottom slabs still merge into the full cube
+        let slab = build_shape_state(stone, BuildShape::Slab, 0.0).unwrap();
+        assert_eq!(slab_merge(slab, slab), Some(stone));
+    }
+
     use super::shaped_placement;
     use lf_voxel::Shape;
 
@@ -583,5 +618,66 @@ pub fn slab_merge(existing: lf_voxel::BlockState, incoming: lf_voxel::BlockState
         Some(lf_voxel::BlockState(existing.id()))
     } else {
         None
+    }
+}
+
+/// Loop 343 building HUD: the placement shape the player picked for the
+/// held block (R cycles, the strip above the hotbar selects directly).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BuildShape {
+    Block,
+    Slab,
+    Stairs,
+}
+
+impl BuildShape {
+    pub fn next(self) -> Self {
+        match self {
+            BuildShape::Block => BuildShape::Slab,
+            BuildShape::Slab => BuildShape::Stairs,
+            BuildShape::Stairs => BuildShape::Block,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            BuildShape::Block => "block",
+            BuildShape::Slab => "slab",
+            BuildShape::Stairs => "stairs",
+        }
+    }
+}
+
+/// The stair facing for a yaw (shared by the slab/stair items and the
+/// build-shape picker): yaw 0 faces -Z and the high half goes opposite
+/// the look direction, so you always step UP the way you face.
+fn stair_facing(yaw: f32) -> lf_voxel::Shape {
+    use lf_voxel::Shape;
+    let deg = yaw.to_degrees().rem_euclid(360.0);
+    match deg {
+        d if d < 45.0 || d >= 315.0 => Shape::StairNorth,
+        d if d < 135.0 => Shape::StairEast,
+        d if d < 225.0 => Shape::StairSouth,
+        _ => Shape::StairWest,
+    }
+}
+
+/// The state to place for `base` under the picked build shape. Any solid
+/// cube can be shaped; air and fluids cannot (None falls back to a plain
+/// cube placement).
+pub fn build_shape_state(
+    base: lf_voxel::BlockState,
+    shape: BuildShape,
+    yaw: f32,
+) -> Option<lf_voxel::BlockState> {
+    use lf_voxel::Shape;
+    let id = base.id();
+    if id == 0 || id == lf_voxel::registry::block::WATER {
+        return None;
+    }
+    match shape {
+        BuildShape::Block => Some(base),
+        BuildShape::Slab => Some(base.with_shape(Shape::SlabBottom)),
+        BuildShape::Stairs => Some(base.with_shape(stair_facing(yaw))),
     }
 }

@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-09-01 — HUD pass finished: kit everywhere + building HUD (loop 343)
+
+- **Zero alpha chrome left**: the 13 machine windows, trade, companion
+  menu, tech tree, lore book, and smithing forge all converted to the
+  design-kit panel shell through a shared `kit_shell` helper (vignette +
+  dark wash + framed panel + title + scroll) — the whole UI now speaks
+  the workbench/settings/inventory design language.
+- **Building HUD**: a strip floats above the hotbar while you hold a
+  block (or while symmetry is live) with placement-shape chips — pick
+  BLOCK / SLAB / STAIRS by clicking or pressing R, and any held solid
+  block places as a bottom slab or a yaw-facing staircase (slab onto
+  matching slab still merges into a full cube). The symmetry chip shows
+  the live mirror plane; click it or press V to toggle. The world-space
+  symmetry wall and ghost overlays render as before.
+- **Proof**: `build_hud` vistest scene with chip-rect pixel claims
+  (accent-selected chip, olive symmetry chip, dark unselected chips) and
+  an lf_game test locking the shape math (slab bottom, all four stair
+  facings, air/water refusal, cycle order, slab merge).
+
+# CHANGELOG
+
 ## 2026-09-01 — missing texture patterns: bark + soil (loop 342)
 
 - **Every log species now has bark**: a flatness audit (luminance stddev

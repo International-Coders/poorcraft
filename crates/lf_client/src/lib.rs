@@ -711,6 +711,7 @@ impl ApplicationHandler for App {
                                 let grid_key = state.keymap.key(crate::input::Action::GridOverlay);
                                 let book_key = state.keymap.key(crate::input::Action::Spellbook);
                                 let sym_key = state.keymap.key(crate::input::Action::Symmetry);
+                                let build_shape_key = state.keymap.key(crate::input::Action::BuildShape);
                                 let paths_key = state.keymap.key(crate::input::Action::PathsScreen);
                                 let spell_keys = [
                                     state.keymap.key(crate::input::Action::Spell1),
@@ -863,6 +864,16 @@ impl ApplicationHandler for App {
                                                         Some(state.player.position.x)
                                                     }
                                                 };
+                                                return;
+                                            }
+                                        }
+                                        k if k == build_shape_key => {
+                                            if matches!(state.ui_open, UiOpen::None) && state.stats.health > 0.0 {
+                                                state.build_shape = state.build_shape.next();
+                                                state.push_hint(&format!(
+                                                    "placement shape: {} (R to cycle)",
+                                                    state.build_shape.label()
+                                                ));
                                                 return;
                                             }
                                         }
@@ -1168,6 +1179,9 @@ struct GameState {
     pub imbue: lf_game::magic::ImbueMinigame,
     /// P34: symmetry plane x (mirrors place/break across it).
     pub symmetry_plane: Option<f32>,
+    /// Loop 343 building HUD: the picked placement shape for held blocks
+    /// (R cycles; the strip above the hotbar selects directly).
+    pub build_shape: lf_game::items::BuildShape,
     /// P35: live producer positions (elevator/climate power checks).
     pub producer_positions: Vec<(i32, i32, i32)>,
     /// P35: the screen texture is rewritten only when its data changes.
@@ -1533,6 +1547,7 @@ impl GameState {
             ember_cells: std::collections::HashSet::new(),
             imbue: lf_game::magic::ImbueMinigame::new(3),
             symmetry_plane: None,
+            build_shape: lf_game::items::BuildShape::Block,
             producer_positions: Vec::new(),
             screen_signature: 0,
             mounted_dragon: None,
@@ -3377,7 +3392,7 @@ impl GameState {
                         }
                         Some(ItemKind::Block(b)) => {
                             if let Some((pos, normal)) = target {
-                                let place = pos + normal;
+                                let mut place = pos + normal;
                                 // P37: the generalized gate is enforced at
                                 // PLACEMENT too (it was UI-only before)
                                 let gate = lf_game::paths::gate_for(&stack.item_id);
@@ -3389,8 +3404,22 @@ impl GameState {
                                     self.chronicle_event(EventType::Discovery,
                                         format!("the {} path deepens — tier {}", p.name(), tier));
                                 }
+                                // Loop 343 building HUD: honor the picked
+                                // shape (slab/stairs variants of the held
+                                // block; a slab onto a matching bottom slab
+                                // still merges into a full cube)
+                                let mut final_state = lf_game::items::build_shape_state(
+                                    BlockState(b), self.build_shape, self.player.yaw,
+                                ).unwrap_or(BlockState(b));
+                                if self.build_shape == lf_game::items::BuildShape::Slab {
+                                    let existing = self.world.get_block(pos.x, pos.y, pos.z);
+                                    if let Some(merged) = lf_game::items::slab_merge(existing, final_state) {
+                                        final_state = merged;
+                                        place = pos; // merge fills the aimed cell
+                                    }
+                                }
                                 if !self.block_intersects_player(place) {
-                                    if self.world.set_block(place.x, place.y, place.z, BlockState(b)).is_some() {
+                                    if self.world.set_block(place.x, place.y, place.z, final_state).is_some() {
                                         // lore-and-visuals: quest Place events
                                         // (targets use the item-id form)
                                         let placed_item = stack.item_id.clone();

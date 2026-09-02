@@ -630,6 +630,18 @@ impl GameState {
         if self.stats.health > 0.0 && matches!(self.ui_open, UiOpen::None | UiOpen::Chat) {
             self.draw_minimap(ctx);
         }
+        // loop 343 building HUD: placement-shape chips + the symmetry
+        // indicator, floating above the hotbar band while a block is held
+        // or symmetry is live (R cycles, V toggles symmetry)
+        if self.stats.health > 0.0 && matches!(self.ui_open, UiOpen::None | UiOpen::Chat) {
+            let held_is_block = self.inventory.slots[self.hotbar_index].as_ref()
+                .and_then(|s| item_def(&s.item_id))
+                .map(|d| matches!(d.kind, ItemKind::Block(_)))
+                .unwrap_or(false);
+            if held_is_block || self.symmetry_plane.is_some() {
+                self.draw_build_hud(ctx);
+            }
+        }
         // info line (top-left). Minimal by default — research on Minecraft's
         // HUD: the survival screen shows nothing until F3, so clutter here
         // competes with the world. Default = clock + facing only; the dense
@@ -820,6 +832,76 @@ impl GameState {
         }
     }
 
+
+    /// Loop 343 building HUD: the strip above the hotbar — shape chips
+    /// (BLOCK / SLAB / STAIRS, selected = accent fill) and the symmetry
+    /// chip with the mirror plane. Clicks select; R cycles; V toggles.
+    fn draw_build_hud(&mut self, ctx: &egui::Context) {
+        egui::Area::new(egui::Id::new("build_hud"))
+            .anchor(egui::Align2::LEFT_BOTTOM,
+                egui::vec2(10.0, -(kit::HUD_BOTTOM_BAND + 8.0)))
+            .show(ctx, |ui| {
+                egui::Frame::new()
+                    .fill(egui::Color32::from_rgba_premultiplied(Theme::PANEL.r(), Theme::PANEL.g(), Theme::PANEL.b(), 225))
+                    .corner_radius(6.0)
+                    .inner_margin(egui::Margin::symmetric(8, 4))
+                    .stroke(egui::Stroke::new(1.0, Theme::BORDER))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("SHAPE").small().color(Theme::TEXT_DIM));
+                            for shape in [lf_game::items::BuildShape::Block,
+                                          lf_game::items::BuildShape::Slab,
+                                          lf_game::items::BuildShape::Stairs] {
+                                let selected = self.build_shape == shape;
+                                let label = egui::RichText::new(shape.label().to_uppercase())
+                                    .small().strong()
+                                    .color(if selected { Theme::BG } else { Theme::TEXT_DIM });
+                                let (r, resp) = ui.allocate_exact_size(
+                                    egui::vec2(52.0, 20.0), egui::Sense::click());
+                                ui.painter().rect_filled(r, 4.0, if selected {
+                                    Theme::ACCENT
+                                } else {
+                                    egui::Color32::from_black_alpha(120)
+                                });
+                                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER,
+                                    label.text().to_string(),
+                                    egui::FontId::proportional(11.0),
+                                    if selected { Theme::BG } else { Theme::TEXT_DIM });
+                                if resp.clicked() && !selected {
+                                    self.build_shape = shape;
+                                    self.push_hint(&format!(
+                                        "placement shape: {} (R to cycle)", shape.label()));
+                                }
+                            }
+                            ui.separator();
+                            // symmetry indicator chip
+                            let (r, resp) = ui.allocate_exact_size(
+                                egui::vec2(150.0, 20.0), egui::Sense::click());
+                            let on = self.symmetry_plane.is_some();
+                            ui.painter().rect_filled(r, 4.0, if on {
+                                egui::Color32::from_rgba_premultiplied(107, 142, 35, 200)
+                            } else {
+                                egui::Color32::from_black_alpha(120)
+                            });
+                            let sym_text = match self.symmetry_plane {
+                                Some(px) => format!("SYMMETRY x={:.0}", px),
+                                None => "SYMMETRY OFF".to_string(),
+                            };
+                            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER,
+                                sym_text, egui::FontId::proportional(11.0),
+                                if on { Theme::BG } else { Theme::TEXT_DIM });
+                            if resp.clicked() {
+                                self.symmetry_plane = match self.symmetry_plane {
+                                    Some(_) => None,
+                                    None => Some(self.player.position.x),
+                                };
+                            }
+                            ui.label(egui::RichText::new("R shape · V mirror")
+                                .small().color(Theme::TEXT_DISABLED));
+                        });
+                    });
+            });
+    }
 
     /// The inventory screen (E): armor column + player portrait on the
     /// left, storage grid and hotbar on the right — the Minecraft
@@ -2133,6 +2215,41 @@ impl GameState {
         kit::toggle(ui, "Show FPS", &mut s.show_fps);
     }
 
+    /// Loop 343: the kit panel shell every station/menu screen uses —
+    /// vignette + dark wash + framed panel + title (the loop-341 furnace
+    /// conversion, extracted so the whole UI speaks one design language).
+    /// The body gets a vertical scroll for tall content.
+    fn kit_shell<R>(
+        ctx: &egui::Context,
+        title: &str,
+        width: f32,
+        body: impl FnOnce(&mut egui::Ui) -> R,
+    ) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(120)))
+            .show(ctx, |ui| {
+                kit::vignette(ui, 120);
+                ui.vertical_centered(|ui| {
+                    ui.add_space(ui.available_height() * 0.05);
+                    egui::Frame::new()
+                        .fill(egui::Color32::from_rgba_premultiplied(Theme::PANEL.r(), Theme::PANEL.g(), Theme::PANEL.b(), 242))
+                        .corner_radius(10.0)
+                        .inner_margin(16.0)
+                        .stroke(egui::Stroke::new(1.0, Theme::BORDER))
+                        .show(ui, |ui| {
+                            ui.set_width(width);
+                            ui.vertical_centered(|ui| {
+                                ui.label(egui::RichText::new(title).size(17.0).strong().color(Theme::TEXT));
+                            });
+                            ui.add_space(8.0);
+                            egui::ScrollArea::vertical()
+                                .max_height(ui.available_height().max(80.0))
+                                .show(ui, |ui| body(ui));
+                        });
+                });
+            });
+    }
+
     fn draw_trade(&mut self, ctx: &egui::Context, index: usize) {
         let Some(villager) = self.villagers.get(index).cloned() else {
             self.close_ui();
@@ -2159,11 +2276,7 @@ impl GameState {
         let hire_info = archetype.as_deref().and_then(|a| self.lore_data.villager_archetype(a))
             .filter(|a| a.hireable)
             .map(|a| (a.hire_standing, a.hire_fee.clone(), a.companion_form.clone()));
-        egui::Window::new(format!("{} — {}", villager.name, crate::factions::job_label(villager.job)))
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
+        Self::kit_shell(ctx, &format!("{} — {}", villager.name, crate::factions::job_label(villager.job)), 620.0, |ui| {
                 // faction standing chip + dialogue line
                 if let Some(fdef) = self.lore_data.faction(&faction) {
                     let color = egui::Color32::from_rgb(fdef.color[0], fdef.color[1], fdef.color[2]);
@@ -2304,11 +2417,7 @@ impl GameState {
             }
         };
         let target = self.crosshair_block_pos();
-        egui::Window::new(format!("{} — commands", c.display_name))
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
+        Self::kit_shell(ctx, &format!("{} — commands", c.display_name), 620.0, |ui| {
                 // identity + relationship readout (on-kit)
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(egui::vec2(22.0, 22.0), egui::Sense::hover());
@@ -2387,11 +2496,7 @@ impl GameState {
     }
 
     fn draw_book(&mut self, ctx: &egui::Context) {
-        egui::Window::new("Lore Book")
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
+        Self::kit_shell(ctx, "LORE BOOK", 620.0, |ui| {
                 egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                     if self.chronicle.is_empty() {
                         ui.label("The pages are blank. The world has not yet written its story — punch a tree, craft, survive.");
@@ -2459,11 +2564,7 @@ impl GameState {
     }
 
     fn draw_smithing(&mut self, ctx: &egui::Context) {
-        egui::Window::new("Smithing Forge")
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
+        Self::kit_shell(ctx, "SMITHING FORGE", 620.0, |ui| {
                 let temp = self.forge.temperature;
                 let zone = (60.0..=80.0).contains(&temp);
                 kit::section_header(ui, "Forge Heat", 1.0);
@@ -2922,11 +3023,7 @@ impl GameState {
         };
         let title = self.world.get_block(pos.0, pos.1, pos.2).id();
         let title = lf_voxel::registry::block::name(title);
-        egui::Window::new(title)
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
+        Self::kit_shell(ctx, &title, 700.0, |ui| {
                 // EU / progress bar kit styling
                 let mut top_bar = |ui: &mut egui::Ui, frac: f32, label: &str, color| {
                     let (rect, _) = ui.allocate_exact_size(egui::vec2(230.0, 18.0), egui::Sense::hover());
@@ -3255,11 +3352,7 @@ impl GameState {
     fn draw_tech_tree(&mut self, ctx: &egui::Context) {
         let era = self.research.era;
         let have = lf_game::research::ResearchState::have_counts(&self.inventory.slots);
-        egui::Window::new("Technology — K to close")
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -20.0))
-            .min_size(egui::vec2(640.0, 380.0))
-            .collapsible(false)
-            .show(ctx, |ui| {
+        Self::kit_shell(ctx, "TECHNOLOGY", 760.0, |ui| {
                 ui.heading(egui::RichText::new("Research Progression").size(22.0).color(Theme::TEXT));
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {

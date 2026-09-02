@@ -686,6 +686,9 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "inventory_screen", desc: "loop 341: inventory-first E screen — armor column + player portrait, storage grid, hotbar band, craft-by-hand route",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "build_hud", desc: "loop 343 building HUD: shape chips (BLOCK/SLAB/STAIRS with the picked one accented) + symmetry indicator above the hotbar band",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
         // ---- loop 329: menus-centered-at-three-window-sizes + journal + assets ----
         SceneSpec { name: "menus_centered_small", desc: "resize proof: centered menu panel on a 640x420 window (pixel-claimed symmetric)",
             default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
@@ -2992,6 +2995,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         || spec.name == "new_world_screen" || spec.name == "multiplayer_screen"
         || spec.name == "crafting_workbench"
         || spec.name == "inventory_screen"
+        || spec.name == "build_hud"
         || spec.name == "menus_centered_small" || spec.name == "menus_centered"
         || spec.name == "menus_centered_wide"
         || spec.name == "journal" || spec.name == "asset_catalog";
@@ -3033,6 +3037,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "inventory_screen" {
                 draw_inventory_preview(ctx);
+            }
+            if spec.name == "build_hud" {
+                draw_build_hud_preview(ctx);
             }
             if spec.name == "settings_preview" {
                 draw_settings_preview(ctx);
@@ -3510,6 +3517,29 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
             assert!(total > 100, "seed_comparison: sampling failed ({})", total);
             let frac = diff as f32 / total as f32;
             assert!(frac > 0.25, "seed_comparison: the two seed halves look the same (differing {:.2})", frac);
+        }
+        "build_hud" => {
+            // the mirrored strip sits above the hotbar band; the world
+            // backdrop is grass-green so the claims sample the exact chip
+            // rects (accent-filled selected chip, olive symmetry chip,
+            // dark unselected chips)
+            let accent = |c: [i32; 3]| {
+                (c[0] - 196).abs() < 46 && (c[1] - 96).abs() < 46 && (c[2] - 42).abs() < 46
+            };
+            let olive = |c: [i32; 3]| {
+                (c[0] - 107).abs() < 50 && (c[1] - 142).abs() < 50 && (c[2] - 35).abs() < 50
+            };
+            let count = |pred: &dyn Fn([i32; 3]) -> bool, x0: usize, x1: usize, y0: usize, y1: usize| {
+                (x0..x1).map(|x| (y0..y1).filter(|&y| pred(px(x, y))).count()).sum::<usize>()
+            };
+            let y0 = h.saturating_sub(160);
+            let y1 = h.saturating_sub(120);
+            let n_accent = count(&accent, 60, 200, y0, y1);
+            assert!(n_accent > 150, "build_hud: selected shape chip missing ({n_accent} accent px)");
+            let n_olive = count(&olive, 250, 425, y0, y1);
+            assert!(n_olive > 700, "build_hud: symmetry chip missing ({n_olive} olive px)");
+            let n_chip = count(&|c: [i32; 3]| c[0] < 60 && c[1] < 60 && c[2] < 70, 60, 250, y0, y1);
+            assert!(n_chip > 200, "build_hud: unselected chips missing ({n_chip} dark px)");
         }
         "inventory_screen" => {
             // The mirrored E screen: the slot-well grid (dark recessed
@@ -4172,6 +4202,36 @@ fn draw_multiplayer_preview(ctx: &egui::Context) {
 }
 
 /// F proof: the three-zone workbench with a real inventory strip.
+/// Loop 343: the building-HUD strip mirror (shape chips + symmetry chip
+/// above the hotbar band; the picked shape is accent-filled).
+fn draw_build_hud_preview(ctx: &egui::Context) {
+    // hotbar band at the bottom (shared HUD idiom) so the strip sits where
+    // it will in game
+    let strip_y = 600.0 - 118.0 - 34.0;
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("bhud")));
+    let frame = egui::Rect::from_min_size(egui::pos2(10.0, strip_y), egui::vec2(470.0, 28.0));
+    p.rect_filled(frame, 6.0, UW_PANEL);
+    p.rect_stroke(frame, 6.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
+    let mut x = frame.left() + 10.0;
+    uw_label(&p, egui::pos2(x, frame.center().y), egui::Align2::LEFT_CENTER, "SHAPE", 11.0, UW_MUTED);
+    x += 52.0;
+    for (i, name) in ["BLOCK", "SLAB", "STAIRS"].iter().enumerate() {
+        let chip = egui::Rect::from_min_size(egui::pos2(x, frame.top() + 4.0), egui::vec2(58.0, 20.0));
+        let selected = i == 1; // slab picked for the proof
+        p.rect_filled(chip, 4.0, if selected { UW_ACCENT } else { egui::Color32::from_black_alpha(120) });
+        uw_label(&p, chip.center(), egui::Align2::CENTER_CENTER, name, 11.0,
+            if selected { egui::Color32::from_rgb(0x1a, 0x14, 0x10) } else { UW_MUTED });
+        x = chip.right() + 6.0;
+    }
+    x += 12.0;
+    let sym = egui::Rect::from_min_size(egui::pos2(x, frame.top() + 4.0), egui::vec2(150.0, 20.0));
+    p.rect_filled(sym, 4.0, egui::Color32::from_rgb(107, 142, 35));
+    uw_label(&p, sym.center(), egui::Align2::CENTER_CENTER, "SYMMETRY x=8", 11.0,
+        egui::Color32::from_rgb(0x1a, 0x14, 0x10));
+    x = sym.right() + 10.0;
+    uw_label(&p, egui::pos2(x, frame.center().y), egui::Align2::LEFT_CENTER, "R shape · V mirror", 11.0, UW_MUTED);
+}
+
 /// Loop 341: the inventory-first E screen (mirror of ui.rs draw_inventory).
 fn draw_inventory_preview(ctx: &egui::Context) {
     egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
