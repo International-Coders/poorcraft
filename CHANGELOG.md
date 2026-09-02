@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## 2026-09-01 — mob animations: legs, hurt flashes, death topples (loop 339)
+
+- **Animals walk like animals**: chicken/wolf/dog/bear — and the formerly
+  single-cube boar and woolbeast — are articulated multi-part bodies whose
+  legs swing in diagonal trot pairs around hip pivots, driven by a
+  distance-based walk cycle (`gait_phase` advances with speed so legs never
+  moonwalk; `gait_amp` eases in/out so strides start and stop) and the whole
+  assembly yaws to the mob's facing (rate-limited turns instead of snaps).
+  Wolves wag their tails at rest, woolbeasts lower their heads to graze,
+  chickens peck while idle.
+- **Hits read as hits**: every mob skin (21 layers incl. biome tints) got a
+  red-multiplied hurt copy appended to the atlas; while `hurt_flash` decays
+  the renderer flickers the mob onto the hurt layer plus a flinch squash.
+- **Deaths are visible**: mobs topple over (~0.5s ease-out fall around the
+  feet), rest ~1s as physics corpses (gravity + friction, no AI), then are
+  removed — loot still pops out at the kill. Nameless raiders now walk as
+  six-part humanoids and topple like the villagers; cube mobs tumble their
+  single cube. Fixed two proof-found pre-existing bugs: firebolt kills
+  never removed the mob (immortal corpse), and mobs that fell below y=-10
+  ticked forever.
+- **NPCs face where they go**: villagers turn smoothly toward their
+  walking direction (`yaw`/`walk_phase` on `Villager`, replacing the
+  id-hash fake facing), and remote players' gaits are estimated from
+  position deltas so they visibly walk.
+- **Engine primitives**: `cuboid_part_faces` (the extracted
+  yaw+pitch-around-pivot cuboid the humanoid builder uses, now shared by
+  animals; bit-for-bit refactor proven by test) and `topple_faces`
+  (Rodrigues rotation of assembled part faces around a world pivot — the
+  vistest scene caught it initially rotating around the world origin and
+  teleporting corpses away; fixed with a non-zero-pivot test).
+- **Proof**: `mob_anim` (four wolves at stride phases 0/90/180/270° on a
+  sand stage — the pixel claim requires their silhouettes to differ in
+  width, a frozen-leg detector) and `mob_hurt_death` (red-tint count,
+  toppled-corpse-low / fallen-raider-low / standing-raider-tall windows).
+  360 tests green; 85/85 vistest scenes; smoke green.
+
 ## 2026-09-02 — authored-depth raster assets, articulated NPCs, item impostors (loop 338)
 
 - **Normal-mapped raster materials**: every generated base, mod, entity,

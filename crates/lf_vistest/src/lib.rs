@@ -649,6 +649,12 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "entity_skins", desc: "authored-depth closeup: 7 job outfits + network player on articulated bodies, with 8 alpha-cutout item impostors",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "mob_anim", desc: "loop 339: articulated animals mid-stride (leg swing, real facing) — wolves at 4 phases, chicken/bear/boar/woolbeast walking, grazing woolbeast, walking raider",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "mob_hurt_death", desc: "loop 339: hurt flash (red-tinted skin) + toppled corpses after the death animation",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
         SceneSpec { name: "ember_glow", desc: "ember_glowstone formation with rising amber sparks (ambient C4 particles)",
             default_seed: 12345, time_of_day: 0.75, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
@@ -870,6 +876,22 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
                     world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
                 }
                 world.set_block(x, h - 1, z, lf_voxel::BlockState(block::STONE));
+            }
+        }
+    }
+
+    // mob_anim / mob_hurt_death: wide flat SAND display stage with an air
+    // shell, so the only mid-frame content is the subjects (clean pixel
+    // claims: sky is blue, sand is bright tan, mobs are everything else)
+    if matches!(spec.name, "mob_anim" | "mob_hurt_death") {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        for x in -44..44 {
+            for z in -34..18 {
+                for y in h..h + 16 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h - 1, z, lf_voxel::BlockState(block::SAND));
             }
         }
     }
@@ -1836,6 +1858,120 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         }
     }
 
+    // ---- loop 339: mob animation proofs --------------------------------
+    // Shared helpers for mob_anim / mob_hurt_death: one articulated animal
+    // (cuboid parts, yaw facing, optional topple) or a walking humanoid,
+    // using the exact live-client math.
+    let push_animal_parts = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                             origin: Vec3, yaw: f32,
+                             parts: &[lf_game::mobs::AnimalPart], tex: u32,
+                             topple: Option<f32>| {
+        let mut faces = Vec::new();
+        for p in parts {
+            faces.extend(lf_engine::scene::cuboid_part_faces(
+                origin, yaw,
+                Vec3::from_array(p.center),
+                Vec3::from_array(p.half),
+                p.pitch,
+                Vec3::from_array(p.pivot),
+            ));
+        }
+        if let Some(angle) = topple {
+            let (sy, cy) = yaw.sin_cos();
+            faces = lf_engine::scene::topple_faces(
+                faces, origin, Vec3::new(cy, 0.0, -sy), angle,
+            );
+        }
+        for (corners, normal) in faces {
+            let base = vertices.len() as u32;
+            for (corner, uv) in corners.iter().zip([[0.0,1.0],[0.0,0.0],[1.0,0.0],[1.0,1.0]]) {
+                vertices.push(GpuVertex { position: *corner, normal, tex_coord: uv,
+                    tex_index: tex, ao: 1.0, light: 0xF0, sway: 0.0 });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    };
+    let push_walking_humanoid = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                                 feet: Vec3, yaw: f32, gait: f32, tex: u32,
+                                 topple: Option<f32>| {
+        let mut faces = lf_engine::scene::humanoid_faces(feet, yaw, gait, 0.0);
+        if let Some(angle) = topple {
+            let (sy, cy) = yaw.sin_cos();
+            faces = lf_engine::scene::topple_faces(
+                faces, feet, Vec3::new(cy, 0.0, -sy), angle,
+            );
+        }
+        for (corners, normal) in faces {
+            let base = vertices.len() as u32;
+            for (corner, uv) in corners.iter().zip([[0.0,1.0],[0.0,0.0],[1.0,0.0],[1.0,1.0]]) {
+                vertices.push(GpuVertex { position: *corner, normal, tex_coord: uv,
+                    tex_index: tex, ao: 1.0, light: 0xF0, sway: 0.0 });
+            }
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    };
+    if spec.name == "mob_anim" {
+        use lf_game::mobs::MobType;
+        let h = world.surface_height(0, 0) as f32;
+        // wolves at four stride phases, side-on to the camera (facing +X)
+        for (i, phase) in [0.0f32, std::f32::consts::FRAC_PI_2,
+                           std::f32::consts::PI, -std::f32::consts::FRAC_PI_2].iter().enumerate() {
+            let parts = lf_game::mobs::animal_parts(MobType::Wolf, *phase, 1.0, 0.0);
+            push_animal_parts(&mut vertices, &mut indices,
+                Vec3::new(-4.5 + i as f32 * 2.0, h, 0.0),
+                std::f32::consts::FRAC_PI_2, &parts,
+                lf_assets::mob_wolf_layer(), None);
+        }
+        // chicken + bear + boar walking; woolbeast walking and grazing
+        let walkers = [
+            (MobType::Bear, lf_assets::mob_bear_layer(), 3.5),
+            (MobType::Boar, lf_assets::MOB_BOAR_LAYER, 5.6),
+            (MobType::Woolbeast, lf_assets::MOB_WOOLBEAST_LAYER, 7.4),
+        ];
+        for (kind, tex, x) in walkers.iter() {
+            let parts = lf_game::mobs::animal_parts(*kind, 1.1, 1.0, 0.0);
+            push_animal_parts(&mut vertices, &mut indices,
+                Vec3::new(*x, h, 2.6), std::f32::consts::FRAC_PI_2, &parts, *tex, None);
+        }
+        let grazer = lf_game::mobs::animal_parts(MobType::Woolbeast, 0.0, 0.0, 0.0);
+        push_animal_parts(&mut vertices, &mut indices,
+            Vec3::new(7.4, h, 0.0), std::f32::consts::FRAC_PI_2, &grazer,
+            lf_assets::MOB_WOOLBEAST_LAYER, None);
+        let chick = lf_game::mobs::animal_parts(MobType::Chicken, 0.9, 1.0, 0.0);
+        push_animal_parts(&mut vertices, &mut indices,
+            Vec3::new(1.8, h, 4.2), std::f32::consts::FRAC_PI_2, &chick,
+            lf_assets::mob_chicken_layer(), None);
+        // a Nameless raider walking as a person (nearest, biggest)
+        push_walking_humanoid(&mut vertices, &mut indices,
+            Vec3::new(-1.0, h, 4.6), -std::f32::consts::FRAC_PI_2, 0.5,
+            lf_assets::VILLAGER_NAMELESS_LAYER, None);
+    }
+    if spec.name == "mob_hurt_death" {
+        use lf_game::mobs::MobType;
+        let h = world.surface_height(0, 0) as f32;
+        // back row: calm wolf, hurt-flashing wolf (red hurt copy),
+        // toppled wolf corpse (full death angle)
+        let calm = lf_game::mobs::animal_parts(MobType::Wolf, 0.6, 0.0, 0.0);
+        push_animal_parts(&mut vertices, &mut indices,
+            Vec3::new(-5.6, h, 0.0), std::f32::consts::FRAC_PI_2, &calm,
+            lf_assets::mob_wolf_layer(), None);
+        let hurt = lf_game::mobs::animal_parts(MobType::Wolf, 0.6, 0.0, 1.0);
+        push_animal_parts(&mut vertices, &mut indices,
+            Vec3::new(-3.4, h, 0.0), std::f32::consts::FRAC_PI_2, &hurt,
+            lf_assets::hurt_layer_for(lf_assets::mob_wolf_layer()), None);
+        let corpse = lf_game::mobs::animal_parts(MobType::Wolf, 0.6, 0.0, 0.0);
+        push_animal_parts(&mut vertices, &mut indices,
+            Vec3::new(-0.4, h, 0.0), std::f32::consts::FRAC_PI_2, &corpse,
+            lf_assets::mob_wolf_layer(), Some(1.45));
+        // front row: toppled raider corpse + standing raider for comparison
+        push_walking_humanoid(&mut vertices, &mut indices,
+            Vec3::new(1.5, h, 3.0), -std::f32::consts::FRAC_PI_2, 0.0,
+            lf_assets::VILLAGER_NAMELESS_LAYER, Some(1.45));
+        push_walking_humanoid(&mut vertices, &mut indices,
+            Vec3::new(3.9, h, 3.0), -std::f32::consts::FRAC_PI_2, 0.0,
+            lf_assets::VILLAGER_NAMELESS_LAYER, None);
+    }
+
     // ember_glow: rising amber sparks over the cluster (C4)
     if spec.name == "ember_glow" {
         let h = world.surface_height(0, 0);
@@ -2603,6 +2739,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "entity_skins" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.0, h + 5.2, 14.0), Vec3::new(0.0, h + 0.85, 0.8))
+    } else if spec.name == "mob_anim" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(1.2, h + 4.2, 12.5), Vec3::new(1.0, h + 0.6, 0.8))
+    } else if spec.name == "mob_hurt_death" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(0.0, h + 5.6, 17.0), Vec3::new(0.0, h + 0.5, 0.8))
     } else if spec.name == "ember_glow" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-5.0, h + 4.0, 6.0), Vec3::new(0.5, h + 1.6, 0.5))
@@ -3277,6 +3419,74 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
             assert!(total > 100, "seed_comparison: sampling failed ({})", total);
             let frac = diff as f32 / total as f32;
             assert!(frac > 0.25, "seed_comparison: the two seed halves look the same (differing {:.2})", frac);
+        }
+        "mob_anim" => {
+            // Four wolves side-on at stride phases 0, +90, 180, -90 deg on
+            // a sand stage. Leg swing must change each silhouette's width
+            // (spread legs = wide, passing legs = narrow), so the four
+            // clusters must differ in width — frozen legs would render as
+            // identical copies. Plus the walking raider renders as a tall
+            // dark humanoid, not a sliding cube.
+            let wolf_px = |c: [i32; 3]| {
+                let (r, g, b) = (c[0], c[1], c[2]);
+                (r - g).abs() < 16 && (g - b).abs() < 30 && r > 70 && r < 200
+            };
+            let mut cols: Vec<usize> = Vec::new();
+            for x in 0..w {
+                if (280..330).any(|y| wolf_px(px(x, y))) {
+                    cols.push(x);
+                }
+            }
+            assert!(cols.len() > 40, "mob_anim: wolf row missing ({} cols)", cols.len());
+            // split into clusters separated by >6 empty columns
+            let mut clusters: Vec<(usize, usize)> = Vec::new();
+            let mut start = cols[0];
+            let mut prev = cols[0];
+            for &x in &cols[1..] {
+                if x - prev > 6 {
+                    clusters.push((start, prev));
+                    start = x;
+                }
+                prev = x;
+            }
+            clusters.push((start, prev));
+            let widths: Vec<usize> = clusters.iter().map(|(a, b)| b - a + 1).collect();
+            assert!(clusters.len() >= 4, "mob_anim: expected 4 wolves, got {} clusters", clusters.len());
+            let (mx, mn) = (widths.iter().max().unwrap(), widths.iter().min().unwrap());
+            assert!(*mx as f32 / *mn as f32 > 1.08,
+                "mob_anim: legs are not swinging (widths {:?} all alike)", widths);
+            // the walking raider: tall dark column, not a small cube
+            let dark = |c: [i32; 3]| c.iter().all(|&v| v < 75) && c.iter().any(|&v| v > 12);
+            let n: usize = (150..240).map(|x| (290..450).filter(|&y| dark(px(x, y))).count()).sum();
+            assert!(n > 300, "mob_anim: walking raider missing ({n} dark pixels)");
+        }
+        "mob_hurt_death" => {
+            // Sand stage: calm wolf | red hurt-flashed wolf | toppled wolf
+            // corpse | fallen raider | standing raider. Claims: the red
+            // damage tint, the wolf corpse lying low, the fallen raider on
+            // the ground with nothing standing over it, and the standing
+            // raider upright for comparison.
+            let red = |c: [i32; 3]| c[0] - c[1] > 50 && c[0] > 100;
+            let dark = |c: [i32; 3]| c.iter().all(|&v| v < 75) && c.iter().any(|&v| v > 12);
+            let wolf_px = |c: [i32; 3]| {
+                let (r, g, b) = (c[0], c[1], c[2]);
+                (r - g).abs() < 16 && (g - b).abs() < 30 && r > 70 && r < 200
+            };
+            let count = |pred: &dyn Fn([i32; 3]) -> bool, x0: usize, x1: usize, y0: usize, y1: usize| {
+                (x0..x1).map(|x| (y0..y1).filter(|&y| pred(px(x, y))).count()).sum::<usize>()
+            };
+            let n_red = count(&red, 200, 320, 270, 330);
+            assert!(n_red > 150, "mob_hurt_death: hurt flash not red enough ({n_red})");
+            let n_calm = count(&wolf_px, 130, 205, 270, 320);
+            assert!(n_calm > 200, "mob_hurt_death: calm wolf missing ({n_calm})");
+            let n_corpse = count(&wolf_px, 365, 440, 250, 305);
+            assert!(n_corpse > 80, "mob_hurt_death: toppled corpse missing ({n_corpse})");
+            let n_fallen = count(&dark, 380, 480, 300, 370);
+            let n_fallen_above = count(&dark, 380, 480, 250, 298);
+            assert!(n_fallen > 250, "mob_hurt_death: fallen raider missing ({n_fallen})");
+            assert!(n_fallen_above < 15, "mob_hurt_death: something stands over the fallen raider ({n_fallen_above})");
+            let n_standing = count(&dark, 570, 625, 260, 370);
+            assert!(n_standing > 300, "mob_hurt_death: standing raider missing ({n_standing})");
         }
         "entity_skins" => {
             // Close-up lineup must contain a broad authored palette rather

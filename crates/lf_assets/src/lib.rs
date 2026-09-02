@@ -2336,6 +2336,10 @@ pub fn generate_atlas() -> Vec<RgbaImage> {
     for id in ITEM_TEXTURE_IDS {
         atlas.push(generate_item_texture(id).expect("listed item sprite must generate"));
     }
+    // Hurt-flash copies of every mob skin (see `hurt_layer_for`).
+    for l in hurt_source_layers() {
+        atlas.push(hurt_tint(&atlas[l as usize]));
+    }
     atlas
 }
 
@@ -2346,6 +2350,67 @@ pub fn item_texture_layer(item_id: &str) -> Option<u32> {
     Some(MOD_BLOCK_LAYER_BASE
         + lf_voxel::registry::registered_mod_blocks().len() as u32
         + slot)
+}
+
+/// Every mob skin the client can draw, in a fixed order. Each gets a
+/// red-multiplied "hurt" copy appended after the item sprites, so a hit
+/// flashes the entity red (Minecraft-style damage tint) with no shader
+/// changes — the renderer just swaps layers while `hurt_flash` is live.
+pub fn hurt_source_layers() -> Vec<u32> {
+    vec![
+        MOB_BOAR_LAYER,
+        MOB_WOOLBEAST_LAYER,
+        MOB_GLITCHLING_LAYER,
+        MOB_STALKER_LAYER,
+        MOB_CRAWLER_LAYER,
+        MOB_NULL_KNIGHT_LAYER,
+        DRAGON_BODY_LAYER,
+        VILLAGER_NAMELESS_LAYER,
+        mob_chicken_layer(),
+        mob_wolf_layer(),
+        mob_dog_layer(),
+        mob_bear_layer(),
+        MOB_GLITCHLING_TINTS[0],
+        MOB_GLITCHLING_TINTS[1],
+        MOB_GLITCHLING_TINTS[2],
+        MOB_STALKER_TINTS[0],
+        MOB_STALKER_TINTS[1],
+        MOB_STALKER_TINTS[2],
+        MOB_CRAWLER_TINTS[0],
+        MOB_CRAWLER_TINTS[1],
+        MOB_CRAWLER_TINTS[2],
+    ]
+}
+
+/// The hurt-flash copy of `base`; unmapped layers (never a mob) pass
+/// through unchanged so callers need no branch.
+pub fn hurt_layer_for(base: u32) -> u32 {
+    let first = MOD_BLOCK_LAYER_BASE
+        + lf_voxel::registry::registered_mod_blocks().len() as u32
+        + ITEM_TEXTURE_IDS.len() as u32;
+    match hurt_source_layers().iter().position(|&l| l == base) {
+        Some(i) => first + i as u32,
+        None => base,
+    }
+}
+
+/// Red-multiplied copy of a mob skin: brightness kept in red, crushed in
+/// green/blue, alpha untouched (cutout art stays cutout).
+fn hurt_tint(img: &RgbaImage) -> RgbaImage {
+    let (w, h) = img.dimensions();
+    let mut out = RgbaImage::new(w, h);
+    for y in 0..h {
+        for x in 0..w {
+            let p = img.get_pixel(x, y).0;
+            out.put_pixel(x, y, Rgba([
+                (p[0] as u16 / 2 + 150).min(255) as u8,
+                p[1] / 4,
+                p[2] / 4,
+                p[3],
+            ]));
+        }
+    }
+    out
 }
 
 /// Convert a diffuse/color-key image into a tangent-space normal map. The
@@ -3448,6 +3513,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hurt_layers_cover_every_mob_skin_and_flash_red() {
+        let atlas = generate_atlas();
+        let sources = hurt_source_layers();
+        assert_eq!(sources.len(), 21, "every mob skin incl. biome tints");
+        // distinct sources map to distinct hurt layers
+        let mapped: Vec<u32> = sources.iter().map(|&l| hurt_layer_for(l)).collect();
+        let uniq: std::collections::HashSet<u32> = mapped.iter().copied().collect();
+        assert_eq!(uniq.len(), sources.len(), "hurt layers must not collide");
+        for (&base, &hurt) in sources.iter().zip(mapped.iter()) {
+            let src = &atlas[base as usize];
+            let red = &atlas[hurt as usize];
+            // red-dominant on every opaque pixel, alpha preserved
+            for (s, r) in src.pixels().zip(red.pixels()) {
+                assert_eq!(s.0[3], r.0[3]);
+                if s.0[3] == 255 {
+                    assert!(r.0[0] as i32 - r.0[1] as i32 > 60,
+                        "hurt copy must flash red: {:?} vs {:?}", r.0, s.0);
+                }
+            }
+        }
+        // unmapped layers pass through (never a mob)
+        assert_eq!(hurt_layer_for(0), 0);
+    }
+
+    #[test]
     fn test_texture_generation() {
         for name in TEXTURE_NAMES {
             let tex = generate_block_texture(name);
@@ -3650,7 +3740,8 @@ mod tests {
         let atlas = generate_atlas();
         assert_eq!(atlas.len(), TEXTURE_NAMES.len()
             + lf_voxel::registry::registered_mod_blocks().len()
-            + ITEM_TEXTURE_IDS.len());
+            + ITEM_TEXTURE_IDS.len()
+            + hurt_source_layers().len());
         // every known block id maps to a valid layer (all vanilla ids + mods)
         for id in 1u32..=lf_voxel::registry::MAX_VANILLA_BLOCK {
             assert!(texture_index_for_block(id) < atlas.len() as u32, "block {} unmapped", id);

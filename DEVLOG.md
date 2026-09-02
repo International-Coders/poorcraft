@@ -1579,3 +1579,65 @@ third-person local-player body; held/nearby hero-item meshes with range LOD;
 explicit authored normal/material overrides; contact/projected entity shadows;
 quality-tier budgets. The existing wizard-tower test scans 80x80 chunks while
 its assertion text says 20x20, a slow unrelated maintenance mismatch.
+
+## 2026-09-01 — loop 339: mob animation overhaul (walk/hurt/death)
+
+WHAT: Animals and NPCs animate. Chicken/wolf/dog/bear/boar/woolbeast walk
+with articulated legs swinging in trot pairs and face their heading; all
+mobs flash red when damaged and topple over as corpses before removal;
+Nameless raiders walk as humanoids; villagers face their walking direction;
+remote players visibly walk.
+
+HOW: lf_engine/scene.rs — extracted `cuboid_part_faces` from
+`humanoid_faces` (pure refactor, proven bit-for-bit by test
+`cuboid_part_faces_matches_humanoid_faces_part_for_part`) and added
+`topple_faces` (Rodrigues around a world pivot). lf_game/mobs.rs —
+`MobEntity` gained serde-defaulted `gait_phase`/`gait_amp`/`death_t`;
+`update_with_standing` gained a death gate (gravity+friction only), a
+distance-driven gait advance, and rate-limited shortest-arc yaw turns;
+`animal_parts` rewritten to return `AnimalPart` cuboids (center/half/pitch/
+pivot) with per-kind layouts incl. idle behaviors (tail wag, grazing,
+pecking) and hurt flinch squash; `begin_death`/`dead_and_gone` +
+`DEATH_TOPPLE_S`/`DEATH_REST_S`. lf_assets — `hurt_source_layers()` +
+`hurt_tint` + `hurt_layer_for`: 21 red-multiplied copies of every mob skin
+appended to the atlas (344 layers total, under the 512 cap).
+lf_client/lib.rs — kill sites (melee/arrows/firebolt) call `begin_death()`
+instead of instant `remove`; retain culls finished corpses and void-fallen
+mobs; crosshair + arrow/firebolt hit tests skip dying mobs; mob render loop
+assembles animals through the shared cuboid math, flickers the hurt layer
+while `hurt_flash` lives, topples dying assemblies around the feet, and
+renders raiders as walking humanoids; villagers write `yaw`/`walk_phase`
+(new serde-defaulted fields on lf_npc `Villager`) and render with them;
+remote gait estimated from per-frame position deltas (`remote_motion` map,
+`last_dt` field). lf_vistest — `mob_anim` + `mob_hurt_death` scenes on a
+wide sand stage with calibrated pixel claims (4 wolves at phases must
+differ in silhouette width; red-tint counts; corpse/fallen low vs standing
+tall windows).
+
+BUGS FOUND BY PROOFS (fixed before commit): (1) `topple_faces` rotated
+already-world-space corners around the world origin and then re-added the
+pivot — corpses teleported far away; caught when the sand-stage scene
+rendered zero toppled figures, fixed to rotate around the pivot, locked by
+`topple_faces_rotates_around_the_given_pivot`. (2) Firebolt kills never
+removed the mob — an immortal corpse kept ticking; now the shared death
+flow removes it. (3) Mobs below y=-10 ticked forever (health=0 loop);
+retain now culls them.
+
+VERIFICATION: `cargo test --workspace` 360 passed / 0 failed.
+`cargo run --release -p xtask -- vistest shots` 85/85 ok (83 prior +
+mob_anim + mob_hurt_death). Scene PNGs analyzed: AI-vision pass on
+mob_anim (wolves visibly at different stride phases, all figures grounded,
+raider fully framed) + local pixel-cluster measurement of both scenes
+(red bbox x238-280 y283-311; dark standing raider x580-608 y268-358; fallen
+raider x386-472 y306-362 lying with nothing standing above it; corpse-wolf
+zone 257 wolf px). entity_skins unchanged (bit-for-bit humanoid refactor
++ its own pixel claim still green). Smoke: release binary alive 12s.
+`make runtimes` artifacts refreshed (see below).
+
+HONESTLY DEFERRED: dragon corpses freeze mid-flap for their 1.5s rest
+(the multi-part dragon assembly is not toppled — only its AI stops);
+NullKnight keeps the imposing single cube (topples on death); companion
+gait stays as-is (already animated); no network sync of gait (mobs are
+client-side only, unchanged); hurt flash is a layer swap, not an additive
+shader tint (alpha-blended overlays would need a transparent-pass entity
+batch).

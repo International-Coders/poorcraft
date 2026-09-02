@@ -1006,6 +1006,10 @@ struct GameState {
     particle_timer: f32,
     /// Total elapsed seconds (drives foliage wind).
     elapsed: f32,
+    /// Frame delta kept for render-side animation (remote-player gait).
+    last_dt: f32,
+    /// Remote-player motion estimate: (last pos, walk phase, amplitude).
+    remote_motion: std::collections::HashMap<u64, (Vec3, f32, f32)>,
     pub drops: Vec<ItemDrop>,
     drop_batch: Option<MeshBatch>,
     pub block_entities: HashMap<(i32, i32, i32), BlockEntity>,
@@ -1422,6 +1426,8 @@ impl GameState {
             particles: Vec::new(),
             particle_timer: 0.0,
             elapsed: 0.0,
+            last_dt: 0.0,
+            remote_motion: std::collections::HashMap::new(),
             block_entities: HashMap::new(),
             mobs: Vec::new(),
             villagers: Vec::new(),
@@ -2575,6 +2581,7 @@ impl GameState {
             }
         }
         self.elapsed += dt;
+        self.last_dt = dt;
 
         // Break particles: gravity + simple ground stop.
         for pt in self.particles.iter_mut() {
@@ -2653,7 +2660,8 @@ impl GameState {
                         let kind_name = factions::mob_kind_id(kind).to_string();
                         self.quest_event(QuestEvent::Killed(kind_name.clone()));
                         tracing::info!("killed a {:?}", kind);
-                        self.mobs.remove(mob_hit);
+                        // the corpse topples and rests before removal
+                        self.mobs[mob_hit].begin_death();
                     }
                 }
                 self.mining = None;
@@ -3582,6 +3590,9 @@ impl GameState {
             let step = dir.length().max(0.001);
             let dir = dir / step;
             for (mi, mob) in self.mobs.iter().enumerate() {
+                if mob.death_t.is_some() {
+                    continue; // projectiles pass over corpses
+                }
                 let size = mob.mob_type.stats().size;
                 let center = mob.position + Vec3::new(0.0, size, 0.0);
                 let to = center - before;
@@ -3633,6 +3644,9 @@ impl GameState {
                     self.xp_level = l;
                     self.xp_progress = pr;
                     self.xp_flash = 1.0;
+                    // firebolt kills now play the same death animation
+                    // (they previously left an immortal corpse ticking)
+                    self.mobs[mi].begin_death();
                 }
             }
         }
@@ -4007,6 +4021,9 @@ impl GameState {
             let step = dir.length().max(0.001);
             let dir = dir / step;
             for (mi, mob) in self.mobs.iter().enumerate() {
+                if mob.death_t.is_some() {
+                    continue; // projectiles pass over corpses
+                }
                 let size = mob.mob_type.stats().size;
                 let center = mob.position + Vec3::new(0.0, size, 0.0);
                 let to = center - before;
@@ -4037,7 +4054,7 @@ impl GameState {
                     self.xp_level = l;
                     self.xp_progress = p;
                     self.xp_flash = 1.0;
-                    self.mobs.remove(mi);
+                    self.mobs[mi].begin_death();
                 }
             }
         }
@@ -4113,12 +4130,26 @@ impl GameState {
             if let Some((dx, dz)) = wish {
                 let len = (dx * dx + dz * dz).sqrt().max(0.001);
                 let next = pos + glam::Vec3::new(dx / len * speed * dt, 0.0, dz / len * speed * dt);
+                // face the walking direction (smooth shortest-arc turn)
+                let target_yaw = (dx / len).atan2(dz / len);
+                let mut delta = target_yaw - villager.yaw;
+                while delta > std::f32::consts::PI {
+                    delta -= std::f32::consts::TAU;
+                }
+                while delta < -std::f32::consts::PI {
+                    delta += std::f32::consts::TAU;
+                }
+                villager.yaw += delta.clamp(-9.0 * dt, 9.0 * dt);
                 // stay on ground
                 if !world.is_solid(next.x as i32, next.y as i32, next.z as i32) {
                     if world.is_solid(next.x as i32, (next.y - 1.0) as i32, next.z as i32) {
                         villager.position = [next.x, next.y, next.z];
                     }
                 }
+                villager.walk_phase += dt * speed * 4.4;
+                villager.walk_amp = (villager.walk_amp + dt * 10.0).min(1.0);
+            } else {
+                villager.walk_amp = (villager.walk_amp - dt * 6.0).max(0.0);
             }
             // despawn logic none: villagers persist
         }
@@ -4313,6 +4344,9 @@ impl GameState {
         let look = self.player.look_dir();
         let mut best: Option<(f32, usize)> = None;
         for (i, mob) in self.mobs.iter().enumerate() {
+            if mob.death_t.is_some() {
+                continue; // corpses are not targets
+            }
             let size = mob.mob_type.stats().size;
             let to = mob.position + Vec3::new(0.0, size, 0.0) - eye;
             let t = to.dot(look);
@@ -4341,7 +4375,7 @@ impl GameState {
         let mut attacker_of_frame: Option<usize> = None;
         let mut breathers: Vec<glam::Vec3> = Vec::new();
         for (mi, mob) in self.mobs.iter_mut().enumerate() {
-            if mob.mob_type == lf_game::mobs::MobType::Dragon && mob.roost.is_some() {
+            if mob.mob_type == lf_game::mobs::MobType::Dragon && mob.roost.is_some() && mob.death_t.is_none() {
                 // P36: the dragon's flight brain owns its position
                 let roost = mob.roost.unwrap();
                 let center = Vec3::from(roost);
@@ -4429,8 +4463,13 @@ impl GameState {
                 self.mounted_dragon = None;
             }
         }
-        // despawn far mobs
-        self.mobs.retain(|m| (m.position - player).length() < 80.0);
+        // despawn far mobs; finished corpses leave; anything that fell out
+        // of the world is gone (no immortal void-tickers)
+        self.mobs.retain(|m| {
+            !m.dead_and_gone()
+                && m.position.y > -10.0
+                && (m.position - player).length() < 80.0
+        });
 
         // spawn cycle
         if Instant::now() >= self.next_spawn_attempt && self.mobs.len() < 12 {
@@ -5381,12 +5420,13 @@ impl GameState {
             }
         }
         // mobs: per-type skins (C2 refresh) with biome-tint variants for
-        // the common hostiles — palette swaps of the same art, accents
-        // (eyes/glow) stay constant per ENTITY_SKIN_SPEC.
+        // the common hostiles, red hurt-flash copies while `hurt_flash`
+        // lives, articulated animals (leg swing + real facing), humanized
+        // raiders, and toppled corpses during the death animation.
         let player_biome = self.map.biome_at(self.player.position.x as i32, self.player.position.z as i32);
         for mob in &self.mobs {
             let size = mob.mob_type.stats().size;
-            let tex = match mob.mob_type {
+            let mut tex = match mob.mob_type {
                 MobType::NullKnight => lf_assets::MOB_NULL_KNIGHT_LAYER,
                 MobType::Dragon => lf_assets::DRAGON_BODY_LAYER,
                 MobType::Boar => lf_assets::MOB_BOAR_LAYER,
@@ -5415,8 +5455,25 @@ impl GameState {
                 MobType::Wolf => Some(lf_assets::mob_wolf_layer()),
                 MobType::Dog => Some(lf_assets::mob_dog_layer()),
                 MobType::Bear => Some(lf_assets::mob_bear_layer()),
+                MobType::Boar => Some(lf_assets::MOB_BOAR_LAYER),
+                MobType::Woolbeast => Some(lf_assets::MOB_WOOLBEAST_LAYER),
                 _ => None,
             };
+            // hurt flash: mostly-on flicker while the damage tint lives
+            let flashing = mob.hurt_flash > 0.0 && (self.elapsed * 24.0).sin() > -0.5;
+            if flashing {
+                tex = lf_assets::hurt_layer_for(tex);
+            }
+            let animal = animal_tex
+                .map(|a| if flashing { lf_assets::hurt_layer_for(a) } else { a });
+            // death topple: ease-out fall onto the face around a ground
+            // axis perpendicular to the mob's facing
+            let topple = mob
+                .death_t
+                .map(|t| (t / lf_game::mobs::DEATH_TOPPLE_S).min(1.0))
+                .map(|p| (1.0 - (1.0 - p).powi(3)) * 1.45);
+            let (sy, cy) = mob.yaw.sin_cos();
+            let side_axis = Vec3::new(cy, 0.0, -sy);
             if mob.mob_type == MobType::Dragon {
                 // P36: multi-part assembly — body/head/wings/tail with
                 // sine animation from the shared layout fn
@@ -5425,23 +5482,56 @@ impl GameState {
                     let p = mob.position + offset + Vec3::new(0.0, size, 0.0);
                     push_cube(p.x, p.y, p.z, part_size, tex, &mut vertices, &mut indices);
                 }
-            } else if let Some(animal) = animal_tex {
-                // king-quest C: animals render their multi-part layout
-                let t = self.elapsed;
-                for (off, part_size) in lf_game::mobs::animal_parts(mob.mob_type, t, mob.yaw) {
-                    let p = mob.position + Vec3::new(off[0], off[1] + size, off[2]);
-                    push_cube(p.x, p.y, p.z, part_size, animal, &mut vertices, &mut indices);
+            } else if let Some(animal) = animal {
+                // articulated assembly: every part pitches around its own
+                // pivot (legs swing in trot pairs), the whole body yaws to
+                // the facing, and the corpse topples around the feet
+                let mut faces = Vec::new();
+                for part in lf_game::mobs::animal_parts(
+                    mob.mob_type, mob.gait_phase, mob.gait_amp, mob.hurt_flash,
+                ) {
+                    faces.extend(lf_engine::scene::cuboid_part_faces(
+                        mob.position,
+                        mob.yaw,
+                        Vec3::from_array(part.center),
+                        Vec3::from_array(part.half),
+                        part.pitch,
+                        Vec3::from_array(part.pivot),
+                    ));
                 }
+                if let Some(angle) = topple {
+                    faces = lf_engine::scene::topple_faces(faces, mob.position, side_axis, angle);
+                }
+                push_faces(faces, animal, &UVS_CUBE, &mut vertices, &mut indices);
+            } else if mob.mob_type == MobType::NamelessRaider {
+                // the raiders walk as people — gait from the same cycle
+                let gait = mob.gait_phase.sin() * 0.55 * mob.gait_amp;
+                let mut faces = lf_engine::scene::humanoid_faces(mob.position, mob.yaw, gait, 0.0);
+                if let Some(angle) = topple {
+                    faces = lf_engine::scene::topple_faces(faces, mob.position, side_axis, angle);
+                }
+                push_faces(faces, tex, &UVS_CUBE, &mut vertices, &mut indices);
             } else {
                 // silhouette differentiation (C2): crawler low+wide,
-                // stalker tall+lean, raider slim, knight imposing
+                // stalker tall+lean, knight imposing
                 let (r, lift) = match mob.mob_type {
                     MobType::Crawler => (size * 1.35, size * 0.55),
                     MobType::Stalker => (size * 0.85, size * 1.25),
-                    MobType::NamelessRaider => (size * 0.9, size * 1.1),
                     _ => (size, size),
                 };
-                push_cube(mob.position.x, mob.position.y + lift, mob.position.z, r, tex, &mut vertices, &mut indices);
+                match topple {
+                    Some(angle) => {
+                        // spin the cube's center around the ground pivot,
+                        // then let rotated_cube_faces tumble the cube itself
+                        let c = Vec3::new(0.0, lift, 0.0);
+                        let rot = c * angle.cos() + side_axis.cross(c) * angle.sin();
+                        let faces = lf_engine::scene::rotated_cube_faces(
+                            mob.position + rot, r, side_axis, angle,
+                        );
+                        push_faces(faces, tex, &UVS_CUBE, &mut vertices, &mut indices);
+                    }
+                    None => push_cube(mob.position.x, mob.position.y + lift, mob.position.z, r, tex, &mut vertices, &mut indices),
+                }
             }
         }
         // arrows render as thin pale streaks
@@ -5479,14 +5569,13 @@ impl GameState {
                 None => job_tex,
             };
             let (gait, crouch) = match v.activity {
-                lf_npc::NpcActivityState::Walking => ((self.elapsed * 6.0).sin() * 0.55, 0.0),
+                lf_npc::NpcActivityState::Walking => (v.walk_phase.sin() * 0.55 * v.walk_amp, 0.0),
                 lf_npc::NpcActivityState::Working => ((self.elapsed * 3.0).sin() * 0.24, 0.12),
                 lf_npc::NpcActivityState::Eating => ((self.elapsed * 4.0).sin() * 0.12, 0.32),
                 lf_npc::NpcActivityState::Sleeping => (0.0, 0.9),
                 _ => (0.0, 0.0),
             };
-            let yaw = (v.id as f32 * 0.618_034).fract() * std::f32::consts::TAU;
-            push_humanoid(Vec3::from_array(v.position), yaw, gait, crouch, tex, &mut vertices, &mut indices);
+            push_humanoid(Vec3::from_array(v.position), v.yaw, gait, crouch, tex, &mut vertices, &mut indices);
         }
         // companions: their archetype skin, swapping to the trust-badge
         // variant at trust >= 50 (ENTITY_SKIN_SPEC)
@@ -5505,12 +5594,28 @@ impl GameState {
             push_humanoid(c.position, c.yaw, gait, 0.0, tex, &mut vertices, &mut indices);
         }
         // Network players share a proper neutral skin until cosmetic ids are
-        // added to the protocol; yaw already arrives over the wire.
-        if let Some(n) = &self.net {
-            for (_, rp) in n.remote_players.iter() {
-                push_humanoid(Vec3::from_array(rp.pos), rp.yaw, 0.0, 0.0,
+        // added to the protocol; yaw arrives on the wire and the gait is
+        // estimated from position deltas so remote walkers visibly walk.
+        let remotes: Vec<(u64, [f32; 3], f32)> = self.net.as_ref()
+            .map(|n| n.remote_players.iter().map(|(id, rp)| (*id, rp.pos, rp.yaw)).collect())
+            .unwrap_or_default();
+        if !remotes.is_empty() {
+            let dt = self.last_dt;
+            for (id, pos_arr, yaw) in remotes.clone() {
+                let pos = Vec3::from_array(pos_arr);
+                let m = self.remote_motion.entry(id).or_insert((pos, 0.0, 0.0));
+                let speed = ((pos - m.0) / dt.max(0.001)).length().min(8.0);
+                m.0 = pos;
+                let target = if speed > 0.4 { 1.0 } else { 0.0 };
+                m.2 += (target - m.2).clamp(-dt * 8.0, dt * 8.0);
+                if m.2 > 0.01 {
+                    m.1 += dt * speed * 4.2;
+                }
+                let gait = m.1.sin() * 0.55 * m.2;
+                push_humanoid(pos, yaw, gait, 0.0,
                     lf_assets::player_wayfarer_layer(), &mut vertices, &mut indices);
             }
+            self.remote_motion.retain(|id, _| remotes.iter().any(|(rid, _, _)| rid == id));
         }
         // Non-block drops use their authored inventory sprite as crossed
         // alpha-cutout impostors; block drops remain small textured cubes.

@@ -318,6 +318,15 @@ pub struct Villager {
     /// standing) has pressed this villager into service.
     #[serde(default)]
     pub vassal: Option<vassals::VassalState>,
+    /// Facing (radians, atan2(x, z) convention) — written by the client
+    /// movement loop so walkers face where they go.
+    #[serde(default)]
+    pub yaw: f32,
+    /// Walk-cycle phase (radians) + amplitude, advanced while moving.
+    #[serde(default)]
+    pub walk_phase: f32,
+    #[serde(default)]
+    pub walk_amp: f32,
 }
 
 impl Villager {
@@ -336,6 +345,9 @@ impl Villager {
             workstation_pos: None,
             memory: NpcMemory::default(),
             vassal: None,
+            yaw: 0.0,
+            walk_phase: 0.0,
+            walk_amp: 0.0,
         }
     }
 

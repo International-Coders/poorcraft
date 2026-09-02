@@ -499,6 +499,46 @@ pub fn rotated_cube_faces(
         .collect()
 }
 
+/// One oriented cuboid of half extents `half`, centered (in body-local
+/// space) at `center`, pitched by `pitch` radians around `pivot`, then the
+/// whole body yawed by `yaw` and translated by `origin`. This is the
+/// primitive `humanoid_faces` assembles its six parts from; the articulated
+/// animals share it so every character moves with the same math.
+pub fn cuboid_part_faces(
+    origin: glam::Vec3,
+    yaw: f32,
+    center: glam::Vec3,
+    half: glam::Vec3,
+    pitch: f32,
+    pivot: glam::Vec3,
+) -> Vec<([[f32; 3]; 4], [f32; 3])> {
+    let (sy, cy) = yaw.sin_cos();
+    let yaw_rot = |v: glam::Vec3| glam::Vec3::new(v.x * cy + v.z * sy, v.y, -v.x * sy + v.z * cy);
+    let (sp, cp) = pitch.sin_cos();
+    let pitch_rot = |v: glam::Vec3| glam::Vec3::new(v.x, v.y * cp - v.z * sp, v.y * sp + v.z * cp);
+    let transform_point = |v: glam::Vec3| origin + yaw_rot(pivot + pitch_rot(v - pivot));
+    let transform_normal = |v: glam::Vec3| yaw_rot(pitch_rot(v));
+    let (hx, hy, hz) = (half.x, half.y, half.z);
+    let faces: [(glam::Vec3, [glam::Vec3; 4]); 6] = [
+        (glam::Vec3::NEG_X, [glam::Vec3::new(-hx,-hy,-hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(-hx,-hy,hz)]),
+        (glam::Vec3::X, [glam::Vec3::new(hx,-hy,hz), glam::Vec3::new(hx,hy,hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(hx,-hy,-hz)]),
+        (glam::Vec3::NEG_Y, [glam::Vec3::new(-hx,-hy,-hz), glam::Vec3::new(-hx,-hy,hz), glam::Vec3::new(hx,-hy,hz), glam::Vec3::new(hx,-hy,-hz)]),
+        (glam::Vec3::Y, [glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(hx,hy,hz)]),
+        (glam::Vec3::NEG_Z, [glam::Vec3::new(hx,-hy,-hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(-hx,-hy,-hz)]),
+        (glam::Vec3::Z, [glam::Vec3::new(-hx,-hy,hz), glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(hx,hy,hz), glam::Vec3::new(hx,-hy,hz)]),
+    ];
+    faces
+        .iter()
+        .map(|(normal, corners)| {
+            let cs = corners.map(|corner| {
+                let p = transform_point(center + corner);
+                p.to_array()
+            });
+            (cs, transform_normal(*normal).normalize().to_array())
+        })
+        .collect()
+}
+
 /// Six-part voxel humanoid (head, torso, two arms, two legs) built from
 /// oriented cuboids. `feet` is the ground contact point, `yaw` faces the
 /// character, `gait` swings opposite limbs in radians, and `crouch` is 0..1.
@@ -522,32 +562,40 @@ pub fn humanoid_faces(
         (glam::Vec3::new(-0.14, 0.35, 0.0), glam::Vec3::new(0.11, 0.35, 0.11), gait, glam::Vec3::new(-0.14, 0.70, 0.0)),
         (glam::Vec3::new(0.14, 0.35, 0.0), glam::Vec3::new(0.11, 0.35, 0.11), -gait, glam::Vec3::new(0.14, 0.70, 0.0)),
     ];
-    let (sy, cy) = yaw.sin_cos();
-    let yaw_rot = |v: glam::Vec3| glam::Vec3::new(v.x * cy + v.z * sy, v.y, -v.x * sy + v.z * cy);
     let mut out = Vec::with_capacity(parts.len() * 6);
     for (center, half, pitch, pivot) in parts {
-        let (sp, cp) = pitch.sin_cos();
-        let pitch_rot = |v: glam::Vec3| glam::Vec3::new(v.x, v.y * cp - v.z * sp, v.y * sp + v.z * cp);
-        let transform_point = |v: glam::Vec3| feet + yaw_rot(pivot + pitch_rot(v - pivot));
-        let transform_normal = |v: glam::Vec3| yaw_rot(pitch_rot(v));
-        let (hx, hy, hz) = (half.x, half.y, half.z);
-        let faces: [(glam::Vec3, [glam::Vec3; 4]); 6] = [
-            (glam::Vec3::NEG_X, [glam::Vec3::new(-hx,-hy,-hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(-hx,-hy,hz)]),
-            (glam::Vec3::X, [glam::Vec3::new(hx,-hy,hz), glam::Vec3::new(hx,hy,hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(hx,-hy,-hz)]),
-            (glam::Vec3::NEG_Y, [glam::Vec3::new(-hx,-hy,-hz), glam::Vec3::new(-hx,-hy,hz), glam::Vec3::new(hx,-hy,hz), glam::Vec3::new(hx,-hy,-hz)]),
-            (glam::Vec3::Y, [glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(hx,hy,hz)]),
-            (glam::Vec3::NEG_Z, [glam::Vec3::new(hx,-hy,-hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(-hx,-hy,-hz)]),
-            (glam::Vec3::Z, [glam::Vec3::new(-hx,-hy,hz), glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(hx,hy,hz), glam::Vec3::new(hx,-hy,hz)]),
-        ];
-        for (normal, corners) in faces {
-            let cs = corners.map(|corner| {
-                let p = transform_point(center + corner);
-                p.to_array()
-            });
-            out.push((cs, transform_normal(normal).normalize().to_array()));
-        }
+        out.extend(cuboid_part_faces(feet, yaw, center, half, pitch, pivot));
     }
     out
+}
+
+/// Rotate an assembled part list around a world-space `pivot` — the death
+/// topple. `axis` should be horizontal and perpendicular to the body's
+/// facing so the corpse falls on its side; corners and normals both rotate
+/// (Rodrigues, same convention as `rotated_cube_faces`).
+pub fn topple_faces(
+    faces: Vec<([[f32; 3]; 4], [f32; 3])>,
+    pivot: glam::Vec3,
+    axis: glam::Vec3,
+    angle: f32,
+) -> Vec<([[f32; 3]; 4], [f32; 3])> {
+    let axis = axis.normalize_or_zero();
+    let (sin, cos) = angle.sin_cos();
+    let rot = |v: glam::Vec3| -> glam::Vec3 {
+        v * cos + axis.cross(v) * sin + axis * (axis.dot(v) * (1.0 - cos))
+    };
+    faces
+        .into_iter()
+        .map(|(corners, normal)| {
+            let cs = corners.map(|c| {
+                // rotate around the pivot, not the world origin
+                let p = rot(glam::Vec3::from_array(c) - pivot) + pivot;
+                [p.x, p.y, p.z]
+            });
+            let n = rot(glam::Vec3::from_array(normal)).to_array();
+            (cs, n)
+        })
+        .collect()
 }
 
 impl MeshBatch {
@@ -710,5 +758,67 @@ mod tests {
             let len = glam::Vec3::from_array(n).length();
             assert!((len - 1.0).abs() < 1e-4, "normal stays unit length");
         }
+    }
+
+    /// The extracted cuboid primitive must reproduce the humanoid exactly —
+    /// the refactor guarantee (animals share this math).
+    #[test]
+    fn cuboid_part_faces_matches_humanoid_faces_part_for_part() {
+        let feet = glam::Vec3::new(1.0, 2.0, 3.0);
+        let (yaw, gait) = (0.7, 0.45);
+        let sink = 0.0;
+        // (humanoid part index, center, half, pitch, pivot)
+        let parts = [
+            (0usize, glam::Vec3::new(0.0, 1.57 - sink, 0.0), glam::Vec3::new(0.23, 0.23, 0.23), 0.0, glam::Vec3::new(0.0, 1.36 - sink, 0.0)),
+            (2, glam::Vec3::new(-0.37, 1.08 - sink, 0.0), glam::Vec3::new(0.09, 0.31, 0.09), -gait, glam::Vec3::new(-0.37, 1.38 - sink, 0.0)),
+            (5, glam::Vec3::new(0.14, 0.35, 0.0), glam::Vec3::new(0.11, 0.35, 0.11), -gait, glam::Vec3::new(0.14, 0.70, 0.0)),
+        ];
+        let assembled = humanoid_faces(feet, yaw, gait, 0.0);
+        for (i, center, half, pitch, pivot) in parts.iter() {
+            let via_primitive = cuboid_part_faces(feet, yaw, *center, *half, *pitch, *pivot);
+            let expected: Vec<([[f32; 3]; 4], [f32; 3])> =
+                assembled[i * 6..(i + 1) * 6].to_vec();
+            assert_eq!(via_primitive, expected, "part {i} must match bit-for-bit");
+        }
+    }
+
+    #[test]
+    fn topple_faces_identity_at_zero_and_falls_on_side() {
+        let faces = humanoid_faces(glam::Vec3::ZERO, 0.0, 0.2, 0.0);
+        let identity = topple_faces(faces.clone(), glam::Vec3::ZERO, glam::Vec3::X, 0.0);
+        assert_eq!(faces, identity, "zero topple changes nothing");
+        let fallen = topple_faces(
+            faces,
+            glam::Vec3::ZERO,
+            glam::Vec3::new(1.0, 0.0, 0.0),
+            std::f32::consts::FRAC_PI_2,
+        );
+        let points: Vec<f32> = fallen.iter().flat_map(|(c, _)| c).map(|p| p[2]).collect();
+        let max_z = points.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        // standing height ~1.8 becomes sideways extent after the 90° fall
+        assert!(max_z > 1.2, "fallen body lies along the ground, max z {max_z}");
+        for (_, n) in &fallen {
+            let len = glam::Vec3::from_array(*n).length();
+            assert!((len - 1.0).abs() < 1e-4, "toppled normals stay unit");
+        }
+    }
+
+    /// Failure meaning: the topple rotated around the world origin instead
+    /// of the body's own feet — corpses teleport away from their position.
+    #[test]
+    fn topple_faces_rotates_around_the_given_pivot() {
+        let feet = glam::Vec3::new(20.0, 64.0, -7.0);
+        let faces = humanoid_faces(feet, 0.0, 0.0, 0.0);
+        let fallen = topple_faces(faces, feet, glam::Vec3::new(1.0, 0.0, 0.0), 1.45);
+        // the head (highest point when standing) must stay near the feet
+        // after the fall, not near world origin or double the pivot
+        let max_x = fallen.iter().flat_map(|(c, _)| c).map(|p| p[0]).fold(f32::NEG_INFINITY, f32::max);
+        assert!((max_x - feet.x).abs() < 3.0,
+            "fallen body stays at its feet (max x {max_x}, feet x {})", feet.x);
+        let min_y = fallen.iter().flat_map(|(c, _)| c).map(|p| p[1]).fold(f32::INFINITY, f32::min);
+        // an ~83° fall around the feet dips the far side of the torso
+        // slightly under the plane; anything past that teleported
+        assert!(min_y >= feet.y - 0.35 && min_y < feet.y + 0.4,
+            "fallen body lies on the ground plane (min y {min_y}, feet y {})", feet.y);
     }
 }

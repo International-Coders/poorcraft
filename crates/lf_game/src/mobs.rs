@@ -215,6 +215,16 @@ pub struct MobEntity {
     /// B5: cached A* route for Chase/Investigate.
     #[serde(default)]
     pub path: Option<CachedPath>,
+    /// Walk-cycle phase (radians), advanced by distance travelled so legs
+    /// never moonwalk; `gait_amp` is the smoothed 0..1 stride amplitude.
+    #[serde(default)]
+    pub gait_phase: f32,
+    #[serde(default)]
+    pub gait_amp: f32,
+    /// Death animation: None = alive; Some(elapsed seconds) topples the
+    /// corpse (DEATH_TOPPLE_S) then rests it (DEATH_REST_S) before removal.
+    #[serde(default)]
+    pub death_t: Option<f32>,
 }
 
 impl MobEntity {
@@ -239,6 +249,9 @@ impl MobEntity {
             combat_time: 0.0,
             group_ping: false,
             path: None,
+            gait_phase: 0.0,
+            gait_amp: 0.0,
+            death_t: None,
         }
     }
 
@@ -374,6 +387,25 @@ impl MobEntity {
         self.attack_cooldown = (self.attack_cooldown - dt).max(0.0);
         self.hurt_flash = (self.hurt_flash - dt * 3.0).max(0.0);
         let stats = self.mob_type.stats();
+
+        // The dead keep no AI — gravity and friction only, so the corpse
+        // settles while the topple animation plays out.
+        if let Some(t) = &mut self.death_t {
+            *t += dt;
+            self.velocity.x *= 1.0 - (dt * 6.0).min(1.0);
+            self.velocity.z *= 1.0 - (dt * 6.0).min(1.0);
+            self.velocity.y -= 24.0 * dt;
+            let next = self.position + self.velocity * dt;
+            if self.velocity.y < 0.0
+                && world.is_solid(next.x as i32, (next.y - 0.1) as i32, next.z as i32)
+            {
+                self.velocity = Vec3::ZERO;
+            } else {
+                self.position = next;
+            }
+            self.gait_amp = (self.gait_amp - dt * 8.0).max(0.0);
+            return None;
+        }
 
         // Bosses with their own brain are owned by the client flight loop.
         if self.mob_type.use_boss_ai() && self.dragon.is_some() {
@@ -572,7 +604,17 @@ impl MobEntity {
             return Some(damage);
         }        let wish_len = (wish.0 * wish.0 + wish.1 * wish.1).sqrt();
         if wish_len > 0.001 {
-            self.yaw = wish.0.atan2(wish.1);
+            // smooth shortest-arc turn (max ~8 rad/s) instead of snapping —
+            // bodies swing around, they don't teleport between facings
+            let target = wish.0.atan2(wish.1);
+            let mut delta = target - self.yaw;
+            while delta > std::f32::consts::PI {
+                delta -= std::f32::consts::TAU;
+            }
+            while delta < -std::f32::consts::PI {
+                delta += std::f32::consts::TAU;
+            }
+            self.yaw += delta.clamp(-8.0 * dt, 8.0 * dt);
         }
 
         // --- physics: horizontal move with step-up jumping, gravity
@@ -601,6 +643,18 @@ impl MobEntity {
         // hard floor: never fall out of the world
         if self.position.y < -10.0 {
             self.health = 0.0;
+        }
+
+        // --- gait: phase advances with distance travelled, amplitude eases
+        // in/out so legs start and stop instead of freezing mid-stride
+        let horiz_speed = (self.velocity.x * self.velocity.x + self.velocity.z * self.velocity.z).sqrt();
+        let moving = wish_len > 0.1 && horiz_speed > 0.15;
+        let target_amp = if moving { 1.0 } else { 0.0 };
+        let amp_rate = if target_amp > self.gait_amp { 10.0 } else { 6.0 };
+        self.gait_amp += (target_amp - self.gait_amp).clamp(-amp_rate * dt, amp_rate * dt);
+        if moving {
+            // ~1.4 blocks per full stride cycle
+            self.gait_phase += dt * horiz_speed * 4.5;
         }
         None
     }
@@ -678,45 +732,212 @@ impl MobEntity {
         }
         self.health <= 0.0
     }
+
+    /// Start the death animation (idempotent — extra killing blows land on
+    /// an already-falling corpse). Loot still pops out immediately; the
+    /// body topples, rests, and only then is removed by the owner.
+    pub fn begin_death(&mut self) {
+        if self.death_t.is_none() {
+            self.death_t = Some(0.0);
+        }
+    }
+
+    /// True once the topple + rest have fully played and the corpse should
+    /// be removed.
+    pub fn dead_and_gone(&self) -> bool {
+        self.death_t
+            .map(|t| t >= DEATH_TOPPLE_S + DEATH_REST_S)
+            .unwrap_or(false)
+    }
 }
 
-/// king-quest C: multi-part cube layouts for the animals (the
-/// dragon_parts idiom). Each entry is (world offset, half-size); the
-/// client pushes them into the drop batch with the mob's skin layer.
-/// `t` drives a small walk/waddle wobble so the animals feel alive.
-pub fn animal_parts(kind: MobType, t: f32, yaw: f32) -> Vec<([f32; 3], f32)> {
+/// One oriented cuboid of an animal body, in local space (+Z forward, +Y
+/// up, feet on y=0). The renderer pitches it around `pivot` and yaws the
+/// whole assembly to the mob's facing — same math as the humanoids.
+#[derive(Clone, Copy, Debug)]
+pub struct AnimalPart {
+    pub center: [f32; 3],
+    pub half: [f32; 3],
+    /// Pitch around `pivot` in radians (leg swing, head bob, grazing).
+    pub pitch: f32,
+    pub pivot: [f32; 3],
+}
+
+/// Death animation timing: the corpse topples over DEATH_TOPPLE_S, rests
+/// DEATH_REST_S, then the owner removes it.
+pub const DEATH_TOPPLE_S: f32 = 0.5;
+pub const DEATH_REST_S: f32 = 1.0;
+
+/// Multi-part articulated layouts for the animals. `phase` is the walk
+/// cycle (radians, distance-driven), `amp` the 0..1 stride amplitude, and
+/// `hurt` the 0..1 damage flash (bodies flinch-squash). Local +Z is
+/// forward; the caller yaws everything by the mob's facing.
+pub fn animal_parts(kind: MobType, phase: f32, amp: f32, hurt: f32) -> Vec<AnimalPart> {
     use MobType::*;
-    let wobble = (t * 6.0).sin() * 0.03;
-    let mut parts: Vec<([f32; 3], f32)> = Vec::new();
+    let hurt = hurt.clamp(0.0, 1.0);
+    let squash = 1.0 - 0.1 * hurt;
+    let mut parts: Vec<AnimalPart> = Vec::new();
+    // a leg: column of half-height len/2 hanging from its hip, pitched by
+    // the trot cycle; diagonal pairs move together (FL+RR vs FR+RL)
+    let mut leg = |parts: &mut Vec<AnimalPart>,
+                   cx: f32, hip_y: f32, cz: f32, thick: f32, len: f32,
+                   swing: f32, phase_offset: f32| {
+        let pitch = (phase + phase_offset).sin() * swing * amp;
+        parts.push(AnimalPart {
+            center: [cx, (hip_y - len / 2.0) * squash, cz],
+            half: [thick, len / 2.0, thick],
+            pitch,
+            pivot: [cx, hip_y, cz],
+        });
+    };
+    // two steps per stride cycle: the body bobs at double frequency
+    let bob = (phase * 2.0).sin() * 0.025 * amp;
     match kind {
         Chicken => {
-            parts.push(([0.0, 0.3 + wobble, 0.0], 0.2));            // body
-            parts.push(([0.0, 0.58 + wobble, 0.12], 0.13));         // head
-            parts.push(([0.0, 0.54 + wobble, 0.27], 0.05));         // beak
-            parts.push(([0.09, 0.06, 0.0], 0.04));                  // legs
-            parts.push(([-0.09, 0.06, 0.0], 0.04));
+            let peck = (1.0 - amp) * ((phase * 0.7).sin() * 0.5 + 0.35); // idle pecking
+            parts.push(AnimalPart {
+                center: [0.0, (0.28 + bob) * squash, 0.0],
+                half: [0.16, 0.13, 0.2],
+                pitch: 0.0,
+                pivot: [0.0, 0.28, 0.0],
+            });
+            let head_pitch = (phase).sin() * 0.2 * amp - peck;
+            let neck = [0.0, 0.42, 0.12];
+            parts.push(AnimalPart {
+                center: [0.0, 0.5 * squash, 0.16],
+                half: [0.09, 0.09, 0.09],
+                pitch: head_pitch,
+                pivot: neck,
+            });
+            parts.push(AnimalPart {
+                center: [0.0, 0.47 * squash, 0.28],
+                half: [0.035, 0.03, 0.05],
+                pitch: head_pitch,
+                pivot: neck,
+            });
+            parts.push(AnimalPart {
+                center: [0.0, 0.61 * squash, 0.14],
+                half: [0.03, 0.035, 0.05],
+                pitch: head_pitch,
+                pivot: neck,
+            });
+            leg(&mut parts, 0.05, 0.15, 0.0, 0.025, 0.15, 0.7, 0.0);
+            leg(&mut parts, -0.05, 0.15, 0.0, 0.025, 0.15, 0.7, std::f32::consts::PI);
         }
         Wolf | Dog => {
-            let coat = if kind == Wolf { 0.32 } else { 0.3 };
-            parts.push(([0.0, 0.42 + wobble, 0.0], coat));          // body
-            parts.push(([0.0, 0.58 + wobble, 0.34], 0.17));         // head
-            parts.push(([0.07, 0.72 + wobble, 0.3], 0.05));         // ears
-            parts.push(([-0.07, 0.72 + wobble, 0.3], 0.05));
-            parts.push(([0.0, 0.52 + wobble, -0.42], 0.06));        // tail
-            for (dx, dz) in [(0.14, 0.18), (-0.14, 0.18), (0.14, -0.18), (-0.14, -0.18)] {
-                parts.push(([dx, 0.08, dz], 0.07));                 // legs
+            parts.push(AnimalPart {
+                center: [0.0, (0.42 + bob) * squash, 0.0],
+                half: [0.17, 0.16, 0.32],
+                pitch: 0.0,
+                pivot: [0.0, 0.42, 0.0],
+            });
+            let neck = [0.0, 0.5, 0.3];
+            parts.push(AnimalPart {
+                center: [0.0, 0.56 * squash, 0.38],
+                half: [0.11, 0.1, 0.11],
+                pitch: (phase).sin() * 0.12 * amp,
+                pivot: neck,
+            });
+            for sx in [0.06, -0.06] {
+                parts.push(AnimalPart {
+                    center: [sx, 0.68 * squash, 0.36],
+                    half: [0.035, 0.035, 0.035],
+                    pitch: 0.0,
+                    pivot: neck,
+                });
             }
+            parts.push(AnimalPart {
+                center: [0.0, 0.5 * squash, -0.44],
+                half: [0.045, 0.045, 0.14],
+                // the tail keeps a lazy wag even at rest
+                pitch: -(phase).sin() * 0.35 * (0.3 + 0.7 * amp),
+                pivot: [0.0, 0.5, -0.34],
+            });
+            leg(&mut parts, 0.11, 0.3, 0.2, 0.045, 0.3, 0.55, 0.0);
+            leg(&mut parts, -0.11, 0.3, -0.2, 0.045, 0.3, 0.55, 0.0);
+            leg(&mut parts, 0.11, 0.3, -0.2, 0.045, 0.3, 0.55, std::f32::consts::PI);
+            leg(&mut parts, -0.11, 0.3, 0.2, 0.045, 0.3, 0.55, std::f32::consts::PI);
         }
         Bear => {
-            parts.push(([0.0, 0.55 + wobble * 0.6, 0.0], 0.5));     // body
-            parts.push(([0.0, 0.72 + wobble * 0.6, 0.52], 0.28));   // head
-            for (dx, dz) in [(0.3, 0.3), (-0.3, 0.3), (0.3, -0.3), (-0.3, -0.3)] {
-                parts.push(([dx, 0.14, dz], 0.13));                 // legs
+            parts.push(AnimalPart {
+                center: [0.0, (0.55 + bob) * squash, 0.0],
+                half: [0.34, 0.3, 0.44],
+                pitch: 0.0,
+                pivot: [0.0, 0.55, 0.0],
+            });
+            let neck = [0.0, 0.62, 0.45];
+            parts.push(AnimalPart {
+                center: [0.0, 0.68 * squash, 0.55],
+                half: [0.18, 0.16, 0.16],
+                pitch: (phase).sin() * 0.08 * amp,
+                pivot: neck,
+            });
+            for sx in [0.1, -0.1] {
+                parts.push(AnimalPart {
+                    center: [sx, 0.84 * squash, 0.5],
+                    half: [0.05, 0.05, 0.05],
+                    pitch: 0.0,
+                    pivot: neck,
+                });
             }
+            leg(&mut parts, 0.26, 0.28, 0.28, 0.1, 0.28, 0.45, 0.0);
+            leg(&mut parts, -0.26, 0.28, -0.28, 0.1, 0.28, 0.45, 0.0);
+            leg(&mut parts, 0.26, 0.28, -0.28, 0.1, 0.28, 0.45, std::f32::consts::PI);
+            leg(&mut parts, -0.26, 0.28, 0.28, 0.1, 0.28, 0.45, std::f32::consts::PI);
         }
-        _ => parts.push(([0.0, 0.0, 0.0], 0.0)),
+        Boar => {
+            parts.push(AnimalPart {
+                center: [0.0, (0.42 + bob) * squash, 0.0],
+                half: [0.24, 0.2, 0.34],
+                pitch: 0.0,
+                pivot: [0.0, 0.42, 0.0],
+            });
+            let neck = [0.0, 0.42, 0.32];
+            let head_pitch = (phase).sin() * 0.1 * amp;
+            parts.push(AnimalPart {
+                center: [0.0, 0.42 * squash, 0.42],
+                half: [0.13, 0.12, 0.14],
+                pitch: head_pitch,
+                pivot: neck,
+            });
+            parts.push(AnimalPart {
+                center: [0.0, 0.38 * squash, 0.56],
+                half: [0.05, 0.05, 0.06],
+                pitch: head_pitch,
+                pivot: neck,
+            });
+            leg(&mut parts, 0.16, 0.22, 0.22, 0.06, 0.22, 0.5, 0.0);
+            leg(&mut parts, -0.16, 0.22, -0.22, 0.06, 0.22, 0.5, 0.0);
+            leg(&mut parts, 0.16, 0.22, -0.22, 0.06, 0.22, 0.5, std::f32::consts::PI);
+            leg(&mut parts, -0.16, 0.22, 0.22, 0.06, 0.22, 0.5, std::f32::consts::PI);
+        }
+        Woolbeast => {
+            parts.push(AnimalPart {
+                center: [0.0, (0.5 + bob) * squash, 0.0],
+                half: [0.28, 0.24, 0.36],
+                pitch: 0.0,
+                pivot: [0.0, 0.5, 0.0],
+            });
+            // head lowers to graze while idle
+            let graze = (1.0 - amp).min(1.0) * (0.4 + (phase * 0.5).sin() * 0.1);
+            parts.push(AnimalPart {
+                center: [0.0, 0.6 * squash, 0.44],
+                half: [0.1, 0.1, 0.12],
+                pitch: (phase).sin() * 0.09 * amp + graze,
+                pivot: [0.0, 0.56, 0.36],
+            });
+            leg(&mut parts, 0.18, 0.26, 0.24, 0.06, 0.26, 0.5, 0.0);
+            leg(&mut parts, -0.18, 0.26, -0.24, 0.06, 0.26, 0.5, 0.0);
+            leg(&mut parts, 0.18, 0.26, -0.24, 0.06, 0.26, 0.5, std::f32::consts::PI);
+            leg(&mut parts, -0.18, 0.26, 0.24, 0.06, 0.26, 0.5, std::f32::consts::PI);
+        }
+        _ => parts.push(AnimalPart {
+            center: [0.0, 0.0, 0.0],
+            half: [0.0, 0.0, 0.0],
+            pitch: 0.0,
+            pivot: [0.0, 0.0, 0.0],
+        }),
     }
-    let _ = yaw;
     parts
 }
 
@@ -1042,27 +1263,30 @@ mod tests {
         assert!(!duo[1].group_ping, "a recruited mob must not re-ping (no chains)");
     }
 
-    /// Failure meaning: the animal set (chicken/wolf/dog/bear) lost its
-    /// stats, multi-part layout, or deterministic spawn rules.
+    /// Failure meaning: the animal set lost its stats, articulated layout,
+    /// walk cycle, or deterministic spawn rules.
     #[test]
     fn animals_spawn_render_and_behave() {
         // stats: chicken/dog passive, wolf/bear hostile
         assert!(!MobType::Chicken.is_hostile() && !MobType::Dog.is_hostile());
         assert!(MobType::Wolf.is_hostile() && MobType::Bear.is_hostile());
         assert_eq!(MobType::Bear.stats().max_health, 40.0);
-        // multi-part layouts: every part within the mob's local bounds
-        for kind in [MobType::Chicken, MobType::Wolf, MobType::Dog, MobType::Bear] {
-            let parts = animal_parts(kind, 0.4, 0.0);
-            assert!(!parts.is_empty(), "{:?} has no parts", kind);
-            for (off, half) in &parts {
-                assert!(*half > 0.0, "{:?} degenerate part", kind);
-                let mag = (off[0].abs() + off[1].abs() + off[2].abs()) + half;
-                assert!(mag < 3.0, "{:?} part strays from the body: {:?}", kind, off);
+        // articulated layouts: every part inside the mob's local bounds,
+        // every animal has at least four swinging legs (chicken two)
+        for kind in [MobType::Chicken, MobType::Wolf, MobType::Dog, MobType::Bear,
+                     MobType::Boar, MobType::Woolbeast] {
+            let parts = animal_parts(kind, 0.4, 1.0, 0.0);
+            assert!(parts.len() >= 5, "{:?} lost parts: {}", kind, parts.len());
+            for p in &parts {
+                assert!(p.half.iter().all(|&h| h > 0.0), "{:?} degenerate part", kind);
+                let mag = p.center.iter().map(|c| c.abs()).sum::<f32>()
+                    + p.half.iter().sum::<f32>();
+                assert!(mag < 3.0, "{:?} part strays from the body: {:?}", kind, p.center);
             }
         }
-        // chicken parts = body+head+beak+2 legs; bear = body+head+4 legs
-        assert_eq!(animal_parts(MobType::Chicken, 0.0, 0.0).len(), 5);
-        assert_eq!(animal_parts(MobType::Bear, 0.0, 0.0).len(), 6);
+        // chicken parts = body+head+beak+comb+2 legs; bear = body+head+2 ears+4 legs
+        assert_eq!(animal_parts(MobType::Chicken, 0.0, 0.0, 0.0).len(), 6);
+        assert_eq!(animal_parts(MobType::Bear, 0.0, 0.0, 0.0).len(), 8);
         // spawn rules: chickens by temperate day, wolves on cold nights,
         // bears in deep-forest days, dogs near settlements
         let day: Vec<MobType> = (0..200)
@@ -1089,6 +1313,95 @@ mod tests {
             if bear.update(0.05, &w, Vec3::new(0.0, 1.0, 0.0)).is_some() { hit = true; }
         }
         assert!(hit, "a bear should reach and maul the player");
+    }
+
+    /// Failure meaning: walking mobs no longer animate — legs must swing
+    /// with the cycle, counter-swing in diagonal pairs, and freeze at
+    /// zero amplitude.
+    #[test]
+    fn animal_gait_swings_legs_in_diagonal_pairs() {
+        let legs_of = |phase: f32, amp: f32| -> Vec<f32> {
+            // legs are the parts whose pitch is nonzero at amp 1: last 2
+            // (chicken) or last 4 (quadrupeds) parts
+            let parts = animal_parts(MobType::Wolf, phase, amp, 0.0);
+            let n = 4;
+            parts[parts.len() - n..]
+                .iter()
+                .map(|p| p.pitch)
+                .collect()
+        };
+        let forward = legs_of(std::f32::consts::FRAC_PI_2, 1.0);
+        let back = legs_of(-std::f32::consts::FRAC_PI_2, 1.0);
+        assert!(forward.iter().any(|&p| p > 0.2), "legs swing forward: {:?}", forward);
+        assert!(back.iter().any(|&p| p < -0.2), "legs swing back: {:?}", back);
+        // trot: diagonal pairs share phase, the other pair is anti-phase
+        assert!((forward[0] - forward[1]).abs() < 1e-4, "FL and RR move together");
+        assert!((forward[0] + forward[2]).abs() < 1e-3, "FR is anti-phase to FL");
+        // standing still: no swing at all
+        assert!(legs_of(std::f32::consts::FRAC_PI_2, 0.0).iter().all(|&p| p.abs() < 1e-5));
+        // hurt squash pulls the body down without breaking the layout
+        let hurt = animal_parts(MobType::Wolf, 0.0, 0.0, 1.0);
+        let calm = animal_parts(MobType::Wolf, 0.0, 0.0, 0.0);
+        assert!(hurt[0].center[1] < calm[0].center[1], "flinch squashes the body");
+        // woolbeast grazes with its head down while idle
+        let idle = animal_parts(MobType::Woolbeast, 0.0, 0.0, 0.0);
+        let walking = animal_parts(MobType::Woolbeast, 0.0, 1.0, 0.0);
+        assert!(idle[1].pitch > walking[1].pitch + 0.2, "idle head lowers to graze");
+    }
+
+    /// Failure meaning: the walk cycle is not driven by actual movement,
+    /// or faces snap instead of turning.
+    #[test]
+    fn gait_phase_tracks_speed_and_yaw_turns_smoothly() {
+        let w = flat_world();
+        let mut m = MobEntity::spawn(31, MobType::Wolf, Vec3::new(5.0, 1.0, 0.0));
+        let player = Vec3::new(0.0, 1.0, 0.0);
+        let mut peak_amp: f32 = 0.0;
+        for _ in 0..30 {
+            m.update(0.05, &w, player);
+            peak_amp = peak_amp.max(m.gait_amp);
+        }
+        assert!(m.gait_phase > 1.0, "chasing advances the walk cycle: {}", m.gait_phase);
+        assert!(peak_amp > 0.9, "stride amplitude rises while moving");
+        // stand still: amplitude eases back to zero
+        m.behaviour = MobBehaviourState::Idle { timer: 100.0 };
+        m.velocity = Vec3::ZERO;
+        for _ in 0..100 {
+            m.update(0.05, &w, Vec3::new(500.0, 1.0, 500.0));
+        }
+        assert!(m.gait_amp < 0.05, "amplitude settles at rest");
+        // turning is rate-limited: a wolf facing +Z told to walk -Z cannot
+        // spin 180° in one 50ms tick
+        let mut m2 = MobEntity::spawn(32, MobType::Wolf, Vec3::new(0.0, 1.0, -5.0));
+        m2.yaw = 0.0;
+        m2.behaviour = MobBehaviourState::Chase { aggro_timer: 0.0, react_delay: 0.0, unseen_for: 0.0 };
+        m2.update(0.05, &w, Vec3::new(0.0, 1.0, -10.0));
+        let d = (m2.yaw - std::f32::consts::PI).abs();
+        assert!(d > 0.1, "yaw must not snap 180° in one tick (was {})", m2.yaw);
+        assert!(d < std::f32::consts::PI, "yaw must turn the short way");
+    }
+
+    /// Failure meaning: dying mobs keep fighting, never finish dying, or
+    /// fall out of the world without cleanup.
+    #[test]
+    fn dying_mobs_stop_fighting_and_finish() {
+        let w = flat_world();
+        let mut m = MobEntity::spawn(33, MobType::Glitchling, Vec3::new(1.2, 1.0, 0.0));
+        assert!(m.take_hit(1000.0, Vec3::new(0.0, 1.0, 0.0)), "the hit kills");
+        m.begin_death();
+        assert!(!m.dead_and_gone(), "corpse has not played out yet");
+        let player = Vec3::new(0.0, 1.0, 0.0);
+        for _ in 0..20 {
+            assert!(m.update(0.05, &w, player).is_none(), "a corpse never attacks");
+        }
+        // topple (0.5s) + rest (1.0s)
+        for _ in 0..21 {
+            m.update(0.05, &w, player);
+        }
+        assert!(m.dead_and_gone(), "corpse must finish: {:?}", m.death_t);
+        // extra hits do not restart the animation
+        m.begin_death();
+        assert!(m.death_t.unwrap() > 1.4, "begin_death is idempotent");
     }
 
     /// Failure meaning: faction standing does not actually gate aggro.

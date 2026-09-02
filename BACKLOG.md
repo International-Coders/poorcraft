@@ -1079,3 +1079,18 @@ Deferred (honest notes):
   = segfault); client handle now returned with the pair.
 - [ ] Two-process cross-session P2P: needs two distinct Steam
   identities (user resource). Roadmap step 87 documents the recipe.
+
+## Loop 339 — mob animation overhaul SHIPPED
+
+- [x] Articulated walking: chicken/wolf/dog/bear + boar + woolbeast (leg
+      swing in trot pairs, distance-driven phase, real facing).
+- [x] Hurt flash: 21 red hurt-layer copies, flicker while hurt_flash.
+- [x] Death animation: topple + rest + removal, all three kill paths;
+      firebolt immortal-corpse bug fixed; void-fallen mobs culled.
+- [x] Nameless raiders walk as humanoids; villagers face their direction;
+      remote players' gait estimated from deltas.
+- [x] vistest mob_anim + mob_hurt_death with pixel claims (frozen-leg
+      detector via silhouette-width variance).
+- [ ] Dragon corpse topple (freezes mid-flap 1.5s instead of falling).
+- [ ] Additive/entity-tint hurt shader (would replace the layer swap and
+      allow partial-flash blending in the opaque pass).
