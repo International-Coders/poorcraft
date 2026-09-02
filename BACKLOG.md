@@ -1134,3 +1134,18 @@ Deferred (honest notes):
 - [x] build_hud vistest scene + claims; build_shape_state unit test.
 - [ ] Shaped 3x3 crafting grid; drop networking (protocol v5);
       prop-vs-prop collision; carried-prop outline; dragon corpse topple.
+
+## Loop 344 — clear sky + sun-tracked voxel lighting SHIPPED
+
+- [x] Authored pixel-art sun, crescent moon, and star atlas assets.
+- [x] Celestial render marker bypasses terrain distance fog/color grading but
+      keeps depth occlusion; the sky stays available even at low view distance.
+- [x] Raster face/normal relief follows the visible sun through the day from
+      one shared `sun_direction(time)` source; corrected nighttime star timing.
+- [x] `sun_visibility` aggressive-fog proof + east/west GPU lighting regression;
+      371 tests and 89/89 visual scenes green.
+- [ ] True projected raster cast shadows remain deferred: the shipped raster
+      path is intentionally cheap directional relief; real soft cast shadows
+      remain available in Live RT.
+- [ ] First-minute onboarding (context prompts + pinned starter objective) is
+      the next user-friendliness pass.

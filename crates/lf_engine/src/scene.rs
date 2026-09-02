@@ -3,7 +3,7 @@ use wgpu::util::DeviceExt;
 
 use crate::camera::Camera;
 
-/// GPU vertex layout: must match shader.wgsl vs_main locations 0..4.
+/// GPU vertex layout: must match shader.wgsl vs_main locations 0..6.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GpuVertex {
@@ -49,6 +49,8 @@ pub struct Uniforms {
     time_sway: [f32; 4],
     // rgb = color-grade tint multiplier, w = saturation (1 = unchanged)
     grade: [f32; 4],
+    // xyz = direction from the camera toward the moving sun, w spare
+    sun: [f32; 4],
 }
 
 /// Environment parameters passed every frame.
@@ -67,6 +69,9 @@ pub struct Env {
     pub grade_tint: [f32; 3],
     /// Color-grade saturation (1.0 = unchanged, <1 desaturates).
     pub grade_saturation: f32,
+    /// Direction from the camera toward the sun. Raster face/normal-map
+    /// shading follows this same vector as the visible sky body.
+    pub sun_direction: [f32; 3],
 }
 
 impl Env {
@@ -619,6 +624,7 @@ impl MeshBatch {
                 fog: [0.0; 4],
                 time_sway: [0.0; 4],
                 grade: [1.0, 1.0, 1.0, 1.0],
+                sun: [0.42, 0.82, 0.38, 0.0],
             }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -646,6 +652,7 @@ impl MeshBatch {
                 fog: [env.fog_color[0], env.fog_color[1], env.fog_color[2], env.fog_far],
                 time_sway: [env.time, 0.0, 0.0, 0.0],
                 grade: [env.grade_tint[0], env.grade_tint[1], env.grade_tint[2], env.grade_saturation],
+                sun: [env.sun_direction[0], env.sun_direction[1], env.sun_direction[2], 0.0],
             }]),
         );
     }

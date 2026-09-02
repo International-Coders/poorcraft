@@ -5238,6 +5238,7 @@ impl GameState {
             time: env_time,
             grade_tint: self.grade_tint,
             grade_saturation: self.grade_sat,
+            sun_direction: lf_engine::atmosphere::sun_direction(self.time.fraction()).to_array(),
         }
     }
 

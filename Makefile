@@ -2,7 +2,7 @@
 # Living documentation of what can be done and how. Agents: keep this file
 # in sync whenever commands change, and log each job in DEVLOG.md.
 
-.PHONY: help build test run smoke vistest package runtimes push
+.PHONY: help build test run smoke vistest perf package runtimes push
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'

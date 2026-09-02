@@ -186,6 +186,7 @@ impl State {
             time: 0.0, // one-chunk demo has no foliage to animate
             grade_tint: [1.0, 1.0, 1.0],
             grade_saturation: 1.0,
+            sun_direction: [0.42, 0.82, 0.38],
         };
         self.scene.update_camera(&self.queue, &self.camera, &env);
     }

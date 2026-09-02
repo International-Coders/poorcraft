@@ -7,6 +7,7 @@ struct VertexOutput {
     // sky light in the high nibble, block light in the low nibble
     @location(4) @interpolate(flat) light: u32,
     @location(5) world_pos: vec3<f32>,
+    @location(6) @interpolate(flat) atmosphere: f32,
 };
 
 struct Uniforms {
@@ -19,6 +20,8 @@ struct Uniforms {
     time_sway: vec4<f32>,
     // rgb = color-grade tint multiplier, w = saturation (1 = unchanged)
     grade: vec4<f32>,
+    // xyz = direction from the camera toward the moving sun, w spare
+    sun: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -72,6 +75,7 @@ fn vs_main(
     out.ao = ao;
     out.light = light;
     out.world_pos = pos;
+    out.atmosphere = select(0.0, 1.0, sway < 0.0);
     return out;
 }
 
@@ -91,6 +95,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // alpha cutout (leaves, glass panes, crack decals). Water (a ~0.67) and
     // ice (~0.78) sit above the threshold and render solid/blended.
     if (color.a < 0.5) { discard; }
+    // Celestial bodies are unreachable background art. They retain depth
+    // occlusion behind terrain/clouds but must not be erased by the
+    // performance fog that hides unloaded distant terrain.
+    if (in.atmosphere > 0.5) {
+        return color;
+    }
     let sky = f32((in.light >> 4u) & 15u) / 15.0;
     let block_l = f32(in.light & 15u) / 15.0;
     let day = uniforms.cam_pos_day.w;
@@ -111,7 +121,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let bitangent = normalize(cross(face_n, tangent));
     let local_n = normalize(packed_normal * 2.0 - vec3<f32>(1.0));
     let relief_n = normalize(tangent * local_n.x + bitangent * local_n.y + face_n * local_n.z);
-    let sun_dir = normalize(vec3<f32>(0.42, 0.82, 0.38));
+    let sun_dir = normalize(uniforms.sun.xyz);
     let relief_light = 0.78 + 0.22 * max(dot(relief_n, sun_dir), 0.0);
     var lit = vec4<f32>(color.rgb * brightness * ambient * relief_light, color.a);
 

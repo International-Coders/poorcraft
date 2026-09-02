@@ -7,6 +7,13 @@ use crate::scene::GpuVertex;
 
 pub const CLOUD_LEVEL: f32 = 160.0;
 
+/// Direction from the player toward the sun. This is the single celestial
+/// clock used by both the visible sun and the raster directional shading.
+pub fn sun_direction(time_frac: f32) -> Vec3 {
+    let angle = time_frac * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+    Vec3::new(angle.cos(), angle.sin(), 0.25).normalize()
+}
+
 /// Build the translucent cloud quad layer around `center`, drifting with
 /// `time`. Cells of 12 blocks sampled from a cheap value-noise.
 pub fn cloud_mesh(center: Vec3, time: f32) -> (Vec<GpuVertex>, Vec<u32>) {
@@ -54,8 +61,7 @@ pub fn cloud_mesh(center: Vec3, time: f32) -> (Vec<GpuVertex>, Vec<u32>) {
 pub fn sky_bodies(eye: Vec3, time_frac: f32) -> (Vec<GpuVertex>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
-    let angle = time_frac * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
-    let sun_dir = Vec3::new(angle.cos(), angle.sin(), 0.25).normalize();
+    let sun_dir = sun_direction(time_frac);
     let dist = 420.0;
 
     let mut push_billboard = |dir: Vec3, size: f32, tex: u32, brightness: u32| {
@@ -75,19 +81,24 @@ pub fn sky_bodies(eye: Vec3, time_frac: f32) -> (Vec<GpuVertex>, Vec<u32>) {
                 tex_index: tex,
                 ao: 1.0,
                 light: brightness,
-                    sway: 0.0,
+                // Negative sway is the renderer's atmosphere marker: these
+                // unreachable bodies keep depth occlusion but skip terrain
+                // fog and ordinary surface lighting.
+                sway: -1.0,
             });
         }
         indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
     };
 
-    let moon_tex = lf_assets::texture_index_for_block(lf_voxel::registry::block::SNOW);
-    push_billboard(sun_dir, 30.0, moon_tex, 0xFF); // full-bright white sun
-    push_billboard(-sun_dir, 18.0, moon_tex, 0xF0); // moon
+    let sun_tex = lf_assets::layer_of("sun");
+    let moon_tex = lf_assets::layer_of("moon");
+    let star_tex = lf_assets::layer_of("star");
+    push_billboard(sun_dir, 22.0, sun_tex, 0xFF);
+    push_billboard(-sun_dir, 16.0, moon_tex, 0xF0);
 
-    // stars fade in at night (time outside [0.25, 0.75] is dark)
-    let darkness = (time_frac - 0.5).abs().min(0.25);
-    let star_alpha = ((0.25 - darkness) / 0.25).clamp(0.0, 1.0);
+    // Stars appear only when the sun is below the horizon. The old formula
+    // was inverted, producing stars at noon and none at midnight.
+    let star_alpha = (-sun_dir.y * 2.5).clamp(0.0, 1.0);
     if star_alpha > 0.05 {
         let mut rng = 0x853c49e6748fea9bu64;
         let mut next = || {
@@ -103,7 +114,7 @@ pub fn sky_bodies(eye: Vec3, time_frac: f32) -> (Vec<GpuVertex>, Vec<u32>) {
             let r = (1.0 - y * y).sqrt();
             let dir = Vec3::new(r * a.cos(), y, r * a.sin());
             let _ = star_alpha;
-            push_billboard(dir, 1.4, moon_tex, 0xD0);
+            push_billboard(dir, 1.4, star_tex, 0xD0);
         }
     }
     (vertices, indices)
@@ -185,5 +196,32 @@ pub fn underwater_env(eye_block: u32) -> Option<([f32; 3], f32)> {
         Some(([0.05, 0.20, 0.35], 14.0))
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visible_sun_and_lighting_share_the_same_clock() {
+        let dawn = sun_direction(0.25);
+        let noon = sun_direction(0.5);
+        let dusk = sun_direction(0.75);
+        assert!(dawn.x > 0.9 && dawn.y.abs() < 0.01);
+        assert!(noon.y > 0.9);
+        assert!(dusk.x < -0.9 && dusk.y.abs() < 0.01);
+    }
+
+    #[test]
+    fn celestial_vertices_are_fog_exempt_and_use_authored_layers() {
+        let (day, _) = sky_bodies(Vec3::ZERO, 0.5);
+        assert_eq!(day.len(), 8, "no stars should be emitted at noon");
+        assert!(day[..4].iter().all(|v| v.tex_index == lf_assets::layer_of("sun") && v.sway < 0.0));
+        assert!(day[4..8].iter().all(|v| v.tex_index == lf_assets::layer_of("moon") && v.sway < 0.0));
+
+        let (night, _) = sky_bodies(Vec3::ZERO, 0.0);
+        assert!(night.len() > 8, "stars should be emitted at midnight");
+        assert!(night[8..].iter().all(|v| v.tex_index == lf_assets::layer_of("star") && v.sway < 0.0));
     }
 }

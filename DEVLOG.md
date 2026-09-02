@@ -1788,3 +1788,39 @@ binary alive 12s; make runtimes refreshed.
 HONESTLY DEFERRED: shaped 3x3 crafting grid; drop/mob entity networking
 (protocol v5); prop-vs-prop collision; carried-prop outline highlight;
 dragon corpse topple; additive entity hurt tint.
+
+## 2026-09-02 — loop 344: clear sky + sun-tracked voxel lighting
+
+WHAT: Restored a readable, reachable-looking sky without increasing world
+render distance: the player can now see an authored pixel sun through the
+performance fog, and the cheap raster relief on voxel faces follows that sun
+through the day. Added matching crescent-moon and star assets and corrected
+stars being scheduled at noon instead of night.
+
+HOW: `lf_assets/src/lib.rs` gained stable tail atlas layers for 16x16 cutout
+sun/moon/star art and an alpha/identity regression. `lf_engine/atmosphere.rs`
+now owns public `sun_direction(time)`, tags sky-body vertices as atmosphere,
+uses the authored layers, and schedules stars below the horizon. `scene.rs`,
+the client, app, and vistest Env constructors carry the shared sun vector.
+`shader.wgsl` samples that vector for normal/face directional relief and lets
+tagged celestial fragments bypass distance fog/color grading after alpha
+cutout, while retaining the normal depth test. `lf_vistest` gained the
+`sun_visibility` scene (fog_far=48, body distance=420), authored-color pixel
+claims, and an east-vs-west GPU shading regression. The full visual harness
+regenerated its tracked reference PNGs because raster light direction is now
+time-correct. The Makefile's existing `perf` target was added to `.PHONY`.
+
+VERIFICATION: `cargo build --workspace` GREEN; `cargo test --workspace`
+371 passed / 0 failed; `cargo run --release -p xtask -- vistest shots` 89/89
+with `shots/vistest_sun_visibility.png` inspected at native resolution;
+`make smoke` headless logic OK + release GUI alive for 12 seconds; `make perf`
+terrain_vista x29 warm p50 63.6ms, p95 80.7ms, min 44.2ms (~16 FPS at p50);
+`make runtimes` refreshed `dist/loreforge.app`, `dist/loreforge-macos.dmg`,
+`dist/loreforge-linux-x86_64.tar.gz`, and `dist/loreforge-server`. Windows was
+honestly skipped because MinGW is not installed on this macOS host.
+
+HONESTLY DEFERRED: no raster shadow-map/projected cast-shadow pass in this
+loop—the raster path ships inexpensive sun-aligned face/normal relief and the
+Live RT path still supplies real soft cast shadows. Atmospheric scattering,
+sky gradients, and cloud ground shadows remain separate visual jobs. The next
+usability job is a compact, persisted first-minute onboarding flow.

@@ -132,6 +132,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::new(30.0, 110.0, -20.0),
         },
         SceneSpec {
+            name: "sun_visibility",
+            desc: "loop 344: authored sun remains visible above aggressive terrain fog",
+            default_seed: 12345,
+            time_of_day: 0.36,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "village_trading",
             desc: "hamlet with villagers and an open trade panel",
             default_seed: 12345,
@@ -2674,7 +2686,16 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     // its x/z so hills never bury the shot. First-person scenes instead sit
     // at player eye height looking slightly downhill.
     let gen = WorldGen::new(Seed(seed));
-    let (eye, target) = if spec.name == "foliage_canopy" {
+    let (eye, target) = if spec.name == "sun_visibility" {
+        let h = gen.surface_top(0, 0) as f32;
+        let eye = Vec3::new(0.5, h + 4.0, 0.5);
+        let sun = lf_engine::atmosphere::sun_direction(spec.time_of_day);
+        // Keep the sun high in frame while retaining a strip of terrain at
+        // the bottom, so the proof shows clear sky separated from fogged
+        // draw-distance masking rather than an context-free atlas icon.
+        let look = Vec3::new(sun.x, sun.y - 0.20, sun.z).normalize();
+        (eye, eye + look * 100.0)
+    } else if spec.name == "foliage_canopy" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-10.0, h + 13.0, 14.0), Vec3::new(0.5, h + 9.5, 0.5))
     } else if spec.name == "mining_feedback" {
@@ -2962,18 +2983,23 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         time: 0.8,
         day_factor: spec.day_factor(),
         fog_color: spec.time_of_day().sky_color(),
-        fog_far: 220.0,
+        // Deliberately harsher than the normal Medium preset: if celestial
+        // fragments ever re-enter terrain fog, this proof erases the sun.
+        fog_far: if spec.name == "sun_visibility" { 48.0 } else { 220.0 },
         grade_tint: [1.0, 1.0, 1.0],
         grade_saturation: 1.0,
+        sun_direction: lf_engine::atmosphere::sun_direction(spec.time_of_day).to_array(),
     };
     // clouds/weather scene: atmosphere geometry joins the standard mesh
     let (mut vertices, mut indices, mut water_vertices, mut water_indices) =
         (vertices, indices, water_vertices, water_indices);
-    if spec.name == "clouds_weather" {
+    if matches!(spec.name, "clouds_weather" | "sun_visibility") {
         let (sv, si) = lf_engine::atmosphere::sky_bodies(eye, spec.time_of_day);
         let base = vertices.len() as u32;
         vertices.extend(sv);
         indices.extend(si.iter().map(|i| i + base));
+    }
+    if spec.name == "clouds_weather" {
         let (cv, ci) = lf_engine::atmosphere::cloud_mesh(eye, 40.0);
         let wbase = water_vertices.len() as u32;
         water_vertices.extend(cv);
@@ -3180,7 +3206,8 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "tree_fall_mid" | "tree_fall_landed" | "falling_blocks_deep"
         | "plants_cross" | "seed_comparison" | "no_black_square"
         | "hud_small"
-        | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time");
+        | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
+        | "sun_visibility");
     if !needs_check {
         return Ok(());
     }
@@ -3209,6 +3236,14 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
     let muted = [0x8a, 0x7f, 0x6e];
     let accent = [0xc4, 0x60, 0x2a];
     let panel = [0x33, 0x2a, 0x1c];
+    if scene == "sun_visibility" {
+        // Authored core + orange rim must survive fog_far=48 even though
+        // the billboard sits 420 blocks away. This specifically catches
+        // the old "sun exists but fog makes it identical to sky" failure.
+        let sun_pixels = count_in(0, 0, w, h, [255, 190, 66], 18)
+            + count_in(0, 0, w, h, [255, 246, 184], 18);
+        assert!(sun_pixels > 90, "sun_visibility: only {sun_pixels} sampled sun pixels; celestial fog exemption/art failed");
+    }
     // ai-npc-assets Section A: gameplay frames must not contain a large
     // pure-black rectangle in the view (the black-square artifact class).
     // Daytime gameplay scenes only — menus legitimately use dark panels
@@ -5495,6 +5530,7 @@ pub fn bench(scene_name: &str, n: usize) -> Result<BenchStats, String> {
         fog_far: 220.0,
         grade_tint: [1.0, 1.0, 1.0],
         grade_saturation: 1.0,
+        sun_direction: lf_engine::atmosphere::sun_direction(spec.time_of_day).to_array(),
     };
     let textures = lf_assets::generate_atlas();
     let renderer = lf_engine::headless::HeadlessRenderer::new(800, 600, &textures)?;
@@ -5587,6 +5623,7 @@ mod tests {
             fog_far: 220.0,
             grade_tint: tint,
             grade_saturation: sat,
+            sun_direction: lf_engine::atmosphere::sun_direction(spec.time_of_day).to_array(),
         };
         let textures = lf_assets::generate_atlas();
         let mut paths = Vec::new();
@@ -5639,6 +5676,78 @@ mod tests {
         }
     }
 
+    /// Loop 344 proof: cheap raster relief/face shading is not pinned to a
+    /// hard-coded noon vector. Moving the sun from east to west must change
+    /// a meaningful number of terrain pixels through the real GPU shader.
+    #[test]
+    fn raster_shading_tracks_the_visible_sun() {
+        let spec = scenes()
+            .into_iter()
+            .find(|s| s.name == "terrain_vista")
+            .expect("terrain_vista scene registered");
+        let (v, i, wv, wi) =
+            build_scene_mesh(&spec, spec.default_seed, 2, false, false);
+        let gen = WorldGen::new(Seed(spec.default_seed));
+        let h = gen.surface_top(0, 0) as f32;
+        let eye = Vec3::new(-24.0, h + 26.0, 48.0);
+        let mut camera = Camera::new(eye, Vec3::new(0.0, h + 6.0, 0.0));
+        camera.set_aspect(800, 600);
+        let env = |time: f32| lf_engine::scene::Env {
+            camera_pos: eye,
+            time: 0.8,
+            day_factor: 1.0,
+            fog_color: spec.time_of_day().sky_color(),
+            fog_far: 220.0,
+            grade_tint: [1.0, 1.0, 1.0],
+            grade_saturation: 1.0,
+            sun_direction: lf_engine::atmosphere::sun_direction(time).to_array(),
+        };
+        let textures = lf_assets::generate_atlas();
+        let render = |tag: &str, time: f32| -> (String, image::RgbaImage) {
+            let path = format!(
+                "/tmp/lf_vistest_sunshade_{tag}_{}.png",
+                std::process::id()
+            );
+            lf_engine::headless::render_to_png(
+                &v,
+                &i,
+                &wv,
+                &wi,
+                &textures,
+                &camera,
+                &env(time),
+                spec.sky_color(),
+                800,
+                600,
+                Path::new(&path),
+                None,
+            )
+            .unwrap_or_else(|e| panic!("render {tag} failed: {e}"));
+            let img = image::open(&path)
+                .expect("reopen sun-shading frame")
+                .to_rgba8();
+            (path, img)
+        };
+        let (east_path, east) = render("east", 0.25);
+        let (west_path, west) = render("west", 0.75);
+        let changed = east
+            .pixels()
+            .zip(west.pixels())
+            .filter(|(a, b)| {
+                a.0[..3]
+                    .iter()
+                    .zip(b.0[..3].iter())
+                    .any(|(x, y)| (*x as i32 - *y as i32).abs() > 6)
+            })
+            .count();
+        assert!(
+            changed > 500,
+            "only {changed} pixels changed between east/west sun; raster shading is not following it"
+        );
+        let _ = std::fs::remove_file(east_path);
+        let _ = std::fs::remove_file(west_path);
+    }
+
     #[test]
     fn foliage_sway_animates_between_frames() {
         // The P26 commit claimed wind sway, but the vertex shader never read
@@ -5662,6 +5771,7 @@ mod tests {
             fog_far: 220.0,
             grade_tint: [1.0, 1.0, 1.0],
             grade_saturation: 1.0,
+            sun_direction: lf_engine::atmosphere::sun_direction(spec.time_of_day).to_array(),
         };
         let textures = lf_assets::generate_atlas();
         let mut paths = Vec::new();

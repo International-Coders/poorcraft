@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 202] = [
+pub const TEXTURE_NAMES: [&str; 205] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -101,6 +101,9 @@ pub const TEXTURE_NAMES: [&str; 202] = [
     // at the named-atlas tail so every earlier stable layer remains fixed.
     "villager_farmer", "villager_smith", "villager_trader", "villager_guard",
     "villager_bard", "villager_lorekeeper", "villager_wizard", "player_wayfarer",
+    // loop 344 sky readability: celestial bodies use authored cutout art,
+    // never a borrowed snow tile.
+    "sun", "moon", "star",
 ];
 
 /// king-quest B: block ids 121..=138 map to their named layers, in this
@@ -946,6 +949,48 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                 "snow" => {
                     let v = 235 + ((x + y * 3) % 5);
                     Rgba([ch(v), ch(v.min(250)), ch(v.min(252)), 255])
+                }
+                "sun" => {
+                    // Chunky warm disc with a pale core and transparent
+                    // corners. The atmosphere shader keeps it out of fog.
+                    let dx = x as i32 * 2 - 15;
+                    let dy = y as i32 * 2 - 15;
+                    let d2 = dx * dx + dy * dy;
+                    if d2 <= 76 {
+                        Rgba([255, 246, 184, 255])
+                    } else if d2 <= 164 {
+                        Rgba([255, 190, 66, 255])
+                    } else if (dx.abs() <= 1 || dy.abs() <= 1) && d2 <= 226 {
+                        Rgba([255, 154, 42, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "moon" => {
+                    // Cool crescent: the offset transparent bite prevents
+                    // it reading as a smaller recoloured sun.
+                    let dx = x as i32 * 2 - 15;
+                    let dy = y as i32 * 2 - 15;
+                    let disc = dx * dx + dy * dy <= 174;
+                    let bite = (dx + 6).pow(2) + (dy - 2).pow(2) <= 118;
+                    if disc && !bite {
+                        let crater = (x * 7 + y * 11) % 19 < 3;
+                        if crater { Rgba([150, 170, 198, 255]) }
+                        else { Rgba([218, 228, 238, 255]) }
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "star" => {
+                    let dx = (x as i32 - 8).abs();
+                    let dy = (y as i32 - 8).abs();
+                    if dx + dy <= 2 {
+                        Rgba([255, 246, 206, 255])
+                    } else if (dx == 0 && dy <= 4) || (dy == 0 && dx <= 4) {
+                        Rgba([190, 214, 244, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
                 }
                 "log" => {
                     let v = 90 + ((x * 9 + y * 5) % 18);
@@ -3661,6 +3706,14 @@ mod tests {
                 assert!(holes > 100 && solid > 30, "{} holes={} solid={}", name, holes, solid);
                 continue;
             }
+            if matches!(name, "sun" | "moon" | "star") {
+                // Celestial sprites are opaque pixel art on transparent
+                // sky; the renderer alpha-cuts the surrounding billboard.
+                let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
+                let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
+                assert!(holes > 20 && solid > 4, "{} holes={} solid={}", name, holes, solid);
+                continue;
+            }
             if name == "ice" {
                 // translucent pane everywhere
                 assert!(tex.pixels().all(|p| p.0[3] == 200));
@@ -3924,6 +3977,19 @@ mod tests {
         let wood = generate_item_texture("wooden_pickaxe").unwrap();
         let stone = generate_item_texture("stone_pickaxe").unwrap();
         assert_ne!(wood.as_raw(), stone.as_raw());
+    }
+
+    #[test]
+    fn celestial_textures_are_distinct_cutout_pixel_art() {
+        let sun = generate_block_texture("sun");
+        let moon = generate_block_texture("moon");
+        let star = generate_block_texture("star");
+        for (name, img) in [("sun", &sun), ("moon", &moon), ("star", &star)] {
+            assert!(img.pixels().any(|p| p.0[3] == 0), "{name} needs transparent sky around it");
+            assert!(img.pixels().any(|p| p.0[3] == 255), "{name} needs a visible core");
+        }
+        assert_ne!(sun.as_raw(), moon.as_raw());
+        assert_ne!(moon.as_raw(), star.as_raw());
     }
 
     #[test]

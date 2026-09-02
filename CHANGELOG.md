@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-02 — clear sky + sun-tracked voxel lighting (loop 344)
+
+- **The sun is visible again**: new authored 16x16 pixel-art sun, crescent
+  moon, and star atlas layers render on celestial quads that bypass terrain
+  distance fog and color grading. Terrain and clouds can still occlude them,
+  but the performance fog can no longer erase the unreachable sky.
+- **Light follows what players see**: raster face/normal-map relief now reads
+  the same `sun_direction(time)` vector used to place the sun, so the brighter
+  side of blocks moves from east to west during the day without adding a
+  shadow-map pass or distant geometry cost. The Live RT path keeps its real
+  cast shadows.
+- **Night timing fixed**: stars are emitted while the sun is below the horizon,
+  correcting the previous inverted condition that produced stars at noon.
+- **Proof**: `sun_visibility` renders the authored sun at 420 blocks while
+  terrain fog ends at 48; a GPU regression proves east and west sun positions
+  materially change more than 500 terrain pixels. The complete harness is
+  89/89 and the workspace is 371/371 tests green.
+
 ## 2026-09-01 — HUD pass finished: kit everywhere + building HUD (loop 343)
 
 - **Zero alpha chrome left**: the 13 machine windows, trade, companion
