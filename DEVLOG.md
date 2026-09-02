@@ -1685,3 +1685,44 @@ peers do not see each other's props — mobs/villagers are the same today;
 protocol v5 entity sync is the roadmap step); carried props are not
 highlighted (an outline tint would need the outline pass to accept dynamic
 geometry).
+
+## 2026-09-01 — loop 341: HUD declutter + inventory-first E screen + kit restyles
+
+WHAT: The HUD follows the researched Minecraft conventions — minimal by
+default with the dense readout behind F3; E opens a real inventory screen
+(armor column + player portrait + storage + hotbar + craft-by-hand route)
+instead of dumping the player into a crafting list; the furnace and chest
+screens wear the design kit instead of raw egui window chrome.
+
+RESEARCH (user-requested web pass): Minecraft's HUD shows nothing by
+default (F3 = debug) and clusters status bottom-center as discrete icons;
+list-based crafting is criticized for no look-ahead while our workbench's
+locked-recipe gates + have/need counts already follow the favored
+blueprint pattern; E-inventory convention = armor slots + player preview,
+crafting one click away. Sources: minecraft.wiki HUD, fandom HUD page,
+Starbound crafting-analysis thread, gamedesign/UX threads (links in the
+final report).
+
+HOW: ui.rs — info line shows clock + facing only unless show_debug (F3),
+which now carries biome/coords/weather/net/fps/RT; new draw_inventory
+(CentralPanel + vignette + kit panel: portrait via paint_player_portrait
+kit-block humanoid, armor slots 36-39 + offhand 40 with quick-move, 3x9
+storage, hotbar row with selection frame, footer "craft by hand" ->
+UiOpen::HandCraft -> draw_workbench(basic_only=true)); furnace + chest
+converted from egui::Window chrome to the same kit panel shell (title,
+dark wash, vignette); UiOpen::HandCraft variant added + dispatch.
+lf_vistest — mirrored info line updated (clock + facing only), new
+inventory_screen scene with a hand-mirrored preview (slot wells, portrait
+blocks, armor labels, hotbar band, craft-by-hand pill) + pixel claims
+(well fill > 5000px, accent > 250px, title band > 60px).
+
+VERIFICATION: vistest 87/87 ok (86 + inventory_screen; claims verified
+per-render); cargo test --workspace GREEN (count in final log); inventory
+layout ASCII-verified (armor column, portrait accent legs, grid, selected
+hotbar slot); smoke below.
+
+HONESTLY DEFERRED: the 13 machine windows + trade/companion/tech-tree
+still use egui::Window chrome (same shell conversion, mechanical, next
+pass); no 3x3 shaped-crafting grid (the recipe list + gates covers
+discoverability per the research; shaped crafting is its own system);
+build-mode HUD (shape picker + symmetry indicator) not started.

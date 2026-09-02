@@ -683,6 +683,9 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "crafting_workbench", desc: "F: three-zone workbench (categories, recipes, detail) + inventory strip",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "inventory_screen", desc: "loop 341: inventory-first E screen — armor column + player portrait, storage grid, hotbar band, craft-by-hand route",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
         // ---- loop 329: menus-centered-at-three-window-sizes + journal + assets ----
         SceneSpec { name: "menus_centered_small", desc: "resize proof: centered menu panel on a 640x420 window (pixel-claimed symmetric)",
             default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
@@ -2988,6 +2991,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         || spec.name == "companion_commands" || spec.name == "companion_follow"
         || spec.name == "new_world_screen" || spec.name == "multiplayer_screen"
         || spec.name == "crafting_workbench"
+        || spec.name == "inventory_screen"
         || spec.name == "menus_centered_small" || spec.name == "menus_centered"
         || spec.name == "menus_centered_wide"
         || spec.name == "journal" || spec.name == "asset_catalog";
@@ -3026,6 +3030,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "crafting_workbench" {
                 draw_crafting_workbench_preview(ctx);
+            }
+            if spec.name == "inventory_screen" {
+                draw_inventory_preview(ctx);
             }
             if spec.name == "settings_preview" {
                 draw_settings_preview(ctx);
@@ -3503,6 +3510,23 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
             assert!(total > 100, "seed_comparison: sampling failed ({})", total);
             let frac = diff as f32 / total as f32;
             assert!(frac > 0.25, "seed_comparison: the two seed halves look the same (differing {:.2})", frac);
+        }
+        "inventory_screen" => {
+            // The mirrored E screen: the slot-well grid (dark recessed
+            // fill), the kit accent (portrait boots + selected hotbar
+            // slot), and the INVENTORY title band must all be present.
+            let near = |c: [i32; 3], t: (i32, i32, i32), tol: i32| {
+                (c[0] - t.0).abs() < tol && (c[1] - t.1).abs() < tol && (c[2] - t.2).abs() < tol
+            };
+            let n_well = (0..w).step_by(2).map(|x| (0..h).step_by(2)
+                .filter(|&y| near(px(x, y), (30, 35, 46), 14)).count()).sum::<usize>();
+            assert!(n_well > 5000, "inventory_screen: slot grid missing ({n_well} well px)");
+            let n_accent = (0..w).step_by(2).map(|x| (0..h).step_by(2)
+                .filter(|&y| near(px(x, y), (196, 96, 42), 44)).count()).sum::<usize>();
+            assert!(n_accent > 250, "inventory_screen: accent portrait/selection missing ({n_accent})");
+            let n_title = (300..500).map(|x| (95..122)
+                .filter(|&y| px(x, y)[0] > 190 && px(x, y)[1] > 180).count()).sum::<usize>();
+            assert!(n_title > 60, "inventory_screen: title missing ({n_title})");
         }
         "item_physics" => {
             // Sand stage, stone-gray props. Scene-internal asserts already
@@ -4148,6 +4172,83 @@ fn draw_multiplayer_preview(ctx: &egui::Context) {
 }
 
 /// F proof: the three-zone workbench with a real inventory strip.
+/// Loop 341: the inventory-first E screen (mirror of ui.rs draw_inventory).
+fn draw_inventory_preview(ctx: &egui::Context) {
+    egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
+        let screen = ctx.screen_rect();
+        let p = ui.painter_at(screen);
+        lf_client::ui_kit::vignette(ui, 190);
+        p.rect_filled(screen, 0.0, egui::Color32::from_rgba_unmultiplied(0x1a, 0x14, 0x10, 235));
+        let panel = egui::Rect::from_center_size(screen.center(), egui::vec2(620.0, 430.0));
+        p.rect_filled(panel, 10.0, UW_PANEL);
+        p.rect_stroke(panel, 10.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
+        uw_label(&p, panel.center_top() + egui::vec2(0.0, 22.0),
+            egui::Align2::CENTER_CENTER, "INVENTORY", 20.0, UW_TEXT);
+        // slot well: dark recessed square (same colors as slot_button)
+        let well = |p: &egui::Painter, pos: egui::Pos2, s: f32| {
+            let r = egui::Rect::from_min_size(pos, egui::vec2(s, s));
+            p.rect_filled(r, 5.0, egui::Color32::from_black_alpha(170));
+            p.rect_filled(r.shrink(1.5), 4.0, egui::Color32::from_rgba_unmultiplied(30, 35, 46, 200));
+            p.rect_stroke(r, 5.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Middle);
+        };
+        let slot = 44.0;
+        let left = panel.left() + 24.0;
+        let top = panel.top() + 66.0;
+        // portrait: kit-colored humanoid blocks (mirrors paint_player_portrait)
+        let port = egui::Rect::from_min_size(egui::pos2(left, top), egui::vec2(slot * 3.4, 150.0));
+        p.rect_filled(port, 8.0, egui::Color32::from_black_alpha(140));
+        let (cx, base) = (port.center().x, port.bottom() - 14.0);
+        let s = port.height() / 190.0;
+        let blk = |p: &egui::Painter, x: f32, y: f32, w: f32, h: f32, c: egui::Color32| {
+            p.rect_filled(egui::Rect::from_center_size(
+                egui::pos2(cx + x * s, base - y * s), egui::vec2(w * s, h * s)), 3.0, c);
+        };
+        let parchment = egui::Color32::from_rgb(214, 198, 170);
+        let dim = egui::Color32::from_rgb(120, 108, 92);
+        blk(&p, 0.0, 157.0, 46.0, 46.0, parchment);
+        blk(&p, 0.0, 108.0, 54.0, 72.0, dim);
+        blk(&p, -74.0, 112.0, 18.0, 62.0, dim);
+        blk(&p, 74.0, 112.0, 18.0, 62.0, dim);
+        blk(&p, -28.0, 38.0, 22.0, 70.0, UW_ACCENT);
+        blk(&p, 28.0, 38.0, 22.0, 70.0, UW_ACCENT);
+        // armor column under the portrait
+        let mut ay = top + 158.0;
+        for label in ["head", "chest", "legs", "feet", "off hand"] {
+            well(&p, egui::pos2(left, ay), slot);
+            uw_label(&p, egui::pos2(left + slot + 10.0, ay + slot / 2.0),
+                egui::Align2::LEFT_CENTER, label, 11.0, UW_MUTED);
+            ay += slot + 8.0;
+        }
+        // storage 3x9 + hotbar
+        let gx = panel.left() + 230.0;
+        let mut gy = top;
+        for _row in 0..3 {
+            for col in 0..9 {
+                well(&p, egui::pos2(gx + col as f32 * (slot + 4.0), gy), slot);
+            }
+            gy += slot + 4.0;
+        }
+        gy += 14.0;
+        uw_label(&p, egui::pos2(gx, gy), egui::Align2::LEFT_CENTER, "HOTBAR", 11.0, UW_MUTED);
+        gy += 16.0;
+        for col in 0..9 {
+            let r = egui::Rect::from_min_size(egui::pos2(gx + col as f32 * (slot + 4.0), gy), egui::vec2(slot, slot));
+            well(&p, r.min, slot);
+            if col == 2 {
+                p.rect_stroke(r, 5.0, egui::Stroke::new(2.0, UW_ACCENT), egui::StrokeKind::Middle);
+            }
+        }
+        // footer: craft-by-hand pill + hint
+        let pill = egui::Rect::from_min_size(
+            panel.left_bottom() + egui::vec2(24.0, -42.0), egui::vec2(120.0, 26.0));
+        p.rect_filled(pill, 6.0, egui::Color32::from_rgba_unmultiplied(0x2a, 0x20, 0x18, 235));
+        p.rect_stroke(pill, 6.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
+        uw_label(&p, pill.center(), egui::Align2::CENTER_CENTER, "craft by hand", 12.0, UW_TEXT);
+        uw_label(&p, panel.right_bottom() + egui::vec2(-24.0, -30.0),
+            egui::Align2::RIGHT_CENTER, "E / Esc close · crafting table for every recipe", 11.0, UW_MUTED);
+    });
+}
+
 fn draw_crafting_workbench_preview(ctx: &egui::Context) {
     egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
         let screen = ctx.screen_rect();
@@ -4961,11 +5062,12 @@ fn draw_minimap_preview(ctx: &egui::Context) {
             paint.add(egui::Shape::convex_polygon(vec![tip, left, right], egui::Color32::WHITE,
                 egui::Stroke::new(1.0, egui::Color32::from_rgb(16, 18, 24))));
         });
-    // info line with facing + biome
+    // info line: minimal by default (clock + facing) — the dense readout
+    // moved behind F3 (loop 341 declutter; keep in sync with ui.rs)
     egui::Area::new(egui::Id::new("info_line"))
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(10.0, 8.0))
         .show(ctx, |ui| {
-            ui.label(egui::RichText::new("NW · Meadow · 8,12 · 08:24 · clear").small()
+            ui.label(egui::RichText::new("08:24 · NW").small()
                 .color(egui::Color32::from_rgba_unmultiplied(235, 238, 242, 200)));
         });
 }

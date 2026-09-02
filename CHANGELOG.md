@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-09-01 — HUD declutter, inventory-first E screen, kit restyles (loop 341)
+
+- **Minimal HUD by default** (researched Minecraft convention: the
+  survival screen shows nothing until F3): the top-left info line is now
+  clock + facing; biome, coordinates, weather, net, FPS, and RT moved
+  behind the F3 debug toggle.
+- **E opens an inventory screen**, not a crafting list: armor column
+  (head/chest/legs/feet + off hand) beside a painted kit-block player
+  portrait, the 3×9 storage grid, the hotbar with its selection frame,
+  shift-click quick-move and right-click split — plus a "craft by hand"
+  route into the basic workbench (full recipes stay at crafting tables).
+- **Furnace and chest wear the design kit**: the last two alpha-chrome
+  container screens converted to the vignette + framed-panel shell with
+  proper titles, matching the workbench/settings/journal family.
+- **Proof**: `inventory_screen` vistest scene (mirrored preview; pixel
+  claims on the slot-well grid, the kit-accent portrait/selection, and
+  the title band) and the mirrored HUD info line synced with the
+  declutter.
+
+# CHANGELOG
+
 ## 2026-09-01 — GMod-style physics item drops (loop 340)
 
 - **Mined blocks become props**: breaking a block (or harvesting a crop,

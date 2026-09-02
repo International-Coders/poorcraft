@@ -1105,3 +1105,15 @@ Deferred (honest notes):
 - [ ] Prop-vs-prop collision (stacks can overlap footprints).
 - [ ] Network sync for drops (protocol v5; also covers mobs/villagers).
 - [ ] Carried-prop highlight in the outline pass.
+
+## Loop 341 — HUD declutter + inventory screen SHIPPED
+
+- [x] Info line minimal by default; dense readout behind F3.
+- [x] Inventory-first E screen (armor column, portrait, storage, hotbar,
+      craft-by-hand route via UiOpen::HandCraft).
+- [x] Furnace + chest converted to the kit panel shell.
+- [x] inventory_screen vistest scene + claims; mirrored info line synced.
+- [ ] Machine windows (13), trade, companion menu, tech tree still on
+      egui::Window chrome — same shell conversion pending.
+- [ ] Build-mode HUD (shape picker, symmetry indicator).
+- [ ] Shaped 3x3 crafting grid (recipe list covers discoverability today).

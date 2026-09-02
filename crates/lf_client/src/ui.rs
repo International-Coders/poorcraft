@@ -436,7 +436,8 @@ impl GameState {
             // ui-world-craft F: the workbench replaces the grid everywhere.
             // By hand (E) only the always-known basics; a crafting table
             // shows everything earned.
-            UiOpen::Inventory => self.draw_workbench(ctx, true),
+            UiOpen::Inventory => self.draw_inventory(ctx),
+            UiOpen::HandCraft => self.draw_workbench(ctx, true),
             UiOpen::CraftingTable => self.draw_workbench(ctx, false),
             UiOpen::Furnace(pos) => self.draw_furnace(ctx, pos),
             UiOpen::Chest(pos) => self.draw_chest(ctx, pos),
@@ -629,21 +630,29 @@ impl GameState {
         if self.stats.health > 0.0 && matches!(self.ui_open, UiOpen::None | UiOpen::Chat) {
             self.draw_minimap(ctx);
         }
-        // info line (top-left): facing, biome, coords, clock, weather, net, FPS
+        // info line (top-left). Minimal by default — research on Minecraft's
+        // HUD: the survival screen shows nothing until F3, so clutter here
+        // competes with the world. Default = clock + facing only; the dense
+        // readout (biome, coords, weather, net, fps, RT) joins F3.
         let facing = crate::map::compass_facing(self.player.yaw);
-        let biome = self.map.biome_at(self.player.position.x as i32, self.player.position.z as i32).name();
-        let mut info = format!("{} · {} · {:.0},{:.0} · {}", facing, biome,
-            self.player.position.x, self.player.position.z, self.time_label());
-        info.push_str(if self.weather_raining { " · rain" } else { " · clear" });
-        if let Some(n) = &self.net {
-            info.push_str(&format!(" · net:{}", if n.connected { "on" } else { "…" }));
-        }
-        if self.settings.show_fps {
-            info.push_str(&format!(" · {:.0} fps", self.last_fps));
-        }
-        if self.settings.rt_mode == RtMode::Live {
-            info.push_str(" · RT");
-        }
+        let info = if self.show_debug {
+            let biome = self.map.biome_at(self.player.position.x as i32, self.player.position.z as i32).name();
+            let mut info = format!("{} · {} · {:.0},{:.0} · {}", facing, biome,
+                self.player.position.x, self.player.position.z, self.time_label());
+            info.push_str(if self.weather_raining { " · rain" } else { " · clear" });
+            if let Some(n) = &self.net {
+                info.push_str(&format!(" · net:{}", if n.connected { "on" } else { "…" }));
+            }
+            if self.settings.show_fps {
+                info.push_str(&format!(" · {:.0} fps", self.last_fps));
+            }
+            if self.settings.rt_mode == RtMode::Live {
+                info.push_str(" · RT");
+            }
+            info
+        } else {
+            format!("{} · {}", self.time_label(), facing)
+        };
         let slots = kit::hud_layout(ctx.screen_rect().width(), ctx.screen_rect().height());
         let max_w = slots[0].rect.width();
         egui::Area::new(egui::Id::new("info_line"))
@@ -811,6 +820,156 @@ impl GameState {
         }
     }
 
+
+    /// The inventory screen (E): armor column + player portrait on the
+    /// left, storage grid and hotbar on the right — the Minecraft
+    /// convention (stuff you manage sits here; crafting lives one click
+    /// away). Research notes: keep it one glance, no recipe clutter.
+    fn draw_inventory(&mut self, ctx: &egui::Context) {
+        let panel = egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(120)));
+        panel.show(ctx, |ui| {
+            kit::vignette(ui, 120);
+            ui.vertical_centered(|ui| {
+                ui.add_space(ui.available_height() * 0.06);
+                egui::Frame::new()
+                    .fill(egui::Color32::from_rgba_premultiplied(Theme::PANEL.r(), Theme::PANEL.g(), Theme::PANEL.b(), 242))
+                    .corner_radius(10.0)
+                    .inner_margin(18.0)
+                    .stroke(egui::Stroke::new(1.0, Theme::BORDER))
+                    .show(ui, |ui| {
+                        ui.set_width(620.0);
+                        ui.vertical_centered(|ui| {
+                            ui.label(egui::RichText::new("INVENTORY")
+                                .size(20.0).strong().color(Theme::TEXT));
+                        });
+                        ui.add_space(2.0);
+                        ui.separator();
+                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            // --- left: portrait + armor column -------------------
+                            ui.vertical(|ui| {
+                                let (pr, _) = ui.allocate_exact_size(
+                                    egui::vec2(SLOT_SIZE * 4.0, 150.0), egui::Sense::hover());
+                                Self::paint_player_portrait(ui, pr);
+                                ui.add_space(6.0);
+                                for (i, label) in [36usize, 37, 38, 39].iter().zip(["head", "chest", "legs", "feet"]) {
+                                    ui.horizontal(|ui| {
+                                        let mut stack = self.inventory.slots[*i].clone();
+                                        let mut cursor = self.cursor_stack.take();
+                                        let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
+                                        self.cursor_stack = cursor;
+                                        if let Some(mut q) = out.quick_moved {
+                                            quick_insert(&mut self.inventory.slots[..36], &mut q);
+                                        }
+                                        self.inventory.slots[*i] = stack;
+                                        ui.label(egui::RichText::new(label.to_string())
+                                            .small().color(Theme::TEXT_DIM));
+                                    });
+                                    ui.add_space(3.0);
+                                }
+                                // offhand
+                                ui.horizontal(|ui| {
+                                    let mut stack = self.inventory.slots[40].clone();
+                                    let mut cursor = self.cursor_stack.take();
+                                    let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
+                                    self.cursor_stack = cursor;
+                                    if let Some(mut q) = out.quick_moved {
+                                        quick_insert(&mut self.inventory.slots[..36], &mut q);
+                                    }
+                                    self.inventory.slots[40] = stack;
+                                    ui.label(egui::RichText::new("off hand")
+                                        .small().color(Theme::TEXT_DIM));
+                                });
+                                ui.add_space(6.0);
+                                let armor = lf_game::combat::worn_armor_points(&self.inventory.slots);
+                                ui.label(egui::RichText::new(format!("armor  {armor}"))
+                                    .strong()
+                                    .color(if armor > 0 { Theme::OK } else { Theme::TEXT_DISABLED }));
+                            });
+                            ui.add_space(16.0);
+                            // --- right: storage 3x9 + hotbar band -----------------
+                            ui.vertical(|ui| {
+                                ui.label(egui::RichText::new("STORAGE").small().color(Theme::TEXT_DIM));
+                                ui.add_space(3.0);
+                                for row in 0..3 {
+                                    ui.horizontal(|ui| {
+                                        for col in 0..9 {
+                                            let idx = 9 + row * 9 + col;
+                                            let mut stack = self.inventory.slots[idx].clone();
+                                            let mut cursor = self.cursor_stack.take();
+                                            let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
+                                            self.cursor_stack = cursor;
+                                            if let Some(mut q) = out.quick_moved {
+                                                quick_insert(&mut self.inventory.slots[..9], &mut q);
+                                            }
+                                            self.inventory.slots[idx] = stack;
+                                        }
+                                    });
+                                }
+                                ui.add_space(10.0);
+                                ui.label(egui::RichText::new("HOTBAR").small().color(Theme::TEXT_DIM));
+                                ui.add_space(3.0);
+                                ui.horizontal(|ui| {
+                                    for i in 0..9usize {
+                                        let mut stack = self.inventory.slots[i].clone();
+                                        let mut cursor = self.cursor_stack.take();
+                                        let out = slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index, &self.icons);
+                                        self.cursor_stack = cursor;
+                                        if let Some(mut q) = out.quick_moved {
+                                            quick_insert(&mut self.inventory.slots[9..36], &mut q);
+                                        }
+                                        self.inventory.slots[i] = stack;
+                                    }
+                                });
+                                ui.add_space(6.0);
+                                ui.label(egui::RichText::new("1-9 select · shift-click moves stacks · right-click splits")
+                                    .small().color(Theme::TEXT_DISABLED));
+                            });
+                        });
+                        ui.add_space(10.0);
+                        ui.separator();
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            if ui.small_button("craft by hand").clicked() {
+                                self.ui_open = UiOpen::HandCraft;
+                                self.play_sfx(lf_audio::Sfx::UiClick, 0.6);
+                            }
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.label(egui::RichText::new("E / Esc close · use a crafting table for every recipe")
+                                    .small().color(Theme::TEXT_DISABLED));
+                            });
+                        });
+                    });
+            });
+        });
+    }
+
+    /// Painted player portrait for the inventory screen: the six-part
+    /// humanoid proportions in kit colors — reads as "this is you" without
+    /// a skin pipeline.
+    fn paint_player_portrait(ui: &mut egui::Ui, rect: egui::Rect) {
+        let bg = rect.shrink(2.0);
+        ui.painter().rect_filled(bg, 8.0, egui::Color32::from_black_alpha(140));
+        ui.painter().rect_stroke(bg, 8.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+        let (cx, base) = (rect.center().x, rect.bottom() - 18.0);
+        let s = rect.height() / 190.0; // scale from the humanoid's ~1.8 units
+        let body = |ui: &mut egui::Ui, cx_off: f32, y: f32, w: f32, h: f32, color: egui::Color32| {
+            let r = egui::Rect::from_center_size(
+                egui::pos2(cx + cx_off * s, base - y * s),
+                egui::vec2(w * s, h * s));
+            ui.painter().rect_filled(r, 3.0, color);
+        };
+        let parchment = egui::Color32::from_rgb(214, 198, 170);
+        let dim = egui::Color32::from_rgb(120, 108, 92);
+        let ember = Theme::ACCENT;
+        body(ui, 0.0, 157.0, 46.0, 46.0, parchment);           // head
+        body(ui, 0.0, 108.0, 54.0, 72.0, dim);                 // torso
+        body(ui, -74.0, 112.0, 18.0, 62.0, dim);               // arms
+        body(ui, 74.0, 112.0, 18.0, 62.0, dim);
+        body(ui, -28.0, 38.0, 22.0, 70.0, ember);              // legs (accent = boots up)
+        body(ui, 28.0, 38.0, 22.0, 70.0, ember);
+    }
 
     /// The crafting workbench (ui-world-craft Section F): three zones over
     /// a vignette — category sidebar, recipe list, detail panel — with the
@@ -1267,11 +1426,22 @@ impl GameState {
             self.close_ui();
             return;
         };
-        egui::Window::new("Furnace")
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
-            .collapsible(false)
-            .resizable(false)
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(120)))
             .show(ctx, |ui| {
+                kit::vignette(ui, 120);
+                ui.vertical_centered(|ui| {
+                    ui.add_space(ui.available_height() * 0.08);
+                egui::Frame::new()
+                    .fill(egui::Color32::from_rgba_premultiplied(Theme::PANEL.r(), Theme::PANEL.g(), Theme::PANEL.b(), 242))
+                    .corner_radius(10.0)
+                    .inner_margin(16.0)
+                    .stroke(egui::Stroke::new(1.0, Theme::BORDER))
+                    .show(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(egui::RichText::new("FURNACE").size(17.0).strong().color(Theme::TEXT));
+                });
+                ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
                         ui.label(egui::RichText::new("Input").small().color(Theme::TEXT_DIM));
@@ -1340,6 +1510,8 @@ impl GameState {
                 });
                 ui.add_space(6.0);
                 self.draw_storage_rows(ui);
+                    });
+                });
             });
         self.block_entities.insert(pos, BlockEntity::Furnace(furnace));
     }
@@ -1349,11 +1521,22 @@ impl GameState {
             Some(BlockEntity::Chest { slots }) => slots,
             _ => vec![None; 27],
         };
-        egui::Window::new("Chest")
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, -30.0))
-            .collapsible(false)
-            .resizable(false)
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(120)))
             .show(ctx, |ui| {
+                kit::vignette(ui, 120);
+                ui.vertical_centered(|ui| {
+                    ui.add_space(ui.available_height() * 0.08);
+                egui::Frame::new()
+                    .fill(egui::Color32::from_rgba_premultiplied(Theme::PANEL.r(), Theme::PANEL.g(), Theme::PANEL.b(), 242))
+                    .corner_radius(10.0)
+                    .inner_margin(16.0)
+                    .stroke(egui::Stroke::new(1.0, Theme::BORDER))
+                    .show(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(egui::RichText::new("CHEST").size(17.0).strong().color(Theme::TEXT));
+                });
+                ui.add_space(8.0);
                 for row in 0..3 {
                     ui.horizontal(|ui| {
                         for col in 0..9 {
@@ -1399,6 +1582,8 @@ impl GameState {
                         }
                         self.inventory.slots[i] = stack;
                     }
+                });
+                    });
                 });
             });
         self.block_entities.insert(pos, BlockEntity::Chest { slots: chest_slots });

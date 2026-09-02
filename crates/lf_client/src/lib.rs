@@ -229,6 +229,8 @@ pub enum UiOpen {
     Carve,
     Console,
     Slots,
+    /// Hand-crafting (the "craft by hand" route from the inventory).
+    HandCraft,
     /// C1: the world-creation screen (name, seed, type, mode, difficulty).
     NewWorld,
     /// C3: direct connect / host world / lobby stub.
