@@ -1496,3 +1496,39 @@ docs/STEAM.md/BACKLOG.
 **VERIFICATION**: steam_pair_test exit 0 (live); cargo build --workspace
 clean; cargo test --workspace 349 passed / 0 failed (feature off by
 default; the sys shim is feature-gated).
+
+## 2026-09-01 — ideas-600: full 83-scene screenshot audit + 600-idea brainstorm doc
+
+**WHAT**: Produced `docs/IDEAS-600.md` — exactly **300 missing-feature ideas
+(M001–M300)** and **300 upgrade ideas (U001–U300)**, every entry tagged with
+effort/impact and grounded in a screenshot or code finding, plus a top-25
+quick-win list and an audit appendix. NPC/villager upgrades are the largest
+upgrade category (50 entries) per the request.
+
+**HOW**: (1) Test run — `cargo run --release -p xtask -- vistest shots`
+re-rendered all 83 proof scenes (83/83 `[ok]`, exit 0; byte-identical to the
+prior run — renderer confirmed deterministic), plus 6 extra-seed gameplay
+shots (`shots/extra_*.png`, seeds 777/1337/31415/4242/9001/55555) via
+`xtask -- screenshot`. (2) Visual analysis — all 83 PNGs read and analyzed
+across three review passes + manual reads of the 8 most load-bearing shots;
+findings captured per scene. (3) Code inventory — implemented systems and
+known gaps audited from STATE/BACKLOG/ROADMAP-100 and the crates. (4) Dedup
+rules enforced: ideas tagged `extends R##` go beyond ROADMAP-100 rather than
+re-listing it; `gap` marks BACKLOG deferrals/code-level known-missing items.
+
+**KEY AUDIT FINDINGS** (drive most of the idea grounding): translucent UI
+panels illegible over bright terrain (tech tree/settings/trade/companion/
+crafting/multiplayer/paths/console); white X-quad ground cover reading as
+noise at density in ~40 shots; water opaque banded blue everywhere; night/
+dawn indistinguishable (no visible sun/moon/stars, no golden-hour ramp);
+machines static with no connectors; dragons render as cube blobs; zero
+entity nameplates/health bars; no first-person hand. Vistest scene bugs
+logged for reshoot: water_wheel subject out of frame, oil_chain cropped,
+seed_comparison shows one seed, paths_screen card clipped, raytraced_shadows
+points at sky/canopy, entity_skins subjects too small, companion_follow/
+faction_hud HUD replica drawn twice.
+
+**VERIFICATION**: script check — 300 M + 300 U, sequential 1–300, zero
+duplicates, zero entries missing tags, 15+12 categories all fully sized.
+`cargo test --workspace` exit 0 (all suites green; no code changed, count
+stands at 349). Artifacts: `docs/IDEAS-600.md`, `shots/extra_*.png` (6).
