@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 194] = [
+pub const TEXTURE_NAMES: [&str; 202] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -96,6 +96,11 @@ pub const TEXTURE_NAMES: [&str; 194] = [
     "palm_log_top", "acacia_log_top", "mangrove_log_top", "redwood_log_top",
     "maple_log_top", "baobab_log_top", "ember_log_top",
     // generic log-top reuses the shared log_top; aspen reuses birch's
+    // loop 338 authored-depth pass: ordinary villagers and remote players
+    // must never fall back to block textures. These skins intentionally sit
+    // at the named-atlas tail so every earlier stable layer remains fixed.
+    "villager_farmer", "villager_smith", "villager_trader", "villager_guard",
+    "villager_bard", "villager_lorekeeper", "villager_wizard", "player_wayfarer",
 ];
 
 /// king-quest B: block ids 121..=138 map to their named layers, in this
@@ -226,6 +231,26 @@ pub const COMPANION_LAYERS: [(&str, u32); 6] = [
 pub fn trusted_companion_layer(layer: u32) -> u32 {
     if (132..=137).contains(&layer) { layer + 6 } else { layer }
 }
+
+/// Outfit layer for an ordinary (non-roster) villager job. The client passes
+/// the stable lowercase job key so this asset crate does not depend upward on
+/// gameplay/NPC types.
+pub fn villager_job_layer(job: &str) -> u32 {
+    layer_of(match job {
+        "farmer" => "villager_farmer",
+        "smith" => "villager_smith",
+        "trader" => "villager_trader",
+        "guard" => "villager_guard",
+        "bard" => "villager_bard",
+        "lorekeeper" => "villager_lorekeeper",
+        "wizard" => "villager_wizard",
+        _ => "villager_trader",
+    })
+}
+
+/// Neutral but recognizable skin used for network players until selectable
+/// player cosmetics are added to the protocol.
+pub fn player_wayfarer_layer() -> u32 { layer_of("player_wayfarer") }
 pub const MOB_BOAR_LAYER: u32 = 144;
 /// king-quest C animal skins (name-derived; see layer_of).
 pub fn mob_chicken_layer() -> u32 { layer_of("mob_chicken") }
@@ -1470,6 +1495,10 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                 name if name.starts_with("villager_") => villager_pixel(x, y, name),
                 name if name.starts_with("companion_") => companion_pixel(x, y, name),
                 name if name.starts_with("mob_") => mob_pixel(x, y, name),
+                "player_wayfarer" => outfit_pixel(
+                    x, y, [48, 78, 112], Some([196, 132, 62]),
+                    [78, 52, 34], Some(("scale", [220, 178, 92])),
+                ),
                 "ember" => {
                     // solid amber particle core with a bright center
                     let d = ((x as i32 - 8).abs() + (y as i32 - 8).abs()) as u32;
@@ -1695,10 +1724,10 @@ fn pixel_hash(x: u32, y: u32, name: &str) -> u32 {
 // A block whose face is surrounded by the same block samples one of 47
 // CTM tiles instead of the plain 1x1 layer, so a 3x3 field of grass reads
 // as one surface with edge definition instead of nine repeated tiles.
-// The tiles live as extra atlas layers appended after the base 165 —
-// the mesher picks `first_layer + ctm_tile_index(bitmask)` for faces of
-// CTM-enabled blocks (see lf_voxel/src/meshing.rs, which mirrors the
-// layer table because the dependency goes one way only).
+// The tiles live in a separate strip texture. The mesher writes a reserved
+// 4096+ marker plus strip UVs for CTM-enabled faces (see lf_voxel/src/
+// meshing.rs, which mirrors the layer table because the dependency goes one
+// way only).
 // ---------------------------------------------------------------------------
 
 /// Tiles per CTM strip (the classic 47-tile CTM set).
@@ -1708,7 +1737,10 @@ pub const CTM_STRIP_WIDTH: u32 = 192; // 12 * 16
 pub const CTM_STRIP_HEIGHT: u32 = 512; // 8 blocks * 4 rows * 16
 /// Vertex tex_index values >= this marker base mean "sample the CTM strip
 /// texture with the per-tile UVs the mesher baked into tex_coord".
-pub const CTM_MARKER_BASE: u32 = 165;
+// Keep markers far outside the atlas index range. The old value (165)
+// collided with real biome/tree/skin layers 165.., so those assets were
+// silently sampled from the CTM strip by the shader.
+pub const CTM_MARKER_BASE: u32 = 4096;
 
 /// One CTM-enabled block: which base art the strip derives from and the
 /// marker index its connected faces carry.
@@ -1723,14 +1755,14 @@ pub struct CtmBlock {
 
 /// E5: the initial CTM set, in strip order (strip row block = index).
 pub const CTM_BLOCKS: [CtmBlock; 8] = [
-    CtmBlock { face_layer: 41,  marker: 165, art: "grass_top" },
-    CtmBlock { face_layer: 3,   marker: 166, art: "sand" },
-    CtmBlock { face_layer: 10,  marker: 167, art: "water" },
-    CtmBlock { face_layer: 5,   marker: 168, art: "snow" },
-    CtmBlock { face_layer: 105, marker: 169, art: "bog_peat" },
-    CtmBlock { face_layer: 100, marker: 170, art: "permafrost" },
-    CtmBlock { face_layer: 86,  marker: 171, art: "accord_stone" },
-    CtmBlock { face_layer: 94,  marker: 172, art: "ashen_marble" },
+    CtmBlock { face_layer: 41,  marker: CTM_MARKER_BASE,     art: "grass_top" },
+    CtmBlock { face_layer: 3,   marker: CTM_MARKER_BASE + 1, art: "sand" },
+    CtmBlock { face_layer: 10,  marker: CTM_MARKER_BASE + 2, art: "water" },
+    CtmBlock { face_layer: 5,   marker: CTM_MARKER_BASE + 3, art: "snow" },
+    CtmBlock { face_layer: 105, marker: CTM_MARKER_BASE + 4, art: "bog_peat" },
+    CtmBlock { face_layer: 100, marker: CTM_MARKER_BASE + 5, art: "permafrost" },
+    CtmBlock { face_layer: 86,  marker: CTM_MARKER_BASE + 6, art: "accord_stone" },
+    CtmBlock { face_layer: 94,  marker: CTM_MARKER_BASE + 7, art: "ashen_marble" },
 ];
 
 fn palm_log_top_layer() -> u32 { layer_of("palm_log_top") }
@@ -2122,6 +2154,15 @@ fn villager_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
         "villager_freeholds" => outfit_pixel(x, y, [107, 142, 35], Some([210, 190, 140]), hair, Some(("wheat", [240, 232, 200]))),
         "villager_ashen" => outfit_pixel(x, y, [176, 176, 176], Some([236, 233, 226]), hair, Some(("book", [62, 66, 74]))),
         "villager_nameless" => outfit_pixel(x, y, [45, 45, 45], None, hair, Some(("chain", [140, 140, 140]))),
+        // Ordinary villagers: profession-first silhouettes and palettes.
+        // These replace the old grass/ore/sand/block-texture fallbacks.
+        "villager_farmer" => outfit_pixel(x, y, [92, 126, 54], Some([214, 188, 112]), [112, 78, 40], Some(("wheat", [238, 218, 132]))),
+        "villager_smith" => outfit_pixel(x, y, [92, 72, 62], Some([176, 182, 190]), [36, 30, 26], Some(("hammer", [224, 226, 232]))),
+        "villager_trader" => outfit_pixel(x, y, [150, 92, 42], Some([232, 192, 92]), [74, 46, 28], Some(("scale", [246, 224, 154]))),
+        "villager_guard" => outfit_pixel(x, y, [62, 76, 92], Some([182, 190, 202]), [52, 42, 34], Some(("hammer", [218, 224, 232]))),
+        "villager_bard" => outfit_pixel(x, y, [116, 58, 104], Some([224, 154, 82]), [88, 50, 30], Some(("flame", [244, 190, 96]))),
+        "villager_lorekeeper" => outfit_pixel(x, y, [82, 72, 106], Some([198, 188, 218]), [104, 94, 82], Some(("book", [232, 220, 194]))),
+        "villager_wizard" => outfit_pixel(x, y, [48, 42, 102], Some([112, 188, 228]), [182, 182, 194], Some(("flame", [112, 222, 246]))),
         // The Unmarked: Nameless clothes, ash-grey hair, no symbol anywhere
         "villager_unmarked" => {
             let mut px = outfit_pixel(x, y, [45, 45, 45], None, [172, 172, 172], None);
@@ -2290,7 +2331,57 @@ pub fn generate_atlas() -> Vec<RgbaImage> {
     for (_, def) in lf_voxel::registry::registered_mod_blocks() {
         atlas.push(mod_block_art(&def.name));
     }
+    // World drops reuse the exact authored inventory sprites. Appending them
+    // after mod layers preserves every existing block-layer contract.
+    for id in ITEM_TEXTURE_IDS {
+        atlas.push(generate_item_texture(id).expect("listed item sprite must generate"));
+    }
     atlas
+}
+
+/// Atlas layer for a non-block item sprite. Block items intentionally return
+/// `None` and continue to use their block texture on a small cube.
+pub fn item_texture_layer(item_id: &str) -> Option<u32> {
+    let slot = ITEM_TEXTURE_IDS.iter().position(|id| *id == item_id)? as u32;
+    Some(MOD_BLOCK_LAYER_BASE
+        + lf_voxel::registry::registered_mod_blocks().len() as u32
+        + slot)
+}
+
+/// Convert a diffuse/color-key image into a tangent-space normal map. The
+/// RGB output is the familiar colorful game-art map: red/green encode the
+/// local slope and blue points out of the surface. Alpha is copied so cutout
+/// sprites remain cut out. This is cheap to sample and fakes micro-relief;
+/// it is not a ray-traced or geometry shadow.
+pub fn generate_normal_map(diffuse: &RgbaImage) -> RgbaImage {
+    let (w, h) = diffuse.dimensions();
+    let mut out = RgbaImage::new(w, h);
+    let height = |x: i32, y: i32| -> f32 {
+        let sx = x.clamp(0, w.saturating_sub(1) as i32) as u32;
+        let sy = y.clamp(0, h.saturating_sub(1) as i32) as u32;
+        let p = diffuse.get_pixel(sx, sy).0;
+        if p[3] < 128 { return 0.0; }
+        (p[0] as f32 * 0.2126 + p[1] as f32 * 0.7152 + p[2] as f32 * 0.0722) / 255.0
+    };
+    for y in 0..h {
+        for x in 0..w {
+            let xi = x as i32;
+            let yi = y as i32;
+            // Sobel slope. Pixel art needs restrained strength or every
+            // palette boundary turns into a bevel.
+            let dx = (height(xi + 1, yi - 1) + 2.0 * height(xi + 1, yi) + height(xi + 1, yi + 1))
+                - (height(xi - 1, yi - 1) + 2.0 * height(xi - 1, yi) + height(xi - 1, yi + 1));
+            let dy = (height(xi - 1, yi + 1) + 2.0 * height(xi, yi + 1) + height(xi + 1, yi + 1))
+                - (height(xi - 1, yi - 1) + 2.0 * height(xi, yi - 1) + height(xi + 1, yi - 1));
+            let len = ((dx * 1.35).powi(2) + (dy * 1.35).powi(2) + 1.0).sqrt();
+            let nx = -dx * 1.35 / len;
+            let ny = -dy * 1.35 / len;
+            let nz = 1.0 / len;
+            let enc = |v: f32| ((v * 0.5 + 0.5) * 255.0).round().clamp(0.0, 255.0) as u8;
+            out.put_pixel(x, y, Rgba([enc(nx), enc(ny), enc(nz), diffuse.get_pixel(x, y)[3]]));
+        }
+    }
+    out
 }
 
 /// king-quest asset pass: a unique 16x16 texture for one mod block,
@@ -3557,7 +3648,9 @@ mod tests {
     #[test]
     fn test_atlas_covers_all_blocks() {
         let atlas = generate_atlas();
-        assert_eq!(atlas.len(), TEXTURE_NAMES.len());
+        assert_eq!(atlas.len(), TEXTURE_NAMES.len()
+            + lf_voxel::registry::registered_mod_blocks().len()
+            + ITEM_TEXTURE_IDS.len());
         // every known block id maps to a valid layer (all vanilla ids + mods)
         for id in 1u32..=lf_voxel::registry::MAX_VANILLA_BLOCK {
             assert!(texture_index_for_block(id) < atlas.len() as u32, "block {} unmapped", id);
@@ -3585,6 +3678,41 @@ mod tests {
         assert_eq!(name(111), "log");
         assert_eq!(name(114), "birch_log");
         assert_eq!(name(120), "cherry_log");
+    }
+
+    #[test]
+    fn authored_depth_layers_cover_jobs_players_and_items() {
+        let mut jobs = std::collections::HashSet::new();
+        for job in ["farmer", "smith", "trader", "guard", "bard", "lorekeeper", "wizard"] {
+            let layer = villager_job_layer(job);
+            assert_eq!(TEXTURE_NAMES[layer as usize], format!("villager_{job}"));
+            jobs.insert(generate_block_texture(TEXTURE_NAMES[layer as usize]).into_raw());
+        }
+        assert_eq!(jobs.len(), 7, "every profession needs visibly distinct art");
+        assert_eq!(TEXTURE_NAMES[player_wayfarer_layer() as usize], "player_wayfarer");
+
+        let stick = item_texture_layer("stick").expect("known sprite layer");
+        let atlas = generate_atlas();
+        assert_eq!(atlas[stick as usize], generate_item_texture("stick").unwrap());
+        assert!(item_texture_layer("stone").is_none(), "block item remains a block cube");
+    }
+
+    #[test]
+    fn normal_maps_encode_colorful_relief_and_preserve_cutouts() {
+        let carved = generate_block_texture("carved_stone");
+        let normal = generate_normal_map(&carved);
+        assert_eq!(normal.dimensions(), (16, 16));
+        let directions: std::collections::HashSet<[u8; 3]> = normal.pixels()
+            .map(|p| [p[0], p[1], p[2]])
+            .collect();
+        assert!(directions.len() > 8, "carved relief must produce varied normal directions");
+        assert!(normal.pixels().all(|p| p[2] >= 128), "all normals face out of the surface");
+
+        let flower = generate_block_texture("flower");
+        let flower_n = generate_normal_map(&flower);
+        for (src, n) in flower.pixels().zip(flower_n.pixels()) {
+            assert_eq!(src[3], n[3], "normal map keeps chroma/alpha cutout mask");
+        }
     }
 
     /// Loop 330: a horizontal log's cut ends are the faces along its axis

@@ -1000,9 +1000,8 @@ Deferred (honest notes):
 - [ ] Multi-chunk city sprawl: the Accord Bastion is a single-chunk
   walled town (the structure system is per-chunk); a sprawling capital
   needs a cross-chunk placement system.
-- [ ] Unique block art per mod pack (mod blocks share the generic
-  mod-block atlas layer today) — the largest remaining gap vs the
-  300-asset ask; ~200 new discrete assets shipped this loop.
+- [x] Unique block art per mod pack — closed in loop 335 with one
+  deterministic, palette-ruled atlas layer per namespaced mod block.
 - [ ] More tree shape variants per biome (9 new species shipped; one
   shape each) and vassal loyalty/wage mechanics (flat deterministic
   yields today).
@@ -1023,6 +1022,24 @@ Deferred (honest notes):
   300 target is cleared.
 - [ ] Steam P2P/overlay/achievements remain BLOCKED on having a Steam
   client, an SDK runtime and a real AppID (documented in loop 334).
+
+## Loop 338 — authored-depth assets (normal maps, people, world items)
+
+- [x] Generated tangent-space RGB normal maps for every base, mod, CTM,
+  entity and item atlas layer; raster lighting reads the linear map for
+  cheap material relief while Live RT remains optional.
+- [x] Seven villager-job outfits + neutral network-player skin; villagers,
+  companions and remote players render with shared six-part articulated
+  humanoids (yaw, gait, crouch), not block-textured cubes.
+- [x] Non-block drops render their real inventory sprites on crossed,
+  double-sided alpha-cutout cards; block drops remain recognizable cubes.
+- [x] Fixed CTM marker collision (165+ overlapped real atlas layers; markers
+  now live at 4096+) and entity `push_cube` position being ignored.
+- [x] `entity_skins` close proof: eight articulated characters + eight item
+  silhouettes; 83/83 vistest, smoke, and p50 50.2ms / p95 50.6ms perf green.
+- [ ] Continuation is staged in `docs/ASSET-RENDERING-PLAN.md`: per-part
+  character UVs/attachments, held hero-item meshes + distance LOD, authored
+  material channels, cheap projected/contact shadows, and quality budgets.
 
 ## Loop 335b — Steam exercised live
 

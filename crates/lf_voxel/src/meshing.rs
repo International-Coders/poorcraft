@@ -64,19 +64,20 @@ fn lf_assets_conn(layer: u32) -> Option<u32> {
 /// `lf_assets::ctm_tile_index(bitmask)` to land on the right of the 47
 /// tiles. Mirrors lf_assets::ctm_first_layer (one-way dependency).
 /// Section E: a rendered top-face layer whose block has a CTM strip
-/// returns the block's CTM MARKER (>= 165). The shader reroutes markers
+/// returns the block's CTM MARKER (>= 4096). The shader reroutes markers
 /// to the CTM strip texture using the per-tile UVs the mesher bakes into
 /// tex_coord. Mirrors lf_assets::ctm_first_layer (one-way dependency).
 fn lf_assets_ctm(face_layer: u32) -> Option<u32> {
+    const CTM: u32 = 4096; // mirrors lf_assets::CTM_MARKER_BASE
     match face_layer {
-        41 => Some(165),  // grass_top
-        3 => Some(166),   // sand
-        10 => Some(167),  // water
-        5 => Some(168),   // snow
-        105 => Some(169), // bog_peat
-        100 => Some(170), // permafrost
-        86 => Some(171),  // accord_stone
-        94 => Some(172),  // ashen_marble
+        41 => Some(CTM),     // grass_top
+        3 => Some(CTM + 1),  // sand
+        10 => Some(CTM + 2), // water
+        5 => Some(CTM + 3),  // snow
+        105 => Some(CTM + 4), // bog_peat
+        100 => Some(CTM + 5), // permafrost
+        86 => Some(CTM + 6),  // accord_stone
+        94 => Some(CTM + 7),  // ashen_marble
         _ => None,
     }
 }
@@ -86,7 +87,7 @@ fn lf_assets_ctm(face_layer: u32) -> Option<u32> {
 /// atlas). Texture V runs top-down over the PNG rows (v=0 = first row),
 /// and the corner mapping puts the tile's image top at world north.
 fn ctm_tile_uvs(marker: u32, tile: u8) -> [[f32; 2]; 4] {
-    let block = marker - 165;
+    let block = marker - 4096;
     let t = tile as u32;
     let col = (t % 12) as f32;
     let row = block * 4 + t / 12;
@@ -820,8 +821,8 @@ mod tests {
 
     /// Failure meaning: connected textures do not select strip tiles by
     /// neighbour bitmask (Section E). A 3x3 grass field must render its
-    /// centre from the interior tile (165+0) while an isolated grass
-    /// block renders from the isolated tile (165+46).
+    /// centre from the interior strip tile while an isolated grass block
+    /// renders from the isolated tile; both carry marker 4096.
     #[test]
     fn connected_texture_uv_3x3() {
         let grass = BlockState(crate::registry::block::GRASS);
@@ -849,18 +850,18 @@ mod tests {
 
         let mesh = mesh_section(&sec, None, None, None, None, None, None, none[0], none[1], none[2], none[3], &tex, &|_, _, _| 0xFF);
         // centre top-face vertices (y=9, x/z within block 8) carry the
-        // INTERIOR strip tile: first_layer 165 + tile 0
+        // INTERIOR strip tile: marker 4096 + tile 0
         let centre: Vec<&Vertex> = mesh.vertices.iter()
             .filter(|v| v.position[1] == 9.0
                 && v.position[0] >= 8.0 && v.position[0] <= 9.0
                 && v.position[2] >= 8.0 && v.position[2] <= 9.0
-                && v.tex_index >= 165) // top-face vertices carry the marker
+                && v.tex_index >= 4096) // top-face vertices carry the marker
             .collect();
         // the centre point is shared by all nine top faces: 16 vertices sit
         // in this window, and exactly the centre face's 4 use the interior
         // tile (every other mask ranks above tile 0)
         assert_eq!(centre.len(), 16, "centre window vertex count: {}", centre.len());
-        assert!(centre.iter().all(|v| v.tex_index == 165), "every top face must carry the grass CTM marker");
+        assert!(centre.iter().all(|v| v.tex_index == 4096), "every top face must carry the grass CTM marker");
         // per-triangle: all 9 top faces (18 tris) carry the marker, and
         // exactly one face (2 tris) samples the INTERIOR tile rect (tile 0
         // = strip col 0, row 0)
@@ -868,7 +869,7 @@ mod tests {
         let dv0 = 1.0 / 32.0;
         for tri in mesh.indices.chunks(3) {
             let vs: Vec<&Vertex> = tri.iter().map(|&i| &mesh.vertices[i as usize]).collect();
-            if vs.iter().any(|v| v.tex_index != 165) || vs[0].position[1] != 9.0 {
+            if vs.iter().any(|v| v.tex_index != 4096) || vs[0].position[1] != 9.0 {
                 continue;
             }
             marker_tris += 1;
@@ -890,7 +891,7 @@ mod tests {
         lone.set(4, 4, 4, grass);
         let mesh_lone = mesh_section(&lone, None, None, None, None, None, None, none[0], none[1], none[2], none[3], &tex, &|_, _, _| 0xFF);
         let iso: Vec<&Vertex> = mesh_lone.vertices.iter()
-            .filter(|v| v.position[1] == 5.0 && v.tex_index == 165)
+            .filter(|v| v.position[1] == 5.0 && v.tex_index == 4096)
             .collect();
         assert_eq!(iso.len(), 4, "isolated block top face not found");
         let (eu, ev) = (10.0 / 12.0, 3.0 / 32.0);

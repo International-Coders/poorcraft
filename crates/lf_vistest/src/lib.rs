@@ -646,7 +646,7 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "nameless_camp", desc: "Nameless derelict camp: broken rotwood palisade, scorched firepit, loot chest (C3)",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
-        SceneSpec { name: "entity_skins", desc: "contact sheet: 6 faction villager skins, 6 companion skins (+badge variants), 6 mob skins, 3 biome tints (C2)",
+        SceneSpec { name: "entity_skins", desc: "authored-depth closeup: 7 job outfits + network player on articulated bodies, with 8 alpha-cutout item impostors",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
         SceneSpec { name: "ember_glow", desc: "ember_glowstone formation with rising amber sparks (ambient C4 particles)",
@@ -1780,49 +1780,56 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         }
     }
     // ---- lore-and-visuals POST-MESH appends -------------------------
-    // entity_skins: skin-wearing cubes in rows (C2)
+    // entity_skins: close-range articulated NPC/player lineup plus item
+    // impostors. This replaces the old far-away sheet of single cubes.
     if spec.name == "entity_skins" {
         let h = world.surface_height(0, 0);
-        let mut skins: Vec<u32> = vec![
-            lf_assets::VILLAGER_ACCORD_LAYER, lf_assets::VILLAGER_IRONBORN_LAYER,
-            lf_assets::VILLAGER_COVENANT_LAYER, lf_assets::VILLAGER_FREEHOLDS_LAYER,
-            lf_assets::VILLAGER_ASHEN_LAYER, lf_assets::VILLAGER_NAMELESS_LAYER,
-            lf_assets::VILLAGER_UNMARKED_LAYER, lf_assets::VILLAGER_MAREN_LAYER,
+        let skins = [
+            lf_assets::villager_job_layer("farmer"),
+            lf_assets::villager_job_layer("smith"),
+            lf_assets::villager_job_layer("trader"),
+            lf_assets::villager_job_layer("guard"),
+            lf_assets::villager_job_layer("bard"),
+            lf_assets::villager_job_layer("lorekeeper"),
+            lf_assets::villager_job_layer("wizard"),
+            lf_assets::player_wayfarer_layer(),
         ];
-        for (_, layer) in lf_assets::COMPANION_LAYERS {
-            skins.push(layer);
-            skins.push(lf_assets::trusted_companion_layer(layer));
-        }
-        skins.extend([
-            lf_assets::MOB_BOAR_LAYER, lf_assets::MOB_WOOLBEAST_LAYER,
-            lf_assets::MOB_GLITCHLING_LAYER, lf_assets::MOB_STALKER_LAYER,
-            lf_assets::MOB_CRAWLER_LAYER, lf_assets::MOB_NULL_KNIGHT_LAYER,
-            lf_assets::MOB_GLITCHLING_TINTS[0], lf_assets::MOB_GLITCHLING_TINTS[1],
-            lf_assets::MOB_GLITCHLING_TINTS[2],
-        ]);
         for (i, tex) in skins.iter().enumerate() {
-            let row = i as i32 / 8;
-            let col = i as i32 % 8;
-            let cx = -10.5 + col as f32 * 3.0;
-            let cz = -6.5 + row as f32 * 3.0;
-            let cy = h as f32 + 1.0;
-            let r = 0.55f32;
-            let base = vertices.len() as u32;
-            let faces: [([f32; 3], [[f32; 3]; 4], [[f32; 2]; 4]); 6] = [
-                ([-1.0, 0.0, 0.0], [[-r, -r, -r], [-r, r, -r], [-r, r, r], [-r, -r, r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
-                ([1.0, 0.0, 0.0], [[r, -r, r], [r, r, r], [r, r, -r], [r, -r, -r]], [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
-                ([0.0, -1.0, 0.0], [[-r, -r, -r], [-r, -r, r], [r, -r, r], [r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
-                ([0.0, 1.0, 0.0], [[-r, r, r], [-r, r, -r], [r, r, -r], [r, r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
-                ([0.0, 0.0, -1.0], [[r, -r, -r], [r, r, -r], [-r, r, -r], [-r, -r, -r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
-                ([0.0, 0.0, 1.0], [[-r, -r, r], [-r, r, r], [r, r, r], [r, -r, r]], [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
-            ];
-            for (normal, corners, uvs) in faces {
+            let x = -7.0 + i as f32 * 2.0;
+            let gait = if i % 2 == 0 { 0.42 } else { -0.28 };
+            for (corners, normal) in lf_engine::scene::humanoid_faces(
+                Vec3::new(x, h as f32, 0.0), 0.05 * (i as f32 - 3.5), gait, 0.0,
+            ) {
+                let base = vertices.len() as u32;
+                let uvs = [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
                 for (corner, uv) in corners.iter().zip(uvs.iter()) {
                     vertices.push(GpuVertex {
-                        position: [cx + corner[0], cy + corner[1], cz + corner[2]],
+                        position: *corner,
                         normal, tex_coord: *uv, tex_index: *tex,
                         ao: 1.0, light: 0xF0, sway: 0.0,
                     });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+
+        let item_ids = ["iron_pickaxe", "iron_sword", "apple", "book",
+                        "copper_ingot", "basic_circuit", "fuel_rod", "anima_crystal"];
+        for (i, id) in item_ids.iter().enumerate() {
+            let tex = lf_assets::item_texture_layer(id).expect("proof item has sprite layer");
+            let c = Vec3::new(-5.25 + i as f32 * 1.5, h as f32 + 0.62, 3.4);
+            let r = 0.42;
+            let cards = [
+                ([[c.x-r,c.y-r,c.z], [c.x-r,c.y+r,c.z], [c.x+r,c.y+r,c.z], [c.x+r,c.y-r,c.z]], [0.0,0.0,1.0]),
+                ([[c.x+r,c.y-r,c.z], [c.x+r,c.y+r,c.z], [c.x-r,c.y+r,c.z], [c.x-r,c.y-r,c.z]], [0.0,0.0,-1.0]),
+                ([[c.x,c.y-r,c.z-r], [c.x,c.y+r,c.z-r], [c.x,c.y+r,c.z+r], [c.x,c.y-r,c.z+r]], [1.0,0.0,0.0]),
+                ([[c.x,c.y-r,c.z+r], [c.x,c.y+r,c.z+r], [c.x,c.y+r,c.z-r], [c.x,c.y-r,c.z-r]], [-1.0,0.0,0.0]),
+            ];
+            for (corners, normal) in cards {
+                let base = vertices.len() as u32;
+                for (corner, uv) in corners.iter().zip([[0.0,1.0],[0.0,0.0],[1.0,0.0],[1.0,1.0]]) {
+                    vertices.push(GpuVertex { position: *corner, normal, tex_coord: uv,
+                        tex_index: tex, ao: 1.0, light: 0xF0, sway: 0.0 });
                 }
                 indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
             }
@@ -2595,7 +2602,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         (Vec3::new(14.0, h + 16.0, 20.0), Vec3::new(12.0, h - 1.0, -2.0))
     } else if spec.name == "entity_skins" {
         let h = gen.surface_top(0, 0) as f32;
-        (Vec3::new(1.0, h + 12.0, 18.0), Vec3::new(0.0, h + 0.5, -4.0))
+        (Vec3::new(0.0, h + 5.2, 14.0), Vec3::new(0.0, h + 0.85, 0.8))
     } else if spec.name == "ember_glow" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-5.0, h + 4.0, 6.0), Vec3::new(0.5, h + 1.6, 0.5))
@@ -3014,18 +3021,24 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
             let dark = lumas.iter().filter(|&&l| l < mean * 0.88).count() as f32 / n;
             (mean, dark)
         };
-        let (inner, inner_dark) = sample(330, 460, 250, 380); // pad interior tiles
+        let (inner, _) = sample(330, 460, 250, 380); // pad interior tiles
         let (rim, _) = sample(262, 292, 240, 400); // pad's west ring incl. border
-        let (lone, lone_dark) = sample(668, 758, 286, 340); // isolated block top
+        // The isolated top is a projected trapezoid. Sample its actual north
+        // edge separately from its centre; a broad box mixes the normal-map
+        // relief into the old "dark fraction" metric and can invert it even
+        // while the authored CTM border is plainly present.
+        let (lone_edge, _) = sample(702, 777, 276, 281);
+        let (lone_core, _) = sample(710, 772, 302, 328);
         assert!(inner > 0.0, "connected_textures: pad interior not visible");
         assert!(rim > 0.0, "connected_textures: pad rim not visible");
-        assert!(lone > 0.0, "connected_textures: isolated block not visible");
+        assert!(lone_edge > 0.0 && lone_core > 0.0,
+            "connected_textures: isolated block edge/core not visible");
         // the bordered tiles carry a dark ring; the seamless interior has
         // measurably fewer dark pixels — the CTM visual claim, checked
         // relatively so lighting changes cannot fake it
         assert!(rim < inner, "connected_textures: pad rim ({:.1}) must be darker than the interior ({:.1})", rim, inner);
-        assert!(lone_dark > inner_dark * 1.25,
-            "connected_textures: isolated block dark-ring fraction {:.3} vs interior {:.3} — the bordered tile is not showing", lone_dark, inner_dark);
+        assert!(lone_edge < lone_core - 4.0,
+            "connected_textures: isolated edge {:.1} is not darker than its core {:.1}", lone_edge, lone_core);
     }
     match scene {
         "menu_preview" => {
@@ -3264,6 +3277,27 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
             assert!(total > 100, "seed_comparison: sampling failed ({})", total);
             let frac = diff as f32 / total as f32;
             assert!(frac > 0.25, "seed_comparison: the two seed halves look the same (differing {:.2})", frac);
+        }
+        "entity_skins" => {
+            // Close-up lineup must contain a broad authored palette rather
+            // than eight pale/block-textured cubes. Quantize to ignore tiny
+            // normal-map gradients while still requiring distinct outfits
+            // and item sprites across the central subject band.
+            let mut colored = 0usize;
+            let mut palette = std::collections::HashSet::new();
+            for y in h / 4..h * 4 / 5 {
+                for x in w / 12..w * 11 / 12 {
+                    let c = px(x, y);
+                    let hi = *c.iter().max().unwrap();
+                    let lo = *c.iter().min().unwrap();
+                    if hi - lo > 24 && !(c[2] > 145 && c[2] > c[0] + 30) {
+                        colored += 1;
+                        palette.insert([(c[0] / 24) as u8, (c[1] / 24) as u8, (c[2] / 24) as u8]);
+                    }
+                }
+            }
+            assert!(colored > 900, "entity_skins: articulated outfits/items missing ({colored} colored pixels)");
+            assert!(palette.len() > 24, "entity_skins: palette collapsed to {} bins", palette.len());
         }
         "asset_catalog" => {
             // same grid math as draw_asset_catalog_preview: every cell must

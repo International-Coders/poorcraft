@@ -85,9 +85,14 @@ pub struct SceneResources {
     uniform_bind_group_layout: wgpu::BindGroupLayout,
     /// The atlas array texture (P35 dynamic-layer writes).
     diffuse_texture: wgpu::Texture,
+    /// Tangent-space relief maps generated from the authored atlas. Kept in
+    /// linear color space: RGB is direction data, not display color.
+    normal_texture: wgpu::Texture,
     /// The CTM strip atlas (Section E); kept alive for the bind group.
     #[allow(dead_code)]
     ctm_texture: wgpu::Texture,
+    #[allow(dead_code)]
+    ctm_normal_texture: wgpu::Texture,
 }
 
 impl SceneResources {
@@ -103,6 +108,7 @@ impl SceneResources {
     ) {
         const MIP_LEVELS: u32 = 5;
         let mut level = img.clone();
+        let mut normal_level = lf_assets::generate_normal_map(img);
         for mip in 0..MIP_LEVELS {
             let (w, h) = level.dimensions();
             queue.write_texture(
@@ -120,7 +126,24 @@ impl SceneResources {
                 },
                 wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
             );
+            let (nw, nh) = normal_level.dimensions();
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &self.normal_texture,
+                    mip_level: mip,
+                    origin: wgpu::Origin3d { x: 0, y: 0, z: layer },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                normal_level.as_raw(),
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * nw),
+                    rows_per_image: Some(nh),
+                },
+                wgpu::Extent3d { width: nw, height: nh, depth_or_array_layers: 1 },
+            );
             level = downsample_2x(&level);
+            normal_level = downsample_2x(&normal_level);
         }
     }
 
@@ -171,6 +194,43 @@ impl SceneResources {
             array_layer_count: Some(textures.len().max(1) as u32),
             ..Default::default()
         });
+        let normal_texture = device.create_texture(&wgpu::TextureDescriptor {
+            size: texture_size,
+            mip_level_count: MIP_LEVELS,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            label: Some("normal_texture_array"),
+            view_formats: &[],
+        });
+        for (i, img) in textures.iter().enumerate() {
+            let mut level = lf_assets::generate_normal_map(img);
+            for mip in 0..MIP_LEVELS {
+                let (w, h) = level.dimensions();
+                queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &normal_texture,
+                        mip_level: mip,
+                        origin: wgpu::Origin3d { x: 0, y: 0, z: i as u32 },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    level.as_raw(),
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * w),
+                        rows_per_image: Some(h),
+                    },
+                    wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                );
+                level = downsample_2x(&level);
+            }
+        }
+        let normal_texture_view = normal_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            array_layer_count: Some(textures.len().max(1) as u32),
+            ..Default::default()
+        });
         let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
@@ -202,6 +262,26 @@ impl SceneResources {
                 // plain 192x512 texture the mesher sub-UVs per tile
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
@@ -249,12 +329,43 @@ impl SceneResources {
             }
         }
         let ctm_texture_view = ctm_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let ctm_normal_texture = device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d { width: ctm_img.width(), height: ctm_img.height(), depth_or_array_layers: 1 },
+            mip_level_count: MIP_LEVELS,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            label: Some("ctm_normal_texture"),
+            view_formats: &[],
+        });
+        {
+            let mut level = lf_assets::generate_normal_map(&ctm_img);
+            for mip in 0..MIP_LEVELS {
+                let (w, h) = level.dimensions();
+                queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &ctm_normal_texture,
+                        mip_level: mip,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    level.as_raw(),
+                    wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(4 * w), rows_per_image: Some(h) },
+                    wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                );
+                level = downsample_2x(&level);
+            }
+        }
+        let ctm_normal_texture_view = ctm_normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &diffuse_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&diffuse_texture_view) },
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&diffuse_sampler) },
                 wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&ctm_texture_view) },
+                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&normal_texture_view) },
+                wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&ctm_normal_texture_view) },
             ],
             label: Some("diffuse_bind_group"),
         });
@@ -328,7 +439,9 @@ impl SceneResources {
 
         Self {
             diffuse_texture: diffuse_texture.clone(),
+            normal_texture,
             ctm_texture,
+            ctm_normal_texture,
             render_pipeline,
             water_pipeline,
             diffuse_bind_group,
@@ -384,6 +497,57 @@ pub fn rotated_cube_faces(
             (cs, [rn.x, rn.y, rn.z])
         })
         .collect()
+}
+
+/// Six-part voxel humanoid (head, torso, two arms, two legs) built from
+/// oriented cuboids. `feet` is the ground contact point, `yaw` faces the
+/// character, `gait` swings opposite limbs in radians, and `crouch` is 0..1.
+/// Keeping this pure lets the live client and visual proofs use identical
+/// silhouettes without introducing an engine -> gameplay dependency.
+pub fn humanoid_faces(
+    feet: glam::Vec3,
+    yaw: f32,
+    gait: f32,
+    crouch: f32,
+) -> Vec<([[f32; 3]; 4], [f32; 3])> {
+    let crouch = crouch.clamp(0.0, 1.0);
+    let sink = crouch * 0.34;
+    let lean = crouch * 0.28;
+    // (local center, half extents, pitch, rotation pivot)
+    let parts = [
+        (glam::Vec3::new(0.0, 1.57 - sink, -lean * 0.12), glam::Vec3::new(0.23, 0.23, 0.23), lean, glam::Vec3::new(0.0, 1.36 - sink, 0.0)),
+        (glam::Vec3::new(0.0, 1.08 - sink, 0.0), glam::Vec3::new(0.27, 0.36, 0.15), lean, glam::Vec3::new(0.0, 1.38 - sink, 0.0)),
+        (glam::Vec3::new(-0.37, 1.08 - sink, 0.0), glam::Vec3::new(0.09, 0.31, 0.09), -gait + lean, glam::Vec3::new(-0.37, 1.38 - sink, 0.0)),
+        (glam::Vec3::new(0.37, 1.08 - sink, 0.0), glam::Vec3::new(0.09, 0.31, 0.09), gait + lean, glam::Vec3::new(0.37, 1.38 - sink, 0.0)),
+        (glam::Vec3::new(-0.14, 0.35, 0.0), glam::Vec3::new(0.11, 0.35, 0.11), gait, glam::Vec3::new(-0.14, 0.70, 0.0)),
+        (glam::Vec3::new(0.14, 0.35, 0.0), glam::Vec3::new(0.11, 0.35, 0.11), -gait, glam::Vec3::new(0.14, 0.70, 0.0)),
+    ];
+    let (sy, cy) = yaw.sin_cos();
+    let yaw_rot = |v: glam::Vec3| glam::Vec3::new(v.x * cy + v.z * sy, v.y, -v.x * sy + v.z * cy);
+    let mut out = Vec::with_capacity(parts.len() * 6);
+    for (center, half, pitch, pivot) in parts {
+        let (sp, cp) = pitch.sin_cos();
+        let pitch_rot = |v: glam::Vec3| glam::Vec3::new(v.x, v.y * cp - v.z * sp, v.y * sp + v.z * cp);
+        let transform_point = |v: glam::Vec3| feet + yaw_rot(pivot + pitch_rot(v - pivot));
+        let transform_normal = |v: glam::Vec3| yaw_rot(pitch_rot(v));
+        let (hx, hy, hz) = (half.x, half.y, half.z);
+        let faces: [(glam::Vec3, [glam::Vec3; 4]); 6] = [
+            (glam::Vec3::NEG_X, [glam::Vec3::new(-hx,-hy,-hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(-hx,-hy,hz)]),
+            (glam::Vec3::X, [glam::Vec3::new(hx,-hy,hz), glam::Vec3::new(hx,hy,hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(hx,-hy,-hz)]),
+            (glam::Vec3::NEG_Y, [glam::Vec3::new(-hx,-hy,-hz), glam::Vec3::new(-hx,-hy,hz), glam::Vec3::new(hx,-hy,hz), glam::Vec3::new(hx,-hy,-hz)]),
+            (glam::Vec3::Y, [glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(hx,hy,hz)]),
+            (glam::Vec3::NEG_Z, [glam::Vec3::new(hx,-hy,-hz), glam::Vec3::new(hx,hy,-hz), glam::Vec3::new(-hx,hy,-hz), glam::Vec3::new(-hx,-hy,-hz)]),
+            (glam::Vec3::Z, [glam::Vec3::new(-hx,-hy,hz), glam::Vec3::new(-hx,hy,hz), glam::Vec3::new(hx,hy,hz), glam::Vec3::new(hx,-hy,hz)]),
+        ];
+        for (normal, corners) in faces {
+            let cs = corners.map(|corner| {
+                let p = transform_point(center + corner);
+                p.to_array()
+            });
+            out.push((cs, transform_normal(normal).normalize().to_array()));
+        }
+    }
+    out
 }
 
 impl MeshBatch {
@@ -517,4 +681,34 @@ fn downsample_2x(img: &RgbaImage) -> RgbaImage {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn humanoid_is_six_articulated_cuboids_with_grounded_feet() {
+        let idle = humanoid_faces(glam::Vec3::ZERO, 0.0, 0.0, 0.0);
+        let walking = humanoid_faces(glam::Vec3::ZERO, 0.0, 0.55, 0.0);
+        assert_eq!(idle.len(), 36, "six parts x six faces");
+        assert_eq!(walking.len(), 36);
+        let idle_points: Vec<[f32; 3]> = idle.iter().flat_map(|(c, _)| c).copied().collect();
+        let min_y = idle_points.iter().map(|p| p[1]).fold(f32::INFINITY, f32::min);
+        let max_y = idle_points.iter().map(|p| p[1]).fold(f32::NEG_INFINITY, f32::max);
+        assert!(min_y.abs() < 1e-5, "feet touch ground: {min_y}");
+        assert!((1.75..=1.85).contains(&max_y), "humanoid height: {max_y}");
+        assert_ne!(idle, walking, "gait must visibly articulate limbs");
+    }
+
+    #[test]
+    fn humanoid_yaw_rotates_silhouette_around_feet() {
+        let a = humanoid_faces(glam::Vec3::new(4.0, 2.0, 7.0), 0.0, 0.3, 0.0);
+        let b = humanoid_faces(glam::Vec3::new(4.0, 2.0, 7.0), std::f32::consts::FRAC_PI_2, 0.3, 0.0);
+        assert_ne!(a, b);
+        for (_, n) in b {
+            let len = glam::Vec3::from_array(n).length();
+            assert!((len - 1.0).abs() < 1e-4, "normal stays unit length");
+        }
+    }
 }

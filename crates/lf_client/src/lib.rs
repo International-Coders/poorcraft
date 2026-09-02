@@ -5301,11 +5301,14 @@ impl GameState {
 }
 
 impl GameState {
-    /// Rebuild the single batch holding item-drop and mob cubes.
-    /// Rebuild the single batch holding item-drop and mob cubes.
+    /// Rebuild the dynamic entity batch: articulated humanoids, mobs,
+    /// alpha-cutout item sprites, projectiles, and falling blocks.
     fn rebuild_drop_batch(&mut self) {
+        let remotes_empty = self.net.as_ref().map(|n| n.remote_players.is_empty()).unwrap_or(true);
         if self.drops.is_empty() && self.mobs.is_empty() && self.falling_blocks.is_empty()
-            && self.companions.is_empty() && self.falling_trees.is_empty() {
+            && self.companions.is_empty() && self.falling_trees.is_empty()
+            && self.villagers.is_empty() && self.arrows.is_empty() && self.firebolts.is_empty()
+            && remotes_empty {
             self.drop_batch = None;
             return;
         }
@@ -5330,7 +5333,31 @@ impl GameState {
         };
         let mut push_cube = |cx: f32, cy: f32, cz: f32, r: f32, tex: u32, vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>| {
             let faces = cube_faces(r).into_iter()
-                .map(|(normal, corners, _)| (corners, normal)).collect();
+                .map(|(normal, corners, _)| {
+                    let translated = corners.map(|c| [c[0] + cx, c[1] + cy, c[2] + cz]);
+                    (translated, normal)
+                }).collect();
+            push_faces(faces, tex, &UVS_CUBE, vertices, indices);
+        };
+        let mut push_humanoid = |feet: Vec3, yaw: f32, gait: f32, crouch: f32, tex: u32,
+                                  vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>| {
+            push_faces(
+                lf_engine::scene::humanoid_faces(feet, yaw, gait, crouch),
+                tex, &UVS_CUBE, vertices, indices,
+            );
+        };
+        let mut push_item_sprite = |center: Vec3, r: f32, tex: u32,
+                                    vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>| {
+            // Two crossed, double-sided alpha-cutout cards. Inventory art is
+            // therefore recognizable from any angle without a 3D tool mesh.
+            let y0 = center.y - r;
+            let y1 = center.y + r;
+            let faces = vec![
+                ([[center.x-r,y0,center.z], [center.x-r,y1,center.z], [center.x+r,y1,center.z], [center.x+r,y0,center.z]], [0.0,0.0,1.0]),
+                ([[center.x+r,y0,center.z], [center.x+r,y1,center.z], [center.x-r,y1,center.z], [center.x-r,y0,center.z]], [0.0,0.0,-1.0]),
+                ([[center.x,y0,center.z-r], [center.x,y1,center.z-r], [center.x,y1,center.z+r], [center.x,y0,center.z+r]], [1.0,0.0,0.0]),
+                ([[center.x,y0,center.z+r], [center.x,y1,center.z+r], [center.x,y1,center.z-r], [center.x,y0,center.z-r]], [-1.0,0.0,0.0]),
+            ];
             push_faces(faces, tex, &UVS_CUBE, vertices, indices);
         };
         // falling granular blocks: tumbling cubes (loop 330 deep-fall)
@@ -5427,9 +5454,16 @@ impl GameState {
             push_cube(bolt.position.x, bolt.position.y, bolt.position.z, 0.12,
                 lf_assets::texture_index_for_block(registry::block::LANTERN), &mut vertices, &mut indices);
         }
-        // villagers: faction skins where the roster says a faction, the
-        // original job-tinted skins otherwise (C2)
+        // Villagers: faction skins for roster NPCs and profession outfits
+        // for everyone else. All use the same six-part articulated body.
         for v in &self.villagers {
+            let job_key = match v.job {
+                VillagerJob::Farmer => "farmer", VillagerJob::Smith => "smith",
+                VillagerJob::Trader => "trader", VillagerJob::Guard => "guard",
+                VillagerJob::Bard => "bard", VillagerJob::Lorekeeper => "lorekeeper",
+                VillagerJob::Wizard => "wizard",
+            };
+            let job_tex = lf_assets::villager_job_layer(job_key);
             let tex = match v.archetype.as_deref() {
                 Some("the_unmarked") => lf_assets::VILLAGER_UNMARKED_LAYER,
                 Some("maren_voss") => lf_assets::VILLAGER_MAREN_LAYER,
@@ -5440,33 +5474,19 @@ impl GameState {
                     Some("free_holds") => lf_assets::VILLAGER_FREEHOLDS_LAYER,
                     Some("ashen_order") => lf_assets::VILLAGER_ASHEN_LAYER,
                     Some("nameless") => lf_assets::VILLAGER_NAMELESS_LAYER,
-                    _ => lf_assets::texture_index_for_block(registry::block::SAND),
+                    _ => job_tex,
                 },
-                None => match v.job {
-                    VillagerJob::Farmer => lf_assets::texture_index_for_block(registry::block::GRASS),
-                    VillagerJob::Smith => lf_assets::texture_index_for_block(registry::block::IRON_ORE),
-                    VillagerJob::Trader => lf_assets::texture_index_for_block(registry::block::SAND),
-                    VillagerJob::Guard => lf_assets::texture_index_for_block(registry::block::STONE),
-                    VillagerJob::Bard => lf_assets::texture_index_for_block(registry::block::CHERRY_LEAVES),
-                    VillagerJob::Lorekeeper => lf_assets::texture_index_for_block(registry::block::CRAFTING_TABLE),
-                    VillagerJob::Wizard => lf_assets::ENCHANTING_LAYER,
-                },
+                None => job_tex,
             };
-            // king-quest: sworn vassals wear the gilded cloak tint
-            let tex = if v.vassal.is_some() {
-                lf_assets::texture_index_for_block(registry::block::GILDED_GRASS)
-            } else {
-                tex
+            let (gait, crouch) = match v.activity {
+                lf_npc::NpcActivityState::Walking => ((self.elapsed * 6.0).sin() * 0.55, 0.0),
+                lf_npc::NpcActivityState::Working => ((self.elapsed * 3.0).sin() * 0.24, 0.12),
+                lf_npc::NpcActivityState::Eating => ((self.elapsed * 4.0).sin() * 0.12, 0.32),
+                lf_npc::NpcActivityState::Sleeping => (0.0, 0.9),
+                _ => (0.0, 0.0),
             };
-            // C2: the activity state bends the pose — sleeping lies low,
-            // working/eating bobs at the workstation/table
-            let lift = match v.activity {
-                lf_npc::NpcActivityState::Sleeping => 0.22,
-                lf_npc::NpcActivityState::Working => 0.9 + 0.05 * (self.elapsed * 3.0).sin(),
-                lf_npc::NpcActivityState::Eating => 0.9 + 0.04 * (self.elapsed * 5.0).sin(),
-                _ => 0.9,
-            };
-            push_cube(v.position[0], v.position[1] + lift, v.position[2], 0.45, tex, &mut vertices, &mut indices);
+            let yaw = (v.id as f32 * 0.618_034).fract() * std::f32::consts::TAU;
+            push_humanoid(Vec3::from_array(v.position), yaw, gait, crouch, tex, &mut vertices, &mut indices);
         }
         // companions: their archetype skin, swapping to the trust-badge
         // variant at trust >= 50 (ENTITY_SKIN_SPEC)
@@ -5481,20 +5501,28 @@ impl GameState {
             } else {
                 base
             };
-            push_cube(c.position.x, c.position.y + 0.9, c.position.z, 0.46, tex, &mut vertices, &mut indices);
+            let gait = if c.velocity.length_squared() > 0.01 { (self.elapsed * 7.0).sin() * 0.58 } else { 0.0 };
+            push_humanoid(c.position, c.yaw, gait, 0.0, tex, &mut vertices, &mut indices);
         }
-        // remote players render as pale cubes
+        // Network players share a proper neutral skin until cosmetic ids are
+        // added to the protocol; yaw already arrives over the wire.
         if let Some(n) = &self.net {
             for (_, rp) in n.remote_players.iter() {
-                let tex = lf_assets::texture_index_for_block(registry::block::SNOW);
-                push_cube(rp.pos[0], rp.pos[1] + 0.9, rp.pos[2], 0.45, tex, &mut vertices, &mut indices);
+                push_humanoid(Vec3::from_array(rp.pos), rp.yaw, 0.0, 0.0,
+                    lf_assets::player_wayfarer_layer(), &mut vertices, &mut indices);
             }
         }
-        // item drops bob
+        // Non-block drops use their authored inventory sprite as crossed
+        // alpha-cutout impostors; block drops remain small textured cubes.
         for drop in &self.drops {
-            let tex = drop_tex_layer(&drop.stack.item_id);
             let bob = (drop.age * 2.0).sin() * 0.05;
-            push_cube(drop.position.x, drop.position.y + 0.15 + bob, drop.position.z, 0.15, tex, &mut vertices, &mut indices);
+            let center = drop.position + Vec3::new(0.0, 0.22 + bob, 0.0);
+            if let Some(tex) = lf_assets::item_texture_layer(&drop.stack.item_id) {
+                push_item_sprite(center, 0.23, tex, &mut vertices, &mut indices);
+            } else {
+                push_cube(center.x, center.y, center.z, 0.15,
+                    drop_tex_layer(&drop.stack.item_id), &mut vertices, &mut indices);
+            }
         }
 
         self.drop_batch = Some(MeshBatch::new(&self.device, &self.resources, &vertices, &indices));

@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## 2026-09-02 — authored-depth raster assets, articulated NPCs, item impostors (loop 338)
+
+- **Normal-mapped raster materials**: every generated base, mod, entity,
+  item, and connected-texture layer now gets a linear RGB tangent-space
+  normal map. The default raster shader reconstructs a tangent frame and
+  applies cheap directional relief, so grooves, pixels, and bevels respond
+  to viewable light without requiring the optional path tracer.
+- **Characters are people, not blocks**: seven villager-job outfits and a
+  neutral remote-player skin feed a shared six-part humanoid builder. NPCs,
+  companions, and network players now have heads, torsos, independent arms
+  and legs, yaw, walking gait, and crouch posture.
+- **World items use their real art**: every registered item sprite is in the
+  scene atlas; non-block drops render as crossed, double-sided alpha-cutout
+  cards while block drops keep their compact cube silhouette.
+- **Proof-found fixes**: CTM sentinel indices formerly began at 165 and
+  collided with real tree/biome/skin atlas layers; they now occupy 4096+.
+  The client entity helper also ignored requested cube positions, collapsing
+  entity parts at the origin; it now translates every face correctly.
+- **Plan + proof**: added `docs/ASSET-RENDERING-PLAN.md`, a five-stage path
+  through per-part skins, attachments, hero item meshes, authored material
+  channels, cheap contact/projected shadows, and LOD/performance budgets.
+  `entity_skins` is a close lineup of eight articulated characters and eight
+  readable item silhouettes with pixel assertions.
+- **Verification**: workspace build green; 353 tests passed; 83/83 GPU proof
+  scenes passed after correcting the CTM assertion to sample its projected
+  edge; manual PNG inspection clean; smoke green; `terrain_vista` benchmark
+  p50 50.2ms / p95 50.6ms (29 warm frames, ~20 FPS).
+
 ## 2026-08-30 — smart HUD, personalized font, Minecraft controls (loop 337)
 - **Smart HUD (never overlaps)**: `kit::hud_layout(w, h)` is the single
   pure source of HUD geometry — info line capped away from the minimap,

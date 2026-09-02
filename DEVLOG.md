@@ -1532,3 +1532,50 @@ faction_hud HUD replica drawn twice.
 duplicates, zero entries missing tags, 15+12 categories all fully sized.
 `cargo test --workspace` exit 0 (all suites green; no code changed, count
 stands at 349). Artifacts: `docs/IDEAS-600.md`, `shots/extra_*.png` (6).
+
+## 2026-09-02 — loop 338: authored-depth asset/rendering pass
+
+**WHAT**: Shipped the first stage of the new asset-rendering plan. The normal
+raster path now has generated tangent-space normal maps for every atlas layer
+(base blocks, mod blocks, CTM, skins, and items), seven job-specific villager
+outfits, a neutral network-player skin, articulated six-part humanoids for
+villagers/companions/remote players, and crossed double-sided alpha-cutout
+world sprites for non-block item drops. Added
+`docs/ASSET-RENDERING-PLAN.md` to sequence per-part character art,
+attachments, held hero meshes, authored material channels, cheap contact /
+projected shadows, and LOD budgets. The Makefile remains current because no
+commands or targets changed.
+
+**HOW**: `lf_assets` appends every item icon to the generated scene atlas,
+adds the eight character layers, and derives alpha-preserving Sobel normal
+maps. `lf_engine::SceneResources` uploads linear normal arrays (including CTM
+and dynamic atlas rewrites), while `shader.wgsl` reconstructs a per-face
+tangent frame for a bounded directional-relief term. `humanoid_faces` is the
+shared yaw/gait/crouch geometry contract. `lf_client::rebuild_drop_batch`
+selects job/faction/player skins, drives articulated poses, and chooses block
+cubes versus item impostors. `lf_vistest` reframes `entity_skins` as a close
+8-character/8-item lineup and asserts palette/coverage. Proofs also exposed
+and fixed two older defects: CTM marker indices 165+ collided with real atlas
+layers (moved to 4096+ across asset/voxel/shader code), and client `push_cube`
+ignored its cx/cy/cz position. The CTM visual metric was then updated to
+compare the isolated block's actual projected edge against its center, since
+normal-map relief invalidated the old broad-box dark-fraction heuristic.
+
+**VERIFICATION**: `cargo build --workspace` green; `cargo test --workspace`
+353 passed / 0 failed (the existing all-scenes mesh audit took 977.05s and
+the existing 6,400-chunk wizard-tower scan took 1337.41s); final uninterrupted
+`cargo run --release -p xtask -- vistest shots` 83/83 `[ok]`; manual inspection
+of `vistest_entity_skins.png`, `vistest_biome_contact_sheet.png`,
+`vistest_faction_blocks.png`, and `vistest_connected_textures_grass_3x3.png`
+clean; `make smoke` headless logic + 12s GUI liveness green; `make perf`
+terrain_vista x29 warm p50 50.2ms, p95 50.6ms, min 48.7ms (~20 FPS).
+`make runtimes` refreshed `dist/loreforge.app`,
+`dist/loreforge-macos.dmg`, `dist/loreforge-linux-x86_64.tar.gz`, and
+`dist/loreforge-server`; Windows was honestly skipped because mingw is not
+installed on this host.
+
+**HONESTLY DEFERRED**: per-part UV skins and geometry attachments; first- and
+third-person local-player body; held/nearby hero-item meshes with range LOD;
+explicit authored normal/material overrides; contact/projected entity shadows;
+quality-tier budgets. The existing wizard-tower test scans 80x80 chunks while
+its assertion text says 20x20, a slow unrelated maintenance mismatch.

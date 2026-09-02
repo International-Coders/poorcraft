@@ -23,12 +23,17 @@ Progress tracking: STATE.md `next_task` + this file's checkboxes.
 
 ## Phase B — Asset completion
 
-- [ ] B1 Mod blocks get unique textures: deterministic hash-tinted variant
+Detailed continuation: `docs/ASSET-RENDERING-PLAN.md` (material maps,
+humanoid/item assets, contact shadows, LODs, and proof/perf gates).
+
+- [x] B1 Mod blocks get unique textures: deterministic hash-tinted variant
   layers instead of the single shared `mod` layer 47 (test: two mod ids →
-  distinct; asset_catalog extended).
-- [ ] B2 Entity skin coverage: non-archetype villagers stop wearing block
+  distinct; asset_catalog extended). Shipped loop 335.
+- [x] B2 Entity skin coverage: non-archetype villagers stop wearing block
   textures (outfit skins per job, `rebuild_drop_batch` villager fallback);
   remote players get a real skin (not snow cubes); entity_skins scene claims.
+  Shipped loop 338 together with six-part articulated humanoids and item
+  impostors.
 - [ ] B3 Connected textures completed: ASHEN_MARBLE + ASHEN_BOOKSHELF join
   stone/planks in `connected_variant` (+ lf_voxel's mirrored
   `lf_assets_conn`) with contract tests + side-by-side proof scene.
@@ -38,6 +43,10 @@ Progress tracking: STATE.md `next_task` + this file's checkboxes.
 - [ ] B5 Decoration texture overrides via mod.toml + mods/README + loader test.
 - [ ] B6 Asset-scope hygiene: stale "creative is a stub" comment, audit
   placeholder/coming-soon strings.
+- [x] B7 Authored-depth raster path: a linear RGB normal-map array (including
+  CTM + dynamic layers) adds cheap per-pixel relief without RT; item sprites
+  render as crossed alpha-cutout cards; CTM markers moved out of the real
+  atlas range. Shipped loop 338.
 
 ## Phase C — World & survival gaps
 

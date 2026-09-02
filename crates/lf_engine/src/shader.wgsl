@@ -28,12 +28,18 @@ var<uniform> uniforms: Uniforms;
 var t_diffuse: texture_2d_array<f32>;
 
 // Section E (connected textures): the CTM strip atlas. Vertices whose
-// tex_index is >= 165 carry a CTM marker instead of an atlas layer; their
+// tex_index is >= 4096 carry a CTM marker instead of an atlas layer; their
 // tex_coord already points at the right 16x16 tile of this texture.
 @group(1) @binding(2)
 var t_ctm: texture_2d<f32>;
 @group(1) @binding(1)
 var s_diffuse: sampler;
+// Colorful tangent-space normal maps: generated once from the authored
+// pixel atlas. This is the cheap raster relief path, not ray tracing.
+@group(1) @binding(3)
+var t_normal: texture_2d_array<f32>;
+@group(1) @binding(4)
+var t_ctm_normal: texture_2d<f32>;
 
 @vertex
 fn vs_main(
@@ -74,10 +80,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // textureSample requires uniform control flow, so the CTM branch uses
     // textureSampleBias (bias 0 = the same automatic LOD).
     var color: vec4<f32>;
-    if (in.tex_index >= 165u) {
+    var packed_normal: vec3<f32>;
+    if (in.tex_index >= 4096u) {
         color = textureSampleBias(t_ctm, s_diffuse, in.tex_coord, 0.0);
+        packed_normal = textureSampleBias(t_ctm_normal, s_diffuse, in.tex_coord, 0.0).rgb;
     } else {
         color = textureSample(t_diffuse, s_diffuse, in.tex_coord, in.tex_index);
+        packed_normal = textureSample(t_normal, s_diffuse, in.tex_coord, in.tex_index).rgb;
     }
     // alpha cutout (leaves, glass panes, crack decals). Water (a ~0.67) and
     // ice (~0.78) sit above the threshold and render solid/blended.
@@ -89,7 +98,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var brightness = max(sky * day, block_l * 0.92);
     brightness = max(brightness, 0.045);
     let ambient = in.ao * 0.8 + 0.2;
-    var lit = vec4<f32>(color.rgb * brightness * ambient, color.a);
+
+    // Reconstruct a stable local frame from the geometric face normal and
+    // rotate the sampled tangent-space direction into world space. The
+    // resulting directional term creates tiny edge/groove shadows from a
+    // colorful map lookup, while geometry, collision, and RT remain unchanged.
+    let face_n = normalize(in.normal);
+    var tangent = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), face_n));
+    if (abs(face_n.y) > 0.99) {
+        tangent = vec3<f32>(1.0, 0.0, 0.0);
+    }
+    let bitangent = normalize(cross(face_n, tangent));
+    let local_n = normalize(packed_normal * 2.0 - vec3<f32>(1.0));
+    let relief_n = normalize(tangent * local_n.x + bitangent * local_n.y + face_n * local_n.z);
+    let sun_dir = normalize(vec3<f32>(0.42, 0.82, 0.38));
+    let relief_light = 0.78 + 0.22 * max(dot(relief_n, sun_dir), 0.0);
+    var lit = vec4<f32>(color.rgb * brightness * ambient * relief_light, color.a);
 
     // Distance fog blending toward the sky color.
     let dist = distance(in.world_pos, uniforms.cam_pos_day.xyz);

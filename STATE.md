@@ -1,9 +1,9 @@
 # STATE
-loop_count: 337
-current_milestone: Complete — smart HUD + personalized font + Minecraft controls
-last_done: "loop 337 menus-and-controls: (1) SMART HUD — kit::hud_layout(w,h) computes every HUD region (info line capped away from the minimap, companion tiles ending above chat, chat above the hotbar band) with a disjointness test proving zero overlap at 640x360/800x600/1280x720/1920x1080, and the live HUD regions (chat, companion tiles, info line width, minimap) re-anchored to the computed layout; (2) personalized font — kit::install_font promotes the embedded Hack monospace over the whole UI with a 1.06 scale tweak (installed once, not per frame); (3) Minecraft controls — SHIFT sprints, CTRL crouches (defaults swapped, FlyDown=CTRL), and crouching edge-locks: movement that would leave the supporting block is cancelled per axis while sneaking on the ground (tested: sneaker holds the 3x3 ledge 600 ticks, walker falls; sneak slower than walk, sprint faster); sneak lowers the eye 0.28. hud_small vistest scene (640x360) pixel-proves hotbar/minimap/info bands hold. 349 tests, vistest suite, smoke green."
-next_task: "Deferred: bigger UI overhaul (custom pixel TTF font is the next step — needs a font asset), more HUD polish; or master-plan Phase C (docs/MASTER-PLAN.md)."
+loop_count: 338
+current_milestone: Complete — authored-depth raster assets, articulated NPCs, item impostors
+last_done: "loop 338 authored-depth assets: every generated base/mod/entity/item/CTM atlas layer now has a linear RGB tangent-space normal map and the raster shader uses it for cheap directional relief without ray tracing; seven villager-job outfits plus a wayfarer network-player skin replace block-textured people; shared six-part humanoids support yaw/gait/crouch for villagers, companions and remote players; non-block drops use their real alpha-cutout inventory art on crossed double-sided cards while blocks stay cubes. Fixed two proof-found pre-existing bugs: CTM sentinel layers 165+ collided with real atlas art (moved to 4096+) and entity push_cube ignored its position. entity_skins now close-proves 8 articulated characters + 8 readable items. New staged plan: docs/ASSET-RENDERING-PLAN.md. 353 tests, 83-scene vistest, smoke green; terrain_vista perf p50 50.2ms / p95 50.6ms."
+next_task: "Asset plan Stage 1: per-part humanoid UV atlas + job/faction attachments + deliberate NPC facing + first/third-person local player, with turntable and distance proofs (docs/ASSET-RENDERING-PLAN.md)."
 build: GREEN
-tests: 349 passed / 0 failed (loop 337)
-last_screenshot: shots/vistest_hud_small.png
+tests: 353 passed / 0 failed (loop 338)
+last_screenshot: shots/vistest_entity_skins.png
 blockers: "none"
