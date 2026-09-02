@@ -372,6 +372,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "material_gallery",
+            desc: "loop 346: hero terrain albedo + packed normal/AO under raking sunlight",
+            default_seed: 12345,
+            time_of_day: 0.36,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "waypoint_beacons",
             desc: "world-space waypoint beams rising from the terrain, three colors, transparent pass",
             default_seed: 12345,
@@ -1033,6 +1045,43 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         for x in -3..=3 {
             for y in h..h + 4 {
                 world.set_block(x, y, 0, lf_voxel::BlockState(block::PLANKS));
+            }
+        }
+    }
+
+    // loop 346 material gallery: seven stepped 3x3 samples put top, front
+    // and side faces under raking sun in one frame. This is real meshed
+    // block geometry using the production albedo + packed normal/AO atlas.
+    if spec.name == "material_gallery" {
+        use lf_voxel::registry::block;
+        // Fixed raised showroom: local terrain here contains trees and a
+        // village, so a surface-relative stage was proof-caught buried in
+        // grass. Elevating it makes every material the subject.
+        let h = 128i32;
+        for x in -18..=18 {
+            for z in -5..=7 {
+                for y in (h - 18)..h + 12 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                for y in h - 5..h {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::KINGDOM_BRICK));
+                }
+            }
+        }
+        for (i, material) in [
+            block::STONE, block::DIRT, block::SAND, block::GRASS,
+            block::PLANKS, block::COAL_ORE, block::IRON_ORE,
+        ].into_iter().enumerate() {
+            let x0 = -16 + i as i32 * 5;
+            for dx in 0..3 {
+                // Ascend away from the camera: all three tread tops and
+                // the front risers stay visible.
+                for (step, z) in [0i32, 1, 2].into_iter().zip([4i32, 3, 2]) {
+                    for dy in 0..=step {
+                        world.set_block(x0 + dx, h + dy, z,
+                            lf_voxel::BlockState(material));
+                    }
+                }
             }
         }
     }
@@ -2889,6 +2938,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "texture_tiling" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.6, 9.5), Vec3::new(0.5, h + 1.5, 0.0))
+    } else if spec.name == "material_gallery" {
+        let h = 128.0;
+        (Vec3::new(0.0, h + 10.0, 32.0), Vec3::new(0.0, h + 0.8, 2.5))
     } else if spec.name == "transparency_layers" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.2, 10.5), Vec3::new(0.0, h + 1.2, 2.0))
@@ -3332,7 +3384,7 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "plants_cross" | "seed_comparison" | "no_black_square"
         | "hud_small"
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
-        | "sun_visibility"
+        | "sun_visibility" | "material_gallery"
         | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud");
     if !needs_check {
         return Ok(());
@@ -3369,6 +3421,28 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         let sun_pixels = count_in(0, 0, w, h, [255, 190, 66], 18)
             + count_in(0, 0, w, h, [255, 246, 184], 18);
         assert!(sun_pixels > 90, "sun_visibility: only {sun_pixels} sampled sun pixels; celestial fog exemption/art failed");
+    }
+    if scene == "material_gallery" {
+        let mut green = 0usize;
+        let mut sand = 0usize;
+        let mut wood = 0usize;
+        let mut iron = 0usize;
+        let mut cavity = 0usize;
+        for y in (0..h).step_by(2) {
+            for x in (0..w).step_by(2) {
+                let [r, g, b] = px(x, y);
+                green += usize::from(g > r + 28 && g > b + 35 && g > 65);
+                sand += usize::from(r > 145 && g > 125 && b < 150 && r - b > 35);
+                wood += usize::from(r > g + 28 && g > b + 12 && r > 78 && b < 100);
+                iron += usize::from(r > g + 18 && g > b + 12 && r > 115);
+                cavity += usize::from(r < 88 && g < 88 && b < 88);
+            }
+        }
+        assert!(green > 90, "material_gallery: grass sample missing ({green})");
+        assert!(sand > 120, "material_gallery: sand sample missing ({sand})");
+        assert!(wood > 100, "material_gallery: plank/dirt samples missing ({wood})");
+        assert!(iron > 35, "material_gallery: iron veins missing ({iron})");
+        assert!(cavity > 35, "material_gallery: dark grooves/coal cavities missing ({cavity})");
     }
     if scene == "kingdom_citadel" {
         // Royal gold (gate banners, throne frame, torches) and royal
@@ -5936,6 +6010,84 @@ mod tests {
         );
         let _ = std::fs::remove_file(east_path);
         let _ = std::fs::remove_file(west_path);
+    }
+
+    /// Loop 346 proof: the engine must accept authored packed material maps,
+    /// and the GPU shader must consume normal RGB and AO alpha independently.
+    #[test]
+    fn authored_normal_and_ao_channels_reach_the_gpu() {
+        let albedo = image::RgbaImage::from_pixel(16, 16, image::Rgba([180, 150, 112, 255]));
+        let textures = vec![albedo.clone(), albedo.clone(), albedo];
+        let materials = vec![
+            image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 128, 255, 255])), // open + flat
+            image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 128, 255, 0])),   // flat + AO floor
+            image::RgbaImage::from_pixel(16, 16, image::Rgba([220, 128, 200, 255])), // open + tilted
+        ];
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        for (layer, cx) in [-1.5f32, 0.0, 1.5].into_iter().enumerate() {
+            let base = vertices.len() as u32;
+            for (position, tex_coord) in [
+                ([cx - 0.62, -0.62, 0.0], [0.0, 1.0]),
+                ([cx + 0.62, -0.62, 0.0], [1.0, 1.0]),
+                ([cx + 0.62,  0.62, 0.0], [1.0, 0.0]),
+                ([cx - 0.62,  0.62, 0.0], [0.0, 0.0]),
+            ] {
+                vertices.push(GpuVertex {
+                    position,
+                    normal: [0.0, 0.0, 1.0],
+                    tex_coord,
+                    tex_index: layer as u32,
+                    ao: 1.0,
+                    light: 0xF0,
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        }
+        let mut camera = Camera::new(Vec3::new(0.0, 0.0, 5.0), Vec3::ZERO);
+        camera.set_aspect(600, 300);
+        let env = lf_engine::scene::Env {
+            camera_pos: camera.eye,
+            time: 0.0,
+            day_factor: 1.0,
+            fog_color: [0.0, 0.0, 0.0],
+            fog_far: 1000.0,
+            grade_tint: [1.0, 1.0, 1.0],
+            grade_saturation: 1.0,
+            sun_direction: [0.0, 0.0, 1.0],
+        };
+        let renderer = lf_engine::headless::HeadlessRenderer::new_with_material_maps(
+            600, 300, &textures, &materials,
+        ).expect("GPU renderer with explicit material maps");
+        let path = format!("/tmp/lf_vistest_material_channels_{}.png", std::process::id());
+        renderer.render(
+            &vertices, &indices, &[], &[], &camera, &env,
+            [0.0, 0.0, 0.0, 1.0], Path::new(&path), None,
+        ).expect("render material channel proof");
+        let img = image::open(&path).expect("reopen material proof").to_rgb8();
+        let mean_luma = |x0: u32, x1: u32| {
+            let mut sum = 0u64;
+            let mut n = 0u64;
+            for y in 40..260 {
+                for x in x0..x1 {
+                    let p = img.get_pixel(x, y).0;
+                    if p != [0, 0, 0] {
+                        sum += p[0] as u64 + p[1] as u64 + p[2] as u64;
+                        n += 3;
+                    }
+                }
+            }
+            sum as f32 / n.max(1) as f32
+        };
+        let open = mean_luma(0, 200);
+        let occluded = mean_luma(200, 400);
+        let tilted = mean_luma(400, 600);
+        assert!(open > tilted + 5.0,
+            "normal RGB was ignored: open={open:.1}, tilted={tilted:.1}");
+        assert!(tilted > occluded + 8.0,
+            "AO alpha was ignored: tilted={tilted:.1}, occluded={occluded:.1}");
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

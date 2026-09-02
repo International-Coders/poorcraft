@@ -1887,3 +1887,57 @@ the structure convention), path-tracer palette coverage for ids ≥128
 (pre-existing; kingdoms render in the default raster path), monarch-specific
 lore dialogue (needs a lore/npcs.toml archetype), and onboarding prompts
 (carry-over from loop 344, next task).
+
+## 2026-09-02 — loop 346: packed material maps + hero terrain textures
+
+WHAT: Rebuilt the game's seven most visible terrain materials in the existing
+16x16 pixel-art style and upgraded the raster material contract to carry both
+normal relief and ambient occlusion. Stone, grass top/side, dirt, sand, planks,
+coal ore, and iron ore now use deliberate plates, blades, roots, clumps,
+ripples, boards, knots, and connected veins instead of unstructured noise.
+
+HOW: `crates/lf_assets/src/lib.rs` now generates a packed linear RGBA material
+map: Sobel-derived tangent normals in RGB and bounded two-radius local-horizon
+micro-AO in alpha. Transparent neighbors inherit the center height to prevent
+fake cutout-card bevels. Material mipmaps decode/average/renormalize normals
+and average AO independently; CTM maps are derived per 16x16 tile before
+packing, preventing derivative bleed between unrelated tiles. The compatibility
+`generate_normal_map` API remains. `crates/lf_engine/src/scene.rs` accepts
+explicit authored maps through `new_with_material_maps`, automatically derives
+fallback maps through `new`, regenerates them for dynamic atlas writes, and
+uploads the normal-aware mip chain. `headless.rs` exposes the same authored-map
+path for proofs. `shader.wgsl` reads normal RGB and AO alpha from one existing
+material lookup, multiplies bounded micro-AO with mesh corner AO, and retains
+the sun-tracked relief, cutout, atmosphere, fog, and grading paths. The
+Makefile stayed current because no command or target changed.
+
+PROOF/FIXES: Added four CPU regressions for packed-channel bounds/relief,
+normal-aware mip normalization, per-tile CTM isolation, and hero-material
+structure. Added `authored_normal_and_ao_channels_reach_the_gpu`, which renders
+identical albedo panels with open, occluded, and tilted authored material maps
+and measures their separate shader effects. Its first AO calibration was too
+subtle and the proof rejected it; the test was strengthened to the shader's
+bounded AO endpoint. Added `material_gallery` (seven stepped samples under
+raking sun, five color/cavity pixel claims). The first terrain-level gallery
+was buried by world content and failed its sand claim; it was rebuilt as a
+raised masonry showroom, widened to retain both outer samples, and inspected
+at 800x600. Representative tiling, terrain-vista, and foliage outputs were also
+inspected after the full regeneration.
+
+VERIFICATION: `cargo build --workspace` GREEN; `cargo test --workspace` 387
+passing invocations / 0 failed; `cargo run --release -p xtask -- vistest shots`
+93/93; `make smoke` headless logic + release runtime OK; `make runtimes`
+refreshed `dist/loreforge.app`, `dist/loreforge-macos.dmg`,
+`dist/loreforge-linux-x86_64.tar.gz`, and `dist/loreforge-server` (Windows
+honestly skipped because MinGW is unavailable on this macOS host). The first perf runs
+looked slower than loop 344, so an exact loop-345 archive was independently
+built and benchmarked instead of assuming causation: warm loop-345 p50 104.0ms
+/ p95 127.3ms / min 92.2ms versus current p50 102.9ms / p95 195.2ms / min
+84.3ms in the same 29-frame 800x600 GPU-readback+PNG harness. Median is not
+regressed; p95 is explicitly noisy. Proof image:
+`shots/vistest_material_gallery.png`.
+
+HONESTLY DEFERRED: disk-backed authored material-pack loading through the mod
+manifest, textures above the current 16x16 atlas contract, roughness/metalness,
+and a projected raster shadow-map pass. Live RT still owns true soft cast
+shadows. The queued next job remains compact, persisted first-minute onboarding.

@@ -37,8 +37,8 @@ var t_diffuse: texture_2d_array<f32>;
 var t_ctm: texture_2d<f32>;
 @group(1) @binding(1)
 var s_diffuse: sampler;
-// Colorful tangent-space normal maps: generated once from the authored
-// pixel atlas. This is the cheap raster relief path, not ray tracing.
+// Packed material maps: tangent-space normal in RGB, material ambient
+// occlusion in alpha. One lookup serves both channels.
 @group(1) @binding(3)
 var t_normal: texture_2d_array<f32>;
 @group(1) @binding(4)
@@ -85,12 +85,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // textureSampleBias (bias 0 = the same automatic LOD).
     var color: vec4<f32>;
     var packed_normal: vec3<f32>;
+    var material_ao: f32;
     if (in.tex_index >= 4096u) {
         color = textureSampleBias(t_ctm, s_diffuse, in.tex_coord, 0.0);
-        packed_normal = textureSampleBias(t_ctm_normal, s_diffuse, in.tex_coord, 0.0).rgb;
+        let material = textureSampleBias(t_ctm_normal, s_diffuse, in.tex_coord, 0.0);
+        packed_normal = material.rgb;
+        material_ao = material.a;
     } else {
         color = textureSample(t_diffuse, s_diffuse, in.tex_coord, in.tex_index);
-        packed_normal = textureSample(t_normal, s_diffuse, in.tex_coord, in.tex_index).rgb;
+        let material = textureSample(t_normal, s_diffuse, in.tex_coord, in.tex_index);
+        packed_normal = material.rgb;
+        material_ao = material.a;
     }
     // alpha cutout (leaves, glass panes, crack decals). Water (a ~0.67) and
     // ice (~0.78) sit above the threshold and render solid/blended.
@@ -107,7 +112,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Block light slightly warmer/dimmer than full sky; never fully black.
     var brightness = max(sky * day, block_l * 0.92);
     brightness = max(brightness, 0.045);
-    let ambient = in.ao * 0.8 + 0.2;
+    // Geometry AO owns corners/adjacent blocks; material AO adds only the
+    // small-scale cavities authored into mortar, bark, soil and ore veins.
+    // A 0.62 floor keeps even the deepest texel readable.
+    let geometric_ao = in.ao * 0.8 + 0.2;
+    let micro_ao = mix(0.62, 1.0, material_ao);
+    let ambient = geometric_ao * micro_ao;
 
     // Reconstruct a stable local frame from the geometric face normal and
     // rotate the sampled tangent-space direction into world space. The

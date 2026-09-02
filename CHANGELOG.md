@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## 2026-09-02 — packed normal/AO materials and hero textures (loop 346)
+
+- **Terrain has authored character without abandoning voxel art.** Stone now
+  reads as mineral plates with fissures and quartz, dirt as clumps with pores
+  and pebbles, sand as wind-rippled grains, planks as joined boards with grain
+  and knots, and coal/iron as connected veins instead of scattered noise.
+  Grass gained clustered blades on top and roots/soil clumps on its sides.
+- **Normal maps and ambient occlusion are one reliable material contract.**
+  Each linear RGBA material layer stores a tangent-space normal in RGB and
+  micro ambient occlusion in alpha. Procedural and mod textures get a
+  deterministic Sobel/horizon-derived fallback; authored layers can enter
+  through `new_with_material_maps`. Transparent edges do not grow fake bevels,
+  AO has a readability floor, CTM derivatives are generated tile-by-tile, and
+  normal mip levels are decoded, averaged, and renormalized instead of treating
+  vectors as colors.
+- **The renderer uses it cheaply.** The raster shader combines micro-AO with
+  existing block-corner AO and lights the packed normal from the visible sun.
+  Normal and AO share the previous normal-map lookup, so there is no additional
+  atlas or texture fetch. Runtime layer replacement regenerates the complete
+  material mip chain.
+- **Proof:** four focused asset tests, a GPU test that independently proves
+  authored normal and AO channels reach the fragment shader, and a new
+  `material_gallery` raking-light scene with grass/sand/wood/iron/cavity pixel
+  claims. `cargo test --workspace` is 387/0 and all 93/93 visual scenes pass.
+  Warm A/B perf is p50 102.9ms for this build versus 104.0ms for the exact
+  loop-345 source snapshot in the same readback+PNG harness (no median
+  regression; p95 remains host-noisy).
+
 ## 2026-09-02 — kingdoms, walking NPCs, and the kingdom compass (loop 345)
 
 - **NPCs actually walk now.** The old movement loop only committed a step

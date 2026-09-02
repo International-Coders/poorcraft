@@ -1179,3 +1179,24 @@ Deferred (honest notes):
       still omits ids ≥128 (pre-existing — kingdoms render in the raster
       path, the default); monarch court lines (greetings/quests specific to
       Queen Ilsa) would need lore/npcs.toml archetypes.
+
+## Loop 346 — packed normal/AO materials and hero textures SHIPPED
+
+- [x] Redraw stone, grass top/side, dirt, sand, planks, coal ore, and iron ore
+      as structured 16x16 pixel materials rather than per-pixel noise.
+- [x] Pack tangent-space normal RGB + micro-AO alpha in the existing linear
+      material atlas; deterministic fallback generation covers every built-in,
+      procedural, mod, and dynamically replaced albedo layer.
+- [x] Add explicit authored-material constructors to the live and headless
+      renderers, with layer-count/dimension validation.
+- [x] Protect transparent cutout edges, derive CTM maps per tile, and build
+      correct vector-renormalized material mip chains.
+- [x] Combine micro-AO with geometry AO in the sun-tracked raster shader using
+      the existing material lookup; warm A/B p50 102.9ms versus loop 345's
+      104.0ms in the same harness.
+- [x] Four asset regressions + authored-channel GPU regression + raking-light
+      material_gallery scene; 387/0 tests and 93/93 visual proofs green.
+- [ ] Deferred: disk-backed PNG material-pack/mod manifest loading, arbitrary
+      atlas resolutions above the current 16x16 contract, roughness/metalness,
+      and true raster shadow maps are separate jobs. First-minute onboarding
+      remains the next usability pass.

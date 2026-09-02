@@ -33,6 +33,26 @@ pub struct HeadlessRenderer {
 
 impl HeadlessRenderer {
     pub fn new(width: u32, height: u32, textures: &[RgbaImage]) -> Result<Self, String> {
+        Self::new_inner(width, height, textures, None)
+    }
+
+    /// Proof/tooling path for explicitly authored packed material maps.
+    /// RGB stores tangent-space normals and alpha stores material AO.
+    pub fn new_with_material_maps(
+        width: u32,
+        height: u32,
+        textures: &[RgbaImage],
+        material_maps: &[RgbaImage],
+    ) -> Result<Self, String> {
+        Self::new_inner(width, height, textures, Some(material_maps))
+    }
+
+    fn new_inner(
+        width: u32,
+        height: u32,
+        textures: &[RgbaImage],
+        material_maps: Option<&[RgbaImage]>,
+    ) -> Result<Self, String> {
         let init = pollster::block_on(async {
             let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
                 backends: wgpu::Backends::PRIMARY,
@@ -72,7 +92,10 @@ impl HeadlessRenderer {
         };
 
         let format = wgpu::TextureFormat::Rgba8UnormSrgb;
-        let resources = SceneResources::new(&device, &queue, format, textures);
+        let resources = match material_maps {
+            Some(maps) => SceneResources::new_with_material_maps(&device, &queue, format, textures, maps),
+            None => SceneResources::new(&device, &queue, format, textures),
+        };
         let (_, depth_view) = MeshBatch::create_depth_texture(&device, width, height);
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Headless Color"),

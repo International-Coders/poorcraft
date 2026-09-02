@@ -90,8 +90,8 @@ pub struct SceneResources {
     uniform_bind_group_layout: wgpu::BindGroupLayout,
     /// The atlas array texture (P35 dynamic-layer writes).
     diffuse_texture: wgpu::Texture,
-    /// Tangent-space relief maps generated from the authored atlas. Kept in
-    /// linear color space: RGB is direction data, not display color.
+    /// Packed material maps generated from or supplied beside the atlas.
+    /// Linear RGB is a tangent-space normal; alpha is material AO.
     normal_texture: wgpu::Texture,
     /// The CTM strip atlas (Section E); kept alive for the bind group.
     #[allow(dead_code)]
@@ -113,7 +113,7 @@ impl SceneResources {
     ) {
         const MIP_LEVELS: u32 = 5;
         let mut level = img.clone();
-        let mut normal_level = lf_assets::generate_normal_map(img);
+        let mut normal_level = lf_assets::generate_material_map(img);
         for mip in 0..MIP_LEVELS {
             let (w, h) = level.dimensions();
             queue.write_texture(
@@ -148,12 +148,32 @@ impl SceneResources {
                 wgpu::Extent3d { width: nw, height: nh, depth_or_array_layers: 1 },
             );
             level = downsample_2x(&level);
-            normal_level = downsample_2x(&normal_level);
+            normal_level = lf_assets::downsample_material_map_2x(&normal_level);
         }
     }
 
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, target_format: wgpu::TextureFormat,
                textures: &[RgbaImage]) -> Self {
+        let material_maps = lf_assets::generate_material_atlas(textures);
+        Self::new_with_material_maps(device, queue, target_format, textures, &material_maps)
+    }
+
+    /// Build the scene pipeline from albedo plus explicit packed material
+    /// maps (normal RGB + ambient-occlusion alpha). This is the reliable
+    /// authored-asset path; [`SceneResources::new`] remains the deterministic
+    /// procedural/mod fallback. Every material layer must match its albedo.
+    pub fn new_with_material_maps(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target_format: wgpu::TextureFormat,
+        textures: &[RgbaImage],
+        material_maps: &[RgbaImage],
+    ) -> Self {
+        assert_eq!(textures.len(), material_maps.len(), "one material map is required per albedo layer");
+        assert!(textures.iter().all(|img| img.dimensions() == (16, 16)),
+            "scene atlas layers must use the engine's 16x16 material contract");
+        assert!(textures.iter().zip(material_maps).all(|(a, m)| a.dimensions() == m.dimensions()),
+            "material-map dimensions must match their albedo layers");
         let texture_size = wgpu::Extent3d {
             width: 16,
             height: 16,
@@ -209,8 +229,8 @@ impl SceneResources {
             label: Some("normal_texture_array"),
             view_formats: &[],
         });
-        for (i, img) in textures.iter().enumerate() {
-            let mut level = lf_assets::generate_normal_map(img);
+        for (i, img) in material_maps.iter().enumerate() {
+            let mut level = img.clone();
             for mip in 0..MIP_LEVELS {
                 let (w, h) = level.dimensions();
                 queue.write_texture(
@@ -228,7 +248,7 @@ impl SceneResources {
                     },
                     wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
                 );
-                level = downsample_2x(&level);
+                level = lf_assets::downsample_material_map_2x(&level);
             }
         }
         let normal_texture_view = normal_texture.create_view(&wgpu::TextureViewDescriptor {
@@ -341,11 +361,13 @@ impl SceneResources {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            label: Some("ctm_normal_texture"),
+            label: Some("ctm_material_texture"),
             view_formats: &[],
         });
         {
-            let mut level = lf_assets::generate_normal_map(&ctm_img);
+            // Derivatives are generated per 16x16 CTM tile in lf_assets,
+            // preventing normals/AO from bleeding across strip neighbors.
+            let mut level = lf_assets::generate_ctm_material_atlas();
             for mip in 0..MIP_LEVELS {
                 let (w, h) = level.dimensions();
                 queue.write_texture(
@@ -359,7 +381,7 @@ impl SceneResources {
                     wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(4 * w), rows_per_image: Some(h) },
                     wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
                 );
-                level = downsample_2x(&level);
+                level = lf_assets::downsample_material_map_2x(&level);
             }
         }
         let ctm_normal_texture_view = ctm_normal_texture.create_view(&wgpu::TextureViewDescriptor::default());

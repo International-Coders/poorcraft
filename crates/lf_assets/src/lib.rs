@@ -469,15 +469,34 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
         for y in 0u32..16 {
             let color = match name {
                 "stone" => {
-                    let v = 120 + ((x * 7 + y * 13) % 20);
-                    Rgba([ch(v), ch(v), ch(v), 255])
+                    // Broad mineral plates, hairline fissures and a few
+                    // quartz flecks. Large forms survive mipmapping better
+                    // than the old per-pixel static.
+                    let plate = ((x / 4) * 3 + (y / 3) * 5 + (x / 7)) % 5;
+                    let grain = (x * 11 + y * 7) % 9;
+                    let fissure = (x + y * 2 + (y / 4) * 3) % 17 == 0;
+                    let quartz = (x * 13 + y * 19) % 61 == 0;
+                    let v = 112 + plate * 7 + grain / 3;
+                    if fissure {
+                        Rgba([82, 86, 88, 255])
+                    } else if quartz {
+                        Rgba([168, 170, 166, 255])
+                    } else {
+                        Rgba([ch(v), ch(v + 2), ch(v + 1), 255])
+                    }
                 }
                 "grass" => {
                     if y < 4 {
-                        Rgba([80, 160, 60, 255])
+                        let blade = (x * 5 + y * 7) % 5;
+                        Rgba([ch(54 + blade * 5), ch(132 + blade * 7), ch(42 + blade * 3), 255])
                     } else {
-                        let v = 110 + ((x * 5 + y * 9) % 15);
-                        Rgba([ch(v), 90, 50, 255])
+                        let root = y < 7 && (x * 3 + y) % 5 < 2;
+                        let clump = ((x / 3) + (y / 2) * 3) % 4;
+                        if root {
+                            Rgba([88, 105, 43, 255])
+                        } else {
+                            Rgba([ch(92 + clump * 7), ch(68 + clump * 5), ch(38 + clump * 3), 255])
+                        }
                     }
                 }
                 // biome-identity grasses (Step 16): same construction as
@@ -932,22 +951,29 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     }
                 }
                 "dirt" => {
-                    let v = 100 + ((x * 11 + y * 7) % 25);
-                    // chunky clumps + the odd pale pebble (Minecraft dirt
-                    // reads as soil chunks, not static)
-                    let clump = ((x / 2 + y / 2) * 5 + (x + y) % 3) % 4 == 0;
-                    let pebble = (x * 13 + y * 7) % 53 < 2;
+                    let clump = ((x / 3) * 5 + (y / 2) * 3 + x / 7) % 5;
+                    let pore = (x * 7 + y * 13 + (x / 2) * 3) % 31 < 2;
+                    let pebble = (x * 13 + y * 7) % 67 == 0;
                     if pebble {
-                        Rgba([ch(v + 34), ch(v - 12), ch(v - 26), 255])
-                    } else if clump {
-                        Rgba([ch(v - 18), 66, 32, 255])
+                        Rgba([146, 119, 78, 255])
+                    } else if pore {
+                        Rgba([70, 48, 28, 255])
                     } else {
-                        Rgba([ch(v), 80, 40, 255])
+                        Rgba([ch(94 + clump * 8), ch(65 + clump * 6), ch(35 + clump * 4), 255])
                     }
                 }
                 "sand" => {
-                    let v = 210 + ((x * 3 + y * 5) % 12);
-                    Rgba([ch(v), ch(200 - (x % 3) * 4), 150, 255])
+                    // Two-pixel wind ripples with sparse shell grains.
+                    let ripple = (y + x / 5) % 5;
+                    let shell = (x * 17 + y * 11) % 73 == 0;
+                    if shell {
+                        Rgba([238, 220, 170, 255])
+                    } else if ripple == 0 {
+                        Rgba([188, 169, 122, 255])
+                    } else {
+                        let v = 208 + ((x * 3 + y * 2) % 9);
+                        Rgba([ch(v), ch(v - 14), ch(v - 55), 255])
+                    }
                 }
                 "mycelium" => {
                     if y < 4 {
@@ -1016,21 +1042,25 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     Rgba([ch(v / 3), ch(v + 60), ch(v / 4), 255])
                 }
                 "coal_ore" => {
-                    let speck = (x * 7 + y * 11) % 29 < 7;
-                    if speck {
-                        Rgba([30, 30, 34, 255])
+                    let vein = ((x as i32 - y as i32 * 2 + 18).rem_euclid(13) <= 1)
+                        && (x + y * 3) % 5 != 0;
+                    if vein {
+                        let glint = (x * 11 + y * 7) % 9 == 0;
+                        if glint { Rgba([66, 68, 72, 255]) } else { Rgba([24, 27, 30, 255]) }
                     } else {
-                        let v = 120 + ((x * 7 + y * 13) % 20);
-                        Rgba([ch(v), ch(v), ch(v), 255])
+                        let v = 112 + (((x / 3) * 7 + (y / 3) * 11) % 24);
+                        Rgba([ch(v), ch(v + 2), ch(v + 3), 255])
                     }
                 }
                 "iron_ore" => {
-                    let speck = (x * 5 + y * 13) % 31 < 7;
-                    if speck {
-                        Rgba([216, 175, 147, 255])
+                    let vein = ((x as i32 + y as i32 * 2 + 7).rem_euclid(14) <= 2)
+                        && (x * 3 + y) % 6 != 0;
+                    if vein {
+                        let edge = (x + y) % 4 == 0;
+                        if edge { Rgba([166, 111, 82, 255]) } else { Rgba([218, 161, 118, 255]) }
                     } else {
-                        let v = 120 + ((x * 7 + y * 13) % 20);
-                        Rgba([ch(v), ch(v), ch(v), 255])
+                        let v = 112 + (((x / 3) * 7 + (y / 3) * 11) % 24);
+                        Rgba([ch(v), ch(v + 2), ch(v + 3), 255])
                     }
                 }
                 "torch_item" => {
@@ -1092,12 +1122,18 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     }
                 }
                 "planks" => {
-                    let v = 160 + ((x * 3 + y * 7) % 12);
                     let seam = y % 4 == 3 || (y % 8 < 4 && x == 8) || (y % 8 >= 4 && x == 3);
+                    let grain = (x + (y / 4) * 5) % 7 == 0;
+                    let knot = ((x as i32 - 12).pow(2) + ((y % 8) as i32 - 2).pow(2)) <= 2;
                     if seam {
-                        Rgba([120, 90, 55, 255])
+                        Rgba([83, 57, 34, 255])
+                    } else if knot {
+                        Rgba([102, 67, 38, 255])
+                    } else if grain {
+                        Rgba([130, 86, 46, 255])
                     } else {
-                        Rgba([ch(v - 20), ch(v - 70), ch(v - 100), 255])
+                        let v = 147 + ((x * 3 + y * 7) % 13);
+                        Rgba([ch(v), ch(v - 55), ch(v - 91), 255])
                     }
                 }
                 "glass" => {
@@ -1267,9 +1303,17 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     Rgba([30, ch(60 + v / 2), ch(150 + v / 3), 170])
                 }
                 "grass_top" => {
-                    // full green with a mottled, slightly clumpy lawn look
-                    let v = ((x * 5 + y * 3) % 7) + ((x * y) % 5);
-                    Rgba([ch(52 + v * 3), ch(128 + v * 4), ch(40 + v * 2), 255])
+                    // Interlocking blade clusters: readable at 16px and
+                    // tile-safe, with small dry/bright tips for depth.
+                    let cluster = ((x / 2) * 3 + (y / 2) * 5) % 6;
+                    let blade = (x * 7 + y * 11) % 9;
+                    if blade == 0 {
+                        Rgba([102, 172, 66, 255])
+                    } else if blade == 1 {
+                        Rgba([34, 102, 35, 255])
+                    } else {
+                        Rgba([ch(48 + cluster * 5), ch(126 + cluster * 6), ch(38 + cluster * 3), 255])
+                    }
                 }
                 "log_top" => {
                     // growth rings: concentric squares around the center
@@ -1941,6 +1985,25 @@ pub fn generate_ctm_strip_atlas_seeded(seed: u64) -> image::RgbaImage {
     img
 }
 
+/// Packed normal + material-occlusion map for the CTM atlas. Each 16x16
+/// tile is derived independently before packing, so Sobel/AO kernels never
+/// read across unrelated neighboring tiles in the 192x512 strip.
+pub fn generate_ctm_material_atlas() -> image::RgbaImage {
+    let mut img = image::RgbaImage::new(CTM_STRIP_WIDTH, CTM_STRIP_HEIGHT);
+    for (b, block) in CTM_BLOCKS.iter().enumerate() {
+        for tile in 0..CTM_TILES as u8 {
+            let t = tile as u32;
+            let col = t % 12;
+            let row = b as u32 * 4 + t / 12;
+            let material = generate_material_map(&generate_ctm_tile(block.art, tile));
+            image::imageops::replace(&mut img, &material, (col * 16) as i64, (row * 16) as i64);
+        }
+        let filler = generate_material_map(&generate_ctm_tile(block.art, 46));
+        image::imageops::replace(&mut img, &filler, 176, (b as u32 * 4 + 3) as i64 * 16);
+    }
+    img
+}
+
 /// Bit layout (top face, looking down): NW=7 N=6 NE=5 / W=4 . E=3 / SW=2 S=1 SE=0.
 const BIT_N: u8 = 1 << 6;
 const BIT_E: u8 = 1 << 3;
@@ -2548,25 +2611,34 @@ fn hurt_tint(img: &RgbaImage) -> RgbaImage {
     out
 }
 
-/// Convert a diffuse/color-key image into a tangent-space normal map. The
-/// RGB output is the familiar colorful game-art map: red/green encode the
-/// local slope and blue points out of the surface. Alpha is copied so cutout
-/// sprites remain cut out. This is cheap to sample and fakes micro-relief;
-/// it is not a ray-traced or geometry shadow.
-pub fn generate_normal_map(diffuse: &RgbaImage) -> RgbaImage {
+/// Convert an albedo/color-key image into one GPU-ready material map.
+/// RGB is a normalized tangent-space normal; alpha is material ambient
+/// occlusion (255 = open, lower = a crevice). Packing AO into the unused
+/// normal alpha channel keeps the raster path at one material lookup.
+///
+/// Transparent neighbors inherit the center height while derivatives are
+/// calculated. That prevents cutout leaves/items from acquiring a false
+/// beveled-card rim. AO is deliberately bounded to >= 0.62 so authored
+/// albedo remains legible and mesh-corner AO remains the large-scale signal.
+pub fn generate_material_map(diffuse: &RgbaImage) -> RgbaImage {
     let (w, h) = diffuse.dimensions();
     let mut out = RgbaImage::new(w, h);
-    let height = |x: i32, y: i32| -> f32 {
+    let raw_height = |x: i32, y: i32| -> Option<f32> {
         let sx = x.clamp(0, w.saturating_sub(1) as i32) as u32;
         let sy = y.clamp(0, h.saturating_sub(1) as i32) as u32;
         let p = diffuse.get_pixel(sx, sy).0;
-        if p[3] < 128 { return 0.0; }
-        (p[0] as f32 * 0.2126 + p[1] as f32 * 0.7152 + p[2] as f32 * 0.0722) / 255.0
+        if p[3] < 128 { return None; }
+        Some((p[0] as f32 * 0.2126 + p[1] as f32 * 0.7152 + p[2] as f32 * 0.0722) / 255.0)
     };
     for y in 0..h {
         for x in 0..w {
             let xi = x as i32;
             let yi = y as i32;
+            let Some(center) = raw_height(xi, yi) else {
+                out.put_pixel(x, y, Rgba([128, 128, 255, 255]));
+                continue;
+            };
+            let height = |sx: i32, sy: i32| raw_height(sx, sy).unwrap_or(center);
             // Sobel slope. Pixel art needs restrained strength or every
             // palette boundary turns into a bevel.
             let dx = (height(xi + 1, yi - 1) + 2.0 * height(xi + 1, yi) + height(xi + 1, yi + 1))
@@ -2578,7 +2650,69 @@ pub fn generate_normal_map(diffuse: &RgbaImage) -> RgbaImage {
             let ny = -dy * 1.35 / len;
             let nz = 1.0 / len;
             let enc = |v: f32| ((v * 0.5 + 0.5) * 255.0).round().clamp(0.0, 255.0) as u8;
-            out.put_pixel(x, y, Rgba([enc(nx), enc(ny), enc(nz), diffuse.get_pixel(x, y)[3]]));
+
+            // Horizon-style local AO: only material higher than this texel
+            // can occlude it. Radius-2 taps are weaker, giving broad mortar
+            // and bark grooves depth without a blurred dark halo.
+            let mut blocked = 0.0f32;
+            let mut weight_sum = 0.0f32;
+            for (ox, oy, weight) in [
+                (-1, -1, 1.0), (0, -1, 1.25), (1, -1, 1.0),
+                (-1, 0, 1.25),                  (1, 0, 1.25),
+                (-1, 1, 1.0),  (0, 1, 1.25),  (1, 1, 1.0),
+                (-2, 0, 0.55), (2, 0, 0.55), (0, -2, 0.55), (0, 2, 0.55),
+            ] {
+                blocked += (height(xi + ox, yi + oy) - center - 0.018).max(0.0) * weight;
+                weight_sum += weight;
+            }
+            let occlusion = (blocked / weight_sum * 5.0).clamp(0.0, 0.38);
+            let ao = ((1.0 - occlusion) * 255.0).round() as u8;
+            out.put_pixel(x, y, Rgba([enc(nx), enc(ny), enc(nz), ao]));
+        }
+    }
+    out
+}
+
+/// Compatibility view for tools that need a traditional normal map with
+/// the source cutout alpha. The live renderer uses [`generate_material_map`]
+/// so its alpha channel carries material AO instead.
+pub fn generate_normal_map(diffuse: &RgbaImage) -> RgbaImage {
+    let mut normal = generate_material_map(diffuse);
+    for (dst, src) in normal.pixels_mut().zip(diffuse.pixels()) {
+        dst.0[3] = src.0[3];
+    }
+    normal
+}
+
+/// Build the deterministic packed material atlas used by the engine. This
+/// is also the fallback for mods and runtime-generated textures that do not
+/// supply authored maps through `SceneResources::new_with_material_maps`.
+pub fn generate_material_atlas(diffuse: &[RgbaImage]) -> Vec<RgbaImage> {
+    diffuse.iter().map(generate_material_map).collect()
+}
+
+/// Normal-aware 2x downsample for packed material maps. Averaging encoded
+/// RGB directly shortens and biases normal vectors; this decodes, averages,
+/// renormalizes, then re-encodes them while box-filtering AO independently.
+pub fn downsample_material_map_2x(img: &RgbaImage) -> RgbaImage {
+    let (w, h) = img.dimensions();
+    let (nw, nh) = ((w / 2).max(1), (h / 2).max(1));
+    if nw == w || nh == h { return img.clone(); }
+    let mut out = RgbaImage::new(nw, nh);
+    for y in 0..nh {
+        for x in 0..nw {
+            let mut n = [0.0f32; 3];
+            let mut ao = 0u32;
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                let p = img.get_pixel(x * 2 + dx, y * 2 + dy).0;
+                n[0] += p[0] as f32 / 127.5 - 1.0;
+                n[1] += p[1] as f32 / 127.5 - 1.0;
+                n[2] += p[2] as f32 / 127.5 - 1.0;
+                ao += p[3] as u32;
+            }
+            let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt().max(1e-6);
+            let enc = |v: f32| ((v / len * 0.5 + 0.5) * 255.0).round().clamp(0.0, 255.0) as u8;
+            out.put_pixel(x, y, Rgba([enc(n[0]), enc(n[1]), enc(n[2]), (ao / 4) as u8]));
         }
     }
     out
@@ -4011,6 +4145,74 @@ mod tests {
         let flower_n = generate_normal_map(&flower);
         for (src, n) in flower.pixels().zip(flower_n.pixels()) {
             assert_eq!(src[3], n[3], "normal map keeps chroma/alpha cutout mask");
+        }
+    }
+
+    #[test]
+    fn packed_material_maps_encode_normal_and_bounded_cavity_ao() {
+        let flat = RgbaImage::from_pixel(8, 8, Rgba([128, 128, 128, 255]));
+        let flat_material = generate_material_map(&flat);
+        assert!(flat_material.pixels().all(|p| p.0 == [128, 128, 255, 255]),
+            "a flat albedo must produce a flat/open material map");
+
+        let mut pit = RgbaImage::from_pixel(9, 9, Rgba([220, 220, 220, 255]));
+        pit.put_pixel(4, 4, Rgba([35, 35, 35, 255]));
+        let material = generate_material_map(&pit);
+        assert!(material.get_pixel(4, 4)[3] <= 160,
+            "a deep cavity needs strong material AO: {}", material.get_pixel(4, 4)[3]);
+        assert_eq!(material.get_pixel(0, 0)[3], 255, "open flat corner stays unoccluded");
+        assert!(material.pixels().all(|p| p[3] >= 158), "AO floor prevents crushed albedo");
+
+        let mut cutout = RgbaImage::from_pixel(5, 5, Rgba([0, 0, 0, 0]));
+        cutout.put_pixel(2, 2, Rgba([180, 60, 60, 255]));
+        let cutout_material = generate_material_map(&cutout);
+        assert_eq!(cutout_material.get_pixel(2, 2).0, [128, 128, 255, 255],
+            "transparent neighbors must not bevel a cutout card");
+    }
+
+    #[test]
+    fn material_mips_renormalize_normals_and_keep_ao() {
+        let source = generate_material_map(&generate_block_texture("carved_stone"));
+        let mip = downsample_material_map_2x(&source);
+        assert_eq!(mip.dimensions(), (8, 8));
+        for p in mip.pixels() {
+            let x = p[0] as f32 / 127.5 - 1.0;
+            let y = p[1] as f32 / 127.5 - 1.0;
+            let z = p[2] as f32 / 127.5 - 1.0;
+            let len = (x * x + y * y + z * z).sqrt();
+            assert!((len - 1.0).abs() < 0.02, "mip normal length drifted to {len}");
+            assert!(p[3] >= 158);
+        }
+    }
+
+    #[test]
+    fn ctm_material_derivatives_are_generated_per_tile() {
+        let atlas = generate_ctm_material_atlas();
+        assert_eq!(atlas.dimensions(), (CTM_STRIP_WIDTH, CTM_STRIP_HEIGHT));
+        let tile = generate_material_map(&generate_ctm_tile("grass_top", 0));
+        for y in 0..16 {
+            for x in 0..16 {
+                assert_eq!(atlas.get_pixel(x, y), tile.get_pixel(x, y),
+                    "CTM material tile must not sample its strip neighbor at {x},{y}");
+            }
+        }
+    }
+
+    #[test]
+    fn hero_terrain_textures_have_structured_material_relief() {
+        for name in ["stone", "grass_top", "dirt", "sand", "planks", "coal_ore", "iron_ore"] {
+            let albedo = generate_block_texture(name);
+            let colors: std::collections::HashSet<[u8; 3]> = albedo.pixels()
+                .map(|p| [p[0], p[1], p[2]])
+                .collect();
+            let material = generate_material_map(&albedo);
+            let normals: std::collections::HashSet<[u8; 3]> = material.pixels()
+                .map(|p| [p[0], p[1], p[2]])
+                .collect();
+            let darkest_ao = material.pixels().map(|p| p[3]).min().unwrap();
+            assert!(colors.len() >= 6, "{name} needs a structured albedo palette");
+            assert!(normals.len() >= 6, "{name} needs visible normal relief");
+            assert!(darkest_ao < 245, "{name} needs at least one material cavity");
         }
     }
 
