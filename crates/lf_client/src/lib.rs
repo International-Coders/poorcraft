@@ -284,8 +284,11 @@ pub struct Particle {
 #[derive(Clone, Debug)]
 pub struct ItemDrop {
     pub stack: ItemStack,
-    pub position: Vec3,
-    pub velocity: Vec3,
+    /// Unique id (carry targeting survives vec churn).
+    pub id: u64,
+    /// Rigid prop state: gravity + bounces off floor and walls, tumbles
+    /// while moving, sleeps when it runs out of energy (lf_game::props).
+    pub body: lf_game::props::PropBody,
     pub age: f32,
 }
 
@@ -1010,6 +1013,12 @@ struct GameState {
     last_dt: f32,
     /// Remote-player motion estimate: (last pos, walk phase, amplitude).
     remote_motion: std::collections::HashMap<u64, (Vec3, f32, f32)>,
+    /// Item-drop prop ids (carry targeting survives vec churn).
+    next_drop_id: u64,
+    /// The prop held by right-click carry (gravity-gun style): its id and
+    /// the distance along the view ray it was grabbed at.
+    carried_drop: Option<u64>,
+    carry_dist: f32,
     pub drops: Vec<ItemDrop>,
     drop_batch: Option<MeshBatch>,
     pub block_entities: HashMap<(i32, i32, i32), BlockEntity>,
@@ -1428,6 +1437,9 @@ impl GameState {
             elapsed: 0.0,
             last_dt: 0.0,
             remote_motion: std::collections::HashMap::new(),
+            next_drop_id: 1,
+            carried_drop: None,
+            carry_dist: 0.0,
             block_entities: HashMap::new(),
             mobs: Vec::new(),
             villagers: Vec::new(),
@@ -1587,10 +1599,14 @@ impl GameState {
         for slot in grid.into_iter().flatten() {
             let leftover = self.inventory.add_item(&slot.item_id, slot.count);
             if leftover > 0 {
+                let id = self.next_drop_id;
+                self.next_drop_id += 1;
+                let pos = self.player.eye_position() + self.player.look_dir();
                 self.drops.push(ItemDrop {
                     stack: ItemStack { count: leftover, ..slot },
-                    position: self.player.eye_position() + self.player.look_dir(),
-                    velocity: Vec3::new(0.0, 2.0, 0.0),
+                    id,
+                    body: lf_game::props::PropBody::new(
+                        pos, Vec3::new(0.0, 2.0, 0.0), faller_tumble_axis(id)),
                     age: 0.0,
                 });
             }
@@ -1598,10 +1614,14 @@ impl GameState {
         if let Some(cursor) = self.cursor_stack.take() {
             let leftover = self.inventory.add_item(&cursor.item_id, cursor.count);
             if leftover > 0 {
+                let id = self.next_drop_id;
+                self.next_drop_id += 1;
+                let pos = self.player.position + Vec3::new(0.0, 1.0, 0.0);
                 self.drops.push(ItemDrop {
                     stack: ItemStack { count: leftover, ..cursor },
-                    position: self.player.position + Vec3::new(0.0, 1.0, 0.0),
-                    velocity: Vec3::ZERO,
+                    id,
+                    body: lf_game::props::PropBody::new(
+                        pos, Vec3::ZERO, faller_tumble_axis(id)),
                     age: 0.0,
                 });
             }
@@ -2512,8 +2532,78 @@ impl GameState {
                 self.sync_map_faction_data();
             }
         }
-        // bow: hold RMB to charge
-        if playing && self.input.place_pressed {
+        // GMod-style prop carry: hold RMB while aiming at an item prop to
+        // pin it to the view ray; release to drop/throw it. Runs before the
+        // bow charger and the interact/place chain and suppresses both for
+        // that press (and the whole hold).
+        if playing {
+            let eye = self.player.eye_position();
+            let look = self.player.look_dir();
+            if let Some(id) = self.carried_drop {
+                if self.drops.iter().any(|d| d.id == id) {
+                    if self.input.place_pressed {
+                        // still held this frame — refresh the grab distance
+                        // with the wheel-free default (scroll could pinch)
+                        if let Some(d) = self.drops.iter().find(|d| d.id == id) {
+                            self.carry_dist =
+                                ((d.body.position - eye).length()).clamp(1.4, 5.5);
+                        }
+                        self.input.place_pressed = false;
+                    } else {
+                        // released: the prop keeps its spring momentum plus
+                        // a small flick along the look direction
+                        if let Some(d) = self.drops.iter_mut().find(|d| d.id == id) {
+                            d.body.held = false;
+                            d.body.rest = false;
+                            d.body.velocity = d.body.velocity * 0.6 + look * 2.5;
+                        }
+                        self.carried_drop = None;
+                    }
+                } else {
+                    self.carried_drop = None;
+                }
+            } else if self.input.place_pressed {
+                // press while aiming at a prop within reach grabs it (a
+                // solid block in between blocks the grab — no pulling
+                // through walls)
+                let wall_hit = raycast_voxel(eye, look, 6.0, |pos| {
+                    registry::is_targetable(self.world.get_block(pos.x, pos.y, pos.z))
+                })
+                .map(|(pos, _)| (Vec3::new(pos.x as f32, pos.y as f32, pos.z as f32) - eye).length());
+                let mut grab: Option<(u64, f32)> = None;
+                for d in &self.drops {
+                    if d.age < 0.1 {
+                        continue;
+                    }
+                    let half = lf_game::props::prop_half(d.stack.count);
+                    let to = d.body.position - eye;
+                    let t = to.dot(look);
+                    if t < 0.5 || t > 6.0 {
+                        continue;
+                    }
+                    if wall_hit.map(|wt| wt < t - half).unwrap_or(false) {
+                        continue; // a wall stands between the player and the prop
+                    }
+                    if (eye + look * t - d.body.position).length() < half + 0.3 {
+                        if grab.map(|(_, gt)| t < gt).unwrap_or(true) {
+                            grab = Some((d.id, t));
+                        }
+                    }
+                }
+                if let Some((id, dist)) = grab {
+                    self.carried_drop = Some(id);
+                    self.carry_dist = dist.clamp(1.4, 5.5);
+                    if let Some(d) = self.drops.iter_mut().find(|d| d.id == id) {
+                        d.body.held = true;
+                        d.body.rest = false;
+                    }
+                    self.input.place_pressed = false;
+                    self.push_hint("carrying — release to drop, walk close to pocket");
+                }
+            }
+        }
+        // bow: hold RMB to charge (not while carrying a prop)
+        if playing && self.input.place_pressed && self.carried_drop.is_none() {
             let held_id = self.inventory.slots[self.hotbar_index].as_ref().map(|s| s.item_id.clone());
             if held_id.as_deref() == Some("bow") {
                 self.bow_charge = Some(self.bow_charge.unwrap_or(0.0) + dt);
@@ -3850,10 +3940,18 @@ impl GameState {
     }
 
     fn spawn_drop(&mut self, item: &str, count: u8, pos: Vec3) {
+        let id = self.next_drop_id;
+        self.next_drop_id += 1;
+        // pop out with a deterministic sideways flick so mined items
+        // scatter instead of stacking into a pillar
+        let h = id.wrapping_mul(0x9E3779B97F4A7C15);
+        let a = ((h >> 16) % 628) as f32 / 100.0 - 3.14;
+        let velocity = Vec3::new(a.sin() * 0.9, 2.4, a.cos() * 0.9);
+        let body = lf_game::props::PropBody::new(pos, velocity, faller_tumble_axis(id));
         self.drops.push(ItemDrop {
             stack: ItemStack { item_id: item.to_string(), count },
-            position: pos,
-            velocity: Vec3::new(0.0, 1.5, 0.0),
+            id,
+            body,
             age: 0.0,
         });
     }
@@ -4808,32 +4906,58 @@ impl GameState {
         }
     }
 
-    /// Gravity + magnet pickup for item drops.
+    /// GMod-style item props: rigid physics (bounce off floor and walls,
+    /// tumble, settle), same-item stacks merge up to five and grow with
+    /// count, the carried prop springs along the view ray, and walking
+    /// into a stack picks it up.
     fn update_drops(&mut self, dt: f32) {
         let player_center = self.player.position + Vec3::new(0.0, 0.9, 0.0);
         let mut to_remove: Vec<usize> = Vec::new();
         let mut collected: Vec<String> = Vec::new();
+        let carried = self.carried_drop;
         for (i, drop) in self.drops.iter_mut().enumerate() {
             drop.age += dt;
-            drop.velocity.y -= 20.0 * dt;
-            let next = drop.position + drop.velocity * dt;
-            // land on solid blocks
-            if drop.velocity.y < 0.0
-                && self.world.is_solid(next.x as i32, (next.y - 0.1) as i32, next.z as i32)
+            let half = lf_game::props::prop_half(drop.stack.count);
+            if Some(drop.id) == carried {
+                // gravity-gun carry: pin the prop to its grab distance
+                // along the view ray with a soft spring; walls stop it
+                let eye = self.player.eye_position();
+                let look = self.player.look_dir();
+                let target = eye + look * self.carry_dist;
+                let delta = target - drop.body.position;
+                drop.body.rest = false;
+                drop.body.velocity = delta * 12.0;
+                drop.body.position += drop.body.velocity * dt;
+                if drop.body.velocity.length() > 30.0 {
+                    drop.body.velocity = drop.body.velocity.normalize() * 30.0;
+                }
+                // walk right up to a carried prop to pocket it
+                if drop.age > 0.2
+                    && (player_center - drop.body.position).length() < 1.0 + half
+                {
+                    let taken = drop.stack.count.saturating_sub(
+                        self.inventory.add_item(&drop.stack.item_id, drop.stack.count),
+                    );
+                    if taken > 0 {
+                        collected.push(drop.stack.item_id.clone());
+                    }
+                    if drop.stack.count == taken {
+                        to_remove.push(i);
+                        self.carried_drop = None;
+                    } else {
+                        drop.stack.count -= taken;
+                    }
+                }
+                continue;
+            }
+            lf_game::props::step_prop(&self.world, &mut drop.body, half, dt);
+            // walking into a resting stack picks it up (close grab; the old
+            // 2-block magnet vacuum is gone — items now litter the floor)
+            if drop.age > 0.35
+                && (player_center - drop.body.position).length() < 0.95 + half
             {
-                drop.velocity = Vec3::ZERO;
-            } else {
-                drop.position = next;
-            }
-            // magnet then pickup
-            let d = player_center - drop.position;
-            let dist = d.length();
-            if dist < 2.0 && drop.age > 0.5 {
-                drop.position += d.normalize() * (6.0 * dt);
-            }
-            if dist < 1.2 && drop.age > 0.5 {
                 let taken = drop.stack.count.saturating_sub(
-                    self.inventory.add_item(&drop.stack.item_id, drop.stack.count)
+                    self.inventory.add_item(&drop.stack.item_id, drop.stack.count),
                 );
                 if taken > 0 {
                     collected.push(drop.stack.item_id.clone());
@@ -4847,6 +4971,46 @@ impl GameState {
         }
         for i in to_remove.into_iter().rev() {
             self.drops.remove(i);
+        }
+        // same-item resting stacks merge up to five (survivor keeps the
+        // lower position so the pile looks continuous)
+        let mut merges: Vec<(usize, usize)> = Vec::new();
+        for a in 0..self.drops.len() {
+            for b in (a + 1)..self.drops.len() {
+                let (da, db) = (&self.drops[a], &self.drops[b]);
+                if da.stack.item_id != db.stack.item_id
+                    || !da.body.rest || !db.body.rest
+                    || da.body.held || db.body.held
+                {
+                    continue;
+                }
+                let reach = lf_game::props::merge_distance(da.stack.count, db.stack.count);
+                if da.body.position.distance(db.body.position) <= reach {
+                    merges.push((a, b));
+                }
+            }
+        }
+        // one merge per frame: removals would shift the collected indices,
+        // and leftover piles drain over a few frames anyway
+        if let Some(&(a, b)) = merges.first() {
+            if let Some((surviving, leftover)) =
+                lf_game::props::merged_counts(self.drops[a].stack.count, self.drops[b].stack.count)
+            {
+                let (keep, give) = if self.drops[a].body.position.y
+                    <= self.drops[b].body.position.y
+                {
+                    (a, b)
+                } else {
+                    (b, a)
+                };
+                self.drops[keep].stack.count = surviving;
+                self.drops[keep].body.rest = false; // the bigger cube re-settles
+                if leftover == 0 {
+                    self.drops.remove(give);
+                } else {
+                    self.drops[give].stack.count = leftover;
+                }
+            }
         }
         let catalog_pairs_ref = workbench::catalog_pairs();
         for item in collected {
@@ -5617,16 +5781,20 @@ impl GameState {
             }
             self.remote_motion.retain(|id, _| remotes.iter().any(|(rid, _, _)| rid == id));
         }
-        // Non-block drops use their authored inventory sprite as crossed
-        // alpha-cutout impostors; block drops remain small textured cubes.
+        // Item props: block items are rigid tumbling cubes sized by their
+        // stack count (1 = a chunk, 5 = a full block); non-block drops use
+        // their authored inventory sprite as crossed alpha-cutout impostors
+        // scaled by the same rule.
         for drop in &self.drops {
-            let bob = (drop.age * 2.0).sin() * 0.05;
-            let center = drop.position + Vec3::new(0.0, 0.22 + bob, 0.0);
+            let half = lf_game::props::prop_half(drop.stack.count);
+            let center = drop.body.position;
             if let Some(tex) = lf_assets::item_texture_layer(&drop.stack.item_id) {
-                push_item_sprite(center, 0.23, tex, &mut vertices, &mut indices);
+                push_item_sprite(center, half, tex, &mut vertices, &mut indices);
             } else {
-                push_cube(center.x, center.y, center.z, 0.15,
-                    drop_tex_layer(&drop.stack.item_id), &mut vertices, &mut indices);
+                let faces = lf_engine::scene::rotated_cube_faces(
+                    center, half * 0.98, drop.body.tumble_axis, drop.body.angle,
+                );
+                push_faces(faces, drop_tex_layer(&drop.stack.item_id), &UVS_CUBE, &mut vertices, &mut indices);
             }
         }
 

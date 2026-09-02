@@ -1641,3 +1641,47 @@ gait stays as-is (already animated); no network sync of gait (mobs are
 client-side only, unchanged); hurt flash is a layer swap, not an additive
 shader tint (alpha-blended overlays would need a transparent-pass entity
 batch).
+
+## 2026-09-01 — loop 340: GMod-style physics item drops
+
+WHAT: Mining, farming, looting, and tree-felling now drop rigid physics
+props. Props bounce off floors and walls, tumble, slide, settle flat, and
+sleep; the player carries one at range by holding right-click (release to
+throw), pockets stacks by walking into them, and same-item stacks merge up
+to five with the cube growing to full block size.
+
+HOW: crates/lf_game/src/props.rs (NEW) — PropBody (position, velocity,
+angle/angvel/tumble_axis, held, rest) + step_prop: gravity 20, per-axis
+AABB-vs-block-grid collision (floor restitution 0.3 with snap-to-block-top
+and per-second ground friction 1.2; wall restitution 0.4; bounce threshold
+1.6 below which the axis settles), tumble speed tied to horizontal motion,
+settle-to-nearest-flat on sleep; prop_half(count) = 0.14 + 0.072*count
+(5-stack == 0.5 == block half); merged_counts / merge_distance for the
+cap-5 ground stacks. 5 unit tests incl. fast-rebound vs slow-push-wall-rest.
+lf_client — ItemDrop reworked to {stack, id, body: PropBody, age}; spawn_drop
+gives a deterministic sideways pop + tumble axis; update_drops rewritten:
+step_prop per drop, carried prop springs to eye + look*carry_dist (velocity
+= delta*12, release adds look*2.5 flick), proximity pickup 0.95+half
+(magnet vacuum removed), one-merge-per-frame pass for resting same-item
+stacks; right-click carry input before the bow charger and the one-shot
+place consumer (place_pressed consumed, bow suppressed while carrying);
+grab raycast 6 blocks with a wall-LOS check (no pulling through walls);
+render: rotated_cube_faces sized by prop_half with the prop's tumble angle,
+sprites scaled by the same rule. lf_vistest — item_physics scene on the
+sand stage steps the REAL physics (asserts rest/airborne/wall-touch in
+scene) + pixel claims calibrated from the deterministic render.
+
+VERIFICATION: cargo test --workspace 365 passed / 0 failed (360 + 5 props).
+cargo run --release -p xtask -- vistest shots 86/86 ok (85 + item_physics).
+Scene PNG measured locally: ground stack runs 27 < 39 < 50 px wide, the
+airborne cube at rows 210-265 above the ~290 ground line, wall column
+x643-779 spanning rows 190-340. Smoke: release binary alive 12s.
+make runtimes refreshed dist/ artifacts.
+
+HONESTLY DEFERRED: prop-vs-prop collision (stacks rest inside each other's
+footprint when merging is capped at 5+5; the merge pass keeps them
+visually separate in practice); drops remain client-side only (multiplayer
+peers do not see each other's props — mobs/villagers are the same today;
+protocol v5 entity sync is the roadmap step); carried props are not
+highlighted (an outline tint would need the outline pass to accept dynamic
+geometry).

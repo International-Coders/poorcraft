@@ -655,6 +655,9 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "mob_hurt_death", desc: "loop 339: hurt flash (red-tinted skin) + toppled corpses after the death animation",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
+        SceneSpec { name: "item_physics", desc: "loop 340: GMod-style item props — resting stacks sized 1/3/5 (a full stack is block-sized), one mid-bounce in flight, one settled against a wall",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO },
         SceneSpec { name: "ember_glow", desc: "ember_glowstone formation with rising amber sparks (ambient C4 particles)",
             default_seed: 12345, time_of_day: 0.75, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
@@ -883,7 +886,7 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
     // mob_anim / mob_hurt_death: wide flat SAND display stage with an air
     // shell, so the only mid-frame content is the subjects (clean pixel
     // claims: sky is blue, sand is bright tan, mobs are everything else)
-    if matches!(spec.name, "mob_anim" | "mob_hurt_death") {
+    if matches!(spec.name, "mob_anim" | "mob_hurt_death" | "item_physics") {
         use lf_voxel::registry::block;
         let h = world.surface_height(0, 0);
         for x in -44..44 {
@@ -892,6 +895,15 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
                     world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
                 }
                 world.set_block(x, h - 1, z, lf_voxel::BlockState(block::SAND));
+            }
+        }
+        // item_physics: a 3-tall wall for the wall-rest proof (pre-mesh —
+        // blocks set after meshing never render)
+        if spec.name == "item_physics" {
+            for y in 0..3 {
+                for dz in -1..=1 {
+                    world.set_block(5, h + y, dz, lf_voxel::BlockState(block::STONE));
+                }
             }
         }
     }
@@ -1972,6 +1984,75 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
             lf_assets::VILLAGER_NAMELESS_LAYER, None);
     }
 
+    if spec.name == "item_physics" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0) as f32;
+        // all proof props use stone-gray so the pixel claim can find them
+        // cleanly against sand and sky
+        let mut push_prop = |vertices: &mut Vec<GpuVertex>, indices: &mut Vec<u32>,
+                             body: &lf_game::props::PropBody, count: u8, tex: u32| {
+            let half = lf_game::props::prop_half(count);
+            for (corners, normal) in lf_engine::scene::rotated_cube_faces(
+                body.position, half * 0.98, body.tumble_axis, body.angle,
+            ) {
+                let base = vertices.len() as u32;
+                for (corner, uv) in corners.iter().zip([[0.0,1.0],[0.0,0.0],[1.0,0.0],[1.0,1.0]]) {
+                    vertices.push(GpuVertex { position: *corner, normal, tex_coord: uv,
+                        tex_index: tex, ao: 1.0, light: 0xF0, sway: 0.0 });
+                }
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        };
+        let prop_texes = [
+            lf_assets::texture_index_for_block(block::STONE),
+            lf_assets::texture_index_for_block(block::STONE),
+            lf_assets::texture_index_for_block(block::STONE),
+        ];
+        // three resting stacks stepped to sleep: 1, 3, and 5 items
+        for (i, count) in [1u8, 3, 5].iter().enumerate() {
+            let half = lf_game::props::prop_half(*count);
+            let mut body = lf_game::props::PropBody::new(
+                Vec3::new(-5.5 + i as f32 * 2.4, h + 2.0, 0.0),
+                Vec3::new(0.6, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            );
+            for _ in 0..600 {
+                lf_game::props::step_prop(&world, &mut body, half, 1.0 / 60.0);
+            }
+            assert!(body.rest, "physics prop must come to rest");
+            push_prop(&mut vertices, &mut indices, &body, *count, prop_texes[i]);
+        }
+        // one prop caught mid-fall (stepped only a few frames)
+        {
+            let half = lf_game::props::prop_half(2);
+            let mut body = lf_game::props::PropBody::new(
+                Vec3::new(1.6, h + 2.6, 0.0), Vec3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0),
+            );
+            for _ in 0..14 {
+                lf_game::props::step_prop(&world, &mut body, half, 1.0 / 60.0);
+            }
+            assert!(!body.rest, "the mid-flight prop is still falling");
+            assert!(body.position.y > h + half + 0.3, "airborne");
+            push_prop(&mut vertices, &mut indices, &body, 2,
+                lf_assets::texture_index_for_block(block::STONE));
+        }
+        // a thrown prop that slides into the wall and stops touching it
+        {
+            let half = lf_game::props::prop_half(1);
+            let mut body = lf_game::props::PropBody::new(
+                Vec3::new(0.0, h + half, 0.0), Vec3::new(6.5, 0.0, 0.0), Vec3::Y,
+            );
+            for _ in 0..900 {
+                lf_game::props::step_prop(&world, &mut body, half, 1.0 / 60.0);
+            }
+            assert!(body.rest, "thrown prop settles");
+            assert!(body.position.x + half > 4.9,
+                "comes to rest against the wall: {}", body.position.x);
+            push_prop(&mut vertices, &mut indices, &body, 1,
+                lf_assets::texture_index_for_block(block::STONE));
+        }
+    }
+
     // ember_glow: rising amber sparks over the cluster (C4)
     if spec.name == "ember_glow" {
         let h = world.surface_height(0, 0);
@@ -2745,6 +2826,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "mob_hurt_death" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.0, h + 5.6, 17.0), Vec3::new(0.0, h + 0.5, 0.8))
+    } else if spec.name == "item_physics" {
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(-0.5, h + 3.6, 14.5), Vec3::new(-0.5, h + 0.6, 0.0))
     } else if spec.name == "ember_glow" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-5.0, h + 4.0, 6.0), Vec3::new(0.5, h + 1.6, 0.5))
@@ -3419,6 +3503,63 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
             assert!(total > 100, "seed_comparison: sampling failed ({})", total);
             let frac = diff as f32 / total as f32;
             assert!(frac > 0.25, "seed_comparison: the two seed halves look the same (differing {:.2})", frac);
+        }
+        "item_physics" => {
+            // Sand stage, stone-gray props. Scene-internal asserts already
+            // prove the physics states (resting after 600 steps, airborne
+            // mid-fall, wall-touch at rest); these claims prove the pixels:
+            // three ground stacks whose silhouettes grow with count (a
+            // full 5-stack is block-sized), one cube airborne above the
+            // ground line, and the tall wall column.
+            let gray = |c: [i32; 3]| {
+                let (r, g, b) = (c[0], c[1], c[2]);
+                (r - g).abs() < 14 && (g - b).abs() < 26 && r > 55 && r < 175
+            };
+            let runs = |y0: usize, y1: usize, x0: usize, x1: usize| {
+                let mut cols: Vec<usize> = Vec::new();
+                for x in x0..x1 {
+                    if (y0..y1).any(|y| gray(px(x, y))) {
+                        cols.push(x);
+                    }
+                }
+                let mut out: Vec<(usize, usize)> = Vec::new();
+                if let (Some(&first), _) = (cols.first(), ()) {
+                    let mut start = first;
+                    let mut prev = first;
+                    for &x in &cols[1..] {
+                        if x - prev > 8 {
+                            out.push((start, prev));
+                            start = x;
+                        }
+                        prev = x;
+                    }
+                    out.push((start, prev));
+                }
+                out.into_iter().filter(|(a, b)| b - a >= 10).collect::<Vec<_>>()
+            };
+            // stacks sit left of the wall; widths must strictly grow
+            let stacks = runs(280, 350, 120, 600);
+            let widths: Vec<usize> = stacks.iter().map(|(a, b)| b - a).collect();
+            assert!(widths.len() >= 3, "item_physics: expected 3 ground stacks, got {:?}", stacks);
+            let sorted = {
+                let mut v = widths.clone();
+                v.sort_unstable();
+                v
+            };
+            assert!(sorted[0] < sorted[1] && sorted[1] < sorted[2],
+                "item_physics: stack silhouettes must grow with count: {:?}", widths);
+            assert!(sorted[2] as f32 / sorted[0] as f32 > 1.6,
+                "item_physics: a 5-stack must be much wider than a 1-stack: {:?}", widths);
+            // one cube airborne above the ground line
+            let n_air = (450..560).map(|x| (210..265).filter(|&y| gray(px(x, y)).clone()).count()).sum::<usize>();
+            assert!(n_air > 120, "item_physics: no airborne cube ({n_air} gray px)");
+            // the wall column is tall
+            let wall = runs(190, 340, 600, 800);
+            assert!(!wall.is_empty(), "item_physics: wall missing");
+            let (wa, wb) = wall[0];
+            let ys: Vec<usize> = (190..340).filter(|&y| (wa..=wb).any(|x| gray(px(x, y)))).collect();
+            assert!(!ys.is_empty() && ys.last().unwrap() - ys.first().unwrap() > 110,
+                "item_physics: wall must stand tall");
         }
         "mob_anim" => {
             // Four wolves side-on at stride phases 0, +90, 180, -90 deg on

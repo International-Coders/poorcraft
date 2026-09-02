@@ -1094,3 +1094,14 @@ Deferred (honest notes):
 - [ ] Dragon corpse topple (freezes mid-flap 1.5s instead of falling).
 - [ ] Additive/entity-tint hurt shader (would replace the layer swap and
       allow partial-flash blending in the opaque pass).
+
+## Loop 340 — GMod-style physics item drops SHIPPED
+
+- [x] lf_game::props: rigid props with floor+wall restitution, tumble,
+      settle-flat, sleep; cap-5 stacks growing to block size.
+- [x] Client carry: hold-RMB gravity-gun grab (6 blocks, LOS-checked),
+      release-to-throw, walk-close pickup; magnet vacuum removed.
+- [x] vistest item_physics with real stepped physics + pixel claims.
+- [ ] Prop-vs-prop collision (stacks can overlap footprints).
+- [ ] Network sync for drops (protocol v5; also covers mobs/villagers).
+- [ ] Carried-prop highlight in the outline pass.

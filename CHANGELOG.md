@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-09-01 — GMod-style physics item drops (loop 340)
+
+- **Mined blocks become props**: breaking a block (or harvesting a crop,
+  looting a chest, felling a tree) spawns a rigid item prop with gravity,
+  axis-separated collision, and restitution — it bounces off the floor
+  AND walls, tumbles while it moves, slides a couple of blocks GMod-style,
+  settles onto its nearest flat face, and sleeps. The old 2-block magnet
+  vacuum is gone: items now litter the floor until you walk into them.
+- **Carry at range**: hold right-click while aiming at a prop (up to 6
+  blocks, walls block the grab) to pin it to your view ray with a soft
+  spring — swing the camera and it follows; release to throw it with its
+  momentum. Walk right up to a carried or resting prop to pocket it.
+- **Stacks grow**: same-item props resting within touch distance merge up
+  to five per stack, and the rendered cube grows with the count until a
+  full 5-stack is exactly one block wide (non-block items scale their
+  sprite impostors by the same rule).
+- **Physics lives in lf_game::props** (`PropBody`, `step_prop`,
+  `prop_half`, `merged_counts`) with unit tests: fall/bounce/rest on the
+  block top, fast throws rebound off walls while slow pushes stop touching
+  them, held props freeze and sleeping props skip the step.
+- **Proof**: the `item_physics` vistest scene runs the real physics (three
+  stacks stepped 600 ticks to sleep at sizes 1/3/5, a prop caught
+  mid-fall after 14 ticks, a thrown prop slid into a wall) with pixel
+  claims — the three ground silhouettes must strictly grow, one cube must
+  be airborne above the ground line, and the wall must stand tall. 365
+  tests green; 86/86 vistest scenes; smoke green.
+
 ## 2026-09-01 — mob animations: legs, hurt flashes, death topples (loop 339)
 
 - **Animals walk like animals**: chicken/wolf/dog/bear — and the formerly
