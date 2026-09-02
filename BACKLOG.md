@@ -1117,3 +1117,10 @@ Deferred (honest notes):
       egui::Window chrome — same shell conversion pending.
 - [ ] Build-mode HUD (shape picker, symmetry indicator).
 - [ ] Shaped 3x3 crafting grid (recipe list covers discoverability today).
+
+## Loop 342 — texture patterns SHIPPED
+
+- [x] Flatness audit found 8 noise-only barks + clump-less soil.
+- [x] Species-true patterns for all of them; variance-floor test.
+- [ ] Machine/trade/companion/tech-tree/book/smithing kit conversion.
+- [ ] Build-mode HUD (shape picker, symmetry indicator).

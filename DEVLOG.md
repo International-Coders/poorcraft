@@ -1726,3 +1726,32 @@ still use egui::Window chrome (same shell conversion, mechanical, next
 pass); no 3x3 shaped-crafting grid (the recipe list + gates covers
 discoverability per the research; shaped crafting is its own system);
 build-mode HUD (shape picker + symmetry indicator) not started.
+
+## 2026-09-01 — loop 342: missing texture patterns — bark + soil pass
+
+WHAT: The pattern audit (a throwaway luminance-stddev scan over every
+generated atlas layer) found eight log species rendered as pure noise
+(oak log, spruce, dark, cherry, acacia, mangrove, maple, baobab) while
+palm/redwood/ember had structure, and the dirt family had no clumping.
+All ten now carry species-appropriate patterns.
+
+HOW: lf_assets generate_block_texture — oak grain streaks, spruce scaly
+chips, dark-wood deep vertical furrows, cherry horizontal lenticels,
+acacia exfoliating plates, mangrove fibrous strands, maple pale vertical
+strips, baobab smooth wide bands; dirt chunky clumps + rare pale
+pebbles; red_sand wind ripples. All palette-true (same hue families,
+tone offsets only). New test `bark_and_soil_keep_their_patterns` puts a
+variance floor on every named bark (sd > 6) plus dirt > 4 and red_sand >
+5, so a regression back to noise fails CI.
+
+VERIFICATION: re-audit — all eight barks left the flattest-25 (only
+authentic flats remain: waypoint beams, water, snow, sand, stained
+glass); lf_assets 15/15 tests; full vistest + workspace tests + smoke
+(numbers in the final session report). Trees in the world scenes
+(tree_fall_mid, biomes, lumber scenes) now render patterned bark with
+zero scene changes needed — the atlas is the single source.
+
+HONESTLY DEFERRED: machine/trade/companion/tech-tree windows still on
+egui::Window chrome (mechanical shell conversion, precisely scoped in
+STATE next_task); build-mode HUD (shape picker + symmetry indicator);
+prop-vs-prop collision; networked drops.

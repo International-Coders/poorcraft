@@ -918,7 +918,17 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                 }
                 "dirt" => {
                     let v = 100 + ((x * 11 + y * 7) % 25);
-                    Rgba([ch(v), 80, 40, 255])
+                    // chunky clumps + the odd pale pebble (Minecraft dirt
+                    // reads as soil chunks, not static)
+                    let clump = ((x / 2 + y / 2) * 5 + (x + y) % 3) % 4 == 0;
+                    let pebble = (x * 13 + y * 7) % 53 < 2;
+                    if pebble {
+                        Rgba([ch(v + 34), ch(v - 12), ch(v - 26), 255])
+                    } else if clump {
+                        Rgba([ch(v - 18), 66, 32, 255])
+                    } else {
+                        Rgba([ch(v), 80, 40, 255])
+                    }
                 }
                 "sand" => {
                     let v = 210 + ((x * 3 + y * 5) % 12);
@@ -939,6 +949,8 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                 }
                 "log" => {
                     let v = 90 + ((x * 9 + y * 5) % 18);
+                    let grain = (x * 5 + y / 2) % 7 < 2; // vertical grain streaks
+                    let v = if grain { v - 18 } else { v };
                     let edge = if x == 0 || x == 15 || y == 0 || y == 15 { 12 } else { 0 };
                     Rgba([ch(v - 20 + edge), ch(v - 45 + edge), ch(v - 60 + edge), 255])
                 }
@@ -1046,15 +1058,25 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                 }
                 "spruce_log" => {
                     let v = 70 + ((x * 9 + y * 5) % 16);
+                    let chip = (x / 3 + y / 2) % 2 == 0; // scaly bark chips
+                    let v = if chip { v - 16 } else { v + 10 };
                     Rgba([ch(v), ch(v - 20), ch(v - 35), 255])
                 }
                 "dark_log" => {
                     let v = 55 + ((x * 5 + y * 11) % 14);
+                    let furrow = (x * 2 + y / 3) % 5 < 1; // deep vertical furrows
+                    let v = if furrow { v - 20 } else { v };
                     Rgba([ch(v), ch(v - 15), ch(v - 25), 255])
                 }
                 "cherry_log" => {
                     let v = 150 + ((x * 3 + y * 7) % 12);
-                    Rgba([ch(v - 30), ch(v - 60), ch(v - 75), 255])
+                    // horizontal lenticel dots, like real cherry bark
+                    let lent = y % 5 == 2 && (x + y) % 4 < 1;
+                    if lent {
+                        Rgba([ch(v + 6), ch(v - 34), ch(v - 45), 255])
+                    } else {
+                        Rgba([ch(v - 30), ch(v - 60), ch(v - 75), 255])
+                    }
                 }
                 "birch_leaves" => {
                     let v = 50 + ((x * 13 + y * 7) % 35);
@@ -1078,6 +1100,8 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                 }
                 "red_sand" => {
                     let v = 180 + ((x * 3 + y * 5) % 12);
+                    let ripple = (x + y * 2) % 7 < 2; // wind ripples
+                    let v = if ripple { v - 14 } else { v };
                     Rgba([ch(v), ch(v - 60), ch(v - 90), 255])
                 }
                 "terracotta" => {
@@ -1543,8 +1567,10 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     if frond { Rgba([58, ch(150 - (y % 13) * 5), 62, 255]) } else { Rgba([0, 0, 0, 0]) }
                 }
                 "acacia_log" => {
-                    // dark red-brown bark
+                    // dark red-brown bark in patchy exfoliating plates
                     let v = 96 + ((x * 5 + y * 7) % 20);
+                    let plate = (x / 4 + y / 3) % 2 == 0;
+                    let v = if plate { v + 14 } else { v - 10 };
                     Rgba([ch(v + 24), ch(v - 34), 52, 255])
                 }
                 "acacia_leaves" => {
@@ -1553,8 +1579,10 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     Rgba([if fleck { 148 } else { 112 }, if fleck { 168 } else { 142 }, 58, 255])
                 }
                 "mangrove_log" => {
-                    // grey-red waterlogged bark
+                    // grey-red waterlogged bark, fibrous vertical strands
                     let v = 104 + ((x * 3 + y * 11) % 18);
+                    let strand = (x * 3 + y / 2) % 5 < 1;
+                    let v = if strand { v - 16 } else { v };
                     Rgba([ch(v + 16), ch(v - 40), ch(v - 24), 255])
                 }
                 "mangrove_leaves" => {
@@ -1574,8 +1602,10 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     if needle { Rgba([38, ch(96 + ((x * 5 + y * 3) % 20)), 48, 255]) } else { Rgba([0, 0, 0, 0]) }
                 }
                 "maple_log" => {
-                    // grey bark
+                    // grey bark with long pale vertical strips
                     let v = 108 + ((x * 5 + y * 5) % 16);
+                    let strip = (x + y / 4) % 4 == 0;
+                    let v = if strip { v + 16 } else { v };
                     Rgba([ch(v), ch(v), ch(v - 6), 255])
                 }
                 "maple_leaves" => {
@@ -1594,8 +1624,10 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     if strand { Rgba([96, ch(132 + ((x + y) % 20)), 78, 255]) } else { Rgba([0, 0, 0, 0]) }
                 }
                 "baobab_log" => {
-                    // fat grey-pink trunk
+                    // fat grey-pink trunk in smooth wide vertical bands
                     let v = 148 + ((x * 3 + y * 5) % 18);
+                    let band = x % 6 < 2;
+                    let v = if band { v - 12 } else { v };
                     Rgba([ch(v), ch(v - 34), ch(v - 42), 255])
                 }
                 "ember_log" => {
@@ -3511,6 +3543,44 @@ fn raw_chunk(base: Rgba<u8>, highlight: Rgba<u8>) -> RgbaImage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Luminance stddev of a generated texture — the flatness metric the
+    /// loop-342 audit used to find patternless art.
+    fn lum_sd(name: &str) -> f64 {
+        let img = generate_block_texture(name);
+        let mut sum = 0.0;
+        let mut sum2 = 0.0;
+        let mut n = 0.0;
+        for p in img.pixels() {
+            if p.0[3] < 128 {
+                continue;
+            }
+            let v = p.0[0] as f64 * 0.3 + p.0[1] as f64 * 0.5 + p.0[2] as f64 * 0.2;
+            sum += v;
+            sum2 += v * v;
+            n += 1.0;
+        }
+        let mean = sum / n;
+        ((sum2 / n - mean * mean).max(0.0)).sqrt()
+    }
+
+    /// Failure meaning: a bark or soil texture collapsed back to noise —
+    /// every log species must carry visible structure (grain, chips,
+    /// furrows, lenticels, plates, strands, strips, or bands).
+    #[test]
+    fn bark_and_soil_keep_their_patterns() {
+        let barks = [
+            ("log", 6.0), ("spruce_log", 6.0), ("dark_log", 6.0),
+            ("cherry_log", 6.0), ("acacia_log", 6.0), ("mangrove_log", 6.0),
+            ("maple_log", 6.0), ("baobab_log", 6.0),
+        ];
+        for (name, floor) in barks {
+            let sd = lum_sd(name);
+            assert!(sd > floor, "{name} bark lost its pattern (sd {sd:.1} <= {floor})");
+        }
+        assert!(lum_sd("dirt") > 4.0, "dirt lost its clumps (sd {:.1})", lum_sd("dirt"));
+        assert!(lum_sd("red_sand") > 5.0, "red_sand lost its ripples (sd {:.1})", lum_sd("red_sand"));
+    }
 
     #[test]
     fn hurt_layers_cover_every_mob_skin_and_flash_red() {

@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-09-01 — missing texture patterns: bark + soil (loop 342)
+
+- **Every log species now has bark**: a flatness audit (luminance stddev
+  across the whole generated atlas) found eight logs rendered as pure
+  noise next to palm/redwood/ember's structured bark. Oak gained grain
+  streaks, spruce scaly chips, dark wood deep furrows, cherry horizontal
+  lenticels, acacia exfoliating plates, mangrove fibrous strands, maple
+  pale strips, baobab wide smooth bands — all in their existing palettes.
+- **Soil clumps**: dirt gets chunky clumps and rare pale pebbles, red
+  sand wind ripples. The remaining "flat" textures are the authentic ones
+  (water, snow, sand, stained glass, waypoint beams).
+- **Regression-locked**: `bark_and_soil_keep_their_patterns` enforces
+  variance floors per texture, so a future generator change that
+  flattens bark back to noise fails the test suite.
+
+# CHANGELOG
+
 ## 2026-09-01 — HUD declutter, inventory-first E screen, kit restyles (loop 341)
 
 - **Minimal HUD by default** (researched Minecraft convention: the
