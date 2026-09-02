@@ -760,6 +760,16 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "biome_ground_cover", desc: "E3: two adjacent biomes with distinct ground cover in one frame",
             default_seed: 4242, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::ZERO, target: Vec3::ZERO },
+        // ---- loop 345: kingdoms + walking NPCs ----
+        SceneSpec { name: "kingdom_citadel", desc: "loop 345: a full kingdom citadel — crenellated walls + corner towers, gated south wall with royal banners, the throne in its keep, houses, well, market stalls, farm plot",
+            default_seed: 12345, time_of_day: 0.42, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO }, // framed at the planted citadel in run_scene
+        SceneSpec { name: "npc_walkers", desc: "loop 345: villagers crossing real terrain — one up a one-block step, one down a two-block slope, one walking a courtyard lane; the real locomotion ticks first and the sim asserts they arrived",
+            default_seed: 12345, time_of_day: 0.42, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::ZERO, target: Vec3::ZERO }, // framed in run_scene
+        SceneSpec { name: "kingdom_compass_hud", desc: "loop 345: the held kingdom compass — gold-rimmed dial, red needle swung toward the realm, name + distance label",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
     ]
 }
 
@@ -884,6 +894,67 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         if let Some(col) = world.chunks.get_mut(&(0, 0)) {
             let g = |_lx: usize, _lz: usize| -> usize { base as usize };
             lf_worldgen::build_faction_structure(kind, col, &g);
+        }
+    }
+
+    // loop 345 kingdoms: the citadel planted via the public builder into
+    // chunk (0,0) on a flattened display base, BEFORE meshing. The scene
+    // also proves the placement system: the worldgen site for this seed
+    // must exist and its name must be stable across two lookups.
+    if spec.name == "kingdom_citadel" {
+        let (site_a, _) = gen.nearest_kingdom(0, 0)
+            .expect("kingdom_citadel: seed 12345 must host a kingdom near origin");
+        let (site_b, _) = gen.nearest_kingdom(0, 0).unwrap();
+        assert_eq!(site_a, site_b, "kingdom placement must be deterministic");
+        use lf_voxel::registry::block;
+        let base = 112i32; // above the tallest local terrain, like the faction display
+        for x in -10..26i32 {
+            for z in -10..26i32 {
+                let top = gen.surface_top(x, z).clamp(base - 6, 250);
+                for y in top..(base + 16) {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                // fill dips under the display level so nothing floats
+                if (0..16).contains(&x) && (0..16).contains(&z) {
+                    for y in (base - 4)..base {
+                        if !lf_voxel::registry::is_solid(world.get_block(x, y, z)) {
+                            world.set_block(x, y, z, lf_voxel::BlockState(block::DIRT));
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(col) = world.chunks.get_mut(&(0, 0)) {
+            lf_worldgen::build_kingdom_citadel(col, base as usize);
+        }
+    }
+
+    // loop 345 npc_walkers: three lanes of REAL terrain (a one-block step
+    // up, a two-block slope down, a flat courtyard). The locomotion sim +
+    // walker rendering happens in the entity section below (same world).
+    if spec.name == "npc_walkers" {
+        use lf_voxel::registry::block;
+        // anchor on the pure heightmap (not the tree-scanned world column)
+        // so the lanes, the walkers, and the camera share one base
+        let base = gen.surface_top(0, 0);
+        // lanes along +x at z = 0 (step up), z = 4 (slope down), z = 8 (flat)
+        for x in -6..26i32 {
+            for z in -2..12i32 {
+                for y in base..(base + 10) {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, base - 1, z, lf_voxel::BlockState(block::STONE));
+                // lane A (z 0..2): a one-block step up from x=6
+                if z < 2 && x >= 6 {
+                    world.set_block(x, base, z, lf_voxel::BlockState(block::STONE));
+                }
+                // lane B (z 4..6): a two-block drop from x=6 (dig the floor)
+                if (2..6).contains(&z) && x >= 6 {
+                    world.set_block(x, base - 1, z, lf_voxel::BlockState(block::AIR));
+                    world.set_block(x, base - 2, z, lf_voxel::BlockState(block::AIR));
+                    world.set_block(x, base - 3, z, lf_voxel::BlockState(block::STONE));
+                }
+            }
         }
     }
 
@@ -1976,6 +2047,45 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
             Vec3::new(-1.0, h, 4.6), -std::f32::consts::FRAC_PI_2, 0.5,
             lf_assets::VILLAGER_NAMELESS_LAYER, None);
     }
+    if spec.name == "npc_walkers" {
+        // The REAL locomotion against the lanes built above: A climbs the
+        // one-block step, B walks down the two-block drop, C crosses the
+        // flat lane. The asserts prove the exact movement module the
+        // client's update_villagers drives; the renders prove the pixels.
+        let base = gen.surface_top(0, 0);
+        let solid = |x: i32, y: i32, z: i32| world.is_solid(x, y, z);
+        // the lanes run +x: heading atan2(1, 0) = +x in the yaw convention
+        let plus_x = std::f32::consts::FRAC_PI_2;
+        // ~14 blocks of travel each: far past the x=6 terrain change, well
+        // inside the prepared strip
+        let mut run = |mut pos: [f32; 3], wish_yaw: f32, ticks: usize, want_y: f32,
+                       label: &str| -> [f32; 3] {
+            let mut loco = lf_npc::Loco::default();
+            for t in 0..ticks {
+                lf_npc::locomotion::tick(&mut loco, &mut pos, Some((wish_yaw, 1.2)),
+                    1.0 / 20.0, t as u64, &solid);
+            }
+            assert!(pos[0] > 8.0 && pos[0] < 22.0,
+                "npc_walkers: {} out of the strip (x={:.1})", label, pos[0]);
+            assert!((pos[1] - want_y).abs() < 0.6,
+                "npc_walkers: {} wrong ground (y={:.1}, want {:.1})", label, pos[1], want_y);
+            pos
+        };
+        let a = run([0.5, base as f32, 0.5], plus_x, 240, base as f32 + 1.0, "step-up walker");
+        let b = run([0.5, base as f32, 4.5], plus_x, 240, base as f32 - 2.0, "slope-down walker");
+        let c = run([0.5, base as f32, 8.5], plus_x, 200, base as f32, "courtyard walker");
+        // render them mid-stride at their proven destinations, facing +x
+        let gait = 0.5;
+        push_walking_humanoid(&mut vertices, &mut indices,
+            Vec3::new(a[0], a[1], a[2]), plus_x, gait,
+            lf_assets::villager_job_layer("smith"), None);
+        push_walking_humanoid(&mut vertices, &mut indices,
+            Vec3::new(b[0], b[1], b[2]), plus_x, gait,
+            lf_assets::villager_job_layer("trader"), None);
+        push_walking_humanoid(&mut vertices, &mut indices,
+            Vec3::new(c[0], c[1], c[2]), plus_x, gait,
+            lf_assets::villager_job_layer("guard"), None);
+    }
     if spec.name == "mob_hurt_death" {
         use lf_game::mobs::MobType;
         let h = world.surface_height(0, 0) as f32;
@@ -2862,6 +2972,16 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "companion_follow" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.6, 0.5), Vec3::new(0.5, h + 1.4, 3.5))
+    } else if spec.name == "kingdom_citadel" {
+        // the citadel planted at y=112 in build_scene_mesh: a rising
+        // three-quarter view from outside the south gate — walls, gate
+        // banners, keep + towers
+        (Vec3::new(24.0, 128.0, 34.0), Vec3::new(7.5, 116.0, 8.0))
+    } else if spec.name == "npc_walkers" {
+        // side-on across the three lanes, anchored on the same heightmap
+        // base the lanes were cut at, high enough to see into the dug lane
+        let h = gen.surface_top(0, 0) as f32;
+        (Vec3::new(15.5, h + 8.0, 18.0), Vec3::new(13.0, h - 1.0, 4.0))
     } else if spec.first_person {
         // Find a viewpoint with an open vista: a local rise whose best look
         // direction drops the most over 30 blocks, so the frame shows both
@@ -3024,7 +3144,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
         || spec.name == "build_hud"
         || spec.name == "menus_centered_small" || spec.name == "menus_centered"
         || spec.name == "menus_centered_wide"
-        || spec.name == "journal" || spec.name == "asset_catalog";
+        || spec.name == "journal" || spec.name == "asset_catalog"
+        || spec.name == "kingdom_compass_hud";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         // loop 329: per-scene canvas so menu proofs exist at several window
@@ -3038,7 +3159,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             "hud_preview" | "hud_small" | "minimap_hud" | "faction_hud" | "companion_follow"
             | "village_trading" | "tech_tree" | "settings_preview" | "crafting_ui"
             | "map_screen" | "console_preview" | "lore_book" | "spellbook"
-            | "paths_screen" | "trade_p2p" | "companion_commands" | "crafting_workbench");
+            | "paths_screen" | "trade_p2p" | "companion_commands" | "crafting_workbench"
+            | "kingdom_compass_hud");
         let draw = |ctx: &egui::Context| {
             if draws_hud_backdrop {
                 draw_hud_preview(ctx);
@@ -3066,6 +3188,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "build_hud" {
                 draw_build_hud_preview(ctx);
+            }
+            if spec.name == "kingdom_compass_hud" {
+                draw_kingdom_compass_preview(ctx);
             }
             if spec.name == "settings_preview" {
                 draw_settings_preview(ctx);
@@ -3207,7 +3332,8 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "plants_cross" | "seed_comparison" | "no_black_square"
         | "hud_small"
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
-        | "sun_visibility");
+        | "sun_visibility"
+        | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud");
     if !needs_check {
         return Ok(());
     }
@@ -3243,6 +3369,57 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         let sun_pixels = count_in(0, 0, w, h, [255, 190, 66], 18)
             + count_in(0, 0, w, h, [255, 246, 184], 18);
         assert!(sun_pixels > 90, "sun_visibility: only {sun_pixels} sampled sun pixels; celestial fog exemption/art failed");
+    }
+    if scene == "kingdom_citadel" {
+        // Royal gold (gate banners, throne frame, torches) and royal
+        // purple (banner cloth + throne) must fly, and the pale ashlar
+        // masonry must read as a wall band. The throne/banners sim
+        // asserts already ran at mesh build; these prove the pixels.
+        let gold = count_in(0, 0, w, h, [246, 208, 96], 52);
+        assert!(gold > 30, "kingdom_citadel: royal gold missing ({gold} px)");
+        let purple = count_in(0, 0, w, h, [96, 60, 148], 52);
+        assert!(purple > 40, "kingdom_citadel: royal purple banners/throne missing ({purple} px)");
+        let brick = count_in(0, 0, w, h, [206, 192, 172], 34);
+        assert!(brick > 1200, "kingdom_citadel: the ashlar walls must dominate ({brick} px)");
+    }
+    if scene == "npc_walkers" {
+        // Three walkers render at their sim-proven destinations on the
+        // stone lanes. The lanes are neutral gray, so the claims key on
+        // channel separation instead of raw color: smith robe is warm
+        // (r>b), trader robe strongly orange, guard robe blue-shifted
+        // (b>r). Scene build already asserted each crossed its terrain.
+        let warm_robe = |c: [i32; 3]| c[0] - c[2] > 22 && c[0] > 70 && c[0] < 165
+            && (c[0] - c[1]).abs() < 30;
+        let orange_robe = |c: [i32; 3]| c[0] - c[2] > 70 && c[0] > 110 && c[1] > 60 && c[1] < 150;
+        let blue_robe = |c: [i32; 3]| c[2] - c[0] > 22 && c[2] > 70 && c[2] < 150;
+        let count_where = |pred: &dyn Fn([i32; 3]) -> bool| -> usize {
+            (0..w).step_by(2).map(|x| (0..h).step_by(2)
+                .filter(|&y| pred(px(x, y))).count()).sum::<usize>()
+        };
+        let smith = count_where(&warm_robe);
+        assert!(smith > 25, "npc_walkers: step-up walker (warm smith robe) missing ({smith} px)");
+        let trader = count_where(&orange_robe);
+        assert!(trader > 20, "npc_walkers: slope-down walker (orange trader robe) missing ({trader} px)");
+        let guard = count_where(&blue_robe);
+        assert!(guard > 25, "npc_walkers: courtyard walker (blue guard robe) missing ({guard} px)");
+    }
+    if scene == "kingdom_compass_hud" {
+        // The dial sits at screen center, top + 92: dark case, gold rim,
+        // and the red needle swung up-right of center must all be there.
+        let cx = w / 2;
+        let x0 = cx.saturating_sub(80);
+        let x1 = (cx + 80).min(w);
+        let y0 = 20;
+        let y1 = 170.min(h);
+        let case = count_in(x0, y0, x1, y1, [51, 42, 28], 14);
+        assert!(case > 150, "kingdom_compass_hud: dial case missing ({case} px)");
+        let rim = count_in(x0, y0, x1, y1, [240, 200, 110], 45);
+        assert!(rim > 60, "kingdom_compass_hud: gold rim missing ({rim} px)");
+        let needle = count_in(x0, y0, x1, y1, [220, 70, 60], 45);
+        assert!(needle > 20, "kingdom_compass_hud: red needle missing ({needle} px)");
+        // needle swung right of the dial center (bearing = yaw + 0.9)
+        let right = count_in(cx, y0, x1, y1, [220, 70, 60], 45);
+        assert!(right > 8, "kingdom_compass_hud: needle must point up-RIGHT ({right} px)");
     }
     // ai-npc-assets Section A: gameplay frames must not contain a large
     // pure-black rectangle in the view (the black-square artifact class).
@@ -4265,6 +4442,19 @@ fn draw_build_hud_preview(ctx: &egui::Context) {
         egui::Color32::from_rgb(0x1a, 0x14, 0x10));
     x = sym.right() + 10.0;
     uw_label(&p, egui::pos2(x, frame.center().y), egui::Align2::LEFT_CENTER, "R shape · V mirror", 11.0, UW_MUTED);
+}
+
+/// Loop 345: the held kingdom compass, drawn by the REAL client painter
+/// (`lf_client::ui::paint_kingdom_compass`) at the REAL HUD position
+/// (screen center, top + 92) — the proof pixels are the in-game pixels.
+fn draw_kingdom_compass_preview(ctx: &egui::Context) {
+    let screen = ctx.screen_rect();
+    let c = egui::Pos2::new(screen.center().x, screen.top() + 92.0);
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("kcompass")));
+    lf_client::ui::paint_kingdom_compass(
+        &p, c, 30.0, 0.6, Some(0.6 + 0.9),
+        "Kingdom of Elderfall · 240m",
+    );
 }
 
 /// Loop 341: the inventory-first E screen (mirror of ui.rs draw_inventory).

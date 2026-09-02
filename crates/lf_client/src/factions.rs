@@ -67,6 +67,7 @@ pub fn job_label(job: lf_npc::VillagerJob) -> &'static str {
         VillagerJob::Bard => "Herbalist",
         VillagerJob::Lorekeeper => "Lorekeeper",
         VillagerJob::Wizard => "Wizard",
+        VillagerJob::Monarch => "Monarch",
     }
 }
 
@@ -228,6 +229,12 @@ impl GameState {
                     .map(|f| egui::Color32::from_rgb(f.color[0], f.color[1], f.color[2]))?;
                 Some((*x as f32 + 0.5, *z as f32 + 0.5, color))
             })
+            .collect();
+        // loop 345: discovered kingdoms join the map as crowned markers
+        self.map.kingdom_icons = self
+            .kingdoms
+            .iter()
+            .map(|k| (k.throne[0] as f32 + 0.5, k.throne[2] as f32 + 0.5, k.name.clone()))
             .collect();
     }
 
@@ -425,6 +432,96 @@ impl GameState {
         }
     }
 
+    /// loop 345: scan loaded chunks for THRONE blocks. The first sighting
+    /// settles the kingdom's court (a monarch, two wall guards, a farmer,
+    /// a trader and a smith — all with the citadel as home so the new
+    /// locomotion keeps them on the walls and in the yard), records the
+    /// kingdom for the map/chronicle when worldgen confirms the site, and
+    /// pings the chronicle. Same cadence as the faction banner scan.
+    pub fn try_settle_kingdoms(&mut self) {
+        let p = self.player.position;
+        let cch = (p.x as i32) >> 4;
+        let ccz = (p.z as i32) >> 4;
+        let mut throne: Option<(i32, i32, i32)> = None;
+        'scan: for cx in (cch - 3)..=(cch + 3) {
+            for cz in (ccz - 3)..=(ccz + 3) {
+                let Some(col) = self.world.chunk(cx, cz) else { continue };
+                for lx in 4..12usize {
+                    for lz in 4..12usize {
+                        for y in 40..200usize {
+                            if col.get(lx, y, lz).id() == lf_voxel::registry::block::THRONE {
+                                throne = Some((cx * 16 + lx as i32, y as i32, cz * 16 + lz as i32));
+                                break 'scan;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let Some((tx, ty, tz)) = throne else { return };
+        if self.settled_markers.contains(&(tx, ty, tz)) {
+            return;
+        }
+        self.settled_markers.insert((tx, ty, tz));
+        // the court: home anchors at the throne so guards patrol the walls
+        // and everyone else shuffles the courtyard
+        let home = [tx as f32 + 0.5, ty as f32 + 1.0, tz as f32 + 1.5];
+        let mut settle = |id: u64, job: lf_npc::VillagerJob, name: &str, pos: [f32; 3],
+                          v: &mut Vec<lf_npc::Villager>| {
+            let mut villager = lf_npc::Villager::new(id, job, name.into(), pos);
+            villager.schedule.location = home;
+            villager.loco.side_bias = if id % 2 == 0 { 1.0 } else { -1.0 };
+            villager.workstation_pos = self.scan_workstation(pos, 10);
+            v.push(villager);
+        };
+        let base_id = 3000 + self.villagers.len() as u64 + self.next_mob_id;
+        let mut court = Vec::new();
+        settle(base_id, lf_npc::VillagerJob::Monarch, "Queen Ilsa",
+            [home[0], home[1], home[2] - 2.0], &mut court);
+        settle(base_id + 1, lf_npc::VillagerJob::Guard, "Ser Brandt",
+            [home[0] + 4.0, home[1], home[2] + 4.0], &mut court);
+        settle(base_id + 2, lf_npc::VillagerJob::Guard, "Ser Aldous",
+            [home[0] - 4.0, home[1], home[2] - 4.0], &mut court);
+        settle(base_id + 3, lf_npc::VillagerJob::Farmer, "Marn",
+            [home[0] + 5.0, home[1], home[2]], &mut court);
+        settle(base_id + 4, lf_npc::VillagerJob::Trader, "Edda",
+            [home[0], home[1], home[2] + 5.0], &mut court);
+        settle(base_id + 5, lf_npc::VillagerJob::Smith, "Toma",
+            [home[0] - 5.0, home[1], home[2] + 3.0], &mut court);
+        self.villagers.extend(court);
+        self.next_mob_id += 6;
+        // worldgen confirms the site (a player-placed throne settles a court
+        // but does not mint a kingdom)
+        let gen = self.map.worldgen();
+        if let Some(site) = gen.kingdom_at(tx >> 4, tz >> 4) {
+            let record = crate::KingdomRecord {
+                name: format!("Kingdom of {}", site.name),
+                throne: [tx, ty, tz],
+            };
+            if !self.kingdoms.contains(&record) {
+                self.kingdoms.push(record.clone());
+                self.chronicle_event(
+                    EventType::Discovery,
+                    format!("Banners over the walls — you found the {} at ({}, {}, {}).",
+                        record.name, tx, ty, tz),
+                );
+                self.push_hint(&format!("You discovered the {}.", record.name));
+            }
+        }
+    }
+
+    /// The kingdom-compass readout: nearest kingdom's name, bearing
+    /// (radians, atan2(dx, dz)), and distance in meters. Deterministic
+    /// from the seed, so it works from spawn before any discovery.
+    pub fn kingdom_compass_readout(&self) -> Option<(String, f32, i32)> {
+        let p = self.player.position;
+        let (site, d2) = self.map.worldgen().nearest_kingdom(p.x as i32, p.z as i32)?;
+        let [kx, kz] = site.center();
+        let dx = kx as f32 + 0.5 - p.x;
+        let dz = kz as f32 + 0.5 - p.z;
+        Some((format!("Kingdom of {}", site.name), dx.atan2(dz), (d2 as f32).sqrt() as i32))
+    }
+
     /// Spawn a faction villager from the roster (unique names per world,
     /// capped per archetype).
     fn spawn_faction_npc(&mut self, archetype_id: &str, pos: [f32; 3]) {
@@ -443,6 +540,7 @@ impl GameState {
         v.faction = arch.faction.clone();
         v.archetype = Some(archetype_id.to_string());
         v.schedule.location = pos;
+        v.loco.side_bias = if id % 2 == 0 { 1.0 } else { -1.0 };
         v.workstation_pos = self.scan_workstation(v.position, 14);
         self.villagers.push(v);
         self.next_mob_id += 1;

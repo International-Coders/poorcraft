@@ -1149,3 +1149,33 @@ Deferred (honest notes):
       remain available in Live RT.
 - [ ] First-minute onboarding (context prompts + pinned starter objective) is
       the next user-friendliness pass.
+
+## Loop 345 — kingdoms, walking NPCs, and the kingdom compass SHIPPED
+
+- [x] NPC freeze fixed: `lf_npc::locomotion` (one-block step-up, ≤3-block
+      descent, cliff refusal, no-tunnel gravity, 20-tick stuck sidestep with
+      per-NPC side bias) driven by the rewritten `update_villagers`; hamlet
+      villagers homed at their hamlet instead of the world origin.
+- [x] NPC logic: idle villagers shuffle near home (under the en-route
+      threshold, no ping-pong), guards patrol a four-post circuit during the
+      Patrol slot, panicking NPCs flee directly away from the player.
+- [x] Kingdoms: one deterministic citadel per 12x12-chunk region (16-name
+      pool), full in-chunk build (crenellated walls + towers, gated banner
+      wall, keep with THRONE marker + dais, 2 houses, well, market stalls,
+      irrigated farm); THRONE/BANNER_KINGDOM/KINGDOM_BRICK blocks through the
+      registry→atlas→items pipeline.
+- [x] Kingdom court settles at first throne sight (new VillagerJob::Monarch
+      Queen Ilsa + royal trades, 2 guards, farmer, trader, smith, all homed
+      at the citadel); kingdoms persist in ClientSave, chronicle entries,
+      gold-crown map markers with name + distance.
+- [x] kingdom_compass item: craftable from any wood block over an iron ingot;
+      held HUD dial (gold rim, red needle to the nearest kingdom, name +
+      meters) deterministic from the seed — works from spawn.
+- [x] vistest: kingdom_citadel, npc_walkers (real locomotion sim asserts),
+      kingdom_compass_hud (real client paint fn) — 92/92 with pixel claims.
+- [ ] Deferred: kingdom walls are not multi-chunk (citadels stay in one
+      chunk footprint, matching the structure convention); kingdom roads do
+      not carve into neighboring chunks; the path tracer's 128-entry palette
+      still omits ids ≥128 (pre-existing — kingdoms render in the raster
+      path, the default); monarch court lines (greetings/quests specific to
+      Queen Ilsa) would need lore/npcs.toml archetypes.

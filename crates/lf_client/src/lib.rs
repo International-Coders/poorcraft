@@ -550,6 +550,17 @@ pub struct ClientSave {
     /// The workbench "Add to Queue" placeholder queue (output, batch).
     #[serde(default)]
     pub craft_queue: Vec<(String, u32)>,
+    /// loop 345: kingdoms discovered (the throne scan settles a court and
+    /// records the site; the compass works without discovery too).
+    #[serde(default)]
+    pub kingdoms: Vec<KingdomRecord>,
+}
+
+/// One discovered kingdom (loop 345): display name + throne position.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct KingdomRecord {
+    pub name: String,
+    pub throne: [i32; 3],
 }
 
 fn default_mana() -> f32 {
@@ -606,6 +617,7 @@ impl From<LegacyClientSave> for ClientSave {
             day_index: 0,
             recipe_book: None,
             craft_queue: Vec::new(),
+            kingdoms: Vec::new(),
         }
     }
 }
@@ -1203,6 +1215,14 @@ struct GameState {
     pub visited_biomes: std::collections::HashSet<String>,
     /// Discovered faction structures (key, x, y, z) — map icons + D2.
     pub discovered_structures: Vec<(String, i32, i32, i32)>,
+    /// loop 345: kingdoms whose thrones have been seen (map crown icons,
+    /// chronicle, persisted).
+    pub kingdoms: Vec<KingdomRecord>,
+    /// Cached kingdom-compass readout (name, bearing rad, meters) — the
+    /// worldgen query is throttled to once a second.
+    pub kingdom_compass_state: Option<(String, f32, i32)>,
+    /// Compass cache age in frames.
+    kingdom_compass_age: u32,
     /// Absolute in-game day count (wages at sunrise).
     pub day_index: u64,
     /// Previous day-fraction (sunrise edge detection).
@@ -1532,6 +1552,9 @@ impl GameState {
             companion_memory: lore_extras.companion_memory,
             visited_biomes: lore_extras.visited_biomes,
             discovered_structures: lore_extras.discovered_structures,
+            kingdoms: lore_extras.kingdoms,
+            kingdom_compass_state: None,
+            kingdom_compass_age: 1000, // first held frame queries immediately
             day_index: lore_extras.day_index,
             prev_day_fraction: start_day_fraction,
             companion_cooldowns: vec![0.0; lore_extras.companions.len()],
@@ -1966,6 +1989,7 @@ impl GameState {
             day_index: self.day_index,
             recipe_book: Some(self.recipe_book.clone()),
             craft_queue: self.craft_queue.clone(),
+            kingdoms: self.kingdoms.clone(),
         };
         // JSON (self-describing) so future field additions with
         // serde(default) load old bytes — bincode EOFs on them instead.
@@ -2546,7 +2570,19 @@ impl GameState {
             self.prev_day_fraction = now_fraction;
             if self.frame % 60 == 0 {
                 self.try_settle_faction_npcs();
+                self.try_settle_kingdoms();
                 self.sync_map_faction_data();
+            }
+            // kingdom compass: the worldgen query costs a region scan, so
+            // refresh the readout at most every 20 frames while held
+            let compass_held = self.inventory.slots[self.hotbar_index].as_ref()
+                .map(|s| s.item_id == "kingdom_compass")
+                .unwrap_or(false);
+            if compass_held && self.kingdom_compass_age >= 20 {
+                self.kingdom_compass_state = self.kingdom_compass_readout();
+                self.kingdom_compass_age = 0;
+            } else {
+                self.kingdom_compass_age = self.kingdom_compass_age.saturating_add(1);
             }
         }
         // GMod-style prop carry: hold RMB while aiming at an item prop to
@@ -4212,7 +4248,11 @@ impl GameState {
         best
     }
 
-    /// Villagers wander by day and rest at night (schedule data).
+    /// Villagers follow the enriched day schedule and REALLY walk: the
+    /// locomotion module (loop 345) steps up bumps, walks down slopes,
+    /// refuses cliffs, falls with gravity, and sidesteps around obstacles
+    /// — the old loop froze any NPC whose next cell was not perfectly
+    /// flat ground.
     fn update_villagers(&mut self, dt: f32) {
         if self.stats.health <= 0.0 {
             return;
@@ -4221,66 +4261,102 @@ impl GameState {
         let now_ticks = self.time.ticks;
         let frame = self.frame;
         let world = &self.world;
+        let player_pos = self.player.position;
         let table = lf_npc::default_schedule_entries();
+        let solid = |x: i32, y: i32, z: i32| world.is_solid(x, y, z);
         for (i, villager) in self.villagers.iter_mut().enumerate() {
             // C1: the enriched day (sleep/eat/work/socialize/return) picks
             // the activity; the workstation anchor is resolved at spawn
             let entry = lf_npc::enriched_slot_at(&table, day_fraction);
+            let home = villager.schedule.location;
             let target: [f32; 3] = match (entry.activity, villager.workstation_pos) {
                 (lf_npc::ScheduleSlot::Work, Some([wx, wy, wz])) => {
                     [wx as f32 + 0.5, wy as f32 + 0.2, wz as f32 + 0.5]
                 }
-                _ => villager.schedule.location,
+                _ => home,
             };
             let pos = glam::Vec3::from(villager.position);
             let flat = (glam::Vec3::new(target[0], pos.y, target[2]) - pos).length();
             let panicking = villager.flee_until_ticks > now_ticks;
-            villager.activity = if panicking {
-                lf_npc::NpcActivityState::Walking
-            } else {
-                lf_npc::activity_state_for(&entry, flat > 1.5)
-            };
             // deterministic per-villager wander seed
-            let t = frame as u64 / 30; // change direction ~every half second
-            let seed = (villager.id).wrapping_mul(2654435761).wrapping_add(t).wrapping_add(i as u64);
+            let t = frame as u64 / 90; // re-pick the wander point ~every 1.5s
+            let seed = villager.id.wrapping_mul(2654435761)
+                .wrapping_add(t.wrapping_mul(0x9E3779B9))
+                .wrapping_add(i as u64);
             let speed = if panicking { 2.4 } else { 1.2 };
-            let mut wish = None;
-            if villager.activity == lf_npc::NpcActivityState::Walking {
-                if flat > 1.0 {
-                    wish = Some((target[0] - pos.x, target[2] - pos.z));
-                } else if panicking {
-                    let a = (seed % 360) as f32 / 57.3;
-                    wish = Some((a.cos(), a.sin()));
+            // where this NPC wants to walk right now, and whether it wants
+            // to walk at all
+            let mut wish: Option<(f32, f32)> = None; // (bearing, speed)
+            if panicking {
+                // run directly away from the player
+                let away = pos - glam::Vec3::new(player_pos.x, pos.y, player_pos.z);
+                if away.length_squared() > 0.01 {
+                    wish = Some(((away.x).atan2(away.z), speed));
                 }
-            } else if villager.activity == lf_npc::NpcActivityState::Socializing && seed % 3 == 0 {
-                let a = (seed % 360) as f32 / 57.3;
-                wish = Some((a.cos(), a.sin()));
-            }
-            if let Some((dx, dz)) = wish {
-                let len = (dx * dx + dz * dz).sqrt().max(0.001);
-                let next = pos + glam::Vec3::new(dx / len * speed * dt, 0.0, dz / len * speed * dt);
-                // face the walking direction (smooth shortest-arc turn)
-                let target_yaw = (dx / len).atan2(dz / len);
-                let mut delta = target_yaw - villager.yaw;
-                while delta > std::f32::consts::PI {
-                    delta -= std::f32::consts::TAU;
+                villager.activity = lf_npc::NpcActivityState::Walking;
+            } else {
+                villager.activity = lf_npc::activity_state_for(&entry, flat > 1.5);
+                use lf_npc::NpcActivityState as Act;
+                match villager.activity {
+                    Act::Walking => {
+                        if flat > 1.5 {
+                            wish = Some(((target[0] - pos.x).atan2(target[2] - pos.z), speed));
+                        }
+                    }
+                    Act::Idle | Act::Socializing => {
+                        // idle wander: a fresh point near home every ~1.5s.
+                        // The radius stays under the 1.5 en-route threshold
+                        // so shuffling never flips the NPC back to "walking
+                        // home" (which would ping-pong).
+                        let a = (seed % 360) as f32 / 57.3;
+                        let r = 0.6 + (seed % 9) as f32 * 0.1; // 0.6..1.4
+                        let wx = home[0] + a.cos() * r;
+                        let wz = home[2] + a.sin() * r;
+                        let d = ((wx - pos.x) * (wx - pos.x) + (wz - pos.z) * (wz - pos.z)).sqrt();
+                        if d > 0.5 {
+                            wish = Some(((wx - pos.x).atan2(wz - pos.z), speed * 0.75));
+                        }
+                    }
+                    _ => {}
                 }
-                while delta < -std::f32::consts::PI {
-                    delta += std::f32::consts::TAU;
-                }
-                villager.yaw += delta.clamp(-9.0 * dt, 9.0 * dt);
-                // stay on ground
-                if !world.is_solid(next.x as i32, next.y as i32, next.z as i32) {
-                    if world.is_solid(next.x as i32, (next.y - 1.0) as i32, next.z as i32) {
-                        villager.position = [next.x, next.y, next.z];
+                // guards on patrol circuit the block even while "home"
+                if entry.activity == lf_npc::ScheduleSlot::Patrol
+                    && villager.job == VillagerJob::Guard
+                {
+                    let corner = ((frame as u64 / 140) % 4) as f32; // new post every 7s
+                    let a = corner * std::f32::consts::FRAC_PI_2 + std::f32::consts::FRAC_PI_4;
+                    let px = home[0] + a.cos() * 5.0;
+                    let pz = home[2] + a.sin() * 5.0;
+                    let d = ((px - pos.x) * (px - pos.x) + (pz - pos.z) * (pz - pos.z)).sqrt();
+                    if d > 1.2 {
+                        wish = Some(((px - pos.x).atan2(pz - pos.z), speed));
+                        villager.activity = lf_npc::NpcActivityState::Walking;
                     }
                 }
-                villager.walk_phase += dt * speed * 4.4;
+            }
+            // one honest locomotion tick: gravity first, then the step
+            let bearing = wish.map(|(yaw, _)| yaw).unwrap_or(villager.yaw);
+            let outcome = lf_npc::locomotion::tick(
+                &mut villager.loco, &mut villager.position, wish.map(|(yaw, sp)| (yaw, sp)),
+                dt, now_ticks, &solid,
+            );
+            // face the heading actually walked (sidesteps included)
+            let eff_yaw = villager.loco.heading(bearing, now_ticks);
+            let mut delta = eff_yaw - villager.yaw;
+            while delta > std::f32::consts::PI {
+                delta -= std::f32::consts::TAU;
+            }
+            while delta < -std::f32::consts::PI {
+                delta += std::f32::consts::PI;
+            }
+            villager.yaw += delta.clamp(-9.0 * dt, 9.0 * dt);
+            let moving = wish.is_some() && outcome == lf_npc::Move::Stepped;
+            if moving {
+                villager.walk_phase += dt * wish.map(|(_, sp)| sp).unwrap_or(speed) * 4.4;
                 villager.walk_amp = (villager.walk_amp + dt * 10.0).min(1.0);
             } else {
                 villager.walk_amp = (villager.walk_amp - dt * 6.0).max(0.0);
             }
-            // despawn logic none: villagers persist
         }
     }
 
@@ -4327,8 +4403,10 @@ impl GameState {
                 if wizards < 2 && !staffed {
                     let id = 1000 + self.villagers.len() as u64;
                     let spawn = if self.world.is_solid(tx, ty - 1, tz + 2) { (tx, ty, tz + 2) } else { (tx, ty, tz) };
-                    self.villagers.push(Villager::new(id, VillagerJob::Wizard, "Ysolde".into(),
-                        [spawn.0 as f32 + 0.5, spawn.1 as f32 + 0.2, spawn.2 as f32 + 0.5]));
+                    let mut wiz = Villager::new(id, VillagerJob::Wizard, "Ysolde".into(),
+                        [spawn.0 as f32 + 0.5, spawn.1 as f32 + 0.2, spawn.2 as f32 + 0.5]);
+                    wiz.schedule.location = wiz.position;
+                    self.villagers.push(wiz);
                     tracing::info!("Ysolde the Wizard settled a tower");
                     return;
                 }
@@ -4357,10 +4435,17 @@ impl GameState {
                 VillagerJob::Bard => "Pip",
                 VillagerJob::Lorekeeper => "Wex",
                 VillagerJob::Wizard => "Ysolde",
+                VillagerJob::Monarch => "Aldric",
             };
             let spawn = if self.world.is_solid(hx, hy - 1, hz + 2) { (hx, hy, hz + 2) } else { (hx, hy, hz) };
             let mut v = Villager::new(id, job, name.to_string(),
                 [spawn.0 as f32 + 0.5, spawn.1 as f32 + 0.2, spawn.2 as f32 + 0.5]);
+            // loop 345 fix: the default schedule anchored every hamlet
+            // villager at the world origin (8, 64, 8) — they beelined
+            // hundreds of blocks to (0,0) and looked frozen en route. Home
+            // is the hamlet they settled.
+            v.schedule.location = v.position;
+            v.loco.side_bias = if id % 2 == 0 { 1.0 } else { -1.0 };
             v.workstation_pos = self.scan_workstation(v.position, 12);
             self.villagers.push(v);
             tracing::info!("villager {} the {:?} settled a hamlet", name, job);
@@ -5747,7 +5832,7 @@ impl GameState {
                 VillagerJob::Farmer => "farmer", VillagerJob::Smith => "smith",
                 VillagerJob::Trader => "trader", VillagerJob::Guard => "guard",
                 VillagerJob::Bard => "bard", VillagerJob::Lorekeeper => "lorekeeper",
-                VillagerJob::Wizard => "wizard",
+                VillagerJob::Wizard => "wizard", VillagerJob::Monarch => "monarch",
             };
             let job_tex = lf_assets::villager_job_layer(job_key);
             let tex = match v.archetype.as_deref() {
@@ -6009,6 +6094,8 @@ pub struct LoreExtras {
     /// F3: the earned recipe set + workbench queue, restored with the slot.
     pub recipe_book: workbench::RecipeBook,
     pub craft_queue: Vec<(String, u32)>,
+    /// loop 345: discovered kingdoms.
+    pub kingdoms: Vec<KingdomRecord>,
 }
 
 fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
@@ -6077,6 +6164,7 @@ fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
             lore.companion_memory = save.companion_memory;
             lore.visited_biomes = save.visited_biomes.into_iter().collect();
             lore.discovered_structures = save.discovered_structures;
+            lore.kingdoms = save.kingdoms;
             lore.day_index = save.day_index;
             lore.recipe_book = save.recipe_book.unwrap_or_default();
             lore.craft_queue = save.craft_queue;

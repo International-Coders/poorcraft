@@ -36,6 +36,8 @@ pub fn worker_kind_for_job(job: VillagerJob) -> WorkerKind {
         J::Farmer => WorkerKind::Farmer,
         J::Lorekeeper | J::Wizard => WorkerKind::Miner,
         J::Guard | J::Trader | J::Bard => WorkerKind::Lumberjack,
+        // the crown does not toil — its vassals organize the works
+        J::Monarch => WorkerKind::Miner,
     }
 }
 

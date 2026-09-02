@@ -34,7 +34,7 @@ pub const SEA_LEVEL: i32 = 62;
 /// regenerated after a revisit may differ from their first visit (edited
 /// chunks are persisted and never regenerated). Pre-P25 worlds have no
 /// stamp and read as `None`.
-pub const GENERATOR_VERSION: u32 = 4; // v4: ui-world-craft — two-layer continental terrain, rivers, lava/deep caves, terrain-adapted structures, biome ground cover
+pub const GENERATOR_VERSION: u32 = 5; // v5: kingdoms — region-placed citadels (walls, keep, throne, market, farm) + locomotion-era NPC settling
 
 /// Stamp `genver.dat` in a world directory with the generator version.
 pub fn save_generator_version(dir: &std::path::Path, version: u32) -> std::io::Result<()> {
@@ -1216,6 +1216,17 @@ impl WorldGen {
             col.set(9, base_y + 5, 7, BlockState(block::DRAGON_EGG));
         };
 
+        // loop 345 kingdoms: the region's citadel chunk gets the full royal
+        // build instead of anything else — walls, keep, throne, court.
+        // Footprint is the whole chunk so the curtain wall's edge cells get
+        // the same terrain adaptation + support guarantee as the interior.
+        if let Some(_site) = self.kingdom_at(cx, cz) {
+            if let Some(base) = prepare(col, 0, 15, 0, 15) {
+                build_kingdom_citadel(col, base);
+            }
+            return;
+        }
+
         match center_biome {
             // king-quest: the Accord Bastion — a full walled city, rare,
             // in the accord's meadow heartland. The banner on the keep
@@ -1300,6 +1311,293 @@ impl FactionStructure {
             FactionStructure::NamelessCamp => "nameless_camp",
         }
     }
+}
+
+// ----------------------------------------------------------------------
+// loop 345: kingdoms — region-placed royal citadels. One kingdom per
+// 12x12-chunk region (where the terrain allows), each with a deterministic
+// name, a walled citadel, a throne (the settle marker the client scans,
+// like faction banners), and a court of NPCs. The Kingdom Compass item
+// queries `nearest_kingdom` so it points the way from spawn.
+
+/// Region edge in chunks: one candidate kingdom site per region.
+pub const KINGDOM_REGION: i32 = 12;
+/// How many hash-derived candidate chunks per region are considered before
+/// the region gives up (mountains/ocean regions have no kingdom).
+pub const KINGDOM_CANDIDATES: u32 = 16;
+
+/// The royal name pool; the pick is a pure function of (seed, region).
+pub const KINGDOM_NAMES: [&str; 16] = [
+    "Elderfall", "Thornmere", "Goldhelm", "Duskmere", "Ashvale", "Brightwater",
+    "Stonewatch", "Emberhold", "Ravensrest", "Wintermoor", "Silverford",
+    "Highcrest", "Oakmarch", "Windmere", "Ironhollow", "Dawnspire",
+];
+
+/// A placed kingdom: the citadel's chunk and its name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KingdomSite {
+    pub cx: i32,
+    pub cz: i32,
+    pub name: &'static str,
+}
+
+impl KingdomSite {
+    /// World-block center of the citadel (its throne room).
+    pub fn center(&self) -> [i32; 2] {
+        [self.cx * 16 + 8, self.cz * 16 + 8]
+    }
+}
+
+fn kingdom_biome_ok(b: Biome) -> bool {
+    matches!(b, Biome::Meadow | Biome::Forest | Biome::FlowerForest
+        | Biome::SunflowerPlains | Biome::AspenGrove | Biome::LavenderFields
+        | Biome::BirchForest | Biome::CherryGrove)
+}
+
+impl WorldGen {
+    /// The region's candidate chunk locals (hash-derived, deterministic).
+    fn kingdom_candidate_locals(&self, rx: i32, rz: i32) -> [(i32, i32); KINGDOM_CANDIDATES as usize] {
+        let feats = self.seed_for_features();
+        let mut out = [(0i32, 0i32); KINGDOM_CANDIDATES as usize];
+        for (i, slot) in out.iter_mut().enumerate() {
+            let h = hash2(rx.wrapping_mul(31).wrapping_add(i as i64 as i32),
+                rz.wrapping_mul(17).wrapping_sub(i as i64 as i32), feats ^ 0x85ebca6b);
+            *slot = ((h % KINGDOM_REGION as u64) as i32,
+                ((h / KINGDOM_REGION as u64) % KINGDOM_REGION as u64) as i32);
+        }
+        out
+    }
+
+    /// Terrain eligibility for a citadel chunk: grassy biome, dry, lowland,
+    /// flat enough that walls don't straddle a cliff.
+    fn kingdom_chunk_ok(&self, cx: i32, cz: i32) -> bool {
+        let (x, z) = (cx * 16 + 8, cz * 16 + 8);
+        if !kingdom_biome_ok(self.biome(x, z)) {
+            return false;
+        }
+        let t = self.surface_top(x, z);
+        if t <= SEA_LEVEL + 1 || t > 120 {
+            return false;
+        }
+        let (mut hi, mut lo) = (i32::MIN, i32::MAX);
+        for (dx, dz) in [(0, 0), (6, 0), (-6, 0), (0, 6), (0, -6)] {
+            let h = self.surface_top(x + dx, z + dz);
+            hi = hi.max(h);
+            lo = lo.min(h);
+        }
+        hi - lo <= 5
+    }
+
+    fn kingdom_name(&self, rx: i32, rz: i32) -> &'static str {
+        let feats = self.seed_for_features();
+        let h = hash2(rx, rz, feats ^ 0x9e3779b9);
+        KINGDOM_NAMES[(h % KINGDOM_NAMES.len() as u64) as usize]
+    }
+
+    /// The kingdom this region hosts, if any candidate chunk is eligible.
+    /// The first eligible candidate in hash order wins, so the same seed
+    /// always yields the same site.
+    pub fn kingdom_in_region(&self, rx: i32, rz: i32) -> Option<KingdomSite> {
+        for (lx, lz) in self.kingdom_candidate_locals(rx, rz) {
+            let (cx, cz) = (rx * KINGDOM_REGION + lx, rz * KINGDOM_REGION + lz);
+            if self.kingdom_chunk_ok(cx, cz) {
+                return Some(KingdomSite { cx, cz, name: self.kingdom_name(rx, rz) });
+            }
+        }
+        None
+    }
+
+    /// Some(site) when `(cx, cz)` IS its region's citadel chunk. Cheap
+    /// (a handful of hashes) so `generate_chunk` can call it per chunk.
+    pub fn kingdom_at(&self, cx: i32, cz: i32) -> Option<KingdomSite> {
+        let rx = cx.div_euclid(KINGDOM_REGION);
+        let rz = cz.div_euclid(KINGDOM_REGION);
+        let (lx, lz) = (cx.rem_euclid(KINGDOM_REGION), cz.rem_euclid(KINGDOM_REGION));
+        for (clx, clz) in self.kingdom_candidate_locals(rx, rz) {
+            if clx == lx && clz == lz && self.kingdom_chunk_ok(cx, cz) {
+                return Some(KingdomSite { cx, cz, name: self.kingdom_name(rx, rz) });
+            }
+        }
+        None
+    }
+
+    /// Nearest kingdom to a world position, searching the surrounding
+    /// region ring (5x5 regions ≈ ±2 regions ≈ ±480 blocks). Returns the
+    /// site and the squared block distance.
+    pub fn nearest_kingdom(&self, x: i32, z: i32) -> Option<(KingdomSite, i64)> {
+        let rx = x.div_euclid(16).div_euclid(KINGDOM_REGION);
+        let rz = z.div_euclid(16).div_euclid(KINGDOM_REGION);
+        let mut best: Option<(KingdomSite, i64)> = None;
+        for drx in -2..=2 {
+            for drz in -2..=2 {
+                if let Some(site) = self.kingdom_in_region(drx + rx, drz + rz) {
+                    let (kx, kz) = (site.cx as i64 * 16 + 8, site.cz as i64 * 16 + 8);
+                    let d = (kx - x as i64) * (kx - x as i64) + (kz - z as i64) * (kz - z as i64);
+                    if best.as_ref().map(|(_, bd)| d < *bd).unwrap_or(true) {
+                        best = Some((site, d));
+                    }
+                }
+            }
+        }
+        best
+    }
+}
+
+/// Build the kingdom citadel into a chunk column: curtain wall with
+/// crenellations and corner towers, a gate with the royal banner, the
+/// two-storey keep with its throne (the settle marker), two houses, a
+/// well, a market court, and a tilled farm plot. Footprint is the whole
+/// chunk; `ground(lx, lz)` is the surface y (terrain adaptation is the
+/// caller's `prepare`). Public so vistest can plant one deterministically.
+pub fn build_kingdom_citadel(
+    col: &mut lf_voxel::ChunkColumn,
+    base_y: usize,
+) {
+    use lf_voxel::BlockState;
+    use lf_voxel::registry::block;
+    let set = |col: &mut lf_voxel::ChunkColumn, x: usize, y: usize, z: usize, b: u32| {
+        if y < 256 {
+            col.set(x, y, z, BlockState(b));
+        }
+    };
+    let b = base_y;
+    if b <= SEA_LEVEL as usize || b > 200 {
+        return;
+    }
+    // --- curtain wall: ring at the chunk edge, 4 tall + crenellations ---
+    for lx in 0..16usize {
+        for lz in 0..16usize {
+            let edge = lx == 0 || lx == 15 || lz == 0 || lz == 15;
+            if !edge {
+                continue;
+            }
+            for dy in 1..=4usize {
+                set(col, lx, b + dy, lz, block::KINGDOM_BRICK);
+            }
+            // crenellation: merlon on every other cell
+            if (lx + lz) % 2 == 0 {
+                set(col, lx, b + 5, lz, block::KINGDOM_BRICK);
+            }
+        }
+    }
+    // corner towers: 8 tall, torch at the top
+    for (tx, tz) in [(0usize, 0usize), (15, 0), (0, 15), (15, 15)] {
+        for dy in 1..=8usize {
+            set(col, tx, b + dy, tz, block::KINGDOM_BRICK);
+        }
+        set(col, tx, b + 9, tz, block::TORCH);
+    }
+    // --- south gate (lz == 15): opening + flanking posts + the banner ---
+    for dx in [7usize, 8usize] {
+        for dy in 1..=3usize {
+            set(col, dx, b + dy, 15, block::AIR);
+        }
+    }
+    for gx in [5usize, 10usize] {
+        for dy in 1..=5usize {
+            set(col, gx, b + dy, 15, block::KINGDOM_BRICK);
+        }
+        set(col, gx, b + 6, 15, block::TORCH);
+    }
+    set(col, 7, b + 6, 15, block::BANNER_KINGDOM);
+    set(col, 8, b + 6, 15, block::BANNER_KINGDOM);
+    // gate road: stone from the gate to the keep door
+    for lz in 10..=14usize {
+        set(col, 7, b, lz, block::STONE);
+        set(col, 8, b, lz, block::STONE);
+    }
+    // --- the keep (5..=10 x 3..=9): two storeys, crenellated roof ------
+    for dx in 5..=10usize {
+        for dz in 3..=9usize {
+            let edge = dx == 5 || dx == 10 || dz == 3 || dz == 9;
+            // interior floor
+            set(col, dx, b, dz, block::KINGDOM_BRICK);
+            for dy in 1..=5usize {
+                let y = b + dy;
+                if !edge {
+                    set(col, dx, y, dz, block::AIR);
+                } else if dy == 2 {
+                    // arrow-slit band
+                    set(col, dx, y, dz, if (dx + dz) % 3 == 0 { block::AIR } else { block::KINGDOM_BRICK });
+                } else {
+                    set(col, dx, y, dz, block::KINGDOM_BRICK);
+                }
+            }
+            // roof crenellation ring + plank ceiling over the hall
+            set(col, dx, b + 6, dz, if edge && (dx + dz) % 2 == 0 {
+                block::KINGDOM_BRICK
+            } else {
+                block::PLANKS
+            });
+        }
+    }
+    // keep door (south face) + throne dais (north interior)
+    set(col, 7, b + 1, 3, block::AIR);
+    set(col, 7, b + 2, 3, block::AIR);
+    set(col, 8, b + 1, 3, block::AIR);
+    set(col, 8, b + 2, 3, block::AIR);
+    for dx in 6..=9usize {
+        for dz in 7..=8usize {
+            set(col, dx, b + 1, dz, block::KINGDOM_BRICK); // the dais step
+        }
+    }
+    // the throne, on the dais, facing the door — the kingdom marker
+    set(col, 7, b + 2, 8, block::THRONE);
+    set(col, 9, b + 2, 8, block::BANNER_KINGDOM);
+    set(col, 5, b + 3, 6, block::TORCH);
+    set(col, 10, b + 3, 6, block::TORCH);
+    // --- two houses in the west/east yards ------------------------------
+    for (hx0, hz0) in [(2usize, 2usize), (12usize, 2usize)] {
+        for dx in hx0..hx0 + 3 {
+            for dz in hz0..hz0 + 3 {
+                let edge = dx == hx0 || dx == hx0 + 2 || dz == hz0 || dz == hz0 + 2;
+                set(col, dx, b, dz, block::PLANKS);
+                for dy in 1..=2usize {
+                    if edge {
+                        set(col, dx, b + dy, dz, block::PLANKS);
+                    } else {
+                        set(col, dx, b + dy, dz, block::AIR);
+                    }
+                }
+                set(col, dx, b + 3, dz, block::LOG); // roof
+            }
+        }
+        // door faces the courtyard (inward); hearth + workbench inside
+        let door_x = if hx0 == 2 { hx0 + 2 } else { hx0 };
+        set(col, door_x, b + 1, hz0 + 1, block::AIR);
+        set(col, if hx0 == 2 { hx0 } else { hx0 + 2 }, b + 1, hz0 + 2, block::CRAFTING_TABLE);
+        set(col, hx0 + 1, b + 1, hz0 + 2, block::FURNACE);
+    }
+    // --- the well (west courtyard): open water in a stone ring ----------
+    for (wx, wz) in [(2usize, 10usize), (3, 10), (2, 11), (3, 11)] {
+        set(col, wx, b, wz, block::WATER);
+    }
+    for (wx, wz) in [(1usize, 10usize), (1, 11), (4, 10), (4, 11),
+                     (2, 9), (3, 9), (2, 12), (3, 12)] {
+        set(col, wx, b + 1, wz, block::STONE); // rim
+    }
+    // --- market court (east of the gate road): two stalls ---------------
+    for (mx, mz) in [(10usize, 11usize), (12usize, 12usize)] {
+        set(col, mx, b + 1, mz, block::PLANKS); // counter
+        set(col, mx + 1, b + 1, mz, block::PLANKS);
+        set(col, mx, b + 2, mz, block::BANNER_KINGDOM); // pennant
+        set(col, mx + 1, b + 2, mz + 1, block::AIR);
+    }
+    set(col, 13, b + 1, 11, block::CHEST); // the market stock
+    // --- farm plot (east yard, south of nothing, clear of the house):
+    // tilled rows with an irrigation channel down the middle ----------
+    for dx in 11..=14usize {
+        for dz in 6..=9usize {
+            if dx == 12 && (7..=8).contains(&dz) {
+                set(col, dx, b, dz, block::WATER); // channel
+            } else {
+                set(col, dx, b, dz, block::DIRT); // tilled soil
+            }
+        }
+    }
+    // courtyard lanterns flanking the gate road
+    set(col, 6, b + 1, 13, block::LANTERN);
+    set(col, 9, b + 1, 13, block::LANTERN);
 }
 
 /// Build a faction structure into a chunk column. `ground(lx, lz)` gives
@@ -2446,6 +2744,89 @@ mod tests {
             let h = gen.surface_top(wx, wz);
             assert!(col.get(lx, (h - 1).max(0) as usize, lz) != lf_voxel::BlockState::AIR);
             assert_eq!(col.get(lx, 200, lz), lf_voxel::BlockState::AIR);
+        }
+    }
+
+    /// Failure meaning: kingdoms stop being findable — no region near spawn
+    /// hosts one, or `nearest_kingdom` disagrees with `kingdom_at`.
+    #[test]
+    fn kingdoms_are_placed_and_findable() {
+        let gen = WorldGen::new(Seed(12345));
+        // at least one kingdom within the 5x5-region compass window of spawn
+        let (site, _d) = gen.nearest_kingdom(0, 0)
+            .expect("some kingdom must exist near the origin window");
+        assert!(KINGDOM_NAMES.contains(&site.name), "name comes from the pool");
+        // kingdom_at agrees exactly on the site chunk and disagrees elsewhere
+        assert_eq!(gen.kingdom_at(site.cx, site.cz), Some(site));
+        assert_eq!(gen.kingdom_at(site.cx + 1, site.cz), None);
+        // deterministic: the same seed yields the same site and name
+        let gen2 = WorldGen::new(Seed(12345));
+        assert_eq!(gen2.nearest_kingdom(0, 0).map(|(s, _)| s), Some(site));
+        // different seeds place different courts (not all identical)
+        let other = WorldGen::new(Seed(999));
+        let mut any = false;
+        for rx in -2..=2 {
+            for rz in -2..=2 {
+                if gen.kingdom_in_region(rx, rz) != other.kingdom_in_region(rx, rz) {
+                    any = true;
+                }
+            }
+        }
+        assert!(any, "seeds should vary kingdom placement somewhere");
+    }
+
+    /// Failure meaning: the generated citadel chunk lacks its marker blocks
+    /// (throne + banner) or walls — the client settles NPCs by scanning
+    /// for the throne, so a citadel without it is dead terrain.
+    #[test]
+    fn citadel_chunk_builds_the_full_court() {
+        let gen = WorldGen::new(Seed(12345));
+        let (site, _) = gen.nearest_kingdom(0, 0).unwrap();
+        let col = gen.generate_chunk(site.cx, site.cz);
+        use lf_voxel::registry::block;
+        let mut throne = 0;
+        let mut banners = 0;
+        let mut bricks = 0;
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                for y in 0..256usize {
+                    match col.get(lx, y, lz).id() {
+                        block::THRONE => throne += 1,
+                        block::BANNER_KINGDOM => banners += 1,
+                        block::KINGDOM_BRICK => bricks += 1,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        assert_eq!(throne, 1, "exactly one throne (the marker)");
+        assert!(banners >= 4, "royal banners fly (gate + throne + market): {banners}");
+        assert!(bricks > 150, "walls + keep are real masonry: {bricks}");
+    }
+
+    /// Failure meaning: `build_kingdom_citadel` stopped raising the throne
+    /// dais, gate banners, or the well when planted on flat ground.
+    #[test]
+    fn citadel_on_flat_ground_has_landmarks() {
+        use lf_voxel::registry::block;
+        let mut col = lf_voxel::ChunkColumn::empty();
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                for y in 0..70usize {
+                    col.set(lx, y, lz, lf_voxel::BlockState(block::STONE));
+                }
+            }
+        }
+        build_kingdom_citadel(&mut col, 70);
+        assert_eq!(col.get(7, 72, 8).id(), block::THRONE);
+        assert_eq!(col.get(7, 76, 15).id(), block::BANNER_KINGDOM);
+        assert_eq!(col.get(2, 70, 10).id(), block::WATER, "the well holds water");
+        // the gate is a real opening in the wall
+        assert_eq!(col.get(7, 71, 15).id(), block::AIR);
+        assert_eq!(col.get(8, 72, 15).id(), block::AIR);
+        // walls stand on all four edges (cells clear of the gate opening)
+        for (lx, lz) in [(0usize, 7usize), (15, 7), (7, 0), (9, 15)] {
+            assert_eq!(col.get(lx, 71, lz).id(), block::KINGDOM_BRICK);
         }
     }
 }

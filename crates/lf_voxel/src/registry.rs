@@ -23,7 +23,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 200;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 138;
+pub const MAX_VANILLA_BLOCK: u32 = 141;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -233,6 +233,14 @@ pub mod block {
     pub const SUNFLOWER: u32 = 137;
     pub const SALT: u32 = 138;
 
+    /// loop 345 kingdoms: the throne is the kingdom-settle marker the
+    /// client scans (like faction banners / enchanting-table towers).
+    pub const THRONE: u32 = 139;
+    /// The royal banner flying over the citadel gate and market stalls.
+    pub const BANNER_KINGDOM: u32 = 140;
+    /// Pale ashlar masonry of the kingdom walls and keep.
+    pub const KINGDOM_BRICK: u32 = 141;
+
     pub fn name(id: u32) -> &'static str {
         if let Some(def) = crate::registry::mod_block(id) {
             // names of registered mods outlive the lookup via leak (bounded by the mod set)
@@ -311,6 +319,9 @@ pub mod block {
             LAVENDER => "Lavender",
             SUNFLOWER => "Sunflower",
             SALT => "Salt Flat",
+            THRONE => "Throne",
+            BANNER_KINGDOM => "Kingdom Banner",
+            KINGDOM_BRICK => "Kingdom Brick",
 
             BIRCH_LEAVES => "Birch Leaves",
             SPRUCE_LEAVES => "Spruce Leaves",
@@ -497,7 +508,8 @@ pub fn is_stained_glass(id: u32) -> bool {
 pub fn is_banner(id: u32) -> bool {
     use block as b;
     matches!(id, b::BANNER_ACCORD | b::BANNER_IRONBORN | b::BANNER_COVENANT
-        | b::BANNER_FREEHOLDS | b::BANNER_ASHEN | b::BANNER_NAMELESS)
+        | b::BANNER_FREEHOLDS | b::BANNER_ASHEN | b::BANNER_NAMELESS
+        | b::BANNER_KINGDOM)
 }
 
 /// Collision boxes (block-local 0..1 coordinates) for shaped blocks —

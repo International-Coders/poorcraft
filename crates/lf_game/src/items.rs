@@ -249,6 +249,12 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "bog_grass", name: "Bog Grass Bundle", kind: ItemKind::Material, max_stack: 64 },
         ItemDef { id: "torn_archive_page", name: "Torn Archive Page", kind: ItemKind::Material, max_stack: 1 },
         ItemDef { id: "anima_crystal", name: "Anima Crystal", kind: ItemKind::Material, max_stack: 16 },
+        // loop 345 kingdoms: the royal compass (crafted from a wood block)
+        // and the citadel's own blocks
+        ItemDef { id: "kingdom_compass", name: "Kingdom Compass", kind: ItemKind::Material, max_stack: 1 },
+        ItemDef { id: "throne", name: "Throne", kind: ItemKind::Block(block::THRONE), max_stack: 1 },
+        ItemDef { id: "banner_kingdom", name: "Kingdom Banner", kind: ItemKind::Block(block::BANNER_KINGDOM), max_stack: 16 },
+        ItemDef { id: "kingdom_brick", name: "Kingdom Brick", kind: ItemKind::Block(block::KINGDOM_BRICK), max_stack: 64 },
     ];
     ITEMS
 }
@@ -404,6 +410,10 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::BANNER_ASHEN => Some("banner_ashen".into()),
         block::BANNER_NAMELESS => Some("banner_nameless".into()),
         block::LANTERN_HANGING => Some("lantern_hanging".into()),
+        // loop 345 kingdoms: the citadel is lootable like every structure
+        block::THRONE => Some("throne".into()),
+        block::BANNER_KINGDOM => Some("banner_kingdom".into()),
+        block::KINGDOM_BRICK => Some("kingdom_brick".into()),
         id if lf_voxel::registry::is_stained_glass(id) => None, // stained glass shatters like glass
         id if id >= lf_voxel::registry::MOD_BLOCK_BASE => {
             lf_voxel::registry::mod_block(id).and_then(|d| d.drop)

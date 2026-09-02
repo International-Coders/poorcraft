@@ -1824,3 +1824,66 @@ loop—the raster path ships inexpensive sun-aligned face/normal relief and the
 Live RT path still supplies real soft cast shadows. Atmospheric scattering,
 sky gradients, and cloud ground shadows remain separate visual jobs. The next
 usability job is a compact, persisted first-minute onboarding flow.
+
+## 2026-09-02 — loop 345: kingdoms-and-walkers
+
+WHAT: Fixed the frozen-NPC bug (some villagers never walked), upgraded the
+NPC logic (idle wander, guard patrols, panic flee direction), built the
+kingdom system end-to-end (region-placed citadels, a royal court of NPCs,
+map/chronicle/save integration), and added the craftable Kingdom Compass
+(wood block + iron ingot) whose held HUD needle points to the nearest
+kingdom.
+
+HOW: Root-caused the freeze in `crates/lf_client/src/lib.rs`
+`update_villagers`: a step only committed when the next cell was air AND the
+cell below it was solid — no step-up, no downhill, no gravity, so any bump,
+dip, or obstacle froze the NPC permanently; hamlet villagers also inherited
+`schedule.location = [8,64,8]` (world origin) from `VillagerSchedule::default`.
+New pure module `crates/lf_npc/src/locomotion.rs` (solid-closure API):
+footing scan (±3), one-block step-up with head clearance, cliff refusal,
+accelerating fall with per-tick landing scan (no tunnelling), and a
+stuck-reflex (20 blocked ticks → 40-tick perpendicular sidestep, fixed
+per-NPC `side_bias` — the first draft derived bias from position parity and
+ping-ponged; proof-caught). The rewritten `update_villagers` drives it, adds
+idle shuffle (radius clamped under the 1.5 en-route threshold so it cannot
+oscillate), guard 4-post patrol in the Patrol slot, and away-from-player
+panic. Kingdoms in `crates/lf_worldgen/src/lib.rs`: `KingdomSite` per 12x12-
+chunk region from hash-ordered candidates on flat eligible grassland, a
+16-name pool, `nearest_kingdom` (5x5 regions) for the compass, and
+`build_kingdom_citadel` (crenellated curtain wall + 4 torch towers, gated
+south wall with BANNER_KINGDOM, two-storey keep with THRONE on a dais, two
+houses with hearth+bench, stone-ringed well, market stalls + stock chest,
+irrigated farm; full-chunk `prepare` adaptation). Blocks THRONE 139 /
+BANNER_KINGDOM 140 / KINGDOM_BRICK 141 through registry (banner cutout,
+solidity) → lf_assets (ashlar masonry, crown-banner with a new "crown" glyph,
+throne art, monarch robes with gold circlet, brass compass dial sprite,
+atlas names 205→209) → lf_game items/drops; GENERATOR_VERSION → 5. Client:
+`try_settle_kingdoms` scans for thrones (settled_markers), settles Queen
+Ilsa (new VillagerJob::Monarch + trade table) + 2 guards + farmer/trader/
+smith homed at the citadel, records `KingdomRecord`s in ClientSave (JSON
+serde-default), chronicle + hint on discovery, gold-crown map markers with
+name + distance. `kingdom_compass` item + recipes (any of 6 woods over
+iron); held HUD dial drawn by shared `lf_client::ui::paint_kingdom_compass`
+(gold rim, cardinal ticks rotated by yaw, red needle at bearing−yaw,
+name+meters label), readout cached 1/sec from `nearest_kingdom`.
+
+VERIFICATION: `cargo build --workspace` GREEN; `cargo test --workspace`
+381 passed / 0 failed (was 371); `cargo run --release -p xtask -- vistest
+shots` 92/92 including the three new scenes — `kingdom_citadel` (determinism
+assert + gold/purple/ashlar pixel claims), `npc_walkers` (the REAL
+locomotion ticks three villagers up a 1-block step, down a 2-block drop, and
+across a flat lane with arrival/ground asserts; channel-separated robe
+claims after the first draft's raw-color claims matched sunlit terrain —
+proof-caught and re-verified by eye: three walkers on their lanes),
+`kingdom_compass_hud` (rendered through the real client paint fn; case/rim/
+needle/needle-points-right claims); all three PNGs visually inspected.
+`make smoke`: release binary alive 12s (and logged "villager Pip the Bard
+settled a hamlet"); runtimes refreshed — dist/loreforge.app,
+dist/loreforge-macos.dmg, dist/loreforge-linux-x86_64.tar.gz,
+dist/loreforge-server. Windows honestly skipped (no MinGW on this host).
+
+HONESTLY DEFERRED: multi-chunk citadels/roads (in-chunk footprints remain
+the structure convention), path-tracer palette coverage for ids ≥128
+(pre-existing; kingdoms render in the default raster path), monarch-specific
+lore dialogue (needs a lore/npcs.toml archetype), and onboarding prompts
+(carry-over from loop 344, next task).

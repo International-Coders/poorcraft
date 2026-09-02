@@ -399,6 +399,61 @@ fn build_catalog() -> Vec<CatalogEntry> {
 
 // ------------------------------------------------------------------
 
+/// loop 345: the kingdom-compass dial — a player-relative compass rose
+/// with the red needle swung toward the nearest kingdom's throne. Public
+/// and self-contained so the vistest proof renders the real HUD pixels.
+pub fn paint_kingdom_compass(
+    painter: &egui::Painter,
+    c: egui::Pos2,
+    r: f32,
+    yaw: f32,
+    needle_bearing: Option<f32>,
+    label: &str,
+) {
+    let gold = egui::Color32::from_rgb(240, 200, 110);
+    let needle_red = egui::Color32::from_rgb(220, 70, 60);
+    // case: dark dial with a gold rim
+    painter.circle_filled(c, r, Theme::PANEL);
+    painter.circle_stroke(c, r, egui::Stroke::new(2.0, gold));
+    // cardinal ticks rotated so the player's facing is up
+    use std::f32::consts::{FRAC_PI_2, PI};
+    for ang in [0.0, FRAC_PI_2, PI, -FRAC_PI_2] {
+        let a = ang - yaw;
+        let dir = egui::Vec2::new(a.sin(), -a.cos());
+        painter.line_segment(
+            [c + dir * (r - 10.0), c + dir * (r - 4.0)],
+            egui::Stroke::new(1.5, Theme::TEXT_DIM),
+        );
+    }
+    match needle_bearing {
+        Some(bearing) => {
+            // the needle: bearing relative to facing (0 = dead ahead = up)
+            let rel = bearing - yaw;
+            let dir = egui::Vec2::new(rel.sin(), -rel.cos());
+            painter.line_segment(
+                [c - dir * (r * 0.55), c + dir * (r * 0.72)],
+                egui::Stroke::new(3.0, needle_red),
+            );
+            painter.circle_filled(c + dir * (r * 0.72), 2.5, needle_red);
+        }
+        None => {
+            // no kingdom in reach: the needle rests, dimmed
+            painter.line_segment(
+                [c - egui::Vec2::new(0.0, r * 0.5), c + egui::Vec2::new(0.0, r * 0.7)],
+                egui::Stroke::new(3.0, Theme::TEXT_DISABLED),
+            );
+        }
+    }
+    painter.circle_filled(c, 3.0, gold);
+    painter.text(
+        c + egui::Vec2::new(0.0, r + 13.0),
+        egui::Align2::CENTER_CENTER,
+        label,
+        egui::FontId::proportional(12.0),
+        Theme::TEXT,
+    );
+}
+
 /// Gameplay HUD visibility: hidden behind menus that own the whole view.
 /// The audit caught hearts + hotbar rendering under the title menu (and
 /// under settings opened from the title); pause keeps the HUD visible the
@@ -640,6 +695,30 @@ impl GameState {
                 .unwrap_or(false);
             if held_is_block || self.symmetry_plane.is_some() {
                 self.draw_build_hud(ctx);
+            }
+        }
+        // loop 345: the kingdom compass, held — a dial under the crosshair
+        // whose needle swings toward the nearest kingdom
+        if self.stats.health > 0.0 && matches!(self.ui_open, UiOpen::None | UiOpen::Chat) {
+            let compass_held = self.inventory.slots[self.hotbar_index].as_ref()
+                .map(|s| s.item_id == "kingdom_compass")
+                .unwrap_or(false);
+            if compass_held {
+                let screen = ctx.screen_rect();
+                let c = egui::Pos2::new(screen.center().x, screen.top() + 92.0);
+                let (bearing, label) = match &self.kingdom_compass_state {
+                    Some((name, bearing, meters)) =>
+                        (Some(*bearing), format!("{} · {}m", name, meters)),
+                    None => (None, "no kingdom in reach".to_string()),
+                };
+                paint_kingdom_compass(
+                    &ctx.debug_painter(),
+                    c,
+                    30.0,
+                    self.player.yaw,
+                    bearing,
+                    &label,
+                );
             }
         }
         // info line (top-left). Minimal by default — research on Minecraft's

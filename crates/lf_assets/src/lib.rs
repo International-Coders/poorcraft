@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 205] = [
+pub const TEXTURE_NAMES: [&str; 209] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -104,6 +104,9 @@ pub const TEXTURE_NAMES: [&str; 205] = [
     // loop 344 sky readability: celestial bodies use authored cutout art,
     // never a borrowed snow tile.
     "sun", "moon", "star",
+    // loop 345 kingdoms: the citadel's own masonry, banner, throne, and
+    // the monarch's court robes.
+    "kingdom_brick", "banner_kingdom", "throne", "villager_monarch",
 ];
 
 /// king-quest B: block ids 121..=138 map to their named layers, in this
@@ -247,6 +250,7 @@ pub fn villager_job_layer(job: &str) -> u32 {
         "bard" => "villager_bard",
         "lorekeeper" => "villager_lorekeeper",
         "wizard" => "villager_wizard",
+        "monarch" => "villager_monarch",
         _ => "villager_trader",
     })
 }
@@ -372,6 +376,14 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         119 | 120 => 20, // cherry bark
         // mod blocks: one generated, palette-distinct layer per block
         id if id >= lf_voxel::registry::MOD_BLOCK_BASE => mod_block_layer_for(id),
+        // loop 345 kingdoms: throne / royal banner / ashlar masonry
+        id @ lf_voxel::registry::block::THRONE..=lf_voxel::registry::block::KINGDOM_BRICK => {
+            match id {
+                lf_voxel::registry::block::THRONE => layer_of("throne"),
+                lf_voxel::registry::block::BANNER_KINGDOM => layer_of("banner_kingdom"),
+                _ => layer_of("kingdom_brick"),
+            }
+        }
         _ => 0,
     }
 }
@@ -1560,6 +1572,37 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     }
                 }
                 name if name.starts_with("banner_") => banner_pixel(x, y, name),
+                // loop 345 kingdoms: pale ashlar masonry (courses of sawn
+                // stone with recessed mortar) and the throne itself (dark
+                // hardwood, gold arms, purple seat)
+                "kingdom_brick" => {
+                    let course = y / 4;
+                    let offset = if course % 2 == 0 { 0 } else { 4 };
+                    let mortar_row = y % 4 == 0;
+                    let mortar_col = ((x + offset) % 8) == 0;
+                    if mortar_row || mortar_col {
+                        Rgba([132, 128, 122, 255])
+                    } else {
+                        let v = 196 + ((x * 5 + y * 7 + course * 11) % 18);
+                        Rgba([ch(v), ch(v - 6), ch(v - 26), 255])
+                    }
+                }
+                "throne" => {
+                    let frame = x <= 2 || x >= 13 || y <= 1;
+                    let armrest = (y == 8 || y == 9) && (x == 3 || x == 12);
+                    let backrest = x >= 4 && x <= 11 && y >= 2 && y <= 6;
+                    let seat = x >= 4 && x <= 11 && y >= 7 && y <= 12;
+                    if frame || armrest {
+                        Rgba([206, 164, 76, 255]) // gilded wood
+                    } else if backrest {
+                        Rgba([96, 60, 148, 255]) // royal purple cushion
+                    } else if seat {
+                        let v = (x * 3 + y * 5) % 9;
+                        Rgba([ch(80 + v), ch(48 + v), ch(126 + v), 255])
+                    } else {
+                        Rgba([52, 38, 30, 255]) // dark hardwood plinth
+                    }
+                }
                 // ---- entity skins (C2) ------------------------------------
                 name if name.starts_with("villager_") => villager_pixel(x, y, name),
                 name if name.starts_with("companion_") => companion_pixel(x, y, name),
@@ -2140,6 +2183,7 @@ fn banner_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
         "banner_covenant" => ([196, 96, 42], "flame", [52, 38, 32]),
         "banner_freeholds" => ([107, 142, 35], "wheat", [240, 232, 200]),
         "banner_ashen" => ([176, 176, 176], "book", [62, 66, 74]),
+        "banner_kingdom" => ([96, 60, 148], "crown", [246, 208, 96]), // royal purple + gold
         _ => ([45, 45, 45], "chain", [140, 140, 140]), // nameless
     };
     // pole at the left, cloth 4..=12 x 2..=13 with a swallowtail cut
@@ -2158,6 +2202,10 @@ fn banner_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
     let sym = match symbol {
         "scale" => (y == 6 && (5..=11).contains(&x)) || x == 8 && (6..=10).contains(&y)
             || (y == 10 && (6..=10).contains(&x)),
+        // crown: band + three points with jewel tips
+        "crown" => (y == 9 && (6..=10).contains(&x))
+            || (y == 8 && matches!(x, 6 | 8 | 10))
+            || (y == 7 && x == 8),
         "hammer" => (y == 6 && (6..=10).contains(&x)) || (x == 8 && (7..=10).contains(&y)),
         "flame" => ((x == 8 && (5..=9).contains(&y)) || (x == 7 && (7..=9).contains(&y))
             || (x == 9 && (7..=9).contains(&y))) && !(y == 9 && x != 8),
@@ -2208,6 +2256,7 @@ fn outfit_pixel(
             "flame" => x == 8 && (8..=10).contains(&y),
             "wheat" => matches!(x, 7 | 9) && (8..=10).contains(&y),
             "book" => (y == 9 && (6..=10).contains(&x)) || (x == 8 && (8..=10).contains(&y)),
+            "crown" => (y == 10 && (6..=10).contains(&x)) || (y == 9 && matches!(x, 6 | 8 | 10)),
             _ => (x == 7 && (8..=9).contains(&y)) || (x == 9 && y == 9), // chain
         };
         if sym {
@@ -2240,6 +2289,15 @@ fn villager_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
         "villager_bard" => outfit_pixel(x, y, [116, 58, 104], Some([224, 154, 82]), [88, 50, 30], Some(("flame", [244, 190, 96]))),
         "villager_lorekeeper" => outfit_pixel(x, y, [82, 72, 106], Some([198, 188, 218]), [104, 94, 82], Some(("book", [232, 220, 194]))),
         "villager_wizard" => outfit_pixel(x, y, [48, 42, 102], Some([112, 188, 228]), [182, 182, 194], Some(("flame", [112, 222, 246]))),
+        // The monarch: deep royal purple, gold trim, crown symbol — and a
+        // gold circlet where the hair band sits.
+        "villager_monarch" => {
+            let mut px = outfit_pixel(x, y, [86, 52, 138], Some([246, 208, 96]), [64, 46, 78], Some(("crown", [246, 208, 96])));
+            if y == 3 {
+                px = Rgba([232, 190, 78, 255]); // the circlet
+            }
+            px
+        }
         // The Unmarked: Nameless clothes, ash-grey hair, no symbol anywhere
         "villager_unmarked" => {
             let mut px = outfit_pixel(x, y, [45, 45, 45], None, [172, 172, 172], None);
@@ -2610,6 +2668,7 @@ pub const ITEM_TEXTURE_IDS: &[&str] = &[
     "stone_slab", "planks_slab", "stone_stairs", "dragon_scale",
     "precision_gear", "master_blueprint", "battlestaff", "master_chisel",
     "iron_plate", "bog_grass", "torn_archive_page", "anima_crystal",
+    "kingdom_compass",
 ];
 
 fn paint_sprite(art: [&str; 16], colors: impl Fn(char) -> Rgba<u8>) -> RgbaImage {
@@ -3449,6 +3508,32 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
         }),
         "anima_crystal" => paint_sprite(SULFUR_ART, |c| match c {
             'y' => Rgba([214, 128, 44, 255]), 'Y' => Rgba([248, 192, 96, 255]),
+            _ => Rgba([0, 0, 0, 0]),
+        }),
+        // loop 345: the kingdom compass — brass case, parchment dial, and
+        // the red needle that always swings toward the nearest throne.
+        "kingdom_compass" => paint_sprite([
+            "................",
+            "....gggggggg....",
+            "..ggwwwwwwwwgg..",
+            "..gwwnnwwnnwwg..",
+            ".gwwwnwwwwnwwwg.",
+            ".gwnnwwwwwwnnwg.",
+            ".gwwwwwrrwwwwwg.",
+            ".gwwwwrrrrwwwwg.",
+            ".gwwwwrrrrwwwwg.",
+            ".gwwwwwrrwwwwwg.",
+            ".gwnnwwwwwwnnwg.",
+            ".gwwwnwwwwnwwwg.",
+            "..gwwnnwwnnwwg..",
+            "..ggwwwwwwwwgg..",
+            "....gggggggg....",
+            "................",
+        ], |c| match c {
+            'g' => Rgba([176, 136, 58, 255]),  // brass case
+            'w' => Rgba([234, 226, 204, 255]), // parchment dial
+            'n' => Rgba([96, 60, 148, 255]),   // royal purple points
+            'r' => Rgba([214, 48, 48, 255]),   // the needle
             _ => Rgba([0, 0, 0, 0]),
         }),
         "raw_uranium" => raw_chunk(Rgba([70, 130, 55, 255]), Rgba([140, 230, 100, 255])),

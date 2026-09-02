@@ -206,9 +206,18 @@ pub struct MapState {
     /// lore-and-visuals D3: discovered structure icons (x, z, faction
     /// color), drawn like waypoints on both map surfaces.
     pub structure_icons: Vec<(f32, f32, Color32)>,
+    /// loop 345: discovered kingdoms (x, z, name), drawn as crowned gold
+    /// markers on the map screen.
+    pub kingdom_icons: Vec<(f32, f32, String)>,
 }
 
 impl MapState {
+    /// The seed-known generator backing this map — kingdom (and other
+    /// structure) queries without regenerating a WorldGen per caller.
+    pub fn worldgen(&self) -> &WorldGen {
+        &self.gen
+    }
+
     pub fn new(world_type: lf_worldgen::WorldType, seed: u64) -> Self {
         Self {
             gen: WorldGen::with_type(Seed(seed), world_type),
@@ -224,6 +233,7 @@ impl MapState {
             following: true,
             faction_tints: HashMap::new(),
             structure_icons: Vec::new(),
+            kingdom_icons: Vec::new(),
         }
     }
 
@@ -658,6 +668,26 @@ impl GameState {
                                     *col,
                                     egui::Stroke::new(1.5, Theme::BG),
                                 ));
+                            }
+                        }
+                        // loop 345: discovered kingdoms — a gold crown with
+                        // three points and the realm's name beneath
+                        for (kx, kz, kname) in &self.map.kingdom_icons {
+                            let pos = to_screen(*kx, *kz);
+                            if rect.contains(pos) {
+                                let gold = Color32::from_rgb(246, 208, 96);
+                                paint.add(egui::Shape::convex_polygon(
+                                    vec![pos + Vec2::new(-6.0, 4.0), pos + Vec2::new(-6.0, -3.0),
+                                         pos + Vec2::new(-3.0, 0.0), pos + Vec2::new(0.0, -5.0),
+                                         pos + Vec2::new(3.0, 0.0), pos + Vec2::new(6.0, -3.0),
+                                         pos + Vec2::new(6.0, 4.0)],
+                                    gold,
+                                    egui::Stroke::new(1.5, Theme::BG),
+                                ));
+                                let dist = ((kx - p.x).powi(2) + (kz - p.z).powi(2)).sqrt();
+                                paint.text(pos + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER,
+                                    format!("{} · {:.0}m", kname, dist),
+                                    egui::FontId::proportional(11.0), gold);
                             }
                         }
                         // waypoints

@@ -1,6 +1,8 @@
 use serde::{Serialize, Deserialize};
 
 pub mod vassals;
+pub mod locomotion;
+pub use locomotion::{Loco, Move};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VillagerJob {
@@ -12,6 +14,9 @@ pub enum VillagerJob {
     Lorekeeper,
     /// P33: dwells the tower, sells spell scrolls + reagents.
     Wizard,
+    /// loop 345: rules a kingdom citadel (throne marker); sells royal
+    /// wares and anchors the kingdom's NPC court.
+    Monarch,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -86,6 +91,14 @@ pub fn trade_offers(job: VillagerJob) -> &'static [(&'static str, u8, &'static s
             ("glitch_dust", 12, "scroll_of_ward", 1),
             ("book", 2, "scroll_of_hearthlight", 1),
             ("iron_ingot", 2, "glitch_dust", 3),
+        ],
+        // loop 345: the monarch's royal commission — statuary and plans
+        // that are hard to craft by hand, paid in ingots and books.
+        VillagerJob::Monarch => &[
+            ("iron_ingot", 6, "statue", 1),
+            ("book", 2, "blueprint", 1),
+            ("iron_ingot", 4, "lantern", 2),
+            ("coal", 12, "blueprint", 1),
         ],
     }
 }
@@ -327,6 +340,10 @@ pub struct Villager {
     pub walk_phase: f32,
     #[serde(default)]
     pub walk_amp: f32,
+    /// loop 345: locomotion scratch (sidestep reflex, fall speed) — see
+    /// `locomotion`; persisted so saves resume mid-stride honestly.
+    #[serde(default)]
+    pub loco: Loco,
 }
 
 impl Villager {
@@ -348,6 +365,7 @@ impl Villager {
             yaw: 0.0,
             walk_phase: 0.0,
             walk_amp: 0.0,
+            loco: Loco::default(),
         }
     }
 
@@ -437,7 +455,8 @@ mod tests {
     #[test]
     fn trade_offers_are_coherent() {
         for job in [VillagerJob::Farmer, VillagerJob::Smith, VillagerJob::Trader,
-                    VillagerJob::Guard, VillagerJob::Bard, VillagerJob::Lorekeeper] {
+                    VillagerJob::Guard, VillagerJob::Bard, VillagerJob::Lorekeeper,
+                    VillagerJob::Wizard, VillagerJob::Monarch] {
             let offers = trade_offers(job);
             assert!(!offers.is_empty(), "{:?} has no offers", job);
             for (give, gn, get, rn) in offers {

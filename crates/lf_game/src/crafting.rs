@@ -32,6 +32,15 @@ pub fn recipes() -> &'static [Recipe] {
     for log_id in ["birch_log", "spruce_log", "dark_log", "cherry_log"] {
         book.push(r("planks", 4, vec![vec![Some(log_id)]]));
     }
+    // loop 345 kingdoms: the Kingdom Compass — a wood block over an iron
+    // ingot (any trunk species or planks counts as the wood block). Held,
+    // its needle swings toward the nearest kingdom's throne.
+    for wood in ["log", "birch_log", "spruce_log", "dark_log", "cherry_log", "planks"] {
+        book.push(r("kingdom_compass", 1, vec![
+            vec![Some(wood)],
+            vec![Some("iron_ingot")],
+        ]));
+    }
     // 2 planks (vertical) -> 4 sticks
     book.push(r("stick", 4, vec![vec![Some("planks")], vec![Some("planks")]]));
     // 2x2 planks -> crafting table
@@ -532,6 +541,26 @@ mod tests {
 
     fn s(id: &str) -> Option<ItemStack> {
         Some(ItemStack { item_id: id.to_string(), count: 1 })
+    }
+
+    /// Failure meaning: the loop 345 kingdom compass stopped being
+    /// craftable from a wood block over an iron ingot (any trunk species
+    /// or planks counts as the wood block).
+    #[test]
+    fn kingdom_compass_crafts_from_wood_over_iron() {
+        for wood in ["log", "birch_log", "spruce_log", "dark_log", "cherry_log", "planks"] {
+            let mut grid = vec![None::<ItemStack>; 4];
+            grid[0] = s(wood);
+            grid[2] = s("iron_ingot"); // wood over ingot, column 0
+            assert_eq!(match_recipe(&grid), Some(("kingdom_compass".into(), 1)),
+                "compass must craft from {} + iron", wood);
+        }
+        // iron alone or wood alone is not a compass
+        let mut bad = vec![None::<ItemStack>; 4];
+        bad[0] = s("log");
+        assert_ne!(match_recipe(&bad), Some(("kingdom_compass".into(), 1)));
+        // the output is a real registered item
+        assert!(crate::items::item_def("kingdom_compass").is_some());
     }
 
     #[test]

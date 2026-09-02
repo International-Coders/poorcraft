@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## 2026-09-02 — kingdoms, walking NPCs, and the kingdom compass (loop 345)
+
+- **NPCs actually walk now.** The old movement loop only committed a step
+  when the next cell was air *and* the cell below it was solid — a one-block
+  bump, a one-block dip, or any obstacle froze an NPC forever (the "some NPCs
+  are not walking" bug), and hamlet villagers were additionally anchored at
+  the world origin (8, 64, 8) by the default schedule instead of their
+  hamlet. The new `lf_npc::locomotion` module owns real traversal: one-block
+  step-up with head clearance, descent of up to 3 blocks, cliff refusal,
+  accelerating gravity that cannot tunnel through ledges, and a stuck-reflex
+  that sidesteps around walls/trees after 20 blocked ticks (per-NPC side
+  bias so walls get rounded instead of ping-ponged). `update_villagers`
+  drives it; idle NPCs shuffle around home, guards patrol a four-post
+  circuit at dusk, and panicking NPCs flee directly away from the player.
+- **Kingdoms exist.** One deterministic kingdom per 12x12-chunk region
+  (hash-ordered candidate chunks on flat eligible grassland, named from a
+  16-realm pool — `Kingdom of Elderfall`, `Thornmere`, `Goldhelm`, ...),
+  generated as a full citadel: crenellated curtain walls with four torch
+  towers, a gated south wall flying royal banners, a two-storey keep whose
+  THRONE is the settle marker, two houses with hearths, a stone-ringed
+  well, market stalls with a stock chest, and an irrigated farm plot.
+  Three new blocks flow the whole registry→atlas→items pipeline (THRONE,
+  BANNER_KINGDOM, KINGDOM_BRICK) and are mineable/lootable. First sight of
+  a throne settles a six-NPC court — the new **Monarch** job (Queen Ilsa,
+  royal trades: statuary and blueprints for ingots and books), two wall
+  guards, a farmer, trader, and smith, all homed at the citadel — records
+  the kingdom in the persisted save, writes a chronicle entry, and crowns
+  it on the world map.
+- **The Kingdom Compass.** Craft one from any wood block over an iron
+  ingot (any trunk species or planks). Held, it draws a gold-rimmed compass
+  dial under the crosshair whose red needle swings toward the nearest
+  kingdom with the realm's name and distance — deterministic from the seed,
+  so it works from the moment you spawn.
+- **Proof**: `npc_walkers` ticks the real locomotion across a step lane, a
+  dug lane, and a flat lane (arrival asserts) and claims each walker's
+  pixels; `kingdom_citadel` plants the citadel and claims royal gold,
+  purple banners/throne, and the ashlar wall band; `kingdom_compass_hud`
+  renders through the real client paint function and claims case, rim,
+  needle, and needle direction. 92/92 vistest scenes green.
+
 ## 2026-09-02 — clear sky + sun-tracked voxel lighting (loop 344)
 
 - **The sun is visible again**: new authored 16x16 pixel-art sun, crescent
