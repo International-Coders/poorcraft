@@ -2371,3 +2371,46 @@ diversity repairs the lab suggests — all N06, which now has calibrated
 numbers to work against. Thread-count independence is implicitly
 covered (per-column purity + order independence) but not explicitly
 tested under real threads.
+
+## 2026-09-03 — loop 355: spawn selection + seed evidence (nightly-beta N06)
+
+WHAT: WorldGen::find_spawn (deterministic expanding spiral, step 4,
+radius ≤96: dry land > sea+1, non-ocean biome, river_factor ≤0, tree_at
+== false, kingdom-free; reports nearest wood ring ≤96; flagged dry-land
+fallback for extreme worlds) + the pure tree_at predicate mirroring the
+chunk tree-placement hash. Client: create_world/load_world place the
+player and respawn point at find_spawn with an arrival hint. seedlab
+spawn_ok now measures the real selection (the old proxy failed 64/64 —
+that failure was the point). Scenes: seed_atlas_8 (8 labeled real-
+generator maps, ±256 stride 8, height-shaded biome_color panels +
+cross-panel categorical-disagreement gate), seed_same_control (same-seed
+right half cell-hash identical + seamless render), spawn_quality_8
+(8 verdict rows; setup asserts every invariant).
+
+DEBUGGING NOTES (honest): the atlas gate first used a hue census that
+could not see spatial patterns, then a mean-color downsample that
+systematically collapsed mixed cells; the categorical plurality-vote
+version then "refused to change" its verdict — which I misdiagnosed as
+the documented stale-fingerprint issue, but after clearing fingerprints
+the real cause was a compiled-in redundant-arg eprintln breaking the
+build silently behind my grep filters, and beneath THAT a genuine
+inverted-range bounds bug (.min(mx+ms-x0)) that made every panel but the
+first sample zero pixels (all cells defaulted to category 5, so panels
+"agreed"). Fixed all three layers; the gate now measures real layout
+disagreement (mean ≈ 60%, min ≈ 46% across the 28 pairs).
+
+VISION REVIEW: seed_atlas_8 PASS 0.98 (eight clearly distinct worlds —
+archipelago, desert canyon + river, snowy taiga, delta, highlands, boreal
+shelf, mesa — labeled with seed + water share); spawn_quality_8 PASS
+0.97 (rows with coords/biome/wood + green checks; two honest amber rows
+= relaxed-fallback seeds); seed_same_control PASS 0.95 (seamless
+landscape across the midline, both halves alive).
+
+VERIFICATION: cargo test --workspace 452 passing / 0 failed (+2); vistest
+106/106 (+3 scenes); make smoke OK; make seedlab PASS unchanged floors;
+git diff --check clean; runtimes rebuilt.
+
+HONESTLY DEFERRED: true 8-viewport panorama compositing (the map atlas
+proves macro shape), river_source_to_mouth + biome_transitions scenes
+(N07), terrain-shape repair (v6 floors already met by wide margins —
+nothing measured needed repair).

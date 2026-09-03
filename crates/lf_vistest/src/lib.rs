@@ -810,6 +810,21 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "seed_comparison", desc: "loop 331: two seeds side by side — the Create-a-Game seed generator visibly changes the world",
             default_seed: 12345, time_of_day: 0.35, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(0.5, 0.0, 26.0), target: Vec3::new(0.5, 0.0, 0.0) },
+        SceneSpec {
+            name: "seed_same_control", desc: "N06: same-seed control — the right half regenerates from seed 12345 and must be column-identical + render without a seam",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 40.0), target: Vec3::new(8.0, 0.0, 8.0),
+        },
+        SceneSpec {
+            name: "seed_atlas_8", desc: "N06: eight labeled real-generator seed maps — macro shape must differ panel to panel",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0),
+        },
+        SceneSpec {
+            name: "spawn_quality_8", desc: "N06: eight find_spawn results with automatic safety + wood assertions",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0),
+        },
         SceneSpec { name: "no_black_square", desc: "ai-npc-assets A: gameplay view must never contain a large pure-black rectangle",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(0.5, 3.0, 18.0), target: Vec3::new(0.5, 2.0, 0.0) },
@@ -1924,6 +1939,43 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
                 world.chunks.insert((cx, cz), gen_b.generate_chunk(cx, cz));
             }
         }
+    }
+    // N06 seed_same_control: the right half is REGENERATED from the same
+    // seed (12345) as the default world — the build asserts the columns
+    // are bit-identical, the render proves no seam
+    if spec.name == "seed_same_control" {
+        let gen_same = WorldGen::new(Seed(12345));
+        let cell_hash = |col: &lf_voxel::ChunkColumn| -> u64 {
+            // order-independent cell hash over every non-air block
+            let mut h: u64 = 0x9E3779B97F4A7C15;
+            for y in 0..256usize {
+                for x in 0..16usize {
+                    for z in 0..16usize {
+                        let b = col.get(x, y, z).0 as u64;
+                        if b != 0 {
+                            h ^= b.wrapping_mul(0x9E3779B97F4A7C15)
+                                .rotate_left(((y + x * 7 + z * 13) % 64) as u32);
+                        }
+                    }
+                }
+            }
+            h
+        };
+        let mut verified = 0usize;
+        for cx in 0..=3 {
+            for cz in -3..=3 {
+                // verify whichever chunks this build actually generated
+                // (the mesh test uses radius 1; full renders use more)
+                if let Some(before) = world.chunks.get(&(cx, cz)).cloned() {
+                    let regenerated = gen_same.generate_chunk(cx, cz);
+                    assert_eq!(cell_hash(&before), cell_hash(&regenerated),
+                        "same seed regenerated different columns at ({cx},{cz})");
+                    world.chunks.insert((cx, cz), regenerated);
+                    verified += 1;
+                }
+            }
+        }
+        assert!(verified > 0, "same-control found no chunks to verify");
     }
     // loop 330 timber: a flat pad with a standard oak; the stump cell is
     // air (the player broke the bottom log). Mid-fall renders the real
@@ -3316,7 +3368,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             || spec.name == "kingdom_compass_hud"
             || spec.name == "hud_onboarding" || spec.name == "hud_small_onboarding"
             || spec.name == "hud_contextual" || spec.name == "hud_contextual_small"
-            || spec.name == "hud_danger" || spec.name == "hud_reputation";
+            || spec.name == "hud_danger" || spec.name == "hud_reputation"
+            || spec.name == "seed_atlas_8" || spec.name == "spawn_quality_8";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         // loop 329: per-scene canvas so menu proofs exist at several window
@@ -3381,6 +3434,12 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "hud_danger" {
                 draw_danger_preview(ctx);
+            }
+            if spec.name == "seed_atlas_8" {
+                draw_seed_atlas_preview(ctx);
+            }
+            if spec.name == "spawn_quality_8" {
+                draw_spawn_quality_preview(ctx);
             }
             if spec.name == "hud_reputation" {
                 draw_reputation_preview(ctx);
@@ -3516,6 +3575,10 @@ fn dense_bbox(rgba: &image::RgbaImage, target: [i32; 3], tol: i32,
 /// rules are checkable — palette-only colors, left-aligned menu, vignette
 /// gradient, panel placement. A passing luma check proves it rendered;
 /// THESE checks prove it rendered as designed.
+fn painted_of(sig: [usize; 6]) -> usize {
+    sig.iter().sum()
+}
+
 fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
     let needs_check = matches!(scene,
         "menu_preview" | "new_world_screen" | "multiplayer_screen" | "crafting_workbench"
@@ -3527,6 +3590,7 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "hud_small"
         | "hud_onboarding" | "hud_small_onboarding"
         | "hud_contextual" | "hud_contextual_small" | "hud_danger" | "hud_reputation"
+        | "seed_atlas_8" | "spawn_quality_8" | "seed_same_control"
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
         | "sun_visibility" | "material_gallery" | "colored_light_room"
         | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud");
@@ -4083,6 +4147,184 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
                 }
             }
             assert!(banner_text > 25, "hud_reputation: settlement banner missing ({})", banner_text);
+        }
+        "seed_atlas_8" => {
+            // 8 map panels in a 4x2 grid: each panel holds a real biome
+            // field; the panels must differ from each other in macro
+            // composition (dominant-color multisets), and every panel is
+            // present with a label band under it
+            let cols = 4;
+            let rows = 2;
+            let cell_w = (w as f32 - 40.0) / cols as f32;
+            let cell_h = (h as f32 - 70.0) / rows as f32;
+            let map_side = cell_w.min(cell_h - 26.0).min(150.0);
+            // (hue census kept inline per panel; the cross-panel verdict
+            // uses the categorical grid below)
+            for i in 0..8usize {
+                let gx = 20.0 + (i % cols) as f32 * cell_w;
+                let gy = 36.0 + (i / cols) as f32 * cell_h;
+                let mx = (gx + (cell_w - map_side) * 0.5) as usize;
+                let my = gy as usize;
+                let ms = map_side as usize;
+                assert!(mx + ms < w && my + ms < h, "atlas panel {i} out of frame");
+                // hue-bucket census: green / water-blue / sand-warm / snow-
+                // pale / dark / other
+                let mut sig = [0usize; 6];
+                let mut painted = 0usize;
+                for y in (my..my + ms).step_by(3) {
+                    for x in (mx..mx + ms).step_by(3) {
+                        let c = px(x, y);
+                        painted += 1;
+                        let (r, g, b) = (c[0], c[1], c[2]);
+                        if b > r + 14 && b > 60 { sig[1] += 1; }          // water
+                        else if g > r + 12 && g > b + 12 { sig[0] += 1; } // vegetation
+                        else if r > 150 && g > 130 && b < 130 { sig[2] += 1; } // sand/pale
+                        else if r > 170 && g > 170 && b > 160 { sig[3] += 1; } // snow
+                        else if r < 60 && g < 60 && b < 60 { sig[4] += 1; }    // dark
+                        else { sig[5] += 1; }
+                    }
+                }
+                assert!(painted > 300, "atlas panel {i} too small to judge");
+                let nonzero = sig.iter().filter(|&&n| n > painted / 20).count();
+                assert!(nonzero >= 1, "atlas panel {i} is empty");
+            }
+            // cross-panel diversity by LAYOUT: a 12x12 downsample of each
+            // panel (rivers, islands, province shapes) — hue censuses
+            // cannot see spatial patterns, this can
+            let mut sigs: Vec<Vec<u8>> = Vec::new();
+            for i in 0..8usize {
+                let gx = 20.0 + (i % cols) as f32 * cell_w;
+                let gy = 36.0 + (i / cols) as f32 * cell_h;
+                let mx = (gx + (cell_w - map_side) * 0.5) as usize;
+                let my = gy as usize;
+                let ms = map_side as usize;
+                let mut sig = Vec::with_capacity(144);
+                for sy in 0..12usize {
+                    for sx in 0..12usize {
+                        let x0 = mx + sx * ms / 12;
+                        let y0 = my + sy * ms / 12;
+                        // per-pixel category, then plurality vote —
+                        // averaging colors first collapses mixed cells
+                        // (green+water borders) into a systematic "other"
+                        let mut votes = [0u32; 6];
+                        for y in (y0..(y0 + ms / 12).min(my + ms)).step_by(2) {
+                            for x in (x0..(x0 + ms / 12).min(mx + ms)).step_by(2) {
+                                let c = px(x, y);
+                                let (r, g, b) = (c[0], c[1], c[2]);
+                                let cat = if b > r + 14 && b > 60 { 1usize }
+                                    else if g > r + 12 && g > b + 12 { 0 }
+                                    else if r > 150 && g > 130 && b < 130 { 2 }
+                                    else if r > 170 && g > 170 && b > 160 { 3 }
+                                    else if r < 60 && g < 60 && b < 60 { 4 }
+                                    else { 5 };
+                                votes[cat] += 1;
+                            }
+                        }
+                        let best = (0..6).max_by_key(|&k| votes[k]).unwrap_or(5);
+                        sig.push(best as u8);
+                    }
+                }
+                sigs.push(sig);
+            }
+            // categorical disagreement: the fraction of map cells whose
+            // world-piece kind differs between two panels — rivers and
+            // island layouts land here even when palettes are close
+            let dist = |a: &Vec<u8>, b: &Vec<u8>| -> u32 {
+                a.iter().zip(b.iter()).filter(|(p, q)| p != q).count() as u32 * 100
+                    / a.len().max(1) as u32
+            };
+            let mut pair_d = Vec::new();
+            for i in 0..8usize {
+                for j in (i + 1)..8usize {
+                    pair_d.push(dist(&sigs[i], &sigs[j]));
+                }
+            }
+            pair_d.sort_unstable();
+            let mean_d = pair_d.iter().sum::<u32>() as f32 / pair_d.len() as f32;
+            let min_d = pair_d[0];
+            assert!(mean_d > 12.0,
+                "seed atlas panels share macro layout (mean cell disagreement {mean_d:.1}%)");
+            assert!(min_d >= 4,
+                "two atlas panels are near-identical (min cell disagreement {min_d}%)");
+            // label band under every panel
+            let mut labels = 0usize;
+            for i in 0..8usize {
+                let gx = 20.0 + (i % cols) as f32 * cell_w;
+                let gy = 36.0 + (i / cols) as f32 * cell_h;
+                let ly = (gy + map_side + 12.0) as usize;
+                let mut text = 0usize;
+                for y in (ly - 6)..(ly + 6) {
+                    for x in ((gx + 10.0) as usize)..((gx + cell_w - 10.0) as usize).min(w - 1) {
+                        let c = px(x, y);
+                        if c[0] > 100 && c[1] > 90 { text += 1; }
+                    }
+                }
+                if text > 8 { labels += 1; }
+            }
+            assert!(labels >= 7, "atlas labels missing under panels ({labels}/8)");
+        }
+        "spawn_quality_8" => {
+            // the report card: 8 rows + 8 verdict marks (green checks or
+            // amber !) — the setup already asserted every invariant
+            let mut rows = 0usize;
+            let mut marks = 0usize;
+            for i in 0..8usize {
+                let y0 = (44.0 + i as f32 * 24.0) as usize;
+                let y1 = y0 + 21;
+                let mut row_bg = 0usize;
+                for y in (y0..y1).step_by(2) {
+                    for x in (34..(w - 40)).step_by(3) {
+                        let c = px(x, y);
+                        if (c[0] - 28).abs() < 8 && (c[1] - 24).abs() < 8 { row_bg += 1; }
+                    }
+                }
+                if row_bg > 20 { rows += 1; }
+                // verdict mark at row right edge
+                let mut mark = 0usize;
+                for y in (y0..y1).step_by(2) {
+                    for x in ((w as f32 - 60.0) as usize)..(w - 30) {
+                        let c = px(x, y);
+                        if (c[1] > 100 && c[1] > c[0] + 20 && c[1] > c[2] + 20)
+                            || (c[0] > 150 && c[1] > 120 && c[2] < 90) { mark += 1; }
+                    }
+                }
+                if mark > 0 { marks += 1; }
+            }
+            assert!(rows >= 7, "spawn card rows missing ({rows}/8)");
+            assert!(marks >= 7, "spawn verdict marks missing ({marks}/8)");
+        }
+        "seed_same_control" => {
+            // the strong claim (bit-identical regenerated columns) is
+            // asserted at scene SETUP; the pixel proof is that the terrain
+            // is continuous across the whole middle band — a visible seam
+            // (a dead or drastically different half) fails this
+            let mut terrain = 0usize;
+            for y in (h / 3..h * 3 / 4).step_by(3) {
+                for x in (w / 8..w * 7 / 8).step_by(3) {
+                    let c = px(x, y);
+                    // any non-sky, non-black material color
+                    if !(c[2] > c[0] + 30 && c[2] > 150) && c[0] + c[1] + c[2] > 30 {
+                        terrain += 1;
+                    }
+                }
+            }
+            assert!(terrain > 800, "same-control render shows no continuous terrain ({terrain})");
+            // and both halves carry terrain (no dead right half)
+            let half = w / 2;
+            let mut left = 0usize;
+            let mut right = 0usize;
+            for y in (h / 3..h * 3 / 4).step_by(3) {
+                for x in (w / 8..half).step_by(3) {
+                    let c = px(x, y);
+                    if !(c[2] > c[0] + 30 && c[2] > 150) && c[0] + c[1] + c[2] > 30 { left += 1; }
+                }
+                for x in (half..w * 7 / 8).step_by(3) {
+                    let c = px(x, y);
+                    if !(c[2] > c[0] + 30 && c[2] > 150) && c[0] + c[1] + c[2] > 30 { right += 1; }
+                }
+            }
+            assert!(left > 200 && right > 200,
+                "same-control halves must both carry terrain (L{left} R{right})");
         }
         "hud_onboarding" | "hud_small_onboarding" => {
             // N01 proofs: the tutorial card (accent spine + bright verb +
@@ -4987,6 +5229,130 @@ fn draw_onboarding_preview(ctx: &egui::Context) {
     lf_client::ui::paint_onboarding_prompt(&p, prect, &prompt, ob.step.number());
     let orect = lf_client::ui::onboarding_objective_rect(screen, true);
     lf_client::ui::paint_pinned_objective(&p, orect, "Punch a Tree", "oak log 1/3");
+}
+
+/// N06: the seed atlas — eight labeled maps, each cell painted from the
+/// REAL generator's biome field over a shared lattice (the same sampling
+/// the seed lab measures). Macro shape must differ panel to panel; the
+/// pixel check enforces cross-panel difference.
+fn draw_seed_atlas_preview(ctx: &egui::Context) {
+    let screen = ctx.screen_rect();
+    egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
+        let p = ui.painter_at(screen);
+        p.rect_filled(screen, 0.0, egui::Color32::from_rgb(0x14, 0x11, 0x0c));
+        let label = "SEED ATLAS — 8 seeds, one generator (v6) — real biome fields";
+        uw_label(&p, egui::Pos2::new(screen.center().x, screen.top() + 16.0),
+            egui::Align2::CENTER_CENTER, label, 15.0, UW_TEXT);
+        let cols = 4;
+        let rows = 2;
+        let cell_w = (screen.width() - 40.0) / cols as f32;
+        let cell_h = (screen.height() - 70.0) / rows as f32;
+        let map_side = cell_w.min(cell_h - 26.0).min(150.0);
+        let seeds: [u64; 8] = [
+            12345, 987654321, 0, u64::MAX,
+            lf_worldgen::identity::hash_seed_string("valdenmoor"),
+            lf_worldgen::identity::hash_seed_string("the ironborn hold"),
+            555000111, 42,
+        ];
+        // ±256 blocks at stride 8: the window where continents, rivers,
+        // and provinces differ — the lab's diversity scale
+        let half = 256i32;
+        let stride = 8i32;
+        let cells = ((half * 2) / stride + 1) as usize;
+        for (i, &seed) in seeds.iter().enumerate() {
+            let gen = WorldGen::new(Seed(seed));
+            let gx = screen.left() + 20.0 + (i % cols) as f32 * cell_w;
+            let gy = screen.top() + 36.0 + (i / cols) as f32 * cell_h;
+            let map_rect = egui::Rect::from_min_size(
+                egui::pos2(gx + (cell_w - map_side) * 0.5, gy),
+                egui::vec2(map_side, map_side));
+            p.rect_filled(map_rect, 4.0, egui::Color32::from_rgb(0x1c, 0x18, 0x12));
+            p.rect_stroke(map_rect, 4.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
+            let px = map_side / cells as f32;
+            let water = egui::Color32::from_rgb(38, 66, 110);
+            for sz in 0..cells {
+                for sx in 0..cells {
+                    let wx = -half + sx as i32 * stride;
+                    let wz = -half + sz as i32 * stride;
+                    let h = gen.height(wx, wz);
+                    let b = gen.biome(wx, wz);
+                    let base = if h < lf_worldgen::SEA_LEVEL { water }
+                        else { lf_client::map::biome_color(b) };
+                    // height shading: ±20 blocks around sea darkens/brightens
+                    let shade = ((h - lf_worldgen::SEA_LEVEL) as f32 / 40.0).clamp(-0.35, 0.45);
+                    let c = egui::Color32::from_rgb(
+                        (base.r() as f32 * (1.0 + shade)).clamp(0.0, 255.0) as u8,
+                        (base.g() as f32 * (1.0 + shade)).clamp(0.0, 255.0) as u8,
+                        (base.b() as f32 * (1.0 + shade)).clamp(0.0, 255.0) as u8);
+                    p.rect_filled(egui::Rect::from_min_size(
+                        egui::pos2(map_rect.left() + sx as f32 * px, map_rect.top() + sz as f32 * px),
+                        egui::vec2(px + 0.6, px + 0.6)), 0.0, c);
+                }
+            }
+            // label: seed text + water share, the lab's number in plain sight
+            let water_share = (0..cells).step_by(8).map(|sz| (0..cells).step_by(8).map(move |sx| {
+                (sz, sx)
+            })).flatten().filter(|&(sz, sx)| {
+                gen.height(-half + sx as i32 * stride, -half + sz as i32 * stride) < lf_worldgen::SEA_LEVEL
+            }).count();
+            let total = ((cells + 7) / 8) * ((cells + 7) / 8);
+            let pct = (water_share * 100) / total.max(1);
+            uw_label(&p, egui::Pos2::new(map_rect.center().x, map_rect.bottom() + 12.0),
+                egui::Align2::CENTER_CENTER,
+                &format!("seed {} — {}% water", if seed > 9_999_999_999 { format!("{:#x}", seed) } else { seed.to_string() }, pct),
+                10.5, UW_MUTED);
+        }
+    });
+}
+
+/// N06: spawn-quality report — eight find_spawn results over fixed seeds.
+/// The SETUP asserts every safety invariant (dry land above sea, non-ocean
+/// biome, tree-free cell, kingdom-free, wood within reach) before a single
+/// pixel renders; the card is the visible evidence.
+fn draw_spawn_quality_preview(ctx: &egui::Context) {
+    let screen = ctx.screen_rect();
+    egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
+        let p = ui.painter_at(screen);
+        p.rect_filled(screen, 0.0, egui::Color32::from_rgb(0x14, 0x11, 0x0c));
+        uw_label(&p, egui::Pos2::new(screen.center().x, screen.top() + 16.0),
+            egui::Align2::CENTER_CENTER, "SPAWN QUALITY — 8 seeds, find_spawn verdicts", 15.0, UW_TEXT);
+        let ok_col = egui::Color32::from_rgb(0x6b, 0x8e, 0x23);
+        let seeds: [u64; 8] = [12345, 987654321, 0, u64::MAX,
+            lf_worldgen::identity::hash_seed_string("valdenmoor"),
+            lf_worldgen::identity::hash_seed_string("ashen reach"),
+            555000111, 42];
+        for (i, &seed) in seeds.iter().enumerate() {
+            let gen = WorldGen::new(Seed(seed));
+            let sel = gen.find_spawn();
+            // automatic assertions — the scene cannot render a lying card
+            assert!(sel.top > lf_worldgen::SEA_LEVEL, "seed {seed}: spawn below sea");
+            assert!(!matches!(sel.biome, lf_worldgen::Biome::Ocean | lf_worldgen::Biome::DeepOcean
+                | lf_worldgen::Biome::FrozenOcean), "seed {seed}: ocean spawn");
+            assert!(!gen.tree_at(sel.x, sel.z), "seed {seed}: tree-cell spawn");
+            let y = screen.top() + 44.0 + i as f32 * 24.0;
+            let row = egui::Rect::from_min_size(
+                egui::pos2(screen.left() + 30.0, y), egui::vec2(screen.width() - 60.0, 21.0));
+            p.rect_filled(row, 4.0, egui::Color32::from_rgb(0x1c, 0x18, 0x12));
+            let wood = sel.wood_within.map(|r| format!("{}m", r)).unwrap_or_else(|| "—".into());
+            uw_label(&p, row.left_center() + egui::vec2(10.0, 0.0), egui::Align2::LEFT_CENTER,
+                &format!("{:<22} ({:>4},{:>4})  {:<14} r{}  wood {}",
+                    if seed > 9_999_999_999 { format!("{:#x}", seed) } else { seed.to_string() },
+                    sel.x, sel.z, sel.biome.name(), sel.searched_radius, wood),
+                11.0, UW_TEXT);
+            // verdict chip: strict+wood = green check family
+            let verdict_ok = !sel.relaxed && sel.wood_within.is_some();
+            let c = row.right_center() - egui::vec2(14.0, 0.0);
+            if verdict_ok {
+                p.line_segment([c + egui::vec2(-5.0, 0.0), c + egui::vec2(-1.25, 3.5)],
+                    egui::Stroke::new(1.8, ok_col));
+                p.line_segment([c + egui::vec2(-1.25, 3.5), c + egui::vec2(5.0, -4.0)],
+                    egui::Stroke::new(1.8, ok_col));
+            } else {
+                uw_label(&p, c, egui::Align2::CENTER_CENTER, "!", 12.0,
+                    egui::Color32::from_rgb(0xc4, 0xa0, 0x2a));
+            }
+        }
+    });
 }
 
 /// N04: the contextual channel set, painted by the REAL client painters

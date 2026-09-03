@@ -1379,3 +1379,31 @@ Deferred (honest notes):
       spawn_quality_8 with real spawn scoring, seed_same_control pixel
       proof) and any diversity REPAIR — the lab measures, N06 fixes what
       it finds.
+
+## Loop 355 — real spawn selection + the rendered seed evidence (nightly-beta N06)
+
+- [x] WorldGen::find_spawn: deterministic expanding spiral (step 4, radius
+      ≤96) — dry land above sea, non-ocean biome, off rivers, tree-free
+      cell (new pure tree_at predicate mirroring chunk placement), clear
+      of kingdom footprints; reports nearest wood ring ≤96; a dry-land
+      fallback exists for extreme worlds and is flagged. The lab's
+      0/64-seeds-passed origin-spawn proxy is gone: spawn_ok now measures
+      the REAL selection.
+- [x] Client adoption: create_world and load_world place the player (and
+      set the respawn point) at find_spawn with an arrival hint naming
+      the biome + wood distance — ocean-origin seeds no longer drop the
+      player into water at (0,0).
+- [x] Proofs: seed_atlas_8 (8 labeled real-generator biome/height maps at
+      the lab's ±256 macro scale, cross-panel categorical-disagreement
+      gate), seed_same_control (right half regenerated from the SAME seed
+      must be cell-hash identical at build + render seamless), and
+      spawn_quality_8 (8 find_spawn verdicts, setup asserts every safety
+      invariant before rendering). 106/106 vistest; all image-reviewed.
+- [x] Fixed a real bounds bug the atlas check exposed in its own sampler
+      (.min(mx+ms-x0) inverted the range — every panel but the first
+      sampled zero pixels) plus chased a stale-fingerprint false lead.
+- [ ] Deferred: rendered PANORAMA atlases (the map atlas proves macro
+      shape; true 8-viewport 3D compositing needs renderer work),
+      river_source_to_mouth + biome_transitions scenes (N07), and any
+      terrain-shape repair beyond spawn (v6 diversity floors were already
+      met by wide margins — nothing to repair this pass).

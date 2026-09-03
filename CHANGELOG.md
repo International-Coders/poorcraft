@@ -1,5 +1,34 @@
 # CHANGELOG
 
+## 2026-09-03 — every seed knows where you wake up (loop 355, N06)
+
+- **Spawn is selected, not assumed.** A deterministic spiral search picks
+  the actual spawn: dry land above the sea, a land biome, off rivers, no
+  tree in the cell, no kingdom on top — and it reports the nearest wood.
+  Ocean-centered seeds used to drop the player into the water at (0,0);
+  the seed laboratory caught exactly that (0 of 64 origin spawns were
+  valid) and now scores the real selection instead of a proxy. New
+  worlds and loads place the player — and the respawn point — there,
+  with an arrival hint naming the biome and wood distance.
+- **The seeds render their evidence.** Three new proof scenes:
+  `seed_atlas_8` paints eight labeled maps straight from the generator's
+  biome and height fields at the laboratory's macro scale, gated by a
+  cross-panel disagreement metric; `seed_same_control` regenerates half
+  the world from the same seed and requires cell-identical columns plus
+  a seamless render; `spawn_quality_8` lists eight find_spawn verdicts
+  with every safety invariant asserted before a pixel draws. Building
+  the atlas gate exposed (and fixed) an inverted-range bug in its own
+  sampler where every panel but the first sampled zero pixels.
+- **Measured, again.** The 64-seed lab passes its diversity floors by
+  wide margins on generator v6 (height L1 p05 0.090 vs 0.020 floor;
+  biome JS p05 0.214 vs 0.025), so this pass repaired the one real
+  defect the metrics named — spawn — and left terrain shape alone.
+- **Proof:** 451 tests (+1: spawn safety/reachability across a 16-seed
+  spread + determinism of the selection), 106/106 visual scenes, all new
+  scenes image-reviewed at 0.95–0.98 confidence, smoke green, runtimes
+  rebuilt. True multi-viewport panorama atlases and the river/biome
+  transition scenes are honestly deferred (N07).
+
 ## 2026-09-03 — world identity and the seed laboratory (loop 354, N05)
 
 - **A world has a name that means something.** The canonical

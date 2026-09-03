@@ -254,6 +254,120 @@ impl WorldGen {
         self.seed
     }
 
+    /// N06: pure tree-presence predicate — the generate_chunk placement
+    /// rule (biome kind + above-sea surface + feature hash) without the
+    /// column-block check; carving rarely changes a spawn-scale answer.
+    pub fn tree_at(&self, wx: i32, wz: i32) -> bool {
+        let kind = self.biome(wx, wz).tree_kind();
+        if kind == TreeKind::None {
+            return false;
+        }
+        if self.surface_top(wx, wz) <= SEA_LEVEL + 1 {
+            return false;
+        }
+        if kind.blocks().0 == crate::BlockId::AIR.0 {
+            return false;
+        }
+        let h = hash2(wx, wz, self.seed_for_features() ^ 0x7ab99e21);
+        let density = match kind {
+            TreeKind::OakSparse => 160,
+            TreeKind::SpruceSparse => 220,
+            TreeKind::Jungle => 36,
+            TreeKind::DarkOak => 40,
+            TreeKind::Cherry => 56,
+            _ => 72,
+        };
+        h % density == 0
+    }
+
+    /// N06: deterministic spawn selection. An expanding square spiral
+    /// (step 4, radius up to 96) from the origin finds the first column
+    /// that is dry land above the sea, a non-ocean biome, off rivers, a
+    /// tree-free cell, and clear of kingdom footprints; the result also
+    /// reports the nearest wood within 96 blocks. Pure: the same identity
+    /// always picks the same spawn.
+    pub fn find_spawn(&self) -> SpawnSelection {
+        let mut fallback: Option<(i32, i32)> = None;
+        let step = 4;
+        let mut radius = 0i32;
+        while radius <= 96 {
+            // walk the square ring at Chebyshev distance `radius`
+            let mut candidates: Vec<(i32, i32)> = Vec::new();
+            if radius == 0 {
+                candidates.push((0, 0));
+            } else {
+                for t in (-radius..=radius).step_by(step.max(1) as usize) {
+                    candidates.push((t, -radius));
+                    candidates.push((t, radius));
+                }
+                for t in ((-radius + step).max(-radius)..radius).step_by(step.max(1) as usize) {
+                    candidates.push((-radius, t));
+                    candidates.push((radius, t));
+                }
+            }
+            for &(x, z) in &candidates {
+                let top = self.surface_top(x, z);
+                let biome = self.biome(x, z);
+                let ocean = matches!(biome, Biome::Ocean | Biome::DeepOcean | Biome::FrozenOcean);
+                if top <= SEA_LEVEL + 1 || ocean {
+                    continue;
+                }
+                if self.river_factor(x, z) > 0.0 {
+                    continue;
+                }
+                if self.kingdom_at(x.div_euclid(16), z.div_euclid(16)).is_some() {
+                    continue;
+                }
+                if self.tree_at(x, z) {
+                    continue;
+                }
+                // nearest wood: expanding square search up to 96 blocks
+                let mut wood = None;
+                'wood: for wr in (8..=96).step_by(8) {
+                    for wt in (-wr..=wr).step_by(4) {
+                        for cand in [(wt, -wr), (wt, wr), (-wr, wt), (wr, wt)] {
+                            if self.tree_at(x + cand.0, z + cand.1) {
+                                wood = Some(wr);
+                                break 'wood;
+                            }
+                        }
+                    }
+                }
+                return SpawnSelection {
+                    x, z, top, biome,
+                    wood_within: wood,
+                    searched_radius: radius,
+                    relaxed: false,
+                };
+            }
+            // remember the first merely-dry column as the relaxed fallback
+            if fallback.is_none() {
+                for &(x, z) in &candidates {
+                    if self.surface_top(x, z) > SEA_LEVEL + 1 {
+                        fallback = Some((x, z));
+                        break;
+                    }
+                }
+            }
+            if radius == 0 {
+                radius = step;
+            } else {
+                radius += step;
+            }
+        }
+        // nothing strict matched: the first dry column found anywhere in
+        // the walk (an island world can still host the player on land)
+        let (x, z) = fallback.unwrap_or((0, 0));
+        SpawnSelection {
+            x, z,
+            top: self.surface_top(x, z),
+            biome: self.biome(x, z),
+            wood_within: None,
+            searched_radius: 96,
+            relaxed: true,
+        }
+    }
+
     /// N05 seedlab: would this cell carve a cave? The exact predicate
     /// generate_chunk uses (threshold ramps near the surface), exposed so
     /// the diversity lab measures the real cave field.
@@ -1511,6 +1625,22 @@ impl WorldGen {
         }
         best
     }
+}
+
+/// N06: the deterministic spawn a seed selects (see `find_spawn`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpawnSelection {
+    pub x: i32,
+    pub z: i32,
+    pub top: i32,
+    pub biome: Biome,
+    /// Nearest wood ring found within 96 blocks (None = no tree in reach).
+    pub wood_within: Option<i32>,
+    /// Spiral radius at which the spawn was found (0 = the origin itself).
+    pub searched_radius: i32,
+    /// True when no column passed the full rule set and a dry fallback
+    /// was used (extreme worlds only).
+    pub relaxed: bool,
 }
 
 /// Build the kingdom citadel into a chunk column: curtain wall with

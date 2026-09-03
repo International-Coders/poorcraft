@@ -6,7 +6,7 @@
 //! 64-seed report.
 
 use crate::identity::WorldIdentity;
-use crate::{Biome, WorldGen, WorldType, SEA_LEVEL};
+use crate::{WorldGen, WorldType, SEA_LEVEL};
 
 /// Number of biome variants the histogram tracks (the biome enum's size).
 const BIOME_COUNT: usize = 30;
@@ -41,9 +41,16 @@ pub struct SeedMetrics {
     /// Blocks from origin to the nearest kingdom site (None if the
     /// region lookup finds none in reach).
     pub nearest_kingdom_distance: Option<i64>,
-    /// Spawn proxy: origin column stands above sea level on non-ocean
-    /// ground (full spawn-quality scoring is N06).
+    /// The real spawn selection: does find_spawn land strictly (not the
+    /// relaxed fallback) with wood within reach?
     pub spawn_ok: bool,
+    /// Where the spawn landed (blocks).
+    pub spawn_x: i32,
+    pub spawn_z: i32,
+    /// Spiral radius the spawn search needed.
+    pub spawn_search_radius: i32,
+    /// Nearest wood ring (None = no tree within 96 blocks).
+    pub spawn_wood_ring: Option<i32>,
 }
 
 /// Order/machine-independent hash combiner (FNV over u64s).
@@ -143,9 +150,10 @@ pub fn sample_worldgen(gen: &WorldGen, bounds: i32, stride: i32) -> SeedMetrics 
     }
 
     let kingdom = gen.nearest_kingdom(0, 0).map(|(_, d2)| d2);
-    let spawn_top = gen.surface_top(0, 0);
-    let spawn_biome = gen.biome(0, 0);
-    let spawn_ok = spawn_top > SEA_LEVEL + 1 && spawn_biome != Biome::Ocean;
+    // N06: spawn quality = the REAL selection (find_spawn) succeeds
+    // strictly with wood in reach
+    let spawn_sel = gen.find_spawn();
+    let spawn_ok = !spawn_sel.relaxed && spawn_sel.wood_within.is_some();
 
     SeedMetrics {
         seed_u64: gen.seed(),
@@ -165,6 +173,10 @@ pub fn sample_worldgen(gen: &WorldGen, bounds: i32, stride: i32) -> SeedMetrics 
         surface_blocks,
         nearest_kingdom_distance: kingdom.map(|d2| (d2 as f64).sqrt() as i64),
         spawn_ok,
+        spawn_x: spawn_sel.x,
+        spawn_z: spawn_sel.z,
+        spawn_search_radius: spawn_sel.searched_radius,
+        spawn_wood_ring: spawn_sel.wood_within,
     }
 }
 
@@ -403,6 +415,37 @@ mod tests {
             assert!((-64..=320).contains(&gen.height(x, z)), "({x},{z}) height out of range");
             assert_eq!(gen.biome(x, z), twin.biome(x, z));
         }
+    }
+
+    /// N06: the real spawn selection — across a spread of seeds every
+    /// spawn must be dry land above the sea, off rivers, tree-free at the
+    /// cell, and nearly always within reach of wood.
+    #[test]
+    fn spawn_selection_is_safe_and_reachable() {
+        let mut strict_with_wood = 0;
+        let n = 16;
+        for i in 0..n {
+            let gen = WorldGen::with_type(crate::Seed(
+                crate::identity::hash_seed_string(&format!("spawn-{i}"))), WorldType::Normal);
+            let s = gen.find_spawn();
+            // safety invariants hold for strict AND relaxed spawns
+            assert!(s.top > crate::SEA_LEVEL, "seed {i}: spawn at/below sea");
+            assert!(!matches!(s.biome, crate::Biome::Ocean | crate::Biome::DeepOcean
+                | crate::Biome::FrozenOcean), "seed {i}: spawn in an ocean biome");
+            assert!(!gen.tree_at(s.x, s.z), "seed {i}: spawn inside a tree cell");
+            assert!(gen.kingdom_at(s.x.div_euclid(16), s.z.div_euclid(16)).is_none(),
+                "seed {i}: spawn inside a kingdom footprint");
+            if !s.relaxed && s.wood_within.is_some() {
+                strict_with_wood += 1;
+            }
+        }
+        assert!(strict_with_wood >= n - 2,
+            "only {strict_with_wood}/{n} spawns are strict with wood in reach");
+        // deterministic: same identity, same spawn, twice
+        let gen = WorldGen::with_type(crate::Seed(31337), WorldType::Normal);
+        assert_eq!(gen.find_spawn(), gen.find_spawn());
+        // and a second instance agrees
+        assert_eq!(gen.find_spawn(), WorldGen::with_type(crate::Seed(31337), WorldType::Normal).find_spawn());
     }
 
     #[test]

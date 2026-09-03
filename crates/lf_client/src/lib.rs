@@ -1919,8 +1919,17 @@ impl GameState {
         self.live_tracer = None;
         self.live_rt_texture = None;
         self.restart_streamer(seed, worker_skip);
-        self.spawn_point = Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5);
+        // N06: spawn is SELECTED, not assumed — the seed's find_spawn picks
+        // dry, tree-free, kingdom-free land (ocean-origin seeds used to
+        // drop the player into the water at 0,0)
+        let sel = gen.find_spawn();
+        self.spawn_point = Vec3::new(sel.x as f32 + 0.5,
+            self.world.surface_height(sel.x, sel.z) as f32 + 0.2,
+            sel.z as f32 + 0.5);
         self.player = Player::new(self.spawn_point);
+        self.push_hint(&format!("spawn: {} · wood {} blocks out",
+            sel.biome.name(),
+            sel.wood_within.map(|r| r.to_string()).unwrap_or_else(|| "beyond reach".into())));
         self.update_title();
         self.close_ui();
     }
@@ -2036,7 +2045,12 @@ impl GameState {
         // transition. Drop both; the tracer is rebuilt on the next tick.
         self.live_tracer = None;
         self.live_rt_texture = None;
-        self.spawn_point = Vec3::new(0.5, self.world.surface_height(0, 0) as f32 + 0.2, 0.5);
+        // N06: respawn point follows the seed's real spawn selection; a
+        // saved position still wins for the live player
+        let sel = gen.find_spawn();
+        self.spawn_point = Vec3::new(sel.x as f32 + 0.5,
+            self.world.surface_height(sel.x, sel.z) as f32 + 0.2,
+            sel.z as f32 + 0.5);
         self.player = match storage.load_player() {
             Some(p) => Player::new(Vec3::from(p.position)).with_look(p.yaw, p.pitch),
             None => Player::new(self.spawn_point),
