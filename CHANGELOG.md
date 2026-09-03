@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-09-03 — the biome identity contract (loop 356, N07)
+
+- **Forty-six biomes, and now a law: none may look like another.** Every
+  biome carries an identity row — surface, filler, tree silhouette,
+  ground-cover density and feature set, freeze, cold — and a test
+  enforces that no two biomes share the whole visible tuple. The scan
+  found one surviving clone family: the oceans, which now have three
+  distinct floors (murky dirt Ocean, tropical-sand Warm Ocean, pale-stone
+  Deep Ocean). Generator version bumped to v7 for the change.
+- **Ground cover has a confetti ceiling.** Feature density is capped at
+  0.35 by test (Jungle, Lavender Fields, and Sunflower Plains were over);
+  identity reads from negative space, not from filling every cell.
+- **The proofs photograph the identity itself.** The biome contact sheet
+  now grows each biome's signature tree over its real surface and
+  ground-cover features — 46 strips of "what this place is" — and the
+  new `biome_transitions` scene shows four intentional boundary pairs
+  (desert/savanna, snowy plains/taiga, meadow/forest, swamp/jungle), each
+  joined by a dithered mixing band rather than a hard seam. Both
+  image-reviewed; 107/107 visual scenes.
+- **Proof:** 453 tests, the 64-seed lab still passing its diversity
+  floors on v7, smoke green, runtimes rebuilt. Per-biome fog/sky grading
+  and gameplay resource rows are honestly deferred (fog needs an engine
+  input the atmosphere doesn't have yet).
+
 ## 2026-09-03 — every seed knows where you wake up (loop 355, N06)
 
 - **Spawn is selected, not assumed.** A deterministic spiral search picks

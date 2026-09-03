@@ -36,7 +36,7 @@ pub const SEA_LEVEL: i32 = 62;
 /// regenerated after a revisit may differ from their first visit (edited
 /// chunks are persisted and never regenerated). Pre-P25 worlds have no
 /// stamp and read as `None`.
-pub const GENERATOR_VERSION: u32 = 6; // v6: citadel siting rebuilt (dense footprint validation, region-border margin, spawn clearance, hillside carving, no courtyard trees) + loop-347 plant solidity. v5: kingdoms — region-placed citadels + locomotion-era NPC settling
+pub const GENERATOR_VERSION: u32 = 7; // v7 (N07): biome identity pass — three distinct ocean floors (Ocean dirt, WarmOcean sand, DeepOcean stone) + confetti ceiling (Jungle/Lavender/Sunflower ground cover 0.35). v6: citadel siting rebuilt (dense footprint validation, region-border margin, spawn clearance, hillside carving, no courtyard trees) + loop-347 plant solidity. v5: kingdoms — region-placed citadels + locomotion-era NPC settling
 
 /// Stamp `genver.dat` in a world directory with the generator version.
 pub fn save_generator_version(dir: &std::path::Path, version: u32) -> std::io::Result<()> {

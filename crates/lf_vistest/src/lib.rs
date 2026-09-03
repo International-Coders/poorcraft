@@ -464,6 +464,11 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "biome_transitions", desc: "N07: four intentional boundary pairs — palette shift + a dithered mixing band, not a hard seam",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0),
+        },
+        SceneSpec {
             name: "weather_snow",
             desc: "cold biome weather: snowfall over a snow field (biome-driven, Step 19)",
             default_seed: 12345,
@@ -1211,9 +1216,10 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         }
     }
 
-    // biome_contact_sheet (Step 16): 30 strips, each paved with that
-    // biome's REAL surface + filler from the biome table, separated by
-    // stone walls — a photograph of the identity data itself.
+    // biome_contact_sheet (N07 upgrade): every strip carries the biome's
+    // REAL surface + filler, its SIGNATURE TREE silhouette (log + canopy
+    // from TreeKind::blocks), and its ground-cover features — a
+    // photograph of the full identity row, not just pavement.
     if spec.name == "biome_contact_sheet" {
         use lf_voxel::registry::block;
         let h = world.surface_height(0, 0);
@@ -1229,6 +1235,38 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
                     }
                 }
             }
+            // ground-cover features from the identity row
+            let (density, features) = b.surface_features();
+            let feat_n = (density * 32.0) as i32; // ~32 columns per strip
+            for k in 0..feat_n.min(24) {
+                let fx = x0 + (k % 4);
+                let fz = -8 + ((k * 5) % 16);
+                let f = features[(k as usize) % features.len().max(1)];
+                world.set_block(fx, h, fz, lf_voxel::BlockState(f));
+            }
+            // signature tree: trunk + a canopy plate, the silhouette that
+            // separates same-palette neighbors
+            let kind = b.tree_kind();
+            if kind != lf_worldgen::TreeKind::None {
+                let (log, leaves, trunk_base, canopy_r) = kind.blocks();
+                if log != block::AIR {
+                    let tx = x0 + 1;
+                    let tz = 0;
+                    let trunk = trunk_base.max(3);
+                    for y in h..h + trunk {
+                        world.set_block(tx, y, tz, lf_voxel::BlockState(log));
+                    }
+                    let r = canopy_r.clamp(1, 2) as i32;
+                    for dx in -r..=r {
+                        for dz in -r..=r {
+                            if dx.abs() + dz.abs() <= r + 1 && (tx + dx) >= x0 && (tx + dx) < x0 + 4 {
+                                world.set_block(tx + dx, h + trunk, tz + dz,
+                                    lf_voxel::BlockState(leaves));
+                            }
+                        }
+                    }
+                }
+            }
             if i % 2 == 1 {
                 // separating wall so strips read as distinct panels
                 for z in -8..8 {
@@ -1237,6 +1275,64 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
                     }
                 }
             }
+        }
+    }
+
+    // biome_transitions (N07): four boundary pairs from the identity
+    // table — each pair is biome A | dither band | biome B, with both
+    // sides' real surfaces and the mixing band interleaving their
+    // ground-cover features (how the generator dithers biome edges)
+    if spec.name == "biome_transitions" {
+        use lf_worldgen::Biome::*;
+        let h = world.surface_height(0, 0);
+        let pairs = [
+            (Desert, Savanna),
+            (Tundra, Taiga),
+            (Meadow, Forest),
+            (Swamp, Jungle),
+        ];
+        let strip_w = 14i32;
+        let band_w = 5i32;
+        let total_w = pairs.len() as i32 * (strip_w * 2 + band_w + 3);
+        let mut x = -total_w / 2;
+        for (pi, &(a, b)) in pairs.iter().enumerate() {
+            let _ = pi;
+            let mut side = |bx: i32, biome: lf_worldgen::Biome, from: i32, to: i32| {
+                for sx in from..to {
+                    for z in -10..10 {
+                        world.set_block(bx + sx, h - 1, z,
+                            lf_voxel::BlockState(biome.surface_block()));
+                        world.set_block(bx + sx, h - 2, z,
+                            lf_voxel::BlockState(biome.filler_block()));
+                        for y in h..h + 10 {
+                            world.set_block(bx + sx, y, z, lf_voxel::BlockState(
+                                lf_voxel::registry::block::AIR));
+                        }
+                    }
+                }
+                // features at the biome's own density
+                let (density, feats) = biome.surface_features();
+                let n = (density * 140.0) as i32;
+                for k in 0..n {
+                    let fx = from + (k % (to - from).max(1));
+                    let fz = -10 + ((k * 7) % 20);
+                    if feats.is_empty() { break; }
+                    let f = feats[(k as usize) % feats.len()];
+                    world.set_block(bx + fx, h, fz, lf_voxel::BlockState(f));
+                }
+            };
+            side(x, a, 0, strip_w);
+            side(x, b, strip_w + band_w, strip_w * 2 + band_w);
+            // the dither band: alternate both biomes' surfaces + features
+            for sx in strip_w..strip_w + band_w {
+                for z in -10..10 {
+                    let left = ((sx + z) % 2) == 0;
+                    let biome = if left { a } else { b };
+                    world.set_block(x + sx, h - 1, z,
+                        lf_voxel::BlockState(biome.surface_block()));
+                }
+            }
+            x += strip_w * 2 + band_w + 3;
         }
     }
 

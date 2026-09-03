@@ -2414,3 +2414,33 @@ HONESTLY DEFERRED: true 8-viewport panorama compositing (the map atlas
 proves macro shape), river_source_to_mouth + biome_transitions scenes
 (N07), terrain-shape repair (v6 floors already met by wide margins —
 nothing measured needed repair).
+
+## 2026-09-03 — loop 356: biome identity contract (nightly-beta N07)
+
+WHAT: BiomeIdentity rows (biome.rs) + the pairwise-distinct contract as
+tests: identity() exposes the visible tuple, the test requires every pair
+of the 46 biomes to differ somewhere, and a confetti ceiling caps
+ground-cover density at 0.35. The scan surfaced exactly one clone family
+(Ocean/DeepOcean, then Ocean/WarmOcean) — fixed with three distinct ocean
+floors (dirt/sand/stone). Jungle .40, LavenderFields .45, SunflowerPlains
+.40 trimmed to the ceiling. GENERATOR_VERSION → v7. Proofs:
+biome_contact_sheet upgraded to grow each biome's signature tree
+(TreeKind::blocks trunk + canopy) over its real surface/filler/features;
+new biome_transitions scene with four boundary pairs and dithered mixing
+bands.
+
+VISION REVIEW: biome_contact_sheet PASS (46 strips, each with distinct
+palette + signature tree + features, stone separators); biome_
+transitions PASS (four readable pairs; the reviewer described the dither
+bands as hedge rows — that alternating band IS the mixing design).
+
+VERIFICATION: cargo test --workspace 453 passing / 0 failed (+2 identity
+tests); vistest 107/107 (+1 scene, 1 rebuilt); make seedlab PASS on v7
+(2016 pairs · height L1 p05 .090 · biome JS p05 .214); make smoke OK;
+git diff --check clean; runtimes rebuilt.
+
+HONESTLY DEFERRED: per-biome fog/sky grading (env() takes no biome
+input — engine work), gameplay resource rows per biome (mining tables
+are global), and the Z.ai unlabeled-crop classification battery (needs
+per-biome viewpoint rendering — folded into the later castle/asset
+proof rounds where the machinery lands anyway).

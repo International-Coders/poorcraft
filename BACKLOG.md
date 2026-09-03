@@ -1407,3 +1407,28 @@ Deferred (honest notes):
       river_source_to_mouth + biome_transitions scenes (N07), and any
       terrain-shape repair beyond spawn (v6 diversity floors were already
       met by wide margins — nothing to repair this pass).
+
+## Loop 356 — biome identity contract + transition proof (nightly-beta N07)
+
+- [x] BiomeIdentity row (surface/filler/tree silhouette/feature density/
+      feature set/freeze/cold) + the pairwise-distinct contract as a
+      test: no two of the 46 biomes may share the whole visible tuple —
+      the "thirty names, twenty-seven meadows" failure mode now fails CI.
+      The scan found exactly one surviving collision (Ocean vs DeepOcean)
+      plus Ocean/WarmOcean after the first fix: three distinct ocean
+      floors now (Ocean dirt, WarmOcean sand, DeepOcean stone).
+- [x] Confetti ceiling enforced by test: ground cover ≤ 0.35 everywhere
+      (Jungle .40, LavenderFields .45, SunflowerPlains .40 trimmed) —
+      identity reads from negative space.
+- [x] GENERATOR_VERSION → v7 (ocean floors + densities change chunks);
+      seedlab still PASSES its floors on v7 (2016 pairs, height L1 p05
+      .090, biome JS p05 .214).
+- [x] Proofs: biome_contact_sheet upgraded from pavement to full identity
+      (surface + filler + SIGNATURE TREE silhouette from TreeKind blocks
+      + ground-cover features per strip) and new biome_transitions (four
+      boundary pairs with dithered mixing bands). Both Z.ai-reviewed
+      PASS. 107/107 vistest.
+- [ ] Deferred: per-biome fog/sky grading (env() has no biome input —
+      engine work), gameplay-affecting resource rows per biome (mining
+      tables are global today), and merging (no merge was needed: every
+      biome now differs on the visible tuple).

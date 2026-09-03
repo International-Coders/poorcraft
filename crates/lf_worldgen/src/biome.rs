@@ -150,7 +150,12 @@ impl Biome {
             MushroomHollow => block::MYCELIUM,
             StonyShore | Mountains => block::STONE,
             Volcanic => block::VOLCANIC_BASALT,
-            Ocean | DeepOcean | WarmOcean => block::SAND,
+            // N07: three distinct ocean floors — murky dirt (Ocean),
+            // tropical sand (WarmOcean), pale stone depths (DeepOcean);
+            // each ocean reads as its own place from above and on the map
+            Ocean => block::DIRT,
+            WarmOcean => block::SAND,
+            DeepOcean => block::STONE,
             // Tundra: blueish icy soil, its marker vs the snow family (C1)
             Tundra => block::PERMAFROST,
             // king-quest B identities
@@ -221,6 +226,23 @@ impl Biome {
         }
     }
 
+    /// N07: the biome's identity row — everything a player can perceive
+    /// from a screenshot, as data. The distinctness contract: no two
+    /// biomes may share the whole visible tuple; near-duplicates must be
+    /// deepened or merged (the test enforces it).
+    pub fn identity(self) -> BiomeIdentity {
+        let (feature_density, features) = self.surface_features();
+        BiomeIdentity {
+            surface: self.surface_block(),
+            filler: self.filler_block(),
+            tree: self.tree_kind(),
+            feature_density,
+            features,
+            freezes: self.freezes(),
+            cold: self.is_cold(),
+        }
+    }
+
     /// Above-water ocean surface freezes.
     pub fn freezes(self) -> bool {
         matches!(self, Biome::FrozenOcean | Biome::IceSpikes)
@@ -243,7 +265,7 @@ impl Biome {
             DarkForest => (0.35, &[block::TALL_GRASS]),
             PaleGarden => (0.15, &[block::DEAD_SHRUB]),
             CherryGrove => (0.30, &[block::TALL_GRASS, block::FLOWER]),
-            Jungle => (0.40, &[block::TALL_GRASS, block::TALL_GRASS, block::FLOWER]),
+            Jungle => (0.35, &[block::TALL_GRASS, block::TALL_GRASS, block::FLOWER]),
             // wet cold band
             Taiga => (0.12, &[block::DEAD_SHRUB]),
             GiantTaiga => (0.14, &[block::DEAD_SHRUB, block::MOSS]),
@@ -273,12 +295,12 @@ impl Biome {
             PaintedDunes => (0.03, &[block::DEAD_SHRUB]),
             FrostMeadow => (0.08, &[block::FLOWER, block::DEAD_SHRUB]),
             Emberwood => (0.05, &[block::DEAD_SHRUB]),
-            LavenderFields => (0.45, &[block::LAVENDER, block::LAVENDER, block::TALL_GRASS]),
+            LavenderFields => (0.35, &[block::LAVENDER, block::LAVENDER, block::TALL_GRASS]),
             MapleForest => (0.20, &[block::TALL_GRASS, block::FLOWER]),
             PineBarrens => (0.10, &[block::DEAD_SHRUB, block::MOSS]),
             SaltFlats => (0.0, &[]),
             FoggyFjord => (0.03, &[block::MOSS]),
-            SunflowerPlains => (0.40, &[block::SUNFLOWER, block::SUNFLOWER, block::TALL_GRASS]),
+            SunflowerPlains => (0.35, &[block::SUNFLOWER, block::SUNFLOWER, block::TALL_GRASS]),
         }
     }
 }
@@ -428,4 +450,56 @@ pub fn biome_from(t: f32, h: f32, height: i32, variant: f32) -> Biome {
     }
     if v > 0.6 { return SunflowerPlains; }
     Meadow
+}
+
+/// N07: the visible identity tuple of a biome.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct BiomeIdentity {
+    pub surface: u32,
+    pub filler: u32,
+    pub tree: TreeKind,
+    pub feature_density: f32,
+    pub features: &'static [u32],
+    pub freezes: bool,
+    pub cold: bool,
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    /// No two biomes may be visually identical: the full visible tuple
+    /// (surface, filler, tree silhouette, ground-cover density, feature
+    /// set, freeze, cold) must differ somewhere. Collisions here are the
+    /// "thirty names, twenty-seven meadows" failure mode.
+    #[test]
+    fn every_biome_has_a_distinct_visible_identity() {
+        let all = Biome::ALL;
+        for i in 0..all.len() {
+            for j in (i + 1)..all.len() {
+                let (a, b) = (all[i].identity(), all[j].identity());
+                let same = a.surface == b.surface
+                    && a.filler == b.filler
+                    && a.tree == b.tree
+                    && (a.feature_density - b.feature_density).abs() < 1e-6
+                    && a.features == b.features
+                    && a.freezes == b.freezes
+                    && a.cold == b.cold;
+                assert!(!same,
+                    "{:?} and {:?} are visually identical — deepen or merge them",
+                    all[i], all[j]);
+            }
+        }
+    }
+
+    /// Ground cover stays under the confetti ceiling: identity reads from
+    /// negative space, not from filling every cell.
+    #[test]
+    fn feature_density_stays_below_the_confetti_ceiling() {
+        for b in Biome::ALL {
+            let (d, _) = b.surface_features();
+            assert!(d <= 0.35,
+                "{:?} ground cover {:.2} exceeds the 0.35 ceiling", b, d);
+        }
+    }
 }
