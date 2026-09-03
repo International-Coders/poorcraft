@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## 2026-09-03 — real sound-effect bank via ElevenLabs (loop 349)
+
+- **The game now sounds real.** All 33 sound events play generated MP3
+  samples instead of procedural beeps: block break/place across the five
+  material families, per-material footsteps, UI clicks, eating, hurt, XP,
+  tree creak and crash — plus twelve events that were silent until now:
+  entering water, bow release, an arrow sticking into terrain, the melee
+  whoosh, flesh hits and creature deaths (melee and arrow paths), the
+  mount dragon's roar, item pickups, crafting success, chest lids, the
+  forge anvil, and the player's death sting.
+- **The bank is generated, committed, and self-contained.**
+  `tools/gen_sounds.py` (wrapped by `make sounds`) is the generator with
+  the full 33-prompt manifest; it talks to the ElevenLabs Sound Effects
+  API with a key from the environment only, and caches aggressively —
+  files that exist are never regenerated. The MP3s live in
+  `assets/sounds/` and are embedded into the binary via `include_bytes`,
+  so a missing file is a compile error and the catalog cannot drift from
+  the code. Total free-tier spend: 620 of 10,000 monthly characters.
+- **Decode is defensive.** Samples decode through rodio/symphonia at
+  boot, downmix to mono, trim head/tail padding with a peak-relative
+  threshold (so percussive events don't feel laggy), reject near-silent
+  files outright, and normalize to a common playing level. The original
+  synthesizer stays as a deterministic fallback for any event whose
+  sample is missing — and as the reference the tests hold to.
+- **Quality was measured, not assumed.** Every generation's true
+  peak/RMS was inspected; eight first-pass files (footsteps, ui click,
+  glass place, arrow hit) came back near-silent. The pattern —
+  "footstep/stomp" prompts master quietly, impact textures don't — was
+  root-caused and exactly those prompts rewritten (the winning wooden
+  step is a knuckle knock on a board) and regenerated.
+
 ## 2026-09-03 — colored light, fireplaces, and material torches (loop 348)
 
 - **Block light is genuinely RGB.** The voxel BFS propagates red, green, and

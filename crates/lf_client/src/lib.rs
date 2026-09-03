@@ -1198,6 +1198,8 @@ struct GameState {
     pub look_target: Option<(glam::IVec3, u32)>,
     /// Ground distance since the last footstep (loop 329 audio set).
     step_distance: f32,
+    /// Loop 349: chest-in-water state of the previous frame (splash edge).
+    was_in_water: bool,
     /// Previous frame's open screen — drives the ui transition click.
     pub prev_ui_open: UiOpen,
     // ---- workbench state (ui-world-craft F) ----
@@ -1640,6 +1642,7 @@ impl GameState {
             last_hotbar_index: 0,
             look_target: None,
             step_distance: 0.0,
+            was_in_water: false,
             prev_ui_open: UiOpen::Title,
             recipe_book: workbench::RecipeBook::default(),
             wb_category: 0,
@@ -2252,6 +2255,7 @@ impl GameState {
 
         self.player.update(dt, &input, &self.world);
         self.footstep_tick(dt);
+        self.splash_tick();
         self.update_falling_trees(dt);
         self.survival_tick(dt);
         self.update_drops(dt);
@@ -2741,6 +2745,7 @@ impl GameState {
                 let look = self.player.look_dir();
                 let speed = 12.0 + charge.min(1.2) * 18.0;
                 self.arrows.push(Arrow { position: eye + look * 0.5, velocity: look * speed, age: 0.0 });
+                self.play_sfx(lf_audio::Sfx::BowShoot, 0.8);
             }
         }
         if let Some(n) = &mut self.net {
@@ -2831,6 +2836,7 @@ impl GameState {
             if let Some(mob_hit) = self.mob_in_crosshair() {
                 if self.attack_cooldown <= 0.0 {
                     self.attack_cooldown = 0.5;
+                    self.play_sfx(lf_audio::Sfx::MeleeSwing, 0.5);
                     let held = self.inventory.slots[self.hotbar_index].clone();
                     let damage = held
                         .as_ref()
@@ -2847,6 +2853,7 @@ impl GameState {
                         dead
                     };
                     self.hit_flash = 1.0;
+                    self.play_sfx(lf_audio::Sfx::MobHit, 0.9);
                     if killed {
                         let (kind, pos) = {
                             let mob = &self.mobs[mob_hit];
@@ -2874,6 +2881,7 @@ impl GameState {
                         tracing::info!("killed a {:?}", kind);
                         // the corpse topples and rests before removal
                         self.mobs[mob_hit].begin_death();
+                        self.play_sfx(lf_audio::Sfx::MobDeath, 0.9);
                     }
                 }
                 self.mining = None;
@@ -3141,6 +3149,7 @@ impl GameState {
                             .or_insert_with(|| BlockEntity::Chest { slots: vec![None; 27] });
                         self.ui_open = UiOpen::Chest(key);
                         self.unlock_cursor();
+                        self.play_sfx(lf_audio::Sfx::ChestOpen, 0.8);
                     }
                     _ => {}
                 }
@@ -3282,6 +3291,7 @@ impl GameState {
                             if mob.mob_type == MobType::Dragon {
                                 self.mounted_dragon = Some(mob.id);
                                 self.push_hint("you take the saddle — sneak to dismount");
+                                self.play_sfx(lf_audio::Sfx::DragonRoar, 1.0);
                                 return;
                             }
                         }
@@ -4208,6 +4218,7 @@ impl GameState {
             // death
             self.ui_open = UiOpen::Death;
             self.unlock_cursor();
+            self.play_sfx(lf_audio::Sfx::PlayerDeath, 1.0);
             tracing::info!("player died");
         }
     }
@@ -4243,10 +4254,12 @@ impl GameState {
     fn update_arrows(&mut self, dt: f32) {
         let mut remove: Vec<usize> = Vec::new();
         let mut events: Vec<(usize, f32)> = Vec::new(); // (mob idx, damage)
+        let mut stuck = false; // an arrow hit terrain (sound played after: the loop borrows self.arrows)
         for (i, arrow) in self.arrows.iter_mut().enumerate() {
             let before = arrow.position;
             let done = arrow.update(dt, |x, y, z| self.world.is_solid(x, y, z));
             if done {
+                stuck = true;
                 remove.push(i);
                 continue;
             }
@@ -4275,6 +4288,10 @@ impl GameState {
         for i in remove.into_iter().rev() {
             self.arrows.remove(i);
         }
+        if stuck {
+            self.play_sfx(lf_audio::Sfx::ArrowHit, 0.8);
+        }
+        let hit_mobs = !events.is_empty();
         for (mi, damage) in events {
             if mi < self.mobs.len() {
                 let killed = self.mobs[mi].take_hit(damage, self.player.position);
@@ -4289,8 +4306,12 @@ impl GameState {
                     self.xp_progress = p;
                     self.xp_flash = 1.0;
                     self.mobs[mi].begin_death();
+                    self.play_sfx(lf_audio::Sfx::MobDeath, 0.9);
                 }
             }
+        }
+        if hit_mobs {
+            self.play_sfx(lf_audio::Sfx::MobHit, 0.85);
         }
     }
 
@@ -4864,6 +4885,17 @@ impl GameState {
         }
     }
 
+    /// Loop 349: splash on the dry→wet edge (chest block enters water).
+    fn splash_tick(&mut self) {
+        let p = self.player.position;
+        let in_water = self.world.get_block(p.x as i32, (p.y + 0.9) as i32, p.z as i32).id()
+            == registry::block::WATER;
+        if in_water && !self.was_in_water {
+            self.play_sfx(lf_audio::Sfx::Splash, 0.8);
+        }
+        self.was_in_water = in_water;
+    }
+
     /// Impact pulse for heavy breaks (Step 3): a short camera shake scaled
     /// by block hardness and tool weight.
     fn break_impulse(&mut self, block_id: u32) {
@@ -5198,6 +5230,9 @@ impl GameState {
             }
         }
         let catalog_pairs_ref = workbench::catalog_pairs();
+        if !collected.is_empty() {
+            self.play_sfx(lf_audio::Sfx::ItemPickup, 0.6);
+        }
         for item in collected {
             let first_ever = self.chronicle.is_empty();
             self.quest_event(QuestEvent::Collected(item.clone()));

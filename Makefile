@@ -2,7 +2,7 @@
 # Living documentation of what can be done and how. Agents: keep this file
 # in sync whenever commands change, and log each job in DEVLOG.md.
 
-.PHONY: help build test run smoke vistest perf package runtimes push
+.PHONY: help build test run smoke vistest perf package runtimes push night-plan-check sounds
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -42,6 +42,10 @@ vistest: ## Render every proof scene into shots/
 screenshot: ## Render one scene: make screenshot SCENE=terrain_vista OUT=shots/x.png
 	cargo run --release -p xtask -- screenshot $(SCENE) $(OUT)
 
+sounds: ## Generate missing sound effects via ElevenLabs (needs ELEVENLABS_API_KEY; cached files are kept)
+	@if [ -z "$$ELEVENLABS_API_KEY" ]; then echo "set ELEVENLABS_API_KEY first"; exit 2; fi
+	python3 tools/gen_sounds.py
+
 package: ## Portable zip distribution into dist/
 	cargo run --release -p xtask -- package
 
@@ -61,6 +65,9 @@ runtimes: release ## macOS .app + .dmg + Linux tarball (+ Windows exe if mingw p
 
 push: ## Commit-and-push helper: pushes current branch to the GitHub remote
 	git push -u github HEAD || (git remote add github https://github.com/International-Coders/poorcraft.git && git push -u github HEAD)
+
+night-plan-check: ## Validate the ZCode nightly alpha-to-beta goal pack
+	cargo run -p xtask -- night-plan-check
 
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:

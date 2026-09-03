@@ -1232,3 +1232,21 @@ Deferred (honest notes):
       shaped picking at the secondary raycast call sites, and companions
       still use their own single-cell mover. First-minute onboarding
       remains the next queued pass.
+
+## Loop 349 — real sound-effect bank (ElevenLabs SFX API)
+- [x] 33 generated MP3s in `assets/sounds/` embedded via include_bytes
+      (missing file = build error): block break/place ×5 materials,
+      footsteps ×5, ui/eat/hurt/xp, tree creak/crash, and 12 newly
+      audible events — splash, bow shoot, arrow hit, melee swing, mob
+      hit/death, dragon roar, item pickup, craft done, chest open,
+      anvil clang, player death.
+- [x] `lf_audio` decode pipeline: rodio/symphonia MP3 → mono, silence
+      trim (peak-relative), near-silence rejection, 0.85 level
+      normalization; synth kept as deterministic fallback per event.
+- [x] `tools/gen_sounds.py` + `make sounds`: cache-aware generator, key
+      from env only. Free-tier key spend: 620/10,000 chars (46 calls).
+- [x] 410/0 tests (+4), 94/94 vistest, smoke OK, runtimes rebuilt,
+      pushed.
+- [ ] Deferred: ambient loops (wind/birds/torch crackle), positional
+      3D audio (distance/panning — currently all sounds are full-mix
+      one-shots), music. First-minute onboarding remains queued next.

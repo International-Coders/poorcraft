@@ -2084,3 +2084,55 @@ mod API stays neutral/grayscale), carried/handheld dynamic lights, bloom or
 volumetric shafts, colored emissive bounce in the Live RT path, and a true
 raster shadow-map pass. The queued compact, persisted first-minute onboarding
 job remains next.
+
+## 2026-09-03 — Loop 349: real sound-effect bank via the ElevenLabs SFX API
+
+### What
+Replaced the purely procedural sound set with a bank of 33 real generated
+sound effects, widened the event surface from 21 to 33 sounds, and kept
+the synthesizer as a deterministic per-event fallback.
+
+### How
+- `tools/gen_sounds.py` (new): stdlib-only generator against the
+  ElevenLabs `/v1/sound-generation` endpoint; the 33-entry manifest
+  (name, prompt, duration, prompt_influence) is the sound-design doc of
+  record; key comes from `ELEVENLABS_API_KEY` (never committed), files
+  are cached so nothing regenerates twice; `make sounds` wraps it.
+- `assets/sounds/*.mp3` (new, committed artifacts, ~1 MB): 10 block
+  break/place, 5 footsteps, ui/eat/hurt/xp, tree creak/crash, plus 12 new
+  events (splash, bow, arrow hit, melee swing, mob hit/death, dragon
+  roar, item pickup, craft, chest, anvil, death sting).
+- QUOTA DISCIPLINE: the key is free-tier (10k chars/month); total spend
+  was 620 characters for 46 generations (33 shipped + 13 discarded quiet
+  takes) — 6.2% of the month. One generation per event, no re-rolls
+  beyond the quality fixes below.
+- QUALITY CONTROL: measured every file's true peak/RMS via afconvert +
+  python. 8 first-pass files (all footsteps, ui_click, place_glass,
+  arrow_hit, break_soft) came back near-silent (<0.1 peak). Learned that
+  "footstep/stomp" prompts master near-silently while impact/crunch
+  textures do not — rewrote those prompts (knocks, crunches, squelches;
+  the winning step_wood prompt is a knuckle knock on a board) and
+  regenerated exactly those files.
+- `lf_audio` (lib.rs): `BANK_FILES` embeds all MP3s via include_bytes
+  (missing file = compile error, catalog cannot drift);
+  `decode_mp3_mono` decodes with rodio/symphonia, downmixes to mono,
+  trims head/tail padding with a peak-relative threshold, rejects
+  near-silent files (<0.05 peak → synth fallback), and normalizes to a
+  0.85 common playing level; `Audio::play/play_sfx` prefer the bank and
+  fall back to `synth`/`synth_sfx`; 12 new `Sfx` variants each with a
+  deterministic synth fallback arm.
+- Client wiring (`lf_client/src/lib.rs`, `ui.rs`): bow release, melee
+  swing + mob hit + mob death (melee and arrow paths), arrow stuck,
+  dry→wet splash edge (`splash_tick`, new `was_in_water` field), drop
+  pickup, chest open, player death, dragon mount roar, forge strike
+  clang, workbench craft success.
+
+### Verification
+- `cargo test --workspace`: 410 passed / 0 failed (+4 vs loop 348: bank
+  decodes + covers every event/sfx/block key; trim + normalize shape;
+  extended sfx-set bounds test over all 23 Sfx arms).
+- `make smoke`: headless logic + 12s GUI liveness OK.
+- `cargo run --release -p xtask -- vistest shots`: 94/94 (no visual
+  change expected).
+- Artifacts: `assets/sounds/` (33 MP3s), `tools/gen_sounds.py`,
+  `make sounds`.

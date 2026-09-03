@@ -1607,6 +1607,7 @@ impl GameState {
             remaining -= batch as u32;
         }
         self.quest_event(QuestEvent::Crafted(output.to_string()));
+        self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
     }
 
     fn draw_furnace(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
@@ -2708,6 +2709,7 @@ impl GameState {
                     // open in the heat zone.
                     if ui.button(egui::RichText::new("Strike").color(Theme::ACCENT)).clicked() {
                         self.forge.strike();
+                        self.play_sfx(lf_audio::Sfx::SmithClang, 0.8);
                     }
                     let ready = self.forge.strikes_completed >= self.forge.target_strikes;
                     let status = if ready {

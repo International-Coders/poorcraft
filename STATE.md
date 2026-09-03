@@ -1,9 +1,9 @@
 # STATE
-loop_count: 348
-current_milestone: Complete — material-colored voxel lighting and craftable hearth sources
-last_done: "loop 348 colored-light pass: block light is now RGB max-composited and attenuated per channel while retaining the existing u32 vertex layout and legacy 0xF0 sky encoding; ordinary torches/lanterns/lava/ember/lumen/radiation now cast material-specific colors, with subtle position-phased warm flicker. Added craftable/placeable Ember Torch, Lumen Torch, and Fireplace blocks with distinct procedural pixel textures, drops, recipes, hit behavior, and server-valid registry IDs. Fixed two proof-discovered production bugs: emitters beneath roofs were never scanned, and skylight flood began on the opaque roof cell and leaked through it. Direct section scanning skips irrelevant sections to recover lighting-build performance. 406 tests, 94/94 vistest, smoke OK, warm perf p50 53.7ms, runtimes rebuilt."
+loop_count: 349
+current_milestone: Complete — real sampled sound bank across 33 events
+last_done: "loop 349 sound bank: 33 sound effects generated with the ElevenLabs SFX API (free-tier key, 620/10,000 chars spent) — tools/gen_sounds.py is the cache-aware generator (make sounds; key via env, never committed), the MP3s are committed in assets/sounds/ and embedded via include_bytes so the catalog cannot drift. lf_audio decodes them at boot (rodio/symphonia → mono, peak-relative silence trim, near-silence rejection, 0.85 normalization) and prefers the samples with the old synthesizer kept as per-event fallback; 12 new Sfx events wired in the client (splash edge, bow, arrow stick, melee swing/hit/death, mob hit/death, dragon-mount roar, pickup, craft done, chest open, anvil clang, death sting). Quiet-mastering quality issue root-caused (footstep-type prompts came back near-silent; impact-texture prompts did not) and the 8 affected files regenerated. 410 tests (+4), 94/94 vistest, smoke OK, runtimes rebuilt."
 next_task: "First-minute onboarding pass: contextual movement/mining/crafting prompts plus a pinned starter objective, dismissible and persisted, with compact HUD and small-window vistest proofs (carried over from loop 344 planning)."
 build: GREEN
-tests: 406 passed / 0 failed (loop 348)
+tests: 410 passed / 0 failed (loop 349)
 last_screenshot: shots/vistest_colored_light_room.png
 blockers: "none"
