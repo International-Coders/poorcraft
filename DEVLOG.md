@@ -2597,3 +2597,39 @@ EditKind is defined but unused until the fluid sim routes through the
 host (B04); singleplayer still applies queued commands in the same
 frame — the queue exists but nothing yet defers application (that is
 the B08 server move).
+
+## 2026-09-03 — loop 360: crafting through the host, Stage A complete (beta B03 slice 2)
+
+WHAT: The second half of B03 — inventory/crafting transactions became
+host commands. With this, B03's done-when is fully met (direct client
+mutation is test-rejected for blocks AND crafting; the onboarding/craft
+journey passes) and Stage A of the beta roadmap closes.
+
+HOW: `HostCommand::Craft{ingredients, output, output_count, qty}` +
+`SimHost::queue_craft` / `apply_pending_crafts` (canonical (tick,id)
+order; per-command `CraftReceipt{id, granted, blocked, reason}`) +
+`craft_now` (queue + same-frame apply, mirroring host_set_block
+semantics). Events: EV_CRAFT payload [fnv1a(output), qty |
+granted<<32]; EV_CRAFT_REJECT payload [id, code] with code 1
+MissingIngredient / 2 NoRoom / 0 replay, plus b.reason() carried in the
+receipt for the player hint. Split pending queues (blocks vs crafts)
+keep apply types clean; they merge when the server owns both (B08).
+Client: craft-queue tick (lib.rs) and craft_from_workbench (ui.rs)
+route through craft_now; ui.rs queue PROBE untouched (scratch
+inventory preview). New self-audit test
+`b03_craft_transactions_route_through_the_host`: zero fully-qualified
+engine execute calls in lib.rs/ui.rs, exactly one `execute(&mut probe`
+(the probe), zero `execute(&mut self.inventory`; pattern built with
+concat! after v1 literally matched its own assertion text and failed —
+the audit catching its own author is the desired failure mode.
+
+VERIFICATION: cargo test --workspace 474 passed / 0 failed (+3 craft
+host tests: applied+event-sourced, blocked-untouched-inventory,
+replay-applies-once; +1 craft self-audit); make smoke OK (the headless
+craft journey crafts through the host); vistest 107/107 exit 0;
+make runtimes rebuilt (dmg/tarball/server 18:17).
+
+HONESTLY DEFERRED: smelting/machine item flows are NOT yet host
+commands (craft transactions were the roadmap scope; machines move in
+B07/B08); the event log remains runtime-only until B08/B24 persistence;
+Fluid EditKind still unused until the fluid sim migrates (B04).

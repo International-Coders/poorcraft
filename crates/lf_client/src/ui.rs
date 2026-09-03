@@ -2364,22 +2364,23 @@ impl GameState {
     }
 
     /// The craft button's action (N02): fully transactional through the
-    /// lf_game engine — a blocked craft (short materials, no room)
-    /// consumes nothing and says exactly why. The UI enable-state is only
-    /// a convenience; this re-verifies against live inventory every call,
-    /// so rapid clicks and queue completions share one safe path.
+    /// authoritative host — a blocked craft (short materials, no room)
+    /// consumes nothing, records the rejection, and says exactly why. The
+    /// UI enable-state is only a convenience; this re-verifies against live
+    /// inventory every call, so rapid clicks and queue completions share
+    /// one safe path.
     fn craft_from_workbench(&mut self, ingredients: &[(String, u8)], output: &str,
                             output_count: u8, qty: u32) {
-        match lf_game::crafting::execute(&mut self.inventory, ingredients, output, output_count, qty) {
-            lf_game::crafting::CraftOutcome::Crafted { .. } => {
-                // one event set per completed craft action — never per batch
-                self.quest_event(QuestEvent::Crafted(output.to_string()));
-                self.onboarding.observe_crafted();
-                self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
-            }
-            lf_game::crafting::CraftOutcome::Blocked(b) => {
-                self.push_hint(&format!("craft blocked: {}", b.reason()));
-            }
+        let receipt = self.host.craft_now(
+            &mut self.inventory, ingredients.to_vec(), output.to_string(), output_count, qty,
+        );
+        if receipt.granted.is_some() {
+            // one event set per completed craft action — never per batch
+            self.quest_event(QuestEvent::Crafted(output.to_string()));
+            self.onboarding.observe_crafted();
+            self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
+        } else if let Some(reason) = &receipt.reason {
+            self.push_hint(&format!("craft blocked: {}", reason));
         }
     }
 

@@ -1,5 +1,34 @@
 # CHANGELOG
 
+## 2026-09-03 — crafting through the host; Stage A complete (loop 360, B03 slice 2)
+
+- **Crafting transactions are host commands now, and the B03 gate is
+  passed.** `HostCommand::Craft` joins the host vocabulary:
+  `queue_craft` / `apply_pending_crafts` (canonical (tick, id) order
+  with per-command receipts) and `craft_now` (the same same-frame
+  semantics block edits use). Every applied craft records an
+  `EV_CRAFT` event (output hash + qty + granted); every blocked or
+  replayed craft records `EV_CRAFT_REJECT` with a reason code plus the
+  player-facing line in the receipt.
+- **Both real craft paths migrated** — the craft-queue tick and the
+  workbench button call `host.craft_now`; the lf_game transaction
+  engine still guarantees atomicity (a blocked craft consumes nothing),
+  and the host adds command identity, replay dedup, and the event
+  trail. The ui.rs queue PROBE stays direct: it previews against a
+  scratch inventory, mutating no client state.
+- **The self-audit covers crafting too**: a new test pins the probe as
+  the ONE allowed direct engine call and rejects any fully-qualified
+  `crafting::execute` in client code (the pattern is built with
+  `concat!` so the audit cannot match its own source — the first
+  version counted itself and failed, which is the audit working).
+- **Stage A closes**: the milestone gate "local host owns blocks and
+  inventory" is met — direct client mutation is test-rejected for both
+  migrated systems, existing saves still load (the host holds no
+  persisted state), and the onboarding/craft journey passes through the
+  host in the headless smoke.
+- 474 tests (+4), smoke OK, 107/107 vistest, runtimes rebuilt. Stage B
+  (conserved water) starts at B04.
+
 ## 2026-09-03 — authoritative host owns block edits (loop 359, B03 slice 1)
 
 - **The client no longer edits the world directly — at all.** New pure

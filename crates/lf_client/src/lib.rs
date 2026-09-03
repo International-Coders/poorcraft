@@ -4273,19 +4273,16 @@ impl GameState {
             self.push_hint(&format!("queue: recipe for {} is gone — job dropped", output));
             return;
         };
-        match lf_game::crafting::execute(&mut self.inventory, &ingredients, &output, output_count, qty) {
-            lf_game::crafting::CraftOutcome::Crafted { granted, .. } => {
-                self.craft_queue.remove(0);
-                // exactly one event set per completed job — same as a click
-                self.quest_event(QuestEvent::Crafted(output.clone()));
-                self.onboarding.observe_crafted();
-                self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
-                self.push_hint(&format!("queue delivered: {} × {}", granted, output));
-            }
-            lf_game::crafting::CraftOutcome::Blocked(_) => {
-                // the queue strip shows the live reason; retry next tick
-            }
+        let receipt = self.host.craft_now(&mut self.inventory, ingredients, output.clone(), output_count, qty);
+        if let Some(granted) = receipt.granted {
+            self.craft_queue.remove(0);
+            // exactly one event set per completed job — same as a click
+            self.quest_event(QuestEvent::Crafted(output.clone()));
+            self.onboarding.observe_crafted();
+            self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
+            self.push_hint(&format!("queue delivered: {} × {}", granted, output));
         }
+        // Blocked: the queue strip shows the live reason; retry next tick.
     }
 
     /// N04: drive the contextual HUD channels — transient fades, a
@@ -7244,6 +7241,40 @@ mod tests {
             "direct world edits outside the host funnels at byte offsets {:?} — \
              route them through host_set_block/apply_remote_block_update",
             direct_sites
+        );
+    }
+
+    /// B03 slice 2: crafting/inventory TRANSACTIONS also route through the
+    /// host. The fully-qualified engine execute call must appear NOWHERE in
+    /// the client (lib.rs or ui.rs); the one allowed direct call is ui.rs's
+    /// queue PROBE, which previews a job against a scratch inventory and
+    /// mutates no client state — audited as exactly one `execute(&mut probe`.
+    /// (The searched pattern is built with concat! so this test does not
+    /// match its own source.)
+    #[test]
+    fn b03_craft_transactions_route_through_the_host() {
+        let call = concat!("crafting", "::execute(");
+        let lib = include_str!("lib.rs");
+        let ui = include_str!("ui.rs");
+        assert_eq!(
+            lib.matches(call).count(),
+            0,
+            "lib.rs must craft through host.craft_now, not the engine call"
+        );
+        assert_eq!(
+            ui.matches(call).count(),
+            0,
+            "ui.rs must craft through host.craft_now, not the engine call"
+        );
+        assert_eq!(
+            ui.matches("execute(&mut probe").count(),
+            1,
+            "the queue preview probe is the one allowed direct execute call"
+        );
+        assert_eq!(
+            ui.matches("execute(&mut self.inventory").count(),
+            0,
+            "no direct execute against real client inventory"
         );
     }
 }
