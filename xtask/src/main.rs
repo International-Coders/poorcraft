@@ -63,6 +63,38 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
     match cmd {
+        "seedlab" => {
+            // N05: the 64-seed diversity laboratory — machine-readable
+            // report at target/seedlab_report.json (transient by design;
+            // the tracked evidence is the test suite's reduced corpus)
+            let seeds = lf_worldgen::seedlab::corpus_64();
+            let report = lf_worldgen::seedlab::diversity_report(
+                &seeds, lf_worldgen::WorldType::Normal, 384, 8);
+            let path = std::path::Path::new("target/seedlab_report.json");
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            match serde_json::to_vec_pretty(&report) {
+                Ok(bytes) => {
+                    let _ = std::fs::write(path, &bytes);
+                    println!("[ok] seedlab: {} seeds -> {} ({} bytes)",
+                        report.corpus_size, path.display(), bytes.len());
+                }
+                Err(e) => eprintln!("[FAIL] seedlab serialize: {e}"),
+            }
+            println!("  generator v{} · pairs {} · height L1 mean {:.4} p05 {:.4} · biome JS mean {:.4} p05 {:.4}",
+                report.generator_version, report.pairwise.pairs,
+                report.pairwise.mean_height_l1, report.pairwise.p05_height_l1,
+                report.pairwise.mean_biome_js, report.pairwise.p05_biome_js);
+            if report.failures.is_empty() {
+                println!("  diversity: PASS");
+            } else {
+                for f in &report.failures {
+                    println!("  FAIL: {f}");
+                }
+                std::process::exit(1);
+            }
+        }
         "night-plan-check" => {
             let root = args
                 .get(2)
@@ -277,6 +309,7 @@ fn main() {
             println!("  cargo xtask gen-ctm <block>         write a block's CTM strip to assets/ctm/");
             println!("  cargo xtask gen-all-textures        all CTM strips + faction skins (skips existing)");
             println!("  cargo xtask night-plan-check [dir]  validate the ZCode nightly beta goal pack");
+            println!("  cargo xtask seedlab                 64-seed diversity report -> target/seedlab_report.json");
         }
     }
 }

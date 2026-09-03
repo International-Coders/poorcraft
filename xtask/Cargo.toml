@@ -5,5 +5,7 @@ edition = "2021"
 
 [dependencies]
 lf_vistest = { path = "../crates/lf_vistest" }
+lf_worldgen = { path = "../crates/lf_worldgen" }
+serde_json = "1"
 lf_assets = { path = "../crates/lf_assets" }
 image = { version = "0.25", default-features = false, features = ["png"] }

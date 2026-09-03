@@ -1,5 +1,7 @@
 pub mod biome;
+pub mod identity;
 pub mod preview;
+pub mod seedlab;
 
 /// World generation archetype.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -92,6 +94,28 @@ pub struct WorldGen {
 
 /// Splitmix64 — decorrelates a u64 seed into per-channel i32 seeds without
 /// the truncation collisions a bare `as i32` would cause.
+/// N05: fingerprint of registered ore hooks (the worldgen-side mod
+/// surface). Combined with the game-side mod-recipe fingerprint into
+/// WorldIdentity::mod_fingerprint by the host that loads mods.
+pub fn ore_hooks_fingerprint() -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for hook in registered_ore_hooks() {
+        for v in [hook.block_id as u64, hook.y_min as i64 as u64, hook.y_max as i64 as u64,
+                  hook.threshold.to_bits() as u64, hook.noise_offset.to_bits() as u64] {
+            h ^= v;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+    }
+    h
+}
+
+/// Public salted-channel derivation for `identity::WorldIdentity` (the
+/// private `channel_seed` below is the same function; this alias keeps
+/// the identity API self-documenting).
+pub fn channel_seed_pub(seed: u64, salt: u64) -> i32 {
+    channel_seed(seed, salt)
+}
+
 fn channel_seed(seed: u64, salt: u64) -> i32 {
     let mut z = seed.wrapping_add(salt.wrapping_mul(0x9E3779B97F4A7C15));
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
@@ -228,6 +252,19 @@ impl WorldGen {
     /// The world's seed (persisted with the save).
     pub fn seed(&self) -> u64 {
         self.seed
+    }
+
+    /// N05 seedlab: would this cell carve a cave? The exact predicate
+    /// generate_chunk uses (threshold ramps near the surface), exposed so
+    /// the diversity lab measures the real cave field.
+    pub fn is_cave(&self, x: i32, y: i32, z: i32) -> bool {
+        let max_carve = self.surface_top(x, z) - 4;
+        if y < 6 || y >= max_carve {
+            return false;
+        }
+        let ramp = ((y - 48) as f32 / 8.0).clamp(0.0, 1.0);
+        let threshold = 0.40 + 0.32 * ramp;
+        self.noise_cave.get_noise_3d(x as f32, y as f32, z as f32) > threshold
     }
 
     /// Smoothstep between edges a..b.
@@ -1903,6 +1940,14 @@ const SECTION_MAX: usize = 250;
 
 #[cfg(test)]
 mod tests {
+
+    /// N05: the ore-hook fingerprint is stable and reflects registrations.
+    #[test]
+    fn ore_hooks_fingerprint_is_stable() {
+        let a = crate::ore_hooks_fingerprint();
+        let b = crate::ore_hooks_fingerprint();
+        assert_eq!(a, b, "stable across calls with a fixed registration set");
+    }
     use super::*;
     use std::collections::HashSet;
 

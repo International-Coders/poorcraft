@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2026-09-03 — world identity and the seed laboratory (loop 354, N05)
+
+- **A world has a name that means something.** The canonical
+  `WorldIdentity` — seed, generator version, world type, and a
+  fingerprint of everything modded that can touch generation — is
+  stamped into `identity.dat` before the first chunk generates, restored
+  exactly on load, and shown on F3. A save from an older generator now
+  tells you plainly that unedited areas may have changed, and modded
+  recipe/ore-hook sets are part of the world's provenance.
+- **Same seed, same world — proven, not promised.** The new seed
+  laboratory hashes height and biome lattices with order-independent
+  combiners: the same identity is bit-identical across instances
+  (negative, ±1M, and ±i32::MAX coordinates included), and generating
+  chunks in any order produces identical columns.
+- **Different seeds, different worlds — measured.** 64 fixed seeds are
+  sampled into a machine-readable report (`make seedlab` →
+  target/seedlab_report.json): height-field distances, biome
+  Jensen–Shannon distances, water/river/cave fractions, surface
+  composition, and kingdom placement, with calibrated diversity floors
+  the reduced 12-seed corpus also enforces in the test suite. Generator
+  v6 measures height L1 p05 = 0.090 (floor 0.020) and biome JS p05 =
+  0.214 (floor 0.025) — comfortably diverse; N06 now has numbers to
+  repair against instead of opinions.
+- **Multiplayer shares one world.** The Welcome packet always carried the
+  server's seed; the client now adopts it as its world identity and
+  restarts streaming when it differs, instead of silently generating a
+  private world.
+- **Proof:** 450 tests (+12: seed-text rules, hash stability, identity
+  round-trip, version policy, channel decorrelation, corpus diversity,
+  bit-identity, order independence, JS behavior, mod fingerprints),
+  smoke green, runtimes rebuilt. The rendered seed atlases are N06's
+  evidence by design.
+
 ## 2026-09-03 — the HUD speaks context (loop 353, N04)
 
 - **What you can do, right now, is written beside the crosshair.** A

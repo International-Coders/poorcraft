@@ -1370,6 +1370,9 @@ impl GameState {
             if self.settings.rt_mode == RtMode::Live {
                 info.push_str(" · RT");
             }
+            // N05: the full world identity is F3-only (debug telemetry,
+            // never required to play)
+            info.push_str(&format!(" · {}", self.world_identity.describe()));
             info
         } else {
             format!("{} · {}", self.time_label(), facing)

@@ -2,7 +2,7 @@
 # Living documentation of what can be done and how. Agents: keep this file
 # in sync whenever commands change, and log each job in DEVLOG.md.
 
-.PHONY: help build test run smoke vistest perf package runtimes push night-plan-check sounds
+.PHONY: help build test run smoke vistest perf package runtimes push night-plan-check seedlab sounds
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -68,6 +68,9 @@ push: ## Commit-and-push helper: pushes current branch to the GitHub remote
 
 night-plan-check: ## Validate the ZCode nightly alpha-to-beta goal pack
 	cargo run -p xtask -- night-plan-check
+
+seedlab: ## 64-seed diversity report -> target/seedlab_report.json (N05)
+	cargo run --release -p xtask -- seedlab
 
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:

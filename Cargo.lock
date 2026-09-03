@@ -1437,6 +1437,8 @@ dependencies = [
  "fastnoise-lite",
  "lf_voxel",
  "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -4120,6 +4122,8 @@ dependencies = [
  "image",
  "lf_assets",
  "lf_vistest",
+ "lf_worldgen",
+ "serde_json",
 ]
 
 [[package]]

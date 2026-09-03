@@ -1343,3 +1343,39 @@ Deferred (honest notes):
 - [ ] Deferred: boss/elite identity line, heal/damage numeric feedback,
       garrison alert copy, and interaction prompts for doors/gates (no
       door blocks yet).
+
+## Loop 354 — world identity + the seed laboratory (nightly-beta N05)
+
+- [x] lf_worldgen::identity: canonical WorldIdentity (seed_u64 +
+      generator_version + world_type + mod_fingerprint), saved to
+      identity.dat BEFORE generation; legacy saves fall back field-by-
+      field (seed.dat / genver.dat / fingerprint 0); explicit
+      VersionMismatch policy (Current | Legacy{saved}); documented salted
+      channels from the full 64-bit seed; seed-text rules moved here
+      (numeric exact / word hash stable / empty rolls once) with slots
+      delegating so UI and worldgen can never disagree.
+- [x] lf_worldgen::seedlab: SeedMetrics over fixed lattices (height/biome
+      order-independent hashes, stats, biome histogram, water/river/cave
+      fractions incl. the REAL is_cave predicate now public on WorldGen,
+      surface-block mix, nearest kingdom, spawn proxy) + Jensen–Shannon
+      distance + SeedCorpusReport with calibrated thresholds and a
+      same-seed bit-identical control.
+- [x] Determinism tests: same seed bit-identical across instances
+      (incl. negative/±1M/±i32::MAX coordinates), generation order does
+      not matter (commutative fold over columns), 12-seed reduced corpus
+      must clear diversity floors, corpus shape (0/u64::MAX/word hashes,
+      distinct).
+- [x] xtask seedlab + make seedlab: full 64-seed report to
+      target/seedlab_report.json (transient by contract). Measured v6:
+      2016 pairs · height L1 mean .159 / p05 .090 (floor .020) · biome JS
+      mean .324 / p05 .214 (floor .025) — PASS.
+- [x] Client adoption: create_world stamps identity before generating,
+      load_world restores it + announces generator-version drift plainly,
+      multiplayer Welcome now ADOPTS the server seed (restarts the
+      streamer on change), mod fingerprints (recipes game-side + ore
+      hooks worldgen-side) fold into the identity, F3 shows the full
+      identity line.
+- [ ] Deferred to N06: the rendered evidence (seed_atlas_8 panoramas,
+      spawn_quality_8 with real spawn scoring, seed_same_control pixel
+      proof) and any diversity REPAIR — the lab measures, N06 fixes what
+      it finds.

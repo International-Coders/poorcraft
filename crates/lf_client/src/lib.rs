@@ -1138,6 +1138,10 @@ struct GameState {
     craft_queue_timer: f32,
     /// N04: contextual HUD channels (prompts data, toasts, banners, hit dir).
     pub hud_channels: hud_channels::HudChannels,
+    /// N05: the canonical world identity (seed + generator version +
+    /// world type + mod fingerprint) — creation stamps it, loading
+    /// restores it, multiplayer Welcome adopts the server's.
+    pub world_identity: lf_worldgen::identity::WorldIdentity,
     /// N04: settlements already announced this session (banner fires once).
     settlement_seen: std::collections::HashSet<String>,
     /// N04: hostiles near the player with line of sight (throttled scan).
@@ -1673,6 +1677,8 @@ impl GameState {
             onboarding: onboarding::Onboarding::default(),
             craft_queue_timer: 0.0,
             hud_channels: hud_channels::HudChannels::default(),
+            world_identity: lf_worldgen::identity::WorldIdentity::new(
+                0, lf_worldgen::WorldType::Normal, 0),
             settlement_seen: std::collections::HashSet::new(),
             threat_count: 0,
             prev_ui_open: UiOpen::Title,
@@ -1845,6 +1851,12 @@ impl GameState {
         let _ = std::fs::create_dir_all(&dir);
         let _ = WorldStorage::open(&dir).save_seed(seed);
         let _ = lf_worldgen::save_generator_version(&dir, lf_worldgen::GENERATOR_VERSION);
+        // N05: identity is stamped BEFORE generation begins — an empty
+        // seed field rolled a concrete u64 above and it is THIS value
+        // (not a re-roll) that names the world
+        let identity = lf_worldgen::identity::WorldIdentity::new(
+            seed, world_type, self.worldgen_mod_fingerprint());
+        let _ = identity.save(&dir);
         slots::write_meta(&dir, &meta);
         // point the client at the new slot
         self.storage = Some(WorldStorage::open(&dir));
@@ -1852,6 +1864,7 @@ impl GameState {
         self.slot_meta = meta;
         self.world_seed = seed;
         self.world_type = world_type;
+        self.world_identity = identity;
         self.difficulty = difficulty;
         self.game_mode = game_mode;
         // fresh state
@@ -1929,6 +1942,21 @@ impl GameState {
         let load_day_fraction = time.fraction();
         let storage = WorldStorage::open(&dir);
         let seed = storage.load_seed().unwrap_or(meta.seed);
+        // N05: restore the exact identity; a legacy/unstamped generator
+        // version is an explicit event, not a silent one
+        let identity = lf_worldgen::identity::WorldIdentity::load(&dir, seed, world_type)
+            .unwrap_or_else(|_| lf_worldgen::identity::WorldIdentity::new(
+                seed, world_type, self.worldgen_mod_fingerprint()));
+        match lf_worldgen::identity::version_check(if identity.generator_version == 0 {
+            None } else { Some(identity.generator_version) }) {
+            lf_worldgen::identity::VersionMismatch::Current => {}
+            lf_worldgen::identity::VersionMismatch::Legacy { saved } => {
+                let old_v = saved.map(|v| v.to_string()).unwrap_or_else(|| "unstamped".into());
+                self.push_hint(&format!(
+                    "generator updated (save v{}, running v{}): unedited areas may have changed since your last visit",
+                    old_v, lf_worldgen::GENERATOR_VERSION));
+            }
+        }
         let saved_set = storage.saved_chunks();
         self.world_dir = dir;
         self.slot_meta = slots::SlotMeta { seed, updated_secs: meta.updated_secs, ..meta };
@@ -1936,6 +1964,7 @@ impl GameState {
         self.game_mode = self.slot_meta.game_mode;
         self.world_seed = seed;
         self.world_type = world_type;
+        self.world_identity = identity;
         self.saved_set = saved_set.clone();
         self.inventory = inventory;
         self.stats = stats;
@@ -2119,6 +2148,13 @@ impl GameState {
             let _ = storage.save_seed(self.world_seed);
         }
         tracing::info!("world '{}' saved to {}", self.slot_meta.name, self.world_dir.display());
+    }
+
+    /// N05: everything modded that can alter generation, hashed into the
+    /// world identity (mod recipes game-side, ore hooks worldgen-side).
+    fn worldgen_mod_fingerprint(&self) -> u64 {
+        lf_game::crafting::mod_recipes_fingerprint()
+            ^ lf_worldgen::ore_hooks_fingerprint().rotate_left(29)
     }
 
     fn lock_cursor(&mut self) {
@@ -2800,6 +2836,19 @@ impl GameState {
             n.send_state(self.player.position.to_array(), self.player.yaw, self.player.pitch);
             for msg in n.poll() {
                 match msg {
+                    // N05: the multiplayer seed contract — Welcome carries
+                    // the server's seed and the client ADOPTS it as its
+                    // world identity before generating further terrain
+                    lf_protocol::ServerMessage::Welcome { seed: server_seed, .. } => {
+                        if server_seed != self.world_seed {
+                            self.world_seed = server_seed;
+                            self.world_identity = lf_worldgen::identity::WorldIdentity::new(
+                                server_seed, self.world_type, self.worldgen_mod_fingerprint());
+                            let skip = self.saved_set.clone();
+                            self.restart_streamer(server_seed, skip);
+                            self.push_hint("adopted the server's world seed");
+                        }
+                    }
                     lf_protocol::ServerMessage::BlockUpdate { x, y, z, block } => {
                         if self.world.set_block(x, y, z, BlockState(block)).is_some() {
                             self.remesh_around(x, z);

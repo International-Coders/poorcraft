@@ -2325,3 +2325,49 @@ clean; runtimes rebuilt.
 
 HONESTLY DEFERRED: boss/elite identity line, heal/damage numeric popups,
 garrison alert copy, door/gate prompts (no door blocks exist yet).
+
+## 2026-09-03 — loop 354: world identity + seed laboratory (nightly-beta N05)
+
+WHAT: Canonical WorldIdentity (lf_worldgen/src/identity.rs) — seed +
+generator_version + world_type + mod_fingerprint — stamped to
+identity.dat before generation, restored on load (legacy fallback per
+field), with an explicit VersionMismatch policy announced in-game, and
+salted channels derived from the full 64-bit seed. Seed-text rules
+(numeric exact / stable word hash / empty rolls once) moved from
+lf_client::slots into identity with slots delegating. New seedlab
+(lf_worldgen/src/seedlab.rs): lattice metrics per seed (order-
+independent hashes, stats, histograms, water/river/cave via the real
+carve predicate now public as WorldGen::is_cave, surface mix, kingdom,
+spawn proxy), Jensen–Shannon distance, a 64-seed corpus, calibrated
+floors, same-seed bit-identical control, and a JSON report via new
+`xtask seedlab` / `make seedlab` (target/seedlab_report.json,
+transient per the data contract). Client adoption: create_world stamps,
+load_world restores + warns on generator drift, multiplayer Welcome now
+ADOPTS the server seed (restart_streamer on change; the field was
+ignored before), mod fingerprints (lf_game::crafting::
+mod_recipes_fingerprint ^ lf_worldgen::ore_hooks_fingerprint) fold in,
+F3 shows the identity.
+
+MEASURED (generator v6, 64 seeds, ±384 stride 8): 2016 pairs · height
+L1 mean .1585 / p05 .0903 (floor .020) · biome JS mean .3242 / p05
+.2139 (floor .025) · diversity PASS. The floors are calibrated at
+roughly 1/4 of the observed p05 so regressions toward sameness trip
+long before "every seed looks the same".
+
+VERIFICATION: cargo build --workspace GREEN; cargo test --workspace 447
+passing / 0 failed (+9); vistest 103/103 (no visual change in this
+job — the rendered atlases are N06 by design); make smoke OK; make
+seedlab PASS (report at target/seedlab_report.json, 107 KB); git diff
+--check clean; runtimes rebuilt. Two of my own test bugs were caught by
+the suite before landing: a coincidence-based extreme-coordinate assert
+(replaced with a real same-identity-agrees property) and a DefaultHasher
+order-dependent "order independence" check (replaced with a genuinely
+commutative XOR-fold — the first version passed only by accident of
+ordering).
+
+HONESTLY DEFERRED: rendered seed evidence (seed_atlas_8, seed_same_
+control pixel proof, spawn_quality_8 with real spawn scoring) and any
+diversity repairs the lab suggests — all N06, which now has calibrated
+numbers to work against. Thread-count independence is implicitly
+covered (per-column purity + order independence) but not explicitly
+tested under real threads.

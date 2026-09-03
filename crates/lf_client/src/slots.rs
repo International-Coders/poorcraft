@@ -138,15 +138,10 @@ struct LegacySlotMeta {
 /// used literally, an empty field rolls a fresh random seed, any other
 /// text hashes deterministically (same words -> same world, forever).
 pub fn parse_seed_field(raw: &str) -> u64 {
-    let s = raw.trim();
-    if let Ok(v) = s.parse::<u64>() {
-        return v;
-    }
-    if s.is_empty() {
-        random_seed()
-    } else {
-        hash_seed_string(s)
-    }
+    // N05: the seed-text contract lives in lf_worldgen::identity now —
+    // numeric parses exactly, words hash stably, empty rolls once. The
+    // client delegates so UI and worldgen can never disagree.
+    lf_worldgen::identity::parse_seed_text(raw, random_seed)
 }
 
 pub fn random_seed() -> u64 {
@@ -338,20 +333,11 @@ pub fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// Hash a non-numeric world-seed string to a u64. Stable across runs and
-/// machines (std's DefaultHasher is NOT — its keys are randomized), so a
-/// shared seed string always builds the same world.
+/// Stable string→seed hash; canonical implementation lives in
+/// `lf_worldgen::identity::hash_seed_string` (this delegation keeps the
+/// historical symbol).
 pub fn hash_seed_string(s: &str) -> u64 {
-    // FNV-1a 64 over the UTF-8 bytes, then splitmix-mixed for good spread.
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in s.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x100000001b3);
-    }
-    let mut z = h;
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
-    z ^ (z >> 31)
+    lf_worldgen::identity::hash_seed_string(s)
 }
 
 #[cfg(test)]

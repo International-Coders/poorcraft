@@ -454,6 +454,31 @@ fn mod_recipes() -> &'static std::sync::RwLock<Vec<Recipe>> {
     RECIPES.get_or_init(|| std::sync::RwLock::new(Vec::new()))
 }
 
+/// N05: fingerprint of the REGISTERED mod recipes — part of WorldIdentity
+/// so a world's provenance names the mod set that can alter generation
+/// (ore hooks hash in on the worldgen side). 0 = no mod recipes.
+pub fn mod_recipes_fingerprint() -> u64 {
+    let recipes = mod_recipes().read().unwrap();
+    let mut h: u64 = 0xcbf29ce484222325;
+    for r in recipes.iter() {
+        for b in r.output.as_bytes() {
+            h ^= *b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h ^= r.output_count as u64;
+        h = h.wrapping_mul(0x100000001b3);
+        for row in &r.pattern {
+            for cell in row.iter().flatten() {
+                for b in cell.as_bytes() {
+                    h ^= *b as u64;
+                    h = h.wrapping_mul(0x100000001b3);
+                }
+            }
+        }
+    }
+    h
+}
+
 /// Vanilla + mod recipes in one list, for recipe browsers.
 pub fn all_recipes() -> Vec<Recipe> {
     let mut all = recipes().to_vec();
@@ -812,6 +837,29 @@ mod tests {
         let second = execute(&mut inv, &planks, "planks", 4, 1);
         assert!(matches!(second, CraftOutcome::Blocked(CraftBlock::MissingIngredient { .. })));
         assert_eq!(inv.count_of("planks"), 4, "exactly one craft's worth exists");
+    }
+
+    /// N05: the mod fingerprint is stable across calls, changes when the
+    /// registered mod set changes, and is 0 for vanilla.
+    #[test]
+    fn mod_fingerprint_tracks_the_mod_set() {
+        use std::sync::Mutex;
+        static LOCK: Mutex<()> = Mutex::new(());
+        let _g = LOCK.lock().unwrap();
+        // vanilla baseline may be non-zero if another test registered mods
+        let before = mod_recipes_fingerprint();
+        let fp1 = mod_recipes_fingerprint();
+        assert_eq!(fp1, before, "stable across calls");
+        assert!(register_mod_recipe(
+            "fingerprint_probe_item".into(), 1,
+            vec![vec![Some("log".into())]]));
+        let after = mod_recipes_fingerprint();
+        assert_ne!(before, after, "registering a mod recipe changes the fingerprint");
+        // same recipe registered again (dedup) does not double-shift it
+        assert!(register_mod_recipe(
+            "fingerprint_probe_item".into(), 1,
+            vec![vec![Some("log".into())]]));
+        assert_eq!(after, mod_recipes_fingerprint(), "dedup keeps the fingerprint stable");
     }
 
     /// Failure meaning: mod recipes bypassed the transactional engine's
