@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## 2026-09-03 — deterministic tick, command IDs, domain events (loop 358, B02)
+
+- **The simulation now has a clock that render cadence cannot bend.** New
+  pure `lf_game::sim`: `TickClock` converts the client's variable
+  real-frame dt into whole 60 Hz sim ticks through an integer-microsecond
+  accumulator with an 8-tick shed cap (a one-second freeze fires exactly
+  the cap and drops the backlog — deterministic, never a death spiral).
+  `advance()` returns the inclusive RANGE of ticks to execute: the
+  original count-returning API was a real design flaw the cadence proof
+  caught — looping `0..count` collapses multi-tick frames onto the last
+  tick number and silently skips the others.
+- **Commands and events get total order and stable fingerprints.**
+  `CommandEnvelope` (monotonic id + issuing tick) with `canonical_batch`
+  ordering by (tick, id), duplicates keeping their earliest occurrence —
+  batching and reordering are provably inert. `EventLog` records
+  immutable domain events under a dense monotone seq, hashed FNV-1a over
+  (tick, seq, kind, payload) — no randomized `DefaultHasher`.
+- **The done-when is enforced, not claimed**: snapshot-hash tests run a
+  representative command-driven sim under uniform 60 fps, 3-tick, and
+  mixed 1/2-tick frame partitions over the same 600 ticks — identical
+  state and event-log hashes; one-by-one vs single-batch delivery hash
+  identical; jitter streams replay identically and track wall time within
+  2 ticks; overload shedding is deterministic; hashes are
+  perturbation-sensitive.
+- **Fixed a real pre-existing race the new tests exposed**: crafting's
+  mod-recipe tests guarded the global registry with private mutexes (and
+  `mod_recipes_match` didn't lock at all), so
+  `mod_fingerprint_tracks_the_mod_set` could fail under load — all three
+  now share one `MOD_REGISTRY_LOCK`, stress-verified at
+  `--test-threads=8`.
+- 465 tests (+6 sim), smoke OK, runtimes rebuilt. Client wiring is
+  deliberately untouched — B03 migrates block edits and inventory/crafting
+  through commands behind the integrated host.
+
 ## 2026-09-03 — runtime truth dashboard (loop 357, B01)
 
 - **Stage A of the beta-foundation roadmap opens with honesty

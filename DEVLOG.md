@@ -2490,3 +2490,53 @@ standing benchmark run (perf budgets are B28's job); test counts are
 #[test]-attribute scans, not cargo result parses (documented
 approximation); the dashboard reports the transport as one UDP row —
 per-channel reliability truth arrives with B24.
+
+## 2026-09-03 — loop 358: deterministic tick/command/event primitives (beta B02)
+
+WHAT: Stage A job 2. B02 asks for deterministic tick/order primitives
+around existing behavior with snapshot-hash tests — done when render
+cadence and command batching cannot alter a representative simulation
+result. No client redesign, no visible change.
+
+HOW: New pure `crates/lf_game/src/sim.rs` (module declared in lf_game,
+no new deps). (1) `TickClock`: integer-microsecond accumulator maps the
+client's real-frame dt (the same 0.25 s-clamped value) onto whole 60 Hz
+ticks (TICK_US = 1_000_000/60); `MAX_CATCHUP_TICKS = 8` sheds hitch
+backlog deterministically. (2) `CommandEnvelope<C>` + `CommandSequencer`
+(restorable high-water mark): `canonical_batch` orders by (tick, id) and
+dedups ids keeping the earliest occurrence — total order, so delivery
+grouping is inert. (3) `EventLog`: append-only `DomainEvent{tick, seq,
+kind, payload[2]}` under a dense monotone seq; `hash()` is FNV-1a 64
+over the fixed field order (the house hash — identity.rs banned
+DefaultHasher for the same reason). (4) `SimHash` integer fold helper
+(f32 enters via to_bits).
+
+PROOF-CAUGHT DEFECTS, FIXED BEFORE COMMIT: (a) My first `advance` API
+returned a fired COUNT; the cadence test caught the caller I wrote
+collapsing multi-tick frames onto the last tick number (loop bodies read
+clock.tick after advance finished — ticks 3k+1, 3k+2 silently never
+executed). Redesigned: advance returns the inclusive Range<u64> of ticks
+to execute; every fired tick runs under its own number. (b) The race:
+first full-suite run failed `crafting::tests::mod_fingerprint_tracks_
+the_mod_set` — pre-existing flaky race, invisible until my 6 new tests
+shifted suite timing: `mod_recipes_match` mutated the global mod-recipe
+registry with NO lock while the fingerprint test used its own private
+mutex. Fix: one shared `MOD_REGISTRY_LOCK` for all three registry-
+mutating crafting tests; stress-verified at --test-threads=8 and across
+5 repeated runs. Test fixtures were also corrected mid-proof (command
+schedules belong to SIM ticks, not render frames; batching tests must
+not change command ticks).
+
+VERIFICATION: cargo test --workspace 465 passed / 0 failed (+6 sim
+tests: cadence invariance across uniform/3-tick/mixed 600-tick
+partitions with identical state+event hashes; one-by-one vs single-batch
+delivery identical; jitter replay identical and within 2 ticks of wall
+time; shed determinism; (tick,id) order + keep-earliest dedup; event-log
+monotonicity + perturbation sensitivity). make smoke OK. make runtimes
+rebuilt (lf_game changed). git diff clean before commit.
+
+HONESTLY DEFERRED: no client wiring yet — the client still feeds its
+systems raw variable dt; migration happens in B03 when the integrated
+host routes block edits + inventory/crafting through commands. EventLog
+is in-memory only; persistence lands with the host save path. The
+representative sim is a fixture, not yet a real subsystem.

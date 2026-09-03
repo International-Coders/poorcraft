@@ -727,6 +727,13 @@ pub fn consume_ingredients(grid: &mut [Option<ItemStack>]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// ONE lock for every test that mutates the global mod-recipe registry.
+    /// Private per-test mutexes left `mod_recipes_match` mutating unlocked,
+    /// which raced the fingerprint test under load (found when the B02 sim
+    /// tests shifted suite timing).
+    static MOD_REGISTRY_LOCK: Mutex<()> = Mutex::new(());
 
     fn s(id: &str) -> Option<ItemStack> {
         Some(ItemStack { item_id: id.to_string(), count: 1 })
@@ -843,9 +850,7 @@ mod tests {
     /// registered mod set changes, and is 0 for vanilla.
     #[test]
     fn mod_fingerprint_tracks_the_mod_set() {
-        use std::sync::Mutex;
-        static LOCK: Mutex<()> = Mutex::new(());
-        let _g = LOCK.lock().unwrap();
+        let _g = MOD_REGISTRY_LOCK.lock().unwrap();
         // vanilla baseline may be non-zero if another test registered mods
         let before = mod_recipes_fingerprint();
         let fp1 = mod_recipes_fingerprint();
@@ -866,9 +871,7 @@ mod tests {
     /// guarantees (the queue and craft buttons must serve them too).
     #[test]
     fn mod_recipes_execute_transactionally() {
-        use std::sync::Mutex;
-        static MOD_LOCK: Mutex<()> = Mutex::new(());
-        let _guard = MOD_LOCK.lock().unwrap();
+        let _guard = MOD_REGISTRY_LOCK.lock().unwrap();
         let ok = register_mod_recipe(
             "modwidget_x".into(), 2,
             vec![vec![Some("log".into()), Some("log".into())]],
@@ -979,6 +982,7 @@ mod tests {
 
     #[test]
     fn mod_recipes_match() {
+        let _guard = MOD_REGISTRY_LOCK.lock().unwrap();
         register_mod_recipe("ember_ores:ember_block".into(), 1, vec![
             vec![Some("ember_ores:ember_ingot".into()), Some("ember_ores:ember_ingot".into())],
             vec![Some("ember_ores:ember_ingot".into()), Some("ember_ores:ember_ingot".into())],
