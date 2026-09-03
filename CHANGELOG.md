@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## 2026-09-03 — the modal workbench and input recovery (loop 352, N03)
+
+- **The workbench is a modal now, not a transparency.** Strongly opaque
+  framed panels sit over a world scrim, and the survival HUD (hearts,
+  hotbar, XP, minimap) is no longer drawn beneath any container/station
+  screen — the audit's "duplicate HUD through the workbench" failure is
+  gone. The zone layout is pure shared math (`workbench_layout`),
+  unit-tested to never overlap or clip at 640×420, 800×600, or 1280×800,
+  and the proof scenes sample those same rectangles.
+- **Small windows get a drill-down, not small text.** Under 700px the
+  workbench collapses to category chips + one pane (recipe list, or the
+  detail with a ← back link) over a single-row hotbar strip.
+- **Discovery is earned and searchable.** A text search plus filter chips
+  (All / Can make / New / ★ Favorites — favorites persist with the save)
+  and station chips (Any / Craft / Smelt / Alloy / Crush) narrow the
+  list; partial-ingredient rows now carry the amber ~ mark.
+- **One key in, one key out.** The rebindable inventory key (E) now
+  closes every container/station screen — hand craft, workbench,
+  furnace, chest, machine — matching Escape; the contract is a pure
+  function tested across every screen variant. Enter fires the primary
+  craft action exactly once, and only while the search box doesn't own
+  the keyboard.
+- **Proof:** the rebuilt `crafting_workbench` scene plus three new ones —
+  `crafting_workbench_small` (drill-down at 640×420),
+  `crafting_missing_ingredients` (owned/needed marks + the exact reason
+  line), and `crafting_queue` (working / blocked-with-reason / queued) —
+  all reviewed by image recognition at 0.96–0.97 confidence. 99/99
+  visual scenes, 435 tests, smoke green, runtimes rebuilt. Era filter
+  chip, substitutions, and queue pause are honestly deferred.
+
 ## 2026-09-03 — transactional crafting and a real queue (loop 351, N02)
 
 - **Crafting cannot void or mint anymore.** All craft execution now flows

@@ -2239,3 +2239,45 @@ the E/Escape input-recovery integration test — is N03, per the queue's
 "tests before presentation" ordering. Furnace/machine output insertion
 was not touched (separate mechanics with their own slots; they never had
 the multi-batch grant bug).
+
+## 2026-09-03 — loop 352: modal workbench + input recovery (nightly-beta N03)
+
+WHAT: The workbench became a true modal over the N02 engine. Opaque framed
+panels (paint_wb_panel) over a 215-alpha world scrim; hud_visible hides
+the survival HUD behind container/station screens so nothing duplicates.
+Discovery: search field + All/Can-make/New/★Fav chips (favorites persist
+in RecipeBook.favorites) + station chips; partial rows show an amber ~.
+Compact 640x420: two-pane drill-down (chip categories, list OR detail
+with ← back, one-row strip) from the shared pure workbench_layout().
+Primary action: Enter crafts when the search edit lacks focus, exactly
+once per frame (deferred outside layout closures). Input recovery: E (the
+rebindable inventory key) closes every container/station screen via the
+pure inventory_key_closes(); Escape already closed everything.
+
+HOW: ui.rs — workbench_layout + paint_wb_panel + inventory_key_closes +
+rewritten draw_workbench (scrim/panels/filters/compact drill-down/
+deferred craft action) + hud_visible station set; lib.rs — wb_search/
+wb_filter/wb_station fields + E-dispatch change; workbench.rs —
+RecipeBook.favorites; lf_vistest — draw_workbench_proof(mode) painting
+the four variants ON the real layout rects, 3 new scenes + rebuilt
+crafting_workbench + pixel checks (panel dominance per zone, scrim gap,
+checkmarks/accent/search/strip, one-row accent-structure guarantee,
+queue color-family predicates robust to 10.5px antialiasing).
+
+VISION REVIEW: crafting_workbench PASS 0.96 (three columns legible,
+search/filters present, queue states visible, no bleed-through, nothing
+clipped; minor note: muted "Add to Queue" could read disabled — design
+intent, secondary action); crafting_workbench_small PASS 0.96 (chips +
+drill-down + one-row strip, no overlap); crafting_missing_ingredients
+PASS 0.97 ("Missing materials / need: Coal" + x-have-0 / +-have-12 marks
+readable); crafting_queue PASS 0.96 (working green, blocked amber with
+reason, queued, cancel glyphs).
+
+VERIFICATION: cargo build --workspace GREEN; cargo test --workspace 435
+passing / 0 failed (+2: layout contract, inventory-key recovery, hud
+modal set); vistest 99/99 (+3 scenes, 1 rebuilt); make smoke OK; git
+diff --check clean; runtimes rebuilt.
+
+HONESTLY DEFERRED: era filter chip, substitutions column, time/power
+requirement rows, queue pause, inventory screen's own duplicate-hotbar
+cleanup (all listed in BACKLOG loop-352 section).

@@ -209,6 +209,9 @@ pub fn catalog_pairs() -> Vec<(String, Vec<String>)> {
 pub struct RecipeBook {
     /// Item ids the player has picked up at least once.
     pub seen_items: HashSet<String>,
+    /// N03: output ids the player starred (favorites filter).
+    #[serde(default)]
+    pub favorites: HashSet<String>,
 }
 
 /// Outputs every player knows from the first minute: the basic survival

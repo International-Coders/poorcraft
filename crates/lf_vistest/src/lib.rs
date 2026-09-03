@@ -740,7 +740,16 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "multiplayer_screen", desc: "C3 multiplayer: direct connect, host world list, lobby stub",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
-        SceneSpec { name: "crafting_workbench", desc: "F: three-zone workbench (categories, recipes, detail) + inventory strip",
+        SceneSpec { name: "crafting_workbench", desc: "N03: modal three-pane workbench on the REAL layout math — opaque panels over the scrim, search + discovery filters, queue strip, no duplicate HUD",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "crafting_workbench_small", desc: "N03: compact two-pane drill-down workbench at 640x420 (category chips, detail pane, one-row strip)",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "crafting_missing_ingredients", desc: "N03: disabled craft with the exact missing-item reason and owned/needed marks",
+            default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "crafting_queue", desc: "N03: the craft-queue strip live states — working head, blocked-with-reason, queued tail",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
         SceneSpec { name: "inventory_screen", desc: "loop 341: inventory-first E screen — armor column + player portrait, storage grid, hotbar band, craft-by-hand route",
@@ -3276,6 +3285,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             || spec.name == "companion_commands" || spec.name == "companion_follow"
             || spec.name == "new_world_screen" || spec.name == "multiplayer_screen"
             || spec.name == "crafting_workbench"
+            || spec.name == "crafting_workbench_small"
+            || spec.name == "crafting_missing_ingredients"
+            || spec.name == "crafting_queue"
             || spec.name == "inventory_screen"
             || spec.name == "build_hud"
             || spec.name == "menus_centered_small" || spec.name == "menus_centered"
@@ -3296,7 +3308,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             "hud_preview" | "hud_small" | "minimap_hud" | "faction_hud" | "companion_follow"
             | "village_trading" | "tech_tree" | "settings_preview" | "crafting_ui"
             | "map_screen" | "console_preview" | "lore_book" | "spellbook"
-            | "paths_screen" | "trade_p2p" | "companion_commands" | "crafting_workbench"
+            | "paths_screen" | "trade_p2p" | "companion_commands"
             | "kingdom_compass_hud" | "hud_onboarding" | "hud_small_onboarding");
         let draw = |ctx: &egui::Context| {
             if draws_hud_backdrop {
@@ -3319,6 +3331,15 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "crafting_workbench" {
                 draw_crafting_workbench_preview(ctx);
+            }
+            if spec.name == "crafting_workbench_small" {
+                draw_workbench_proof(ctx, WbProofMode::Compact);
+            }
+            if spec.name == "crafting_missing_ingredients" {
+                draw_workbench_proof(ctx, WbProofMode::Missing);
+            }
+            if spec.name == "crafting_queue" {
+                draw_workbench_proof(ctx, WbProofMode::Queue);
             }
             if spec.name == "inventory_screen" {
                 draw_inventory_preview(ctx);
@@ -3466,6 +3487,7 @@ fn dense_bbox(rgba: &image::RgbaImage, target: [i32; 3], tol: i32,
 fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
     let needs_check = matches!(scene,
         "menu_preview" | "new_world_screen" | "multiplayer_screen" | "crafting_workbench"
+        | "crafting_workbench_small" | "crafting_missing_ingredients" | "crafting_queue"
         | "menus_centered_small" | "menus_centered" | "menus_centered_wide"
         | "journal" | "asset_catalog"
         | "tree_fall_mid" | "tree_fall_landed" | "falling_blocks_deep"
@@ -3735,17 +3757,129 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
             let stub = count_in(w * 20 / 100, h * 40 / 100, w * 85 / 100, h * 90 / 100, [0x4a, 0x44, 0x38], 16);
             assert!(stub > 4, "multiplayer: lobby stub text missing ({})", stub);
         }
-        "crafting_workbench" => {
-            // success green checkmarks + counts in the recipe zone
-            let green = count_in(w * 10 / 100, h * 8 / 100, w * 55 / 100, h * 70 / 100, [0x6b, 0x8e, 0x23], 24);
-            assert!(green > 6, "workbench: craftable checkmarks missing ({})", green);
-            // accent: category selection border + pinned craft underline
-            let acc = count_in(w / 20, h * 6 / 100, w * 19 / 20, h * 75 / 100, accent, 40);
-            assert!(acc > 4, "workbench: accent selection/craft marks missing ({})", acc);
-            // inventory strip: dark slot backdrops across the bottom rows
-            // (slot fills are 67%-black over the world, so tolerance is wide)
-            let strip = count_in(w * 5 / 100, h * 66 / 100, w * 60 / 100, h, [0, 0, 0], 34);
-            assert!(strip > 150, "workbench: inventory strip missing ({})", strip);
+        "crafting_workbench" | "crafting_workbench_small"
+        | "crafting_missing_ingredients" | "crafting_queue" => {
+            // N03 proofs, all sampled inside the REAL layout rects
+            // (workbench_layout) so the assertions follow the in-game
+            // geometry at any canvas size.
+            let screen = egui::Rect::from_min_size(
+                egui::Pos2::ZERO, egui::vec2(w as f32, h as f32));
+            let lay = lf_client::ui::workbench_layout(screen);
+            let inside = |r: egui::Rect, x: usize, y: usize| {
+                x >= r.left().max(0.0) as usize && x < r.right().min(w as f32) as usize
+                    && y >= r.top().max(0.0) as usize && y < r.bottom().min(h as f32) as usize
+            };
+            let panel_fill = [0x33, 0x2a, 0x1c];
+            // modal surfaces: opaque panel fill inside every zone
+            for (zone, zr) in [("sidebar", lay.sidebar), ("list", lay.list)] {
+                let mut panel_px = 0usize;
+                let mut sample = 0usize;
+                for y in ((zr.top() as usize)..(zr.bottom() as usize)).step_by(4) {
+                    for x in ((zr.left() as usize)..(zr.right() as usize)).step_by(4) {
+                        if x < w && y < h {
+                            sample += 1;
+                            if near(px(x, y), panel_fill, 26) { panel_px += 1; }
+                        }
+                    }
+                }
+                assert!(sample > 24, "{}: zone sampling too small", scene);
+                assert!(panel_px * 4 > sample,
+                    "{}: {} zone is not a dominant opaque panel ({}/{}), the world bleeds through",
+                    scene, zone, panel_px, sample);
+            }
+            // the scrim sits ABOVE the world and BELOW the panels: the gap
+            // between sidebar and list must be scrim-dark, not world-bright
+            if !lay.compact {
+                let gap = lay.list.left() as usize - lay.sidebar.right() as usize;
+                if gap > 2 {
+                    let gx = ((lay.sidebar.right() as usize) + 1).min(w - 1);
+                    let mut scrim = 0usize;
+                    for y in ((lay.sidebar.top() as usize)..(lay.sidebar.bottom() as usize)).step_by(4) {
+                        let c = px(gx, y);
+                        if c[0] < 90 && c[1] < 80 && c[2] < 70 { scrim += 1; }
+                    }
+                    assert!(scrim > 6, "{}: world scrim missing between zones", scene);
+                }
+            }
+            let green = [0x6b, 0x8e, 0x23];
+            let warn = [0xc4, 0xa0, 0x2a];
+            let bad = [0xd4, 0x6a, 0x6a];
+            match scene {
+                "crafting_workbench" => {
+                    // craftable checkmarks in the list zone
+                    let n = count_in(lay.list.left() as usize, lay.list.top() as usize,
+                        lay.list.right() as usize, lay.list.bottom() as usize, green, 24);
+                    assert!(n > 4, "workbench: craftable checkmarks missing ({})", n);
+                    // craft action underline in the detail zone
+                    let n = count_in(lay.detail.left() as usize, lay.detail.top() as usize,
+                        lay.detail.right() as usize, lay.detail.bottom() as usize, accent, 40);
+                    assert!(n > 3, "workbench: craft accent missing ({})", n);
+                    // inventory strip: dark slot wells in the bottom band
+                    let n = count_in(lay.strip.left() as usize, lay.strip.top() as usize,
+                        lay.strip.right() as usize, lay.strip.bottom() as usize, [0, 0, 0], 34);
+                    assert!(n > 60, "workbench: inventory strip missing ({})", n);
+                    // search box border lives at the list top
+                    let n = count_in(lay.list.left() as usize, lay.list.top() as usize,
+                        lay.list.right() as usize, (lay.list.top() as usize + 30).min(h),
+                        [0x4a, 0x3f, 0x2e], 26);
+                    assert!(n > 2, "workbench: search field missing ({})", n);
+                }
+                "crafting_workbench_small" => {
+                    // compact: chips row accented (first chip selected)
+                    let n = count_in(lay.sidebar.left() as usize, lay.sidebar.top() as usize,
+                        lay.sidebar.right() as usize, lay.sidebar.bottom() as usize, accent, 40);
+                    assert!(n > 2, "small: category chip accent missing ({})", n);
+                    // drill-down: back link accented inside the single pane
+                    let n = count_in(lay.list.left() as usize, lay.list.top() as usize,
+                        (lay.list.left() as usize + 160).min(w),
+                        (lay.list.top() as usize + 60).min(h), accent, 40);
+                    assert!(n > 2, "small: drill-down back link missing ({})", n);
+                    // one-row strip: the hotbar selection frame (unique
+                    // accent rectangle) sits INSIDE the strip and never
+                    // below it — the structural one-row guarantee
+                    let inside_frame = count_in(lay.strip.left() as usize, lay.strip.top() as usize,
+                        lay.strip.right() as usize, lay.strip.bottom() as usize, accent, 40);
+                    assert!(inside_frame > 3, "small: hotbar selection frame missing ({})", inside_frame);
+                    let below_frame = count_in(0, (lay.strip.bottom() as usize + 1).min(h - 1), w, h,
+                        accent, 40);
+                    assert!(below_frame == 0, "small: accent structure below the one-row strip ({})", below_frame);
+                }
+                "crafting_missing_ingredients" => {
+                    // the exact reason line in the detail zone
+                    let n = count_in(lay.detail.left() as usize, lay.detail.top() as usize,
+                        lay.detail.right() as usize, lay.detail.bottom() as usize, bad, 40);
+                    assert!(n > 2, "missing-ingredients: reason line missing ({})", n);
+                    // owned/needed marks: the bad x-have-0 and the ok +-have
+                    let okn = count_in(lay.detail.left() as usize, lay.detail.top() as usize,
+                        lay.detail.right() as usize, lay.detail.bottom() as usize, green, 30);
+                    assert!(okn > 1, "missing-ingredients: owned/needed marks missing ({})", okn);
+                }
+                "crafting_queue" => {
+                    // working (green-family) + blocked-reason (amber-family)
+                    // rows in the sidebar's queue strip area. Family
+                    // predicates, not exact colors: 10.5px antialiased text
+                    // blends toward the panel, so exact matches undercount.
+                    let (qx0, qy0, qx1, qy1) = (lay.sidebar.left() as usize,
+                        (lay.sidebar.bottom() as usize - 72).max(1),
+                        lay.sidebar.right() as usize, lay.sidebar.bottom() as usize);
+                    let mut g = 0usize;
+                    let mut a = 0usize;
+                    for y in (qy0..qy1).step_by(2) {
+                        for x in (qx0..qx1).step_by(2) {
+                            let c = px(x, y);
+                            let (r, gg, b) = (c[0], c[1], c[2]);
+                            // green family: the working row
+                            if gg > 70 && gg > r + 20 && gg > b + 30 { g += 1; }
+                            // amber family: the blocked-reason row
+                            if r > 110 && r < 225 && gg > 75 && gg < 185 && b < 80
+                                && r > gg && gg > b { a += 1; }
+                        }
+                    }
+                    assert!(g > 1, "queue: working row missing ({})", g);
+                    assert!(a > 3, "queue: blocked reason row missing ({})", a);
+                }
+                _ => {}
+            }
         }
         // Loop 329 resize proofs: the panel bounding box must be symmetric
         // in BOTH axes at every canvas size — the actual "is it centered?"
@@ -4485,7 +4619,8 @@ const UW_PANEL: egui::Color32 = egui::Color32::from_rgba_premultiplied(0x33, 0x2
 fn ui_canvas(scene: &str) -> (u32, u32) {
     match scene {
         "hud_small" => (640, 360),
-        "menus_centered_small" | "hud_small_onboarding" => (640, 420),
+        "menus_centered_small" | "hud_small_onboarding"
+            | "crafting_workbench_small" => (640, 420),
         "menus_centered_wide" | "hud_onboarding" => (1280, 800),
         "menus_centered" => (800, 600),
         _ => (800, 600),
@@ -4802,161 +4937,300 @@ fn draw_inventory_preview(ctx: &egui::Context) {
     });
 }
 
-fn draw_crafting_workbench_preview(ctx: &egui::Context) {
+/// N03: the modal workbench proofs, painted on the REAL layout math
+/// (`lf_client::ui::workbench_layout` + `paint_wb_panel`) so the proof
+/// rectangles are the in-game rectangles. `mode` picks the content
+/// variant: the normal three-pane screen, the compact two-pane drill-down
+/// at 640x420, the missing-ingredients disabled state, and the queue
+/// strip's live states (working / blocked / queued).
+#[derive(Copy, Clone, PartialEq)]
+enum WbProofMode {
+    Normal,
+    Compact,
+    Missing,
+    Queue,
+}
+
+fn draw_workbench_proof(ctx: &egui::Context, mode: WbProofMode) {
     egui::CentralPanel::default().frame(egui::Frame::new()).show(ctx, |ui| {
         let screen = ctx.screen_rect();
         let p = ui.painter_at(screen);
-        // the client screen draws vignette(190) UNDER its 195 wash — mirror
-        // both or a bright daylight backdrop washes the text out
+        // the client screen draws vignette(190) UNDER its 215 scrim —
+        // mirror both or a bright daylight backdrop washes the text out
         lf_client::ui_kit::vignette(ui, 190);
-        // 235 (not the client's 195): linear-space blending reads lighter
-        // than the alpha suggests over a bright daylight backdrop, and the
-        // proof's job is legible layout
         p.rect_filled(screen, 0.0, egui::Color32::from_rgba_unmultiplied(0x1a, 0x14, 0x10, 235));
-        uw_label(&p, egui::Pos2::new(screen.left() + 24.0, screen.top() + 20.0),
+        let lay = lf_client::ui::workbench_layout(screen);
+        let compact = mode == WbProofMode::Compact;
+        let _ = compact;
+        // header
+        uw_label(&p, egui::Pos2::new(lay.header.left() + 8.0, lay.header.center().y),
             egui::Align2::LEFT_CENTER, "CRAFTING TABLE", 24.0, UW_TEXT);
-        uw_label(&p, egui::Pos2::new(screen.right() - 24.0, screen.top() + 44.0),
-            egui::Align2::RIGHT_CENTER, "press E or Esc to close", 11.0, UW_MUTED);
-        // loop 329: +1 armor row (head/chest/legs/feet + worn readout + label band)
-        let strip_h = 66.0 + 4.0 * 52.0 + 20.0;
-        let zone_h = screen.height() - strip_h - 48.0;
-        let side_w = (screen.width() * 0.15).clamp(130.0, 190.0);
-        let list_w = (screen.width() * 0.34).clamp(240.0, 420.0);
-        let left = screen.left() + 24.0;
-        let top = screen.top() + 48.0;
-        // zone 1: categories with counts + accent left border on selection
-        let cats = [("Materials", "3/12", true), ("Tools", "1/9", false), ("Building", "2/14", false),
-                    ("Food", "0/6", false), ("Machines", "0/4", false), ("Magic", "0/3", false),
-                    ("Armor", "0/4", false), ("Deco", "1/5", false)];
-        for (i, (label, count, sel)) in cats.iter().enumerate() {
-            let y = top + i as f32 * 30.0;
-            if *sel {
-                p.rect_filled(egui::Rect::from_min_size(
-                    egui::Pos2::new(left, y), egui::vec2(3.0, 26.0)), 0.0, UW_ACCENT);
-            }
-            let col = if *sel { UW_TEXT }
-                else { egui::Color32::from_rgb(0xb5, 0xa8, 0x93) }; // legible unselected (loop 329 contrast fix)
-            // category icon swatch
-            p.rect_filled(egui::Rect::from_center_size(
-                egui::Pos2::new(left + 13.0, y + 13.0), egui::vec2(16.0, 16.0)),
-                0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
-            uw_label(&p, egui::Pos2::new(left + 28.0, y + 13.0), egui::Align2::LEFT_CENTER, label, 14.0, col);
-            uw_label(&p, egui::Pos2::new(left + side_w - 8.0, y + 13.0), egui::Align2::RIGHT_CENTER, count, 11.0,
-                if *sel { egui::Color32::from_rgb(0x6b, 0x8e, 0x23) } else { UW_MUTED });
-        }
-        // zone 2: recipe rows (2-line rows, varying summary length)
-        let list_x = left + side_w + 8.0;
-        let rows = [
-            ("Planks", "4x Log", true, true),
-            ("Stick", "2x Planks", true, true),
-            ("Torch", "1x Coal, 1x Stick", true, true),
-            ("Crafting Table", "4x Planks", false, true),
-            ("Furnace", "8x Stone", false, false),
-        ];
-        for (i, (name, summary, can, have)) in rows.iter().enumerate() {
-            let y = top + i as f32 * 48.0;
-            let r = egui::Rect::from_min_size(egui::Pos2::new(list_x, y), egui::vec2(list_w - 8.0, 44.0));
-            if i == 0 {
-                p.rect_filled(r, 0.0, egui::Color32::from_rgba_premultiplied(0x3d, 0x30, 0x1e, 235));
-                p.rect_stroke(r, 0.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
-            }
-            p.rect_filled(egui::Rect::from_center_size(
-                egui::Pos2::new(r.left() + 18.0, r.center().y), egui::vec2(24.0, 24.0)),
-                0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
-            uw_label(&p, egui::Pos2::new(r.left() + 40.0, r.top() + 8.0), egui::Align2::LEFT_CENTER, name, 14.0,
-                if *have { UW_TEXT } else { UW_MUTED });
-            uw_label(&p, egui::Pos2::new(r.left() + 40.0, r.bottom() - 9.0), egui::Align2::LEFT_CENTER, summary, 11.0, UW_MUTED);
-            if *can {
-                // drawn check (shipped font has no check glyph)
-                let c = egui::Pos2::new(r.right() - 14.0, r.center().y);
-                p.line_segment([c + egui::vec2(-5.0, 0.0), c + egui::vec2(-1.25, 3.5)],
-                    egui::Stroke::new(1.8, egui::Color32::from_rgb(0x6b, 0x8e, 0x23)));
-                p.line_segment([c + egui::vec2(-1.25, 3.5), c + egui::vec2(5.0, -4.0)],
-                    egui::Stroke::new(1.8, egui::Color32::from_rgb(0x6b, 0x8e, 0x23)));
-            } else {
-                uw_label(&p, egui::Pos2::new(r.right() - 12.0, r.center().y), egui::Align2::RIGHT_CENTER,
-                    ".", 16.0, UW_MUTED);
-            }
-        }
-        // (a locked recipe would appear here; the sidebar's 0/N counts carry
-        // that story — the old note collided with the armor band below)
-        // zone 3: detail panel
-        let det_x = list_x + list_w + 8.0;
-        let det_w = screen.right() - det_x - 24.0;
-        let mut y = top + 6.0;
-        p.rect_filled(egui::Rect::from_min_size(egui::Pos2::new(det_x, y), egui::vec2(52.0, 52.0)),
-            0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
-        uw_label(&p, egui::Pos2::new(det_x + 64.0, y + 16.0), egui::Align2::LEFT_CENTER, "Planks", 20.0, UW_TEXT);
-        uw_label(&p, egui::Pos2::new(det_x + 64.0, y + 38.0), egui::Align2::LEFT_CENTER, "Materials · Crafting Table", 12.0, UW_MUTED);
-        y += 64.0;
-        p.line_segment([egui::Pos2::new(det_x, y), egui::Pos2::new(det_x + det_w, y)], egui::Stroke::new(1.0, UW_BORDER));
-        y += 14.0;
-        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER,
-            "Sawn from the log, square and honest.", 12.0, UW_MUTED);
-        y += 22.0;
-        p.line_segment([egui::Pos2::new(det_x, y), egui::Pos2::new(det_x + det_w, y)], egui::Stroke::new(1.0, UW_BORDER));
-        y += 16.0;
-        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER, "INGREDIENTS", 11.0, UW_MUTED);
-        y += 22.0;
-        for (name, need, have, col) in [("Log", "1x", "Have 14", "ok"), ("nothing else", "", "", "none")] {
-            let _ = name;
-            let _ = need;
-            let _ = have;
-            let _ = col;
-        }
-        uw_label(&p, egui::Pos2::new(det_x + 24.0, y), egui::Align2::LEFT_CENTER, "1x Log", 13.0, UW_TEXT);
-        uw_label(&p, egui::Pos2::new(det_x + det_w, y), egui::Align2::RIGHT_CENTER, "+ have 14",
-            12.0, egui::Color32::from_rgb(0x6b, 0x8e, 0x23));
-        y += 24.0;
-        uw_label(&p, egui::Pos2::new(det_x + 4.0, y), egui::Align2::LEFT_CENTER, "makes 4x Planks", 14.0, UW_TEXT);
-        y += 24.0;
-        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER, "QUANTITY", 11.0, UW_MUTED);
-        y += 24.0;
-        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER, "[ − ]      [ + ]      x8", 15.0, UW_TEXT);
-        uw_label(&p, egui::Pos2::new(det_x + 38.0, y), egui::Align2::CENTER_CENTER, "1", 15.0, UW_TEXT);
-        y += 30.0;
-        uw_label(&p, egui::Pos2::new(det_x, y), egui::Align2::LEFT_CENTER, "Craft 1", 16.0,
-            egui::Color32::from_rgb(0xff, 0xf8, 0xee));
-        p.line_segment([egui::Pos2::new(det_x, y + 12.0), egui::Pos2::new(det_x + 58.0, y + 12.0)],
-            egui::Stroke::new(2.0, UW_ACCENT));
-        uw_label(&p, egui::Pos2::new(det_x + 80.0, y), egui::Align2::LEFT_CENTER, "Add to Queue", 14.0, UW_MUTED);
-        // inventory strip (armor row + hotbar + storage, non-scrollable)
-        let strip_y = screen.bottom() - strip_h;
-        p.line_segment([egui::Pos2::new(screen.left() + 16.0, strip_y - 10.0),
-                        egui::Pos2::new(screen.right() - 16.0, strip_y - 10.0)], egui::Stroke::new(1.0, UW_BORDER));
-        // armor row: 4 labeled slots + the worn total; labels sit in their
-        // own 14px band so they never collide with the storage rows below
-        for (i, label) in ["head", "chest", "legs", "feet"].iter().enumerate() {
-            let slot = egui::Rect::from_min_size(
-                egui::Pos2::new(screen.left() + 24.0 + i as f32 * 50.0, strip_y),
-                egui::vec2(44.0, 44.0));
-            p.rect_filled(slot, 5.0, egui::Color32::from_black_alpha(170));
-            p.rect_stroke(slot, 5.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Middle);
-            uw_label(&p, egui::Pos2::new(slot.center().x, slot.bottom() + 9.0),
-                egui::Align2::CENTER_CENTER, label, 10.0,
-                egui::Color32::from_rgb(0xb5, 0xa8, 0x93));
-        }
-        uw_label(&p, egui::Pos2::new(screen.left() + 24.0 + 4.0 * 50.0 + 8.0, strip_y + 22.0),
-            egui::Align2::LEFT_CENTER, "armor 0", 13.0, UW_MUTED);
-        for row in 0..4 {
-            for col in 0..9 {
-                let idx = if row == 0 { col } else { 9 + (row - 1) * 9 + col };
-                let slot = egui::Rect::from_min_size(
-                    egui::Pos2::new(screen.left() + 24.0 + col as f32 * 50.0,
-                                    strip_y + 66.0 + row as f32 * 52.0),
-                    egui::vec2(44.0, 44.0));
-                p.rect_filled(slot, 5.0, egui::Color32::from_black_alpha(170));
-                p.rect_stroke(slot, 5.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Middle);
-                if idx < 5 {
-                    p.rect_filled(slot.shrink(8.0), 2.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+        uw_label(&p, egui::Pos2::new(lay.header.right(), lay.header.center().y),
+            egui::Align2::RIGHT_CENTER, "E or Esc closes", 11.0, UW_MUTED);
+        // panels: strongly opaque modal surfaces over the scrim
+        let side_in = lf_client::ui::paint_wb_panel(&p, lay.sidebar);
+        let list_in = lf_client::ui::paint_wb_panel(&p, lay.list);
+        let detail_in = if lay.compact && mode != WbProofMode::Compact {
+            // at a compact canvas without drill-down detail, the pane shows
+            // the list; the Compact mode paints the drill-down detail in it
+            None
+        } else if lay.compact {
+            Some(list_in)
+        } else {
+            Some(lf_client::ui::paint_wb_panel(&p, lay.detail))
+        };
+
+        // ---- sidebar (categories + queue strip) ----
+        let queue_ok = egui::Color32::from_rgb(0x6b, 0x8e, 0x23);
+        let queue_warn = egui::Color32::from_rgb(0xc4, 0xa0, 0x2a);
+        if lay.compact {
+            // chip row of categories, selected one accented
+            let mut x = side_in.left();
+            for (i, (label, _count)) in [
+                ("Materials", "3/12"), ("Tools", "1/9"), ("Building", "2/14"),
+                ("Food", "0/6"), ("Machines", "0/4"), ("Magic", "0/3"),
+            ].iter().enumerate() {
+                let w = 14.0 + label.len() as f32 * 6.6;
+                let r = egui::Rect::from_min_size(
+                    egui::pos2(x, side_in.top() + 4.0), egui::vec2(w, 20.0));
+                if i == 0 {
+                    p.rect_filled(r, 4.0, egui::Color32::from_rgba_premultiplied(0x3d, 0x30, 0x1e, 235));
+                    p.rect_filled(egui::Rect::from_min_size(r.left_top(), egui::vec2(2.0, r.height())),
+                        4.0, UW_ACCENT);
                 }
-                if idx == 0 {
-                    // the selected recipe's ingredient glows accent
-                    p.rect_stroke(slot, 5.0, egui::Stroke::new(1.5, UW_ACCENT), egui::StrokeKind::Middle);
+                uw_label(&p, r.center(), egui::Align2::CENTER_CENTER, label, 11.0,
+                    if i == 0 { UW_TEXT } else { UW_MUTED });
+                let _ = _count;
+                x = r.right() + 6.0;
+            }
+        } else {
+            let cats = [("Materials", "3/12", true), ("Tools", "1/9", false),
+                        ("Building", "2/14", false), ("Food", "0/6", false),
+                        ("Machines", "0/4", false), ("Magic", "0/3", false)];
+            for (i, (label, count, sel)) in cats.iter().enumerate() {
+                let y = side_in.top() + 6.0 + i as f32 * 30.0;
+                if *sel {
+                    p.rect_filled(egui::Rect::from_min_size(
+                        egui::Pos2::new(side_in.left(), y), egui::vec2(3.0, 26.0)), 0.0, UW_ACCENT);
+                }
+                let col = if *sel { UW_TEXT } else { egui::Color32::from_rgb(0xb5, 0xa8, 0x93) };
+                p.rect_filled(egui::Rect::from_center_size(
+                    egui::Pos2::new(side_in.left() + 13.0, y + 13.0), egui::vec2(16.0, 16.0)),
+                    0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+                uw_label(&p, egui::Pos2::new(side_in.left() + 28.0, y + 13.0),
+                    egui::Align2::LEFT_CENTER, label, 14.0, col);
+                uw_label(&p, egui::Pos2::new(side_in.right(), y + 13.0),
+                    egui::Align2::RIGHT_CENTER, count, 11.0,
+                    if *sel { queue_ok } else { UW_MUTED });
+            }
+            // the queue strip (N02 states): working head, blocked reason,
+            // queued tail, free cancel
+            let qy = side_in.bottom() - 58.0;
+            uw_label(&p, egui::Pos2::new(side_in.left(), qy), egui::Align2::LEFT_CENTER,
+                "QUEUE", 10.0, UW_MUTED);
+            let queue_rows: [(&str, bool, bool); 3] = [
+                ("4 × Torch — working", true, false),
+                ("8 × Planks — missing log (need 8, have 3)", false, true),
+                ("1 × Chest — queued", false, false),
+            ];
+            for (i, (line, running, blocked)) in queue_rows.iter().enumerate() {
+                let y = qy + 16.0 + i as f32 * 15.0;
+                let col = if *running { queue_ok } else if *blocked { queue_warn } else { UW_MUTED };
+                uw_label(&p, egui::Pos2::new(side_in.left(), y), egui::Align2::LEFT_CENTER,
+                    line, 10.5, col);
+                uw_label(&p, egui::Pos2::new(side_in.right(), y), egui::Align2::RIGHT_CENTER,
+                    "×", 11.0, UW_MUTED);
+            }
+        }
+
+        // ---- list pane: search + filter chips + rows ----
+        let show_list = !(lay.compact && mode == WbProofMode::Compact);
+        if show_list {
+            let mut y = list_in.top();
+            // search field
+            let sbox = egui::Rect::from_min_size(
+                list_in.left_top() + egui::vec2(0.0, 4.0),
+                egui::vec2(list_in.width() - 8.0, 20.0));
+            p.rect_filled(sbox, 4.0, egui::Color32::from_black_alpha(200));
+            p.rect_stroke(sbox, 4.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
+            uw_label(&p, sbox.left_center() + egui::vec2(8.0, 0.0), egui::Align2::LEFT_CENTER,
+                "search recipes…", 11.0, UW_MUTED);
+            y = sbox.bottom() + 8.0;
+            // filter + station chips
+            let mut x = list_in.left();
+            for (i, label) in ["All", "Can make", "New", "★ Fav"].iter().enumerate() {
+                let w = 10.0 + label.len() as f32 * 6.0;
+                let col = if i == 1 { UW_ACCENT } else { UW_MUTED };
+                uw_label(&p, egui::pos2(x, y + 6.0), egui::Align2::LEFT_CENTER, label, 10.5, col);
+                x += w + 8.0;
+            }
+            y += 16.0;
+            let mut x = list_in.left();
+            for (i, label) in ["Any station", "Craft", "Smelt", "Alloy", "Crush"].iter().enumerate() {
+                let w = 10.0 + label.len() as f32 * 6.0;
+                let col = if i == 0 { UW_ACCENT } else { UW_MUTED };
+                uw_label(&p, egui::pos2(x, y + 6.0), egui::Align2::LEFT_CENTER, label, 10.5, col);
+                x += w + 8.0;
+            }
+            y += 20.0;
+            // recipe rows
+            let rows: [(&str, &str, bool, bool); 5] = [
+                ("Planks", "4x Log", true, true),
+                ("Stick", "2x Planks", true, true),
+                ("Torch", "1x Coal, 1x Stick", true, true),
+                ("Crafting Table", "4x Planks", false, true),
+                ("Furnace", "8x Stone", false, false),
+            ];
+            for (i, (name, summary, can, have)) in rows.iter().enumerate() {
+                let r = egui::Rect::from_min_size(
+                    egui::Pos2::new(list_in.left(), y + i as f32 * 46.0),
+                    egui::vec2(list_in.width() - 8.0, 44.0));
+                if r.bottom() > list_in.bottom() { break; }
+                if i == 0 {
+                    p.rect_filled(r, 0.0, egui::Color32::from_rgba_premultiplied(0x3d, 0x30, 0x1e, 235));
+                    p.rect_stroke(r, 0.0, egui::Stroke::new(1.0, UW_BORDER), egui::StrokeKind::Middle);
+                }
+                p.rect_filled(egui::Rect::from_center_size(
+                    egui::Pos2::new(r.left() + 18.0, r.center().y), egui::vec2(24.0, 24.0)),
+                    0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+                uw_label(&p, egui::Pos2::new(r.left() + 40.0, r.top() + 8.0),
+                    egui::Align2::LEFT_CENTER, name, 14.0, if *have { UW_TEXT } else { UW_MUTED });
+                uw_label(&p, egui::Pos2::new(r.left() + 40.0, r.bottom() - 9.0),
+                    egui::Align2::LEFT_CENTER, summary, 11.0, UW_MUTED);
+                if *can {
+                    let c = egui::Pos2::new(r.right() - 14.0, r.center().y);
+                    p.line_segment([c + egui::vec2(-5.0, 0.0), c + egui::vec2(-1.25, 3.5)],
+                        egui::Stroke::new(1.8, queue_ok));
+                    p.line_segment([c + egui::vec2(-1.25, 3.5), c + egui::vec2(5.0, -4.0)],
+                        egui::Stroke::new(1.8, queue_ok));
+                } else {
+                    uw_label(&p, egui::Pos2::new(r.right() - 12.0, r.center().y),
+                        egui::Align2::RIGHT_CENTER, ".", 16.0, UW_MUTED);
+                }
+            }
+        }
+
+        // ---- detail pane ----
+        if let Some(det) = detail_in {
+            let mut y = det.top();
+            if lay.compact {
+                uw_label(&p, egui::Pos2::new(det.left(), y + 8.0), egui::Align2::LEFT_CENTER,
+                    "← back to recipes", 12.0, UW_ACCENT);
+                y += 24.0;
+            }
+            let missing = mode == WbProofMode::Missing;
+            let title = if missing { "Torch" } else { "Planks" };
+            p.rect_filled(egui::Rect::from_min_size(
+                egui::Pos2::new(det.left(), y), egui::vec2(52.0, 52.0)),
+                0.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+            uw_label(&p, egui::Pos2::new(det.left() + 64.0, y + 16.0),
+                egui::Align2::LEFT_CENTER, title, 20.0, UW_TEXT);
+            uw_label(&p, egui::Pos2::new(det.left() + 64.0, y + 38.0),
+                egui::Align2::LEFT_CENTER, "Materials · Crafting Table", 12.0, UW_MUTED);
+            // favorites star
+            uw_label(&p, egui::Pos2::new(det.right(), y + 14.0), egui::Align2::RIGHT_CENTER,
+                "★", 18.0, queue_warn);
+            y += 64.0;
+            p.line_segment([egui::Pos2::new(det.left(), y), egui::Pos2::new(det.right(), y)],
+                egui::Stroke::new(1.0, UW_BORDER));
+            y += 16.0;
+            uw_label(&p, egui::Pos2::new(det.left(), y), egui::Align2::LEFT_CENTER,
+                if missing { "Pitch and cloth. The oldest argument against the dark." }
+                else { "Sawn from the log, square and honest." }, 12.0, UW_MUTED);
+            y += 22.0;
+            p.line_segment([egui::Pos2::new(det.left(), y), egui::Pos2::new(det.right(), y)],
+                egui::Stroke::new(1.0, UW_BORDER));
+            y += 18.0;
+            uw_label(&p, egui::Pos2::new(det.left(), y), egui::Align2::LEFT_CENTER,
+                "INGREDIENTS", 11.0, UW_MUTED);
+            y += 22.0;
+            let bad_col = egui::Color32::from_rgb(0xd4, 0x6a, 0x6a);
+            let ing_rows: [(&str, &str, &str, bool, bool, bool); 2] = if missing {
+                [
+                    ("1x Coal", "x have 0", "", true, false, true),
+                    ("1x Stick", "+ have 12", "", false, true, false),
+                ]
+            } else {
+                [
+                    ("1x Log", "+ have 14", "", false, true, false),
+                    ("", "", "", false, false, false),
+                ]
+            };
+            for (name, mark, _pad, is_bad, is_ok, is_missing_row) in ing_rows.iter() {
+                if name.is_empty() { continue; }
+                uw_label(&p, egui::Pos2::new(det.left() + 24.0, y), egui::Align2::LEFT_CENTER,
+                    name, 13.0, UW_TEXT);
+                let col = if *is_bad { bad_col } else if *is_ok { queue_ok } else { UW_MUTED };
+                uw_label(&p, egui::Pos2::new(det.right(), y), egui::Align2::RIGHT_CENTER,
+                    mark, 12.0, col);
+                let _ = is_missing_row;
+                y += 24.0;
+            }
+            y += 6.0;
+            uw_label(&p, egui::Pos2::new(det.left() + 4.0, y), egui::Align2::LEFT_CENTER,
+                if missing { "makes 4x Torch" } else { "makes 4x Planks" }, 14.0, UW_TEXT);
+            y += 30.0;
+            if missing {
+                // the disabled action + its exact reason
+                uw_label(&p, egui::Pos2::new(det.left() + 8.0, y), egui::Align2::LEFT_CENTER,
+                    "Missing materials", 15.0, UW_MUTED);
+                y += 20.0;
+                uw_label(&p, egui::Pos2::new(det.left() + 8.0, y), egui::Align2::LEFT_CENTER,
+                    "need: Coal", 11.0, bad_col);
+            } else {
+                uw_label(&p, egui::Pos2::new(det.left(), y), egui::Align2::LEFT_CENTER,
+                    "QUANTITY", 11.0, UW_MUTED);
+                y += 24.0;
+                uw_label(&p, egui::Pos2::new(det.left(), y), egui::Align2::LEFT_CENTER,
+                    "[ − ]      [ + ]      x8", 15.0, UW_TEXT);
+                uw_label(&p, egui::Pos2::new(det.left() + 38.0, y), egui::Align2::CENTER_CENTER,
+                    "1", 15.0, UW_TEXT);
+                y += 32.0;
+                // primary action: accent underline — the one Enter fires
+                uw_label(&p, egui::Pos2::new(det.left(), y), egui::Align2::LEFT_CENTER,
+                    "Craft 1", 16.0, egui::Color32::from_rgb(0xff, 0xf8, 0xee));
+                p.line_segment([egui::Pos2::new(det.left(), y + 12.0),
+                    egui::Pos2::new(det.left() + 58.0, y + 12.0)],
+                    egui::Stroke::new(2.0, UW_ACCENT));
+                uw_label(&p, egui::Pos2::new(det.left() + 80.0, y), egui::Align2::LEFT_CENTER,
+                    "Craft All (14)", 14.0, UW_TEXT);
+                p.line_segment([egui::Pos2::new(det.left() + 80.0, y + 11.0),
+                    egui::Pos2::new(det.left() + 80.0 + 82.0, y + 11.0)],
+                    egui::Stroke::new(1.0, UW_ACCENT));
+                y += 24.0;
+                uw_label(&p, egui::Pos2::new(det.left(), y), egui::Align2::LEFT_CENTER,
+                    "Add to Queue", 14.0, UW_MUTED);
+            }
+        }
+
+        // ---- inventory strip: 4 rows normal, 1-row hotbar compact ----
+        let rows_n = if lay.compact { 1 } else { 4 };
+        let slot = 44.0;
+        for row in 0..rows_n {
+            let y = lay.strip.top() + row as f32 * (slot + 8.0);
+            for col in 0..9 {
+                let r = egui::Rect::from_min_size(
+                    egui::Pos2::new(lay.strip.left() + col as f32 * (slot + 4.0), y),
+                    egui::vec2(slot, slot));
+                if r.right() > lay.strip.right() { break; }
+                p.rect_filled(r, 5.0, egui::Color32::from_black_alpha(170));
+                p.rect_stroke(r, 5.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)),
+                    egui::StrokeKind::Middle);
+                if row == 0 && col < 3 {
+                    p.rect_filled(egui::Rect::from_center_size(r.center(), egui::vec2(22.0, 22.0)),
+                        3.0, egui::Color32::from_rgb(0x5a, 0x46, 0x2c));
+                }
+                if row == 0 && col == 0 {
+                    // hotbar selection frame
+                    p.rect_stroke(r, 5.0, egui::Stroke::new(2.0, UW_ACCENT), egui::StrokeKind::Middle);
                 }
             }
         }
     });
+}
+
+fn draw_crafting_workbench_preview(ctx: &egui::Context) {
+    draw_workbench_proof(ctx, WbProofMode::Normal);
 }
 
 /// Settings proof overlay mirroring the tabbed client screen.

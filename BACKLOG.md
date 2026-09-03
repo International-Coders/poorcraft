@@ -1288,3 +1288,33 @@ Deferred (honest notes):
 - [ ] Deferred to N03: modal workbench layouts, world scrim, queue strip
       polish/proofs, E/Escape input-recovery integration tests, the
       crafting_missing_ingredients / crafting_queue visual scenes.
+
+## Loop 352 — modal workbench + input recovery (nightly-beta N03)
+
+- [x] Modal hierarchy: the workbench draws strongly-opaque framed panels
+      (paint_wb_panel) over a 215-alpha world scrim; hud_visible now hides
+      the survival HUD (hearts/hotbar/XP/minimap) behind every container/
+      station screen (HandCraft/CraftingTable/Furnace/Chest/Machine/
+      Smithing/Imbue/Carve) — no duplicate HUD beneath the modal.
+- [x] Discovery: search field + filter chips (All / Can make / New / ★Fav)
+      + station chips (Any/Craft/Smelt/Alloy/Crush); favorites persist in
+      RecipeBook; partial-ingredient rows now show the ~ amber mark.
+- [x] Compact 640x420 drill-down: categories collapse to a chip row, the
+      single pane shows list OR detail (← back), the strip is one hotbar
+      row — layout from the shared pure workbench_layout() (unit-tested
+      at 640/800/1280 widths, zones never overlap or clip).
+- [x] Primary action ownership: Enter fires Craft-qty when the search box
+      does not own the keyboard; the deferred action runs exactly once
+      per frame outside the layout closures.
+- [x] Input recovery: the rebindable inventory key (E) now closes every
+      container/station screen (inventory_key_closes, pure + tested);
+      Escape already closed everything — the E/Escape recovery contract
+      is covered by test across every UiOpen variant.
+- [x] Proofs: crafting_workbench rebuilt on the REAL layout math +
+      crafting_workbench_small + crafting_missing_ingredients +
+      crafting_queue (99 scenes total; all four Z.ai-reviewed PASS).
+      435 tests.
+- [ ] Deferred to a later polish pass: era filter chip (era gates already
+      render on locked rows), substitutions column, time/power
+      requirement rows (machines show power elsewhere), pause control on
+      queue jobs, and the inventory screen's own duplicate-hotbar cleanup.

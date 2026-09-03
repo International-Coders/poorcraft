@@ -888,7 +888,11 @@ impl ApplicationHandler for App {
                                         }
                                         k if k == inv_key => {
                                             if state.stats.health > 0.0 {
-                                                if state.ui_open == UiOpen::Inventory {
+                                                // N03: the pack key is also the way OUT of
+                                                // every container/station screen — one key,
+                                                // one way back to play (Escape still closes
+                                                // everything). Pure contract tested in ui.rs.
+                                                if crate::ui::inventory_key_closes(&state.ui_open) {
                                                     state.close_ui();
                                                 } else if state.ui_open == UiOpen::None {
                                                     state.ui_open = UiOpen::Inventory;
@@ -1222,6 +1226,11 @@ struct GameState {
     pub wb_selected: Option<String>,
     /// Craft batch size in the detail panel.
     pub wb_qty: u32,
+    /// N03: workbench discovery state — text search, filter chip, station
+    /// chip (session UI state, not persisted).
+    pub wb_search: String,
+    pub wb_filter: u8,
+    pub wb_station: u8,
     /// "Add to Queue" placeholder queue (output, batch size).
     pub craft_queue: Vec<(String, u32)>,
     /// Quest log tab: 0 = active quests, 1 = chronicle.
@@ -1661,6 +1670,9 @@ impl GameState {
             wb_category: 0,
             wb_selected: None,
             wb_qty: 1,
+            wb_search: String::new(),
+            wb_filter: 0,
+            wb_station: 0,
             craft_queue: Vec::new(),
             quest_tab: 0,
             last_fps: 0.0,
