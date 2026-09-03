@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 mod gen;
 mod night_plan;
+mod truth;
 
 fn copy_dir(src: &str, dst: std::path::PathBuf) {
     let root = PathBuf::from(src);
@@ -92,6 +93,42 @@ fn main() {
                 for f in &report.failures {
                     println!("  FAIL: {f}");
                 }
+                std::process::exit(1);
+            }
+        }
+        "truth" => {
+            // B01: runtime truth dashboard — machine-readable ownership,
+            // versions, and counts at target/truth_report.json. Optional live
+            // perf via --bench <scene> [frames].
+            let mut perf = None;
+            let mut rest = args.iter().skip(2);
+            while let Some(flag) = rest.next().cloned() {
+                if flag == "--bench" {
+                    let scene = rest.next().cloned().unwrap_or_default();
+                    let frames: usize = rest
+                        .next()
+                        .and_then(|n| n.parse().ok())
+                        .unwrap_or(120);
+                    match lf_vistest::bench(&scene, frames) {
+                        Ok(b) => {
+                            perf = Some(truth::PerfLine {
+                                scene,
+                                frames,
+                                p50_ms: b.p50_ms as f64,
+                                p95_ms: b.p95_ms as f64,
+                                min_ms: b.min_ms as f64,
+                            });
+                        }
+                        Err(e) => eprintln!("[warn] bench {scene}: {e}"),
+                    }
+                }
+            }
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .to_path_buf();
+            if let Err(e) = truth::run(&root, perf) {
+                eprintln!("[FAIL] truth: {e}");
                 std::process::exit(1);
             }
         }

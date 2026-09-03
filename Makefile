@@ -72,6 +72,9 @@ night-plan-check: ## Validate the ZCode nightly alpha-to-beta goal pack
 seedlab: ## 64-seed diversity report -> target/seedlab_report.json (N05)
 	cargo run --release -p xtask -- seedlab
 
+truth: ## Runtime truth dashboard -> target/truth_report.json (B01); bench: make truth BENCH=terrain_vista
+	cargo run --release -p xtask -- truth $(if $(BENCH),--bench $(BENCH) 120,)
+
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:
 	cargo run -p xtask -- new-mod $(id) $(if $(name),--name "$(name)",)

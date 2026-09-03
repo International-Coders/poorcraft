@@ -4121,8 +4121,10 @@ version = "0.1.0"
 dependencies = [
  "image",
  "lf_assets",
+ "lf_protocol",
  "lf_vistest",
  "lf_worldgen",
+ "serde",
  "serde_json",
 ]
 

@@ -1,5 +1,10 @@
 # LOREFORGE master fix plan — "fix all the rest" (approved 2026-08-28)
 
+> Current direction: [`docs/BETA-FOUNDATION/README.md`](BETA-FOUNDATION/README.md)
+> is the authoritative product-and-engine brief for the alpha-to-beta effort.
+> This older checklist remains valuable implementation history, but it must not
+> override the newer water, castle-spacing, NPC, asset, or multiplayer contracts.
+
 Built from a full read of STATE/BACKLOG/AUDIT/STATUS/DECISIONS/DEVLOG and
 docs/V1REBRAND, plus code research (loops 329–330). Every item ships with
 tests + vistest screenshot proofs, one shippable job per dev-loop pass,

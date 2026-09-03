@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-09-03 — runtime truth dashboard (loop 357, B01)
+
+- **Stage A of the beta-foundation roadmap opens with honesty
+  infrastructure.** New `xtask/src/truth.rs` publishes a machine-readable
+  dashboard of what the engine actually is: 21 systems across four
+  ownership classes (ServerAuthoritative / RelayOnly / ClientLocal /
+  DeterministicGenerator), schema versions (protocol v4, generator v7),
+  scene and test counts, optional live perf, and seedlab fold-through —
+  written to `target/truth_report.json` by `xtask truth` / `make truth`.
+- **The dashboard cannot lie about authority.** Every
+  `ServerAuthoritative` row must cite the server crate AND carry marker
+  strings checked against the live `lf_server` source at compile time
+  (`include_str!`) — claims without implementations fail, and losing an
+  implementation (e.g. someone rips out SetBlock handling) fails too.
+  The 13 systems the loop-356 audit names client-simulated are pinned
+  `ClientLocal`: relabeling one requires deleting a line from
+  `KNOWN_CLIENT_ONLY` — a reviewable contract change, never silent.
+  Evidence paths and audit-list coverage are validated at runtime in
+  `build_report` as well.
+- Truthful baseline recorded: server authority is exactly
+  `session_and_peers` + `block_edits`; everything else is relay
+  (presence/chat/trade/UDP) or client-local until B03 starts the
+  migration. Also committed the `docs/BETA-FOUNDATION/` goal pack and
+  the MASTER-PLAN deprecation pointer.
+- 459 tests (+6 truth-contract tests), smoke OK. Tooling-only job —
+  dist binaries unchanged, runtimes not rebuilt.
+
 ## 2026-09-03 — the biome identity contract (loop 356, N07)
 
 - **Forty-six biomes, and now a law: none may look like another.** Every

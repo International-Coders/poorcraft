@@ -2444,3 +2444,49 @@ input — engine work), gameplay resource rows per biome (mining tables
 are global), and the Z.ai unlabeled-crop classification battery (needs
 per-biome viewpoint rendering — folded into the later castle/asset
 proof rounds where the machinery lands anyway).
+
+## 2026-09-03 — loop 357: runtime truth dashboard (beta-foundation B01)
+
+WHAT: Opened Stage A of docs/BETA-FOUNDATION/08-BETA-DELIVERY-ROADMAP.md.
+B01 asks for a machine-readable truth baseline — active systems, schema
+versions, simulation ownership, scene/test counts, performance — plus the
+one thing a dashboard usually lacks: a test that stops it from falsely
+labeling client-only systems authoritative. No gameplay features added.
+
+HOW: New `xtask/src/truth.rs` (the night_plan.rs idiom: pure module +
+`xtask truth` subcommand). SYSTEMS tracks 21 rows in four ownership
+classes (ServerAuthoritative / RelayOnly / ClientLocal /
+DeterministicGenerator), each row citing workspace-relative evidence
+paths and — only for server-authority claims — marker strings that MUST
+appear in the live `lf_server` source, included at compile time via
+`include_str!`. `KNOWN_CLIENT_ONLY` pins the 13 audited client-simulated
+systems (survival, inventory/crafting, fluids, machines/power, mobs/
+combat, npc_life, settlement_residents, companions, quests, reputation,
+research, saves, Steam transport) as ClientLocal; relabeling requires
+both a real server implementation and an explicit edit to the audit
+list. `build_report` re-validates evidence paths and audit-list coverage
+at runtime (also silences the dead-code warning by using the list).
+`xtask truth [--bench scene frames]` writes target/truth_report.json
+(versions protocol v4 / generator v7, counts 107 scenes / 461 #[test]
+attrs in 84 files, ownership summary 2 ServerAuthoritative + 4 RelayOnly
++ 13 ClientLocal + 2 DeterministicGenerator, optional live perf, seedlab
+fold-through if target/seedlab_report.json exists). Makefile: `truth`
+target (optional BENCH=scene). Also committed the docs/BETA-FOUNDATION/
+goal pack (01-10 + README) and the MASTER-PLAN deprecation pointer that
+were staged by the goal-setting session. Files: xtask/src/truth.rs (new),
+xtask/src/main.rs, xtask/Cargo.toml, Makefile, STATE/CHANGELOG/DEVLOG.
+
+VERIFICATION: cargo build --workspace clean (only pre-existing lf_voxel
+doc-comment replays); cargo test --workspace 459 passed / 0 failed —
+three consecutive green runs; the very first run showed one failure that
+never reproduced twice and whose name was lost to a truncated log pipe,
+noted here for honesty; `cargo run --release -p xtask -- truth` produced
+target/truth_report.json with facts matching the crates; make smoke OK
+(headless logic + GUI liveness). Tooling-only job: no game code changed,
+dist binaries unchanged, make runtimes intentionally skipped.
+
+HONESTLY DEFERRED: live perf numbers are opt-in (--bench) rather than a
+standing benchmark run (perf budgets are B28's job); test counts are
+#[test]-attribute scans, not cargo result parses (documented
+approximation); the dashboard reports the transport as one UDP row —
+per-channel reliability truth arrives with B24.
