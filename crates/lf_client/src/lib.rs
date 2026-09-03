@@ -1356,6 +1356,10 @@ struct GameState {
     pub world_type: lf_worldgen::WorldType,
     pub air: u8,
     spawn_point: Vec3,
+    /// B03: the local authoritative host. Player/system edits queue here and
+    /// apply in canonical order — the client never mutates the world
+    /// directly for migrated systems.
+    host: lf_game::host::SimHost,
     pub egui: EguiPlatform,
     last_instant: Instant,
     next_autosave: Instant,
@@ -1714,6 +1718,7 @@ impl GameState {
             hearth_lights: std::collections::HashMap::new(),
             last_cloud_rebuild: Instant::now() - Duration::from_secs(5),
             air: 10,
+            host: lf_game::host::SimHost::new(),
             spawn_point,
             last_instant: Instant::now(),
             next_autosave: Instant::now() + AUTOSAVE_INTERVAL,
@@ -2188,6 +2193,44 @@ impl GameState {
         self.input.keys.clear();
         self.input.break_pressed = false;
         self.input.place_pressed = false;
+    }
+
+    /// B03: the ONLY way client systems edit the world. Queues a command on
+    /// the local authoritative host, applies it in the same frame (the host
+    /// applies pending commands in canonical order and records the outcome
+    /// in its event log), and on success gives the edit the standard remesh +
+    /// network-broadcast treatment. Returns whether the edit landed — the
+    /// same contract the old direct `world.set_block` calls relied on.
+    fn host_set_block(
+        &mut self,
+        x: i32,
+        y: i32,
+        z: i32,
+        state: BlockState,
+        reason: lf_game::host::EditKind,
+    ) -> bool {
+        self.host.queue_set_block(x, y, z, state, reason);
+        let landed = self.host.apply_pending(&mut self.world) > 0;
+        if landed {
+            self.remesh_around(x, z);
+            if let Some(n) = &self.net {
+                n.send_block(x, y, z, state.id());
+            }
+        }
+        landed
+    }
+
+    /// B03: server-authoritative mirror updates (multiplayer BlockUpdate).
+    /// They pass through the host so the event log is the complete edit
+    /// history, but are NOT re-broadcast — the server already told every
+    /// peer, and echoing would loop.
+    fn apply_remote_block_update(&mut self, x: i32, y: i32, z: i32, block: u32) {
+        self.host.queue_set_block(
+            x, y, z, BlockState(block), lf_game::host::EditKind::Server,
+        );
+        if self.host.apply_pending(&mut self.world) > 0 {
+            self.remesh_around(x, z);
+        }
     }
 
     fn update_title(&self) {
@@ -2864,9 +2907,7 @@ impl GameState {
                         }
                     }
                     lf_protocol::ServerMessage::BlockUpdate { x, y, z, block } => {
-                        if self.world.set_block(x, y, z, BlockState(block)).is_some() {
-                            self.remesh_around(x, z);
-                        }
+                        self.apply_remote_block_update(x, y, z, block);
                     }
                     // P37: escrowed trades deliver to the inventory
                     lf_protocol::ServerMessage::TradeResolved { accepted, items, .. } => {
@@ -3038,7 +3079,7 @@ impl GameState {
                     m.total = total;
                     if m.progress >= m.total {
                         self.mining = None;
-                        if self.world.set_block(pos.x, pos.y, pos.z, BlockState::AIR).is_some() {
+                        if self.host_set_block(pos.x, pos.y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine) {
                             // loop 330: breaking a trunk fells the whole tree
                             if registry::is_log(block_id) {
                                 self.try_fell_tree(pos);
@@ -3078,7 +3119,7 @@ impl GameState {
                             if block_id == registry::block::SCAFFOLD {
                                 let mut y = pos.y + 1;
                                 while self.world.get_block(pos.x, y, pos.z).id() == registry::block::SCAFFOLD {
-                                    self.world.set_block(pos.x, y, pos.z, BlockState::AIR);
+                                    self.host_set_block(pos.x, y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine);
                                     self.spawn_drop("scaffold", 1, Vec3::new(pos.x as f32 + 0.5, y as f32 + 0.5, pos.z as f32 + 0.5));
                                     y += 1;
                                 }
@@ -3091,13 +3132,9 @@ impl GameState {
                                 let mx = (2.0 * px - pos.x as f32).round() as i32;
                                 let mirrored = self.world.get_block(mx, pos.y, pos.z);
                                 if mirrored.id() == block_id {
-                                    self.world.set_block(mx, pos.y, pos.z, BlockState::AIR);
+                                    self.host_set_block(mx, pos.y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine);
                                     self.break_block_drops(block_id, glam::IVec3::new(mx, pos.y, pos.z));
-                                    self.remesh_around(mx, pos.z);
                                     self.after_edit(mx, pos.y, pos.z);
-                                    if let Some(n) = &self.net {
-                                        n.send_block(mx, pos.y, pos.z, registry::block::AIR);
-                                    }
                                 }
                             }
                             self.remesh_around(pos.x, pos.z);
@@ -3549,10 +3586,7 @@ impl GameState {
                                     }
                                     let mut remesh = false;
                                     for ((x, y, z), b) in targets {
-                                        if self.world.set_block(x, y, z, b).is_some() {
-                                            if let Some(n) = &self.net {
-                                                n.send_block(x, y, z, b.id());
-                                            }
+                                        if self.host_set_block(x, y, z, b, lf_game::host::EditKind::Place) {
                                             remesh = true;
                                         }
                                     }
@@ -3588,11 +3622,7 @@ impl GameState {
                             let place = if merge.is_some() { pos } else { pos + normal };
                             if merge.is_some() || !self.block_intersects_player(place) {
                                 let final_state = merge.unwrap_or(shaped);
-                                if self.world.set_block(place.x, place.y, place.z, final_state).is_some() {
-                                    if let Some(n) = &self.net {
-                                        n.send_block(place.x, place.y, place.z, final_state.id());
-                                    }
-                                    self.remesh_around(place.x, place.z);
+                                if self.host_set_block(place.x, place.y, place.z, final_state, lf_game::host::EditKind::Place) {
                                     self.after_edit(place.x, place.y, place.z);
                                     self.play_block_sound(final_state.id(), lf_audio::Action::Place);
                                     self.consume_selected(1);
@@ -3600,8 +3630,7 @@ impl GameState {
                                     if let Some(px) = self.symmetry_plane {
                                         let mx = (2.0 * px - place.x as f32).round() as i32;
                                         if self.world.get_block(mx, place.y, place.z) == BlockState::AIR {
-                                            self.world.set_block(mx, place.y, place.z, final_state);
-                                            self.remesh_around(mx, place.z);
+                                            self.host_set_block(mx, place.y, place.z, final_state, lf_game::host::EditKind::Place);
                                         }
                                     }
                                 }
@@ -3645,15 +3674,12 @@ impl GameState {
                                     }
                                 }
                                 if !self.block_intersects_player(place) {
-                                    if self.world.set_block(place.x, place.y, place.z, final_state).is_some() {
+                                    if self.host_set_block(place.x, place.y, place.z, final_state, lf_game::host::EditKind::Place) {
                                         // lore-and-visuals: quest Place events
                                         // (targets use the item-id form)
                                         let placed_item = stack.item_id.clone();
                                         self.onboarding.observe_placed(registry::is_solid(final_state));
                                         self.quest_event(QuestEvent::Placed(placed_item));
-                                        if let Some(n) = &self.net {
-                                            n.send_block(place.x, place.y, place.z, b);
-                                        }
                                         let key = (place.x, place.y, place.z);
                                         if b == registry::block::FURNACE {
                                             self.block_entities.insert(key, BlockEntity::Furnace(Default::default()));
@@ -3915,9 +3941,8 @@ impl GameState {
                     self.player.position.z as i32,
                 ));
                 if self.world.get_block(target.x, target.y, target.z) == BlockState::AIR {
-                    self.world.set_block(target.x, target.y, target.z, BlockState(registry::block::LUMEN_BLOCK));
+                    self.host_set_block(target.x, target.y, target.z, BlockState(registry::block::LUMEN_BLOCK), lf_game::host::EditKind::Place);
                     self.hearth_lights.insert((target.x, target.y, target.z), 90.0);
-                    self.remesh_around(target.x, target.z);
                 }
             }
         }
@@ -4011,8 +4036,7 @@ impl GameState {
         for pos in expired {
             self.hearth_lights.remove(&pos);
             if self.world.get_block(pos.0, pos.1, pos.2).id() == registry::block::LUMEN_BLOCK {
-                self.world.set_block(pos.0, pos.1, pos.2, BlockState::AIR);
-                self.remesh_around(pos.0, pos.2);
+                self.host_set_block(pos.0, pos.1, pos.2, BlockState::AIR, lf_game::host::EditKind::Machine);
             }
         }
     }
@@ -4044,7 +4068,7 @@ impl GameState {
                     } else {
                         BlockState::AIR
                     };
-                    if self.world.set_block(x, y, z, block).is_some() {
+                    if self.host_set_block(x, y, z, block, lf_game::host::EditKind::Machine) {
                         edits.push((x, z));
                     }
                 }
@@ -5120,12 +5144,7 @@ impl GameState {
         // loop 331: ground plants pop when their support breaks
         let above = self.world.get_block(x, y + 1, z).id();
         if registry::is_plant(above) && !registry::is_banner(above) {
-            if self.world.set_block(x, y + 1, z, BlockState::AIR).is_some() {
-                self.remesh_around(x, z);
-                if let Some(n) = &self.net {
-                    n.send_block(x, y + 1, z, registry::block::AIR);
-                }
-            }
+            self.host_set_block(x, y + 1, z, BlockState::AIR, lf_game::host::EditKind::Falling);
         }
     }
 
@@ -5153,11 +5172,7 @@ impl GameState {
         if !registry::has_gravity(above.id()) || self.world.is_solid(x, y, z) {
             return;
         }
-        if self.world.set_block(x, y + 1, z, BlockState::AIR).is_some() {
-            self.remesh_around(x, z);
-            if let Some(n) = &self.net {
-                n.send_block(x, y + 1, z, registry::block::AIR);
-            }
+        if self.host_set_block(x, y + 1, z, BlockState::AIR, lf_game::host::EditKind::Falling) {
             let seed = ((x as u64) << 32) ^ ((y as u64) << 8) ^ (z as u64);
             self.falling_blocks.push(FallingBlock {
                 position: Vec3::new(x as f32 + 0.5, y as f32 + 1.5, z as f32 + 0.5),
@@ -5246,11 +5261,7 @@ impl GameState {
             return;
         };
         for cell in tree.trunk.iter().chain(tree.leaves.iter()) {
-            if self.world.set_block(cell[0], cell[1], cell[2], BlockState::AIR).is_some() {
-                if let Some(n) = &self.net {
-                    n.send_block(cell[0], cell[1], cell[2], registry::block::AIR);
-                }
-            }
+            self.host_set_block(cell[0], cell[1], cell[2], BlockState::AIR, lf_game::host::EditKind::Mine);
         }
         self.remesh_around(stump.x, stump.z);
         let look = self.player.look_dir();
@@ -5304,14 +5315,10 @@ impl GameState {
     }
 
     /// Apply a simulation-driven block change with the same remesh +
-    /// network-broadcast treatment as a player edit.
+    /// network-broadcast treatment as a player edit. B03: delegates to the
+    /// authoritative host (system-edited blocks are Machine edits).
     fn apply_sim_edit(&mut self, x: i32, y: i32, z: i32, state: BlockState) {
-        if self.world.set_block(x, y, z, state).is_some() {
-            self.remesh_around(x, z);
-            if let Some(n) = &self.net {
-                n.send_block(x, y, z, state.id());
-            }
-        }
+        self.host_set_block(x, y, z, state, lf_game::host::EditKind::Machine);
     }
 
     /// Run a bounded slice of the water simulation. Cell edits are applied
@@ -7201,5 +7208,42 @@ mod tests {
         let loaded = storage.load_chunk(5, 5).unwrap();
         assert_eq!(loaded.get(9, 90, 3), BlockState(registry::block::LOG));
         assert_eq!(storage.saved_chunks(), [(5, 5)].into_iter().collect::<HashSet<_>>());
+    }
+
+    /// B03 contract: the client must not mutate the world directly for
+    /// migrated systems. Every `world.set_block(` in THIS file must live
+    /// inside the two host funnels (`host_set_block`,
+    /// `apply_remote_block_update`) or in test code after `#[cfg(test)]`.
+    /// If someone reintroduces a direct edit, this test rejects it.
+    #[test]
+    fn b03_block_edits_route_through_the_authoritative_host() {
+        let source = include_str!("lib.rs");
+        let funnel_start = source
+            .find("fn host_set_block(")
+            .expect("host_set_block funnel must exist");
+        let remote_start = source
+            .find("fn apply_remote_block_update(")
+            .expect("apply_remote_block_update funnel must exist");
+        let funnel_region = funnel_start.min(remote_start);
+        let funnel_end = funnel_start.max(remote_start);
+        let tests_start = source.find("#[cfg(test)]").expect("test module must exist");
+
+        let mut idx = 0;
+        let mut direct_sites: Vec<usize> = Vec::new();
+        while let Some(pos) = source[idx..].find(".set_block(") {
+            let at = idx + pos;
+            let in_funnels = (funnel_region..=funnel_end).contains(&at);
+            let in_tests = at > tests_start;
+            if !in_funnels && !in_tests {
+                direct_sites.push(at);
+            }
+            idx = at + 1;
+        }
+        assert!(
+            direct_sites.is_empty(),
+            "direct world edits outside the host funnels at byte offsets {:?} — \
+             route them through host_set_block/apply_remote_block_update",
+            direct_sites
+        );
     }
 }

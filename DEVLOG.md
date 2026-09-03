@@ -2540,3 +2540,60 @@ systems raw variable dt; migration happens in B03 when the integrated
 host routes block edits + inventory/crafting through commands. EventLog
 is in-memory only; persistence lands with the host save path. The
 representative sim is a fixture, not yet a real subsystem.
+
+## 2026-09-03 — loop 359: authoritative host owns block edits (beta B03 slice 1)
+
+WHAT: Stage A job 3, slice 1 of the roadmap's operating-rule split: the
+integrated singleplayer host now owns BLOCK EDITS end to end. The client
+queues commands; the host applies them. No visible gameplay change in
+singleplayer; multiplayer gains a real fix (see below). Inventory/craft
+transactions are slice 2 (next_task) and close B03.
+
+HOW: New pure `crates/lf_game/src/host.rs`: `SimHost` wraps the B02
+primitives (TickClock/CommandSequencer/EventLog) with `queue_set_block`
+(never mutates) and `apply_pending(&mut World)` (canonical (tick,id)
+order; per-outcome events EV_BLOCK_SET [packed 21-bit xyz + state +
+EditKind code] / EV_BLOCK_REJECT [replayed id | unloaded]; cross-batch
+`applied_ids` dedup so replays apply once; `snapshot_hash` for
+replication baselines later). Client `GameState` gains `host` +
+`host_set_block` (queue → same-frame apply → remesh_around + net
+send_block on success — the old apply_sim_edit contract) and
+`apply_remote_block_update` (host-recorded, NOT re-broadcast: a
+server BlockUpdate echoed back would loop). Migrated all 16 runtime
+world.set_block sites (mine completion, scaffold bulk column, symmetry
+mirror break, tree felling, paste-build targets, shaped/normal
+placement + their mirrors, lumen placement, hearth-light expiry, crater
+residue, after_edit plant pop, spawn_faller_from_above; apply_sim_edit
+now delegates). Sites that hand-rolled remesh+net around direct edits
+had those lines removed — the funnel owns them now. `EditKind::{Mine,
+Place, Machine, Fluid, Falling, Console, Server}` tags every event.
+
+TEST-REJECTED DIRECT MUTATION (the B03 done-when, half of it): client
+self-audit test `b03_block_edits_route_through_the_authoritative_host`
+include_str!s lib.rs and asserts every `.set_block(` lives inside the
+two funnels or the test module — reintroducing a direct edit fails CI.
+Host tests cover: queue-does-not-mutate + event sourcing, replay
+idempotence, unloaded rejection with events, total ordering + snapshot
+hash sensitivity.
+
+MULTIPLAYER FIX FOUND BY THE SEAM: the mining path never called
+net.send_block — the server never learned mined blocks (trades and
+places did). The funnel broadcasts every local edit uniformly; the
+server echo is absorbed by apply_remote_block_update without
+re-broadcast. Noted as deliberate behavior change.
+
+VERIFICATION: cargo build --workspace clean; cargo test --workspace
+470 passed / 0 failed (+4 host, +1 self-audit); make smoke OK — the
+headless 300-tick journey (worldgen, mining, crafting) now runs edits
+through the host; vistest re-rendered ALL 107/107 scenes fresh
+(pixel-asserted, exit 0); make runtimes rebuilt (dmg 8.79 MB, linux
+tarball 8.40 MB, server bin, all Sep 3 17:44). Windows exe skipped —
+no mingw cross on this host (unchanged status).
+
+HONESTLY DEFERRED: craft/inventory transactions through the host =
+slice 2 (next_task, closes B03); the host's event log is runtime-only
+(save persistence + replication baselines arrive with B08/B24); Fluid
+EditKind is defined but unused until the fluid sim routes through the
+host (B04); singleplayer still applies queued commands in the same
+frame — the queue exists but nothing yet defers application (that is
+the B08 server move).

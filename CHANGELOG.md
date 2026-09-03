@@ -1,5 +1,37 @@
 # CHANGELOG
 
+## 2026-09-03 — authoritative host owns block edits (loop 359, B03 slice 1)
+
+- **The client no longer edits the world directly — at all.** New pure
+  `lf_game::host::SimHost`: systems queue block commands (monotonic id +
+  sim tick + `EditKind` reason) and the host applies them to the voxel
+  world in canonical (tick, id) order, recording one domain event per
+  outcome. Replayed ids are rejected (a packet-loss duplicate applies
+  once, ever); out-of-loaded-space edits are rejected **with events**,
+  never silence.
+- **All 16 runtime `world.set_block` sites migrated** through two
+  funnels: `host_set_block` (same-frame apply + remesh + network
+  broadcast — mining, placing, scaffold columns, symmetry mirrors, tree
+  felling, paste builds, lumen blocks, hearth expiry, crater residue,
+  support-removal fallers) and `apply_remote_block_update` (multiplayer
+  BlockUpdate: recorded by the host but never re-broadcast — the echo
+  loop is structurally impossible now).
+- **The contract is test-enforced in both directions**: host unit tests
+  prove idempotence, rejection-with-events, total ordering, and
+  event-sourced history; and a new client **self-audit test**
+  `include_str!`s its own source and rejects any `.set_block(` outside
+  the two funnels or test code — reintroducing a direct edit fails the
+  suite, exactly B03's "direct client mutation is test-rejected".
+- **Multiplayer fix shipped by the seam**: player mining never broadcast
+  to the server before (the server never learned mined blocks); the
+  funnel's uniform broadcast now covers every local edit. Save
+  compatibility untouched — the host keeps no persisted state this
+  slice.
+- 470 tests (+4 host, +1 self-audit), smoke OK (the headless
+  onboarding/craft journey runs through the host), 107/107 vistest
+  freshly rendered, runtimes rebuilt. Slice 2 (craft/inventory
+  transactions through the host) closes B03 and Stage A.
+
 ## 2026-09-03 — deterministic tick, command IDs, domain events (loop 358, B02)
 
 - **The simulation now has a clock that render cadence cannot bend.** New
