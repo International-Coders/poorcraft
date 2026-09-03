@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-09-03 — the HUD speaks context (loop 353, N04)
+
+- **What you can do, right now, is written beside the crosshair.** A
+  prompt shows the live keymap chip, the verb, and the target — "E Trade
+  — Mara", "LMB Hold to mine — Iron Ore", "RMB Place — blocked by
+  player" — with hostile standing barring the door in red. Priority
+  resolves companion > villager > functional block > mine > place, and
+  rebinding the key changes the chip.
+- **Combat reads at a glance.** A red arc flashes around the crosshair
+  from the direction damage came (world-true: it stays put while you
+  turn), an attack-readiness ring sweeps while the swing cools down, and
+  one priority-resolved danger line (drowning > critical health >
+  starving > threats) sits above the hotbar on a dark plate — a fix the
+  image review forced after catching the warning drowning in busy
+  terrain.
+- **The world reacts visibly.** Standing changes now toast with the
+  faction crest, the signed delta, the reason ("quest fulfilled",
+  "destroyed their structure", "a gift well received"…), and the new
+  threshold title when a band is crossed; entering a kingdom announces
+  its name and whether its gates are barred to you, once per visit.
+- **Proof:** 103/103 visual scenes (four new: hud_contextual at
+  1280×800, hud_contextual_small at 640×420, hud_danger, hud_reputation,
+  all image-reviewed), 438 tests (+3: prompt copy/keymap chips, transient
+  fade/caps, strict danger priority), smoke green, runtimes rebuilt.
+
 ## 2026-09-03 — the modal workbench and input recovery (loop 352, N03)
 
 - **The workbench is a modal now, not a transparency.** Strongly opaque

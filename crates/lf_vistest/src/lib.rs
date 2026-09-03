@@ -276,6 +276,26 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "hud_contextual", desc: "N04: interaction prompt beside the crosshair + hit-direction arc + attack readiness + danger line (real painters)",
+            default_seed: 12345, time_of_day: 0.42, first_person: true, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5), target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "hud_contextual_small", desc: "N04: the contextual channel set at 640x420 — nothing collides",
+            default_seed: 12345, time_of_day: 0.42, first_person: true, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5), target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "hud_danger", desc: "N04: the single priority danger line + drowning air pips (severity 2)",
+            default_seed: 12345, time_of_day: 0.42, first_person: true, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5), target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "hud_reputation", desc: "N04: reputation delta toast (crest + signed delta + reason + threshold) and the settlement banner",
+            default_seed: 12345, time_of_day: 0.42, first_person: true, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5), target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "torchlit_night",
             desc: "night scene lit by torches placed on the terrain",
             default_seed: 12345,
@@ -3294,7 +3314,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             || spec.name == "menus_centered_wide"
             || spec.name == "journal" || spec.name == "asset_catalog"
             || spec.name == "kingdom_compass_hud"
-            || spec.name == "hud_onboarding" || spec.name == "hud_small_onboarding";
+            || spec.name == "hud_onboarding" || spec.name == "hud_small_onboarding"
+            || spec.name == "hud_contextual" || spec.name == "hud_contextual_small"
+            || spec.name == "hud_danger" || spec.name == "hud_reputation";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         // loop 329: per-scene canvas so menu proofs exist at several window
@@ -3309,7 +3331,8 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             | "village_trading" | "tech_tree" | "settings_preview" | "crafting_ui"
             | "map_screen" | "console_preview" | "lore_book" | "spellbook"
             | "paths_screen" | "trade_p2p" | "companion_commands"
-            | "kingdom_compass_hud" | "hud_onboarding" | "hud_small_onboarding");
+            | "kingdom_compass_hud" | "hud_onboarding" | "hud_small_onboarding"
+            | "hud_contextual" | "hud_contextual_small" | "hud_danger" | "hud_reputation");
         let draw = |ctx: &egui::Context| {
             if draws_hud_backdrop {
                 draw_hud_preview(ctx);
@@ -3352,6 +3375,15 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "hud_onboarding" || spec.name == "hud_small_onboarding" {
                 draw_onboarding_preview(ctx);
+            }
+            if spec.name == "hud_contextual" || spec.name == "hud_contextual_small" {
+                draw_contextual_preview(ctx);
+            }
+            if spec.name == "hud_danger" {
+                draw_danger_preview(ctx);
+            }
+            if spec.name == "hud_reputation" {
+                draw_reputation_preview(ctx);
             }
             if spec.name == "settings_preview" {
                 draw_settings_preview(ctx);
@@ -3494,6 +3526,7 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "plants_cross" | "seed_comparison" | "no_black_square"
         | "hud_small"
         | "hud_onboarding" | "hud_small_onboarding"
+        | "hud_contextual" | "hud_contextual_small" | "hud_danger" | "hud_reputation"
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
         | "sun_visibility" | "material_gallery" | "colored_light_room"
         | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud");
@@ -3954,6 +3987,102 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
                 }
             }
             assert!(warm > 60, "falling_blocks_deep: no tumbling cubes in the sky region ({})", warm);
+        }
+        "hud_contextual" | "hud_contextual_small" => {
+            // prompt chip + text right of center; hit arc + readiness ring
+            // around center; danger line above the bottom band — all from
+            // the REAL painters, so sampling their real positions proves
+            // the channels render and never sit on the crosshair itself
+            let cx = w / 2;
+            let cy = h / 2;
+            // chip well (dark box) in the prompt zone right of the reticle
+            let mut chip_wells = 0usize;
+            for y in ((cy - 24)..(cy + 8)).step_by(2) {
+                for x in ((cx + 30)..(cx + 130)).step_by(2) {
+                    let c = px(x, y);
+                    if c[0] < 60 && c[1] < 55 && c[2] < 50 { chip_wells += 1; }
+                }
+            }
+            assert!(chip_wells > 6, "{}: interaction prompt chip missing ({})", scene, chip_wells);
+            // bright prompt text beside the chip
+            let mut prompt_text = 0usize;
+            for y in ((cy - 20)..(cy + 8)).step_by(2) {
+                for x in ((cx + 55)..(cx + 200)).step_by(2) {
+                    let c = px(x, y);
+                    if c[0] > 190 && c[1] > 185 && c[2] > 165 { prompt_text += 1; }
+                }
+            }
+            assert!(prompt_text > 4, "{}: interaction prompt text missing ({})", scene, prompt_text);
+            // red hit-direction strokes: rel bearing 2.4 points
+            // right-and-below the reticle (sin>0, -cos>0 in screen space)
+            let mut hit_red = 0usize;
+            for y in ((cy + 14)..(cy + 72)).step_by(2) {
+                for x in ((cx + 14)..(cx + 72)).step_by(2) {
+                    let c = px(x, y);
+                    if c[0] > 120 && c[0] > c[1] + 50 && c[0] > c[2] + 50 { hit_red += 1; }
+                }
+            }
+            assert!(hit_red > 3, "{}: hit-direction arc missing ({})", scene, hit_red);
+            // the crosshair zone itself stays clear of the prompt (no chip
+            // wells within 30px of center)
+            let mut center_wells = 0usize;
+            for y in ((cy - 16)..(cy + 16)).step_by(2) {
+                for x in ((cx - 16)..(cx + 16)).step_by(2) {
+                    let c = px(x, y);
+                    if c[0] < 45 && c[1] < 40 && c[2] < 36 { center_wells += 1; }
+                }
+            }
+            assert!(center_wells < 60, "{}: something covers the crosshair ({})", scene, center_wells);
+        }
+        "hud_danger" => {
+            // severity-2 danger line above the bottom band, double-chevron
+            // prefix, centered
+            let band_top = h - 130;
+            let mut danger = 0usize;
+            for y in ((band_top - 44)..(band_top - 4)).step_by(2) {
+                for x in ((w / 2 - 140)..(w / 2 + 140)).step_by(2) {
+                    let c = px(x, y);
+                    // red-family text (BAD is a deep red; AA blends it
+                    // toward the world behind — family, not exact)
+                    if c[0] > 95 && c[0] > c[1] + 35 && c[0] > c[2] + 35 {
+                        danger += 1;
+                    }
+                }
+            }
+            assert!(danger > 8, "hud_danger: danger line missing ({})", danger);
+        }
+        "hud_reputation" => {
+            // toast under the top-right minimap corner: crest + delta text
+            let tx0 = (w as f32 - 204.0) as usize;
+            let (tx1, ty0, ty1) = (w - 14, (18 + 34).max(1), (18 + 34 + 40) as usize);
+            let mut crest = 0usize;
+            let mut text = 0usize;
+            for y in (ty0..ty1) {
+                for x in (tx0..tx1) {
+                    let c = px(x, y);
+                    // the crest square (Accord blue-ish)
+                    if c[2] > c[0] + 20 && c[2] > 80 { crest += 1; }
+                    // muted toast copy (TEXT_DIM/WARNING family over the
+                    // dark toast panel) — brighter than the panel itself
+                    if c[0] > 110 && c[1] > 100 && c[2] > 80 { text += 1; }
+                }
+            }
+            assert!(crest > 12, "hud_reputation: faction crest missing ({})", crest);
+            assert!(text > 30, "hud_reputation: toast text missing ({})", text);
+            // settlement banner: the real chain is prompt rect (top+30..78)
+            // -> objective rect (top+80..106) -> banner center at +20 below
+            let bx0 = (w / 2 - 140).max(1);
+            let bx1 = (w / 2 + 140).min(w - 1);
+            let by0 = 104usize;
+            let by1 = (148usize).min(h - 1);
+            let mut banner_text = 0usize;
+            for y in (by0..by1) {
+                for x in (bx0..bx1) {
+                    let c = px(x, y);
+                    if c[0] > 110 && c[1] > 100 && c[2] > 80 { banner_text += 1; }
+                }
+            }
+            assert!(banner_text > 25, "hud_reputation: settlement banner missing ({})", banner_text);
         }
         "hud_onboarding" | "hud_small_onboarding" => {
             // N01 proofs: the tutorial card (accent spine + bright verb +
@@ -4619,9 +4748,9 @@ const UW_PANEL: egui::Color32 = egui::Color32::from_rgba_premultiplied(0x33, 0x2
 fn ui_canvas(scene: &str) -> (u32, u32) {
     match scene {
         "hud_small" => (640, 360),
-        "menus_centered_small" | "hud_small_onboarding"
+        "menus_centered_small" | "hud_small_onboarding" | "hud_contextual_small"
             | "crafting_workbench_small" => (640, 420),
-        "menus_centered_wide" | "hud_onboarding" => (1280, 800),
+        "menus_centered_wide" | "hud_onboarding" | "hud_contextual" => (1280, 800),
         "menus_centered" => (800, 600),
         _ => (800, 600),
     }
@@ -4858,6 +4987,76 @@ fn draw_onboarding_preview(ctx: &egui::Context) {
     lf_client::ui::paint_onboarding_prompt(&p, prect, &prompt, ob.step.number());
     let orect = lf_client::ui::onboarding_objective_rect(screen, true);
     lf_client::ui::paint_pinned_objective(&p, orect, "Punch a Tree", "oak log 1/3");
+}
+
+/// N04: the contextual channel set, painted by the REAL client painters
+/// at the REAL HUD positions — interaction prompt beside the crosshair,
+/// hit-direction arc (world-true bearing minus live yaw), attack
+/// readiness ring, and the single priority danger line.
+fn draw_contextual_preview(ctx: &egui::Context) {
+    let screen = ctx.screen_rect();
+    let center = screen.center();
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("n04")));
+    // a trade prompt at a villager (with the real keymap chips)
+    let keys = lf_client::input::Keymap::default();
+    let focus = lf_client::hud_channels::Focus::Villager { name: "Mara", barred: false };
+    let prompt = lf_client::hud_channels::interaction_prompt(&focus, &keys).unwrap();
+    lf_client::ui::paint_interaction_prompt(&p, center + egui::vec2(34.0, -8.0), &prompt);
+    // a hit from the player's right-rear, half faded
+    lf_client::ui::paint_hit_direction(&p, center, 46.0, 2.4, 0.8);
+    // attack readiness mid-cooldown
+    lf_client::ui::paint_attack_readiness(&p, center, 24.0, 0.55);
+    // the danger line (threats)
+    lf_client::ui::paint_danger_line(&p,
+        egui::Pos2::new(center.x, screen.bottom() - lf_client::ui_kit::HUD_BOTTOM_BAND - 26.0),
+        "2 hostiles closing", 1, 0.8);
+}
+
+/// N04: severity-2 danger — drowning outranks everything, air pips low.
+fn draw_danger_preview(ctx: &egui::Context) {
+    let screen = ctx.screen_rect();
+    let center = screen.center();
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("n04d")));
+    // severity 2 (drowning outranks everything) with its backing plate
+    lf_client::ui::paint_danger_line(&p,
+        egui::Pos2::new(center.x, screen.bottom() - lf_client::ui_kit::HUD_BOTTOM_BAND - 26.0),
+        "DROWNING — surface now", 2, 1.0);
+    // a severity-1 companion line below it (hostile nearby) proves the
+    // plate + prefix change with severity
+    lf_client::ui::paint_danger_line(&p,
+        egui::Pos2::new(center.x, screen.bottom() - lf_client::ui_kit::HUD_BOTTOM_BAND - 4.0),
+        "hostile nearby", 0, 0.7);
+}
+
+/// N04: a reputation delta toast with threshold title, and the settlement
+/// entry banner — both at their real positions (under the minimap /
+/// under the pinned-objective slot).
+fn draw_reputation_preview(ctx: &egui::Context) {
+    let screen = ctx.screen_rect();
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("n04r")));
+    let toast = lf_client::hud_channels::ReputationToast {
+        faction_short: "The Accord".into(),
+        color: [90, 120, 200],
+        delta: -8,
+        reason: "destroyed their structure".into(),
+        title_line: Some("regards you as Wary".into()),
+        age: 0.0,
+    };
+    let rect = egui::Rect::from_min_size(
+        egui::pos2(screen.right() - 14.0 - 190.0,
+            screen.top() + lf_client::ui_kit::HUD_INFO_LINE_H + 34.0),
+        egui::vec2(190.0, 38.0));
+    lf_client::ui::paint_reputation_toast(&p, rect, &toast);
+    let banner = lf_client::hud_channels::SettlementBanner {
+        name: "Kingdom of Elderfall".into(),
+        state_line: "a safe road in".into(),
+        age: 0.0,
+    };
+    let base = lf_client::ui::onboarding_objective_rect(screen, true);
+    let brect = egui::Rect::from_center_size(
+        egui::Pos2::new(base.center().x, base.bottom() + 20.0),
+        egui::vec2(260.0, 34.0));
+    lf_client::ui::paint_settlement_banner(&p, brect, &banner);
 }
 
 /// Loop 341: the inventory-first E screen (mirror of ui.rs draw_inventory).

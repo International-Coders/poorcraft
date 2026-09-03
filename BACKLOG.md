@@ -1318,3 +1318,28 @@ Deferred (honest notes):
       render on locked rows), substitutions column, time/power
       requirement rows (machines show power elsewhere), pause control on
       queue jobs, and the inventory screen's own duplicate-hotbar cleanup.
+
+## Loop 353 — contextual HUD channels (nightly-beta N04)
+
+- [x] hud_channels.rs (pure): Focus/prompt model (companion > villager >
+      functional block > mine > place) with LIVE-keymap chips and blocked
+      reasons (gate barred / blocked by player); transient manager
+      (rep toasts capped at 3, settlement banner, hit-direction) with
+      fade ticking; danger_warning() strict priority (drowning > critical
+      health > starving > low health > threats) with severity shapes.
+- [x] Shared painters: interaction prompt beside the crosshair (opaque
+      keycap chip), hit-direction arc (world-true bearing minus live yaw),
+      attack-readiness ring, reputation toast (crest + signed delta +
+      reason + threshold title), settlement banner, danger line with a
+      backing plate (the image review caught it drowning in busy terrain
+      — fixed same job).
+- [x] Wiring: throttled threat scan (hostiles + LOS), kingdom-entry
+      banner (once per session, gates-barred state from standings), hit
+      direction from each frame's attacker, standing deltas now carry
+      reasons through add_standing (quest/trade/gift/discovery/destroy/
+      rival ripples).
+- [x] Proofs: hud_contextual (1280x800) + hud_contextual_small (640x420)
+      + hud_danger + hud_reputation (103 scenes; all Z.ai-reviewed).
+- [ ] Deferred: boss/elite identity line, heal/damage numeric feedback,
+      garrison alert copy, and interaction prompts for doors/gates (no
+      door blocks yet).

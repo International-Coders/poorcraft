@@ -737,6 +737,170 @@ pub fn pinned_objective(log: &crate::QuestLog) -> Option<(String, String)> {
     ))
 }
 
+// ---- N04: contextual HUD channel painters (shared with the proofs) ----
+
+/// The interaction prompt beside the crosshair: a keycap chip, a verb,
+/// the target name, and (in BAD red) the blocked reason.
+pub fn paint_interaction_prompt(
+    painter: &egui::Painter,
+    at: egui::Pos2,
+    prompt: &crate::hud_channels::InteractionPrompt,
+) {
+    let mut x = at.x;
+    for chip in &prompt.chips {
+        let w = 10.0 + chip.len() as f32 * 7.0;
+        let r = egui::Rect::from_min_size(egui::pos2(x, at.y - 9.0), egui::vec2(w, 17.0));
+        // opaque well: a keycap must read over any backdrop, bright sky
+        // included (semi-transparent black muddies over bright fills)
+        painter.rect_filled(r, 4.0, Theme::BG);
+        painter.rect_stroke(r, 4.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+        painter.text(r.center(), egui::Align2::CENTER_CENTER, chip,
+            egui::FontId::proportional(10.5), Theme::TEXT);
+        x = r.right() + 6.0;
+    }
+    let body = if let Some(reason) = &prompt.blocked {
+        format!("{} — {} ({})", prompt.verb, prompt.target, reason)
+    } else {
+        format!("{} — {}", prompt.verb, prompt.target)
+    };
+    let color = if prompt.blocked.is_some() { Theme::BAD } else { Theme::TEXT };
+    kit::text_shadowed(painter, egui::pos2(x, at.y), egui::Align2::LEFT_CENTER,
+        body, egui::FontId::proportional(12.0), color);
+}
+
+/// The hit-direction arc around the crosshair: a red segment at the
+/// bearing the damage came from (0 = ahead), fading over HIT_DIR_LIFE.
+pub fn paint_hit_direction(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    radius: f32,
+    bearing: f32,
+    fade: f32,
+) {
+    let a = bearing;
+    let dir = egui::Vec2::new(a.sin(), -a.cos());
+    let tip = center + dir * radius;
+    let alpha = (fade * 255.0) as u8;
+    // the arc segment: three strokes fanning the direction
+    for spread in [-0.35, 0.0, 0.35] {
+        let d = egui::Vec2::new((a + spread).sin(), -(a + spread).cos());
+        painter.line_segment(
+            [center + d * (radius * 0.66), center + d * radius],
+            egui::Stroke::new(3.0, egui::Color32::from_rgba_unmultiplied(220, 60, 50, alpha)),
+        );
+    }
+    painter.circle_filled(tip, 2.5, egui::Color32::from_rgba_unmultiplied(220, 60, 50, alpha));
+}
+
+/// Attack readiness: a thin arc under the crosshair that sweeps closed
+/// while the cooldown runs (full ring = ready).
+pub fn paint_attack_readiness(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    radius: f32,
+    cooldown_frac: f32,
+) {
+    let pts = kit::reticle_points(center, radius, 1.0 - cooldown_frac.clamp(0.0, 1.0));
+    for w in pts.windows(2) {
+        painter.line_segment(
+            [w[0], w[1]],
+            egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(240, 234, 214, 140)),
+        );
+    }
+}
+
+/// One reputation toast: faction crest square in the realm's color, the
+/// signed delta, the reason, and the threshold title when crossed.
+pub fn paint_reputation_toast(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    toast: &crate::hud_channels::ReputationToast,
+) {
+    let fade = (1.0 - toast.age / crate::hud_channels::REP_TOAST_LIFE).clamp(0.0, 1.0);
+    let alpha = (fade * 235.0) as u8;
+    painter.rect_filled(rect, 7.0, egui::Color32::from_rgba_unmultiplied(0x22, 0x1b, 0x12, alpha));
+    painter.rect_stroke(rect, 7.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+    let crest = egui::Rect::from_center_size(
+        rect.left_center() + egui::vec2(13.0, 0.0), egui::vec2(11.0, 11.0));
+    painter.rect_filled(crest, 3.0,
+        egui::Color32::from_rgba_unmultiplied(toast.color[0], toast.color[1], toast.color[2], alpha));
+    let sign = if toast.delta >= 0 { "+" } else { "" };
+    let col = |c: egui::Color32| egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha);
+    // faction name bright, delta colored — sign + shape carry polarity
+    kit::text_shadowed(painter, rect.left_center() + egui::vec2(24.0, 0.0),
+        egui::Align2::LEFT_CENTER,
+        format!("{} {}{}", toast.faction_short, sign, toast.delta),
+        egui::FontId::proportional(11.5),
+        col(if toast.delta >= 0 { Theme::OK } else { Theme::BAD }));
+    painter.text(
+        rect.left_center() + egui::vec2(24.0, 0.0),
+        egui::Align2::LEFT_CENTER,
+        &toast.faction_short,
+        egui::FontId::proportional(11.5),
+        col(Theme::TEXT_BRIGHT),
+    );
+    kit::text_shadowed(painter, rect.left_center() + egui::vec2(24.0, 12.0),
+        egui::Align2::LEFT_CENTER, toast.reason.clone(),
+        egui::FontId::proportional(10.0), col(Theme::TEXT_DIM));
+    if let Some(title) = &toast.title_line {
+        kit::text_shadowed(painter, rect.left_center() + egui::vec2(24.0, -11.0),
+            egui::Align2::LEFT_CENTER, title.clone(),
+            egui::FontId::proportional(10.0), col(Theme::WARNING));
+    }
+}
+
+/// The settlement entry banner: realm + place name and its safety state,
+/// centered under the pinned objective line, fading.
+pub fn paint_settlement_banner(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    banner: &crate::hud_channels::SettlementBanner,
+) {
+    let fade = (1.0 - banner.age / crate::hud_channels::SETTLEMENT_LIFE).clamp(0.0, 1.0);
+    let alpha = (fade * 225.0) as u8;
+    painter.rect_filled(rect, 7.0, egui::Color32::from_rgba_unmultiplied(0x22, 0x1b, 0x12, alpha));
+    painter.rect_stroke(rect, 7.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+    let col = |c: egui::Color32| egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha);
+    kit::text_shadowed(painter, rect.center() + egui::vec2(0.0, -6.0),
+        egui::Align2::CENTER_CENTER, banner.name.clone(),
+        egui::FontId::proportional(13.5), col(Theme::TEXT_BRIGHT));
+    kit::text_shadowed(painter, rect.center() + egui::vec2(0.0, 8.0),
+        egui::Align2::CENTER_CENTER, banner.state_line.clone(),
+        egui::FontId::proportional(10.5), col(Theme::TEXT_DIM));
+}
+
+/// The danger line above the bottom HUD band — one line only (priority
+/// resolved in `HudChannels::danger_warning`), severity shown by shape
+/// (double chevron at 2, single at 1) as well as color.
+pub fn paint_danger_line(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    text: &str,
+    severity: u8,
+    pulse: f32,
+) {
+    let color = match severity {
+        2 => Theme::BAD,
+        1 => Theme::WARNING,
+        _ => Theme::TEXT_DIM,
+    };
+    let mark = if severity >= 2 { "!! " } else if severity == 1 { "! " } else { "" };
+    let alpha = ((0.55 + 0.45 * pulse) * 255.0) as u8;
+    let full = format!("{}{}", mark, text);
+    // backing plate: the warning must read over busy terrain, bright sky,
+    // and night alike (the review caught it drowning in the backdrop)
+    let plate_w = 34.0 + full.len() as f32 * 6.2;
+    let plate = egui::Rect::from_center_size(center, egui::vec2(plate_w, 20.0));
+    painter.rect_filled(plate, 6.0, egui::Color32::from_rgba_unmultiplied(0x1a, 0x14, 0x10, 215));
+    painter.rect_stroke(plate, 6.0,
+        egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)),
+        egui::StrokeKind::Middle);
+    kit::text_shadowed(painter, center, egui::Align2::CENTER_CENTER,
+        full,
+        egui::FontId::proportional(12.0),
+        egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha));
+}
+
 
 /// Gameplay HUD visibility: hidden behind menus that own the whole view.
 /// The audit caught hearts + hotbar rendering under the title menu (and
@@ -1076,6 +1240,115 @@ impl GameState {
             }
             if dismissed_objective {
                 self.onboarding.objective_dismissed = true;
+            }
+        }
+        // N04: contextual channels — interaction prompt beside the
+        // crosshair, hit direction + attack readiness around it, the
+        // danger line above the bottom band, reputation toasts under the
+        // minimap, and the settlement banner under the pinned line.
+        // Nothing here blocks input; everything fades.
+        if self.stats.health > 0.0 && matches!(self.ui_open, UiOpen::None | UiOpen::Chat) {
+            let screen = ctx.screen_rect();
+            let center = screen.center();
+            let p = ctx.debug_painter();
+            // ---- interaction prompt (priority: companion > villager >
+            // functional block > mine > place) — built per branch so the
+            // borrowed target names resolve inside their own scope ----
+            use crate::hud_channels::{interaction_prompt, Focus};
+            let prompt: Option<crate::hud_channels::InteractionPrompt>;
+            if let Some(ci) = self.companion_in_crosshair() {
+                prompt = self.companions.get(ci)
+                    .and_then(|c| interaction_prompt(
+                        &Focus::Companion { name: &c.display_name }, &self.keymap));
+            } else if let Some(vi) = self.villager_in_crosshair() {
+                prompt = self.villagers.get(vi)
+                    .and_then(|v| interaction_prompt(
+                        &Focus::Villager {
+                            name: &v.name,
+                            barred: v.faction.as_deref()
+                                .map(|f| self.standings.refuses_trade(f))
+                                .unwrap_or(false),
+                        }, &self.keymap));
+            } else if let Some((_, id)) = self.look_target {
+                use registry::block as blk;
+                // held-item facts hoisted out of the match so the place
+                // prompt can borrow the name beyond its arm
+                let held = self.inventory.slots[self.hotbar_index].as_ref();
+                let held_is_block = held
+                    .and_then(|st| item_def(&st.item_id))
+                    .map(|d| matches!(d.kind, ItemKind::Block(_)))
+                    .unwrap_or(false);
+                let held_name = held
+                    .and_then(|st| item_def(&st.item_id).map(|d| d.name.to_string()))
+                    .unwrap_or_default();
+                let blocked_by_player = held_is_block
+                    && self.crosshair_block_pos()
+                        .map(|(x, y, z)| {
+                            // the cell one step back along the dominant
+                            // eye->hit axis is where the block lands when
+                            // close — placing there would clip the player
+                            let eye = self.player.eye_position();
+                            let d = eye - glam::Vec3::new(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
+                            let cell = if d.x.abs() >= d.z.abs() {
+                                glam::IVec3::new(x + d.x.signum() as i32, y, z)
+                            } else {
+                                glam::IVec3::new(x, y, z + d.z.signum() as i32)
+                            };
+                            self.block_intersects_player(cell)
+                        })
+                        .unwrap_or(false);
+                let focus = match id {
+                    x if x == blk::CHEST => Some(Focus::Interactable { verb: "Open", name: "Chest" }),
+                    x if x == blk::FURNACE => Some(Focus::Interactable { verb: "Use", name: "Furnace" }),
+                    x if x == blk::CRAFTING_TABLE => Some(Focus::Interactable { verb: "Craft", name: "Crafting Table" }),
+                    x if x == blk::ENCHANTING_TABLE => Some(Focus::Interactable { verb: "Imbue", name: "Enchanting Table" }),
+                    x if x == blk::SMITHING_TABLE => Some(Focus::Interactable { verb: "Forge", name: "Smithing Table" }),
+                    _ if held_is_block => Some(Focus::Place {
+                        name: &held_name, blocked_by_player,
+                    }),
+                    _ => Some(Focus::Mine { name: registry::block::name(id) }),
+                };
+                prompt = focus.as_ref()
+                    .and_then(|f| interaction_prompt(f, &self.keymap));
+            } else {
+                prompt = None;
+            }
+            if let Some(prompt) = &prompt {
+                paint_interaction_prompt(&p, center + egui::vec2(34.0, -8.0), prompt);
+            }
+            // ---- combat: hit direction (world-true bearing vs live yaw)
+            // + attack readiness ring ----
+            if let Some(h) = &self.hud_channels.hit_dir {
+                let fade = (1.0 - h.age / crate::hud_channels::HIT_DIR_LIFE).clamp(0.0, 1.0);
+                paint_hit_direction(&p, center, 46.0, h.bearing - self.player.yaw, fade);
+            }
+            if self.attack_cooldown > 0.0 {
+                paint_attack_readiness(&p, center, 24.0, self.attack_cooldown / 0.5);
+            }
+            // ---- the single danger line (priority-resolved) ----
+            if let Some((text, sev)) = self.hud_channels.danger_warning(
+                self.stats.health / self.stats.max_health,
+                self.stats.hunger, self.air, self.threat_count) {
+                let pulse = 0.5 + 0.5 * (self.elapsed * 3.0).sin();
+                paint_danger_line(&p,
+                    egui::Pos2::new(center.x, screen.bottom() - kit::HUD_BOTTOM_BAND - 26.0),
+                    &text, sev, pulse);
+            }
+            // ---- reputation toasts (top-right, under the minimap) ----
+            for (i, toast) in self.hud_channels.rep_toasts.iter().enumerate() {
+                let rect = egui::Rect::from_min_size(
+                    egui::pos2(screen.right() - 14.0 - 190.0,
+                        screen.top() + kit::HUD_INFO_LINE_H + 34.0 + i as f32 * 44.0),
+                    egui::vec2(190.0, 38.0));
+                paint_reputation_toast(&p, rect, toast);
+            }
+            // ---- settlement banner (under the pinned objective slot) ----
+            if let Some(banner) = &self.hud_channels.settlement {
+                let rect = onboarding_objective_rect(screen, true);
+                let rect = egui::Rect::from_center_size(
+                    egui::Pos2::new(rect.center().x, rect.bottom() + 20.0),
+                    egui::vec2(260.0, 34.0));
+                paint_settlement_banner(&p, rect, banner);
             }
         }
         // info line (top-left). Minimal by default — research on Minecraft's
@@ -2978,7 +3251,7 @@ impl GameState {
                 // trade accrues standing (FACTIONS_OVERVIEW: 10+ items = +2)
                 if traded_items > 0 && !faction.is_empty() {
                     let bump = self.lore_data.standing_events.trade_ten_items;
-                    self.add_standing(&faction, bump);
+                    self.add_standing(&faction, bump, "traded fairly");
                     // C4: the NPC remembers the trade
                     if let Some(v) = self.villagers.get_mut(index) {
                         v.record_interaction(lf_npc::NpcEvent::Traded, self.day_index as u32);

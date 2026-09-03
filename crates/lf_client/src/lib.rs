@@ -28,6 +28,7 @@ use winit::{
 
 pub mod console;
 pub mod factions;
+pub mod hud_channels;
 pub mod input;
 pub mod lore;
 pub mod icons;
@@ -1135,6 +1136,12 @@ struct GameState {
     pub onboarding: onboarding::Onboarding,
     /// N02: countdown to the next craft-queue job completion.
     craft_queue_timer: f32,
+    /// N04: contextual HUD channels (prompts data, toasts, banners, hit dir).
+    pub hud_channels: hud_channels::HudChannels,
+    /// N04: settlements already announced this session (banner fires once).
+    settlement_seen: std::collections::HashSet<String>,
+    /// N04: hostiles near the player with line of sight (throttled scan).
+    threat_count: u8,
     /// Last slot-thumbnail capture (throttled; Step 14).
     last_thumb: Instant,
     /// Loaded save-slot thumbnails for the picker (Step 14).
@@ -1665,6 +1672,9 @@ impl GameState {
             was_in_water: false,
             onboarding: onboarding::Onboarding::default(),
             craft_queue_timer: 0.0,
+            hud_channels: hud_channels::HudChannels::default(),
+            settlement_seen: std::collections::HashSet::new(),
+            threat_count: 0,
             prev_ui_open: UiOpen::Title,
             recipe_book: workbench::RecipeBook::default(),
             wb_category: 0,
@@ -2295,6 +2305,7 @@ impl GameState {
         self.update_falling_trees(dt);
         self.survival_tick(dt);
         self.craft_queue_tick(dt);
+        self.contextual_hud_tick(dt);
         self.update_drops(dt);
         // Furnaces and machines tick whether or not their UI is open.
         // Power: sources (generator/wheel/battery) are pulled out, the pure
@@ -2985,7 +2996,7 @@ impl GameState {
                                 self.quest_event(QuestEvent::Broke(broke_key));
                                 if let Some(faction) = factions::faction_of_block(block_id) {
                                     let penalty = self.lore_data.standing_events.destroy_structure_block;
-                                    self.add_standing(&faction, penalty);
+                                    self.add_standing(&faction, penalty, "destroyed their structure");
                                     // C3: nearby same-faction NPCs call it out
                                     let here = [pos.x as f32, pos.y as f32, pos.z as f32];
                                     let reactor = self.villagers.iter().find(|v| {
@@ -3257,7 +3268,7 @@ impl GameState {
                             _ => *slot = None,
                         }
                         if let Some(faction) = vfaction.as_deref() {
-                            self.add_standing(faction, 2);
+                            self.add_standing(faction, 2, "a gift well received");
                         }
                         let line = lf_npc::reaction_line(&vname,
                             &lf_npc::NpcReactionEvent::GiftedItem { item_id: stack.item_id.clone() });
@@ -4190,6 +4201,46 @@ impl GameState {
         }
     }
 
+    /// N04: drive the contextual HUD channels — transient fades, a
+    /// throttled threat scan (hostiles with line of sight), and the
+    /// settlement entry banner (fires once per kingdom per session).
+    fn contextual_hud_tick(&mut self, dt: f32) {
+        self.hud_channels.tick(dt);
+        if self.stats.health <= 0.0 {
+            return;
+        }
+        // threat scan: near hostiles the player can be seen by
+        if self.frame % 15 == 0 {
+            let p = self.player.position;
+            let mut n = 0u8;
+            for m in &self.mobs {
+                if m.mob_type.is_hostile() && m.health > 0.0
+                    && (m.position - p).length() < 14.0
+                    && lf_game::mobs::has_line_of_sight(m.position + Vec3::new(0.0, 1.0, 0.0),
+                        p + Vec3::new(0.0, 1.0, 0.0), &self.world)
+                {
+                    n += 1;
+                    if n >= 9 { break; }
+                }
+            }
+            self.threat_count = n;
+        }
+        // settlement entry: the banner announces a kingdom once
+        if self.frame % 30 == 0 {
+            if let Some((name, _bearing, meters)) = self.kingdom_compass_readout() {
+                if meters <= 90 && self.settlement_seen.insert(name.clone()) {
+                    let gates_barred = self.standings.refuses_trade("accord");
+                    let state_line = if gates_barred {
+                        "the gates are barred to you".to_string()
+                    } else {
+                        "a safe road in".to_string()
+                    };
+                    self.hud_channels.enter_settlement(name, state_line);
+                }
+            }
+        }
+    }
+
     fn survival_tick(&mut self, dt: f32) {
         if self.stats.health <= 0.0 {
             return; // dead: nothing ticks
@@ -4807,6 +4858,13 @@ impl GameState {
         // companions remember who hit the player this frame (B4 defense)
         if let Some(mi) = attacker_of_frame {
             self.last_attacker = Some(mi);
+            // N04: the hit-direction arc — absolute bearing, the painter
+            // subtracts the live yaw so it stays world-true while turning
+            if let Some(m) = self.mobs.get(mi) {
+                let dx = m.position.x - player.x;
+                let dz = m.position.z - player.z;
+                self.hud_channels.note_hit_from(dx.atan2(dz));
+            }
             // C3: NPCs within 24 blocks of combat bolt for a while
             let flee_until = self.time.ticks + 200; // 10s of world ticks
             for v in &mut self.villagers {

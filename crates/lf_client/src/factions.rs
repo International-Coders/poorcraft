@@ -252,13 +252,22 @@ impl GameState {
     // Standing + chronicle (A1, D1, D2)
     // ------------------------------------------------------------------
 
-    /// Apply a standing change: clamps, pulses the HUD widget, writes a
-    /// chronicle entry when a threshold band is crossed (with the new
-    /// title), and applies the rivals-drift rule on honored crossings.
-    pub fn add_standing(&mut self, faction: &str, delta: i32) {
+    /// Apply a standing change: clamps, pulses the HUD widget, pushes an
+    /// N04 reputation toast (crest + signed delta + reason + threshold
+    /// title when a band is crossed), writes a chronicle entry on band
+    /// crossings, and applies the rivals-drift rule on honored crossings.
+    pub fn add_standing(&mut self, faction: &str, delta: i32, reason: &str) {
         let Some(fdef) = self.lore_data.faction(faction).cloned() else { return };
         let change = self.standings.add(faction, delta);
         self.faction_pulse = 1.0;
+        self.hud_channels.push_rep_toast(crate::hud_channels::ReputationToast {
+            faction_short: fdef.short_name.clone(),
+            color: fdef.color,
+            delta,
+            reason: reason.to_string(),
+            title_line: change.band.map(|b| b.title(&fdef).to_string()),
+            age: 0.0,
+        });
         if let Some(band) = change.band {
             let title = band.title(&fdef).to_string();
             let payload = match band {
@@ -305,9 +314,12 @@ impl GameState {
         let Some(faction) = quest.faction.clone() else { return };
         let base = self.lore_data.standing_events.quest_complete;
         let reward = if quest.standing_reward != 0 { quest.standing_reward } else { base };
-        self.add_standing(&faction, reward);
+        self.add_standing(&faction, reward, "quest fulfilled");
+        let issuer = self.lore_data.faction(&faction)
+            .map(|f| f.short_name.clone()).unwrap_or(faction.clone());
         for (other, delta) in quest.other_standing.clone() {
-            self.add_standing(&other, delta);
+            let echo = format!("your bond with {}", issuer);
+            self.add_standing(&other, delta, &echo);
         }
         // C4: the faction's NPCs remember the completed quest
         let day = self.day_index as u32;
@@ -427,7 +439,7 @@ impl GameState {
         );
         if !faction.is_empty() {
             let amount = self.lore_data.standing_events.discover_structure;
-            self.add_standing(&faction, amount);
+            self.add_standing(&faction, amount, &format!("discovered a {label}"));
             self.chronicle_world_event(WorldEventTrigger::StructureDiscovered, &faction);
         }
     }

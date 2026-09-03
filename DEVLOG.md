@@ -2281,3 +2281,47 @@ diff --check clean; runtimes rebuilt.
 HONESTLY DEFERRED: era filter chip, substitutions column, time/power
 requirement rows, queue pause, inventory screen's own duplicate-hotbar
 cleanup (all listed in BACKLOG loop-352 section).
+
+## 2026-09-03 — loop 353: contextual HUD channels (nightly-beta N04)
+
+WHAT: The HUD now speaks in priority-safe contextual channels. A new pure
+module (lf_client/src/hud_channels.rs) models the crosshair Focus
+(companion > villager > functional block > mine > place) and builds
+keymap-adaptive prompts with blocked reasons ("E Trade — Mara",
+"gate barred (Hostile)", "RMB Place — blocked by player"); a transient
+manager runs reputation toasts (cap 3), the settlement banner, and the
+hit-direction fade; danger_warning() enforces strict priority (drowning >
+critical health > starving > low health > threats) with severity carried
+by shape (!/!!) AND color. Shared painters (ui.rs): the prompt beside the
+crosshair, the hit-direction arc (absolute bearing minus live yaw — it
+stays world-true while the player turns), the attack-readiness ring, the
+reputation toast (faction crest + signed delta + reason + threshold
+title), the settlement banner, and the danger line. Wired into
+GameState: throttled hostile+LOS threat scan, kingdom-entry banner (once
+per session, gates-barred from standings), hit direction from each
+frame's attacker, and add_standing now takes reasons (quest fulfilled /
+traded fairly / a gift well received / discovered a structure / destroyed
+their structure / rival ripples).
+
+PROOF-DISCOVERED FIXES (both caught by the evidence, fixed same job):
+(1) the interaction chip's semi-transparent black fill vanished over
+bright sky in the readback — the keycap well is now opaque Theme::BG
+(reads on any backdrop); (2) the Z.ai review of hud_danger could not read
+the DROWNING line against busy terrain — the danger line gained a dark
+backing plate with a severity-colored border, after which the review
+passed. Also fixed my own line() test/copy mismatch ("ETrade" → "E
+Trade") found by the suite.
+
+VISION REVIEW: hud_contextual PASS (prompt + chip + hit arc + readiness
++ amber danger line all legible, nothing on the crosshair);
+hud_contextual_small PASS (same at 640x420); hud_danger NEEDS_HUMAN →
+fixed (plate added) → PASS on re-review of the plated crop;
+hud_reputation PASS (crest, delta, reason, threshold title, banner all
+read).
+
+VERIFICATION: cargo test --workspace 438 passing / 0 failed (+3 channel
+tests); vistest 103/103 (+4 scenes); make smoke OK; git diff --check
+clean; runtimes rebuilt.
+
+HONESTLY DEFERRED: boss/elite identity line, heal/damage numeric popups,
+garrison alert copy, door/gate prompts (no door blocks exist yet).
