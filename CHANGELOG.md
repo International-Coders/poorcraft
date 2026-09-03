@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2026-09-03 — transactional crafting and a real queue (loop 351, N02)
+
+- **Crafting cannot void or mint anymore.** All craft execution now flows
+  through one transactional engine in `lf_game::crafting`: it validates
+  every ingredient against real inventory counts, proves the output FITS
+  before touching anything, then consumes and grants exactly. A blocked
+  craft — short one log or one slot of room — consumes nothing and says
+  precisely why ("missing log (need 3, have 1)", "no room — need space
+  for 4 more (free 2)"). The old grant loop silently lost outputs past
+  the 255-per-insert boundary; the new one batches with zero loss, and a
+  regression test crafts 256 planks in one action to prove it.
+- **Craft All is integer-safe.** `max_batches` computes the largest batch
+  count the inventory supports right now — limited by every ingredient
+  count AND by output room — and the button labels the number it will
+  make. Rapid double-crafts share the same atomic path: each call
+  re-verifies, so materials for one craft can only ever produce one.
+- **The queue is real.** "Add to Queue" used to push into a list nothing
+  consumed. Now one job completes per 1.25 seconds of play through the
+  same engine, the queue strip shows the head's live state (working /
+  blocked with the exact reason) with per-job cancel, and the documented
+  rule is honest: enqueue reserves nothing, consumption happens only at
+  completion, cancel is free. The queue persists across save/load in the
+  same ClientSave shape, and a job whose recipe vanished (mod unloaded)
+  is dropped with a message instead of spinning forever.
+- **Proof:** eight new engine tests (exact consume/grant, both blocked
+  paths leave the inventory untouched, >255 outputs, integer-safe
+  batches, rapid double-craft, a registered mod recipe executing
+  transactionally, reason copy) plus three client tests (queue status
+  running/blocked, catalog lookup + unknown outputs, queue save
+  round-trip). 433 tests total, smoke green, runtimes rebuilt. The
+  visual workbench pass (modal layouts, queue-strip proofs, input
+  recovery) is N03.
+
 ## 2026-09-03 — first-minute onboarding and the nightly-beta goal pack (loop 350, N01)
 
 - **The first five minutes teach the game.** A persisted tutorial state

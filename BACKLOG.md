@@ -1255,3 +1255,36 @@ Deferred (honest notes):
 - [ ] Deferred: ambient loops (wind/birds/torch crackle), positional
       3D audio (distance/panning — currently all sounds are full-mix
       one-shots), music. First-minute onboarding remains queued next.
+
+## Loop 350 — first-minute onboarding + nightly-beta N01 SHIPPED
+
+- [x] Persisted tutorial state machine (Move→Look→Gather→Craft→Build)
+      advanced only by real gameplay facts; keymap-adaptive HUD card +
+      pinned starter objective (shared painters, click-dismiss, settings
+      restart); ClientSave persistence + legacy migration; 12 tests,
+      hud_onboarding + hud_small_onboarding proofs.
+- [x] docs/NIGHTLY-BETA goal pack (14 docs) + `xtask night-plan-check`.
+
+## Loop 351 — transactional crafting + real queue (nightly-beta N02)
+
+- [x] lf_game::crafting transactional engine: `execute` (validate every
+      ingredient → prove output room → consume exactly → grant exactly,
+      batched past the u8 add_item boundary with zero loss — fixed the
+      old grant loop that silently dropped outputs past 255), typed
+      `CraftOutcome`/`CraftBlock` reasons, `max_batches` integer-safe
+      craft-all, Inventory count_of/free_capacity/remove_count helpers.
+      Blocked crafts consume NOTHING (missing-ingredient AND no-room).
+- [x] Client rewired: craft buttons + Craft All run the engine; missing
+      ingredients now name the exact items; the placeholder queue is REAL
+      (1.25 s/job while playing, engine-verified completion, blocked jobs
+      show live reasons, free cancel — documented rule: enqueue reserves
+      nothing, consumption happens only at completion), persists via
+      ClientSave (unchanged shape), unknown recipes drop honestly.
+- [x] 8 new engine tests (exact consume/grant, blocked-consumes-nothing,
+      >255 outputs, integer-safe max_batches, rapid double-craft, mod
+      recipe transactionally, reason copy) + 3 client tests (queue
+      status running/blocked, catalog lookup + unknown, queue save
+      round-trip).
+- [ ] Deferred to N03: modal workbench layouts, world scrim, queue strip
+      polish/proofs, E/Escape input-recovery integration tests, the
+      crafting_missing_ingredients / crafting_queue visual scenes.

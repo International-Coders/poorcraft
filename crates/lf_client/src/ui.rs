@@ -415,6 +415,53 @@ fn build_catalog() -> Vec<CatalogEntry> {
     out
 }
 
+/// N02: the craft-station catalog entry for an output id — what the queue
+/// and craft-all need (aggregated ingredients + per-craft output count).
+pub fn catalog_craft_entry(output: &str) -> Option<(Vec<(String, u8)>, u8)> {
+    build_catalog().into_iter()
+        .find(|e| e.station == Station::Craft && e.output == output)
+        .map(|e| (e.ingredients, e.output_count))
+}
+
+/// N02: live status of the queue head for the queue strip (and tests) —
+/// read-only; the mutating work belongs to the transactional engine.
+#[derive(Debug)]
+pub enum QueueStatus {
+    Empty,
+    /// The head job could complete right now.
+    Running { output: String, remaining: u32 },
+    /// The head job is short materials or room; `reason` is player copy.
+    Blocked { output: String, remaining: u32, reason: String },
+}
+
+pub fn queue_status(queue: &[(String, u32)], inv: &lf_game::survival::Inventory) -> QueueStatus {
+    use lf_game::crafting::{execute, CraftOutcome};
+    let Some((output, qty)) = queue.first() else {
+        return QueueStatus::Empty;
+    };
+    let Some((ingredients, output_count)) = catalog_craft_entry(output) else {
+        return QueueStatus::Blocked {
+            output: output.clone(),
+            remaining: *qty,
+            reason: "recipe unknown".into(),
+        };
+    };
+    // execute against a throwaway clone verifies without mutating
+    let mut probe = inv.clone();
+    match execute(&mut probe, &ingredients, output, output_count, *qty) {
+        CraftOutcome::Crafted { .. } => QueueStatus::Running {
+            output: output.clone(),
+            remaining: *qty,
+        },
+        CraftOutcome::Blocked(b) => QueueStatus::Blocked {
+            output: output.clone(),
+            remaining: *qty,
+            reason: b.reason(),
+        },
+    }
+}
+
+
 // ------------------------------------------------------------------
 
 /// loop 345: the kingdom-compass dial — a player-relative compass rose
@@ -1484,14 +1531,42 @@ impl GameState {
                                     self.wb_qty = 1;
                                 }
                             }
-                            // queue badge lives at the sidebar's foot
+                            // queue strip at the sidebar's foot (N02): the
+                            // queue is real — head status (working/blocked
+                            // reason), per-job cancel, nothing reserved
                             ui.add_space(8.0);
                             if !self.craft_queue.is_empty() {
-                                ui.painter().text(
-                                    egui::Pos2::new(ui.cursor().min.x + 8.0, ui.cursor().min.y + 8.0),
-                                    egui::Align2::LEFT_TOP,
-                                    format!("Queue: {}", self.craft_queue.len()),
-                                    egui::FontId::proportional(11.0), Theme::WARNING);
+                                let status = queue_status(&self.craft_queue, &self.inventory);
+                                ui.label(egui::RichText::new("QUEUE").size(10.0).color(Theme::TEXT_DIM));
+                                let mut cancel: Option<usize> = None;
+                                for (i, (out_id, n)) in self.craft_queue.iter().enumerate().take(3) {
+                                    let name = item_def(out_id).map(|d| d.name).unwrap_or(out_id.as_str());
+                                    let (line, col) = match (i, &status) {
+                                        (0, QueueStatus::Running { .. }) =>
+                                            (format!("{} × {} — working", n, name), Theme::OK),
+                                        (0, QueueStatus::Blocked { reason, .. }) =>
+                                            (format!("{} × {} — {}", n, name, reason), Theme::WARNING),
+                                        (0, QueueStatus::Empty) =>
+                                            (format!("{} × {}", n, name), Theme::TEXT_DIM),
+                                        _ => (format!("{} × {} — queued", n, name), Theme::TEXT_DIM),
+                                    };
+                                    ui.horizontal(|ui| {
+                                        ui.label(egui::RichText::new(line).size(11.0).color(col));
+                                        if kit::menu_link(ui, "×", &format!("wb-qcancel-{}", i), 1.0, false, true) {
+                                            cancel = Some(i);
+                                        }
+                                    });
+                                }
+                                let more = self.craft_queue.len().saturating_sub(3);
+                                if more > 0 {
+                                    ui.label(egui::RichText::new(format!("+ {} more", more))
+                                        .size(10.0).color(Theme::TEXT_DISABLED));
+                                }
+                                if let Some(i) = cancel {
+                                    self.craft_queue.remove(i);
+                                    // cancel is free: jobs consume only at
+                                    // completion, so there is nothing to refund
+                                }
                             }
                         });
                     });
@@ -1699,23 +1774,51 @@ impl GameState {
                                 }
                             });
                             ui.add_space(12.0);
-                            // the single craft action
+                            // the craft actions: exact quantity, then
+                            // integer-safe craft-all (limited by materials
+                            // AND output room — the engine re-verifies)
+                            let all_qty = lf_game::crafting::max_batches(
+                                &self.inventory, &e.ingredients, &e.output, e.output_count, 64);
                             if all_available {
                                 if kit::menu_link(ui, &format!("Craft {}", qty), "wb-craft", 1.0, true, true) {
                                     self.craft_from_workbench(&e.ingredients, &e.output, e.output_count, qty);
                                     self.wb_qty = 1;
+                                }
+                                ui.add_space(2.0);
+                                let all_label = if all_qty > 0 {
+                                    format!("Craft All ({})", all_qty)
+                                } else {
+                                    "Craft All — no room".to_string()
+                                };
+                                if kit::menu_link(ui, &all_label, "wb-craft-all", 1.0, false, all_qty > 0) {
+                                    self.craft_from_workbench(&e.ingredients, &e.output, e.output_count, all_qty);
                                 }
                             } else {
                                 ui.painter().text(
                                     egui::Pos2::new(ui.cursor().min.x + 8.0, ui.cursor().min.y + 14.0),
                                     egui::Align2::LEFT_CENTER, "Missing materials",
                                     egui::FontId::proportional(15.0), Theme::TEXT_DISABLED);
+                                let first_missing: Vec<String> = e.ingredients.iter()
+                                    .filter(|(id, n)| {
+                                        let got = self.inventory.slots.iter().take(36).flatten()
+                                            .filter(|s| s.item_id == *id)
+                                            .map(|s| s.count as u32).sum::<u32>();
+                                        got < (*n as u32).max(1)
+                                    })
+                                    .map(|(id, _)| item_def(id).map(|d| d.name).unwrap_or(id.as_str()).to_string())
+                                    .collect();
+                                if !first_missing.is_empty() {
+                                    ui.add_space(2.0);
+                                    ui.label(egui::RichText::new(format!("need: {}", first_missing.join(", ")))
+                                        .size(11.0).color(Theme::BAD));
+                                }
                             }
                             ui.add_space(4.0);
                             if kit::menu_link(ui, "Add to Queue", "wb-queue", 1.0, false, true) {
                                 self.craft_queue.push((e.output.clone(), qty));
-                                self.chat_log.push(format!("queued: {}x {}", qty, name));
-                                if self.chat_log.len() > 6 { self.chat_log.remove(0); }
+                                // nothing is reserved at enqueue (N02 rule):
+                                // jobs consume exactly at completion
+                                self.push_hint(&format!("queued: {} × {} — nothing reserved yet", qty, name));
                             }
                         });
                     });
@@ -1766,52 +1869,24 @@ impl GameState {
             });
     }
 
-    /// Consume a batch from the inventory and grant the output (the craft
-    /// button's action). Ingredients are re-verified here; the UI button is
-    /// only enabled when they check out, but state can change between frames.
+    /// The craft button's action (N02): fully transactional through the
+    /// lf_game engine — a blocked craft (short materials, no room)
+    /// consumes nothing and says exactly why. The UI enable-state is only
+    /// a convenience; this re-verifies against live inventory every call,
+    /// so rapid clicks and queue completions share one safe path.
     fn craft_from_workbench(&mut self, ingredients: &[(String, u8)], output: &str,
                             output_count: u8, qty: u32) {
-        // verify
-        for (id, n) in ingredients {
-            let need = (*n as u32) * qty;
-            let got: u32 = self.inventory.slots.iter().take(36).flatten()
-                .filter(|s| s.item_id == *id)
-                .map(|s| s.count as u32).sum();
-            if got < need {
-                self.chat_log.push(format!("missing materials for {}", output));
-                return;
+        match lf_game::crafting::execute(&mut self.inventory, ingredients, output, output_count, qty) {
+            lf_game::crafting::CraftOutcome::Crafted { .. } => {
+                // one event set per completed craft action — never per batch
+                self.quest_event(QuestEvent::Crafted(output.to_string()));
+                self.onboarding.observe_crafted();
+                self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
+            }
+            lf_game::crafting::CraftOutcome::Blocked(b) => {
+                self.push_hint(&format!("craft blocked: {}", b.reason()));
             }
         }
-        // consume
-        for (id, n) in ingredients {
-            let mut left = (*n as u32) * qty;
-            for slot in self.inventory.slots.iter_mut().take(36) {
-                if left == 0 { break; }
-                if let Some(s) = slot {
-                    if s.item_id == *id {
-                        let take = (s.count as u32).min(left) as u8;
-                        s.count -= take;
-                        left -= take as u32;
-                        if s.count == 0 { *slot = None; }
-                    }
-                }
-            }
-        }
-        // grant
-        let total = output_count as u32 * qty;
-        let mut remaining = total;
-        while remaining > 0 {
-            let batch = remaining.min(u8::MAX as u32) as u8;
-            let leftover = self.inventory.add_item(output, batch);
-            if leftover > 0 {
-                self.spawn_drop(output, leftover, self.player.eye_position());
-                break;
-            }
-            remaining -= batch as u32;
-        }
-        self.quest_event(QuestEvent::Crafted(output.to_string()));
-        self.onboarding.observe_crafted();
-        self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
     }
 
     fn draw_furnace(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
@@ -4274,6 +4349,51 @@ mod tests {
         assert!(hud_visible(&UiOpen::None, false));
         assert!(hud_visible(&UiOpen::Pause, false), "pause overlay dims the HUD but keeps it");
         assert!(hud_visible(&UiOpen::Inventory, false));
+    }
+
+    /// N02: the queue head reports runnable vs blocked-with-reason, and
+    /// the strip's data source is pure (no mutation while peeking).
+    #[test]
+    fn queue_status_reports_running_and_blocked() {
+        use lf_game::survival::Inventory;
+        // torch = 1 coal over 1 stick, makes 4
+        let mut inv = Inventory::new();
+        assert!(inv.add_item("coal", 1) == 0);
+        assert!(inv.add_item("stick", 2) == 0);
+        let queue = vec![("torch".to_string(), 1u32)];
+        match queue_status(&queue, &inv) {
+            QueueStatus::Running { output, remaining } => {
+                assert_eq!((output.as_str(), remaining), ("torch", 1));
+            }
+            other => panic!("expected Running, got {:?}", other),
+        }
+        // spend the coal elsewhere -> blocked with the exact missing item
+        assert_eq!(inv.remove_count("coal", 1), 1);
+        match queue_status(&queue, &inv) {
+            QueueStatus::Blocked { output, reason, .. } => {
+                assert_eq!(output, "torch");
+                assert!(reason.contains("coal"), "reason names the missing item: {reason}");
+            }
+            other => panic!("expected Blocked, got {:?}", other),
+        }
+        // empty queue is Empty, not blocked
+        assert!(matches!(queue_status(&[], &inv), QueueStatus::Empty));
+    }
+
+    /// N02: an unknown output (mod unloaded) is an honest block, and the
+    /// craft-entry lookup finds the real torch recipe with counts.
+    #[test]
+    fn catalog_entry_lookup_and_unknown_outputs() {
+        let (ings, count) = catalog_craft_entry("torch").expect("torch is a craft recipe");
+        assert_eq!(count, 4);
+        assert!(ings.contains(&("coal".to_string(), 1)));
+        assert!(ings.contains(&("stick".to_string(), 1)));
+        assert!(catalog_craft_entry("definitely_not_an_item").is_none());
+        let queue = vec![("definitely_not_an_item".to_string(), 2u32)];
+        assert!(matches!(
+            queue_status(&queue, &lf_game::survival::Inventory::new()),
+            QueueStatus::Blocked { .. }
+        ));
     }
 
     /// N01: the pinned objective always presents the first incomplete

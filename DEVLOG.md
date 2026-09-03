@@ -2197,3 +2197,45 @@ but no in-grid highlight exists yet; it belongs to the N02/N03
 workbench/crafting pass. Controller-adaptive chips (only keymap chips
 adapt today). No onboarding completion chronicle event (a push_hint
 fires instead).
+
+## 2026-09-03 — loop 351: transactional crafting + real queue (nightly-beta N02)
+
+WHAT: All crafting execution now flows through a transactional engine
+(lf_game/src/crafting.rs): execute() validates every ingredient against
+real counts, PROVES output capacity via Inventory::free_capacity, then
+consumes exactly (Inventory::remove_count) and grants exactly — batched
+past the u8 add_item boundary with zero loss. This fixed a real
+production bug: the old grant loop broke out on the first partial insert
+and silently dropped any remaining outputs past 255 (e.g. Craft-64
+planks = 256 outputs could lose 45+). Typed CraftBlock reasons
+(MissingIngredient with need/got, NoRoom with needed/free) + CraftOutcome
+drive both the UI and the queue. max_batches() gives integer-safe
+craft-all limited by materials AND room. The client's placeholder queue
+became real: enqueue reserves nothing (documented rule), one job
+completes per 1.25 s of play (craft_queue_tick in lib.rs, active during
+play + workbench open), completions run the engine and fire
+quest/tutorial/audio events exactly once, blocked jobs display live
+reasons in the new queue strip (working/blocked/queued + free cancel),
+the queue persists in the unchanged ClientSave shape, and a vanished
+recipe (mod unloaded) drops its job with a chat message.
+
+HOW: crafting.rs engine + Inventory helpers + 8 tests; ui.rs
+craft_from_workbench rewritten onto the engine (blocked → exact push_hint
+reason), Craft All button, missing-ingredient lines name the exact
+items, queue strip replacing the dead badge, catalog_craft_entry +
+queue_status pure helpers + 3 tests; lib.rs craft_queue_timer field +
+tick + 1 save round-trip test.
+
+VERIFICATION: cargo build --workspace GREEN; cargo test --workspace 433
+passing / 0 failed (+11 over loop 350's 422); vistest unchanged at 96/96
+(no visual-scene change in this job — the workbench proofs are N03);
+make smoke OK (headless logic includes the craft path); git diff --check
+clean. Runtimes rebuilt (make runtimes) since game code changed.
+
+HONESTLY DEFERRED: everything presentation — modal workbench layout with
+world scrim, compact two-pane drill-down at 640x420, queue strip visual
+proofs (crafting_queue scene), crafting_missing_ingredients scene, and
+the E/Escape input-recovery integration test — is N03, per the queue's
+"tests before presentation" ordering. Furnace/machine output insertion
+was not touched (separate mechanics with their own slots; they never had
+the multi-batch grant bug).

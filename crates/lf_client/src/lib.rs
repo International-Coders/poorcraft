@@ -1129,6 +1129,8 @@ struct GameState {
     pub rebind_capture: Option<crate::input::Action>,
     /// N01: the persisted first-minute tutorial + pinned-objective state.
     pub onboarding: onboarding::Onboarding,
+    /// N02: countdown to the next craft-queue job completion.
+    craft_queue_timer: f32,
     /// Last slot-thumbnail capture (throttled; Step 14).
     last_thumb: Instant,
     /// Loaded save-slot thumbnails for the picker (Step 14).
@@ -1653,6 +1655,7 @@ impl GameState {
             step_distance: 0.0,
             was_in_water: false,
             onboarding: onboarding::Onboarding::default(),
+            craft_queue_timer: 0.0,
             prev_ui_open: UiOpen::Title,
             recipe_book: workbench::RecipeBook::default(),
             wb_category: 0,
@@ -2279,6 +2282,7 @@ impl GameState {
         );
         self.update_falling_trees(dt);
         self.survival_tick(dt);
+        self.craft_queue_tick(dt);
         self.update_drops(dt);
         // Furnaces and machines tick whether or not their UI is open.
         // Power: sources (generator/wheel/battery) are pulled out, the pure
@@ -4125,6 +4129,55 @@ impl GameState {
     }
 
     /// Hunger drain, regen, fall damage, drowning, death.
+    /// N02: seconds of play between craft-queue job completions.
+    const CRAFT_JOB_SECONDS: f32 = 1.25;
+
+    /// N02: the craft queue is REAL — entries hold (output, qty), nothing
+    /// is reserved at enqueue, and every job completion runs the full
+    /// transactional engine against the live inventory. Documented rule:
+    /// queueing reserves nothing; a job consumes exactly at completion;
+    /// a blocked job (missing materials / no room) waits and shows its
+    /// reason; cancel is free because nothing was consumed. The queue
+    /// advances during play and while the workbench is open — not behind
+    /// pause or menus that own the world.
+    fn craft_queue_tick(&mut self, dt: f32) {
+        if self.craft_queue.is_empty() {
+            self.craft_queue_timer = 0.0;
+            return;
+        }
+        let active = self.stats.health > 0.0
+            && matches!(self.ui_open, UiOpen::None | UiOpen::Chat | UiOpen::HandCraft | UiOpen::CraftingTable);
+        if !active {
+            return;
+        }
+        self.craft_queue_timer -= dt;
+        if self.craft_queue_timer > 0.0 {
+            return;
+        }
+        self.craft_queue_timer = Self::CRAFT_JOB_SECONDS;
+        let (output, qty) = self.craft_queue[0].clone();
+        let Some((ingredients, output_count)) = crate::ui::catalog_craft_entry(&output) else {
+            // the recipe vanished (mod unloaded / catalog rename): drop the
+            // job honestly instead of spinning forever
+            self.craft_queue.remove(0);
+            self.push_hint(&format!("queue: recipe for {} is gone — job dropped", output));
+            return;
+        };
+        match lf_game::crafting::execute(&mut self.inventory, &ingredients, &output, output_count, qty) {
+            lf_game::crafting::CraftOutcome::Crafted { granted, .. } => {
+                self.craft_queue.remove(0);
+                // exactly one event set per completed job — same as a click
+                self.quest_event(QuestEvent::Crafted(output.clone()));
+                self.onboarding.observe_crafted();
+                self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
+                self.push_hint(&format!("queue delivered: {} × {}", granted, output));
+            }
+            lf_game::crafting::CraftOutcome::Blocked(_) => {
+                // the queue strip shows the live reason; retry next tick
+            }
+        }
+    }
+
     fn survival_tick(&mut self, dt: f32) {
         if self.stats.health <= 0.0 {
             return; // dead: nothing ticks
@@ -6864,6 +6917,31 @@ mod tests {
         let book = loaded.spellbook.unwrap();
         assert!(book.knows(lf_game::magic::Spell::Firebolt));
         assert!((loaded.mana - 12.5).abs() < 1e-4);
+    }
+
+    /// N02: the craft queue persists exactly (jobs survive reload; the
+    /// engine re-verifies them against live inventory on every tick, so a
+    /// stale save cannot mint items).
+    #[test]
+    fn craft_queue_persists_through_client_save() {
+        let save = ClientSave {
+            craft_queue: vec![
+                ("torch".to_string(), 4),
+                ("planks".to_string(), 12),
+            ],
+            ..Default::default()
+        };
+        let loaded: ClientSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        assert_eq!(loaded.craft_queue, vec![
+            ("torch".to_string(), 4),
+            ("planks".to_string(), 12),
+        ]);
+        // an old save without the field defaults to an empty queue
+        let old_json = serde_json::to_string(&ClientSave::default())
+            .unwrap()
+            .replace("craft_queue", "legacy_ignored");
+        let old: ClientSave = serde_json::from_str(&old_json).unwrap();
+        assert!(old.craft_queue.is_empty());
     }
 
     /// N01: the tutorial state persists through the JSON extras path, and

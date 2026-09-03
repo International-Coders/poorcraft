@@ -481,6 +481,154 @@ pub fn register_mod_recipe(output: String, output_count: u8, pattern: Vec<Vec<Op
     true
 }
 
+// --- N02 (nightly-beta): the transactional craft engine ---
+//
+// Every crafting execution (craft-one, craft-all, queue jobs, mod recipes)
+// flows through `execute`: validate every ingredient against real counts,
+// prove the output FITS, then consume and produce exactly. A failed check
+// consumes nothing; a successful one loses nothing.
+
+use crate::survival::Inventory;
+
+/// Why a craft was refused (or a queued job is blocked).
+#[derive(Clone, Debug, PartialEq)]
+pub enum CraftBlock {
+    /// Short one ingredient: (item id, need, got).
+    MissingIngredient { item: String, need: u32, got: u32 },
+    /// Not enough room for the output: (needed, free).
+    NoRoom { needed: u32, free: u32 },
+}
+
+impl CraftBlock {
+    /// The player-facing reason line.
+    pub fn reason(&self) -> String {
+        match self {
+            CraftBlock::MissingIngredient { item, need, got } =>
+                format!("missing {} (need {}, have {})", item, need, got),
+            CraftBlock::NoRoom { needed, free } =>
+                format!("no room — need space for {} more (free {})", needed, free),
+        }
+    }
+}
+
+/// How a craft action resolved.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CraftOutcome {
+    /// Consumed and granted exactly `granted` = output_count × qty.
+    Crafted { output: String, granted: u32 },
+    Blocked(CraftBlock),
+}
+
+impl Inventory {
+    /// Total held of `id` across the 36 storage/hotbar slots.
+    pub fn count_of(&self, id: &str) -> u32 {
+        self.slots.iter().take(36).flatten()
+            .filter(|s| s.item_id == id)
+            .map(|s| s.count as u32).sum()
+    }
+
+    /// How many more of `id` fit right now: partial-stack headroom plus
+    /// empty slots at full capacity.
+    pub fn free_capacity(&self, id: &str) -> u32 {
+        let cap = crate::items::item_def(id).map(|d| d.max_stack).unwrap_or(64) as u32;
+        let mut free = 0u32;
+        for slot in self.slots.iter().take(36) {
+            match slot {
+                Some(s) if s.item_id == id => free += cap - s.count as u32,
+                None => free += cap,
+                _ => {}
+            }
+        }
+        free
+    }
+
+    /// Remove up to `n` of `id`; returns how many were actually removed
+    /// (callers that pre-verified see `n`).
+    pub fn remove_count(&mut self, id: &str, n: u32) -> u32 {
+        let mut left = n;
+        for slot in self.slots.iter_mut().take(36) {
+            if left == 0 { break; }
+            if let Some(s) = slot {
+                if s.item_id == id {
+                    let take = (s.count as u32).min(left) as u8;
+                    s.count -= take;
+                    left -= take as u32;
+                    if s.count == 0 { *slot = None; }
+                }
+            }
+        }
+        n - left
+    }
+}
+
+/// Integer-safe maximum batches of `ingredients → output` the inventory
+/// supports right now, capped at `requested`. Limited by every ingredient
+/// count AND by output room.
+pub fn max_batches(inv: &Inventory, ingredients: &[(String, u8)],
+                   output: &str, output_count: u8, requested: u32) -> u32 {
+    let mut limit = requested;
+    for (id, n) in ingredients {
+        let per = *n as u32;
+        if per == 0 { continue; }
+        let got = inv.count_of(id);
+        // floor(got / per): batches the held count allows
+        let by_item = got / per;
+        limit = limit.min(by_item);
+        if limit == 0 { return 0; }
+    }
+    if output_count > 0 {
+        let free = inv.free_capacity(output);
+        let by_room = free / output_count as u32;
+        limit = limit.min(by_room);
+    }
+    limit
+}
+
+/// Validate, consume, and produce — atomically. Missing ingredients or
+/// output room return `Blocked` with the inventory UNTOUCHED; success
+/// consumes exactly `n × qty` per ingredient and inserts exactly
+/// `output_count × qty` (batched past the u8 add_item boundary without
+/// loss).
+pub fn execute(inv: &mut Inventory, ingredients: &[(String, u8)],
+               output: &str, output_count: u8, qty: u32) -> CraftOutcome {
+    // validate every ingredient first, in u64 so qty can never overflow
+    for (id, n) in ingredients {
+        let need = *n as u64 * qty as u64;
+        let got = inv.count_of(id) as u64;
+        if got < need {
+            return CraftOutcome::Blocked(CraftBlock::MissingIngredient {
+                item: id.clone(),
+                need: need.min(u32::MAX as u64) as u32,
+                got: got as u32,
+            });
+        }
+    }
+    let total_out = output_count as u64 * qty as u64;
+    let free = inv.free_capacity(output) as u64;
+    if free < total_out {
+        return CraftOutcome::Blocked(CraftBlock::NoRoom {
+            needed: total_out.min(u32::MAX as u64) as u32,
+            free: free as u32,
+        });
+    }
+    // consume exactly (guaranteed by the validation pass)
+    for (id, n) in ingredients {
+        let need = *n as u32 * qty;
+        let removed = inv.remove_count(id, need);
+        debug_assert_eq!(removed, need, "consume after verify must be exact");
+    }
+    // grant exactly, in add_item-sized batches; capacity was proven so
+    // the leftover is a logic error, not an acceptable loss
+    let mut remaining = total_out;
+    while remaining > 0 {
+        let batch = remaining.min(u8::MAX as u64) as u8;
+        let leftover = inv.add_item(output, batch) as u64;
+        debug_assert_eq!(leftover, 0, "grant after capacity proof must fit");
+        remaining -= batch as u64 - leftover;
+    }
+    CraftOutcome::Crafted { output: output.to_string(), granted: total_out as u32 }
+}
+
 /// Try to craft from a grid (row-major, 2x2 or 3x3) of stacks.
 /// Returns the crafted result if a recipe matches; does not consume inputs.
 pub fn match_recipe(grid: &[Option<ItemStack>]) -> Option<(String, u8)> {
@@ -557,6 +705,157 @@ mod tests {
 
     fn s(id: &str) -> Option<ItemStack> {
         Some(ItemStack { item_id: id.to_string(), count: 1 })
+    }
+
+    fn inv_with(id: &str, count: u8) -> Inventory {
+        let mut inv = Inventory::new();
+        let leftover = inv.add_item(id, count);
+        assert_eq!(leftover, 0);
+        inv
+    }
+
+    /// Failure meaning: crafting stopped being transactional — the
+    /// planks recipe must consume exactly 1 log per batch and grant
+    /// exactly 4 planks per batch.
+    #[test]
+    fn execute_consumes_and_grants_exactly() {
+        let mut inv = inv_with("log", 5);
+        let planks: Vec<(String, u8)> = vec![("log".into(), 1)];
+        let out = execute(&mut inv, &planks, "planks", 4, 4);
+        assert_eq!(out, CraftOutcome::Crafted { output: "planks".into(), granted: 16 });
+        assert_eq!(inv.count_of("log"), 1, "exactly 4 logs consumed");
+        assert_eq!(inv.count_of("planks"), 16, "exactly 16 planks granted");
+    }
+
+    /// Failure meaning: a short ingredient check consumed something
+    /// anyway (the classic duplication/void split).
+    #[test]
+    fn missing_ingredient_consumes_nothing() {
+        let mut inv = inv_with("log", 1);
+        let torch: Vec<(String, u8)> = vec![("coal".into(), 1), ("stick".into(), 1)];
+        let out = execute(&mut inv, &torch, "torch", 4, 1);
+        assert_eq!(out, CraftOutcome::Blocked(CraftBlock::MissingIngredient {
+            item: "coal".into(), need: 1, got: 0 }));
+        assert_eq!(inv.count_of("log"), 1, "nothing was consumed by a blocked craft");
+    }
+
+    /// Failure meaning: a full inventory consumed ingredients and then
+    /// had nowhere to put the output. Room is proven BEFORE consuming.
+    #[test]
+    fn no_room_consumes_nothing() {
+        let mut inv = inv_with("log", 64);
+        // fill every remaining storage slot with dirt stacks
+        for slot in inv.slots.iter_mut().take(36) {
+            if slot.is_none() {
+                *slot = Some(ItemStack { item_id: "dirt".into(), count: 64 });
+            }
+        }
+        let planks: Vec<(String, u8)> = vec![("log".into(), 1)];
+        let out = execute(&mut inv, &planks, "planks", 4, 1);
+        match out {
+            CraftOutcome::Blocked(CraftBlock::NoRoom { needed, free }) => {
+                assert_eq!((needed, free), (4, 0));
+            }
+            other => panic!("expected NoRoom, got {:?}", other),
+        }
+        assert_eq!(inv.count_of("log"), 64, "blocked craft left the log alone");
+    }
+
+    /// Failure meaning: outputs past the u8 add_item boundary (255) were
+    /// lost — the old grant loop dropped `remaining` beyond the first
+    /// partial batch.
+    #[test]
+    fn output_over_the_batch_boundary_is_never_lost() {
+        // 64 batches × 4 planks = 256 outputs = 5 stacks (4×64 + 1 free
+        // slot is NOT enough) — need 5 free slots + 64 logs
+        let mut inv = Inventory::new();
+        let leftover = inv.add_item("log", 64);
+        assert_eq!(leftover, 0);
+        let planks: Vec<(String, u8)> = vec![("log".into(), 1)];
+        let out = execute(&mut inv, &planks, "planks", 4, 64);
+        assert_eq!(out, CraftOutcome::Crafted { output: "planks".into(), granted: 256 });
+        assert_eq!(inv.count_of("planks"), 256, "all 256 outputs granted, none lost");
+        assert_eq!(inv.count_of("log"), 0);
+    }
+
+    /// Failure meaning: craft-all could mint items by rounding batches up
+    /// or ignore output room.
+    #[test]
+    fn max_batches_is_integer_safe_and_room_limited() {
+        let mut inv = inv_with("log", 7);
+        let planks: Vec<(String, u8)> = vec![("log".into(), 1)];
+        // 7 logs → 7 batches, all the room in the world
+        assert_eq!(max_batches(&inv, &planks, "planks", 4, 64), 7);
+        // now constrain room: leave space for exactly 9 planks → 2 batches
+        for slot in inv.slots.iter_mut().take(36) {
+            if slot.is_none() {
+                *slot = Some(ItemStack { item_id: "dirt".into(), count: 64 });
+            }
+        }
+        inv.slots[5] = None; // one free slot = 64 planks of room... need 9:
+        inv.slots[5] = Some(ItemStack { item_id: "planks".into(), count: 55 });
+        assert_eq!(inv.free_capacity("planks"), 9);
+        assert_eq!(max_batches(&inv, &planks, "planks", 4, 64), 2);
+        // zero when an ingredient is absent entirely
+        let torch: Vec<(String, u8)> = vec![("coal".into(), 1), ("stick".into(), 1)];
+        assert_eq!(max_batches(&inv, &torch, "torch", 4, 8), 0);
+    }
+
+    /// Failure meaning: two rapid executions with materials for only one
+    /// craft could duplicate or void (each call re-verifies atomically).
+    #[test]
+    fn rapid_double_execution_cannot_duplicate() {
+        let mut inv = inv_with("log", 1);
+        let planks: Vec<(String, u8)> = vec![("log".into(), 1)];
+        let first = execute(&mut inv, &planks, "planks", 4, 1);
+        assert!(matches!(first, CraftOutcome::Crafted { .. }));
+        let second = execute(&mut inv, &planks, "planks", 4, 1);
+        assert!(matches!(second, CraftOutcome::Blocked(CraftBlock::MissingIngredient { .. })));
+        assert_eq!(inv.count_of("planks"), 4, "exactly one craft's worth exists");
+    }
+
+    /// Failure meaning: mod recipes bypassed the transactional engine's
+    /// guarantees (the queue and craft buttons must serve them too).
+    #[test]
+    fn mod_recipes_execute_transactionally() {
+        use std::sync::Mutex;
+        static MOD_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = MOD_LOCK.lock().unwrap();
+        let ok = register_mod_recipe(
+            "modwidget_x".into(), 2,
+            vec![vec![Some("log".into()), Some("log".into())]],
+        );
+        assert!(ok);
+        let recipe = all_recipes().into_iter()
+            .find(|r| r.output == "modwidget_x")
+            .expect("mod recipe registered");
+        // aggregate the pattern like the client catalog does
+        let mut ings: Vec<(String, u8)> = Vec::new();
+        for row in &recipe.pattern {
+            for cell in row.iter().flatten() {
+                match ings.iter_mut().find(|(id, _)| id == cell) {
+                    Some(e) => e.1 += 1,
+                    None => ings.push((cell.to_string(), 1)),
+                }
+            }
+        }
+        assert_eq!(ings, vec![("log".to_string(), 2)]);
+        let mut inv = inv_with("log", 2);
+        let out = execute(&mut inv, &ings, "modwidget_x", recipe.output_count, 1);
+        assert_eq!(out, CraftOutcome::Crafted { output: "modwidget_x".into(), granted: 2 });
+        assert_eq!(inv.count_of("log"), 0);
+        assert_eq!(inv.count_of("modwidget_x"), 2);
+    }
+
+    /// Failure meaning: the blocked-reason copy regressed.
+    #[test]
+    fn block_reasons_speak_plainly() {
+        assert_eq!(
+            CraftBlock::MissingIngredient { item: "log".into(), need: 3, got: 1 }.reason(),
+            "missing log (need 3, have 1)");
+        assert_eq!(
+            CraftBlock::NoRoom { needed: 4, free: 2 }.reason(),
+            "no room — need space for 4 more (free 2)");
     }
 
     /// Failure meaning: the loop 345 kingdom compass stopped being
