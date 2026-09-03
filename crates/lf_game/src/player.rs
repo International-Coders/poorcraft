@@ -298,11 +298,18 @@ fn has_ground_support(world: &World, pos: Vec3) -> bool {
 }
 
 fn intersects_solid(world: &World, aabb: &Aabb) -> bool {
-    let min = aabb.min.floor().as_ivec3();
-    let max = (aabb.max - Vec3::splat(1e-6)).floor().as_ivec3();
-    for x in min.x..=max.x {
-        for y in min.y..=max.y {
-            for z in min.z..=max.z {
+    box_intersects_solid(world, aabb.min, aabb.max)
+}
+
+/// Box-vs-world solidity test shared by the player and mob movers
+/// (P34: shaped blocks collide through their fractional boxes; loop 347
+/// gave animals the same wall the player has).
+pub(crate) fn box_intersects_solid(world: &World, min: Vec3, max: Vec3) -> bool {
+    let lo = min.floor().as_ivec3();
+    let hi = (max - Vec3::splat(1e-6)).floor().as_ivec3();
+    for x in lo.x..=hi.x {
+        for y in lo.y..=hi.y {
+            for z in lo.z..=hi.z {
                 let state = world.get_block(x, y, z);
                 if !lf_voxel::registry::is_solid(state) {
                     continue;
@@ -312,9 +319,9 @@ fn intersects_solid(world: &World, aabb: &Aabb) -> bool {
                 for b in lf_voxel::registry::collision_boxes(state) {
                     let bmin = Vec3::new(x as f32 + b[0], y as f32 + b[1], z as f32 + b[2]);
                     let bmax = Vec3::new(x as f32 + b[3], y as f32 + b[4], z as f32 + b[5]);
-                    if aabb.min.x < bmax.x && aabb.max.x > bmin.x
-                        && aabb.min.y < bmax.y && aabb.max.y > bmin.y
-                        && aabb.min.z < bmax.z && aabb.max.z > bmin.z
+                    if min.x < bmax.x && max.x > bmin.x
+                        && min.y < bmax.y && max.y > bmin.y
+                        && min.z < bmax.z && max.z > bmin.z
                     {
                         return true;
                     }

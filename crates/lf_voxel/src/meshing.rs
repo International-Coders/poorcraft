@@ -928,4 +928,29 @@ mod tests {
         let cube = mesh_section(&sec2, None, None, None, None, None, None, None, None, None, None, tex_of, light_of);
         assert!(cube.vertices.len() > 16, "a cube has more geometry than a cross");
     }
+
+    /// Loop 347 regression (the "transparent ground under flowers" bug):
+    /// lavender/sunflower are non-opaque cross-plants, so the ground face
+    /// under them must be meshed — before the fix they read as opaque
+    /// cubes and the terrain under whole biomes was culled to the void.
+    #[test]
+    fn ground_faces_render_under_every_plant() {
+        use crate::registry::block;
+        let tex_of = &|_b, _f| 7u32;
+        let light_of = &|_, _, _| 0xF0u32;
+        let bare = {
+            let mut sec = crate::VoxelSection::new_empty();
+            sec.set(8, 8, 8, BlockState(block::GRASS));
+            mesh_section(&sec, None, None, None, None, None, None, None, None, None, None, tex_of, light_of)
+        };
+        for plant in [block::FLOWER, block::TALL_GRASS, block::DRY_GRASS,
+                      block::DEAD_SHRUB, block::LAVENDER, block::SUNFLOWER] {
+            let mut sec = crate::VoxelSection::new_empty();
+            sec.set(8, 8, 8, BlockState(block::GRASS));
+            sec.set(8, 9, 8, BlockState(plant));
+            let meshed = mesh_section(&sec, None, None, None, None, None, None, None, None, None, None, tex_of, light_of);
+            assert_eq!(meshed.vertices.len(), bare.vertices.len() + 16,
+                "{} must add exactly its 4 cross quads, not change the ground mesh", block::name(plant));
+        }
+    }
 }

@@ -1320,3 +1320,17 @@
   pass recorded in BACKLOG + STATUS.
 - 256 tests green (+3); 47/47 vistest scenes; smoke OK; runtimes
   rebuilt; pushed.
+
+## Loop 347 — Hitboxes, walls, wheels & castle siting
+- User bug hunt: flowers no longer cull the ground under them or form
+  invisible solid hitboxes (`is_plant`-driven solidity/opaque), picking
+  and the selection outline follow real block shapes (`pick_boxes` +
+  shape-aware raycast), animals collide with walls (axis-separated AABB
+  physics with hop step-up; dragons clamp to terrain), LMB near mobs no
+  longer throttles creative breaking to 2/s (crosshair LOS filter), the
+  wheel switches every notch instantly (multi-step + no set_title +
+  same-frame UI), a caption above the hotbar names the looked-at block,
+  and kingdom citadels site properly (dense validation, border margin,
+  spawn clearance, hillside carving, clean courtyard; gen v6).
+- 399 tests green (+12); 93/93 vistest scenes; smoke OK; runtimes
+  rebuilt; pushed.

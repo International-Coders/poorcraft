@@ -468,16 +468,17 @@ pub fn log_horizontal_z(vertical_id: u32) -> Option<u32> {
     }
 }
 
-/// Blocks entities collide with. Water is not solid; leaves are.
+/// Blocks entities collide with. Water is not solid; leaves are. Every
+/// cross-plant (`is_plant`) is walk-through decor — the per-id list once
+/// missed lavender/sunflower, which made whole flower biomes invisible
+/// solid walls (loop 347).
 pub fn is_solid(b: BlockState) -> bool {
     let id = b.id();
     if id >= MOD_BLOCK_BASE {
         return mod_block(id).map(|d| d.solid).unwrap_or(true);
     }
     id != block::AIR && id != block::WATER && id != block::OIL && id != block::TORCH
-        && id != block::LANTERN && id != block::FLOWER && id != block::LANTERN_HANGING
-        && id != block::TALL_GRASS && id != block::DRY_GRASS && id != block::DEAD_SHRUB
-        && !is_banner(id)
+        && id != block::LANTERN && id != block::LANTERN_HANGING && !is_plant(id)
 }
 
 /// Blocks that hide the neighboring face when meshing. Air, water and leaves
@@ -492,8 +493,7 @@ pub fn is_opaque(b: BlockState) -> bool {
     }
     id != block::AIR && id != block::WATER && id != block::OIL && !is_leaf(id)
         && id != block::TORCH && id != block::LANTERN && id != block::GLASS
-        && id != block::ICE && id != block::FLOWER
-        && id != block::TALL_GRASS && id != block::DRY_GRASS && id != block::DEAD_SHRUB
+        && id != block::ICE && !is_plant(id)
 }
 
 /// The eight stained-glass tint variants (translucent pane like glass).
@@ -532,6 +532,34 @@ pub fn collision_boxes(state: BlockState) -> &'static [[f32; 6]] {
         Shape::StairSouth => &STAIR_S,
         Shape::StairWest => &STAIR_W,
         Shape::StairEast => &STAIR_E,
+    }
+}
+
+/// Targeting boxes (block-local 0..1 coordinates): what the crosshair
+/// raycast tests and the selection wireframe draws. Distinct from
+/// `collision_boxes` because non-solid decor still needs a pick shape —
+/// a torch is a thin stick, a flower a small inset box, while physics
+/// ignores them entirely (loop 347 hitbox fix).
+pub fn pick_boxes(state: BlockState) -> &'static [[f32; 6]] {
+    use block as b;
+    const FULL: [[f32; 6]; 1] = [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]];
+    /// cross-plants: the meshed diagonals live in the inner ~0.7 cell
+    const PLANT: [[f32; 6]; 1] = [[0.15, 0.0, 0.15, 0.85, 0.8, 0.85]];
+    const TORCH: [[f32; 6]; 1] = [[0.4375, 0.0, 0.4375, 0.5625, 0.625, 0.5625]];
+    const LANTERN: [[f32; 6]; 1] = [[0.3125, 0.0, 0.3125, 0.6875, 0.5625, 0.6875]];
+    const LANTERN_HANG: [[f32; 6]; 1] = [[0.3125, 0.4375, 0.3125, 0.6875, 1.0, 0.6875]];
+    let id = state.id();
+    if id >= MOD_BLOCK_BASE {
+        return &FULL;
+    }
+    if is_plant(id) {
+        return &PLANT;
+    }
+    match id {
+        b::TORCH => &TORCH,
+        b::LANTERN => &LANTERN,
+        b::LANTERN_HANGING => &LANTERN_HANG,
+        _ => collision_boxes(state), // cubes, slabs and stairs keep their shape
     }
 }
 
@@ -609,12 +637,17 @@ mod tests {
 
     /// Loop 331: ground plants are cross-plant decor — walked through,
     /// targeted for breaking, not gravity fallers, and banners excluded.
+    /// Loop 347: the list-driven exclusion once missed lavender/sunflower
+    /// (invisible solid walls + culled ground faces under whole biomes),
+    /// so the contract is now stated for EVERY is_plant id.
     #[test]
     fn plants_are_walk_through_decor() {
         use block as b;
-        for plant in [b::FLOWER, b::TALL_GRASS, b::DRY_GRASS, b::DEAD_SHRUB] {
+        for plant in [b::FLOWER, b::TALL_GRASS, b::DRY_GRASS, b::DEAD_SHRUB,
+                      b::LAVENDER, b::SUNFLOWER, b::BANNER_ACCORD, b::BANNER_KINGDOM] {
             assert!(is_plant(plant), "{} is a plant", plant);
-            assert!(!is_solid(BlockState(plant)), "plants are walked through");
+            assert!(!is_solid(BlockState(plant)), "{} is walked through", plant);
+            assert!(!is_opaque(BlockState(plant)), "{} never culls the ground under it", plant);
             assert!(is_targetable(BlockState(plant)), "plants breakable");
             assert!(!has_gravity(plant), "plants pop, not fall");
         }
@@ -625,9 +658,34 @@ mod tests {
         assert!(!is_plant(b::LOG));
     }
 
+    /// Loop 347 hitbox fix: the pick shape mirrors what you see. Full
+    /// cubes outline the whole cell, slabs/stairs reuse their collision
+    /// shape, and thin decor (torch/lantern/plants) gets a small box so
+    /// the wireframe and crosshair stop claiming empty air.
     #[test]
-    fn mod_blocks_register_and_behave() {
-        assert!(register_mod_block(250, ModBlockDef {
+    fn pick_boxes_match_the_visible_shape() {
+        use block as b;
+        let full = pick_boxes(BlockState(b::STONE));
+        assert_eq!(full, &[[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]]);
+        // torch: a 2/16-wide stick, 10/16 tall
+        let torch = pick_boxes(BlockState(b::TORCH))[0];
+        assert!(torch[3] - torch[0] < 0.2, "torch is thin: {:?}", torch);
+        assert!(torch[4] < 0.7, "torch is short: {:?}", torch);
+        // hanging lantern hangs from the ceiling, not the floor
+        let hang = pick_boxes(BlockState(b::LANTERN_HANGING))[0];
+        assert!(hang[1] > 0.3 && hang[4] > 0.9, "hanging lantern top-anchored: {:?}", hang);
+        // plants: inset, sub-cell height
+        let plant = pick_boxes(BlockState(b::LAVENDER))[0];
+        assert!(plant[0] > 0.05 && plant[4] < 1.0, "plant box inset: {:?}", plant);
+        // slabs pick as half cells (no grabbing the empty top half)
+        let slab = pick_boxes(BlockState(b::PLANKS).with_shape(crate::Shape::SlabBottom));
+        assert_eq!(slab, &[[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]]);
+        // stairs carry both boxes through
+        assert_eq!(pick_boxes(BlockState(b::PLANKS).with_shape(crate::Shape::StairNorth)).len(), 2);
+    }
+
+    #[test]
+    fn mod_blocks_register_and_behave() {        assert!(register_mod_block(250, ModBlockDef {
             name: "ember_ores:ember_ore".into(),
             solid: true,
             opaque: true,

@@ -1941,3 +1941,89 @@ HONESTLY DEFERRED: disk-backed authored material-pack loading through the mod
 manifest, textures above the current 16x16 atlas contract, roughness/metalness,
 and a projected raster shadow-map pass. Live RT still owns true soft cast
 shadows. The queued next job remains compact, persisted first-minute onboarding.
+
+## 2026-09-02 — loop 347: hitboxes, walls, wheels & castle siting (user bug hunt)
+
+WHAT: Fixed the seven user-reported defects in one pass: wrong block
+hitboxes, transparent ground under flowers, animals walking through
+walls, creative block removal capped at 2/second near mobs, poor castle
+spawn siting, no looked-at-block name, and heavy mouse-wheel item
+switching.
+
+HOW:
+- Plant solidity/opaque (lf_voxel/src/registry.rs): `is_solid` and
+  `is_opaque` now exclude via `!is_plant(id)` instead of a per-id list —
+  the list predated LAVENDER/SUNFLOWER, so entire flower biomes were
+  invisible solid full cubes that culled the ground faces under them to
+  the void and blocked light/AO. `plants_are_walk_through_decor` now
+  states the contract for every plant id, and
+  `ground_faces_render_under_every_plant` (meshing) proves the ground
+  face is emitted under all six ground plants.
+- Real pick shapes (lf_voxel): new `registry::pick_boxes` — plants get a
+  0.7-wide 0.8-tall inset box, torch a 2/16 stick, lanterns their cage,
+  slabs/stairs reuse `collision_boxes`. New `raycast_voxel_boxes`
+  (raycast.rs) walks the same DDA but accepts a cell only when the ray
+  crosses one of its pick boxes, so the crosshair can't grab the empty
+  half of a slab or the air beside a torch. The engine outline
+  (lf_engine/src/outline.rs) takes the boxes and draws one wireframe per
+  box (stairs show both), hairline-inflated.
+- Animal walls (lf_game/src/mobs.rs): replaced the point-probe physics
+  (which committed every horizontal move and only hopped) with
+  `MobEntity::physics_step` — axis-separated AABB collision through the
+  shared `player::box_intersects_solid` (extracted pub(crate) from the
+  player's resolver), substepped against tunneling, player-style landing
+  clamp, a grounded probe, hop-assisted 1-block step-up, and a wedged-
+  inside-solid pop-up. Sizes via `MobStats::collision_half_width/
+  collision_height`. Dragons (client) get a terrain clamp on the flight
+  brain's proposed position — they skim mountains instead of phasing
+  through.
+- Creative break throttle (lf_client/src/lib.rs): `mob_in_crosshair` had
+  no occlusion test, so any mob roughly on the look line stole LMB into
+  the 0.5s attack branch and `return`ed before mining — exactly the
+  reported 2 blocks/second. New `crosshair_mob` cone-tests candidates,
+  sorts nearest-first, and filters through `has_line_of_sight`.
+- Wheel (lf_client): `consume_scroll_steps` drains EVERY accumulated
+  notch per frame (the old handler did `signum()` and discarded the
+  rest), keeps the fractional remainder for trackpads, runs BEFORE the
+  UI frame so the highlight moves the same frame, and drops the
+  per-notch `window.set_title` window-server round trip (the 2s HUD tick
+  refreshes the title).
+- Block-name caption (ui.rs): `hotbar_caption` drives one always-
+  allocated line above the hotbar — the just-picked item while its fade
+  window is live (instant scroll feedback), else the looked-at block's
+  name from `registry::block::name`; the old below-bar item label moved
+  into it.
+- Castle siting (lf_worldgen/src/lib.rs): `kingdom_chunk_ok` now samples
+  a dense 6x6 grid over the whole footprint (any wet/alpine cell
+  refuses; spread <= 6) instead of 5 points; candidates stay 2 chunks
+  clear of region borders so neighbouring realms can't sit wall-to-wall;
+  sites keep `KINGDOM_SPAWN_CLEARANCE` (160 blocks) away from the world
+  spawn; `build_kingdom_citadel` carves everything above the base plane
+  first so up-slope hillsides no longer bury walls/gate; citadel chunks
+  skip tree and ground-cover passes (courtyard is clean); GENERATOR_VERSION
+  bumped to 6 for the stamped-save contract.
+
+PROOF/FIXES ALONG THE WAY: the first hop test used a one-block platform
+and failed because the boar legitimately crossed it and dropped off the
+far side inside the 4-second sim — widened the platform to match the
+intent (stay on top). Test-first also caught a double-gravity line and a
+raw-pointer field (would have broken Send) before they compiled.
+
+VERIFICATION: `cargo test --workspace` 399 passing invocations / 0 failed
+(+12: registry pick shapes, slab/flower shaped-raycast, ground-face
+meshing, three mob-collision sims, scroll contract, crosshair LOS,
+caption, citadel clearance/carving). `cargo run --release -p xtask --
+vistest shots` 93/93 (re-run with full count capture after the first
+tail-truncated log). `make smoke` alive-at-12s OK. `make runtimes`
+refreshed dist/loreforge.app, dist/loreforge-macos.dmg,
+dist/loreforge-linux-x86_64.tar.gz, dist/loreforge-server; Windows exe
+honestly skipped (MinGW unavailable on this macOS host, unchanged from
+loop 346). Existing worlds keep their generated chunks; unedited ones
+regenerate under gen v6.
+
+HONESTLY DEFERRED: shaped-block support for mod blocks in `pick_boxes`
+(mods fall back to full-cell), picking refinement for the other raycast
+call sites (prop grab, light placement, blueprint ghost still
+cell-based), and companions still use their own single-cell mover
+(they already refuse blocked moves). The queued first-minute onboarding
+pass remains next.

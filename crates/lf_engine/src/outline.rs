@@ -22,7 +22,8 @@ pub struct OutlineScene {
     num_vertices: u32,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
-    current_block: Option<(i32, i32, i32)>,
+    /// (block, box count, up to two pick boxes) — stairs carry two.
+    current_block: Option<((i32, i32, i32), usize, [[f32; 6]; 2])>,
 }
 
 impl OutlineScene {
@@ -119,29 +120,45 @@ impl OutlineScene {
         }
     }
 
-    /// Point the outline at a block (min corner) — skips GPU work if unchanged.
-    pub fn set_target(&mut self, device: &wgpu::Device, block: Option<(i32, i32, i32)>) {
-        if self.current_block == block {
+    /// Point the outline at a block (min corner) with its local pick
+    /// boxes — skips GPU work when unchanged. Boxes come from
+    /// `lf_voxel::registry::pick_boxes` so the wireframe traces the
+    /// block's real shape (loop 347: slabs half-height, torches thin,
+    /// plants inset) instead of always the full cell.
+    pub fn set_target(&mut self, device: &wgpu::Device, block: Option<((i32, i32, i32), &[[f32; 6]])>) {
+        let key = block.map(|((x, y, z), b)| {
+            let mut boxes = [[0.0f32; 6]; 2];
+            let n = b.len().min(2);
+            boxes[..n].copy_from_slice(&b[..n]);
+            ((x, y, z), n, boxes)
+        });
+        if self.current_block == key {
             return;
         }
-        self.current_block = block;
-        let vertices: Vec<LineVertex> = match block {
-            Some((bx, by, bz)) => {
-                let x0 = bx as f32 - 0.002;
-                let y0 = by as f32 - 0.002;
-                let z0 = bz as f32 - 0.002;
-                let x1 = x0 + 1.004;
-                let y1 = y0 + 1.004;
-                let z1 = z0 + 1.004;
-                let c = [
-                    [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], // bottom
-                    [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], // top
-                ];
-                // 12 edges
-                [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]]
-                    .iter()
-                    .flat_map(|&[a, b]| [LineVertex { position: c[a] }, LineVertex { position: c[b] }])
-                    .collect()
+        self.current_block = key;
+        let vertices: Vec<LineVertex> = match key {
+            Some(((bx, by, bz), n, boxes)) => {
+                let mut out = Vec::with_capacity(n * 24);
+                for b in &boxes[..n] {
+                    // hairline inflation so the wire never z-fights the
+                    // block faces it traces
+                    let x0 = bx as f32 + b[0] - 0.002;
+                    let y0 = by as f32 + b[1] - 0.002;
+                    let z0 = bz as f32 + b[2] - 0.002;
+                    let x1 = bx as f32 + b[3] + 0.002;
+                    let y1 = by as f32 + b[4] + 0.002;
+                    let z1 = bz as f32 + b[5] + 0.002;
+                    let c = [
+                        [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], // bottom
+                        [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], // top
+                    ];
+                    // 12 edges
+                    for [a, bb] in [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]] {
+                        out.push(LineVertex { position: c[a] });
+                        out.push(LineVertex { position: c[bb] });
+                    }
+                }
+                out
             }
             None => Vec::new(),
         };

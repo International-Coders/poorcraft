@@ -16,6 +16,24 @@ use lf_game::research::Era;
 use lf_game::survival::ItemStack;
 use crate::QuestEvent;
 use lf_npc::trade_offers;
+use lf_voxel::registry;
+
+/// The single caption line above the hotbar: the just-picked item's
+/// name while its fade window is live (immediate scroll/switch
+/// feedback), otherwise the name of the block under the crosshair —
+/// "what am I pointing at?" (loop 347). Returns (text, is_item_switch).
+pub fn hotbar_caption(
+    held_name: Option<&str>,
+    pick_time: f32,
+    target_name: Option<&str>,
+) -> Option<(String, bool)> {
+    if pick_time > 0.08 {
+        if let Some(n) = held_name {
+            return Some((n.to_string(), true));
+        }
+    }
+    target_name.map(|n| (n.to_string(), false))
+}
 
 pub struct EguiPlatform {
     pub ctx: egui::Context,
@@ -650,6 +668,26 @@ impl GameState {
                         egui::FontId::proportional(10.0), Theme::MANA);
                     ui.add_space(1.0);
                 }
+                // caption above the bar (always allocated so the layout
+                // never shifts): held-item name while a switch fades out,
+                // else the looked-at block's name
+                let held_name = self.inventory.slots[self.hotbar_index].as_ref()
+                    .and_then(|s| item_def(&s.item_id).map(|d| d.name.to_string()));
+                let target_name = self.look_target
+                    .map(|(_, id)| registry::block::name(id).to_string());
+                let caption = hotbar_caption(held_name.as_deref(), self.hotbar_pick_time,
+                    target_name.as_deref());
+                let (crect, _) = ui.allocate_exact_size(egui::vec2(hotbar_w, 16.0), egui::Sense::hover());
+                if let Some((text, accent)) = caption {
+                    let color = if accent {
+                        let a = (self.hotbar_pick_time.min(1.0) * 255.0) as u8;
+                        egui::Color32::from_rgba_unmultiplied(Theme::ACCENT.r(), Theme::ACCENT.g(), Theme::ACCENT.b(), a)
+                    } else {
+                        egui::Color32::from_rgba_unmultiplied(230, 230, 230, 205)
+                    };
+                    kit::text_shadowed(ui.painter(), crect.center(), egui::Align2::CENTER_CENTER,
+                        text, egui::FontId::proportional(12.0), color);
+                }
                 // hotbar
                 ui.horizontal(|ui| {
                     for i in 0..9 {
@@ -664,17 +702,6 @@ impl GameState {
                         }
                     }
                 });
-                // selected item name, fading after a switch
-                let name = self.inventory.slots[self.hotbar_index].as_ref()
-                    .and_then(|s| item_def(&s.item_id).map(|d| d.name.to_string()));
-                let alpha = (self.hotbar_pick_time * 255.0).min(255.0) as u8;
-                match (name, alpha) {
-                    (Some(n), a) if a > 8 => {
-                        ui.label(egui::RichText::new(n).small().color(
-                            egui::Color32::from_rgba_unmultiplied(Theme::ACCENT.r(), Theme::ACCENT.g(), Theme::ACCENT.b(), a)));
-                    }
-                    _ => { ui.label(egui::RichText::new("").small()); }
-                }
                 // mining / bow charge feedback moved to the crosshair
                 // reticle (Section 2: the old bottom-of-screen progress bar
                 // read as an artifact at the foot of the HUD)
@@ -3992,6 +4019,28 @@ fn ui_time(ctx: &egui::Context) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Loop 347 caption: the line above the hotbar shows the just-picked
+    /// item while its fade window is live (scroll feedback), then hands
+    /// the line to the looked-at block's name; empty hands pointing at
+    /// nothing show nothing.
+    #[test]
+    fn hotbar_caption_picks_item_then_target() {
+        // fresh switch: the held item wins
+        assert_eq!(
+            hotbar_caption(Some("Iron Pickaxe"), 1.0, Some("Stone")),
+            Some(("Iron Pickaxe".into(), true))
+        );
+        // faded out: the looked-at block takes the line
+        assert_eq!(
+            hotbar_caption(Some("Iron Pickaxe"), 0.0, Some("Stone")),
+            Some(("Stone".into(), false))
+        );
+        // nothing held, nothing targeted: no caption
+        assert_eq!(hotbar_caption(None, 0.0, None), None);
+        // a switch with empty hands falls through to the target name
+        assert_eq!(hotbar_caption(None, 1.0, Some("Lavender")), Some(("Lavender".into(), false)));
+    }
 
     /// Audit Step 1: hearts + hotbar rendered under the title menu; the HUD
     /// must hide behind menus that own the whole view but stay visible for

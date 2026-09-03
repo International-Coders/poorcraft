@@ -120,6 +120,20 @@ pub struct MobStats {
     pub detect: f32,
 }
 
+impl MobStats {
+    /// Physics half-width: a stride-friendly fraction of the render cube
+    /// so bodies don't wedge in one-wide gaps between trees (loop 347).
+    pub fn collision_half_width(self) -> f32 {
+        (self.size * 0.75).max(0.2)
+    }
+
+    /// Physics height (feet up); dragons never use this — their flight
+    /// brain owns the vertical axis.
+    pub fn collision_height(self) -> f32 {
+        (self.size * 1.6).max(0.5)
+    }
+}
+
 /// B1: the mob behaviour state machine. One variant per intention; the
 /// update loop reads the variant, acts, and transitions. The sim has a
 /// single targetable actor (the player), so Chase/Attack carry no target
@@ -260,6 +274,115 @@ impl MobEntity {
     /// an attack this frame.
     pub fn update(&mut self, dt: f32, world: &World, player_pos: Vec3) -> Option<f32> {
         self.update_with_standing(dt, world, player_pos, 0)
+    }
+
+    /// Axis-separated AABB move against the world — the same collision
+    /// contract the player has (P34 fractional boxes included), so
+    /// animals stop at walls instead of gliding through them while they
+    /// bounce. A blocked stride while grounded becomes a hop: one-block
+    /// walls are meant to be jumped, taller walls are meant to stop you
+    /// (loop 347 "animals walk through walls" fix).
+    pub fn physics_step(&mut self, dt: f32, world: &World, wish: (f32, f32), speed: f32) {
+        let wish_len = (wish.0 * wish.0 + wish.1 * wish.1).sqrt();
+        self.velocity.x = wish.0 / wish_len.max(1.0) * speed;
+        self.velocity.z = wish.1 / wish_len.max(1.0) * speed;
+        self.velocity.y -= 24.0 * dt;
+
+        let stats = self.mob_type.stats();
+        let half = stats.collision_half_width();
+        let height = stats.collision_height();
+        let aabb = |p: Vec3| {
+            (
+                Vec3::new(p.x - half, p.y, p.z - half),
+                Vec3::new(p.x + half, p.y + height, p.z + half),
+            )
+        };
+        let blocked = |p: Vec3| {
+            let (min, max) = aabb(p);
+            crate::player::box_intersects_solid(world, min, max)
+        };
+
+        // wedged inside solid (stale save, shifted terrain): pop up to
+        // safety instead of being sealed in forever
+        if blocked(self.position) {
+            for _ in 0..4 {
+                self.position.y += 1.0;
+                if !blocked(self.position) {
+                    break;
+                }
+            }
+            self.velocity = Vec3::ZERO;
+            return;
+        }
+
+        // substep so a sprinting mob can't tunnel a thin wall on a
+        // frame-time spike
+        let travel = (self.velocity * dt).length();
+        let steps = ((travel / 0.4).ceil() as usize).clamp(1, 8);
+        let sdt = dt / steps as f32;
+        let mut blocked_h = false;
+        let mut grounded = false;
+        for _ in 0..steps {
+            // X
+            let dx = self.velocity.x * sdt;
+            if dx != 0.0 {
+                let mut p = self.position;
+                p.x += dx;
+                if blocked(p) {
+                    self.velocity.x = 0.0;
+                    blocked_h = true;
+                } else {
+                    self.position.x = p.x;
+                }
+            }
+            // Z
+            let dz = self.velocity.z * sdt;
+            if dz != 0.0 {
+                let mut p = self.position;
+                p.z += dz;
+                if blocked(p) {
+                    self.velocity.z = 0.0;
+                    blocked_h = true;
+                } else {
+                    self.position.z = p.z;
+                }
+            }
+            // Y
+            let dy = self.velocity.y * sdt;
+            if dy != 0.0 {
+                let mut p = self.position;
+                p.y += dy;
+                if blocked(p) {
+                    if dy < 0.0 {
+                        // land on the floor plane (player-style clamp)
+                        let (min, _) = aabb(p);
+                        self.position.y = min.y.ceil() + 1e-4;
+                        grounded = true;
+                    }
+                    self.velocity.y = 0.0;
+                } else {
+                    self.position.y = p.y;
+                }
+            }
+        }
+        // standing (not just landed): probe a thin slab under the feet
+        if !grounded && self.velocity.y.abs() < 0.05 {
+            let (min, max) = aabb(self.position);
+            if crate::player::box_intersects_solid(
+                world,
+                Vec3::new(min.x, min.y - 0.06, min.z),
+                Vec3::new(max.x, min.y - 0.01, max.z),
+            ) {
+                grounded = true;
+            }
+        }
+        if blocked_h && grounded && wish_len > 0.1 {
+            self.velocity.y = 8.0; // hop over one-block obstacles
+        }
+        // hard floor: never fall out of the world
+        if self.position.y < -10.0 {
+            self.health = 0.0;
+        }
     }
 
     /// B4 hook: when a mob aggroes on its own it pings once; the owner
@@ -617,33 +740,11 @@ impl MobEntity {
             self.yaw += delta.clamp(-8.0 * dt, 8.0 * dt);
         }
 
-        // --- physics: horizontal move with step-up jumping, gravity
-        let speed = stats.speed * speed_mult;
-        self.velocity.x = wish.0 / wish_len.max(1.0) * speed;
-        self.velocity.z = wish.1 / wish_len.max(1.0) * speed;
-        self.velocity.y -= 24.0 * dt;
-
-        let next = self.position + self.velocity * dt;
-        let feet = |p: Vec3| world.is_solid(p.x as i32, (p.y - 0.1) as i32, p.z as i32);
-        let blocked_at = |p: Vec3| {
-            world.is_solid(p.x as i32, p.y as i32 + 1, p.z as i32) // body
-                || world.is_solid(p.x as i32, (p.y + 1.0) as i32, p.z as i32)
-        };
-        if feet(next) {
-            // land / stay grounded
-            self.velocity.y = 0.0;
-            if blocked_at(next) && wish_len > 0.1 {
-                self.velocity.y = 8.0; // hop over one-block obstacles
-            }
-            self.position = Vec3::new(next.x, self.position.y, next.z);
-            // settle down when walking off ledges handled by gravity next frame
-        } else {
-            self.position = next;
-        }
-        // hard floor: never fall out of the world
-        if self.position.y < -10.0 {
-            self.health = 0.0;
-        }
+        // --- physics (loop 347): axis-separated AABB collision with
+        // hop-assisted step-up — animals stop at walls like the player
+        // does; the old point-probe physics committed every horizontal
+        // move and let them glide through anything 2 blocks tall.
+        self.physics_step(dt, world, wish, stats.speed * speed_mult);
 
         // --- gait: phase advances with distance travelled, amplitude eases
         // in/out so legs start and stop instead of freezing mid-stride
@@ -1406,6 +1507,60 @@ mod tests {
 
     /// Failure meaning: faction standing does not actually gate aggro.
     #[test]
+    /// Loop 347: animals stop at walls. The old point-probe physics
+    /// committed every horizontal move — mobs glided through 2-high
+    /// walls while bouncing; now the stride is refused at the wall plane.
+    #[test]
+    fn mobs_stop_at_walls() {
+        let mut w = flat_world();
+        // a 3-high wall at x = 5 across the corridor
+        for z in -20..20 {
+            for y in 1..4 {
+                w.set_block(5, y, z, BlockState::STONE);
+            }
+        }
+        let mut m = MobEntity::spawn(80, MobType::Boar, Vec3::new(2.5, 1.0, 0.5));
+        for _ in 0..240 {
+            // 4 seconds at 60fps
+            m.physics_step(1.0 / 60.0, &w, (1.0, 0.0), 2.0);
+        }
+        let half = MobType::Boar.stats().collision_half_width();
+        assert!(m.position.x < 5.0 - half + 1e-3,
+            "boar must stop before the wall, at x={} (half={})", m.position.x, half);
+        assert!(m.position.x > 5.0 - half - 0.6, "and right against it, at x={}", m.position.x);
+    }
+
+    /// Loop 347: a one-block step is hopped, not a wall — the boar ends
+    /// up ON the platform it walked into (wide enough that 4 seconds of
+    /// walking can't cross it and drop off the far side).
+    #[test]
+    fn mobs_hop_one_block_steps() {
+        let mut w = flat_world();
+        for z in -20..20 {
+            for x in 5..16 {
+                w.set_block(x, 1, z, BlockState::STONE);
+            }
+        }
+        let mut m = MobEntity::spawn(81, MobType::Boar, Vec3::new(2.5, 1.0, 0.5));
+        for _ in 0..240 {
+            m.physics_step(1.0 / 60.0, &w, (1.0, 0.0), 2.0);
+        }
+        assert!(m.position.x > 5.0, "boar climbed the step, at x={}", m.position.x);
+        assert!(m.position.x < 16.0, "boar still on the platform, at x={}", m.position.x);
+        assert!((m.position.y - 2.0).abs() < 0.25, "standing on top (y=2), at y={}", m.position.y);
+    }
+
+    /// Gravity still lands mobs on the floor and keeps them there.
+    #[test]
+    fn mobs_fall_and_rest_on_ground() {
+        let w = flat_world();
+        let mut m = MobEntity::spawn(82, MobType::Chicken, Vec3::new(0.5, 12.0, 0.5));
+        for _ in 0..240 {
+            m.physics_step(1.0 / 60.0, &w, (0.0, 0.0), 1.6);
+        }
+        assert!((m.position.y - 1.0).abs() < 0.02, "chicken rests at y=1, at {}", m.position.y);
+    }
+
     fn faction_standing_gates_aggro() {
         let w = flat_world();
         let mut m = MobEntity::spawn(70, MobType::NamelessRaider, Vec3::new(3.0, 1.0, 0.0));

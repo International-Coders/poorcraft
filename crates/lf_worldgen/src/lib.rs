@@ -34,7 +34,7 @@ pub const SEA_LEVEL: i32 = 62;
 /// regenerated after a revisit may differ from their first visit (edited
 /// chunks are persisted and never regenerated). Pre-P25 worlds have no
 /// stamp and read as `None`.
-pub const GENERATOR_VERSION: u32 = 5; // v5: kingdoms — region-placed citadels (walls, keep, throne, market, farm) + locomotion-era NPC settling
+pub const GENERATOR_VERSION: u32 = 6; // v6: citadel siting rebuilt (dense footprint validation, region-border margin, spawn clearance, hillside carving, no courtyard trees) + loop-347 plant solidity. v5: kingdoms — region-placed citadels + locomotion-era NPC settling
 
 /// Stamp `genver.dat` in a world directory with the generator version.
 pub fn save_generator_version(dir: &std::path::Path, version: u32) -> std::io::Result<()> {
@@ -686,7 +686,7 @@ impl WorldGen {
         }
 
         // 5. Structures: deterministic per-chunk placement, in-chunk footprint.
-        self.place_structures(cx, cz, &mut col);
+        let citadel_chunk = self.place_structures(cx, cz, &mut col);
 
         // 5.6 Boulder fields: SnowySlope's and WindsweptHills' exclusive
         // ground feature (Step 17) — one 3-block stone cluster per lucky
@@ -766,8 +766,13 @@ impl WorldGen {
             }
         }
 
-        // 6. Trees by biome kind, canopies kept inside the chunk.
+        // 6. Trees by biome kind, canopies kept inside the chunk. A citadel
+        // chunk grows nothing (loop 347: the courtyard is carved clean —
+        // trees sprouting between keep and wall read as gen noise).
         for lx in 3..13usize {
+            if citadel_chunk {
+                break;
+            }
             for lz in 3..13usize {
                 let wx = cx * 16 + lx as i32;
                 let wz = cz * 16 + lz as i32;
@@ -860,7 +865,11 @@ impl WorldGen {
         // biome by after five seconds. Transition bands blend for free:
         // the dithered climate borders flip the owning biome column by
         // column, so both biomes' covers interleave near boundaries.
+        // Citadel chunks are exempt (loop 347).
         for lx in 1..15usize {
+            if citadel_chunk {
+                break;
+            }
             for lz in 1..15usize {
                 let wx = cx * 16 + lx as i32;
                 let wz = cz * 16 + lz as i32;
@@ -912,8 +921,10 @@ impl WorldGen {
     /// Every structure runs terrain adaptation first (D5): the ground floor
     /// sits at the footprint's center-column surface, gaps below are filled
     /// with the biome filler when the ground varies more than 4 blocks, and
-    /// footprints more than half underwater are refused.
-    fn place_structures(&self, cx: i32, cz: i32, col: &mut lf_voxel::ChunkColumn) {
+    /// footprints more than half underwater are refused. Returns true when
+    /// the kingdom citadel owns this chunk (loop 347: the caller then keeps
+    /// trees and ground cover out of the courtyard).
+    fn place_structures(&self, cx: i32, cz: i32, col: &mut lf_voxel::ChunkColumn) -> bool {
         use lf_voxel::BlockState;
         use lf_voxel::registry::block;
         let h0 = hash2(cx, cz, self.seed_for_features() ^ 0x5bd1e995);
@@ -1224,7 +1235,7 @@ impl WorldGen {
             if let Some(base) = prepare(col, 0, 15, 0, 15) {
                 build_kingdom_citadel(col, base);
             }
-            return;
+            return true;
         }
 
         match center_biome {
@@ -1270,6 +1281,7 @@ impl WorldGen {
             }
             _ => {}
         }
+        false
     }
 }
 
@@ -1326,6 +1338,11 @@ pub const KINGDOM_REGION: i32 = 12;
 /// the region gives up (mountains/ocean regions have no kingdom).
 pub const KINGDOM_CANDIDATES: u32 = 16;
 
+/// Loop 347: citadels never spawn inside this radius of the world spawn
+/// (0,0) — the player's first campsite stays castle-free. Small enough
+/// that the compass (±2 regions ≈ ±384 blocks) always finds one anyway.
+pub const KINGDOM_SPAWN_CLEARANCE: i32 = 160;
+
 /// The royal name pool; the pick is a pure function of (seed, region).
 pub const KINGDOM_NAMES: [&str; 16] = [
     "Elderfall", "Thornmere", "Goldhelm", "Duskmere", "Ashvale", "Brightwater",
@@ -1356,36 +1373,45 @@ fn kingdom_biome_ok(b: Biome) -> bool {
 
 impl WorldGen {
     /// The region's candidate chunk locals (hash-derived, deterministic).
+    /// Loop 347: candidates stay 2 chunks clear of the region border so
+    /// two neighbouring regions' citadels can never end up wall-to-wall
+    /// (worst case is now 4 chunks / 64 blocks of breathing room).
     fn kingdom_candidate_locals(&self, rx: i32, rz: i32) -> [(i32, i32); KINGDOM_CANDIDATES as usize] {
         let feats = self.seed_for_features();
         let mut out = [(0i32, 0i32); KINGDOM_CANDIDATES as usize];
+        // usable inner band after the 2-chunk margin on each side
+        let band = (KINGDOM_REGION - 4) as u64;
         for (i, slot) in out.iter_mut().enumerate() {
             let h = hash2(rx.wrapping_mul(31).wrapping_add(i as i64 as i32),
                 rz.wrapping_mul(17).wrapping_sub(i as i64 as i32), feats ^ 0x85ebca6b);
-            *slot = ((h % KINGDOM_REGION as u64) as i32,
-                ((h / KINGDOM_REGION as u64) % KINGDOM_REGION as u64) as i32);
+            *slot = (2 + (h % band) as i32,
+                2 + ((h / band) % band) as i32);
         }
         out
     }
 
-    /// Terrain eligibility for a citadel chunk: grassy biome, dry, lowland,
-    /// flat enough that walls don't straddle a cliff.
+    /// Terrain eligibility for a citadel chunk: grassy biome, dry across
+    /// the WHOLE footprint (loop 347: the old 5-point sample let rivers
+    /// and corner cliffs through), lowland, and flat enough that the
+    /// walls don't straddle a cliff.
     fn kingdom_chunk_ok(&self, cx: i32, cz: i32) -> bool {
-        let (x, z) = (cx * 16 + 8, cz * 16 + 8);
-        if !kingdom_biome_ok(self.biome(x, z)) {
-            return false;
-        }
-        let t = self.surface_top(x, z);
-        if t <= SEA_LEVEL + 1 || t > 120 {
+        let (x, z) = (cx * 16, cz * 16);
+        if !kingdom_biome_ok(self.biome(x + 8, z + 8)) {
             return false;
         }
         let (mut hi, mut lo) = (i32::MIN, i32::MAX);
-        for (dx, dz) in [(0, 0), (6, 0), (-6, 0), (0, 6), (0, -6)] {
-            let h = self.surface_top(x + dx, z + dz);
-            hi = hi.max(h);
-            lo = lo.min(h);
+        // dense 6x6 grid over the 16x16 footprint, corners included
+        for lx in (0..=15i32).step_by(3) {
+            for lz in (0..=15i32).step_by(3) {
+                let t = self.surface_top(x + lx, z + lz);
+                if t <= SEA_LEVEL + 1 || t > 120 {
+                    return false; // any wet or alpine cell refuses the site
+                }
+                hi = hi.max(t);
+                lo = lo.min(t);
+            }
         }
-        hi - lo <= 5
+        hi - lo <= 6
     }
 
     fn kingdom_name(&self, rx: i32, rz: i32) -> &'static str {
@@ -1400,6 +1426,13 @@ impl WorldGen {
     pub fn kingdom_in_region(&self, rx: i32, rz: i32) -> Option<KingdomSite> {
         for (lx, lz) in self.kingdom_candidate_locals(rx, rz) {
             let (cx, cz) = (rx * KINGDOM_REGION + lx, rz * KINGDOM_REGION + lz);
+            // loop 347: never build on top of the player's first camp —
+            // the world spawn is (0,0) and a citadel there buried the
+            // tutorial experience in castle walls
+            let (bx, bz) = (cx as i64 * 16 + 8, cz as i64 * 16 + 8);
+            if bx * bx + bz * bz < (KINGDOM_SPAWN_CLEARANCE as i64) * (KINGDOM_SPAWN_CLEARANCE as i64) {
+                continue;
+            }
             if self.kingdom_chunk_ok(cx, cz) {
                 return Some(KingdomSite { cx, cz, name: self.kingdom_name(rx, rz) });
             }
@@ -1463,6 +1496,21 @@ pub fn build_kingdom_citadel(
     let b = base_y;
     if b <= SEA_LEVEL as usize || b > 200 {
         return;
+    }
+    // loop 347: carve the hillside out of the courtyard before building —
+    // anything above the base plane goes, so the walls, the gate and the
+    // keep never end up buried in an up-slope (the old build only ever
+    // filled below base, leaving half the citadel inside a hill).
+    for lx in 0..16usize {
+        for lz in 0..16usize {
+            let mut y = 255usize;
+            while y > b {
+                if col.get(lx, y, lz) != BlockState::AIR {
+                    col.set(lx, y, lz, BlockState::AIR);
+                }
+                y -= 1;
+            }
+        }
     }
     // --- curtain wall: ring at the chunk edge, 4 tall + crenellations ---
     for lx in 0..16usize {
@@ -2802,6 +2850,56 @@ mod tests {
         assert_eq!(throne, 1, "exactly one throne (the marker)");
         assert!(banners >= 4, "royal banners fly (gate + throne + market): {banners}");
         assert!(bricks > 150, "walls + keep are real masonry: {bricks}");
+    }
+
+    /// Failure meaning: the loop-347 siting rules regressed — a citadel
+    /// landed on the player's spawn camp, or wall-to-wall against a
+    /// neighbouring region's citadel.
+    #[test]
+    fn citadels_keep_clear_of_spawn_and_region_borders() {
+        for seed in [Seed(12345), Seed(999), Seed(7), Seed(20260902)] {
+            let gen = WorldGen::new(seed);
+            for rx in -2..=2 {
+                for rz in -2..=2 {
+                    let Some(site) = gen.kingdom_in_region(rx, rz) else { continue };
+                    let (bx, bz) = (site.cx as i64 * 16 + 8, site.cz as i64 * 16 + 8);
+                    let d2 = bx * bx + bz * bz;
+                    assert!(d2 >= (KINGDOM_SPAWN_CLEARANCE as i64).pow(2),
+                        "{:?}: citadel at ({},{}) is {} blocks from spawn — inside the clearance",
+                        seed.0, site.cx, site.cz, (d2 as f64).sqrt() as i64);
+                    let (lx, lz) = (site.cx.rem_euclid(KINGDOM_REGION), site.cz.rem_euclid(KINGDOM_REGION));
+                    assert!((2..KINGDOM_REGION - 2).contains(&lx) && (2..KINGDOM_REGION - 2).contains(&lz),
+                        "{:?}: citadel local ({},{}) touches the region border", seed.0, lx, lz);
+                }
+            }
+        }
+    }
+
+    /// Failure meaning: the courtyard carving stopped clearing the
+    /// hillside — up-slope terrain would bury the walls and gate again.
+    #[test]
+    fn citadel_carves_the_hillside_above_its_walls() {
+        use lf_voxel::registry::block;
+        // a "hill": stone right up to y=100, citadel based at y=70
+        let mut col = lf_voxel::ChunkColumn::empty();
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                for y in 0..100usize {
+                    col.set(lx, y, lz, lf_voxel::BlockState(block::STONE));
+                }
+            }
+        }
+        build_kingdom_citadel(&mut col, 70);
+        // nothing the builder writes reaches b+12 (towers top out at
+        // b+9 torches) — so every cell above must be carved to air
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                for y in 82..256usize {
+                    assert_eq!(col.get(lx, y, lz), lf_voxel::BlockState::AIR,
+                        "stone hill survives at ({},{},{})", lx, y, lz);
+                }
+            }
+        }
     }
 
     /// Failure meaning: `build_kingdom_citadel` stopped raising the throne

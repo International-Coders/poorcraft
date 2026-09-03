@@ -1200,3 +1200,29 @@ Deferred (honest notes):
       atlas resolutions above the current 16x16 contract, roughness/metalness,
       and true raster shadow maps are separate jobs. First-minute onboarding
       remains the next usability pass.
+
+## Loop 347 — hitboxes, walls, wheels & castle siting
+- [x] `is_solid`/`is_opaque` exclude by `!is_plant` — lavender/sunflower
+      stop being invisible solid cubes that culled the ground under them.
+- [x] `registry::pick_boxes` + `raycast_voxel_boxes`: shape-aware picking
+      (slab solid half, torch stick, plant inset) and a matching shaped
+      selection wireframe (one box per collision box).
+- [x] `MobEntity::physics_step`: axis-separated AABB wall collision with
+      hop step-up (shared box resolver extracted from the player);
+      dragons clamp against terrain; wedge pop-up safeguard.
+- [x] `crosshair_mob` occlusion filter — mobs behind the aimed block no
+      longer steal LMB into the 0.5s attack cooldown (the creative
+      2-blocks/sec cap).
+- [x] Wheel: every notch counts, remainder kept for trackpads, consumed
+      before the UI frame, no per-notch set_title.
+- [x] `hotbar_caption`: one line above the hotbar — item name on switch,
+      else the looked-at block's name.
+- [x] Castle siting: dense 6x6 footprint validation, 2-chunk region
+      border margin, 160-block spawn clearance, hillside carving above
+      base, no trees/cover in the courtyard, GENERATOR_VERSION 6.
+- [x] 399/0 tests (+12), 93/93 vistest, smoke OK, runtimes rebuilt,
+      pushed.
+- [ ] Deferred: shaped pick boxes for mod blocks (full-cell fallback),
+      shaped picking at the secondary raycast call sites, and companions
+      still use their own single-cell mover. First-minute onboarding
+      remains the next queued pass.

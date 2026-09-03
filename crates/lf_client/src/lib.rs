@@ -54,7 +54,7 @@ use lf_game::player::{Player, PlayerInput, EYE_HEIGHT, PLAYER_HALF_WIDTH, PLAYER
 use lf_game::items::tool_damage;
 use lf_game::survival::{Inventory, ItemStack, PlayerStats};
 use lf_story::{QuestEvent, QuestLog, starter_quests};
-use lf_voxel::raycast::raycast_voxel;
+use lf_voxel::raycast::{raycast_voxel, raycast_voxel_boxes};
 use lf_voxel::registry;
 use lf_voxel::world::{PlayerSave, WorldStorage};
 use lf_voxel::{BlockState, ChunkColumn, World};
@@ -72,6 +72,57 @@ const UNLOAD_MARGIN: i32 = 3;
 const BOOT_RADIUS: i32 = 1;      // chunks generated synchronously at boot
 const REACH: f32 = 6.0;
 const LOOK_SENSITIVITY: f32 = 0.0025;
+
+/// Drain the accumulated scroll notches into whole hotbar steps, keeping
+/// the fractional remainder (macOS trackpads emit sub-notch PixelDelta).
+/// One notch = one slot and a fast flick delivers every notch it
+/// accumulated — nothing is dropped (loop 347 wheel fix).
+pub fn consume_scroll_steps(accum: &mut f32) -> i32 {
+    let steps = *accum as i32; // truncates toward zero: sign-correct steps
+    *accum -= steps as f32;
+    steps
+}
+
+/// Index of the nearest mob actually under the crosshair and in plain
+/// sight: cone-tested along the look ray, nearest-first, then
+/// occlusion-filtered against the world. A mob on the far side of the
+/// block you are aiming at must NOT steal the LMB into the throttled
+/// attack branch — that reroute was the "creative breaks 2 blocks a
+/// second" bug (loop 347).
+fn crosshair_mob(
+    mobs: &[MobEntity],
+    world: &lf_voxel::World,
+    eye: Vec3,
+    look: Vec3,
+    reach: f32,
+) -> Option<usize> {
+    let mut candidates: Vec<(f32, usize)> = Vec::new();
+    for (i, mob) in mobs.iter().enumerate() {
+        if mob.death_t.is_some() {
+            continue; // corpses are not targets
+        }
+        let size = mob.mob_type.stats().size;
+        let center = mob.position + Vec3::new(0.0, size, 0.0);
+        let t = (center - eye).dot(look);
+        if t < 0.0 || t > reach + 1.0 {
+            continue;
+        }
+        let closest = eye + look * t;
+        if (closest - center).length() < size + 0.45 {
+            candidates.push((t, i));
+        }
+    }
+    candidates.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    for (_, i) in candidates {
+        let mob = &mobs[i];
+        let center = mob.position + Vec3::new(0.0, mob.mob_type.stats().size, 0.0);
+        if lf_game::mobs::has_line_of_sight(eye, center, world) {
+            return Some(i);
+        }
+    }
+    None
+}
+
 const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(30);
 const DAY_SKY: [f64; 4] = [0.53, 0.81, 0.98, 1.0];
 
@@ -1142,6 +1193,9 @@ struct GameState {
     pub xp_flash: f32,
     pub hotbar_pick_time: f32,
     last_hotbar_index: usize,
+    /// Crosshair target of this frame (cell + block id) — drives the
+    /// looked-at-block caption above the hotbar (loop 347).
+    pub look_target: Option<(glam::IVec3, u32)>,
     /// Ground distance since the last footstep (loop 329 audio set).
     step_distance: f32,
     /// Previous frame's open screen — drives the ui transition click.
@@ -1584,6 +1638,7 @@ impl GameState {
             xp_flash: 0.0,
             hotbar_pick_time: 0.0,
             last_hotbar_index: 0,
+            look_target: None,
             step_distance: 0.0,
             prev_ui_open: UiOpen::Title,
             recipe_book: workbench::RecipeBook::default(),
@@ -2142,6 +2197,18 @@ impl GameState {
             // lf_worldgen::preview (B2: one scenic lap every 90s).
             self.title_orbit += dt;
         }
+        // Wheel: consume every full notch accumulated this frame BEFORE
+        // the UI frame is laid out, so the highlight and the caption
+        // react in the same frame the wheel moved. Fast flicks land all
+        // their notches at once instead of one per frame with the rest
+        // discarded (the old "heavy wheel" feel); the fractional
+        // remainder stays for trackpad smoothing (loop 347).
+        let steps = consume_scroll_steps(&mut self.input.scroll);
+        if steps != 0 {
+            self.hotbar_index = ((self.hotbar_index as i32 + steps).rem_euclid(9)) as usize;
+            // no window.set_title here: a window-server round trip per
+            // notch read as input lag — the 2s HUD tick refreshes it
+        }
         // HUD feedback timers + hotbar switch detection.
         self.hud_flash = (self.hud_flash - dt * 1.6).max(0.0);
         self.hit_flash = (self.hit_flash - dt * 3.0).max(0.0);
@@ -2182,13 +2249,6 @@ impl GameState {
         };
         self.input.mouse_dx = 0.0;
         self.input.mouse_dy = 0.0;
-
-        if self.input.scroll.abs() >= 1.0 {
-            let steps = self.input.scroll.signum() as i32;
-            self.input.scroll = 0.0;
-            self.hotbar_index = ((self.hotbar_index as i32 + steps).rem_euclid(9)) as usize;
-            self.update_title();
-        }
 
         self.player.update(dt, &input, &self.world);
         self.footstep_tick(dt);
@@ -2749,13 +2809,22 @@ impl GameState {
             self.update_title();
         }
 
-        // Targeting (water is not targetable).
+        // Targeting (water is not targetable). Shape-aware: the pick
+        // raycast tests `pick_boxes`, so the crosshair lands on the slab's
+        // solid half, the torch's stick, or through a flower's gaps —
+        // and the wireframe traces the same shape (loop 347).
         let eye = self.player.eye_position();
         let look = self.player.look_dir();
-        let target = raycast_voxel(eye, look, REACH, |pos| {
-            registry::is_targetable(self.world.get_block(pos.x, pos.y, pos.z))
+        let target = raycast_voxel_boxes(eye, look, REACH, |pos| {
+            self.world.get_block(pos.x, pos.y, pos.z)
         });
-        self.outline.set_target(&self.device, target.map(|(pos, _)| (pos.x, pos.y, pos.z)));
+        self.look_target = target.map(|(pos, _)| {
+            (pos, self.world.get_block(pos.x, pos.y, pos.z).id())
+        });
+        self.outline.set_target(&self.device, target.map(|(pos, _)| {
+            let state = self.world.get_block(pos.x, pos.y, pos.z);
+            ((pos.x, pos.y, pos.z), registry::pick_boxes(state))
+        }));
 
         // Attacking: LMB on a mob (sphere test along the look ray).
         if playing && self.input.break_pressed {
@@ -4552,30 +4621,16 @@ impl GameState {
         best.map(|(_, i)| i)
     }
 
-    /// Index of the nearest mob roughly under the crosshair, within reach.
+    /// Index of the nearest visible mob roughly under the crosshair,
+    /// within reach (see `crosshair_mob` for the occlusion contract).
     fn mob_in_crosshair(&self) -> Option<usize> {
-        let eye = self.player.eye_position();
-        let look = self.player.look_dir();
-        let mut best: Option<(f32, usize)> = None;
-        for (i, mob) in self.mobs.iter().enumerate() {
-            if mob.death_t.is_some() {
-                continue; // corpses are not targets
-            }
-            let size = mob.mob_type.stats().size;
-            let to = mob.position + Vec3::new(0.0, size, 0.0) - eye;
-            let t = to.dot(look);
-            if t < 0.0 || t > REACH + 1.0 {
-                continue;
-            }
-            let closest = eye + look * t;
-            let center = mob.position + Vec3::new(0.0, size, 0.0);
-            if (closest - center).length() < size + 0.45 {
-                if best.map(|(d, _)| t < d).unwrap_or(true) {
-                    best = Some((t, i));
-                }
-            }
-        }
-        best.map(|(_, i)| i)
+        crosshair_mob(
+            &self.mobs,
+            &self.world,
+            self.player.eye_position(),
+            self.player.look_dir(),
+            REACH,
+        )
     }
 
     /// Advance mob AI/physics and run the spawn/despawn cycle.
@@ -4597,7 +4652,21 @@ impl GameState {
                     Some(brain) => brain.tick(dt, center, Some(player), center + Vec3::new(0.0, 3.0, 0.0)),
                     None => (mob.position, false),
                 };
-                mob.position = pos;
+                // loop 347: the flight brain proposes a position but may
+                // not phase the dragon through terrain — refuse the
+                // horizontal leg into solid rock (keep the old x/z, take
+                // the y if that too is clear) so dragons skim mountains
+                // instead of vanishing into them
+                let clear = |p: Vec3| !world.is_solid(p.x as i32, p.y as i32, p.z as i32);
+                if clear(pos) {
+                    mob.position = pos;
+                } else {
+                    let mut slide = mob.position;
+                    slide.y = pos.y;
+                    if clear(slide) {
+                        mob.position = slide;
+                    }
+                }
                 mob.yaw = (player.x - pos.x).atan2(-(player.z - pos.z));
                 if breathing {
                     breathers.push(pos);
@@ -6431,6 +6500,76 @@ mod tests {
         for b in HOTBAR {
             assert_ne!(registry::block::name(b), "Unknown", "unnamed hotbar block {}", b);
         }
+    }
+
+    /// Loop 347 wheel fix: every accumulated notch becomes a step in the
+    /// same frame (fast flicks aren't dropped), the fractional remainder
+    /// survives for trackpads, and sub-notch drift changes nothing.
+    #[test]
+    fn scroll_notches_all_count_and_remainder_survives() {
+        let mut a = 3.7;
+        assert_eq!(consume_scroll_steps(&mut a), 3);
+        assert!((a - 0.7).abs() < 1e-6, "remainder kept, got {}", a);
+        let mut b = -2.5;
+        assert_eq!(consume_scroll_steps(&mut b), -2);
+        assert!((b + 0.5).abs() < 1e-6, "negative remainder kept, got {}", b);
+        let mut c = 0.9;
+        assert_eq!(consume_scroll_steps(&mut c), 0, "sub-notch does nothing");
+        assert!((c - 0.9).abs() < 1e-6);
+        let mut d = -0.4;
+        assert_eq!(consume_scroll_steps(&mut d), 0);
+        // accumulating trackpad ticks eventually cross a notch
+        d += -0.8;
+        assert_eq!(consume_scroll_steps(&mut d), -1);
+    }
+
+    /// Loop 347 creative-break fix: a mob behind a wall must NOT capture
+    /// the crosshair — before the occlusion filter, any mob roughly on
+    /// the look line stole LMB into the 0.5s attack cooldown, capping
+    /// block removal at 2/second anywhere near an animal.
+    #[test]
+    fn crosshair_mob_requires_line_of_sight() {
+        use lf_voxel::BlockState;
+        let mut world = lf_voxel::World::new();
+        for cx in -1..=1 {
+            for cz in -1..=1 {
+                world.ensure_chunk(cx, cz);
+            }
+        }
+        for x in -6..6 {
+            for z in -6..6 {
+                world.set_block(x, 0, z, BlockState::STONE);
+            }
+        }
+        // stone wall at z = 0, full height
+        for x in -6..6 {
+            for y in 1..4 {
+                world.set_block(x, y, 0, BlockState::STONE);
+            }
+        }
+        let eye = Vec3::new(0.0, 1.6, -3.0);
+        let look = Vec3::new(0.0, 0.0, 1.0);
+        // boar behind the wall, dead center on the ray
+        let hidden = MobEntity::spawn(1, MobType::Boar, Vec3::new(0.0, 1.0, 2.0));
+        assert_eq!(crosshair_mob(&[hidden], &world, eye, look, 6.0), None,
+            "mob behind the wall must not capture the crosshair");
+        // same boar with the wall removed: a fair target
+        let mut open = lf_voxel::World::new();
+        for cx in -1..=1 {
+            for cz in -1..=1 {
+                open.ensure_chunk(cx, cz);
+            }
+        }
+        for x in -6..6 {
+            for z in -6..6 {
+                open.set_block(x, 0, z, BlockState::STONE);
+            }
+        }
+        let visible = MobEntity::spawn(2, MobType::Boar, Vec3::new(0.0, 1.0, 2.0));
+        assert_eq!(crosshair_mob(&[visible.clone()], &open, eye, look, 6.0), Some(0));
+        // nearest-first: with both visible, the closer one wins
+        let near = MobEntity::spawn(3, MobType::Boar, Vec3::new(0.0, 1.0, 1.0));
+        assert_eq!(crosshair_mob(&[visible.clone(), near], &open, eye, look, 6.0), Some(1));
     }
 
     /// Loop 330 deep-fall: tumble advances monotonically, fast first
