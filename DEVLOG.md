@@ -2136,3 +2136,64 @@ the synthesizer as a deterministic per-event fallback.
   change expected).
 - Artifacts: `assets/sounds/` (33 MP3s), `tools/gen_sounds.py`,
   `make sounds`.
+
+## 2026-09-03 — loop 350: first-minute onboarding (nightly-beta N01) + goal pack
+
+WHAT: Executed job N01 of docs/NIGHTLY-BETA/10-OVERNIGHT-JOB-QUEUE.md. A
+persisted tutorial state machine (lf_client/src/onboarding.rs, new) walks
+Move → Look → Gather → Craft → Build and only advances on real gameplay
+observations fed from GameState.tick: horizontal displacement ≥ 3 blocks
+(vertical ignored), camera travel ≥ 1.6 rad, a natural-material drop
+(log/dirt/stone/sand) reaching inventory, any hand-craft output, and a
+solid block placement. The HUD (ui.rs draw_hud) paints a top-center
+tutorial card — verb, keycap chips from the LIVE keymap (new
+input::key_glyph), n/5 step chip, click-✕ dismiss — plus a pinned
+starter-objective line (pinned_objective: first incomplete quest +
+objective progress, own ✕). Shared painters (paint_onboarding_prompt,
+paint_pinned_objective, onboarding_prompt_rect/objective_rect) are called
+verbatim by the vistest proofs. Prompts pause behind modal screens, skip
+creative mode, persist via ClientSave.onboarding (serde default; legacy
+bincode shape migrates to Move; create_world resets), and Gameplay
+settings gained "Show first-minute hints" + "Restart tutorial". Also
+committed the docs/NIGHTLY-BETA goal pack (14 docs) + xtask
+night-plan-check validator (the Makefile target landed in loop 349; this
+commit supplies the module so it functions at HEAD).
+
+HOW: onboarding.rs (pure state + prompt copy + 9 unit tests); input.rs
+key_glyph; ui.rs painters + draw_hud wiring + observe_crafted hook + 2
+unit tests; lib.rs field/init/reset/observe hooks/ClientSave+LoreExtras+
+load path + 1 save round-trip test; lf_vistest 2 scenes
+(hud_onboarding@1280×800, hud_small_onboarding@640×420) using the REAL
+machine, painters, and rect math, with pixel gates (accent spine, verb
+text, key chip well, objective diamond/title) + small-window zero-overlap
+assertions.
+
+VISION REVIEW (per 08-ZAI-VISION-AND-DEEP-TESTS.md):
+- scene: hud_onboarding; image: shots/vistest_hud_onboarding.png;
+  1280×800, seed 12345, Craft step 4/5, default keymap. Q: card with
+  keycap chip + accent bar + step counter? A: yes ("Shape your first
+  planks", E chip, amber spine, 4/5). Pinned line with diamond + title +
+  progress? Yes ("Punch a Tree", oak log 1/3). Overlaps? None (noted the
+  backdrop preview draws no minimap — the real HUD does; collision is
+  rect-asserted in the small proof). Text clipped? No. New player knows
+  next action? Yes, high confidence. verdict: PASS (conf 0.98).
+- scene: hud_small_onboarding; image: shots/vistest_hud_small_onboarding.png;
+  640×420 same state. Q: readable at small size? Yes. Overlaps with
+  minimap/info/hearts/hotbar? None — explicitly confirmed all four
+  regions clear; hearts/XP/hotbar unobstructed. verdict: PASS (conf 0.97).
+
+VERIFICATION: cargo build --workspace GREEN; cargo test --workspace 422
+passing / 0 failed (+12 over loop 349's 410; note loop 349's sounds
+commit landed mid-job from the parallel session and is included);
+vistest 96/96 (2 new); make smoke OK; git diff --check clean (cargo fmt
+remains unusable as a repo gate — pre-existing formatting drift).
+Artifacts: dist runtimes rebuilt via make runtimes (see below), proofs
+shots/vistest_hud_onboarding.png + shots/vistest_hud_small_onboarding.png.
+
+HONESTLY DEFERRED: the spec's "highlights planks inside the inventory
+grid" (a highlight outline on the planks recipe row when the tutorial is
+on Craft) — the prompt names planks and the pinned quest reinforces it,
+but no in-grid highlight exists yet; it belongs to the N02/N03
+workbench/crafting pass. Controller-adaptive chips (only keymap chips
+adapt today). No onboarding completion chronicle event (a push_hint
+fires instead).

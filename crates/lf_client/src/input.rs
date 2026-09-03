@@ -176,6 +176,35 @@ impl Default for Keymap {
     }
 }
 
+/// Pretty HUD glyph for a physical key ("KeyW" → "W", "ControlLeft" →
+/// "CTRL", "Space" → "SPACE"). Prompts and interaction chips show these
+/// instead of debug names, adapting automatically to rebinding.
+pub fn key_glyph(code: KeyCode) -> String {
+    use KeyCode::*;
+    match code {
+        KeyA => "A".into(), KeyB => "B".into(), KeyC => "C".into(), KeyD => "D".into(),
+        KeyE => "E".into(), KeyF => "F".into(), KeyG => "G".into(), KeyH => "H".into(),
+        KeyI => "I".into(), KeyJ => "J".into(), KeyK => "K".into(), KeyL => "L".into(),
+        KeyM => "M".into(), KeyN => "N".into(), KeyO => "O".into(), KeyP => "P".into(),
+        KeyQ => "Q".into(), KeyR => "R".into(), KeyS => "S".into(), KeyT => "T".into(),
+        KeyU => "U".into(), KeyV => "V".into(), KeyW => "W".into(), KeyX => "X".into(),
+        KeyY => "Y".into(), KeyZ => "Z".into(),
+        Digit1 => "1".into(), Digit2 => "2".into(), Digit3 => "3".into(),
+        Digit4 => "4".into(), Digit5 => "5".into(), Digit6 => "6".into(),
+        Digit7 => "7".into(), Digit8 => "8".into(), Digit9 => "9".into(),
+        Digit0 => "0".into(),
+        Space => "SPACE".into(),
+        ShiftLeft | ShiftRight => "SHIFT".into(),
+        ControlLeft | ControlRight => "CTRL".into(),
+        AltLeft | AltRight => "ALT".into(),
+        Tab => "TAB".into(),
+        Enter => "ENTER".into(),
+        ArrowUp => "↑".into(), ArrowDown => "↓".into(),
+        ArrowLeft => "←".into(), ArrowRight => "→".into(),
+        _ => format!("{code:?}"),
+    }
+}
+
 impl Keymap {
     pub fn key(&self, action: Action) -> KeyCode {
         self.bindings.get(&action).copied().unwrap_or(KeyCode::KeyW)

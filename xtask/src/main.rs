@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 mod gen;
+mod night_plan;
 
 fn copy_dir(src: &str, dst: std::path::PathBuf) {
     let root = PathBuf::from(src);
@@ -62,6 +63,22 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
     match cmd {
+        "night-plan-check" => {
+            let root = args
+                .get(2)
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("docs/NIGHTLY-BETA"));
+            match night_plan::validate(&root) {
+                Ok(stats) => println!(
+                    "[ok] nightly beta plan: {} documents, {} ordered jobs, {} bytes, {} local links",
+                    stats.documents, stats.jobs, stats.bytes, stats.links_checked
+                ),
+                Err(e) => {
+                    eprintln!("[FAIL] nightly beta plan: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         "new-mod" => {
             // Step 39: `xtask new-mod <id> [--name "Pretty Name"]`
             let id = args.get(2).cloned().unwrap_or_default();
@@ -259,6 +276,7 @@ fn main() {
             println!("  cargo xtask gen-texture <type> <out.png> [--seed N] [--faction id] [--base-color RRGGBB] [--variation N]");
             println!("  cargo xtask gen-ctm <block>         write a block's CTM strip to assets/ctm/");
             println!("  cargo xtask gen-all-textures        all CTM strips + faction skins (skips existing)");
+            println!("  cargo xtask night-plan-check [dir]  validate the ZCode nightly beta goal pack");
         }
     }
 }

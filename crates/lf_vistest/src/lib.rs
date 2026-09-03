@@ -252,6 +252,30 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "hud_onboarding",
+            desc: "N01 first-minute tutorial card + pinned starter objective at 1280x800 (real painters)",
+            default_seed: 12345,
+            time_of_day: 0.42,
+            first_person: true,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5),
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
+            name: "hud_small_onboarding",
+            desc: "N01 tutorial card + pinned objective at 640x420 — zero overlap with hotbar/minimap bands",
+            default_seed: 12345,
+            time_of_day: 0.42,
+            first_person: true,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::new(8.5, 0.0, 8.5),
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "torchlit_night",
             desc: "night scene lit by torches placed on the terrain",
             default_seed: 12345,
@@ -3244,20 +3268,21 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     let (vertices, indices, water_vertices, water_indices) = (vertices, indices, water_vertices, water_indices);
 
     let ui = spec.name == "hud_preview" || spec.name == "hud_small" || spec.name == "village_trading" || spec.name == "tech_tree"
-        || spec.name == "menu_preview" || spec.name == "settings_preview"
-        || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud"
-        || spec.name == "console_preview" || spec.name == "lore_book"
-        || spec.name == "spellbook" || spec.name == "paths_screen" || spec.name == "trade_p2p"
-        || spec.name == "faction_map" || spec.name == "faction_hud"
-        || spec.name == "companion_commands" || spec.name == "companion_follow"
-        || spec.name == "new_world_screen" || spec.name == "multiplayer_screen"
-        || spec.name == "crafting_workbench"
-        || spec.name == "inventory_screen"
-        || spec.name == "build_hud"
-        || spec.name == "menus_centered_small" || spec.name == "menus_centered"
-        || spec.name == "menus_centered_wide"
-        || spec.name == "journal" || spec.name == "asset_catalog"
-        || spec.name == "kingdom_compass_hud";
+            || spec.name == "menu_preview" || spec.name == "settings_preview"
+            || spec.name == "crafting_ui" || spec.name == "map_screen" || spec.name == "minimap_hud"
+            || spec.name == "console_preview" || spec.name == "lore_book"
+            || spec.name == "spellbook" || spec.name == "paths_screen" || spec.name == "trade_p2p"
+            || spec.name == "faction_map" || spec.name == "faction_hud"
+            || spec.name == "companion_commands" || spec.name == "companion_follow"
+            || spec.name == "new_world_screen" || spec.name == "multiplayer_screen"
+            || spec.name == "crafting_workbench"
+            || spec.name == "inventory_screen"
+            || spec.name == "build_hud"
+            || spec.name == "menus_centered_small" || spec.name == "menus_centered"
+            || spec.name == "menus_centered_wide"
+            || spec.name == "journal" || spec.name == "asset_catalog"
+            || spec.name == "kingdom_compass_hud"
+            || spec.name == "hud_onboarding" || spec.name == "hud_small_onboarding";
     let (ui_ctx, warm_textures) = if ui {
         let ctx = egui::Context::default();
         // loop 329: per-scene canvas so menu proofs exist at several window
@@ -3272,7 +3297,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             | "village_trading" | "tech_tree" | "settings_preview" | "crafting_ui"
             | "map_screen" | "console_preview" | "lore_book" | "spellbook"
             | "paths_screen" | "trade_p2p" | "companion_commands" | "crafting_workbench"
-            | "kingdom_compass_hud");
+            | "kingdom_compass_hud" | "hud_onboarding" | "hud_small_onboarding");
         let draw = |ctx: &egui::Context| {
             if draws_hud_backdrop {
                 draw_hud_preview(ctx);
@@ -3303,6 +3328,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "kingdom_compass_hud" {
                 draw_kingdom_compass_preview(ctx);
+            }
+            if spec.name == "hud_onboarding" || spec.name == "hud_small_onboarding" {
+                draw_onboarding_preview(ctx);
             }
             if spec.name == "settings_preview" {
                 draw_settings_preview(ctx);
@@ -3443,6 +3471,7 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "tree_fall_mid" | "tree_fall_landed" | "falling_blocks_deep"
         | "plants_cross" | "seed_comparison" | "no_black_square"
         | "hud_small"
+        | "hud_onboarding" | "hud_small_onboarding"
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
         | "sun_visibility" | "material_gallery" | "colored_light_room"
         | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud");
@@ -3791,6 +3820,68 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
                 }
             }
             assert!(warm > 60, "falling_blocks_deep: no tumbling cubes in the sky region ({})", warm);
+        }
+        "hud_onboarding" | "hud_small_onboarding" => {
+            // N01 proofs: the tutorial card (accent spine + bright verb +
+            // step chip) and the pinned objective line (diamond + title)
+            // painted by the REAL painters inside the REAL rects. The small
+            // variant adds the zero-overlap guarantee: the card and line
+            // stay above the hotbar band and clear of the minimap corner.
+            let screen = egui::Rect::from_min_size(
+                egui::Pos2::ZERO, egui::vec2(w as f32, h as f32));
+            let prect = lf_client::ui::onboarding_prompt_rect(screen);
+            let orect = lf_client::ui::onboarding_objective_rect(screen, true);
+            let inside = |r: egui::Rect, x: usize, y: usize| {
+                x >= r.left().max(0.0) as usize && x < r.right().min(w as f32) as usize
+                    && y >= r.top().max(0.0) as usize && y < r.bottom().min(h as f32) as usize
+            };
+            // sample both rects for the card/objective signatures
+            let (mut spine, mut verb_text, mut diamond, mut obj_text) = (0usize, 0usize, 0usize, 0usize);
+            for y in (0..h).step_by(2) {
+                for x in (0..w).step_by(2) {
+                    let c = px(x, y);
+                    let is_accent = (c[0] - 196).abs() < 46 && (c[1] - 96).abs() < 46 && (c[2] - 42).abs() < 46;
+                    let is_bright = c[0] > 205 && c[1] > 195 && c[2] > 175;
+                    if inside(prect, x, y) {
+                        if is_accent { spine += 1; }
+                        if is_bright { verb_text += 1; }
+                    }
+                    if inside(orect, x, y) {
+                        if is_accent { diamond += 1; }
+                        if is_bright { obj_text += 1; }
+                    }
+                }
+            }
+            assert!(spine > 8, "{}: tutorial card accent spine missing ({})", scene, spine);
+            assert!(verb_text > 4, "{}: tutorial card verb text missing ({})", scene, verb_text);
+            assert!(diamond >= 1, "{}: pinned objective diamond missing ({})", scene, diamond);
+            assert!(obj_text > 3, "{}: pinned objective title missing ({})", scene, obj_text);
+            // the card's own key chip: dark chip wells inside the card's
+            // bottom row (painted black-alpha over the card bg)
+            let mut chip_wells = 0usize;
+            let chip_band = (prect.bottom() as usize - 24)..(prect.bottom() as usize - 4);
+            for y in chip_band {
+                for x in (prect.left() as usize..prect.right() as usize).step_by(2) {
+                    let c = px(x, y);
+                    if c[0] < 60 && c[1] < 55 && c[2] < 50 && inside(prect, x, y) {
+                        chip_wells += 1;
+                    }
+                }
+            }
+            assert!(chip_wells > 6, "{}: key chip well missing ({})", scene, chip_wells);
+            if scene == "hud_small_onboarding" {
+                // zero rectangle overlap at 640x420: both rects end above
+                // the hotbar band and never reach the minimap corner
+                let hotband_top = (h - 130) as f32;
+                assert!(prect.bottom() < hotband_top,
+                    "card reaches the hotbar band ({:.0} >= {:.0})", prect.bottom(), hotband_top);
+                assert!(orect.bottom() < hotband_top,
+                    "objective line reaches the hotbar band ({:.0} >= {:.0})", orect.bottom(), hotband_top);
+                assert!(prect.right() < w as f32 * 0.75,
+                    "card reaches into the minimap corner ({:.0})", prect.right());
+                assert!(prect.left() > w as f32 * 0.1,
+                    "card covers the top-left info line ({:.0})", prect.left());
+            }
         }
         "hud_small" => {
             // SMART HUD proof at 640x360: hotbar slots fill the bottom
@@ -4394,8 +4485,8 @@ const UW_PANEL: egui::Color32 = egui::Color32::from_rgba_premultiplied(0x33, 0x2
 fn ui_canvas(scene: &str) -> (u32, u32) {
     match scene {
         "hud_small" => (640, 360),
-        "menus_centered_small" => (640, 420),
-        "menus_centered_wide" => (1280, 800),
+        "menus_centered_small" | "hud_small_onboarding" => (640, 420),
+        "menus_centered_wide" | "hud_onboarding" => (1280, 800),
         "menus_centered" => (800, 600),
         _ => (800, 600),
     }
@@ -4605,6 +4696,33 @@ fn draw_kingdom_compass_preview(ctx: &egui::Context) {
         &p, c, 30.0, 0.6, Some(0.6 + 0.9),
         "Kingdom of Elderfall · 240m",
     );
+}
+
+/// N01: the first-minute tutorial card + pinned starter objective, drawn
+/// by the REAL client painters (`lf_client::ui::paint_onboarding_prompt`
+/// / `paint_pinned_objective`) at the REAL rect math
+/// (`onboarding_prompt_rect`), with the prompt copy produced by the REAL
+/// state machine (`Onboarding::prompt` on the Gather step, default
+/// keymap) and the pinned line from the REAL `pinned_objective` over the
+/// starter quest chain. Proof pixels = in-game pixels.
+fn draw_onboarding_preview(ctx: &egui::Context) {
+    let screen = ctx.screen_rect();
+    // advance the REAL machine to the Craft step (4/5): move + look +
+    // gather done, so the card shows the inventory-key chip the spec's
+    // "craft planks" prompt names. The transitions themselves are
+    // unit-tested in lf_client::onboarding.
+    let mut ob = lf_client::onboarding::Onboarding::default();
+    ob.observe_frame([0.0, 0.0, 0.0], 0.0, 0.0);
+    ob.observe_frame([3.5, 0.0, 0.0], 0.9, 0.8); // Move + Look complete
+    ob.observe_collected("log"); // Gather complete -> Craft (4/5)
+    assert_eq!(ob.step.number(), 4);
+    let keys = lf_client::input::Keymap::default();
+    let prompt = ob.prompt(&keys);
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("onboarding")));
+    let prect = lf_client::ui::onboarding_prompt_rect(screen);
+    lf_client::ui::paint_onboarding_prompt(&p, prect, &prompt, ob.step.number());
+    let orect = lf_client::ui::onboarding_objective_rect(screen, true);
+    lf_client::ui::paint_pinned_objective(&p, orect, "Punch a Tree", "oak log 1/3");
 }
 
 /// Loop 341: the inventory-first E screen (mirror of ui.rs draw_inventory).

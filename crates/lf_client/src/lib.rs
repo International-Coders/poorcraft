@@ -32,6 +32,7 @@ pub mod input;
 pub mod lore;
 pub mod icons;
 pub mod map;
+pub mod onboarding;
 pub mod slots;
 pub mod smoke;
 pub mod net;
@@ -605,6 +606,11 @@ pub struct ClientSave {
     /// records the site; the compass works without discovery too).
     #[serde(default)]
     pub kingdoms: Vec<KingdomRecord>,
+    /// N01: first-minute tutorial + pinned-objective state (None on old
+    /// saves = fresh tutorial, which only shows for a brand-new player
+    /// anyway because old saves have progress).
+    #[serde(default)]
+    pub onboarding: Option<onboarding::Onboarding>,
 }
 
 /// One discovered kingdom (loop 345): display name + throne position.
@@ -669,6 +675,7 @@ impl From<LegacyClientSave> for ClientSave {
             recipe_book: None,
             craft_queue: Vec::new(),
             kingdoms: Vec::new(),
+            onboarding: None,
         }
     }
 }
@@ -1120,6 +1127,8 @@ struct GameState {
     pub keymap: crate::input::Keymap,
     /// When Some, the next key press rebinds this action (Controls tab).
     pub rebind_capture: Option<crate::input::Action>,
+    /// N01: the persisted first-minute tutorial + pinned-objective state.
+    pub onboarding: onboarding::Onboarding,
     /// Last slot-thumbnail capture (throttled; Step 14).
     last_thumb: Instant,
     /// Loaded save-slot thumbnails for the picker (Step 14).
@@ -1643,6 +1652,7 @@ impl GameState {
             look_target: None,
             step_distance: 0.0,
             was_in_water: false,
+            onboarding: onboarding::Onboarding::default(),
             prev_ui_open: UiOpen::Title,
             recipe_book: workbench::RecipeBook::default(),
             wb_category: 0,
@@ -1841,6 +1851,8 @@ impl GameState {
             }
             log
         };
+        // N01: a brand-new world walks the first-minute tutorial again
+        self.onboarding = onboarding::Onboarding::default();
         self.chronicle.clear();
         self.time = lf_game::TimeOfDay::from_fraction(0.30);
         // regenerate the loaded chunks with the new seed
@@ -1921,6 +1933,7 @@ impl GameState {
         self.day_index = lore.day_index;
         self.recipe_book = lore.recipe_book.clone();
         self.craft_queue = lore.craft_queue.clone();
+        self.onboarding = lore.onboarding;
         self.companion_cooldowns = vec![0.0; self.companions.len()];
         self.companion_line_timers = vec![8.0; self.companions.len()];
         self.companion_menu = None;
@@ -2048,6 +2061,7 @@ impl GameState {
             recipe_book: Some(self.recipe_book.clone()),
             craft_queue: self.craft_queue.clone(),
             kingdoms: self.kingdoms.clone(),
+            onboarding: Some(self.onboarding.clone()),
         };
         // JSON (self-describing) so future field additions with
         // serde(default) load old bytes — bincode EOFs on them instead.
@@ -2256,6 +2270,13 @@ impl GameState {
         self.player.update(dt, &input, &self.world);
         self.footstep_tick(dt);
         self.splash_tick();
+        // N01: the tutorial watches the real pose (displacement + look
+        // travel), never synthetic input state
+        self.onboarding.observe_frame(
+            self.player.position.to_array(),
+            self.player.yaw,
+            self.player.pitch,
+        );
         self.update_falling_trees(dt);
         self.survival_tick(dt);
         self.update_drops(dt);
@@ -3538,6 +3559,7 @@ impl GameState {
                                         // lore-and-visuals: quest Place events
                                         // (targets use the item-id form)
                                         let placed_item = stack.item_id.clone();
+                                        self.onboarding.observe_placed(registry::is_solid(final_state));
                                         self.quest_event(QuestEvent::Placed(placed_item));
                                         if let Some(n) = &self.net {
                                             n.send_block(place.x, place.y, place.z, b);
@@ -5235,6 +5257,7 @@ impl GameState {
         }
         for item in collected {
             let first_ever = self.chronicle.is_empty();
+            self.onboarding.observe_collected(&item);
             self.quest_event(QuestEvent::Collected(item.clone()));
             // "any_food" quest targets match any collected food item
             if matches!(item_def(&item).map(|d| d.kind), Some(ItemKind::Food(_))) {
@@ -6200,6 +6223,8 @@ pub struct LoreExtras {
     pub craft_queue: Vec<(String, u32)>,
     /// loop 345: discovered kingdoms.
     pub kingdoms: Vec<KingdomRecord>,
+    /// N01: first-minute tutorial state (default = fresh tutorial).
+    pub onboarding: onboarding::Onboarding,
 }
 
 fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
@@ -6272,6 +6297,7 @@ fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
             lore.day_index = save.day_index;
             lore.recipe_book = save.recipe_book.unwrap_or_default();
             lore.craft_queue = save.craft_queue;
+            lore.onboarding = save.onboarding.unwrap_or_default();
             return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths, lore);
         }
     }
@@ -6838,6 +6864,32 @@ mod tests {
         let book = loaded.spellbook.unwrap();
         assert!(book.knows(lf_game::magic::Spell::Firebolt));
         assert!((loaded.mana - 12.5).abs() < 1e-4);
+    }
+
+    /// N01: the tutorial state persists through the JSON extras path, and
+    /// an old save without the field resumes a fresh tutorial (Move) —
+    /// the load path must not inherit GameState::new's stale copy.
+    #[test]
+    fn onboarding_persists_and_defaults_through_client_save() {
+        let mut done = onboarding::Onboarding::default();
+        done.observe_frame([0.0, 0.0, 0.0], 0.0, 0.0);
+        done.observe_frame([9.0, 0.0, 0.0], 0.0, 0.0); // Move
+        done.observe_frame([9.0, 0.0, 0.0], 2.0, 1.0); // Look
+        done.observe_collected("log"); // Gather
+        done.observe_crafted(); // Craft
+        done.observe_placed(true); // Build -> Done
+        assert_eq!(done.step, onboarding::TutorialStep::Done);
+        let save = ClientSave { onboarding: Some(done.clone()), ..Default::default() };
+        let loaded: ClientSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        assert_eq!(loaded.onboarding.unwrap().step, onboarding::TutorialStep::Done);
+
+        // old save (field absent) -> default tutorial state
+        let old_json = serde_json::to_string(&ClientSave::default())
+            .unwrap()
+            .replace("onboarding", "legacy_ignored");
+        let old: ClientSave = serde_json::from_str(&old_json).unwrap();
+        assert!(old.onboarding.is_none());
+        assert_eq!(old.onboarding.unwrap_or_default().step, onboarding::TutorialStep::Move);
     }
 
     /// P35: the screen face is a live readout of real state.

@@ -472,6 +472,151 @@ pub fn paint_kingdom_compass(
     );
 }
 
+// ---- N01: first-minute tutorial card + pinned starter objective ----
+// Pure rect math + painters shared with the vistest proofs, so the proof
+// pixels are the in-game pixels (the kingdom-compass pattern).
+
+/// The tutorial card sits top-center, clear of the info line (top-left)
+/// and the minimap (top-right). Width caps so a 640px window still shows
+/// the full card without touching either corner band.
+pub fn onboarding_prompt_rect(screen: egui::Rect) -> egui::Rect {
+    let w = 316.0_f32.min(screen.width() - 24.0).max(160.0);
+    egui::Rect::from_center_size(
+        egui::Pos2::new(screen.center().x, screen.top() + 54.0),
+        egui::vec2(w, 48.0),
+    )
+}
+
+/// The pinned objective line sits directly under the tutorial card (or at
+/// the card's position once the tutorial is Done/dismissed).
+pub fn onboarding_objective_rect(screen: egui::Rect, tutorial_showing: bool) -> egui::Rect {
+    let above = onboarding_prompt_rect(screen);
+    let center = if tutorial_showing {
+        egui::Pos2::new(above.center().x, above.bottom() + 15.0)
+    } else {
+        above.center()
+    };
+    egui::Rect::from_center_size(center, egui::vec2(above.width() * 0.86, 26.0))
+}
+
+/// Paint the tutorial card: accent spine, verb, key chips from the live
+/// keymap, the action label, the `n/5` step chip, and the dismiss ✕.
+pub fn paint_onboarding_prompt(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    prompt: &crate::onboarding::OnboardingPrompt,
+    step_number: usize,
+) {
+    painter.rect_filled(rect, 8.0, egui::Color32::from_rgba_unmultiplied(0x22, 0x1b, 0x12, 235));
+    painter.rect_stroke(rect, 8.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+    // accent spine on the left edge — "there is a next action here"
+    painter.rect_filled(
+        egui::Rect::from_min_size(rect.min, egui::vec2(4.0, rect.height())),
+        8.0, Theme::ACCENT,
+    );
+    painter.text(
+        rect.left_top() + egui::vec2(14.0, 13.0),
+        egui::Align2::LEFT_CENTER,
+        &prompt.verb,
+        egui::FontId::proportional(13.5),
+        Theme::TEXT_BRIGHT,
+    );
+    // step chip n/5 (right edge, under the ✕)
+    painter.text(
+        rect.right_top() + egui::vec2(-14.0, 13.0),
+        egui::Align2::RIGHT_CENTER,
+        format!("{}/{}", step_number, crate::onboarding::TutorialStep::TOTAL),
+        egui::FontId::proportional(10.0),
+        Theme::TEXT_DIM,
+    );
+    // dismiss glyph (the game layers a click target over it)
+    painter.text(
+        rect.right_top() + egui::vec2(-16.0, -9.0),
+        egui::Align2::RIGHT_BOTTOM,
+        "✕",
+        egui::FontId::proportional(11.0),
+        Theme::TEXT_DIM,
+    );
+    // chips + label row along the bottom
+    let mut x = rect.left() + 14.0;
+    let y = rect.bottom() - 14.0;
+    for chip in &prompt.chips {
+        let w = 12.0 + chip.len() as f32 * 7.5;
+        let r = egui::Rect::from_min_size(egui::pos2(x, y - 9.0), egui::vec2(w, 17.0));
+        painter.rect_filled(r, 4.0, egui::Color32::from_black_alpha(200));
+        painter.rect_stroke(r, 4.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+        painter.text(
+            r.center(),
+            egui::Align2::CENTER_CENTER,
+            chip,
+            egui::FontId::proportional(10.5),
+            Theme::TEXT,
+        );
+        x = r.right() + 6.0;
+    }
+    painter.text(
+        egui::pos2(x + 2.0, y),
+        egui::Align2::LEFT_CENTER,
+        &prompt.label,
+        egui::FontId::proportional(11.0),
+        Theme::TEXT_DIM,
+    );
+}
+
+/// Paint the pinned objective line: the active starter quest + its first
+/// incomplete objective progress, one quiet line that never blocks input.
+pub fn paint_pinned_objective(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    title: &str,
+    progress: &str,
+) {
+    painter.rect_filled(rect, 7.0, egui::Color32::from_rgba_unmultiplied(0x22, 0x1b, 0x12, 205));
+    painter.rect_stroke(rect, 7.0, egui::Stroke::new(1.0, Theme::BORDER), egui::StrokeKind::Middle);
+    painter.text(
+        rect.left_center() + egui::vec2(12.0, 0.0),
+        egui::Align2::LEFT_CENTER,
+        "◈",
+        egui::FontId::proportional(11.0),
+        Theme::ACCENT,
+    );
+    painter.text(
+        rect.left_center() + egui::vec2(28.0, 0.0),
+        egui::Align2::LEFT_CENTER,
+        title,
+        egui::FontId::proportional(11.5),
+        Theme::TEXT,
+    );
+    painter.text(
+        rect.right_center() + egui::vec2(-30.0, 0.0),
+        egui::Align2::RIGHT_CENTER,
+        progress,
+        egui::FontId::proportional(10.5),
+        Theme::TEXT_DIM,
+    );
+    painter.text(
+        rect.right_center() + egui::vec2(-11.0, 0.0),
+        egui::Align2::RIGHT_CENTER,
+        "✕",
+        egui::FontId::proportional(10.0),
+        Theme::TEXT_DISABLED,
+    );
+}
+
+/// The first incomplete quest and its first incomplete objective, as the
+/// pinned line presents them: `(quest title, "objective n/m")`.
+pub fn pinned_objective(log: &crate::QuestLog) -> Option<(String, String)> {
+    let quest = log.quests.iter().find(|q| !q.completed)?;
+    let obj = quest.objectives.iter().find(|o| !o.completed)?;
+    let name = item_def(&obj.target).map(|d| d.name.to_string())
+        .unwrap_or_else(|| obj.target.replace('_', " "));
+    Some((
+        quest.title.clone(),
+        format!("{} {}/{}", name.to_lowercase(), obj.progress, obj.count),
+    ))
+}
+
+
 /// Gameplay HUD visibility: hidden behind menus that own the whole view.
 /// The audit caught hearts + hotbar rendering under the title menu (and
 /// under settings opened from the title); pause keeps the HUD visible the
@@ -746,6 +891,64 @@ impl GameState {
                     bearing,
                     &label,
                 );
+            }
+        }
+        // N01: first-minute tutorial card + pinned starter objective
+        // (top-center, compact, never blocks input; prompts pause behind
+        // modal screens). Painted by the shared proof painters.
+        if self.stats.health > 0.0 && matches!(self.ui_open, UiOpen::None | UiOpen::Chat)
+            && self.game_mode == crate::slots::GameMode::Survival {
+            let screen = ctx.screen_rect();
+            let tutorial_showing = !self.onboarding.dismissed
+                && self.onboarding.step != crate::onboarding::TutorialStep::Done;
+            let mut dismissed_card = false;
+            let mut dismissed_objective = false;
+            if tutorial_showing {
+                let rect = onboarding_prompt_rect(screen);
+                let prompt = self.onboarding.prompt(&self.keymap);
+                paint_onboarding_prompt(
+                    &ctx.debug_painter(),
+                    rect,
+                    &prompt,
+                    self.onboarding.step.number(),
+                );
+                // click target over the painted ✕
+                let x_rect = egui::Rect::from_min_size(
+                    rect.right_top() + egui::vec2(-24.0, 2.0), egui::vec2(22.0, 22.0));
+                egui::Area::new(egui::Id::new("onboarding_dismiss"))
+                    .fixed_pos(x_rect.min)
+                    .order(egui::Order::Foreground)
+                    .interactable(true)
+                    .show(ctx, |ui| {
+                        let (_, resp) = ui.allocate_exact_size(x_rect.size(), egui::Sense::click());
+                        if resp.clicked() {
+                            dismissed_card = true;
+                        }
+                    });
+            }
+            if !self.onboarding.objective_dismissed {
+                if let Some((title, progress)) = pinned_objective(&self.quest_log) {
+                    let orect = onboarding_objective_rect(screen, tutorial_showing);
+                    paint_pinned_objective(&ctx.debug_painter(), orect, &title, &progress);
+                    let x_rect = egui::Rect::from_min_size(
+                        orect.right_top() + egui::vec2(-24.0, 0.0), egui::vec2(24.0, orect.height()));
+                    egui::Area::new(egui::Id::new("objective_dismiss"))
+                        .fixed_pos(x_rect.min)
+                        .order(egui::Order::Foreground)
+                        .interactable(true)
+                        .show(ctx, |ui| {
+                            let (_, resp) = ui.allocate_exact_size(x_rect.size(), egui::Sense::click());
+                            if resp.clicked() {
+                                dismissed_objective = true;
+                            }
+                        });
+                }
+            }
+            if dismissed_card {
+                self.onboarding.dismissed = true;
+            }
+            if dismissed_objective {
+                self.onboarding.objective_dismissed = true;
             }
         }
         // info line (top-left). Minimal by default — research on Minecraft's
@@ -1607,6 +1810,7 @@ impl GameState {
             remaining -= batch as u32;
         }
         self.quest_event(QuestEvent::Crafted(output.to_string()));
+        self.onboarding.observe_crafted();
         self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
     }
 
@@ -2314,6 +2518,20 @@ impl GameState {
     }
 
     fn settings_gameplay(&mut self, ui: &mut egui::Ui) {
+        // N01: first-minute tutorial controls — hide the card or walk the
+        // whole tutorial again (state is persisted with the slot).
+        kit::section_header(ui, "Tutorial", 1.0);
+        ui.add_space(4.0);
+        let mut hints = !self.onboarding.dismissed;
+        if kit::toggle(ui, "Show first-minute hints", &mut hints) {
+            self.onboarding.dismissed = !hints;
+        }
+        ui.add_space(4.0);
+        if ui.button(egui::RichText::new("Restart tutorial").color(Theme::ACCENT)).clicked() {
+            self.onboarding.reset();
+            self.push_hint("tutorial restarted — walk, look, gather, craft, build");
+        }
+        ui.add_space(8.0);
         let s = &mut self.settings;
         kit::section_header(ui, "Gameplay", 1.0);
         ui.add_space(6.0);
@@ -4056,6 +4274,63 @@ mod tests {
         assert!(hud_visible(&UiOpen::None, false));
         assert!(hud_visible(&UiOpen::Pause, false), "pause overlay dims the HUD but keeps it");
         assert!(hud_visible(&UiOpen::Inventory, false));
+    }
+
+    /// N01: the pinned objective always presents the first incomplete
+    /// starter quest and its first incomplete objective, and falls silent
+    /// when the whole chain is complete.
+    #[test]
+    fn pinned_objective_follows_the_starter_chain() {
+        let mut log = crate::QuestLog::new();
+        for q in crate::starter_quests() {
+            log.add_quest(q);
+        }
+        let (title, progress) = pinned_objective(&log).expect("fresh chain pins q1");
+        assert_eq!(title, "Punch a Tree");
+        assert!(progress.starts_with("oak log 0/3"), "progress reads 'oak log 0/3', got {progress}");
+        // advance the first objective to done: the line moves to q2
+        log.quests[0].objectives[0].progress = 3;
+        log.quests[0].objectives[0].completed = true;
+        log.quests[0].completed = true;
+        let (title2, progress2) = pinned_objective(&log).expect("q2 pins next");
+        assert_eq!(title2, "Crafting Basics");
+        assert!(progress2.contains("planks"), "q2 objective is planks, got {progress2}");
+        // all complete: no pinned line
+        for q in log.quests.iter_mut() {
+            q.completed = true;
+        }
+        assert_eq!(pinned_objective(&log), None);
+    }
+
+    /// N01: the tutorial card + objective line stay inside the safe band at
+    /// every required window size — above the hotbar band, clear of the
+    /// minimap corner and the info line (the geometry the small-window
+    /// proof also asserts in pixels).
+    #[test]
+    fn onboarding_rects_never_collide_at_required_sizes() {
+        for (w, h) in [(640.0, 420.0), (800.0, 600.0), (1280.0, 800.0), (1600.0, 900.0)] {
+            let screen = egui::Rect::from_min_max(
+                egui::Pos2::ZERO, egui::pos2(w, h));
+            let prect = onboarding_prompt_rect(screen);
+            let orect = onboarding_objective_rect(screen, true);
+            let orect_solo = onboarding_objective_rect(screen, false);
+            // fully on-screen with a margin
+            assert!(prect.left() >= 8.0 && prect.right() <= w - 8.0, "{w}x{h}: card clipped");
+            assert!(orect.left() >= 8.0 && orect.right() <= w - 8.0, "{w}x{h}: line clipped");
+            // clear of the hotbar band (bottom 130px)
+            assert!(prect.bottom() < h - 130.0, "{w}x{h}: card hits the hotbar band");
+            assert!(orect.bottom() < h - 130.0, "{w}x{h}: line hits the hotbar band");
+            // clear of the minimap (top-right 160px) and the info line
+            // (top-left 200px): a centered card must end left of the minimap
+            // at 640 width and start right of the info text
+            if w <= 720.0 {
+                assert!(prect.right() < w - 150.0, "{w}x{h}: card reaches the minimap");
+                assert!(prect.left() > 130.0, "{w}x{h}: card covers the info line");
+            }
+            // stacked, never intersecting; solo mode reuses the card slot
+            assert!(!prect.intersects(orect), "{w}x{h}: card and line overlap");
+            assert_eq!(orect_solo.center().y, prect.center().y);
+        }
     }
 
     #[test]

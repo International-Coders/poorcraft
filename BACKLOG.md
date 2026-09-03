@@ -1153,8 +1153,13 @@ Deferred (honest notes):
 - [ ] True projected raster cast shadows remain deferred: the shipped raster
       path is intentionally cheap directional relief; real soft cast shadows
       remain available in Live RT.
-- [ ] First-minute onboarding (context prompts + pinned starter objective) is
-      the next user-friendliness pass.
+- [x] First-minute onboarding SHIPPED (loop 350, N01): persisted tutorial
+      state machine (Move → Look → Gather → Craft → Build) fed by real
+      gameplay facts (horizontal displacement, camera travel, natural-drop
+      pickup, craft output, solid placement), keymap-adaptive prompt card
+      + pinned starter-objective line (real shared painters, top-center,
+      click-dismiss, Gameplay settings restart), new vistest proofs
+      hud_onboarding + hud_small_onboarding.
 
 ## Loop 345 — kingdoms, walking NPCs, and the kingdom compass SHIPPED
 

@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## 2026-09-03 — first-minute onboarding and the nightly-beta goal pack (loop 350, N01)
+
+- **The first five minutes teach the game.** A persisted tutorial state
+  machine (Move → Look → Gather → Craft → Build) advances only on real
+  gameplay facts: 3 blocks of horizontal walking, 1.6 radians of camera
+  travel, a natural-material drop (log/dirt/stone/sand) reaching the
+  inventory, a hand-crafted output, and a solid-block placement — torches
+  and flowers are not shelter, a picked-up sword is not mining, and
+  out-of-order events never skip steps. Vertical fall does not complete
+  "move"; wild camera swinging does not complete it either.
+- **The HUD says what to do next.** A compact top-center tutorial card
+  shows the verb, keycap chips drawn from the live keymap (rebind
+  Inventory to O and the card says O), an n/5 step chip, and a click-✕
+  dismiss; beneath it a pinned objective line tracks the first incomplete
+  starter quest and its progress ("Punch a Tree · oak log 1/3"). Both are
+  painted by shared painters used verbatim by the new vistest proofs, so
+  the proof pixels are the in-game pixels. Prompts pause behind modal
+  screens, never block input, and skip creative mode.
+- **It persists honestly.** Tutorial state rides ClientSave with serde
+  defaults (old saves load as a fresh Move tutorial; the legacy bincode
+  shape migrates), a new world resets it, and Gameplay settings gained
+  "Show first-minute hints" plus "Restart tutorial".
+- **The nightly-beta goal pack landed** (`docs/NIGHTLY-BETA/`, 14
+  documents: beta gates, HUD/crafting spec, seed diversity contract,
+  castle/faction strategy, NPC moral-history model, asset bible, vision
+  protocol, performance/hygiene rules, the N01–N24 job queue, data
+  contracts, and the morning-report template) with the
+  `xtask night-plan-check` validator and `make night-plan-check` target
+  that keep it verifiable.
+- **Proof:** 12 new tests (state-machine transitions, keymap-adaptive
+  copy, serde round-trip, pinned-objective chain, rect non-collision at
+  640×420/800×600/1280×800/1600×900) and two new visual scenes
+  `hud_onboarding` (1280×800) and `hud_small_onboarding` (640×420,
+  zero-overlap assertions), both reviewed by image recognition at 0.97+
+  confidence. `cargo test --workspace` is 422/0, vistest is 96/96, smoke
+  is green, and fresh runtimes were rebuilt.
+
 ## 2026-09-03 — real sound-effect bank via ElevenLabs (loop 349)
 
 - **The game now sounds real.** All 33 sound events play generated MP3
