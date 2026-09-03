@@ -50,6 +50,22 @@ pub fn recipes() -> &'static [Recipe] {
     ]));
     // coal over stick -> 4 torches
     book.push(r("torch", 4, vec![vec![Some("coal")], vec![Some("stick")]]));
+    // Material-specific torch heads tint the propagated light without
+    // changing the compact torch footprint.
+    book.push(r("ember_torch", 4, vec![
+        vec![Some("ember_glowstone")],
+        vec![Some("stick")],
+    ]));
+    book.push(r("lumen_torch", 4, vec![
+        vec![Some("lumen_block")],
+        vec![Some("stick")],
+    ]));
+    // A one-block masonry hearth: broad warm fire for homes and halls.
+    book.push(r("fireplace", 1, vec![
+        vec![Some("stone"), Some("stone"), Some("stone")],
+        vec![Some("stone"), Some("coal"), Some("stone")],
+        vec![Some("planks"), Some("planks"), Some("planks")],
+    ]));
     // iron around a torch -> lantern (the block existed with light 15 but
     // was unobtainable — audit Step 1)
     book.push(r("lantern", 1, vec![
@@ -644,6 +660,25 @@ mod tests {
         grid[0] = s("iron_ingot");
         grid[2] = s("torch");
         assert_eq!(match_recipe(&grid), Some(("lantern".into(), 1)));
+    }
+
+    #[test]
+    fn material_torches_and_fireplace_are_craftable() {
+        let mut small = vec![None::<ItemStack>; 4];
+        small[0] = s("ember_glowstone");
+        small[2] = s("stick");
+        assert_eq!(match_recipe(&small), Some(("ember_torch".into(), 4)));
+
+        small[0] = s("lumen_block");
+        assert_eq!(match_recipe(&small), Some(("lumen_torch".into(), 4)));
+
+        let mut hearth = vec![None::<ItemStack>; 9];
+        for x in 0..3 { hearth[x] = s("stone"); }
+        hearth[3] = s("stone");
+        hearth[4] = s("coal");
+        hearth[5] = s("stone");
+        for x in 6..9 { hearth[x] = s("planks"); }
+        assert_eq!(match_recipe(&hearth), Some(("fireplace".into(), 1)));
     }
 
     #[test]

@@ -23,7 +23,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 200;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 141;
+pub const MAX_VANILLA_BLOCK: u32 = 144;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -240,6 +240,12 @@ pub mod block {
     pub const BANNER_KINGDOM: u32 = 140;
     /// Pale ashlar masonry of the kingdom walls and keep.
     pub const KINGDOM_BRICK: u32 = 141;
+    /// Covenant ember crystal on a torch haft: hot red-orange light.
+    pub const EMBER_TORCH: u32 = 142;
+    /// Lumen crystal on a torch haft: cool cyan light.
+    pub const LUMEN_TORCH: u32 = 143;
+    /// Stone-and-timber hearth with a coal fire: broad warm light.
+    pub const FIREPLACE: u32 = 144;
 
     pub fn name(id: u32) -> &'static str {
         if let Some(def) = crate::registry::mod_block(id) {
@@ -322,6 +328,9 @@ pub mod block {
             THRONE => "Throne",
             BANNER_KINGDOM => "Kingdom Banner",
             KINGDOM_BRICK => "Kingdom Brick",
+            EMBER_TORCH => "Ember Torch",
+            LUMEN_TORCH => "Lumen Torch",
+            FIREPLACE => "Fireplace",
 
             BIRCH_LEAVES => "Birch Leaves",
             SPRUCE_LEAVES => "Spruce Leaves",
@@ -477,8 +486,10 @@ pub fn is_solid(b: BlockState) -> bool {
     if id >= MOD_BLOCK_BASE {
         return mod_block(id).map(|d| d.solid).unwrap_or(true);
     }
-    id != block::AIR && id != block::WATER && id != block::OIL && id != block::TORCH
-        && id != block::LANTERN && id != block::LANTERN_HANGING && !is_plant(id)
+    id != block::AIR && id != block::WATER && id != block::OIL
+        && !matches!(id, block::TORCH | block::EMBER_TORCH | block::LUMEN_TORCH
+            | block::LANTERN | block::LANTERN_HANGING)
+        && !is_plant(id)
 }
 
 /// Blocks that hide the neighboring face when meshing. Air, water and leaves
@@ -492,7 +503,9 @@ pub fn is_opaque(b: BlockState) -> bool {
         return false;
     }
     id != block::AIR && id != block::WATER && id != block::OIL && !is_leaf(id)
-        && id != block::TORCH && id != block::LANTERN && id != block::GLASS
+        && !matches!(id, block::TORCH | block::EMBER_TORCH | block::LUMEN_TORCH
+            | block::LANTERN | block::LANTERN_HANGING)
+        && id != block::GLASS
         && id != block::ICE && !is_plant(id)
 }
 
@@ -556,7 +569,7 @@ pub fn pick_boxes(state: BlockState) -> &'static [[f32; 6]] {
         return &PLANT;
     }
     match id {
-        b::TORCH => &TORCH,
+        b::TORCH | b::EMBER_TORCH | b::LUMEN_TORCH => &TORCH,
         b::LANTERN => &LANTERN,
         b::LANTERN_HANGING => &LANTERN_HANG,
         _ => collision_boxes(state), // cubes, slabs and stairs keep their shape
@@ -724,5 +737,18 @@ mod tests {
         assert!(register_mod_block(9100, ModBlockDef {
             name: "server_test:probe".into(), solid: true, opaque: true, drop: None, light: 0 }));
         assert!(is_known_block(9100), "registered mod id");
+    }
+
+    #[test]
+    fn colored_torches_are_thin_decor_and_fireplaces_are_solid() {
+        for id in [block::EMBER_TORCH, block::LUMEN_TORCH] {
+            let state = BlockState(id);
+            assert!(!is_solid(state));
+            assert!(!is_opaque(state));
+            assert_eq!(pick_boxes(state), pick_boxes(BlockState(block::TORCH)));
+            assert_ne!(block::name(id), "Unknown");
+        }
+        assert!(is_solid(BlockState(block::FIREPLACE)));
+        assert!(is_opaque(BlockState(block::FIREPLACE)));
     }
 }

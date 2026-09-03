@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## 2026-09-03 — colored light, fireplaces, and material torches (loop 348)
+
+- **Block light is genuinely RGB.** The voxel BFS propagates red, green, and
+  blue independently, loses one level per channel/cell, max-blends overlapping
+  sources, crosses chunk borders, and smooths every channel at mesh corners.
+  The engine packs RGB into previously unused bits of the existing `u32`
+  vertex-light field, preserving the old `0xF0` full-sky encoding and adding
+  no vertex bandwidth. Neutral skylight wins in daylight; colored sources tint
+  dark spaces. Warm sources breathe with a subtle position-phased flicker.
+- **Materials now determine the light.** Ordinary torches and lanterns are
+  warm gold, lava and Ember Glowstone amber, Lumen blocks cyan, and radiation
+  green. New craftable/placeable **Ember Torch**, **Lumen Torch**, and
+  **Fireplace** blocks complete the registry → texture atlas → item/drop →
+  crafting → server-validation pipeline. Their procedural pixel textures read
+  as an ember crystal, cyan crystal, and stone/log hearth rather than recolored
+  copies.
+- **Indoor lighting is reliable.** The visual proof exposed that the old
+  combined skylight/source scan stopped at the first roof, so no enclosed
+  emitter was ever discovered. Splitting source discovery from the sky pour
+  fixed it. A second regression proved the skylight flood had been seeded on
+  the opaque roof itself; it now starts at the lowest transparent cell above
+  it, eliminating roof leaks while keeping overhang and shaft spill. Direct
+  chunk-section scanning skips irrelevant sections and avoids per-voxel hash
+  lookups.
+- **Proof:** CPU tests cover packing compatibility, palettes, attenuation,
+  blending, cross-chunk travel, sealed rooms, and the corrected sky frontier;
+  a direct GPU test proves three independent packed channels reach the shader.
+  The new `colored_light_room` scene pixel-checks warm, cyan, and green pools.
+  `cargo test --workspace` is 406/0, all 94/94 visual scenes pass, smoke is
+  green, and the warm readback+PNG benchmark is p50 53.7ms / p95 58.0ms.
+
 ## 2026-09-02 — packed normal/AO materials and hero textures (loop 346)
 
 - **Terrain has authored character without abandoning voxel art.** Stone now

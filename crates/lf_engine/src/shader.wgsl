@@ -4,7 +4,7 @@ struct VertexOutput {
     @location(1) tex_coord: vec2<f32>,
     @location(2) @interpolate(flat) tex_index: u32,
     @location(3) ao: f32,
-    // sky light in the high nibble, block light in the low nibble
+    // R=bits 0..3, sky=4..7, G=8..11, B=12..15
     @location(4) @interpolate(flat) light: u32,
     @location(5) world_pos: vec3<f32>,
     @location(6) @interpolate(flat) atmosphere: f32,
@@ -107,11 +107,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return color;
     }
     let sky = f32((in.light >> 4u) & 15u) / 15.0;
-    let block_l = f32(in.light & 15u) / 15.0;
+    var block_light = vec3<f32>(
+        f32(in.light & 15u),
+        f32((in.light >> 8u) & 15u),
+        f32((in.light >> 12u) & 15u)
+    ) / 15.0;
     let day = uniforms.cam_pos_day.w;
-    // Block light slightly warmer/dimmer than full sky; never fully black.
-    var brightness = max(sky * day, block_l * 0.92);
-    brightness = max(brightness, 0.045);
+    // Warm firelight breathes subtly; cool crystal/radiation sources stay
+    // steady. The world-position phase avoids every hearth pulsing together.
+    let warmth = max(block_light.r - block_light.b, 0.0);
+    let fire_wave = 0.975 + 0.025 * sin(uniforms.time_sway.x * 7.0
+        + in.world_pos.x * 1.7 + in.world_pos.z * 2.3);
+    block_light *= mix(1.0, fire_wave, warmth);
+    // Sky is neutral; per-channel max lets nearby colored sources tint dark
+    // rooms without coloring sunlit terrain. Never render fully black.
+    var brightness = max(vec3<f32>(sky * day), block_light * 0.92);
+    brightness = max(brightness, vec3<f32>(0.045));
     // Geometry AO owns corners/adjacent blocks; material AO adds only the
     // small-scale cavities authored into mortar, bark, soil and ore veins.
     // A 0.62 floor keeps even the deepest texel readable.

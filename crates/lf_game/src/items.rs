@@ -87,6 +87,9 @@ pub fn items() -> &'static [ItemDef] {
         ItemDef { id: "leaves", name: "Oak Leaves", kind: ItemKind::Block(block::LEAVES), max_stack: 64 },
         ItemDef { id: "torch", name: "Torch", kind: ItemKind::Block(block::TORCH), max_stack: 64 },
         ItemDef { id: "lantern", name: "Lantern", kind: ItemKind::Block(block::LANTERN), max_stack: 64 },
+        ItemDef { id: "ember_torch", name: "Ember Torch", kind: ItemKind::Block(block::EMBER_TORCH), max_stack: 64 },
+        ItemDef { id: "lumen_torch", name: "Lumen Torch", kind: ItemKind::Block(block::LUMEN_TORCH), max_stack: 64 },
+        ItemDef { id: "fireplace", name: "Fireplace", kind: ItemKind::Block(block::FIREPLACE), max_stack: 16 },
         ItemDef { id: "crafting_table", name: "Crafting Table", kind: ItemKind::Block(block::CRAFTING_TABLE), max_stack: 64 },
         ItemDef { id: "furnace", name: "Furnace", kind: ItemKind::Block(block::FURNACE), max_stack: 64 },
         ItemDef { id: "chest", name: "Chest", kind: ItemKind::Block(block::CHEST), max_stack: 64 },
@@ -367,6 +370,9 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::LEAVES => Some("leaves".into()), // apples are a rare bonus handled by the caller
         block::TORCH => Some("torch".into()),
         block::LANTERN => Some("lantern".into()),
+        block::EMBER_TORCH => Some("ember_torch".into()),
+        block::LUMEN_TORCH => Some("lumen_torch".into()),
+        block::FIREPLACE => Some("fireplace".into()),
         block::CRAFTING_TABLE => Some("crafting_table".into()),
         block::FURNACE => Some("furnace".into()),
         block::CHEST => Some("chest".into()),
@@ -584,6 +590,9 @@ mod tests {
         assert_eq!(block_drop(block::IRON_ORE).as_deref(), Some("raw_iron"));
         assert_eq!(block_drop(block::GRASS).as_deref(), Some("dirt"));
         assert_eq!(block_drop(block::WATER), None);
+        assert_eq!(block_drop(block::EMBER_TORCH).as_deref(), Some("ember_torch"));
+        assert_eq!(block_drop(block::LUMEN_TORCH).as_deref(), Some("lumen_torch"));
+        assert_eq!(block_drop(block::FIREPLACE).as_deref(), Some("fireplace"));
     }
 }
 

@@ -384,6 +384,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "colored_light_room",
+            desc: "loop 348: fireplace, ordinary/ember/lumen torches, and radiation cast distinct RGB light",
+            default_seed: 12345,
+            time_of_day: 0.02,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "waypoint_beacons",
             desc: "world-space waypoint beams rising from the terrain, three colors, transparent pass",
             default_seed: 12345,
@@ -1082,6 +1094,51 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
                             lf_voxel::BlockState(material));
                     }
                 }
+            }
+        }
+    }
+
+    // loop 348 RGB lighting proof: five stone alcoves prevent neighboring
+    // emitters from washing each other out. The room is roofed and rendered
+    // at night, so its neutral masonry visibly receives each source color.
+    if spec.name == "colored_light_room" {
+        use lf_voxel::registry::block;
+        let h = 128i32;
+        for x in -18..=18 {
+            for z in -6..=7 {
+                for y in (h - 2)..=(h + 10) {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, h, z, lf_voxel::BlockState(block::KINGDOM_BRICK));
+                world.set_block(x, h + 8, z, lf_voxel::BlockState(block::DEEP_SLATE));
+            }
+        }
+        for x in -18..=18 {
+            for y in h + 1..=h + 7 {
+                world.set_block(x, y, -6, lf_voxel::BlockState(block::KINGDOM_BRICK));
+            }
+        }
+        for wall_x in [-18, -10, -3, 3, 10, 18] {
+            for z in -6..=5 {
+                for y in h + 1..=h + 7 {
+                    world.set_block(wall_x, y, z, lf_voxel::BlockState(block::DEEP_SLATE));
+                }
+            }
+        }
+        for (x, source) in [
+            (-14, block::FIREPLACE),
+            (-7, block::TORCH),
+            (0, block::EMBER_TORCH),
+            (7, block::LUMEN_TORCH),
+            (14, block::RADIATION),
+        ] {
+            // A pale pedestal makes the light color readable around thin
+            // torch sprites rather than relying on the sprite itself.
+            if source == block::FIREPLACE {
+                world.set_block(x, h + 1, 0, lf_voxel::BlockState(source));
+            } else {
+                world.set_block(x, h + 1, 0, lf_voxel::BlockState(block::KINGDOM_BRICK));
+                world.set_block(x, h + 2, 0, lf_voxel::BlockState(source));
             }
         }
     }
@@ -2941,6 +2998,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "material_gallery" {
         let h = 128.0;
         (Vec3::new(0.0, h + 10.0, 32.0), Vec3::new(0.0, h + 0.8, 2.5))
+    } else if spec.name == "colored_light_room" {
+        let h = 128.0;
+        (Vec3::new(0.0, h + 4.8, 31.0), Vec3::new(0.0, h + 3.0, -1.0))
     } else if spec.name == "transparency_layers" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(0.5, h + 2.2, 10.5), Vec3::new(0.0, h + 1.2, 2.0))
@@ -3384,7 +3444,7 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "plants_cross" | "seed_comparison" | "no_black_square"
         | "hud_small"
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
-        | "sun_visibility" | "material_gallery"
+        | "sun_visibility" | "material_gallery" | "colored_light_room"
         | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud");
     if !needs_check {
         return Ok(());
@@ -3443,6 +3503,22 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         assert!(wood > 100, "material_gallery: plank/dirt samples missing ({wood})");
         assert!(iron > 35, "material_gallery: iron veins missing ({iron})");
         assert!(cavity > 35, "material_gallery: dark grooves/coal cavities missing ({cavity})");
+    }
+    if scene == "colored_light_room" {
+        let mut warm = 0usize;
+        let mut cyan = 0usize;
+        let mut green = 0usize;
+        for y in (h / 5..h * 4 / 5).step_by(2) {
+            for x in (0..w).step_by(2) {
+                let [r, g, b] = px(x, y);
+                warm += usize::from(r > g + 18 && g > b + 8 && r > 45);
+                cyan += usize::from(b > r + 18 && g > r + 12 && b > 45);
+                green += usize::from(g > r + 16 && g > b + 10 && g > 35);
+            }
+        }
+        assert!(warm > 150, "colored_light_room: warm fire/torch pool missing ({warm})");
+        assert!(cyan > 80, "colored_light_room: cyan lumen pool missing ({cyan})");
+        assert!(green > 25, "colored_light_room: green radiation pool missing ({green})");
     }
     if scene == "kingdom_citadel" {
         // Royal gold (gate banners, throne frame, torches) and royal
@@ -6087,6 +6163,94 @@ mod tests {
             "normal RGB was ignored: open={open:.1}, tilted={tilted:.1}");
         assert!(tilted > occluded + 8.0,
             "AO alpha was ignored: tilted={tilted:.1}, occluded={occluded:.1}");
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// Loop 348 proof: packed per-vertex block light must reach the raster
+    /// shader as three independent channels instead of collapsing to a
+    /// grayscale maximum. Three otherwise-identical panels isolate the
+    /// vertex format and shader contract from world generation and textures.
+    #[test]
+    fn packed_colored_light_channels_reach_the_gpu() {
+        let textures = vec![image::RgbaImage::from_pixel(
+            16,
+            16,
+            image::Rgba([190, 190, 190, 255]),
+        )];
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let colors = [[15, 3, 2], [3, 15, 3], [2, 7, 15]];
+        for (panel, cx) in [-1.5f32, 0.0, 1.5].into_iter().enumerate() {
+            let base = vertices.len() as u32;
+            for (position, tex_coord) in [
+                ([cx - 0.62, -0.62, 0.0], [0.0, 1.0]),
+                ([cx + 0.62, -0.62, 0.0], [1.0, 1.0]),
+                ([cx + 0.62, 0.62, 0.0], [1.0, 0.0]),
+                ([cx - 0.62, 0.62, 0.0], [0.0, 0.0]),
+            ] {
+                vertices.push(GpuVertex {
+                    position,
+                    normal: [0.0, 0.0, 1.0],
+                    tex_coord,
+                    tex_index: 0,
+                    ao: 1.0,
+                    light: lf_voxel::light::pack_light(0, colors[panel]),
+                    sway: 0.0,
+                });
+            }
+            indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        }
+        let mut camera = Camera::new(Vec3::new(0.0, 0.0, 5.0), Vec3::ZERO);
+        camera.set_aspect(600, 300);
+        let env = lf_engine::scene::Env {
+            camera_pos: camera.eye,
+            time: 0.0,
+            day_factor: 0.0,
+            fog_color: [0.0, 0.0, 0.0],
+            fog_far: 1000.0,
+            grade_tint: [1.0, 1.0, 1.0],
+            grade_saturation: 1.0,
+            sun_direction: [0.0, 0.0, 1.0],
+        };
+        let renderer = lf_engine::headless::HeadlessRenderer::new(600, 300, &textures)
+            .expect("GPU renderer for colored-light proof");
+        let path = format!("/tmp/lf_vistest_colored_light_{}.png", std::process::id());
+        renderer
+            .render(
+                &vertices,
+                &indices,
+                &[],
+                &[],
+                &camera,
+                &env,
+                [0.0, 0.0, 0.0, 1.0],
+                Path::new(&path),
+                None,
+            )
+            .expect("render colored-light channel proof");
+        let img = image::open(&path).expect("reopen colored-light proof").to_rgb8();
+        let mean = |x0: u32, x1: u32| -> [f32; 3] {
+            let mut sum = [0u64; 3];
+            let mut n = 0u64;
+            for y in 40..260 {
+                for x in x0..x1 {
+                    let p = img.get_pixel(x, y).0;
+                    if p != [0, 0, 0] {
+                        for c in 0..3 {
+                            sum[c] += p[c] as u64;
+                        }
+                        n += 1;
+                    }
+                }
+            }
+            sum.map(|v| v as f32 / n.max(1) as f32)
+        };
+        let red = mean(0, 200);
+        let green = mean(200, 400);
+        let blue = mean(400, 600);
+        assert!(red[0] > red[1] + 25.0 && red[0] > red[2] + 25.0, "red channel collapsed: {red:?}");
+        assert!(green[1] > green[0] + 25.0 && green[1] > green[2] + 25.0, "green channel collapsed: {green:?}");
+        assert!(blue[2] > blue[0] + 25.0 && blue[2] > blue[1] + 20.0, "blue channel collapsed: {blue:?}");
         let _ = std::fs::remove_file(path);
     }
 

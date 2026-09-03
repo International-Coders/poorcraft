@@ -2027,3 +2027,60 @@ call sites (prop grab, light placement, blueprint ghost still
 cell-based), and companions still use their own single-cell mover
 (they already refuse blocked moves). The queued first-minute onboarding
 pass remains next.
+
+## 2026-09-03 — loop 348: RGB material light + fireplaces
+
+WHAT: Upgraded production voxel illumination from scalar block light to RGB
+material light and added three complete player-facing sources: Ember Torch,
+Lumen Torch, and Fireplace. Existing torches, lanterns, lava, Ember Glowstone,
+Lumen blocks, and radiation now cast distinct palettes; warm light has subtle
+world-position-phased flicker, while cool/radiation light remains steady.
+
+HOW:
+- `lf_voxel/light.rs` now owns `emission_rgb`, compatibility `emission`, and
+  pack/unpack helpers. RGB BFS attenuates and max-composites per channel across
+  the same 3x3-column neighborhood. `ColumnLight` stores RGB; world meshing and
+  smooth corner-light averaging preserve every channel.
+- Kept the vertex ABI compact: R remains bits 0..3, sky remains bits 4..7, G
+  uses 8..11 and B uses 12..15. Existing hand-authored `0xF0` sky vertices are
+  bit-identical. `shader.wgsl` unpacks each channel, chooses neutral sky versus
+  colored block light per channel, and applies the restrained warm flicker.
+- Registered block ids 142..144, names, solid/opaque/pick behavior and server
+  validity. Added atlas layers and purpose-built 16x16 procedural pixel art,
+  item/drop catalog entries, and recipes (Ember Glowstone + stick, Lumen Block
+  + stick, and a stone/coal/plank hearth).
+- The first `colored_light_room` render was almost black and exposed a real
+  engine defect: scanning stopped at the first roof, so indoor emitters were
+  invisible to lighting. A sealed-room regression then exposed a second one:
+  the skylight queue started on the opaque roof and radiated through it. The
+  final scan discovers emitters throughout loaded sections, but pours sky only
+  to the first blocker and seeds lateral spill from the transparent cell above.
+- The correctness fix initially made debug visual tests impractically slow by
+  doing a world-coordinate/hash lookup for every voxel. Reworked discovery to
+  scan neighboring `VoxelSection`s directly and skip palettes containing no
+  opaque or emissive blocks; the all-scene deterministic mesh proof returned to
+  20.19s in release. No Makefile targets or commands changed.
+
+PROOF/FIXES: Added voxel regressions for legacy packing, source palettes,
+per-channel falloff/blending, and a fully sealed indoor fireplace; extended
+cache/registry/atlas/item/crafting contracts. Added a direct GPU three-panel
+test proving packed red, green, and blue remain independently dominant. Added
+the raised five-alcove `colored_light_room` proof with warm/cyan/green pixel
+claims. The failed first render and failed sealed-room sky assertion both led
+to production fixes before acceptance. Manually inspected the final colored
+room plus torchlit night, cross-border night, wizard tower, and radiation
+aftermath outputs.
+
+VERIFICATION: `cargo build --workspace` GREEN; `cargo test --workspace` 406
+passing invocations / 0 failed; `cargo run --release -p xtask -- vistest shots`
+94/94; `make smoke` headless logic + 12s GUI liveness OK. Warm `make perf`
+(29 measured 800x600 GPU-readback+PNG frames): p50 53.7ms, p95 58.0ms, min
+47.9ms. `cargo fmt --all -- --check` remains unusable as a repository gate
+because the pre-existing tree has extensive formatting drift; `git diff
+--check` is clean. Proof image: `shots/vistest_colored_light_room.png`.
+
+HONESTLY DEFERRED: RGB color fields for mod-authored light (the existing scalar
+mod API stays neutral/grayscale), carried/handheld dynamic lights, bloom or
+volumetric shafts, colored emissive bounce in the Live RT path, and a true
+raster shadow-map pass. The queued compact, persisted first-minute onboarding
+job remains next.

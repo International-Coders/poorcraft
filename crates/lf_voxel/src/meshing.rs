@@ -209,15 +209,26 @@ pub fn mesh_section(section: &VoxelSection, neighbor_px: Option<&VoxelSection>, 
             let (o1, o2, oc) = (opaque_at(side1), opaque_at(side2), opaque_at(corner));
             let occl = if o1 && o2 { 3.0 } else { (o1 as u8 + o2 as u8 + oc as u8) as f32 };
             aos[i] = 1.0 - 0.2 * occl;
-            let (mut sky, mut blk) = (0u32, 0u32);
+            let mut sky = 0u32;
+            let mut block_rgb = [0u32; 3];
             for p in [base, side1, side2, corner] {
                 if !opaque_at(p) {
                     let l = light_of(p.0, p.1, p.2);
-                    sky += (l >> 4) & 15;
-                    blk += l & 15;
+                    sky += crate::light::unpack_sky(l) as u32;
+                    let rgb = crate::light::unpack_block_rgb(l);
+                    for channel in 0..3 {
+                        block_rgb[channel] += rgb[channel] as u32;
+                    }
                 }
             }
-            lights[i] = ((sky / 4) << 4) | (blk / 4);
+            lights[i] = crate::light::pack_light(
+                (sky / 4) as u8,
+                [
+                    (block_rgb[0] / 4) as u8,
+                    (block_rgb[1] / 4) as u8,
+                    (block_rgb[2] / 4) as u8,
+                ],
+            );
         }
         (aos, lights)
     };

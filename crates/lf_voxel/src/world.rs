@@ -150,8 +150,8 @@ impl World {
             let lx = x.clamp(0, 15) as usize;
             let lz = z.clamp(0, 15) as usize;
             let sky = light.sky_at(lx, world_y as usize, lz);
-            let block_l = light.block_at(lx, world_y as usize, lz);
-            ((sky as u32) << 4) | block_l as u32
+            let block_rgb = light.block_rgb_at(lx, world_y as usize, lz);
+            crate::light::pack_light(sky, block_rgb)
         };
         for (sy, section) in col.sections.iter().enumerate() {
             let neighbor_px = self.chunks.get(&(cx + 1, cz)).map(|c| &c.sections[sy]);
@@ -371,7 +371,9 @@ mod tests {
         // place a torch and remesh: block light must appear
         w.set_block(8, 100, 8, crate::BlockState(registry::block::TORCH)).unwrap();
         let relit = w.mesh_column(0, 0, &|_, _| 0);
-        assert!(relit.opaque.vertices.iter().any(|v| (v.light & 0xF) > 0),
+        assert!(relit.opaque.vertices.iter().any(|v| {
+            crate::light::unpack_block_rgb(v.light).into_iter().any(|c| c > 0)
+        }),
             "torch light must be visible after the edit (cache invalidated)");
     }
 

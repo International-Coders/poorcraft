@@ -12,7 +12,7 @@ pub struct GpuVertex {
     pub tex_coord: [f32; 2],
     pub tex_index: u32,
     pub ao: f32,
-    /// Packed light: sky in the high nibble, block light in the low nibble.
+    /// Packed light: block R bits 0..3, sky 4..7, block G 8..11, B 12..15.
     pub light: u32,
     /// Wind-sway weight (foliage = 1.0); the vertex shader offsets the
     /// position by a world-position-phased wave scaled by this.

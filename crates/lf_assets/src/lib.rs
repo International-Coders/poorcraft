@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 209] = [
+pub const TEXTURE_NAMES: [&str; 212] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -107,6 +107,8 @@ pub const TEXTURE_NAMES: [&str; 209] = [
     // loop 345 kingdoms: the citadel's own masonry, banner, throne, and
     // the monarch's court robes.
     "kingdom_brick", "banner_kingdom", "throne", "villager_monarch",
+    // loop 348 colored lighting: material-specific portable lights and hearth.
+    "ember_torch", "lumen_torch", "fireplace",
 ];
 
 /// king-quest B: block ids 121..=138 map to their named layers, in this
@@ -384,6 +386,9 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
                 _ => layer_of("kingdom_brick"),
             }
         }
+        lf_voxel::registry::block::EMBER_TORCH => layer_of("ember_torch"),
+        lf_voxel::registry::block::LUMEN_TORCH => layer_of("lumen_torch"),
+        lf_voxel::registry::block::FIREPLACE => layer_of("fireplace"),
         _ => 0,
     }
 }
@@ -1073,6 +1078,54 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                         Rgba([120, 90, 50, 255])
                     } else {
                         Rgba([0, 0, 0, 0])
+                    }
+                }
+                "ember_torch" => {
+                    let haft = x == 7 || x == 8;
+                    let crystal = (6..=9).contains(&x) && (3..=7).contains(&y)
+                        && !((x == 6 || x == 9) && (y == 3 || y == 7));
+                    if crystal {
+                        let hot = (x + y) % 3 == 0;
+                        Rgba(if hot { [255, 202, 82, 255] } else { [246, 72, 28, 255] })
+                    } else if haft && y > 7 {
+                        Rgba([112, 58, 34, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "lumen_torch" => {
+                    let haft = x == 7 || x == 8;
+                    let crystal = (6..=9).contains(&x) && (3..=7).contains(&y)
+                        && !((x == 6 || x == 9) && (y == 3 || y == 7));
+                    if crystal {
+                        let core = (x + y) % 3 == 0;
+                        Rgba(if core { [224, 255, 255, 255] } else { [66, 214, 246, 255] })
+                    } else if haft && y > 7 {
+                        Rgba([74, 82, 92, 255])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    }
+                }
+                "fireplace" => {
+                    // A readable one-block hearth: pale stone surround,
+                    // soot-dark firebox, crossed logs, and a hot core.
+                    let mouth = (3..=12).contains(&x) && (5..=13).contains(&y);
+                    let stone_joint = x % 5 == 0 || y % 5 == 0;
+                    let log = mouth && y >= 11 && ((x + y) % 5 <= 1);
+                    let flame = mouth && y >= 6 && y <= 11
+                        && ((x as i32 - 7).abs() + (y as i32 - 9).abs() <= 4);
+                    if flame {
+                        let core = (x + y) % 3 == 0;
+                        Rgba(if core { [255, 224, 104, 255] } else { [244, 82, 24, 255] })
+                    } else if log {
+                        Rgba([92, 46, 25, 255])
+                    } else if mouth {
+                        Rgba([35, 29, 27, 255])
+                    } else if stone_joint {
+                        Rgba([92, 90, 88, 255])
+                    } else {
+                        let v = 132 + ((x * 5 + y * 7) % 17);
+                        Rgba([ch(v + 6), ch(v + 2), ch(v), 255])
                     }
                 }
                 "lantern" => {
@@ -3933,6 +3986,14 @@ mod tests {
                 assert!(holes > 20 && solid > 4, "{} holes={} solid={}", name, holes, solid);
                 continue;
             }
+            if matches!(name, "torch_item" | "ember_torch" | "lumen_torch") {
+                // Thin torch billboards: a solid haft/head surrounded by
+                // transparent pixels, never an invisible full cube.
+                let holes = tex.pixels().filter(|p| p.0[3] == 0).count();
+                let solid = tex.pixels().filter(|p| p.0[3] == 255).count();
+                assert!(holes > 180 && solid > 10, "{} holes={} solid={}", name, holes, solid);
+                continue;
+            }
             if name == "ice" {
                 // translucent pane everywhere
                 assert!(tex.pixels().all(|p| p.0[3] == 200));
@@ -3951,10 +4012,8 @@ mod tests {
                 assert!(holes > 20 && solid > 100, "{} holes={} solid={}", name, holes, solid);
                 continue;
             }
-            if name != "torch_item" {
-                let expected_alpha = if name == "water" { 170 } else { 255 };
-                assert!(tex.pixels().all(|p| p.0[3] == expected_alpha));
-            }
+            let expected_alpha = if name == "water" { 170 } else { 255 };
+            assert!(tex.pixels().all(|p| p.0[3] == expected_alpha));
         }
     }
 
@@ -4111,6 +4170,9 @@ mod tests {
         assert_eq!(name(111), "log");
         assert_eq!(name(114), "birch_log");
         assert_eq!(name(120), "cherry_log");
+        assert_eq!(name(lf_voxel::registry::block::EMBER_TORCH), "ember_torch");
+        assert_eq!(name(lf_voxel::registry::block::LUMEN_TORCH), "lumen_torch");
+        assert_eq!(name(lf_voxel::registry::block::FIREPLACE), "fireplace");
     }
 
     #[test]

@@ -81,6 +81,12 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [x] torches/lanterns emit real light (14/15) and are placeable (audit
       fix: the lantern block existed with light 15 but had no item or
       recipe — unplaceable; now craftable iron-over-torch)
+- [x] RGB block-light propagation: source colors attenuate and max-blend per
+      channel across chunk borders; sky remains neutral and the packed vertex
+      layout stays the same size (loop 348)
+- [x] material light family: warm ordinary torch/lantern, hot Ember Torch,
+      cyan Lumen Torch, broad Fireplace, amber lava/glowstone and green
+      radiation; the three new sources have textures, recipes and drops
 - [x] day/night cycle drives sky color, clear color, sky-light factor + distance fog
 - [x] water transparency (alpha-blended pass, back-to-front column sort; underwater tint in P7)
 - [x] smooth per-vertex lighting/AO (done by P26's visual identity pass;
