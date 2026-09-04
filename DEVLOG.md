@@ -3358,3 +3358,45 @@ HONESTLY DEFERRED: region-granularity rivers (per-cell channels are
 P3D-302+); sinks are simply no-downstream (lakes are P3D-305); no
 water simulation yet (flow records arrive with P3D-302); wetness is a
 field, not yet consumed by biome placement.
+
+## 2026-09-04 — loop 379: P3D-302 flow records, revisions, boundary ports
+
+WHAT: Water remembers — every river region carries a versioned flow
+record (direction, fixed-point slope, discharge, capacity, revision),
+with boundary ports so neighboring regions agree about water crossing
+between them, and persistence through the header law.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-302.md.
+pc3d_world/src/flow.rs: direction_code (8-compass), FlowRecord, 
+FlowTable::from_graph (per-region record: direction from downstream map
+or DIR_SINK, slope_per_mille = drop*1000/edge-distance fixed-point,
+capacity = discharge * (1 + slope/50)), bump_revision (table + all
+records move together), ports() (OUT port toward downstream at the
+shared border midpoint + IN ports from every upstream neighbor whose
+direction targets us; Port{side, position_mm, out, discharge}).
+pc3d_save/src/flow_store.rs: save/load_flow_table at
+water/flow.p3d — fixed-width 48-byte records (region x/z, direction,
+slope, pad, discharge, capacity, revision, pad) through the framing
+law. FlowTable.records made pub for the serializer. Files: flow.rs,
+flow_store.rs (new), lib.rs x2, contract, docs.
+
+BUGS CAUGHT BY TESTS EN ROUTE: (1) PORT MATCHING matched entries by
+discharge — discharges TIE between neighbors, so find() picked the
+wrong port; matching switched to POSITION (unique per shared border);
+(2) flow-store records encoded 47 bytes vs the 48 the decoder expected
+(pad miscount) — round-trip LengthMismatch caught it; (3) the refusal
+probe wrote 13 bytes — below the 16-byte header floor it got TooShort,
+not ForeignFormat; probe lengthened.
+
+VERIFICATION: P3D workspace cargo test 107 passed / 0 failed (+4:
+records-agree-with-graph across the whole grid (directions, slopes >=
+0, discharges, DIR_SINK at sinks), port matching by position across
+50 shared borders, revision bump atomicity, flow-table disk round-trip
++ revision persistence + foreign refusal). make p3d-smoke OK. Root
+cargo test --workspace 474 green (unchanged; zero lf_* edits).
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: capacity model v1 is slope-scaled discharge (real
+channel geometry when rendering lands); ports are region-granularity
+(patch-inherited); no consumers yet (P3D-306); rebuilds/revisions bump
+but no dirty-region logic yet (P3D-303).

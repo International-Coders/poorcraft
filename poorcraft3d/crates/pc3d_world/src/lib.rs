@@ -12,6 +12,7 @@ pub mod build;
 pub mod edit;
 pub mod coords;
 pub mod debug_overlay;
+pub mod flow;
 pub mod gen;
 pub mod hydro;
 pub mod lod;

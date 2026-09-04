@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-09-04 — water remembers: flow records + ports (loop 379, P3D-302)
+
+- **Every river region carries a versioned flow record.**
+  `pc3d_world::flow`: `FlowRecord` (8-compass direction, fixed-point
+  per-mille slope never negative toward downstream, discharge,
+  slope-scaled capacity, revision) derived deterministically from the
+  river graph; `FlowTable.revision` starts at 1 and `bump_revision()`
+  moves every record together.
+- **The port matching law**: a region's exit toward downstream and the
+  downstream's entry share the identical border-midpoint world position
+  and discharge — neighbors can never disagree about water crossing
+  between them (ports matched by POSITION; discharges tie between
+  neighbors).
+- **Flow tables persist** (`pc3d_save::flow_store` at
+  `water/flow.p3d`): fixed-width 48-byte records through the header
+  law; a 47-vs-48 pad bug was caught by the round-trip, and the refusal
+  probe needed ≥ 16 bytes to even reach the magic check.
+- 107 pc3d tests green (+4); root workspace untouched at 474; smoke OK.
+  Contract at `docs/POORCRAFT-3D/contracts/P3D-302.md`. Next: P3D-303
+  dirty-region flow rebuild.
+
 ## 2026-09-04 — the watershed: rivers from terrain (loop 378, P3D-301)
 
 - **The water stage opens with real geography.** `pc3d_world::hydro`:
