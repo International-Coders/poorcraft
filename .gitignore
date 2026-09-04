@@ -11,3 +11,6 @@ dist/
 node_modules/
 worlds/
 .zcode/
+
+# POORCRAFT 3D (separate greenfield workspace)
+poorcraft3d/target/
