@@ -2633,3 +2633,44 @@ HONESTLY DEFERRED: smelting/machine item flows are NOT yet host
 commands (craft transactions were the roadmap scope; machines move in
 B07/B08); the event log remains runtime-only until B08/B24 persistence;
 Fluid EditKind still unused until the fluid sim migrates (B04).
+
+## 2026-09-03 — loop 361: POORCRAFT 3D P3D-001 — new workspace, identity, save guard
+
+WHAT: First implementation task of the POORCRAFT 3D greenfield track
+(docs/POORCRAFT-3D/16-IMPLEMENTATION-WORK-BREAKDOWN.md, stage P3D-000):
+separate workspace, new executable identity, and the
+no-accidental-save-sharing guard. The owner directed "make all in the
+README" for the POORCRAFT-3D pack; per its authority rules the work
+went through a task contract (11-TASK-CONTRACT-TEMPLATE) before code.
+
+HOW: Task contract filled at docs/POORCRAFT-3D/contracts/P3D-001.md
+(goal, current truth, scope + non-goals, invariants, verification,
+done-when, design check). New nested Cargo workspace `poorcraft3d/`
+(resolver 2, own target dir; the ROOT workspace's explicit member list
+is untouched so the two never share a build). `pc3d_core::identity`
+declares the project identity ONCE: PROJECT_NAME "POORCRAFT 3D",
+PROJECT_EXE "poorcraft3d", P3D_SAVE_DIR "saves3d", P3D_FORMAT_MAGIC
+b"PC3D", P3D_FORMAT_VERSION 1, plus ORIGINAL_GAME_EXE/ORIGINAL_SAVE_DIR
+("loreforge"/"worlds") declared only so tests can prove separation.
+`refuse_foreign_save(header)` is the guard: pure header-bytes decision
+(Accepted only on PC3D magic; ForeignFormat otherwise; TooShort under
+4 bytes) so refusal happens before any parser. Bin `poorcraft3d`:
+--identity prints the block, unknown args exit 2. Makefile p3d-build/
+p3d-test; .gitignore poorcraft3d/target/. Files: poorcraft3d/* (new),
+Makefile, .gitignore, docs/POORCRAFT-3D/contracts/P3D-001.md, STATE/
+CHANGELOG/DEVLOG; the whole docs/POORCRAFT-3D/ pack committed too.
+
+VERIFICATION: P3D workspace cargo test 5 passed / 0 failed (separation
+invariants, LOREFORGE-file refusal, magic strictness, truncation,
+identity block); ./target/release/poorcraft3d --identity prints the
+block; --bogus exits 2; ROOT cargo test --workspace 474 passed / 0
+failed (unchanged — the original game was not touched); make p3d-test
+green. Runtimes intentionally not rebuilt: zero lf_* changes; the P3D
+binary is a stub by design (first runtime is P3D-005).
+
+HONESTLY DEFERRED: full versioned headers + refusal matrix are
+P3D-002 (the guard's magic check is the outermost layer of that); the
+save root is a constant, not yet wired to any IO (nothing saves); no
+window, loop, or content — P3D-003..005 follow. Owner decisions
+P-001..P-008 in 18-DECISION-REGISTER.md remain open; none block
+P3D-002, and per the execution prompt none were silently resolved.

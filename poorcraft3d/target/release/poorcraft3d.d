@@ -1,0 +1,1 @@
+/Users/zari/Desktop/POORCRAFT/poorcraft3d/target/release/poorcraft3d: /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/src/main.rs /Users/zari/Desktop/POORCRAFT/poorcraft3d/crates/pc3d_core/src/identity.rs /Users/zari/Desktop/POORCRAFT/poorcraft3d/crates/pc3d_core/src/lib.rs

@@ -1,0 +1,6 @@
+[workspace]
+members = ["crates/pc3d_core", "apps/poorcraft3d"]
+resolver = "2"
+
+[profile.release]
+opt-level = 3

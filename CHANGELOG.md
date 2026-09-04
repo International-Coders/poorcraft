@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026-09-03 — POORCRAFT 3D is born: P3D-001 workspace, identity, save guard (loop 361)
+
+- **The greenfield successor exists as code, not prose.** New nested Cargo
+  workspace `poorcraft3d/` (independent target dir; root workspace
+  membership untouched), crate `pc3d_core`, binary `poorcraft3d` — which
+  already answers `--identity`: name, executable, save root `saves3d`,
+  magic `PC3D`, format epoch v1, and the explicit "no POORCRAFT
+  compatibility" statement (D-001/D-002).
+- **The no-accidental-save-sharing guard is tested, not promised.**
+  `refuse_foreign_save()` decides from header bytes alone — pure, no IO:
+  only `PC3D`-magic files are accepted; LOREFORGE-style saves are refused
+  as `ForeignFormat`; truncated headers are refused as `TooShort`. Five
+  tests pin every separation invariant (executable, save dir, magic all
+  differ from `loreforge`/`worlds`; substring checks both ways;
+  case-strict magic).
+- **The task contract came first** (`docs/POORCRAFT-3D/contracts/
+  P3D-001.md`, filled per `11-TASK-CONTRACT-TEMPLATE.md`), and the full
+  `docs/POORCRAFT-3D/` design pack (README + 00–21) is committed with
+  this work.
+- `make p3d-build` / `make p3d-test` added; `poorcraft3d/target` ignored.
+  The original game is untouched: root `cargo test --workspace` still
+  **474 green**; the P3D suite is **5 green**. Runtimes not rebuilt (no
+  `lf_*` game code changed; the P3D binary is a stub until P3D-005).
+- Track note: the BETA-FOUNDATION loop for the original game is parked at
+  B04 (conserved fluid state), resumable on the owner's word.
+
 ## 2026-09-03 — crafting through the host; Stage A complete (loop 360, B03 slice 2)
 
 - **Crafting transactions are host commands now, and the B03 gate is

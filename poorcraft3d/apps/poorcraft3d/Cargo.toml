@@ -1,0 +1,11 @@
+[package]
+name = "poorcraft3d"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pc3d_core = { path = "../../crates/pc3d_core" }
+
+[[bin]]
+name = "poorcraft3d"
+path = "src/main.rs"

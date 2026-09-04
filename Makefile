@@ -75,6 +75,12 @@ seedlab: ## 64-seed diversity report -> target/seedlab_report.json (N05)
 truth: ## Runtime truth dashboard -> target/truth_report.json (B01); bench: make truth BENCH=terrain_vista
 	cargo run --release -p xtask -- truth $(if $(BENCH),--bench $(BENCH) 120,)
 
+p3d-build: ## Build the POORCRAFT 3D workspace (separate greenfield project)
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml
+
+p3d-test: ## Run the POORCRAFT 3D test suite
+	cargo test --manifest-path poorcraft3d/Cargo.toml
+
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:
 	cargo run -p xtask -- new-mod $(id) $(if $(name),--name "$(name)",)
