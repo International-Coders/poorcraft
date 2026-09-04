@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-09-04 — the construction overlay: builds are owned and protected (loop 375, P3D-205)
+
+- **Terrain blueprint layer 3 is real.** `pc3d_world::build`:
+  `Construction` (16³ explicit build slots per patch),
+  `BuildBlock { material, owner }`, and cell-precise `BuildOp`s
+  (Place/RemoveBuild, fixed-width encoding, canonical (tick, id) replay
+  with violated ops skipped and counted).
+- **Ownership is enforced**: only the owning authority removes a build;
+  placing over an existing build is refused.
+- **The priority law is test-enforced**: `edit::apply_edit` now takes the
+  construction registry and natural dig/fill SKIP built cells — the
+  machine-protection test digs a 3×3×3 brush across a built cell and
+  proves the build survives while the surrounding terrain is dug.
+  `effective_answer` makes built cells WIN in the single world answer;
+  with no overlay it is bit-identical to the natural answer.
+- **Builds persist through the law**: `pc3d_save::build_journal` stores
+  build journals and construction snapshots (`edits/b….build`,
+  `s….bsnap`) — reload preserves cells, materials, and owners; foreign
+  and wrong-version files refuse as always.
+- 93 pc3d tests green (+8); root workspace untouched at 474; smoke OK.
+  Proof-caught bugs fixed en route: snapshot index decomposition sent
+  cells out-of-patch on reload, i64/usize mismatch, negative-cell
+  placement. Next: P3D-206 LOD rings and seam handling.
+
 ## 2026-09-04 — the shovel is real: terrain editing (loop 374, P3D-204)
 
 - **Dig and fill with bounded brushes.** `pc3d_world::edit`: `Brush`

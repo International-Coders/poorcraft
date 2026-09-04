@@ -119,7 +119,13 @@ impl EditOp {
 
 /// Apply one op to a patch's cells. Returns how many cells changed.
 /// Cells outside this patch are untouched (patch-local invalidation).
-pub fn apply_edit(cells: &mut PatchCells, op: &EditOp) -> usize {
+/// Natural edits skip cells that carry CONSTRUCTION (P3D-205): terrain
+/// reshaping can never destroy a built block.
+pub fn apply_edit(
+    cells: &mut PatchCells,
+    op: &EditOp,
+    construction: Option<&crate::build::Construction>,
+) -> usize {
     let n = PATCH_CELL_AXIS as usize;
     let origin = cells.coord.origin();
     let ax = origin.x.div_euclid(1000) as i32;
@@ -139,6 +145,12 @@ pub fn apply_edit(cells: &mut PatchCells, op: &EditOp) -> usize {
             continue;
         }
         let idx = (lux * n + luy) * n + luz;
+        // P3D-205 priority law: construction wins over the natural base.
+        if let Some(b) = construction {
+            if b.at(cell).is_some() {
+                continue;
+            }
+        }
         let cur = cells.cells[idx];
         match op.kind {
             EditKind::Dig => {
@@ -187,7 +199,7 @@ pub fn replay(gen: &WorldGen, coord: PatchCoord, ops: &[EditOp]) -> PatchCells {
     let mut ordered: Vec<&EditOp> = ops.iter().collect();
     ordered.sort_by_key(|o| o.key());
     for op in ordered {
-        apply_edit(&mut cells, op);
+        apply_edit(&mut cells, op, None);
     }
     cells
 }
@@ -270,7 +282,7 @@ mod tests {
         };
         let center = world(8, 7, 8);
         let op = dig(center, 1);
-        let changed = apply_edit(&mut patch, &op);
+        let changed = apply_edit(&mut patch, &op, None);
         assert!(changed > 0 && changed <= 27);
         let n = PATCH_CELL_AXIS as usize;
         let ax = o.x.div_euclid(1000) as i32;
@@ -340,7 +352,7 @@ mod tests {
             material: CellMaterial::Rock,
         };
         let before = patch.cells.clone();
-        apply_edit(&mut patch, &fill);
+        apply_edit(&mut patch, &fill, None);
         let n = PATCH_CELL_AXIS as usize;
         let ax = o.x.div_euclid(1000) as i32;
         let ay = o.y.div_euclid(1000) as i32;
@@ -430,6 +442,55 @@ mod tests {
         assert_eq!(bytes.len(), 4096);
         let back = Snapshot::decode_cells(coord, &bytes).expect("decode");
         assert_eq!(back, snap);
+    }
+
+    /// THE P3D-205 machine-protection law through the P3D-204 path: a dig
+    /// brush sweeping a built cell removes the natural terrain around it
+    /// but NEVER the built cell (construction wins; the dig skips it).
+    #[test]
+    fn p3d204_natural_dig_skips_built_cells() {
+        let gen = WorldGen::new(3);
+        let coord = crate::terrain::SceneSpec::SmoothHills.patch().1;
+        let mut patch = gen.regenerate_patch(coord);
+        let o = coord.origin();
+        let world = |lx: i32, ly: i32, lz: i32| CellCoord {
+            x: o.x.div_euclid(1000) as i32 + lx,
+            y: o.y.div_euclid(1000) as i32 + ly,
+            z: o.z.div_euclid(1000) as i32 + lz,
+        };
+        // Build at the local surface cell (8, 7, 8).
+        let built_at = world(8, 7, 8);
+        let mut construction = crate::build::Construction::new(coord);
+        construction
+            .place(built_at, crate::build::BuildBlock { material: CellMaterial::Rock, owner: 5 })
+            .expect("place");
+        assert!(construction.at(built_at).is_some());
+
+        // A 3x3x3 dig brush centered on the built cell.
+        let dig = dig(built_at, 1);
+        let changed = apply_edit(&mut patch, &dig, Some(&construction));
+        assert!(changed > 0, "surrounding terrain should be dug");
+        // The built cell survived: the natural cell there is untouched,
+        // and the overlay still answers the built block.
+        let idx = {
+            let n = PATCH_CELL_AXIS as usize;
+            let lx = built_at.x - o.x.div_euclid(1000) as i32;
+            let ly = built_at.y - o.y.div_euclid(1000) as i32;
+            let lz = built_at.z - o.z.div_euclid(1000) as i32;
+            (lx as usize * n + ly as usize) * n + lz as usize
+        };
+        assert_eq!(
+            patch.cells[idx],
+            before_surface_cell(&gen, coord, built_at),
+            "natural cell under the build must be untouched by the dig"
+        );
+        assert!(construction.at(built_at).is_some());
+    }
+
+    fn before_surface_cell(gen: &WorldGen, coord: PatchCoord, cell: CellCoord) -> CellMaterial {
+        gen.regenerate_patch(coord)
+            .cells
+            [((cell.x as usize % 16) * 16 + (cell.y as usize % 16)) * 16 + (cell.z as usize % 16)]
     }
 
     /// Op encoding is fixed-width and round-trips; unknown codes refuse.

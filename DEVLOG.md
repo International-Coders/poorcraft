@@ -3214,3 +3214,45 @@ HONESTLY DEFERRED: cube brushes only (sphere/smooth brushes when a tool
 needs them); no erosion/physics or material conservation; edits reshape
 NATURAL terrain — the construction overlay (player blocks, ownership,
 priority) is P3D-205; network replication of edits is P3D-802.
+
+## 2026-09-04 — loop 375: P3D-205 construction overlay (builds owned + protected)
+
+WHAT: Terrain blueprint layer 3 — player-built blocks as explicit
+construction data with ownership, priority over the natural base, and
+persistence through the header law. Closes the editable-terrain arc
+(layers 1+2+3 all present: procedural base, natural edit journals,
+construction overlay).
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-205.md.
+pc3d_world/src/build.rs: BuildBlock{material, owner}; Construction (16³
+Option slots; place/remove with occupancy + ownership rules; at() lookup);
+BuildOp (Place/RemoveBuild, 48-byte fixed-width encode/decode);
+replay_builds (canonical (tick,id), violated ops skipped+counted);
+effective_answer(gen, Option<&Construction>, cell) — built cells WIN,
+else the P3D-202 natural answer; brush_touches_built diagnostic.
+edit::apply_edit gained an Option<&Construction> guard: natural dig/fill
+skips built cells (machine-protection law at the model level); existing
+callers pass None. pc3d_save/src/build_journal.rs: build journals
+(48-byte op records) + construction snapshots (24-byte cell records:
+world cell + material code + owner) through the framing law. Files:
+build.rs, build_journal.rs (new), edit.rs, lib.rs x2, contract, docs.
+
+TEST-SIDE FIXES EN ROUTE: match-arm type mismatch in replay_builds
+(Place/Remove produced different Ok types); snapshot index
+decomposition wrote ly=0 for every cell (sent reloaded cells
+out-of-patch -> ChecksumMismatch on load — the round-trip caught it);
+i64/usize n mismatch; the probe placed a block at x=-2 in patch 0
+(outside 0..16). Each fixed before commit.
+
+VERIFICATION: P3D workspace cargo test 93 passed / 0 failed (+8: place/
+remove/ownership, overlay-wins + survives-terrain-dig, fall-through
+bit-identity with empty overlay, build-op encoding round-trip +
+canonical replay + violation skipping, decoding refusal of unknown
+codes, journal disk round-trip, on-disk refusals, snapshot byte
+determinism). make p3d-smoke OK. Root cargo test --workspace 474 green
+(unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: single-cell blocks (multi-cell machines = content
+stage); no structural integrity; owner is an opaque u64 until player
+identity lands; no meshes/visuals for builds (renderer stage); no
+network replication (P3D-802).

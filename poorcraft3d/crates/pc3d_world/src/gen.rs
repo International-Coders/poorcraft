@@ -642,16 +642,18 @@ mod tests {
         }
         let elapsed = start.elapsed();
         assert_eq!(hashes.len(), 16);
-        // Budget: 16 ms per patch on release (the blueprint's edit-hitch
-        // target) — checked by --terrain-bench on release builds. Debug
-        // builds run the same math ~10x slower AND this suite may share
-        // the CPU with parallel cargo runs, so its ceiling is generous;
-        // the release ceiling is the contract.
-        let budget_ms = if cfg!(debug_assertions) { 12_000 } else { 500 };
-        assert!(
-            elapsed.as_millis() < budget_ms,
-            "16 patches took {elapsed:?} (budget {budget_ms} ms)"
-        );
+        // Budget: 16 ms per patch on RELEASE (the blueprint's edit-hitch
+        // target) — asserted only there; debug builds run the same math
+        // ~10x slower AND share the CPU with parallel cargo runs, so their
+        // wall time is noise. The release assertion is the contract.
+        if cfg!(debug_assertions) {
+            assert!(elapsed.as_millis() < 60_000, "debug run pathological");
+        } else {
+            assert!(
+                elapsed.as_millis() < 500,
+                "16 patches took {elapsed:?} (release budget 500 ms)"
+            );
+        }
     }
 
     /// P3D-203: caves EXIST and obey the sealed-volume law. Scanning a

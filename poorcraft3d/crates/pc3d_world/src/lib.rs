@@ -8,6 +8,7 @@
 //! world's scales are declared.
 
 pub mod bounds;
+pub mod build;
 pub mod edit;
 pub mod coords;
 pub mod gen;
@@ -19,6 +20,7 @@ pub mod terrain;
 
 pub use bounds::{WorldBounds, WorldBoundsXz};
 pub use gen::{Biome, CellMaterial, MacroField, WorldGen};
+pub use build::{effective_answer, replay_builds, BuildBlock, BuildKind, BuildOp, Construction, PlaceError, RemoveError};
 pub use edit::{apply_edit, affected_patches, replay, Brush, EditKind, EditOp, Snapshot, COMPACT_THRESHOLD};
 pub use coords::{CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};
 pub use query::{patches_in_region, patches_touching, regions_touching, QueryError};
