@@ -2674,3 +2674,52 @@ save root is a constant, not yet wired to any IO (nothing saves); no
 window, loop, or content — P3D-003..005 follow. Owner decisions
 P-001..P-008 in 18-DECISION-REGISTER.md remain open; none block
 P3D-002, and per the execution prompt none were silently resolved.
+
+## 2026-09-04 — loop 362: P3D-002 versioned headers + refusal law
+
+WHAT: Second POORCRAFT 3D task (P3D-000 stage). Every P3D file will open
+only through a versioned header check that refuses unknown versions with
+a precise reason — the format law that protects all future persistence
+work (P3D-102 wires real files through it).
+
+HOW: Contract first at docs/POORCRAFT-3D/contracts/P3D-002.md. New
+`pc3d_core::header`: `FormatHeader{epoch u32, world/save/content/protocol
+u16}` with fixed little-endian `encode`/`decode` (HEADER_LEN 16; no
+serde so no serialization choice can move a field) and
+`SupportedVersions::epoch1()`. `open_decision(bytes, supported)` layers
+the refusal matrix OUTSIDE the P3D-001 `refuse_foreign_save` guard:
+TooShort -> ForeignFormat -> UnknownEpoch -> per-section
+Newer/Older (checked world, save, content, protocol in order; first
+offender reported) -> Accepted. `OpenDecision::explanation()` renders
+human lines that name the action (newer file: update the game; older:
+cannot downgrade). `Section::name()` for wording; `FormatHeader::
+current()` writes the build's own header. Binary: `--format` prints
+layout + supported versions + wire bytes; usage line updated. Files:
+poorcraft3d/crates/pc3d_core/src/{lib,header,identity}.rs,
+poorcraft3d/apps/poorcraft3d/src/main.rs, contracts/P3D-002.md,
+STATE/CHANGELOG/DEVLOG.
+
+SELF-CAUGHT BEFORE COMPILING: my first draft of the layout test used an
+18-byte vector while HEADER_LEN is 16 (magic 4 + epoch 4 + 4x u16 = 16) —
+fixed the test to the real 16 bytes and asserted HEADER_LEN == 16
+explicitly; also replaced a clunky helper trio in open_decision with a
+plain per-section table. Visibility lesson: `SaveGuard` is DEFINED in
+lib.rs — re-exporting it through identity collided (E0255) and importing
+it from identity privately broke header.rs (E0603); settled on crate-root
+definition + `use crate::SaveGuard;` in both consumers.
+
+VERIFICATION: P3D workspace cargo test 11 passed / 0 failed (5 identity
++ 6 header: layout stability vs hard-coded vector, round-trip incl.
+trailing payload, all four sections' newer/older refusals with
+first-offender determinism, epoch 0/2 rejection, foreign-magic layering,
+10x decision determinism); ./target/release/poorcraft3d --format prints
+the 16-byte layout + wire bytes; --identity unchanged. Root workspace
+verified separately (see STATE counters; zero lf_* changes). Runtimes
+not rebuilt — no original-game code changed; P3D binary remains a
+stub by design until P3D-005.
+
+HONESTLY DEFERRED: no real file IO yet (P3D-102 patches/saves consume
+this); the protocol field is carried, not spoken on the wire (P3D-802);
+migration tooling intentionally does not exist — refusals only; a future
+epoch-2 story will need an explicit register decision before any
+behavior changes.

@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-09-04 — the format law: versioned headers + refusals (loop 362, P3D-002)
+
+- **Every POORCRAFT 3D file now begins with a 16-byte versioned header** —
+  magic `PC3D` | format epoch (u32 LE) | world, save, content, protocol
+  (u16 LE each). The layout is the contract: hand-rolled byte-exact
+  encode/decode, no serde, pinned in a test against a hard-coded byte
+  vector so the layout can never drift silently.
+- **`open_decision` is the only way anything opens a P3D file**, layered
+  outside the P3D-001 magic guard: `Accepted`, `TooShort`, `ForeignFormat`,
+  `UnknownEpoch`, `Newer{section,file,supported}`, `Older{...}` — every
+  refusal carries exact numbers AND a human line ("update the game" vs
+  "this build cannot downgrade"). Policy at epoch 1: any section mismatch
+  refuses; nothing migrates silently (D-002).
+- Six header tests: layout stability, round-trip with trailing payload,
+  per-section newer/older refusal across all four axes with first-offender
+  determinism, unknown-epoch rejection, guard layering, decision
+  determinism. `poorcraft3d --format` prints the layout, supported
+  versions, and wire bytes. Task contract filled first
+  (`docs/POORCRAFT-3D/contracts/P3D-002.md`).
+- P3D workspace **11 tests green**; root workspace untouched (474 green);
+  runtimes not rebuilt (no `lf_*` changes; the P3D binary is still a
+  purposeful stub). Next: P3D-003 deterministic primitives + replay harness.
+
 ## 2026-09-03 — POORCRAFT 3D is born: P3D-001 workspace, identity, save guard (loop 361)
 
 - **The greenfield successor exists as code, not prose.** New nested Cargo

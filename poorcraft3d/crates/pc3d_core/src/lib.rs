@@ -11,6 +11,13 @@
 /// The one place the new game's identity is declared.
 pub mod identity;
 
+/// P3D-002: versioned file headers and the refusal law for unknown versions.
+pub mod header;
+
+pub use header::{
+    open_decision, FormatHeader, OpenDecision, Section, SupportedVersions, HEADER_LEN,
+};
+
 pub use identity::{
     identity_block, refuse_foreign_save, ORIGINAL_GAME_EXE, ORIGINAL_SAVE_DIR, P3D_FORMAT_MAGIC,
     P3D_FORMAT_VERSION, P3D_SAVE_DIR, PROJECT_EXE, PROJECT_NAME,
