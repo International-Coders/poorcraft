@@ -295,6 +295,155 @@ impl Reservoirs {
     }
 }
 
+/// P3D-306: the D-007 consumer contract. A machine/wheel/fishing site
+/// queries flow POTENTIAL — a pure read that can never weaken the river:
+/// querying consumes nothing, reroutes nothing, drains nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FlowPotential {
+    pub region: RegionCoord,
+    /// Accumulated discharge at this region (arbitrary flow units).
+    pub discharge: u64,
+    /// Downhill slope toward downstream, per-mille (0 at sinks).
+    pub slope_per_mille: i32,
+    /// Wetness corridor value 0..=100.
+    pub wetness: u8,
+    /// Reservoir volume here (kl), if tracked.
+    pub reservoir_kl: i64,
+    /// A site is VIABLE for a waterwheel when real water and real slope
+    /// are both present.
+    pub viable: bool,
+}
+
+impl RiverGraph {
+    /// THE consumer query: pure, allocation-free read of flow potential.
+    /// Querying it any number of times changes nothing anywhere.
+    pub fn flow_potential_at(
+        &self,
+        gen: &WorldGen,
+        reservoirs: Option<&Reservoirs>,
+        wx: i64,
+        wz: i64,
+    ) -> FlowPotential {
+        let region = Self::region_at(wx, wz);
+        let discharge = self.discharge(region);
+        let slope = self
+            .downstream(region)
+            .map(|d| {
+                let here = self.elevation[&(region.x, region.z)];
+                let there = self.elevation[&(d.x, d.z)];
+                ((here - there).max(0) as i64 * 1_000_000 / 256_000) as i32
+            })
+            .unwrap_or(0);
+        let wetness = self.wetness(gen, region);
+        let reservoir_kl = reservoirs
+            .and_then(|rs| rs.map.get(&(region.x, region.z)))
+            .map(|r| r.volume_kl)
+            .unwrap_or(0);
+        let viable = discharge >= RIVER_THRESHOLD && slope > 0;
+        FlowPotential {
+            region,
+            discharge,
+            slope_per_mille: slope,
+            wetness,
+            reservoir_kl,
+            viable,
+        }
+    }
+
+    /// The best waterwheel site in the band: maximizes discharge × slope
+    /// among viable regions. Deterministic tie-break by position.
+    pub fn best_wheel_site(
+        &self,
+        gen: &WorldGen,
+        reservoirs: Option<&Reservoirs>,
+    ) -> Option<(RegionCoord, FlowPotential)> {
+        let mut best: Option<(u64, RegionCoord)> = None;
+        for (&(x, z), &e) in &self.elevation {
+            let r = RegionCoord { x, z };
+            let downstream = self.downstream(r);
+            let slope = match downstream {
+                Some(d) => {
+                    ((e - self.elevation[&(d.x, d.z)]).max(0) as u64) * 1_000_000 / 256_000
+                }
+                None => 0,
+            };
+            // Only VIABLE regions compete: real water and real slope.
+            if slope == 0 || self.discharge(r) < RIVER_THRESHOLD {
+                continue;
+            }
+            let score = self.discharge(r).saturating_mul(slope);
+            match best {
+                Some((bs, _)) if bs >= score => {}
+                _ => best = Some((score, r)),
+            }
+        }
+        best.map(|(_, r)| {
+            let wx = (r.x * 256 + 128) as i64 * 1000;
+            let wz = (r.z * 256 + 128) as i64 * 1000;
+            let p = self.flow_potential_at(gen, reservoirs, wx, wz);
+            (r, p)
+        })
+    }
+}
+
+#[cfg(test)]
+mod consumer_tests {
+    use super::*;
+
+    /// THE D-007 CONTRACT: querying flow potential is a pure read.
+    /// Hundreds of queries change no discharge, no reservoir, no graph.
+    #[test]
+    fn p3d306_querying_potential_consumes_nothing() {
+        let g = WorldGen::new(11);
+        let graph = RiverGraph::new(&g, 16);
+        let mut res = Reservoirs::from_graph(&graph);
+        let before_res = res.total_volume();
+        let before_map = graph.discharge.clone();
+        for x in -16..=16 {
+            for z in -16..=16 {
+                let wx = (x * 256 + 128) as i64 * 1000;
+                let wz = (z * 256 + 128) as i64 * 1000;
+                let _ = graph.flow_potential_at(&g, Some(&res), wx, wz);
+            }
+        }
+        assert_eq!(graph.discharge, before_map, "queries changed discharge");
+        assert_eq!(res.total_volume(), before_res, "queries changed reservoirs");
+    }
+
+    /// The best wheel site: viable, and its score is maximal among all
+    /// viable regions.
+    #[test]
+    fn p3d306_best_wheel_site_is_viable_and_maximal() {
+        let g = WorldGen::new(2024);
+        let graph = RiverGraph::new(&g, 20);
+        let (r, p) = graph
+            .best_wheel_site(&g, None)
+            .expect("a viable site exists in a 41x41 band");
+        assert!(p.viable);
+        assert!(p.discharge >= crate::hydro::RIVER_THRESHOLD);
+        assert!(p.slope_per_mille > 0);
+        // Maximality: no other viable region scores higher.
+        for (&(x, z), &e) in &graph.elevation {
+            let o = RegionCoord { x, z };
+            let slope = graph
+                .downstream(o)
+                .map(|d| {
+                    ((e - graph.elevation[&(d.x, d.z)]).max(0) as u64) * 1_000_000 / 256_000
+                })
+                .unwrap_or(0);
+            if slope == 0 || graph.discharge(o) < crate::hydro::RIVER_THRESHOLD {
+                continue;
+            }
+            let score = graph.discharge(o).saturating_mul(slope.max(1));
+            let best_score = graph.discharge(r).saturating_mul(p.slope_per_mille.max(0) as u64);
+            assert!(
+                score <= best_score,
+                "region {o:?} scores {score} > best {best_score}"
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

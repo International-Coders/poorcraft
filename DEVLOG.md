@@ -3491,3 +3491,31 @@ HONESTLY DEFERRED: persistence of reservoir volumes (framing law is
 ready; wire when the save path composes); dam-building ops (build ops
 own world changes); evaporation/weather; simulation loop (operations
 are explicit calls by design).
+
+## 2026-09-04 — loop 382: P3D-306 flow-consumer query + wheel-site proof
+
+WHAT: The D-007 contract made concrete: flow_potential_at as THE pure
+consumer read, plus the visible machine proof (best waterwheel site
+stamped white on the flow map).
+
+HOW: hydro.rs: FlowPotential{region, discharge, slope_per_mille,
+wetness, reservoir_kl, viable}; RiverGraph::flow_potential_at (pure);
+best_wheel_site (viable-only: discharge >= RIVER_THRESHOLD AND slope >
+0; maximizes discharge x slope; deterministic). proof.rs
+render_flow_map stamps a white cross at the best site. Tests: purity
+(1089 queries change nothing), best-site viability + maximality vs all
+viable regions, marker pixels present + re-query purity.
+
+SLOPE-UNITS BUG CAUGHT BY THE VIABILITY TEST: per-mille slope computed
+as meters*1000/256000mm truncated to 0 (1m drop = 0.0039 per-mille in
+that formula) — NO site was ever viable. Correct conversion is meters x
+1_000_000 / 256_000 (1m drop = ~3906 per-mille). Fixed in all three
+slope sites; the existence assertion then passed.
+
+VERIFICATION: P3D workspace cargo test 117 passed / 0 failed (+3).
+Release --flow-map seed 2024 rendered; white wheel marker visible on
+the coastal river (human-eye PASS). make p3d-smoke OK. Root 474 green.
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: capacity model v1; multi-site ranking UI; machines
+actually CONSUMING potential (the wheel spins in a content stage).

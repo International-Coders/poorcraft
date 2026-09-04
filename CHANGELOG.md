@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-04 — the flow-consumer contract + wheel-site proof (loop 382, P3D-306)
+
+- **The D-007 consumer contract is real**: `RiverGraph::flow_potential_at`
+  returns `FlowPotential` (discharge, slope, wetness, reservoir volume,
+  viable) as a PURE read — the purity test runs 1089 queries and proves
+  no discharge, reservoir, or graph changed. Machines, wheels, fishing,
+  and NPCs will all query this; none can weaken the river.
+- **THE visible machine proof**: the best waterwheel site (viable-only
+  candidates, maximizing discharge × slope, deterministic) stamps a
+  white marker on the flow map — human-eye PASS on seed 2024's PNG.
+- **The viability test caught a slope-units bug**: per-mille computed as
+  meters×1000/256000mm truncated to 0 for every plausible drop (correct
+  is ×1,000,000) — before the fix NO site was viable. All three slope
+  formulas corrected.
+- 117 pc3d tests green (+3); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-306.md`. Next: P3D-307 fishing as
+  the first consumer.
+
 ## 2026-09-04 — bounded conserved reservoirs (loop 381, P3D-305)
 
 - **GATE DECIDED: YES** — the dam story needs water that HOLDS, so the

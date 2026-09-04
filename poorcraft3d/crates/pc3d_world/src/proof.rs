@@ -201,6 +201,23 @@ pub fn render_flow_map(seed: u64, half_regions: i32) -> AtlasImage {
             }
         }
     }
+    // THE MACHINE PROOF (P3D-306): the best waterwheel site stamps a
+    // white marker on the map — the visible answer to "where do I build?"
+    if let Some((site, _)) = rivers.best_wheel_site(&gen, None) {
+        let (sx, sz) = center_px(site);
+        let cx = sx.round() as i64;
+        let cz = sz.round() as i64;
+        for d in -3..=3i64 {
+            for (ox, oy) in [(d, 0i64), (0i64, d)] {
+                let x = (cx + ox).clamp(0, side_px as i64 - 1) as usize;
+                let y = (cz + oy).clamp(0, side_px as i64 - 1) as usize;
+                let i = (y * side_px + x) * 3;
+                rgb[i] = 255;
+                rgb[i + 1] = 255;
+                rgb[i + 2] = 255;
+            }
+        }
+    }
     AtlasImage { size: side_px, rgb }
 }
 
@@ -399,5 +416,51 @@ mod flow_map_tests {
             graph.wetness_at_mm(&gen, wx, wz),
             graph.wetness(&gen, r)
         );
+    }
+}
+
+#[cfg(test)]
+mod wheel_marker_tests {
+    use super::*;
+
+    /// THE visible machine proof: the flow map carries a white wheel
+    /// marker at the best viable site, and querying the site's potential
+    /// twice is pure (same answer).
+    #[test]
+    fn p3d306_wheel_marker_stamped_at_best_site() {
+        let seed = 2024;
+        let half = 20;
+        let a = render_flow_map(seed, half);
+        let g = WorldGen::new(seed);
+        let rivers = crate::hydro::RiverGraph::new(&g, half);
+        let Some((site, potential)) = rivers.best_wheel_site(&g, None) else {
+            panic!("a viable wheel site must exist");
+        };
+        let _ = potential;
+        // The site's center pixel region carries white marker pixels.
+        let px_per_region = 4usize;
+        let cx = ((site.x + half) as usize * px_per_region + px_per_region / 2) as i64;
+        let cz = ((site.z + half) as usize * px_per_region + px_per_region / 2) as i64;
+        let mut white = 0;
+        for dy in -3i64..=3 {
+            for dx in -3i64..=3 {
+                if dx != 0 && dy != 0 {
+                    continue;
+                }
+                let x = (cx + dx) as usize;
+                let y = (cz + dy) as usize;
+                let i = (y * a.size + x) * 3;
+                if a.rgb[i] == 255 && a.rgb[i + 1] == 255 && a.rgb[i + 2] == 255 {
+                    white += 1;
+                }
+            }
+        }
+        assert!(white >= 6, "wheel marker not found: {white} white pixels");
+        // Purity: re-query matches.
+        let wx = (site.x * 256 + 128) as i64 * 1000;
+        let wz = (site.z * 256 + 128) as i64 * 1000;
+        let p1 = rivers.flow_potential_at(&g, None, wx, wz);
+        let p2 = rivers.flow_potential_at(&g, None, wx, wz);
+        assert_eq!(p1, p2);
     }
 }
