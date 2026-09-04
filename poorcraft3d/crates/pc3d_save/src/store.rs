@@ -62,7 +62,7 @@ impl std::fmt::Display for LoadError {
     }
 }
 
-fn write_atomic(target: &Path, bytes: &[u8]) -> Result<(), io::Error> {
+pub(crate) fn write_atomic(target: &Path, bytes: &[u8]) -> Result<(), io::Error> {
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)?;
     }

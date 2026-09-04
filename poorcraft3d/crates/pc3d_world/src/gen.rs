@@ -70,6 +70,22 @@ pub enum CellMaterial {
     Snow,
 }
 
+impl CellMaterial {
+    /// Stable on-disk code (edit journals and snapshots persist these).
+    pub fn from_code(c: u8) -> Option<CellMaterial> {
+        match c {
+            0 => Some(CellMaterial::Air),
+            1 => Some(CellMaterial::Water),
+            2 => Some(CellMaterial::Soil),
+            3 => Some(CellMaterial::Grass),
+            4 => Some(CellMaterial::Sand),
+            5 => Some(CellMaterial::Rock),
+            6 => Some(CellMaterial::Snow),
+            _ => None,
+        }
+    }
+}
+
 /// The generator: one per world seed. Copyable; every method is pure.
 #[derive(Clone, Copy, Debug)]
 pub struct WorldGen {
@@ -77,6 +93,7 @@ pub struct WorldGen {
 }
 
 /// 16×16×16 regenerated cells, indexed [(x*n + y)*n + z].
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PatchCells {
     pub coord: PatchCoord,
     pub cells: Vec<CellMaterial>,

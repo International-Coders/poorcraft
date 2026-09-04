@@ -3175,3 +3175,42 @@ HONESTLY DEFERRED: cave entrances are wherever carving meets the crust
 overhangs when a consumer needs them); atlas/biome map unchanged
 (carving is sub-surface); patch hashes changed vs loop 372 (generator
 advanced — the P3D-002 format law is the versioning path).
+
+## 2026-09-04 — loop 374: P3D-204 terrain editing — brushes, journals, compaction
+
+WHAT: Natural-terrain edit operations with patch-local invalidation,
+persistent per-patch journals, deterministic save/reload, and lossless
+compaction — the blueprint's editing requirements, model-level.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-204.md.
+pc3d_world/src/edit.rs: Brush (Chebyshev cube, clamped cells iterator),
+EditOp (48-byte fixed-width LE encoding; kind/material codes validated),
+apply_edit (world-cell brush translated per patch; dig solid->Air, fill
+Air->material; returns changed count), affected_patches (ascending exact
+invalidation set), replay (canonical (tick,id) over regenerated base),
+Snapshot::from_replay/apply/encode_cells/decode_cells (4096 stable
+material bytes), COMPACT_THRESHOLD=64. gen::CellMaterial::from_code added.
+pc3d_save/src/journal.rs: save/load_journal + save/load_snapshot through
+the framing law; store::write_atomic made pub(crate) and reused. Files:
+edit.rs, journal.rs (both new), lib.rs x2, contract, docs.
+
+TEST-SIDE FIXES EN ROUTE (each caught by its own proof): brushes are
+WORLD-cell coordinates (my first tests passed patch-local cells — dig
+changed 0 on an ocean patch; re-anchored to the SmoothHills scene patch
+and computed world cells from the patch origin); the verification loops
+needed world->local index translation (multiply-overflow on world cells);
+PatchCells needed Debug/PartialEq derives for the compaction assertion.
+
+VERIFICATION: P3D workspace cargo test 85 passed / 0 failed (+9: dig
+bounded+selective with whole-patch outside sweep; fill air-only;
+invalidation exactness incl. straddling brushes; replay order-
+independence + determinism; compaction losslessness + cell-code round-
+trip; op encoding round-trip + code refusal; journal disk round-trip at
+deterministic paths; on-disk foreign/newer refusals; snapshot byte
+determinism). make p3d-smoke OK. Root cargo test --workspace 474 green
+(unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: cube brushes only (sphere/smooth brushes when a tool
+needs them); no erosion/physics or material conservation; edits reshape
+NATURAL terrain — the construction overlay (player blocks, ownership,
+priority) is P3D-205; network replication of edits is P3D-802.

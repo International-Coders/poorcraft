@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-09-04 — the shovel is real: terrain editing (loop 374, P3D-204)
+
+- **Dig and fill with bounded brushes.** `pc3d_world::edit`: `Brush`
+  (bounded Chebyshev cube, clamped), `EditOp` (id + tick + kind +
+  material, fixed-width 48-byte encoding, unknown codes refuse to
+  decode). `apply_edit` is patch-local: dig removes only solid cells,
+  fill only fills air, cells outside the patch are untouched, and the
+  changed count is returned.
+- **Patch-local invalidation is exact** — `affected_patches` returns
+  precisely the patches a brush cube intersects, including
+  boundary-straddling edits. `replay` applies ops in canonical (tick, id)
+  order over the regenerated base, so delivery grouping and reordering
+  are provably inert, and untouched patches still never need storing.
+- **Compaction is lossless**: a journal can compact to a full-cell
+  `Snapshot` whose cells are byte-equal to the replayed result, with
+  stable material codes for persistence.
+- **Journals and snapshots persist through the law** (`pc3d_save::journal`
+  at `edits/j…`/`s….snap`): foreign files, wrong versions, and corrupt
+  payloads refuse exactly like patches. The shovel promise is test-proven:
+  dig a crater, reload — byte-identical; neighbors' patches never change.
+- 85 pc3d tests green (+9); root workspace untouched at 474; smoke OK.
+  Contract at `docs/POORCRAFT-3D/contracts/P3D-204.md`. Next: P3D-205,
+  the construction overlay.
+
 ## 2026-09-04 — caves, cliffs, overhang-capable terrain (loop 373, P3D-203)
 
 - **The terrain gained its third dimension.** `gen::effective_surface_mm`:

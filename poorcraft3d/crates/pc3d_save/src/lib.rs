@@ -13,9 +13,11 @@
 //! that no loader ever reads.
 
 pub mod framing;
+pub mod journal;
 pub mod paths;
 pub mod store;
 
-pub use framing::{frame, FrameError, FRAME_OVERHEAD};
+pub use framing::{frame, unframe, FrameError, FRAME_OVERHEAD};
 pub use paths::{patch_rel_path, world_file_rel_path, world_root};
 pub use store::{load_patch, load_world_meta, save_patch, save_world_meta, LoadError, WorldMeta};
+pub use journal::{load_journal, load_snapshot, save_journal, save_snapshot};
