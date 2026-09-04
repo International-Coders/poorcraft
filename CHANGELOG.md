@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-04 — fishing: the first flow consumer (loop 383, P3D-307)
+
+- **The first consumer built ON the flow-contract interface.**
+  `hydro::FishStocks`: stock per river region at carrying capacity
+  (16 + discharge/8 — bigger rivers hold more fish); `catch_fish`
+  consumes STOCK ONLY (bounded, never negative) and takes no river
+  argument — the river cannot weaken by fishing, by construction;
+  `restock` is deterministic (quarter capacity per cycle,
+  capacity-bounded).
+- **The fishing contract is test-proven**: catch exactly removes stock,
+  river discharge unchanged, over-fishing bounded, restock deterministic
+  and ≤ capacity.
+- 118 pc3d tests green (+1); root untouched at 474; smoke OK.
+  **P3D-300 WATER STAGE COMPLETE**: watershed (301), flow records +
+  ports (302), dirty rebuilds (303), flow rendering (304), reservoirs
+  (305), consumer query + wheel proof (306), fishing (307). Next stage:
+  P3D-400 movement, entities, and NPC foundations.
+
 ## 2026-09-04 — the flow-consumer contract + wheel-site proof (loop 382, P3D-306)
 
 - **The D-007 consumer contract is real**: `RiverGraph::flow_potential_at`

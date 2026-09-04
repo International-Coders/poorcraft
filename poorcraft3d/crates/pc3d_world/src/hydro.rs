@@ -444,6 +444,61 @@ mod consumer_tests {
     }
 }
 
+/// P3D-307: fishing — the first consumer built ON the flow-consumer
+/// contract (D-007). Fish stocks derive from discharge and wetness per
+/// river region; catching CONSUMES STOCK without weakening the river
+/// (discharge/slope/wetness untouched); restock is deterministic and
+/// bounded by carrying capacity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FishStocks {
+    pub stock: BTreeMap<(i32, i32), u64>,
+}
+
+/// Carrying capacity per river region: bigger rivers hold more fish.
+pub fn fish_carrying_capacity(discharge: u64) -> u64 {
+    16 + discharge.min(4096) / 8
+}
+
+impl FishStocks {
+    /// Seed stocks for every river region at carrying capacity.
+    pub fn new(graph: &RiverGraph) -> Self {
+        let mut stock = BTreeMap::new();
+        for k in &graph.river_regions {
+            let d = graph.discharge(RegionCoord { x: k.0, z: k.1 });
+            stock.insert(*k, fish_carrying_capacity(d));
+        }
+        FishStocks { stock }
+    }
+
+    pub fn stock_at(&self, r: RegionCoord) -> u64 {
+        *self.stock.get(&(r.x, r.z)).unwrap_or(&0)
+    }
+
+    /// Catch up to `amount` fish; consumes STOCK ONLY. Returns the caught
+    /// count. The river (discharge/slope/wetness) is untouched — the
+    /// caller never even passes it.
+    pub fn catch_fish(&mut self, r: RegionCoord, amount: u64) -> u64 {
+        let Some(s) = self.stock.get_mut(&(r.x, r.z)) else {
+            return 0;
+        };
+        let taken = (*s).min(amount);
+        *s -= taken;
+        taken
+    }
+
+    /// Deterministic restock: every river region regains up to a quarter
+    /// of its carrying capacity per restock cycle.
+    pub fn restock(&mut self, graph: &RiverGraph) {
+        for k in &graph.river_regions {
+            let cap = fish_carrying_capacity(graph.discharge(RegionCoord { x: k.0, z: k.1 }));
+            let cur = self.stock.entry(*k).or_insert(0);
+            let regen = cap / 4;
+            let room = cap.saturating_sub(*cur);
+            *cur += regen.min(room);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -681,5 +736,51 @@ mod reservoir_tests {
         assert_eq!(res.map[&(0, 0)].volume_kl, 0);
         // Draining an empty reservoir yields 0.
         assert_eq!(res.drain(start, 100), 0);
+    }
+}
+
+#[cfg(test)]
+mod fishing_tests {
+    use super::*;
+    use crate::gen::WorldGen;
+
+    /// THE fishing contract: catching consumes STOCK ONLY — the river's
+    /// discharge, wetness, and flow records are untouched; catches are
+    /// bounded by stock; restock is deterministic and capacity-bounded.
+    #[test]
+    fn p3d307_fishing_consumes_stock_never_the_river() {
+        let g = WorldGen::new(2024);
+        let graph = RiverGraph::new(&g, 20);
+        let mut fish = FishStocks::new(&graph);
+        assert!(!fish.stock.is_empty(), "river regions must hold fish");
+
+        // Pick a stocked region.
+        let r = RegionCoord { x: graph.river_regions[0].0, z: graph.river_regions[0].1 };
+        let before_stock = fish.stock_at(r);
+        let before_discharge = graph.discharge(r);
+        let before_pot = graph.flow_potential_at(&g, None, 0, 0);
+
+        let caught = fish.catch_fish(r, before_stock / 2 + 10);
+        assert_eq!(caught, before_stock - fish.stock_at(r));
+        assert!(caught > 0);
+        // The river did not weaken.
+        assert_eq!(graph.discharge(r), before_discharge);
+        assert_eq!(fish.stock_at(r), before_stock - caught);
+
+        // Over-fishing is bounded by stock.
+        assert_eq!(fish.catch_fish(r, 1_000_000), before_stock - caught);
+        assert_eq!(fish.stock_at(r), 0);
+
+        // Restock is deterministic and capacity-bounded.
+        fish.restock(&graph);
+        let after_one = fish.stock_at(r);
+        let cap = fish_carrying_capacity(graph.discharge(r));
+        assert!(after_one > 0 && after_one <= cap);
+        let snapshot = fish.stock_at(r);
+        fish.restock(&graph);
+        fish.restock(&graph);
+        assert!(fish.stock_at(r) >= snapshot);
+        assert!(fish.stock_at(r) <= cap);
+        let _ = before_pot;
     }
 }

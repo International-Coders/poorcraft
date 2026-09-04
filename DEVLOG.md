@@ -3519,3 +3519,25 @@ Runtimes not rebuilt.
 
 HONESTLY DEFERRED: capacity model v1; multi-site ranking UI; machines
 actually CONSUMING potential (the wheel spins in a content stage).
+
+## 2026-09-04 — loop 383: P3D-307 fishing consumer (P3D-300 COMPLETE)
+
+WHAT: The first consumer BUILT on the flow-consumer interface (D-007):
+fishing with stocks derived from the river graph, catch that consumes
+stock without weakening the river, deterministic restock.
+
+HOW: hydro.rs additions: fish_carrying_capacity (16 + min(discharge,
+4096)/8); FishStocks::new (river regions at capacity); stock_at;
+catch_fish (bounded by stock, no river argument by construction);
+restock (quarter capacity per cycle, capacity-bounded). Test: catch
+exactly removes stock, discharge unchanged, over-fishing bounded,
+restock deterministic/capacity-bounded. lib.rs re-export
+FishStocks/fish_carrying_capacity.
+
+VERIFICATION: P3D workspace cargo test 118 passed / 0 failed (+1).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged;
+zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: player-facing fishing UI/rod items (P3D-502 content);
+irrigation/transport/magical liquids (remaining P3D-307 items — each a
+separate consumer task when their stage lands); fish species variety.
