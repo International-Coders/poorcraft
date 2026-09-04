@@ -110,6 +110,123 @@ pub fn verify_patch_hash(seed: u64, coord: crate::coords::PatchCoord) -> bool {
     g.patch_hash(coord) == g.patch_hash(coord)
 }
 
+/// Stroke width in pixels for a river's discharge: monotonic, clamped to
+/// [1, 6]. Wide rivers are wide because they GATHERED, so width is a
+/// sub-linear function of discharge (sqrt).
+pub fn river_stroke_width(discharge: u64) -> f32 {
+    let w = 1.0 + (discharge as f32).sqrt() * 0.12;
+    w.clamp(1.0, 6.0)
+}
+
+/// Brightness gain for a river's current (slope per-mille): monotonic,
+/// clamped to [1.0, 1.6]. Fast water is whiter.
+pub fn current_shade(slope_per_mille: i32) -> f32 {
+    let s = slope_per_mille.max(0) as f32;
+    (1.0 + s / 200.0).clamp(1.0, 1.6)
+}
+
+/// Render a FLOW MAP: biome base dimmed, then every river edge drawn as
+/// a stroke from the region center toward its downstream center — width
+/// by discharge, brightness by slope. No particles: the records ARE the
+/// water. Byte-deterministic.
+pub fn render_flow_map(seed: u64, half_regions: i32) -> AtlasImage {
+    let gen = WorldGen::new(seed);
+    let rivers = crate::hydro::RiverGraph::new(&gen, half_regions);
+    let table = crate::flow::FlowTable::from_graph(&rivers);
+    let side = (2 * half_regions + 1) as usize;
+    // Scale: one region = 4 atlas pixels for stroke room.
+    let px_per_region = 4usize;
+    let side_px = side * px_per_region;
+    let mut rgb = vec![0u8; side_px * side_px * 3];
+    // Dimmed biome base.
+    let biome_atlas = render_region_atlas_no_rivers(seed, half_regions);
+    for pz in 0..side {
+        for px in 0..side {
+            let base = biome_atlas.pixel(px, pz);
+            for oy in 0..px_per_region {
+                for ox in 0..px_per_region {
+                    let x = px * px_per_region + ox;
+                    let y = pz * px_per_region + oy;
+                    let i = (y * side_px + x) * 3;
+                    let dim = 0.55;
+                    rgb[i] = (base[0] as f32 * dim) as u8;
+                    rgb[i + 1] = (base[1] as f32 * dim) as u8;
+                    rgb[i + 2] = (base[2] as f32 * dim) as u8;
+                }
+            }
+        }
+    }
+    // Center of a region in atlas pixels.
+    let center_px = |r: RegionCoord| -> (f32, f32) {
+        let ix = (r.x + half_regions) as f32;
+        let iz = (r.z + half_regions) as f32;
+        (
+            (ix + 0.5) * px_per_region as f32,
+            (iz + 0.5) * px_per_region as f32,
+        )
+    };
+    // Draw each river edge as a thick stroke.
+    for x in -half_regions..=half_regions {
+        for z in -half_regions..=half_regions {
+            let r = RegionCoord { x, z };
+            let rec = match table.get(r) {
+                Some(rec) if rec.direction != crate::flow::DIR_SINK => rec,
+                _ => continue,
+            };
+            let Some(down) = rivers.downstream(r) else { continue };
+            if rivers.discharge(down) < crate::hydro::RIVER_THRESHOLD {
+                continue;
+            }
+            let (x0, z0) = center_px(r);
+            let (x1, z1) = center_px(down);
+            let width = river_stroke_width(rec.discharge);
+            let gain = current_shade(rec.slope_per_mille);
+            // Rasterize: walk the segment, stamp a width-square brush.
+            let steps = ((x1 - x0).abs().max((z1 - z0).abs()).ceil() as usize).max(1) * 2;
+            for s in 0..=steps {
+                let t = s as f32 / steps as f32;
+                let cx = x0 + (x1 - x0) * t;
+                let cz = z0 + (z1 - z0) * t;
+                let half_w = (width / 2.0).ceil() as i32;
+                for oy in -half_w..=half_w {
+                    for ox in -half_w..=half_w {
+                        let x = (cx.round() as i32 + ox).clamp(0, side_px as i32 - 1) as usize;
+                        let y = (cz.round() as i32 + oy).clamp(0, side_px as i32 - 1) as usize;
+                        let i = (y * side_px + x) * 3;
+                        rgb[i] = ((60.0 * gain).round() as i32).clamp(0, 255) as u8;
+                        rgb[i + 1] = ((130.0 * gain).round() as i32).clamp(0, 255) as u8;
+                        rgb[i + 2] = ((245.0 * gain).round() as i32).clamp(0, 255) as u8;
+                    }
+                }
+            }
+        }
+    }
+    AtlasImage { size: side_px, rgb }
+}
+
+/// Biome-only atlas WITHOUT river overlay (the flow map's dimmed base).
+fn render_region_atlas_no_rivers(seed: u64, half_regions: i32) -> AtlasImage {
+    let gen = WorldGen::new(seed);
+    let side = (2 * half_regions + 1) as usize;
+    let mut rgb = vec![0u8; side * side * 3];
+    for iz in 0..side {
+        for ix in 0..side {
+            let r = RegionCoord {
+                x: ix as i32 - half_regions,
+                z: iz as i32 - half_regions,
+            };
+            let f = gen.macro_field(r);
+            let b = gen.biome_of(&f);
+            let [cr, cg, cb] = biome_color(b);
+            let i = (iz * side + ix) * 3;
+            rgb[i] = cr;
+            rgb[i + 1] = cg;
+            rgb[i + 2] = cb;
+        }
+    }
+    AtlasImage { size: side, rgb }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,5 +338,66 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod flow_map_tests {
+    use super::*;
+
+    /// Width is monotonic in discharge and clamped; shade is monotonic
+    /// in slope and clamped.
+    #[test]
+    fn p3d304_width_and_shade_are_monotonic() {
+        let mut last_w = 0.0f32;
+        for d in [1u64, 10, 100, 1000, 100_000] {
+            let w = river_stroke_width(d);
+            assert!(w >= last_w);
+            assert!((1.0..=6.0).contains(&w));
+            last_w = w;
+        }
+        assert_eq!(river_stroke_width(u64::MAX), 6.0);
+        let mut last_s = 0.0f32;
+        for s in [0i32, 10, 100, 10_000] {
+            let sh = current_shade(s);
+            assert!(sh >= last_s);
+            assert!((1.0..=1.6).contains(&sh));
+            last_s = sh;
+        }
+        assert_eq!(current_shade(-50), 1.0, "negative slope clamps");
+    }
+
+    /// The flow map is byte-deterministic and river strokes actually
+    /// land: a map with rivers differs from the dimmed base and from
+    /// other seeds.
+    #[test]
+    fn p3d304_flow_map_is_deterministic_and_drawn() {
+        let a = render_flow_map(2024, 24);
+        let b = render_flow_map(2024, 24);
+        assert_eq!(a, b);
+        // At least some pixels are bright river blue (strokes drawn).
+        let mut bright = 0;
+        for i in 0..(a.size * a.size) {
+            let (r, g, bl) = (a.rgb[i * 3] as i32, a.rgb[i * 3 + 1] as i32, a.rgb[i * 3 + 2] as i32);
+            if bl > 150 && bl > r + 60 && g > r {
+                bright += 1;
+            }
+        }
+        assert!(bright > 50, "too few river stroke pixels: {bright}");
+        assert_ne!(render_flow_map(2024, 24), render_flow_map(2025, 24));
+    }
+
+    /// Wetness accessor agrees with region wetness.
+    #[test]
+    fn p3d304_wetness_accessor_consistent() {
+        let gen = WorldGen::new(1);
+        let graph = crate::hydro::RiverGraph::new(&gen, 12);
+        let r = RegionCoord { x: 0, z: 0 };
+        let wx = (r.x * 256 + 128) as i64 * 1000;
+        let wz = (r.z * 256 + 128) as i64 * 1000;
+        assert_eq!(
+            graph.wetness_at_mm(&gen, wx, wz),
+            graph.wetness(&gen, r)
+        );
     }
 }

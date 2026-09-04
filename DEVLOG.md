@@ -3433,3 +3433,33 @@ lf_* edits). Runtimes not rebuilt.
 HONESTLY DEFERRED: region granularity (per-cell dirty tracking arrives
 with the mesher); no water simulation in the voids; revision history
 beyond current not stored (save/load stores the current table).
+
+## 2026-09-04 — loop 380: P3D-304 flow rendering from records (no particles)
+
+WHAT: Rivers VISIBLY flow: strokes from flow records with width by
+discharge and brightness by slope, over the dimmed biome map. Plus the
+consumer-facing wetness accessor.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-304.md.
+proof.rs: river_stroke_width (1 + sqrt(discharge)*0.12 clamped 1..6),
+current_shade (1 + slope/200 clamped 1..1.6), render_flow_map (4 px per
+region; dimmed biome base from a rivers-free internal renderer; strokes
+rasterized along center-to-downstream with a width-square brush, colors
+60/130/245 x gain), render_region_atlas_no_rivers (internal base).
+hydro::RiverGraph::wetness_at_mm + region_at (consumer accessor).
+App --flow-map <seed> writes shots/flow_map_seed<N>.png. lib.rs
+re-exports current_shade/render_flow_map/river_stroke_width (initially
+missed — compile caught it). Files: proof.rs, hydro.rs, lib.rs,
+main.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 112 passed / 0 failed (+3: 
+width/shade monotonicity + clamping incl. u64::MAX and negative slope;
+flow-map determinism + >50 bright stroke pixels + seed sensitivity;
+wetness accessor consistency). Release --flow-map seed 1 rendered and
+human-eye PASSED: bright blue strokes flow downhill, branching and
+widening toward the coast over the dimmed map. make p3d-smoke OK.
+Root cargo test --workspace 474 green (unchanged). Runtimes not
+rebuilt.
+
+HONESTLY DEFERRED: animation (static proof); per-cell water; depth
+shading (needs channel geometry from the mesher); GPU rendering.

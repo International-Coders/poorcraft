@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-09-04 — rivers visibly flow (loop 380, P3D-304)
+
+- **Rivers render from flow records — no particles, no simulation.**
+  `render_flow_map`: the dimmed biome map, then every river edge drawn
+  as a stroke from region center toward downstream — width sub-linear in
+  discharge (wide because it gathered, clamped 1–6 px), brightness
+  monotonic in slope (fast water whiter). Byte-deterministic.
+- **`--flow-map <seed>`** renders it; the PNG (human-eye PASS) shows
+  bright blue strokes flowing downhill, branching and widening toward
+  the coast. `hydro::wetness_at_mm` gives consumers the wetness
+  accessor at world coordinates.
+- 112 pc3d tests green (+3: width/shade monotonicity + clamping,
+  flow-map determinism + stroke presence + seed sensitivity, wetness
+  consistency). Root untouched at 474; smoke OK. Contract at
+  `docs/POORCRAFT-3D/contracts/P3D-304.md`. Next: P3D-305 (reservoirs —
+  with an honest gate decision).
+
 ## 2026-09-04 — damming reroutes rivers locally (loop 379, P3D-303)
 
 - **Terrain edits reroute water locally and deterministically.**

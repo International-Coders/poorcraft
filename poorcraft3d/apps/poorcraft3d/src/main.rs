@@ -174,9 +174,28 @@ fn main() {
                 println!("     {lod}: {n} patches");
             }
         }
+        Some("--flow-map") => {
+            // P3D-304: rivers rendered from flow records — width by
+            // discharge, brightness by slope. No particles.
+            let seed: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(1);
+            let half: i32 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(24);
+            let atlas = pc3d_world::render_flow_map(seed, half);
+            let out_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("shots");
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+            let out = out_dir.join(format!("flow_map_seed{seed}.png"));
+            image::save_buffer(
+                &out,
+                &atlas.rgb,
+                atlas.size as u32,
+                atlas.size as u32,
+                image::ColorType::Rgb8,
+            )
+            .expect("encode png");
+            println!("[ok] flow map seed {seed} -> {}", out.display());
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>]"
             );
             std::process::exit(2);
         }

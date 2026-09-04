@@ -182,6 +182,19 @@ impl RiverGraph {
         edges
     }
 
+    /// The region containing a world position (mm).
+    pub fn region_at(wx: i64, wz: i64) -> RegionCoord {
+        RegionCoord {
+            x: wx.div_euclid(256_000) as i32,
+            z: wz.div_euclid(256_000) as i32,
+        }
+    }
+
+    /// Consumer-facing wetness at a world position (mm).
+    pub fn wetness_at_mm(&self, gen: &WorldGen, wx: i64, wz: i64) -> u8 {
+        self.wetness(gen, Self::region_at(wx, wz))
+    }
+
     /// Wetness for a region: its humidity plus a river-corridor bonus
     /// that decays with distance to the nearest river region (D-016).
     pub fn wetness(&self, gen: &WorldGen, r: RegionCoord) -> u8 {
