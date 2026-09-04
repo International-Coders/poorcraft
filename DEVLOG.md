@@ -3320,3 +3320,41 @@ rebuilt.
 HONESTLY DEFERRED: in-game HUD overlay (renderer stage); mesh-queue
 visuals (no meshes yet — queue counters live in P3D-004's profile);
 cave/build markers on the atlas (plotted when consumer data exists).
+
+## 2026-09-04 — loop 378: P3D-301 macro watershed + river graph
+
+WHAT: Water stage opener. Deterministic watershed: flow directions,
+discharge accumulation, river edges, and wetland wetness corridors —
+pure functions of the seed.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-301.md.
+pc3d_world/src/hydro.rs: RiverGraph::new(gen, half) — (1) region
+elevations from macro_field; (2) steepest-descent downstream map (8-
+neighborhood; tie-break lower elevation then smaller (x,z)); (3)
+discharge accumulated in DESCENDING elevation order (each region += 1
+own drop, then passes its total downstream); (4) river regions where
+downstream discharge >= RIVER_THRESHOLD (64). downstream()/discharge()/
+is_river()/river_edges()/wetness() (humidity + up to +48 river-proximity
+bonus decaying over 12 regions). proof.rs atlas draws river regions as
+fixed blue over biome colors (with Ocean exclusion + discharge cap
+4000 so basin collectors near the sea do not render as lakes).
+WorldGen::seed() accessor added. Fields made pub for inspection.
+
+BUG CAUGHT BY THE CONSERVATION TEST: the accumulation used max(1) on a
+node's own contribution, so any node with inflow never counted its own
+drop — discharge was wrong at every confluence. Fixed to += 1; the
+test recomputes every node as 1 + sum(upstream) in ascending-elevation
+order and matches the graph exactly.
+
+VERIFICATION: P3D workspace cargo test 103 passed / 0 failed (+3:
+graph determinism + seed sensitivity; acyclicity (every chain
+terminates within grid bound) + discharge conservation recompute;
+river existence >= 4/6 seeds + strictly-downhill edges + wetness
+corridor). make p3d-smoke OK. make p3d-atlas SEED=1 re-rendered with
+river overlay (human-eye PASS). Root cargo test --workspace 474 green
+(unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: region-granularity rivers (per-cell channels are
+P3D-302+); sinks are simply no-downstream (lakes are P3D-305); no
+water simulation yet (flow records arrive with P3D-302); wetness is a
+field, not yet consumed by biome placement.

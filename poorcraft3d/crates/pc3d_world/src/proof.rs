@@ -47,6 +47,7 @@ pub fn biome_color(b: Biome) -> [u8; 3] {
 /// ocean darker). Pure and byte-deterministic.
 pub fn render_region_atlas(seed: u64, half_regions: i32) -> AtlasImage {
     let gen = WorldGen::new(seed);
+    let rivers = crate::hydro::RiverGraph::new(&gen, half_regions);
     let side = (2 * half_regions + 1) as usize;
     let mut rgb = vec![0u8; side * side * 3];
     for iz in 0..side {
@@ -57,16 +58,27 @@ pub fn render_region_atlas(seed: u64, half_regions: i32) -> AtlasImage {
             };
             let f = gen.macro_field(r);
             let b = gen.biome_of(&f);
-            let [cr, cg, cb] = biome_color(b);
+            let [mut cr, mut cg, mut cb] = biome_color(b);
             // Grade brightness by elevation inside the biome band: map the
             // field range (-64..192 m) to a ±20% gain.
             let t = (f.elevation_m - crate::gen::MIN_ELEVATION_M) as f32
                 / (crate::gen::MAX_ELEVATION_M - crate::gen::MIN_ELEVATION_M) as f32;
             let gain = 0.8 + 0.4 * t.clamp(0.0, 1.0);
+            cr = ((cr as f32 * gain).round() as i32).clamp(0, 255) as u8;
+            cg = ((cg as f32 * gain).round() as i32).clamp(0, 255) as u8;
+            cb = ((cb as f32 * gain).round() as i32).clamp(0, 255) as u8;
+            // River regions draw as bright blue over the biome color —
+            // land regions only, and only up to a discharge cap so basin
+            // collectors near the sea do not render as lakes.
+            if rivers.is_river(r) && b != crate::gen::Biome::Ocean && rivers.discharge(r) <= 4_000 {
+                cr = 40;
+                cg = 110;
+                cb = 230;
+            }
             let i = (iz * side + ix) * 3;
-            rgb[i] = ((cr as f32 * gain).round() as i32).clamp(0, 255) as u8;
-            rgb[i + 1] = ((cg as f32 * gain).round() as i32).clamp(0, 255) as u8;
-            rgb[i + 2] = ((cb as f32 * gain).round() as i32).clamp(0, 255) as u8;
+            rgb[i] = cr;
+            rgb[i + 1] = cg;
+            rgb[i + 2] = cb;
         }
     }
     AtlasImage { size: side, rgb }
@@ -176,11 +188,13 @@ mod tests {
     }
 
     /// The atlas span is symmetric and every pixel is a known palette
-    /// color (up to elevation gain) — no garbage bytes in the buffer.
+    /// color (up to elevation gain) OR a river-blue pixel — no garbage
+    /// bytes in the buffer.
     #[test]
     fn p3d104_atlas_pixels_are_all_valid_biome_shades() {
         let atlas = render_region_atlas(9, 8);
         let gen = WorldGen::new(9);
+        let rivers = crate::hydro::RiverGraph::new(&gen, 8);
         for iz in 0..atlas.size {
             for ix in 0..atlas.size {
                 let r = RegionCoord {
@@ -188,6 +202,12 @@ mod tests {
                     z: iz as i32 - 8,
                 };
                 let f = gen.macro_field(r);
+                if rivers.is_river(r) {
+                    // River pixels draw fixed blue over everything.
+                    let px = atlas.pixel(ix, iz);
+                    assert_eq!(px, [40, 110, 230], "river pixel {ix},{iz}");
+                    continue;
+                }
                 let base = biome_color(gen.biome_of(&f));
                 let px = atlas.pixel(ix, iz);
                 // Each channel within the gain band of the palette color.

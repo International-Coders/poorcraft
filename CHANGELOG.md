@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-09-04 — the watershed: rivers from terrain (loop 378, P3D-301)
+
+- **The water stage opens with real geography.** `pc3d_world::hydro`:
+  `RiverGraph` derives the watershed from the seed's macro elevation —
+  every region drains to exactly one lower neighbor (8-neighborhood
+  steepest descent, deterministic tie-breaks), discharge accumulates
+  downstream in descending-elevation order, and edges with discharge
+  ≥ `RIVER_THRESHOLD` (64) are rivers. Wetness adds a decaying
+  river-corridor bonus to humidity (D-016 wet corridors).
+- **The conservation test caught a real bug**: a node's own drop used
+  `max(1)` instead of `+= 1`, so any node with inflow never counted
+  itself — discharge was wrong wherever rivers merged. Acyclicity
+  (every chain terminates), strict downhill flow, and downstream
+  conservation are all test-enforced; rivers exist in ≥ 4/6 seeds.
+- The atlas draws river regions blue over biomes (human-eye PASS;
+  density tunable via `RIVER_THRESHOLD`).
+- 103 pc3d tests green (+3); root workspace untouched at 474; smoke OK.
+  Contract at `docs/POORCRAFT-3D/contracts/P3D-301.md`. Next: P3D-302
+  persistent flow records.
+
 ## 2026-09-04 — the terrain debug overlay; P3D-200 complete (loop 377, P3D-207)
 
 - **Streaming/terrain state is inspectable without a renderer.**

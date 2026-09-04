@@ -120,6 +120,11 @@ impl WorldGen {
         WorldGen { seed }
     }
 
+    /// The world seed this generator derives everything from.
+    pub fn seed(&self) -> u64 {
+        self.seed
+    }
+
     /// Continuous 2D value noise: bilinear-smoothstep blend of four lattice
     /// hashes around (u, v). Continuity is structural — adjacent samples
     /// share lattice corners — so nothing built on this can seam.

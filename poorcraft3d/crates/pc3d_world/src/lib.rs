@@ -13,6 +13,7 @@ pub mod edit;
 pub mod coords;
 pub mod debug_overlay;
 pub mod gen;
+pub mod hydro;
 pub mod lod;
 pub mod proof;
 pub mod query;
