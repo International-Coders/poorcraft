@@ -144,6 +144,14 @@ impl RegionCoord {
     }
 }
 
+/// World axis selector.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+
 /// Position in millimeters relative to a patch's origin (0 .. PATCH_MM).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct LocalPos {

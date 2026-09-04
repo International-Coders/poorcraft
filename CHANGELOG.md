@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-09-04 — LOD selection + the seam law (loop 376, P3D-206)
+
+- **Every patch maps to exactly one detail level** by distance —
+  `pc3d_world::lod`: Full/Mid/Far/Horizon over configurable 96/320/1024 m
+  bands matching the interest tiers; selection proven monotonic with
+  exact band edges.
+- **The seam law is proven, not hoped for**: `seam_signature` hashes the
+  effective surface heights + material codes along a border strip; every
+  neighbor pair across a 9×9 patch grid agrees exactly on both axes for
+  4 seeds. Because border answers are pure functions of world position,
+  a LOD transition cannot open a crack — the release-blocking defect is
+  impossible at the query level.
+- 97 pc3d tests green (+4); root untouched at 474; smoke OK. Two
+  self-caught bugs fixed pre-commit (seam border off-by-one; double-scaled
+  test meters). Next: P3D-207 debug overlay.
+
 ## 2026-09-04 — the construction overlay: builds are owned and protected (loop 375, P3D-205)
 
 - **Terrain blueprint layer 3 is real.** `pc3d_world::build`:

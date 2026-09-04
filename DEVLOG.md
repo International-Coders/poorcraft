@@ -3256,3 +3256,33 @@ HONESTLY DEFERRED: single-cell blocks (multi-cell machines = content
 stage); no structural integrity; owner is an opaque u64 until player
 identity lands; no meshes/visuals for builds (renderer stage); no
 network replication (P3D-802).
+
+## 2026-09-04 — loop 376: P3D-206 LOD rings + seam handling
+
+WHAT: LOD selection over the interest tiers plus the seam law — the
+release-blocking "no visual or collision gaps" defect made impossible at
+the query level.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-206.md.
+pc3d_world/src/lod.rs: LodLevel (Full/Mid/Far/Horizon over 96/320/1024 m
+bands), lod_for (monotonic distance mapping), seam_signature (FNV over
+effective surface heights + material codes along a 16-column border
+strip; Axis enum added to coords), border_agrees (neighbors compare
+signatures: a.side=max samples o+PATCH_MM-1, b.side=min samples o-1 —
+the same world row). Tests: monotonic LOD with exact band edges;
+4-seed 9x9-grid full agreement on both axes; signature determinism +
+opposite-border distinctness; border material sanity. Files: lod.rs
+(new), coords.rs (Axis), lib.rs, contract, docs.
+
+SELF-CAUGHT BUGS FIXED PRE-COMMIT: seam side=true sampled o+PATCH_MM
+(one PAST the max border — neighbors could never match); LOD test
+double-scaled meters (at() already converts, band edges are meters);
+96.5 as i64 truncated back to 96.
+
+VERIFICATION: P3D workspace cargo test 97 passed / 0 failed (+4).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged).
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: visual mesh generation/seams (renderer stage — this
+task proved the contract a mesher must satisfy); per-LOD mesh density;
+transvoxel-style transition geometry.
