@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-09-04 — one answer for the whole world (loop 372, P3D-202)
+
+- **`final_solid(gen, wx, wy, wz) -> SolidAnswer`** is now the single
+  authoritative query for terrain solidity and material — the blueprint's
+  "single authoritative final-solid query". Mesh, collision, water, and
+  navigation will all call it; none may reimplement surface logic.
+- **Agreement is structural, not lucky**: the material rules were
+  extracted from `regenerate_patch` into one shared `gen::cell_material`
+  function that both patch regeneration and `final_solid` call. The
+  agreement test walks 4 patches × 4096 cells × 3 seeds proving every
+  regenerated cell equals the query at its world position — material AND
+  solidity.
+- **Water semantics probed** at real ocean regions: Water above the
+  quantized floor (not solid), solid floor beneath, Air above the land
+  surface. One quantization artifact documented rather than hidden: an
+  ocean floor at an exact meter makes its top cell solid sand — agreed
+  by every consumer because they share the function.
+- 74 pc3d tests green (+2); root workspace untouched at 474; smoke OK.
+  Contract at `docs/POORCRAFT-3D/contracts/P3D-202.md`. Next: P3D-203
+  caves, overhangs, and cliffs — the 3D density fields.
+
 ## 2026-09-04 — the surface bake-off: heightfield wins on measurements (loop 371, P3D-201)
 
 - **The hybrid-terrain stage opens the way the blueprint demands: measure

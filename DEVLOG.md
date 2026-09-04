@@ -3089,3 +3089,37 @@ poorcraft3d --terrain-bench prints the measured table. Root cargo test
 HONESTLY DEFERRED: no mesh GEOMETRY comparison (this measured the solid
 query; visual meshing waits for the renderer stage); 2D supersampling
 not 3D SDF (P3D-203); cliffs (P3D-203); LOD/seams (P3D-206).
+
+## 2026-09-04 — loop 372: P3D-202 the single authoritative final-solid query
+
+WHAT: The P3D-201 decision promoted: one `final_solid(gen, wx, wy, wz)
+-> SolidAnswer{solid, material}` that every subsystem will call for
+terrain solidity and material, structurally guaranteed to agree with
+regenerated/stored patch cells.
+
+HOW: gen::cell_material(surface, wy, surface_mm) extracted from
+regenerate_patch's inline rules (top-meter biome material / 3m Soil /
+Rock; Air above; Water below sea level) — regenerate_patch now calls it
+(behavior identical, agreement by construction). terrain::final_solid:
+surface_height_mm + region biome + cell_material; solid = not Air/Water.
+Tests: THE agreement matrix (4 patches x 4096 cells x 3 seeds —
+hills/highlands/coast pins plus negative territory — every cell's
+material and solidity equal between patch and query); ocean semantics
+(Water above the quantized floor, solid floor, air over land).
+Files: gen.rs (extract + doc), terrain.rs (SolidAnswer/final_solid +
+tests), contract, docs.
+
+WATER-CELL LESSON: in negative territory "above the floor" is +1000mm
+on the cell base — the probe's first cut went DOWN (deeper = more
+solid) and failed; fixed with the correct sign. Also documented the
+quantization artifact: a floor at an exact meter solidifies its top
+cell (consistent for all consumers; revisit at P3D-203).
+
+VERIFICATION: P3D workspace cargo test 74 passed / 0 failed (+2: the
+agreement matrix and the semantics probe). make p3d-smoke OK. Root
+cargo test --workspace 474 green (unchanged; zero lf_* edits).
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: heightmap-only answers until P3D-203 adds 3D
+density; construction overlay absent until P3D-205; the 1-cell ocean-
+floor quantization artifact (documented, consistent, revisit at 203).

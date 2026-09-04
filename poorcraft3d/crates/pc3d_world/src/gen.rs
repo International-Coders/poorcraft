@@ -252,25 +252,7 @@ impl WorldGen {
                 let surface_mm = self.surface_height_mm(wx, wz);
                 for cy in 0..n {
                     let wy = (ay + cy as i32) as i64 * 1000;
-                    let depth_mm = surface_mm - wy; // >0 = below the surface
-                    let mat = if depth_mm < 0 {
-                        if wy < 0 {
-                            CellMaterial::Water
-                        } else {
-                            CellMaterial::Air
-                        }
-                    } else if depth_mm < 1000 {
-                        match surface {
-                            Biome::Ocean | Biome::Coast => CellMaterial::Sand,
-                            Biome::SnowPeaks => CellMaterial::Snow,
-                            Biome::Mountains | Biome::Highlands => CellMaterial::Rock,
-                            _ => CellMaterial::Grass,
-                        }
-                    } else if depth_mm < 4000 {
-                        CellMaterial::Soil
-                    } else {
-                        CellMaterial::Rock
-                    };
+                    let mat = cell_material(surface, wy, surface_mm);
                     cells[(cx * n + cy) * n + cz] = mat;
                 }
             }
@@ -287,6 +269,34 @@ impl WorldGen {
 fn smoothstep(t: f32) -> f32 {
     let t = t.clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
+}
+
+/// THE material decision — the single source of truth shared by patch
+/// regeneration and the final-solid query (P3D-202). `wy` is the cell's
+/// base height in mm, `surface_mm` the analytic surface above it.
+/// Rules: above the surface is Air, or Water below sea level; the top
+/// meter takes the biome's surface material; then 3 m of Soil; Rock
+/// beneath.
+pub fn cell_material(surface: Biome, wy: i64, surface_mm: i64) -> CellMaterial {
+    let depth_mm = surface_mm - wy; // >0 = below the surface
+    if depth_mm < 0 {
+        if wy < 0 {
+            CellMaterial::Water
+        } else {
+            CellMaterial::Air
+        }
+    } else if depth_mm < 1000 {
+        match surface {
+            Biome::Ocean | Biome::Coast => CellMaterial::Sand,
+            Biome::SnowPeaks => CellMaterial::Snow,
+            Biome::Mountains | Biome::Highlands => CellMaterial::Rock,
+            _ => CellMaterial::Grass,
+        }
+    } else if depth_mm < 4000 {
+        CellMaterial::Soil
+    } else {
+        CellMaterial::Rock
+    }
 }
 
 const REGION_MM_F: f64 = 256_000.0;

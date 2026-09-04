@@ -17,8 +17,32 @@
 //! authoritative final-solid query.
 
 use crate::coords::{PatchCoord, WorldPos};
-use crate::gen::WorldGen;
+use crate::gen::{cell_material, CellMaterial, WorldGen};
 use crate::scales::PATCH_CELL_AXIS;
+
+/// THE authoritative answer for one cell (P3D-202): terrain solidity and
+/// material. Every subsystem — mesh, collision, water, navigation — asks
+/// this function; none may reimplement surface logic.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SolidAnswer {
+    /// Terrain-collision solidity (Water and Air are not solid).
+    pub solid: bool,
+    pub material: CellMaterial,
+}
+
+/// The single authoritative final-solid query: pure, deterministic,
+/// O(1). Guaranteed to agree with regenerated/stored patch cells because
+/// both call the same `gen::cell_material` decision.
+pub fn final_solid(gen: &WorldGen, wx: i64, wy: i64, wz: i64) -> SolidAnswer {
+    let surface_mm = gen.surface_height_mm(wx, wz);
+    let region = WorldPos::from_mm(wx, wy, wz).region();
+    let biome = gen.biome(region);
+    let material = cell_material(biome, wy, surface_mm);
+    SolidAnswer {
+        solid: !matches!(material, CellMaterial::Air | CellMaterial::Water),
+        material,
+    }
+}
 
 /// A patch's occupancy grid: solid[x][y][z], row-major like PatchCells.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -418,5 +442,90 @@ mod tests {
             assert_eq!(o.z.rem_euclid(PATCH_MM), 0);
         }
         let _ = WorldPos::default();
+    }
+
+    /// THE P3D-202 CONTRACT: the single final-solid query and patch
+    /// regeneration are the SAME WORLD. Every cell of regenerated patches
+    /// (multiple seeds, all sign combinations) must equal `final_solid` at
+    /// that cell's world position — material and solidity both. Mesh,
+    /// collision, water, and navigation all call `final_solid`, so this is
+    /// the no-divergence guarantee.
+    #[test]
+    fn p3d202_final_solid_agrees_with_regenerated_patches() {
+        for seed in [3u64, 777, 2024] {
+            let gen = WorldGen::new(seed);
+            for coord in [
+                PatchCoord { x: -60 * 16 + 8, y: 1, z: -31 * 16 + 8 },
+                PatchCoord { x: -9 * 16 + 8, y: 5, z: -12 * 16 + 8 },
+                PatchCoord { x: -60 * 16 + 8, y: 0, z: -11 * 16 + 8 },
+                PatchCoord { x: -3 * 16, y: -2 * 16, z: 5 * 16 },
+            ] {
+                let patch = gen.regenerate_patch(coord);
+                let n = PATCH_CELL_AXIS as usize;
+                let o = coord.origin();
+                let ax = o.x.div_euclid(1000) as i32;
+                let ay = o.y.div_euclid(1000) as i32;
+                let az = o.z.div_euclid(1000) as i32;
+                for cx in 0..n {
+                    for cy in 0..n {
+                        for cz in 0..n {
+                            let wx = (ax + cx as i32) as i64 * 1000;
+                            let wy = (ay + cy as i32) as i64 * 1000;
+                            let wz = (az + cz as i32) as i64 * 1000;
+                            let answer = final_solid(&gen, wx, wy, wz);
+                            assert_eq!(
+                                answer.material,
+                                patch.get(cx, cy, cz),
+                                "material divergence at seed {seed} {wx},{wy},{wz}"
+                            );
+                            assert_eq!(
+                                answer.solid,
+                                !matches!(
+                                    patch.get(cx, cy, cz),
+                                    CellMaterial::Air | CellMaterial::Water
+                                )
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Semantics at the boundaries: air above the surface, water below
+    /// sea level but above the floor, solid ground under it.
+    #[test]
+    fn p3d202_final_solid_semantics() {
+        let gen = WorldGen::new(9);
+        // Deep ocean region found by scan earlier; assert water is not
+        // solid and the floor beneath is.
+        let mut checked_water = false;
+        'scan: for x in -40..=40 {
+            for z in -40..=40 {
+                let r = crate::coords::RegionCoord { x, z };
+                if gen.biome(r) == crate::gen::Biome::Ocean {
+                    let wx = (x * 256 + 128) as i64 * 1000;
+                    let wz = (z * 256 + 128) as i64 * 1000;
+                    let surface = gen.surface_height_mm(wx, wz);
+                    // Two cells above the quantized floor cell: definitely
+                    // open water (one cell above can still be the floor's
+                    // quantized top — a documented 1-cell artifact, agreed
+                    // by every consumer because they share this function).
+                    let s0 = surface.div_euclid(1000) * 1000;
+                    let water_cell = final_solid(&gen, wx, s0 + 1_000, wz);
+                    assert!(!water_cell.solid);
+                    assert_eq!(water_cell.material, CellMaterial::Water);
+                    let floor = final_solid(&gen, wx, surface - 5_000, wz);
+                    assert!(floor.solid);
+                    checked_water = true;
+                    break 'scan;
+                }
+            }
+        }
+        assert!(checked_water, "no ocean region found for the semantics probe");
+        // Above the land surface: air, not solid.
+        let air = final_solid(&gen, 8_000, 500_000, 8_000);
+        assert!(!air.solid);
+        assert_eq!(air.material, CellMaterial::Air);
     }
 }
