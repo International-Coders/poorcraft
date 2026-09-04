@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-04 — the engine measures itself: profiler + baseline (loop 364, P3D-004)
+
+- **The performance-principles counter vocabulary exists in one place.**
+  `pc3d_core::profile`: eight `CounterId`s (mesh work, fluid work, path
+  requests, entity ticks, network bytes, save bytes, patch rebuilds,
+  journal events) with saturating increments and enum-ordered snapshots —
+  subsystems increment, never redefine. `FrameTimes`: fixed-cap ring,
+  nearest-rank percentiles proven on a known sample, invalid samples
+  dropped, arrival-order digest. `MemoryCounters` with net arithmetic.
+- **`poorcraft3d --baseline` prints a diffable profile record** built from
+  a deterministic synthetic workload run through the real `FixedClock`:
+  two consecutive invocations are byte-identical (same sha256). First
+  measured baseline: 600 frames, p50 22.4 ms / p95 31.8 ms, 805 entity
+  ticks — the fixed clock tracked the synthetic wall time exactly.
+- 28 pc3d_core tests green (+4); root workspace untouched at 474. The
+  measuring stick exists; performance budgets arrive with the subsystems
+  they will measure (P3D-201+). Next: P3D-005, the first runtime.
+
 ## 2026-09-04 — the deterministic simulation spine (loop 363, P3D-003)
 
 - **Five pure modules give POORCRAFT 3D its reproducibility guarantee.**

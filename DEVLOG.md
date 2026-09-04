@@ -2762,3 +2762,40 @@ layout may gain a version prefix when persistence lands (documented in
 the contract handoff); no runtime loop consumes the clock yet (P3D-005);
 global allocator memory hooks deliberately excluded (explicit-call
 MemoryCounters arrive with P3D-004's profile module).
+
+## 2026-09-04 — loop 364: P3D-004 profiler counters + baseline record
+
+WHAT: Fourth P3D task (P3D-000 stage): the measuring stick — named
+counters for the work the engine principles call out, frame-time capture
+with percentiles, memory counters, and a machine-readable baseline
+record. No performance CLAIMS made; the ruler comes before the budgets.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-004.md. New
+pc3d_core/src/profile.rs: CounterId enum (8 counters in snapshot order;
+appending legal, reordering is a baseline regression by definition),
+Counters (saturating add/inc, enum-ordered snapshot), FrameTimes
+(fixed-cap ring, nearest-rank percentile via total_cmp sort, p50/p95/min/
+max, arrival-order to_bits digest, NaN/negative rejection), MemoryCounters
+(explicit on_alloc/on_free, net_bytes i64), BaselineRecord (hand-rolled
+key-ordered deterministic JSON with escape rules — no serde dependency in
+pc3d_core). Binary --baseline: deterministic synthetic workload —
+SeedStreams(0xC0FFEE).rng(WEATHER) jitters 600 frame times (11-33ms),
+each pushed through FixedClock::advance, counters ticked per fired tick —
+then prints BaselineRecord::to_json(). Files: profile.rs (new), lib.rs,
+main.rs, contract, STATE/CHANGELOG/DEVLOG.
+
+VERIFICATION: P3D workspace cargo test 28 passed / 0 failed (+4: counter
+order+saturate, exact nearest-rank percentiles on 1..100 incl. ring wrap
+and digest sensitivity, memory net arithmetic incl. saturate, baseline
+JSON determinism + escape handling). Live evidence: ./target/release/
+poorcraft3d --baseline twice -> byte-identical output (sha256
+54fb6d45... both), record: 600 frames, p50 22.429 p95 31.815 min 11.003
+max 32.943 ms, entity_ticks 805 (= 600 jittered frames ~13.4 sim-seconds
+x 60 Hz — FixedClock tracked exactly under the shed cap), mesh_work
+1800, journal_events 600. Root cargo test --workspace 474 green
+(unchanged). Runtimes not rebuilt (no lf_* changes).
+
+HONESTLY DEFERRED: global allocator hook (opt-in later; counters are
+explicit-call now); threaded aggregation; GPU timings (no renderer);
+this task measures a SYNTHETIC workload — real budgets wait for real
+subsystems (P3D-201+), and the overlay UI is P3D-207.

@@ -21,11 +21,15 @@ pub mod journal;
 pub mod replay;
 pub mod seed;
 
+/// P3D-004: counters, frame times, memory counters, baseline records.
+pub mod profile;
+
 pub use clock::{FixedClock, MAX_CATCHUP_TICKS, SIM_HZ, TICK_US};
 pub use command::{CommandEnvelope, CommandSequencer};
 pub use journal::{fnv1a64, EventJournal, JournalEvent};
 pub use replay::ReplayDigest;
 pub use seed::{stream, SeedStreams, SplitMix64};
+pub use profile::{BaselineRecord, Counters, CounterId, FrameTimes, MemoryCounters};
 
 pub use header::{
     open_decision, FormatHeader, OpenDecision, Section, SupportedVersions, HEADER_LEN,
