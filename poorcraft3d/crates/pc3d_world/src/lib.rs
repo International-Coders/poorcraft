@@ -14,6 +14,7 @@ pub mod proof;
 pub mod query;
 pub mod scales;
 pub mod stream;
+pub mod terrain;
 
 pub use bounds::{WorldBounds, WorldBoundsXz};
 pub use coords::{CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};

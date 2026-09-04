@@ -3041,3 +3041,51 @@ HONESTLY DEFERRED: pure bookkeeping — no real mesh jobs yet (P3D-201+
 fills the queues); tier radii are proposal constants pending benchmark
 calibration (P3D-201/206); no network interest messages (P3D-802); no
 LOD selection beyond tier membership (P3D-206).
+
+## 2026-09-04 — loop 371: P3D-201 surface-extraction bake-off (heightfield wins)
+
+WHAT: P3D-200 stage opener. Two natural-surface extraction candidates
+implemented and MEASURED on shared procedural scenes; the decision for
+the authoritative final-solid query (P3D-202) recorded with numbers.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-201.md. New
+pc3d_world/src/terrain.rs: SolidGrid (16³ occupancy), SceneSpec
+(SmoothHills/Highlands/Coast pinned to seed 3, region-center patches,
+y-window containing the analytic surface), candidate::heightfield
+(solid below surface per column) vs candidate::density_threshold (2x2
+quarter-meter sub-samples, majority-below), run_bakeoff() measuring
+extract_us/grid_bytes/edit_rebuild_us/fidelity_err_m + fidelity_columns.
+Binary --terrain-bench prints the table. Fidelity counts only columns
+whose analytic surface lies inside the patch window (elsewhere
+all-air/all-solid is CORRECT for both candidates — counting them made
+the first numbers vacuous garbage like 215m).
+
+BAKE-OFF (release): smooth_hills heightfield 107us/0.505m, density
+395us/0.497m; highlands 98us/0.490m vs 395us/0.459m; coast 99us/0.478m
+vs 395us/0.456m. All 256 columns measured per scene. DECISION:
+heightfield — 4x cheaper extraction and rebuild at fidelity parity
+(differences are floor-quantization noise); density becomes relevant
+when 3D density fields (caves/overhangs) exist in P3D-203.
+
+FINDING: the pure-heightmap generator produces NO sharp cliffs — wide
+region-field sweeps found no adjacent-region step >= 25m (12/6/3km
+octaves smooth by construction). The blueprint's cliff scene deferred
+to P3D-203; Highlands substituted. Contract amended with the finding.
+
+SELF-CAUGHT BUGS ALONG THE WAY: scene pins pinned to region CORNERS not
+centers (twice — the P3D-103 lesson), patch INDEX vs meters conflated
+(y:16 = 256m not 16m; y:5*16 = patch 80), fidelity counting vacuous
+columns, a garbage placeholder loop removed pre-compile, and an i64/f64
+division. A 35-minute brute-force debug-mode scene scan was scrapped
+for a region-field scan (1000x cheaper).
+
+VERIFICATION: P3D workspace cargo test 72 passed / 0 failed (+5: flat-
+ground agreement at <=1-cell smoothing tolerance, floating-solid guard,
+grid determinism, bake-off completeness/plausibility incl. a
+harness-sanity speed ratio, scene-pin alignment). make p3d-smoke OK.
+poorcraft3d --terrain-bench prints the measured table. Root cargo test
+--workspace 474 green (unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: no mesh GEOMETRY comparison (this measured the solid
+query; visual meshing waits for the renderer stage); 2D supersampling
+not 3D SDF (P3D-203); cliffs (P3D-203); LOD/seams (P3D-206).

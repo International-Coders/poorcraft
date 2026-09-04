@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-09-04 — the surface bake-off: heightfield wins on measurements (loop 371, P3D-201)
+
+- **The hybrid-terrain stage opens the way the blueprint demands: measure
+  first.** `pc3d_world::terrain` implements two extraction candidates over
+  three shared scenes (SmoothHills, Highlands, Coast — region-center
+  patches whose y-window contains the analytic surface) and measures
+  extraction time, memory, post-edit rebuild, and column fidelity vs the
+  height function, with a measured-columns count so fidelity numbers
+  cannot be vacuous.
+- **The table (release, 256 columns/scene):** heightfield extracts in
+  98–107 µs with 0.478–0.505 m mean error; density-threshold (2×2
+  quarter-meter sub-samples) in ~396 µs with 0.456–0.497 m. Density's
+  smoother silhouettes cost 4× for ~0.03 m — both are 40–160× under the
+  16 ms edit-hitch budget. **Decision: heightfield** becomes the
+  authoritative final-solid query in P3D-202; the harness re-measures
+  when 3D density fields land.
+- **A real finding**: the pure-heightmap generator produces NO sharp
+  cliffs (no adjacent-region step ≥ 25 m anywhere in wide sweeps) — the
+  blueprint's cliff scene is deferred to P3D-203's density fields, and
+  Highlands stands in. Recorded in the contract, amended by measurement.
+- Scene pins survived three self-caught bugs (corner-vs-center patches,
+  patch-index-vs-meters y, highlands 5·16 = patch 80). 72 pc3d tests
+  green (+5); root workspace untouched at 474; smoke OK.
+
 ## 2026-09-04 — interest rings + bounded queues: P3D-100 stage complete (loop 370, P3D-105)
 
 - **The world knows what to stream and refuses to drown.**

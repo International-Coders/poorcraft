@@ -125,9 +125,25 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Some("--terrain-bench") => {
+            // P3D-201: the surface-extraction bake-off. Measured, not
+            // preferred — the table chooses what P3D-202 promotes.
+            let rows = pc3d_world::terrain::run_bakeoff();
+            println!(
+                "{:<14} {:<18} {:>10} {:>8} {:>11} {:>9} {:>8}",
+                "scene", "candidate", "extract_us", "bytes", "rebuild_us", "err_m", "cols"
+            );
+            for r in &rows {
+                println!(
+                    "{:<14} {:<18} {:>10} {:>8} {:>11} {:>9.3} {:>8}",
+                    r.scene, r.candidate, r.extract_us, r.grid_bytes, r.edit_rebuild_us,
+                    r.fidelity_err_m, r.fidelity_columns
+                );
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench]"
             );
             std::process::exit(2);
         }
