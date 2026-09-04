@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-09-04 — the deterministic simulation spine (loop 363, P3D-003)
+
+- **Five pure modules give POORCRAFT 3D its reproducibility guarantee.**
+  `clock::FixedClock` (integer-microsecond 60 Hz ticks, range-returning
+  advance so every fired tick carries its own number, 8-tick shed cap),
+  `command` (restorable sequencer + envelopes with total (tick, id) order
+  and keep-earliest duplicate suppression), `journal` (append-only events
+  under a dense monotone seq with an FNV-1a-64 digest),
+  `seed::SeedStreams` (per-subsystem RNGs derived from one world seed via
+  named labels + SplitMix64 — subsystem consumption can never cross-
+  contaminate), and `replay::ReplayDigest` with the harness tests.
+- **The replay property is enforced, not claimed**: the representative
+  command-driven cart produces IDENTICAL state and journal digests over
+  the same 600 sim ticks under uniform, 3-tick, and mixed frame
+  partitions, and under one-by-one versus single-batch delivery.
+- 24 pc3d_core tests green (+13); root workspace untouched at 474. The
+  contract was filled first (`docs/POORCRAFT-3D/contracts/P3D-003.md`).
+  One test-side bug (a snapshot pattern that re-read the same value
+  instead of advancing) caught and fixed before commit.
+
 ## 2026-09-04 — the format law: versioned headers + refusals (loop 362, P3D-002)
 
 - **Every POORCRAFT 3D file now begins with a 16-byte versioned header** —

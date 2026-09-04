@@ -2723,3 +2723,42 @@ this); the protocol field is carried, not spoken on the wire (P3D-802);
 migration tooling intentionally does not exist — refusals only; a future
 epoch-2 story will need an explicit register decision before any
 behavior changes.
+
+## 2026-09-04 — loop 363: P3D-003 deterministic clock/commands/journal/seeds/replay
+
+WHAT: Third POORCRAFT 3D task (P3D-000 stage): the deterministic
+primitives every later subsystem shares — the P3D-native equivalents of
+the contracts proven in the original engine's loops 358-360, written
+greenfield under the new format.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-003.md. Five new
+modules in pc3d_core (zero dependencies): clock.rs (FixedClock,
+TICK_US=16666, MAX_CATCHUP_TICKS=8, advance->Range<u64>),
+command.rs (CommandSequencer with high_water_mark/restore;
+CommandEnvelope::canonical_batch), journal.rs (JournalEvent, EventJournal
+with dense seq + FNV-1a digest; fnv1a64 exported), seed.rs (SeedStreams:
+stream_seed = FNV1a(seed_le_bytes) XOR-mixed with FNV1a(label), then
+x*0x1p1b3; named labels in seed::stream; SplitMix64 with next_u64/below/
+unit_f32), replay.rs (ReplayDigest fold + the harness: a fixed-point cart
+driven by tick-keyed commands under a FixedClock, applied via canonical
+batches, digested with state+journal folds). lib.rs re-exports all.
+
+TEST-SIDE FIX BEFORE COMMIT: the reproducibility test initially cloned a
+running RNG inside a map closure — every "next value" was the same
+snapshot; rewritten to advance both streams in lockstep plus an explicit
+clone-snapshot assertion (clone must equal the very next value).
+
+VERIFICATION: P3D workspace cargo test 24 passed / 0 failed (+13: 3
+clock incl. multi-tick frame numbering and shed determinism, 2 command,
+2 journal incl. digest perturbation sensitivity, 3 seed incl. label
+independence across 6 streams, 3 replay incl. the cadence-invariance
+proof over uniform/3-tick/mixed 600-tick partitions and batching
+invariance). Root cargo test --workspace 474 passed / 0 failed
+(unchanged; zero lf_* edits). Runtimes not rebuilt (no original-game
+code changed; P3D binary remains a stub until P3D-005).
+
+HONESTLY DEFERRED: no on-disk journal format yet (P3D-102); the digest
+layout may gain a version prefix when persistence lands (documented in
+the contract handoff); no runtime loop consumes the clock yet (P3D-005);
+global allocator memory hooks deliberately excluded (explicit-call
+MemoryCounters arrive with P3D-004's profile module).

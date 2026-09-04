@@ -14,6 +14,19 @@ pub mod identity;
 /// P3D-002: versioned file headers and the refusal law for unknown versions.
 pub mod header;
 
+/// P3D-003: the deterministic simulation spine.
+pub mod clock;
+pub mod command;
+pub mod journal;
+pub mod replay;
+pub mod seed;
+
+pub use clock::{FixedClock, MAX_CATCHUP_TICKS, SIM_HZ, TICK_US};
+pub use command::{CommandEnvelope, CommandSequencer};
+pub use journal::{fnv1a64, EventJournal, JournalEvent};
+pub use replay::ReplayDigest;
+pub use seed::{stream, SeedStreams, SplitMix64};
+
 pub use header::{
     open_decision, FormatHeader, OpenDecision, Section, SupportedVersions, HEADER_LEN,
 };
