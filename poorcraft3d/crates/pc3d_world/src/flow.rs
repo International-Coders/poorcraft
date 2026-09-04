@@ -61,6 +61,32 @@ pub struct FlowTable {
 }
 
 impl FlowTable {
+    /// Derive from the river graph with DIRTY-REGION revisions
+    /// (P3D-303): a region whose record is semantically equal to its
+    /// previous record KEEPS the previous revision; a changed region's
+    /// revision increments (or starts at 1 when there was none). The
+    /// table revision increments by one per rebuild.
+    pub fn from_graph_with_revisions(
+        previous: Option<&FlowTable>,
+        graph: &RiverGraph,
+    ) -> Self {
+        let mut table = Self::from_graph(graph);
+        table.revision = previous.map(|p| p.revision + 1).unwrap_or(1);
+        for rec in table.records.values_mut() {
+            rec.revision = table.revision;
+            if let Some(prev) = previous.and_then(|p| p.records.get(&(rec.region_x, rec.region_z))) {
+                let same = prev.direction == rec.direction
+                    && prev.slope_per_mille == rec.slope_per_mille
+                    && prev.discharge == rec.discharge
+                    && prev.capacity == rec.capacity;
+                if same {
+                    rec.revision = prev.revision;
+                }
+            }
+        }
+        table
+    }
+
     /// Derive from the river graph. Revision starts at 1.
     pub fn from_graph(graph: &RiverGraph) -> Self {
         let mut records = BTreeMap::new();
@@ -301,5 +327,73 @@ mod tests {
             .records
             .values()
             .all(|r| r.revision == 2));
+    }
+
+    /// P3D-303: dirty-region revisions — a reroute bumps ONLY the regions
+    /// whose records actually changed; unchanged regions keep theirs.
+    #[test]
+    fn p3d303_revisions_change_only_where_flow_changed() {
+        let g = WorldGen::new(2024);
+        let base = RiverGraph::new(&g, 20);
+        let first = FlowTable::from_graph(&base);
+
+        // Find a region whose raising flips its downstream (as in the
+        // hydro reroute test).
+        // Lower a non-downstream neighbor below the current target so the
+        // region reroutes toward it (see the hydro reroute test).
+        let mut probe = None;
+        for x in -15..=15 {
+            for z in -15..=15 {
+                let r = RegionCoord { x, z };
+                let e = base.elevation[&(x, z)];
+                let Some(Some(d)) = base.downstream.get(&(x, z)) else {
+                    continue;
+                };
+                let d_elev = base.elevation[d];
+                for (dx, dz) in [(1, 0), (0, 1), (-1, 0), (0, -1)] {
+                    let n = RegionCoord { x: x + dx, z: z + dz };
+                    if (n.x, n.z) == (d.0, d.1) {
+                        continue;
+                    }
+                    if let Some(&ne) = base.elevation.get(&(n.x, n.z)) {
+                        // Lower n to exactly 1 m below the current target:
+                        // it becomes the strictly lowest neighbor, so r
+                        // must reroute toward it.
+                        let delta_n = ne - d_elev - 1;
+                        if delta_n <= -1 && e - (ne - delta_n) > 0 {
+                            probe = Some((r, n, delta_n));
+                            break;
+                        }
+                    }
+                }
+                if probe.is_some() {
+                    break;
+                }
+            }
+            if probe.is_some() {
+                break;
+            }
+        }
+        let (r, n, delta_n) = probe.expect("a suitable region exists");
+        let mut overrides = std::collections::BTreeMap::new();
+        overrides.insert((n.x, n.z), delta_n);
+        let rebuilt = RiverGraph::build(&g, 20, &overrides);
+        let second = FlowTable::from_graph_with_revisions(Some(&first), &rebuilt);
+
+        // Table revision advanced by exactly one rebuild.
+        assert_eq!(second.revision(), first.revision() + 1);
+
+        // Unchanged records keep their revision; the rerouted region's
+        // record bumped.
+        let mut changed = 0;
+        let mut kept = 0;
+        for (k, rec) in &second.records {
+            match first.records.get(k) {
+                Some(prev) if prev.revision == rec.revision => kept += 1,
+                _ => changed += 1,
+            }
+        }
+        assert!(changed > 0, "the reroute must bump the changed region");
+        assert!(kept > 0, "unchanged regions must keep their revision");
     }
 }

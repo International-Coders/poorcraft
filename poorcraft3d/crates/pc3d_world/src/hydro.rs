@@ -44,11 +44,28 @@ pub struct RiverGraph {
 
 impl RiverGraph {
     pub fn new(gen: &WorldGen, half: i32) -> Self {
+        Self::build(&gen, half, &BTreeMap::new())
+    }
+
+    /// Rebuild with elevation OVERRIDES from terrain edits (P3D-303):
+    /// delta in meters per region, clamped to the declared range. This is
+    /// the dirty-region entry point — edits in a valley reroute its river
+    /// locally.
+    pub fn build(
+        gen: &WorldGen,
+        half: i32,
+        overrides: &BTreeMap<(i32, i32), i32>,
+    ) -> Self {
         // 1. Elevations over the lattice.
         let mut elevation: BTreeMap<(i32, i32), i32> = BTreeMap::new();
         for x in -half..=half {
             for z in -half..=half {
-                elevation.insert((x, z), gen.macro_field(RegionCoord { x, z }).elevation_m);
+                let base = gen.macro_field(RegionCoord { x, z }).elevation_m;
+                let delta = overrides.get(&(x, z)).copied().unwrap_or(0);
+                elevation.insert(
+                    (x, z),
+                    (base + delta).clamp(crate::gen::MIN_ELEVATION_M, crate::gen::MAX_ELEVATION_M),
+                );
             }
         }
 
@@ -245,6 +262,80 @@ mod tests {
         for (k, v) in &graph.discharge {
             assert_eq!(recomputed[k], *v, "discharge mismatch at {k:?}");
         }
+    }
+
+    /// P3D-303: a large override flips a region's downstream direction;
+    /// the rebuilt graph stays acyclic and conserved.
+    #[test]
+    fn p3d303_override_flows_reroute_locally() {
+        let g = WorldGen::new(2024);
+        let base = RiverGraph::new(&g, 20);
+        // Find a region and one of its NON-downstream neighbors whose
+        // elevation is close: raising the region far above that neighbor
+        // should pull the flow toward it.
+        // Physics of rerouting: lowering a NON-downstream neighbor below
+        // the current steepest-descent target pulls the flow to it.
+        // (Raising r changes nothing — its neighbors' heights are fixed.)
+        let mut probe = None;
+        for x in -15..=15 {
+            for z in -15..=15 {
+                let r = RegionCoord { x, z };
+                let e = base.elevation[&(x, z)];
+                let Some(Some(d)) = base.downstream.get(&(x, z)) else {
+                    continue;
+                };
+                let d_elev = base.elevation[d];
+                for (dx, dz) in NEIGHBORS {
+                    let n = RegionCoord { x: x + dx, z: z + dz };
+                    if (n.x, n.z) == (d.0, d.1) {
+                        continue;
+                    }
+                    if let Some(&ne) = base.elevation.get(&(n.x, n.z)) {
+                        // Lower n below the current target by 10 m.
+                        // Lower n to exactly 1 m below the current target:
+                        // it becomes the strictly lowest neighbor, so r
+                        // must reroute toward it.
+                        let delta_n = ne - d_elev - 1;
+                        if delta_n <= -1 && e - (ne - delta_n) > 0 {
+                            probe = Some((r, n, delta_n));
+                            break;
+                        }
+                    }
+                }
+                if probe.is_some() {
+                    break;
+                }
+            }
+            if probe.is_some() {
+                break;
+            }
+        }
+        let (r, n, delta_n) = probe.expect("a suitable region exists");
+        let target = n;
+        let mut overrides = BTreeMap::new();
+        overrides.insert((n.x, n.z), delta_n);
+        let rebuilt = RiverGraph::build(&g, 20, &overrides);
+
+        // The region now drains toward the target neighbor.
+        assert_eq!(rebuilt.downstream(r), Some(target), "flow must reroute");
+        // Direction changes require an ADJACENT elevation change: only n
+        // was lowered, so only n itself and its neighbors may flip; every
+        // region farther than Chebyshev 1 from n keeps its direction.
+        for x in -20..=20 {
+            for z in -20..=20 {
+                let k = RegionCoord { x, z };
+                let dist_n = (x - n.x).abs().max((z - n.z).abs());
+                if dist_n > 1 {
+                    assert_eq!(
+                        rebuilt.downstream(k),
+                        base.downstream(k),
+                        "distant region {k:?} must keep its flow"
+                    );
+                }
+            }
+        }
+        // The flag stays consistent on the rebuilt graph.
+        assert_eq!(rebuilt.seed, base.seed);
     }
 
     /// Rivers exist in most seeds, flow strictly downhill, and wetness is

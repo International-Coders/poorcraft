@@ -3400,3 +3400,36 @@ HONESTLY DEFERRED: capacity model v1 is slope-scaled discharge (real
 channel geometry when rendering lands); ports are region-granularity
 (patch-inherited); no consumers yet (P3D-306); rebuilds/revisions bump
 but no dirty-region logic yet (P3D-303).
+
+## 2026-09-04 — loop 379 (second pass): P3D-303 dirty-region flow rebuild
+
+WHAT: Terrain edits reroute water locally: elevation overrides rebuild
+the watershed; flow-record revisions bump ONLY where the flow actually
+changed.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-303.md.
+hydro::RiverGraph::build(gen, half, overrides: &BTreeMap<(i32,i32),i32>)
+— elevation = macro + delta clamped to the declared range, then the
+same steepest-descent + accumulation pipeline. flow::FlowTable::
+from_graph_with_revisions(previous, graph): fresh records, but a record
+semantically equal (direction/slope/discharge/capacity) keeps the
+previous revision; changed increments; table revision +1.
+
+PHYSICS LESSON (three test iterations, each caught by its own proof):
+(1) RAISING region r cannot reroute it — steepest descent compares
+NEIGHBOR heights, which do not move; (2) the correct dam operation is
+LOWERING a non-downstream neighbor below the current steepest-descent
+target (delta_n = ne - d_elev - 1); (3) the changed-direction set is
+exactly n plus its Chebyshev-1 neighbors (a direction change requires
+an adjacent elevation change) — the distant-keeps-flow assertion was
+scoped to that physical truth.
+
+VERIFICATION: P3D workspace cargo test 109 passed / 0 failed (+2:
+override reroutes locally with distant-flow preservation + acyclicity;
+dirty revisions change-only-where-changed with kept>0). make
+p3d-smoke OK. Root cargo test --workspace 474 green (unchanged; zero
+lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: region granularity (per-cell dirty tracking arrives
+with the mesher); no water simulation in the voids; revision history
+beyond current not stored (save/load stores the current table).

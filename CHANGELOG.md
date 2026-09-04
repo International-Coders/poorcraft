@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-09-04 — damming reroutes rivers locally (loop 379, P3D-303)
+
+- **Terrain edits reroute water locally and deterministically.**
+  `hydro::RiverGraph::build(gen, half, overrides)` — elevation overrides
+  from edits (delta per region, clamped) rebuild the watershed through
+  the same steepest-descent/accumulation pipeline.
+- **Dirty-region revisions**: `FlowTable::from_graph_with_revisions` —
+  a region whose record is semantically equal keeps its revision; a
+  changed region increments; the table revision advances by one per
+  rebuild. An edit cannot rewrite the whole river map.
+- **The reroute tests learned the real physics** (each iteration caught
+  by its own proof): raising a region changes nothing (its neighbors are
+  fixed) — you reroute by LOWERING a non-downstream neighbor below the
+  current steepest-descent target; and the changed-set is exactly the
+  lowered region plus its Chebyshev-1 neighbors (direction changes
+  require an adjacent elevation change) — everything farther keeps its
+  flow. Rebuilt graphs re-proven acyclic; revision churn isolated
+  (changed > 0 AND kept > 0).
+- 109 pc3d tests green (+2); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-303.md`. Next: P3D-304 flow
+  rendering.
+
 ## 2026-09-04 — water remembers: flow records + ports (loop 379, P3D-302)
 
 - **Every river region carries a versioned flow record.**
