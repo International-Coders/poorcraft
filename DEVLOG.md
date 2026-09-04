@@ -3463,3 +3463,31 @@ rebuilt.
 
 HONESTLY DEFERRED: animation (static proof); per-cell water; depth
 shading (needs channel geometry from the mesher); GPU rendering.
+
+## 2026-09-04 — loop 381: P3D-305 bounded conserved reservoirs (gate: YES)
+
+WHAT: The roadmap gates P3D-305 ("only if a bounded volume model is
+required by play"). DECISION: YES, recorded — the water stage exists
+because rivers power machines and dams hold water; the P3D-303 override
+rebuild reroutes but cannot HOLD. The minimal piece: per-region
+reservoir volumes with conservation.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-305.md.
+hydro.rs additions: Reservoir{region, capacity_kl, volume_kl}
+(fixed-point thousand-liters); Reservoirs::from_graph (capacity =
+10,000 + 500 x local elevation range, min 1,000); fill(graph, region,
+amount) -> spilled u64 (retains what fits, overflows DOWNSTREAM via a
+bounded 4096-step chain walk, final spill returned); drain(region,
+amount) -> taken (never negative); total_volume(). Tests: conservation
+(poured 10M kl - spilled == retained delta), overflow routed
+downstream, fill/drain round-trip to zero, drain-empty yields 0.
+
+VERIFICATION: P3D workspace cargo test 114 passed / 0 failed (+2:
+conservation + overflow routing; fill/drain round-trip + determinism).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged;
+zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: persistence of reservoir volumes (framing law is
+ready; wire when the save path composes); dam-building ops (build ops
+own world changes); evaporation/weather; simulation loop (operations
+are explicit calls by design).

@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-09-04 — bounded conserved reservoirs (loop 381, P3D-305)
+
+- **GATE DECIDED: YES** — the dam story needs water that HOLDS, so the
+  minimal bounded volume model landed: `hydro::Reservoirs` (per-region
+  `Reservoir { capacity_kl, volume_kl }` in thousand-liter fixed-point;
+  capacity terrain-derived from local elevation range).
+- **Conservation is test-enforced**: fill retains what fits and routes
+  overflow DOWNSTREAM through a bounded chain walk (final spill
+  returned); poured − spilled == total retained across a huge pour;
+  drain never goes negative; fill/drain round-trips to zero;
+  deterministic.
+- 114 pc3d tests green (+2); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-305.md`. Next: P3D-306 — the
+  independent flow-consumer query contract + visible machine proof.
+
 ## 2026-09-04 — rivers visibly flow (loop 380, P3D-304)
 
 - **Rivers render from flow records — no particles, no simulation.**

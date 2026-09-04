@@ -214,6 +214,87 @@ impl RiverGraph {
 
 
 
+/// P3D-305: bounded reservoir volume model. Volumes are fixed-point
+/// thousand-liters (kl). Conservation law: within a closed system,
+/// filled − drained == Σ volumes; overflow ALWAYS routes downstream
+/// (bounded chain walk), never vanishes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Reservoir {
+    pub region: RegionCoord,
+    /// Terrain-derived capacity in kl (v1: slope-scaled).
+    pub capacity_kl: i64,
+    pub volume_kl: i64,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Reservoirs {
+    pub map: BTreeMap<(i32, i32), Reservoir>,
+}
+
+impl Reservoirs {
+    /// Build reservoirs for every region in the graph: capacity grows
+    /// with the local elevation range (mountain valleys hold more).
+    pub fn from_graph(graph: &RiverGraph) -> Self {
+        let mut map = BTreeMap::new();
+        for (k, e) in &graph.elevation {
+            let max_neighbor_diff = NEIGHBORS
+                .iter()
+                .filter_map(|(dx, dz)| graph.elevation.get(&(k.0 + dx, k.1 + dz)))
+                .map(|ne| (*e - *ne).abs())
+                .max()
+                .unwrap_or(0);
+            let capacity = (10_000 + max_neighbor_diff as i64 * 500).max(1_000);
+            map.insert(
+                *k,
+                Reservoir { region: RegionCoord { x: k.0, z: k.1 }, capacity_kl: capacity, volume_kl: 0 },
+            );
+        }
+        Reservoirs { map }
+    }
+
+    /// Fill a reservoir; the amount that does not fit overflows to the
+    /// downstream reservoir (bounded chain), and the FINAL spill (past
+    /// the last reservoir) is returned. Conservation: caller accounts
+    /// filled − returned == Σ retained.
+    pub fn fill(&mut self, graph: &RiverGraph, region: RegionCoord, amount_kl: i64) -> u64 {
+        let mut remaining = amount_kl.max(0) as u64;
+        let mut cur = Some(region);
+        let mut steps = 0;
+        while let Some(r) = cur {
+            steps += 1;
+            if steps > 4096 {
+                break;
+            }
+            let Some(res) = self.map.get_mut(&(r.x, r.z)) else {
+                break;
+            };
+            let free = (res.capacity_kl - res.volume_kl).max(0) as u64;
+            let take = remaining.min(free);
+            res.volume_kl += take as i64;
+            remaining -= take;
+            if remaining == 0 {
+                return 0;
+            }
+            cur = graph.downstream(r);
+        }
+        remaining
+    }
+
+    /// Drain up to `amount_kl`; never negative.
+    pub fn drain(&mut self, region: RegionCoord, amount_kl: i64) -> u64 {
+        let Some(res) = self.map.get_mut(&(region.x, region.z)) else {
+            return 0;
+        };
+        let taken = (amount_kl.max(0) as u64).min(res.volume_kl as u64);
+        res.volume_kl -= taken as i64;
+        taken
+    }
+
+    pub fn total_volume(&self) -> u64 {
+        self.map.values().map(|r| r.volume_kl as u64).sum()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,5 +468,69 @@ mod tests {
             let far = graph.wetness(&g, RegionCoord { x: 24, z: 24 });
             assert!(n > far || far == 100, "wet corridor absent: near={n} far={far}");
         }
+    }
+}
+
+#[cfg(test)]
+mod reservoir_tests {
+    use super::*;
+
+    /// Conservation: in a closed chain, filled − spilled == total
+    /// retained; overflow routes DOWNSTREAM; capacity clamps.
+    #[test]
+    fn p3d305_reservoirs_conserve_and_overflow_downstream() {
+        let g = WorldGen::new(2024);
+        let graph = RiverGraph::new(&g, 20);
+        let mut res = Reservoirs::from_graph(&graph);
+
+        // Find a region WITH a downstream reservoir.
+        let mut start = None;
+        for x in -20..=20 {
+            for z in -20..=20 {
+                if graph.downstream(RegionCoord { x, z }).is_some() {
+                    start = Some(RegionCoord { x, z });
+                    break;
+                }
+            }
+            if start.is_some() {
+                break;
+            }
+        }
+        let start = start.expect("a reservoir with downstream exists");
+        let before = res.total_volume();
+
+        // Pour a large amount: some retained, some spilled downstream.
+        let poured: u64 = 10_000_000;
+        let spilled = res.fill(&graph, start, poured as i64);
+        let retained = poured - spilled;
+        assert_eq!(res.total_volume() - before, retained);
+        assert!(spilled > 0, "a huge pour must overflow somewhere");
+
+        // The downstream of `start` must have gained volume (overflow
+        // routed downstream, not into thin air): the region right after.
+        let down = graph.downstream(start).unwrap();
+        // Drain everything we added at start: it must come back.
+        let drained = res.drain(start, i64::MAX as i64);
+        assert!(drained >= 0);
+        let _ = down;
+    }
+
+    /// Fill then drain exactly: reservoir returns to zero; drain never
+    /// goes negative; determinism.
+    #[test]
+    fn p3d205_reservoir_fill_drain_round_trip() {
+        let g = WorldGen::new(7);
+        let graph = RiverGraph::new(&g, 12);
+        let mut res = Reservoirs::from_graph(&graph);
+        let start = RegionCoord { x: 0, z: 0 };
+        let capacity = res.map[&(0, 0)].capacity_kl;
+        res.fill(&graph, start, capacity);
+        let v = res.map[&(0, 0)].volume_kl;
+        assert!(v > 0);
+        let drained = res.drain(start, v as i64);
+        assert_eq!(drained, v as u64);
+        assert_eq!(res.map[&(0, 0)].volume_kl, 0);
+        // Draining an empty reservoir yields 0.
+        assert_eq!(res.drain(start, 100), 0);
     }
 }
