@@ -3286,3 +3286,37 @@ Runtimes not rebuilt.
 HONESTLY DEFERRED: visual mesh generation/seams (renderer stage — this
 task proved the contract a mesher must satisfy); per-LOD mesh density;
 transvoxel-style transition geometry.
+
+## 2026-09-04 — loop 377: P3D-207 terrain debug overlay (P3D-200 COMPLETE)
+
+WHAT: Stage closer. Per-patch debug rows (coord, LOD, biome, elevation,
+edit count, built count) and a visual LOD-ring atlas — inspectable
+streaming state without a renderer.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-207.md.
+pc3d_world/src/debug_overlay.rs: rows_for (interest set, ascending,
+lod-consistent, caller-supplied edit/built count closures), lod_color
+(distinct ring palette), render_overlay (pixel per region, ring color x
+elevation gain, byte-deterministic). App --debug-overlay <seed>: renders
+poorcraft3d/apps/poorcraft3d/shots/debug_overlay_seed<N>.png + prints
+ring census. Files: debug_overlay.rs (new), lib.rs, main.rs, contract
+(docs/POORCRAFT-3D/contracts/P3D-207.md; the P3D-205 contract file was
+renamed from a mistaken P3D-205.md reuse), docs.
+
+TEST-SIDE FIXES: row-ordering assertion compared (z,x) while rows_for
+iterates (x,z) ascending — aligned to (x,z); center-pixel exact-color
+assert relaxed to the palette-gain tolerance (elevation shading shifts
+channels by design).
+
+VERIFICATION: P3D workspace cargo test 100 passed / 0 failed (+3:
+row completeness/order/LOD consistency, overlay determinism + visible
+concentric rings + palette validity, edit/build count pass-through).
+Release --debug-overlay seed 1: 33x33 patches, census Full 1 / Mid 4 /
+Far 42 / Horizon 1042, PNG human-eye PASS (blue Full center, green Mid
+ring, cyan Far band, grey Horizon field). make p3d-smoke OK. Root cargo
+test --workspace 474 green (unchanged; zero lf_* edits). Runtimes not
+rebuilt.
+
+HONESTLY DEFERRED: in-game HUD overlay (renderer stage); mesh-queue
+visuals (no meshes yet — queue counters live in P3D-004's profile);
+cave/build markers on the atlas (plotted when consumer data exists).

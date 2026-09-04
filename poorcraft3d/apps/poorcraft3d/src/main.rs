@@ -141,9 +141,42 @@ fn main() {
                 );
             }
         }
+        Some("--debug-overlay") => {
+            // P3D-207: per-patch debug rows + a visual LOD-ring atlas.
+            let seed: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(1);
+            let half: i32 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(16);
+            let gen = pc3d_world::WorldGen::new(seed);
+            let viewer = pc3d_world::WorldPos::default();
+            let rows = pc3d_world::rows_for(&gen, viewer, half, |_| 0, |_| 0);
+            let out_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("shots");
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+            let out = out_dir.join(format!("debug_overlay_seed{seed}.png"));
+            let atlas = pc3d_world::debug_overlay::render_overlay(&gen, viewer, half);
+            image::save_buffer(
+                &out,
+                &atlas.rgb,
+                atlas.size as u32,
+                atlas.size as u32,
+                image::ColorType::Rgb8,
+            )
+            .expect("encode png");
+            println!(
+                "[ok] debug overlay seed {seed} -> {} ({}x{} patches)",
+                out.display(),
+                atlas.size,
+                atlas.size
+            );
+            let mut counts = std::collections::BTreeMap::new();
+            for r in &rows {
+                *counts.entry(format!("{:?}", r.lod)).or_insert(0usize) += 1;
+            }
+            for (lod, n) in counts {
+                println!("     {lod}: {n} patches");
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>]"
             );
             std::process::exit(2);
         }

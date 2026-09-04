@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-09-04 — the terrain debug overlay; P3D-200 complete (loop 377, P3D-207)
+
+- **Streaming/terrain state is inspectable without a renderer.**
+  `pc3d_world::debug_overlay`: per-patch rows (coord, LOD, biome,
+  elevation, edit count, built count) over the interest set, plus a
+  deterministic LOD-ring atlas — `poorcraft3d --debug-overlay <seed>`
+  renders it and prints the ring census (Full 1 / Mid 4 / Far 42 /
+  Horizon 1042 concentric rings, human-eye PASS).
+- **P3D-200 hybrid-terrain stage COMPLETE**: extraction bake-off (201),
+  final-solid query (202), caves/cliffs (203), editing/journals/
+  compaction (204), construction overlay (205), LOD+seams (206), debug
+  overlay (207) — 100 pc3d tests green; root untouched at 474. Next
+  stage: P3D-300 water and environment.
+
 ## 2026-09-04 — LOD selection + the seam law (loop 376, P3D-206)
 
 - **Every patch maps to exactly one detail level** by distance —
