@@ -158,10 +158,13 @@ impl OpenDecision {
 /// magic guard: the guard answers "is this even our format", this answers
 /// "is this build allowed to parse it". Pure — bytes in, verdict out.
 pub fn open_decision(bytes: &[u8], supported: &SupportedVersions) -> OpenDecision {
-    // Outermost layer: the P3D-001 guard owns magic rejection.
-    if refuse_foreign_save(bytes) == SaveGuard::TooShort {
+    // A full header is the minimum the version law can even read. The
+    // 4-byte magic guard below would otherwise pass a partial header into
+    // decode, which must never be reached with short input.
+    if bytes.len() < HEADER_LEN {
         return OpenDecision::TooShort;
     }
+    // Outermost layer: the P3D-001 guard owns magic rejection.
     if refuse_foreign_save(bytes) == SaveGuard::ForeignFormat {
         return OpenDecision::ForeignFormat;
     }
@@ -287,11 +290,19 @@ mod tests {
 
     /// Layering: the P3D-001 guard's verdicts pass through unchanged, and a
     /// LOREFORGE-style file is refused as foreign BEFORE version logic runs.
+    /// Partial headers (4..16 bytes) are TooShort — decode must never be
+    /// reached with short input (found by the P3D-102 framing tests).
     #[test]
     fn p3d002_layers_on_the_p3d001_guard() {
         let sup = SupportedVersions::epoch1();
         assert_eq!(open_decision(&[], &sup), OpenDecision::TooShort);
         assert_eq!(open_decision(b"PC3", &sup), OpenDecision::TooShort);
+        // Every length between magic and full header is refused, not a panic.
+        for n in 4..HEADER_LEN {
+            let mut partial = b"PC3D...".to_vec();
+            partial.truncate(n);
+            assert_eq!(open_decision(&partial, &sup), OpenDecision::TooShort, "len {n}");
+        }
         assert_eq!(open_decision(b"LOREFORGE save data", &sup), OpenDecision::ForeignFormat);
         assert_eq!(open_decision(b"pc3d too lowercase", &sup), OpenDecision::ForeignFormat);
     }

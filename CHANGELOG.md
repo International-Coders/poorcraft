@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-09-04 — worlds persist: the patch store (loop 367, P3D-102)
+
+- **New crate `pc3d_save`** — the only code that touches `saves3d/`.
+  Every file is framed as 16-byte P3D header | payload length u64 LE |
+  payload | FNV-1a-64 checksum, byte-pinned; `saves3d/<world>/world.p3d`
+  carries the seed+name meta, patches live at deterministic keys
+  `patches/p<x>_<y>_<z>.patch`.
+- **Saves are atomic by construction** (temp file + rename): a crash
+  leaves only a `.tmp` no loader reads, and rename consumes it. Every
+  load runs the P3D-002 version law before length and checksum — foreign
+  files, wrong epochs, newer/older sections, truncation, and bit-flips
+  each refuse with the precise numbers and a human line.
+- **The version law itself got harder**: `pc3d_core::open_decision`
+  panicked on 4..16-byte inputs (the magic guard certified too little for
+  decode) — now an explicit header-length floor, with a loop test over
+  every partial length. Found by the framing tests; the refusals got
+  MORE precise too: a readable-but-truncated frame says
+  `LengthMismatch{declared, actual}`, not a generic "too short".
+- 52 pc3d tests green (+10 incl. the law-hardening regression); root
+  workspace untouched at 474; smoke OK. Contract at
+  `docs/POORCRAFT-3D/contracts/P3D-102.md`. Next: P3D-103, the first
+  world content — procedural macro terrain and biomes.
+
 ## 2026-09-04 — the world has a spatial language (loop 366, P3D-101)
 
 - **New crate `pc3d_world`** (zero dependencies, pure integer geometry)

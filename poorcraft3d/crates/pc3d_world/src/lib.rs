@@ -11,3 +11,11 @@ pub mod bounds;
 pub mod coords;
 pub mod query;
 pub mod scales;
+
+pub use bounds::{WorldBounds, WorldBoundsXz};
+pub use coords::{CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};
+pub use query::{patches_in_region, patches_touching, regions_touching, QueryError};
+pub use scales::{
+    CELL_MM, CELL_METERS, MAX_QUERY_PATCHES, MM_PER_METER, PATCH_CELL_AXIS, PATCH_MM,
+    PATCH_METERS, REGION_MM, REGION_METERS, REGION_PATCH_AXIS,
+};

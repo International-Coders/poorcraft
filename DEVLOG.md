@@ -2879,3 +2879,45 @@ HONESTLY DEFERRED: no content behind the coordinates (generation P3D-103,
 storage P3D-102); scales remain PROPOSAL values pending P-001/P-002 (by
 design one-file changeable); no pc3d_core dependency yet — header
 integration lands with the save path; interest rings are P3D-105.
+
+## 2026-09-04 — loop 367: P3D-102 patch store + atomic save + corruption rejection
+
+WHAT: Worlds persist. New pc3d_save crate: deterministic patch keys, the
+header law enforced at every open, atomic writes, and the full refusal
+matrix proven at the disk layer.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-102.md. framing.rs:
+frame(header,payload) = header(16) | len u64 LE | payload | fnv1a64 LE;
+unframe(bytes,supported) layers: open_decision (version law) ->
+readability floor (HEADER_LEN+8 to read the declared length) -> declared
+vs actual payload length -> checksum; FrameError variants carry numbers +
+explanation() lines (update the game / cannot downgrade / corrupt or
+truncated). paths.rs: world_root = <root>/saves3d/<name>; patch keys
+p{x}_{y}_{z}.patch. store.rs: write_atomic (tmp+rename, mkdir -p),
+save/load_patch + save/load_world_meta(WorldMeta{seed,name}), LoadError
+{Framing, Io} with Display. pc3d_world gained root re-exports of its
+coordinate types. Workspace member added.
+
+DEFECTS CAUGHT AND FIXED BEFORE COMMIT: (1) REAL BUG in the P3D-002 law:
+open_decision panicked on 4..16-byte inputs (refuse_foreign_save
+certifies only 4 bytes; decode needs 16) — fixed with an explicit
+HEADER_LEN floor + loop test over every partial length; (2) framing
+counted the checksum into the payload region (clean opens reported
+LengthMismatch) — FRAME_OVERHEAD subtraction fixed; (3) truncated-tail
+verdict upgraded from generic TooShort to precise LengthMismatch when
+the length field is readable. Also removed a garbage placeholder loop
+and a bogus helper call during writing.
+
+VERIFICATION: P3D workspace cargo test 52 passed / 0 failed (+10:
+byte-stable framing, guarded round-trip, refusal matrix in law order
+with first-offender determinism, explanation lines, deterministic
+separated paths, disk round-trip + exact on-disk bytes, foreign/newer/
+corrupt disk refusals, tmp-residue invisibility + clean replace,
+world-dir confinement, meta round-trip). make p3d-smoke OK. Root cargo
+test --workspace 474 green (unchanged; zero lf_* edits). Runtimes not
+rebuilt.
+
+HONESTLY DEFERRED: payloads are opaque bytes (generation fills them in
+P3D-103); no compression/dedup/journal-compaction (payload sizes will
+decide); no fsync (crash-consistency beyond rename is a later,
+benchmarked decision); no UI surface for refusal lines (no client yet).

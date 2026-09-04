@@ -1,0 +1,11 @@
+[package]
+name = "pc3d_save"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pc3d_core = { path = "../pc3d_core" }
+pc3d_world = { path = "../pc3d_world" }
+
+[dev-dependencies]
+tempfile = "3"
