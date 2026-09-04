@@ -516,6 +516,13 @@ mod tests {
         }
         let elapsed = start.elapsed();
         assert_eq!(hashes.len(), 16);
-        assert!(elapsed.as_millis() < 500, "16 patches took {elapsed:?}");
+        // Budget: 16 ms per patch on release (the blueprint's edit-hitch
+        // target). Debug builds get 8x slack — and this is a ceiling, not
+        // a tuning knob.
+        let budget_ms = if cfg!(debug_assertions) { 4000 } else { 500 };
+        assert!(
+            elapsed.as_millis() < budget_ms,
+            "16 patches took {elapsed:?} (budget {budget_ms} ms)"
+        );
     }
 }

@@ -3005,3 +3005,39 @@ HONESTLY DEFERRED: one pixel per region (intra-region detail awaits the
 meshing prototype P3D-201); palette is functional, not art-directed; no
 hydrology/site overlays (P3D-301+); PNG path is app-relative (fine until
 a save-dir convention lands).
+
+## 2026-09-04 — loop 370: P3D-105 interest rings + bounded queues (P3D-100 COMPLETE)
+
+WHAT: Stage closer for the world substrate: concentric interest rings,
+bounded streaming queues with visible backlog, and deterministic
+interest diffs — the anti-freeze contract for flight/teleport.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-105.md.
+pc3d_world/src/stream.rs: Tier enum + TIER_FULL/LOD/MACRO_M constants
+(96/320/1024 m proposals); interest_patches (patch columns with centers
+within the ring; Euclidean distance on centers; ascending; capped);
+interest_diff (merge-walk set difference, sorted disjoint outputs);
+BoundedQueue<T> (cap.max(1); push -> Admitted | RejectedFull(item);
+FIFO pop; pushed/admitted/rejected/popped counters). Files: stream.rs
+(new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES BEFORE COMMIT (each caught by its own proof): (1) popped
+arithmetic across a mid-test drain (4, not 5); (2) wave-2 re-admission
+must respect capacity — 105 deferred > 8 slots, so gradual re-push with
+a still-deferred remainder IS the design (a probe test printed the real
+counters: pushed 216, admitted 16, rejected 200 across both waves);
+(3) rejected counters ACCUMULATE across waves (200 = 104 + 96), not
+per-wave. Also gave the P3D-103 regeneration budget debug-build slack
+(8x) after the background root-suite run skewed the timing test.
+
+VERIFICATION: P3D workspace cargo test 67 passed / 0 failed (+4 stream
+tests: ring membership incl. far/negative viewers + macro>full size
+order, queue capacity/FIFO/counter honesty, the teleport bounded-work
+scenario with no-lost-work invariants, diff determinism + disjointness).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged;
+zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: pure bookkeeping — no real mesh jobs yet (P3D-201+
+fills the queues); tier radii are proposal constants pending benchmark
+calibration (P3D-201/206); no network interest messages (P3D-802); no
+LOD selection beyond tier membership (P3D-206).

@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-09-04 — interest rings + bounded queues: P3D-100 stage complete (loop 370, P3D-105)
+
+- **The world knows what to stream and refuses to drown.**
+  `pc3d_world::stream`: interest tiers at the blueprint's proposal radii
+  (full 96 m / LOD 320 m / macro 1024 m), `interest_patches` mapping a
+  viewer onto ascending bounded patch sets, `interest_diff` producing
+  deterministic load/unload plans, and `BoundedQueue` — fixed capacity,
+  overflow HANDS THE WORK BACK to the caller (never drops, never grows
+  unbounded), cumulative counters keeping the backlog visible.
+- **The teleport scenario is proven, not promised**: an 80 m jump yields
+  a 112-patch diff; the queue admits 8 per wave; re-push is gradual;
+  rejections accumulate across waves and every rejected item stays held,
+  counted — no unbounded growth, no lost work.
+- **P3D-100 world-substrate stage complete**: coordinates/patches (101),
+  persistence with the refusal law (102), coherent generation (103),
+  atlas evidence (104), streaming (105) — 67 pc3d tests green, root
+  workspace untouched at 474, smoke OK. Next stage: P3D-200 hybrid
+  terrain, opening with a measured surface-extraction bake-off (P3D-201).
+
 ## 2026-09-04 — seed atlases: geography you can see (loop 369, P3D-104)
 
 - **The generator carries its own evidence.** `pc3d_world::proof`: a pure
