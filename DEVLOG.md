@@ -2799,3 +2799,44 @@ HONESTLY DEFERRED: global allocator hook (opt-in later; counters are
 explicit-call now); threaded aggregation; GPU timings (no renderer);
 this task measures a SYNTHETIC workload — real budgets wait for real
 subsystems (P3D-201+), and the overlay UI is P3D-207.
+
+## 2026-09-04 — loop 365: P3D-005 first runtime + headless smoke (P3D-000 COMPLETE)
+
+WHAT: Stage capstone. The new game runs a real loop headlessly and a
+make target guards its liveness — closing the P3D-000 foundation stage
+(identity, format law, deterministic spine, profiler, runtime).
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-005.md. New
+pc3d_core/src/runtime.rs: WorldRuntime (owns FixedClock/Counters/
+FrameTimes/EventJournalOwner/CommandSequencer/SeedStreams — one owner,
+the future host's skeleton), frame(real_dt_ms) -> fired ticks (entity-
+tick counter per tick; EV_HEARTBEAT every HEARTBEAT_TICKS=600 with
+seed-mixed payload; EV_FRAME_BATCH per firing frame with fired count +
+tick bound), run_headless(seed, frames) driving deterministic WEATHER-
+stream jitter (11-33ms). Binary --run [seconds]: prints stats + digest,
+exit 1 on liveness failure. Makefile p3d-smoke: builds release, runs
+--run 5, asserts exit, echoes P3D SMOKE OK. Files: runtime.rs (new),
+lib.rs, main.rs, Makefile, contract, docs.
+
+TEST-SIDE FIXES BEFORE COMMIT: (a) seed-sensitivity test wrongly assumed
+equal tick counts across seeds — the headless jitter stream derives from
+the world seed BY DESIGN (streams = SeedStreams(world_seed)), so each
+seed produces its own frame stream; test now asserts per-seed replay
+identity + divergence. (b) liveness test assumed one journal batch per
+frame — sub-tick frames (11-16.6ms jitter fires 0 ticks) record the
+frame but journal nothing; test now bounds batches (0 < b <= 700) and
+asserts every batch's fired count is in 1..=8 (the shed cap).
+
+VERIFICATION: P3D workspace cargo test 32 passed / 0 failed (+4);
+make p3d-smoke -> "ran 300 frames (5 s) · 400 ticks · 290 journal
+events · frame p50 22.12 ms p95 31.87 ms / digest dd019eca900f5a61 /
+P3D SMOKE OK". Root cargo test --workspace 474 passed / 0 failed
+(unchanged; zero lf_* edits). Runtimes not rebuilt (original game
+untouched this loop).
+
+HONESTLY DEFERRED: the world is empty — ticks count time, not content
+(P3D-101+ fills it); frames are deterministic synthetic jitter, not a
+wall clock (deliberate: smoke must be reproducible); no window/renderer
+(engine-first order, 10-BETA-SCOPE); runtime state not persisted
+(P3D-102); journal owner is runtime-local — the shared journal format
+lands with persistence.

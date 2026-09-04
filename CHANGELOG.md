@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-04 — the new game runs: first runtime + smoke (loop 365, P3D-005)
+
+- **`poorcraft3d --run` is a real loop.** `WorldRuntime` owns the fixed
+  clock, counters, frame times, journal, command sequencer, and seed
+  streams — the skeleton every future host (solo or dedicated) reuses.
+  Frames advance ticks; ticks do counted, journaled work; a heartbeat
+  event fires every 600 ticks with a seed-mixed payload so two worlds
+  differ even at equal tick counts.
+- **`make p3d-smoke` guards liveness** the way `make smoke` guards the
+  original game: the headless run prints `300 frames · 400 ticks · 290
+  journal events · p50 22.12 ms` and `P3D SMOKE OK`, exit-code-asserted.
+  Same-seed runs replay to the identical digest; each seed jitters its own
+  frame stream and replays itself.
+- **P3D-000 stage complete**: identity + save guard (001), format law
+  (002), deterministic spine (003), profiler + baseline (004), runtime +
+  smoke (005) — 32 pc3d_core tests green, root workspace untouched at 474.
+  Next stage: P3D-100 world substrate (P3D-101 coordinates/patches).
+
 ## 2026-09-04 — the engine measures itself: profiler + baseline (loop 364, P3D-004)
 
 - **The performance-principles counter vocabulary exists in one place.**

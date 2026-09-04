@@ -60,9 +60,28 @@ fn main() {
             };
             println!("{}", record.to_json());
         }
+        Some("--run") => {
+            // P3D-005: the first runtime. Headless empty world, deterministic
+            // jitter frames (~27-90 fps equivalent), real clock/counters/
+            // journal. `--run [seconds]` simulates 60 fps-equivalent frames.
+            let seconds: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(5);
+            let frames = seconds * 60;
+            let rt = pc3d_core::run_headless(0x00C0FFEE, frames);
+            let s = rt.stats();
+            println!(
+                "ran {} frames ({} s) · {} ticks · {} journal events · frame p50 {:.2} ms p95 {:.2} ms",
+                s.frames, seconds, s.ticks, s.journal_events, s.p50_ms, s.p95_ms
+            );
+            println!("digest {:016x}", s.digest);
+            // Liveness: a running world ticks, journals, and measures.
+            if s.ticks == 0 || s.journal_events == 0 || s.p50_ms <= 0.0 {
+                eprintln!("[FAIL] runtime not alive: {s:?}");
+                std::process::exit(1);
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]]"
             );
             std::process::exit(2);
         }

@@ -81,6 +81,12 @@ p3d-build: ## Build the POORCRAFT 3D workspace (separate greenfield project)
 p3d-test: ## Run the POORCRAFT 3D test suite
 	cargo test --manifest-path poorcraft3d/Cargo.toml
 
+p3d-smoke: ## Headless liveness smoke for POORCRAFT 3D (runs the empty-world runtime 5 s)
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml
+	poorcraft3d_bin=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
+	$$poorcraft3d_bin --run 5 || exit 1; \
+	echo "P3D SMOKE OK"
+
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:
 	cargo run -p xtask -- new-mod $(id) $(if $(name),--name "$(name)",)
