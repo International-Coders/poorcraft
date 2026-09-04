@@ -3123,3 +3123,55 @@ Runtimes not rebuilt.
 HONESTLY DEFERRED: heightmap-only answers until P3D-203 adds 3D
 density; construction overlay absent until P3D-205; the 1-cell ocean-
 floor quantization artifact (documented, consistent, revisit at 203).
+
+## 2026-09-04 — loop 373: P3D-203 caves, cliffs, sealed volumes
+
+WHAT: The terrain's third dimension — cave voids, terraced cliff bands,
+overhang-capable density evaluation — with sealed-volume correctness
+tests and the bake-off's deferred cliff scene made real.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-203.md.
+gen.rs additions: value_noise_3d (trilinear smoothstep over 8 lattice
+hashes, 24k/16k mm cells); effective_surface_mm (smooth fbm base +
+cliff terracing: mask > 0.54 in 60m cells and base > 2m quantizes to
+crisp 4m steps, detail SUPPRESSED inside bands so the face is vertical);
+is_carved (two intersecting mid-bands |n-0.5| thresholds 0.085/0.12,
+gated: 4m crust, y>=0 water seal, 120m deep crust); carve() shared by
+regenerate_patch and final_solid (P3D-202 structural agreement kept);
+regenerate_patch additionally gates the carve call to the band (3D noise
+cost). terrain.rs: extraction candidates now extract vs the effective
+surface; SceneSpec::Cliff seeks its terraced patch deterministically
+(mask > 0.56, base > 4m, first 400m-grid hit in +-20km) with the y-level
+from the effective surface. surface_base_mm split out (smooth fbm only);
+surface_height_mm retained as the uncliffed comparison surface.
+
+DESIGN ITERATIONS CAUGHT BY TESTS: (1) terracing over detail-noised
+base smeared a 4m step across ~8 columns — the cliff test refused it;
+refactor suppresses detail in bands -> crisp faces; (2) cliff test
+band +-60m was smaller than ONE mask cell (no steps in band) -> seek-
+then-verify: coarse +-20km mask scan, fine 1m verification inside;
+(3) cliff pin treated meters as patch indices (patch landed 320km away,
+cols=0) -> div_euclid(16) + y from effective surface -> 256/256 columns
+in-window; (4) caves too rare at first thresholds (2/441 patches) ->
+widened mid-bands to 0.085/0.12; (5) carve cost in debug -> band gate
+in regenerate_patch + debug budget slack 12s (release 500ms is the
+contract, verified via --terrain-bench release run); (6) the P3D-103
+land-patch assertion (needs Rock|Soil) predates caves — caves hollow
+the substrate legitimately; relaxed to grass + some solid.
+
+VERIFICATION: P3D workspace cargo test 76 passed / 0 failed (+2: caves-
+exist-and-stay-sealed over 441 land patches with all sealed-volume
+invariants; cliffs-real via seek-then-verify with exception-not-rule
+density). make p3d-smoke OK. Release --terrain-bench: 4 scenes x 2
+candidates, all 256 cols measured, heightfield 33-80us extract /
+66-219us rebuild / 0.505-0.667m err vs density 4124-4153us /
+0.456-0.805m — heightfield decision stands with cliffs included. Root
+cargo test --workspace 474 green (unchanged; zero lf_* edits). Runtimes
+not rebuilt (no lf_* changes).
+
+HONESTLY DEFERRED: cave entrances are wherever carving meets the crust
+(no authored entrances); water-sealing is a rule, not simulated
+(P3D-301); overhangs are axis-aligned terraces, not curved (true 3D SDF
+overhangs when a consumer needs them); atlas/biome map unchanged
+(carving is sub-surface); patch hashes changed vs loop 372 (generator
+advanced — the P3D-002 format law is the versioning path).

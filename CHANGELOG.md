@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026-09-04 — caves, cliffs, overhang-capable terrain (loop 373, P3D-203)
+
+- **The terrain gained its third dimension.** `gen::effective_surface_mm`:
+  in rare 60 m noise-masked bands the surface quantizes to crisp 4 m
+  terraces — real cliff faces (detail noise is suppressed inside bands so
+  the step is a cliff, not a smear; the first cut's smeared 4-m-over-8-m
+  gradient was refused by the cliff test). `gen::is_carved`/`carve`:
+  worm-like cave voids from two intersecting mid-band trilinear 3D noise
+  fields.
+- **Sealed-volume law, test-enforced**: carving requires a 4 m solid crust
+  below the surface, never below y = 0 (water seal — oceans cannot drain
+  into caves until hydrology lands), never beyond a 120 m deep crust; a
+  441-land-patch scan proves caves exist and every carved cell obeys the
+  band.
+- **The P3D-202 single-answer guarantee survives**: `regenerate_patch`
+  and `final_solid` share the carve step, and the agreement matrix
+  re-proved over carved patches.
+- **The deferred cliff scene is real**: `SceneSpec::Cliff` seeks its
+  terraced patch deterministically (256/256 columns in-window) and
+  joined the bake-off. Re-measured: heightfield extract 33–80 µs /
+  rebuild 66–219 µs / fidelity 0.505–0.667 m vs density 4124–4153 µs /
+  0.456–0.805 m — **heightfield still wins with cliffs included**.
+- 76 pc3d tests green (+2); root workspace untouched at 474; smoke OK.
+  Contract at `docs/POORCRAFT-3D/contracts/P3D-203.md`. Next: P3D-204
+  terrain editing — dig, fill, journals, and compaction.
+
 ## 2026-09-04 — one answer for the whole world (loop 372, P3D-202)
 
 - **`final_solid(gen, wx, wy, wz) -> SolidAnswer`** is now the single

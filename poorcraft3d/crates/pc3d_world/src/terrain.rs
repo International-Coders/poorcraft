@@ -34,10 +34,11 @@ pub struct SolidAnswer {
 /// O(1). Guaranteed to agree with regenerated/stored patch cells because
 /// both call the same `gen::cell_material` decision.
 pub fn final_solid(gen: &WorldGen, wx: i64, wy: i64, wz: i64) -> SolidAnswer {
-    let surface_mm = gen.surface_height_mm(wx, wz);
+    let surface_mm = gen.effective_surface_mm(wx, wz);
     let region = WorldPos::from_mm(wx, wy, wz).region();
     let biome = gen.biome(region);
-    let material = cell_material(biome, wy, surface_mm);
+    let depth_mm = surface_mm - wy;
+    let material = gen.carve(cell_material(biome, wy, surface_mm), wx, wy, wz, depth_mm);
     SolidAnswer {
         solid: !matches!(material, CellMaterial::Air | CellMaterial::Water),
         material,
@@ -84,6 +85,11 @@ pub enum SceneSpec {
     Highlands,
     /// Land straddling sea level: beaches and shallow water columns.
     Coast,
+    /// A terraced cliff band (P3D-203): the surface quantizes to 4 m
+    /// steps inside the mask. The patch is FOUND by a deterministic seek
+    /// (same first-hit as the gen tests), not a fixed pin — the mask, not
+    /// a hand-picked coordinate, defines where cliffs exist.
+    Cliff,
 }
 
 impl SceneSpec {
@@ -92,6 +98,7 @@ impl SceneSpec {
             SceneSpec::SmoothHills => "smooth_hills",
             SceneSpec::Highlands => "highlands",
             SceneSpec::Coast => "coast",
+            SceneSpec::Cliff => "cliff",
         }
     }
 
@@ -111,6 +118,35 @@ impl SceneSpec {
             ),
             SceneSpec::Coast => {
                 (3, PatchCoord { x: -60 * 16 + 8, y: 0, z: -11 * 16 + 8 })
+            }
+            SceneSpec::Cliff => {
+                // Deterministic seek: first 400 m-grid point (sweeping
+                // +-20 km) inside a cliff mask band > 4 m above sea level.
+                // Patch coords are PATCHES (16 m), not meters: the patch
+                // containing the seek point, at the y level containing its
+                // terraced surface.
+                let gen = crate::gen::WorldGen::new(3);
+                for x in -20_000..=20_000i64 {
+                    for z in -20_000..=20_000i64 {
+                        if x.rem_euclid(400) != 0 || z.rem_euclid(400) != 0 {
+                            continue;
+                        }
+                        let wx = x * 1000;
+                        let wz = z * 1000;
+                        if gen.cliff_mask(wx, wz) > 0.56 {
+                            let base = gen.surface_base_mm(wx, wz);
+                            if base > 4_000 {
+                                let surface = gen.effective_surface_mm(wx, wz);
+                                let py = surface.div_euclid(16_000) as i32;
+                                return (
+                                    3,
+                                    PatchCoord { x: x.div_euclid(16) as i32, y: py, z: z.div_euclid(16) as i32 },
+                                );
+                            }
+                        }
+                    }
+                }
+                unreachable!("cliff band must exist (proven by gen tests)");
             }
         }
     }
@@ -133,7 +169,7 @@ pub mod candidate {
             for cz in 0..n {
                 let wx = (ax + cx as i32) as i64 * 1000;
                 let wz = (az + cz as i32) as i64 * 1000;
-                let surface_mm = gen.surface_height_mm(wx, wz);
+                let surface_mm = gen.effective_surface_mm(wx, wz);
                 for cy in 0..n {
                     let wy = (ay + cy as i32) as i64 * 1000;
                     if wy < surface_mm {
@@ -234,7 +270,7 @@ fn fidelity_error(gen: &WorldGen, coord: PatchCoord, grid: &SolidGrid) -> f32 {
         for cz in 0..n {
             let wx = (ax + cx as i32) as i64 * 1000;
             let wz = (az + cz as i32) as i64 * 1000;
-            let surface_mm = gen.surface_height_mm(wx, wz);
+            let surface_mm = gen.effective_surface_mm(wx, wz);
             let surface_m = surface_mm as f64 / 1000.0;
             // Only columns whose analytic surface lies inside the patch's
             // y-window carry extraction information: elsewhere all-air or
@@ -265,6 +301,7 @@ pub fn run_bakeoff() -> Vec<BenchResult> {
         SceneSpec::SmoothHills,
         SceneSpec::Highlands,
         SceneSpec::Coast,
+        SceneSpec::Cliff,
     ];
     let mut out = Vec::new();
     for scene in scenes {
@@ -398,7 +435,7 @@ mod tests {
     /// Grids are deterministic: same scene, same bytes.
     #[test]
     fn p3d201_grids_are_deterministic() {
-        for scene in [SceneSpec::SmoothHills, SceneSpec::Highlands, SceneSpec::Coast] {
+        for scene in [SceneSpec::SmoothHills, SceneSpec::Highlands, SceneSpec::Coast, SceneSpec::Cliff] {
             let (seed, coord) = scene.patch();
             let gen = WorldGen::new(seed);
             let a = candidate::heightfield(&gen, coord);
@@ -412,7 +449,7 @@ mod tests {
     #[test]
     fn p3d201_bakeoff_is_complete_and_plausible() {
         let rows = run_bakeoff();
-        assert_eq!(rows.len(), 6, "3 scenes × 2 candidates");
+        assert_eq!(rows.len(), 8, "4 scenes × 2 candidates");
         for r in &rows {
             assert!(r.extract_us > 0);
             assert!(r.edit_rebuild_us > 0);
@@ -434,7 +471,7 @@ mod tests {
     /// Patch span sanity for the scene patches (guards against pin typos).
     #[test]
     fn p3d201_scene_patches_are_aligned() {
-        for scene in [SceneSpec::SmoothHills, SceneSpec::Highlands, SceneSpec::Coast] {
+        for scene in [SceneSpec::SmoothHills, SceneSpec::Highlands, SceneSpec::Coast, SceneSpec::Cliff] {
             let (_, coord) = scene.patch();
             let o = coord.origin();
             assert_eq!(o.x.rem_euclid(PATCH_MM), 0);
