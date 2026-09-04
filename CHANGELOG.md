@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## 2026-09-04 — coherent procedural geography (loop 368, P3D-103)
+
+- **The first world content: seeds now produce geography, not confetti**
+  (D-016). `pc3d_world::gen`: one CONTINUOUS 3-octave value-noise
+  elevation field shared by the macro fields (per 256 m region:
+  elevation/temperature/humidity) and THE global height function — so a
+  region's center height equals its field elevation exactly, and biome
+  and ground can never disagree. Continuous detail noise (±1.5 m) keeps
+  terrain from being flat ramps.
+- **Eight biomes read from the fields** — Ocean, Coast, Plains, Forest,
+  Wetland, Highlands, Mountains, SnowPeaks — with the coherence rules
+  PROVEN across 24 seeds × a 17×17 region grid (oceans only below sea
+  level, SnowPeaks only high+cold, Wetland only humid lowland; all major
+  biomes reachable).
+- **Deterministic patch regeneration**: `regenerate_patch` builds 16³
+  material cubes purely by sampling the height function — untouched
+  patches never need storing (terrain blueprint layer 1), the same seed
+  replays cell-identically, and seam tests prove continuity across patch
+  AND region borders.
+- **The proofs caught a real design flaw**: the first draft blended
+  NEIGHBORING regions' fields for height, letting a Plains-labeled region
+  sit 30 m underwater — replaced by the single continuous field. Also
+  removed a 256× per-patch recomputation that put regeneration far over
+  budget.
+- 58 pc3d tests green (+6); root workspace untouched at 474; smoke OK.
+  Contract at `docs/POORCRAFT-3D/contracts/P3D-103.md`. Next: P3D-104
+  seed atlas + patch-hash proof tools.
+
 ## 2026-09-04 — worlds persist: the patch store (loop 367, P3D-102)
 
 - **New crate `pc3d_save`** — the only code that touches `saves3d/`.

@@ -2921,3 +2921,45 @@ HONESTLY DEFERRED: payloads are opaque bytes (generation fills them in
 P3D-103); no compression/dedup/journal-compaction (payload sizes will
 decide); no fsync (crash-consistency beyond rename is a later,
 benchmarked decision); no UI surface for refusal lines (no client yet).
+
+## 2026-09-04 — loop 368: P3D-103 procedural geography + deterministic patch regeneration
+
+WHAT: First world content for POORCRAFT 3D: coherent macro
+elevation/climate fields, a biome table that reads as terrain, and
+deterministic 16³ patch regeneration — the immutable procedural base of
+the blueprint's three-layer terrain.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-103.md (blueprint
+re-read per reading order). pc3d_world gained a pc3d_core dependency
+(SeedStreams contract; no private RNGs). gen.rs: value_noise (bilinear-
+smoothstep over 4 lattice hashes — continuity structural), fbm (octaves
+double lattice density), macro_field at region centers
+(elev -64..192m from fbm-1; temp/humidity fbm-2/3 scaled 0..100), biome_of
+thresholds, surface_height_mm (fbm-1 at world scale + continuous 2-octave
+detail ±1.5m), regenerate_patch (surface material by biome, Soil to 4m,
+Rock below; Water where wy<0 above-floor; Sand floors/coasts),
+patch_hash. Defects caught by the proofs BEFORE commit: (1) DESIGN FLAW —
+first draft blended NEIGHBOR regions' corner fields for height, so a
+Plains region's center could sit ~30m underwater (biome-vs-ground
+disagreement); replaced with ONE continuous field sampled at both region
+centers and world columns, making center-height == field-elevation exact;
+(2) PERF — regenerate_patch recomputed 4 region fields per column (256x);
+reverted to direct fbm sampling per column (cheap, cache-friendly);
+(3) TEST EXPECTATIONS — a uniformly-rock ocean patch legitimately
+quantizes identically across seeds (height map is the identity signal,
+not material cubes); land-grass probe must target the patch CONTAINING
+the center surface (y = elev/16), not y=0.
+
+VERIFICATION: P3D workspace cargo test 58 passed / 0 failed (+6 gen
+tests: determinism + seed sensitivity via fields/heights/patch-hash
+replay; 24-seed biome coherence matrix with reachability; neighbor
+correlation bound; patch-border AND region-border seam continuity;
+materials-read-as-terrain; regeneration cost under budget). make
+p3d-smoke OK. Root cargo test --workspace 474 green (unchanged; zero
+lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: heightmap base only — caves/overhangs density fields
+are P3D-203; rivers/watersheds P3D-301 (wetland corridors noted as the
+extension point); strata/ores/resources P3D-106+; generation is not yet
+wired to the patch STORE (composition later); rendering evidence waits
+for P3D-104's atlas tools.

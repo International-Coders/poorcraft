@@ -4,3 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+pc3d_core = { path = "../pc3d_core" }

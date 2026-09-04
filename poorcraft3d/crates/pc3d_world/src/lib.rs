@@ -9,6 +9,7 @@
 
 pub mod bounds;
 pub mod coords;
+pub mod gen;
 pub mod query;
 pub mod scales;
 
