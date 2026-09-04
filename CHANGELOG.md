@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-09-04 — the world has a spatial language (loop 366, P3D-101)
+
+- **New crate `pc3d_world`** (zero dependencies, pure integer geometry)
+  opens the P3D-100 world-substrate stage: `WorldPos` is signed 64-bit
+  millimeters — stable large-world identity with no float drift — mapped
+  by Euclidean floor division onto 1 m cells, 16 m patches, and 256 m
+  macro regions. Negative coordinates behave like a globe: x = -0.5 m
+  lives in cell -1.
+- **The blueprint scales live in exactly one module** (compile-time
+  coherence asserts included), so the still-pending owner decisions
+  P-001/P-002 re-scale the world in a single file when answered.
+- **Bounds algebra and bounded queries**: edge-inclusive bounds with
+  union/intersect/center, cell counts that SATURATE instead of overflowing
+  on planet-sized spans, and `patches_touching`/`regions_touching` that
+  iterate strictly ascending and refuse absurd bounds with
+  `TooManyPatches{requested, cap}` — the substrate no-hang promise
+  behind "one patch rebuild independent of total world size".
+- 43 pc3d tests green (+11); root workspace untouched at 474; smoke OK.
+  Contract at `docs/POORCRAFT-3D/contracts/P3D-101.md`. Next: P3D-102
+  patch store + atomic save, composing the header law with patch coords.
+
 ## 2026-09-04 — the new game runs: first runtime + smoke (loop 365, P3D-005)
 
 - **`poorcraft3d --run` is a real loop.** `WorldRuntime` owns the fixed
