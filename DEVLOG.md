@@ -2963,3 +2963,45 @@ are P3D-203; rivers/watersheds P3D-301 (wetland corridors noted as the
 extension point); strata/ores/resources P3D-106+; generation is not yet
 wired to the patch STORE (composition later); rendering evidence waits
 for P3D-104's atlas tools.
+
+## 2026-09-04 — loop 369: P3D-104 seed atlas + patch-hash proof tools
+
+WHAT: Evidence tooling for the generator (blueprint terrain-proof suite
+opens here): pure atlas rendering, cross-seed categorical disagreement,
+patch-hash spot checks, real PNG output.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-104.md.
+pc3d_world/src/proof.rs: biome_color (8-color injective palette),
+render_region_atlas (pixel per region, biome color x elevation gain
+0.8..1.2, byte-deterministic AtlasImage), cross_seed_disagreement
+(biome fraction differing), verify_patch_hash (double regeneration).
+App: --atlas <seed> [half_regions=48] writes
+poorcraft3d/apps/poorcraft3d/shots/atlas_seed<N>.png via the image crate
+(app-only dep; substrate pure), prints census + 5 spot checks, exits 1
+on hash failure. Makefile p3d-atlas SEED=. Both atlas PNGs committed.
+
+THE ATLAS AS DESIGN TOOL — three generator iterations, each caught by
+LOOKING at the PNG: (1) octave cells 1-4 regions -> confetti map, no
+continents (D-016 violation); (2) cells 128 regions -> 100% cross-seed
+disagreement = each seed one flat biome (coherence sweep window too
+narrow to see variety); (3) landed: cells 48/24/12 regions (12/6/3 km)
++ sea-level-centered elevation mapping (mean +16 m, +/-150 m spread) in
+BOTH macro_field and surface_height_mm (biome/ground agreement kept
+exact). Coherence sweep widened to +/-40 regions x 8 seeds; ocean/grass
+probes moved to region-center patches at the surface y-level (corner
+patches near coasts are legitimately dry). Also fixed a format-string
+compile error ({1000 + s} inline expressions) and an unused import.
+
+VERIFICATION: P3D workspace cargo test 63 passed / 0 failed (+5 proof
+tests: atlas determinism, palette injectivity, disagreement gates over 6
+seed pairs incl. self-agreement 0.0, patch-hash spot matrix across
+signs, all-pixels-on-palette). Human-eye pass: atlas_seed1.png (green
+continent, two oceans, coast rings, wetland strip, highland edges) and
+atlas_seed7.png (eastern ocean, bays, different ranges) — both read as
+coherent, distinct geographies. make p3d-smoke OK. Root cargo test
+--workspace 474 green. Runtimes not rebuilt (no lf_* changes).
+
+HONESTLY DEFERRED: one pixel per region (intra-region detail awaits the
+meshing prototype P3D-201); palette is functional, not art-directed; no
+hydrology/site overlays (P3D-301+); PNG path is app-relative (fine until
+a save-dir convention lands).

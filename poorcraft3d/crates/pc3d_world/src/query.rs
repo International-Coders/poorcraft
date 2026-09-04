@@ -7,7 +7,7 @@
 
 use crate::bounds::{WorldBounds, WorldBoundsXz};
 use crate::coords::{PatchCoord, RegionCoord};
-use crate::scales::{MAX_QUERY_PATCHES, PATCH_MM, PATCH_CELL_AXIS, REGION_MM, REGION_PATCH_AXIS};
+use crate::scales::{MAX_QUERY_PATCHES, PATCH_MM, REGION_MM, REGION_PATCH_AXIS};
 
 /// Why a query refused to run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

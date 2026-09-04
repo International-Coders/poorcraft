@@ -87,6 +87,10 @@ p3d-smoke: ## Headless liveness smoke for POORCRAFT 3D (runs the empty-world run
 	$$poorcraft3d_bin --run 5 || exit 1; \
 	echo "P3D SMOKE OK"
 
+p3d-atlas: ## Render a POORCRAFT 3D seed atlas PNG: make p3d-atlas SEED=1
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --atlas $(if $(SEED),$(SEED),1)
+
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:
 	cargo run -p xtask -- new-mod $(id) $(if $(name),--name "$(name)",)

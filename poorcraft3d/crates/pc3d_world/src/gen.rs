@@ -121,14 +121,17 @@ impl WorldGen {
     }
 
     /// Fractal blend of `octaves` noise layers. `u`/`v` are in REGION units
-    /// (region centers sit at .5); each octave doubles the lattice density.
+    /// (region centers sit at .5). Octave cells span 48/2^o regions — 12,
+    /// 6, 3 km — so a 25-km atlas view holds real coastline variety while
+    /// features stay continental (the atlas proof drove three iterations:
+    /// 1-km cells rendered as confetti, 32-km cells as one flat biome).
     fn fbm(&self, channel: u64, u: f64, v: f64, octaves: u32) -> f32 {
         let mut value = 0.0f32;
         let mut amplitude = 1.0f32;
         let mut total = 0.0f32;
         for o in 0..octaves {
-            let cells = 2f64.powi(o as i32);
-            value += self.value_noise(channel, o, u * cells, v * cells) * amplitude;
+            let cells = 48f64 / 2f64.powi(o as i32);
+            value += self.value_noise(channel, o, u / cells, v / cells) * amplitude;
             total += amplitude;
             amplitude *= 0.5;
         }
@@ -146,19 +149,24 @@ impl WorldGen {
         ((h >> 11) as f32) / ((1u64 << 53) as f32)
     }
 
-    /// Macro field for one region, sampled at its center. Elevation spans
-    /// the full declared range; temperature and humidity are independent
-    /// fields (0..=100). The center elevation IS the height function's
-    /// value there — biome and ground can never disagree.
+    /// Macro field for one region, sampled at its center. Elevation is
+    /// centered near sea level (mean +16 m, ±150 m spread) so maps hold
+    /// real oceans AND high peaks; temperature and humidity are 0..=100.
+    /// The center elevation IS the height function's value there — biome
+    /// and ground can never disagree.
     pub fn macro_field(&self, region: RegionCoord) -> MacroField {
         let u = region.x as f64 + 0.5;
         let v = region.z as f64 + 0.5;
-        let e = self.fbm(1, u, v, 3);
+        let e = self.fbm(1, u, v, 3) as f64;
         let t = self.fbm(2, u, v, 2);
         let hum = self.fbm(3, u, v, 2);
+        let half = (MAX_ELEVATION_M - MIN_ELEVATION_M) as f64 / 2.0;
+        let elev_m = (16.0 + (e - 0.5) * 2.4 * half).clamp(
+            MIN_ELEVATION_M as f64,
+            MAX_ELEVATION_M as f64,
+        ) as i32;
         MacroField {
-            elevation_m: MIN_ELEVATION_M
-                + ((MAX_ELEVATION_M - MIN_ELEVATION_M) as f32 * e) as i32,
+            elevation_m: elev_m,
             temperature: (t * 100.0) as u8,
             humidity: (hum * 100.0) as u8,
         }
@@ -206,9 +214,12 @@ impl WorldGen {
     /// at 8 m / 4 m scales. Mesh, collision, water, and every regenerated
     /// patch consult this one function.
     pub fn surface_height_mm(&self, wx: i64, wz: i64) -> i64 {
-        let base_m = MIN_ELEVATION_M as f64
-            + ((MAX_ELEVATION_M - MIN_ELEVATION_M) as f64)
-                * self.fbm(1, wx as f64 / REGION_MM_F, wz as f64 / REGION_MM_F, 3) as f64;
+        let e = self.fbm(1, wx as f64 / REGION_MM_F, wz as f64 / REGION_MM_F, 3) as f64;
+        let half = (MAX_ELEVATION_M - MIN_ELEVATION_M) as f64 / 2.0;
+        let base_m = (16.0 + (e - 0.5) * 2.4 * half).clamp(
+            MIN_ELEVATION_M as f64,
+            MAX_ELEVATION_M as f64,
+        );
         let detail = self.detail_mm(wx, wz);
         (base_m * 1000.0) as i64 + detail
     }
@@ -342,15 +353,16 @@ mod tests {
         assert_eq!(a.regenerate_patch(coord).hash(), b.regenerate_patch(coord).hash());
     }
 
-    /// Field/biome coherence across many seeds: the table reads as terrain,
-    /// and the major biomes are all reachable.
+    /// Field/biome coherence across many seeds over a 80×80-region sweep
+    /// (wide enough to cross continental bands): the table reads as
+    /// terrain, and the major biomes are all reachable.
     #[test]
     fn p3d103_biomes_are_coherent_with_fields() {
         let mut seen = std::collections::BTreeSet::new();
-        for seed in 0..24u64 {
+        for seed in 0..8u64 {
             let g = WorldGen::new(seed.wrapping_mul(0x9E3779B97F4A7C15));
-            for x in -8..=8 {
-                for z in -8..=8 {
+            for x in -40..=40 {
+                for z in -40..=40 {
                     let f = g.macro_field(RegionCoord { x, z });
                     let b = g.biome_of(&f);
                     seen.insert(b);
@@ -453,10 +465,20 @@ mod tests {
             }
         }
         if let Some(r) = ocean {
-            let patch = g.regenerate_patch(PatchCoord { x: r.x * 16, y: -1, z: r.z * 16 });
+            // Probe the patch containing the region center's SURFACE (an
+            // ocean center is below sea level; its corner patches near a
+            // coast can be dry land).
+            let f = g.macro_field(r);
+            let py = (f.elevation_m / 16).clamp(-16, -1);
+            let patch = g.regenerate_patch(PatchCoord {
+                x: r.x * 16 + 8,
+                y: py,
+                z: r.z * 16 + 8,
+            });
             assert!(
                 patch.cells.iter().any(|&c| c == CellMaterial::Water),
-                "ocean patch at {r:?} lacks water"
+                "ocean patch at {r:?} (elev {} m) lacks water",
+                f.elevation_m
             );
         }
         if let Some(r) = land {

@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-09-04 — seed atlases: geography you can see (loop 369, P3D-104)
+
+- **The generator carries its own evidence.** `pc3d_world::proof`: a pure
+  atlas renderer (one pixel per region, biome-colored, elevation-graded,
+  byte-deterministic), the cross-seed categorical disagreement gate
+  (ported from the original game's N06 pattern), and patch-hash spot
+  verification. `poorcraft3d --atlas <seed>` writes real PNGs and prints
+  the census; `make p3d-atlas SEED=n`.
+- **The atlas proof drove the generator's design through three visible
+  iterations**: 1-4 km octave cells rendered as confetti (a D-016
+  violation, caught by looking at the PNG), 32-km cells rendered as one
+  flat biome per seed (100% cross-seed disagreement = two flat worlds),
+  and the landing point — 12/6/3 km octave cells plus a sea-level-centered
+  elevation mapping — renders seed 1 as a green continent with coastline
+  rings, wetlands, and two oceans, seed 7 as a different landmass with an
+  eastern ocean and bays. Both PNGs human-eye PASS; categorical
+  disagreement 48.9-93.6% across seeds, 0% self-disagreement.
+- The coherence sweep widened to 80x80 regions x 8 seeds (it now crosses
+  continental bands), and the ocean/grass material probes target the
+  region-center patch at the surface's y-level — corner patches near
+  coasts are legitimately dry land.
+- 63 pc3d tests green (+5); root workspace untouched at 474; smoke OK.
+  Atlas PNGs committed as evidence. Next: P3D-105 interest management +
+  bounded streaming queues.
+
 ## 2026-09-04 — coherent procedural geography (loop 368, P3D-103)
 
 - **The first world content: seeds now produce geography, not confetti**

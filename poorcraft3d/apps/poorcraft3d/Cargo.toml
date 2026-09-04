@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 pc3d_core = { path = "../../crates/pc3d_core" }
+pc3d_world = { path = "../../crates/pc3d_world" }
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [[bin]]
 name = "poorcraft3d"

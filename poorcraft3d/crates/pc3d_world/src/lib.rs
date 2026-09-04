@@ -10,6 +10,7 @@
 pub mod bounds;
 pub mod coords;
 pub mod gen;
+pub mod proof;
 pub mod query;
 pub mod scales;
 
