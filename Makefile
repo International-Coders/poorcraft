@@ -87,6 +87,12 @@ p3d-smoke: ## Headless liveness smoke for POORCRAFT 3D (runs the empty-world run
 	$$poorcraft3d_bin --run 5 || exit 1; \
 	echo "P3D SMOKE OK"
 
+p3d-diagnose: ## Player-diagnosis walk: make p3d-diagnose SEED=2024
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml
+	poorcraft3d_bin=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
+	$$poorcraft3d_bin --diagnose $(if $(SEED),$(SEED),2024) || exit 1; \
+	echo "P3D DIAGNOSE OK"
+
 p3d-atlas: ## Render a POORCRAFT 3D seed atlas PNG: make p3d-atlas SEED=1
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --atlas $(if $(SEED),$(SEED),1)
