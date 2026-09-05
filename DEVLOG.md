@@ -3875,3 +3875,39 @@ rebuilt.
 HONESTLY DEFERRED: cast effects apply through the edit path only when
 callers compose them (composition with P3D-204 store when the player
 save lands); more runes/schools (later breadth); combat magic.
+
+## 2026-09-05 — loop 392: P3D-505 engineering + P3D-506 player diagnosis
+
+WHAT: Two tasks shipped together: (1) the engineering path (valves,
+pipes, waterwheels on the flow contract) and (2) the player-diagnosis
+walk that exercises every shipped system in one deterministic pass.
+
+HOW: P3D-505: pc3d_world/src/engineering.rs — ValveNetwork (add/set/
+flow_through; bidirectional edge matching; any-closed-blocks), Pipe,
+WaterWheel::site (rpm_milli = max(5, discharge*slope/4096) from real
+graph records; None on dry sites). P3D-506: pc3d_world/src/diagnose.rs
+— run_diagnosis(seed) exercises 12 systems via their tested APIs
+(spawn_safe, step movement, harvest_into, NavPatch::path, 
+fishing_catch, eat_from, Construction::place, Mage::cast, 
+EntityRegistry, Companion::step, Settlements::new, Reservoirs::fill),
+each producing a CheckResult{name, pass, detail}; run_full_diagnosis
+also renders AtlasImage for atlas/overlay/flow_map. App --diagnose
+prints verdict table + writes 3 PNGs, exit 1 on failure. Files:
+engineering.rs, diagnose.rs (new), lib.rs x2, main.rs, companion.rs
+(at_target), contracts, docs.
+
+TEST-SIDE FIXES: (1) the nav check used local coords as world cells
+(fixed: compute world cells from scene patch origin); (2) the companion
+check used an arbitrary dig_cell outside the nav patch (fixed: use
+SmoothHills scene terrain with an at_target x/z accessor).
+
+VERIFICATION: P3D workspace cargo test 171 passed / 0 failed (+2
+engineering, +2 diagnose, +1 companion at_target, +1 nav_diag).
+poorcraft3d --diagnose 2024: 12/12 PASS + 3 PNGs. make p3d-smoke OK.
+Root cargo test --workspace 474 green (unchanged; zero lf_* edits).
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: steam physics (P3D-702); per-cell flow physics;
+visual network rendering (atlas covers macro); companion combat assist
+(positioning only); multi-companion formations; NPC perception
+integration with the entity registry; dungeon decoration.

@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-09-05 — engineering + player diagnosis (loop 392, P3D-505/506)
+
+- **Valve-era engineering components on the flow-consumer contract.**
+  `pc3d_world::engineering`: ValveNetwork (bidirectional on/off gates on
+  river edges — any closed valve blocks), Pipe (endpoint record), and
+  WaterWheel::site deriving spin rate (milli-RPM) from real discharge ×
+  slope records.
+- **The game can diagnose itself AS A PLAYER.** `poorcraft3d --diagnose
+  <seed>` walks every shipped system in one deterministic pass: spawn,
+  walk, dig, navigate, fish, eat, build, cast, entities, companion,
+  settlements, reservoirs — 12 checks, each with a real assertion, plus
+  3 proof PNGs (atlas, debug overlay, flow map). Exits 1 on any failure.
+- 171 pc3d tests green (+6); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-505.md`.
+
 ## 2026-09-04 — the first magic path: runes, mana, casts (loop 391, P3D-504)
 
 - **Magic is learnable and world-facing.** `pc3d_world::magic`: two
