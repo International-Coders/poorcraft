@@ -3541,3 +3541,34 @@ zero lf_* edits). Runtimes not rebuilt.
 HONESTLY DEFERRED: player-facing fishing UI/rod items (P3D-502 content);
 irrigation/transport/magical liquids (remaining P3D-307 items — each a
 separate consumer task when their stage lands); fish species variety.
+
+## 2026-09-04 — loop 384: P3D-401 player controller (P3D-400 opener)
+
+WHAT: The first PERSON moves: deterministic collision controller with
+step-up, swimming, and safe spawn — the P3D-400 stage opener.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-401.md.
+pc3d_world/src/player.rs: constants (SIM_DT 1/60, HALF_WIDTH 0.3,
+BODY_HEIGHT 1.8, WALK 4.3, SWIM 2.2, GRAVITY 18, TERMINAL_FALL 40,
+TERMINAL_SINK 2, JUMP 6.5); Player{pos[3] feet meters, vel, on_ground,
+swimming}; MoveInput{move_x,move_z,jump}; spawn_safe (progressive
+doubling rings, REGION-CENTER cells, macro-elevation prefilter);
+try_spawn_at (topmost solid in 0..48, feet+1 above sea, 2 passable
+above); step (swim check, accel, gravity/buoyancy, axis-separated
+move_axis with collision, step-up, landing snap); body_collides
+(4 corners x [0.1,0.9,1.7] heights); helpers solid_at/passable_at/
+is_water_at. Files: player.rs (new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES (5, each caught by its own proof): swim probe used
+region CORNER patches then patch indices as meters (twice) and a
+shallow -4m shelf where floor+4 = sea level Air; spawn scan reused
+region*16+8 as a CELL coordinate (16x off — the scan spun at the
+origin corner, 190% CPU for 25 minutes) — correct region*256+128.
+
+VERIFICATION: P3D workspace cargo test 123 passed / 0 failed (+5
+player tests). make p3d-smoke OK. Root cargo test --workspace 474
+green (unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: camera/mouse/UI (renderer stage); sprint; variable
+jump; entity registry (P3D-402); position persistence (with the host
+save); capsule-vs-triangle precision (AABB samples on 1m cells).

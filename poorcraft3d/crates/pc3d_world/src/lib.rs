@@ -16,6 +16,7 @@ pub mod flow;
 pub mod gen;
 pub mod hydro;
 pub mod lod;
+pub mod player;
 pub mod proof;
 pub mod query;
 pub mod scales;
@@ -28,6 +29,7 @@ pub use gen::{Biome, CellMaterial, MacroField, WorldGen};
 pub use build::{effective_answer, replay_builds, BuildBlock, BuildKind, BuildOp, Construction, PlaceError, RemoveError};
 pub use edit::{apply_edit, affected_patches, replay, Brush, EditKind, EditOp, Snapshot, COMPACT_THRESHOLD};
 pub use coords::{Axis, CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};
+pub use player::{MoveInput, Player, BODY_HEIGHT, EYE_HEIGHT, HALF_WIDTH, SIM_DT, SWIM_SPEED, WALK_SPEED};
 pub use proof::{current_shade, render_flow_map, river_stroke_width};
 pub use query::{patches_in_region, patches_touching, regions_touching, QueryError};
 pub use scales::{

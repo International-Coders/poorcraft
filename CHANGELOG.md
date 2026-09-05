@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-09-04 — the player moves: collision, steps, swimming, spawn (loop 384, P3D-401)
+
+- **The first PERSON moves through POORCRAFT 3D.** `pc3d_world::player`:
+  a deterministic 60 Hz controller — axis-separated collision against
+  `final_solid` (4 footprint corners × 3 body heights), 1 m STEP-UP for
+  grounded/swimming players, gravity with terminal fall, SWIMMING in
+  Water cells (2.2 m/s cap, buoyant gravity, terminal sink 2 m/s,
+  jump swims up), 6.5 m/s jump.
+- **Safe spawn**: progressive doubling rings around the origin over
+  REGION-CENTER cells with a macro-elevation prefilter — solid floor,
+  two passable cells above, above sea level — proven across 3 seeds.
+- **Proven by tests**: flat walk stays level and moves; climb ≤ 2 m and
+  never clips through the world after 600 ticks of wall-pushing;
+  determinism (600 mixed inputs → identical trajectories); swimming
+  buoyancy bounded by terminal sink with working swim-up.
+- FIVE test-caught bugs fixed en route — the biggest: the spawn scan
+  used region×16+8 as a CELL coordinate (16× off), spinning the scan on
+  an origin corner forever. Correct: region×256+128.
+- 123 pc3d tests green (+5); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-401.md`. Next: P3D-402 entity
+  registry + spatial index.
+
 ## 2026-09-04 — fishing: the first flow consumer (loop 383, P3D-307)
 
 - **The first consumer built ON the flow-contract interface.**
