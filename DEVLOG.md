@@ -3850,3 +3850,28 @@ zero lf_* edits). Runtimes not rebuilt.
 
 HONESTLY DEFERRED: creature chase/pathing AI (position-holding v1);
 ranged attacks; boss; dungeon decoration/loot chests; meshes.
+
+## 2026-09-04 — loop 391: P3D-504 first magic path (runes, mana, casts)
+
+WHAT: The 20th task of the goal: a learnable, world-facing magic
+system — the mage story's first real mechanic (D-009/D-012/D-023).
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-504.md.
+pc3d_world/src/magic.rs: Rune (Lumen/Delve with mana costs 10/18),
+Mana (regen +1/tick capped at MANA_MAX 100, spend() refusing
+insufficient pools without side effects), Mage (learned BTreeSet +
+learn idempotent + knows), cast(rune, target) -> Result<CastEffect,
+CastError>: Lumen -> Light (target + 6 neighbors), Delve -> Dig (3x3
+disc); CastError::NotLearned/NotEnoughMana refuse without changes.
+lib.rs wiring. Files: magic.rs (new), lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 163 passed / 0 failed (+4:
+learning gates casting with no mana drain on refusal; mana spend/regen
++ refused-cast purity; Lumen 7-cell and Delve 9-cell effect coverage;
+cross-instance determinism). make p3d-smoke OK. Root cargo test
+--workspace 474 green (unchanged; zero lf_* edits). Runtimes not
+rebuilt.
+
+HONESTLY DEFERRED: cast effects apply through the edit path only when
+callers compose them (composition with P3D-204 store when the player
+save lands); more runes/schools (later breadth); combat magic.

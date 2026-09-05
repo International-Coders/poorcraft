@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-09-04 — the first magic path: runes, mana, casts (loop 391, P3D-504)
+
+- **Magic is learnable and world-facing.** `pc3d_world::magic`: two
+  runes — LUMEN (marks target + 6 neighbors as light, 10 mana) and
+  DELVE (clears a 3×3 disc, 18 mana) — learned via `Mage::learn`, cast
+  for mana from a regenerating pool (+1/tick capped at max).
+- **Refusals are total**: unlearned runes and insufficient mana fail
+  with zero side effects (mana unchanged, world unchanged). Effects are
+  edit plans composed by callers through the P3D-204 path.
+- Tests: learning gates casting; spend + regen; effect cell coverage;
+  cross-instance determinism.
+- 163 pc3d tests green (+4); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-504.md`.
+
 ## 2026-09-04 — the danger loop: combat, creatures, loot, dungeon (loop 390, P3D-503)
 
 - **Hostile creatures with deterministic melee.** `pc3d_world::combat`:

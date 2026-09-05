@@ -20,6 +20,7 @@ pub mod gen;
 pub mod hydro;
 pub mod items;
 pub mod lod;
+pub mod magic;
 pub mod nav;
 pub mod npc;
 pub mod perception;
