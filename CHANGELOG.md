@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-09-04 — witnesses remember: perception + karma (loop 388, P3D-405)
+
+- **`pc3d_world::perception`**: NPCs witness moral events within a
+  Chebyshev sight radius (exact, corners included); personal knowledge
+  is a BOUNDED evidence list (capacity 32, weakest dropped first) whose
+  confidence ages (0.05 per 1000 ticks, forgotten at zero); reports
+  spread evidence at REPORT_CONFIDENCE (0.6 — always below witnessed);
+  `Karma` holds per-faction baselines + per-actor evidence deltas with
+  disposition = baseline + delta clamped ±100.
+- **Tests**: witness radius exact incl. corners; report spread at lower
+  confidence + unknown-event failure; aging decay + forgetting;
+  capacity drops the weakest first; faction baselines differ (D-030)
+  and evidence shifts dispositions with floor clamping; full-history
+  determinism.
+- 139 pc3d tests green (+4); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-405.md`. Next: P3D-406 companions.
+
 ## 2026-09-04 — NPCs live: roles, needs, schedules, intent (loop 387, P3D-404)
 
 - **`pc3d_world::npc`**: Role (Farmer/Fisher/Builder/Guard, each with a

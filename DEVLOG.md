@@ -3670,3 +3670,35 @@ zero lf_* edits). Runtimes not rebuilt.
 HONESTLY DEFERRED: perception/memory/karma (P3D-405); companions
 (P3D-406); far-settlement aggregates (P3D-407); player-facing visuals
 for activities (renderer stage).
+
+## 2026-09-04 — loop 388: P3D-405 perception, knowledge, reports, karma
+
+WHAT: The moral-consequence substrate (D-028/D-030): witnessing,
+personal evidence with confidence/age, reporting that spreads at lower
+confidence, faction karma baselines, and a clamped local reaction
+query.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-405.md.
+pc3d_world/src/perception.rs: MoralEvent/MoralKind (weights Theft -10,
+Assault -20, Gift +10, Help +8; codes validated); witness() Chebyshev;
+Knowledge::remember (merge raises confidence to max; capacity 32 drops
+lowest-confidence first), age() (decay 0.05/1000 ticks, forget at 0),
+report_to (REPORT_CONFIDENCE 0.6 scaled by knower confidence);
+Karma::apply/disposition_toward (baseline + delta, clamped +-100).
+Files: perception.rs (new), lib.rs, contract, docs.
+
+TEST-SIDE FIX: capacity assertion demanded all survivors > 0.2 but the
+threshold math was looser than the drop policy — refined to assert the
+minimum kept confidence exceeds the 8th-lowest input (the actual drop
+guarantee).
+
+VERIFICATION: P3D workspace cargo test 139 passed / 0 failed (+4:
+witness radius exact incl. corners; report spread + unknown refusal;
+aging decay + forget + capacity weak-first; karma baselines/deltas/
+clamp + full-history determinism). make p3d-smoke OK. Root cargo test
+--workspace 474 green (unchanged; zero lf_* edits). Runtimes not
+rebuilt.
+
+HONESTLY DEFERRED: behavior consuming dispositions (later NPC stages);
+per-NPC faction membership (factions land with settlements); vision
+occlusion (open-Chebyshev radius for now).

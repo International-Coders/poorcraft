@@ -19,6 +19,7 @@ pub mod hydro;
 pub mod lod;
 pub mod nav;
 pub mod npc;
+pub mod perception;
 pub mod player;
 pub mod proof;
 pub mod query;
@@ -35,6 +36,7 @@ pub use edit::{apply_edit, affected_patches, replay, Brush, EditKind, EditOp, Sn
 pub use coords::{Axis, CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};
 pub use nav::{cross_patch_path, NavPatch, MAX_NAV_NODES};
 pub use npc::{schedule_phase, Activity, Intent, Needs, NpcBrain, Role, SchedulePhase, IDLE_END, SLEEP_END, WORK_END};
+pub use perception::{witness, Evidence, Karma, Knowledge, MoralEvent, MoralKind, REPORT_CONFIDENCE, SIGHT_RADIUS, WITNESSED_CONFIDENCE, KNOWLEDGE_CAPACITY, DISPOSITION_MIN, DISPOSITION_MAX};
 pub use player::{MoveInput, Player, BODY_HEIGHT, EYE_HEIGHT, HALF_WIDTH, SIM_DT, SWIM_SPEED, WALK_SPEED};
 pub use proof::{current_shade, render_flow_map, river_stroke_width};
 pub use query::{patches_in_region, patches_touching, regions_touching, QueryError};
