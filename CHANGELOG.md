@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-09-05 — the crafting system: recipes + progression (loop 393, P3D-506)
+
+- **Recipes combine materials into new items.** `pc3d_world::craft`:
+  RECIPES table (stone_pick = 3 wood + 2 stone; iron_pick = 5 stone +
+  2 wood; bread = 3 soil; sand-to-snow; compost), recipe_by_code and
+  recipe_for_output lookups, can_craft pre-check, and craft() with the
+  P3D-501 atomicity law — inventory UNTOUCHED on failure.
+- **The crafting progression loop is test-proven**: gather soil → bread;
+  gather wood + stone → stone_pick; gather more → iron_pick. All three
+  phases produce their items from the same inventory.
+- Well-formedness test: unique recipe codes, unique outputs, known
+  items, positive counts. Craft results are deterministic.
+- 173 pc3d tests green (+5); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-506.md`.
+
 ## 2026-09-05 — engineering + player diagnosis (loop 392, P3D-505/506)
 
 - **Valve-era engineering components on the flow-consumer contract.**

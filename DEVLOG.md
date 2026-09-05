@@ -3911,3 +3911,34 @@ HONESTLY DEFERRED: steam physics (P3D-702); per-cell flow physics;
 visual network rendering (atlas covers macro); companion combat assist
 (positioning only); multi-companion formations; NPC perception
 integration with the entity registry; dungeon decoration.
+
+## 2026-09-05 — loop 393: P3D-506 crafting system (recipes + progression)
+
+WHAT: The crafting system on the P3D-501 item catalog: RECIPES table,
+recipe lookup by code and output, atomic craft (inventory untouched on
+failure), and the full progression loop test-proven.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-506.md.
+pc3d_world/src/craft.rs: Recipe{code, ingredients: &[(u16,u32)], output:
+u16, output_count: u32}; RECIPES (5 recipes: stone_pick, iron_pick,
+bread, sand-to-snow, compost); recipe_by_code + recipe_for_output
+lookups; can_craft (all ingredients >= count); craft() atomic (consume
+after verify, debug_assert exactness). Well-formedness test: unique
+codes, unique outputs, known items, positive counts. Progression test:
+soil->bread, wood+stone->stone_pick, more->iron_pick. Files: craft.rs
+(new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES: the first inventory expectation mis-counted the
+leftover (100 wood into 3 slots of 64 fits with 0 leftover — 2 stacks
++ a partial third); rewritten to assert the top-up behavior (36+5=41)
+and slot filling.
+
+VERIFICATION: P3D workspace cargo test 173 passed / 0 failed (+5:
+stone_pick craft exactness; insufficient-ingredient atomic refusal;
+well-formedness; progression loop; determinism). make p3d-smoke OK.
+Root cargo test --workspace 474 green (unchanged; zero lf_* edits).
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: UI for crafting (renderer stage); recipe
+persistence (RECIPES is a const table — no save needed); advanced
+recipes (steam engine, valve components) arrive with P3D-701/702.
