@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-04 — far settlements live: aggregates + reconciliation (loop 387, P3D-407)
+
+- **Distant settlements are alive.** `pc3d_world::settlement`:
+  `Aggregate` (population/food/defense/prosperity) evolves one
+  deterministic day at a time — food feeds or starves population,
+  defense decays, prosperity tracks health, everything clamped at 0.
+  `Settlements::new` sites settlements deterministically on river
+  regions (ascending key, greedy 24-region spacing, fixed name table).
+- **The reconciliation invariant is test-enforced**: promoting one
+  settlement to Full demotes all others (at most one Full at a time);
+  scalars are preserved through promote/demote; `simulate_far_days`
+  skips the FULL settlement (the live sim owns it) while aggregates
+  evolve.
+- **P3D-400 STAGE COMPLETE**: player controller (401), entities (402),
+  navigation (403), NPC life (404), perception/karma (405), companions
+  (406), far settlements (407) — 147 pc3d tests green (+4), root
+  untouched at 474. Next stage: P3D-500 personal gameplay.
+
 ## 2026-09-04 — companions follow, wait, assist, recover (loop 389, P3D-406)
 
 - **`pc3d_world::companion`**: Follow trails within 2 cells of the

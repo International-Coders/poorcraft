@@ -25,6 +25,7 @@ pub mod player;
 pub mod proof;
 pub mod query;
 pub mod scales;
+pub mod settlement;
 pub mod stream;
 pub mod terrain;
 
@@ -42,6 +43,7 @@ pub use perception::{witness, Evidence, Karma, Knowledge, MoralEvent, MoralKind,
 pub use player::{MoveInput, Player, BODY_HEIGHT, EYE_HEIGHT, HALF_WIDTH, SIM_DT, SWIM_SPEED, WALK_SPEED};
 pub use proof::{current_shade, render_flow_map, river_stroke_width};
 pub use query::{patches_in_region, patches_touching, regions_touching, QueryError};
+pub use settlement::{Aggregate, Settlement, SettlementState, Settlements, MIN_SITE_SPACING};
 pub use scales::{
     CELL_MM, CELL_METERS, MAX_QUERY_PATCHES, MM_PER_METER, PATCH_CELL_AXIS, PATCH_MM,
     PATCH_METERS, REGION_MM, REGION_METERS, REGION_PATCH_AXIS,

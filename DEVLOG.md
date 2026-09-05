@@ -3733,3 +3733,35 @@ green (unchanged; zero lf_* edits). Runtimes not rebuilt.
 
 HONESTLY DEFERRED: combat assist mechanics (assist = positioning);
 formation offsets; multi-companion bands; dialogue.
+
+## 2026-09-04 — loop 387 (second pass): P3D-407 far-settlement aggregates (P3D-400 COMPLETE)
+
+WHAT: Stage closer for P3D-400: distant settlements simulate as
+AGGREGATE scalars, the nearest one runs FULL simulation, and
+reconciliation promotes/demotes preserving scalar state.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-407.md.
+pc3d_world/src/settlement.rs: Aggregate::simulate_day (food -= population
+clamped 0; surplus +1 pop capped 500 / starvation -1; defense -1
+clamped; prosperity tracks (min(food,200)+min(defense,200))/2 - 2,
+clamped 0..100); Settlements::new — river regions from the P3D-301
+graph sorted ascending, greedy spacing MIN_SITE_SPACING 24, named
+round-robin from SETTLEMENT_NAMES; nearest_to (Chebyshev);
+promote(id, npc_ids) demoting all others (one-Full invariant) +
+demote(id); simulate_far_days skipping Full settlements. Files:
+settlement.rs (new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES: promote moved npc_ids into a match arm then read it —
+simplified to clone-on-place (the moved-away old state is intentionally
+folded: its scalars were already preserved on the Aggregate).
+
+VERIFICATION: P3D workspace cargo test 147 passed / 0 failed (+4:
+sites deterministic + 24-region spaced; day rules (surplus grows,
+starvation shrinks, prosperity tracks, clamps); one-Full reconciliation
++ scalar preservation + Full-skip in far-day simulation; determinism).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged;
+zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: NPC spawning into full settlements (P3D-404
+registry composes when content lands); buildings/economy beyond four
+scalars; persistence of settlement state (framing law ready).
