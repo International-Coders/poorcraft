@@ -13,6 +13,7 @@
 //! that no loader ever reads.
 
 pub mod build_journal;
+pub mod entities_store;
 pub mod flow_store;
 pub mod framing;
 pub mod journal;
@@ -22,6 +23,7 @@ pub mod store;
 pub use framing::{frame, unframe, FrameError, FRAME_OVERHEAD};
 pub use paths::{patch_rel_path, world_file_rel_path, world_root};
 pub use store::{load_patch, load_world_meta, save_patch, save_world_meta, LoadError, WorldMeta};
+pub use entities_store::{load_entities, save_entities};
 pub use flow_store::{load_flow_table, save_flow_table};
 pub use build_journal::{load_build_journal, load_build_snapshot, save_build_journal, save_build_snapshot};
 pub use journal::{load_journal, load_snapshot, save_journal, save_snapshot};

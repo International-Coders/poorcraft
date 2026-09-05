@@ -3572,3 +3572,36 @@ green (unchanged; zero lf_* edits). Runtimes not rebuilt.
 HONESTLY DEFERRED: camera/mouse/UI (renderer stage); sprint; variable
 jump; entity registry (P3D-402); position persistence (with the host
 save); capsule-vs-triangle precision (AABB samples on 1m cells).
+
+## 2026-09-04 — loop 385: P3D-402 entity registry + spatial index + interest
+
+WHAT: Entities as registry data: stable ids, by-patch spatial index,
+deterministic update ordering, per-entity interest state, and disk
+persistence — the substrate for NPCs/animals (P3D-403+).
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-402.md.
+pc3d_world/src/entities.rs: EntityId(u64), EntityKind (4 kinds, codes
+validated), Entity (48-byte encode/decode), EntityRegistry (BTreeMap by
+id; spawn/insert/despawn/move_entity maintaining by_patch index;
+by_patch/entities_near ascending; update_order by id; encode/decode
+with next-id high-water), interest_state(viewer) via lod_for excluding
+Horizon. pc3d_save/src/entities_store.rs: save/load_entities through
+the framing law. lib.rs wiring (caught a duplicate re-export my insert
+created). Files: entities.rs, entities_store.rs (new), lib.rs x2,
+contract, docs.
+
+TEST-SIDE FIXES: the corruption-refusal assertion corrupted byte 8 of
+the BUFFER (the id field) instead of the kind byte at record offset
+24+8 — the fix targets the real field.
+
+VERIFICATION: P3D workspace cargo test 128 passed / 0 failed (+5: id
+uniqueness + order determinism + duplicate refusal; spatial exactness
+incl. negative coords + move-across-patch + despawn cleanup;
+persistence exactness + truncation/corruption refusal; interest
+exclusion + Full-band correctness; encode determinism). make
+p3d-smoke OK. Root cargo test --workspace 474 green (unchanged). 
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: per-kind behaviors (each entity stage adds its own);
+runtime per-frame physics (movement integrates in each entity stage);
+interest hysteresis (bands flip at exact edges — fine until rendering).

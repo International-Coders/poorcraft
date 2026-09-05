@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-09-04 — entities exist: registry, spatial index, interest (loop 385, P3D-402)
+
+- **`pc3d_world::entities`**: `EntityId`/`EntityKind`/`Entity` (48-byte
+  fixed-width encoding with validated kind codes) and the
+  `EntityRegistry` — BTreeMap by id so iteration is deterministic
+  (`update_order()` is the same sequence every call), spawn/insert with
+  an id high-water mark, `move_entity` maintaining the by-patch spatial
+  index, exact `by_patch`/`entities_near` queries (ascending, negative
+  coords included), and `interest_state(viewer)` reusing the P3D-206 LOD
+  selection with Horizon entities EXCLUDED from active ticks.
+- **Persistence through the law**: `pc3d_save::entities_store` saves and
+  loads `entities/registry.p3d` — ids, kinds, cells, and the id
+  high-water mark survive; foreign files refuse.
+- 128 pc3d tests green (+5); root workspace untouched at 474; smoke OK.
+  One test bug fixed (kind-byte offset miscounted). Next: P3D-403
+  navigation graph.
+
 ## 2026-09-04 — the player moves: collision, steps, swimming, spawn (loop 384, P3D-401)
 
 - **The first PERSON moves through POORCRAFT 3D.** `pc3d_world::player`:

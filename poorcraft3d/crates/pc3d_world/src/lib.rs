@@ -10,6 +10,7 @@
 pub mod bounds;
 pub mod build;
 pub mod edit;
+pub mod entities;
 pub mod coords;
 pub mod debug_overlay;
 pub mod flow;
@@ -25,6 +26,7 @@ pub mod terrain;
 
 pub use bounds::{WorldBounds, WorldBoundsXz};
 pub use debug_overlay::{lod_color, rows_for, render_overlay, PatchDebugRow};
+pub use entities::{cell_center_mm, Entity, EntityId, EntityKind, EntityRegistry};
 pub use gen::{Biome, CellMaterial, MacroField, WorldGen};
 pub use build::{effective_answer, replay_builds, BuildBlock, BuildKind, BuildOp, Construction, PlaceError, RemoveError};
 pub use edit::{apply_edit, affected_patches, replay, Brush, EditKind, EditOp, Snapshot, COMPACT_THRESHOLD};
