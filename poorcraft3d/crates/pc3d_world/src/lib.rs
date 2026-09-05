@@ -12,6 +12,7 @@ pub mod build;
 pub mod edit;
 pub mod entities;
 pub mod companion;
+pub mod combat;
 pub mod coords;
 pub mod debug_overlay;
 pub mod flow;
@@ -38,6 +39,7 @@ pub use entities::{cell_center_mm, Entity, EntityId, EntityKind, EntityRegistry}
 pub use gen::{Biome, CellMaterial, MacroField, WorldGen};
 pub use build::{effective_answer, replay_builds, BuildBlock, BuildKind, BuildOp, Construction, PlaceError, RemoveError};
 pub use edit::{apply_edit, affected_patches, replay, Brush, EditKind, EditOp, Snapshot, COMPACT_THRESHOLD};
+pub use combat::{Creature, CreatureKind, CreatureSystem, DungeonRoom, Hit, CREATURE_COOLDOWN, MELEE_RANGE};
 pub use coords::{Axis, CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};
 pub use nav::{cross_patch_path, NavPatch, MAX_NAV_NODES};
 pub use npc::{schedule_phase, Activity, Intent, Needs, NpcBrain, Role, SchedulePhase, IDLE_END, SLEEP_END, WORK_END};

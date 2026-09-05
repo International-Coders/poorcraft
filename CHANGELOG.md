@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-09-04 — the danger loop: combat, creatures, loot, dungeon (loop 390, P3D-503)
+
+- **Hostile creatures with deterministic melee.** `pc3d_world::combat`:
+  `CreatureKind` (Goblin 20 hp/4 dmg, CaveSpider 12 hp/3 dmg with loot
+  tables), `CreatureSystem` — creatures hit the player within Chebyshev
+  range 1 off a 30-tick cooldown; the player attacks the LOWEST-id
+  creature in range for fixed 10 damage; death removes the creature and
+  drops its loot table into the inventory.
+- **The first dungeon room**: `DungeonRoom::carve_cells` — a bounded
+  9×3×9 chamber + 5-cell corridor, deterministic, all underground,
+  floor layer exposed for placement.
+- 159 pc3d tests green (+4); root untouched at 474; smoke OK. Test
+  expectations corrected to the real mechanics (both creatures die to
+  10 hits; floor includes corridor cells; bread pre-stocked for the
+  heal test). Next: P3D-504, the first magic path — the 20th task.
+
 ## 2026-09-04 — the survival loop closes (loop 389, P3D-502)
 
 - **Catch → eat → survive, wired end to end.** `pc3d_world::survival`:

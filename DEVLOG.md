@@ -3821,3 +3821,32 @@ gating). make p3d-smoke OK. Root cargo test --workspace 474 green
 HONESTLY DEFERRED: cooking/smelting; farming; UI for catch/eat; 
 irrigation/transport/magical liquids (remaining P3D-307 consumers,
 each with their stage); fish species variety.
+
+## 2026-09-04 — loop 390: P3D-503 combat, creatures, loot, dungeon room
+
+WHAT: The danger loop: hostile creatures with deterministic melee, loot
+on death, and a carve-plan dungeon room (underground chamber +
+corridor).
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-503.md.
+pc3d_world/src/combat.rs: CreatureKind (base hp/damage/loot per kind),
+Creature, CreatureSystem (spawn, creature_attacks — Chebyshev range 1,
+cooldown 30 ticks, per-kind damage; player_attack — lowest-id in range,
+fixed 10 damage, death removes + drops loot table), DungeonRoom
+(carve_cells = chamber 9x3x9 + corridor 5x2 deterministic; floor_cells
+= 81 + 5), eat_to_heal/loot_into (compose P3D-501/502 systems).
+Files: combat.rs (new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES: (1) player_kills expected one creature left — both
+die within 10 hits of 10 damage (20 + 12 = 32 hp vs 100 damage);
+expectation corrected to assert BOTH loot tables; (2) dungeon carve
+count 253 vs my 243+10 arithmetic slip; floor_cells 86 = 81 chamber +
+5 corridor-at-floor; (3) loot_lands test needed bread pre-stocked for
+eat_to_heal.
+
+VERIFICATION: P3D workspace cargo test 159 passed / 0 failed (+4).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged;
+zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: creature chase/pathing AI (position-holding v1);
+ranged attacks; boss; dungeon decoration/loot chests; meshes.
