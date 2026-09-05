@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-09-04 — NPCs live: roles, needs, schedules, intent (loop 387, P3D-404)
+
+- **`pc3d_world::npc`**: Role (Farmer/Fisher/Builder/Guard, each with a
+  distinct visible work activity), `Needs` (hunger rises, energy drains
+  while working and restores while resting — with f32 sub-tick
+  accumulators, because truncating per tick silently lost every
+  fraction), `SchedulePhase` from the day fraction (Sleep < 0.25, Work <
+  0.7, Idle < 0.8, Work after), `Intent` (Idle / Walking / Working /
+  Sleeping), and `NpcBrain::step` — the day-in-the-life state machine.
+- **The day-in-the-life test**: an NPC walks to its work site during the
+  Work phase (arrives, visible activity = its role's work), goes home
+  and sleeps during Sleep, and two fresh brains on identical input
+  streams never diverge.
+- **Arrival compares x/z only** — anchors carry an arbitrary y while nav
+  paths carry terrain heights; comparing full cells made the NPC
+  oscillate Walking/Sleeping forever.
+- 135 pc3d tests green (+4); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-404.md`. Next: P3D-405 perception,
+  memory, karma.
+
 ## 2026-09-04 — NPCs can path: nav patches + portals (loop 386, P3D-403)
 
 - **`pc3d_world::nav`**: `NavPatch` (per-column floor + walkability from

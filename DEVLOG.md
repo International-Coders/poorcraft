@@ -3635,3 +3635,38 @@ HONESTLY DEFERRED: hierarchical multi-patch A* (two-patch chaining
 only); swim pathing (water not walkable in v1); roads/structure-anchor
 data (settlement stage); dynamic re-pathing on edits (callers rebuild
 the NavPatch).
+
+## 2026-09-04 — loop 387: P3D-404 NPC roles/needs/schedule/intent
+
+WHAT: NPCs live deterministically on the fixed clock: roles, needs, day
+schedule, intent state machine, visible activities — the substrate
+P3D-405 perception builds on.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-404.md.
+pc3d_world/src/npc.rs: Role::work_activity; SchedulePhase +
+schedule_phase(day_fraction); Needs with hunger_f/energy_f sub-tick
+accumulators (HUNGER 0.01/tick, WORK DRAIN 0.02, SLEEP RESTORE 0.1);
+Intent + NpcBrain{role, home, work_site, pos, needs, intent}; step()
+routes by phase: Sleep -> walk home then Sleeping (starving interrupts
+with a meal); Work -> energy<=5 forces Idle else walk to site then
+Working; Idle -> Idle; walking consumes one path leg per tick.
+Arrival by x/z via at() (nav y is terrain height; anchor y is
+arbitrary). Tests: phase bounds; needs decay/restore/eat; the
+day-in-the-life (walk->work->arrive; sleep->home); determinism across
+two fresh brains on 900 identical inputs; distinct role activities.
+Files: npc.rs (new), lib.rs, contract, docs.
+
+TEST-SIDE BUGS FIXED: needs truncation (0.01 additive as u8 per tick =
+0 forever — sub-tick accumulators added); determinism test stepped the
+reference brain alongside the fresh ones (comparing an advanced state
+against a fresh one) — rewritten as two fresh brains on the same
+stream; home-arrival comparison included the arbitrary anchor y (NPC
+oscillated Walking/Sleeping forever) — arrival now x/z only.
+
+VERIFICATION: P3D workspace cargo test 135 passed / 0 failed (+4).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged;
+zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: perception/memory/karma (P3D-405); companions
+(P3D-406); far-settlement aggregates (P3D-407); player-facing visuals
+for activities (renderer stage).
