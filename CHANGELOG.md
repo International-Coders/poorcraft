@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-09-04 — item authority: inventory, tools, harvest (loop 388, P3D-501)
+
+- **`pc3d_world::items` is THE item catalog**: stable u16 codes
+  (wood/stone/sand/snow/soil/stone_pick/iron_pick/bread) with
+  `ItemKind` (Tool{tier} / Material / Food{heal}).
+- **Inventory semantics proven**: add stacks-then-fills returning the
+  exact leftover (100 wood into 3 slots of 64 → 0 leftover, partial
+  stack tops to 105), remove drains across stacks bounded by existence,
+  count sums.
+- **Tools break and harvest gates by tier**: `ToolState` decrements and
+  breaks at 0; `harvest_yields` gives bare hands soil-like materials
+  but REQUIRES tier ≥ 1 for stone; yields flow into the inventory.
+- 151 pc3d tests green (+4); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-501.md`. Next: P3D-502
+  food/fishing/survival wiring.
+
 ## 2026-09-04 — far settlements live: aggregates + reconciliation (loop 387, P3D-407)
 
 - **Distant settlements are alive.** `pc3d_world::settlement`:

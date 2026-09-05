@@ -17,6 +17,7 @@ pub mod debug_overlay;
 pub mod flow;
 pub mod gen;
 pub mod hydro;
+pub mod items;
 pub mod lod;
 pub mod nav;
 pub mod npc;

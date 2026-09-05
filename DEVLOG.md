@@ -3765,3 +3765,32 @@ zero lf_* edits). Runtimes not rebuilt.
 HONESTLY DEFERRED: NPC spawning into full settlements (P3D-404
 registry composes when content lands); buildings/economy beyond four
 scalars; persistence of settlement state (framing law ready).
+
+## 2026-09-04 — loop 388 (second pass): P3D-501 item authority
+
+WHAT: P3D-500 personal-gameplay stage opener: the item catalog,
+inventory semantics, tool durability, and harvest gating by tier —
+deterministic and UI-independent.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-501.md.
+pc3d_world/src/items.rs: ITEMS catalog (u16 codes, names, kinds);
+ItemId/ItemKind/ItemStack/Inventory (add with stack-then-fill +
+leftover, remove drained across stacks, count) — stack_max 64;
+ToolState (use_once decrement, break at 0, stays broken);
+harvest_yields(material, tool_tier) gating Rock behind tier >= 1,
+yielding soil/wood/sand/snow per material. lib.rs re-exports. Files:
+items.rs (new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES: the first inventory expectation mis-counted the
+leftover (100 wood into 3 slots of 64 fits with 0 leftover — 2 stacks
++ a partial third); rewritten to assert the top-up behavior (36+5=41)
+and slot filling.
+
+VERIFICATION: P3D workspace cargo test 151 passed / 0 failed (+4:
+stack/fill/leftover exactness, cross-stack drain, tool durability
+break + stays-broken, harvest tier gating + yields-to-inventory).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged;
+zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: crafting/recipes (later P3D-500 task); item
+persistence framing (with the host save); UI (renderer stage).
