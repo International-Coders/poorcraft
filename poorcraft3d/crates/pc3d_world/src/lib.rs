@@ -11,6 +11,7 @@ pub mod bounds;
 pub mod build;
 pub mod edit;
 pub mod entities;
+pub mod companion;
 pub mod coords;
 pub mod debug_overlay;
 pub mod flow;
@@ -28,6 +29,7 @@ pub mod stream;
 pub mod terrain;
 
 pub use bounds::{WorldBounds, WorldBoundsXz};
+pub use companion::{Companion, CompanionCommand, FOLLOW_DISTANCE};
 pub use debug_overlay::{lod_color, rows_for, render_overlay, PatchDebugRow};
 pub use entities::{cell_center_mm, Entity, EntityId, EntityKind, EntityRegistry};
 pub use gen::{Biome, CellMaterial, MacroField, WorldGen};

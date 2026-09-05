@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-09-04 — companions follow, wait, assist, recover (loop 389, P3D-406)
+
+- **`pc3d_world::companion`**: Follow trails within 2 cells of the
+  player — paths recompute from the companion's ACTUAL position
+  whenever the player's cell changes or the cached path exhausts, so
+  being left behind SELF-HEALS without teleports (a no-jump assertion
+  walks the companion 10 cells behind a moving player and proves every
+  position transition is ≤ 2 cells); Wait holds; Assist paths to a
+  target cell and holds it. Path caching keyed by the player's cell
+  avoids re-pathing every tick.
+- Tests: follow trails without teleports and catches up within
+  distance+2; wait holds through player movement then Follow resumes;
+  assist reaches and holds; determinism across 200 mixed moves.
+- The test suite itself needed in-patch walks (a NavPatch covers one
+  16×16 patch; a 30-cell walk exits it and nav.path correctly refuses
+  out-of-patch targets) — shortened walks keep the mechanics under
+  test.
+- 143 pc3d tests green (+4); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-406.md`. Next: P3D-407 far-settlement.
+
 ## 2026-09-04 — witnesses remember: perception + karma (loop 388, P3D-405)
 
 - **`pc3d_world::perception`**: NPCs witness moral events within a

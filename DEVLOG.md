@@ -3702,3 +3702,34 @@ rebuilt.
 HONESTLY DEFERRED: behavior consuming dispositions (later NPC stages);
 per-NPC faction membership (factions land with settlements); vision
 occlusion (open-Chebyshev radius for now).
+
+## 2026-09-04 — loop 389: P3D-406 companions follow/wait/assist/recover
+
+WHAT: Companion behaviors on the nav substrate: Follow (trailing within
+2 cells, self-healing catch-up), Wait, Assist (position at a target),
+with path caching.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-406.md.
+pc3d_world/src/companion.rs: CompanionCommand; Companion::step — Follow
+recomputes a path to a trailing cell (player - signum toward companion)
+when cheb > FOLLOW_DISTANCE and (path stale or exhausted); Wait returns
+immediately; Assist paths to the stored target and holds; one path leg
+consumed per tick; ensure_path skips re-pathing while a cached path has
+legs. set_command clears the cache. Files: companion.rs (new), lib.rs,
+contract, docs.
+
+TEST-SIDE FIXES: (1) nav_hills built a NavPatch for patch (0,0,0) but
+the tests walked 20-30 cells — beyond the patch, nav.path correctly
+refused out-of-patch targets and the companion froze; shortened walks
+keep everything in-patch (mechanics unchanged); (2) arrival assertions
+compared full cells (y = terrain height from nav) — now x/z only;
+(3) probe test compile fixes (private field, imports, println arity).
+
+VERIFICATION: P3D workspace cargo test 143 passed / 0 failed (+4:
+follow trails without teleport + catches up within distance+2; wait
+holds + follow resumes; assist reaches and holds; 200-move
+determinism). make p3d-smoke OK. Root cargo test --workspace 474
+green (unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: combat assist mechanics (assist = positioning);
+formation offsets; multi-companion bands; dialogue.
