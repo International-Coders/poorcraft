@@ -486,6 +486,14 @@ impl FishStocks {
         taken
     }
 
+    /// Return fish to one region's stock (inventory-full recovery),
+    /// bounded by carrying capacity.
+    pub fn restock_region(&mut self, graph: &RiverGraph, r: RegionCoord, amount: u64) {
+        let cap = fish_carrying_capacity(graph.discharge(r));
+        let cur = self.stock.entry((r.x, r.z)).or_insert(0);
+        *cur = (*cur + amount).min(cap);
+    }
+
     /// Deterministic restock: every river region regains up to a quarter
     /// of its carrying capacity per restock cycle.
     pub fn restock(&mut self, graph: &RiverGraph) {

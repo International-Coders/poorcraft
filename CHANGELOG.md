@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-04 — the survival loop closes (loop 389, P3D-502)
+
+- **Catch → eat → survive, wired end to end.** `pc3d_world::survival`:
+  `fishing_catch` consumes FishStocks and adds a FISH item (Food,
+  heal 15) to the inventory — a full inventory returns the fish to the
+  stock rather than destroying it; `eat_from` consumes one food item
+  and clears hunger through Needs::eat; `harvest_into` gates terrain
+  harvest by tool tier straight into the inventory.
+- **Contextual onboarding**: the ordered milestone checklist
+  (first_tree/first_catch/first_build/first_night) — idempotent marks,
+  1-byte bitmask persistence.
+- Tests: the full loop (stock decrement + inventory gain + hunger
+  clear + river untouched per D-007), clean failure on empty stock,
+  harvest gating, onboarding order/persistence.
+- 155 pc3d tests green (+4); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-502.md`. Next: P3D-503 combat and
+  creatures.
+
 ## 2026-09-04 — item authority: inventory, tools, harvest (loop 388, P3D-501)
 
 - **`pc3d_world::items` is THE item catalog**: stable u16 codes

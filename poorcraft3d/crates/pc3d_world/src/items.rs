@@ -24,6 +24,7 @@ pub const ITEMS: &[(u16, &str, ItemKind)] = &[
     (10, "stone_pick", ItemKind::Tool { tier: 1 }),
     (11, "iron_pick", ItemKind::Tool { tier: 2 }),
     (20, "bread", ItemKind::Food { heal: 30 }),
+    (21, "fish", ItemKind::Food { heal: 15 }),
 ];
 
 pub fn item_name(id: ItemId) -> &'static str {

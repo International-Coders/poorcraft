@@ -3794,3 +3794,30 @@ zero lf_* edits). Runtimes not rebuilt.
 
 HONESTLY DEFERRED: crafting/recipes (later P3D-500 task); item
 persistence framing (with the host save); UI (renderer stage).
+
+## 2026-09-04 — loop 389 (second pass): P3D-502 survival loop closes
+
+WHAT: Catch -> eat -> survive, deterministic end to end: fishing
+consumes stock and yields food items; eating consumes food and clears
+hunger; onboarding tracks first milestones.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-502.md. "fish" item
+added to the ITEMS catalog (Food heal 15, code 21). survival.rs:
+fishing_catch (stock catch -> inventory add; full inventory returns
+the fish via FishStocks::restock_region — added that bounded helper to
+hydro); eat_from (inventory remove + Needs::eat); harvest_into
+(harvest_yields into inventory); Onboarding (ordered checklist, mark/
+is_done/all_done/progress, 1-byte bitmask encode/decode).
+dig_yield_kind kept as a trivial alias (EditKind::Dig) for the future
+dig-to-harvest composition. Files: survival.rs (new), items.rs, 
+hydro.rs, lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 155 passed / 0 failed (+4:
+fishing-to-eating loop incl. river-untouched assertion; clean failure
+on empty stock; onboarding order/idempotence/persistence; harvest
+gating). make p3d-smoke OK. Root cargo test --workspace 474 green
+(unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: cooking/smelting; farming; UI for catch/eat; 
+irrigation/transport/magical liquids (remaining P3D-307 consumers,
+each with their stage); fish species variety.
