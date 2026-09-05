@@ -193,9 +193,45 @@ fn main() {
             .expect("encode png");
             println!("[ok] flow map seed {seed} -> {}", out.display());
         }
+        Some("--diagnose") => {
+            // P3D-506: the player-diagnosis walk — every shipped system
+            // exercised in one deterministic pass, with proof PNGs.
+            let seed: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(2024);
+            let (diagnosis, images) = pc3d_world::run_full_diagnosis(seed);
+            for c in &diagnosis.checks {
+                let mark = if c.pass { "PASS" } else { "FAIL" };
+                println!("  {mark}  {}", c.name);
+            }
+            let out_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("shots");
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+            for (name, atlas) in &images {
+                let path = out_dir.join(format!("diagnose_{name}_seed{seed}.png"));
+                image::save_buffer(
+                    &path,
+                    &atlas.rgb,
+                    atlas.size as u32,
+                    atlas.size as u32,
+                    image::ColorType::Rgb8,
+                )
+                .expect("encode png");
+                println!("  PNG: {}", path.display());
+            }
+            if diagnosis.passed() {
+                println!("DIAGNOSIS PASS ({} checks)", diagnosis.checks.len());
+            } else {
+                let failed: Vec<&str> = diagnosis
+                    .checks
+                    .iter()
+                    .filter(|c| !c.pass)
+                    .map(|c| c.name)
+                    .collect();
+                println!("DIAGNOSIS FAIL: {}", failed.join(", "));
+                std::process::exit(1);
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>]"
             );
             std::process::exit(2);
         }

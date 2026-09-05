@@ -55,6 +55,11 @@ impl Companion {
         self.path_for = None;
     }
 
+    /// Arrival check: x/z only (y is terrain height).
+    pub fn at_target(&self, target: CellCoord) -> bool {
+        self.pos.x == target.x && self.pos.z == target.z
+    }
+
     pub fn path_remaining(&self) -> usize {
         self.path.len().saturating_sub(self.leg)
     }
