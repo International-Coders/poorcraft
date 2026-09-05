@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-09-04 — NPCs can path: nav patches + portals (loop 386, P3D-403)
+
+- **`pc3d_world::nav`**: `NavPatch` (per-column floor + walkability from
+  the final-solid law), bounded deterministic A* (4-connected,
+  `MAX_NAV_NODES` 4096, octile heuristic, Reverse-heap tie-breaks —
+  same endpoints → same path), `portals_to` (shared-border columns
+  walkable on both sides), and `cross_patch_path` chaining through the
+  first ascending portal with the b-side entry cell just past the
+  border.
+- **Tests**: smooth-terrain paths are continuous and deterministic; a
+  built-wall segment routes the path around its ends (the assertion
+  learned that crossing the wall column at open rows is legal — the ban
+  is on the blanked segment); portals exist between adjacent land
+  patches; cross-patch paths are continuous through a portal.
+- Three proof-driven iterations fixed the wall scenario (full-column
+  blank seals the patch — leave end rows open) and the portal entry
+  cell (a's portal cell is out-of-patch for b).
+- 131 pc3d tests green (+3); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-403.md`. Next: P3D-404 NPC life.
+
 ## 2026-09-04 — entities exist: registry, spatial index, interest (loop 385, P3D-402)
 
 - **`pc3d_world::entities`**: `EntityId`/`EntityKind`/`Entity` (48-byte

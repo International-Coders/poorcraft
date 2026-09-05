@@ -3605,3 +3605,33 @@ Runtimes not rebuilt.
 HONESTLY DEFERRED: per-kind behaviors (each entity stage adds its own);
 runtime per-frame physics (movement integrates in each entity stage);
 interest hysteresis (bands flip at exact edges — fine until rendering).
+
+## 2026-09-04 — loop 386: P3D-403 navigation (walkability, A*, portals)
+
+WHAT: NPCs can path: per-patch walkability from final_solid, bounded
+deterministic A* inside a patch, portals between patches, and a
+cross-patch path chaining through one.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-403.md.
+pc3d_world/src/nav.rs: NavPatch::from_gen (per-column floor near the
+analytic surface +-2 cells; walkable = solid + 2 passable above);
+path() — 4-connected A*, MAX_NAV_NODES 4096, octile heuristic,
+BinaryHeap<(Reverse(f), Reverse(x), Reverse(z))> so smallest-f-then-
+lowest-coords pops first (deterministic); portals_to (shared-border
+columns walkable both sides); cross_patch_path (head to first ascending
+portal, b-side entry = portal +1 on the shared axis — a's portal cell
+is out-of-patch for b; tail from entry to goal). Wall test: blank
+column rows 4..=11 only (full-column blank seals the patch — no route
+is CORRECT there), assert no path cell steps on the blanked segment.
+Files: nav.rs (new), lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 131 passed / 0 failed (+3:
+smooth-path continuity + determinism, wall routing with walkability of
+every path cell, portals + cross-patch continuity). make p3d-smoke OK.
+Root cargo test --workspace 474 green (unchanged; zero lf_* edits).
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: hierarchical multi-patch A* (two-patch chaining
+only); swim pathing (water not walkable in v1); roads/structure-anchor
+data (settlement stage); dynamic re-pathing on edits (callers rebuild
+the NavPatch).
