@@ -42,6 +42,7 @@ pub mod replicate;
 pub mod session;
 pub mod soak;
 pub mod journey;
+pub mod scale;
 pub mod war;
 pub mod hydro;
 pub mod items;
@@ -77,6 +78,7 @@ pub use valve_computing::{GateKind, LogicCircuit, LogicGate, Signal, ValveContro
 pub use dragon::{AssaultOutcome, Dragon, DragonWorld};
 pub use host::{HostCommand, SoloHost, TICKS_PER_DAY};
 pub use journey::{run_journey, JourneyReport};
+pub use scale::{scale_proof, ScaleRow};
 pub use soak::{run_soak, SoakReport};
 pub use session::{LoopbackTransport, Lobby, LobbyManager, Session, SessionError, Transport, PeerId};
 pub use replicate::{interest_snapshot, Ack, Mirror, ReliableChannel, RepSnapshot};
