@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-09-05 — faction relations: trust, diplomacy, quests, territory (loop 399, P3D-605)
+
+- **Factions have TRUST toward each other.** `pc3d_world::faction`:
+  TrustLevel (Allied/Friendly/Neutral/Wary/Hostile) derived from trust
+  scores (0–100) via `from_score`; `DiplomacyAction` shifts trust
+  (Alliance +30, TradeAgreement +15, Insult −10, BorderSkirmish −15,
+  DeclareWar −100); `can_trade` requires ≥ Neutral; `is_allied`
+  requires exactly Allied.
+- **Quests connect factions to the player**: offer → accept → complete
+  → reward reputation. Territory: factions claim regions and the
+  controller is queryable.
+- **Tests**: trust shifts with diplomacy, trust levels gate actions,
+  quest lifecycle, territory claims, determinism.
+- 204 pc3d tests green (+5); root untouched at 474; smoke OK.
+
 ## 2026-09-05 — the economic engine (loop 398, P3D-604)
 
 - **`pc3d_world::economy`**: deterministic integer production from

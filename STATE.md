@@ -1,7 +1,12 @@
 # STATE
-loop_count: 398
-current_milestone: POORCRAFT 3D P3D-604 — economy: production, trade, needs, prosperity
+loop_count: 399
+current_milestone: POORCRAFT 3D P3D-605 — faction trust, diplomacy, quests, territory
 last_done="loop 398 P3D-604 (P3D-600): the economic engine EXISTS. pc3d_world::economy: produce(workshops, output) deterministic integer production; consume_food(population); TradeRoute + execute_trade (bounded by source, exact transfer); EconomicState{goods, food, prosperity, population} with simulate_day (production adds, consumption drains, starvation shrinks population, surplus grows prosperity, trade goods boost). Tests: production determinism, consumption drain, trade bounded transfer, economic loop tracks prosperity, starvation shrinks population, trade between settlements. 199 pc3d tests green (+6), p3d-smoke OK, root 474 green. Contract at docs/POORCRAFT-3D/contracts/P3D-604.md."
+next_task: "P3D-606 — player-founded settlements, appointments, policies, and expansion (docs/POORCRAFT-3D/16-IMPLEMENTATION-WORK-BREAKDOWN.md): the player can found their own settlement (choosing a site, placing initial buildings from the P3D-601 plan, appointing an NPC as steward), set policies (tax rate, curfew, open/closed gates), and expand by claiming nearby territory. Fill the contract first. NOTE: BETA-FOUNDATION track (original game) stays parked at B04."
+build: GREEN
+tests: 474 passed / 0 failed (root workspace, loop 360) + 193 passed / 0 failed (poorcraft3d workspace, loop 397)
+last_screenshot: poorcraft3d/apps/poorcraft3d/shots/diagnose_debug_overlay_seed2024.png
+blockers: "none"last_done="loop 399 P3D-605 (P3D-600): faction relations are real. pc3d_world::faction: FactionId, TrustLevel (Allied/Friendly/Neutral/Wary/Hostile from_score), DiplomacyAction (Alliance +30, TradeAgreement +15, Insult -10, BorderSkirmish -15, DeclareWar -100), FactionRelations (trust matrix keyed by (min,max) faction pair, diplomacy shifts trust, territory claims per faction via BTreeMap), Quest (offer/accept/complete lifecycle with reward_reputation), can_trade (>= Neutral), is_allied, is_hostile. Tests: trust shifts with diplomacy, trust levels gate actions (hostile cannot trade, alliance pushes to allied from a set_trust of 75), quest lifecycle (offer->accept->complete->reward), territory claims + controller query, determinism. 204 pc3d tests green (+5), p3d-smoke OK, root 474 green. Contract at docs/POORCRAFT-3D/contracts/P3D-605.md."
 next_task: "P3D-605 — faction trust, diplomacy, quests, disputes, and territory control (docs/POORCRAFT-3D/16-IMPLEMENTATION-WORK-BREAKDOWN.md): faction relations (trust levels, diplomacy actions, quest offers, disputes over territory) on the karma/perception foundation (P3D-405). Fill the contract first. NOTE: BETA-FOUNDATION track (original game) stays parked at B04."
 build: GREEN
 tests: 474 passed / 0 failed (root workspace, loop 360) + 193 passed / 0 failed (poorcraft3d workspace, loop 397)

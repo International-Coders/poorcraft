@@ -21,6 +21,7 @@ pub mod coords;
 pub mod craft;
 pub mod debug_overlay;
 pub mod diagnose;
+pub mod faction;
 pub mod flow;
 pub mod engineering;
 pub mod gen;

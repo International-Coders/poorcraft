@@ -4091,3 +4091,30 @@ Runtimes not rebuilt.
 
 HONESTLY DEFERRED: prices/market dynamics; NPC visual trade actions;
 per-item economy; currency.
+
+## 2026-09-05 — loop 399: P3D-605 faction relations
+
+WHAT: Faction trust, diplomacy actions, quest lifecycle, and territory
+claims — the social/political substrate for the empire stage.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-605.md.
+pc3d_world/src/faction.rs: FactionId, TrustLevel (ordinal, from_score
+mapping: >=80 Allied, >=60 Friendly, >=30 Neutral, >=10 Wary, else
+Hostile); DiplomacyAction trust deltas; FactionRelations (trust matrix
+keyed by (min,max) faction pair, diplomacy shifts trust clamped 0..100,
+Quest lifecycle, Territory BTreeMap<FactionId, Vec<(i32,i32)>>);
+can_trade (>= Neutral); is_allied; is_hostile; offer_quest/accept_quest/
+complete_quest (reward reputation); claim_territory/controller_of.
+Files: faction.rs (new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES: (1) default trust 50 = Neutral which CAN trade — the
+trust-gates test needed to start hostile (set_trust(A,B,5)); (2) the
+alliance test expected Allied after TradeAgreements from default trust
+but 2×15 = 35 < 80 — fixed to set_trust to 75 first then apply alliance.
+VERIFICATION: P3D workspace cargo test 204 passed / 0 failed (+5).
+make p3d-smoke OK. Root cargo test --workspace 474 green. Runtimes
+not rebuilt.
+
+HONESTLY DEFERRED: NPC behavioral consumption of trust (trust gates
+behavior when NPC AI consumes it); per-NPC faction membership;
+diplomatic messages/UI; war resolution mechanics.
