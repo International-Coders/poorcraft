@@ -3942,3 +3942,18 @@ Runtimes not rebuilt.
 HONESTLY DEFERRED: UI for crafting (renderer stage); recipe
 persistence (RECIPES is a const table — no save needed); advanced
 recipes (steam engine, valve components) arrive with P3D-701/702.
+
+## 2026-09-05 — loop 393: P3D-506 crafting check in the diagnosis
+
+WHAT: The diagnosis gained a 13th check for CRAFTING — the recipe system
+exercised through a fresh inventory with wood and stone, crafting a
+stone_pick and verifying the output.
+
+HOW: diagnose.rs gained a 13th check: create a fresh craft_inv, add
+wood(3) + stone(2), call craft::craft with the stone_pick recipe,
+verify the output (pick count 1, ingredients consumed to 0). Uses its
+own inventory because the shared one was consumed by fishing/eating.
+
+VERIFICATION: P3D workspace cargo test 175 passed / 0 failed.
+poorcraft3d --diagnose 2024: 13/13 PASS. make p3d-smoke OK.
+Root cargo test --workspace 474 green. Runtimes not rebuilt.

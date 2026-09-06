@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-09-05 — crafting check in the diagnosis (loop 393, P3D-506)
+
+- **The diagnosis now covers crafting as its 13th check.** A fresh
+  inventory receives wood and stone, the stone_pick recipe is crafted,
+  and the output is verified — all ingredients consumed, pick produced.
+  The diagnosis runs 13/13 PASS via `--diagnose`.
+- 175 pc3d tests green; root untouched at 474; smoke OK.
+
 ## 2026-09-05 — the crafting system: recipes + progression (loop 393, P3D-506)
 
 - **Recipes combine materials into new items.** `pc3d_world::craft`:

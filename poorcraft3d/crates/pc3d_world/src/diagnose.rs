@@ -198,6 +198,21 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
     let conserved = reservoirs.total_volume() >= total_before;
     push("reservoirs", conserved, "volume only grows when filled".into());
 
+    // 13. CRAFTING: the full craft progression — gather materials,
+    //     craft a stone_pick, verify the output. Uses a fresh inventory
+    //     (the shared one was consumed by fishing/eating).
+    let mut craft_inv = Inventory::new(8);
+    craft_inv.add(ItemId(1), 3); // wood
+    craft_inv.add(ItemId(2), 2); // stone
+    let pick_recipe = crate::craft::recipe_by_code(1)
+        .expect("stone_pick recipe exists");
+    let crafted = crate::craft::craft(&mut craft_inv, pick_recipe);
+    let craft_ok = crafted == Some(1)
+        && craft_inv.count(ItemId(10)) == 1
+        && craft_inv.count(ItemId(1)) == 0
+        && craft_inv.count(ItemId(2)) == 0;
+    push("crafting", craft_ok, "stone_pick crafted from wood+stone".into());
+
     Diagnosis { checks }
 }
 
