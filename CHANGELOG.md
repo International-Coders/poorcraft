@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## 2026-09-06 — P3D-702..806: POORCRAFT 3D ROADMAP COMPLETE (loops 404-410)
+
+- **P3D-702 typed machines**: PowerType (Heat/Steam/Mechanical/
+  Electrical), MachineKind (Boiler/SteamEngine/Generator/Battery),
+  connect-time typed wires (WireError::TypeMismatch), water as a real
+  consumable fluid, per-stage conservation with lifetime audit
+  counters, deterministic wire throughput caps.
+- **P3D-703 nuclear**: control rods, coolant boil-off, decay heat,
+  tick-start automatic SCRAM, lost-coolant meltdown, decaying world
+  Contamination with plume spread, settlement prosperity penalties,
+  D-018 MAX_REACTORS = 4 world cap.
+- **P3D-704 dragon + ley**: territory raids on a 30-day cadence,
+  SplitMix64 integer slayer combat, permanent dragon death, tribute
+  pacts that ward territory, breach enrages; Ley attunement tiers
+  with Bless/Blight rituals, atomic costs, strain and backlash.
+- **P3D-705 faction kits**: ten ideology-signature castle modules,
+  FactionKit table with preferred laws, plan_capital_kit with a
+  byte-identical core prefix.
+- **P3D-801 integrated host**: SoloHost — commands land in canonical
+  (tick, id) order, all systems tick together, digest binds seed and
+  history, reordered delivery proven inert.
+- **P3D-802 replication**: ReliableChannel (seq/ack/bitfield,
+  gap-buffered in-order), interest snapshots, monotonic mirrors.
+- **P3D-803 session**: LobbyManager (invite lifecycle, accept-time
+  D-029 cap, deterministic host migration), Transport trait +
+  loopback + spy-transplant proof.
+- **P3D-804 soaks**: run_soak + audits; in-suite 40-day soak; CLI
+  --soak ran 2000 days / 1.2M ticks clean in 8.3 s.
+- **P3D-805 player journey**: 10 asserted steps spawn → dragon;
+  found + fixed the first-tool progression gate (wood_pick recipe 6).
+- **P3D-806 scale proof**: per-player replication cost constant in N,
+  linear total growth, 128 players < 20 ms/tick, rows printed.
+
+273 pc3d tests, 474 root tests, p3d-smoke OK, all pushed.
+
+---
+
 ## 2026-09-06 — valve-era computing (loop 403, P3D-701)
 
 - **`pc3d_world::valve_computing`**: Signal (u8, 0=off, >0=on),

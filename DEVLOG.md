@@ -4301,3 +4301,46 @@ HONESTLY DEFERRED: visual rendering of circuits (renderer stage);
 persistent circuit definitions (save format); more complex gates (NAND/
 NOR built from AND/OR/NOT compositions); integration with the flow
 system (valves on rivers controlled by circuits).
+
+## 2026-09-06 — P3D-702..806: POORCRAFT 3D ROADMAP COMPLETE (loops 404-410)
+
+WHAT: Implemented the final ten roadmap tasks from
+docs/POORCRAFT-3D/16-IMPLEMENTATION-WORK-BREAKDOWN.md — all 66 tasks
+(P3D-001..806) are now implemented and proven. P3D-702 typed machines
+(PowerType carriers, connect-time typed wires, water as a fluid,
+per-stage conservation); P3D-703 nuclear (rods/coolant/decay heat,
+tick-start SCRAM, lost-coolant meltdown → contamination plume →
+settlement prosperity penalties, D-018 four-reactor cap); P3D-704
+dragon arc (territory raids, integer-deterministic slayer combat,
+permanent death, tribute pacts, faction awe/suspicion) + Ley
+attunement rituals (atomic costs, strain backlash); P3D-705 faction
+kits (ten ideology-signature modules, kit-aware capital planner);
+P3D-801 integrated SoloHost (canonical systems in one deterministic
+600-tick/day loop); P3D-802 replication (seq/ack/bitfield,
+gap-buffered in-order delivery, interest snapshots, stale-proof
+mirrors); P3D-803 session layer (lobbies, D-029 caps, host migration,
+Transport trait); P3D-804 soaks (run_soak + --soak CLI; 2000 days /
+1.2M ticks clean in 8.3 s); P3D-805 player journey (run_journey +
+--journey CLI; 10 asserted steps; FOUND AND FIXED the first-tool
+progression gate: wood_pick + recipe 6); P3D-806 scale proof
+(per-player replication cost constant in N, 128 players under a
+20 ms tick budget).
+
+HOW: New modules pc3d_world::{machines, nuclear, dragon, ley, kits,
+host, replicate, session, soak, journey, scale}, each with a filled
+contract at docs/POORCRAFT-3D/contracts/P3D-80x.md; CLI arms
+--soak/--journey in apps/poorcraft3d; Makefile targets p3d-soak and
+p3d-journey. Test-first per module; every discovered contradiction
+fixed before commit (SCRAM tick ordering, bitfield gap indexing,
+soak journal burst, journey first-tool gate).
+
+EVIDENCE: 273/273 pc3d tests green; root workspace 474/474 green
+(untouched); make p3d-smoke OK (digest dd019eca900f5a61);
+make p3d-soak DAYS=2000 SOAK PASS. Commits 2b4d03f..8d9c438 pushed
+to github main.
+
+HONESTLY DEFERRED: Steam SDK socket behind the session Transport
+trait (loopback + spy proven); real UDP wiring of the replication
+layer; renderer/visual pass for machines, reactors, dragons, and
+ley effects (all systems are sim-pure by design); save-file
+persistence for the new system states.
