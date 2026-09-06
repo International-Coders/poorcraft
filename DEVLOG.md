@@ -4118,3 +4118,23 @@ not rebuilt.
 HONESTLY DEFERRED: NPC behavioral consumption of trust (trust gates
 behavior when NPC AI consumes it); per-NPC faction membership;
 diplomatic messages/UI; war resolution mechanics.
+
+## 2026-09-05 — loop 400: P3D-606 player-founded settlements
+
+WHAT: The player can found settlements on river regions, appoint
+stewards, set policies (tax, curfew, gates), and expand territory.
+
+HOW: pc3d_world/src/player_settlement.rs: PlayerSettlements (BTreeMap of
+PlayerSettlement keyed by RegionCoord); found (river-region check,
+Occupied on double); appoint_steward/set_tax_rate/set_curfew/set_gates
+(policy setters); expand (claims Chebyshev-adjacent unclaimed regions).
+Files: player_settlement.rs (new), lib.rs, contract (P3D-606), docs.
+
+VERIFICATION: P3D workspace cargo test 207 passed / 0 failed (+3:
+found+appoint+policies, double-found refusal, expansion claims).
+make p3d-smoke OK. Root cargo test --workspace 474 green.
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: NPC population spawning into player settlements
+(when P3D-404+ content composes); building construction (P3D-205);
+per-building persistence; economic tie-in to P3D-604 production.

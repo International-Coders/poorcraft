@@ -30,6 +30,7 @@ pub mod items;
 pub mod lod;
 pub mod magic;
 pub mod nav;
+pub mod player_settlement;
 pub mod npc;
 pub mod perception;
 pub mod player;
@@ -58,6 +59,7 @@ pub use constraints::{check_river_corridors, check_seed_reproducibility, run_bio
 pub use castle::{plan_capital, CastleLayout, CastleModule, ModuleKind, PlacedModule, Port};
 pub use castle_law::{Alarm, CastleLaw, GateState, Law, LawKind, Punishment};
 pub use coords::{Axis, CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};
+pub use player_settlement::{FoundError, PlayerSettlement, PlayerSettlements};
 pub use nav::{cross_patch_path, NavPatch, MAX_NAV_NODES};
 pub use npc::{schedule_phase, Activity, Intent, Needs, NpcBrain, Role, SchedulePhase, IDLE_END, SLEEP_END, WORK_END};
 pub use perception::{witness, Evidence, Karma, Knowledge, MoralEvent, MoralKind, REPORT_CONFIDENCE, SIGHT_RADIUS, WITNESSED_CONFIDENCE, KNOWLEDGE_CAPACITY, DISPOSITION_MIN, DISPOSITION_MAX};

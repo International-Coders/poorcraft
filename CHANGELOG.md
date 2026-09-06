@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-09-05 — player-founded settlements (loop 400, P3D-606)
+
+- **The player can FOUND settlements.** `pc3d_world::player_settlement`:
+  found on river regions (refuses double-found with Occupied), appoint
+  a steward NPC, set tax rate (0–25%, clamped), toggle curfew, toggle
+  gates, expand territory by claiming Chebyshev-adjacent regions.
+- **Tests**: found+appoint+policies, double-found refusal, expansion
+  claims 8 adjacent regions.
+- 207 pc3d tests green (+3); root untouched at 474; smoke OK.
+
 ## 2026-09-05 — faction relations: trust, diplomacy, quests, territory (loop 399, P3D-605)
 
 - **Factions have TRUST toward each other.** `pc3d_world::faction`:
