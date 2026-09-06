@@ -4207,3 +4207,21 @@ test --workspace 474 green. Runtimes not rebuilt.
 HONESTLY DEFERRED: visual relationship UI; diplomatic messages; war
 resolution; puppet NPC spawning; relationship persistence (framing law
 ready but not wired).
+
+## 2026-09-06 — loop 401: P3D-610 civic projects
+
+WHAT: Civic construction projects commissioned by the player or by NPCs
+through the same contracts — materials, work tracking, completion.
+
+HOW: pc3d_world/src/civic.rs: Commissioner (Player/Npc), CivicProject
+(deliver_materials for player path; npc_advance for NPC path;
+progress_pct), CivicBoard (commission/deliver/npc_tick/completed/
+active queries). Files: civic.rs (new), lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 222 passed / 0 failed (+3:
+player deliver+complete, NPC auto-advance, both-paths-same-completion).
+make p3d-smoke OK. Root cargo test --workspace 474 green.
+
+HONESTLY DEFERRED: 3D construction placement (P3D-205 overlay composes);
+NPC commissioners choosing which projects to commission; multi-building
+projects.

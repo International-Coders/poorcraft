@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-09-06 — civic projects: player-built + NPC-commissioned (loop 401, P3D-610)
+
+- **`pc3d_world::civic`**: CivicProject (name, Commissioner::Player/Npc,
+  work_required, work_done, materials) and CivicBoard (commission,
+  player deliver, NPC auto-tick, completed/active queries).
+- **Both paths produce identical completion**: player delivers materials
+  manually; NPC projects auto-advance per tick. Both complete at
+  work_required.
+- 222 pc3d tests green (+3); root untouched at 474; smoke OK.
+
 ## 2026-09-06 — relationships: allied/puppet/protectorate/rival/conquered (loop 400, P3D-609)
 
 - **`pc3d_world::relationships`**: RelationshipKind (Allied/Puppet/
