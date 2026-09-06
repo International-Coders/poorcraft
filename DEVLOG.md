@@ -3957,3 +3957,28 @@ own inventory because the shared one was consumed by fishing/eating.
 VERIFICATION: P3D workspace cargo test 175 passed / 0 failed.
 poorcraft3d --diagnose 2024: 13/13 PASS. make p3d-smoke OK.
 Root cargo test --workspace 474 green. Runtimes not rebuilt.
+
+## 2026-09-05 — loop 394: P3D-106 biome/hydrology constraint matrix
+
+WHAT: Consolidated constraint proof for the generated world — the
+P3D-100 stage closer. The constraint matrix sweeps many seeds and
+regions proving every geography rule holds.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-106.md.
+pc3d_world/src/constraints.rs: MacroSample (flattened region data);
+check() helper iterating the sweep; 4 biome constraints (mountain
+profile, coastal transition, wetland, forest humidity);
+check_river_corridors (wetness nonzero at river regions);
+check_seed_reproducibility (same seed -> same biome). Files:
+constraints.rs (new), lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 179 passed / 0 failed (+4:
+constraint matrix across 4 seeds; river corridor wetness; seed
+reproducibility across 3 seeds; full suite green for seed 2024).
+make p3d-smoke OK. Root cargo test --workspace 474 green (unchanged;
+zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: visual constraint overlay (atlas covers macro);
+per-cell constraint checking (region granularity matches the gen);
+site viability tests (settlements exist in P3D-407 but their terrain
+viability check is P3D-602's job).

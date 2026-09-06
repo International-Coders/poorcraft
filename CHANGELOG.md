@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-09-05 — the constraint matrix: geography proven (loop 394, P3D-106)
+
+- **The biome/hydrology constraint matrix is green.**
+  `pc3d_world::constraints`: run_biome_constraints(seed) sweeps
+  ±20 regions × 4 constraints (mountain profile, coastal transition,
+  wetland requirements, forest humidity) — zero violations across 4
+  seeds. River corridors have nonzero wetness. Seed history is
+  reproducible (same seed → same biome everywhere).
+- **P3D-100 stage now fully complete** (101–106): coordinates,
+  persistence, generation, atlas, streaming, constraint matrix.
+  All 5 early stages done (P3D-000 through P3D-400). Remaining roadmap:
+  P3D-600 (settlements/empire), P3D-700 (advanced), P3D-800
+  (multiplayer/beta).
+- 179 pc3d tests green (+4); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-106.md`.
+
 ## 2026-09-05 — crafting check in the diagnosis (loop 393, P3D-506)
 
 - **The diagnosis now covers crafting as its 13th check.** A fresh
