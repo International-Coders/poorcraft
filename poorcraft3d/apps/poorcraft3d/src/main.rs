@@ -229,6 +229,27 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Some("--journey") => {
+            // P3D-805: the complete beta player journey, automated.
+            let seed: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(4242);
+            let t0 = std::time::Instant::now();
+            let report = pc3d_world::run_journey(seed);
+            for s in &report.steps {
+                let mark = if s.pass { "PASS" } else { "FAIL" };
+                println!("  {mark}  {:<18} {}", s.name, s.detail);
+            }
+            if report.passed() {
+                println!(
+                    "JOURNEY PASS ({} steps, digest {:016x}, {:.1?})",
+                    report.steps.len(),
+                    report.digest,
+                    t0.elapsed()
+                );
+            } else {
+                println!("JOURNEY FAIL");
+                std::process::exit(1);
+            }
+        }
         Some("--soak") => {
             // P3D-804: long-running world soak — the integrated host
             // under a continuous command stream, audited at the end.
@@ -252,7 +273,7 @@ fn main() {
         }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]]"
             );
             std::process::exit(2);
         }

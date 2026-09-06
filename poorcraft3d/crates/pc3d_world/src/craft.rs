@@ -33,6 +33,7 @@ pub const RECIPES: &[Recipe] = &[
     Recipe { code: 3, ingredients: &[(5, 3)], output: 20, output_count: 1 },         // soil×3 → bread
     Recipe { code: 4, ingredients: &[(3, 2)], output: 4, output_count: 1 },           // sand×2 → snow (glass-smelting stand-in)
     Recipe { code: 5, ingredients: &[(1, 1), (5, 2)], output: 5, output_count: 2 },  // wood×1 + soil×2 → soil×2 (compost)
+    Recipe { code: 6, ingredients: &[(1, 4)], output: 12, output_count: 1 },         // wood×4 → wood_pick: the craftable FIRST tool
 ];
 
 /// Find a recipe by code.

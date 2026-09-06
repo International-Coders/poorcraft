@@ -91,6 +91,10 @@ p3d-soak: ## Long-running world soak: make p3d-soak DAYS=365 SEED=80808
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	poorcraft3d_bin=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
 	$$poorcraft3d_bin --soak $(if $(DAYS),$(DAYS),365) $(if $(SEED),$(SEED),80808) || exit 1
+p3d-journey: ## Automated beta player journey: make p3d-journey SEED=4242
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml
+	poorcraft3d_bin=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
+	$$poorcraft3d_bin --journey $(if $(SEED),$(SEED),4242) || exit 1
 p3d-diagnose: ## Player-diagnosis walk: make p3d-diagnose SEED=2024
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	poorcraft3d_bin=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
