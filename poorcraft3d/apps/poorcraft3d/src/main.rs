@@ -229,9 +229,30 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Some("--soak") => {
+            // P3D-804: long-running world soak — the integrated host
+            // under a continuous command stream, audited at the end.
+            let days: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(365);
+            let seed: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(80808);
+            let t0 = std::time::Instant::now();
+            let report = pc3d_world::run_soak(seed, days);
+            println!(
+                "soak seed {seed} days {days} ticks {} journal {} max_events/tick {} digest {:016x}",
+                report.ticks, report.journal_len, report.max_events_per_tick, report.digest
+            );
+            if report.bounds_ok {
+                println!("SOAK PASS ({:.1?})", t0.elapsed());
+            } else {
+                for v in &report.violations {
+                    println!("  VIOLATION: {v}");
+                }
+                println!("SOAK FAIL");
+                std::process::exit(1);
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]]"
             );
             std::process::exit(2);
         }

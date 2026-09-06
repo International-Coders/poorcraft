@@ -87,6 +87,10 @@ p3d-smoke: ## Headless liveness smoke for POORCRAFT 3D (runs the empty-world run
 	$$poorcraft3d_bin --run 5 || exit 1; \
 	echo "P3D SMOKE OK"
 
+p3d-soak: ## Long-running world soak: make p3d-soak DAYS=365 SEED=80808
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml
+	poorcraft3d_bin=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
+	$$poorcraft3d_bin --soak $(if $(DAYS),$(DAYS),365) $(if $(SEED),$(SEED),80808) || exit 1
 p3d-diagnose: ## Player-diagnosis walk: make p3d-diagnose SEED=2024
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	poorcraft3d_bin=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
