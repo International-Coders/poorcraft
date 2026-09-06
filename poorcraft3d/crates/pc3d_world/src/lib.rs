@@ -32,6 +32,7 @@ pub mod engineering;
 pub mod garrison;
 pub mod gen;
 pub mod valve_computing;
+pub mod machines;
 pub mod war;
 pub mod hydro;
 pub mod items;
@@ -64,6 +65,9 @@ pub use economy::{consume_food, execute_trade, produce, EconomicState, TradeRout
 pub use entities::{cell_center_mm, Entity, EntityId, EntityKind, EntityRegistry};
 pub use engineering::{Pipe, Valve, ValveNetwork, WaterWheel};
 pub use valve_computing::{GateKind, LogicCircuit, LogicGate, Signal, ValveController};
+pub use machines::{
+    Machine, MachineKind, MachineNetwork, PowerType, Wire, WireError, BATTERY_CAP, EDGE_THROUGHPUT,
+};
 pub use war::{advance, assign_npcs, WarAssignment, WarObjective};
 pub use garrison::Garrison;
 pub use gen::{Biome, CellMaterial, MacroField, WorldGen};
