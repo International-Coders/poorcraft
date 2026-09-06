@@ -3982,3 +3982,32 @@ HONESTLY DEFERRED: visual constraint overlay (atlas covers macro);
 per-cell constraint checking (region granularity matches the gen);
 site viability tests (settlements exist in P3D-407 but their terrain
 viability check is P3D-602's job).
+
+## 2026-09-05 — loop 395: P3D-601 settlement plan (P3D-600 opener)
+
+WHAT: Settlements have a physical PLAN — the layout of buildings, the
+D-033 anchors derived from them, roads connecting them, and a service
+model mapping buildings to what they provide.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-601.md.
+pc3d_world/src/settlement_plan.rs: BuildingKind (7 kinds with per-kind
+Service), BuildingSlot, Anchors (bed/work/idle from buildings),
+RoadSegment, SettlementPlan::plan (3 concentric rings, plaza at region
+center cell 128), validate() (all-present/plaza/roads/anchors),
+services() -> ServiceSummary. The layout constants are arrays of
+(kind, offset_x, offset_z) tuples for clean extension. Files:
+settlement_plan.rs (new), lib.rs, contract, docs.
+
+TEST-SIDE FIX: the housing test expected 12 (3 homes) but the layout
+has 4 homes (2 in ring 0 + 1 in ring 1 + 1 in ring 1 z-axis) = 16.
+Fixed to assert 16.
+
+VERIFICATION: P3D workspace cargo test 184 passed / 0 failed (+5:
+deterministic plan, all building kinds present, anchors populated,
+roads connect plaza to buildings, plan validates, service summary
+correct). make p3d-smoke OK. Root cargo test --workspace 474 green
+(unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: terrain-aware placement (buildings snapped to
+walkable terrain — P3D-602); castle plan generation (P3D-602);
+multi-district layouts (large capitals); visual rendering of the plan.

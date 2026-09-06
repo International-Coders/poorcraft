@@ -34,6 +34,7 @@ pub mod query;
 pub mod scales;
 pub mod survival;
 pub mod settlement;
+pub mod settlement_plan;
 pub mod stream;
 pub mod terrain;
 
@@ -58,6 +59,7 @@ pub use proof::{current_shade, render_flow_map, river_stroke_width};
 pub use query::{patches_in_region, patches_touching, regions_touching, QueryError};
 pub use survival::{eat_from, fishing_catch, harvest_into, Onboarding, FISH};
 pub use settlement::{Aggregate, Settlement, SettlementState, Settlements, MIN_SITE_SPACING};
+pub use settlement_plan::{Anchors, BuildingKind, BuildingSlot, PlanValidation, RoadSegment, Service, ServiceSummary, SettlementPlan};
 pub use scales::{
     CELL_MM, CELL_METERS, MAX_QUERY_PATCHES, MM_PER_METER, PATCH_CELL_AXIS, PATCH_MM,
     PATCH_METERS, REGION_MM, REGION_METERS, REGION_PATCH_AXIS,

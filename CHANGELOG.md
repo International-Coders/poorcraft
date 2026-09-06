@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-09-05 — settlement plan: anchors, buildings, roads, services (loop 395, P3D-601)
+
+- **Settlements have a physical plan.** `pc3d_world::settlement_plan`:
+  `SettlementPlan::plan(gen, center)` generates a deterministic layout in
+  3 concentric rings — Well + 2 Homes at r=3, Workshop/Farm/Home at r=6,
+  Storage/Barracks/Watchtower/Farm at r=10 — with roads from plaza to
+  every non-well building, and `Anchors` (Bed/Work/Idle per D-033)
+  derived from building kinds.
+- **Seven building kinds with service contributions**: Home (housing ×4),
+  Workshop (production ×5), Storage (×200), Barracks (defense ×10),
+  Watchtower (defense ×5), Well (water), Farm (food ×15). The service
+  summary test verifies each contribution.
+- **Validation test-enforced**: all buildings present, plaza exists,
+  roads connect, anchors populated.
+- 184 pc3d tests green (+5); root untouched at 474; smoke OK. Contract
+  at `docs/POORCRAFT-3D/contracts/P3D-601.md`. P3D-600 stage opened.
+
 ## 2026-09-05 — the constraint matrix: geography proven (loop 394, P3D-106)
 
 - **The biome/hydrology constraint matrix is green.**
