@@ -4069,3 +4069,25 @@ rebuilt.
 HONESTLY DEFERRED: guard NPC spawning into the registry (guards are
 model-level; physical guards come when NPC composition lands);
 per-law custom punishments; alarm propagation to nearby settlements.
+
+## 2026-09-05 — loop 398: P3D-604 economy (production, trade, needs, effects)
+
+WHAT: The economic engine: deterministic integer production, food
+consumption, trade routes, and economic state evolution per day.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-604.md.
+pc3d_world/src/economy.rs: produce(workshops, output), consume_food(pop),
+TradeRoute, execute_trade (bounded by source), EconomicState (goods,
+food, prosperity, population) with simulate_day (production adds,
+consumption drains, starvation shrinks pop and drops prosperity,
+surplus grows prosperity, trade goods boost). Files: economy.rs (new),
+lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 199 passed / 0 failed (+6:
+production determinism, consumption drain, trade bounded transfer,
+economic loop tracks prosperity, starvation shrinkage, inter-settlement
+trade). make p3d-smoke OK. Root cargo test --workspace 474 green.
+Runtimes not rebuilt.
+
+HONESTLY DEFERRED: prices/market dynamics; NPC visual trade actions;
+per-item economy; currency.

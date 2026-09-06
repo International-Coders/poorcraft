@@ -10,6 +10,7 @@
 pub mod bounds;
 pub mod build;
 pub mod edit;
+pub mod economy;
 pub mod entities;
 pub mod companion;
 pub mod combat;
@@ -45,6 +46,7 @@ pub use companion::{Companion, CompanionCommand, FOLLOW_DISTANCE};
 pub use diagnose::{run_diagnosis, run_full_diagnosis, CheckResult, Diagnosis};
 pub use craft::{can_craft, craft, recipe_by_code, recipe_for_output, Recipe, RECIPES};
 pub use debug_overlay::{lod_color, rows_for, render_overlay, PatchDebugRow};
+pub use economy::{consume_food, execute_trade, produce, EconomicState, TradeRoute};
 pub use entities::{cell_center_mm, Entity, EntityId, EntityKind, EntityRegistry};
 pub use engineering::{Pipe, Valve, ValveNetwork, WaterWheel};
 pub use gen::{Biome, CellMaterial, MacroField, WorldGen};

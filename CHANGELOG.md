@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-09-05 — the economic engine (loop 398, P3D-604)
+
+- **`pc3d_world::economy`**: deterministic integer production from
+  workshops, food consumption by population, trade routes transferring
+  goods between settlements, and `EconomicState` evolving per day —
+  production adds goods, consumption drains food, starvation shrinks
+  population, surplus grows prosperity, trade balances deficits.
+- **Tests**: production determinism, consumption drain, trade bounded
+  transfer, economic loop prosperity tracking, starvation shrinkage,
+  inter-settlement trade.
+- 199 pc3d tests green (+6); root untouched at 474; smoke OK.
+
 ## 2026-09-05 — law and order: gates, guards, alarms (loop 397, P3D-603)
 
 - **`pc3d_world::castle_law`**: the castle's legal and defensive state.
