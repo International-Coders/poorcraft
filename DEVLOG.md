@@ -4225,3 +4225,22 @@ make p3d-smoke OK. Root cargo test --workspace 474 green.
 HONESTLY DEFERRED: 3D construction placement (P3D-205 overlay composes);
 NPC commissioners choosing which projects to commission; multi-building
 projects.
+
+## 2026-09-06 — loop 402: P3D-611 war/defense objectives
+
+WHAT: War objectives (DefendGate/HoldWall/AttackTarget/Retreat) as
+high-level NPC intents — NPCs path to the objective via nav, no remote
+RTS micro-control (D-024).
+
+HOW: pc3d_world/src/war.rs: WarObjective enum, WarAssignment (entity +
+objective + path + leg + arrived), assign_npcs (nav paths to objective
+cell), advance (consume one leg per tick, arrived when exhausted).
+Files: war.rs (new), lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 223 passed / 0 failed (+1:
+assign 2 NPCs to DefendGate, advance until all arrived).
+make p3d-smoke OK. Root cargo test --workspace 474 green.
+
+HONESTLY DEFERRED: combat resolution at objective (creature system
+composes); multi-objective coordination; retreat pathing (retreat =
+path to home).

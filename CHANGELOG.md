@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-09-06 — war objectives + NPC war intents (loop 402, P3D-611)
+
+- **`pc3d_world::war`**: WarObjective (DefendGate/HoldWall/AttackTarget/
+  Retreat), WarAssignment{entity, objective, path, leg, arrived},
+  assign_npcs (nav paths to objective cell), advance (one leg per tick,
+  arrived when path exhausted). Deterministic.
+- 223 pc3d tests green (+1); root untouched at 474; smoke OK.
+
 ## 2026-09-06 — civic projects: player-built + NPC-commissioned (loop 401, P3D-610)
 
 - **`pc3d_world::civic`**: CivicProject (name, Commissioner::Player/Npc,
