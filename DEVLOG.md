@@ -4244,3 +4244,39 @@ make p3d-smoke OK. Root cargo test --workspace 474 green.
 HONESTLY DEFERRED: combat resolution at objective (creature system
 composes); multi-objective coordination; retreat pathing (retreat =
 path to home).
+
+## 2026-09-06 — loop 402: P3D-612/613/614 NPC death, karma axes, ideology (P3D-600 COMPLETE)
+
+WHAT: Three social/political data models close the P3D-600 stage:
+permanent NPC death with replacement/service loss, multi-axis karma,
+and ideology-founded player factions.
+
+HOW: Three new modules. npc_death.rs: NamedNpc{name, role, skill,
+alive}, NpcRoster (recruit, kill permanent — double-kill refused,
+replace with lower skill, has_service per role, living_by_role).
+karma_evidence.rs (P3D-613): KarmaAxis (Personal/Civic/Faction/
+Ideological), AxisEvidence{axis, weight, confidence}, MultiAxisKarma
+(record, disposition weighted sum clamped ±100). ideology.rs:
+Ideology (5 archetypes), same_ideology_diplomacy_bonus,
+recruitment_appeal, law_strictness; PlayerFaction (faction, name,
+ideology, ideology_drift, shift_ideology). Files: npc_death.rs,
+karma_evidence.rs, ideology.rs (all new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES: (1) ideology test used Conquest (which has same-ideology
+bonus 0) — fixed to Commerce (bonus 10); (2) ideology assertion
+checked Conquest after shifting to Commerce — fixed; (3) borrow
+conflict in npc_death test (Vec<&NamedNpc> borrowed immutably then
+roster killed mutably) — fixed by collecting entity ids first.
+
+VERIFICATION: P3D workspace cargo test 230 passed / 0 failed (+7:
+death permanent + double-death refused + service loss; replacement
+lower-skilled; multi-axis karma independent axes + clamping;
+ideologies shape diplomacy/law/recruitment; ideology evolution +
+diplomacy bonus shift). make p3d-smoke OK. Root cargo test --workspace
+474 green (unchanged; zero lf_* edits). Runtimes not rebuilt.
+
+HONESTLY DEFERRED: NPC death integration with the entity registry
+(dead entities removed when composition lands); ideology affecting
+building architecture (P3D-602's castle planner); ideology-specific
+laws (P3D-603's law system extends); karma evidence persistence
+(framing law ready).

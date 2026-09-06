@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-06 — NPC death, multi-axis karma, ideology factions (loop 402, P3D-612/613/614)
+
+- **P3D-612 — permanent NPC death**: `pc3d_world::npc_death` — NamedNpc
+  with name/role/skill; NpcRoster (recruit, kill permanent, replace with
+  lower skill, service loss per role). Tests: death permanent,
+  replacement lower-skilled, service loss tracked.
+- **P3D-613 — multi-axis karma**: `pc3d_world::karma_evidence` — 4 axes
+  (Personal/Civic/Faction/Ideological) accumulate evidence independently;
+  disposition = weighted sum clamped ±100. Tests: axes accumulate
+  independently, clamping.
+- **P3D-614 — ideology-founded factions**: `pc3d_world::ideology` —
+  Ideology (Conquest/Commerce/Faith/Liberty/Isolation) with same-ideology
+  diplomacy bonus, recruitment appeal, law strictness; PlayerFaction with
+  shift_ideology (drift increases, bonus shifts). Tests: ideology shapes
+  diplomacy/law/recruitment, ideology evolution.
+- **P3D-600 STAGE COMPLETE** (601–614): 230 pc3d tests green (+7), root
+  untouched at 474. Contract at `docs/POORCRAFT-3D/contracts/P3D-612.md`.
+
 ## 2026-09-06 — war objectives + NPC war intents (loop 402, P3D-611)
 
 - **`pc3d_world::war`**: WarObjective (DefendGate/HoldWall/AttackTarget/
