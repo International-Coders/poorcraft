@@ -4138,3 +4138,19 @@ Runtimes not rebuilt.
 HONESTLY DEFERRED: NPC population spawning into player settlements
 (when P3D-404+ content composes); building construction (P3D-205);
 per-building persistence; economic tie-in to P3D-604 production.
+
+## 2026-09-06 — loop 397: P3D-607 army/garrison
+
+WHAT: Settlements can raise and manage a garrison: recruit soldiers,
+track supply consumption, morale, and readiness.
+
+HOW: pc3d_world/src/garrison.rs: Garrison::new(max_soldiers, supply),
+recruit(available_population, count) bounded by max_soldiers,
+supply_day (soldiers consume SUPPLY_PER_SOLDIER=1 each, morale tracks
+supply: well-supplied morale rises, unsupplied drops), readiness()
+composite of strength ratio + supply + morale; 0 when no soldiers.
+Files: garrison.rs (new), lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 210 passed / 0 failed (+3:
+recruit bounded, supply decay + morale tracking, readiness composite).
+make p3d-smoke OK. Root cargo test --workspace 474 green.

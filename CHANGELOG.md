@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-09-06 — army/garrison: recruitment, supply, morale, readiness (loop 397, P3D-607)
+
+- **`pc3d_world::garrison`**: `Garrison { soldiers, max_soldiers, supply,
+  morale }` — recruit bounded by max_soldiers, supply_day (soldiers
+  consume 1 supply each, morale tracks supply), readiness composite
+  (strength ratio + supply sufficiency + morale, 0 when no soldiers).
+- Tests: recruit bounded, supply decay per soldier per day, morale
+  tracks supply, readiness composite.
+- 210 pc3d tests green (+3); root untouched at 474; smoke OK.
+
 ## 2026-09-05 — player-founded settlements (loop 400, P3D-606)
 
 - **The player can FOUND settlements.** `pc3d_world::player_settlement`:
