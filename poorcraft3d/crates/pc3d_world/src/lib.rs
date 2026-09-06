@@ -34,6 +34,8 @@ pub mod gen;
 pub mod valve_computing;
 pub mod machines;
 pub mod nuclear;
+pub mod dragon;
+pub mod ley;
 pub mod war;
 pub mod hydro;
 pub mod items;
@@ -66,6 +68,8 @@ pub use economy::{consume_food, execute_trade, produce, EconomicState, TradeRout
 pub use entities::{cell_center_mm, Entity, EntityId, EntityKind, EntityRegistry};
 pub use engineering::{Pipe, Valve, ValveNetwork, WaterWheel};
 pub use valve_computing::{GateKind, LogicCircuit, LogicGate, Signal, ValveController};
+pub use dragon::{AssaultOutcome, Dragon, DragonWorld};
+pub use ley::{Attunement, LeyCaster, Ritual, RitualError};
 pub use nuclear::{Contamination, NuclearProgram, Reactor, Siterror, MAX_REACTORS};
 pub use machines::{
     Machine, MachineKind, MachineNetwork, PowerType, Wire, WireError, BATTERY_CAP, EDGE_THROUGHPUT,
