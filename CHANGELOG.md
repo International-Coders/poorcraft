@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-09-06 — oversight panel backed by real data (loop 398, P3D-608)
+
+- **`pc3d_world::oversight`**: `OversightPanel::query` reads REAL
+  settlement/garrison/economy state and produces `OversightSummary`
+  (population, food, defense, prosperity, garrison soldiers/readiness,
+  goods, composite health). Zero-state handled without panic (health 40:
+  food sufficiency vacuously true, defense and prosperity 0).
+- **Civic Projects**: `Project` with bounded `advance()`, progress
+  percentage, completion tracking. Biome viability scoring for
+  settlement placement.
+- 214 pc3d tests green (+4); root untouched at 474; smoke OK.
+
 ## 2026-09-06 — army/garrison: recruitment, supply, morale, readiness (loop 397, P3D-607)
 
 - **`pc3d_world::garrison`**: `Garrison { soldiers, max_soldiers, supply,

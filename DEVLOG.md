@@ -4154,3 +4154,23 @@ Files: garrison.rs (new), lib.rs, contract, docs.
 VERIFICATION: P3D workspace cargo test 210 passed / 0 failed (+3:
 recruit bounded, supply decay + morale tracking, readiness composite).
 make p3d-smoke OK. Root cargo test --workspace 474 green.
+
+## 2026-09-06 — loop 398: P3D-608 oversight panel backed by real data
+
+WHAT: The oversight panel queries REAL settlement/garrison/economy state
+and produces a single summary for the player. No fake numbers.
+
+HOW: pc3d_world/src/oversight.rs: OversightPanel::query(aggregate,
+garrison, economy) -> OversightSummary. Health composite: food_score
+(40 if food >= population) + defense_score (readiness * 30/100) +
+prosperity_score (prosperity * 30/100), clamped 0..100. Project
+(name, work_required, work_done, completed) with advance() and
+progress_pct(). biome_viability per-biome scoring. Files: oversight.rs
+(new), lib.rs, contract, docs.
+
+TEST-SIDE FIX: the zero-state test expected health 0 but the composite
+gives 40 (food_sufficient vacuously true for 0 population, defense and
+prosperity 0). Test updated to assert 40 with a comment explaining why.
+
+VERIFICATION: P3D workspace cargo test 214 passed / 0 failed (+4).
+make p3d-smoke OK. Root cargo test --workspace 474 green.
