@@ -22,6 +22,17 @@ pub enum ModuleKind {
     Barracks,
     Chapel,
     Market,
+    // P3D-705 ideology kit signatures.
+    Arsenal,
+    TrainingYard,
+    Warehouse,
+    Mint,
+    Cathedral,
+    Reliquary,
+    Forum,
+    Watchpost,
+    Vault,
+    Lookout,
 }
 
 impl ModuleKind {
@@ -34,6 +45,16 @@ impl ModuleKind {
             ModuleKind::Barracks => "barracks",
             ModuleKind::Chapel => "chapel",
             ModuleKind::Market => "market",
+            ModuleKind::Arsenal => "arsenal",
+            ModuleKind::TrainingYard => "training-yard",
+            ModuleKind::Warehouse => "warehouse",
+            ModuleKind::Mint => "mint",
+            ModuleKind::Cathedral => "cathedral",
+            ModuleKind::Reliquary => "reliquary",
+            ModuleKind::Forum => "forum",
+            ModuleKind::Watchpost => "watchpost",
+            ModuleKind::Vault => "vault",
+            ModuleKind::Lookout => "lookout",
         }
     }
 
@@ -47,6 +68,16 @@ impl ModuleKind {
             ModuleKind::Barracks => (3, 2),
             ModuleKind::Chapel => (3, 3),
             ModuleKind::Market => (4, 2),
+            ModuleKind::Arsenal => (3, 3),
+            ModuleKind::TrainingYard => (4, 3),
+            ModuleKind::Warehouse => (4, 3),
+            ModuleKind::Mint => (2, 2),
+            ModuleKind::Cathedral => (5, 4),
+            ModuleKind::Reliquary => (2, 3),
+            ModuleKind::Forum => (4, 4),
+            ModuleKind::Watchpost => (2, 2),
+            ModuleKind::Vault => (2, 2),
+            ModuleKind::Lookout => (2, 2),
         }
     }
 }
@@ -141,7 +172,7 @@ pub struct CastleLayout {
 }
 
 /// Check if a module's footprint fits on walkable terrain.
-fn footprint_fits(gen: &WorldGen, origin: CellCoord, fw: u8, fh: u8) -> bool {
+pub fn footprint_fits(gen: &WorldGen, origin: CellCoord, fw: u8, fh: u8) -> bool {
     for dx in 0..fw as i32 {
         for dz in 0..fh as i32 {
             let wx = (origin.x + dx) as i64 * 1000;
