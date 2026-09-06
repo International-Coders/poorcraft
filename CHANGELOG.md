@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-09-06 — relationships: allied/puppet/protectorate/rival/conquered (loop 400, P3D-609)
+
+- **`pc3d_world::relationships`**: RelationshipKind (Allied/Puppet/
+  Protectorate/Rival/Conquered) with per-kind autonomy (100/30/60/100/20),
+  tribute_rate (0/500/200/0/800 basis points), and growth_pct (5/2/3/1/1
+  percent/day). `RelationshipSystem` — establish, release (grants
+  independence), change_kind, simulate_day (puppets grow, tribute
+  accumulates), collect_tribute.
+- **Tests**: kinds have distinct autonomy/tribute/growth; puppet grows
+  faster than rival; tribute accumulates and is collectible; release
+  grants independence; determinism across 20 days.
+- 219 pc3d tests green (+5); root untouched at 474; smoke OK.
+
 ## 2026-09-06 — oversight panel backed by real data (loop 398, P3D-608)
 
 - **`pc3d_world::oversight`**: `OversightPanel::query` reads REAL

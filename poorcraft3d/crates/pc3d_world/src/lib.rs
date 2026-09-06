@@ -13,6 +13,7 @@ pub mod edit;
 pub mod economy;
 pub mod entities;
 pub mod companion;
+pub mod relationships;
 pub mod combat;
 pub mod constraints;
 pub mod castle;
@@ -59,6 +60,7 @@ pub use build::{effective_answer, replay_builds, BuildBlock, BuildKind, BuildOp,
 pub use edit::{apply_edit, affected_patches, replay, Brush, EditKind, EditOp, Snapshot, COMPACT_THRESHOLD};
 pub use combat::{Creature, CreatureKind, CreatureSystem, DungeonRoom, Hit, CREATURE_COOLDOWN, MELEE_RANGE};
 pub use constraints::{check_river_corridors, check_seed_reproducibility, run_biome_constraints, ConstraintResult};
+pub use relationships::{CityRelationship, RelationshipKind, RelationshipSystem};
 pub use castle::{plan_capital, CastleLayout, CastleModule, ModuleKind, PlacedModule, Port};
 pub use castle_law::{Alarm, CastleLaw, GateState, Law, LawKind, Punishment};
 pub use coords::{Axis, CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};

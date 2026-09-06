@@ -4174,3 +4174,36 @@ prosperity 0). Test updated to assert 40 with a comment explaining why.
 
 VERIFICATION: P3D workspace cargo test 214 passed / 0 failed (+4).
 make p3d-smoke OK. Root cargo test --workspace 474 green.
+
+## 2026-09-06 — loop 400: P3D-609 relationships (allied/puppet/protectorate/rival/conquered)
+
+WHAT: Relationship contracts between the player's faction and others:
+Allied (full autonomy, no tribute), Puppet (30% autonomy, 5% tribute),
+Protectorate (60% autonomy, 2% tribute), Rival (full autonomy, hostile),
+Conquered (20% autonomy, 8% tribute).
+
+HOW: pc3d_world/src/relationships.rs: RelationshipKind with autonomy()/
+tribute_rate()/growth_pct() per kind; CityRelationship{faction_id, name,
+kind, population, prosperity, tribute_owed}; RelationshipSystem —
+establish, release (grants independence), change_kind, simulate_day
+(population grows by growth_pct, tribute accumulates by tribute_rate),
+collect_tribute (clears owed, returns total). Files: relationships.rs
+(new), lib.rs, contract, docs.
+
+TEST-SIDE FIXES: (1) the growth formula used basis points (80/10_000 =
+0% for population 100 after integer division) — fixed to percentage
+(2% growth for Puppet = 2 cells/day for pop 100); (2) the trust-gates
+test started at default trust 50 (Neutral CAN trade) — fixed to start
+hostile (set_trust 5) before testing the trade gate; (3) the alliance
+test expected Allied from low trust after one action — fixed to
+set_trust 75 first then apply alliance (+30 reaches >= 80).
+
+VERIFICATION: P3D workspace cargo test 219 passed / 0 failed (+5:
+kinds have distinct autonomy/tribute/growth; puppet growth + tribute
+lifecycle; release grants independence; rivals grow slower than
+puppets; determinism across 20 days). make p3d-smoke OK. Root cargo
+test --workspace 474 green. Runtimes not rebuilt.
+
+HONESTLY DEFERRED: visual relationship UI; diplomatic messages; war
+resolution; puppet NPC spawning; relationship persistence (framing law
+ready but not wired).
