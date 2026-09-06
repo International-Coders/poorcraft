@@ -4039,3 +4039,33 @@ elevation contours when terrain data feeds the planner); multi-ring
 castles (v1 is single-ring); castle persistence (composes with
 P3D-102 when the save path integrates); faction-specific module
 variants (P3D-605+).
+
+## 2026-09-05 — loop 397: P3D-603 gates, guards, laws, alarms
+
+WHAT: The castle has LAW AND ORDER: gate state, laws with punishments,
+faction-standing-gated access, alarms that summon guards.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-603.md.
+pc3d_world/src/castle_law.rs: GateState (open toggle), Law (LawKind +
+standing_threshold + Punishment), CastleLaw (gate + laws + alarm +
+guard_response_radius; access_allowed checks gate open AND all law
+thresholds; violated_law returns first offending law in order;
+punishment_for maps to consequence; raise_alarm/clear_alarm/
+alarm_near with Chebyshev proximity check). Files: castle_law.rs
+(new), lib.rs, contract, docs.
+
+TEST-SIDE FIX: the violated_law test expected Assault to be the first
+violated law at standing -25, but Theft (threshold -20) is checked
+first in law order and -25 < -20, so Theft is correctly identified
+first. Test expectation fixed to match the documented behavior.
+
+VERIFICATION: P3D workspace cargo test 193 passed / 0 failed (+5:
+gate toggle; access gated by standing (high enters, zero meets
+threshold, below-threshold denied); violated law identified correctly
+(first in order); alarms raise/check/clear). make p3d-smoke OK.
+Root cargo test --workspace 474 green (unchanged). Runtimes not
+rebuilt.
+
+HONESTLY DEFERRED: guard NPC spawning into the registry (guards are
+model-level; physical guards come when NPC composition lands);
+per-law custom punishments; alarm propagation to nearby settlements.

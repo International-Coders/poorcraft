@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-09-05 — law and order: gates, guards, alarms (loop 397, P3D-603)
+
+- **`pc3d_world::castle_law`**: the castle's legal and defensive state.
+  `GateState` (open/closed toggle), `Law` (Theft/Assault/Trespass with
+  standing thresholds and Punishment Fine/Attack/Exile),
+  `access_allowed` (gate open AND standing meets ALL thresholds),
+  `violated_law` (first violated in order), `punishment_for`,
+  `Alarm` (raise at position, proximity check, clear).
+- **Tests**: gate toggle; access gated by standing (high enters, low
+  denied, closed gate denies all); violated law identified correctly
+  (theft threshold -20 hit before assault 0 for standing -25); alarms
+  raise/proximity/clear.
+- 193 pc3d tests green (+5); root untouched at 474; smoke OK.
+
 ## 2026-09-05 — the castle planner (loop 396, P3D-602)
 
 - **`pc3d_world::castle`**: modular castle kit manifest (7 kinds: Keep
