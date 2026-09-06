@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-09-06 — valve-era computing (loop 403, P3D-701)
+
+- **`pc3d_world::valve_computing`**: Signal (u8, 0=off, >0=on),
+  GateKind (And/Or/Not/Xor truth tables), LogicGate (named, indexed
+  inputs/output), LogicCircuit (deterministic evaluation in declaration
+  order), ValveController (programmable input setter + evaluate +
+  debug_dump). Tests: AND/OR/NOT/XOR truth tables, NAND multi-stage
+  circuit, determinism.
+- 236 pc3d tests green (+6); root untouched at 474; smoke OK.
+
 ## 2026-09-06 — NPC death, multi-axis karma, ideology factions (loop 402, P3D-612/613/614)
 
 - **P3D-612 — permanent NPC death**: `pc3d_world::npc_death` — NamedNpc

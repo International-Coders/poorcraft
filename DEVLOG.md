@@ -4280,3 +4280,24 @@ HONESTLY DEFERRED: NPC death integration with the entity registry
 building architecture (P3D-602's castle planner); ideology-specific
 laws (P3D-603's law system extends); karma evidence persistence
 (framing law ready).
+
+## 2026-09-06 — loop 403: P3D-701 valve-era computing
+
+WHAT: The D-012 valve-era aesthetic gets its computing substrate:
+signals, logic gates, circuits, and a programmable controller.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-701.md.
+pc3d_world/src/valve_computing.rs: Signal type (u8), GateKind (And/Or/
+Not/Xor with truth-table evaluate), LogicGate (named, indexed inputs/
+output), LogicCircuit (signals + gates, evaluate in declaration order),
+ValveController (wraps LogicCircuit for the app). Files: valve_computing.rs
+(new), lib.rs, contract, docs.
+
+VERIFICATION: P3D workspace cargo test 236 passed / 0 failed (+6:
+AND/OR/NOT/XOR truth tables, NAND multi-stage circuit, determinism).
+make p3d-smoke OK. Root cargo test --workspace 474 green.
+
+HONESTLY DEFERRED: visual rendering of circuits (renderer stage);
+persistent circuit definitions (save format); more complex gates (NAND/
+NOR built from AND/OR/NOT compositions); integration with the flow
+system (valves on rivers controlled by circuits).
