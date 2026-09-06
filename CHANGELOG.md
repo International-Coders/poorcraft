@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-09-05 — the castle planner (loop 396, P3D-602)
+
+- **`pc3d_world::castle`**: modular castle kit manifest (7 kinds: Keep
+  5×5, Wall 3×1, GateHouse 3×2, Tower 2×2, Barracks 3×2, Chapel 3×3,
+  Market 4×2 — each with ports and min elevation) and
+  `plan_capital(gen, center)` — terrain-aware placement: Keep at
+  center, GateHouse south, 4 Towers at diagonal corners, Barracks east,
+  Chapel west, Market south. No overlapping footprints (BTreeSet-
+  tracked). Roads connect the center to the gatehouse and towers.
+- 188 pc3d tests green (+4: deterministic layout, manifest
+  completeness, capital module coverage + no-overlap, road
+  connectivity); root untouched at 474; smoke OK.
+
 ## 2026-09-05 — settlement plan: anchors, buildings, roads, services (loop 395, P3D-601)
 
 - **Settlements have a physical plan.** `pc3d_world::settlement_plan`:

@@ -14,6 +14,7 @@ pub mod entities;
 pub mod companion;
 pub mod combat;
 pub mod constraints;
+pub mod castle;
 pub mod coords;
 pub mod craft;
 pub mod debug_overlay;
@@ -50,6 +51,7 @@ pub use build::{effective_answer, replay_builds, BuildBlock, BuildKind, BuildOp,
 pub use edit::{apply_edit, affected_patches, replay, Brush, EditKind, EditOp, Snapshot, COMPACT_THRESHOLD};
 pub use combat::{Creature, CreatureKind, CreatureSystem, DungeonRoom, Hit, CREATURE_COOLDOWN, MELEE_RANGE};
 pub use constraints::{check_river_corridors, check_seed_reproducibility, run_biome_constraints, ConstraintResult};
+pub use castle::{plan_capital, CastleLayout, CastleModule, ModuleKind, PlacedModule, Port};
 pub use coords::{Axis, CellCoord, LocalPos, PatchCoord, RegionCoord, WorldPos};
 pub use nav::{cross_patch_path, NavPatch, MAX_NAV_NODES};
 pub use npc::{schedule_phase, Activity, Intent, Needs, NpcBrain, Role, SchedulePhase, IDLE_END, SLEEP_END, WORK_END};

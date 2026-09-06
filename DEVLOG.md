@@ -4011,3 +4011,31 @@ correct). make p3d-smoke OK. Root cargo test --workspace 474 green
 HONESTLY DEFERRED: terrain-aware placement (buildings snapped to
 walkable terrain — P3D-602); castle plan generation (P3D-602);
 multi-district layouts (large capitals); visual rendering of the plan.
+
+## 2026-09-05 — loop 396: P3D-602 castle planner + modular manifest
+
+WHAT: The castle planner — a modular kit (Keep, Wall, GateHouse, Tower,
+Barracks, Chapel, Market) placed terrain-aware around a center point,
+with no overlapping footprints and roads connecting key modules.
+
+HOW: Contract at docs/POORCRAFT-3D/contracts/P3D-602.md.
+pc3d_world/src/castle.rs: CastleModule manifest with ports and min
+elevation; plan_capital(gen, center) — Keep at center (5×5), GateHouse
+south, 4 Towers at diagonal corners, Barracks/Chapel/Market in support
+positions; fits() + occupied BTreeSet prevents overlap; roads connect
+center to gatehouse and towers. Files: castle.rs (new), lib.rs,
+contract, docs.
+
+VERIFICATION: P3D workspace cargo test 188 passed / 0 failed (+4:
+deterministic layout; manifest completeness (7 kinds, valid
+footprints, ports non-empty); capital module coverage (Keep,
+GateHouse, >= 2 Towers, Barracks) + no-overlap proof via BTreeSet;
+road connectivity from center). make p3d-smoke OK. Root cargo test
+--workspace 474 green (unchanged; zero lf_* edits). Runtimes not
+rebuilt.
+
+HONESTLY DEFERRED: terrain-adaptive wall segments (walls follow
+elevation contours when terrain data feeds the planner); multi-ring
+castles (v1 is single-ring); castle persistence (composes with
+P3D-102 when the save path integrates); faction-specific module
+variants (P3D-605+).
