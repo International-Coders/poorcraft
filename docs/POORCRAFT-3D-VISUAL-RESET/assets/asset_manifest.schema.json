@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "POORCRAFT 3D asset manifest",
+  "type": "object",
+  "required": ["schema_version", "project", "coordinate_system", "assets"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project": {"const": "POORCRAFT 3D"},
+    "coordinate_system": {
+      "type": "object",
+      "required": ["units", "up_axis", "forward_axis"],
+      "properties": {
+        "units": {"const": "meters"},
+        "up_axis": {"enum": ["Y"]},
+        "forward_axis": {"enum": ["-Z", "+Z"]}
+      }
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/asset"}
+    }
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "required": ["id", "category", "status", "provenance", "geometry", "material", "lod", "runtime_consumers", "proof_scene"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]+$"},
+        "category": {"enum": ["terrain_material", "construction_block", "castle_module", "npc", "machine", "world_prop", "city_anchor", "effect"]},
+        "status": {"enum": ["placeholder", "prototype", "beta", "final"]},
+        "provenance": {
+          "type": "object",
+          "required": ["kind", "originality_reviewed"],
+          "properties": {
+            "kind": {"enum": ["procedural_original", "authored_original", "licensed", "ai_generated_original"]},
+            "originality_reviewed": {"const": true},
+            "license_note": {"type": "string"}
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "required": ["kind", "source_or_generator"],
+          "properties": {
+            "kind": {"enum": ["procedural_mesh", "generated_voxel_mesh", "gltf", "billboard", "none"]},
+            "source_or_generator": {"type": "string"},
+            "triangle_budget": {"type": "integer", "minimum": 0}
+          }
+        },
+        "material": {"type": "string", "minLength": 1},
+        "lod": {
+          "type": "object",
+          "required": ["policy"],
+          "properties": {"policy": {"enum": ["none", "generated", "lod0_lod1", "instanced"]}}
+        },
+        "collision": {"type": "string"},
+        "navigation": {"type": "string"},
+        "runtime_consumers": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "proof_scene": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

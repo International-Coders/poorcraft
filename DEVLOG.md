@@ -4344,3 +4344,46 @@ trait (loopback + spy proven); real UDP wiring of the replication
 layer; renderer/visual pass for machines, reactors, dragons, and
 ley effects (all systems are sim-pure by design); save-file
 persistence for the new system states.
+
+## 2026-09-06 — R3DV-001: windowed renderer bootstrap (visual reset starts)
+
+WHAT: The visual reset's first task — POORCRAFT 3D now has a real windowed
+GPU renderer. New P3D-local crate pc3d_render (wgpu 24 / winit 0.30, same
+proven versions as the root engine): a resizable winit window drives a wgpu
+surface, one WGSL shader module (shaders/scene.wgsl) serves two pipelines,
+and the frame renders "three banners at dawn" — a per-pixel dawn-gradient sky
+with a sun disc (fragment shader) plus an indexed vertex-colored banner mesh
+(poles + crimson/gold/jade pennants over a stone strip; original POORCRAFT
+placeholder art, no external game expression). Architecture law held:
+pc3d_render depends on nothing from pc3d_world (camera/terrain binding is
+R3DV-002+); the world crate stayed untouched and pure.
+
+HOW: crates/pc3d_render/{gpu.rs (device/context, SurfaceGuard, surface-loss
+policy: Lost→recreate, Outdated→reconfigure, Timeout→skip, 0-size clamp),
+scene.rs (mesh + pure semantic pixel verifier over RGBA frames),
+renderer.rs (pipelines, one shared encode_frame for window/live-capture/
+offscreen, screenshot readback — surface carries COPY_SRC so the capture is
+the presented swapchain frame, not a second render), app.rs (winit 0.30
+ApplicationHandler: continuous redraw, Resized→reconfigure, Esc/Close exit,
+scheduled mid-run live resize, frame-time accounting)}. apps/poorcraft3d
+gained --play (open window) and --play-shot [png] [frame] (window → live
+resize → capture → verify → perf line). Makefile: p3d-play, p3d-shot.
+
+EVIDENCE: 282/282 pc3d workspace tests green (+9 new: mesh validity, CCW
+winding for backface culling, flat-framebuffer rejection, per-field report
+gate, clamp/loss-policy units, and two REAL GPU tests — offscreen render
+through the same draw path, readback, semantic verification, byte-identical
+determinism, and resize reconfiguration). Windowed proof: --play-shot opened
+a real window, rendered 40 frames, resized the live window 1280x720→800x500
+(2 Resized events followed by the surface), captured the resized swapchain
+frame → poorcraft3d/apps/poorcraft3d/shots/windowed_bootstrap.png (800x500,
+796 distinct colors; assertions: gradient monotonic downward, sky nonuniform,
+all 3 banner colors + pole + ground + sun present, fully opaque) — visually
+inspected by human eye, PASS. Liveness: --play ran 12 s continuously, alive
+then killed. Performance: 2000-frame windowed run p50 0.90 ms, p95 1.37 ms
+(≈1180 fps CPU-side; vsync not throttling on this host). Root workspace
+untouched (474 tests re-run green).
+
+HONESTLY DEFERRED: first-person camera/input, depth buffer, P3D world
+binding (R3DV-002); asset pipeline (R3DV-003); terrain/water/city/NPC
+rendering (R3DV-004+). Scene is NDC placeholder geometry by design.

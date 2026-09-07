@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "project": "POORCRAFT 3D",
+  "purpose": "Prevent simulation-only work from being reported as a playable 3D voxel game.",
+  "must_read": [
+    "AGENTS.md",
+    "STATE.md",
+    "docs/POORCRAFT-3D-VISUAL-RESET/README.md",
+    "docs/POORCRAFT-3D-VISUAL-RESET/00-REALITY-CHECK.md",
+    "docs/POORCRAFT-3D-VISUAL-RESET/01-3D-VERTICAL-SLICE.md",
+    "docs/POORCRAFT-3D-VISUAL-RESET/06-EXECUTION-QUEUE.md",
+    "docs/POORCRAFT-3D-VISUAL-RESET/tasks/render_execution_queue.json"
+  ],
+  "forbidden_until_vertical_slice": [
+    "new pure simulation subsystem",
+    "new faction content",
+    "new machine tier",
+    "new magic tier",
+    "new multiplayer scale claim",
+    "claiming CLI map PNGs are 3D rendering",
+    "claiming POORCRAFT 3D is playable"
+  ],
+  "required_architecture": {
+    "world_crate_is_pure": true,
+    "renderer_mutates_world": false,
+    "assets_have_manifest": true,
+    "client_uses_authoritative_host_commands": true
+  },
+  "playable_3d_requires": [
+    "windowed_gpu_renderer",
+    "first_person_camera_and_input",
+    "actual_terrain_mesh",
+    "actual_water_mesh",
+    "visible_construction_blocks",
+    "visible_castle_or_city_modules",
+    "visible_npcs",
+    "bed_work_idle_box_inspection",
+    "save_reload_visual_proof",
+    "windowed_screenshot_semantic_checks",
+    "human_visual_review"
+  ],
+  "asset_acceptance_requires": [
+    "stable_id",
+    "original_or_licensed_provenance",
+    "runtime_consumer",
+    "material_metadata",
+    "lod_or_fallback",
+    "collision_or_not_applicable",
+    "visual_proof_scene"
+  ],
+  "completion_evidence": [
+    "tests_green",
+    "real_windowed_screenshot",
+    "pixel_or_semantic_visual_assertion",
+    "human_inspection",
+    "performance_record",
+    "honest_known_limitations"
+  ]
+}

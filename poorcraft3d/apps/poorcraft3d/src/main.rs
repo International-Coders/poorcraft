@@ -271,11 +271,97 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Some("--play") => {
+            // R3DV-001: the windowed renderer. Resizable winit window, wgpu
+            // surface, nonuniform proof scene; Esc closes. Runs until closed.
+            let cfg = pc3d_render::WindowConfig::default();
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => print_window_report(&report),
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        Some("--play-shot") => {
+            // R3DV-001 screenshot proof: open the real window, render N
+            // frames, capture the live swapchain texture to a PNG, verify the
+            // pixels semantically, print the perf line, exit.
+            let out = args.get(2).cloned().unwrap_or_else(|| {
+                format!(
+                    "{}/shots/windowed_bootstrap.png",
+                    env!("CARGO_MANIFEST_DIR")
+                )
+            });
+            let frame: u64 = args
+                .get(3)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(20);
+            let cfg = pc3d_render::WindowConfig {
+                max_frames: Some(frame + 5),
+                screenshot: Some(std::path::PathBuf::from(&out)),
+                screenshot_frame: frame,
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    let Some(px) = &report.captured else {
+                        eprintln!("[FAIL] window ended before the capture frame");
+                        std::process::exit(1);
+                    };
+                    if !px.passes() {
+                        eprintln!("[FAIL] windowed capture failed verification: {px:?}");
+                        std::process::exit(1);
+                    }
+                    // The mid-run resize must have been observed by the
+                    // surface and the capture must be at the resized size.
+                    let (lw, lh) = (800.0f64, 500.0f64);
+                    let expect = (
+                        (lw * report.scale_factor).round() as u32,
+                        (lh * report.scale_factor).round() as u32,
+                    );
+                    if report.resizes_observed == 0 {
+                        eprintln!("[FAIL] no Resized events reached the surface");
+                        std::process::exit(1);
+                    }
+                    if px.width != expect.0 || px.height != expect.1 {
+                        eprintln!(
+                            "[FAIL] capture {}x{} is not the resized surface {}x{}",
+                            px.width, px.height, expect.0, expect.1
+                        );
+                        std::process::exit(1);
+                    }
+                    println!(
+                        "RESIZE OK: surface followed {}x{} logical -> {}x{} physical (scale {:.2}, {} events)",
+                        lw, lh, px.width, px.height, report.scale_factor, report.resizes_observed
+                    );
+                    println!(
+                        "WINDOWED SHOT PASS -> {} ({}x{}, {} distinct colors)",
+                        out, px.width, px.height, px.distinct_colors
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png] [frame]]"
             );
             std::process::exit(2);
         }
     }
+}
+
+fn print_window_report(report: &pc3d_render::WindowReport) {
+    println!(
+        "windowed run: {} frames · frame p50 {:.2} ms · p95 {:.2} ms · avg {:.1} fps",
+        report.frames,
+        report.p50_ms(),
+        report.p95_ms(),
+        report.avg_fps()
+    );
 }

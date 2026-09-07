@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 pc3d_core = { path = "../../crates/pc3d_core" }
 pc3d_world = { path = "../../crates/pc3d_world" }
+pc3d_render = { path = "../../crates/pc3d_render" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [[bin]]

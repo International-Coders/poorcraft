@@ -1,0 +1,11 @@
+[package]
+name = "pc3d_render"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wgpu = "24.0"
+winit = "0.30"
+pollster = "0.3"
+bytemuck = { version = "1.16", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["png"] }

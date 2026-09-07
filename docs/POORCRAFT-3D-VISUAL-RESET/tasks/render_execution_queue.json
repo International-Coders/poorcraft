@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "execution_rule": "Run exactly one task at a time. A task cannot be marked complete without every required evidence item.",
+  "tasks": [
+    {
+      "id": "R3DV-001",
+      "title": "Windowed renderer bootstrap",
+      "status": "DONE",
+      "depends_on": [],
+      "must_change": ["poorcraft3d/Cargo.toml", "pc3d_render", "apps/poorcraft3d"],
+      "must_prove": ["winit_window", "wgpu_surface", "resize_recovery", "nonuniform_gpu_screenshot"],
+      "forbidden_scope": ["terrain_meshing", "asset_generation", "new_simulation"],
+      "evidence": ["unit_tests", "windowed_png", "manual_window_launch"],
+      "completed_evidence": {
+        "crate": "poorcraft3d/crates/pc3d_render (wgpu 24 / winit 0.30, WGSL shaders/scene.wgsl)",
+        "tests": "9 pc3d_render tests incl. real-GPU offscreen render + readback + determinism + live-resize policy; pc3d workspace 282/282 green",
+        "windowed_png": "poorcraft3d/apps/poorcraft3d/shots/windowed_bootstrap.png (800x500, captured from the live swapchain after a mid-run 1280x720->800x500 resize; 796 distinct colors; semantic checks: gradient monotonic, sky nonuniform, 3 banner colors, pole, ground, sun, opaque)",
+        "manual_window_launch": "poorcraft3d --play ran 12 s continuously and stayed alive; --play-shot 2000-frame perf record p50 0.90 ms / p95 1.37 ms",
+        "cli": "poorcraft3d --play and --play-shot [png] [frame]; make p3d-play / p3d-shot"
+      }
+    },
+    {
+      "id": "R3DV-002",
+      "title": "First-person camera and indexed scene primitive",
+      "status": "NEXT",
+      "depends_on": ["R3DV-001"],
+      "must_prove": ["depth_buffer", "camera_mouse_look", "keyboard_movement", "lit_indexed_mesh"],
+      "evidence": ["tests", "windowed_png", "manual_input_check"]
+    },
+    {
+      "id": "R3DV-003",
+      "title": "JSON asset manifest validator",
+      "status": "READY",
+      "depends_on": ["R3DV-001"],
+      "must_prove": ["schema_validation", "invalid_manifest_rejection", "consumer_and_proof_checks"],
+      "evidence": ["tests", "validated_beta_critical_assets_json"]
+    },
+    {
+      "id": "R3DV-004",
+      "title": "Construction mesh from host-owned state",
+      "status": "BLOCKED_BY_R3DV-002",
+      "depends_on": ["R3DV-002", "R3DV-003"],
+      "must_prove": ["construction_block_mesh", "host_command_edit", "bounded_patch_remesh", "visual_edit"],
+      "evidence": ["tests", "before_after_windowed_png", "manual_place_remove"]
+    },
+    {
+      "id": "R3DV-005",
+      "title": "Natural terrain mesh prototype and selection",
+      "status": "BLOCKED_BY_R3DV-004",
+      "depends_on": ["R3DV-004"],
+      "must_prove": ["hill", "cliff", "cave", "overhang", "collision_alignment", "algorithm_bakeoff"],
+      "evidence": ["tests", "benchmark_table", "windowed_png", "human_review"]
+    },
+    {
+      "id": "R3DV-006",
+      "title": "Real terrain streaming, LOD, and seams",
+      "status": "BLOCKED_BY_R3DV-005",
+      "depends_on": ["R3DV-005"],
+      "must_prove": ["bounded_mesh_queue", "gpu_upload_budget", "frustum_culling", "no_visible_or_collision_seams"],
+      "evidence": ["tests", "profiling", "lod_walk_pngs"]
+    },
+    {
+      "id": "R3DV-007",
+      "title": "Water mesh from flow records",
+      "status": "BLOCKED_BY_R3DV-005",
+      "depends_on": ["R3DV-005"],
+      "must_prove": ["transparent_water", "flow_direction", "local_channel_update", "water_not_2d_map"],
+      "evidence": ["tests", "before_after_windowed_png"]
+    },
+    {
+      "id": "R3DV-008",
+      "title": "Castle and city module renderer",
+      "status": "BLOCKED_BY_R3DV-006",
+      "depends_on": ["R3DV-003", "R3DV-006"],
+      "must_prove": ["gate", "wall", "tower", "house", "workshop", "collision_and_nav_bindings"],
+      "evidence": ["tests", "city_windowed_png"]
+    },
+    {
+      "id": "R3DV-009",
+      "title": "Visible NPCs and Bed/Work/Idle inspection",
+      "status": "BLOCKED_BY_R3DV-008",
+      "depends_on": ["R3DV-008"],
+      "must_prove": ["resident_worker_guard", "sim_position_binding", "box_inspection", "role_readability"],
+      "evidence": ["tests", "npc_city_windowed_png", "manual_inspection"]
+    },
+    {
+      "id": "R3DV-010",
+      "title": "Materials, lighting, and quality tiers",
+      "status": "BLOCKED_BY_R3DV-009",
+      "depends_on": ["R3DV-007", "R3DV-008", "R3DV-009"],
+      "must_prove": ["material_binding", "sun_and_ambient", "low_mid_high_tiers", "asset_consumers"],
+      "evidence": ["tests", "three_quality_pngs", "memory_frame_record"]
+    },
+    {
+      "id": "R3DV-011",
+      "title": "Honest playable 3D vertical slice",
+      "status": "BLOCKED_BY_R3DV-010",
+      "depends_on": ["R3DV-010"],
+      "must_prove": ["walk", "cave", "river", "build", "city", "npc", "inspect_boxes", "save_reload"],
+      "evidence": ["journey_test", "windowed_showcase_png", "manual_play_report"]
+    },
+    {
+      "id": "R3DV-012",
+      "title": "Visual regression and performance gates",
+      "status": "BLOCKED_BY_R3DV-011",
+      "depends_on": ["R3DV-011"],
+      "must_prove": ["semantic_screenshot_tests", "human_review", "quality_tier_perf", "known_limits"],
+      "evidence": ["green_test_report", "reviewed_shots", "performance_report"]
+    }
+  ]
+}

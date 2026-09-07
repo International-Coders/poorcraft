@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-09-06 — R3DV-001: POORCRAFT 3D gets a windowed GPU renderer (visual reset)
+
+The simulation-only roadmap was declared complete; the visual reset
+(docs/POORCRAFT-3D-VISUAL-RESET/) now drives execution. First task done:
+
+- **pc3d_render** (new P3D-local crate, wgpu 24 + winit 0.30 + WGSL):
+  resizable window, wgpu surface with `COPY_SRC`, nonuniform proof scene
+  ("three banners at dawn": gradient sky + sun in the fragment shader, plus
+  an indexed vertex-colored banner mesh with backface culling), surface-loss
+  policy (Lost→recreate, Outdated→reconfigure, Timeout→skip, zero-size
+  clamp), and swapchain screenshot readback.
+- **Semantic screenshot gate**: a pure pixel verifier asserts the frame is
+  nonuniform and contains every scene element (gradient monotonicity, sky
+  nonuniformity, three banner colors, pole, ground, sun, opacity); a flat
+  clear fails it. Used by both the offscreen GPU tests and the live capture.
+- **apps/poorcraft3d**: `--play` opens the windowed renderer; `--play-shot
+  [png] [frame]` opens a window, renders, performs a live 1280x720→800x500
+  resize mid-run, captures the resized swapchain frame, verifies it, and
+  prints a perf line. Makefile: `p3d-play`, `p3d-shot`.
+- **Evidence**: 282/282 pc3d tests (9 new, incl. real-GPU offscreen render +
+  determinism + resize), windowed PNG visually inspected, 12 s windowed
+  liveness run, 2000-frame perf record (p50 0.90 ms / p95 1.37 ms). Root
+  workspace untouched. pc3d_world remains rendering-free.
+
 ## 2026-09-06 — P3D-702..806: POORCRAFT 3D ROADMAP COMPLETE (loops 404-410)
 
 - **P3D-702 typed machines**: PowerType (Heat/Steam/Mechanical/
