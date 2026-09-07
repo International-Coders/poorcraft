@@ -244,7 +244,7 @@
     {
       "id": "R3DV-009",
       "title": "Visible NPCs and Bed/Work/Idle inspection",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": [
         "R3DV-008"
       ],
@@ -258,12 +258,23 @@
         "tests",
         "npc_city_windowed_png",
         "manual_inspection"
-      ]
+      ],
+      "completed_evidence": {
+        "crate": "pc3d_render/src/npcs.rs \u2014 every rendered NPC IS an authoritative NpcBrain: position = brain.pos (x/z) grounded on the terrain column, pose/props = brain.activity()/intent, movement = advance() stepping the brains on the real NavPatch; the renderer never invents positions or busywork",
+        "resident_worker_guard": "the cast binds to the settlement plan's own anchors (resident: home==work==grounded bed cell so it visibly stays home; worker: grounded bed -> grounded work site walking the real nav path; guard: Role::Guard with a post anchor \u2014 its walk IS the patrol), colors from the pc3d_assets npc materials (mat.npc_resident/worker/guard)",
+        "sim_position_binding": "GPU proof per NPC by CONTROL DIFFERENCE: the same close-up vantage rendered without the NPC mesh is the pixel-exact control; the with-NPC pixel at the torso point differs (deltas 0.10/0.31/0.31) \u2014 each NPC visibly renders AT its sim position; unit test pins mesh pos == brain.pos on the terrain surface and that stepping moves the cast",
+        "role_readability": "distinct torso materials per role (tested distinct), the guard ALWAYS carries a spear (wood shaft + steel tip \u2014 visible in the windowed close-up), the worker carries a tool ONLY while intent==Working, an Idle cast never renders a prop (tested: 'idle NPCs never look busy'); walking shows a mid-stride leg offset",
+        "box_inspection": "Bed/Work/Idle INSPECT overlays: thin colored frame cubes (12 bars each) over the PLAN's anchor cells, colored from mat.anchor_bed/work/idle; unit test pins coverage + colors; the inspect-mode windowed capture shows the frames around the plaza; inspect boxes are excluded from NPC close-up captures (an overlay must not sit between a vantage and its NPC)",
+        "grounding": "the plan's anchors can overlap its building footprints (documented data truth) \u2014 cast_for grounds each anchor on the nearest OPEN cell (a NPC embedded in a wall renders as a wall); the inspect boxes still mark the PLAN's cells",
+        "evidence_runs": "poorcraft3d --play-npcs + make p3d-npcs: 5 windowed captures (town overview with the cast, one close-up per NPC, inspect overview with anchor boxes), 86 frames p50 9.8 ms / avg 106.9 fps, torso-point sky-deltas 0.40/0.66/0.66; PNGs human-inspected PASS (blocky humanoids with role-colored torsos; the guard's spear reads clearly; bed/work/idle frames around the plaza)",
+        "tests": "347/347 pc3d workspace green (+5): cast binds to grounded plan anchors (all bindings open ground), meshes follow the sim, roles read by color/prop with prop==activity, idle NPCs never look busy, anchor boxes cover plan cells with material colors",
+        "bugs_found_by_proofs": "torso probe originally pointed 1 m too low (beside the legs \u2014 showed the wall behind); the plan's anchors overlap footprints so NPCs embedded in walls (grounding rule added); nav paths cross city footprints so a mid-path NPC can stand in a wall (presence proven by control-diff instead of a fixed expected color \u2014 positions stay the sim's truth)"
+      }
     },
     {
       "id": "R3DV-010",
       "title": "Materials, lighting, and quality tiers",
-      "status": "BLOCKED_BY_R3DV-009",
+      "status": "NEXT",
       "depends_on": [
         "R3DV-007",
         "R3DV-008",

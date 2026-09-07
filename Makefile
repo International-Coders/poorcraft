@@ -110,6 +110,11 @@ p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(PATH),$(PATH),) || exit 1; \
 	echo "P3D ASSETS OK"
 
+p3d-npcs: ## Windowed NPC proof (cast at sim positions + Bed/Work/Idle inspect boxes): make p3d-npcs [OUTDIR=shots] [SEED=3]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-npcs $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
+	echo "P3D NPC PROOF OK"
+
 p3d-city: ## Windowed castle/city proof (capital + town + gate close-up from the plans): make p3d-city [OUTDIR=shots] [SEED=3]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-city $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \

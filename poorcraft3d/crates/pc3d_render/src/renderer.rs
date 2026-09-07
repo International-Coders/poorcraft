@@ -305,6 +305,8 @@ pub struct Renderer {
     water: Option<crate::water::WaterSections>,
     /// Castle/city modules from the placement authorities (R3DV-008).
     city: Option<GpuMesh>,
+    /// NPCs + inspect anchor boxes (R3DV-009).
+    npcs: Option<GpuMesh>,
     start: std::time::Instant,
     /// Frozen water time for deterministic proofs (None = wall clock).
     water_time_override: Option<f32>,
@@ -415,6 +417,7 @@ impl Renderer {
             streamer: None,
             water: None,
             city: None,
+            npcs: None,
             start: std::time::Instant::now(),
             water_time_override: None,
         }
@@ -459,6 +462,7 @@ impl Renderer {
             streamer: None,
             water: None,
             city: None,
+            npcs: None,
             start: std::time::Instant::now(),
             water_time_override: None,
         }
@@ -527,6 +531,16 @@ impl Renderer {
         // u32 indices: concatenated vistas exceed the u16 range.
         self.terrain = Some(GpuMesh::from_mesh_u32(&self.ctx.device, &verts, &idx));
         stats
+    }
+
+    /// Detaches NPCs + boxes (control renders for presence proofs).
+    pub fn detach_npcs(&mut self) {
+        self.npcs = None;
+    }
+
+    /// Loads the NPC + anchor-box mesh (R3DV-009).
+    pub fn load_npcs(&mut self, verts: &[crate::scene::SceneVertex], idx: &[u16]) {
+        self.npcs = Some(GpuMesh::from_mesh(&self.ctx.device, verts, idx));
     }
 
     /// Loads the castle/city module mesh (R3DV-008) built from the
@@ -958,6 +972,10 @@ impl Renderer {
         // 2b2. Castle/city modules (opaque, same lit pipeline).
         if let Some(c) = &self.city {
             c.draw(&mut pass);
+        }
+        // 2b3. NPCs + inspect anchor boxes.
+        if let Some(n) = &self.npcs {
+            n.draw(&mut pass);
         }
         // 2c. Transparent river water LAST among world geometry: depth-read
         // only, alpha blend — banks show through, terrain occludes.

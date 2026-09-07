@@ -79,8 +79,9 @@ fn push_quad(
     idx.extend([start, start + 1, start + 2, start, start + 2, start + 3]);
 }
 
-/// An axis-aligned box prism (min/max in world meters).
-fn push_box(
+/// An axis-aligned box prism (min/max in world meters). Shared with the
+/// NPC renderer.
+pub(crate) fn push_city_box(
     verts: &mut Vec<SceneVertex>,
     idx: &mut Vec<u16>,
     min: [f32; 3],
@@ -226,11 +227,11 @@ fn castle_module_mesh(
             // Two pillars + lintel: a real opening between them, merlons on
             // top — readable as a GATE.
             let (px, pz) = (fw as f32, fh as f32);
-            push_box(verts, idx, [x0, y, z0], [x0 + 1.0, y + 4.0, z0 + pz], stone);
-            push_box(verts, idx, [x0 + px - 1.0, y, z0], [x0 + px, y + 4.0, z0 + pz], stone);
-            push_box(verts, idx, [x0, y + 4.0, z0], [x0 + px, y + 5.0, z0 + pz], stone);
-            push_box(verts, idx, [x0, y + 5.0, z0], [x0 + 1.0, y + 6.0, z0 + pz], stone);
-            push_box(
+            push_city_box(verts, idx, [x0, y, z0], [x0 + 1.0, y + 4.0, z0 + pz], stone);
+            push_city_box(verts, idx, [x0 + px - 1.0, y, z0], [x0 + px, y + 4.0, z0 + pz], stone);
+            push_city_box(verts, idx, [x0, y + 4.0, z0], [x0 + px, y + 5.0, z0 + pz], stone);
+            push_city_box(verts, idx, [x0, y + 5.0, z0], [x0 + 1.0, y + 6.0, z0 + pz], stone);
+            push_city_box(
                 verts, idx,
                 [x0 + px - 1.0, y + 5.0, z0],
                 [x0 + px, y + 6.0, z0 + pz],
@@ -238,24 +239,24 @@ fn castle_module_mesh(
             );
         }
         ModuleKind::Wall => {
-            push_box(verts, idx, [x0, y, z0], [x0 + fw as f32, y + 2.2, z0 + fh as f32], stone);
+            push_city_box(verts, idx, [x0, y, z0], [x0 + fw as f32, y + 2.2, z0 + fh as f32], stone);
             let step = 1.0;
             let mut mx = x0;
             while mx < x0 + fw as f32 {
                 let seg_end = (mx + 0.6).min(x0 + fw as f32);
-                push_box(verts, idx, [mx, y + 2.2, z0], [seg_end, y + 3.0, z0 + fh as f32], stone);
+                push_city_box(verts, idx, [mx, y + 2.2, z0], [seg_end, y + 3.0, z0 + fh as f32], stone);
                 mx += step;
             }
         }
         ModuleKind::Tower => {
-            push_box(verts, idx, [x0, y, z0], [x0 + 2.0, y + 5.0, z0 + 2.0], stone);
-            push_box(verts, idx, [x0 - 0.25, y + 5.0, z0 - 0.25], [x0 + 2.25, y + 5.8, z0 + 2.25], stone);
-            push_box(verts, idx, [x0 + 0.6, y + 5.8, z0 + 0.6], [x0 + 1.4, y + 7.0, z0 + 1.4], timber);
+            push_city_box(verts, idx, [x0, y, z0], [x0 + 2.0, y + 5.0, z0 + 2.0], stone);
+            push_city_box(verts, idx, [x0 - 0.25, y + 5.0, z0 - 0.25], [x0 + 2.25, y + 5.8, z0 + 2.25], stone);
+            push_city_box(verts, idx, [x0 + 0.6, y + 5.8, z0 + 0.6], [x0 + 1.4, y + 7.0, z0 + 1.4], timber);
         }
         ModuleKind::Keep => {
-            push_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + 4.8, y + 7.0, z0 + 4.8], stone);
+            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + 4.8, y + 7.0, z0 + 4.8], stone);
             for (cx, cz) in [(0.0f32, 0.0f32), (4.0, 0.0), (0.0, 4.0), (4.0, 4.0)] {
-                push_box(verts, idx, [x0 + cx, y, z0 + cz], [x0 + cx + 1.0, y + 9.0, z0 + cz + 1.0], stone);
+                push_city_box(verts, idx, [x0 + cx, y, z0 + cz], [x0 + cx + 1.0, y + 9.0, z0 + cz + 1.0], stone);
             }
             push_pitched_roof(
                 verts, idx,
@@ -266,7 +267,7 @@ fn castle_module_mesh(
             );
         }
         ModuleKind::Barracks => {
-            push_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 2.6, z0 + fh as f32 - 0.2], stone);
+            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 2.6, z0 + fh as f32 - 0.2], stone);
             push_pitched_roof(
                 verts, idx,
                 [x0 + 0.1, y + 2.6, z0 + 0.1],
@@ -276,7 +277,7 @@ fn castle_module_mesh(
             );
         }
         ModuleKind::Chapel => {
-            push_box(verts, idx, [x0 + 0.3, y, z0 + 0.3], [x0 + fw as f32 - 0.3, y + 4.0, z0 + fh as f32 - 0.3], stone);
+            push_city_box(verts, idx, [x0 + 0.3, y, z0 + 0.3], [x0 + fw as f32 - 0.3, y + 4.0, z0 + fh as f32 - 0.3], stone);
             push_pitched_roof(
                 verts, idx,
                 [x0 + 0.2, y + 4.0, z0 + 0.2],
@@ -286,14 +287,14 @@ fn castle_module_mesh(
             );
         }
         ModuleKind::Market => {
-            push_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 1.4, z0 + fh as f32 - 0.2], stone);
-            push_box(verts, idx, [x0, y + 1.4, z0], [x0 + fw as f32, y + 2.2, z0 + fh as f32], timber);
+            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 1.4, z0 + fh as f32 - 0.2], stone);
+            push_city_box(verts, idx, [x0, y + 1.4, z0], [x0 + fw as f32, y + 2.2, z0 + fh as f32], timber);
         }
         _ => {
             // Kit signature modules (arsenal, vault, ...): a tall stone
             // block with the kit color band — placeholder silhouette.
-            push_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 3.4, z0 + fh as f32 - 0.2], stone);
-            push_box(verts, idx, [x0, y + 3.4, z0], [x0 + fw as f32, y + 3.8, z0 + fh as f32], timber);
+            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 3.4, z0 + fh as f32 - 0.2], stone);
+            push_city_box(verts, idx, [x0, y + 3.4, z0], [x0 + fw as f32, y + 3.8, z0 + fh as f32], timber);
         }
     }
     (idx.len() - start_idx) / 3
@@ -317,7 +318,7 @@ fn settlement_building_mesh(
     match b.kind {
         BuildingKind::Home => {
             // HOUSE: walls + pitched roof (the queue's "house").
-            push_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.2, z0 + sh as f32 - 0.2], timber);
+            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.2, z0 + sh as f32 - 0.2], timber);
             push_pitched_roof(
                 verts, idx,
                 [x0 + 0.1, y + 2.2, z0 + 0.1],
@@ -328,9 +329,9 @@ fn settlement_building_mesh(
         }
         BuildingKind::Workshop => {
             // WORKSHOP: hall + chimney + overhanging roof slab.
-            push_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.6, z0 + sh as f32 - 0.2], metal);
-            push_box(verts, idx, [x0, y + 2.6, z0], [x0 + sw as f32, y + 3.2, z0 + sh as f32], timber);
-            push_box(
+            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.6, z0 + sh as f32 - 0.2], metal);
+            push_city_box(verts, idx, [x0, y + 2.6, z0], [x0 + sw as f32, y + 3.2, z0 + sh as f32], timber);
+            push_city_box(
                 verts, idx,
                 [x0 + sw as f32 - 0.9, y + 3.2, z0 + 0.3],
                 [x0 + sw as f32 - 0.4, y + 4.6, z0 + 0.8],
@@ -338,15 +339,15 @@ fn settlement_building_mesh(
             );
         }
         BuildingKind::Well => {
-            push_box(verts, idx, [x0 + 0.1, y, z0 + 0.1], [x0 + 0.9, y + 0.7, z0 + 0.9], stone);
+            push_city_box(verts, idx, [x0 + 0.1, y, z0 + 0.1], [x0 + 0.9, y + 0.7, z0 + 0.9], stone);
         }
         BuildingKind::Watchtower => {
-            push_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + 1.4, y + 4.0, z0 + 1.4], stone);
-            push_box(verts, idx, [x0, y + 4.0, z0], [x0 + 1.6, y + 4.5, z0 + 1.6], timber);
+            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + 1.4, y + 4.0, z0 + 1.4], stone);
+            push_city_box(verts, idx, [x0, y + 4.0, z0], [x0 + 1.6, y + 4.5, z0 + 1.6], timber);
         }
         _ => {
-            push_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.2, z0 + sh as f32 - 0.2], stone);
-            push_box(verts, idx, [x0, y + 2.2, z0], [x0 + sw as f32, y + 2.8, z0 + sh as f32], timber);
+            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.2, z0 + sh as f32 - 0.2], stone);
+            push_city_box(verts, idx, [x0, y + 2.2, z0], [x0 + sw as f32, y + 2.8, z0 + sh as f32], timber);
         }
     }
     (idx.len() - start_idx) / 3

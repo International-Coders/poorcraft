@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-009: NPCs render at their simulated positions
+
+`pc3d_render::npcs` populates the city with a resident, a worker, and a
+guard — each one an authoritative `NpcBrain` bound to (grounded) plan
+anchors and stepped on the real `NavPatch`.
+
+- **Sim binding**: position = `brain.pos` on the terrain column; presence
+  proven by control-diff at each sim position (0.10–0.31); the resident's
+  torso color is pixel-exact against the material registry.
+- **Role readability**: distinct torso materials; the guard always carries
+  a spear; the worker's tool appears only while `intent == Working` —
+  idle NPCs never look busy (tested).
+- **Bed/Work/Idle inspection**: colored frame cubes over the plan's
+  anchor cells from the anchor materials (inspect captures only).
+- `--play-npcs` / `make p3d-npcs`: 5 windowed captures (overview, three
+  close-ups, inspect mode), 86 frames p50 9.8 ms; human-inspected PASS.
+  347/347 pc3d tests (+5), root 474/474.
+
 ## 2026-09-07 — R3DV-008: the city renders from the placement authorities
 
 `pc3d_render::city` renders a whole readable place — capital + town — with

@@ -1233,9 +1233,217 @@ fn main() {
                 }
             }
         }
+        Some("--play-npcs") => {
+            // R3DV-009: NPCs at their simulated positions + Bed/Work/Idle
+            // inspect boxes. Captures: town overview with the cast, one
+            // close-up per NPC (resident/worker/guard), then the inspect
+            // overview with anchor boxes.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            let seed: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(3);
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::city::{city_scene, mesh_city};
+            use pc3d_render::npcs::{
+                advance, cast_for, mesh_anchor_boxes, mesh_npc, npc_world_pos,
+            };
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::coords::RegionCoord;
+            use pc3d_world::nav::NavPatch;
+
+            let (gen, _c, layout, plan) = city_scene(seed, RegionCoord { x: 0, z: 0 });
+            let gen = std::rc::Rc::new(gen);
+            let (cverts, cidx, info) = mesh_city(&gen, &layout, &plan);
+            let plaza_patch = pc3d_world::coords::PatchCoord {
+                x: plan.plaza.x.div_euclid(16),
+                y: 0,
+                z: plan.plaza.z.div_euclid(16),
+            };
+            let nav = NavPatch::from_gen(&gen, plaza_patch);
+            let mut cast = cast_for(&plan, &info);
+            advance(&mut cast, &nav, 0.5, 200);
+            for c in &cast {
+                println!(
+                    "NPC {:<8} pos {:?} intent {:?}",
+                    c.label, c.brain.pos, c.brain.intent
+                );
+            }
+
+            let (mut nverts, mut nidx) = (Vec::new(), Vec::new());
+            for c in &cast {
+                mesh_npc(&gen, c, &mut nverts, &mut nidx);
+            }
+            let (mut bverts, mut bidx) = (nverts.clone(), nidx.clone());
+            mesh_anchor_boxes(&gen, &plan, &mut bverts, &mut bidx);
+
+            let mut patches = Vec::new();
+            let pmin = (
+                (info.bounds_min[0] as i32).div_euclid(16) - 1,
+                (info.bounds_min[2] as i32).div_euclid(16) - 1,
+            );
+            let pmax = (
+                (info.bounds_max[0] as i32).div_euclid(16) + 1,
+                (info.bounds_max[2] as i32).div_euclid(16) + 1,
+            );
+            let y_level = ((info.bounds_min[1] + 2.0) as i32).div_euclid(16).max(0);
+            for px in pmin.0..=pmax.0 {
+                for pz in pmin.1..=pmax.1 {
+                    for py in (y_level - 1)..=(y_level + 1) {
+                        patches.push(pc3d_world::coords::PatchCoord { x: px, y: py, z: pz });
+                    }
+                }
+            }
+            let town_c = plan.plaza;
+            let town_surf = gen
+                .effective_surface_mm(town_c.x as i64 * 1000, town_c.z as i64 * 1000)
+                as f32
+                / 1000.0;
+            let overview = pc3d_render::CameraPose::new(
+                [town_c.x as f32 + 0.5, town_surf + 26.0, town_c.z as f32 + 22.0],
+                0.0,
+                (-0.75f32).atan2(1.3),
+            );
+
+            // Per-NPC close-up poses (eye due south of the sim position).
+            let closeups: Vec<(usize, pc3d_render::CameraPose, [f32; 3])> = cast
+                .iter()
+                .map(|c| {
+                    let base = npc_world_pos(&gen, &c.brain);
+                    let face = [base[0], base[1] + 1.05, base[2] + 0.14];
+                    let eye = [base[0], base[1] + 1.25, base[2] + 3.0];
+                    let d = [
+                        face[0] - eye[0],
+                        face[1] - eye[1],
+                        face[2] - eye[2],
+                    ];
+                    (
+                        0usize,
+                        pc3d_render::CameraPose::new(
+                            eye,
+                            (-d[0]).atan2(-d[2]),
+                            (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                        ),
+                        base,
+                    )
+                })
+                .collect();
+
+            let g = gen.clone();
+            let cv = cverts.clone();
+            let ci = cidx.clone();
+            let nv = nverts.clone();
+            let ni = nidx.clone();
+            let bv = bverts.clone();
+            let bi = bidx.clone();
+            let cu = closeups.clone();
+            let cu2 = closeups.clone();
+            let cu3 = closeups.clone();
+
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — npcs".into(),
+                max_frames: Some(90),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![(0, overview)],
+                shots: vec![
+                    Shot::new(20, format!("{out_dir}/windowed_npcs_town.png")),
+                    Shot::new(35, format!("{out_dir}/windowed_npcs_resident.png")),
+                    Shot::new(50, format!("{out_dir}/windowed_npcs_worker.png")),
+                    Shot::new(65, format!("{out_dir}/windowed_npcs_guard.png")),
+                    Shot::new(85, format!("{out_dir}/windowed_npcs_inspect.png")),
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r| {
+                            r.set_placeholder_scene(false);
+                            r.load_terrain(&g, &patches);
+                            r.load_city(&cv, &ci);
+                            r.load_npcs(&nv, &ni);
+                            r.set_pose(overview);
+                        }),
+                    ),
+                    (25, Box::new(move |r| r.set_pose(cu[0].1))),
+                    (40, Box::new(move |r| r.set_pose(cu2[1].1))),
+                    (55, Box::new(move |r| r.set_pose(cu3[2].1))),
+                    (
+                        70,
+                        Box::new(move |r| {
+                            // Inspect mode: anchor boxes join the render.
+                            r.load_npcs(&bv, &bi);
+                            r.set_pose(overview);
+                        }),
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 5 {
+                        eprintln!("[FAIL] expected 5 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(4) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    // Each close-up must show SOMETHING at the torso point
+                    // (not the dawn sky behind an empty spot).
+                    let (w, h) = (
+                        report.captures[1].report.width,
+                        report.captures[1].report.height,
+                    );
+                    let aspect = w as f32 / h as f32;
+                    let sky = |ndc: (f32, f32)| {
+                        pc3d_render::scene::to_srgb4(pc3d_render::scene::sky_color_linear(
+                            pc3d_render::scene::dir_from_ndc(
+                                pc3d_render::CameraPose::new([0.0; 3], 0.0, 0.0),
+                                ndc,
+                                aspect,
+                            ),
+                            pc3d_render::scene::SUN_DIR,
+                        ))
+                    };
+                    for (i, cap) in report.captures[1..4].iter().enumerate() {
+                        let ndc = pc3d_render::scene::project_ndc(
+                            closeups[i].1,
+                            aspect,
+                            [closeups[i].2[0], closeups[i].2[1] + 1.05, closeups[i].2[2] + 0.14],
+                        );
+                        let px = pc3d_render::scene::sample_ndc(&cap.rgba, w, h, ndc);
+                        let s = sky(ndc);
+                        let delta: f32 = (0..3).map(|k| (px[k] - s[k]).abs()).sum();
+                        if delta < 0.05 {
+                            eprintln!(
+                                "[FAIL] NPC {i} close-up shows sky at the torso point ({px:?})"
+                            );
+                            std::process::exit(1);
+                        }
+                        println!("NPC {i} close-up: torso point occupied (sky-delta {delta:.2})");
+                    }
+                    println!(
+                        "WINDOWED NPC PROOF PASS -> {} (+4 more)",
+                        report.captures[0].path.display()
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed]|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

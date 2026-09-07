@@ -4783,3 +4783,50 @@ HONESTLY DEFERRED: kit signature modules render as generic tall blocks
 capital and town roads are not rendered as road meshes; city collision is
 exposed as data but not yet wired into player movement (R3DV-011). Next:
 R3DV-009 NPC renderer and city anchors.
+
+## 2026-09-07 — R3DV-009: NPCs at their simulated positions + inspect boxes
+
+WHAT: The city is occupied. pc3d_render::npcs renders a three-role cast —
+resident, worker, guard — where every figure IS an authoritative NpcBrain:
+position = brain.pos grounded on the terrain column, activity/pose/props =
+brain.activity()/intent, and movement = stepping the brains on the real
+NavPatch (advance()). Roles read by color + prop: distinct torso materials
+from the pc3d_assets npc materials; the guard always carries a spear
+(wood + steel tip); the worker carries a tool ONLY while intent==Working —
+an Idle cast never looks busy (tested). Bed/Work/Idle inspection: thin
+colored frame cubes over the PLAN's anchor cells, colored from the anchor
+materials (authoring tools visible in inspect captures only).
+
+HOW: npcs.rs (cast_for binds the plan's bed/work/idle anchors GROUNDED on
+the nearest open cell — the plan's anchors overlap its own footprints, a
+documented data truth, and an NPC embedded in a wall renders as a wall;
+mesh_npc: legs/torso/head boxes + role props + walking stride offset;
+mesh_anchor_boxes: 12-bar frames; advance: deterministic brain stepping).
+renderer: load_npcs/detach_npcs. CLI --play-npcs + make p3d-npcs: 5
+windowed captures (town overview, one close-up per NPC, inspect overview).
+
+EVIDENCE: 347/347 pc3d tests (+5). GPU proof: per-NPC presence by CONTROL
+DIFFERENCE (same vantage without the NPC mesh = pixel-exact control; the
+with-NPC torso pixel differs by 0.10/0.31/0.31 — each NPC visibly renders
+AT its sim position) + the resident's torso color pixel-exact against the
+material registry. Unit tests: cast binds to grounded plan anchors (all
+bindings open ground), mesh pos == brain.pos on terrain, roles read by
+distinct colors with prop presence == sim activity, idle never busy,
+anchor boxes cover plan cells with material colors. Windowed: 86 frames
+p50 9.8 ms / avg 106.9 fps; torso-point sky-deltas 0.40/0.66/0.66; PNGs
+human-inspected PASS (blocky humanoids with role-colored torsos; the
+guard's spear is clearly readable; warm/blue/green frames around the
+plaza in inspect mode).
+
+BUGS/LESSONS FOUND BY THE PROOFS: the torso probe originally aimed 1 m
+too low (beside the legs — it read the wall behind); plan anchors overlap
+building footprints so NPCs embedded in walls (the grounding rule); nav
+paths cross city footprints so a mid-path NPC may stand in a wall —
+presence is proven by control-diff rather than a fixed expected color,
+because positions are the sim's truth, not the renderer's convenience.
+
+HONESTLY DEFERRED: no walk animation (a stride offset only), no death/
+garrison-gap visualization (npc_death state exists in the sim), no NPC
+name/role labels in-world (inspect labels are R3DV-011+), the cast is the
+showcase trio rather than the full settlement population. Next: R3DV-010
+materials, lighting, and quality tiers.
