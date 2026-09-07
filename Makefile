@@ -110,6 +110,15 @@ p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(PATH),$(PATH),) || exit 1; \
 	echo "P3D ASSETS OK"
 
+p3d-slice: ## Windowed VERTICAL SLICE showcase (city+cave+build captures): make p3d-slice [OUTDIR=shots] [SEED=3]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
+	echo "P3D SLICE PROOF OK"
+
+p3d-slice-live: ## THE WALKABLE SLICE: WASD walk, click look, F/R build, B save, L reload, I boxes: make p3d-slice-live [SEED=3]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice live $(if $(SEED),$(SEED),3)
+
 p3d-quality: ## Windowed quality-tier proof (same scene at Low/Mid/High + memory/frame record): make p3d-quality [OUTDIR=shots] [SEED=3]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-quality $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \

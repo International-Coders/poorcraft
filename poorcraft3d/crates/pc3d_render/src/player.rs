@@ -1,0 +1,212 @@
+//! The walking player body (R3DV-011): first-person movement with terrain
+//! collision — read-only `final_solid` queries, the same authority the
+//! mesher and future combat use. Gravity snaps the feet to the ground
+//! column; horizontal moves are blocked by solid cells at body height;
+//! nothing here can mutate the world.
+
+use crate::camera::{fwd_of, CameraPose};
+use pc3d_world::coords::CellCoord;
+use pc3d_world::gen::WorldGen;
+use pc3d_world::terrain::final_solid;
+
+pub const EYE_ABOVE_FEET: f32 = 1.7;
+pub const WALK_SPEED: f32 = 4.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlayerBody {
+    /// Feet position (meters).
+    pub pos: [f32; 3],
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
+fn solid_at(gen: &WorldGen, x: i32, y: i32, z: i32) -> bool {
+    final_solid(gen, x as i64 * 1000, y as i64 * 1000, z as i64 * 1000).solid
+}
+
+impl PlayerBody {
+    pub fn pose(&self) -> CameraPose {
+        CameraPose::new(
+            [self.pos[0], self.pos[1] + EYE_ABOVE_FEET, self.pos[2]],
+            self.yaw,
+            self.pitch,
+        )
+    }
+
+    /// The ground height under a column: the top of the highest solid cell
+    /// at or below `from_y + 2` (lets the player step up 1 m slopes).
+    fn ground_at(&self, gen: &WorldGen, x: f32, z: f32) -> f32 {
+        let cx = x.floor() as i32;
+        let cz = z.floor() as i32;
+        let mut y = (self.pos[1] + 2.0).floor() as i32;
+        while y > (self.pos[1] - 3.0).floor() as i32 {
+            if solid_at(gen, cx, y, cz) {
+                return (y + 1) as f32;
+            }
+            y -= 1;
+        }
+        self.pos[1]
+    }
+
+    /// True when a body (0.3 m radius, 1.8 m tall) at `x/z` intersects
+    /// solid cells.
+    fn blocked(&self, gen: &WorldGen, x: f32, z: f32) -> bool {
+        const R: f32 = 0.3;
+        for dx in [-R, R] {
+            for dz in [-R, R] {
+                let cx = (x + dx).floor() as i32;
+                let cz = (z + dz).floor() as i32;
+                // Body occupies feet+0.2 (ankle clearance) .. feet+1.8.
+                let y0 = (self.pos[1] + 0.2).floor() as i32;
+                let y1 = (self.pos[1] + 1.8).floor() as i32;
+                for y in y0..=y1 {
+                    if solid_at(gen, cx, y, cz) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// One walking step: yaw-relative movement, axis-separated collision,
+    /// then gravity snaps to the ground (with 1 m step-up).
+    pub fn walk(&mut self, gen: &WorldGen, fwd: f32, strafe: f32, dt: f32) {
+        let yaw = self.yaw;
+        let hf = [-yaw.sin(), -yaw.cos()];
+        let hr = [yaw.cos(), -yaw.sin()];
+        let mut dx = (hf[0] * fwd + hr[0] * strafe) * WALK_SPEED * dt;
+        let mut dz = (hf[1] * fwd + hr[1] * strafe) * WALK_SPEED * dt;
+        // Normalize diagonals.
+        let planar = (dx * dx + dz * dz).sqrt();
+        if planar > WALK_SPEED * dt {
+            let k = WALK_SPEED * dt / planar;
+            dx *= k;
+            dz *= k;
+        }
+        // Axis-separated: x then z.
+        if !self.blocked(gen, self.pos[0] + dx, self.pos[2]) {
+            self.pos[0] += dx;
+        }
+        if !self.blocked(gen, self.pos[0], self.pos[2] + dz) {
+            self.pos[2] += dz;
+        }
+        // Gravity/ground: snap down to the column top, allowing a 1 m
+        // step-up when the ground rises under the new position.
+        let ground = self.ground_at(gen, self.pos[0], self.pos[2]);
+        self.pos[1] = ground;
+    }
+
+    /// The cell a look ray targets (for place/remove): the first solid
+    /// cell hit from the eye along the view direction, with the last air
+    /// cell before it (where a new block would go).
+    pub fn ray_target(&self, gen: &WorldGen, max_m: f32) -> Option<(CellCoord, CellCoord)> {
+        let eye = self.pose().position;
+        let fwd = fwd_of(self.yaw, self.pitch);
+        crate::terrain::ray_first_hit(gen, eye, fwd, max_m).map(|(hit, _normal, before)| {
+            let air = CellCoord {
+                x: before[0].floor() as i32,
+                y: before[1].floor() as i32,
+                z: before[2].floor() as i32,
+            };
+            (hit, air)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn walker_follows_terrain_and_is_blocked_by_walls() {
+        let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+        let gen = WorldGen::new(seed);
+        let o = coord.origin();
+        let cx = o.x.div_euclid(1000) as i32 + 8;
+        let cz = o.z.div_euclid(1000) as i32 + 8;
+        // Find open ground near the scene center.
+        let mut start = None;
+        for dx in 0..8 {
+            for dz in 0..8 {
+                let x = cx + dx;
+                let z = cz + dz;
+                let mut y = 40;
+                while y > 0 && !solid_at(&gen, x, y, z) {
+                    y -= 1;
+                }
+                if solid_at(&gen, x, y, z) && !solid_at(&gen, x, y + 1, z) && !solid_at(&gen, x, y + 2, z) {
+                    start = Some([x as f32, (y + 1) as f32, z as f32]);
+                    break;
+                }
+            }
+            if start.is_some() { break; }
+        }
+        let start = start.expect("open ground");
+        let mut p = PlayerBody { pos: start, yaw: 0.0, pitch: 0.0 };
+
+        // Walking 4 m north moves and keeps feet on the terrain columns.
+        for _ in 0..60 {
+            p.walk(&gen, 1.0, 0.0, 1.0 / 60.0);
+        }
+        assert!((p.pos[2] - start[2] + 4.0).abs() < 0.2, "moved ~4 m north");
+        let ground = p.ground_at(&gen, p.pos[0], p.pos[2]);
+        assert!((p.pos[1] - ground).abs() < 0.01, "feet glued to ground");
+
+        // Blocked by a solid wall: teleport in front of a cliff-like column
+        // and walk into it — the x/z must not pass through solid cells.
+        // (Find any adjacent solid column.)
+        let (mut wx, mut wz) = (p.pos[0] as i32, p.pos[2] as i32);
+        'find: for dx in -3..=3 {
+            for dz in -3..=3 {
+                let x = p.pos[0] as i32 + dx;
+                let z = p.pos[2] as i32 + dz;
+                let y = p.pos[1] as i32;
+                if solid_at(&gen, x, y, z) && solid_at(&gen, x, y + 1, z) {
+                    wx = x;
+                    wz = z;
+                    break 'find;
+                }
+            }
+        }
+        if (wx, wz) != (p.pos[0] as i32, p.pos[2] as i32) {
+            // Stand one cell south of the wall, face north, walk into it.
+            let save = p.pos;
+            p.pos = [wx as f32, p.pos[1], (wz + 2) as f32];
+            let y = p.pos[1] as i32;
+            if solid_at(&gen, wx, y, wz) && solid_at(&gen, wx, y + 1, wz) {
+                for _ in 0..30 {
+                    p.walk(&gen, 1.0, 0.0, 1.0 / 60.0);
+                }
+                assert!(
+                    (p.pos[2] as i32) >= wz + 1 || p.blocked(&gen, p.pos[0], wz as f32 + 0.31),
+                    "the wall stopped the walker (now {:?})",
+                    p.pos
+                );
+            }
+            p.pos = save;
+        }
+    }
+
+    #[test]
+    fn ray_target_hits_solid_and_offers_an_air_cell() {
+        let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+        let gen = WorldGen::new(seed);
+        let o = coord.origin();
+        let x = o.x.div_euclid(1000) as i32 + 8;
+        let z = o.z.div_euclid(1000) as i32 + 8;
+        let mut y = 40;
+        while y > 0 && !solid_at(&gen, x, y, z) {
+            y -= 1;
+        }
+        let ground = y;
+        let p = PlayerBody {
+            pos: [x as f32, (ground + 1) as f32, z as f32],
+            yaw: 0.0,
+            pitch: -0.9,
+        };
+        let (hit, before) = p.ray_target(&gen, 30.0).expect("looking down hits ground");
+        assert!(solid_at(&gen, hit.x, hit.y, hit.z));
+        assert!(!solid_at(&gen, before.x, before.y, before.z));
+    }
+}

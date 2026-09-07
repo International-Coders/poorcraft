@@ -57,6 +57,30 @@ pub enum ProbeSet {
     SkyOnly,
 }
 
+/// Data-only slice setup (cloneable config); the app assembles the full
+/// SliceHost at window creation via `slice::assemble`.
+pub struct SliceSetup {
+    pub seed: u64,
+    pub scene: std::rc::Rc<crate::slice::SliceScene>,
+    pub save_root: std::rc::Rc<std::path::PathBuf>,
+    pub world_name: String,
+}
+
+/// The live vertical slice: a walking player on colliding terrain, a host
+/// for place/remove through commands, save/reload on disk, and inspect
+/// boxes. Keys: WASD walk, mouse look (click), F place at ray target, R
+/// remove at ray target, B save, L reload, I inspect boxes, Esc quits.
+pub struct SliceHost {
+    pub seed: u64,
+    pub player: crate::player::PlayerBody,
+    pub host: std::rc::Rc<std::cell::RefCell<pc3d_world::host::SoloHost>>,
+    pub scene: std::rc::Rc<crate::slice::SliceScene>,
+    pub save_root: std::rc::Rc<std::path::PathBuf>,
+    pub world_name: String,
+    pub inspect: bool,
+    pub last_message: String,
+}
+
 /// A shared handle to the authoritative host for interactive construction:
 /// F places a rock block 6 m ahead of the camera, R removes the built block
 /// 6 m ahead — both through `HostCommand` + one tick, never by client-side
@@ -79,6 +103,11 @@ pub struct WindowConfig {
     pub probe_set: ProbeSet,
     /// Interactive construction (F place / R remove through the host).
     pub interactive_host: Option<InteractiveHost>,
+    /// The live vertical slice (R3DV-011): walking player, host building,
+    /// save/reload, inspect boxes.
+    pub slice_host: Option<Box<SliceHost>>,
+    /// Data-only setup: assembled into slice_host at window creation.
+    pub slice_setup: Option<SliceSetup>,
     /// If set, the window is resized halfway to the first shot so the run
     /// proves live surface resize recovery before capturing.
     pub resize_to: Option<(f64, f64)>,
@@ -95,6 +124,8 @@ impl Default for WindowConfig {
             frame_hooks: Vec::new(),
             probe_set: ProbeSet::Scene,
             interactive_host: None,
+            slice_host: None,
+            slice_setup: None,
             resize_to: Some((800.0, 500.0)),
         }
     }
@@ -253,7 +284,17 @@ impl ApplicationHandler for App {
             .with_resizable(true);
         let window = event_loop.create_window(attrs).expect("create window");
         let window = Arc::new(window);
-        let renderer = Renderer::windowed(&window);
+        let mut renderer = Renderer::windowed(&window);
+        if let Some(setup) = self.cfg.slice_setup.take() {
+            let host = crate::slice::assemble(
+                &mut renderer,
+                &setup.scene,
+                setup.seed,
+                setup.save_root,
+                &setup.world_name,
+            );
+            self.cfg.slice_host = Some(Box::new(host));
+        }
         let built_count = self
             .cfg
             .interactive_host
@@ -331,6 +372,81 @@ impl ApplicationHandler for App {
                     match event.state {
                         ElementState::Pressed => {
                             state.keys.insert(code);
+                            // Live-slice keys: F/R build at the ray target,
+                            // B/L save+reload, I inspect boxes.
+                            if let Some(slice) = self.cfg.slice_host.as_mut() {
+                                let gen = slice.scene.gen.clone();
+                                match code {
+                                    KeyCode::KeyF | KeyCode::KeyR => {
+                                        let target = slice.player.ray_target(&gen, 8.0);
+                                        if let Some((hit, air)) = target {
+                                            let cell = if code == KeyCode::KeyF { air } else { hit };
+                                            let mut h = slice.host.borrow_mut();
+                                            if code == KeyCode::KeyF {
+                                                h.submit(pc3d_world::host::HostCommand::Build {
+                                                    cell,
+                                                    material: pc3d_world::gen::CellMaterial::Sand,
+                                                    owner: 7,
+                                                });
+                                            } else {
+                                                h.submit(pc3d_world::host::HostCommand::RemoveBuild {
+                                                    cell,
+                                                    owner: 7,
+                                                });
+                                            }
+                                            h.run_ticks(1);
+                                            state.renderer.update_construction(&h.construction);
+                                            slice.last_message = format!(
+                                                "{} {:?}",
+                                                if code == KeyCode::KeyF { "PLACED" } else { "REMOVED" },
+                                                cell
+                                            );
+                                        } else {
+                                            slice.last_message = "NO TARGET IN REACH".into();
+                                        }
+                                    }
+                                    KeyCode::KeyB => {
+                                        let root = slice.save_root.clone();
+                                        let r = crate::slice::save_slice(
+                                            root.as_ref(),
+                                            &slice.world_name,
+                                            slice.seed,
+                                            &slice.host.borrow(),
+                                            &slice.player,
+                                        );
+                                        slice.last_message = match r {
+                                            Ok(()) => "SAVED".into(),
+                                            Err(e) => format!("SAVE ERR {e:?}"),
+                                        };
+                                    }
+                                    KeyCode::KeyL => {
+                                        let root = slice.save_root.clone();
+                                        let name = slice.world_name.clone();
+                                        match crate::slice::load_slice(root.as_ref(), &name) {
+                                            Ok((seed, host, player)) => {
+                                                slice.seed = seed;
+                                                *slice.host.borrow_mut() = host;
+                                                slice.player = player;
+                                                let h = slice.host.borrow();
+                                                state.renderer.update_construction(&h.construction);
+                                                slice.last_message = "RELOADED".into();
+                                            }
+                                            Err(e) => {
+                                                slice.last_message = format!("LOAD ERR {e:?}");
+                                            }
+                                        }
+                                    }
+                                    KeyCode::KeyI => {
+                                        slice.inspect = !slice.inspect;
+                                        slice.last_message = if slice.inspect {
+                                            "INSPECT ON".into()
+                                        } else {
+                                            "INSPECT OFF".into()
+                                        };
+                                    }
+                                    _ => {}
+                                }
+                            }
                             // Interactive construction: F places, R removes —
                             // through the HOST command path, one tick, then a
                             // read-only renderer sync (no client mutation).
@@ -446,10 +562,38 @@ impl ApplicationHandler for App {
                     }
                 }
 
-                // Interactive movement, then streaming + the HUD readout.
-                state.apply_movement(dt);
-                let _ = state.renderer.stream_frame();
-                state.renderer.set_hud_line(&state.hud_line());
+                // The live slice: per-frame WALKING on colliding terrain,
+                // the camera locked to the player, streaming continues.
+                if let Some(slice) = self.cfg.slice_host.as_mut() {
+                    let key = |k: KeyCode| state.keys.contains(&k) as i32 as f32;
+                    let fwd = key(KeyCode::KeyW) - key(KeyCode::KeyS);
+                    let strafe = key(KeyCode::KeyD) - key(KeyCode::KeyA);
+                    let gen = slice.scene.gen.clone();
+                    slice.player.walk(&gen, fwd, strafe, dt);
+                    state.renderer.set_pose(slice.player.pose());
+                    let built: usize = slice
+                        .host
+                        .borrow()
+                        .construction
+                        .values()
+                        .map(|c| c.built_count())
+                        .sum();
+                    state.renderer.set_hud_line(&format!(
+                        "SLICE {} POS {:.0} {:.0} {:.0} BUILT {} | {}",
+                        slice.seed,
+                        slice.player.pos[0],
+                        slice.player.pos[1],
+                        slice.player.pos[2],
+                        built,
+                        slice.last_message
+                    ));
+                    let _ = state.renderer.stream_frame();
+                } else {
+                    // Interactive movement (free flight), then streaming.
+                    state.apply_movement(dt);
+                    let _ = state.renderer.stream_frame();
+                    state.renderer.set_hud_line(&state.hud_line());
+                }
 
                 // Scheduled capture replaces this frame's presentation (the
                 // swapchain texture is the copy source); ends after the last.

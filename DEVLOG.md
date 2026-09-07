@@ -4877,3 +4877,67 @@ sampling, tier gating — is proven and in place); no shadows/SSAO; water
 tiering rides the mesh budget only; kit faction variation not skinned.
 Next: R3DV-011 — THE VERTICAL SLICE (walk, cave, river, build, city, NPC,
 inspect, save/reload in one windowed executable).
+
+## 2026-09-07 — R3DV-011: THE VERTICAL SLICE (walkable, saveable, one seed)
+
+WHAT: The visual reset's centerpiece. ONE deterministic showcase seed (22)
+assembles everything the previous ten tasks proved within a short walk:
+the capital + town from the placement authorities, a river with the
+sim-sited water wheel, an enclosed corridor cave, walkable colliding
+terrain, host-command building, the NPC cast, inspectable Bed/Work/Idle
+boxes, and save/reload. A first-person player body walks the world with
+real collision; the journey GPU test walks all eight must_prove steps; the
+walkable slice ships as --play-slice live.
+
+HOW: player.rs (PlayerBody: axis-separated horizontal blocking against
+final_solid at body height, gravity snap with 1 m step-up, ray_target for
+building — read-only queries, no mutation path). slice.rs (find_showcase:
+deterministic seed search requiring river-within-450 m + corridor cave in
+a tight ring — 3.0 s to seed 22; assemble: terrain band + city + cast +
+anchor boxes + water + wheel + construction into one renderer;
+save_slice/load_slice: pc3d_save world meta + per-patch build snapshots +
+the NEW player_store (player.bin through the same framing law)). app.rs:
+SliceHost + SliceSetup — per-frame WALKING (WASD, camera locked to the
+player), mouse look rotates the player, F/R place/remove at the ray target
+through host commands, B save, L reload, I inspect boxes, live HUD. CLI
+--play-slice (3 captures) + --play-slice live; make p3d-slice /
+p3d-slice-live.
+
+EVIDENCE: the journey test (slice::tests::journey_walk_cave_river_build_
+city_save_reload): spawn at the gate → walk 4 m south on colliding terrain
+(feet verified ON the world) → cave pocket occupied → showcase rendered
+(sky probe) → Sand block placed through HostCommand and proven VISIBLE IN
+FIRST PERSON by control-diff at its projected cell → save → fresh load:
+same seed, block reloaded from disk, player pos/yaw restored, renderer fed
+the RELOADED host reproduces the built world PIXEL-FOR-PIXEL → NPC cast
+presence by whole-frame control-delta from a town vantage (npc-delta 8) →
+inspect boxes join without breaking the frame. Windowed: 3 captures
+(showcase overview with city+wheel+water+cast; cave interior; first-person
+build proof), 86 frames p50 17.98 ms / p95 22.55 ms / avg 66 fps; all
+inspected PASS. Live: 14 s liveness with the walking HUD. Player/collision/
+ray-target unit tests + save round-trip + showcase assembly tests green.
+
+BUGS/LESSONS FOUND BY THE PROOFS: the showcase cave search originally
+scanned a 33x33-patch ring with the corridor finder — minutes of
+final_solid queries; now a tight 3-ring scan with the plain pocket finder
+plus a corridor check. The journey first walked NORTH into the keep wall
+(the close-up was flat stone 0.3 m from the eye) — the walk now heads
+south out the gate. The first block probe used a Rock block against rock
+terrain (identical pixels by construction) — Sand makes the edit
+unmistakable. NPC presence is measured from the TOWN vantage (the cast
+lives 256 m east of the capital the overview frames). Save snapshots live
+under saves3d/<world>/edits (P3D_SAVE_DIR prefix — the first load scan
+missed them).
+
+THE RESET RULE, HONESTLY: with R3DV-011 green, POORCRAFT 3D meets the
+README's visible-playable definition on this host — windowed executable,
+seeded 3D terrain, first-person collision walking, cave, river water,
+place/remove construction, city silhouette, NPCs, inspectable boxes,
+save/reload. Per the gate, the word 'playable' still awaits the owner's
+own manual pass (make p3d-slice-live); the machine evidence is complete.
+R3DV-012 (regression + performance gates) remains.
+
+HONESTLY DEFERRED: no jump; no hand/held-item rendering; day/night is the
+fixed dawn sky; the showcase band is a static terrain load around the gate
+plus streaming (not the full streamed world); the town is 256 m from the
+capital (a real walk, not one frame).

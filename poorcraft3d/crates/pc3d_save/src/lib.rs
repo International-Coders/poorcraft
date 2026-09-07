@@ -18,6 +18,7 @@ pub mod flow_store;
 pub mod framing;
 pub mod journal;
 pub mod paths;
+pub mod player_store;
 pub mod store;
 
 pub use framing::{frame, unframe, FrameError, FRAME_OVERHEAD};

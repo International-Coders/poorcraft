@@ -584,6 +584,11 @@ impl Renderer {
         }
     }
 
+    /// Detaches the construction layer (control renders for block proofs).
+    pub fn detach_construction(&mut self) {
+        self.construction = None;
+    }
+
     /// Detaches NPCs + boxes (control renders for presence proofs).
     pub fn detach_npcs(&mut self) {
         self.npcs = None;

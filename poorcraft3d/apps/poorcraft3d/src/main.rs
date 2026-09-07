@@ -1625,9 +1625,176 @@ fn main() {
                 }
             }
         }
+        Some("--play-slice") => {
+            // R3DV-011: THE VERTICAL SLICE. `--play-slice` = automated
+            // showcase capture; `--play-slice live` = the walkable world.
+            let live = args.get(2).map(String::as_str) == Some("live");
+            let (seed_arg, out_dir): (Option<u64>, String) = if live {
+                (args.get(3).and_then(|s| s.parse().ok()), "shots".into())
+            } else {
+                (
+                    args.get(3).and_then(|s| s.parse().ok()),
+                    args.get(2)
+                        .cloned()
+                        .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR"))),
+                )
+            };
+            if !live {
+                std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+            }
+
+            use pc3d_render::slice::{assemble, find_showcase};
+            use pc3d_render::{Shot, SliceHost};
+
+            let t0 = std::time::Instant::now();
+            let (seed, scene) = find_showcase(seed_arg.unwrap_or(3));
+            println!(
+                "SLICE: showcase seed {seed} found in {:.1}s (gate {:?}, cave {:?}, river edge {:?})",
+                t0.elapsed().as_secs_f32(),
+                scene.gate,
+                scene.cave.0,
+                scene.river_edge
+            );
+            let scene = std::rc::Rc::new(scene);
+
+            if live {
+                println!("live slice: WASD walk, click to look, F place / R remove (ray target), B save, L reload, I inspect boxes, Esc quits");
+                let save_root = std::rc::Rc::new(
+                    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
+                );
+                let cfg = pc3d_render::WindowConfig {
+                    title: "POORCRAFT 3D — the vertical slice".into(),
+                    resize_to: None,
+                    slice_setup: Some(pc3d_render::app::SliceSetup {
+                        seed,
+                        scene: scene.clone(),
+                        save_root,
+                        world_name: "slice".into(),
+                    }),
+                    ..Default::default()
+                };
+                match pc3d_render::run_windowed(cfg) {
+                    Ok(report) => print_window_report(&report),
+                    Err(e) => {
+                        eprintln!("[FAIL] windowed renderer: {e}");
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
+
+            // Automated showcase: assemble + captures (overview with the
+            // cast+wheel+water, then the cave interior, then a build proof).
+            let scene_cap = scene.clone();
+            let scene_cave = scene.clone();
+            let save_root = std::rc::Rc::new(
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
+            );
+            let spawn = pc3d_render::spawn_player(&scene);
+            let overview = pc3d_render::CameraPose::new(
+                [spawn.pos[0] + 18.0, spawn.pos[1] + 24.0, spawn.pos[2] + 30.0],
+                0.0,
+                (-0.75f32).atan2(1.4),
+            );
+            let (air, wall, dir) = scene.cave;
+            let cave_pose = pc3d_render::terrain::cave_pose(air, wall);
+            let _ = dir;
+            let built_spot = pc3d_world::coords::CellCoord {
+                x: spawn.pos[0] as i32 + 2,
+                y: spawn.pos[1] as i32,
+                z: spawn.pos[2] as i32 - 2,
+            };
+
+            let save_root_hook = save_root.clone();
+            let save_root_hook2 = save_root_hook.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — slice showcase".into(),
+                max_frames: Some(95),
+                probe_set: pc3d_render::ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                shots: vec![
+                    Shot::new(25, format!("{out_dir}/windowed_slice_showcase.png")),
+                    Shot::new(55, format!("{out_dir}/windowed_slice_cave.png")),
+                    Shot::new(85, format!("{out_dir}/windowed_slice_built.png")),
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            assemble(r, &scene_cap, seed, save_root_hook2.clone(), "slice");
+                            r.set_pose(overview);
+                        }),
+                    ),
+                    (30, Box::new(move |r: &mut pc3d_render::Renderer| r.set_pose(cave_pose))),
+                    (
+                        60,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            // Build through a host command, sync read-only.
+                            let mut h = pc3d_world::host::SoloHost::new(seed);
+                            h.submit(pc3d_world::host::HostCommand::Build {
+                                cell: built_spot,
+                                material: pc3d_world::gen::CellMaterial::Sand,
+                                owner: 7,
+                            });
+                            h.run_ticks(1);
+                            r.update_construction(&h.construction);
+                            // Back at the spawn eye the block is visible.
+                            let eye = [
+                                spawn.pos[0],
+                                spawn.pos[1] + 1.7,
+                                spawn.pos[2],
+                            ];
+                            let face = [
+                                built_spot.x as f32 + 0.5,
+                                built_spot.y as f32 + 0.5,
+                                built_spot.z as f32 + 1.05,
+                            ];
+                            let d = [
+                                face[0] - eye[0],
+                                face[1] - eye[1],
+                                face[2] - eye[2],
+                            ];
+                            r.set_pose(pc3d_render::CameraPose::new(
+                                eye,
+                                (-d[0]).atan2(-d[2]),
+                                (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                            ));
+                            let _ = &scene_cave;
+                        }),
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 3 {
+                        eprintln!("[FAIL] expected 3 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(4) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    println!(
+                        "WINDOWED SLICE PROOF PASS -> showcase + cave + built in {out_dir}"
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

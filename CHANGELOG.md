@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-011: THE VERTICAL SLICE
+
+One deterministic showcase seed (22) with everything within a short walk —
+and a first-person body to walk it.
+
+- **Walking with collision** (`player.rs`): axis-separated blocking
+  against `final_solid`, gravity snap with 1 m step-up, ray-target
+  building — read-only queries only.
+- **The journey** (one GPU test): spawn at the gate → walk 4 m on
+  colliding terrain → cave pocket → showcase render → Sand block placed
+  through `HostCommand` and proven visible in first person (control-diff)
+  → save → fresh load: seed, block, and player restored, and the
+  reloaded world renders **pixel-identical** → NPC cast presence
+  (town-vantage control-delta) → inspect boxes on without breaking the
+  frame.
+- **Save/reload**: `pc3d_save` world meta + build snapshots + the new
+  `player_store` (same framing/refusal laws).
+- **The walkable slice ships**: `--play-slice live` / `make
+  p3d-slice-live` — WASD walking, click-look, F/R place/remove at the ray
+  target, B save, L reload, I inspect boxes; 14 s liveness verified.
+  Automated showcase: 3 windowed captures, 86 frames p50 17.98 ms, all
+  human-inspected PASS. 356/356 pc3d tests (+5), root 474/474.
+- **Honest status**: the README's visible-playable definition is met on
+  this host; per the gate the word "playable" still awaits the owner's
+  manual pass (`make p3d-slice-live`). R3DV-012 remains.
+
 ## 2026-09-07 — R3DV-010: materials, lighting, and quality tiers
 
 - **Material binding everywhere**: terrain, construction blocks, and water
