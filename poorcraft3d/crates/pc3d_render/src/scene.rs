@@ -112,26 +112,22 @@ pub fn sky_color_linear(dir: [f32; 3], sun: [f32; 3]) -> [f32; 3] {
     col
 }
 
+/// Face basis for axis-aligned cubes: (normal, u, v) with cross(u, v) =
+/// normal, so every quad built from it winds CCW seen from outside
+/// (FrontFace::Ccw + backface culling). Shared by the placeholder scene and
+/// the construction mesher so both obey the same winding law.
+pub const FACE_BASIS: [([f32; 3], [f32; 3], [f32; 3]); 6] = [
+    ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),  // south +Z
+    ([0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]), // north -Z
+    ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),  // east +X
+    ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]), // west -X
+    ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),  // top +Y
+    ([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]), // bottom -Y
+];
+
 /// One axis-aligned box: six faces, each with its own albedo.
-/// Faces are built with cross(u, v) = normal, so every triangle winds CCW
-/// when seen from outside (backface culling with FrontFace::Ccw is correct).
 fn box_faces(center: [f32; 3], half: f32, colors: &[[f32; 3]; 6]) -> ([SceneVertex; 24], [u16; 36]) {
-    let n = |u: [f32; 3], v: [f32; 3]| {
-        [
-            u[1] * v[2] - u[2] * v[1],
-            u[2] * v[0] - u[0] * v[2],
-            u[0] * v[1] - u[1] * v[0],
-        ]
-    };
-    // (normal, u, v) with cross(u, v) = normal for each face.
-    let basis: [([f32; 3], [f32; 3], [f32; 3]); 6] = [
-        ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),  // south +Z
-        ([0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]), // north -Z
-        ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),  // east +X
-        ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]), // west -X
-        ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),  // top +Y
-        ([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]), // bottom -Y
-    ];
+    let basis = FACE_BASIS;
     let mut verts = [SceneVertex {
         pos: [0.0; 3],
         normal: [0.0; 3],
@@ -157,7 +153,6 @@ fn box_faces(center: [f32; 3], half: f32, colors: &[[f32; 3]; 6]) -> ([SceneVert
         let quad = [base, base + 1, base + 2, base, base + 2, base + 3];
         idx[f * 6..f * 6 + 6].copy_from_slice(&quad);
     }
-    let _ = n;
     (verts, idx)
 }
 
@@ -304,6 +299,12 @@ fn pixel_at(rgba: &[u8], w: u32, h: u32, nx: f32, ny: f32) -> [f32; 4] {
     ]
 }
 
+/// Public pixel sampler at an NDC point (proof code compares specific
+/// screen locations between frames).
+pub fn sample_ndc(rgba: &[u8], w: u32, h: u32, ndc: (f32, f32)) -> [f32; 4] {
+    pixel_at(rgba, w, h, ndc.0, ndc.1)
+}
+
 /// Verifies an RGBA8 framebuffer (RGBA byte order) against generic 3D-scene
 /// expectations plus caller-supplied probes.
 pub fn verify_frame_rgba(rgba: &[u8], width: u32, height: u32, probes: &[Probe]) -> PixelReport {
@@ -365,6 +366,16 @@ pub fn dir_from_ndc(pose: CameraPose, ndc: (f32, f32), aspect: f32) -> [f32; 3] 
     let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
     d = [d[0] / l, d[1] / l, d[2] / l];
     d
+}
+
+/// The NDC position a world-space point projects to for a camera pose —
+/// used to place semantic probes on rendered construction cells.
+pub fn project_ndc(pose: CameraPose, aspect: f32, world: [f32; 3]) -> (f32, f32) {
+    let vp = crate::camera::Camera::new(pose).view_proj(aspect);
+    let x = vp[0] * world[0] + vp[4] * world[1] + vp[8] * world[2] + vp[12];
+    let y = vp[1] * world[0] + vp[5] * world[1] + vp[9] * world[2] + vp[13];
+    let w = vp[3] * world[0] + vp[7] * world[1] + vp[11] * world[2] + vp[15];
+    (x / w, y / w)
 }
 
 /// Probes for a known pose: screen center content, ground below the horizon,

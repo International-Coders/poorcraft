@@ -9,3 +9,4 @@ winit = "0.30"
 pollster = "0.3"
 bytemuck = { version = "1.16", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
+pc3d_world = { path = "../pc3d_world" }

@@ -90,7 +90,7 @@
     {
       "id": "R3DV-004",
       "title": "Construction mesh from host-owned state",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": [
         "R3DV-002",
         "R3DV-003"
@@ -105,12 +105,21 @@
         "tests",
         "before_after_windowed_png",
         "manual_place_remove"
-      ]
+      ],
+      "completed_evidence": {
+        "crate": "pc3d_render/src/construction.rs (first renderer<->world binding: pc3d_render depends on pc3d_world READ-ONLY; every API takes &Construction/&BTreeMap \u2014 there is no &mut route, so client mutation of canonical state is impossible by construction)",
+        "construction_block_mesh": "culled block faces from the existing Construction overlay in world meters (16x16x16 patch, 1 m cells; faces between two built cells culled; patch-boundary faces emitted until cross-patch culling arrives with streaming in R3DV-006); CCW winding unit-tested via the shared FACE_BASIS; negative cells map to negative meters (Euclidean division honored)",
+        "host_command_edit": "all edits go through SoloHost::submit(HostCommand::Build/RemoveBuild) + run_ticks(1); a rejected command (foreign owner) leaves content version unchanged and produces ZERO remesh work (asserted); interactive mode (poorcraft3d --play-build live) places/removes with F/R through the same command path",
+        "bounded_patch_remesh": "per-patch GPU buffers keyed by an FNV content version; tests prove: init 8-block wall = 1 patch added; single-cell edit = exactly 1 remesh of 1 inspected patch while a second far patch stays untouched; unchanged patches do zero mesh work",
+        "visual_edit": "windowed before/after captures from the live swapchain (800x500 after mid-run resize): the center wall block flips rock->sand ON SCREEN (pixel delta 0.22 at the projected cell center) while a control sky pixel stays byte-stable; sky probes pass both frames; human visual inspection PASS",
+        "evidence_runs": "poorcraft3d --play-build + make p3d-build-proof / p3d-build-live; shots at poorcraft3d/apps/poorcraft3d/shots/windowed_build.png + windowed_build_after.png; 41-frame windowed run p50 0.49 ms / p95 1.82 ms; edit remesh 1 patch, 136 vertices, 165 us; live mode 12 s liveness OK",
+        "tests": "313/313 pc3d workspace green (+7): culling math (2x2x2 cluster = 24 quads; adjacent block nets +4 not +5 \u2014 the test caught the wrong expectation), winding, negative coords, version stability, GPU before/after + rejected-command + cross-patch bounds"
+      }
     },
     {
       "id": "R3DV-005",
       "title": "Natural terrain mesh prototype and selection",
-      "status": "BLOCKED_BY_R3DV-004",
+      "status": "NEXT",
       "depends_on": [
         "R3DV-004"
       ],

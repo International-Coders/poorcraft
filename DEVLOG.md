@@ -4481,3 +4481,57 @@ on disk (rows are procedural placeholders by design); material metadata
 beyond the manifest name string and real GLB loading arrive with their
 R3DV-008+/R3DV-010 consumers. Next: R3DV-004 construction cell mesh from
 host-owned state.
+
+## 2026-09-07 — R3DV-004: construction mesh from host-owned state (renderer meets world)
+
+WHAT: The first renderer<->world binding of the visual reset. A new
+pc3d_render::construction module meshes the EXISTING pc3d_world construction
+overlay (P3D-205) into culled block-face geometry in world meters, drawn
+through the same lit pipeline as the scene. Every edit reaches the world
+through the HOST COMMAND PATH (SoloHost::submit(Build/RemoveBuild) +
+run_ticks); the renderer's API takes only &Construction / &BTreeMap, so
+client-side mutation of canonical state is impossible by construction. A
+host edit remeshes exactly ONE 16 m patch (content-versioned GPU buffers);
+a REJECTED command (foreign owner) causes zero mesh work.
+
+HOW: crates/pc3d_render/src/construction.rs (mesh_patch: 16^3 cells, faces
+between built cells culled, shared FACE_BASIS winding law with the scene
+mesher, negative cells honor Euclidean division; patch_version: FNV over
+cell contents; ConstructionGpu: per-patch buffers, UpdateStats evidence).
+renderer.rs: attach_construction/update_construction (immutable host map),
+set_placeholder_scene(bool) so construction runs draw only host-owned
+geometry (nothing coplanar with block bottoms), mesh pipeline binds once
+then scene + construction draw through it. app.rs: scheduled one-shot
+FrameHooks (host edits + read-only sync between frames), ProbeSet::SkyOnly
+for construction captures, InteractiveHost — F places a rock block 6 m
+ahead, R removes it, both via HostCommand, HUD shows BUILT n. CLI:
+--play-build [png] [seed] (automated before/after proof) and --play-build
+live [seed] (manual place/remove). Makefile: p3d-build-proof, p3d-build-live.
+
+EVIDENCE: 313/313 pc3d tests (+7). Mesh: 2x2x2 cluster = 24 quads;
+adjacent block nets +4 (its 5 exposed faces minus the neighbor face it
+culls — the test caught my +5 expectation); CCW winding; negative meters.
+GPU: wall renders (rock-face probe at the projected cell center), host
+remove+place sand in the same cell -> same screen point flips rock->sand
+(pixel delta asserted) while a control sky pixel stays identical; init
+adds 1 patch; single-cell edit remeshes exactly 1 of 1 inspected while a
+far patch stays untouched; rejected foreign-owner remove = zero remesh and
+the block survives. Windowed: 41 frames p50 0.49 ms / p95 1.82 ms, live
+1280x720->800x500 resize before captures, before/after PNGs
+(shots/windowed_build.png + _after.png) human-inspected PASS (crenellated
+rock wall; center top block becomes tan sand; nothing else changes). Live
+mode 12 s liveness OK. Root 474/474 re-run green.
+
+BUGS FOUND BY THE PROOFS (fixed before commit): wall cells at negative x
+land in patch x=-1 (Euclidean division) — the 'one-patch' wall silently
+spanned two patches until construction.len() said 2; zero-size wgpu
+buffers (hidden placeholder scene) panic on slice(..) — empty draws are
+now skipped; the mesh pipeline was bound only inside the placeholder-draw
+guard, leaving construction drawing with the sky pipeline bound.
+
+HONESTLY DEFERRED: cross-patch face culling (patch-boundary faces are
+emitted; arrives with streaming in R3DV-006); material colors are
+renderer-local until pc3d_assets material binding (R3DV-010); no ray-pick
+targeting yet (F/R edit a fixed 6 m cell — ray targeting is R3DV-011
+scope). Next: R3DV-005 natural terrain mesh prototype (hill/cliff/cave/
+overhang from the terrain query, bake-off evidence already in P3D-201).

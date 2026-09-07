@@ -25,7 +25,26 @@ pub struct Shot {
     pub path: PathBuf,
 }
 
-#[derive(Clone)]
+/// A callback run once at a scheduled frame, before that frame's capture or
+/// render — the hook host-driven proof runs use to submit world edits
+/// through their own host and sync the renderer from its read-only state.
+pub type FrameHook = Box<dyn FnMut(&mut Renderer)>;
+
+/// Which semantic probes a run's captures verify against: the full scene
+/// table (placeholder ground + sky) or sky-only (construction runs hide the
+/// placeholder scene, so only the sky probe applies).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProbeSet {
+    Scene,
+    SkyOnly,
+}
+
+/// A shared handle to the authoritative host for interactive construction:
+/// F places a rock block 6 m ahead of the camera, R removes the built block
+/// 6 m ahead — both through `HostCommand` + one tick, never by client-side
+/// mutation. The renderer then syncs read-only from `host.construction`.
+pub struct InteractiveHost(pub std::rc::Rc<std::cell::RefCell<pc3d_world::host::SoloHost>>);
+
 pub struct WindowConfig {
     pub title: String,
     /// Logical size; the OS DPI scaling decides the physical surface size.
@@ -36,6 +55,12 @@ pub struct WindowConfig {
     pub shots: Vec<Shot>,
     /// Camera poses applied at given frames (automated proof runs).
     pub camera_script: Vec<(u64, CameraPose)>,
+    /// One-shot callbacks at given frames (host edits + renderer sync).
+    pub frame_hooks: Vec<(u64, FrameHook)>,
+    /// Probe selection for scheduled captures.
+    pub probe_set: ProbeSet,
+    /// Interactive construction (F place / R remove through the host).
+    pub interactive_host: Option<InteractiveHost>,
     /// If set, the window is resized halfway to the first shot so the run
     /// proves live surface resize recovery before capturing.
     pub resize_to: Option<(f64, f64)>,
@@ -49,6 +74,9 @@ impl Default for WindowConfig {
             max_frames: None,
             shots: Vec::new(),
             camera_script: Vec::new(),
+            frame_hooks: Vec::new(),
+            probe_set: ProbeSet::Scene,
+            interactive_host: None,
             resize_to: Some((800.0, 500.0)),
         }
     }
@@ -118,6 +146,8 @@ struct WindowState {
     keys: HashSet<KeyCode>,
     pointer_grabbed: bool,
     done: bool,
+    /// Blocks in the interactive host's overlay (HUD readout).
+    built_count: usize,
 }
 
 impl WindowState {
@@ -148,8 +178,8 @@ impl WindowState {
         };
         let pose = self.renderer.pose();
         format!(
-            "P3D POS {:.1} {:.1} {:.1} YAW {:.2} FPS {:.0}",
-            pose.position[0], pose.position[1], pose.position[2], pose.yaw, fps
+            "P3D POS {:.1} {:.1} {:.1} YAW {:.2} FPS {:.0} BUILT {}",
+            pose.position[0], pose.position[1], pose.position[2], pose.yaw, fps, self.built_count
         )
     }
 }
@@ -158,6 +188,7 @@ struct App {
     cfg: WindowConfig,
     resize_plan: Option<(u64, f64, f64)>,
     next_script: usize,
+    next_hook: usize,
     next_shot: usize,
     last_frame: Option<Instant>,
     state: Option<WindowState>,
@@ -201,6 +232,12 @@ impl ApplicationHandler for App {
         let window = event_loop.create_window(attrs).expect("create window");
         let window = Arc::new(window);
         let renderer = Renderer::windowed(&window);
+        let built_count = self
+            .cfg
+            .interactive_host
+            .as_ref()
+            .map(|h| h.0.borrow().construction.values().map(|c| c.built_count()).sum())
+            .unwrap_or(0);
         self.state = Some(WindowState {
             window,
             renderer,
@@ -213,6 +250,7 @@ impl ApplicationHandler for App {
             keys: HashSet::new(),
             pointer_grabbed: false,
             done: false,
+            built_count,
         });
     }
 
@@ -269,8 +307,56 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(code) = event.physical_key {
                     match event.state {
-                        ElementState::Pressed => state.keys.insert(code),
-                        ElementState::Released => state.keys.remove(&code),
+                        ElementState::Pressed => {
+                            state.keys.insert(code);
+                            // Interactive construction: F places, R removes —
+                            // through the HOST command path, one tick, then a
+                            // read-only renderer sync (no client mutation).
+                            if let Some(host) = &self.cfg.interactive_host {
+                                let target_cell = match code {
+                                    KeyCode::KeyF | KeyCode::KeyR => {
+                                        let pose = state.renderer.pose();
+                                        let fwd = crate::camera::fwd_of(pose.yaw, pose.pitch);
+                                        let t = [
+                                            pose.position[0] + fwd[0] * 6.0,
+                                            pose.position[1] + fwd[1] * 6.0,
+                                            pose.position[2] + fwd[2] * 6.0,
+                                        ];
+                                        Some(pc3d_world::coords::CellCoord {
+                                            x: t[0].floor() as i32,
+                                            y: t[1].floor() as i32,
+                                            z: t[2].floor() as i32,
+                                        })
+                                    }
+                                    _ => None,
+                                };
+                                if let Some(cell) = target_cell {
+                                    let mut h = host.0.borrow_mut();
+                                    match code {
+                                        KeyCode::KeyF => h.submit(
+                                            pc3d_world::host::HostCommand::Build {
+                                                cell,
+                                                material: pc3d_world::gen::CellMaterial::Rock,
+                                                owner: 7,
+                                            },
+                                        ),
+                                        _ => h.submit(
+                                            pc3d_world::host::HostCommand::RemoveBuild { cell, owner: 7 },
+                                        ),
+                                    };
+                                    h.run_ticks(1);
+                                    state.renderer.update_construction(&h.construction);
+                                    state.built_count = h
+                                        .construction
+                                        .values()
+                                        .map(|c| c.built_count())
+                                        .sum();
+                                }
+                            }
+                        }
+                        ElementState::Released => {
+                            state.keys.remove(&code);
+                        }
                     };
                 }
             }
@@ -315,6 +401,18 @@ impl ApplicationHandler for App {
                     }
                 }
 
+                // Scheduled one-shot frame hooks (host-driven world edits +
+                // read-only renderer sync), before this frame's capture.
+                if self.next_hook < self.cfg.frame_hooks.len() {
+                    let (frame, _) = &self.cfg.frame_hooks[self.next_hook];
+                    if state.frame_no == *frame {
+                        let (_, mut hook) =
+                            std::mem::replace(&mut self.cfg.frame_hooks[self.next_hook], (0, Box::new(|_| {})));
+                        hook(&mut state.renderer);
+                        self.next_hook += 1;
+                    }
+                }
+
                 // Scheduled mid-run resize: proves live surface recovery
                 // before the captures run.
                 if let Some((frame, w, h)) = self.resize_plan {
@@ -339,10 +437,20 @@ impl ApplicationHandler for App {
                     .cloned();
                 if let Some(shot) = next_shot {
                     if state.frame_no == shot.frame {
-                        let probes = crate::scene::probes_for_pose(
-                            state.renderer.pose(),
-                            state.renderer.aspect(),
-                        );
+                        let pose = state.renderer.pose();
+                        let aspect = state.renderer.aspect();
+                        let probes = match self.cfg.probe_set {
+                            ProbeSet::Scene => crate::scene::probes_for_pose(pose, aspect),
+                            ProbeSet::SkyOnly => vec![crate::scene::Probe {
+                                name: "sky_above_horizon",
+                                ndc: (0.0, 0.8),
+                                expected: crate::scene::to_srgb4(crate::scene::sky_color_linear(
+                                    crate::scene::dir_from_ndc(pose, (0.0, 0.8), aspect),
+                                    crate::scene::SUN_DIR,
+                                )),
+                                tol: 0.05,
+                            }],
+                        };
                         let (report, rgba) = state.renderer.capture_png(&shot.path, &probes);
                         state.captures.push(CaptureOutcome {
                             path: shot.path,
@@ -416,6 +524,7 @@ pub fn run_windowed(cfg: WindowConfig) -> Result<WindowReport, String> {
         cfg,
         resize_plan,
         next_script: 0,
+        next_hook: 0,
         next_shot: 0,
         last_frame: None,
         state: None,

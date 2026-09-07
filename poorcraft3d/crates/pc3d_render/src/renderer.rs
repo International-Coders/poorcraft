@@ -222,14 +222,22 @@ struct GpuScene {
 impl GpuScene {
     fn new(device: &wgpu::Device) -> Self {
         let (verts, idx) = crate::scene::build_scene();
+        Self::from_mesh(device, &verts, &idx)
+    }
+
+    fn empty(device: &wgpu::Device) -> Self {
+        Self::from_mesh(device, &[], &[])
+    }
+
+    fn from_mesh(device: &wgpu::Device, verts: &[crate::scene::SceneVertex], idx: &[u16]) -> Self {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("scene vertices"),
-            contents: bytemuck::cast_slice(&verts),
+            contents: bytemuck::cast_slice(verts),
             usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("scene indices"),
-            contents: bytemuck::cast_slice(&idx),
+            contents: bytemuck::cast_slice(idx),
             usage: wgpu::BufferUsages::INDEX,
         });
         Self {
@@ -262,6 +270,8 @@ pub struct Renderer {
     /// Depth attachment for the active target (window or offscreen).
     depth: Option<wgpu::Texture>,
     offscreen: Option<wgpu::Texture>,
+    /// Host-owned construction overlay, meshed per patch (R3DV-004).
+    construction: Option<crate::construction::ConstructionGpu>,
 }
 
 impl Renderer {
@@ -299,6 +309,7 @@ impl Renderer {
             hud,
             depth,
             offscreen: None,
+            construction: None,
         }
     }
 
@@ -336,6 +347,7 @@ impl Renderer {
             hud,
             depth,
             offscreen: Some(texture),
+            construction: None,
         }
     }
 
@@ -351,6 +363,40 @@ impl Renderer {
     /// Teleports/rotates the camera to a P3D world pose.
     pub fn set_pose(&mut self, pose: CameraPose) {
         self.camera.pose = pose;
+    }
+
+    /// Enables the construction overlay renderer (idempotent).
+    pub fn attach_construction(&mut self) {
+        if self.construction.is_none() {
+            self.construction = Some(crate::construction::ConstructionGpu::new());
+        }
+    }
+
+    /// Syncs construction meshes from the HOST's overlay map (immutable —
+    /// the renderer has no route to mutate canonical world state). Edits
+    /// reach the world only through host commands.
+    pub fn update_construction(
+        &mut self,
+        host_construction: &std::collections::BTreeMap<
+            (i32, i32, i32),
+            pc3d_world::build::Construction,
+        >,
+    ) -> crate::construction::UpdateStats {
+        let Some(con) = self.construction.as_mut() else {
+            panic!("call attach_construction() before update_construction()");
+        };
+        con.update(&self.ctx.device, host_construction)
+    }
+
+    /// Shows or hides the R3DV-002 placeholder scene (ground plane + dawn
+    /// stones). Construction proofs hide it so host-built blocks are the
+    /// only world geometry (nothing is coplanar with block bottoms).
+    pub fn set_placeholder_scene(&mut self, visible: bool) {
+        self.gpu_scene = if visible {
+            GpuScene::new(&self.ctx.device)
+        } else {
+            GpuScene::empty(&self.ctx.device)
+        };
     }
 
     /// Sets the HUD debug line (padded/truncated to a fixed width so the
@@ -661,11 +707,22 @@ impl Renderer {
         pass.set_bind_group(0, &self.bg_globals, &[]);
         pass.draw(0..3, 0..1);
         // 2. Depth-tested, sunlit world geometry from P3D coordinates.
+        // The mesh pipeline binds once; the placeholder scene draws only
+        // when present (hidden construction runs have empty buffers, and
+        // wgpu refuses zero-size slices), then construction patches draw
+        // through the same lit pipeline.
         pass.set_pipeline(&self.pipelines.mesh);
         pass.set_bind_group(0, &self.bg_globals, &[]);
-        pass.set_vertex_buffer(0, self.gpu_scene.vertex_buffer.slice(..));
-        pass.set_index_buffer(self.gpu_scene.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        pass.draw_indexed(0..self.gpu_scene.index_count, 0, 0..1);
+        if self.gpu_scene.index_count > 0 {
+            pass.set_vertex_buffer(0, self.gpu_scene.vertex_buffer.slice(..));
+            pass.set_index_buffer(self.gpu_scene.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.draw_indexed(0..self.gpu_scene.index_count, 0, 0..1);
+        }
+        // 2b. Host-owned construction blocks (same lit pipeline; per-patch
+        // buffers with content versions — only changed patches are remeshed).
+        if let Some(con) = &self.construction {
+            con.draw(&mut pass);
+        }
         // 3. HUD debug line (alpha blend, no depth).
         pass.set_pipeline(&self.pipelines.hud);
         pass.set_bind_group(0, &self.bg_hud, &[]);
@@ -965,5 +1022,188 @@ mod tests {
         // Zero-sized resize must clamp, not poison the target.
         r.resize(0, 0);
         assert_eq!(r.size(), (1, 1));
+    }
+
+    // -----------------------------------------------------------------
+    // R3DV-004: construction mesh from HOST-owned state. Every edit below
+    // goes through HostCommand + run_ticks; the renderer only ever reads
+    // `host.construction` (immutable) — there is no other route in scope.
+    // -----------------------------------------------------------------
+
+    fn build_wall(host: &mut pc3d_world::host::SoloHost) {
+        use pc3d_world::coords::CellCoord;
+        use pc3d_world::gen::CellMaterial;
+        use pc3d_world::host::HostCommand;
+        // All cells x=0..=4, z=-8 live in the single patch (0, 0, -1)
+        // (negative cells would land in patch x=-1 by Euclidean division).
+        for x in 0..=4 {
+            host.submit(HostCommand::Build {
+                cell: CellCoord { x, y: 0, z: -8 },
+                material: CellMaterial::Rock,
+                owner: 7,
+            });
+        }
+        for x in [0, 2, 4] {
+            host.submit(HostCommand::Build {
+                cell: CellCoord { x, y: 1, z: -8 },
+                material: CellMaterial::Rock,
+                owner: 7,
+            });
+        }
+        host.run_ticks(1);
+    }
+
+    fn wall_pose() -> CameraPose {
+        // Eye south of the wall's center block (2,1,-8), looking north.
+        CameraPose::new([2.0, 2.2, -2.0], 0.0, -0.18)
+    }
+
+    #[test]
+    fn host_construction_edits_change_the_frame_through_bounded_remesh() {
+        use crate::construction::material_albedo;
+        use pc3d_world::coords::CellCoord;
+        use pc3d_world::gen::CellMaterial;
+        use pc3d_world::host::HostCommand;
+        use crate::scene::{dir_from_ndc, lit_color, project_ndc, sky_color_linear, to_srgb4, Probe, SUN_DIR};
+
+        let mut host = pc3d_world::host::SoloHost::new(4242);
+        build_wall(&mut host);
+        // 8 blocks, all in patch (0, 0, -1).
+        assert_eq!(host.construction.len(), 1);
+        assert_eq!(
+            host.construction.values().next().unwrap().built_count(),
+            8
+        );
+
+        let mut r = Renderer::offscreen(W, H);
+        r.set_placeholder_scene(false); // construction is the only world geometry
+        r.attach_construction();
+        let s0 = r.update_construction(&host.construction);
+        assert_eq!((s0.added, s0.remeshed, s0.inspected), (1, 0, 1));
+        let pose = wall_pose();
+        r.set_pose(pose);
+
+        // The (0,1,-8) block's south-face center projects near screen center.
+        let target = project_ndc(pose, ASPECT, [2.5, 1.5, -7.0]);
+        assert!(target.0.abs() < 0.2 && target.1.abs() < 0.3, "probe at {target:?}");
+        let rock_face = to_srgb4(lit_color(material_albedo(CellMaterial::Rock), [0.0, 0.0, 1.0]));
+        let sand_face = to_srgb4(lit_color(material_albedo(CellMaterial::Sand), [0.0, 0.0, 1.0]));
+
+        // BEFORE: the rock block's south face is on screen.
+        let before_path = std::env::temp_dir().join("pc3d_build_before.png");
+        let (before, rgba_before) = r.capture_png(
+            &before_path,
+            &[Probe {
+                name: "rock_block_south_face",
+                ndc: target,
+                expected: rock_face,
+                tol: 0.06,
+            }],
+        );
+        assert!(before.passes(), "before: {:?}", before.failed_probes());
+
+        // EDIT through the host command path: replace the top-center rock
+        // with sand (remove + place in the same cell, same patch).
+        host.submit(HostCommand::RemoveBuild {
+            cell: CellCoord { x: 2, y: 1, z: -8 },
+            owner: 7,
+        });
+        host.submit(HostCommand::Build {
+            cell: CellCoord { x: 2, y: 1, z: -8 },
+            material: CellMaterial::Sand,
+            owner: 7,
+        });
+        host.run_ticks(1);
+        let s1 = r.update_construction(&host.construction);
+        // Bounded: exactly one patch inspected, one remesh, nothing added.
+        assert_eq!((s1.added, s1.remeshed, s1.inspected), (0, 1, 1));
+        println!("edit remesh: {s1:?}");
+
+        // AFTER: the SAME screen point now shows sand, not rock.
+        let after_path = std::env::temp_dir().join("pc3d_build_after.png");
+        let (after, rgba_after) = r.capture_png(
+            &after_path,
+            &[Probe {
+                name: "sand_block_south_face",
+                ndc: target,
+                expected: sand_face,
+                tol: 0.06,
+            }],
+        );
+        assert!(after.passes(), "after: {:?}", after.failed_probes());
+
+        // Localized visual edit: the changed cell's pixels moved rock->sand,
+        // while a control sky pixel is untouched.
+        let sky_ctrl = (-0.75, 0.55);
+        let p_before = crate::scene::sample_ndc(&rgba_before, W, H, target);
+        let p_after = crate::scene::sample_ndc(&rgba_after, W, H, target);
+        let delta = (p_before[0] - p_after[0]).abs() + (p_before[1] - p_after[1]).abs();
+        assert!(delta > 0.15, "edited cell barely changed: {p_before:?} vs {p_after:?}");
+        let s_before = crate::scene::sample_ndc(&rgba_before, W, H, sky_ctrl);
+        let s_after = crate::scene::sample_ndc(&rgba_after, W, H, sky_ctrl);
+        for i in 0..3 {
+            assert!(
+                (s_before[i] - s_after[i]).abs() < 0.02,
+                "control sky pixel changed: {s_before:?} vs {s_after:?}"
+            );
+        }
+        let _ = (dir_from_ndc, sky_color_linear, SUN_DIR);
+
+        // REJECTED command = zero mesh work: a foreign owner cannot remove.
+        host.submit(HostCommand::RemoveBuild {
+            cell: CellCoord { x: 2, y: 1, z: -8 },
+            owner: 999,
+        });
+        host.run_ticks(1);
+        let s2 = r.update_construction(&host.construction);
+        assert_eq!(
+            (s2.added, s2.remeshed, s2.uploaded_vertices),
+            (0, 0, 0),
+            "a rejected host command must cause no remesh"
+        );
+        // The block survived.
+        assert!(host
+            .construction
+            .values()
+            .next()
+            .unwrap()
+            .at(CellCoord { x: 2, y: 1, z: -8 })
+            .is_some());
+    }
+
+    #[test]
+    fn remesh_is_bounded_to_the_edited_patch_only() {
+        use pc3d_world::coords::CellCoord;
+        use pc3d_world::gen::CellMaterial;
+        use pc3d_world::host::HostCommand;
+
+        let mut host = pc3d_world::host::SoloHost::new(7);
+        build_wall(&mut host); // patch (0, 0, -1)
+        // A second, far-away patch: x=20 lives in patch (1, 0, -1).
+        host.submit(HostCommand::Build {
+            cell: CellCoord { x: 20, y: 0, z: -8 },
+            material: CellMaterial::Soil,
+            owner: 7,
+        });
+        host.run_ticks(1);
+        assert_eq!(host.construction.len(), 2);
+
+        let mut r = Renderer::offscreen(W, H);
+        r.attach_construction();
+        let s0 = r.update_construction(&host.construction);
+        assert_eq!((s0.added, s0.remeshed, s0.inspected), (2, 0, 2));
+
+        // Edit ONLY the wall patch (an empty cell — occupied cells are
+        // refused by the host, which the other test proves); the far patch
+        // must not remesh.
+        host.submit(HostCommand::Build {
+            cell: CellCoord { x: 1, y: 1, z: -8 },
+            material: CellMaterial::Grass,
+            owner: 7,
+        });
+        host.run_ticks(1);
+        let s1 = r.update_construction(&host.construction);
+        assert_eq!((s1.added, s1.remeshed, s1.inspected), (0, 1, 2));
+        assert!(s1.uploaded_vertices > 0, "the edited patch uploaded a mesh");
     }
 }

@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-004: construction mesh from host-owned state
+
+The renderer now reads the real world: `pc3d_render::construction` meshes
+the existing `Construction` overlay (culled 1 m block faces in world
+meters, per 16 m patch, content-versioned GPU buffers) through a strictly
+read-only dependency on `pc3d_world`.
+
+- **Host-command edits only**: place/remove go through
+  `SoloHost::submit(HostCommand::Build/RemoveBuild)` + one tick; the
+  renderer takes immutable references, so client mutation of canonical
+  state is impossible by construction. A rejected command (foreign owner)
+  causes zero remesh work.
+- **Bounded patch remesh**: a single-cell edit remeshes exactly one patch
+  while other patches do zero work (asserted in tests, printed by the CLI).
+- **Visual edit proof**: windowed before/after captures — the wall's center
+  block flips rock→sand on screen (pixel delta 0.22 at the projected cell
+  center, control sky pixel unchanged), after a live mid-run window resize.
+  Human-inspected PASS. `--play-build live` gives manual F/R place/remove
+  through the same host path.
+- 7 new tests (313/313 pc3d green, root 474/474); three proof-caught bugs
+  fixed before commit (negative-x wall cells spanning two patches via
+  Euclidean division; zero-size wgpu buffer slices; construction drawing
+  with the sky pipeline bound when the placeholder scene is hidden).
+- Honest deferrals: cross-patch face culling (R3DV-006), pc3d_assets
+  material colors (R3DV-010), ray-pick targeting (R3DV-011).
+
 ## 2026-09-07 — R3DV-003: asset manifest validator (pc3d_assets) + queue status on the .mds
 
 - **pc3d_assets** (new P3D-local crate, pure data layer): parses and

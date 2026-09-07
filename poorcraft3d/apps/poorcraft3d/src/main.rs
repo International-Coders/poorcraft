@@ -417,9 +417,194 @@ fn main() {
                 }
             }
         }
+        Some("--play-build") => {
+            // R3DV-004: construction mesh from HOST-owned state.
+            //   --play-build live [seed]            interactive: walk, F places
+            //                                       a rock block 6 m ahead, R
+            //                                       removes it — through the
+            //                                       host command path.
+            //   --play-build [png] [seed]           automated before/after
+            //                                       proof: wall renders,
+            //                                       host swaps rock->sand,
+            //                                       only that patch remeshes.
+            let seed: u64 = args
+                .iter()
+                .skip(2)
+                .filter_map(|s| s.parse().ok())
+                .next()
+                .unwrap_or(4242);
+            let live = args.get(2).map(String::as_str) == Some("live");
+
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::coords::CellCoord;
+            use pc3d_world::gen::CellMaterial;
+            use pc3d_world::host::{HostCommand, SoloHost};
+            use std::cell::RefCell;
+            use std::rc::Rc;
+
+            let host = Rc::new(RefCell::new(SoloHost::new(seed)));
+            {
+                // The starter wall: 5 rock blocks + 3 tops, one patch.
+                let mut h = host.borrow_mut();
+                for x in 0..=4 {
+                    h.submit(HostCommand::Build {
+                        cell: CellCoord { x, y: 0, z: -8 },
+                        material: CellMaterial::Rock,
+                        owner: 7,
+                    });
+                }
+                for x in [0, 2, 4] {
+                    h.submit(HostCommand::Build {
+                        cell: CellCoord { x, y: 1, z: -8 },
+                        material: CellMaterial::Rock,
+                        owner: 7,
+                    });
+                }
+                h.run_ticks(1);
+            }
+            let wall_pose = pc3d_render::CameraPose::new([2.0, 2.2, -2.0], 0.0, -0.18);
+
+            if live {
+                println!("live construction mode: click to look, WASD move, F place, R remove, Esc quits");
+                let cfg = pc3d_render::WindowConfig {
+                    resize_to: None,
+                    camera_script: vec![(0, wall_pose)],
+                    interactive_host: Some(pc3d_render::InteractiveHost(host)),
+                    ..Default::default()
+                };
+                match pc3d_render::run_windowed(cfg) {
+                    Ok(report) => print_window_report(&report),
+                    Err(e) => {
+                        eprintln!("[FAIL] windowed renderer: {e}");
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
+
+            let base = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/windowed_build.png", env!("CARGO_MANIFEST_DIR")));
+            let after_path = base.replace(".png", "_after.png");
+
+            let host_edit = host.clone();
+            let edit_stats = Rc::new(RefCell::new(None::<pc3d_render::UpdateStats>));
+            let es = edit_stats.clone();
+            let host_init = host.clone();
+            let init_stats = Rc::new(RefCell::new(None::<pc3d_render::UpdateStats>));
+            let is = init_stats.clone();
+
+            let cfg = pc3d_render::WindowConfig {
+                max_frames: Some(50),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![(0, wall_pose)],
+                shots: vec![
+                    Shot { frame: 20, path: std::path::PathBuf::from(&base) },
+                    Shot { frame: 40, path: std::path::PathBuf::from(&after_path.clone()) },
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r| {
+                            r.set_placeholder_scene(false);
+                            r.attach_construction();
+                            let st = r.update_construction(&host_init.borrow().construction);
+                            *is.borrow_mut() = Some(st);
+                        }),
+                    ),
+                    (
+                        30,
+                        Box::new(move |r| {
+                            let mut h = host_edit.borrow_mut();
+                            // Swap the wall's center block rock -> sand
+                            // THROUGH THE HOST COMMAND PATH.
+                            h.submit(HostCommand::RemoveBuild {
+                                cell: CellCoord { x: 2, y: 1, z: -8 },
+                                owner: 7,
+                            });
+                            h.submit(HostCommand::Build {
+                                cell: CellCoord { x: 2, y: 1, z: -8 },
+                                material: CellMaterial::Sand,
+                                owner: 7,
+                            });
+                            h.run_ticks(1);
+                            let st = r.update_construction(&h.construction);
+                            *es.borrow_mut() = Some(st);
+                        }),
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 2 {
+                        eprintln!("[FAIL] expected 2 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes() {
+                            eprintln!(
+                                "[FAIL] capture {} failed: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    let init = init_stats.borrow().expect("init stats");
+                    let edit = edit_stats.borrow().expect("edit stats");
+                    println!(
+                        "REMESH: init added {} patch(es); edit remeshed {} of {} inspected, {} vertices, {} us",
+                        init.added, edit.remeshed, edit.inspected, edit.uploaded_vertices, edit.mesh_us
+                    );
+                    if edit.remeshed != 1 || edit.added != 0 || edit.inspected != 1 {
+                        eprintln!("[FAIL] edit not bounded to one patch: {edit:?}");
+                        std::process::exit(1);
+                    }
+
+                    // The edited cell's pixels must flip rock -> sand while a
+                    // control sky pixel stays identical.
+                    let (w, h) = (report.captures[0].report.width, report.captures[0].report.height);
+                    let aspect = w as f32 / h as f32;
+                    let target = pc3d_render::scene::project_ndc(wall_pose, aspect, [2.5, 1.5, -7.0]);
+                    let before_px = pc3d_render::scene::sample_ndc(&report.captures[0].rgba, w, h, target);
+                    let after_px = pc3d_render::scene::sample_ndc(&report.captures[1].rgba, w, h, target);
+                    let delta = (before_px[0] - after_px[0]).abs() + (before_px[1] - after_px[1]).abs();
+                    if delta < 0.15 {
+                        eprintln!(
+                            "[FAIL] edited block barely changed on screen: {before_px:?} vs {after_px:?}"
+                        );
+                        std::process::exit(1);
+                    }
+                    let sky = (-0.75f32, 0.55f32);
+                    let sb = pc3d_render::scene::sample_ndc(&report.captures[0].rgba, w, h, sky);
+                    let sa = pc3d_render::scene::sample_ndc(&report.captures[1].rgba, w, h, sky);
+                    for i in 0..3 {
+                        if (sb[i] - sa[i]).abs() > 0.02 {
+                            eprintln!("[FAIL] control sky pixel changed: {sb:?} vs {sa:?}");
+                            std::process::exit(1);
+                        }
+                    }
+                    println!(
+                        "VISUAL EDIT OK: block at cell (2,1,-8) flipped rock->sand on screen (delta {delta:.2}); sky control unchanged"
+                    );
+                    println!(
+                        "WINDOWED BUILD PROOF PASS -> {base} + {after_path} ({}x{})",
+                        w, h
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

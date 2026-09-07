@@ -110,6 +110,15 @@ p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(PATH),$(PATH),) || exit 1; \
 	echo "P3D ASSETS OK"
 
+p3d-build-proof: ## Windowed construction proof (host-owned wall, rock->sand edit, bounded remesh): make p3d-build-proof [PNG=path] [SEED=4242]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-build $(if $(PNG),$(PNG),poorcraft3d/apps/poorcraft3d/shots/windowed_build.png) $(if $(SEED),$(SEED),4242) || exit 1; \
+	echo "P3D BUILD PROOF OK"
+
+p3d-build-live: ## Interactive construction: F places, R removes (host command path): make p3d-build-live [SEED=4242]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-build live $(if $(SEED),$(SEED),4242)
+
 p3d-play: ## Interactive POORCRAFT 3D 3D window: click to look, WASD+Space/Shift move, Esc quits
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play
