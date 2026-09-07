@@ -218,7 +218,17 @@ pub fn run_journey(seed: u64) -> JourneyReport {
         format!("{} of {} done", onboarding.progress().len(), crate::survival::ONBOARDING_STEPS.len()),
     );
 
-    let digest = host.digest_state();
+    // The journey digest binds WHERE the life was lived too: the
+    // player's spawn position and the dragon's lair are part of the
+    // seed's identity (scalars alone made different seeds digest the
+    // same — found by cross-seed evidence comparison).
+    let mut bytes = Vec::new();
+    for v in player.pos {
+        bytes.extend_from_slice(&v.to_le_bytes());
+    }
+    bytes.extend_from_slice(&lair.x.to_le_bytes());
+    bytes.extend_from_slice(&lair.z.to_le_bytes());
+    let digest = host.digest_state() ^ pc3d_core::journal::fnv1a64(&bytes);
     JourneyReport { seed, steps, digest }
 }
 
@@ -226,15 +236,19 @@ pub fn run_journey(seed: u64) -> JourneyReport {
 mod tests {
     use super::*;
 
-    /// The journey passes on several seeds and re-runs bit-identically.
+    /// The journey passes on several seeds, re-runs bit-identically,
+    /// and DIFFERENT seeds give different digests — the evidence must
+    /// bind the world it was lived in, not just the scripted commands.
     #[test]
     fn p3d805_journey_passes_and_is_deterministic() {
+        let mut digests = std::collections::BTreeSet::new();
         for seed in [1u64, 4242, 999_999] {
             let a = run_journey(seed);
             let b = run_journey(seed);
             assert!(a.passed(), "seed {seed}: {a:#?}");
             assert_eq!(a, b, "seed {seed}: identical re-run");
             assert_eq!(a.steps.len(), 10);
+            assert!(digests.insert(a.digest), "seed {seed}: digest must differ across seeds");
         }
     }
 

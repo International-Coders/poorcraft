@@ -230,6 +230,11 @@ impl SoloHost {
             words.push(*d as u64);
         }
         for s in &self.settlements.list {
+            // Geometry binds the seed: WHERE a settlement sits is as
+            // much world state as its scalars (two seeds with identical
+            // scalars must NOT digest identically).
+            words.push(s.center.x as u64);
+            words.push(s.center.z as u64);
             let a = &s.aggregate;
             words.push(a.population as u64);
             words.push(a.food as u64);
