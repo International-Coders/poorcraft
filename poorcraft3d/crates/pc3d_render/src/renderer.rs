@@ -49,16 +49,35 @@ impl Pipelines {
         let layout_globals =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("pc3d globals layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    // Detail texture (R3DV-010 high tier).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                ],
             });
         let layout_hud = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("pc3d hud layout"),
@@ -310,6 +329,8 @@ pub struct Renderer {
     start: std::time::Instant,
     /// Frozen water time for deterministic proofs (None = wall clock).
     water_time_override: Option<f32>,
+    /// Detail texture flag (high tier).
+    detail_flag: f32,
 }
 
 /// A plain vertex/index buffer pair (u16 or u32 indices).
@@ -388,7 +409,14 @@ impl Renderer {
         let gpu_scene = GpuScene::new(&ctx.device);
         let camera = Camera::new(default_pose());
         let globals_buf = create_globals_buffer(&ctx.device);
-        let bg_globals = create_globals_bind_group(&ctx.device, &pipelines.layout_globals, &globals_buf);
+        let (detail, detail_data) = create_detail_texture(&ctx.device);
+        upload_detail(&ctx.queue, &detail, &detail_data);
+        let bg_globals = create_globals_bind_group(
+            &ctx.device,
+            &pipelines.layout_globals,
+            &globals_buf,
+            &detail,
+        );
         let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
         hud.line = default_hud_line(&camera);
         let depth = Some(create_depth(&ctx.device, w, h));
@@ -420,6 +448,7 @@ impl Renderer {
             npcs: None,
             start: std::time::Instant::now(),
             water_time_override: None,
+            detail_flag: 0.0,
         }
     }
 
@@ -432,7 +461,14 @@ impl Renderer {
         let gpu_scene = GpuScene::new(&ctx.device);
         let camera = Camera::new(default_pose());
         let globals_buf = create_globals_buffer(&ctx.device);
-        let bg_globals = create_globals_bind_group(&ctx.device, &pipelines.layout_globals, &globals_buf);
+        let (detail, detail_data) = create_detail_texture(&ctx.device);
+        upload_detail(&ctx.queue, &detail, &detail_data);
+        let bg_globals = create_globals_bind_group(
+            &ctx.device,
+            &pipelines.layout_globals,
+            &globals_buf,
+            &detail,
+        );
         let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
         hud.line = default_hud_line(&camera);
         let texture = create_target(&ctx.device, width, height, format);
@@ -465,6 +501,7 @@ impl Renderer {
             npcs: None,
             start: std::time::Instant::now(),
             water_time_override: None,
+            detail_flag: 0.0,
         }
     }
 
@@ -531,6 +568,20 @@ impl Renderer {
         // u32 indices: concatenated vistas exceed the u16 range.
         self.terrain = Some(GpuMesh::from_mesh_u32(&self.ctx.device, &verts, &idx));
         stats
+    }
+
+    /// Applies a quality tier (R3DV-010): streaming rings/budgets, detail
+    /// texture, water animation cadence.
+    pub fn set_quality(&mut self, tier: QualityTier) {
+        self.detail_flag = tier.detail();
+        if let Some(streamer) = self.streamer.as_mut() {
+            streamer.set_config(crate::streaming::StreamConfig {
+                max_mesh_per_frame: tier.max_mesh_per_frame(),
+                max_uploads_per_frame: tier.max_mesh_per_frame() * 2,
+                gpu_byte_budget: tier.gpu_byte_budget(),
+                tiers: tier.tiers(),
+            });
+        }
     }
 
     /// Detaches NPCs + boxes (control renders for presence proofs).
@@ -693,7 +744,7 @@ impl Renderer {
                 aspect,
                 self.water_time_override
                     .unwrap_or_else(|| self.start.elapsed().as_secs_f32()),
-                0.0,
+                self.detail_flag,
             ],
         };
         self.ctx
@@ -1019,15 +1070,132 @@ fn create_globals_bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     buf: &wgpu::Buffer,
+    detail: &wgpu::Texture,
 ) -> wgpu::BindGroup {
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("pc3d detail sampler"),
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("pc3d globals bind group"),
         layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: buf.as_entire_binding(),
-        }],
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(
+                    &detail.create_view(&Default::default()),
+                ),
+            },
+        ],
     })
+}
+
+/// The detail texture (R3DV-010): a deterministic 64x64 grayscale noise
+/// tile sampled over world-space UVs at high tier — the renderer's first
+/// real texture binding (procedural, original).
+pub struct DetailTexture(wgpu::Texture);
+
+fn upload_detail(queue: &wgpu::Queue, tex: &wgpu::Texture, data: &[u8]) {
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: tex,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        data,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(64),
+            rows_per_image: None,
+        },
+        wgpu::Extent3d {
+            width: 64,
+            height: 64,
+            depth_or_array_layers: 1,
+        },
+    );
+}
+
+fn create_detail_texture(device: &wgpu::Device) -> (wgpu::Texture, Vec<u8>) {
+    let n = 64usize;
+    let mut data = vec![0u8; n * n];
+    for y in 0..n {
+        for x in 0..n {
+            // Deterministic value noise from cell coordinates.
+            let h = (x as u32).wrapping_mul(374761393)
+                ^ (y as u32).wrapping_mul(668265263);
+            let h = h.wrapping_mul(1274126177);
+            data[y * n + x] = ((h >> 24) & 0xff) as u8;
+        }
+    }
+    let tex = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("pc3d detail noise"),
+        size: wgpu::Extent3d {
+            width: n as u32,
+            height: n as u32,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::R8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    (tex, data)
+}
+
+/// Quality tiers (R3DV-010).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QualityTier {
+    Low,
+    Mid,
+    High,
+}
+
+impl QualityTier {
+    /// Streaming rings: low keeps only the full ring, mid adds the lod
+    /// ring, high adds the macro ring.
+    pub fn tiers(self) -> &'static [pc3d_world::stream::Tier] {
+        use pc3d_world::stream::Tier;
+        match self {
+            QualityTier::Low => &[Tier::Full],
+            QualityTier::Mid => &[Tier::Full, Tier::Lod],
+            QualityTier::High => &[Tier::Full, Tier::Lod, Tier::Macro],
+        }
+    }
+    pub fn max_mesh_per_frame(self) -> usize {
+        match self {
+            QualityTier::Low => 1,
+            QualityTier::Mid => 2,
+            QualityTier::High => 3,
+        }
+    }
+    pub fn gpu_byte_budget(self) -> usize {
+        match self {
+            QualityTier::Low => 8 * 1024 * 1024,
+            QualityTier::Mid => 24 * 1024 * 1024,
+            QualityTier::High => 48 * 1024 * 1024,
+        }
+    }
+    /// Detail texture sampling at high tier only.
+    pub fn detail(self) -> f32 {
+        match self {
+            QualityTier::High => 1.0,
+            _ => 0.0,
+        }
+    }
 }
 
 fn create_hud(device: &wgpu::Device, _layout: &wgpu::BindGroupLayout) -> HudResources {

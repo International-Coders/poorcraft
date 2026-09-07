@@ -21,18 +21,20 @@ use pc3d_world::gen::CellMaterial;
 use pc3d_world::scales::PATCH_CELL_AXIS;
 use std::collections::BTreeMap;
 
-/// Linear albedo per construction material (renderer-local until pc3d_assets
-/// material binding lands in R3DV-010; values chosen to be distinguishable).
+/// Linear albedo per construction material VIA THE ASSET MANIFEST registry
+/// (R3DV-010 material binding): natural materials use their terrain rows,
+/// built stone/wood use the block rows.
 pub fn material_albedo(m: CellMaterial) -> [f32; 3] {
-    match m {
-        CellMaterial::Air => [0.5, 0.5, 0.5], // never built
-        CellMaterial::Water => [0.20, 0.42, 0.65],
-        CellMaterial::Soil => [0.45, 0.32, 0.20],
-        CellMaterial::Grass => [0.30, 0.55, 0.22],
-        CellMaterial::Sand => [0.80, 0.72, 0.48],
-        CellMaterial::Rock => [0.55, 0.54, 0.50],
-        CellMaterial::Snow => [0.92, 0.94, 0.97],
-    }
+    let name = match m {
+        CellMaterial::Air => "mat.block_stone",
+        CellMaterial::Water => "mat.water_flow",
+        CellMaterial::Soil => "mat.soil",
+        CellMaterial::Grass => "mat.grass",
+        CellMaterial::Sand => "mat.sand",
+        CellMaterial::Rock => "mat.block_stone",
+        CellMaterial::Snow => "mat.snow",
+    };
+    pc3d_assets::material_albedo(name).unwrap_or([0.5, 0.5, 0.5])
 }
 
 /// FNV-1a 64-bit (same family as the host journal hash) over a patch's

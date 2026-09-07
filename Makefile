@@ -110,6 +110,11 @@ p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(PATH),$(PATH),) || exit 1; \
 	echo "P3D ASSETS OK"
 
+p3d-quality: ## Windowed quality-tier proof (same scene at Low/Mid/High + memory/frame record): make p3d-quality [OUTDIR=shots] [SEED=3]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-quality $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
+	echo "P3D QUALITY PROOF OK"
+
 p3d-npcs: ## Windowed NPC proof (cast at sim positions + Bed/Work/Idle inspect boxes): make p3d-npcs [OUTDIR=shots] [SEED=3]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-npcs $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \

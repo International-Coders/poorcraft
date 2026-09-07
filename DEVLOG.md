@@ -4830,3 +4830,50 @@ garrison-gap visualization (npc_death state exists in the sim), no NPC
 name/role labels in-world (inspect labels are R3DV-011+), the cast is the
 showcase trio rather than the full settlement population. Next: R3DV-010
 materials, lighting, and quality tiers.
+
+## 2026-09-07 — R3DV-010: materials, lighting, and quality tiers
+
+WHAT: The renderer's material system grew up. (1) MATERIAL BINDING: every
+rendered color now flows through the pc3d_assets material registry —
+terrain (mat.grass/soil/rock/sand/snow), construction blocks
+(mat.block_stone/block_wood by CellMaterial), and water (mat.water_flow)
+joined the city/NPC bindings from 008/009; no renderer-local palettes
+remain. Plus the renderer's FIRST REAL GPU TEXTURE: a deterministic 64x64
+procedural noise tile (texture + sampler in the mesh pipeline's bind
+group), sampled over world-space UVs — albedo * (0.88 + 0.24*noise) —
+enabled at high tier, giving visible surface variation. (2) SUN AND
+AMBIENT: hemisphere ambient (0.38 sky-up + 0.22 ground-down + 1.05 sun)
+replaces the flat constant, implemented identically in fs_mesh and the
+scene.rs lit_color CPU mirror — every pixel-exact probe in the suite
+still passing IS the lockstep proof. (3) QUALITY TIERS: QualityTier
+Low/Mid/High — streaming rings (Full / +Lod / +Lod+Macro), per-frame mesh
+budget 1/2/3, GPU budget 8/24/48 MB, detail texture at high — applied
+live (renderer.set_quality + streamer.set_config). (4) ASSET CONSUMERS:
+the machine.water_wheel row's consumer is now REAL — pc3d_render::machines
+meshes an original water wheel (octagonal wheel, axle, posts,
+mat.wood_metal/timber) at hydro::best_wheel_site, the sim's own
+deterministic siting (P3D-305); the audit test maps EVERY beta-critical
+row's consumers to a real module.
+
+HOW: renderer.rs (detail texture + globals bind-group extensions +
+QualityTier + set_quality; upload via queue.write_texture),
+shaders/scene.wgsl (hemisphere ambient + detail sampling guarded by the
+tan_aspect.w flag; MeshOut carries world position), scene.rs (mirror),
+terrain.rs/construction.rs/water.rs (registry routing), machines.rs (new:
+the wheel + consumer audit), streaming.rs (set_config), CLI --play-quality
++ make p3d-quality.
+
+EVIDENCE: 353/353 pc3d tests (+5). Windowed: --play-quality renders the
+SAME water-wheel scene at three tiers — loaded patches 42 (low) / 80
+(mid) / 102 (high), gpu 2831/5468/6908 KB, 116 frames p50 2.69 ms /
+p95 9.74 ms / avg 268 fps; the tier-scaling law asserted (low < high);
+three PNGs human-inspected PASS (low = wheel + small vista; high adds the
+macro ring AND visible noise mottling on terrain).
+
+HONESTLY DEFERRED: the "atlas" is a single procedural noise tile, not a
+per-material tiled atlas with UV unwrapping (that is a full asset-pipeline
+feature; the binding machinery — bind group, sampler, world-space
+sampling, tier gating — is proven and in place); no shadows/SSAO; water
+tiering rides the mesh budget only; kit faction variation not skinned.
+Next: R3DV-011 — THE VERTICAL SLICE (walk, cave, river, build, city, NPC,
+inspect, save/reload in one windowed executable).

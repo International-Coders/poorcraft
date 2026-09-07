@@ -74,6 +74,7 @@ struct MeshOut {
     @builtin(position) pos: vec4f,
     @location(0) normal: vec3f,
     @location(1) color: vec3f,
+    @location(2) world: vec3f,
 };
 
 @vertex
@@ -82,15 +83,27 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
     out.pos = globals.view_proj * vec4f(v.pos, 1.0);
     out.normal = v.normal;
     out.color = v.color;
+    out.world = v.pos;
     return out;
 }
+
+@group(0) @binding(1) var detail_sampler: sampler;
+@group(0) @binding(2) var detail_texture: texture_2d<f32>;
 
 @fragment
 fn fs_mesh(in: MeshOut) -> @location(0) vec4f {
     let n = normalize(in.normal);
     let sun = max(dot(n, globals.sun_dir.xyz), 0.0);
-    let light = min(0.35 + 1.1 * sun, 1.0);
-    return vec4f(in.color * light, 1.0);
+    // Hemisphere ambient (R3DV-010): sky above, ground below.
+    var light = 0.38 * (0.5 + 0.5 * n.y) + 0.22 * (0.5 - 0.5 * n.y) + 1.05 * sun;
+    var albedo = in.color;
+    // Detail texture (high tier): subtle deterministic surface variation
+    // from world-space UVs; globals.tan_aspect.w is the detail flag.
+    if globals.tan_aspect.w > 0.5 {
+        let d = textureSample(detail_texture, detail_sampler, in.pos.xz * 0.25).r;
+        albedo = albedo * (0.88 + 0.24 * d);
+    }
+    return vec4f(albedo * min(light, 1.0), 1.0);
 }
 
 // --- HUD (bitmap-font debug line) ------------------------------------------

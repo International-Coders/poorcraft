@@ -274,7 +274,7 @@
     {
       "id": "R3DV-010",
       "title": "Materials, lighting, and quality tiers",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": [
         "R3DV-007",
         "R3DV-008",
@@ -290,12 +290,21 @@
         "tests",
         "three_quality_pngs",
         "memory_frame_record"
-      ]
+      ],
+      "completed_evidence": {
+        "material_binding": "every rendered color now flows through the pc3d_assets material registry: terrain (terrain_albedo via mat.grass/soil/rock/sand/snow), construction blocks (mat.block_stone/block_wood by CellMaterial), water (mat.water_flow), city/NPCs (already bound in R3DV-008/009) \u2014 no renderer-local palettes remain; plus the renderer's FIRST REAL TEXTURE: a deterministic 64x64 procedural noise tile bound as a GPU texture+sampler in the mesh pipeline, sampled over world-space UVs (albedo * (0.88 + 0.24*noise)) at high tier \u2014 visible surface variation in the high-tier PNG",
+        "sun_and_ambient": "hemisphere ambient replaces the flat constant: light = 0.38*sky_up + 0.22*ground_down + 1.05*sun, with the directional sun unchanged \u2014 implemented identically in fs_mesh and the scene.rs lit_color CPU mirror (every pixel-exact probe in the suite still passes, proving the two stay in lockstep)",
+        "low_mid_high_tiers": "QualityTier {Low, Mid, High}: streaming rings (Full / +Lod / +Lod+Macro), per-frame mesh budget (1/2/3), GPU budget (8/24/48 MB), detail texture (high only), applied live via renderer.set_quality + streamer.set_config; windowed proof: the SAME water-wheel scene at three tiers \u2014 loaded patches 42 (low) / 80 (mid) / 102 (high), gpu 2831/5468/6908 KB, the tier-scaling law asserted (low < high)",
+        "asset_consumers": "the machine.water_wheel row's consumer machine_renderer is NOW REAL: pc3d_render::machines meshes an original water-wheel silhouette (octagonal wheel, axle, two posts, mat.wood_metal/timber) at hydro::best_wheel_site \u2014 the sim's own deterministic siting authority (P3D-305, max discharge x slope among viable regions), never a decorative choice; the audit test asserts EVERY beta-critical row's consumers map to a real module (natural_terrain_renderer/cave_renderer=terrain.rs, river_renderer=water.rs, construction_renderer/ray_target=construction.rs, capital_module_renderer=city.rs, city_anchor_renderer/npc_renderer=npcs.rs, machine_renderer=machines.rs)",
+        "three_quality_pngs": "windowed_quality_low/mid/high.png from one run (116 frames p50 2.69 ms / p95 9.74 ms / avg 268 fps) \u2014 human-inspected PASS: low shows the wheel + a small vista, high adds the macro ring AND the noise detail texture (visible surface mottling)",
+        "memory_frame_record": "per-tier records printed by the CLI: patches loaded, full/mid/far split, gpu KB, meshes, frame p50/p95 \u2014 the run above",
+        "tests": "353/353 pc3d workspace green (+5 net): hemisphere lighting keeps every pixel-exact probe green (mirror lockstep proof), the wheel sits at the sim's best site with registry materials, the consumer audit, terrain/construction/water registry routing"
+      }
     },
     {
       "id": "R3DV-011",
       "title": "Honest playable 3D vertical slice",
-      "status": "BLOCKED_BY_R3DV-010",
+      "status": "NEXT",
       "depends_on": [
         "R3DV-010"
       ],

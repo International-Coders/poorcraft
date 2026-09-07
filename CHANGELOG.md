@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-010: materials, lighting, and quality tiers
+
+- **Material binding everywhere**: terrain, construction blocks, and water
+  now take their colors from the `pc3d_assets` registry (joining the
+  city/NPC bindings) — no renderer-local palettes remain. The renderer's
+  first real GPU texture: a deterministic procedural noise tile bound in
+  the mesh pipeline, sampled over world-space UVs at high tier.
+- **Hemisphere ambient** (0.38 sky + 0.22 ground + 1.05 sun) replaces the
+  flat constant — shader and CPU mirror in lockstep, proven by every
+  pixel-exact probe still passing.
+- **Quality tiers**: Low/Mid/High scale streaming rings, per-frame mesh
+  budgets, GPU budgets, and the detail texture — `--play-quality` renders
+  the same scene at 42/80/102 loaded patches (2831/5468/6908 KB), the
+  scaling law asserted, three PNGs human-inspected PASS.
+- **All asset rows have real consumers**: `machine_renderer` is now real —
+  an original water wheel meshed at `hydro::best_wheel_site` (the sim's
+  deterministic siting); an audit test maps every beta-critical row's
+  consumers to a concrete module.
+- 353/353 pc3d tests (+5), root 474/474.
+
 ## 2026-09-07 — R3DV-009: NPCs render at their simulated positions
 
 `pc3d_render::npcs` populates the city with a resident, a worker, and a

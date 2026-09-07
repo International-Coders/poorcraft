@@ -21,6 +21,7 @@
 
 pub mod app;
 pub mod city;
+pub mod machines;
 pub mod npcs;
 pub mod camera;
 pub mod construction;
@@ -35,7 +36,9 @@ pub mod scene;
 pub use app::{run_windowed, InteractiveHost, ProbeSet, Shot, WindowConfig, WindowReport};
 pub use camera::CameraPose;
 pub use city::{city_scene, mesh_city, CityInfo, NavAnchor};
+pub use machines::mesh_water_wheel;
 pub use npcs::{advance, cast_for, mesh_npc, npc_world_pos, NpcCast};
+pub use renderer::{QualityTier, Renderer};
 pub use construction::{material_albedo, mesh_patch, UpdateStats};
 pub use streaming::{StreamConfig, StreamCounters, TerrainStreamer};
 pub use terrain::{mesh_patch_natural, MeshLod, TerrainStats};

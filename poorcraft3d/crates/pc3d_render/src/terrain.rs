@@ -19,7 +19,7 @@
 //! 03-VOXEL-TERRAIN-AND-MESHING.md.
 
 use crate::camera::CameraPose;
-use crate::construction::material_albedo;
+use crate::terrain::terrain_albedo as material_albedo;
 use crate::scene::{lit_color, to_srgb4, SceneVertex, FACE_BASIS};
 use pc3d_world::coords::{CellCoord, PatchCoord};
 use pc3d_world::gen::WorldGen;
@@ -36,6 +36,22 @@ fn solid_at(gen: &WorldGen, cell: CellCoord) -> bool {
 fn material_at(gen: &WorldGen, cell: CellCoord) -> pc3d_world::gen::CellMaterial {
     final_solid(gen, cell.x as i64 * CELL_MM, cell.y as i64 * CELL_MM, cell.z as i64 * CELL_MM)
         .material
+}
+
+/// Terrain material albedo VIA THE ASSET MANIFEST material registry
+/// (R3DV-010: material binding — no renderer-local palette).
+pub fn terrain_albedo(m: pc3d_world::gen::CellMaterial) -> [f32; 3] {
+    use pc3d_world::gen::CellMaterial;
+    let name = match m {
+        CellMaterial::Air => "mat.rock",
+        CellMaterial::Water => "mat.water_flow",
+        CellMaterial::Soil => "mat.soil",
+        CellMaterial::Grass => "mat.grass",
+        CellMaterial::Sand => "mat.sand",
+        CellMaterial::Rock => "mat.rock",
+        CellMaterial::Snow => "mat.snow",
+    };
+    pc3d_assets::material_albedo(name).unwrap_or([0.5, 0.5, 0.5])
 }
 
 /// Render detail per patch (drives face culling by LOD ring). Top faces

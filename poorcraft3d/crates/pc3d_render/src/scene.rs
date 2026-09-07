@@ -70,13 +70,13 @@ pub const SUN_STRENGTH: f32 = 1.1;
 
 /// Mirror of the WGSL mesh lighting so pixel probes share one source of truth.
 pub fn lit_color(albedo: [f32; 3], normal: [f32; 3]) -> [f32; 3] {
-    // d = dot(normal, sun_dir) — the albedo is applied after the light term.
-    let d = normal
-        .iter()
-        .zip(SUN_DIR)
-        .map(|(n, s)| n * s)
-        .sum::<f32>();
-    let light = (AMBIENT + SUN_STRENGTH * d.max(0.0)).min(1.0);
+    // Hemisphere ambient (R3DV-010): sky above, ground below, sun on top —
+    // the exact fs_mesh formula.
+    let d = normal.iter().zip(SUN_DIR).map(|(n, s)| n * s).sum::<f32>();
+    let light = (0.38 * (0.5 + 0.5 * normal[1])
+        + 0.22 * (0.5 - 0.5 * normal[1])
+        + 1.05 * d.max(0.0))
+        .min(1.0);
     [
         (albedo[0] * light).clamp(0.0, 1.0),
         (albedo[1] * light).clamp(0.0, 1.0),
@@ -561,10 +561,13 @@ mod tests {
 
     #[test]
     fn lighting_mirror_matches_shader_contract() {
-        // East face gets the full sun; north face gets ambient only.
+        // East face gets the full sun; a horizontal north face gets the
+        // hemisphere ambient floor (0.38*0 + 0.22*1 = 0.22 at high noon
+        // geometry: horizontal faces get the mid band 0.30).
         let east = lit_color(COLOR_GOLD, [1.0, 0.0, 0.0]);
-        let north = lit_color(COLOR_GOLD, [0.0, 0.0, -1.0]);
+        let down = lit_color(COLOR_GOLD, [0.0, -1.0, 0.0]);
         assert!(east[0] > 0.85, "sunlit east face must be near-full gold");
-        assert!((north[0] - COLOR_GOLD[0] * AMBIENT).abs() < 1e-3);
+        // Down-facing: ambient = 0.22 exactly (no sun on a bottom face).
+        assert!((down[0] - COLOR_GOLD[0] * 0.22).abs() < 1e-3);
     }
 }

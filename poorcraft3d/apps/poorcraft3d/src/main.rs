@@ -501,7 +501,7 @@ fn main() {
                 frame_hooks: vec![
                     (
                         0,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             r.set_placeholder_scene(false);
                             r.attach_construction();
                             let st = r.update_construction(&host_init.borrow().construction);
@@ -510,7 +510,7 @@ fn main() {
                     ),
                     (
                         30,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             let mut h = host_edit.borrow_mut();
                             // Swap the wall's center block rock -> sand
                             // THROUGH THE HOST COMMAND PATH.
@@ -662,7 +662,7 @@ fn main() {
                 frame_hooks: vec![
                     (
                         0,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             r.set_placeholder_scene(false);
                             let st = r.load_terrain(&hg, &neighborhood3(hill_coord));
                             r.set_pose(hill_pose);
@@ -671,7 +671,7 @@ fn main() {
                     ),
                     (
                         40,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             let st = r.load_terrain(&cg, &neighborhood3(cliff_coord));
                             r.set_pose(cliff_pose);
                             st1.borrow_mut().push(("cliff".into(), st));
@@ -679,7 +679,7 @@ fn main() {
                     ),
                     (
                         80,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             let cave_patch = PatchCoord {
                                 x: cave_air.x.div_euclid(16),
                                 y: cave_air.y.div_euclid(16),
@@ -797,7 +797,7 @@ fn main() {
                 ],
                 frame_hooks: vec![(
                     0,
-                    Box::new(move |r| {
+                    Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                         r.set_placeholder_scene(false);
                         r.attach_streaming(
                             gen_hook.clone(),
@@ -955,7 +955,7 @@ fn main() {
                 frame_hooks: vec![
                     (
                         0,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             r.set_placeholder_scene(false);
                             r.load_terrain(&g0, &pc3d_render::terrain::neighborhood3(mid_patch));
                             r.attach_water();
@@ -967,7 +967,7 @@ fn main() {
                     ),
                     (
                         35,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             // DAM the downstream region: elevation override
                             // reroutes the river locally (P3D-303), the
                             // dirty-region table bumps only changed records,
@@ -1161,7 +1161,7 @@ fn main() {
                 frame_hooks: vec![
                     (
                         0,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             r.set_placeholder_scene(false);
                             let t0 = std::time::Instant::now();
                             r.load_terrain(&g, &patches_hook);
@@ -1357,7 +1357,7 @@ fn main() {
                 frame_hooks: vec![
                     (
                         0,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             r.set_placeholder_scene(false);
                             r.load_terrain(&g, &patches);
                             r.load_city(&cv, &ci);
@@ -1370,7 +1370,7 @@ fn main() {
                     (55, Box::new(move |r| r.set_pose(cu3[2].1))),
                     (
                         70,
-                        Box::new(move |r| {
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
                             // Inspect mode: anchor boxes join the render.
                             r.load_npcs(&bv, &bi);
                             r.set_pose(overview);
@@ -1441,9 +1441,193 @@ fn main() {
                 }
             }
         }
+        Some("--play-quality") => {
+            // R3DV-010: the SAME scene at Low/Mid/High tiers — three
+            // windowed captures + the memory/frame record per tier.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            let seed: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(3);
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::water::proof_scene;
+            use pc3d_render::{QualityTier, Shot, StreamConfig};
+
+            // Scene: the water proof river + the sim-sited water wheel.
+            let (gen, graph, t0, _edge) = proof_scene(seed);
+            let gen = std::rc::Rc::new(gen);
+            let (mut wverts, mut widx) = (Vec::new(), Vec::new());
+            let hub = pc3d_render::mesh_water_wheel(&gen, &graph, &mut wverts, &mut widx)
+                .expect("a wheel site");
+            let eye = [hub[0] + 14.0, hub[1] + 9.0, hub[2] + 18.0];
+            let d = [hub[0] - eye[0], hub[1] - eye[1], hub[2] - eye[2]];
+            let pose = pc3d_render::CameraPose::new(
+                eye,
+                (-d[0]).atan2(-d[2]),
+                (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+            );
+            let y_level = (hub[1] as i32).div_euclid(16).max(0);
+
+            let tiers: [(QualityTier, &'static str); 3] = [
+                (QualityTier::Low, "low"),
+                (QualityTier::Mid, "mid"),
+                (QualityTier::High, "high"),
+            ];
+            let setup = move |r: &mut pc3d_render::renderer::Renderer,
+                              tier: QualityTier,
+                              gen: &std::rc::Rc<pc3d_world::gen::WorldGen>,
+                              graph: &pc3d_world::hydro::RiverGraph,
+                              t0: &pc3d_world::flow::FlowTable,
+                              wv: &[pc3d_render::scene::SceneVertex],
+                              wi: &[u16]| {
+                r.set_placeholder_scene(false);
+                r.set_quality(tier);
+                r.attach_streaming(
+                    gen.clone(),
+                    StreamConfig {
+                        max_mesh_per_frame: tier.max_mesh_per_frame(),
+                        max_uploads_per_frame: tier.max_mesh_per_frame() * 2,
+                        gpu_byte_budget: tier.gpu_byte_budget(),
+                        tiers: tier.tiers(),
+                    },
+                    y_level,
+                );
+                r.attach_water();
+                let _ = r.update_water(gen, graph, t0);
+                r.load_npcs(wv, wi);
+                r.set_pose(pose);
+            };
+
+            let shots: Vec<Shot> = tiers
+                .iter()
+                .enumerate()
+                .map(|(i, (_, name))| {
+                    Shot::new(35 + (i as u64) * 40, format!("{out_dir}/windowed_quality_{name}.png"))
+                })
+                .collect();
+
+            let g0 = gen.clone();
+            let g1 = gen.clone();
+            let g2 = gen.clone();
+            let gr0 = graph.clone();
+            let gr1 = graph.clone();
+            let gr2 = graph.clone();
+            let t00 = t0.clone();
+            let t01 = t0.clone();
+            let t02 = t0.clone();
+            let wv0 = wverts.clone();
+            let wv1 = wverts.clone();
+            let wv2 = wverts.clone();
+            let wi0 = widx.clone();
+            let wi1 = widx.clone();
+            let wi2 = widx.clone();
+            let records = std::rc::Rc::new(std::cell::RefCell::new(Vec::<(
+                &'static str,
+                pc3d_render::StreamCounters,
+            )>::new()));
+            let rec_low = records.clone();
+            let rec_mid = records.clone();
+
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — quality tiers".into(),
+                max_frames: Some(125),
+                probe_set: pc3d_render::ProbeSet::SkyOnly,
+                resize_to: None,
+                camera_script: vec![],
+                shots,
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+                            setup(r, QualityTier::Low, &g0, &gr0, &t00, &wv0, &wi0);
+                        }),
+                    ),
+                    (
+                        42,
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+                            if let Some(c) = r.stream_counters() {
+                                rec_low.borrow_mut().push(("low", c));
+                            }
+                            setup(r, QualityTier::Mid, &g1, &gr1, &t01, &wv1, &wi1);
+                        }),
+                    ),
+                    (
+                        82,
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+                            if let Some(c) = r.stream_counters() {
+                                rec_mid.borrow_mut().push(("mid", c));
+                            }
+                            setup(r, QualityTier::High, &g2, &gr2, &t02, &wv2, &wi2);
+                        }),
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 3 {
+                        eprintln!("[FAIL] expected 3 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for (i, cap) in report.captures.iter().enumerate() {
+                        if !cap.report.passes_with(8) {
+                            eprintln!(
+                                "[FAIL] {} capture: {:?}",
+                                tiers[i].1,
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    let high_counters = report.final_stream_counters.unwrap_or_default();
+                    let mut rows: Vec<(u64, String, String, String)> = Vec::new();
+                    for (name, c) in records.borrow().iter() {
+                        rows.push((
+                            c.loaded as u64,
+                            format!("{}", c.gpu_bytes / 1024),
+                            format!("{}", c.loaded_full),
+                            format!("{}", c.loaded_mid + c.loaded_far),
+                        ));
+                        println!(
+                            "QUALITY {name}: loaded {} patches (full {} / far {}) gpu {} KB meshed {}",
+                            c.loaded, c.loaded_full, c.loaded_mid + c.loaded_far, c.gpu_bytes / 1024, c.meshed
+                        );
+                    }
+                    println!(
+                        "QUALITY high: loaded {} patches gpu {} KB",
+                        high_counters.loaded,
+                        high_counters.gpu_bytes / 1024
+                    );
+                    // The tier law: low loads FEWER patches than high.
+                    if records.borrow().is_empty() {
+                        eprintln!("[FAIL] no tier records captured");
+                        std::process::exit(1);
+                    }
+                    let low_loaded = records.borrow()[0].1.loaded as u64;
+                    if low_loaded >= high_counters.loaded as u64 {
+                        eprintln!(
+                            "[FAIL] low tier loaded {} >= high {} — tiers do not scale",
+                            low_loaded, high_counters.loaded
+                        );
+                        std::process::exit(1);
+                    }
+                    println!(
+                        "WINDOWED QUALITY PROOF PASS -> low/mid/high PNGs in {out_dir} (frames p50 {:.2} ms p95 {:.2} ms)",
+                        report.p50_ms(),
+                        report.p95_ms()
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed]|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

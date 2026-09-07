@@ -104,7 +104,7 @@ pub fn water_color(
     time_s: f32,
 ) -> [f32; 4] {
     let stripe = 0.5 + 0.5 * (phase_m * 0.8 - time_s * speed * 3.0).sin();
-    let base = [0.24, 0.52, 0.85];
+    let base = pc3d_assets::material_albedo("mat.water_flow").unwrap_or([0.24, 0.52, 0.85]);
     let shade = 0.7 + 0.3 * stripe;
     [
         base[0] * shade,

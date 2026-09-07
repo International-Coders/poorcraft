@@ -136,6 +136,11 @@ impl TerrainStreamer {
         }
     }
 
+    /// Replaces the streaming configuration (quality tiers).
+    pub fn set_config(&mut self, cfg: StreamConfig) {
+        self.cfg = cfg;
+    }
+
     pub fn counters(&self) -> StreamCounters {
         let mut c = self.counters;
         c.queue_len = self.queue.len();
