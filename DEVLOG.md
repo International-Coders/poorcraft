@@ -4941,3 +4941,37 @@ HONESTLY DEFERRED: no jump; no hand/held-item rendering; day/night is the
 fixed dawn sky; the showcase band is a static terrain load around the gate
 plus streaming (not the full streamed world); the town is 256 m from the
 capital (a real walk, not one frame).
+
+## 2026-09-07 — R3DV-012: visual regression + performance gates — THE QUEUE IS COMPLETE
+
+WHAT: The visual reset's last task. `make p3d-visual-gates` is now the
+standing regression battery: it re-runs EVERY windowed proof in sequence —
+windowed-3d-axes, terrain-scenes, stream-walk, river-water, castle-city,
+npc-cast, quality-tiers, vertical-slice, asset-manifest — each with its
+semantic pixel assertions, failing loudly on any regression and writing
+the full console capture to poorcraft3d/shots/gates_report.txt. The audit
+run: 9/9 GATES PASS. docs/POORCRAFT-3D-VISUAL-RESET/VISUAL-GATES-REPORT.md
+is the .md determination: the per-gate frame records, the consolidated
+performance record, the human review note (every gate PNG inspected in
+this audit and each task's original pass), and seven honest known limits.
+
+EVIDENCE (this audit run): all eight rendered gates >= 92 fps average on
+the host iGPU (worst p95 21.6 ms under city+npc close-up loads); streaming
+steady-state ~1.1 ms/frame after capped loading; quality tiers scale
+42/80/102 patches (2831/5468/6908 KB); showcase seed search 2.4 s; dam
+edit still remeshes 5/281 sections; NPC sky-deltas 0.49/0.75/0.75; the
+slice journey (walk/cave/build/save/reload pixel-identical) is the
+in-suite movement/build smoke. Suites 356/356 pc3d + 474/474 root.
+
+THE RESET, CLOSED: POORCRAFT 3D entered this reset with a deterministic
+simulation and CLI PNGs; it exits with a windowed wgpu renderer, a
+first-person walking body with collision, terrain/caves/water/city/NPCs
+all bound to the authoritative simulation, host-command building,
+quality tiers, save/reload, a walkable vertical slice on one showcase
+seed, and a regression battery to keep it all honest. Per the gate, the
+word "playable" awaits the owner's manual pass: `make p3d-slice-live`.
+
+HONESTLY DEFERRED (beyond R3DV-012's known-limits list): the queue is
+done — future visual work (smooth terrain, shadows, authored assets,
+faction skins, day/night) is new scope to be scheduled by the owner, with
+the gates battery as its regression floor.

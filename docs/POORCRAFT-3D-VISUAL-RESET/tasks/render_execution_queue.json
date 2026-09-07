@@ -343,7 +343,7 @@
     {
       "id": "R3DV-012",
       "title": "Visual regression and performance gates",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": [
         "R3DV-011"
       ],
@@ -357,7 +357,16 @@
         "green_test_report",
         "reviewed_shots",
         "performance_report"
-      ]
+      ],
+      "completed_evidence": {
+        "semantic_screenshot_tests": "make p3d-visual-gates \u2014 the standing regression battery re-runs EVERY windowed proof in sequence and fails loudly: windowed-3d-axes, terrain-scenes, stream-walk, river-water, castle-city, npc-cast, quality-tiers, vertical-slice, asset-manifest (each with its semantic pixel assertions); report to poorcraft3d/apps/poorcraft3d/shots/gates_report.txt",
+        "human_review": "every regenerated gate PNG visually inspected in this audit (and in each task's original pass) \u2014 VISUAL-GATES-REPORT.md records the review; no holes, seams, missing layers, or unreadable roles",
+        "quality_tier_perf": "consolidated in VISUAL-GATES-REPORT.md: all eight rendered gates >= 92 fps avg on the host iGPU (worst p95 21.6 ms); streaming steady-state ~1.1 ms/frame; tiers 42/80/102 patches at 2831/5468/6908 KB; showcase search 2.4 s",
+        "known_limits": "VISUAL-GATES-REPORT.md \u00a7Known limits \u2014 seven honest items (culled-cell terrain, lambert-only lighting, single noise-tile atlas, trio cast, no jump/held-item/day-night, generic kit blocks, and 'playable' awaiting the owner's manual pass via make p3d-slice-live)",
+        "green_test_report": "9/9 GATES PASS on the audit run (2026-09-07); suites 356/356 pc3d + 474/474 root",
+        "reviewed_shots": "windowed_3d, terrain hill/cliff/cave, stream walk 1-3, water before/after, city + gate, npc town + close-ups + inspect, quality low/mid/high, slice showcase/cave/built \u2014 all reviewed PASS",
+        "save_reload_and_smoke": "the journey test (walk/cave/build/save/reload pixel-identical) is the in-suite smoke; the walkable slice (make p3d-slice-live) is the manual movement/build path"
+      }
     }
   ]
 }

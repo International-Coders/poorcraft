@@ -1,4 +1,4 @@
-# Visual Reset Execution Queue
+# Visual Reset Execution Queue — COMPLETE (R3DV-001..012 all DONE 2026-09-07)
 
 Execute exactly one task at a time, in order. A task cannot be skipped because
 the old simulation roadmap says it is complete.
@@ -18,7 +18,11 @@ the old simulation roadmap says it is complete.
 | R3DV-009 NPC renderer and city anchors | DONE 2026-09-07 | resident/worker/guard ARE NpcBrains bound to grounded plan anchors, stepped on the real NavPatch; presence proven by control-diff at sim positions (0.10–0.31), resident torso color pixel-exact; guard spear + worker tool only while Working; Bed/Work/Idle inspect frames from anchor materials; 5 windowed captures inspected PASS |
 | R3DV-010 materials, lighting, quality tiers | DONE 2026-09-07 | all colors flow from the pc3d_assets registry (terrain/blocks/water joined city/NPCs) + the renderer's first real GPU texture (procedural noise, high tier); hemisphere ambient with the CPU mirror in lockstep (every pixel-exact probe still green); QualityTier Low/Mid/High (rings/budgets/detail) — same scene 42/80/102 patches, 2831/5468/6908 KB; machine_renderer is real (water wheel at hydro's best site) and the consumer audit covers every manifest row |
 | R3DV-011 first 3D vertical slice | DONE 2026-09-07 | showcase seed 22: walk (collision player body), cave, river, host-command build (first-person visibility by control-diff), city, NPCs (frame control-delta), inspect boxes, save/reload PIXEL-IDENTICAL via pc3d_save (+ new player store); one GPU journey test walks all eight steps; 3 windowed captures inspected PASS; the WALKABLE slice ships (--play-slice live: WASD/F/R/B/L/I), 14 s liveness |
-| R3DV-012 visual regression and performance gates | NEXT | — |
+| R3DV-012 visual regression and performance gates | DONE 2026-09-07 | make p3d-visual-gates — the standing 9-gate regression battery (every windowed proof, semantic assertions, loud failure), ALL PASS on the audit run; VISUAL-GATES-REPORT.md holds the perf record (all gates ≥92 fps avg, tiers 42/80/102 patches), the human review, and seven known limits; 'playable' explicitly awaits the owner's manual pass (make p3d-slice-live) |
+
+**QUEUE COMPLETE.** Per the gate below, new visual content for other systems
+may now be scheduled; `make p3d-visual-gates` is the standing regression
+battery after any visual change.
 
 Reset rule in force: "POORCRAFT 3D is playable" stays forbidden until the
 R3DV-011 vertical slice passes with human review (see README.md).

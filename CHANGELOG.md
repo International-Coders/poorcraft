@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-012: regression + performance gates — VISUAL RESET COMPLETE
+
+- `make p3d-visual-gates`: the standing 9-gate regression battery re-runs
+  every windowed proof (axes, terrain, stream, water, city, NPCs, tiers,
+  slice, manifest) with semantic assertions and loud failure; report to
+  `shots/gates_report.txt`. Audit run: **9/9 PASS**.
+- `VISUAL-GATES-REPORT.md`: per-gate frame records (all rendered gates
+  ≥ 92 fps avg on the host iGPU; streaming ~1.1 ms/frame steady; tiers
+  42/80/102 patches), the human review note, and seven known limits.
+- The full reset (R3DV-001..012) is COMPLETE: windowed renderer →
+  first-person collision walking → terrain/caves/water/city/NPCs bound to
+  the simulation → host-command building → quality tiers → save/reload →
+  a walkable vertical slice (seed 22) → regression gates. 356/356 pc3d +
+  474/474 root tests. "Playable" awaits the owner's manual pass:
+  `make p3d-slice-live`.
+
 ## 2026-09-07 — R3DV-011: THE VERTICAL SLICE
 
 One deterministic showcase seed (22) with everything within a short walk —

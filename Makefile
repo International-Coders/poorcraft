@@ -119,6 +119,40 @@ p3d-slice-live: ## THE WALKABLE SLICE: WASD walk, click look, F/R build, B save,
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice live $(if $(SEED),$(SEED),3)
 
+p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowed proof must PASS); writes gates report to poorcraft3d/shots/gates_report.txt
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	@BIN=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
+	SHOTS=$$(pwd)/poorcraft3d/apps/poorcraft3d/shots; \
+	mkdir -p "$$SHOTS"; \
+	REPORT="$$SHOTS/gates_report.txt"; \
+	echo "POORCRAFT 3D VISUAL GATES — $$(date)" > "$$REPORT"; \
+	fail=0; \
+	run() { \
+		gate=$$1; \
+		echo "" | tee -a "$$REPORT"; \
+		echo "=== GATE: $$gate ===" | tee -a "$$REPORT"; \
+		if shift && "$$@" >> "$$REPORT" 2>&1; then \
+			echo "GATE PASS: $$gate" | tee -a "$$REPORT"; \
+		else \
+			echo "GATE FAIL: $$gate" | tee -a "$$REPORT"; fail=1; \
+		fi; \
+	}; \
+	run windowed-3d-axes      $$BIN --play-shot  "$$SHOTS/windowed_3d.png"; \
+	run terrain-scenes       $$BIN --play-terrain "$$SHOTS"; \
+	run stream-walk          $$BIN --play-stream  "$$SHOTS"; \
+	run river-water          $$BIN --play-water   "$$SHOTS" 3; \
+	run castle-city          $$BIN --play-city    "$$SHOTS" 3; \
+	run npc-cast             $$BIN --play-npcs    "$$SHOTS" 3; \
+	run quality-tiers        $$BIN --play-quality "$$SHOTS" 3; \
+	run vertical-slice       $$BIN --play-slice   "$$SHOTS" 3; \
+	run asset-manifest       $$BIN --validate-assets; \
+	echo "" | tee -a "$$REPORT"; \
+	if [ $$fail -eq 0 ]; then \
+		echo "ALL VISUAL GATES PASS (report: $$REPORT)" | tee -a "$$REPORT"; \
+	else \
+		echo "VISUAL GATES FAILED — see $$REPORT" | tee -a "$$REPORT"; exit 1; \
+	fi
+
 p3d-quality: ## Windowed quality-tier proof (same scene at Low/Mid/High + memory/frame record): make p3d-quality [OUTDIR=shots] [SEED=3]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-quality $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
