@@ -38,10 +38,32 @@ fn material_at(gen: &WorldGen, cell: CellCoord) -> pc3d_world::gen::CellMaterial
         .material
 }
 
+/// Render detail per patch (drives face culling by LOD ring). Top faces
+/// are NEVER culled at any level, so the visible-from-above shell cannot
+/// crack between rings; collision lives only in the Full ring (the
+/// P3D-105 tier contract).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MeshLod {
+    /// Every solid/air face (tops, sides, bottoms — caves and overhangs).
+    Full,
+    /// Tops and sides (bottom faces are invisible beyond the full ring).
+    Mid,
+    /// Top-shell only (the heightmap silhouette at far distance).
+    Far,
+}
+
 /// Meshes one natural-terrain patch: culled block faces in world meters,
 /// colors from the authoritative cell material. Neighbors outside the patch
 /// are queried directly (exact cross-patch culling, no seams).
 pub fn mesh_patch_natural(gen: &WorldGen, coord: PatchCoord) -> (Vec<SceneVertex>, Vec<u16>) {
+    mesh_patch_lod(gen, coord, MeshLod::Full)
+}
+
+pub fn mesh_patch_lod(
+    gen: &WorldGen,
+    coord: PatchCoord,
+    lod: MeshLod,
+) -> (Vec<SceneVertex>, Vec<u16>) {
     let n = PATCH_CELL_AXIS as i32;
     let o = coord.origin();
     let base = (
@@ -104,6 +126,15 @@ pub fn mesh_patch_natural(gen: &WorldGen, coord: PatchCoord) -> (Vec<SceneVertex
                     cell.z as f32 + 0.5,
                 ];
                 for (normal, u, v) in FACE_BASIS {
+                    // LOD face culling: top faces always render (the shell
+                    // cannot crack); bottoms drop beyond the full ring;
+                    // sides drop in the far ring.
+                    if lod == MeshLod::Mid && normal == [0.0, -1.0, 0.0] {
+                        continue;
+                    }
+                    if lod == MeshLod::Far && normal != [0.0, 1.0, 0.0] {
+                        continue;
+                    }
                     let neighbor = CellCoord {
                         x: cell.x + normal[0] as i32,
                         y: cell.y + normal[1] as i32,
@@ -431,6 +462,60 @@ pub fn neighborhood3(center: PatchCoord) -> Vec<PatchCoord> {
         }
     }
     v
+}
+
+/// A view-center probe derived by RAYCASTING the authoritative query: the
+/// first solid cell the sightline enters, the face it enters through, and
+/// that face's expected color — robust to occlusion (the probe is what the
+/// viewer actually sees, not a hand-picked spot).
+pub fn probe_view_center(
+    gen: &WorldGen,
+    pose: CameraPose,
+    aspect: f32,
+) -> Option<crate::scene::Probe> {
+    use crate::scene::{project_ndc, Probe};
+    let fwd = crate::camera::fwd_of(pose.yaw, pose.pitch);
+    let mut prev = [0.0f32; 3];
+    let mut t = 0.4f32;
+    while t < 300.0 {
+        let p = [
+            pose.position[0] + fwd[0] * t,
+            pose.position[1] + fwd[1] * t,
+            pose.position[2] + fwd[2] * t,
+        ];
+        let cell = CellCoord {
+            x: p[0].floor() as i32,
+            y: p[1].floor() as i32,
+            z: p[2].floor() as i32,
+        };
+        if solid_at(gen, cell) {
+            // Entry face: the axis whose cell index changed last.
+            let pc = CellCoord {
+                x: prev[0].floor() as i32,
+                y: prev[1].floor() as i32,
+                z: prev[2].floor() as i32,
+            };
+            let normal = if cell.x != pc.x {
+                if cell.x > pc.x { [-1.0, 0.0, 0.0] } else { [1.0, 0.0, 0.0] }
+            } else if cell.y != pc.y {
+                if cell.y > pc.y { [0.0, -1.0, 0.0] } else { [0.0, 1.0, 0.0] }
+            } else if cell.z > pc.z {
+                [0.0, 0.0, -1.0]
+            } else {
+                [0.0, 0.0, 1.0]
+            };
+            // Probe just in front of the face (the last air point).
+            return Some(Probe {
+                name: "streamed_view_center_matches_query",
+                ndc: project_ndc(pose, aspect, prev),
+                expected: face_expectation(gen, cell, normal),
+                tol: 0.06,
+            });
+        }
+        prev = p;
+        t += 0.1;
+    }
+    None
 }
 
 /// Expected sRGB color of a cell face as the lit shader would render it.

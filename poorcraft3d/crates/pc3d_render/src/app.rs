@@ -104,6 +104,8 @@ pub struct WindowReport {
     pub final_physical: (u32, u32),
     /// Window scale factor (physical = logical x scale).
     pub scale_factor: f64,
+    /// Streaming counters at run end (when a streamer was attached).
+    pub final_stream_counters: Option<crate::streaming::StreamCounters>,
 }
 
 impl WindowReport {
@@ -204,6 +206,7 @@ impl App {
                 resizes_observed: s.resizes_observed,
                 final_physical: s.final_physical,
                 scale_factor: s.window.scale_factor(),
+                final_stream_counters: s.renderer.stream_counters(),
             },
             None => WindowReport {
                 frames: 0,
@@ -212,6 +215,7 @@ impl App {
                 resizes_observed: 0,
                 final_physical: (0, 0),
                 scale_factor: 1.0,
+                final_stream_counters: None,
             },
         }
     }
@@ -424,8 +428,9 @@ impl ApplicationHandler for App {
                     }
                 }
 
-                // Interactive movement, then the HUD readout.
+                // Interactive movement, then streaming + the HUD readout.
                 state.apply_movement(dt);
+                let _ = state.renderer.stream_frame();
                 state.renderer.set_hud_line(&state.hud_line());
 
                 // Scheduled capture replaces this frame's presentation (the

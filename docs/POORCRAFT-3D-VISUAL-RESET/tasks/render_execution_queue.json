@@ -153,7 +153,7 @@
     {
       "id": "R3DV-006",
       "title": "Real terrain streaming, LOD, and seams",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": [
         "R3DV-005"
       ],
@@ -167,12 +167,23 @@
         "tests",
         "profiling",
         "lod_walk_pngs"
-      ]
+      ],
+      "completed_evidence": {
+        "crate": "pc3d_render/src/streaming.rs \u2014 TerrainStreamer CONSUMES the world's own machinery: stream::interest_patches (disc rings), stream::interest_diff/load-unload planning, stream::BoundedQueue (bounded work, honest counters, P3D-105 teleport law), lod::lod_for (detail bands); terrain.rs gains MeshLod (Full=all faces, Mid=drop bottoms, Far=top-shell only)",
+        "bounded_mesh_queue": "at most max_mesh_per_frame CPU mesh jobs and max_uploads_per_frame GPU uploads per frame \u2014 GPU test: a far teleport's whole vista (112 patches) completes in 57 frames at cap 2/frame with a 48-job deferral peak held in a caller-side list and re-admitted (never dropped); one live job per coord (pending set), nearest-first priority, stale jobs evicted from the queue when no longer desired",
+        "gpu_upload_budget": "per-frame upload cap plus a total GPU-byte budget; over-budget eviction removes the FARTHEST patches first; a patch larger than the whole budget is skipped honestly; GPU test proves gpu_bytes never exceeds the cap and the viewer's full ring survives eviction pressure",
+        "frustum_culling": "Gribb-Hartmann planes extracted from the same view-proj matrix the shader uses; per-patch AABB test; unit test proves a patch behind the camera and a patch far off-axis cull while a patch ahead draws; the windowed walk culled 77,875 patch-draws over 351 frames",
+        "no_visible_or_collision_seams": "LOD culls only bottom (Mid) and side (Far) faces \u2014 top faces render at EVERY level, so the visible shell cannot crack between rings (test: Full and Far meshes have IDENTICAL top-face sets); collision lives only in the Full ring (P3D-105 tier contract) where the mesh is the R3DV-005 collision-aligned full mesh; cross-border agreement is P3D-206's border_agrees",
+        "lod_walk_pngs": "--play-stream + make p3d-stream: one windowed run, three waypoints 96 m apart crossing the LOD rings, 351 frames p50 0.91 ms / p95 1.05 ms; 360 patches loaded (101 full / 259 mid), 1053 meshes at cap 3/frame, gpu 24555 KB of 24576 KB budget (eviction active), 30974 draws / 77875 culled; each waypoint capture verified by a query-derived raycast probe (view-center first-hit face color) \u2014 all 3 PASS; PNGs human-inspected PASS",
+        "counters": "StreamCounters surface queue len/pushed/admitted/rejected, deferred, meshed, uploaded, evicted, upload_bytes, gpu_bytes, loaded per ring, frustum_culled, drawn, per-frame maxima, mesh_us_total \u2014 printed by the CLI",
+        "tests": "329/329 pc3d workspace green (+7): frustum plane extraction/culling, ring banding + horizon-free desired set, LOD shrink (cave patch proves Mid drops ceiling undersides; hills prove Far drops slopes), top-shell equality across LOD, teleport bounds + completion, budget invariant + survivors, walk-config full-ring-first",
+        "bugs_found_by_proofs": "duplicate queue jobs starved real work (a re-push storm re-meshed loaded patches \u2014 fixed with a pending set + pop-time LOD guard; the stuck-job variant was caught by the run's own deferred assertion); coordinate-order queueing loaded the horizon before the viewer's ring (fixed with nearest-first priority); unbounded deferred re-admission churned 318k rejected pushes/frame (fixed with capacity-checked re-admission); a single patch larger than a tiny budget busted the invariant (now skipped and counted)"
+      }
     },
     {
       "id": "R3DV-007",
       "title": "Water mesh from flow records",
-      "status": "BLOCKED_BY_R3DV-005",
+      "status": "NEXT",
       "depends_on": [
         "R3DV-005"
       ],

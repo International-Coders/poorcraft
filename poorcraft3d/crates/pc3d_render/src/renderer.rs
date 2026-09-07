@@ -276,6 +276,9 @@ pub struct Renderer {
     /// combined mesh per load; per-patch versions arrive with streaming
     /// (R3DV-006).
     terrain: Option<GpuMesh>,
+    /// Streamed terrain with bounded per-frame work (R3DV-006); replaces
+    /// the static terrain mesh while attached.
+    streamer: Option<crate::streaming::TerrainStreamer>,
 }
 
 /// A plain vertex/index buffer pair.
@@ -343,6 +346,7 @@ impl Renderer {
             offscreen: None,
             construction: None,
             terrain: None,
+            streamer: None,
         }
     }
 
@@ -382,6 +386,7 @@ impl Renderer {
             offscreen: Some(texture),
             construction: None,
             terrain: None,
+            streamer: None,
         }
     }
 
@@ -447,6 +452,41 @@ impl Renderer {
         };
         self.terrain = Some(GpuMesh::from_mesh(&self.ctx.device, &verts, &idx));
         stats
+    }
+
+    /// Attaches streamed terrain (R3DV-006): the world's own interest rings
+    /// and LOD bands drive bounded per-frame meshing and uploads.
+    pub fn attach_streaming(
+        &mut self,
+        gen: std::rc::Rc<pc3d_world::gen::WorldGen>,
+        cfg: crate::streaming::StreamConfig,
+        y_level: i32,
+    ) {
+        self.streamer = Some(crate::streaming::TerrainStreamer::new(gen, cfg, y_level));
+        self.terrain = None; // the streamer owns terrain drawing while attached
+    }
+
+    /// One frame of streaming work from the current camera pose.
+    pub fn stream_frame(&mut self) -> Option<crate::streaming::StreamFrameStats> {
+        let pose = self.camera.pose;
+        let viewer = crate::streaming::viewer_of(pose);
+        self.streamer
+            .as_mut()
+            .map(|s| s.update(&self.ctx.device, viewer))
+    }
+
+    /// Streaming counters (None when not attached).
+    pub fn stream_counters(&self) -> Option<crate::streaming::StreamCounters> {
+        self.streamer.as_ref().map(|s| s.counters())
+    }
+
+    /// Test hook: the streamer's current desired set.
+    pub fn stream_desired_debug(
+        &self,
+    ) -> Option<std::collections::BTreeMap<pc3d_world::coords::PatchCoord, pc3d_world::lod::LodLevel>> {
+        self.streamer
+            .as_ref()
+            .map(|s| s.debug_desired())
     }
 
     /// Shows or hides the R3DV-002 placeholder scene (ground plane + dawn
@@ -698,7 +738,10 @@ impl Renderer {
             let _ = self.ctx.device.poll(wgpu::Maintain::Wait);
             output.present();
         } else {
-            let tex = self.offscreen.as_ref().expect("renderer has no target");
+            let tex = self
+                .offscreen
+                .take()
+                .expect("renderer has no target");
             let view = tex.create_view(&Default::default());
             self.encode_frame(&mut encoder, &view);
             encoder.copy_texture_to_buffer(
@@ -715,6 +758,7 @@ impl Renderer {
             );
             self.ctx.queue.submit(Some(encoder.finish()));
             let _ = self.ctx.device.poll(wgpu::Maintain::Wait);
+            self.offscreen = Some(tex);
         }
 
         let rgba = read_buffer(&self.ctx.device, &readback, bytes_per_row, width, height);
@@ -731,7 +775,7 @@ impl Renderer {
 
     /// The single draw path shared by the window, the live-window screenshot,
     /// and the offscreen proof target.
-    fn encode_frame(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+    fn encode_frame(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         let depth_view = self
             .depth
             .as_ref()
@@ -779,8 +823,12 @@ impl Renderer {
             pass.set_index_buffer(self.gpu_scene.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             pass.draw_indexed(0..self.gpu_scene.index_count, 0, 0..1);
         }
-        // 2a. Natural terrain from the authoritative query (R3DV-005).
-        if let Some(t) = &self.terrain {
+        // 2a. Natural terrain: streamed patches (R3DV-006, frustum-culled,
+        // per-patch buffers) or the static load (R3DV-005).
+        let view_proj: [f32; 16] = self.camera.view_proj(self.aspect());
+        if let Some(streamer) = self.streamer.as_mut() {
+            streamer.draw(&mut pass, &view_proj);
+        } else if let Some(t) = &self.terrain {
             pass.set_vertex_buffer(0, t.vertex_buffer.slice(..));
             pass.set_index_buffer(t.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             pass.draw_indexed(0..t.index_count, 0, 0..1);

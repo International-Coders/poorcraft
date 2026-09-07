@@ -766,9 +766,168 @@ fn main() {
                 }
             }
         }
+        Some("--play-stream") => {
+            // R3DV-006: streamed terrain LOD walk. The world's own interest
+            // rings + LOD bands drive bounded per-frame meshing/uploads with
+            // a GPU budget, eviction, and frustum culling; three waypoints
+            // walk across the rings with live-window captures.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::{ProbeSet, Shot, StreamConfig};
+            use pc3d_world::gen::WorldGen;
+            use pc3d_world::stream::Tier;
+            use pc3d_world::terrain::SceneSpec;
+
+            let (seed, hill_coord) = SceneSpec::SmoothHills.patch();
+            let gen = std::rc::Rc::new(WorldGen::new(seed));
+            let o = hill_coord.origin();
+            let cx = o.x as f32 / 1000.0 + 8.0;
+            let cz = o.z as f32 / 1000.0 + 8.0;
+            let surface_at = |x: f32| {
+                gen.effective_surface_mm((x * 1000.0) as i64, (cz * 1000.0) as i64) as f32
+                    / 1000.0
+            };
+            let pose_at = |x: f32| {
+                let s = surface_at(x);
+                pc3d_render::CameraPose::new([x, s + 1.7, cz], 0.0, -0.08)
+            };
+            let waypoints = [cx, cx + 96.0, cx + 192.0];
+            let poses: Vec<_> = waypoints.iter().map(|x| pose_at(*x)).collect();
+
+            let gen_hook = gen.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — streamed terrain".into(),
+                max_frames: Some(360),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![(0, poses[0]), (120, poses[1]), (240, poses[2])],
+                shots: vec![
+                    Shot {
+                        frame: 110,
+                        path: std::path::PathBuf::from(format!(
+                            "{out_dir}/windowed_stream_walk1.png"
+                        )),
+                    },
+                    Shot {
+                        frame: 230,
+                        path: std::path::PathBuf::from(format!(
+                            "{out_dir}/windowed_stream_walk2.png"
+                        )),
+                    },
+                    Shot {
+                        frame: 350,
+                        path: std::path::PathBuf::from(format!(
+                            "{out_dir}/windowed_stream_walk3.png"
+                        )),
+                    },
+                ],
+                frame_hooks: vec![(
+                    0,
+                    Box::new(move |r| {
+                        r.set_placeholder_scene(false);
+                        r.attach_streaming(
+                            gen_hook.clone(),
+                            StreamConfig {
+                                max_mesh_per_frame: 3,
+                                max_uploads_per_frame: 6,
+                                gpu_byte_budget: 24 * 1024 * 1024,
+                                tiers: &[Tier::Full, Tier::Lod],
+                            },
+                            1,
+                        );
+                    }),
+                )],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 3 {
+                        eprintln!("[FAIL] expected 3 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    let c = report
+                        .final_stream_counters
+                        .expect("streaming counters");
+                    println!(
+                        "STREAM: loaded {} (full {} / mid {}), meshed {} in {} ms total, gpu {} KB of {} KB budget",
+                        c.loaded,
+                        c.loaded_full,
+                        c.loaded_mid,
+                        c.meshed,
+                        c.mesh_us_total / 1000,
+                        c.gpu_bytes / 1024,
+                        24 * 1024
+                    );
+                    println!(
+                        "STREAM bounds: max mesh/frame {} (cap 3), max uploads/frame {} (cap 6), deferred held {}, queue rejected {}",
+                        c.max_mesh_per_frame_seen,
+                        c.max_uploads_per_frame_seen,
+                        c.deferred,
+                        c.queue_rejected
+                    );
+                    println!(
+                        "STREAM culling: {} draws, {} frustum-culled patches",
+                        c.drawn_patches, c.frustum_culled
+                    );
+                    if c.max_mesh_per_frame_seen > 3 || c.max_uploads_per_frame_seen > 6 {
+                        eprintln!("[FAIL] per-frame budget violated");
+                        std::process::exit(1);
+                    }
+                    if c.gpu_bytes > 24 * 1024 * 1024 {
+                        eprintln!("[FAIL] gpu budget violated");
+                        std::process::exit(1);
+                    }
+                    if c.loaded_full == 0 || c.loaded_mid == 0 {
+                        eprintln!("[FAIL] LOD rings not populated");
+                        std::process::exit(1);
+                    }
+                    if c.frustum_culled == 0 {
+                        eprintln!("[FAIL] frustum culling never culled");
+                        std::process::exit(1);
+                    }
+                    // Query-derived ground probe per waypoint capture.
+                    let (w, h) = (
+                        report.captures[0].report.width,
+                        report.captures[0].report.height,
+                    );
+                    let aspect = w as f32 / h as f32;
+                    for (i, pose) in poses.iter().enumerate() {
+                        // Probe what the view-center ray actually hits
+                        // (occlusion-proof: expectation from the query).
+                        let probe = pc3d_render::terrain::probe_view_center(&gen, *pose, aspect)
+                            .expect("the view must hit terrain within 300 m");
+                        let rgba = &report.captures[i].rgba;
+                        let verified = pc3d_render::scene::verify_frame_rgba(rgba, w, h, &[probe]);
+                        if !verified.passes_with(8) {
+                            eprintln!(
+                                "[FAIL] waypoint {} ground probe: {:?} ({verified:?})",
+                                i + 1,
+                                verified.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                        println!(
+                            "STREAM waypoint {} PROBE PASS -> {}",
+                            i + 1,
+                            report.captures[i].path.display()
+                        );
+                    }
+                    println!("WINDOWED STREAM WALK PASS ({w}x{h})");
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed]|--flow-map <seed>|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

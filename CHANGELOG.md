@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-006: streamed terrain with bounded work, LOD, and culling
+
+`pc3d_render::streaming::TerrainStreamer` consumes the world's own
+streaming primitives (`interest_patches` rings, `BoundedQueue`, `lod_for`
+bands) and performs real per-frame meshing/uploads under hard caps.
+
+- **Bounded queue**: ≤N mesh jobs and ≤M uploads per frame; overflow held
+  in a deferred list and re-admitted (the P3D-105 teleport law); one live
+  job per patch, nearest-first priority. A teleport's whole vista (112
+  patches) completes in 57 frames at cap 2/frame.
+- **GPU budget**: total-byte budget with farthest-first eviction; the
+  windowed walk ran at 24,555/24,576 KB with eviction active and the
+  viewer's full ring intact.
+- **Frustum culling**: Gribb–Hartmann planes from the shader's own
+  view-proj; 77,875 patch-draws culled during the 351-frame walk.
+- **Real LOD**: Full = all faces, Mid drops bottoms, Far = top shell;
+  top faces render at every level so rings can't crack (proven by
+  identical top-face sets).
+- `--play-stream` / `make p3d-stream`: 3-waypoint windowed walk, each
+  capture verified by a query-derived view-center raycast probe; PNGs
+  human-inspected PASS. 329/329 pc3d tests (+7), root 474/474.
+- Five proof-caught bugs fixed pre-commit (duplicate-job starvation,
+  stuck rejected pushes, horizon-before-ring priority, unbounded
+  re-admission churn, oversized-patch budget bust).
+
 ## 2026-09-07 — R3DV-005: natural terrain renders from the authoritative query
 
 `pc3d_render::terrain` meshes natural terrain as culled block faces taken

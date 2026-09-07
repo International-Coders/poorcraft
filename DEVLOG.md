@@ -4598,3 +4598,67 @@ interior lighting is sun-lambert only (no shadows/AO yet — R3DV-010);
 terrain edits invalidate the whole loaded mesh for now (per-patch
 versioned streaming is exactly R3DV-006). Next: R3DV-006 streamed
 terrain, LOD, and real bounded mesh work.
+
+## 2026-09-07 — R3DV-006: streamed terrain, LOD, and real bounded mesh work
+
+WHAT: Terrain now STREAMS. A new pc3d_render::streaming::TerrainStreamer
+consumes the world's own machinery — stream::interest_patches (disc
+rings), stream::BoundedQueue (bounded work, honest counters, the P3D-105
+teleport law), lod::lod_for (Full/Mid/Far bands) — and turns it into real
+per-frame meshing and GPU uploads with hard caps: at most N mesh jobs and
+M uploads per frame (overflow HELD in a deferred list and re-admitted,
+never dropped), a total GPU-byte budget with farthest-first eviction, and
+Gribb-Hartmann frustum culling from the same view-proj matrix the shader
+uses. LOD is real per-patch face culling: Full = every face, Mid drops
+bottom faces (cave ceilings invisible beyond the full ring), Far keeps
+only the top shell — top faces render at EVERY level, so the visible
+shell cannot crack between rings (proven: Full and Far meshes have
+IDENTICAL top-face sets).
+
+HOW: streaming.rs (TerrainStreamer: desired-set from interest rings with
+per-patch lod_for; load/unload of stale slots; nearest-first job priority
+through a pending set — one live job per coord; bounded mesh/upload loop;
+budget eviction; frustum draw with per-patch AABBs; StreamCounters
+surface: queue len/pushed/admitted/rejected, deferred, meshed, uploaded,
+evicted, gpu_bytes, loaded-per-ring, culled/drawn, per-frame maxima,
+mesh_us_total). terrain.rs gains MeshLod + mesh_patch_lod. renderer.rs:
+attach_streaming/stream_frame (called every frame from the app loop) +
+streamer draw replacing the static terrain mesh while attached;
+WindowReport carries final counters. CLI --play-stream + make p3d-stream:
+one windowed run, three waypoints 96 m apart crossing the rings, each
+capture verified by a NEW occlusion-proof probe — probe_view_center
+raycasts final_solid along the view axis and expects the first-hit
+face's color from the query itself.
+
+EVIDENCE: 329/329 pc3d tests (+7): frustum extraction/cull, ring banding,
+LOD shrink (hills prove Far drops slopes; a cave patch proves Mid drops
+ceiling undersides), top-shell equality across LOD, teleport bounds (112
+patches complete in 57 frames at cap 2/frame, deferral peak 48 held and
+re-admitted), budget invariant under an intentionally tiny cap (full ring
+survives), walk-config full-ring-first. Windowed walk: 351 frames
+p50 0.91 ms / p95 1.05 ms; 360 patches loaded (101 full / 259 mid),
+1053 meshes at cap 3/frame, gpu 24555/24576 KB (eviction active),
+30974 draws / 77875 frustum-culled; all 3 waypoint raycast probes PASS;
+PNGs human-inspected PASS (continuous terrain at every waypoint, rings
+moving with the viewer, no cracks or holes in view).
+
+BUGS FOUND BY THE PROOFS (all fixed pre-commit): duplicate queue jobs
+starved real work — the re-push storm re-meshed already-loaded patches
+while the ring never filled (112 pushed/frame, ~1 loaded/frame); the
+stuck-job variant (rejected pushes left in pending, never deferred) was
+caught by the run's own assertion; coordinate-order queueing loaded the
+horizon before the viewer's ring (nearest-first priority now); unbounded
+deferred re-admission churned 318k rejected pushes (capacity-checked
+re-admission); a single patch larger than a tiny budget busted the
+invariant (skipped + counted honestly). Also: my shell heredoc edits
+silently no-oped twice on a failed cd — the diagnostics caught the stale
+binary both times; all edits now use absolute paths.
+
+HONESTLY DEFERRED: the walk's vista loads ~1053 of ~1370 desired patches
+in 351 frames — a full 320 m ring needs ~8 s of frames at the honest
+3/frames cap (that slowness IS the bounded-queue law working); terrain
+edit invalidation (dig/build during streaming) re-meshes nothing yet —
+the streamer meshes pure final_solid and construction stays a separate
+layer until R3DV-011 unifies them; no horizon impostor beyond the Lod
+ring (Far tier loads only where the Macro tier is enabled). Next:
+R3DV-007 river and water mesh from flow records.
