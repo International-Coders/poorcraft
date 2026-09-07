@@ -4434,3 +4434,50 @@ HONESTLY DEFERRED: human manual input play-check offered via make p3d-play
 (automated evidence covers camera-driven frame change through the same
 set_pose path the input handlers use); collision, block picking, terrain
 meshing (R3DV-004+); asset pipeline (R3DV-003 = NEXT).
+
+## 2026-09-07 — R3DV-003: pc3d_assets manifest validator (+ queue status moved onto the .mds)
+
+WHAT: The asset gate required by 04-3D-ASSET-PIPELINE.md before anything
+beyond placeholder primitives may be imported: a new P3D-local crate
+pc3d_assets that parses and validates the supplied manifest schema/data.
+Nothing may become a game asset without a manifest row that passes it.
+Also per owner direction ("have it ALL on the mds"): the execution queue
+itself now carries a human-readable STATUS table in
+06-EXECUTION-QUEUE.md (001/002/003 DONE, 004 NEXT, evidence pointers), so
+task determinations live in the markdown docs alongside the machine gate
+JSON and the usual STATE/DEVLOG/CHANGELOG records.
+
+HOW: crates/pc3d_assets (pure data layer — serde_json only, no wgpu/winit/
+world dependencies): typed structs mirror asset_manifest.schema.json
+(required fields; enums for category/status/provenance.kind/geometry.kind/
+lod.policy; id pattern ^[a-z0-9][a-z0-9_.-]+$; deny_unknown_fields enforces
+additionalProperties:false; coordinate system meters/+Y/-Z). Semantic asset
+gate on top: duplicate ids, empty/missing runtime_consumers, empty
+proof_scene, originality_reviewed false, licensed without license_note,
+forbidden brand tokens scanned across EVERY row field (lowercased and
+separator-normalized so "all_the_mods" matches "all the mods" — the test
+caught the un-normalized first version), final status with geometry kind
+none or an empty source_or_generator. All errors are collected per manifest,
+not first-only. The canonical beta_critical_assets.json is include_str!'d
+and a test re-reads the docs pack from disk to fail on drift. Query API
+(get/ids/of_category) for the R3DV-008+ renderers. CLI arm
+--validate-assets [path] and make p3d-assets. An edit collision duplicated
+two entries in the queue JSON during this task; it was deduped and the file
+re-validated as a clean 12-task list.
+
+EVIDENCE: 13 pc3d_assets tests (positive: 19-row beta-critical pack
+validates, all 7 beta categories covered, npc.guard lookup; negative:
+unparseable JSON, wrong header fields, out-of-contract enums, unknown
+fields, missing required field, bad/duplicate ids, missing consumers/proof
+scene, unreviewed provenance, licensed-without-note, forbidden brands in
+four different fields, final-without-geometry, multi-error collection, id
+pattern table). 306/306 pc3d workspace green (+13); root workspace 474/474
+re-run green (untouched this task). CLI: --validate-assets PASSes the pack
+(19 rows + category table printed); a tampered duplicate-id copy FAILs with
+exit 1 (run live). Release binary rebuilt.
+
+HONESTLY DEFERRED: the validator does not yet resolve compiled file paths
+on disk (rows are procedural placeholders by design); material metadata
+beyond the manifest name string and real GLB loading arrive with their
+R3DV-008+/R3DV-010 consumers. Next: R3DV-004 construction cell mesh from
+host-owned state.

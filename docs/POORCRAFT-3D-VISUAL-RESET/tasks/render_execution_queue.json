@@ -7,10 +7,27 @@
       "title": "Windowed renderer bootstrap",
       "status": "DONE",
       "depends_on": [],
-      "must_change": ["poorcraft3d/Cargo.toml", "pc3d_render", "apps/poorcraft3d"],
-      "must_prove": ["winit_window", "wgpu_surface", "resize_recovery", "nonuniform_gpu_screenshot"],
-      "forbidden_scope": ["terrain_meshing", "asset_generation", "new_simulation"],
-      "evidence": ["unit_tests", "windowed_png", "manual_window_launch"],
+      "must_change": [
+        "poorcraft3d/Cargo.toml",
+        "pc3d_render",
+        "apps/poorcraft3d"
+      ],
+      "must_prove": [
+        "winit_window",
+        "wgpu_surface",
+        "resize_recovery",
+        "nonuniform_gpu_screenshot"
+      ],
+      "forbidden_scope": [
+        "terrain_meshing",
+        "asset_generation",
+        "new_simulation"
+      ],
+      "evidence": [
+        "unit_tests",
+        "windowed_png",
+        "manual_window_launch"
+      ],
       "completed_evidence": {
         "crate": "poorcraft3d/crates/pc3d_render (wgpu 24 / winit 0.30, WGSL shaders/scene.wgsl)",
         "tests": "9 pc3d_render tests incl. real-GPU offscreen render + readback + determinism + live-resize policy; pc3d workspace 282/282 green",
@@ -23,9 +40,20 @@
       "id": "R3DV-002",
       "title": "First-person camera and indexed scene primitive",
       "status": "DONE",
-      "depends_on": ["R3DV-001"],
-      "must_prove": ["depth_buffer", "camera_mouse_look", "keyboard_movement", "lit_indexed_mesh"],
-      "evidence": ["tests", "windowed_png", "manual_input_check"],
+      "depends_on": [
+        "R3DV-001"
+      ],
+      "must_prove": [
+        "depth_buffer",
+        "camera_mouse_look",
+        "keyboard_movement",
+        "lit_indexed_mesh"
+      ],
+      "evidence": [
+        "tests",
+        "windowed_png",
+        "manual_input_check"
+      ],
       "completed_evidence": {
         "crate": "pc3d_render/camera.rs (hand-verified mat4 view/projection, RH +Y-up meters, yaw/pitch; unit tests pin near->0/far->1 depth mapping and known-point projection) + depth24plus buffer + lit indexed mesh (lambert sun + ambient) + ray-reconstructed sky tied to the world sun direction + bitmap-font HUD debug line (POS/YAW/FPS)",
         "three_3d_proofs": "FACE FLIP: screen center shows the crimson south face from pose A and the gold east face from pose B (impossible in 2D). OCCLUSION: the amber marker stone behind the near stone shows ZERO pixels at pose A and is visible at pose B/C (depth buffer). PARALLAX: 19.5% of decoded RGBA pixels differ between the two windowed pose captures",
@@ -38,90 +66,208 @@
     {
       "id": "R3DV-003",
       "title": "JSON asset manifest validator",
-      "status": "NEXT",
-      "depends_on": ["R3DV-001"],
-      "must_prove": ["schema_validation", "invalid_manifest_rejection", "consumer_and_proof_checks"],
-      "evidence": ["tests", "validated_beta_critical_assets_json"]
-    },
-    {
-      "id": "R3DV-003",
-      "title": "JSON asset manifest validator",
-      "status": "READY",
-      "depends_on": ["R3DV-001"],
-      "must_prove": ["schema_validation", "invalid_manifest_rejection", "consumer_and_proof_checks"],
-      "evidence": ["tests", "validated_beta_critical_assets_json"]
+      "status": "DONE",
+      "depends_on": [
+        "R3DV-001"
+      ],
+      "must_prove": [
+        "schema_validation",
+        "invalid_manifest_rejection",
+        "consumer_and_proof_checks"
+      ],
+      "evidence": [
+        "tests",
+        "validated_beta_critical_assets_json"
+      ],
+      "completed_evidence": {
+        "crate": "poorcraft3d/crates/pc3d_assets (pure data layer: serde_json only, no wgpu/winit/world deps); the canonical beta_critical_assets.json is embedded at compile time and a test fails if the docs pack drifts from the embedded copy",
+        "schema_validation": "typed structs mirror asset_manifest.schema.json (required fields, enums for category/status/provenance/geometry/lod, id pattern, additionalProperties:false via deny_unknown_fields, coordinate system meters/+Y/-Z)",
+        "invalid_manifest_rejection": "13 tests reject: unparseable JSON, schema_version!=1, wrong project, non-meter units, out-of-contract enums, unknown fields, missing required field, bad ids, duplicate ids, empty runtime_consumers, empty proof_scene, unreviewed provenance, licensed-without-note, forbidden brand tokens in ANY row field (separator-normalized so all_the_mods is caught), final-status asset with geometry none or empty generator",
+        "consumer_and_proof_checks": "every row needs >=1 non-empty runtime_consumers and a non-empty proof_scene; the 19-row beta-critical pack validates with all 7 beta categories covered; query API (get/ids/of_category) tested",
+        "cli": "poorcraft3d --validate-assets [path] + make p3d-assets; positive run PASSes (19 rows, category table), tampered duplicate-id copy FAILs exit 1"
+      }
     },
     {
       "id": "R3DV-004",
       "title": "Construction mesh from host-owned state",
-      "status": "BLOCKED_BY_R3DV-002",
-      "depends_on": ["R3DV-002", "R3DV-003"],
-      "must_prove": ["construction_block_mesh", "host_command_edit", "bounded_patch_remesh", "visual_edit"],
-      "evidence": ["tests", "before_after_windowed_png", "manual_place_remove"]
+      "status": "NEXT",
+      "depends_on": [
+        "R3DV-002",
+        "R3DV-003"
+      ],
+      "must_prove": [
+        "construction_block_mesh",
+        "host_command_edit",
+        "bounded_patch_remesh",
+        "visual_edit"
+      ],
+      "evidence": [
+        "tests",
+        "before_after_windowed_png",
+        "manual_place_remove"
+      ]
     },
     {
       "id": "R3DV-005",
       "title": "Natural terrain mesh prototype and selection",
       "status": "BLOCKED_BY_R3DV-004",
-      "depends_on": ["R3DV-004"],
-      "must_prove": ["hill", "cliff", "cave", "overhang", "collision_alignment", "algorithm_bakeoff"],
-      "evidence": ["tests", "benchmark_table", "windowed_png", "human_review"]
+      "depends_on": [
+        "R3DV-004"
+      ],
+      "must_prove": [
+        "hill",
+        "cliff",
+        "cave",
+        "overhang",
+        "collision_alignment",
+        "algorithm_bakeoff"
+      ],
+      "evidence": [
+        "tests",
+        "benchmark_table",
+        "windowed_png",
+        "human_review"
+      ]
     },
     {
       "id": "R3DV-006",
       "title": "Real terrain streaming, LOD, and seams",
       "status": "BLOCKED_BY_R3DV-005",
-      "depends_on": ["R3DV-005"],
-      "must_prove": ["bounded_mesh_queue", "gpu_upload_budget", "frustum_culling", "no_visible_or_collision_seams"],
-      "evidence": ["tests", "profiling", "lod_walk_pngs"]
+      "depends_on": [
+        "R3DV-005"
+      ],
+      "must_prove": [
+        "bounded_mesh_queue",
+        "gpu_upload_budget",
+        "frustum_culling",
+        "no_visible_or_collision_seams"
+      ],
+      "evidence": [
+        "tests",
+        "profiling",
+        "lod_walk_pngs"
+      ]
     },
     {
       "id": "R3DV-007",
       "title": "Water mesh from flow records",
       "status": "BLOCKED_BY_R3DV-005",
-      "depends_on": ["R3DV-005"],
-      "must_prove": ["transparent_water", "flow_direction", "local_channel_update", "water_not_2d_map"],
-      "evidence": ["tests", "before_after_windowed_png"]
+      "depends_on": [
+        "R3DV-005"
+      ],
+      "must_prove": [
+        "transparent_water",
+        "flow_direction",
+        "local_channel_update",
+        "water_not_2d_map"
+      ],
+      "evidence": [
+        "tests",
+        "before_after_windowed_png"
+      ]
     },
     {
       "id": "R3DV-008",
       "title": "Castle and city module renderer",
       "status": "BLOCKED_BY_R3DV-006",
-      "depends_on": ["R3DV-003", "R3DV-006"],
-      "must_prove": ["gate", "wall", "tower", "house", "workshop", "collision_and_nav_bindings"],
-      "evidence": ["tests", "city_windowed_png"]
+      "depends_on": [
+        "R3DV-003",
+        "R3DV-006"
+      ],
+      "must_prove": [
+        "gate",
+        "wall",
+        "tower",
+        "house",
+        "workshop",
+        "collision_and_nav_bindings"
+      ],
+      "evidence": [
+        "tests",
+        "city_windowed_png"
+      ]
     },
     {
       "id": "R3DV-009",
       "title": "Visible NPCs and Bed/Work/Idle inspection",
       "status": "BLOCKED_BY_R3DV-008",
-      "depends_on": ["R3DV-008"],
-      "must_prove": ["resident_worker_guard", "sim_position_binding", "box_inspection", "role_readability"],
-      "evidence": ["tests", "npc_city_windowed_png", "manual_inspection"]
+      "depends_on": [
+        "R3DV-008"
+      ],
+      "must_prove": [
+        "resident_worker_guard",
+        "sim_position_binding",
+        "box_inspection",
+        "role_readability"
+      ],
+      "evidence": [
+        "tests",
+        "npc_city_windowed_png",
+        "manual_inspection"
+      ]
     },
     {
       "id": "R3DV-010",
       "title": "Materials, lighting, and quality tiers",
       "status": "BLOCKED_BY_R3DV-009",
-      "depends_on": ["R3DV-007", "R3DV-008", "R3DV-009"],
-      "must_prove": ["material_binding", "sun_and_ambient", "low_mid_high_tiers", "asset_consumers"],
-      "evidence": ["tests", "three_quality_pngs", "memory_frame_record"]
+      "depends_on": [
+        "R3DV-007",
+        "R3DV-008",
+        "R3DV-009"
+      ],
+      "must_prove": [
+        "material_binding",
+        "sun_and_ambient",
+        "low_mid_high_tiers",
+        "asset_consumers"
+      ],
+      "evidence": [
+        "tests",
+        "three_quality_pngs",
+        "memory_frame_record"
+      ]
     },
     {
       "id": "R3DV-011",
       "title": "Honest playable 3D vertical slice",
       "status": "BLOCKED_BY_R3DV-010",
-      "depends_on": ["R3DV-010"],
-      "must_prove": ["walk", "cave", "river", "build", "city", "npc", "inspect_boxes", "save_reload"],
-      "evidence": ["journey_test", "windowed_showcase_png", "manual_play_report"]
+      "depends_on": [
+        "R3DV-010"
+      ],
+      "must_prove": [
+        "walk",
+        "cave",
+        "river",
+        "build",
+        "city",
+        "npc",
+        "inspect_boxes",
+        "save_reload"
+      ],
+      "evidence": [
+        "journey_test",
+        "windowed_showcase_png",
+        "manual_play_report"
+      ]
     },
     {
       "id": "R3DV-012",
       "title": "Visual regression and performance gates",
       "status": "BLOCKED_BY_R3DV-011",
-      "depends_on": ["R3DV-011"],
-      "must_prove": ["semantic_screenshot_tests", "human_review", "quality_tier_perf", "known_limits"],
-      "evidence": ["green_test_report", "reviewed_shots", "performance_report"]
+      "depends_on": [
+        "R3DV-011"
+      ],
+      "must_prove": [
+        "semantic_screenshot_tests",
+        "human_review",
+        "quality_tier_perf",
+        "known_limits"
+      ],
+      "evidence": [
+        "green_test_report",
+        "reviewed_shots",
+        "performance_report"
+      ]
     }
   ]
 }

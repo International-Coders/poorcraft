@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-003: asset manifest validator (pc3d_assets) + queue status on the .mds
+
+- **pc3d_assets** (new P3D-local crate, pure data layer): parses and
+  validates `docs/POORCRAFT-3D-VISUAL-RESET/assets/beta_critical_assets.json`
+  against the contract in `asset_manifest.schema.json` — required fields,
+  enums, id pattern, `additionalProperties: false`, meters/+Y/-Z coordinate
+  law — plus the semantic asset gate: duplicate ids, missing consumers,
+  absent proof scenes, forbidden source policy (brand tokens scanned in
+  every row field, separator-normalized), invalid LODs, and `final` assets
+  without a runtime geometry path are all rejected with named errors.
+- The canonical 19-row beta-critical pack is embedded at compile time with a
+  drift test against the docs pack; a query API (`get`/`ids`/`of_category`)
+  is ready for the castle/NPC/terrain renderers.
+- CLI `--validate-assets [path]` and `make p3d-assets`; positive run passes
+  (19 rows, all 7 beta categories), a tampered duplicate-id copy fails
+  exit 1.
+- 13 new tests; pc3d workspace 306/306 green; root 474/474 untouched.
+- Bookkeeping law: the execution queue now keeps a STATUS table in
+  `06-EXECUTION-QUEUE.md` (001–003 DONE, 004 NEXT) — every task
+  determination recorded in the markdown docs, not only in the gate JSON.
+
 ## 2026-09-07 — R3DV-002: POORCRAFT 3D's renderer is actually 3D now
 
 The R3DV-001 banner image was rejected as evidence: it was NDC clip-space

@@ -105,6 +105,11 @@ p3d-atlas: ## Render a POORCRAFT 3D seed atlas PNG: make p3d-atlas SEED=1
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --atlas $(if $(SEED),$(SEED),1)
 
+p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p3d-assets [PATH=]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(PATH),$(PATH),) || exit 1; \
+	echo "P3D ASSETS OK"
+
 p3d-play: ## Interactive POORCRAFT 3D 3D window: click to look, WASD+Space/Shift move, Esc quits
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play

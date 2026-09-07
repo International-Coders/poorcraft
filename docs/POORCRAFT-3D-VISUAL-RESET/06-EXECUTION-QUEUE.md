@@ -3,6 +3,19 @@
 Execute exactly one task at a time, in order. A task cannot be skipped because
 the old simulation roadmap says it is complete.
 
+## STATUS — the queue's own record (update after every task; evidence lives in DEVLOG.md and tasks/render_execution_queue.json)
+
+| Task | Status | One-line evidence |
+|---|---|---|
+| R3DV-001 windowed renderer bootstrap | DONE 2026-09-06 | winit window + wgpu surface + nonuniform swapchain screenshot; 9 tests; visual PASS |
+| R3DV-002 first-person camera + 3D primitive | DONE 2026-09-07 | perspective camera in P3D meters, depth, sun lighting, mouse-look/WASD; face-flip + occlusion + 19.5% parallax proofs |
+| R3DV-003 asset manifest validator | DONE 2026-09-07 | pc3d_assets validates beta_critical_assets.json (19 rows); duplicate/brand/LOD/final-path rejections tested (13 tests) |
+| R3DV-004 construction cell mesh | NEXT | — |
+| R3DV-005..R3DV-012 | BLOCKED (queue order) | — |
+
+Reset rule in force: "POORCRAFT 3D is playable" stays forbidden until the
+R3DV-011 vertical slice passes with human review (see README.md).
+
 ## Stage R0 — Make a window and prove it is real
 
 ### R3DV-001 — Windowed renderer bootstrap

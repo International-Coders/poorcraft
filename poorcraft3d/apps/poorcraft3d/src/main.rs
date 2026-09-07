@@ -385,9 +385,41 @@ fn main() {
                 }
             }
         }
+        Some("--validate-assets") => {
+            // R3DV-003: validate the canonical beta-critical asset manifest
+            // (and, if a path is given, that file instead).
+            let target = args.get(2).map(std::path::PathBuf::from);
+            let result = match &target {
+                Some(path) => pc3d_assets::validate_path(path),
+                None => pc3d_assets::beta_critical(),
+            };
+            match result {
+                Ok(m) => {
+                    let mut counts = std::collections::BTreeMap::new();
+                    for a in &m.assets {
+                        *counts.entry(a.category.key()).or_insert(0usize) += 1;
+                    }
+                    let source = target
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "embedded beta_critical_assets.json".into());
+                    println!("ASSET MANIFEST PASS: {} rows in {source}", m.assets.len());
+                    for (cat, n) in counts {
+                        println!("  {cat}: {n}");
+                    }
+                }
+                Err(errs) => {
+                    for e in &errs {
+                        eprintln!("  ASSET FAIL: {e}");
+                    }
+                    eprintln!("ASSET MANIFEST FAIL ({} problems)", errs.len());
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }
