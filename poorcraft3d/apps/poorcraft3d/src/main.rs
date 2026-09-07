@@ -602,9 +602,173 @@ fn main() {
                 }
             }
         }
+        Some("--play-terrain") => {
+            // R3DV-005: natural terrain from the authoritative query. One
+            // windowed run, three scenes (hill, cliff, cave+overhang), each
+            // meshed from final_solid over a 3x3 patch neighborhood, captured
+            // from the live window and verified with query-derived probes.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::terrain::{
+                cave_pose, cave_probes, find_cave_pocket_near, neighborhood3, overview_pose,
+                vista_probes,
+            };
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::coords::PatchCoord;
+            use pc3d_world::gen::WorldGen;
+            use pc3d_world::terrain::SceneSpec;
+
+            let (hill_seed, hill_coord) = SceneSpec::SmoothHills.patch();
+            let (cliff_seed, cliff_coord) = SceneSpec::Cliff.patch();
+            let (cave_seed, near_coord) = SceneSpec::Highlands.patch();
+            let hill_gen = std::rc::Rc::new(WorldGen::new(hill_seed));
+            let cliff_gen = std::rc::Rc::new(WorldGen::new(cliff_seed));
+            // The cave pocket generator: the highlands seed first, then the
+            // hills seed as a wider-ring fallback.
+            let cave_gen_h = WorldGen::new(cave_seed);
+            let pocket = find_cave_pocket_near(&cave_gen_h, near_coord, 1)
+                .or_else(|| find_cave_pocket_near(&WorldGen::new(hill_seed), hill_coord, 2));
+            let (cave_air, cave_wall, cave_dir) =
+                pocket.expect("a cave pocket near a scene patch");
+            let cave_used_hills = find_cave_pocket_near(&cave_gen_h, near_coord, 1).is_none();
+            let cave_gen = if cave_used_hills {
+                hill_gen.clone()
+            } else {
+                std::rc::Rc::new(cave_gen_h)
+            };
+
+            let hill_pose = overview_pose(&hill_gen, hill_coord);
+            let cliff_pose = overview_pose(&cliff_gen, cliff_coord);
+            let cave_pose_used = cave_pose(cave_air, cave_wall);
+
+            let hg = hill_gen.clone();
+            let cg = cliff_gen.clone();
+            let kg = cave_gen.clone();
+            let stats_rc =
+                std::rc::Rc::new(std::cell::RefCell::new(Vec::<(String, pc3d_render::TerrainStats)>::new()));
+            let st0 = stats_rc.clone();
+            let st1 = stats_rc.clone();
+            let st2 = stats_rc.clone();
+
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — terrain".into(),
+                max_frames: Some(115),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![(0, hill_pose)],
+                shots: vec![
+                    Shot {
+                        frame: 30,
+                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_terrain_hills.png")),
+                    },
+                    Shot {
+                        frame: 70,
+                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_terrain_cliff.png")),
+                    },
+                    Shot {
+                        frame: 110,
+                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_terrain_cave.png")),
+                    },
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r| {
+                            r.set_placeholder_scene(false);
+                            let st = r.load_terrain(&hg, &neighborhood3(hill_coord));
+                            r.set_pose(hill_pose);
+                            st0.borrow_mut().push(("hills".into(), st));
+                        }),
+                    ),
+                    (
+                        40,
+                        Box::new(move |r| {
+                            let st = r.load_terrain(&cg, &neighborhood3(cliff_coord));
+                            r.set_pose(cliff_pose);
+                            st1.borrow_mut().push(("cliff".into(), st));
+                        }),
+                    ),
+                    (
+                        80,
+                        Box::new(move |r| {
+                            let cave_patch = PatchCoord {
+                                x: cave_air.x.div_euclid(16),
+                                y: cave_air.y.div_euclid(16),
+                                z: cave_air.z.div_euclid(16),
+                            };
+                            let st = r.load_terrain(&kg, &neighborhood3(cave_patch));
+                            r.set_pose(cave_pose_used);
+                            st2.borrow_mut().push(("cave".into(), st));
+                        }),
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 3 {
+                        eprintln!("[FAIL] expected 3 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for (name, st) in stats_rc.borrow().iter() {
+                        println!(
+                            "TERRAIN {name}: {} patches, {} verts, {} tris, {} ms mesh",
+                            st.patches, st.vertices, st.triangles, st.mesh_us / 1000
+                        );
+                    }
+                    let (w, h) = (
+                        report.captures[0].report.width,
+                        report.captures[0].report.height,
+                    );
+                    let aspect = w as f32 / h as f32;
+                    let hill_probes = vista_probes(&hill_gen, hill_coord, hill_pose, aspect);
+                    let cliff_probes = vista_probes(&cliff_gen, cliff_coord, cliff_pose, aspect);
+                    let cave_probes = cave_probes(
+                        &cave_gen,
+                        cave_air,
+                        cave_wall,
+                        cave_dir,
+                        cave_pose_used,
+                        aspect,
+                    );
+                    let checks: [(String, usize, Vec<pc3d_render::scene::Probe>); 3] = [
+                        ("hills".into(), 12, hill_probes),
+                        ("cliff".into(), 12, cliff_probes),
+                        ("cave".into(), 4, cave_probes),
+                    ];
+                    for (i, (name, min_distinct, probes)) in checks.iter().enumerate() {
+                        let rgba = &report.captures[i].rgba;
+                        let verified = pc3d_render::scene::verify_frame_rgba(rgba, w, h, probes);
+                        if !verified.passes_with(*min_distinct) {
+                            eprintln!(
+                                "[FAIL] {name} terrain probes: {:?} (report {verified:?})",
+                                verified.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                        println!(
+                            "TERRAIN {name} PROBES PASS ({} checks, {} distinct colors) -> {}",
+                            verified.probes.len(),
+                            verified.distinct_colors,
+                            report.captures[i].path.display()
+                        );
+                    }
+                    println!("WINDOWED TERRAIN PROOF PASS ({w}x{h})");
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed]|--flow-map <seed>|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

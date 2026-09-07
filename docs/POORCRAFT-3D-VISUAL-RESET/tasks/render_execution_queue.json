@@ -119,7 +119,7 @@
     {
       "id": "R3DV-005",
       "title": "Natural terrain mesh prototype and selection",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": [
         "R3DV-004"
       ],
@@ -136,12 +136,24 @@
         "benchmark_table",
         "windowed_png",
         "human_review"
-      ]
+      ],
+      "completed_evidence": {
+        "crate": "pc3d_render/src/terrain.rs \u2014 culled natural-terrain faces straight from the AUTHORITATIVE final_solid query (P3D-202): neighbors outside the patch are queried directly, so cross-patch culling is exact and seams cannot exist by construction; an 18^3 query cache (patch + 1-cell border) makes every cell+neighbor cost one final_solid call (~7 ms/patch, down from 1.1 s naive)",
+        "hill": "SmoothHills scene renders: slope side faces visible (staircase proof, >100 side faces), standable top faces match the collision query's material (probe derived FROM final_solid at the probed cell)",
+        "cliff": "Cliff scene (P3D-203 terraced band) renders: vertical walls + material separation (>=2 materials among rendered faces \u2014 surface vs sub-surface rock/soil), human-inspected PASS",
+        "cave": "camera-friendly cave pockets found deterministically (enclosed corridor + wall >=3 cells away, floor/ceiling solid at every corridor cell so no sightline can reach sky): interior wall probe matches the query's material pixel-exactly",
+        "overhang": "the corridor ceiling's UNDERSIDE face is rendered and probe-verified from inside (a face a heightmap-only renderer cannot produce); unit test proves the ceiling emits a bottom face wherever solid sits above air",
+        "collision_alignment": "full-coverage test: for EVERY solid cell in a patch, a face exists iff the neighbor is air (6 directions, cross-patch included); top-face test: a rendered top face exists exactly where the collision query says a cell is standable (solid with air above)",
+        "algorithm_bakeoff": "P3D-201 table reproduced live during this task (--terrain-bench): heightfield-family extraction 33-87 us/patch with fidelity equal or better vs density_threshold 3.3-4.6 ms/patch on all four scenes \u2014 the mesher therefore consumes final_solid directly (the winning heightfield family, plus carve/caves); smooth dual-contouring remains a later quality pass per the meshing doc",
+        "evidence_runs": "poorcraft3d --play-terrain + make p3d-terrain: one windowed run, 3 scenes (hills/cliff/cave) each meshed over a 27-patch 3x3x3 neighborhood (hills 15736 tris/188 ms, cliff 6386/157 ms, cave 19510/210 ms), captured from the live window after mid-run resize at 800x500; all query-derived probes PASS; 111 frames p50 0.47 ms / p95 1.58 ms; PNGs human-inspected PASS",
+        "tests": "319/319 pc3d workspace green (+6 net): full-coverage query/mesh consistency, collision-aligned top faces, CCW winding, cave ceiling underside emission, slope faces, material separation, overview pose aim, plus two GPU tests (hills vista probes, cave interior + overhang probes pixel-exact)",
+        "bugs_found_by_proofs": "cave corridor crossing into an unloaded neighbor patch showed the world through a hole (fixed by loading the 3x3x3 neighborhood \u2014 the streaming/seam lesson recorded for R3DV-006); first corridor finder accepted sky-breaching pockets (sun halo appeared in a cave probe \u2014 now every corridor cell must have solid floor AND ceiling)"
+      }
     },
     {
       "id": "R3DV-006",
       "title": "Real terrain streaming, LOD, and seams",
-      "status": "BLOCKED_BY_R3DV-005",
+      "status": "NEXT",
       "depends_on": [
         "R3DV-005"
       ],

@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-005: natural terrain renders from the authoritative query
+
+`pc3d_render::terrain` meshes natural terrain as culled block faces taken
+directly from `final_solid` (the P3D-202 single authoritative answer) — the
+rendered surface and the collision surface are literally the same function.
+
+- **No seams by construction**: neighbors outside a patch are queried
+  directly (natural terrain is a pure function of world coordinates); an
+  18³ query cache makes meshing ~7 ms/patch.
+- **Four capabilities probe-verified from the live window**: hill slopes,
+  cliff walls with material separation, cave interiors (deterministic
+  enclosed-corridor pockets), and the overhang — the corridor ceiling's
+  underside face, rendered and pixel-verified from inside.
+- **Collision alignment proven**: a face exists exactly where the query
+  flips solid↔air (full-coverage test, cross-patch included); a rendered
+  top face exists exactly where the query says a cell is standable.
+- **Bake-off reproduced**: heightfield-family extraction 33–87 µs/patch
+  with equal-or-better fidelity vs 3.3–4.6 ms for density-threshold — the
+  mesher consumes the winning family; smooth dual-contouring stays a later
+  quality pass.
+- `--play-terrain` / `make p3d-terrain`: one windowed run, three scenes
+  (hills/cliff/cave over 27-patch neighborhoods), 111 frames p50 0.47 ms;
+  PNGs human-inspected PASS.
+- Two proof-caught bugs fixed pre-commit: an unloaded-neighbor hole let a
+  cave probe see the sun (vistas load 3×3×3 neighborhoods — the R3DV-006
+  streaming lesson); the pocket finder now requires fully enclosed
+  corridors.
+
 ## 2026-09-07 — R3DV-004: construction mesh from host-owned state
 
 The renderer now reads the real world: `pc3d_render::construction` meshes

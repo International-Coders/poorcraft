@@ -22,6 +22,7 @@
 pub mod app;
 pub mod camera;
 pub mod construction;
+pub mod terrain;
 pub mod font;
 pub mod gpu;
 pub mod renderer;
@@ -30,4 +31,5 @@ pub mod scene;
 pub use app::{run_windowed, InteractiveHost, ProbeSet, Shot, WindowConfig, WindowReport};
 pub use camera::CameraPose;
 pub use construction::{material_albedo, mesh_patch, UpdateStats};
+pub use terrain::{mesh_patch_natural, TerrainStats};
 pub use renderer::PixelReport;

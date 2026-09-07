@@ -272,6 +272,38 @@ pub struct Renderer {
     offscreen: Option<wgpu::Texture>,
     /// Host-owned construction overlay, meshed per patch (R3DV-004).
     construction: Option<crate::construction::ConstructionGpu>,
+    /// Natural terrain from the authoritative query (R3DV-005): one
+    /// combined mesh per load; per-patch versions arrive with streaming
+    /// (R3DV-006).
+    terrain: Option<GpuMesh>,
+}
+
+/// A plain vertex/index buffer pair.
+struct GpuMesh {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    index_count: u32,
+}
+
+impl GpuMesh {
+    fn from_mesh(device: &wgpu::Device, verts: &[crate::scene::SceneVertex], idx: &[u16]) -> Self {
+        use wgpu::util::DeviceExt;
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh vertices"),
+            contents: bytemuck::cast_slice(verts),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh indices"),
+            contents: bytemuck::cast_slice(idx),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        Self {
+            vertex_buffer,
+            index_buffer,
+            index_count: idx.len() as u32,
+        }
+    }
 }
 
 impl Renderer {
@@ -310,6 +342,7 @@ impl Renderer {
             depth,
             offscreen: None,
             construction: None,
+            terrain: None,
         }
     }
 
@@ -348,6 +381,7 @@ impl Renderer {
             depth,
             offscreen: Some(texture),
             construction: None,
+            terrain: None,
         }
     }
 
@@ -386,6 +420,33 @@ impl Renderer {
             panic!("call attach_construction() before update_construction()");
         };
         con.update(&self.ctx.device, host_construction)
+    }
+
+    /// Loads natural-terrain patches meshed from the authoritative
+    /// `final_solid` query (read-only world access). Replaces any previous
+    /// terrain mesh; per-patch versioned streaming is R3DV-006.
+    pub fn load_terrain(
+        &mut self,
+        gen: &pc3d_world::gen::WorldGen,
+        patches: &[pc3d_world::coords::PatchCoord],
+    ) -> crate::terrain::TerrainStats {
+        let t0 = std::time::Instant::now();
+        let mut verts = Vec::new();
+        let mut idx = Vec::new();
+        for coord in patches {
+            let (v, i) = crate::terrain::mesh_patch_natural(gen, *coord);
+            let base = verts.len() as u16;
+            verts.extend(v);
+            idx.extend(i.iter().map(|k| k + base));
+        }
+        let stats = crate::terrain::TerrainStats {
+            patches: patches.len(),
+            vertices: verts.len(),
+            triangles: idx.len() / 3,
+            mesh_us: t0.elapsed().as_micros(),
+        };
+        self.terrain = Some(GpuMesh::from_mesh(&self.ctx.device, &verts, &idx));
+        stats
     }
 
     /// Shows or hides the R3DV-002 placeholder scene (ground plane + dawn
@@ -717,6 +778,12 @@ impl Renderer {
             pass.set_vertex_buffer(0, self.gpu_scene.vertex_buffer.slice(..));
             pass.set_index_buffer(self.gpu_scene.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             pass.draw_indexed(0..self.gpu_scene.index_count, 0, 0..1);
+        }
+        // 2a. Natural terrain from the authoritative query (R3DV-005).
+        if let Some(t) = &self.terrain {
+            pass.set_vertex_buffer(0, t.vertex_buffer.slice(..));
+            pass.set_index_buffer(t.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.draw_indexed(0..t.index_count, 0, 0..1);
         }
         // 2b. Host-owned construction blocks (same lit pipeline; per-patch
         // buffers with content versions — only changed patches are remeshed).
@@ -1169,6 +1236,231 @@ mod tests {
             .unwrap()
             .at(CellCoord { x: 2, y: 1, z: -8 })
             .is_some());
+    }
+
+    // -----------------------------------------------------------------
+    // R3DV-005: natural terrain from the authoritative query, with probes
+    // DERIVED FROM THE QUERY (expected colors come from final_solid's own
+    // material at the probed cell).
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn terrain_hill_renders_with_query_derived_probes() {
+        use crate::scene::{dir_from_ndc, Probe, SUN_DIR, sky_color_linear, to_srgb4, project_ndc};
+        use crate::terrain::{column_top, face_expectation, overview_pose};
+        use pc3d_world::coords::{CellCoord, PatchCoord};
+        use pc3d_world::terrain::SceneSpec;
+
+        let (seed, coord) = SceneSpec::SmoothHills.patch();
+        let gen = pc3d_world::gen::WorldGen::new(seed);
+        let mut r = Renderer::offscreen(W, H);
+        r.set_placeholder_scene(false);
+        let stats = r.load_terrain(&gen, &[coord]);
+        assert_eq!(stats.patches, 1);
+        assert!(stats.triangles > 500, "expected a real hill mesh: {stats:?}");
+        let pose = overview_pose(&gen, coord);
+        r.set_pose(pose);
+
+        // Standable center cell: its rendered top face must show the
+        // material the collision query reports.
+        let o = coord.origin();
+        let cx = o.x.div_euclid(1000) as i32 + 8;
+        let cz = o.z.div_euclid(1000) as i32 + 8;
+        let top = column_top(&gen, cx, cz, o.y.div_euclid(1000) as i32 + 15)
+            .expect("standable cell at patch center");
+        let top_point = [top.x as f32 + 0.5, top.y as f32 + 1.0, top.z as f32 + 0.5];
+        let _top_ndc = project_ndc(pose, ASPECT, top_point);
+
+        // A slope side face: the first surface cell whose east neighbor is air.
+        let mut slope: Option<(CellCoord, [f32; 3], [f32; 3])> = None;
+        for lx in 2..14 {
+            for lz in 2..14 {
+                let x = o.x.div_euclid(1000) as i32 + lx;
+                let z = o.z.div_euclid(1000) as i32 + lz;
+                if let Some(cell) = column_top(&gen, x, z, o.y.div_euclid(1000) as i32 + 15) {
+                    let east = CellCoord { x: cell.x + 1, y: cell.y, z: cell.z };
+                    let east_solid = pc3d_world::terrain::final_solid(
+                        &gen,
+                        east.x as i64 * 1000,
+                        east.y as i64 * 1000,
+                        east.z as i64 * 1000,
+                    )
+                    .solid;
+                    if !east_solid {
+                        slope = Some((
+                            cell,
+                            [1.0, 0.0, 0.0],
+                            [cell.x as f32 + 1.0, cell.y as f32 + 0.5, cell.z as f32 + 0.5],
+                        ));
+                        break;
+                    }
+                }
+            }
+            if slope.is_some() {
+                break;
+            }
+        }
+        let (slope_cell, slope_normal, slope_point) =
+            slope.expect("a hill slope step must exist");
+
+        let probes = vec![
+            Probe {
+                name: "sky_above_horizon",
+                ndc: (0.0, 0.8),
+                expected: to_srgb4(sky_color_linear(
+                    dir_from_ndc(pose, (0.0, 0.8), ASPECT),
+                    SUN_DIR,
+                )),
+                tol: 0.05,
+            },
+            Probe {
+                name: "ground_top_face_matches_query",
+                ndc: project_ndc(pose, ASPECT, top_point),
+                expected: face_expectation(&gen, top, [0.0, 1.0, 0.0]),
+                tol: 0.06,
+            },
+            Probe {
+                name: "slope_side_face_matches_query",
+                ndc: project_ndc(pose, ASPECT, slope_point),
+                expected: face_expectation(&gen, slope_cell, slope_normal),
+                tol: 0.06,
+            },
+        ];
+        for p in &probes {
+            assert!(p.ndc.0 > -0.99 && p.ndc.0 < 0.99 && p.ndc.1 > -0.99 && p.ndc.1 < 0.99,
+                "probe {} off-screen at {:?}", p.name, p.ndc);
+        }
+        let path = std::env::temp_dir().join("pc3d_terrain_hills.png");
+        let (report, _) = r.capture_png(&path, &probes);
+        // A steep overview is mostly flat-shaded terrain tops plus a thin
+        // horizon sky band, so the distinct-color floor is relaxed; the
+        // query-derived probes carry the semantic proof.
+        assert!(
+            report.passes_with(12),
+            "hills terrain frame: {:?} (report {report:?})",
+            report.failed_probes()
+        );
+        println!("hills terrain: {stats:?}");
+    }
+
+    #[test]
+    fn terrain_cave_interior_and_overhang_render() {
+        use crate::scene::{dir_from_ndc, Probe, SUN_DIR, sky_color_linear, to_srgb4, project_ndc};
+        use crate::terrain::{cave_pose, face_expectation, find_cave_pocket};
+        use pc3d_world::coords::PatchCoord;
+        use pc3d_world::terrain::SceneSpec;
+
+        // Find a camera-friendly cave pocket near a scene patch.
+        let (seed, coord) = SceneSpec::Highlands.patch();
+        let gen = pc3d_world::gen::WorldGen::new(seed);
+        let (air, wall, dir) =
+            crate::terrain::find_cave_pocket_near(&gen, coord, 1)
+                .or_else(|| {
+                    let (s, c) = SceneSpec::SmoothHills.patch();
+                    let _ = s;
+                    crate::terrain::find_cave_pocket_near(
+                        &pc3d_world::gen::WorldGen::new(3),
+                        c,
+                        1,
+                    )
+                })
+                .expect("cave pocket");
+        let cave_patch = PatchCoord {
+            x: air.x.div_euclid(16),
+            y: air.y.div_euclid(16),
+            z: air.z.div_euclid(16),
+        };
+        // If the pocket came from the fallback generator, rebuild with it.
+        let gen = if find_cave_pocket(&gen, coord) == Some((air, wall, dir)) {
+            gen
+        } else {
+            pc3d_world::gen::WorldGen::new(3)
+        };
+
+        // Load the 3x3 patch neighborhood: the corridor can cross patch
+        // boundaries, and a one-patch load would show the world through
+        // unmeshed neighbors (the streaming/seam lesson for R3DV-006).
+        let mut patches = Vec::new();
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                for dz in -1..=1 {
+                    patches.push(pc3d_world::coords::PatchCoord {
+                        x: cave_patch.x + dx,
+                        y: cave_patch.y + dy,
+                        z: cave_patch.z + dz,
+                    });
+                }
+            }
+        }
+        let mut r = Renderer::offscreen(W, H);
+        r.set_placeholder_scene(false);
+        let stats = r.load_terrain(&gen, &patches);
+        let pose = cave_pose(air, wall);
+        r.set_pose(pose);
+
+        // The pocket must be the corridor kind: two air cells toward the
+        // wall, so the ceiling underside over the corridor is visible in the
+        // same forward view as the wall.
+        assert!(
+            crate::terrain::pocket_has_corridor(&gen, air, dir),
+            "GPU cave proof needs a corridor pocket"
+        );
+        let ceiling = pc3d_world::coords::CellCoord { x: air.x, y: air.y + 1, z: air.z };
+        let corridor = pc3d_world::coords::CellCoord {
+            x: air.x + dir[0],
+            y: air.y,
+            z: air.z + dir[2],
+        };
+        let corridor_ceiling =
+            pc3d_world::coords::CellCoord { x: corridor.x, y: corridor.y + 1, z: corridor.z };
+        let wall_face_point = [
+            wall.x as f32 + 0.5 - dir[0] as f32 * 0.5,
+            wall.y as f32 + 0.5,
+            wall.z as f32 + 0.5 - dir[2] as f32 * 0.5,
+        ];
+        let probes = vec![
+            Probe {
+                name: "cave_wall_face",
+                ndc: project_ndc(pose, ASPECT, wall_face_point),
+                expected: face_expectation(
+                    &gen,
+                    wall,
+                    [-dir[0] as f32, 0.0, -dir[2] as f32],
+                ),
+                tol: 0.06,
+            },
+            Probe {
+                name: "cave_ceiling_overhang_underside",
+                ndc: project_ndc(
+                    pose,
+                    ASPECT,
+                    [corridor.x as f32 + 0.5, corridor.y as f32 + 1.0, corridor.z as f32 + 0.5],
+                ),
+                expected: face_expectation(&gen, corridor_ceiling, [0.0, -1.0, 0.0]),
+                tol: 0.06,
+            },
+        ];
+        for p in &probes {
+            assert!(p.ndc.0 > -0.99 && p.ndc.0 < 0.99 && p.ndc.1 > -0.99 && p.ndc.1 < 0.99,
+                "probe {} off-screen at {:?}", p.name, p.ndc);
+        }
+        let path = std::env::temp_dir().join("pc3d_terrain_cave.png");
+        let (report, rgba) = r.capture_png(&path, &probes);
+        for p in &probes {
+            let px = crate::scene::sample_ndc(&rgba, W, H, p.ndc);
+            println!("probe {} at {:?}: got {:?} want {:?}", p.name, p.ndc, px, p.expected);
+        }
+        // Interior close-up: a fully enclosed corridor view is a handful of
+        // FLAT face colors (wall/floor/ceiling shades + HUD); the
+        // pixel-exact probes carry the semantic proof.
+        assert!(
+            report.passes_with(4),
+            "cave terrain frame: {:?} (report {report:?})",
+            report.failed_probes()
+        );
+        let _ = ceiling;
+        assert!(stats.triangles > 100);
+        println!("cave terrain: {stats:?}");
     }
 
     #[test]

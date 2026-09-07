@@ -4535,3 +4535,66 @@ renderer-local until pc3d_assets material binding (R3DV-010); no ray-pick
 targeting yet (F/R edit a fixed 6 m cell — ray targeting is R3DV-011
 scope). Next: R3DV-005 natural terrain mesh prototype (hill/cliff/cave/
 overhang from the terrain query, bake-off evidence already in P3D-201).
+
+## 2026-09-07 — R3DV-005: natural terrain from the authoritative query (hill, cliff, cave, overhang)
+
+WHAT: The world's terrain is now visible. New pc3d_render::terrain module
+meshes NATURAL terrain as culled block faces taken straight from
+final_solid — THE authoritative P3D-202 cell answer — so the rendered
+surface, the collision surface, and the simulation's terrain are one
+function. Four capabilities proven: hill (rolling slopes with exposed
+side faces), cliff (the P3D-203 terraced band: vertical walls, material
+separation), cave (deterministic camera-friendly pockets: enclosed
+corridor, wall >=3 cells away), and overhang (the corridor ceiling's
+underside face — geometry a heightmap-only renderer cannot produce —
+probe-verified from inside the cave).
+
+HOW: terrain.rs: mesh_patch_natural (per-patch 18^3 query cache: patch +
+one-cell border, so every cell and neighbor costs exactly one final_solid
+call — 7 ms/patch after the cache vs 1.1 s naive); cross-patch culling is
+EXACT because natural terrain is a pure function of world coordinates
+(neighbors outside the patch are queried directly — no seams by
+construction); find_cave_pocket_near (deterministic scan requiring an
+ENCLOSED corridor: air cells with solid floor AND ceiling at every step,
+so no sightline can reach sky); overview_pose/cave_pose; vista_probes and
+cave_probes build semantic pixel probes whose expected colors come from
+the query's own material at the probed cell. renderer.rs: load_terrain
+(combined mesh per load; per-patch versioned streaming is R3DV-006) drawn
+through the lit pipeline. scene.rs: passes_with(min_distinct) — interior
+close-ups are legitimately a handful of flat face colors, so the
+nonuniformity floor is a parameter while the probes carry the semantics.
+CLI --play-terrain [outdir] + make p3d-terrain: one windowed run, three
+scenes, live-window captures, query-derived probe verification.
+
+EVIDENCE: bake-off (--terrain-bench, reproduced live): heightfield family
+33-87 us/patch, fidelity equal/better than density_threshold's 3.3-4.6 ms
+— final_solid (the winning family + carve caves) is what the mesher
+consumes; smooth dual-contouring stays a later quality pass per the
+meshing doc. Unit tests: full-coverage consistency (face exists IFF
+neighbor is air, all 6 directions, cross-patch), collision alignment
+(rendered top face exactly where the query says standable), CCW winding,
+ceiling-underside emission, slope faces, material separation, pose aim.
+GPU tests: hills vista (sky + top-face + slope-face probes) and cave
+interior (wall + overhang probes, pixel-exact: 0.6706 got vs 0.6720 want).
+Windowed: 111 frames p50 0.47 ms / p95 1.58 ms; scenes meshed over
+27-patch 3x3x3 neighborhoods (hills 15736 tris/188 ms, cliff 6386/157 ms,
+cave 19510/210 ms); captures at 800x500 after live mid-run resize; all
+probes PASS; PNGs human-inspected PASS (rolling grass hills with dark
+sub-surface scarp; terraced cliff with pale-over-dark material split;
+cave interior with floor, walls, ceiling overhang, dark alcoves).
+
+BUGS FOUND BY THE PROOFS (fixed before commit): the cave corridor crossed
+into an unloaded neighbor patch and the probe saw the SUN through the
+hole — vistas now load the 3x3x3 neighborhood (the streaming/seam lesson
+recorded for R3DV-006); the first pocket finder accepted sky-breaching
+pockets — corridors must now be enclosed at every cell. Test-writing bugs
+the proofs caught in the proofs themselves: corner-vertex face indexing
+aliased into neighboring cells (fixed with triangle-centroid keys), and a
+ternary slipped into Rust (compiler).
+
+HONESTLY DEFERRED: smooth dual-contouring surface extraction (quality
+pass; the culled-cell mesh is the documented step-1 representation);
+interior lighting is sun-lambert only (no shadows/AO yet — R3DV-010);
+terrain edits invalidate the whole loaded mesh for now (per-patch
+versioned streaming is exactly R3DV-006). Next: R3DV-006 streamed
+terrain, LOD, and real bounded mesh work.

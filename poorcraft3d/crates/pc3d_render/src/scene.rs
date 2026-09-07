@@ -251,8 +251,18 @@ pub struct PixelReport {
 
 impl PixelReport {
     pub fn passes(&self) -> bool {
+        self.passes_with(100)
+    }
+
+    /// `min_distinct` relaxes the nonuniformity floor for close-up interior
+    /// views (a cave wall at 2 m is a handful of flat face colors — the
+    /// semantic probes carry the proof there); the default gate stays 100
+    /// for open scenes.
+    pub fn passes_with(&self, min_distinct: usize) -> bool {
         // A flat clear reports 1; any real lit 3D scene yields hundreds.
-        self.distinct_colors >= 100 && self.opaque && self.probes.iter().all(|(_, ok)| *ok)
+        self.distinct_colors >= min_distinct
+            && self.opaque
+            && self.probes.iter().all(|(_, ok)| *ok)
     }
 
     pub fn failed_probes(&self) -> Vec<&'static str> {
