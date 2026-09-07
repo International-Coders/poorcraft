@@ -1,28 +1,31 @@
-//! pc3d_render — the POORCRAFT 3D windowed renderer (visual reset R3DV-001).
+//! pc3d_render — the POORCRAFT 3D renderer (visual reset R3DV-001/002).
 //!
 //! Architecture law (docs/POORCRAFT-3D-VISUAL-RESET/02-RENDERER-ARCHITECTURE.md):
 //! this crate reads visual snapshots or query interfaces from the simulation;
 //! it never mutates canonical world state, and it owns no world data of its
-//! own. In R3DV-001 the proof scene is renderer-local placeholder geometry
-//! because the camera/terrain binding is R3DV-002+; the boundary is already
-//! in place — nothing here references `pc3d_world`.
+//! own. The R3DV-002 proof scene is renderer-local placeholder geometry
+//! (terrain meshing is R3DV-004+); the boundary is already in place —
+//! nothing here references `pc3d_world`.
 //!
-//! World convention (binding for all later crates, documented per
-//! 02-RENDERER-ARCHITECTURE.md): right-handed coordinates, meters as the
-//! world unit, +X east, +Y up, +Z south. Cameras look along -Z at scene
-//! origin by default (wired in R3DV-002). The R3DV-001 proof scene is drawn
-//! directly in normalized device coordinates and contains no world geometry.
+//! World convention (binding): right-handed coordinates, meters as the world
+//! unit, +X east, +Y up, +Z south ([`camera`] documents yaw/pitch). Cameras
+//! and geometry live in P3D world coordinates; there is no separate renderer
+//! space.
 //!
-//! Current ability (R3DV-001 gate): a real `winit` window, a `wgpu` surface,
-//! a nonuniform GPU scene (dawn-gradient sky with a sun disc plus an indexed,
-//! vertex-colored banner mesh — "three banners at dawn", original POORCRAFT
-//! placeholder art), surface resize/loss recovery, and screenshot readback
-//! captured from the live swapchain texture.
+//! Current ability (R3DV-001 + R3DV-002 gates): a real `winit` window, a
+//! `wgpu` surface with `COPY_SRC` for live screenshots, a perspective camera
+//! with mouse look + WASD movement, a depth-tested sunlit indexed mesh in
+//! world coordinates, a ray-reconstructed sky tied to the world sun
+//! direction, a bitmap-font HUD debug line, surface resize/loss recovery,
+//! and semantic pixel proofs (face-flip, occlusion, parallax).
 
 pub mod app;
+pub mod camera;
+pub mod font;
 pub mod gpu;
 pub mod renderer;
 pub mod scene;
 
-pub use app::{run_windowed, WindowConfig, WindowReport};
+pub use app::{run_windowed, Shot, WindowConfig, WindowReport};
+pub use camera::CameraPose;
 pub use renderer::PixelReport;

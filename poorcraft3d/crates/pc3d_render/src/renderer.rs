@@ -1,22 +1,42 @@
-//! The windowed/offscreen renderer core: pipelines, frame submission, and
-//! screenshot readback.
+//! The windowed/offscreen renderer core: a real 3D pipeline set.
 //!
-//! One draw path ([`encode_frame`]) serves three targets: the live window
-//! surface, the live-window screenshot copy (surface configured with
-//! `COPY_SRC`), and the offscreen proof target used by automated tests. That
-//! keeps the tested pixels and the displayed pixels identical.
+//! One draw path ([`prepare_frame`] + [`encode_frame`]) serves the live
+//! window, the live-window screenshot (surface configured with `COPY_SRC`),
+//! and the offscreen proof target — so tested pixels and displayed pixels
+//! are the same GPU work: depth-tested lit world geometry under a
+//! world-direction sun, a ray-reconstructed sky, and a bitmap HUD.
 
+use crate::camera::{Camera, CameraPose};
 use crate::gpu::{surface_action, GpuContext, SurfaceAction, SurfaceGuard};
 pub use crate::scene::PixelReport;
+use crate::scene::{Probe, SceneVertex, VERTEX_LAYOUT};
 use std::path::Path;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
 const SHADER: &str = include_str!("../shaders/scene.wgsl");
+const HUD_SCALE: u32 = 2;
+const HUD_LINE_CHARS: usize = 44;
+
+/// Uniform state shared by all three pipelines (160 bytes, 16-aligned).
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Globals {
+    view_proj: [f32; 16],
+    cam_pos: [f32; 4],
+    fwd: [f32; 4],
+    right: [f32; 4],
+    up: [f32; 4],
+    sun_dir: [f32; 4],
+    tan_aspect: [f32; 4],
+}
 
 struct Pipelines {
     sky: wgpu::RenderPipeline,
-    scene: wgpu::RenderPipeline,
+    mesh: wgpu::RenderPipeline,
+    hud: wgpu::RenderPipeline,
+    layout_globals: wgpu::BindGroupLayout,
+    layout_hud: wgpu::BindGroupLayout,
 }
 
 impl Pipelines {
@@ -25,18 +45,91 @@ impl Pipelines {
             label: Some("pc3d_render scene.wgsl"),
             source: wgpu::ShaderSource::Wgsl(SHADER.into()),
         });
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("pc3d_render layout"),
-            bind_group_layouts: &[],
+        let layout_globals =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("pc3d globals layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let layout_hud = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("pc3d hud layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
+        });
+        let pl_globals = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("pc3d globals pipe layout"),
+            bind_group_layouts: &[&layout_globals],
             push_constant_ranges: &[],
         });
-        let make = |vs: &str,
+        let pl_hud = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("pc3d hud pipe layout"),
+            bind_group_layouts: &[&layout_hud],
+            push_constant_ranges: &[],
+        });
+
+        let depth24 = wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth24Plus,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: Default::default(),
+            bias: Default::default(),
+        };
+        // Pipelines that must not touch depth still have to DECLARE the
+        // pass's depth format (wgpu validates pipeline targets against the
+        // render pass attachment).
+        let depth_off = wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth24Plus,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
+            stencil: Default::default(),
+            bias: Default::default(),
+        };
+
+        let make = |label: &'static str,
+                    layout: &wgpu::PipelineLayout,
+                    vs: &str,
                     fs: &str,
                     vertex_buffers: &[wgpu::VertexBufferLayout<'static>],
-                    cull: Option<wgpu::Face>| {
+                    cull: Option<wgpu::Face>,
+                    depth: Option<wgpu::DepthStencilState>,
+                    blend: Option<wgpu::BlendState>| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("pc3d_render pipeline"),
-                layout: Some(&layout),
+                label: Some(label),
+                layout: Some(layout),
                 vertex: wgpu::VertexState {
                     module: &module,
                     entry_point: Some(vs),
@@ -48,7 +141,7 @@ impl Pipelines {
                     entry_point: Some(fs),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: target_format,
-                        blend: None,
+                        blend,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                     compilation_options: Default::default(),
@@ -59,20 +152,63 @@ impl Pipelines {
                     front_face: wgpu::FrontFace::Ccw,
                     ..Default::default()
                 },
-                depth_stencil: None,
+                depth_stencil: depth,
                 multisample: Default::default(),
                 multiview: None,
                 cache: None,
             })
         };
+
+        let hud_layout = wgpu::VertexBufferLayout {
+            array_stride: 16,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: 8,
+                    shader_location: 1,
+                },
+            ],
+        };
+
         Self {
-            sky: make("vs_sky", "fs_sky", &[], None),
-            scene: make(
-                "vs_scene",
-                "fs_scene",
-                std::slice::from_ref(&crate::scene::VERTEX_LAYOUT),
-                Some(wgpu::Face::Back),
+            sky: make(
+                "pc3d sky pipeline",
+                &pl_globals,
+                "vs_sky",
+                "fs_sky",
+                &[],
+                None,
+                Some(depth_off.clone()),
+                None,
             ),
+            mesh: make(
+                "pc3d mesh pipeline",
+                &pl_globals,
+                "vs_mesh",
+                "fs_mesh",
+                std::slice::from_ref(&VERTEX_LAYOUT),
+                Some(wgpu::Face::Back),
+                Some(depth24),
+                None,
+            ),
+            hud: make(
+                "pc3d hud pipeline",
+                &pl_hud,
+                "vs_hud",
+                "fs_hud",
+                std::slice::from_ref(&hud_layout),
+                None,
+                Some(depth_off),
+                Some(wgpu::BlendState::ALPHA_BLENDING),
+            ),
+            layout_globals,
+            layout_hud,
         }
     }
 }
@@ -104,66 +240,51 @@ impl GpuScene {
     }
 }
 
-/// The single draw path shared by the window, the live-window screenshot, and
-/// the offscreen proof target: sky gradient + sun, then the indexed banner
-/// mesh.
-fn encode_frame(
-    pipelines: &Pipelines,
-    gpu_scene: &GpuScene,
-    encoder: &mut wgpu::CommandEncoder,
-    view: &wgpu::TextureView,
-) {
-    let clear = wgpu::Color {
-        r: 0.13,
-        g: 0.27,
-        b: 0.42,
-        a: 1.0,
-    };
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("pc3d_render pass"),
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(clear),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-    });
-    // Pass 1: sky gradient + sun (fullscreen triangle, no bindings yet).
-    pass.set_pipeline(&pipelines.sky);
-    pass.draw(0..3, 0..1);
-    // Pass 2: indexed vertex-colored banner mesh, backface culled.
-    pass.set_pipeline(&pipelines.scene);
-    pass.set_vertex_buffer(0, gpu_scene.vertex_buffer.slice(..));
-    pass.set_index_buffer(gpu_scene.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-    pass.draw_indexed(0..gpu_scene.index_count, 0, 0..1);
+struct HudResources {
+    texture: wgpu::Texture,
+    size: (u32, u32),
+    vertex_buffer: wgpu::Buffer,
+    line: String,
 }
 
 pub struct Renderer {
     ctx: GpuContext,
     surface: Option<SurfaceGuard>,
-    /// Kept so a `Lost` surface can be recreated against the same window.
     window: Option<Arc<winit::window::Window>>,
     format: wgpu::TextureFormat,
     pipelines: Pipelines,
     gpu_scene: GpuScene,
-    /// Offscreen proof target (tests): a COPY_SRC render target standing in
-    /// for the swapchain.
+    camera: Camera,
+    globals_buf: wgpu::Buffer,
+    bg_globals: wgpu::BindGroup,
+    bg_hud: wgpu::BindGroup,
+    hud: HudResources,
+    /// Depth attachment for the active target (window or offscreen).
+    depth: Option<wgpu::Texture>,
     offscreen: Option<wgpu::Texture>,
 }
 
 impl Renderer {
-    /// Live windowed renderer: surface owns the swapchain, sized to the window.
+    /// Live windowed renderer.
     pub fn windowed(window: &Arc<winit::window::Window>) -> Self {
         let ctx = GpuContext::new(None);
         let guard = SurfaceGuard::new(&ctx, window);
         let format = guard.format();
+        let (w, h) = (guard.config.width, guard.config.height);
         let pipelines = Pipelines::new(&ctx.device, format);
         let gpu_scene = GpuScene::new(&ctx.device);
+        let camera = Camera::new(default_pose());
+        let globals_buf = create_globals_buffer(&ctx.device);
+        let bg_globals = create_globals_bind_group(&ctx.device, &pipelines.layout_globals, &globals_buf);
+        let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
+        hud.line = default_hud_line(&camera);
+        let depth = Some(create_depth(&ctx.device, w, h));
+        let bg_hud = create_hud_bind_group(
+            &ctx.device,
+            &pipelines.layout_hud,
+            &globals_buf,
+            &hud.texture,
+        );
         Self {
             ctx,
             surface: Some(guard),
@@ -171,6 +292,12 @@ impl Renderer {
             format,
             pipelines,
             gpu_scene,
+            camera,
+            globals_buf,
+            bg_globals,
+            bg_hud,
+            hud,
+            depth,
             offscreen: None,
         }
     }
@@ -182,7 +309,19 @@ impl Renderer {
         let format = wgpu::TextureFormat::Bgra8UnormSrgb;
         let pipelines = Pipelines::new(&ctx.device, format);
         let gpu_scene = GpuScene::new(&ctx.device);
+        let camera = Camera::new(default_pose());
+        let globals_buf = create_globals_buffer(&ctx.device);
+        let bg_globals = create_globals_bind_group(&ctx.device, &pipelines.layout_globals, &globals_buf);
+        let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
+        hud.line = default_hud_line(&camera);
         let texture = create_target(&ctx.device, width, height, format);
+        let depth = Some(create_depth(&ctx.device, width, height));
+        let bg_hud = create_hud_bind_group(
+            &ctx.device,
+            &pipelines.layout_hud,
+            &globals_buf,
+            &hud.texture,
+        );
         Self {
             ctx,
             surface: None,
@@ -190,8 +329,34 @@ impl Renderer {
             format,
             pipelines,
             gpu_scene,
+            camera,
+            globals_buf,
+            bg_globals,
+            bg_hud,
+            hud,
+            depth,
             offscreen: Some(texture),
         }
+    }
+
+    pub fn pose(&self) -> CameraPose {
+        self.camera.pose
+    }
+
+    /// First-person walk step (4 m/s) from the current camera orientation.
+    pub fn camera_walk_step(&self, fwd: f32, strafe: f32, vert: f32, dt: f32) -> [f32; 3] {
+        self.camera.walk_step(fwd, strafe, vert, dt, 4.0)
+    }
+
+    /// Teleports/rotates the camera to a P3D world pose.
+    pub fn set_pose(&mut self, pose: CameraPose) {
+        self.camera.pose = pose;
+    }
+
+    /// Sets the HUD debug line (padded/truncated to a fixed width so the
+    /// texture never needs reallocation).
+    pub fn set_hud_line(&mut self, line: &str) {
+        self.hud.line = format!("{:<width$}", line, width = HUD_LINE_CHARS);
     }
 
     pub fn size(&self) -> (u32, u32) {
@@ -204,30 +369,110 @@ impl Renderer {
         }
     }
 
-    /// Reconfigure the active target for a new size. Zero-sized axes are
-    /// clamped (wgpu refuses 0-width/height configurations).
+    pub fn aspect(&self) -> f32 {
+        let (w, h) = self.size();
+        w as f32 / h.max(1) as f32
+    }
+
+    /// Reconfigure the active target for a new size (clamped to >= 1 px).
     pub fn resize(&mut self, width: u32, height: u32) {
+        let (w, h) = crate::gpu::clamp_size(width, height);
         if let Some(guard) = self.surface.as_mut() {
-            guard.resize(&self.ctx.device, width, height);
+            guard.resize(&self.ctx.device, w, h);
         } else if let Some(old) = self.offscreen.take() {
-            let (w, h) = crate::gpu::clamp_size(width, height);
             if old.width() != w || old.height() != h {
                 self.offscreen = Some(create_target(&self.ctx.device, w, h, self.format));
             } else {
                 self.offscreen = Some(old);
             }
         }
+        self.depth = Some(create_depth(&self.ctx.device, w, h));
+    }
+
+    /// Uploads camera + HUD state for this frame.
+    fn prepare_frame(&mut self) {
+        let (w, h) = self.size();
+        let aspect = self.aspect();
+        let cam = &self.camera;
+        let fwd = cam.fwd();
+        let right = cam.right();
+        let up = cam.up();
+        let globals = Globals {
+            view_proj: cam.view_proj(aspect),
+            cam_pos: [
+                cam.pose.position[0],
+                cam.pose.position[1],
+                cam.pose.position[2],
+                1.0,
+            ],
+            fwd: [fwd[0], fwd[1], fwd[2], 0.0],
+            right: [right[0], right[1], right[2], 0.0],
+            up: [up[0], up[1], up[2], 0.0],
+            sun_dir: [
+                crate::scene::SUN_DIR[0],
+                crate::scene::SUN_DIR[1],
+                crate::scene::SUN_DIR[2],
+                0.0,
+            ],
+            tan_aspect: [cam.tan_half_fov(), aspect, 0.0, 0.0],
+        };
+        self.ctx
+            .queue
+            .write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&globals));
+
+        // HUD: re-rasterize the line and refresh the quad to the target size.
+        let (bytes, tw, th) = crate::font::rasterize_line(&self.hud.line.clone(), HUD_SCALE);
+        if (tw, th) != self.hud.size {
+            self.hud.texture = create_hud_texture(&self.ctx.device, tw, th);
+            self.hud.size = (tw, th);
+            self.bg_hud = create_hud_bind_group(
+                &self.ctx.device,
+                &self.pipelines.layout_hud,
+                &self.globals_buf,
+                &self.hud.texture,
+            );
+        }
+        self.ctx.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.hud.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &bytes,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(tw * 4),
+                rows_per_image: None,
+            },
+            wgpu::Extent3d {
+                width: tw,
+                height: th,
+                depth_or_array_layers: 1,
+            },
+        );
+        let (x0, y1, x1, y0) = hud_quad_ndc(tw, th, w, h);
+        let quad: [[f32; 4]; 4] = [
+            [x0, y1, 0.0, 0.0],
+            [x1, y1, 1.0, 0.0],
+            [x0, y0, 0.0, 1.0],
+            [x1, y0, 1.0, 1.0],
+        ];
+        self.ctx.queue.write_buffer(
+            &self.hud.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&quad),
+        );
     }
 
     /// Renders one frame. Windowed: acquire → draw → present, with the
     /// documented recovery policy for lost/outdated/timeout surfaces.
     /// Offscreen: draws into the proof target.
     pub fn render_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
+        self.prepare_frame();
         if self.surface.is_some() {
             let mut attempt = 0;
             let output = loop {
-                // The texture is owned, so the borrow of self ends here and
-                // recovery can mutate the surface.
                 let err = match self.surface.as_ref().unwrap().surface.get_current_texture()
                 {
                     Ok(t) => break t,
@@ -258,7 +503,7 @@ impl Renderer {
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                         label: Some("pc3d_render frame"),
                     });
-            encode_frame(&self.pipelines, &self.gpu_scene, &mut encoder, &view);
+            self.encode_frame(&mut encoder, &view);
             self.ctx.queue.submit(Some(encoder.finish()));
             output.present();
         } else {
@@ -270,21 +515,21 @@ impl Renderer {
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                         label: Some("pc3d_render offscreen frame"),
                     });
-            encode_frame(&self.pipelines, &self.gpu_scene, &mut encoder, &view);
+            self.encode_frame(&mut encoder, &view);
             self.ctx.queue.submit(Some(encoder.finish()));
         }
         Ok(())
     }
 
-    /// Renders a frame and saves it as a PNG. Windowed: the copy comes from
-    /// the actual swapchain texture (the surface carries COPY_SRC), so this
-    /// is a screenshot of the presented frame, not a separate render.
-    /// Offscreen: copies the proof target. Returns the semantic pixel report.
-    pub fn capture_png(&mut self, path: &Path) -> PixelReport {
+    /// Renders a frame and saves it as a PNG, then verifies it against
+    /// caller-supplied semantic probes. Windowed: the copy comes from the
+    /// actual swapchain texture (the surface carries COPY_SRC), so this is a
+    /// screenshot of the presented frame, not a separate render.
+    pub fn capture_png(&mut self, path: &Path, probes: &[Probe]) -> (PixelReport, Vec<u8>) {
+        self.prepare_frame();
         let (width, height) = self.size();
         assert!(width >= 1 && height >= 1, "cannot capture a 0-sized frame");
 
-        // Copy layout: bytes_per_row must be a multiple of 256.
         let bytes_per_row = (width * 4).div_ceil(256) * 256;
         let readback = self.ctx.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("pc3d_render readback"),
@@ -300,11 +545,6 @@ impl Renderer {
                 label: Some("pc3d_render capture"),
             });
 
-        let mut size = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
         if self.surface.is_some() {
             let mut attempt = 0;
             let output = loop {
@@ -331,9 +571,8 @@ impl Renderer {
                     _ => panic!("surface unavailable for capture: {err:?}"),
                 }
             };
-            size = output.texture.size();
             let view = output.texture.create_view(&Default::default());
-            encode_frame(&self.pipelines, &self.gpu_scene, &mut encoder, &view);
+            self.encode_frame(&mut encoder, &view);
             encoder.copy_texture_to_buffer(
                 output.texture.as_image_copy(),
                 wgpu::ImageCopyBuffer {
@@ -344,7 +583,7 @@ impl Renderer {
                         rows_per_image: None,
                     },
                 },
-                size,
+                output.texture.size(),
             );
             self.ctx.queue.submit(Some(encoder.finish()));
             // Wait for the copy before presenting, which may recycle the
@@ -354,7 +593,7 @@ impl Renderer {
         } else {
             let tex = self.offscreen.as_ref().expect("renderer has no target");
             let view = tex.create_view(&Default::default());
-            encode_frame(&self.pipelines, &self.gpu_scene, &mut encoder, &view);
+            self.encode_frame(&mut encoder, &view);
             encoder.copy_texture_to_buffer(
                 tex.as_image_copy(),
                 wgpu::ImageCopyBuffer {
@@ -365,17 +604,207 @@ impl Renderer {
                         rows_per_image: None,
                     },
                 },
-                size,
+                tex.size(),
             );
             self.ctx.queue.submit(Some(encoder.finish()));
             let _ = self.ctx.device.poll(wgpu::Maintain::Wait);
         }
 
         let rgba = read_buffer(&self.ctx.device, &readback, bytes_per_row, width, height);
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent).expect("create screenshot directory");
+            }
+        }
         image::save_buffer(path, &rgba, width, height, image::ColorType::Rgba8)
             .expect("write screenshot png");
-        crate::scene::verify_frame_rgba(&rgba, width, height)
+        let report = crate::scene::verify_frame_rgba(&rgba, width, height, probes);
+        (report, rgba)
     }
+
+    /// The single draw path shared by the window, the live-window screenshot,
+    /// and the offscreen proof target.
+    fn encode_frame(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+        let depth_view = self
+            .depth
+            .as_ref()
+            .expect("depth attachment missing")
+            .create_view(&Default::default());
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("pc3d_render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.13,
+                        g: 0.27,
+                        b: 0.42,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        // 1. Sky: world-ray gradient + sun (no depth interaction).
+        pass.set_pipeline(&self.pipelines.sky);
+        pass.set_bind_group(0, &self.bg_globals, &[]);
+        pass.draw(0..3, 0..1);
+        // 2. Depth-tested, sunlit world geometry from P3D coordinates.
+        pass.set_pipeline(&self.pipelines.mesh);
+        pass.set_bind_group(0, &self.bg_globals, &[]);
+        pass.set_vertex_buffer(0, self.gpu_scene.vertex_buffer.slice(..));
+        pass.set_index_buffer(self.gpu_scene.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        pass.draw_indexed(0..self.gpu_scene.index_count, 0, 0..1);
+        // 3. HUD debug line (alpha blend, no depth).
+        pass.set_pipeline(&self.pipelines.hud);
+        pass.set_bind_group(0, &self.bg_hud, &[]);
+        pass.set_vertex_buffer(0, self.hud.vertex_buffer.slice(..));
+        pass.draw(0..4, 0..1);
+    }
+}
+
+/// Default player spawn: 1.7 m eye height south of the near stone, facing
+/// north (P3D world coordinates).
+fn default_pose() -> CameraPose {
+    crate::scene::pose_a()
+}
+
+fn default_hud_line(camera: &Camera) -> String {
+    let p = camera.pose.position;
+    format!(
+        "P3D POS {:.1} {:.1} {:.1} YAW {:.2} FPS 0",
+        p[0], p[1], p[2], camera.pose.yaw
+    )
+}
+
+fn create_globals_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("pc3d globals"),
+        size: std::mem::size_of::<Globals>() as wgpu::BufferAddress,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
+fn create_globals_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    buf: &wgpu::Buffer,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("pc3d globals bind group"),
+        layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: buf.as_entire_binding(),
+        }],
+    })
+}
+
+fn create_hud(device: &wgpu::Device, _layout: &wgpu::BindGroupLayout) -> HudResources {
+    let (_, tw, th) = crate::font::rasterize_line(&" ".repeat(HUD_LINE_CHARS), HUD_SCALE);
+    let texture = create_hud_texture(device, tw, th);
+    let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("pc3d hud quad"),
+        size: 4 * 16,
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    HudResources {
+        texture,
+        size: (tw, th),
+        vertex_buffer,
+        line: String::new(),
+    }
+}
+
+fn create_hud_texture(device: &wgpu::Device, w: u32, h: u32) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("pc3d hud texture"),
+        size: wgpu::Extent3d {
+            width: w,
+            height: h,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    })
+}
+
+fn create_hud_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    globals_buf: &wgpu::Buffer,
+    texture: &wgpu::Texture,
+) -> wgpu::BindGroup {
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("pc3d hud sampler"),
+        mag_filter: wgpu::FilterMode::Nearest,
+        min_filter: wgpu::FilterMode::Nearest,
+        ..Default::default()
+    });
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("pc3d hud bind group"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: globals_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(
+                    &texture.create_view(&Default::default()),
+                ),
+            },
+        ],
+    })
+}
+
+/// Top-left pixel-anchored HUD quad in NDC.
+fn hud_quad_ndc(tw: u32, th: u32, target_w: u32, target_h: u32) -> (f32, f32, f32, f32) {
+    let margin = 8.0;
+    let x0 = -1.0 + margin * 2.0 / target_w as f32;
+    let y1 = 1.0 - margin * 2.0 / target_h as f32;
+    let x1 = x0 + tw as f32 * 2.0 / target_w as f32;
+    let y0 = y1 - th as f32 * 2.0 / target_h as f32;
+    (x0, y1, x1, y0)
+}
+
+fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("pc3d depth"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth24Plus,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    })
 }
 
 fn create_target(
@@ -435,61 +864,106 @@ fn read_buffer(
 }
 
 // ---------------------------------------------------------------------------
-// Tests: real GPU frames through the same draw path the window uses.
+// Tests: real GPU 3D frames through the same draw path the window uses.
+// The three proofs here are impossible without camera + projection + depth.
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scene::{
+        marker_hue_pixels, pixel_difference_fraction, pose_a, pose_b, pose_c, probes_for_pose,
+    };
 
     const W: u32 = 384;
     const H: u32 = 288;
+    const ASPECT: f32 = 384.0 / 288.0;
 
-    #[test]
-    fn offscreen_gpu_frame_matches_scene_and_is_deterministic() {
-        let mut renderer = Renderer::offscreen(W, H);
-        let path = std::env::temp_dir().join("pc3d_render_offscreen_proof_a.png");
-
-        let t0 = std::time::Instant::now();
-        let report_a = renderer.capture_png(&path);
-        let capture_us = t0.elapsed().as_secs_f64() * 1e6;
-
-        println!(
-            "offscreen capture {W}x{H}: {} distinct colors, {capture_us:.0} us frame+readback+encode",
-            report_a.distinct_colors
-        );
-        assert!(
-            report_a.passes(),
-            "offscreen frame failed semantic verification: {report_a:?}"
-        );
-
-        // Determinism: the same renderer, asked twice, must produce the same
-        // pixels byte-for-byte.
-        let bytes_a = std::fs::read(&path).expect("read proof png");
-        let path_b = std::env::temp_dir().join("pc3d_render_offscreen_proof_b.png");
-        let report_b = renderer.capture_png(&path_b);
-        let bytes_b = std::fs::read(&path_b).expect("read second proof png");
-        assert_eq!(report_a, report_b);
-        assert_eq!(bytes_a, bytes_b, "GPU frames differ between runs");
+    fn capture_at(path: &Path, pose: CameraPose) -> (PixelReport, Vec<u8>) {
+        let mut r = Renderer::offscreen(W, H);
+        r.set_pose(pose);
+        let probes = probes_for_pose(pose, ASPECT);
+        r.capture_png(path, &probes)
     }
 
     #[test]
-    fn offscreen_resize_reconfigures_the_render_target() {
-        let mut renderer = Renderer::offscreen(W, H);
-        renderer.resize(256, 192);
-        assert_eq!(renderer.size(), (256, 192));
-
-        let path = std::env::temp_dir().join("pc3d_render_offscreen_resized.png");
-        let report = renderer.capture_png(&path);
-        assert_eq!(report.width, 256);
-        assert_eq!(report.height, 192);
+    fn face_flip_and_scene_probes_hold_from_two_poses() {
+        // POSE A (south, looking north): center must be the crimson face.
+        let path_a = std::env::temp_dir().join("pc3d_3d_pose_a.png");
+        let (report_a, rgba_a) = capture_at(&path_a, pose_a());
         assert!(
-            report.passes(),
-            "resized frame failed semantic verification: {report:?}"
+            report_a.passes(),
+            "pose A failed: {:?}",
+            report_a.failed_probes()
+        );
+        // The marker stone behind the near stone must be FULLY occluded:
+        // zero amber pixels anywhere in the frame (scanned over the decoded
+        // RGBA, never the compressed PNG bytes).
+        assert_eq!(
+            marker_hue_pixels(&rgba_a),
+            0,
+            "occluded marker stone leaked pixels at pose A"
         );
 
+        // POSE B (east, looking west): the SAME screen region must now be
+        // the gold face — a 2D image cannot satisfy both probes.
+        let path_b = std::env::temp_dir().join("pc3d_3d_pose_b.png");
+        let (report_b, rgba_b) = capture_at(&path_b, pose_b());
+        assert!(
+            report_b.passes(),
+            "pose B failed: {:?}",
+            report_b.failed_probes()
+        );
+
+        // PARALLAX: the two frames must differ across a large fraction of
+        // pixels — different viewpoints of a 3D world.
+        let diff = pixel_difference_fraction(&rgba_a, &rgba_b);
+        println!("parallax: {:.1}% of pixels differ between poses A and B", diff * 100.0);
+        assert!(diff > 0.15, "poses A and B frames barely differ ({diff})");
+    }
+
+    #[test]
+    fn occluded_marker_becomes_visible_from_pose_c() {
+        // Pose A: zero marker pixels (proven in the face-flip test's scan).
+        // Pose C (southeast, looking at the marker): many marker pixels.
+        let path_c = std::env::temp_dir().join("pc3d_3d_pose_c.png");
+        let (report_c, rgba_c) = capture_at(&path_c, pose_c());
+        assert!(
+            report_c.passes(),
+            "pose C failed: {:?}",
+            report_c.failed_probes()
+        );
+        let visible = marker_hue_pixels(&rgba_c);
+        println!("marker pixels visible at pose C: {visible}");
+        assert!(visible > 300, "marker stone barely visible from pose C");
+    }
+
+    #[test]
+    fn same_pose_renders_byte_identical_frames() {
+        let path_a = std::env::temp_dir().join("pc3d_3d_det_a.png");
+        let path_b = std::env::temp_dir().join("pc3d_3d_det_b.png");
+        let (report_a, rgba_a) = capture_at(&path_a, pose_a());
+        let (report_b, rgba_b) = capture_at(&path_b, pose_a());
+        assert_eq!(report_a, report_b);
+        assert_eq!(rgba_a, rgba_b, "same camera pose produced different pixels");
+        assert_eq!(
+            std::fs::read(&path_a).unwrap(),
+            std::fs::read(&path_b).unwrap(),
+            "encoded PNGs differ for identical frames"
+        );
+    }
+
+    #[test]
+    fn offscreen_resize_reconfigures_target_and_depth() {
+        let mut r = Renderer::offscreen(W, H);
+        r.resize(256, 192);
+        assert_eq!(r.size(), (256, 192));
+        let path = std::env::temp_dir().join("pc3d_3d_resized.png");
+        let (report, _) = r.capture_png(&path, &probes_for_pose(pose_a(), 256.0 / 192.0));
+        assert_eq!(report.width, 256);
+        assert!(report.passes(), "resized frame failed: {:?}", report.failed_probes());
         // Zero-sized resize must clamp, not poison the target.
-        renderer.resize(0, 0);
-        assert_eq!(renderer.size(), (1, 1));
+        r.resize(0, 0);
+        assert_eq!(r.size(), (1, 1));
     }
 }

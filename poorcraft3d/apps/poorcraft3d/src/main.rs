@@ -272,9 +272,12 @@ fn main() {
             }
         }
         Some("--play") => {
-            // R3DV-001: the windowed renderer. Resizable winit window, wgpu
-            // surface, nonuniform proof scene; Esc closes. Runs until closed.
-            let cfg = pc3d_render::WindowConfig::default();
+            // R3DV-002: the interactive 3D renderer. Click to grab the mouse,
+            // WASD + Space/Shift to move, Esc quits.
+            let cfg = pc3d_render::WindowConfig {
+                resize_to: None,
+                ..Default::default()
+            };
             match pc3d_render::run_windowed(cfg) {
                 Ok(report) => print_window_report(&report),
                 Err(e) => {
@@ -284,38 +287,50 @@ fn main() {
             }
         }
         Some("--play-shot") => {
-            // R3DV-001 screenshot proof: open the real window, render N
-            // frames, capture the live swapchain texture to a PNG, verify the
-            // pixels semantically, print the perf line, exit.
+            // R3DV-002 3D proof: open the real window, render at pose A
+            // (crimson face), live-resize the window, capture A, walk the
+            // camera to pose B (gold face), capture B — then assert the
+            // FACE FLIP, the PARALLAX between the two frames, and the resize
+            // recovery. A 2D renderer cannot pass this.
             let out = args.get(2).cloned().unwrap_or_else(|| {
-                format!(
-                    "{}/shots/windowed_bootstrap.png",
-                    env!("CARGO_MANIFEST_DIR")
-                )
+                format!("{}/shots/windowed_3d.png", env!("CARGO_MANIFEST_DIR"))
             });
-            let frame: u64 = args
-                .get(3)
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(20);
+            let out_b = out.replace(".png", "_poseb.png");
             let cfg = pc3d_render::WindowConfig {
-                max_frames: Some(frame + 5),
-                screenshot: Some(std::path::PathBuf::from(&out)),
-                screenshot_frame: frame,
+                max_frames: Some(45),
+                shots: vec![
+                    pc3d_render::Shot {
+                        frame: 20,
+                        path: std::path::PathBuf::from(&out),
+                    },
+                    pc3d_render::Shot {
+                        frame: 40,
+                        path: std::path::PathBuf::from(&out_b.clone()),
+                    },
+                ],
+                camera_script: vec![(25, pc3d_render::scene::pose_b())],
+                resize_to: Some((800.0, 500.0)),
                 ..Default::default()
             };
             match pc3d_render::run_windowed(cfg) {
                 Ok(report) => {
                     print_window_report(&report);
-                    let Some(px) = &report.captured else {
-                        eprintln!("[FAIL] window ended before the capture frame");
-                        std::process::exit(1);
-                    };
-                    if !px.passes() {
-                        eprintln!("[FAIL] windowed capture failed verification: {px:?}");
+                    if report.captures.len() != 2 {
+                        eprintln!("[FAIL] expected 2 captures, got {}", report.captures.len());
                         std::process::exit(1);
                     }
+                    for cap in &report.captures {
+                        if !cap.report.passes() {
+                            eprintln!(
+                                "[FAIL] capture {} failed verification: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
                     // The mid-run resize must have been observed by the
-                    // surface and the capture must be at the resized size.
+                    // surface and the captures must be at the resized size.
                     let (lw, lh) = (800.0f64, 500.0f64);
                     let expect = (
                         (lw * report.scale_factor).round() as u32,
@@ -325,20 +340,43 @@ fn main() {
                         eprintln!("[FAIL] no Resized events reached the surface");
                         std::process::exit(1);
                     }
-                    if px.width != expect.0 || px.height != expect.1 {
+                    for cap in &report.captures {
+                        if cap.report.width != expect.0 || cap.report.height != expect.1 {
+                            eprintln!(
+                                "[FAIL] capture {}x{} is not the resized surface {}x{}",
+                                cap.report.width, cap.report.height, expect.0, expect.1
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    // PARALLAX: pose A and pose B frames must differ widely
+                    // (compared over decoded RGBA pixels, not PNG bytes).
+                    let diff = pc3d_render::scene::pixel_difference_fraction(
+                        &report.captures[0].rgba,
+                        &report.captures[1].rgba,
+                    );
+                    if diff < 0.15 {
                         eprintln!(
-                            "[FAIL] capture {}x{} is not the resized surface {}x{}",
-                            px.width, px.height, expect.0, expect.1
+                            "[FAIL] camera movement barely changed the image ({:.1}%) — not a 3D render",
+                            diff * 100.0
                         );
                         std::process::exit(1);
                     }
                     println!(
                         "RESIZE OK: surface followed {}x{} logical -> {}x{} physical (scale {:.2}, {} events)",
-                        lw, lh, px.width, px.height, report.scale_factor, report.resizes_observed
+                        lw, lh, expect.0, expect.1, report.scale_factor, report.resizes_observed
                     );
                     println!(
-                        "WINDOWED SHOT PASS -> {} ({}x{}, {} distinct colors)",
-                        out, px.width, px.height, px.distinct_colors
+                        "PARALLAX OK: {:.1}% of pixels differ between pose A and pose B",
+                        diff * 100.0
+                    );
+                    println!(
+                        "WINDOWED 3D SHOT PASS -> {} + {} ({}x{}, {} distinct colors)",
+                        out,
+                        out_b,
+                        report.captures[0].report.width,
+                        report.captures[0].report.height,
+                        report.captures[0].report.distinct_colors
                     );
                 }
                 Err(e) => {
@@ -349,7 +387,7 @@ fn main() {
         }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png] [frame]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]]"
             );
             std::process::exit(2);
         }

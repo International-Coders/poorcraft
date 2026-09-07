@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-002: POORCRAFT 3D's renderer is actually 3D now
+
+The R3DV-001 banner image was rejected as evidence: it was NDC clip-space
+geometry with no camera, projection, or depth — GPU plumbing, not a game.
+The queue's next task shipped in response:
+
+- **Camera**: perspective view-projection in P3D world coordinates
+  (right-handed, meters, +X east / +Y up / +Z south, yaw/pitch), hand-written
+  mat4 with unit tests pinning near→0 / far→1 depth mapping and known-point
+  projection. First-person input: click-to-grab mouse look, WASD +
+  Space/Shift movement (4 m/s, diagonal-normalized).
+- **Depth + lighting**: depth24plus buffer; depth-tested indexed mesh with
+  lambert sun + ambient; ray-reconstructed sky whose sun disc and horizon
+  follow the world sun direction.
+- **HUD**: bitmap-font debug line (position / yaw / FPS), rasterized per
+  frame to a texture quad.
+- **Three 3D-only proofs**: face flip (same screen region reads a different
+  cube face from different poses), occlusion (a marker stone fully hidden at
+  pose A — zero pixels — visible from pose B/C), parallax (19.5% of decoded
+  RGBA pixels differ between the two windowed captures).
+- **Evidence**: 293/293 pc3d tests (+11); windowed captures
+  `windowed_3d.png` + `windowed_3d_poseb.png` from the live swapchain after
+  a mid-run resize, human-inspected PASS; p50 0.45 ms; sim untouched
+  (p3d-smoke digest unchanged). Two real bugs fixed during proofing
+  (tan(fov) vs tan(fov/2); albedo folded into the lighting dot product).
+
 ## 2026-09-06 — R3DV-001: POORCRAFT 3D gets a windowed GPU renderer (visual reset)
 
 The simulation-only roadmap was declared complete; the visual reset

@@ -4387,3 +4387,50 @@ untouched (474 tests re-run green).
 HONESTLY DEFERRED: first-person camera/input, depth buffer, P3D world
 binding (R3DV-002); asset pipeline (R3DV-003); terrain/water/city/NPC
 rendering (R3DV-004+). Scene is NDC placeholder geometry by design.
+
+## 2026-09-07 — R3DV-002: the renderer is now actually 3D (R3DV-001's 2D banner image replaced)
+
+WHAT: Owner verdict on R3DV-001: the banner image proved GPU plumbing, not a
+3D game — correct: it was NDC clip-space geometry with no camera, no
+projection, no depth. The very next queue task (R3DV-002) is the "make it 3D"
+task, so it shipped now: a perspective camera in P3D world coordinates
+(right-handed, meters, +X east / +Y up / +Z south, yaw/pitch), a depth24plus
+buffer, a depth-tested sunlit indexed mesh (lambert + ambient), a
+ray-reconstructed sky whose sun and horizon follow the world sun direction
+(turning moves them — no 2D fallback path), a bitmap-font HUD debug line
+(POS/YAW/FPS), and first-person input (click to grab pointer, mouse look,
+WASD + Space/Shift at 4 m/s with diagonal normalization, Esc quits).
+
+HOW: pc3d_render gained camera.rs (mat4 view/projection written from the
+convention doc, unit-pinned: near->0 / far->1 depth mapping, known-world-
+point projection, basis vectors, walk steps), font.rs (5x7 bitmap font,
+rasterized to an RGBA texture per frame), a rewritten scene.rs ("the dawn
+proving ground": 40x40 m stone ground plane, a six-colored 2 m stone, and an
+amber marker stone 5 m behind it — all in world meters), and a rewritten
+renderer (Globals uniform: view_proj + camera basis + sun; three pipelines:
+sky/mesh/HUD in one depth-enabled pass). The semantic verifier now takes
+NDC probes built from pose + ray math mirrors (scene.rs mirrors the WGSL
+sky and lighting exactly; the occlusion scan reads decoded RGBA — an
+intermediate version scanned PNG bytes and was caught and fixed by the
+failing test). Two real bugs found and fixed during proofing: perspective
+used tan(fov) instead of tan(fov/2) (test value matched the bug exactly),
+and the lit_color mirror folded albedo into the sun dot (pixel-exact
+comparison against the actual framebuffer exposed it).
+
+EVIDENCE: 293/293 pc3d tests green (+11). The three proofs that are
+impossible without camera + projection + depth: FACE FLIP — the same screen
+region reads the crimson south face from pose A and the gold east face from
+pose B; OCCLUSION — the marker stone behind the near stone shows ZERO pixels
+at pose A and is visible from pose B/C (depth buffer); PARALLAX — 19.5% of
+decoded RGBA pixels differ between the two windowed captures. Windowed run:
+real window, live 1280x720->800x500 resize (2 Resized events followed),
+captures from the resized swapchain, both verified, human visual inspection
+PASS (poorcraft3d/apps/poorcraft3d/shots/windowed_3d.png +
+windowed_3d_poseb.png; the stale 2D banner PNG is removed). Perf: 41-frame
+windowed run p50 0.45 ms / p95 1.57 ms. --play 12 s liveness OK. Headless
+sim untouched: p3d-smoke digest dd019eca900f5a61 unchanged.
+
+HONESTLY DEFERRED: human manual input play-check offered via make p3d-play
+(automated evidence covers camera-driven frame change through the same
+set_pose path the input handlers use); collision, block picking, terrain
+meshing (R3DV-004+); asset pipeline (R3DV-003 = NEXT).

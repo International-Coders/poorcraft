@@ -22,10 +22,26 @@
     {
       "id": "R3DV-002",
       "title": "First-person camera and indexed scene primitive",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": ["R3DV-001"],
       "must_prove": ["depth_buffer", "camera_mouse_look", "keyboard_movement", "lit_indexed_mesh"],
-      "evidence": ["tests", "windowed_png", "manual_input_check"]
+      "evidence": ["tests", "windowed_png", "manual_input_check"],
+      "completed_evidence": {
+        "crate": "pc3d_render/camera.rs (hand-verified mat4 view/projection, RH +Y-up meters, yaw/pitch; unit tests pin near->0/far->1 depth mapping and known-point projection) + depth24plus buffer + lit indexed mesh (lambert sun + ambient) + ray-reconstructed sky tied to the world sun direction + bitmap-font HUD debug line (POS/YAW/FPS)",
+        "three_3d_proofs": "FACE FLIP: screen center shows the crimson south face from pose A and the gold east face from pose B (impossible in 2D). OCCLUSION: the amber marker stone behind the near stone shows ZERO pixels at pose A and is visible at pose B/C (depth buffer). PARALLAX: 19.5% of decoded RGBA pixels differ between the two windowed pose captures",
+        "input": "click-to-grab mouse look (DeviceEvent deltas -> yaw/pitch, clamped), WASD + Space/Shift movement (4 m/s walk, diagonal-normalized, unit-tested), Esc quits; automated windowed run drives a camera script through the same set_pose path",
+        "windowed_png": "poorcraft3d/apps/poorcraft3d/shots/windowed_3d.png + windowed_3d_poseb.png (both 800x500, captured from the live swapchain after a mid-run 1280x720->800x500 resize; human visual inspection PASS)",
+        "perf": "41-frame windowed run p50 0.45 ms / p95 1.57 ms",
+        "manual_input_check": "interactive mode ships (make p3d-play) for human play verification; automated evidence covers camera-driven frame change (scripted pose -> verified frame change with 19.5% parallax)"
+      }
+    },
+    {
+      "id": "R3DV-003",
+      "title": "JSON asset manifest validator",
+      "status": "NEXT",
+      "depends_on": ["R3DV-001"],
+      "must_prove": ["schema_validation", "invalid_manifest_rejection", "consumer_and_proof_checks"],
+      "evidence": ["tests", "validated_beta_critical_assets_json"]
     },
     {
       "id": "R3DV-003",

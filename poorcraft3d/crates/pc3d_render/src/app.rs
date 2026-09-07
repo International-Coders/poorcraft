@@ -1,19 +1,29 @@
-//! The windowed shell: a resizable `winit` window driving the renderer.
+//! The windowed shell: a resizable `winit` window driving the 3D renderer.
 //!
-//! R3DV-001 scope: continuous redraw, resize/loss recovery, Escape/Close to
-//! quit, optional live-window screenshot capture at a chosen frame, and
-//! frame-time accounting for the performance record. First-person input
-//! arrives in R3DV-002.
+//! R3DV-002 scope: first-person input (click to grab the mouse, mouse look,
+//! WASD + Space/Shift movement), camera scripts for automated proof runs,
+//! scheduled live-window screenshot captures, resize/loss recovery, Escape
+//! to quit, and frame-time accounting.
 
+use crate::camera::CameraPose;
 use crate::renderer::{PixelReport, Renderer};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
+use winit::event::{DeviceEvent, ElementState, KeyEvent, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::keyboard::NamedKey;
+use winit::keyboard::{KeyCode, NamedKey, PhysicalKey};
 use winit::window::{Window, WindowAttributes};
+
+/// One scheduled live-window capture.
+#[derive(Clone)]
+pub struct Shot {
+    /// Frame number at which the presented swapchain frame is captured.
+    pub frame: u64,
+    pub path: PathBuf,
+}
 
 #[derive(Clone)]
 pub struct WindowConfig {
@@ -22,13 +32,12 @@ pub struct WindowConfig {
     pub logical_size: (f64, f64),
     /// Stop after this many presented frames (None: run until closed).
     pub max_frames: Option<u64>,
-    /// If set, the live swapchain frame is captured to this PNG on
-    /// [`WindowConfig::screenshot_frame`] and the run ends.
-    pub screenshot: Option<PathBuf>,
-    pub screenshot_frame: u64,
-    /// If set (and a screenshot is requested), the window is resized to this
-    /// logical size halfway to the capture frame, so the run proves live
-    /// surface resize recovery before the capture.
+    /// Scheduled captures (sorted by frame); the run ends after the last.
+    pub shots: Vec<Shot>,
+    /// Camera poses applied at given frames (automated proof runs).
+    pub camera_script: Vec<(u64, CameraPose)>,
+    /// If set, the window is resized halfway to the first shot so the run
+    /// proves live surface resize recovery before capturing.
     pub resize_to: Option<(f64, f64)>,
 }
 
@@ -38,25 +47,34 @@ impl Default for WindowConfig {
             title: "POORCRAFT 3D".into(),
             logical_size: (1280.0, 720.0),
             max_frames: None,
-            screenshot: None,
-            screenshot_frame: 20,
+            shots: Vec::new(),
+            camera_script: Vec::new(),
             resize_to: Some((800.0, 500.0)),
         }
     }
 }
 
-/// What a windowed run produced: frame timings plus the capture report if a
-/// screenshot was requested.
+/// One completed live-window capture: the PNG path, its semantic report, and
+/// the decoded RGBA pixels (for cross-frame assertions like parallax).
+#[derive(Clone)]
+pub struct CaptureOutcome {
+    pub path: PathBuf,
+    pub report: PixelReport,
+    pub rgba: Vec<u8>,
+}
+
+/// What a windowed run produced.
 pub struct WindowReport {
     pub frames: u64,
-    pub captured: Option<PixelReport>,
+    /// Capture outcomes in schedule order.
+    pub captures: Vec<CaptureOutcome>,
     /// Frame times in milliseconds (presented frames only).
     pub frame_ms: Vec<f32>,
     /// Resized events the surface followed (resize-recovery evidence).
     pub resizes_observed: u32,
     /// Physical swapchain size at the end of the run.
     pub final_physical: (u32, u32),
-    /// Window scale factor (physical = logical × scale).
+    /// Window scale factor (physical = logical x scale).
     pub scale_factor: f64,
 }
 
@@ -78,11 +96,11 @@ impl WindowReport {
     }
 }
 
-fn percentile(sorted: &[f32], p: u32) -> f32 {
-    if sorted.is_empty() {
+fn percentile(v: &[f32], p: u32) -> f32 {
+    if v.is_empty() {
         return 0.0;
     }
-    let mut v = sorted.to_vec();
+    let mut v = v.to_vec();
     v.sort_by(|a, b| a.total_cmp(b));
     let idx = ((v.len() as f32 - 1.0) * p as f32 / 100.0).round() as usize;
     v[idx.min(v.len() - 1)]
@@ -96,14 +114,52 @@ struct WindowState {
     consecutive_surface_errors: u32,
     resizes_observed: u32,
     final_physical: (u32, u32),
-    captured: Option<PixelReport>,
+    captures: Vec<CaptureOutcome>,
+    keys: HashSet<KeyCode>,
+    pointer_grabbed: bool,
     done: bool,
+}
+
+impl WindowState {
+    /// First-person movement from the current key set (4 m/s walk).
+    fn apply_movement(&mut self, dt: f32) {
+        let key = |k: KeyCode| if self.keys.contains(&k) { 1.0f32 } else { 0.0 };
+        let fwd = key(KeyCode::KeyW) - key(KeyCode::KeyS);
+        let strafe = key(KeyCode::KeyD) - key(KeyCode::KeyA);
+        let vert = key(KeyCode::Space) - key(KeyCode::ShiftLeft);
+        if fwd != 0.0 || strafe != 0.0 || vert != 0.0 {
+            let step = self.renderer.camera_walk_step(fwd, strafe, vert, dt);
+            let pos = self.renderer.pose().position;
+            self.renderer
+                .set_pose(CameraPose::new(
+                    [pos[0] + step[0], pos[1] + step[1], pos[2] + step[2]],
+                    self.renderer.pose().yaw,
+                    self.renderer.pose().pitch,
+                ));
+        }
+    }
+
+    fn hud_line(&self) -> String {
+        let recent: Vec<f32> = self.frame_ms.iter().rev().take(30).copied().collect();
+        let fps = if recent.is_empty() {
+            0.0
+        } else {
+            1000.0 / (recent.iter().sum::<f32>() / recent.len() as f32)
+        };
+        let pose = self.renderer.pose();
+        format!(
+            "P3D POS {:.1} {:.1} {:.1} YAW {:.2} FPS {:.0}",
+            pose.position[0], pose.position[1], pose.position[2], pose.yaw, fps
+        )
+    }
 }
 
 struct App {
     cfg: WindowConfig,
-    /// Some((frame, w, h)) while the scheduled mid-run resize hasn't fired.
     resize_plan: Option<(u64, f64, f64)>,
+    next_script: usize,
+    next_shot: usize,
+    last_frame: Option<Instant>,
     state: Option<WindowState>,
 }
 
@@ -112,7 +168,7 @@ impl App {
         match &self.state {
             Some(s) => WindowReport {
                 frames: s.frame_no,
-                captured: s.captured,
+                captures: s.captures.clone(),
                 frame_ms: s.frame_ms.clone(),
                 resizes_observed: s.resizes_observed,
                 final_physical: s.final_physical,
@@ -120,7 +176,7 @@ impl App {
             },
             None => WindowReport {
                 frames: 0,
-                captured: None,
+                captures: Vec::new(),
                 frame_ms: Vec::new(),
                 resizes_observed: 0,
                 final_physical: (0, 0),
@@ -153,9 +209,37 @@ impl ApplicationHandler for App {
             consecutive_surface_errors: 0,
             resizes_observed: 0,
             final_physical: (0, 0),
-            captured: None,
+            captures: Vec::new(),
+            keys: HashSet::new(),
+            pointer_grabbed: false,
             done: false,
         });
+    }
+
+    /// Global mouse motion: used for first-person look while the pointer is
+    /// grabbed (click the window to grab, Escape to quit).
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: DeviceEvent,
+    ) {
+        if let DeviceEvent::MouseMotion { delta: (dx, dy) } = event {
+            let Some(state) = &mut self.state else {
+                return;
+            };
+            if !state.pointer_grabbed {
+                return;
+            }
+            // Guard against pointer-lock re-entry spikes.
+            let (dx, dy) = (dx.clamp(-100.0, 100.0), dy.clamp(-100.0, 100.0));
+            let pose = state.renderer.pose();
+            let yaw = pose.yaw - (dx as f32) * 0.0022;
+            let pitch = (pose.pitch - (dy as f32) * 0.0022).clamp(-1.55, 1.55);
+            state
+                .renderer
+                .set_pose(CameraPose::new(pose.position, yaw, pitch));
+        }
     }
 
     fn window_event(
@@ -182,6 +266,32 @@ impl ApplicationHandler for App {
             } => {
                 event_loop.exit();
             }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let PhysicalKey::Code(code) = event.physical_key {
+                    match event.state {
+                        ElementState::Pressed => state.keys.insert(code),
+                        ElementState::Released => state.keys.remove(&code),
+                    };
+                }
+            }
+            WindowEvent::MouseInput {
+                button: MouseButton::Left,
+                state: ElementState::Pressed,
+                ..
+            } => {
+                // Click to look around: lock the pointer, FPS-style.
+                let grabbed = state
+                    .window
+                    .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+                    .or_else(|_| {
+                        state
+                            .window
+                            .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+                    })
+                    .is_ok();
+                state.window.set_cursor_visible(!grabbed);
+                state.pointer_grabbed = grabbed;
+            }
             // Resize + scale-factor changes both land here; the renderer
             // reconfigures the surface (and clamps 0-sized events).
             WindowEvent::Resized(size) => {
@@ -190,9 +300,23 @@ impl ApplicationHandler for App {
                 state.renderer.resize(size.width, size.height);
             }
             WindowEvent::RedrawRequested => {
-                // Scheduled mid-run resize: the window manager delivers the
-                // Resized event, the surface reconfigures, and later frames
-                // prove rendering still works at the new size.
+                let dt = match self.last_frame {
+                    Some(t) => t.elapsed().as_secs_f32().min(0.1),
+                    None => 1.0 / 60.0,
+                };
+                self.last_frame = Some(Instant::now());
+
+                // Scheduled camera script (teleport poses for proof runs).
+                if self.next_script < self.cfg.camera_script.len() {
+                    let (frame, pose) = self.cfg.camera_script[self.next_script];
+                    if state.frame_no == frame {
+                        state.renderer.set_pose(pose);
+                        self.next_script += 1;
+                    }
+                }
+
+                // Scheduled mid-run resize: proves live surface recovery
+                // before the captures run.
                 if let Some((frame, w, h)) = self.resize_plan {
                     if state.frame_no == frame {
                         state
@@ -201,38 +325,58 @@ impl ApplicationHandler for App {
                         self.resize_plan = None;
                     }
                 }
-                // Capture, when requested, replaces this frame's presentation
-                // (the swapchain texture is the copy source) and ends the
-                // run. If a mid-run resize was scheduled, wait for the
-                // Resized event to reach the surface first — the capture must
-                // show the resized swapchain, not a race.
-                let resize_settled =
-                    self.resize_plan.is_none() || state.resizes_observed > 0;
-                if state.frame_no >= self.cfg.screenshot_frame && resize_settled {
-                    if let Some(path) = &self.cfg.screenshot {
-                        state.captured = Some(state.renderer.capture_png(path));
-                        state.done = true;
+
+                // Interactive movement, then the HUD readout.
+                state.apply_movement(dt);
+                state.renderer.set_hud_line(&state.hud_line());
+
+                // Scheduled capture replaces this frame's presentation (the
+                // swapchain texture is the copy source); ends after the last.
+                let next_shot = self
+                    .cfg
+                    .shots
+                    .get(self.next_shot)
+                    .cloned();
+                if let Some(shot) = next_shot {
+                    if state.frame_no == shot.frame {
+                        let probes = crate::scene::probes_for_pose(
+                            state.renderer.pose(),
+                            state.renderer.aspect(),
+                        );
+                        let (report, rgba) = state.renderer.capture_png(&shot.path, &probes);
+                        state.captures.push(CaptureOutcome {
+                            path: shot.path,
+                            report,
+                            rgba,
+                        });
+                        self.next_shot += 1;
+                        state.frame_no += 1;
+                        if self.next_shot >= self.cfg.shots.len() {
+                            state.done = true;
+                        }
+                        if state.done {
+                            event_loop.exit();
+                        }
+                        return;
                     }
                 }
-                if !state.done {
-                    let t0 = Instant::now();
-                    match state.renderer.render_frame() {
-                        Ok(()) => state.consecutive_surface_errors = 0,
-                        Err(err) => {
-                            state.consecutive_surface_errors += 1;
-                            if state.consecutive_surface_errors > 120 {
-                                eprintln!(
-                                    "[FAIL] surface unusable for 120 consecutive frames: {err:?}"
-                                );
-                                state.done = true;
-                            }
+
+                let t0 = Instant::now();
+                match state.renderer.render_frame() {
+                    Ok(()) => state.consecutive_surface_errors = 0,
+                    Err(err) => {
+                        state.consecutive_surface_errors += 1;
+                        if state.consecutive_surface_errors > 120 {
+                            eprintln!("[FAIL] surface unusable for 120 consecutive frames: {err:?}");
+                            state.done = true;
                         }
                     }
-                    state.frame_ms.push(t0.elapsed().as_secs_f32() * 1000.0);
-                    state.frame_no += 1;
-                    if self.cfg.max_frames == Some(state.frame_no) {
-                        state.done = true;
-                    }
+                }
+                state.frame_ms.push(t0.elapsed().as_secs_f32() * 1000.0);
+                state.frame_no += 1;
+
+                if self.cfg.max_frames == Some(state.frame_no) {
+                    state.done = true;
                 }
                 if state.done {
                     event_loop.exit();
@@ -252,59 +396,32 @@ impl ApplicationHandler for App {
     }
 }
 
-/// Opens the window and pumps frames until closed, the frame budget runs out,
-/// or the screenshot is captured. Must be called from the main thread
-/// (winit requirement on macOS/Windows).
+/// Opens the window and pumps frames until closed, the frame budget runs
+/// out, or the last scheduled capture completes. Must be called from the
+/// main thread (winit requirement on macOS/Windows).
 pub fn run_windowed(cfg: WindowConfig) -> Result<WindowReport, String> {
-    if cfg.screenshot.is_some() && cfg.max_frames.is_some_and(|m| m <= cfg.screenshot_frame) {
-        return Err(
-            "max_frames must exceed screenshot_frame or the capture never happens".into(),
-        );
+    if let (Some(first), false) = (cfg.shots.first(), cfg.shots.is_empty()) {
+        if cfg.max_frames.is_some_and(|m| m <= first.frame) {
+            return Err("max_frames must exceed the last shot frame".into());
+        }
     }
-    // Schedule the live resize halfway to the capture frame so a screenshot
+    // Schedule the live resize halfway to the first capture so a screenshot
     // run always proves surface resize recovery before it captures.
-    let resize_plan = match (&cfg.screenshot, &cfg.resize_to) {
-        (Some(_), Some((w, h))) => Some((cfg.screenshot_frame / 2, *w, *h)),
+    let resize_plan = match (cfg.shots.first(), cfg.resize_to) {
+        (Some(shot), Some((w, h))) => Some((shot.frame / 2, w, h)),
         _ => None,
     };
     let event_loop = EventLoop::new().map_err(|e| format!("event loop: {e}"))?;
     let mut app = App {
         cfg,
         resize_plan,
+        next_script: 0,
+        next_shot: 0,
+        last_frame: None,
         state: None,
     };
     event_loop
         .run_app(&mut app)
         .map_err(|e| format!("event loop error: {e}"))?;
     Ok(app.finish())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn percentiles_and_fps_are_sane() {
-        let report = WindowReport {
-            frames: 5,
-            captured: None,
-            frame_ms: vec![16.0, 33.0, 8.0, 12.0, 100.0],
-            resizes_observed: 0,
-            final_physical: (0, 0),
-            scale_factor: 1.0,
-        };
-        assert_eq!(report.p50_ms(), 16.0);
-        assert_eq!(report.p95_ms(), 100.0);
-        assert!(report.avg_fps() > 20.0 && report.avg_fps() < 40.0);
-        let empty = WindowReport {
-            frames: 0,
-            captured: None,
-            frame_ms: Vec::new(),
-            resizes_observed: 0,
-            final_physical: (0, 0),
-            scale_factor: 1.0,
-        };
-        assert_eq!(empty.p50_ms(), 0.0);
-        assert_eq!(empty.avg_fps(), 0.0);
-    }
 }

@@ -105,14 +105,14 @@ p3d-atlas: ## Render a POORCRAFT 3D seed atlas PNG: make p3d-atlas SEED=1
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --atlas $(if $(SEED),$(SEED),1)
 
-p3d-play: ## Open the POORCRAFT 3D windowed renderer (R3DV-001); Esc closes
+p3d-play: ## Interactive POORCRAFT 3D 3D window: click to look, WASD+Space/Shift move, Esc quits
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play
 
-p3d-shot: ## Windowed screenshot proof (opens a window, resizes it, captures + verifies): make p3d-shot [PNG=path] [FRAME=40]
+p3d-shot: ## Windowed 3D proof (two poses: face-flip + parallax + live resize, verified): make p3d-shot [PNG=path]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
-	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-shot $(if $(PNG),$(PNG),poorcraft3d/apps/poorcraft3d/shots/windowed_bootstrap.png) $(if $(FRAME),$(FRAME),40) || exit 1; \
-	echo "P3D WINDOWED SHOT OK"
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-shot $(if $(PNG),$(PNG),poorcraft3d/apps/poorcraft3d/shots/windowed_3d.png) || exit 1; \
+	echo "P3D WINDOWED 3D SHOT OK"
 
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:
