@@ -299,14 +299,8 @@ fn main() {
             let cfg = pc3d_render::WindowConfig {
                 max_frames: Some(45),
                 shots: vec![
-                    pc3d_render::Shot {
-                        frame: 20,
-                        path: std::path::PathBuf::from(&out),
-                    },
-                    pc3d_render::Shot {
-                        frame: 40,
-                        path: std::path::PathBuf::from(&out_b.clone()),
-                    },
+                    pc3d_render::Shot::new(20, std::path::PathBuf::from(&out)),
+                    pc3d_render::Shot::new(40, std::path::PathBuf::from(&out_b.clone())),
                 ],
                 camera_script: vec![(25, pc3d_render::scene::pose_b())],
                 resize_to: Some((800.0, 500.0)),
@@ -501,8 +495,8 @@ fn main() {
                 resize_to: Some((800.0, 500.0)),
                 camera_script: vec![(0, wall_pose)],
                 shots: vec![
-                    Shot { frame: 20, path: std::path::PathBuf::from(&base) },
-                    Shot { frame: 40, path: std::path::PathBuf::from(&after_path.clone()) },
+                    Shot::new(20, std::path::PathBuf::from(&base)),
+                    Shot::new(40, std::path::PathBuf::from(&after_path.clone())),
                 ],
                 frame_hooks: vec![
                     (
@@ -661,18 +655,9 @@ fn main() {
                 resize_to: Some((800.0, 500.0)),
                 camera_script: vec![(0, hill_pose)],
                 shots: vec![
-                    Shot {
-                        frame: 30,
-                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_terrain_hills.png")),
-                    },
-                    Shot {
-                        frame: 70,
-                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_terrain_cliff.png")),
-                    },
-                    Shot {
-                        frame: 110,
-                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_terrain_cave.png")),
-                    },
+                    Shot::new(30, format!("{out_dir}/windowed_terrain_hills.png")),
+                    Shot::new(70, format!("{out_dir}/windowed_terrain_cliff.png")),
+                    Shot::new(110, format!("{out_dir}/windowed_terrain_cave.png")),
                 ],
                 frame_hooks: vec![
                     (
@@ -806,24 +791,9 @@ fn main() {
                 resize_to: Some((800.0, 500.0)),
                 camera_script: vec![(0, poses[0]), (120, poses[1]), (240, poses[2])],
                 shots: vec![
-                    Shot {
-                        frame: 110,
-                        path: std::path::PathBuf::from(format!(
-                            "{out_dir}/windowed_stream_walk1.png"
-                        )),
-                    },
-                    Shot {
-                        frame: 230,
-                        path: std::path::PathBuf::from(format!(
-                            "{out_dir}/windowed_stream_walk2.png"
-                        )),
-                    },
-                    Shot {
-                        frame: 350,
-                        path: std::path::PathBuf::from(format!(
-                            "{out_dir}/windowed_stream_walk3.png"
-                        )),
-                    },
+                    Shot::new(110, format!("{out_dir}/windowed_stream_walk1.png")),
+                    Shot::new(230, format!("{out_dir}/windowed_stream_walk2.png")),
+                    Shot::new(350, format!("{out_dir}/windowed_stream_walk3.png")),
                 ],
                 frame_hooks: vec![(
                     0,
@@ -979,14 +949,8 @@ fn main() {
                 resize_to: Some((800.0, 500.0)),
                 camera_script: vec![(0, pose)],
                 shots: vec![
-                    Shot {
-                        frame: 25,
-                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_water_before.png")),
-                    },
-                    Shot {
-                        frame: 55,
-                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_water_after.png")),
-                    },
+                    Shot::new(25, format!("{out_dir}/windowed_water_before.png")),
+                    Shot::new(55, format!("{out_dir}/windowed_water_after.png")),
                 ],
                 frame_hooks: vec![
                     (
@@ -1074,9 +1038,204 @@ fn main() {
                 }
             }
         }
+        Some("--play-city") => {
+            // R3DV-008: castle/city modules from the placement authorities.
+            // Windowed captures: the capital + town overview, then the gate
+            // close-up (a real opening between the pillars).
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            let seed: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(3);
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::city::{city_scene, mesh_city};
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::coords::RegionCoord;
+
+            let (gen, _center, layout, plan) = city_scene(seed, RegionCoord { x: 0, z: 0 });
+            let gen = std::rc::Rc::new(gen);
+            let (cverts, cidx, info) = mesh_city(&gen, &layout, &plan);
+            for kind in ["gatehouse", "wall", "tower", "home", "workshop"] {
+                assert!(
+                    info.kind_present(kind),
+                    "silhouette {kind} missing before launch"
+                );
+            }
+            println!(
+                "CITY: {} verts / {} tris across {} kinds; {} collision cells, {} nav anchors",
+                info.vertices,
+                info.triangles,
+                info.tris_by_kind.len(),
+                info.collision_cells.len(),
+                info.nav_anchors.len()
+            );
+
+            // Terrain under everything (city bounds + margin, 3 y levels).
+            let mut patches = Vec::new();
+            let pmin = (
+                (info.bounds_min[0] as i32).div_euclid(16) - 1,
+                (info.bounds_min[2] as i32).div_euclid(16) - 1,
+            );
+            let pmax = (
+                (info.bounds_max[0] as i32).div_euclid(16) + 1,
+                (info.bounds_max[2] as i32).div_euclid(16) + 1,
+            );
+            let y_level = ((info.bounds_min[1] + 2.0) as i32).div_euclid(16).max(0);
+            for px in pmin.0..=pmax.0 {
+                for pz in pmin.1..=pmax.1 {
+                    for py in (y_level - 1)..=(y_level + 1) {
+                        patches.push(pc3d_world::coords::PatchCoord { x: px, y: py, z: pz });
+                    }
+                }
+            }
+            let span = (info.bounds_max[0] - info.bounds_min[0])
+                .max(info.bounds_max[2] - info.bounds_min[2])
+                .max(16.0);
+            let overview = pc3d_render::CameraPose::new(
+                [
+                    (info.bounds_min[0] + info.bounds_max[0]) / 2.0,
+                    (info.bounds_min[1] + info.bounds_max[1]) / 2.0 + span * 0.9,
+                    (info.bounds_min[2] + info.bounds_max[2]) / 2.0 + span * 0.8,
+                ],
+                0.0,
+                (-0.75f32).atan2(1.3),
+            );
+            // Gate close-up (eye between the gate and its market).
+            let gate = layout
+                .modules
+                .iter()
+                .find(|m| m.kind == pc3d_world::castle::ModuleKind::GateHouse)
+                .expect("gatehouse");
+            let gate_base = (0..2)
+                .flat_map(|dz| (0..3).map(move |dx| (dx, dz)))
+                .map(|(dx, dz)| {
+                    gen.effective_surface_mm(
+                        (gate.origin.x + dx) as i64 * 1000,
+                        (gate.origin.z + dz) as i64 * 1000,
+                    ) as f32
+                        / 1000.0
+                })
+                .fold(f32::MAX, f32::min);
+            let mut gate_eye = [
+                gate.origin.x as f32 + 1.5,
+                gate_base + 1.9,
+                gate.origin.z as f32 + 2.4,
+            ];
+            let gate_surf = gen
+                .effective_surface_mm((gate_eye[0] * 1000.0) as i64, (gate_eye[2] * 1000.0) as i64)
+                as f32
+                / 1000.0;
+            gate_eye[1] = gate_eye[1].max(gate_surf + 0.5);
+            let arch_mid = [
+                gate.origin.x as f32 + 1.5,
+                gate_base + 2.0,
+                gate.origin.z as f32 + 1.0,
+            ];
+            let gd = [
+                arch_mid[0] - gate_eye[0],
+                arch_mid[1] - gate_eye[1],
+                arch_mid[2] - gate_eye[2],
+            ];
+            let gate_pose = pc3d_render::CameraPose::new(
+                gate_eye,
+                (-gd[0]).atan2(-gd[2]),
+                (gd[1] / (gd[0] * gd[0] + gd[1] * gd[1] + gd[2] * gd[2]).sqrt()).asin(),
+            );
+
+            let g = gen.clone();
+            let cv = cverts.clone();
+            let ci = cidx.clone();
+            let patches_hook = patches.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — city".into(),
+                max_frames: Some(70),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![(0, overview)],
+                shots: vec![
+                    Shot::new(25, format!("{out_dir}/windowed_city.png")),
+                    Shot::new(55, format!("{out_dir}/windowed_city_gate.png"))
+                        .sky(false),
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r| {
+                            r.set_placeholder_scene(false);
+                            let t0 = std::time::Instant::now();
+                            r.load_terrain(&g, &patches_hook);
+                            println!(
+                                "TERRAIN under city: {} patches in {} ms",
+                                patches_hook.len(),
+                                t0.elapsed().as_millis()
+                            );
+                            r.load_city(&cv, &ci);
+                            r.set_pose(overview);
+                        }),
+                    ),
+                    (30, Box::new(move |r| r.set_pose(gate_pose))),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 2 {
+                        eprintln!("[FAIL] expected 2 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(4) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    // The gate close-up: opening differs from pillar stone.
+                    let (w, h) = (
+                        report.captures[1].report.width,
+                        report.captures[1].report.height,
+                    );
+                    let aspect = w as f32 / h as f32;
+                    let arch_ndc =
+                        pc3d_render::scene::project_ndc(gate_pose, aspect, arch_mid);
+                    let pillar = [
+                        gate.origin.x as f32 + 0.95,
+                        gate_base + 2.0,
+                        gate.origin.z as f32 + 1.0,
+                    ];
+                    let pillar_ndc = pc3d_render::scene::project_ndc(gate_pose, aspect, pillar);
+                    let arch_px =
+                        pc3d_render::scene::sample_ndc(&report.captures[1].rgba, w, h, arch_ndc);
+                    let pillar_px =
+                        pc3d_render::scene::sample_ndc(&report.captures[1].rgba, w, h, pillar_ndc);
+                    let delta: f32 = (0..3).map(|i| (arch_px[i] - pillar_px[i]).abs()).sum();
+                    if delta < 0.08 {
+                        eprintln!(
+                            "[FAIL] gate opening not open: {arch_px:?} vs {pillar_px:?}"
+                        );
+                        std::process::exit(1);
+                    }
+                    println!("GATE OK: opening/pillar delta {delta:.2}");
+                    println!(
+                        "WINDOWED CITY PROOF PASS -> {} + {}",
+                        report.captures[0].path.display(),
+                        report.captures[1].path.display()
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

@@ -10,3 +10,4 @@ pollster = "0.3"
 bytemuck = { version = "1.16", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 pc3d_world = { path = "../pc3d_world" }
+pc3d_assets = { path = "../pc3d_assets" }

@@ -4726,3 +4726,60 @@ the valley dips below the strip); no foam/reflection; sea water (Coast
 Water cells) is not meshed yet — the strip family covers rivers; time
 animation is wall-clock in play mode, frozen at 0 for proofs. Next:
 R3DV-008 castle/city module renderer.
+
+## 2026-09-07 — R3DV-008: castle/city module renderer from the placement authorities
+
+WHAT: The place is visible. pc3d_render::city renders ORIGINAL placeholder
+silhouettes (level-1 per the presentation doc: primitive shapes, materials,
+ids, bounds, collision, anchors) for a whole city: the CAPITAL from
+castle::plan_capital (keep with pitched roof + corner turrets, gatehouse
+with a REAL opening between its pillars, crenellated curtain, towers,
+barracks/chapel/market) and the TOWN from settlement_plan::plan (homes
+with pitched roofs, workshop with chimney + overhanging slab, well,
+watchtower, Bed/Work/Idle anchors). The town plans one region EAST of the
+capital so the two placement authorities never collide. Curtain walls are
+a documented DERIVATION: the circuit between the planner's corner towers,
+with a gate gap on the approach axis.
+
+HOW: city.rs (prism/roof mesh helpers; per-kind silhouettes; CityInfo
+with tris-by-kind, world bounds, collision_cells = the footprint union,
+nav_anchors = capital manifest ports + settlement bed/work/plaza FILTERED
+walkable and grounded on the LOCAL terrain; city_scene deterministically
+finds a full scene). pc3d_assets gains material_albedo — the material
+registry keyed by beta-critical manifest names (a coverage test forces the
+registry to track the whole manifest; the city's three materials have
+manifest rows naming consumer capital_module_renderer). Renderer:
+load_city + opaque draw; the static mesh path moved to u32 indices after
+the city's 1008-patch terrain load OVERFLOWED u16 concatenation — the
+suite caught two R3DV-005 GPU tests rendering garbled frames from a stale
+Uint16 bind (found, fixed, both green again). CLI --play-city + make
+p3d-city.
+
+EVIDENCE: 5 unit tests (five silhouettes present; vertices inside
+per-kind bounds; collision/nav consistency — footprints covered, idle ring
++ gate approach walkable, anchors grounded; manifest materials; wall
+circuit + gate gap) + the full GPU proof (wall/tower south faces
+pixel-exact; home roof slope and workshop roof slab probed from raised
+vantages — tight rings occlude walls but never roofs; gate arch differs
+from pillar stone by delta 0.29 with the pillar verified as lit stone).
+Windowed: overview + gate close-up at 800x500 after mid-run resize; 1008
+terrain patches under the city (22 s one-time load); frame p50 29.3 ms /
+38.7 fps avg; PNGs human-inspected PASS (a walled capital on the hill,
+town beside it; the gate close-up shows the dark opening with light
+through it).
+
+BUGS/LESSONS FOUND BY THE PROOFS (all fixed): u16 index overflow on large
+static loads (u32 path + the stale-bind fix); the settlement plan's own
+internal overlaps are DATA TRUTHS, not renderer bugs (the plaza well cell
+is idle AND a building; roads are driveways from the well to building
+cells — the tests now assert the renderer's filtered bindings, not the
+plan's internals); probe vantages must respect tight rings (roofs from
+above), rising terrain (eyes above the local surface), and the plan
+putting the market 3 m south of the gate (close gate vantage); anchors
+must ground on the LOCAL column, not the module floor.
+
+HONESTLY DEFERRED: kit signature modules render as generic tall blocks
+(faction variation is R3DV-010); no interiors/doors on silhouettes; the
+capital and town roads are not rendered as road meshes; city collision is
+exposed as data but not yet wired into player movement (R3DV-011). Next:
+R3DV-009 NPC renderer and city anchors.

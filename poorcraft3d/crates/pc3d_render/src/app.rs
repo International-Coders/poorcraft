@@ -23,6 +23,24 @@ pub struct Shot {
     /// Frame number at which the presented swapchain frame is captured.
     pub frame: u64,
     pub path: PathBuf,
+    /// Verify the sky probe on this capture (false for close-ups whose
+    /// frame legitimately contains no sky).
+    pub sky: bool,
+}
+
+impl Shot {
+    pub fn new(frame: u64, path: impl Into<PathBuf>) -> Self {
+        Self {
+            frame,
+            path: path.into(),
+            sky: true,
+        }
+    }
+
+    pub fn sky(mut self, sky: bool) -> Self {
+        self.sky = sky;
+        self
+    }
 }
 
 /// A callback run once at a scheduled frame, before that frame's capture or
@@ -444,9 +462,10 @@ impl ApplicationHandler for App {
                     if state.frame_no == shot.frame {
                         let pose = state.renderer.pose();
                         let aspect = state.renderer.aspect();
-                        let probes = match self.cfg.probe_set {
-                            ProbeSet::Scene => crate::scene::probes_for_pose(pose, aspect),
-                            ProbeSet::SkyOnly => vec![crate::scene::Probe {
+                        let probes = match (self.cfg.probe_set, shot.sky) {
+                            (_, false) => vec![],
+                            (ProbeSet::Scene, _) => crate::scene::probes_for_pose(pose, aspect),
+                            (ProbeSet::SkyOnly, _) => vec![crate::scene::Probe {
                                 name: "sky_above_horizon",
                                 ndc: (0.0, 0.8),
                                 expected: crate::scene::to_srgb4(crate::scene::sky_color_linear(

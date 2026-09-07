@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-008: the city renders from the placement authorities
+
+`pc3d_render::city` renders a whole readable place — capital + town — with
+the simulation's plans as the sole placement authority.
+
+- **Silhouettes**: gatehouse with a real opening (GPU + windowed proof:
+  arch vs pillar delta 0.29), crenellated curtain derived between the
+  planner's corner towers with a gate gap on the approach axis, towers,
+  keep, chapel, market; town homes with pitched roofs, workshop with
+  chimney + roof slab, well, watchtower.
+- **Bindings**: collision = the footprint union (idle ring and gate
+  approach stay walkable — tested); nav anchors = manifest ports +
+  bed/work/plaza filtered walkable and grounded on local terrain.
+- **Materials from pc3d_assets**: a registry keyed by the beta-critical
+  manifest material names, coverage-tested against the whole manifest.
+- **A real regression found and fixed**: the static terrain path's u16
+  index concatenation overflowed on the city's 1,008-patch load; two
+  R3DV-005 GPU tests had silently garbled frames from a stale Uint16 bind
+  — the suite caught both, now u32 and green.
+- `--play-city` / `make p3d-city`: windowed overview + gate captures
+  (p50 29.3 ms, 38.7 fps), human-inspected PASS. Town plans one region
+  east so the two authorities never collide.
+
 ## 2026-09-07 — R3DV-007: river water from flow records
 
 `pc3d_render::water` renders rivers as transparent 3D strips whose every

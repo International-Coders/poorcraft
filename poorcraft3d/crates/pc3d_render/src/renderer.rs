@@ -303,16 +303,19 @@ pub struct Renderer {
     streamer: Option<crate::streaming::TerrainStreamer>,
     /// River water from flow records (R3DV-007).
     water: Option<crate::water::WaterSections>,
+    /// Castle/city modules from the placement authorities (R3DV-008).
+    city: Option<GpuMesh>,
     start: std::time::Instant,
     /// Frozen water time for deterministic proofs (None = wall clock).
     water_time_override: Option<f32>,
 }
 
-/// A plain vertex/index buffer pair.
+/// A plain vertex/index buffer pair (u16 or u32 indices).
 struct GpuMesh {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
+    u32_indices: bool,
 }
 
 impl GpuMesh {
@@ -332,7 +335,43 @@ impl GpuMesh {
             vertex_buffer,
             index_buffer,
             index_count: idx.len() as u32,
+            u32_indices: false,
         }
+    }
+
+    fn from_mesh_u32(
+        device: &wgpu::Device,
+        verts: &[crate::scene::SceneVertex],
+        idx: &[u32],
+    ) -> Self {
+        use wgpu::util::DeviceExt;
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh vertices"),
+            contents: bytemuck::cast_slice(verts),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh indices"),
+            contents: bytemuck::cast_slice(idx),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        Self {
+            vertex_buffer,
+            index_buffer,
+            index_count: idx.len() as u32,
+            u32_indices: true,
+        }
+    }
+
+    fn draw<'rp>(&self, pass: &mut wgpu::RenderPass<'rp>) {
+        let format = if self.u32_indices {
+            wgpu::IndexFormat::Uint32
+        } else {
+            wgpu::IndexFormat::Uint16
+        };
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.set_index_buffer(self.index_buffer.slice(..), format);
+        pass.draw_indexed(0..self.index_count, 0, 0..1);
     }
 }
 
@@ -375,6 +414,7 @@ impl Renderer {
             terrain: None,
             streamer: None,
             water: None,
+            city: None,
             start: std::time::Instant::now(),
             water_time_override: None,
         }
@@ -418,6 +458,7 @@ impl Renderer {
             terrain: None,
             streamer: None,
             water: None,
+            city: None,
             start: std::time::Instant::now(),
             water_time_override: None,
         }
@@ -473,9 +514,9 @@ impl Renderer {
         let mut idx = Vec::new();
         for coord in patches {
             let (v, i) = crate::terrain::mesh_patch_natural(gen, *coord);
-            let base = verts.len() as u16;
+            let base = verts.len() as u32;
             verts.extend(v);
-            idx.extend(i.iter().map(|k| k + base));
+            idx.extend(i.iter().map(|k| *k as u32 + base));
         }
         let stats = crate::terrain::TerrainStats {
             patches: patches.len(),
@@ -483,8 +524,15 @@ impl Renderer {
             triangles: idx.len() / 3,
             mesh_us: t0.elapsed().as_micros(),
         };
-        self.terrain = Some(GpuMesh::from_mesh(&self.ctx.device, &verts, &idx));
+        // u32 indices: concatenated vistas exceed the u16 range.
+        self.terrain = Some(GpuMesh::from_mesh_u32(&self.ctx.device, &verts, &idx));
         stats
+    }
+
+    /// Loads the castle/city module mesh (R3DV-008) built from the
+    /// placement authorities by `city::mesh_city`.
+    pub fn load_city(&mut self, verts: &[crate::scene::SceneVertex], idx: &[u16]) {
+        self.city = Some(GpuMesh::from_mesh(&self.ctx.device, verts, idx));
     }
 
     /// Attaches river water from flow records (R3DV-007).
@@ -900,14 +948,16 @@ impl Renderer {
         if let Some(streamer) = self.streamer.as_mut() {
             streamer.draw(&mut pass, &view_proj);
         } else if let Some(t) = &self.terrain {
-            pass.set_vertex_buffer(0, t.vertex_buffer.slice(..));
-            pass.set_index_buffer(t.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            pass.draw_indexed(0..t.index_count, 0, 0..1);
+            t.draw(&mut pass);
         }
         // 2b. Host-owned construction blocks (same lit pipeline; per-patch
         // buffers with content versions — only changed patches are remeshed).
         if let Some(con) = &self.construction {
             con.draw(&mut pass);
+        }
+        // 2b2. Castle/city modules (opaque, same lit pipeline).
+        if let Some(c) = &self.city {
+            c.draw(&mut pass);
         }
         // 2c. Transparent river water LAST among world geometry: depth-read
         // only, alpha blend — banks show through, terrain occludes.

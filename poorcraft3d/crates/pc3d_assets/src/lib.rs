@@ -313,6 +313,57 @@ pub fn beta_critical() -> Result<Manifest, Vec<String>> {
     validate_str(BETA_CRITICAL_JSON)
 }
 
+/// Placeholder material albedos (linear RGB) keyed by the manifest's
+/// material names — pc3d_assets owns material metadata (the architecture
+/// law); R3DV-010 replaces these flat colors with the real atlas. Only
+/// materials declared by beta-critical rows belong here.
+pub fn material_albedo(name: &str) -> Option<[f32; 3]> {
+    Some(match name {
+        "mat.castle_stone" => [0.62, 0.60, 0.56],
+        "mat.timber_roof" => [0.55, 0.30, 0.18],
+        "mat.timber_metal" => [0.48, 0.42, 0.38],
+        "mat.block_stone" => [0.55, 0.54, 0.50],
+        "mat.block_wood" => [0.45, 0.32, 0.20],
+        "mat.grass" => [0.30, 0.55, 0.22],
+        "mat.soil" => [0.45, 0.32, 0.20],
+        "mat.rock" => [0.55, 0.54, 0.50],
+        "mat.sand" => [0.80, 0.72, 0.48],
+        "mat.snow" => [0.92, 0.94, 0.97],
+        "mat.water_flow" => [0.24, 0.52, 0.85],
+        "mat.wood_metal" => [0.52, 0.44, 0.36],
+        "mat.npc_resident" => [0.72, 0.62, 0.50],
+        "mat.npc_worker" => [0.60, 0.48, 0.36],
+        "mat.npc_guard" => [0.42, 0.44, 0.50],
+        "mat.anchor_bed" => [0.70, 0.55, 0.45],
+        "mat.anchor_work" => [0.50, 0.60, 0.70],
+        "mat.anchor_idle" => [0.55, 0.68, 0.55],
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod material_tests {
+    use super::*;
+
+    #[test]
+    fn registry_covers_every_beta_critical_material() {
+        let beta = beta_critical().expect("manifest");
+        for a in &beta.assets {
+            assert!(
+                material_albedo(&a.material).is_some(),
+                "material {} ({}) missing from the registry",
+                a.material,
+                a.id
+            );
+        }
+    }
+
+    #[test]
+    fn registry_refuses_unknown_materials() {
+        assert!(material_albedo("mat.plasma_gun").is_none());
+    }
+}
+
 impl Manifest {
     pub fn get(&self, id: &str) -> Option<&AssetRow> {
         self.assets.iter().find(|a| a.id == id)

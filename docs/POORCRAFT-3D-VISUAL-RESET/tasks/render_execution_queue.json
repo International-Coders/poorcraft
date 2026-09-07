@@ -211,7 +211,7 @@
     {
       "id": "R3DV-008",
       "title": "Castle and city module renderer",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": [
         "R3DV-003",
         "R3DV-006"
@@ -227,12 +227,24 @@
       "evidence": [
         "tests",
         "city_windowed_png"
-      ]
+      ],
+      "completed_evidence": {
+        "crate": "pc3d_render/src/city.rs \u2014 the PLACEMENT AUTHORITIES are the simulation: castle::plan_capital for capital modules (Keep/GateHouse/Towers/Barracks/Chapel/Market), settlement_plan::plan for the town (Home/Workshop/Well/Watchtower + Bed/Work/Idle anchors); the renderer never invents a decorative capital. The town plans one region EAST of the capital (256 m) so the two authorities never collide \u2014 a keep on the plaza would be a data conflict, not a rendering bug",
+        "gate": "gatehouse silhouette = two pillars + lintel + merlons with a REAL opening between the pillars; GPU + windowed proofs: the arch pixel differs from the pillar stone by delta 0.29 (something shows through \u2014 terrain/courtyard), and the pillar is verified as lit stone",
+        "wall": "curtain walls are the DERIVED connection between the planner's corner towers (a rectangle circuit in 3 m wall segments, crenellated silhouette), with a GATE GAP on the approach axis south of the gatehouse so the planned road stays navigable \u2014 documented derivation, every wall cell in the collision set",
+        "tower": "2x2 stone shaft + overhanging cap + timber top; south-face probe verified pixel-exact (lit stone)",
+        "house": "town Home = timber walls + pitched roof; roof-SLOPE probe verified from a raised vantage (tight rings make walls occludable; roofs are not)",
+        "workshop": "town Workshop = metal hall + overhanging timber roof slab + stone chimney; roof-slab-top probe verified from directly above",
+        "collision_and_nav_bindings": "CityInfo.collision_cells = union of every module/building footprint (tested: all footprints present, idle ring + gate approach stay walkable); nav_anchors = capital manifest PORTS + settlement bed/work/plaza cells FILTERED to walkable and grounded on the LOCAL terrain surface (a port downhill from its module no longer floats); gatehouse ports exist as anchors",
+        "materials": "colors come from pc3d_assets::material_albedo \u2014 a registry keyed by the beta-critical manifest material names (tests: the registry covers EVERY beta-critical material and refuses unknowns; the city materials castle_stone/timber_roof/timber_metal have manifest rows naming consumer capital_module_renderer)",
+        "evidence_runs": "poorcraft3d --play-city + make p3d-city: windowed overview + gate close-up captures (800x500, live swapchain after mid-run resize), gate delta 0.29, 1008 terrain patches under the city (22 s one-time load), frame p50 29.3 ms at 38.7 fps avg; PNGs human-inspected PASS (walled capital: keep with pitched roof + corner turrets, crenellated curtain, towers, gate with pillars/lintel/merlons, chapel + market, town of pitched-roof homes beside it)",
+        "tests": "5 unit tests (five silhouettes present, vertices inside per-kind bounds, collision/nav consistency, manifest materials, wall circuit + gate gap) + the full GPU proof; a REAL regression was found and fixed en route: the static terrain path's u16 index concatenation overflowed on 1008-patch city loads \u2014 now u32 (two R3DV-005 GPU tests had garbled frames from a stale Uint16 bind; the suite caught it)"
+      }
     },
     {
       "id": "R3DV-009",
       "title": "Visible NPCs and Bed/Work/Idle inspection",
-      "status": "BLOCKED_BY_R3DV-008",
+      "status": "NEXT",
       "depends_on": [
         "R3DV-008"
       ],
