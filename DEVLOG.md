@@ -4662,3 +4662,67 @@ the streamer meshes pure final_solid and construction stays a separate
 layer until R3DV-011 unifies them; no horizon impostor beyond the Lod
 ring (Far tier loads only where the Macro tier is enabled). Next:
 R3DV-007 river and water mesh from flow records.
+
+## 2026-09-07 — R3DV-007: river water mesh from flow records (transparent, directed, locally updatable)
+
+WHAT: Rivers are now visible 3D water. pc3d_render::water builds one
+world-space strip section per river region — region center to downstream
+center — with EVERY visual parameter from the authoritative flow records:
+direction from FlowRecord.direction (a brightness wave whose phase
+advances along the flow axis, animated by time x the record's speed
+class — never a decorative scroll), width and depth from discharge, alpha
+from depth. The pass is transparent (alpha blend, depth READ without
+write) drawn after all opaque geometry, so banks show through the surface
+and terrain correctly occludes. A channel edit goes through P3D-303:
+RiverGraph::build with an elevation override (the dam), the flow table
+rebuilt with dirty-region revisions, and ONLY the changed sections remesh
+— the windowed dam proof remeshed 5 of 281 sections while the far course
+stayed pixel-identical.
+
+HOW: water.rs (WaterVertex pos/dir/speed/alpha; strip_for sampling the
+terrain surface along the centerline every 4 m; WaterSections keyed by
+region with revision-gated remeshing; water_color CPU mirror of the
+shader; visible_water_crossing raycast that finds the first water surface
+the view actually reaches; proof_scene deterministically growing the
+watershed until rivers exist and enlarging it to contain the anchor).
+shaders/scene.wgsl gains vs_water/fs_water (globals.tan_aspect.z carries
+time). renderer.rs: water pipeline (blend, depth-read-only), attach/
+detach_water, update_water, set_water_time for deterministic proofs.
+CLI --play-water + make p3d-water: windowed before/after dam captures
+with dirty-section stats and image-diff assertions.
+
+EVIDENCE: 334/334 pc3d tests (+5). GPU proof: transparency via a CONTROL
+RENDER — the same frame with water detached is the pixel-exact under
+color, and the with-water pixel is asserted to be a true alpha blend
+(per-channel coefficient in 0.2-0.95); direction via image deltas (5 m
+along the flow differ more than a half-width across); the dam remeshed 5
+sections of 281 with a 1.94% image change. Unit tests: strips carry the
+record's direction; width/depth monotone in discharge; a dam revises a
+local record set while 20+ distant records keep revisions; unchanged
+tables cost zero mesh work; the current-pattern math pinned. Windowed:
+56 frames p50 1.05 ms / p95 2.03 ms; before: 281 sections / 45,818
+verts / 31 ms; after dam: 5 remeshed / 996 verts / 1.3 ms; PNGs
+human-inspected PASS (transparent river with visible current stripes
+winding through the valley; the dam reroutes the near course while the
+far course stays identical).
+
+BUGS FOUND BY THE PROOFS (fixed pre-commit): river_edges() lists
+sorted-ADJACENT regions, not graph links — the edge picker now walks real
+downstream pairs; a stray /2.2 in the strip origin displaced the strip
+~12 m off the centerline (removed); probes at the geometric midpoint hit
+a reach where an intervening hill buries the strip (this terrain does
+not carve river valleys) — probe points are now found by raycasting for
+the first VISIBLE water crossing, with blocked crossings continuing the
+scan instead of aborting; the exact-blend CPU mirror was over-constrained
+(strip height interpolates over 4 m cross-sections) — replaced by the
+rigorous control-render comparison; the watershed lattice could be
+smaller than the anchor river, killing raycasts at the edge (the setup
+now grows to contain the anchor with margin).
+
+HONESTLY DEFERRED: water follows the terrain's analytic surface (no
+carved river beds — the generator has no valley carving yet, so strips
+can be buried by hills between cross-sections; visible water is where
+the valley dips below the strip); no foam/reflection; sea water (Coast
+Water cells) is not meshed yet — the strip family covers rivers; time
+animation is wall-clock in play mode, frozen at 0 for proofs. Next:
+R3DV-008 castle/city module renderer.

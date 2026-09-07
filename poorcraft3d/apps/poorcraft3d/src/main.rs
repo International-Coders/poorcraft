@@ -925,9 +925,158 @@ fn main() {
                 }
             }
         }
+        Some("--play-water") => {
+            // R3DV-007: river water from flow records. Windowed before/
+            // after the dam edit: transparent water in perspective with the
+            // record-driven current, then a local channel edit that
+            // remeshes only the dirty sections.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            let seed: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(3);
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::water::{proof_scene, river_pose};
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::flow::FlowTable;
+            use pc3d_world::hydro::RiverGraph;
+
+            let (gen, graph, t0, (a, b)) = proof_scene(seed);
+            let graph = std::rc::Rc::new(graph);
+            let t0 = std::rc::Rc::new(t0);
+            let gen = std::rc::Rc::new(gen);
+            let mid_x = ((a.0 as f32 + 0.5) + (b.0 as f32 + 0.5)) / 2.0 * 256.0;
+            let mid_z = ((a.1 as f32 + 0.5) + (b.1 as f32 + 0.5)) / 2.0 * 256.0;
+            let mid_y = gen
+                .effective_surface_mm((mid_x * 1000.0) as i64, (mid_z * 1000.0) as i64)
+                as f32
+                / 1000.0;
+            let mid_patch = pc3d_world::coords::PatchCoord {
+                x: (mid_x as i32).div_euclid(16),
+                y: (mid_y as i32).div_euclid(16),
+                z: (mid_z as i32).div_euclid(16),
+            };
+            let pose = river_pose(&graph, &gen, a, b);
+            let graph0 = graph.clone();
+            let table0 = t0.clone();
+            let graph_edit = graph.clone();
+            let table_edit = t0.clone();
+
+            let g0 = gen.clone();
+            let g_edit = gen.clone();
+            let stats_rc = std::rc::Rc::new(std::cell::RefCell::new(Vec::<(
+                String,
+                pc3d_render::WaterStats,
+            )>::new()));
+            let st0 = stats_rc.clone();
+            let st1 = stats_rc.clone();
+
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — river water".into(),
+                max_frames: Some(60),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![(0, pose)],
+                shots: vec![
+                    Shot {
+                        frame: 25,
+                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_water_before.png")),
+                    },
+                    Shot {
+                        frame: 55,
+                        path: std::path::PathBuf::from(format!("{out_dir}/windowed_water_after.png")),
+                    },
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r| {
+                            r.set_placeholder_scene(false);
+                            r.load_terrain(&g0, &pc3d_render::terrain::neighborhood3(mid_patch));
+                            r.attach_water();
+                            let st = r.update_water(&g0, &graph0, &table0);
+                            st0.borrow_mut().push(("before".into(), st));
+                            r.set_water_time(Some(0.0));
+                            r.set_pose(pose);
+                        }),
+                    ),
+                    (
+                        35,
+                        Box::new(move |r| {
+                            // DAM the downstream region: elevation override
+                            // reroutes the river locally (P3D-303), the
+                            // dirty-region table bumps only changed records,
+                            // and only those sections remesh.
+                            let mut overrides = std::collections::BTreeMap::new();
+                            overrides.insert(b, 200);
+                            let g1 = RiverGraph::build(&g_edit, graph_edit.half, &overrides);
+                            let t1 = FlowTable::from_graph_with_revisions(Some(&table_edit), &g1);
+                            let st = r.update_water(&g_edit, &g1, &t1);
+                            st1.borrow_mut().push(("after_dam".into(), st));
+                        }),
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 2 {
+                        eprintln!("[FAIL] expected 2 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(8) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    for (name, st) in stats_rc.borrow().iter() {
+                        println!(
+                            "WATER {name}: {} sections, {} added, {} remeshed, {} verts, {} us",
+                            st.sections, st.added, st.remeshed, st.vertices, st.mesh_us
+                        );
+                    }
+                    let before = &stats_rc.borrow()[0].1;
+                    let after = &stats_rc.borrow()[1].1;
+                    if after.remeshed == 0 || after.remeshed >= before.sections {
+                        eprintln!("[FAIL] dam edit did not stay local: {after:?}");
+                        std::process::exit(1);
+                    }
+                    let diff = pc3d_render::scene::pixel_difference_fraction(
+                        &report.captures[0].rgba,
+                        &report.captures[1].rgba,
+                    );
+                    if diff < 0.005 {
+                        eprintln!("[FAIL] the dam must change the image ({diff})");
+                        std::process::exit(1);
+                    }
+                    println!(
+                        "DAM EDIT OK: {}/{} sections remeshed, image changed {:.2}%",
+                        after.remeshed,
+                        before.sections,
+                        diff * 100.0
+                    );
+                    println!(
+                        "WINDOWED WATER PROOF PASS -> {} + {}",
+                        report.captures[0].path.display(),
+                        report.captures[1].path.display()
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed>|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

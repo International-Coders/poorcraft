@@ -124,3 +124,35 @@ fn fs_hud(in: HudOut) -> @location(0) vec4f {
     let backing = vec4f(0.05, 0.07, 0.10, 0.55);
     return mix(backing, text, a);
 }
+
+// --- Water (R3DV-007): transparent strip, current from the flow record ---
+
+struct WaterIn {
+    @location(0) pos: vec3f,
+    @location(1) dir: vec2f,
+    @location(2) speed: f32,
+    @location(3) alpha: f32,
+};
+
+struct WaterOut {
+    @builtin(position) pos: vec4f,
+    @location(0) color: vec4f,
+};
+
+@vertex
+fn vs_water(v: WaterIn) -> WaterOut {
+    var out: WaterOut;
+    out.pos = globals.view_proj * vec4f(v.pos, 1.0);
+    // The current's phase advances along the flow direction; time moves the
+    // wave downstream at the record's speed class.
+    let phase = dot(v.pos.xz, v.dir);
+    let stripe = 0.5 + 0.5 * sin(phase * 0.8 - globals.tan_aspect.z * v.speed * 3.0);
+    let base = vec3f(0.24, 0.52, 0.85);
+    out.color = vec4f(base * (0.7 + 0.3 * stripe), v.alpha);
+    return out;
+}
+
+@fragment
+fn fs_water(in: WaterOut) -> @location(0) vec4f {
+    return in.color;
+}

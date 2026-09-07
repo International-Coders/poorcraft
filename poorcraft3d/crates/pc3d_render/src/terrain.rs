@@ -464,24 +464,23 @@ pub fn neighborhood3(center: PatchCoord) -> Vec<PatchCoord> {
     v
 }
 
-/// A view-center probe derived by RAYCASTING the authoritative query: the
-/// first solid cell the sightline enters, the face it enters through, and
-/// that face's expected color — robust to occlusion (the probe is what the
-/// viewer actually sees, not a hand-picked spot).
-pub fn probe_view_center(
+/// Raycast against the authoritative query: the first solid cell a ray
+/// enters, the face normal at entry (pointing back along the ray), and the
+/// last air point just before the face. Used for view probes and for the
+/// exact under-water color through the transparent surface.
+pub fn ray_first_hit(
     gen: &WorldGen,
-    pose: CameraPose,
-    aspect: f32,
-) -> Option<crate::scene::Probe> {
-    use crate::scene::{project_ndc, Probe};
-    let fwd = crate::camera::fwd_of(pose.yaw, pose.pitch);
-    let mut prev = [0.0f32; 3];
-    let mut t = 0.4f32;
-    while t < 300.0 {
+    from: [f32; 3],
+    dir: [f32; 3],
+    max_m: f32,
+) -> Option<(CellCoord, [f32; 3], [f32; 3])> {
+    let mut prev = from;
+    let mut t = 0.1f32;
+    while t < max_m {
         let p = [
-            pose.position[0] + fwd[0] * t,
-            pose.position[1] + fwd[1] * t,
-            pose.position[2] + fwd[2] * t,
+            from[0] + dir[0] * t,
+            from[1] + dir[1] * t,
+            from[2] + dir[2] * t,
         ];
         let cell = CellCoord {
             x: p[0].floor() as i32,
@@ -489,7 +488,6 @@ pub fn probe_view_center(
             z: p[2].floor() as i32,
         };
         if solid_at(gen, cell) {
-            // Entry face: the axis whose cell index changed last.
             let pc = CellCoord {
                 x: prev[0].floor() as i32,
                 y: prev[1].floor() as i32,
@@ -504,18 +502,30 @@ pub fn probe_view_center(
             } else {
                 [0.0, 0.0, 1.0]
             };
-            // Probe just in front of the face (the last air point).
-            return Some(Probe {
-                name: "streamed_view_center_matches_query",
-                ndc: project_ndc(pose, aspect, prev),
-                expected: face_expectation(gen, cell, normal),
-                tol: 0.06,
-            });
+            return Some((cell, normal, prev));
         }
         prev = p;
         t += 0.1;
     }
     None
+}
+
+/// A view-center probe derived by RAYCASTING the authoritative query: the
+/// first solid cell the sightline enters, the face it enters through, and
+/// that face's expected color — robust to occlusion.
+pub fn probe_view_center(
+    gen: &WorldGen,
+    pose: CameraPose,
+    aspect: f32,
+) -> Option<crate::scene::Probe> {
+    use crate::scene::{project_ndc, Probe};
+    let fwd = crate::camera::fwd_of(pose.yaw, pose.pitch);
+    ray_first_hit(gen, pose.position, fwd, 300.0).map(|(cell, normal, prev)| Probe {
+        name: "streamed_view_center_matches_query",
+        ndc: project_ndc(pose, aspect, prev),
+        expected: face_expectation(gen, cell, normal),
+        tol: 0.06,
+    })
 }
 
 /// Expected sRGB color of a cell face as the lit shader would render it.

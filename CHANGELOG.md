@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-09-07 — R3DV-007: river water from flow records
+
+`pc3d_render::water` renders rivers as transparent 3D strips whose every
+visual parameter comes from the authoritative flow records.
+
+- **Record-driven surface**: one strip per river region; direction from
+  `FlowRecord.direction` (a current wave whose phase advances along the
+  flow axis at the record's speed class), width/depth/alpha from discharge
+  and slope. Transparent pass (alpha blend, depth-read-only) after all
+  opaque geometry.
+- **Local updates**: a dam edit through the P3D-303 path
+  (`RiverGraph::build` override → `from_graph_with_revisions`) remeshed
+  only 5 of 281 sections in the windowed proof; unchanged tables cost
+  zero mesh work.
+- **Rigorous proofs**: transparency via a control render (same frame with
+  water detached = pixel-exact under color; the with-water pixel is a true
+  alpha blend, coefficient 0.2–0.95); direction via along-vs-across image
+  deltas; five unit tests pin strips/revisions/current math.
+- `--play-water` / `make p3d-water`: windowed before/after dam captures,
+  56 frames p50 1.05 ms; PNGs human-inspected PASS. 334/334 pc3d tests
+  (+5), root 474/474.
+- Honest deferrals: no carved river beds (strips follow the analytic
+  surface), no foam/reflection, sea water not yet meshed.
+
 ## 2026-09-07 — R3DV-006: streamed terrain with bounded work, LOD, and culling
 
 `pc3d_render::streaming::TerrainStreamer` consumes the world's own

@@ -183,7 +183,7 @@
     {
       "id": "R3DV-007",
       "title": "Water mesh from flow records",
-      "status": "NEXT",
+      "status": "DONE",
       "depends_on": [
         "R3DV-005"
       ],
@@ -196,12 +196,22 @@
       "evidence": [
         "tests",
         "before_after_windowed_png"
-      ]
+      ],
+      "completed_evidence": {
+        "crate": "pc3d_render/src/water.rs \u2014 river strips built FROM THE FLOW RECORDS: one world-space strip section per river region (region center -> downstream center), direction from FlowRecord.direction, width/depth from discharge, speed class from slope_per_mille; a transparent pass (alpha blend, depth READ no write) drawn after all opaque geometry so banks show through and terrain occludes",
+        "transparent_water": "GPU proof via a CONTROL RENDER: the same frame with the water layer detached is the pixel-exact under color; the with-water pixel is asserted to be a true alpha blend of the record-driven water color and that control (per-channel blend coefficient inside the 0.2-0.95 band) \u2014 neither pure water nor pure terrain",
+        "flow_direction": "the visible current is a brightness wave whose PHASE ADVANCES ALONG THE FLOW AXIS (phase = dot(pos, record_direction) in the vertex shader, animated by time x record speed class \u2014 never a decorative scroll); GPU proof: image pixels 5 m apart along the flow differ MORE than pixels a half-width apart across it; CPU mirror unit test pins the same math",
+        "local_channel_update": "dam edit through the P3D-303 path: RiverGraph::build(gen, half, {downstream:+200m}) -> FlowTable::from_graph_with_revisions -> only changed records bump; windowed run: 5 of 281 sections remeshed (1.9%), image changed 1.94% with the far course pixel-identical; unchanged tables cost zero mesh work (asserted)",
+        "water_not_2d_map": "the proof is a world-space 3D surface: perspective river ribbon over loaded terrain, occluded by banks through the depth buffer, transparency blending over the visible bed \u2014 the before/after windowed PNGs (800x500, live swapchain after mid-run resize) are camera views, not map rasters; visually inspected PASS (transparent river with visible current stripes winding through the valley; the dam reroutes the near course while the far course stays identical)",
+        "evidence_runs": "poorcraft3d --play-water + make p3d-water: 56 frames p50 1.05 ms / p95 2.03 ms; before: 281 sections / 45818 verts / 31 ms mesh; after dam: 5 remeshed / 996 verts / 1.3 ms",
+        "tests": "334/334 pc3d workspace green (+5): strips carry the record's direction with width/depth monotone in discharge; dam revises only a local record set while 20+ distant records keep revisions; sections remesh only dirty entries (0 work for unchanged tables); current-pattern direction/speed/time math; the full GPU proof (transparency control render + direction deltas + dam remesh bounds + image diff)",
+        "bugs_found_by_proofs": "river_edges() lists sorted-adjacent regions, not graph links (the picker now walks real downstream pairs); a stray /2.2 origin fudge displaced the strip 12 m off the centerline (removed); probes at the geometric midpoint hit a reach where an intervening hill buries the strip \u2014 probe points are now found by raycasting for the first VISIBLE water crossing; the exact-blend mirror was over-constrained (strip height interpolates over 4 m cross-sections) \u2014 replaced by the rigorous control-render comparison"
+      }
     },
     {
       "id": "R3DV-008",
       "title": "Castle and city module renderer",
-      "status": "BLOCKED_BY_R3DV-006",
+      "status": "NEXT",
       "depends_on": [
         "R3DV-003",
         "R3DV-006"

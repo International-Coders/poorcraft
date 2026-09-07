@@ -13,8 +13,9 @@ the old simulation roadmap says it is complete.
 | R3DV-004 construction cell mesh | DONE 2026-09-07 | culled faces from the host overlay via read-only binding; host-command rock→sand edit remeshed exactly 1 patch; before/after windowed PNGs, pixel flip 0.22, live F/R mode |
 | R3DV-005 natural terrain mesh prototype | DONE 2026-09-07 | culled faces straight from final_solid (exact cross-patch culling, ~7 ms/patch); hill slope + cliff material separation + cave interior + overhang underside all probe-verified from the live window; bake-off reproduced (heightfield family wins) |
 | R3DV-006 streamed terrain, LOD, real mesh work | DONE 2026-09-07 | TerrainStreamer consumes the world's interest rings/BoundedQueue/LOD bands: caps held every frame (teleport vista = 57 frames at cap 2), GPU budget with farthest-first eviction, frustum culling (77,875 culled draws in the walk), top-shell identical across LODs (no cracks); 3-waypoint windowed walk, raycast probes PASS |
-| R3DV-007 river and water mesh | NEXT | — |
-| R3DV-008..R3DV-012 | BLOCKED (queue order) | — |
+| R3DV-007 river and water mesh | DONE 2026-09-07 | transparent strips from FlowRecords (direction/width/depth/speed all record-driven); control-render transparency proof; along-vs-across current deltas; dam edit remeshed 5/281 sections with the far course pixel-identical; windowed before/after PNGs inspected PASS |
+| R3DV-008 castle/city module renderer | NEXT | — |
+| R3DV-009..R3DV-012 | BLOCKED (queue order) | — |
 
 Reset rule in force: "POORCRAFT 3D is playable" stays forbidden until the
 R3DV-011 vertical slice passes with human review (see README.md).

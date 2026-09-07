@@ -35,6 +35,7 @@ struct Pipelines {
     sky: wgpu::RenderPipeline,
     mesh: wgpu::RenderPipeline,
     hud: wgpu::RenderPipeline,
+    water: wgpu::RenderPipeline,
     layout_globals: wgpu::BindGroupLayout,
     layout_hud: wgpu::BindGroupLayout,
 }
@@ -159,6 +160,26 @@ impl Pipelines {
             })
         };
 
+        let water_layout = crate::water::WATER_VERTEX_LAYOUT;
+        let water = make(
+            "pc3d water pipeline",
+            &pl_globals,
+            "vs_water",
+            "fs_water",
+            std::slice::from_ref(&water_layout),
+            None,
+            // Depth READ only: terrain banks occlude water, water never
+            // occludes itself (transparent pass ordering).
+            Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth24Plus,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        );
+
         let hud_layout = wgpu::VertexBufferLayout {
             array_stride: 16,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -207,6 +228,7 @@ impl Pipelines {
                 Some(depth_off),
                 Some(wgpu::BlendState::ALPHA_BLENDING),
             ),
+            water,
             layout_globals,
             layout_hud,
         }
@@ -279,6 +301,11 @@ pub struct Renderer {
     /// Streamed terrain with bounded per-frame work (R3DV-006); replaces
     /// the static terrain mesh while attached.
     streamer: Option<crate::streaming::TerrainStreamer>,
+    /// River water from flow records (R3DV-007).
+    water: Option<crate::water::WaterSections>,
+    start: std::time::Instant,
+    /// Frozen water time for deterministic proofs (None = wall clock).
+    water_time_override: Option<f32>,
 }
 
 /// A plain vertex/index buffer pair.
@@ -347,6 +374,9 @@ impl Renderer {
             construction: None,
             terrain: None,
             streamer: None,
+            water: None,
+            start: std::time::Instant::now(),
+            water_time_override: None,
         }
     }
 
@@ -387,6 +417,9 @@ impl Renderer {
             construction: None,
             terrain: None,
             streamer: None,
+            water: None,
+            start: std::time::Instant::now(),
+            water_time_override: None,
         }
     }
 
@@ -452,6 +485,38 @@ impl Renderer {
         };
         self.terrain = Some(GpuMesh::from_mesh(&self.ctx.device, &verts, &idx));
         stats
+    }
+
+    /// Attaches river water from flow records (R3DV-007).
+    pub fn attach_water(&mut self) {
+        if self.water.is_none() {
+            self.water = Some(crate::water::WaterSections::new());
+        }
+    }
+
+    /// Syncs water sections from the flow table (dirty-region remeshing;
+    /// read-only world access).
+    pub fn update_water(
+        &mut self,
+        gen: &pc3d_world::gen::WorldGen,
+        graph: &pc3d_world::hydro::RiverGraph,
+        table: &pc3d_world::flow::FlowTable,
+    ) -> crate::water::WaterStats {
+        let Some(w) = self.water.as_mut() else {
+            panic!("call attach_water() before update_water()");
+        };
+        w.update(&self.ctx.device, gen, graph, table)
+    }
+
+    /// Detaches the water layer (control renders for transparency proofs).
+    pub fn detach_water(&mut self) {
+        self.water = None;
+    }
+
+    /// Freezes the water current pattern at a fixed time (deterministic
+    /// proofs); None returns to wall-clock animation.
+    pub fn set_water_time(&mut self, t: Option<f32>) {
+        self.water_time_override = t;
     }
 
     /// Attaches streamed terrain (R3DV-006): the world's own interest rings
@@ -561,7 +626,13 @@ impl Renderer {
                 crate::scene::SUN_DIR[2],
                 0.0,
             ],
-            tan_aspect: [cam.tan_half_fov(), aspect, 0.0, 0.0],
+            tan_aspect: [
+                cam.tan_half_fov(),
+                aspect,
+                self.water_time_override
+                    .unwrap_or_else(|| self.start.elapsed().as_secs_f32()),
+                0.0,
+            ],
         };
         self.ctx
             .queue
@@ -837,6 +908,13 @@ impl Renderer {
         // buffers with content versions — only changed patches are remeshed).
         if let Some(con) = &self.construction {
             con.draw(&mut pass);
+        }
+        // 2c. Transparent river water LAST among world geometry: depth-read
+        // only, alpha blend — banks show through, terrain occludes.
+        if let Some(w) = &self.water {
+            pass.set_pipeline(&self.pipelines.water);
+            pass.set_bind_group(0, &self.bg_globals, &[]);
+            w.draw(&mut pass);
         }
         // 3. HUD debug line (alpha blend, no depth).
         pass.set_pipeline(&self.pipelines.hud);
