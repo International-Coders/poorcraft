@@ -5591,3 +5591,21 @@ not yet wired into the live B key); the cave has no live collision
 (the authority ground stands in); the water wheel does not yet rotate
 (rig animation is the crowd's; wheels are future polish). THE OWNER'S
 MANUAL PLAY PASS REMAINS THE GATE before the word 'playable'.
+
+## 2026-09-08 — The play-test DMG (owner request)
+
+WHAT: A double-clickable macOS DMG of the rebuild slice for the owner
+to play and test. apps/poorcraft3d main() now launches straight into
+the LIVE rebuild slice when run with no arguments (a double-click used
+to print the identity block and exit — useless from Finder). The DMG
+carries POORCRAFT3D.app (Info.plist, PkgInfo, PLAY.md in Resources);
+`make p3d-dmg` reproduces it.
+
+EVIDENCE: mounted the DMG read-only and ran the app's binary off the
+volume — the automated route proof PASSES (five captures + probes) and
+the journey digest matches (7ab2295dafa0ec24); the no-args launch was
+verified ALIVE for 10 s in the live slice ("WASD walks the SURFACE…").
+9/9 visual gates; render lib 119/119 after the arg change.
+
+FOR THE OWNER: this is the play-pass build — walk it with
+docs/POORCRAFT-VALHEIM-STYLE-REBUILD/REVIEW-CHECKLIST.md in hand.

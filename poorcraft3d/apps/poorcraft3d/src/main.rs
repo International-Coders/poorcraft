@@ -3,7 +3,12 @@
 //! with P3D-005.
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    if args.len() == 1 {
+        // Double-click launch (the DMG app): straight into the walkable
+        // rebuild slice — the game, not a help printout.
+        args = vec![args[0].clone(), "--play-rebuild".into(), "live".into()];
+    }
     match args.get(1).map(String::as_str) {
         Some("--identity") | None => {
             println!("{}", pc3d_core::identity_block());
