@@ -287,6 +287,89 @@ fn fs_cutout(in: CutoutOut) -> @location(0) vec4f {
     return vec4f(col, 1.0);
 }
 
+// --- Instanced wilderness (NWR-007) ----------------------------------------
+// One draw per (kind, LOD): the mesh vertex + a per-instance transform
+// (slot 1). Wind sways flexible kinds using the shared time uniform
+// (frozen for proofs).
+
+struct InstIn {
+    @location(0) pos: vec3f,
+    @location(1) normal: vec3f,
+    @location(2) color: vec3f,
+    @location(3) pos_scale: vec4f,
+    @location(4) params: vec4f, // x rot-y, y wind, z tint, w unused
+};
+
+/// Instance transform + wind, shared by every instanced entry.
+fn instance_world(v_pos: vec3f, i_pos_scale: vec4f, i_params: vec4f) -> vec3f {
+    let c = cos(i_params.x);
+    let s = sin(i_params.x);
+    let p = v_pos * i_pos_scale.w;
+    var world = vec3f(
+        i_pos_scale.x + p.x * c + p.z * s,
+        i_pos_scale.y + p.y,
+        i_pos_scale.z - p.x * s + p.z * c,
+    );
+    // Wind: sway grows with height; the phase varies per plant.
+    let wind = i_params.y;
+    if wind > 0.001 {
+        let t = globals.tan_aspect.z;
+        let ph = t * 1.6 + dot(i_pos_scale.xz, vec2f(0.9, 1.3));
+        let h = clamp(p.y / 2.0, 0.0, 1.0);
+        let sway = sin(ph) * wind * 0.12 * h * h;
+        world.x += sway;
+        world.z += 0.6 * sway;
+    }
+    return world;
+}
+
+@vertex
+fn vs_inst(v: InstIn) -> MeshOut {
+    var out: MeshOut;
+    out.pos = globals.view_proj * vec4f(instance_world(v.pos, v.pos_scale, v.params), 1.0);
+    let c = cos(v.params.x);
+    let s = sin(v.params.x);
+    out.normal = normalize(vec3f(
+        v.normal.x * c + v.normal.z * s,
+        v.normal.y,
+        -v.normal.x * s + v.normal.z * c,
+    ));
+    out.color = v.color * v.params.z;
+    out.world = instance_world(v.pos, v.pos_scale, v.params);
+    return out;
+}
+
+struct InstShadowOut {
+    @builtin(position) pos: vec4f,
+};
+
+@vertex
+fn vs_inst_shadow(v: InstIn) -> InstShadowOut {
+    var out: InstShadowOut;
+    out.pos = env.light_view_proj * vec4f(instance_world(v.pos, v.pos_scale, v.params), 1.0);
+    return out;
+}
+
+struct CutoutInstIn {
+    @location(0) pos: vec3f,
+    @location(1) normal: vec3f,
+    @location(2) color: vec3f,
+    @location(3) uv: vec2f,
+    @location(4) pos_scale: vec4f,
+    @location(5) params: vec4f,
+};
+
+@vertex
+fn vs_inst_cutout(v: CutoutInstIn) -> CutoutOut {
+    var out: CutoutOut;
+    out.pos = globals.view_proj * vec4f(instance_world(v.pos, v.pos_scale, v.params), 1.0);
+    out.normal = v.normal;
+    out.color = v.color * v.params.z;
+    out.world = instance_world(v.pos, v.pos_scale, v.params);
+    out.uv = v.uv;
+    return out;
+}
+
 // --- HUD (bitmap-font debug line) ------------------------------------------
 
 struct HudIn {

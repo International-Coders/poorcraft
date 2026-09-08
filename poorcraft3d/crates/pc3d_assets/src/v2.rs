@@ -55,7 +55,9 @@ pub struct V2Collision {
     pub blocks_navigation: bool,
 }
 
-pub const CATEGORIES: &[&str] = &["prop", "module", "character", "material", "effect"];
+pub const CATEGORIES: &[&str] = &[
+    "prop", "module", "character", "material", "effect", "flora", "landmark",
+];
 pub const STATUSES: &[&str] = &["planned", "source_ready", "compiled", "integrated", "proven"];
 pub const PROVENANCE_KINDS: &[&str] = &["original_manual", "original_procedural", "compatible_license"];
 pub const LOD_NAMES: &[&str] = &["lod0", "lod1", "lod2", "impostor"];
@@ -205,6 +207,22 @@ mod tests {
         let pack = root.join("docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/first_asset_batch.json");
         let m = load_pack(&pack, Some(&root.join("poorcraft3d"))).expect("pack validates");
         assert_eq!(m.assets.len(), 3);
+    }
+
+    #[test]
+    fn wilderness_pack_validates_with_files_on_disk() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .canonicalize()
+            .unwrap();
+        let pack = root.join("docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/wilderness_batch.json");
+        let m = load_pack(&pack, Some(&root.join("poorcraft3d"))).expect("pack validates");
+        assert_eq!(m.assets.len(), 9);
+        // The honesty law runs against the real tree: every integrated
+        // row's GLB exists (assetgen wrote them this session).
+        for a in &m.assets {
+            assert_eq!(a.status, "integrated", "{} integrated", a.id);
+        }
     }
 
     #[test]

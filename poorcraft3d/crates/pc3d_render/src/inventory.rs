@@ -41,6 +41,10 @@ pub struct RendererPath {
 #[derive(Debug, Deserialize)]
 pub struct AssetBatchStatus {
     pub pack: String,
+    /// Additional pack manifests whose rows also count (NWR-007 split
+    /// the wilderness into its own pack; the honesty law unions them).
+    #[serde(default)]
+    pub extra_packs: Vec<String>,
     pub rows: Vec<AssetRow>,
 }
 
@@ -203,39 +207,33 @@ pub fn audit() -> Vec<String> {
     }
     // The pack's batch rows must agree with the filesystem and with our
     // summary (status planned => no compiled file).
-    let pack_path = root.join(&inv.asset_batch_status.pack);
-    let pack_bytes = std::fs::read(&pack_path)
-        .map_err(|e| format!("read pack {}: {e}", pack_path.display()))
-        .unwrap_or_default();
-    let pack: serde_json::Value = match serde_json::from_slice(&pack_bytes) {
-        Ok(v) => v,
-        Err(e) => {
-            errors.push(format!("parse asset pack: {e}"));
-            serde_json::Value::Null
+    // Union every declared pack (the primary + any extras).
+    let mut pack_ids: BTreeSet<String> = BTreeSet::new();
+    let mut pack_rows: std::collections::BTreeMap<String, (String, String)> =
+        Default::default();
+    for pack_rel in std::iter::once(&inv.asset_batch_status.pack)
+        .chain(inv.asset_batch_status.extra_packs.iter())
+    {
+        let pack_path = root.join(pack_rel);
+        let pack_bytes = std::fs::read(&pack_path)
+            .map_err(|e| format!("read pack {pack_rel}: {e}"))
+            .unwrap_or_default();
+        let pack: serde_json::Value = match serde_json::from_slice(&pack_bytes) {
+            Ok(v) => v,
+            Err(e) => {
+                errors.push(format!("parse asset pack {pack_rel}: {e}"));
+                serde_json::Value::Null
+            }
+        };
+        for v in pack["assets"].as_array().into_iter().flatten() {
+            if let Some(id) = v["id"].as_str() {
+                pack_ids.insert(id.to_string());
+                let status = v["status"].as_str().unwrap_or("?").to_string();
+                let compiled = v["compiled"].as_str().unwrap_or("").to_string();
+                pack_rows.insert(id.to_string(), (status, compiled));
+            }
         }
-    };
-    let pack_ids: BTreeSet<String> = pack["assets"]
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|v| v["id"].as_str().map(String::from))
-                .collect()
-        })
-        .unwrap_or_default();
-    // Pack rows by id (for status cross-check + compiled paths).
-    let pack_rows: std::collections::BTreeMap<String, (String, String)> = pack["assets"]
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|v| {
-                    let id = v["id"].as_str()?.to_string();
-                    let status = v["status"].as_str().unwrap_or("?").to_string();
-                    let compiled = v["compiled"].as_str().unwrap_or("").to_string();
-                    Some((id, (status, compiled)))
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    }
     for row in &inv.asset_batch_status.rows {
         if !pack_ids.contains(&row.id) {
             errors.push(format!("batch row {}: not in the pack manifest", row.id));

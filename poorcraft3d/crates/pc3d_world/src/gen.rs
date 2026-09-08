@@ -120,6 +120,12 @@ impl WorldGen {
         WorldGen { seed }
     }
 
+    /// The raw seed (deterministic placement hashes — flora — mix this
+    /// into their FNV streams; read-only, the generator stays pure).
+    pub fn hash_seed(&self) -> u64 {
+        self.seed
+    }
+
     /// The world seed this generator derives everything from.
     pub fn seed(&self) -> u64 {
         self.seed

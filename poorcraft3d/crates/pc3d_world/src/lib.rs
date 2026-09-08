@@ -28,6 +28,7 @@ pub mod debug_overlay;
 pub mod diagnose;
 pub mod faction;
 pub mod flow;
+pub mod flora;
 pub mod engineering;
 pub mod garrison;
 pub mod gen;

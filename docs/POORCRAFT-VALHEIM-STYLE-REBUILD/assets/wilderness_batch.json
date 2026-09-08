@@ -1,0 +1,324 @@
+{
+ "schema_version": 2,
+ "coordinate_system": "meters,+Y-up,-Z-forward",
+ "assets": [
+  {
+   "id": "flora.tree_pine",
+   "category": "flora",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/flora/tree_pine.glb",
+   "materials": [
+    "mat.bark_dark",
+    "mat.pine_leaf"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 900
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 450
+    },
+    {
+     "name": "lod2",
+     "max_triangles": 120
+    }
+   ],
+   "collision": {
+    "kind": "capsule",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_vista"
+  },
+  {
+   "id": "flora.tree_broadleaf",
+   "category": "flora",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/flora/tree_broadleaf.glb",
+   "materials": [
+    "mat.bark",
+    "mat.broadleaf_leaf"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 1100
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 550
+    },
+    {
+     "name": "lod2",
+     "max_triangles": 150
+    }
+   ],
+   "collision": {
+    "kind": "capsule",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_vista"
+  },
+  {
+   "id": "flora.tree_birch",
+   "category": "flora",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/flora/tree_birch.glb",
+   "materials": [
+    "mat.birch_bark",
+    "mat.birch_leaf"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 800
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 400
+    },
+    {
+     "name": "lod2",
+     "max_triangles": 110
+    }
+   ],
+   "collision": {
+    "kind": "capsule",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_vista"
+  },
+  {
+   "id": "flora.rock_boulder",
+   "category": "flora",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/flora/rock_boulder.glb",
+   "materials": [
+    "mat.granite",
+    "mat.moss"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 500
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 250
+    }
+   ],
+   "collision": {
+    "kind": "capsule",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_vista"
+  },
+  {
+   "id": "flora.rock_spire",
+   "category": "flora",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/flora/rock_spire.glb",
+   "materials": [
+    "mat.slate"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 400
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 200
+    }
+   ],
+   "collision": {
+    "kind": "capsule",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_vista"
+  },
+  {
+   "id": "flora.rock_slab",
+   "category": "flora",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/flora/rock_slab.glb",
+   "materials": [
+    "mat.slate",
+    "mat.moss"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 300
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 150
+    }
+   ],
+   "collision": {
+    "kind": "capsule",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_vista"
+  },
+  {
+   "id": "flora.shrub",
+   "category": "flora",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/flora/shrub.glb",
+   "materials": [
+    "mat.leaf"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 300
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 150
+    }
+   ],
+   "collision": {
+    "kind": "none",
+    "blocks_navigation": false
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_vista"
+  },
+  {
+   "id": "flora.log_fallen",
+   "category": "flora",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/flora/log_fallen.glb",
+   "materials": [
+    "mat.bark",
+    "mat.moss",
+    "mat.fungus"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 400
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 200
+    }
+   ],
+   "collision": {
+    "kind": "capsule",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_vista"
+  },
+  {
+   "id": "landmark.standing_stone",
+   "category": "landmark",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/landmark/standing_stone.glb",
+   "materials": [
+    "mat.fieldstone",
+    "mat.slate",
+    "mat.rune"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 500
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 250
+    }
+   ],
+   "collision": {
+    "kind": "capsule",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::flora",
+   "proof_scene": "wilderness_landmark"
+  }
+ ]
+}

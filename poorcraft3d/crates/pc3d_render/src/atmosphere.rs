@@ -373,6 +373,46 @@ pub fn leaf_mask_rgba() -> Vec<u8> {
     out
 }
 
+/// The grass-tuft mask (NWR-007): five tapered blade silhouettes on a
+/// 64x64 alpha card — the flora instancing's wind-animated ground layer.
+pub fn grass_mask_rgba() -> Vec<u8> {
+    let n = LEAF_MASK_PX;
+    let mut out = vec![0u8; (n * n * 4) as usize];
+    // Five blades: base x positions and a lean each.
+    let blades: [(f32, f32, f32); 5] = [
+        (0.18, 0.06, 1.00),
+        (0.34, -0.04, 0.85),
+        (0.50, 0.02, 1.00),
+        (0.66, 0.05, 0.80),
+        (0.82, -0.06, 0.90),
+    ];
+    for y in 0..n {
+        for x in 0..n {
+            let (fx, fy) = (x as f32 / n as f32, y as f32 / n as f32);
+            let mut inside = false;
+            for (bx, lean, hmax) in blades {
+                // Taper: half-width shrinks to a tip at fy = hmax.
+                let t = fy / hmax;
+                if t > 1.0 {
+                    continue;
+                }
+                let w = 0.055 * (1.0 - t * t).max(0.0);
+                let cx = bx + lean * t;
+                if (fx - cx).abs() < w {
+                    inside = true;
+                }
+            }
+            let i = ((y * n + x) * 4) as usize;
+            let a = if inside { 255 } else { 0 };
+            out[i] = 88;
+            out[i + 1] = 132;
+            out[i + 2] = 54;
+            out[i + 3] = a;
+        }
+    }
+    out
+}
+
 /// Which mask the cutout pipeline tests against.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CutoutMask {

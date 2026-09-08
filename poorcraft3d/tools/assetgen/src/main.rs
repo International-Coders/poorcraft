@@ -267,6 +267,18 @@ const GRANITE_DARK: [f32; 3] = [0.33, 0.35, 0.37];
 const MOSS: [f32; 3] = [0.26, 0.38, 0.21];
 const FIELDSTONE: [f32; 3] = [0.52, 0.51, 0.47];
 const TIMBER: [f32; 3] = [0.42, 0.31, 0.20];
+// Wilderness palette (NWR-007): conifer greens, pale birch, slate.
+const PINE_LEAF: [f32; 3] = [0.15, 0.29, 0.18];
+const PINE_LEAF_LIGHT: [f32; 3] = [0.20, 0.36, 0.21];
+const BIRCH_BARK: [f32; 3] = [0.74, 0.72, 0.66];
+const BIRCH_BARK_DARK: [f32; 3] = [0.55, 0.53, 0.48];
+const BIRCH_LEAF: [f32; 3] = [0.36, 0.47, 0.22];
+const BROAD_LEAF: [f32; 3] = [0.24, 0.42, 0.20];
+const BROAD_LEAF_LIGHT: [f32; 3] = [0.31, 0.50, 0.24];
+const SLATE: [f32; 3] = [0.40, 0.42, 0.45];
+const SLATE_DARK: [f32; 3] = [0.28, 0.30, 0.33];
+const FUNGUS: [f32; 3] = [0.78, 0.72, 0.58];
+const RUNE: [f32; 3] = [0.62, 0.58, 0.50];
 const THATCH: [f32; 3] = [0.55, 0.43, 0.24];
 const DOOR_DARK: [f32; 3] = [0.24, 0.17, 0.11];
 
@@ -370,6 +382,196 @@ fn asset_rock() -> Vec<(&'static str, Mesh)> {
     blob(&mut lod1, 0.0, 0.42, 0.0, 1.15, 0.5, 0.95, 21, GRANITE);
     blob(&mut lod1, 0.18, 0.78, -0.10, 0.7, 0.36, 0.6, 22, GRANITE_DARK);
 
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+// ---------------------------------------------------------------------------
+// Wilderness set (NWR-007): three trees, three rocks, shrub, log, and
+// the biome landmark — every silhouette original and low-poly.
+// ---------------------------------------------------------------------------
+
+/// Conical evergreen: straight trunk + stacked tapering tiers.
+fn asset_tree_pine() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, 0.0, 0.0, 0.0, 0.04, 5.6, 0.0, 0.20, 0.05, 7, BARK_DARK);
+    // Five cone tiers, wide at the skirt, tight at the crown.
+    let tiers: [[f32; 3]; 5] = [
+        [0.9, 1.30, 0.0],
+        [2.0, 1.05, 0.0],
+        [3.1, 0.82, 0.0],
+        [4.1, 0.58, 0.0],
+        [5.0, 0.36, 0.0],
+    ];
+    for (i, t) in tiers.iter().enumerate() {
+        let y0 = t[0];
+        let y1 = y0 + 1.15;
+        let r = t[1];
+        limb(&mut lod0, 0.0, y0, 0.0, 0.0, y1, 0.0, r, 0.02, 8,
+             if i % 2 == 0 { PINE_LEAF } else { PINE_LEAF_LIGHT });
+    }
+    limb(&mut lod0, 0.0, 5.9, 0.0, 0.0, 6.4, 0.0, 0.16, 0.02, 6, PINE_LEAF);
+
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.02, 5.4, 0.0, 0.20, 0.05, 6, BARK_DARK);
+    for (i, t) in tiers.iter().step_by(2).enumerate() {
+        limb(&mut lod1, 0.0, t[0], 0.0, 0.0, t[0] + 1.5, 0.0, t[1] * 1.1, 0.02, 6,
+             if i % 2 == 0 { PINE_LEAF } else { PINE_LEAF_LIGHT });
+    }
+
+    let mut lod2 = Mesh::default();
+    limb(&mut lod2, 0.0, 0.0, 0.0, 0.0, 5.0, 0.0, 1.15, 0.02, 6, PINE_LEAF);
+    limb(&mut lod2, 0.0, 4.6, 0.0, 0.0, 6.0, 0.0, 0.5, 0.02, 5, PINE_LEAF);
+    vec![("lod0", lod0), ("lod1", lod1), ("lod2", lod2)]
+}
+
+/// Broad billowing canopy: thick short trunk, big rounded crown.
+fn asset_tree_broadleaf() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, 0.0, 0.0, 0.0, 0.12, 1.5, -0.06, 0.38, 0.26, 8, BARK);
+    limb(&mut lod0, 0.12, 1.5, -0.06, 0.22, 2.8, 0.10, 0.26, 0.14, 7, BARK);
+    // Three scaffold branches into the crown.
+    for i in 0..3u32 {
+        let a = i as f32 / 3.0 * std::f32::consts::TAU + 0.5;
+        limb(&mut lod0, 0.18, 2.6, 0.02, 0.18 + a.cos() * 0.9, 3.6, 0.02 + a.sin() * 0.9,
+             0.09, 0.03, 5, BARK);
+    }
+    // The billow: five overlapping crown blobs.
+    blob(&mut lod0, 0.18, 4.2, 0.02, 1.55, 1.15, 1.55, 41, BROAD_LEAF);
+    blob(&mut lod0, -0.75, 3.7, 0.45, 1.0, 0.85, 1.0, 42, BROAD_LEAF);
+    blob(&mut lod0, 1.05, 3.8, -0.35, 1.05, 0.9, 1.05, 43, BROAD_LEAF_LIGHT);
+    blob(&mut lod0, 0.35, 4.9, -0.7, 0.95, 0.8, 0.95, 44, BROAD_LEAF);
+    blob(&mut lod0, -0.15, 4.8, 0.95, 0.9, 0.75, 0.9, 45, BROAD_LEAF_LIGHT);
+
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.2, 2.8, 0.1, 0.38, 0.14, 7, BARK);
+    blob(&mut lod1, 0.18, 4.2, 0.02, 1.7, 1.25, 1.7, 41, BROAD_LEAF);
+    blob(&mut lod1, 0.6, 4.4, -0.4, 1.1, 0.9, 1.1, 43, BROAD_LEAF_LIGHT);
+
+    let mut lod2 = Mesh::default();
+    limb(&mut lod2, 0.0, 0.0, 0.0, 0.15, 2.6, 0.05, 0.36, 0.1, 5, BARK);
+    blob(&mut lod2, 0.15, 4.1, 0.0, 1.9, 1.4, 1.9, 41, BROAD_LEAF);
+    vec![("lod0", lod0), ("lod1", lod1), ("lod2", lod2)]
+}
+
+/// Slender pale birch: leaning thin trunk, airy light crown.
+fn asset_tree_birch() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    // Pale leaning trunk with dark branch collars.
+    limb(&mut lod0, 0.0, 0.0, 0.0, 0.22, 2.2, 0.10, 0.14, 0.10, 7, BIRCH_BARK);
+    limb(&mut lod0, 0.22, 2.2, 0.10, 0.52, 4.4, -0.06, 0.10, 0.06, 6, BIRCH_BARK);
+    limb(&mut lod0, 0.52, 4.4, -0.06, 0.62, 5.8, -0.18, 0.06, 0.02, 5, BIRCH_BARK_DARK);
+    // Airy crown: small blobs on thin branches.
+    for i in 0..5u32 {
+        let a = i as f32 / 5.0 * std::f32::consts::TAU;
+        let bx = 0.45 + a.cos() * 0.55;
+        let bz = -0.10 + a.sin() * 0.55;
+        let by = 4.6 + (i % 2) as f32 * 0.7;
+        limb(&mut lod0, 0.45, by - 0.5, -0.10, bx, by, bz, 0.03, 0.015, 4, BIRCH_BARK_DARK);
+        blob(&mut lod0, bx, by + 0.25, bz, 0.5, 0.42, 0.5, 60 + i, BIRCH_LEAF);
+    }
+    blob(&mut lod0, 0.60, 6.1, -0.20, 0.42, 0.36, 0.42, 70, BIRCH_LEAF);
+
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.45, 4.4, -0.06, 0.14, 0.07, 6, BIRCH_BARK);
+    limb(&mut lod1, 0.45, 4.4, -0.06, 0.62, 5.8, -0.18, 0.07, 0.02, 5, BIRCH_BARK_DARK);
+    blob(&mut lod1, 0.45, 5.1, -0.05, 0.95, 0.85, 0.95, 60, BIRCH_LEAF);
+
+    let mut lod2 = Mesh::default();
+    limb(&mut lod2, 0.0, 0.0, 0.0, 0.55, 5.4, -0.15, 0.14, 0.03, 5, BIRCH_BARK);
+    blob(&mut lod2, 0.5, 5.2, -0.1, 1.0, 0.9, 1.0, 60, BIRCH_LEAF);
+    vec![("lod0", lod0), ("lod1", lod1), ("lod2", lod2)]
+}
+
+/// Rounded boulder with a mossy cap.
+fn asset_rock_boulder() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    blob(&mut lod0, 0.0, 0.55, 0.0, 1.35, 0.85, 1.15, 51, GRANITE);
+    blob(&mut lod0, 0.5, 0.9, -0.3, 0.7, 0.45, 0.65, 52, GRANITE_DARK);
+    blob(&mut lod0, -0.35, 1.05, 0.25, 0.55, 0.22, 0.5, 53, MOSS);
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, 0.55, 0.0, 1.35, 0.85, 1.15, 51, GRANITE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Tall fractured spire: stacked tapering shafts with dark seams.
+fn asset_rock_spire() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, 0.0, 0.0, 0.0, 0.10, 1.4, 0.06, 0.55, 0.38, 6, SLATE);
+    limb(&mut lod0, 0.10, 1.4, 0.06, 0.28, 2.6, -0.10, 0.38, 0.22, 5, SLATE_DARK);
+    limb(&mut lod0, 0.28, 2.6, -0.10, 0.42, 3.6, -0.04, 0.22, 0.04, 5, SLATE);
+    lod0.quad(
+        [0.02, 0.3, -0.50], [0.30, 1.7, 0.35], [0.42, 1.6, 0.30], [0.12, 0.25, -0.45],
+        SLATE_DARK,
+    );
+    blob(&mut lod0, 0.55, 0.18, 0.30, 0.30, 0.16, 0.28, 54, MOSS);
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.20, 2.0, 0.0, 0.55, 0.30, 5, SLATE);
+    limb(&mut lod1, 0.20, 2.0, 0.0, 0.36, 3.5, -0.05, 0.30, 0.04, 5, SLATE_DARK);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Flat slab: low stacked plates with a mossy edge.
+fn asset_rock_slab() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, 0.0, 0.16, 0.0, 1.35, 0.16, 1.0, SLATE);
+    box_at(&mut lod0, 0.15, 0.42, -0.08, 1.05, 0.12, 0.78, SLATE_DARK);
+    box_at(&mut lod0, 0.30, 0.60, -0.14, 0.65, 0.07, 0.5, SLATE);
+    blob(&mut lod0, -0.95, 0.28, 0.62, 0.34, 0.16, 0.3, 55, MOSS);
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, 0.0, 0.3, 0.0, 1.35, 0.3, 1.0, SLATE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Low shrub: leafy blobs at the ground, no trunk.
+fn asset_shrub() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    blob(&mut lod0, 0.0, 0.35, 0.0, 0.55, 0.35, 0.55, 61, LEAF);
+    blob(&mut lod0, 0.45, 0.28, 0.2, 0.4, 0.28, 0.4, 62, LEAF_LIGHT);
+    blob(&mut lod0, -0.4, 0.30, -0.15, 0.42, 0.3, 0.42, 63, LEAF);
+    blob(&mut lod0, 0.05, 0.6, -0.3, 0.32, 0.24, 0.32, 64, LEAF_LIGHT);
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, 0.35, 0.0, 0.62, 0.4, 0.62, 61, LEAF);
+    blob(&mut lod1, 0.35, 0.3, 0.15, 0.45, 0.3, 0.45, 62, LEAF_LIGHT);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Fallen log: horizontal tapered trunk, moss, bracket fungi.
+fn asset_log_fallen() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, -1.5, 0.26, 0.0, 1.4, 0.30, 0.12, 0.30, 0.17, 8, BARK);
+    // Torn root end.
+    limb(&mut lod0, -1.5, 0.26, 0.0, -1.95, 0.36, -0.25, 0.30, 0.10, 6, BARK_DARK);
+    blob(&mut lod0, -0.6, 0.52, 0.18, 0.4, 0.14, 0.35, 65, MOSS);
+    blob(&mut lod0, 0.5, 0.5, -0.1, 0.35, 0.12, 0.3, 66, MOSS);
+    // Bracket fungi on the flank.
+    for (i, fx) in [-1.0f32, -0.2, 0.7].iter().enumerate() {
+        blob(&mut lod0, *fx, 0.42 - i as f32 * 0.02, 0.34, 0.14, 0.10, 0.12, 70 + i as u32, FUNGUS);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, -1.5, 0.26, 0.0, 1.4, 0.3, 0.12, 0.30, 0.17, 6, BARK);
+    blob(&mut lod1, -0.6, 0.5, 0.15, 0.4, 0.15, 0.35, 65, MOSS);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// The biome LANDMARK: a leaning standing stone on a plinth with two
+/// flank stones and a carved seam.
+fn asset_landmark_stone() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, 0.0, 0.15, 0.0, 1.5, 0.15, 0.9, FIELDSTONE);
+    // The monolith: 5-sided tapering shaft with a lean.
+    limb(&mut lod0, 0.0, 0.3, 0.0, 0.28, 2.4, -0.22, 0.62, 0.30, 5, FIELDSTONE);
+    limb(&mut lod0, 0.28, 2.4, -0.22, 0.44, 3.7, -0.40, 0.30, 0.10, 5, SLATE_DARK);
+    // Carved seam down the face.
+    lod0.quad(
+        [-0.28, 0.5, 0.44], [0.02, 1.6, 0.34], [0.10, 1.6, 0.32], [-0.20, 0.5, 0.42],
+        RUNE,
+    );
+    // Flank stones.
+    blob(&mut lod0, -1.15, 0.35, 0.35, 0.34, 0.3, 0.3, 80, GRANITE);
+    blob(&mut lod0, 1.05, 0.3, -0.3, 0.28, 0.24, 0.26, 81, GRANITE_DARK);
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, 0.0, 0.15, 0.0, 1.5, 0.15, 0.9, FIELDSTONE);
+    limb(&mut lod1, 0.0, 0.3, 0.0, 0.36, 3.4, -0.30, 0.62, 0.12, 5, FIELDSTONE);
     vec![("lod0", lod0), ("lod1", lod1)]
 }
 
@@ -612,6 +814,15 @@ fn generate(id: &str) -> Vec<(&'static str, Mesh)> {
         "prop.tree_ash" => asset_tree(),
         "prop.rock_granite" => asset_rock(),
         "module.house_croft" => asset_house(),
+        "flora.tree_pine" => asset_tree_pine(),
+        "flora.tree_broadleaf" => asset_tree_broadleaf(),
+        "flora.tree_birch" => asset_tree_birch(),
+        "flora.rock_boulder" => asset_rock_boulder(),
+        "flora.rock_spire" => asset_rock_spire(),
+        "flora.rock_slab" => asset_rock_slab(),
+        "flora.shrub" => asset_shrub(),
+        "flora.log_fallen" => asset_log_fallen(),
+        "landmark.standing_stone" => asset_landmark_stone(),
         _ => unreachable!(),
     }
 }
@@ -634,18 +845,41 @@ fn main() {
     let root = PathBuf::from(root);
     let out_prop = root.join("poorcraft3d/assets/compiled/prop");
     let out_module = root.join("poorcraft3d/assets/compiled/module");
+    let out_flora = root.join("poorcraft3d/assets/compiled/flora");
+    let out_landmark = root.join("poorcraft3d/assets/compiled/landmark");
     std::fs::create_dir_all(&out_prop).expect("mkdir prop");
     std::fs::create_dir_all(&out_module).expect("mkdir module");
+    std::fs::create_dir_all(&out_flora).expect("mkdir flora");
+    std::fs::create_dir_all(&out_landmark).expect("mkdir landmark");
 
     // lod0 budgets from the pack manifest (first_asset_batch.json).
     let budgets: &[(&str, u32)] = &[
         ("prop.tree_ash", 1800),
         ("prop.rock_granite", 600),
         ("module.house_croft", 2500),
+        // NWR-007 wilderness set (budgets from
+        // docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/wilderness_batch.json).
+        ("flora.tree_pine", 900),
+        ("flora.tree_broadleaf", 1100),
+        ("flora.tree_birch", 800),
+        ("flora.rock_boulder", 500),
+        ("flora.rock_spire", 400),
+        ("flora.rock_slab", 300),
+        ("flora.shrub", 300),
+        ("flora.log_fallen", 400),
+        ("landmark.standing_stone", 500),
     ];
     let mut any_fail = false;
     for (id, b0) in budgets {
-        let dir = if id.starts_with("prop.") { &out_prop } else { &out_module };
+        let dir = if id.starts_with("flora.") {
+            &out_flora
+        } else if id.starts_with("landmark.") {
+            &out_landmark
+        } else if id.starts_with("prop.") {
+            &out_prop
+        } else {
+            &out_module
+        };
         let path = dir.join(format!("{}.glb", id.split('.').nth(1).unwrap()));
         let tris = write_glb(&path, generate(id), sockets_for(id));
         // Determinism: regenerate and compare bytes.

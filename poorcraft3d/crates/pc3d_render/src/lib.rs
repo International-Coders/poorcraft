@@ -21,6 +21,7 @@
 
 pub mod app;
 pub mod atmosphere;
+pub mod flora;
 pub mod city;
 pub mod glb;
 pub mod inventory;

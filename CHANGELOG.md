@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2026-09-08 — NWR-007: the wilderness
+
+Instanced wilderness from a pure placement authority:
+
+- `pc3d_world::flora` (new, pure): nine plant kinds on a 4 m slot grid,
+  each slot an FNV hash of (seed, slot) gated by a per-biome density
+  table; trees keep 8 m spacing (even-diagonal subgrid) and refuse
+  steep slopes; one standing-stone LANDMARK may exist per region (~18%
+  hash gate, gentle ground); `jitter()` gives render variation from
+  the authority. Ocean grows nothing.
+- `tools/assetgen`: nine original GLBs — conical pine, billowing
+  broadleaf, pale birch; boulder, fractured spire, flat slab; shrub;
+  fallen log with bracket fungi; the leaning standing-stone landmark.
+  Byte-identical regen, budgets respected; `wilderness_batch.json`
+  validates against files on disk (schema v2 gained the flora/landmark
+  categories rather than weakening the id law).
+- `pc3d_render::flora`: ONE draw per (kind, LOD) bucket (~830
+  instances in 17 buckets), LOD by the glb thresholds, wind-animated
+  grass cutout cards, a BOUNDED rotating slot-scan budget with cached
+  negatives, eviction beyond ring+16 (teleport/reload proven: the same
+  ring returns), instance sun shadows, and a FloraGround collision
+  adapter derived from the authority (the walk test stops at a trunk;
+  no ghosting by construction).
+- Proofs: world placement laws (determinism, spacing, biome character
+  over searched regions, landmark rarity 44/256), GPU control-diff
+  0.25 + wind 0.0077 + LOD buckets, windowed `--play-wilderness` /
+  `make p3d-wilderness` (p50 3.88 ms / 333 fps with the Mid
+  atmosphere; vista + landmark captures human-inspected; Deck-low tier
+  shrinks ring to 84 m). Two real streaming bugs caught by the settle
+  test (ring-restart starvation; empty-slot re-query churn). 9/9 gates.
+
+# CHANGELOG
+
 ## 2026-09-08 — NWR-006: materials and atmosphere
 
 The renderer's stylized atmosphere layer, tier-budgeted and OFF by

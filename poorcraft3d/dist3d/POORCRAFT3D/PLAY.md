@@ -1,24 +1,26 @@
-# POORCRAFT 3D — the walkable build (NWR-006 materials & atmosphere, 2026-09-08)
+# POORCRAFT 3D — the walkable build (NWR-007 wilderness, 2026-09-08)
 
 Windowed 3D game over the deterministic simulation: natural streamed
-surface terrain, caves, conforming rivers — now with SUN SHADOWS,
-distance fog, material grain, water glint, and cutout foliage.
+surface terrain, caves, rivers, atmosphere (shadows/fog/grain/glint) —
+and now a LIVING WILDERNESS: instanced trees, rocks, shrubs, fallen
+logs, wind-animated grass, and standing-stone landmarks, all placed
+deterministically by the world's own biome rules.
 
 ## Play the world (first person)
   ./poorcraft3d --play-slice live
 WASD walk, click to look, F places / R removes at your aim, B saves,
 L reloads, I shows Bed/Work/Idle boxes, Esc quits.
 
-## NEW this build: the atmosphere proof
-  ./poorcraft3d --play-materials
-One live window through four looks at the same scene: the Mid tier
-(shadows + fog + grain + glint), the legacy flat control, the High
-tier, and a walk into the cutout foliage — cast shadows behind the
-plants, haze swallowing the far hills, a sun glint on the water.
+## NEW this build: the wilderness proof
+  ./poorcraft3d --play-wilderness
+Four looks: the empty control, the same view with the wilderness
+(instances + wind grass under the atmosphere), the standing-stone
+landmark, and the Steam-Deck low tier.
 
 ## Other automated windowed proofs
-  ./poorcraft3d --play-caves          # cave interior + river + dam edit
-  ./poorcraft3d --play-surface-stream # streamed surface vista
+  ./poorcraft3d --play-materials       # atmosphere tiers + cutout
+  ./poorcraft3d --play-caves           # cave interior + river + dam
+  ./poorcraft3d --play-surface-stream  # streamed surface vista
   ./poorcraft3d --play-surface | --play-assets
   ./poorcraft3d --play-slice | --play-city | --play-npcs
   ./poorcraft3d --play-water | --play-terrain | --play-stream

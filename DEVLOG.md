@@ -5314,3 +5314,68 @@ leaves migrate with NWR-007's instanced wilderness batch); the live
 --play/--play-slice shell still runs LEGACY atmosphere (the tier binds
 at NWR-011 slice integration; the renderer API is proven here). Next:
 NWR-007 — wilderness assets and instanced placement.
+
+## 2026-09-08 — NWR-007: the wilderness
+
+WHAT: The world grew its wilderness. pc3d_world::flora (new, PURE — no
+rendering deps) is the authoritative WHAT-GROWS-WHERE: nine plant kinds
+on a 4 m slot grid, each slot an FNV hash of (seed, slot) gated by a
+per-biome density table (Forest thick with trees, Plains open
+grassland, Mountains rocky, Ocean nothing); trees reserve the
+even-diagonal subgrid (8 m minimum spacing) and refuse steep slopes;
+one LANDMARK (standing stone) may stand per region where a ~18% hash
+gate and gentle ground agree; jitter() gives the renderer its placement
+variation from the same authority. The renderer
+(pc3d_render::flora, new) draws it INSTANCED — one draw call per
+(kind, LOD) bucket, never one per plant — with wind-animated grass
+cutout cards, LOD by the glb thresholds, a bounded rotating slot-scan
+budget, eviction beyond the ring, sun shadows from the instances, and
+a FloraGround collision adapter whose solidity derives from the
+AUTHORITY (eviction/reload cannot ghost it — the walk test stops at a
+trunk and passes clear ground). assetgen shipped nine original GLBs
+(three trees with distinct silhouettes, three rocks, shrub, fallen
+log, the standing-stone landmark) and the wilderness_batch.json pack
+validates against files on disk (schema v2 gained the flora/landmark
+categories).
+
+HOW: crates/pc3d_world/src/flora.rs (placement + tests; WorldGen gained
+a read-only hash_seed accessor); tools/assetgen (nine generators within
+budgets, byte-identical regen); crates/pc3d_assets (categories + the
+wilderness pack test); crates/pc3d_render/src/flora.rs (FloraStreamer,
+Instance + layouts, grass cards, collision adapter, proofs);
+scene.wgsl (vs_inst / vs_inst_shadow / vs_inst_cutout with the shared
+instance_world + wind); renderer.rs (FloraPipelines, attach_flora,
+per-frame bounded update in both the color and shadow passes);
+apps --play-wilderness; Makefile p3d-wilderness.
+
+EVIDENCE: world tests — determinism/seed variation, tree spacing,
+searched-region biome character (Forest 446 trees vs Plains 43; Plains
+grassland; Mountains rocky with no grass; Ocean empty), collision
+contract, landmark determinism + rarity (44/256 regions). GPU proof —
+control-diff 0.25 under atmosphere Mid, 17 LOD buckets with 836
+instances, wind frame-diff 0.0077 between two frozen times; the
+eviction/reload law (teleport evicts, return re-adds, the SAME ring
+returns). WINDOWED --play-wilderness / make p3d-wilderness: 191 frames
+p50 3.88 ms / avg 333 fps WITH the Mid atmosphere and ~830 instances —
+the Deck-low tier run shrinks the ring to 84 m and grass to 22 m;
+captures human-inspected PASS: evergreens, shrubs, a distant treeline
+in haze (vista), the standing stone with plinth and flank stones amid
+swaying grass (landmark), 3% pixel diff vs the no-flora control. 9/9
+visual gates green; suites p3d 408/408, root 474/474.
+
+BUGS FOUND BY THE PROOFS (fixed): the flora scan restarted at ring 0
+every call, so under the per-frame budget a big view radius NEVER
+reached its outer rings — rings now rotate by a per-call phase; and
+empty slots were re-queried every call (churn) until negatives were
+cached. The wilderness pack initially failed its own honesty law
+(id prefix must equal category) — the schema gained flora/landmark
+categories rather than weakening the check.
+
+HONESTLY DEFERRED: per-plant frustum culling (buckets cull as wholes);
+grass collision (by contract it never blocks); the landmark rides the
+single-asset slot rather than its own instanced path (one per region —
+fine); GLB trees still use solid low-poly crowns (no textured cutout
+leaves); the LIVE --play/--play-slice shell does not attach flora yet
+(NWR-011 slice integration — the renderer API and proofs are green
+here); asset LODs for grass are a single card set (no far-LOD). Next:
+NWR-008 — the settlement asset kit.

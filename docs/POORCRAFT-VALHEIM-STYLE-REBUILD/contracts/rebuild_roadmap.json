@@ -112,7 +112,8 @@
       ],
       "prompt": "prompts/06-NWR-007-wilderness-assets.md",
       "completion": "Original instanced biome asset set with LOD, collision and performance proof.",
-      "status": "next"
+      "status": "done",
+      "evidence": "pc3d_world::flora (new, PURE): PlantKind x9 + PlantKind::blocks_movement/wind/name, plant_at on a 4 m slot grid (FNV hash gated by a per-biome density table; trees reserve the even-diagonal subgrid = 8 m spacing and refuse slopes > 0.9; Ocean grows nothing), landmark_at (~18% hash gate, land biomes, gentle ground search), jitter (render variation from the authority). Tests: determinism + seed variation, tree spacing subgrid, biome character over searched regions (Forest 446 trees vs Plains 43; Plains grassland; Mountains rocky/no grass; Ocean empty), collision contract, landmark determinism+rarity (44/256 regions). assetgen: nine new original GLBs (tree_pine conical 238 tris, tree_broadleaf billow 368, tree_birch pale slender 396, rock_boulder 128, rock_spire 102, rock_slab 72, shrub 192, log_fallen 246, landmark standing_stone 125) \u2014 byte-identical regen within budgets; wilderness_batch.json pack (9 integrated rows, flora/landmark categories added to schema v2) validates against files on disk. pc3d_render::flora: FloraStreamer with ONE DRAW PER (KIND, LOD) bucket (17 buckets, ~830 instances in the proof), LOD by the glb thresholds, grass as wind-animated cutout cards within its own radius, BOUNDED placement (rotating ring-phase scan, cached negatives, 3072 new-slot budget/call), eviction beyond ring+16 (teleport/reload proven: same ring returns, cache converges), instances cast sun shadows; FloraGround collision adapter derives solidity from the AUTHORITY (the walk test stops at a trunk and passes clear ground \u2014 no ghosting by construction). GPU proof: control-diff 0.25 with atmosphere Mid, wind frame-diff 0.0077 between two frozen times, 17 LOD buckets, 836 instances. Windowed --play-wilderness / make p3d-wilderness (191 frames p50 3.88 ms / avg 333 fps WITH atmosphere + 830 instances): control/vista/landmark/low-tier captures human-inspected PASS (evergreens + shrubs + distant treeline under haze in the vista; the standing stone monolith with plinth + flank stones + swaying foreground grass), 3% pixel diff vs the no-flora control. 9/9 gates green. Bugs the proofs caught: the scan restart-at-ring-0 meant big view radii never reached outer rings under the per-frame budget (the settle test caught it; rings now rotate by phase), and empty slots were re-queried every call until negatives were cached."
     },
     {
       "id": "NWR-008",
@@ -121,7 +122,8 @@
         "NWR-007"
       ],
       "prompt": "prompts/07-NWR-008-settlement-assets.md",
-      "completion": "Original modular castle/town kit replaces visible primitive city forms."
+      "completion": "Original modular castle/town kit replaces visible primitive city forms.",
+      "status": "next"
     },
     {
       "id": "NWR-009",

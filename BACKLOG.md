@@ -1498,3 +1498,14 @@ Deferred (honest notes):
 - DEFERRED: one cascade (near field only), sky-band fog, masked
   foliage shadows, GLB textured leaves (NWR-007), live-shell tier
   binding (NWR-011).
+
+## 2026-09-08 — NWR-007 wilderness shipped
+
+- DONE: pc3d_world::flora (pure biome placement + landmarks), nine
+  assetgen GLBs + wilderness_batch.json (validated), pc3d_render::flora
+  (instanced buckets, wind grass, bounded scan with eviction/reload,
+  shadow casting, authority-derived collision), --play-wilderness
+  windowed proof, make p3d-wilderness. 9/9 gates green.
+- DEFERRED: per-plant frustum culling, grass collision (never blocks
+  by contract), landmark on the single-asset slot, GLB cutout leaves,
+  live-shell flora attach (NWR-011), grass far-LOD.

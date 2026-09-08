@@ -2488,6 +2488,235 @@ fn main() {
                 }
             }
         }
+        Some("--play-wilderness") => {
+            // NWR-007: the wilderness — instanced trees/rocks/shrubs/logs
+            // + wind-animated grass + the biome landmark, all placed by
+            // the pure authority, under the Mid atmosphere. Captures:
+            // the empty-terrain CONTROL, the same view WITH wilderness,
+            // the landmark close-up, and the Deck-low tier.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::atmosphere::AtmosphereTier;
+            use pc3d_render::flora::{FloraConfig, FloraStats};
+            use pc3d_render::surface::SurfaceRegion;
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::flora::{self, PlantKind, SlotCoord};
+
+            let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+            let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
+            let region = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), coord);
+            let (verts, idx, _) = region.mesh_region();
+            let ox = coord.x as f32 * 16.0 - 16.0;
+            let oz = coord.z as f32 * 16.0 - 16.0;
+
+            // A vegetated center near the scene: trees AND grass in view.
+            let mut center = [ox + 8.0, oz + 8.0];
+            'find: for dr in 0..24i32 {
+                for dx in -dr..=dr {
+                    for dz in -dr..=dr {
+                        if dx.abs() != dr && dz.abs() != dr {
+                            continue;
+                        }
+                        let vx = ox + 8.0 + dx as f32 * 24.0;
+                        let vz = oz + 8.0 + dz as f32 * 24.0;
+                        let mut trees = 0;
+                        let mut grass = 0;
+                        for sx in -10..10i32 {
+                            for sz in -10..10i32 {
+                                let slot = SlotCoord {
+                                    x: (vx / 4.0) as i32 + sx,
+                                    z: (vz / 4.0) as i32 + sz,
+                                };
+                                match flora::plant_at(&gen, slot).map(|p| p.kind) {
+                                    Some(k) if k.blocks_movement() => trees += 1,
+                                    Some(PlantKind::Grass) => grass += 1,
+                                    _ => {}
+                                }
+                            }
+                        }
+                        if trees >= 3 && grass >= 3 {
+                            center = [vx, vz];
+                            break 'find;
+                        }
+                    }
+                }
+            }
+            // A landmark somewhere near (search regions outward).
+            let mut landmark = None;
+            let cr = pc3d_world::coords::RegionCoord {
+                x: (center[0] as i32).div_euclid(256),
+                z: (center[1] as i32).div_euclid(256),
+            };
+            'lm: for dr in 0..12i32 {
+                for dx in -dr..=dr {
+                    for dz in -dr..=dr {
+                        if dx.abs() != dr && dz.abs() != dr {
+                            continue;
+                        }
+                        if let Some(p) =
+                            flora::landmark_at(&gen, pc3d_world::coords::RegionCoord {
+                                x: cr.x + dx,
+                                z: cr.z + dz,
+                            })
+                        {
+                            landmark = Some(p);
+                            break 'lm;
+                        }
+                    }
+                }
+            }
+            let ground = |x: f32, z: f32| {
+                gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+            };
+            let gy = ground(center[0], center[1]);
+            let pose = {
+                let eye = [center[0] - 20.0, gy + 7.0, center[1] + 20.0];
+                let d = [center[0] - eye[0], gy - eye[1], center[1] - eye[2]];
+                pc3d_render::CameraPose::new(
+                    eye,
+                    (-d[0]).atan2(-d[2]),
+                    (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                )
+            };
+            let (lm_pose, lm_pos) = match landmark {
+                Some([lx, lz]) => {
+                    let ly = ground(lx, lz);
+                    let eye = [lx - 14.0, ly + 4.0, lz + 14.0];
+                    let d = [lx - eye[0], ly + 2.0 - eye[1], lz - eye[2]];
+                    (
+                        Some(pc3d_render::CameraPose::new(
+                            eye,
+                            (-d[0]).atan2(-d[2]),
+                            (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                        )),
+                        Some([lx, ly, lz]),
+                    )
+                }
+                None => (None, None),
+            };
+            println!(
+                "WILDERNESS: vegetated center ({:.0},{:.0}), landmark {:?}",
+                center[0], center[1], lm_pos
+            );
+
+            let v1 = verts.clone();
+            let i1 = idx.clone();
+            let g_hook = gen.clone();
+            let g_lm = gen.clone();
+            let g_low = gen.clone();
+            let stats_note = |s: &FloraStats, tag: &str| {
+                println!(
+                    "WILDERNESS {tag}: added {} evicted {} cached {} scanned {} buckets {} instances {}",
+                    s.added, s.evicted, s.cached, s.scanned, s.draw_buckets, s.instances_drawn
+                );
+            };
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — wilderness".into(),
+                max_frames: Some(210),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![
+                    (0, pose),
+                    (95, lm_pose.unwrap_or(pose)),
+                ],
+                shots: vec![
+                    Shot::new(25, format!("{out_dir}/windowed_wild_control.png")),
+                    Shot::new(80, format!("{out_dir}/windowed_wild_vista.png")),
+                    Shot::new(140, format!("{out_dir}/windowed_wild_landmark.png")),
+                    Shot::new(190, format!("{out_dir}/windowed_wild_lowtier.png")),
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            r.set_placeholder_scene(false);
+                            r.load_surface(&v1, &i1);
+                            r.set_atmosphere_tier(AtmosphereTier::Mid);
+                            r.set_water_time(Some(0.5));
+                            // No flora yet: the CONTROL frame.
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        45,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            r.attach_flora(g_hook.clone());
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        90,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            stats_note(&r.flora_stats(), "vista");
+                            // The landmark draws as a one-off asset load at
+                            // its authoritative position (if this seed has
+                            // one in range).
+                            if let Some([lx, ly, lz]) = lm_pos {
+                                let _ = (lx, ly, lz);
+                                // The landmark GLB rides the asset slot.
+                                let root = std::path::PathBuf::from(
+                                    env!("CARGO_MANIFEST_DIR"),
+                                )
+                                .join("../../assets/compiled");
+                                if let Ok(asset) = pc3d_render::glb::load_asset_file(
+                                    &root.join("landmark/standing_stone.glb"),
+                                ) {
+                                    let tris = r.load_asset(&asset, "lod0", [lx, ly, lz]);
+                                    println!("LANDMARK: standing stone at ({lx:.0},{ly:.0},{lz:.0}), {tris} tris");
+                                }
+                            }
+                            let _ = &g_lm;
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        160,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            // The Deck LOW tier: shrunk ring + no far grass.
+                            r.set_flora_config(FloraConfig::low());
+                            let _ = &g_low;
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 4 {
+                        eprintln!("[FAIL] expected 4 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(3) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    let diff = pc3d_render::scene::pixel_difference_fraction(
+                        &report.captures[0].rgba,
+                        &report.captures[1].rgba,
+                    );
+                    if diff < 0.02 {
+                        eprintln!("[FAIL] the wilderness must appear ({diff})");
+                        std::process::exit(1);
+                    }
+                    println!("WILDERNESS VISIBLE: diff {diff:.2}%");
+                    println!(
+                        "WINDOWED WILDERNESS PROOF PASS -> control/vista/landmark/lowtier in {out_dir}"
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some("--play-materials") => {
             // NWR-006: materials + atmosphere in one live window — the
             // Mid tier vista (shadows + fog + material grain + glint),

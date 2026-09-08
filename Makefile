@@ -137,6 +137,10 @@ p3d-surface-stream: ## NWR-004: streamed SURFACE terrain vista proof: make p3d-s
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-surface-stream $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D SURFACE STREAM OK"
 
+p3d-wilderness: ## NWR-007: instanced wilderness proof (control/vista/landmark/low-tier): make p3d-wilderness [OUTDIR=shots]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-wilderness $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D WILDERNESS OK"
+
 p3d-materials: ## NWR-006: materials + atmosphere proof (shadows/fog/grain/glint/cutout, tier rows): make p3d-materials [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-materials $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D MATERIALS OK"

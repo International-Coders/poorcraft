@@ -44,6 +44,14 @@ struct EnvGpu {
     params2: [f32; 4],
 }
 
+/// The instanced wilderness pipelines (NWR-007) — one draw per
+/// (kind, LOD) bucket, plus the grass cutout cards.
+pub struct FloraPipelines {
+    pub inst: wgpu::RenderPipeline,
+    pub inst_cutout: wgpu::RenderPipeline,
+    pub inst_shadow: wgpu::RenderPipeline,
+}
+
 struct Pipelines {
     sky: wgpu::RenderPipeline,
     mesh: wgpu::RenderPipeline,
@@ -59,6 +67,7 @@ struct Pipelines {
     layout_hud: wgpu::BindGroupLayout,
     /// The cutout mask bind group layout (group 1).
     layout_mask: wgpu::BindGroupLayout,
+    flora: FloraPipelines,
 }
 
 impl Pipelines {
@@ -372,6 +381,65 @@ impl Pipelines {
             None,
         );
 
+        let inst_layout = crate::flora::INSTANCE_LAYOUT;
+        let inst = make(
+            "pc3d flora inst pipeline",
+            &pl_globals,
+            "vs_inst",
+            "fs_mesh",
+            &[VERTEX_LAYOUT.clone(), inst_layout.clone()],
+            Some(wgpu::Face::Back),
+            Some(depth24.clone()),
+            None,
+        );
+        let inst_cutout = make(
+            "pc3d flora cutout pipeline",
+            &pl_cutout,
+            "vs_inst_cutout",
+            "fs_cutout",
+            &[crate::atmosphere::CUTOUT_LAYOUT, crate::flora::INSTANCE_LAYOUT_LATE],
+            None,
+            Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth24Plus,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            None,
+        );
+        let inst_shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("pc3d flora inst shadow pipeline"),
+            layout: Some(&pl_globals),
+            vertex: wgpu::VertexState {
+                module: &module,
+                entry_point: Some("vs_inst_shadow"),
+                buffers: &[VERTEX_LAYOUT.clone(), inst_layout],
+                compilation_options: Default::default(),
+            },
+            fragment: None,
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: Some(wgpu::Face::Back),
+                front_face: wgpu::FrontFace::Ccw,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        });
+        let flora = FloraPipelines {
+            inst,
+            inst_cutout,
+            inst_shadow,
+        };
         Self {
             sky: make(
                 "pc3d sky pipeline",
@@ -410,6 +478,7 @@ impl Pipelines {
             layout_globals,
             layout_hud,
             layout_mask,
+            flora,
         }
     }
 }
@@ -514,6 +583,10 @@ pub struct Renderer {
     detail: wgpu::Texture,
     /// Alpha-cutout foliage slot (NWR-006): mesh + its mask bind group.
     cutout: Option<(GpuMesh, wgpu::BindGroup)>,
+    /// Streamed wilderness (NWR-007): instanced plants + grass cards.
+    flora: Option<crate::flora::FloraStreamer>,
+    /// The generator the flora placement reads (authority).
+    flora_gen: Option<std::rc::Rc<pc3d_world::gen::WorldGen>>,
 }
 
 /// A plain vertex/index buffer pair (u16 or u32 indices).
@@ -648,6 +721,8 @@ impl Renderer {
             bg_light,
             detail,
             cutout: None,
+            flora: None,
+            flora_gen: None,
             construction: None,
             terrain: None,
             streamer: None,
@@ -724,6 +799,8 @@ impl Renderer {
             bg_light,
             detail,
             cutout: None,
+            flora: None,
+            flora_gen: None,
             construction: None,
             terrain: None,
             streamer: None,
@@ -856,6 +933,28 @@ impl Renderer {
     /// The current atmosphere parameters (proof introspection).
     pub fn atmosphere(&self) -> crate::atmosphere::Atmosphere {
         self.atmosphere
+    }
+
+    /// Attaches the streamed wilderness (NWR-007): instanced plants
+    /// placed by the pure pc3d_world::flora authority, updated with a
+    /// bounded slot budget every frame.
+    pub fn attach_flora(&mut self, gen: std::rc::Rc<pc3d_world::gen::WorldGen>) {
+        let mut f = crate::flora::FloraStreamer::new(&self.ctx.device);
+        f.attach_mask(&self.ctx.device, &self.ctx.queue, &self.pipelines.layout_mask);
+        self.flora = Some(f);
+        self.flora_gen = Some(gen);
+    }
+
+    /// The flora streamer's config (tier budgets).
+    pub fn set_flora_config(&mut self, cfg: crate::flora::FloraConfig) {
+        if let Some(f) = self.flora.as_mut() {
+            f.set_config(cfg);
+        }
+    }
+
+    /// The flora counters (bounded-work + eviction proofs).
+    pub fn flora_stats(&self) -> crate::flora::FloraStats {
+        self.flora.as_ref().map(|f| f.stats).unwrap_or_default()
     }
 
     /// Diagnostic: reads the sun shadow map back as f32 depths (the
@@ -1013,6 +1112,11 @@ impl Renderer {
     /// buffers without a window).
     pub fn device_for_tests(&self) -> &wgpu::Device {
         &self.ctx.device
+    }
+
+    /// The offscreen renderer's device (unit tests' flora construction).
+    pub fn device_for_tests_of(r: &Renderer) -> &wgpu::Device {
+        &r.ctx.device
     }
 
     /// Attaches the SURFACE streamer (NWR-004 ordinary terrain path).
@@ -1556,6 +1660,15 @@ impl Renderer {
                 spass.set_pipeline(&self.pipelines.shadow_cutout);
                 m.draw(&mut spass);
             }
+            // Wilderness instances cast shadows too (NWR-007): the
+            // placement update runs here so the shadow and color passes
+            // agree even mid-stream.
+            if let (Some(f), Some(g)) = (self.flora.as_mut(), self.flora_gen.clone()) {
+                let vp = self.camera.pose.position;
+                f.update(&g, [vp[0], vp[2]]);
+                f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
+                f.draw_shadow(&mut spass, &self.pipelines.flora, &self.bg_light);
+            }
         }
         let depth_view = self
             .depth
@@ -1631,6 +1744,14 @@ impl Renderer {
         // 2b4. GLB assets (NWR-002).
         for (a, _) in &self.assets {
             a.draw(&mut pass);
+        }
+        // 2b4b. Streamed wilderness (NWR-007): bounded placement update,
+        // bucket upload, then ONE draw per (kind, LOD) + grass cards.
+        if let (Some(f), Some(g)) = (self.flora.as_mut(), self.flora_gen.clone()) {
+            let vp = self.camera.pose.position;
+            f.update(&g, [vp[0], vp[2]]);
+            f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
+            f.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
         }
         // 2b5. Alpha-cutout foliage (NWR-006): mask-tested, depth-writing,
         // opaque blend — order-independent and Deck-cheap.
