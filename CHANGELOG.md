@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-09-07 — NWR-003: natural-terrain surface spike
+
+The first real break from cube terrain, isolated to a 3x3 test region:
+
+- `pc3d_render::surface`: 17x17 boundary-grid patches with seam-shared
+  edges (identical vertices asserted on every internal seam), heights and
+  materials from the authoritative generator, sparse delta edits
+  (Raise/Lower/Level) that dirty exactly patch+border-neighbors, a
+  version table proving remesh is bounded to the dirty set, and a
+  compact delta save record with corruption refusal.
+- Collision derives from the same grid: bilinear surface height within
+  every facet's min/max (64-point test), 3x3-stencil slope walkability —
+  the stencil sees neighbor nodes, catching man-made cliffs a cell-only
+  check misses (found by the failing cliff test).
+- GPU + windowed proofs with cube-vs-surface discriminators: luminance
+  bands along a downhill run, adjacent-row delta distribution (continuous
+  slope vs banded flats), control-diff ground rows, and an edit-visible
+  plateau. Before-capture human-inspected PASS: faceted rolling hills,
+  not cubes. A clockwise-winding bug that culling-invisible the whole
+  terrain was caught by the pixel dump and fixed.
+- `--play-surface` / `make p3d-surface`; old cube path + construction
+  untouched; existing gates re-run green.
+
 ## 2026-09-07 — NWR-002: original GLB asset factory
 
 The renderer now loads real glTF. Three original, reproducible assets

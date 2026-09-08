@@ -51,7 +51,17 @@
       ],
       "prompt": "prompts/02-NWR-003-natural-terrain-spike.md",
       "completion": "Seam-free editable/collidable low-poly 3x3 terrain patch proof.",
-      "status": "next"
+      "status": "done",
+      "evidence": {
+        "surface_contract": "pc3d_render::surface (new): 3x3 isolated region \u2014 each 16 m patch a 17x17 vertex boundary grid with SEAM-SHARED boundaries (patch p's east column IS p+1's west column by construction; test asserts identical vertices on all internal east+south seams); base heights + materials sampled from the AUTHORITATIVE generator (effective_surface_mm / final_solid); sparse signed-delta edit layer; low-poly mesh = 2 triangles per cell on the fixed NW-SE diagonal with flat facet normals and per-cell authoritative material colors",
+        "collision_from_same_data": "height_at (bilinear over the same grid) is proven within every facet's min/max at 64 sampled points; walkability = 3x3-node-stencil max-rise/step <= 1.6 (the stencil sees neighbor nodes \u2014 a lowered cell drops all its OWN corners, so the wall only exists against adjacent nodes; the first cell-only stencil missed it and the cliff test caught it)",
+        "edits": "SurfaceEdit Raise/Lower/Level as commands over 1 m cells (corner-node deltas); an INTERIOR edit dirties exactly ONE patch, a border edit dirties patch+neighbor (asserted incl. diagonals); Level sets an absolute target; the version table proves remesh is BOUNDED to dirty patches (changed == dirty)",
+        "save_load": "the sparse delta layer encodes/decodes through a compact record (only nonzero deltas), round-trips exactly, and corrupt/truncated payloads refuse with errors",
+        "windowed_proof": "--play-surface / make p3d-surface: before/after captures of the spike region \u2014 a 3x3 raised plateau through the edit command path, remesh 2601 verts bounded to one dirty patch, image diff visible; BEFORE capture human-inspected PASS: smooth rolling FACETED natural hills (visibly sloped, continuous shading \u2014 NOT staircase cubes)",
+        "cube_vs_surface_discriminator": "the GPU test's semantic checks: >=3 luminance bands along the downhill run (a flat plane = 1); adjacent-row delta distribution \u2014 a continuous slope shades on most ground rows with <=4 hard jumps (a cube staircase bands identical flats + wall jumps), ground rows identified by control-difference render; edit visibility by image diff",
+        "bug_caught_by_proof": "the first mesh wound triangles CLOCKWISE seen from above \u2014 backface culling ate the entire terrain and the pixel dump showed pure sky; fixed to CCW (the same class of bug the root project's face-winding history warns about)",
+        "gates": "existing 9-gate battery re-run green after the change; old cube path untouched (construction unchanged); spike is isolated until NWR-004"
+      }
     },
     {
       "id": "NWR-004",
@@ -60,7 +70,8 @@
         "NWR-003"
       ],
       "prompt": "prompts/03-NWR-004-terrain-migration.md",
-      "completion": "Ordinary natural terrain streams via the new surface representation with bounded LOD work."
+      "completion": "Ordinary natural terrain streams via the new surface representation with bounded LOD work.",
+      "status": "next"
     },
     {
       "id": "NWR-005",

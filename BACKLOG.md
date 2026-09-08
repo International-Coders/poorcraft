@@ -1455,3 +1455,11 @@ Deferred (honest notes):
 - DEFERRED to their milestones: texture maps (NWR-006 material library),
   instanced placement (NWR-007), asset colliders feeding player collision
   (NWR-005), glTF skinning/animation (NWR-009).
+
+## 2026-09-07 — NWR-003 surface spike shipped
+
+- DONE: pc3d_render::surface (seam-shared boundary grids, authoritative
+  sampling, delta edits + bounded dirty-remesh, same-data collision,
+  delta persistence), --play-surface windowed proof, discriminators.
+- DEFERRED: spike LOD, caves (NWR-005), host-authoritative edit wiring
+  (NWR-004/005), texture materials (NWR-006).

@@ -5073,3 +5073,47 @@ wilderness props); colliders are DECLARED in the manifest but not yet fed
 into player collision (terrain-only until NWR-005 foundations); glTF
 skinning/animation untouched (NWR-009). Next: NWR-003 — the natural
 terrain spike (low-poly 3x3 patch proof).
+
+## 2026-09-07 — NWR-003: the natural-terrain surface spike (rebuild milestone 3)
+
+WHAT: The first real break from cube terrain. pc3d_render::surface (new)
+builds an ISOLATED 3x3-patch region under the pack's surface-first
+contract: 16 m patches as 17x17 vertex boundary grids with SEAM-SHARED
+boundaries (a patch's east column IS its neighbor's west column by
+construction — test-asserted identical on every internal seam), heights +
+materials from the AUTHORITATIVE generator, a sparse signed-delta edit
+layer, a low-poly mesh (2 triangles per cell, fixed diagonal, flat facet
+normals, per-cell material colors), and collision derived from the SAME
+grid (bilinear height_at + 3x3-stencil slope walkability <= 1.6). Edits
+are commands (Raise/Lower/Level over 1 m cells): an interior edit dirties
+ONE patch, a border edit dirties patch+neighbor, the version table proves
+remesh is bounded to the dirty set, and the delta layer round-trips
+through a compact save record with refusal on corrupt payloads. The old
+cube path and construction are untouched — this is a spike, isolated
+until NWR-004.
+
+EVIDENCE: unit tests (seam identity, collision-within-facet at 64 points,
+cliff walkability separation, dirty-set bounds == changed-versions,
+raise/level math, delta round-trip + corruption refusal). GPU test with
+the CUBE-VS-SURFACE discriminators: >=3 luminance bands along a downhill
+run (flat plane = 1); adjacent-row delta distribution — a continuous
+slope shades on most ground rows with <=4 hard jumps (a cube staircase
+bands identical flats then jumps at walls), ground rows identified by
+CONTROL-DIFFERENCE render; a 3x3 raised plateau through the edit path
+changes the image. Windowed --play-surface / make p3d-surface:
+before/after captures — 9 patches 2601 verts / 4608 tris, mesh 4.7 ms,
+edit remesh bounded to one dirty patch, 66 frames; BEFORE capture
+human-inspected PASS: smooth rolling FACETED natural hills, visibly
+sloped with continuous shading — NOT staircase cubes.
+
+BUG CAUGHT BY THE PROOF: the first mesh wound triangles clockwise seen
+from above; backface culling ate the whole terrain and the pixel dump
+showed pure sky — fixed to CCW (the exact bug class the root project's
+face-winding history warns about, now independently rediscovered and
+caught by a pixel assertion, not trust).
+
+HONESTLY DEFERRED: no LOD on the spike surface; no caves (NWR-005 brings
+the sparse volumetric path); edits are renderer-local state for the spike
+(not yet host-authoritative world commands — that wiring is NWR-004/005
+with the dirty-patch contract); no texture materials (NWR-006). Next:
+NWR-004 — stream the NEW surface as the ordinary terrain path.

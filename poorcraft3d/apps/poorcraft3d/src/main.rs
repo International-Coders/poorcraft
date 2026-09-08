@@ -1914,9 +1914,144 @@ fn main() {
                 }
             }
         }
+        Some("--play-surface") => {
+            // NWR-003: the natural-terrain SPIKE — an isolated 3x3 patch
+            // region of low-poly surface terrain (NOT the migrated world):
+            // before/after captures around a raised plateau, with the
+            // sloped-ground discriminator and the mesh record.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::surface::{SurfaceEdit, SurfaceRegion, PATCH_M};
+            use pc3d_render::{ProbeSet, Shot};
+
+            let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+            let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
+            let mut region = SurfaceRegion::new(
+                pc3d_world::gen::WorldGen::new(seed),
+                coord,
+            );
+            let t0mesh = std::time::Instant::now();
+            let (verts, idx, versions) = region.mesh_region();
+            let mesh_us = t0mesh.elapsed().as_micros();
+            println!(
+                "SURFACE SPIKE: 9 patches, {} verts / {} tris, mesh {mesh_us} us, versions {versions:?}",
+                verts.len(),
+                idx.len() / 3
+            );
+
+            let ox = coord.x as f32 * PATCH_M - PATCH_M;
+            let oz = coord.z as f32 * PATCH_M - PATCH_M;
+            let eye = [
+                ox + 24.0,
+                region.height_at(ox + 24.0, oz + 34.0) + 12.0,
+                oz + 34.0,
+            ];
+            let aim = [ox + 24.0, region.height_at(ox + 24.0, oz + 10.0), oz + 10.0];
+            let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
+            let pose = pc3d_render::CameraPose::new(
+                eye,
+                (-d[0]).atan2(-d[2]),
+                (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+            );
+
+            let v1 = verts.clone();
+            let i1 = idx.clone();
+            let g1 = gen.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — surface spike".into(),
+                max_frames: Some(80),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                shots: vec![
+                    Shot::new(25, format!("{out_dir}/windowed_surface_before.png")),
+                    Shot::new(65, format!("{out_dir}/windowed_surface_after.png"))
+                        .sky(false), // the raised plateau can fill the frame
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            r.set_placeholder_scene(false);
+                            r.load_surface(&v1, &i1);
+                            r.set_pose(pose);
+                            let _ = &g1;
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        35,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            // Raise the plateau through the EDIT COMMAND path
+                            // (3x3, one patch) and remesh from the edited
+                            // region.
+                            let mut region2 =
+                                SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), coord);
+                            let mut dirty = std::collections::BTreeSet::new();
+                            for dx in 0..3i32 {
+                                for dz in 0..3i32 {
+                                    dirty.extend(region2.edit(SurfaceEdit::Raise {
+                                        cell: pc3d_world::coords::CellCoord {
+                                            x: (ox + 23.0) as i32 + dx,
+                                            y: 0,
+                                            z: (oz + 11.0) as i32 + dz,
+                                        },
+                                        meters: 4.0,
+                                    }));
+                                }
+                            }
+                            let (v2, i2, _) = region2.mesh_region();
+                            println!(
+                                "SURFACE EDIT: dirty {dirty:?} -> remesh {} verts (bounded)",
+                                v2.len()
+                            );
+                            r.load_surface(&v2, &i2);
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 2 {
+                        eprintln!("[FAIL] expected 2 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(12) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    let diff = pc3d_render::scene::pixel_difference_fraction(
+                        &report.captures[0].rgba,
+                        &report.captures[1].rgba,
+                    );
+                    if diff < 0.005 {
+                        eprintln!("[FAIL] the plateau edit must change the view ({diff})");
+                        std::process::exit(1);
+                    }
+                    println!("SURFACE EDIT VISIBLE: image diff {diff:.2}%");
+                    println!(
+                        "WINDOWED SURFACE SPIKE PASS -> before/after in {out_dir}"
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

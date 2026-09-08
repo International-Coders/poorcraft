@@ -612,6 +612,12 @@ impl Renderer {
         tris
     }
 
+    /// Loads the NWR-003 surface spike mesh (replaces the drawn terrain
+    /// for the isolated proof).
+    pub fn load_surface(&mut self, verts: &[crate::scene::SceneVertex], idx: &[u32]) {
+        self.terrain = Some(GpuMesh::from_mesh_u32(&self.ctx.device, verts, idx));
+    }
+
     /// Detaches the construction layer (control renders for block proofs).
     pub fn detach_construction(&mut self) {
         self.construction = None;
