@@ -123,7 +123,8 @@
       ],
       "prompt": "prompts/07-NWR-008-settlement-assets.md",
       "completion": "Original modular castle/town kit replaces visible primitive city forms.",
-      "status": "next"
+      "status": "done",
+      "evidence": "tools/assetgen: TEN original modular kit GLBs with DECLARED SOCKETS written into the GLB nodes (settlement_house 54 tris w/ door_front+road_front+roof_smoke+build_base; settlement_workshop 142; market_stall 104; wall_segment 52 w/ wall_a+wall_b chaining sockets; gate_arch 162 w/ passage_a/b + wall_a/b; watchtower 68; keep 294 w/ door+banner_top; bridge_dock 118 w/ deck_a/b + water_line; banner_sign 39; water_wheel 478 w/ axle+water_line+power_anchor) \u2014 byte-identical regen within budgets (the wheel's doubled spoke layer exceeded 500 tris and was trimmed; the budget caught it). settlement_batch.json: 10 integrated rows, all sockets declared, validates against files on disk. pc3d_render::settlement (new): assemble_kit maps EVERY authoritative kind (EXHAUSTIVE match \u2014 the compiler enforces completeness) to a kit module at its plan cell; walls chain socket-to-socket along the 3 m circuit; doors face the plaza/center; collision/nav/anchors reused from mesh_city parity with the gate REFINED (the passage column opens; the primitive path blocked the whole footprint); Bed/Work/Idle zones render as colored marker boxes; dock+water-wheel place at the nearest river when one is in range; SettlementGround collision adapter (height window rides the inner surface's own ground answer \u2014 the flat-ground walk through a wall caught the gen-terrain window bug); drawn INSTANCED through the flora pipelines (8 bucket draws / 620 tris at the street vantage) with sun shadows. Proofs: plan-to-render consistency (one placement per element, footprint-centered) + assembly determinism (the save/load stability law \u2014 the plan re-derives the same kit); wall socket chains align <0.35 m in either pair orientation; collision/nav parity (nav anchors + D-033 zones identical; kit collision a strict subset with exactly the gate passages opened); the player WALKS THROUGH the gate passage and is stopped by walls on a purpose-built flat stage (the proof capital's own gate sits on a terrain step with flanking towers \u2014 walkability there is a plan concern, honestly noted); GPU control-diff 0.019 with 12 LOD buckets and anchors present. Windowed --play-settlement / make p3d-settlement (141 frames p50 4.81 ms with Mid atmosphere + flora + the kit): overview + street captures human-inspected PASS (crenellated wall circuit with towers, banner-topped keep, thatched crofts along a lane, market stalls, hazy distance with cast shadows). The anti-false-art guardrail stayed honest: capability_inventory.json records the 10 new GLBs and unions all three packs. 9/9 gates green."
     },
     {
       "id": "NWR-009",
@@ -132,7 +133,8 @@
         "NWR-008"
       ],
       "prompt": "prompts/08-NWR-009-npc-presentation.md",
-      "completion": "Original role-aware rig-ready characters driven by authoritative brains."
+      "completion": "Original role-aware rig-ready characters driven by authoritative brains.",
+      "status": "next"
     },
     {
       "id": "NWR-010",

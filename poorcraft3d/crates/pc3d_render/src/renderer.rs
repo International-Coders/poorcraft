@@ -585,6 +585,8 @@ pub struct Renderer {
     cutout: Option<(GpuMesh, wgpu::BindGroup)>,
     /// Streamed wilderness (NWR-007): instanced plants + grass cards.
     flora: Option<crate::flora::FloraStreamer>,
+    /// The settlement kit scene (NWR-008): static instanced modules.
+    settlement: Option<crate::settlement::SettlementGpu>,
     /// The generator the flora placement reads (authority).
     flora_gen: Option<std::rc::Rc<pc3d_world::gen::WorldGen>>,
 }
@@ -723,6 +725,7 @@ impl Renderer {
             cutout: None,
             flora: None,
             flora_gen: None,
+            settlement: None,
             construction: None,
             terrain: None,
             streamer: None,
@@ -801,6 +804,7 @@ impl Renderer {
             cutout: None,
             flora: None,
             flora_gen: None,
+            settlement: None,
             construction: None,
             terrain: None,
             streamer: None,
@@ -943,6 +947,26 @@ impl Renderer {
         f.attach_mask(&self.ctx.device, &self.ctx.queue, &self.pipelines.layout_mask);
         self.flora = Some(f);
         self.flora_gen = Some(gen);
+    }
+
+    /// Attaches the assembled settlement kit scene (NWR-008). The kit
+    /// GLBs load once; placements are static (re-derived on load).
+    pub fn attach_settlement(
+        &mut self,
+        scene: &crate::settlement::KitScene,
+        kit: &crate::settlement::SettlementKit,
+    ) {
+        let viewer = [self.camera.pose.position[0], self.camera.pose.position[2]];
+        let gpu = crate::settlement::SettlementGpu::new(&self.ctx.device, scene, kit, viewer);
+        self.settlement = Some(gpu);
+    }
+
+    /// The settlement kit draw/triangle record.
+    pub fn settlement_stats(&self) -> (usize, usize) {
+        self.settlement
+            .as_ref()
+            .map(|s| (s.draws, s.tris))
+            .unwrap_or((0, 0))
     }
 
     /// The flora streamer's config (tier budgets).
@@ -1660,6 +1684,10 @@ impl Renderer {
                 spass.set_pipeline(&self.pipelines.shadow_cutout);
                 m.draw(&mut spass);
             }
+            // The settlement kit casts shadows (NWR-008).
+            if let Some(st) = self.settlement.as_mut() {
+                st.draw_shadow(&mut spass, &self.pipelines.flora, &self.bg_light);
+            }
             // Wilderness instances cast shadows too (NWR-007): the
             // placement update runs here so the shadow and color passes
             // agree even mid-stream.
@@ -1752,6 +1780,12 @@ impl Renderer {
             f.update(&g, [vp[0], vp[2]]);
             f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
             f.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
+        }
+        // 2b4c. The settlement kit (NWR-008): instanced modules + the
+        // D-033 anchor markers.
+        if let Some(st) = self.settlement.as_mut() {
+            st.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
+            st.draw_anchors(&mut pass, &self.pipelines.mesh, &self.bg_globals);
         }
         // 2b5. Alpha-cutout foliage (NWR-006): mask-tested, depth-writing,
         // opaque blend — order-independent and Deck-cheap.

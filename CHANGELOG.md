@@ -1,5 +1,37 @@
 # CHANGELOG
 
+## 2026-09-08 — NWR-008: the settlement kit
+
+The city graduates from procedural prisms to an original modular kit:
+
+- `tools/assetgen`: ten GLBs with DECLARED SOCKETS in the GLB nodes —
+  house, workshop, market stall, wall segment (wall_a/wall_b chains),
+  gate arch (passage + wall flanks), watchtower, keep (banner_top),
+  bridge/dock, banner sign, water wheel. Byte-identical regen within
+  budgets (the wheel's doubled spoke layer was caught by the 500-tri
+  budget and trimmed).
+- `pc3d_render::settlement` (new): `assemble_kit` maps every
+  authoritative kind (exhaustive match) to a kit module at its plan
+  cell — one placement per element; walls chain socket-to-socket along
+  the 3 m circuit; collision/nav/anchors reuse mesh_city for parity,
+  with the gate REFINED so its passage column opens; Bed/Work/Idle
+  zones render as colored markers; dock + water wheel place at the
+  nearest river. Drawn instanced through the flora pipelines with sun
+  shadows. `SettlementGround` adapter (its height window rides the
+  inner surface's ground — the gen-terrain window ghosted walls on
+  flat stages until the walk test caught it).
+- Proofs: plan→render consistency + assembly determinism (the
+  save/load stability law), socket chains <0.35 m, collision/nav
+  parity with exactly the gate passages opened, the player walks
+  through the gate and is stopped by walls, GPU control-diff 0.019
+  with 12 LOD buckets. Windowed `--play-settlement` /
+  `make p3d-settlement` (p50 4.81 ms with atmosphere + flora + kit):
+  overview + street human-inspected PASS. Inventory honesty kept
+  (10 new GLBs recorded; the guardrail unions all three packs).
+  9/9 gates.
+
+# CHANGELOG
+
 ## 2026-09-08 — NWR-007: the wilderness
 
 Instanced wilderness from a pure placement authority:

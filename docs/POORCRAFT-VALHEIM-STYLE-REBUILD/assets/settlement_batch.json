@@ -1,0 +1,403 @@
+{
+ "schema_version": 2,
+ "coordinate_system": "meters,+Y-up,-Z-forward",
+ "assets": [
+  {
+   "id": "module.settlement_house",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/settlement_house.glb",
+   "materials": [
+    "mat.fieldstone",
+    "mat.timber",
+    "mat.thatch"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 900
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 450
+    }
+   ],
+   "collision": {
+    "kind": "box",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "door_front",
+    "road_front",
+    "roof_smoke",
+    "build_base"
+   ]
+  },
+  {
+   "id": "module.settlement_workshop",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/settlement_workshop.glb",
+   "materials": [
+    "mat.fieldstone",
+    "mat.timber",
+    "mat.thatch"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 900
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 450
+    }
+   ],
+   "collision": {
+    "kind": "box",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "door_front",
+    "road_front",
+    "work_anchor",
+    "build_base"
+   ]
+  },
+  {
+   "id": "module.market_stall",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/market_stall.glb",
+   "materials": [
+    "mat.timber",
+    "mat.thatch",
+    "mat.banner_red"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 400
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 200
+    }
+   ],
+   "collision": {
+    "kind": "none",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "front",
+    "base"
+   ]
+  },
+  {
+   "id": "module.wall_segment",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/wall_segment.glb",
+   "materials": [
+    "mat.fieldstone",
+    "mat.granite"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 250
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 120
+    }
+   ],
+   "collision": {
+    "kind": "box",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "wall_a",
+    "wall_b",
+    "top",
+    "build_base"
+   ]
+  },
+  {
+   "id": "module.gate_arch",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/gate_arch.glb",
+   "materials": [
+    "mat.fieldstone",
+    "mat.granite",
+    "mat.timber"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 700
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 350
+    }
+   ],
+   "collision": {
+    "kind": "box",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "passage_a",
+    "passage_b",
+    "wall_a",
+    "wall_b",
+    "build_base"
+   ]
+  },
+  {
+   "id": "module.watchtower",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/watchtower.glb",
+   "materials": [
+    "mat.fieldstone",
+    "mat.timber",
+    "mat.thatch"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 600
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 300
+    }
+   ],
+   "collision": {
+    "kind": "box",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "door",
+    "top",
+    "build_base"
+   ]
+  },
+  {
+   "id": "module.keep",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/keep.glb",
+   "materials": [
+    "mat.fieldstone",
+    "mat.granite",
+    "mat.banner_red"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 1600
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 800
+    }
+   ],
+   "collision": {
+    "kind": "box",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "door",
+    "banner_top",
+    "build_base"
+   ]
+  },
+  {
+   "id": "module.bridge_dock",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/bridge_dock.glb",
+   "materials": [
+    "mat.timber"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 400
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 200
+    }
+   ],
+   "collision": {
+    "kind": "box",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "deck_a",
+    "deck_b",
+    "water_line",
+    "build_base"
+   ]
+  },
+  {
+   "id": "module.banner_sign",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/banner_sign.glb",
+   "materials": [
+    "mat.timber",
+    "mat.banner_red"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 200
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 100
+    }
+   ],
+   "collision": {
+    "kind": "none",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "base"
+   ]
+  },
+  {
+   "id": "module.water_wheel",
+   "category": "module",
+   "status": "integrated",
+   "provenance": {
+    "kind": "original_procedural",
+    "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+    "reviewed": true
+   },
+   "source": [
+    "tools/assetgen/src/main.rs"
+   ],
+   "compiled": "assets/compiled/module/water_wheel.glb",
+   "materials": [
+    "mat.timber"
+   ],
+   "lods": [
+    {
+     "name": "lod0",
+     "max_triangles": 500
+    },
+    {
+     "name": "lod1",
+     "max_triangles": 250
+    }
+   ],
+   "collision": {
+    "kind": "box",
+    "blocks_navigation": true
+   },
+   "runtime_consumer": "pc3d_render::settlement",
+   "proof_scene": "settlement_kit",
+   "sockets": [
+    "axle",
+    "water_line",
+    "power_anchor"
+   ]
+  }
+ ]
+}

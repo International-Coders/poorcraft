@@ -142,7 +142,17 @@
   "assets/compiled/flora/tree_broadleaf.glb",
   "assets/compiled/flora/tree_pine.glb",
   "assets/compiled/landmark/standing_stone.glb",
+  "assets/compiled/module/banner_sign.glb",
+  "assets/compiled/module/bridge_dock.glb",
+  "assets/compiled/module/gate_arch.glb",
   "assets/compiled/module/house_croft.glb",
+  "assets/compiled/module/keep.glb",
+  "assets/compiled/module/market_stall.glb",
+  "assets/compiled/module/settlement_house.glb",
+  "assets/compiled/module/settlement_workshop.glb",
+  "assets/compiled/module/wall_segment.glb",
+  "assets/compiled/module/watchtower.glb",
+  "assets/compiled/module/water_wheel.glb",
   "assets/compiled/prop/rock_granite.glb",
   "assets/compiled/prop/tree_ash.glb"
  ],
@@ -208,10 +218,61 @@
     "id": "landmark.standing_stone",
     "status": "integrated",
     "compiled_exists": true
+   },
+   {
+    "id": "module.settlement_house",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.settlement_workshop",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.market_stall",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.wall_segment",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.gate_arch",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.watchtower",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.keep",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.bridge_dock",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.banner_sign",
+    "status": "integrated",
+    "compiled_exists": true
+   },
+   {
+    "id": "module.water_wheel",
+    "status": "integrated",
+    "compiled_exists": true
    }
   ],
   "extra_packs": [
-   "docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/wilderness_batch.json"
+   "docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/wilderness_batch.json",
+   "docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/settlement_batch.json"
   ]
  },
  "screenshot_gates": {

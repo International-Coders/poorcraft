@@ -1509,3 +1509,15 @@ Deferred (honest notes):
 - DEFERRED: per-plant frustum culling, grass collision (never blocks
   by contract), landmark on the single-asset slot, GLB cutout leaves,
   live-shell flora attach (NWR-011), grass far-LOD.
+
+## 2026-09-08 — NWR-008 settlement kit shipped
+
+- DONE: ten socket-declaring kit GLBs + settlement_batch.json
+  (validated), assemble_kit from the authoritative plans (exhaustive
+  mapping, socket-chained walls, gate passage refinement, D-033
+  markers, river dock + water wheel), instanced draws with shadows,
+  SettlementGround adapter, --play-settlement windowed proof,
+  make p3d-settlement. 9/9 gates green.
+- DEFERRED: gate-approach terrain leveling (foundations work), a real
+  well piece (banner stand-in), road rendering, module texture
+  variants, live-shell kit attach (NWR-011).

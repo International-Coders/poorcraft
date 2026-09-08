@@ -22,6 +22,7 @@
 pub mod app;
 pub mod atmosphere;
 pub mod flora;
+pub mod settlement;
 pub mod city;
 pub mod glb;
 pub mod inventory;

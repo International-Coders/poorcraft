@@ -195,7 +195,7 @@ fn push_pitched_roof(
 // Silhouettes per module kind
 // ---------------------------------------------------------------------------
 
-fn surface_base(gen: &WorldGen, x0: i32, z0: i32, fw: i32, fh: i32) -> f32 {
+pub(crate) fn surface_base(gen: &WorldGen, x0: i32, z0: i32, fw: i32, fh: i32) -> f32 {
     // The lowest surface over the footprint: modules stand on it.
     let mut base = f32::MAX;
     for dx in 0..fw {
@@ -364,6 +364,10 @@ fn cells_of(origin: CellCoord, fw: i32, fh: i32) -> impl Iterator<Item = (i32, i
 /// Derived curtain walls between the planner's corner towers. Returns wall
 /// origins (3×1 modules) forming the circuit, minus the gate gap where the
 /// planned gate road crosses the curtain.
+pub(crate) fn derived_walls_pub(layout: &CastleLayout) -> Vec<PlacedModule> {
+    derived_walls(layout)
+}
+
 fn derived_walls(layout: &CastleLayout) -> Vec<PlacedModule> {
     let towers: Vec<&PlacedModule> = layout
         .modules

@@ -2488,6 +2488,169 @@ fn main() {
                 }
             }
         }
+        Some("--play-settlement") => {
+            // NWR-008: the settlement kit — the capital and its town from
+            // the AUTHORITATIVE plans, assembled as socket-aligned GLB
+            // modules with anchors and shadows, plus the street-level
+            // view. Budget rows print per module.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::settlement::{assemble_kit, SettlementKit};
+            use pc3d_render::{ProbeSet, Shot};
+
+            let (gen, center, layout, plan) =
+                pc3d_render::city::city_scene(3, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
+            let gen = std::rc::Rc::new(gen);
+            let kit = SettlementKit::load();
+            let scene = assemble_kit(&gen, &layout, &plan, &kit);
+            println!(
+                "SETTLEMENT: {} placements (by module {:?}), anchors bed {} work {} idle {}",
+                scene.placements.len(),
+                scene.count_by_module,
+                scene.bed_cells.len(),
+                scene.work_cells.len(),
+                scene.idle_cells.len()
+            );
+
+            // Terrain under everything (bounds + margin).
+            let mut patches = Vec::new();
+            let pmin = (
+                (scene.bounds_min[0] as i32).div_euclid(16) - 1,
+                (scene.bounds_min[2] as i32).div_euclid(16) - 1,
+            );
+            let pmax = (
+                (scene.bounds_max[0] as i32).div_euclid(16) + 1,
+                (scene.bounds_max[2] as i32).div_euclid(16) + 1,
+            );
+            for px in pmin.0..=pmax.0 {
+                for pz in pmin.1..=pmax.1 {
+                    patches.push(pc3d_world::coords::PatchCoord { x: px, y: 1, z: pz });
+                }
+            }
+            let ground = |x: f32, z: f32| {
+                gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+            };
+            let keep = scene
+                .placements
+                .iter()
+                .find(|p| p.module == pc3d_render::settlement::KitModule::Keep)
+                .map(|p| p.pos);
+            // Overview: above the town side looking across the keep.
+            let kpos = keep
+                .unwrap_or([scene.bounds_min[0] + 40.0, 0.0, scene.bounds_min[2] + 40.0]);
+            let (kx, kz) = (kpos[0], kpos[2]);
+            let eye1 = [kx + 46.0, ground(kx + 46.0, kz + 46.0) + 26.0, kz + 46.0];
+            let d1 = [kx - eye1[0], ground(kx, kz) + 8.0 - eye1[1], kz - eye1[2]];
+            let pose1 = pc3d_render::CameraPose::new(
+                eye1,
+                (-d1[0]).atan2(-d1[2]),
+                (d1[1] / (d1[0] * d1[0] + d1[1] * d1[1] + d1[2] * d1[2]).sqrt()).asin(),
+            );
+            // Street level: at the plaza among the town houses.
+            let px_ = plan.plaza.x as f32;
+            let pz_ = plan.plaza.z as f32;
+            let eye2 = [px_, ground(px_, pz_) + 1.7, pz_];
+            let (hx, hz) = plan
+                .buildings
+                .first()
+                .map(|b| (b.cell.x as f32, b.cell.z as f32))
+                .unwrap_or((px_ + 8.0, pz_));
+            let d2 = [hx - eye2[0], ground(hx, hz) + 1.5 - eye2[1], hz - eye2[2]];
+            let pose2 = pc3d_render::CameraPose::new(
+                eye2,
+                (-d2[0]).atan2(-d2[2]),
+                (d2[1] / (d2[0] * d2[0] + d2[1] * d2[1] + d2[2] * d2[2]).sqrt()).asin(),
+            );
+            // The water wheel / dock (if the town has a river).
+            let wheel = scene
+                .placements
+                .iter()
+                .find(|p| p.serves == "water_wheel")
+                .map(|p| p.pos);
+            let pose3 = wheel
+                .map(|w| {
+                    let eye = [w[0] + 10.0, ground(w[0] + 10.0, w[2] + 10.0) + 4.0, w[2] + 10.0];
+                    let d = [w[0] - eye[0], w[1] + 2.0 - eye[1], w[2] - eye[2]];
+                    pc3d_render::CameraPose::new(
+                        eye,
+                        (-d[0]).atan2(-d[2]),
+                        (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                    )
+                })
+                .unwrap_or(pose2);
+
+            let g_hook = gen.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — settlement kit".into(),
+                max_frames: Some(160),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![
+                    (0, pose1),
+                    (50, pose2),
+                    (100, pose3),
+                ],
+                shots: vec![
+                    Shot::new(30, format!("{out_dir}/windowed_settlement_overview.png")),
+                    Shot::new(80, format!("{out_dir}/windowed_settlement_street.png")),
+                    Shot::new(140, format!("{out_dir}/windowed_settlement_wheel.png")),
+                ],
+                frame_hooks: vec![(
+                    0,
+                    Box::new(move |r: &mut pc3d_render::Renderer| {
+                        r.set_placeholder_scene(false);
+                        r.load_terrain(&g_hook, &patches);
+                        r.set_atmosphere_tier(pc3d_render::atmosphere::AtmosphereTier::Mid);
+                        r.set_water_time(Some(0.5));
+                        r.attach_flora(g_hook.clone());
+                        r.attach_settlement(&scene, &kit);
+                    }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                ),
+                (
+                    20,
+                    Box::new(move |r: &mut pc3d_render::Renderer| {
+                        // After draws have actually happened (the first
+                        // print ran before any frame drew 0).
+                        let (draws, tris) = r.settlement_stats();
+                        println!(
+                            "SETTLEMENT GPU: {draws} bucket draws, {tris} tris (LOD by vantage)"
+                        );
+                    }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                )],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 3 {
+                        eprintln!("[FAIL] expected 3 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(3) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    println!(
+                        "WINDOWED SETTLEMENT PROOF PASS -> overview/street/{} in {out_dir}",
+                        if wheel.is_some() { "wheel" } else { "street-2" }
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some("--play-wilderness") => {
             // NWR-007: the wilderness — instanced trees/rocks/shrubs/logs
             // + wind-animated grass + the biome landmark, all placed by

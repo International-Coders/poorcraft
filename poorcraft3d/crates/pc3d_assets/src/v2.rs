@@ -210,6 +210,20 @@ mod tests {
     }
 
     #[test]
+    fn settlement_pack_validates_with_files_on_disk() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .canonicalize()
+            .unwrap();
+        let pack = root.join("docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/settlement_batch.json");
+        let m = load_pack(&pack, Some(&root.join("poorcraft3d"))).expect("pack validates");
+        assert_eq!(m.assets.len(), 10);
+        for a in &m.assets {
+            assert!(!a.sockets.is_empty(), "{} declares sockets", a.id);
+        }
+    }
+
+    #[test]
     fn wilderness_pack_validates_with_files_on_disk() {
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../..")

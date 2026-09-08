@@ -5379,3 +5379,65 @@ leaves); the LIVE --play/--play-slice shell does not attach flora yet
 (NWR-011 slice integration — the renderer API and proofs are green
 here); asset LODs for grass are a single card set (no far-LOD). Next:
 NWR-008 — the settlement asset kit.
+
+## 2026-09-08 — NWR-008: the settlement kit
+
+WHAT: The visible city graduated from procedural prisms to the FIRST
+original modular settlement kit. tools/assetgen ships ten GLBs with
+DECLARED SOCKETS written into the GLB nodes — settlement house, workshop,
+market stall, wall segment (chaining wall_a/wall_b), the gate arch
+(passage_a/b + wall flanks), watchtower, keep (door + banner_top),
+bridge/dock, banner sign, and the water wheel (axle + water_line +
+power_anchor; its doubled spoke layer exceeded the 500-tri budget and
+was trimmed — the budget caught it). pc3d_render::settlement assembles
+them from the AUTHORITATIVE castle/settlement plans: an EXHAUSTIVE
+kind->module mapping (the compiler enforces every kind maps), one
+placement per plan element at its footprint center, walls chained
+socket-to-socket along the 3 m circuit, doors facing the plaza/center,
+collision/nav/anchors taken from mesh_city for PARITY — with the gate
+REFINED so its passage column opens (the primitive path blocked the
+whole footprint) — and the Bed/Work/Idle zones rendered as colored
+marker boxes. A dock + water wheel place at the nearest river when one
+is in range. The kit draws INSTANCED through the flora pipelines (8
+bucket draws / 620 tris at street vantage) with sun shadows, and
+settlement_batch.json validates against files on disk.
+
+HOW: tools/assetgen (ten generators + socket nodes + budgets);
+crates/pc3d_assets (settlement pack test); crates/pc3d_render/
+settlement.rs (assemble_kit, SettlementKit/SettlementGpu,
+SettlementGround adapter, five proofs); renderer.rs (attach_settlement,
+color + shadow draws); apps --play-settlement; Makefile p3d-settlement.
+
+EVIDENCE: five settlement proofs — plan-to-render consistency (one
+placement per element, footprint-centered) + assembly determinism (the
+save/load stability law: the plan re-derives the identical kit); wall
+socket chains align <0.35 m; collision/nav parity (nav anchors and the
+D-033 zones identical; kit collision a strict subset with exactly the
+gate passages opened); the player WALKS THROUGH the gate passage and is
+stopped by walls (a purpose-built flat stage — the proof capital's own
+gate sits on a terrain step with flanking towers, walkability THERE is
+a plan concern, honestly noted); GPU control-diff 0.019 with 12 LOD
+buckets. WINDOWED --play-settlement / make p3d-settlement (141 frames
+p50 4.81 ms with Mid atmosphere + flora + kit): overview + street
+captures human-inspected PASS — crenellated wall circuit with towers,
+banner-topped keep, thatched crofts along a lane, market stalls, cast
+shadows in the haze. The anti-false-art guardrail recorded the ten new
+GLBs and now unions all three packs. 9/9 gates; suites green.
+
+BUGS THE PROOFS CAUGHT (fixed): the settlement collision adapter's
+height window rode GENERATOR terrain — on flat (or floated) stages the
+window sat kilometers away and walls turned ghost (the flat-ground walk
+sailed through one); the window now rides the inner surface's own
+ground answer. Test-side lessons honestly kept: the wall-socket
+comparison pinned one pair orientation; the gate-crossing assert
+demanded the far town edge past a legitimate bailey obstruction; the
+0-bucket stats print ran before the first draw.
+
+HONESTLY DEFERRED: the proof capital's gate approach carries a real
+terrain step inside the passage (terrain leveling at gate approaches
+joins the foundations work); Well renders as a banner marker post (the
+kit has no well piece yet); roads render nowhere (plan data, nav-only —
+same as the primitive path); kit modules have no per-module texture
+variants; the LIVE --play/--play-slice shell still shows the primitive
+city path (NWR-011 slice integration swaps attach points). Next:
+NWR-009 — NPC presentation.

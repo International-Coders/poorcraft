@@ -279,6 +279,7 @@ const SLATE: [f32; 3] = [0.40, 0.42, 0.45];
 const SLATE_DARK: [f32; 3] = [0.28, 0.30, 0.33];
 const FUNGUS: [f32; 3] = [0.78, 0.72, 0.58];
 const RUNE: [f32; 3] = [0.62, 0.58, 0.50];
+const BANNER_RED: [f32; 3] = [0.62, 0.20, 0.12];
 const THATCH: [f32; 3] = [0.55, 0.43, 0.24];
 const DOOR_DARK: [f32; 3] = [0.24, 0.17, 0.11];
 
@@ -575,6 +576,212 @@ fn asset_landmark_stone() -> Vec<(&'static str, Mesh)> {
     vec![("lod0", lod0), ("lod1", lod1)]
 }
 
+// ---------------------------------------------------------------------------
+// Settlement kit (NWR-008): ten original modular GLBs with declared
+// sockets. The authoritative castle/settlement plans place them; the
+// sockets carry alignment (wall chains, gate passages, door/road faces).
+// ---------------------------------------------------------------------------
+
+/// A stone-and-timber croft: plinth, walls, gable roof, chimney.
+fn kit_settlement_house() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, 0.0, 0.25, 0.0, 2.0, 0.25, 1.6, FIELDSTONE);          // plinth
+    box_at(&mut lod0, 0.0, 1.25, 0.0, 1.85, 0.75, 1.45, TIMBER);            // walls
+    // Gable roof: two sloped quads + gable ends (thatch).
+    lod0.quad([-2.0, 1.9, -1.5], [2.0, 1.9, -1.5], [2.0, 3.0, 0.0], [-2.0, 3.0, 0.0], THATCH);
+    lod0.quad([2.0, 1.9, 1.5], [-2.0, 1.9, 1.5], [-2.0, 3.0, 0.0], [2.0, 3.0, 0.0], THATCH);
+    lod0.quad([-2.0, 1.9, -1.5], [-2.0, 1.9, 1.5], [-2.0, 3.0, 0.0], [-2.0, 3.0, 0.0], TIMBER);
+    lod0.quad([2.0, 1.9, 1.5], [2.0, 1.9, -1.5], [2.0, 3.0, 0.0], [2.0, 3.0, 0.0], TIMBER);
+    box_at(&mut lod0, -1.1, 3.1, 0.4, 0.28, 0.5, 0.28, FIELDSTONE);         // chimney
+    lod0.quad([1.9, 0.6, -0.5], [2.1, 0.6, -0.5], [2.1, 1.7, -0.5], [1.9, 1.7, -0.5], DOOR_DARK); // door (front +X)
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, 0.0, 1.0, 0.0, 1.9, 1.0, 1.5, TIMBER);
+    lod1.quad([-2.0, 1.9, -1.5], [2.0, 1.9, -1.5], [2.0, 3.0, 0.0], [-2.0, 3.0, 0.0], THATCH);
+    lod1.quad([2.0, 1.9, 1.5], [-2.0, 1.9, 1.5], [-2.0, 3.0, 0.0], [2.0, 3.0, 0.0], THATCH);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// A workshop: open-fronted timber frame, forge chimney, side lean-to.
+fn kit_settlement_workshop() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, -0.4, 0.15, 0.0, 2.2, 0.15, 1.8, FIELDSTONE);
+    for (px, pz) in [(-2.4, -1.7), (2.0, -1.7), (-2.4, 1.7), (2.0, 1.7)] {
+        limb(&mut lod0, px, 0.3, pz, px, 2.6, pz, 0.09, 0.07, 5, TIMBER);
+    }
+    box_at(&mut lod0, -0.4, 2.45, 0.0, 2.4, 0.12, 1.9, THATCH);              // roof slab
+    box_at(&mut lod0, -0.4, 1.45, 0.0, 2.15, 0.45, 0.35, TIMBER);            // back wall
+    box_at(&mut lod0, 0.9, 2.9, -0.9, 0.3, 0.55, 0.3, FIELDSTONE);           // forge chimney
+    box_at(&mut lod0, 1.2, 0.5, 0.2, 0.5, 0.25, 0.5, SLATE_DARK);            // anvil block
+    box_at(&mut lod0, -1.9, 1.0, 1.9, 1.1, 0.06, 0.9, THATCH);               // lean-to roof
+    limb(&mut lod0, -2.8, 0.3, 2.5, -2.8, 1.0, 2.5, 0.06, 0.05, 4, TIMBER);
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, -0.4, 1.2, 0.0, 2.2, 1.2, 1.8, TIMBER);
+    box_at(&mut lod1, -0.4, 2.45, 0.0, 2.4, 0.12, 1.9, THATCH);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// A market stall: four posts, counter, striped awning, goods crates.
+fn kit_market_stall() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for (px, pz) in [(-1.2, -0.9), (1.2, -0.9), (-1.2, 0.9), (1.2, 0.9)] {
+        limb(&mut lod0, px, 0.1, pz, px, 2.1, pz, 0.07, 0.05, 4, TIMBER);
+    }
+    box_at(&mut lod0, 0.0, 0.55, 0.0, 1.3, 0.08, 0.85, TIMBER);              // counter
+    box_at(&mut lod0, 0.0, 2.15, 0.0, 1.45, 0.06, 1.05, THATCH);             // awning
+    lod0.quad([-1.45, 2.2, -1.05], [1.45, 2.2, -1.05], [1.45, 1.85, -1.05], [-1.45, 1.85, -1.05], BANNER_RED);
+    lod0.quad([1.45, 2.2, 1.05], [-1.45, 2.2, 1.05], [-1.45, 1.85, 1.05], [1.45, 1.85, 1.05], BANNER_RED);
+    box_at(&mut lod0, -0.7, 0.75, 0.3, 0.28, 0.22, 0.28, TIMBER);            // crate
+    box_at(&mut lod0, 0.5, 0.72, -0.2, 0.22, 0.18, 0.22, FIELDSTONE);        // goods
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, 0.0, 1.0, 0.0, 1.3, 1.0, 0.95, TIMBER);
+    box_at(&mut lod1, 0.0, 2.15, 0.0, 1.45, 0.06, 1.05, THATCH);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// A wall segment: 4 m of curtain wall with a crenel, chaining sockets
+/// at wall_a (-X face) and wall_b (+X face).
+fn kit_wall_segment() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, 0.0, 1.5, 0.0, 2.0, 1.5, 0.45, FIELDSTONE);
+    box_at(&mut lod0, -1.4, 3.15, 0.0, 0.28, 0.18, 0.4, FIELDSTONE);         // merlon a
+    box_at(&mut lod0, 1.4, 3.15, 0.0, 0.28, 0.18, 0.4, FIELDSTONE);          // merlon b
+    box_at(&mut lod0, 0.0, 3.02, 0.32, 2.0, 0.04, 0.12, GRANITE_DARK);       // walk lip
+    lod0.quad([0.4, 2.8, -0.45], [1.2, 2.8, -0.45], [1.2, 3.3, -0.45], [0.4, 3.3, -0.45], GRANITE_DARK); // seam
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, 0.0, 1.5, 0.0, 2.0, 1.5, 0.45, FIELDSTONE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// The gate: two drum pillars, a lintel, an open arch passage 4 m wide.
+fn kit_gate_arch() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for px in [-3.4f32, 3.4] {
+        limb(&mut lod0, px, 2.6, 0.0, px, 2.8, 0.0, 1.15, 1.0, 8, FIELDSTONE);
+        limb(&mut lod0, px, 5.3, 0.0, px, 5.6, 0.0, 1.25, 0.9, 8, GRANITE_DARK);
+    }
+    box_at(&mut lod0, 0.0, 6.1, 0.0, 4.6, 0.45, 1.3, FIELDSTONE);            // lintel
+    box_at(&mut lod0, 0.0, 6.8, 0.0, 3.9, 0.2, 1.1, GRANITE_DARK);           // parapet
+    lod0.quad([-1.9, 1.4, 1.25], [1.9, 1.4, 1.25], [1.9, 4.6, 1.25], [-1.9, 4.6, 1.25], TIMBER); // arch face board
+    box_at(&mut lod0, 0.0, 3.3, -0.95, 1.8, 0.18, 0.1, TIMBER);              // dropped portcullis hint
+    let mut lod1 = Mesh::default();
+    for px in [-3.4f32, 3.4] {
+        limb(&mut lod1, px, 2.6, 0.0, px, 2.8, 0.0, 1.15, 1.0, 6, FIELDSTONE);
+    }
+    box_at(&mut lod1, 0.0, 6.1, 0.0, 4.6, 0.45, 1.3, FIELDSTONE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// A watchtower: square stone shaft, top room, pyramidal roof.
+fn kit_watchtower() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, 0.0, 3.4, 0.0, 0.05, 3.6, 0.0, 1.7, 1.35, 4, FIELDSTONE);
+    box_at(&mut lod0, 0.05, 4.4, 0.0, 1.85, 0.85, 1.85, TIMBER);             // top room
+    box_at(&mut lod0, -1.5, 5.15, 1.55, 0.35, 0.15, 0.35, TIMBER);           // bretache
+    box_at(&mut lod0, 1.6, 5.15, -1.55, 0.35, 0.15, 0.35, TIMBER);
+    lod0.quad([-2.1, 5.2, -2.1], [2.2, 5.2, -2.1], [0.05, 7.0, 0.0], [-2.1, 5.2, 2.1], THATCH); // roof faces
+    lod0.quad([2.2, 5.2, -2.1], [-2.1, 5.2, -2.1], [-2.1, 5.2, 2.1], [0.05, 7.0, 0.0], THATCH);
+    lod0.quad([-2.1, 5.2, 2.1], [2.2, 5.2, 2.1], [0.05, 7.0, 0.0], [2.2, 5.2, -2.1], THATCH);
+    lod0.quad([1.9, 0.7, 1.75], [2.1, 0.7, 1.75], [2.1, 1.9, 1.75], [1.9, 1.9, 1.75], DOOR_DARK);
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 3.6, 0.0, 0.05, 3.8, 0.0, 1.7, 1.3, 4, FIELDSTONE);
+    box_at(&mut lod1, 0.05, 4.5, 0.0, 1.8, 0.9, 1.8, TIMBER);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// The keep: tall stone donjon with corner turrets and a banner pole.
+fn kit_keep() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, 0.0, 0.5, 0.0, 4.6, 0.5, 3.6, FIELDSTONE);             // base course
+    limb(&mut lod0, 0.0, 6.2, 0.0, 0.05, 6.4, 0.0, 3.5, 3.1, 4, FIELDSTONE); // main shaft
+    for (tx, tz) in [(-4.2, -3.2), (4.2, -3.2), (-4.2, 3.2), (4.2, 3.2)] {
+        limb(&mut lod0, tx, 7.0, tz, tx, 7.2, tz, 1.0, 0.85, 6, GRANITE_DARK);
+        limb(&mut lod0, tx, 8.4, tz, tx, 8.6, tz, 1.1, 0.55, 6, GRANITE_DARK);
+    }
+    box_at(&mut lod0, 0.05, 12.5, 0.0, 3.7, 0.18, 3.2, GRANITE_DARK);        // crown
+    limb(&mut lod0, 0.05, 13.8, 0.0, 0.05, 14.0, 0.0, 0.08, 0.05, 4, TIMBER); // banner pole
+    lod0.quad([0.1, 13.4, 0.0], [1.4, 13.4, 0.0], [1.4, 12.6, 0.0], [0.1, 12.6, 0.0], BANNER_RED);
+    // Window slits + door.
+    for wy in [4.0, 6.5, 9.0] {
+        box_at(&mut lod0, 3.45, wy, 1.0, 0.06, 0.35, 0.12, DOOR_DARK);
+        box_at(&mut lod0, 3.45, wy, -1.0, 0.06, 0.35, 0.12, DOOR_DARK);
+    }
+    lod0.quad([3.5, 1.4, 0.0], [3.7, 1.4, 0.0], [3.7, 3.0, 0.0], [3.5, 3.0, 0.0], DOOR_DARK);
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 6.4, 0.0, 0.05, 6.6, 0.0, 3.6, 3.2, 4, FIELDSTONE);
+    for (tx, tz) in [(-4.2, -3.2), (4.2, -3.2), (-4.2, 3.2), (4.2, 3.2)] {
+        limb(&mut lod1, tx, 7.2, tz, tx, 7.4, tz, 1.0, 0.8, 5, GRANITE_DARK);
+    }
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// A wooden dock: deck on posts with a mooring post and crates.
+fn kit_bridge_dock() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, 0.0, 0.9, 0.0, 1.4, 0.08, 3.8, TIMBER);                // deck
+    for px in [-1.2f32, 1.2] {
+        for pz in [-3.4f32, 0.0, 3.4] {
+            limb(&mut lod0, px, 0.5, pz, px, -0.6, pz, 0.09, 0.07, 5, TIMBER); // posts (into water)
+        }
+    }
+    limb(&mut lod0, -1.2, 1.3, 3.4, -1.2, 1.9, 3.4, 0.08, 0.06, 4, TIMBER);  // mooring post
+    box_at(&mut lod0, 0.7, 1.06, -2.6, 0.3, 0.22, 0.3, TIMBER);              // crate
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, 0.0, 0.9, 0.0, 1.4, 0.08, 3.8, TIMBER);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// A banner sign: pole, crossbar, hanging cloth with a simple charge.
+fn kit_banner_sign() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, 0.0, 2.2, 0.0, 0.0, 2.4, 0.0, 0.07, 0.05, 5, TIMBER);
+    limb(&mut lod0, 0.55, 2.45, 0.0, 0.55, 2.65, 0.0, 0.05, 0.04, 4, TIMBER);
+    lod0.quad([0.25, 2.4, 0.02], [0.85, 2.4, 0.02], [0.85, 1.5, 0.02], [0.25, 1.5, 0.02], BANNER_RED);
+    lod0.quad([0.55, 2.1, 0.03], [0.67, 1.95, 0.03], [0.55, 1.78, 0.03], [0.43, 1.95, 0.03], DOOR_DARK); // charge
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 2.3, 0.0, 0.0, 2.5, 0.0, 0.07, 0.05, 4, TIMBER);
+    lod1.quad([0.25, 2.4, 0.02], [0.85, 2.4, 0.02], [0.85, 1.5, 0.02], [0.25, 1.5, 0.02], BANNER_RED);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// The water wheel: wheel on an axle frame beside a sluice box.
+fn kit_water_wheel() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    // Two ring rails + spokes + paddles.
+    for i in 0..10u32 {
+        let a = i as f32 / 10.0 * std::f32::consts::TAU;
+        let (c, s) = (a.cos(), a.sin());
+        // Spokes on ONE face (the far side is rim-only — the budget
+        // caught the doubled layer at 578 tris).
+        limb(&mut lod0, 0.0, 2.4, 0.45, c * 2.2, 2.4 + s * 2.2, 0.45, 0.05, 0.04, 4, TIMBER);
+        // Paddle across the rim.
+        limb(&mut lod0, c * 2.3, 2.4 + s * 2.3, -0.5, c * 2.3, 2.4 + s * 2.3, 0.5, 0.16, 0.16, 4, TIMBER);
+    }
+    // Rim rails (thin octagon rings both faces).
+    for fz in [-0.5f32, 0.5] {
+        for i in 0..8u32 {
+            let a0 = i as f32 / 8.0 * std::f32::consts::TAU;
+            let a1 = (i + 1) as f32 / 8.0 * std::f32::consts::TAU;
+            limb(&mut lod0,
+                 a0.cos() * 2.35, 2.4 + a0.sin() * 2.35, fz,
+                 a1.cos() * 2.35, 2.4 + a1.sin() * 2.35, fz,
+                 0.06, 0.06, 4, TIMBER);
+        }
+    }
+    // Axle + frame + sluice.
+    limb(&mut lod0, 0.0, 2.4, 0.0, 0.0, 2.4, 0.9, 0.09, 0.09, 6, TIMBER);
+    for fz in [-1.1f32, 1.1] {
+        limb(&mut lod0, 0.0, 1.2, fz, 0.0, 2.5, fz, 0.09, 0.08, 4, TIMBER);
+    }
+    box_at(&mut lod0, 0.0, 0.5, 1.3, 0.5, 0.5, 0.5, TIMBER);                 // sluice box
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 2.4, 0.0, 0.0, 2.4, 0.9, 0.1, 0.1, 6, TIMBER);
+    for i in 0..8u32 {
+        let a = i as f32 / 8.0 * std::f32::consts::TAU;
+        limb(&mut lod1, 0.0, 2.4, 0.0, a.cos() * 2.3, 2.4 + a.sin() * 2.3, 0.0, 0.07, 0.05, 3, TIMBER);
+    }
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
 /// A simple gabled house from boxes + prisms; sockets are separate empty
 /// nodes recorded by the writer (see below).
 fn asset_house() -> Vec<(&'static str, Mesh)> {
@@ -823,11 +1030,72 @@ fn generate(id: &str) -> Vec<(&'static str, Mesh)> {
         "flora.shrub" => asset_shrub(),
         "flora.log_fallen" => asset_log_fallen(),
         "landmark.standing_stone" => asset_landmark_stone(),
+        "module.settlement_house" => kit_settlement_house(),
+        "module.settlement_workshop" => kit_settlement_workshop(),
+        "module.market_stall" => kit_market_stall(),
+        "module.wall_segment" => kit_wall_segment(),
+        "module.gate_arch" => kit_gate_arch(),
+        "module.watchtower" => kit_watchtower(),
+        "module.keep" => kit_keep(),
+        "module.bridge_dock" => kit_bridge_dock(),
+        "module.banner_sign" => kit_banner_sign(),
+        "module.water_wheel" => kit_water_wheel(),
         _ => unreachable!(),
     }
 }
 
 fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
+    match id {
+        "module.settlement_house" => return &[
+            ("door_front", [2.2, 0.0, 0.0]),
+            ("road_front", [2.2, 0.0, -5.0]),
+            ("roof_smoke", [-1.1, 3.6, 0.4]),
+            ("build_base", [0.0, 0.0, 0.0]),
+        ],
+        "module.settlement_workshop" => return &[
+            ("door_front", [2.6, 0.0, 0.0]),
+            ("road_front", [2.6, 0.0, -5.0]),
+            ("work_anchor", [0.9, 0.0, 0.2]),
+            ("build_base", [0.0, 0.0, 0.0]),
+        ],
+        "module.market_stall" => return &[("front", [1.5, 0.0, 0.0]), ("base", [0.0, 0.0, 0.0])],
+        "module.wall_segment" => return &[
+            ("wall_a", [-2.05, 1.5, 0.0]),
+            ("wall_b", [2.05, 1.5, 0.0]),
+            ("top", [0.0, 3.3, 0.0]),
+            ("build_base", [0.0, 0.0, 0.0]),
+        ],
+        "module.gate_arch" => return &[
+            ("passage_a", [0.0, 0.0, -6.0]),
+            ("passage_b", [0.0, 0.0, 6.0]),
+            ("wall_a", [-6.0, 2.0, 0.0]),
+            ("wall_b", [6.0, 2.0, 0.0]),
+            ("build_base", [0.0, 0.0, 0.0]),
+        ],
+        "module.watchtower" => return &[
+            ("door", [2.0, 0.0, 0.0]),
+            ("top", [0.0, 7.2, 0.0]),
+            ("build_base", [0.0, 0.0, 0.0]),
+        ],
+        "module.keep" => return &[
+            ("door", [3.8, 0.0, 0.0]),
+            ("banner_top", [0.05, 14.2, 0.0]),
+            ("build_base", [0.0, 0.0, 0.0]),
+        ],
+        "module.bridge_dock" => return &[
+            ("deck_a", [0.0, 0.9, -3.9]),
+            ("deck_b", [0.0, 0.9, 3.9]),
+            ("water_line", [0.0, -0.4, 0.0]),
+            ("build_base", [0.0, 0.0, 0.0]),
+        ],
+        "module.banner_sign" => return &[("base", [0.0, 0.0, 0.0])],
+        "module.water_wheel" => return &[
+            ("axle", [0.0, 2.4, 0.95]),
+            ("water_line", [0.0, -0.2, 0.0]),
+            ("power_anchor", [0.8, 0.0, 1.3]),
+        ],
+        _ => {}
+    }
     if id == "module.house_croft" {
         &[
             ("door_front", [0.45, 0.0, -2.5]),
@@ -868,6 +1136,18 @@ fn main() {
         ("flora.shrub", 300),
         ("flora.log_fallen", 400),
         ("landmark.standing_stone", 500),
+        // NWR-008 settlement kit (budgets from
+        // docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/settlement_batch.json).
+        ("module.settlement_house", 900),
+        ("module.settlement_workshop", 900),
+        ("module.market_stall", 400),
+        ("module.wall_segment", 250),
+        ("module.gate_arch", 700),
+        ("module.watchtower", 600),
+        ("module.keep", 1600),
+        ("module.bridge_dock", 400),
+        ("module.banner_sign", 200),
+        ("module.water_wheel", 500),
     ];
     let mut any_fail = false;
     for (id, b0) in budgets {
