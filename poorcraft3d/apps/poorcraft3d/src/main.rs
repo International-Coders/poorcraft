@@ -1667,6 +1667,7 @@ fn main() {
                     resize_to: None,
                     slice_setup: Some(pc3d_render::app::SliceSetup {
                         seed,
+                        rebuild: false,
                         scene: scene.clone(),
                         save_root,
                         world_name: "slice".into(),
@@ -2480,6 +2481,221 @@ fn main() {
                     println!("WATER EDIT VISIBLE: image diff {diff:.2}%");
                     println!(
                         "WINDOWED CAVES+WATER PROOF PASS -> cave interior, river before/after in {out_dir}"
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        Some("--play-rebuild") => {
+            // NWR-011: the REBUILD vertical slice. `--play-rebuild live`
+            // = the walkable full stack (surface walk, crowd, kit,
+            // foundation-gated building, save/reload); the automated run
+            // captures the showcase ROUTE and proves the save/reload of
+            // construction data.
+            let live = args.get(2).map(String::as_str) == Some("live");
+            let (seed_arg, out_dir): (Option<u64>, String) = if live {
+                (args.get(3).and_then(|s| s.parse().ok()), "shots".into())
+            } else {
+                (
+                    args.get(3).and_then(|s| s.parse().ok()),
+                    args.get(2)
+                        .cloned()
+                        .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR"))),
+                )
+            };
+            if !live {
+                std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+            }
+            use pc3d_render::slice::{assemble_rebuild, find_showcase};
+            use pc3d_render::Shot;
+
+            let t0 = std::time::Instant::now();
+            let (seed, scene) = find_showcase(seed_arg.unwrap_or(3));
+            println!(
+                "REBUILD SLICE: seed {seed} in {:.1}s (gate {:?}, cave {:?})",
+                t0.elapsed().as_secs_f32(),
+                scene.gate,
+                scene.cave.0
+            );
+            let scene = std::rc::Rc::new(scene);
+
+            if live {
+                println!("live rebuild slice: WASD walks the SURFACE, F builds on INSPECTED ground (rejections name the reason), B saves, L reloads, I inspects, Esc quits");
+                let save_root = std::rc::Rc::new(
+                    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
+                );
+                let cfg = pc3d_render::WindowConfig {
+                    title: "POORCRAFT 3D — the rebuild slice".into(),
+                    resize_to: None,
+                    slice_setup: Some(pc3d_render::app::SliceSetup {
+                        seed,
+                        rebuild: true,
+                        scene: scene.clone(),
+                        save_root,
+                        world_name: "rebuild".into(),
+                    }),
+                    ..Default::default()
+                };
+                match pc3d_render::run_windowed(cfg) {
+                    Ok(report) => {
+                        print_window_report(&report);
+                        println!("LIVE REBUILD SLICE OK ({} frames)", report.frames);
+                    }
+                    Err(e) => {
+                        eprintln!("[FAIL] live renderer: {e}");
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
+
+            // The ROUTE vantages (deterministic poses from the scene).
+            let spawn = pc3d_render::slice::spawn_player(&scene);
+            let ground = |x: f32, z: f32| {
+                scene
+                    .gen
+                    .effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64)
+                    as f32
+                    / 1000.0
+            };
+            let pose_at = |eye: [f32; 3], at: [f32; 3]| {
+                let d = [at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]];
+                pc3d_render::CameraPose::new(
+                    eye,
+                    (-d[0]).atan2(-d[2]),
+                    (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                )
+            };
+            // 1: the distant vantage over the whole route.
+            let v1 = pose_at(
+                [
+                    spawn.pos[0] + 60.0,
+                    ground(spawn.pos[0] + 60.0, spawn.pos[2] + 60.0) + 26.0,
+                    spawn.pos[2] + 60.0,
+                ],
+                [spawn.pos[0], ground(spawn.pos[0], spawn.pos[2]), spawn.pos[2]],
+            );
+            // 2: the town street (plaza at player height).
+            let plaza = scene.plan.plaza;
+            let v2 = pose_at(
+                [plaza.x as f32 + 5.0, ground(plaza.x as f32 + 5.0, plaza.z as f32 + 5.0) + 7.0, plaza.z as f32 + 5.0],
+                [plaza.x as f32 - 3.0, ground(plaza.x as f32, plaza.z as f32) + 0.8, plaza.z as f32 - 3.0],
+            );
+            // 3: the river + wheel (the kit's water-wheel placement).
+            let wheel = scene
+                .layout
+                .modules
+                .first()
+                .map(|m| m.origin)
+                .unwrap_or(plaza);
+            let (rx, rz) = (
+                (scene.river_edge.0 .0 as f32 + 0.75) * 256.0,
+                (scene.river_edge.0 .1 as f32 + 0.5) * 256.0,
+            );
+            let v3 = pose_at(
+                [rx + 14.0, ground(rx + 14.0, rz + 14.0) + 5.0, rz + 14.0],
+                [rx, ground(rx, rz) + 1.0, rz],
+            );
+            let _ = wheel;
+            // 4: the cave mouth.
+            let (air, wall, _dir) = scene.cave;
+            let v4 = pc3d_render::terrain::cave_pose(air, wall);
+            // 5: the gate vantage (player height at the spawn).
+            let v5 = pose_at(
+                [spawn.pos[0], spawn.pos[1] + 1.7, spawn.pos[2] + 6.0],
+                [spawn.pos[0], spawn.pos[1] + 2.0, spawn.pos[2] - 8.0],
+            );
+
+            let save_root = std::rc::Rc::new(
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
+            );
+            let scene_cap = scene.clone();
+            let save_cap = save_root.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — the rebuild slice route".into(),
+                max_frames: Some(200),
+                probe_set: pc3d_render::ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![
+                    (0, v1),
+                    (40, v2),
+                    (80, v3),
+                    (120, v4),
+                    (160, v5),
+                ],
+                shots: vec![
+                    Shot::new(30, format!("{out_dir}/windowed_rebuild_vantage.png")),
+                    Shot::new(70, format!("{out_dir}/windowed_rebuild_street.png")),
+                    Shot::new(110, format!("{out_dir}/windowed_rebuild_river.png"))
+                        .sky(false),
+                    Shot::new(150, format!("{out_dir}/windowed_rebuild_cave.png"))
+                        .sky(false),
+                    Shot::new(190, format!("{out_dir}/windowed_rebuild_gate.png")),
+                ],
+                frame_hooks: vec![(
+                    0,
+                    Box::new(move |r: &mut pc3d_render::Renderer| {
+                        let _host = assemble_rebuild(r, &scene_cap, seed, save_cap.clone(), "rebuild");
+                        r.set_pose(v1);
+                    }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                )],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 5 {
+                        eprintln!("[FAIL] expected 5 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(3) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                        assert!(cap.report.distinct_colors > 30, "a real scene");
+                    }
+                    // SAVE/RELOAD of construction: build through a host,
+                    // save, reload, and verify the SAME built count.
+                    {
+                        let spot = pc3d_world::coords::CellCoord {
+                            x: spawn.pos[0] as i32 + 2,
+                            y: (spawn.pos[1]) as i32,
+                            z: spawn.pos[2] as i32 - 2,
+                        };
+                        let mut h = pc3d_world::host::SoloHost::new(seed);
+                        h.submit(pc3d_world::host::HostCommand::Build {
+                            cell: spot,
+                            material: pc3d_world::gen::CellMaterial::Sand,
+                            owner: 7,
+                        });
+                        h.run_ticks(1);
+                        let player = pc3d_render::PlayerBody {
+                            pos: spawn.pos,
+                            yaw: spawn.yaw,
+                            pitch: spawn.pitch,
+                        };
+                        let dir = std::env::temp_dir().join("pc3d_rebuild_save");
+                        let _ = std::fs::remove_dir_all(&dir);
+                        pc3d_render::slice::save_slice(&dir, "rebuild", seed, &h, &player)
+                            .expect("save");
+                        let (_s2, h2, _p2) =
+                            pc3d_render::slice::load_slice(&dir, "rebuild").expect("reload");
+                        let c1: usize = h.construction.values().map(|c| c.built_count()).sum();
+                        let c2: usize = h2.construction.values().map(|c| c.built_count()).sum();
+                        println!("REBUILD SAVE/RELOAD: built {c1} -> {c2}");
+                        assert_eq!(c1, c2, "construction survives the save/reload round trip");
+                        assert!(c1 > 0, "there was something to save");
+                    }
+                    println!(
+                        "WINDOWED REBUILD SLICE PASS -> vantage/street/river/cave/gate in {out_dir}"
                     );
                 }
                 Err(e) => {

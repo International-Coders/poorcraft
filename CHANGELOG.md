@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-09-08 — NWR-011: the rebuild vertical slice
+
+The full rebuild stack on one deterministic, human-walkable route:
+
+- `slice::assemble_rebuild`: streamed surface terrain + Mid atmosphere
+  + instanced wilderness + the settlement kit (with river dock and
+  water wheel) + the rigged crowd on the real schedule + conforming
+  water + the cave mesh. The player WALKS THE SURFACE
+  (`SurfaceStreamer: CollisionSurface` — the NWR-005 deferral lands),
+  and F builds only on INSPECTED foundations (rejections name the
+  reason on the HUD).
+- `--play-rebuild [live]` / `make p3d-rebuild` / `make
+  p3d-rebuild-live`: five route captures (vantage, street, river,
+  cave, gate) with probes at ~104 fps; the construction save/reload
+  round trip proven in-arm; the live smoke alive 12 s; the manual
+  REVIEW-CHECKLIST.md with the explicit OWNER GATE (not a commercial
+  beta until the human owner passes it in person). 9/9 gates; p3d
+  421/421, root 474/474.
+
+# CHANGELOG
+
 ## 2026-09-08 — NWR-010: the Deck quality contract
 
 - `pc3d_render::deck` (new): the transparent Low/Mid/High contract

@@ -230,6 +230,8 @@ pub fn assemble(
     r.set_pose(player.pose());
     SliceHost {
         seed,
+        rebuild: false,
+        foundation_ok: true,
         player,
         host: std::rc::Rc::new(std::cell::RefCell::new(pc3d_world::host::SoloHost::new(seed))),
         scene: scene.clone(),
@@ -642,4 +644,72 @@ mod tests {
         // Refusal law: an unknown world refuses cleanly.
         assert!(load_slice(root.path(), "ghost").is_err());
     }
+}
+
+/// The NWR-011 REBUILD assembly: the full new stack on the showcase
+/// route — the streamed SURFACE terrain, the Mid atmosphere, the
+/// wilderness, the settlement KIT town + capital, the rigged crowd on
+/// the real schedule, the conforming river water, the cave mesh, and
+/// the water wheel — with the player walking the surface and building
+/// through foundation-inspected host commands.
+pub fn assemble_rebuild(
+    r: &mut crate::renderer::Renderer,
+    scene: &std::rc::Rc<SliceScene>,
+    seed: u64,
+    save_root: std::rc::Rc<std::path::PathBuf>,
+    world_name: &str,
+) -> SliceHost {
+    r.set_placeholder_scene(false);
+    // The streamed SURFACE (the ordinary terrain path) + the Mid
+    // atmosphere + the wilderness.
+    let ss = crate::surface_stream::SurfaceStreamer::new(
+        std::rc::Rc::new(scene.gen),
+        &[pc3d_world::stream::Tier::Full, pc3d_world::stream::Tier::Lod],
+        (scene.gate.y as i32).max(1),
+    );
+    r.attach_surface_stream(ss);
+    r.set_atmosphere_tier(crate::atmosphere::AtmosphereTier::Mid);
+    r.attach_flora(std::rc::Rc::new(scene.gen));
+    // The settlement KIT (town + capital + river wheel).
+    let kit = crate::settlement::SettlementKit::load();
+    let kit_scene = crate::settlement::assemble_kit(&scene.gen, &scene.layout, &scene.plan, &kit);
+    r.attach_settlement(&kit_scene, &kit);
+    // The rigged crowd on the real schedule.
+    let nav = pc3d_world::nav::NavPatch::from_gen(
+        &scene.gen,
+        pc3d_world::coords::PatchCoord {
+            x: scene.plan.plaza.x.div_euclid(16),
+            y: 0,
+            z: scene.plan.plaza.z.div_euclid(16),
+        },
+    );
+    r.attach_crowd(std::rc::Rc::new(scene.gen), scene.cast.clone(), nav);
+    // Conforming river water + the cave mesh near the route.
+    r.attach_water();
+    let _ = r.update_water(&scene.gen, &scene.river, &scene.flow);
+    let cave = crate::world_features::CaveRegion::around(&scene.gen, scene.cave.0)
+        .expect("the showcase cave");
+    let (cv, ci) = cave.mesh(&scene.gen);
+    r.load_u32_mesh(&cv, &ci);
+    // Anchor frames stay inspectable.
+    let (mut averts, mut aidx) = (Vec::new(), Vec::new());
+    mesh_anchor_boxes(&scene.gen, &scene.plan, &mut averts, &mut aidx);
+    r.load_npcs(&averts, &aidx);
+    r.attach_construction();
+    let player = spawn_player(scene);
+    r.set_pose(player.pose());
+    let mut host = SliceHost {
+        seed,
+        rebuild: true,
+        foundation_ok: true,
+        player,
+        host: std::rc::Rc::new(std::cell::RefCell::new(pc3d_world::host::SoloHost::new(seed))),
+        scene: scene.clone(),
+        save_root,
+        world_name: world_name.into(),
+        inspect: false,
+        last_message: "REBUILD SLICE - WASD WALKS THE SURFACE - F BUILDS ON INSPECTED GROUND".into(),
+    };
+    host.host.borrow_mut().run_ticks(0);
+    host
 }

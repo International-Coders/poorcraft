@@ -1,35 +1,32 @@
-# POORCRAFT 3D — the walkable build (NWR-010 Deck contract, 2026-09-08)
+# POORCRAFT 3D — THE REBUILD SLICE (NWR-011 complete, 2026-09-08)
 
-Windowed 3D game over the deterministic simulation: streamed terrain,
-caves, rivers, atmosphere, wilderness, settlements, people — now with
-a TRANSPARENT Low/Medium/High quality contract and a measured
-benchmark (167/149/146 fps on the evidence machine).
+The full natural-world rebuild on one walkable route: streamed surface
+terrain, atmosphere, wilderness, the settlement kit, living people,
+rivers, caves — and YOU on the ground.
 
-## Play the world (first person)
-  ./poorcraft3d --play-slice live
-WASD walk, click to look, F places / R removes at your aim, B saves,
-L reloads, I shows Bed/Work/Idle boxes, Esc quits.
+## Play the rebuild slice (first person)
+  ./poorcraft3d --play-rebuild live
+WASD WALKS THE SURFACE, click to look, F builds on INSPECTED ground
+(rejections name the reason), R removes, B saves, L reloads,
+I shows Bed/Work/Idle boxes, Esc quits.
 
-## NEW this build: the Deck benchmark
-  ./poorcraft3d --deck-bench 3 shots low
-  ./poorcraft3d --deck-bench 3 shots mid
-  ./poorcraft3d --deck-bench 3 shots high
+## The automated route proof
+  ./poorcraft3d --play-rebuild
+Five captures: the distant vantage, the town street, the river +
+wheel, the cave mouth, and the gate at player height (+ the
+construction save/reload proof).
+
+## The quality contract + benchmark
+  ./poorcraft3d --deck-bench 3 shots low|mid|high
   ./poorcraft3d --deck-bench 3 shots report
-The full-stack walk per tier + the documented report (contract table,
-measured percentiles, work counters, bottleneck notes).
 
 ## Other automated windowed proofs
-  ./poorcraft3d --play-people          # the NPC rig crowd
-  ./poorcraft3d --play-settlement      # the modular kit town
-  ./poorcraft3d --play-wilderness      # instanced trees/rocks/grass
-  ./poorcraft3d --play-materials       # atmosphere tiers + cutout
-  ./poorcraft3d --play-caves           # cave interior + river + dam
-  ./poorcraft3d --play-surface-stream  # streamed surface vista
-  ./poorcraft3d --play-surface | --play-assets
-  ./poorcraft3d --play-slice | --play-city | --play-npcs
+  ./poorcraft3d --play-people | --play-settlement | --play-wilderness
+  ./poorcraft3d --play-materials | --play-caves | --play-surface-stream
+  ./poorcraft3d --play-surface | --play-assets | --play-slice
+  ./poorcraft3d --play-slice live | --play-city | --play-npcs
   ./poorcraft3d --play-water | --play-terrain | --play-stream
   ./poorcraft3d --play-quality | --play-shot | --play
-(PNGs land in a shots/ folder next to the binary.)
 
 ## Windowless simulation
   --journey 4242 | --diagnose 2024 | --soak 365 80808

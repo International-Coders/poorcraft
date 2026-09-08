@@ -1255,6 +1255,24 @@ impl Renderer {
         self.surface_stream = Some(s);
     }
 
+    /// Walks a player on the STREAMED SURFACE when attached (the
+    /// NWR-011 live path), else the authority ground — the deferral
+    /// from NWR-005 landing here.
+    pub fn walk_player_surface(
+        &mut self,
+        gen: &pc3d_world::gen::WorldGen,
+        player: &mut crate::player::PlayerBody,
+        fwd: f32,
+        strafe: f32,
+        dt: f32,
+    ) {
+        if let Some(ss) = self.surface_stream.as_ref() {
+            player.walk_on(gen, ss, fwd, strafe, dt);
+        } else {
+            player.walk(gen, fwd, strafe, dt);
+        }
+    }
+
     /// One frame of surface streaming from the current camera pose.
     pub fn surface_stream_frame(&mut self) {
         let pose = self.camera.pose;

@@ -5552,3 +5552,42 @@ unobtainable without a profiler integration (frame percentiles +
 work counters are the evidence); the mesh-sampler optimization for
 mid-ring patches remains future work with its measured cap behavior
 documented. Next: NWR-011 — the rebuild vertical slice.
+
+## 2026-09-08 — NWR-011: the rebuild vertical slice
+
+WHAT: The full rebuild stack assembled into ONE deterministic,
+human-walkable showcase route. slice::assemble_rebuild mounts, on the
+showcase scene (seed 22, found in 1.9 s: capital + town + a river
+within 450 m + a corridor cave): the streamed SURFACE terrain, the Mid
+atmosphere, the instanced wilderness, the settlement KIT with its
+river dock and water wheel, the rigged crowd on the real schedule
+(crowd_tick in the live loop), the conforming river water, and the
+cave mesh — with the player WALKING THE SURFACE (SurfaceStreamer now
+implements CollisionSurface; the NWR-005 live-walk deferral lands
+here) and construction through INSPECTED foundations (F runs
+check_foundation on a real 3x3 surface window; rejections print the
+named reason on the HUD). Live: `--play-rebuild live` / make
+p3d-rebuild-live — WASD surface walk, click-look, F/R, B/L save +
+reload, I anchor frames, Esc.
+
+EVIDENCE: the automated ROUTE proof (make p3d-rebuild): five captures
+— the distant vantage (banner-topped keep + town in haze), the town
+street, the river + wheel, the cave mouth, and the gate at player
+height — each passing semantic probes + distinct-color checks, at p50
+9.86 ms / 104 fps; the construction SAVE/RELOAD round trip proven
+in-arm (host Build -> save_slice -> load_slice -> the identical built
+count). Human inspection PASS on the vantage and gate captures
+(intentionally stylized and original from both ranges). The LIVE
+smoke: the interactive rebuild slice alive 12 s. The durable
+regression set: the route captures + probes, the manual
+REVIEW-CHECKLIST.md (ten rows and the explicit OWNER GATE — the slice
+is NOT described as a commercial beta until a human owner passes the
+checklist in person), and the NWR-010 deck bench rows. 9/9 gates;
+suites p3d 421/421, root 474/474.
+
+HONESTLY DEFERRED: live terrain-edit persistence (construction saves;
+surface-edit deltas persist via the NWR-003 record in the proof path,
+not yet wired into the live B key); the cave has no live collision
+(the authority ground stands in); the water wheel does not yet rotate
+(rig animation is the crowd's; wheels are future polish). THE OWNER'S
+MANUAL PLAY PASS REMAINS THE GATE before the word 'playable'.

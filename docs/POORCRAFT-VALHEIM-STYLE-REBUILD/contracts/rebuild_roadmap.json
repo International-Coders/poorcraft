@@ -156,7 +156,8 @@
       ],
       "prompt": "prompts/10-NWR-011-rebuild-vertical-slice.md",
       "completion": "Human-walkable, original natural-world route passing all visual and performance gates.",
-      "status": "next"
+      "status": "done",
+      "evidence": "The REBUILD VERTICAL SLICE: assemble_rebuild mounts the full stack on the deterministic showcase route (seed 22 in 1.9 s: capital + town + river within 450 m + corridor cave): the STREAMED SURFACE terrain (the ordinary path), Mid atmosphere (shadows/fog/grain/glint), instanced wilderness, the settlement KIT (walls/gate/keep/crofts/stalls + river dock + water wheel), the rigged crowd on the real schedule (crowd_tick in the live loop), conforming river water, and the cave mesh \u2014 with the player WALKING THE SURFACE (SurfaceStreamer as CollisionSurface \u2014 the NWR-005 deferral landing) and construction through INSPECTED foundations (F checks check_foundation; rejections name the reason on the HUD). Live keys: WASD surface walk, click-look, F/R on foundations, B/L save-reload, I anchors, Esc. The AUTOMATED route proof: 5 captures (distant vantage, town street, river+wheel, cave mouth, gate at player height) each passing probes + distinct-color checks at p50 9.86 ms / 104 fps; the construction SAVE/RELOAD round trip proven in-arm (host build -> save_slice -> load_slice -> identical built count). Human inspection: vantage = banner-topped keep + town in haze, no seams; gate = evergreens + standing stones at player height in warm light \u2014 intentionally stylized and original from both ranges. The LIVE smoke: --play-rebuild live alive 12 s. The durable regression set: the 5-capture route + probes (make p3d-rebuild), the manual REVIEW-CHECKLIST.md (10 rows + the explicit OWNER GATE: not a commercial beta until the human owner passes it in person), and the NWR-010 deck bench rows. 9/9 visual gates; p3d 421/421, root 474/474."
     }
   ]
 }

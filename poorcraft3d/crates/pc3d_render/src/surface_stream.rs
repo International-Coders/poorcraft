@@ -777,3 +777,15 @@ mod gpu_tests {
         assert!(counters.loaded_mid > 0, "LOD far ring loaded");
     }
 }
+
+/// The streamed surface AS a collision surface (NWR-011 live walk):
+/// ground from the loaded full ring (refuses outside), no walls.
+impl crate::player::CollisionSurface for SurfaceStreamer {
+    fn ground_at(&self, _gen: &WorldGen, x: f32, z: f32, _from_y: f32) -> Option<f32> {
+        self.surface_height(x, z)
+    }
+
+    fn cell_solid(&self, _gen: &WorldGen, _x: i32, _y: i32, _z: i32) -> bool {
+        false // slopes gate walkability through ground_at stepping
+    }
+}

@@ -1540,3 +1540,13 @@ Deferred (honest notes):
   readable), make p3d-deck-bench. 9/9 gates.
 - DEFERRED: internal render-scale path (declared 1.0), CPU/GPU time
   split (no profiler), mid-ring mesh sampler optimization.
+
+## 2026-09-08 — NWR-011 rebuild slice shipped
+
+- DONE: assemble_rebuild (full stack on the showcase route), the
+  surface live walk, foundation-gated building, crowd ticking in the
+  live loop, --play-rebuild automated route + live, REVIEW-CHECKLIST.md
+  with the owner gate, make p3d-rebuild / p3d-rebuild-live. 9/9 gates.
+- DEFERRED: live terrain-edit persistence on B, cave live collision,
+  rotating water wheel. THE OWNER'S MANUAL PLAY PASS is the gate
+	before 'playable'.

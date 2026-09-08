@@ -61,6 +61,8 @@ pub enum ProbeSet {
 /// SliceHost at window creation via `slice::assemble`.
 pub struct SliceSetup {
     pub seed: u64,
+    /// NWR-011: assemble the REBUILD stack (surface walk, crowd, kit).
+    pub rebuild: bool,
     pub scene: std::rc::Rc<crate::slice::SliceScene>,
     pub save_root: std::rc::Rc<std::path::PathBuf>,
     pub world_name: String,
@@ -72,6 +74,11 @@ pub struct SliceSetup {
 /// remove at ray target, B save, L reload, I inspect boxes, Esc quits.
 pub struct SliceHost {
     pub seed: u64,
+    /// The NWR-011 rebuild stack: crowd ticking + surface walking +
+    /// foundation-gated placement. None = the classic R3DV slice.
+    pub rebuild: bool,
+    /// The last foundation verdict (placement gate).
+    pub foundation_ok: bool,
     pub player: crate::player::PlayerBody,
     pub host: std::rc::Rc<std::cell::RefCell<pc3d_world::host::SoloHost>>,
     pub scene: std::rc::Rc<crate::slice::SliceScene>,
@@ -286,13 +293,23 @@ impl ApplicationHandler for App {
         let window = Arc::new(window);
         let mut renderer = Renderer::windowed(&window);
         if let Some(setup) = self.cfg.slice_setup.take() {
-            let host = crate::slice::assemble(
-                &mut renderer,
-                &setup.scene,
-                setup.seed,
-                setup.save_root,
-                &setup.world_name,
-            );
+            let host = if setup.rebuild {
+                crate::slice::assemble_rebuild(
+                    &mut renderer,
+                    &setup.scene,
+                    setup.seed,
+                    setup.save_root,
+                    &setup.world_name,
+                )
+            } else {
+                crate::slice::assemble(
+                    &mut renderer,
+                    &setup.scene,
+                    setup.seed,
+                    setup.save_root,
+                    &setup.world_name,
+                )
+            };
             self.cfg.slice_host = Some(Box::new(host));
         }
         let built_count = self
@@ -382,7 +399,36 @@ impl ApplicationHandler for App {
                                         if let Some((hit, air)) = target {
                                             let cell = if code == KeyCode::KeyF { air } else { hit };
                                             let mut h = slice.host.borrow_mut();
-                                            if code == KeyCode::KeyF {
+                                            if code == KeyCode::KeyF && slice.rebuild {
+                                                // NWR-011: construction
+                                                // on an INSPECTED
+                                                // foundation — steep or
+                                                // unlevel ground rejects
+                                                // with the named reason.
+                                                let region = crate::surface::SurfaceRegion::new(
+                                                    gen.clone(),
+                                                    pc3d_world::coords::PatchCoord {
+                                                        x: cell.x.div_euclid(16),
+                                                        y: cell.y.max(1),
+                                                        z: cell.z.div_euclid(16),
+                                                    },
+                                                );
+                                                let verdict =
+                                                    crate::world_features::check_foundation(
+                                                        &gen, &region, cell, (1, 1),
+                                                    );
+                                                let rejected = matches!(
+                                                    verdict,
+                                                    crate::world_features::FoundationCheck::Rejected { .. }
+                                                );
+                                                if let crate::world_features::FoundationCheck::Rejected { reason } = verdict {
+                                                    slice.last_message =
+                                                        format!("FOUNDATION REJECTED: {reason}");
+                                                }
+                                                slice.foundation_ok = !rejected;
+                                            }
+                                            let foundation_ok = slice.foundation_ok;
+                                            if code == KeyCode::KeyF && foundation_ok {
                                                 h.submit(pc3d_world::host::HostCommand::Build {
                                                     cell,
                                                     material: pc3d_world::gen::CellMaterial::Sand,
@@ -569,7 +615,15 @@ impl ApplicationHandler for App {
                     let fwd = key(KeyCode::KeyW) - key(KeyCode::KeyS);
                     let strafe = key(KeyCode::KeyD) - key(KeyCode::KeyA);
                     let gen = slice.scene.gen.clone();
-                    slice.player.walk(&gen, fwd, strafe, dt);
+                    if slice.rebuild {
+                        // The NWR-011 walk: on the STREAMED SURFACE (the
+                        // NWR-005 deferral landing), plus the schedule
+                        // ticking the crowd's authoritative brains.
+                        state.renderer.walk_player_surface(&gen, &mut slice.player, fwd, strafe, dt);
+                        state.renderer.crowd_tick(0.35, 1);
+                    } else {
+                        slice.player.walk(&gen, fwd, strafe, dt);
+                    }
                     state.renderer.set_pose(slice.player.pose());
                     let built: usize = slice
                         .host
