@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-09-08 — NWR-009: the people
+
+The NPCs become limbed characters over the authoritative brains:
+
+- `pc3d_render::npcs` rig (new): a low-poly limb NPC with role
+  variants (guard helm+spear always readable; worker tool only while
+  Working; resident satchel) and a DETERMINISTIC animation state
+  machine — `rig_pose(brain, t)` is pure f(intent, time): walking
+  swings counterphase legs with the yaw facing the path leg from the
+  sim's own path; work strokes the arm; sleeping lies low; idle
+  breathes. Impostor boxes beyond 64 m.
+- Drawing: a new `inst_box` pipeline (unit cube + per-axis instance
+  scale), one bucket per part color — a crowd of ANY size is ≤ ~8
+  draw calls (12-NPC proof: 7 draws / 92 instances). Poses rebuild per
+  frame from the shared frozen-able clock; positions always from
+  `npc_world_pos(brain)` — no visual NPC simulation. `crowd_tick`
+  advances the authoritative brains; `CrowdGround` gives chest-high
+  capsule collision.
+- Proofs: pose determinism + intent laws, sim-following instances,
+  the capsule stop, GPU control-diff 0.0725 + animation 0.0112
+  between frozen times. Windowed `--play-people` /
+  `make p3d-people` (p50 ~6 ms with atmosphere + flora + kit +
+  crowd): plaza/stride/guard/anchors human-inspected PASS; the
+  existing npc-cast gate stayed green. 9/9 gates.
+
+# CHANGELOG
+
 ## 2026-09-08 — NWR-008: the settlement kit
 
 The city graduates from procedural prisms to an original modular kit:

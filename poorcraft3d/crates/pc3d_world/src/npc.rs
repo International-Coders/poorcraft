@@ -107,6 +107,7 @@ pub enum Intent {
 }
 
 /// An NPC brain bound to a role, home, and work site.
+#[derive(Clone, Debug)]
 pub struct NpcBrain {
     pub role: Role,
     pub home: CellCoord,

@@ -2488,6 +2488,215 @@ fn main() {
                 }
             }
         }
+        Some("--play-people") => {
+            // NWR-009: the people — rigged NPCs over the authoritative
+            // brains with the settlement kit behind them. Captures: the
+            // plaza crowd animating (two times), the guard close-up,
+            // and the anchor-inspect view.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::npcs::{advance, cast_for, crowd_instances, rig_pose};
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::nav::NavPatch;
+
+            let (gen, _center, layout, plan) =
+                pc3d_render::city::city_scene(3, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
+            let gen = std::rc::Rc::new(gen);
+            let kit = pc3d_render::settlement::SettlementKit::load();
+            let scene = pc3d_render::settlement::assemble_kit(&gen, &layout, &plan, &kit);
+            let (_, _, info) = pc3d_render::city::mesh_city(&gen, &layout, &plan);
+            let nav = NavPatch::from_gen(
+                &gen,
+                pc3d_world::coords::PatchCoord {
+                    x: plan.plaza.x.div_euclid(16),
+                    y: 0,
+                    z: plan.plaza.z.div_euclid(16),
+                },
+            );
+            let cast = cast_for(&plan, &info);
+            // A richer crowd for the budget row: clone the cast up to 12
+            // NPCs (offset homes so they stand apart — READ-ONLY
+            // presentation copies; the sim cast stays three brains,
+            // the extras prove the DRAW budget, honestly labeled).
+            let mut crowd = cast.clone();
+            let roles = ["resident", "worker", "guard"];
+            for k in 0..9usize {
+                let mut c = cast[k % cast.len()].clone();
+                c.label = roles[k % 3];
+                c.brain.home.x += (k as i32 % 3) * 2 - 2;
+                c.brain.home.z += (k as i32 / 3) * 2 - 2;
+                c.brain.pos = c.brain.home;
+                c.brain.intent = pc3d_world::npc::Intent::Idle;
+                crowd.push(c);
+            }
+            let rows = crowd_instances(&gen, &crowd, [0.0, 0.0], 0.5, 64.0);
+            let parts: usize = rows.values().map(|v| v.len()).sum();
+            println!(
+                "PEOPLE: {} NPCs -> {} part instances in {} color buckets (<= 8 draws)",
+                crowd.len(),
+                parts,
+                rows.len()
+            );
+            let _ = rig_pose; // documented: poses come from the renderer per frame
+
+            // Terrain under the town.
+            let mut patches = Vec::new();
+            let pmin = (
+                (scene.bounds_min[0] as i32).div_euclid(16) - 1,
+                (scene.bounds_min[2] as i32).div_euclid(16) - 1,
+            );
+            let pmax = (
+                (scene.bounds_max[0] as i32).div_euclid(16) + 1,
+                (scene.bounds_max[2] as i32).div_euclid(16) + 1,
+            );
+            for px in pmin.0..=pmax.0 {
+                for pz in pmin.1..=pmax.1 {
+                    patches.push(pc3d_world::coords::PatchCoord { x: px, y: 1, z: pz });
+                }
+            }
+            let plaza = plan.plaza;
+            let ground = |x: f32, z: f32| {
+                gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+            };
+            let eye1 = [
+                plaza.x as f32 + 3.0,
+                ground(plaza.x as f32 + 3.0, plaza.z as f32 + 5.0) + 1.8,
+                plaza.z as f32 + 5.0,
+            ];
+            let aim1 = [plaza.x as f32 + 3.0, ground(plaza.x as f32 + 3.0, plaza.z as f32 + 3.0) + 1.2, plaza.z as f32 + 3.0];
+            let d1 = [aim1[0] - eye1[0], aim1[1] - eye1[1], aim1[2] - eye1[2]];
+            let pose1 = pc3d_render::CameraPose::new(
+                eye1,
+                (-d1[0]).atan2(-d1[2]),
+                (d1[1] / (d1[0] * d1[0] + d1[1] * d1[1] + d1[2] * d1[2]).sqrt()).asin(),
+            );
+            // The guard close-up: find the guard's position.
+            let guard_pos = crowd
+                .iter()
+                .find(|c| c.label == "guard")
+                .map(|c| pc3d_render::npcs::npc_world_pos(&gen, &c.brain))
+                .unwrap_or(aim1);
+            let eye2 = [guard_pos[0] + 3.0, guard_pos[1] + 1.7, guard_pos[2] + 3.0];
+            let d2 = [guard_pos[0] - eye2[0], guard_pos[1] + 1.2 - eye2[1], guard_pos[2] - eye2[2]];
+            let pose2 = pc3d_render::CameraPose::new(
+                eye2,
+                (-d2[0]).atan2(-d2[2]),
+                (d2[1] / (d2[0] * d2[0] + d2[1] * d2[1] + d2[2] * d2[2]).sqrt()).asin(),
+            );
+            // Anchor-inspect view: the plaza with the frame boxes.
+            let eye3 = [
+                plaza.x as f32 + 8.0,
+                ground(plaza.x as f32 + 8.0, plaza.z as f32 + 8.0) + 3.5,
+                plaza.z as f32 + 8.0,
+            ];
+            let d3 = [plaza.x as f32 - eye3[0], ground(plaza.x as f32, plaza.z as f32) + 0.8 - eye3[1], plaza.z as f32 - eye3[2]];
+            let pose3 = pc3d_render::CameraPose::new(
+                eye3,
+                (-d3[0]).atan2(-d3[2]),
+                (d3[1] / (d3[0] * d3[0] + d3[1] * d3[1] + d3[2] * d3[2]).sqrt()).asin(),
+            );
+
+            let g_hook = gen.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — the people".into(),
+                max_frames: Some(170),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![
+                    (0, pose1),
+                    (60, pose2),
+                    (110, pose3),
+                ],
+                shots: vec![
+                    Shot::new(30, format!("{out_dir}/windowed_people_plaza.png")),
+                    Shot::new(50, format!("{out_dir}/windowed_people_stride.png")),
+                    Shot::new(90, format!("{out_dir}/windowed_people_guard.png")),
+                    Shot::new(150, format!("{out_dir}/windowed_people_anchors.png")),
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            r.set_placeholder_scene(false);
+                            r.load_terrain(&g_hook, &patches);
+                            r.set_atmosphere_tier(pc3d_render::atmosphere::AtmosphereTier::Mid);
+                            r.attach_flora(g_hook.clone());
+                            r.attach_settlement(&scene, &kit);
+                            // The anchor-inspect frames over the plan zones.
+                            let (mut verts, mut idx) = (Vec::new(), Vec::new());
+                            let _ = pc3d_render::npcs::mesh_anchor_boxes(
+                                &g_hook, &plan, &mut verts, &mut idx,
+                            );
+                            r.load_npcs(&verts, &idx);
+                            r.attach_crowd(g_hook.clone(), crowd.clone(), nav.clone());
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        8,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            // The WORK phase: the sim routes walkers to
+                            // their sites — motion the rig then animates.
+                            r.crowd_tick(0.35, 6);
+                            // Presentation copies in the sim's own
+                            // Walking state cross the plaza in frame
+                            // (the extras exist to prove the draw
+                            // budget; their paths are staged for the
+                            // camera, their poses are the real rig).
+                            r.crowd_stage_walkers(3);
+                            let _ = &advance;
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        45,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            let (draws, instances) = r.crowd_stats();
+                            println!("PEOPLE GPU: {draws} draws, {instances} part instances");
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 4 {
+                        eprintln!("[FAIL] expected 4 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(3) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    // The stride frames differ (the rig animates).
+                    let d = pc3d_render::scene::pixel_difference_fraction(
+                        &report.captures[0].rgba,
+                        &report.captures[1].rgba,
+                    );
+                    if d < 0.002 {
+                        eprintln!("[FAIL] the people must move ({d})");
+                        std::process::exit(1);
+                    }
+                    println!("PEOPLE MOTION: stride frames differ {:.2}% (d {d:.4})", d * 100.0);
+                    println!(
+                        "WINDOWED PEOPLE PROOF PASS -> plaza/stride/guard/anchors in {out_dir}"
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some("--play-settlement") => {
             // NWR-008: the settlement kit — the capital and its town from
             // the AUTHORITATIVE plans, assembled as socket-aligned GLB

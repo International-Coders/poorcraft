@@ -15,6 +15,7 @@ use crate::scales::PATCH_CELL_AXIS;
 pub const MAX_NAV_NODES: usize = 4096;
 
 /// Per-column walkable surface for one patch.
+#[derive(Clone)]
 pub struct NavPatch {
     pub coord: PatchCoord,
     /// Floor height (cell y) per column; None where no surface in range.

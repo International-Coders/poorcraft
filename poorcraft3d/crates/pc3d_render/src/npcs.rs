@@ -14,6 +14,7 @@
 
 use crate::scene::SceneVertex;
 use pc3d_world::coords::CellCoord;
+use std::collections::BTreeMap;
 use pc3d_world::gen::WorldGen;
 use pc3d_world::nav::NavPatch;
 use pc3d_world::npc::{NpcBrain, Role};
@@ -21,6 +22,7 @@ use pc3d_world::settlement_plan::SettlementPlan;
 
 /// The three canonical showcase NPCs (resident / worker / guard) bound to
 /// a settlement plan's own anchors.
+#[derive(Clone, Debug)]
 pub struct NpcCast {
     pub label: &'static str,
     pub brain: NpcBrain,
@@ -511,5 +513,564 @@ mod tests {
         // Colors come from the anchor materials.
         let c_bed = pc3d_assets::material_albedo("mat.anchor_bed").unwrap();
         assert!(v.iter().any(|vv| vv.color == c_bed));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// NWR-009: the rig — a low-poly limb-based NPC with a deterministic
+// animation state machine driven by the AUTHORITATIVE intent, drawn
+// instanced (one box mesh; one bucket per part color — a whole crowd
+// is <= ~10 draw calls). Positions come from brain.pos; orientation
+// from the walking path; nothing invents a visual simulation.
+// ---------------------------------------------------------------------------
+
+/// Part colors (bucket keys — one draw per color for the whole crowd).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PartColor {
+    Legs,
+    Skin,
+    Resident,
+    Worker,
+    Guard,
+    Wood,
+    Steel,
+}
+
+impl PartColor {
+    pub fn albedo(self) -> [f32; 3] {
+        match self {
+            PartColor::Legs => LEGS,
+            PartColor::Skin => SKIN,
+            PartColor::Resident => torso_material("resident"),
+            PartColor::Worker => torso_material("worker"),
+            PartColor::Guard => torso_material("guard"),
+            PartColor::Wood => WOOD,
+            PartColor::Steel => STEEL,
+        }
+    }
+}
+
+/// One rigged part: a scaled box offset (BEFORE body yaw) from the
+/// NPC's ground point, in meters.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RigPart {
+    pub offset: [f32; 3],
+    pub scale: [f32; 3],
+    pub color: PartColor,
+}
+
+/// A full pose: body yaw + parts. The deterministic output of the
+/// animation state machine at time t for one brain.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RigPose {
+    pub yaw: f32,
+    pub parts: Vec<RigPart>,
+    /// An impostor (far) pose: one box, no limbs.
+    pub impostor: bool,
+}
+
+/// The deterministic animation state machine: pose = f(intent, t).
+/// Pure — the same (brain, t) always yields the same pose, so proofs
+/// freeze t and compare.
+pub fn rig_pose(brain: &NpcBrain, t: f32) -> RigPose {
+    use pc3d_world::npc::{Activity, Intent};
+    let activity = brain.activity();
+    let mut yaw = 0.0f32;
+    // Face the travel direction while walking (from the path, never a
+    // visual guess).
+    if let Intent::Walking { path, leg } = &brain.intent {
+        let here = *path.get(leg.saturating_sub(1)).unwrap_or(&brain.pos);
+        let next = *path.get(*leg).unwrap_or(&here);
+        let (dx, dz) = (next.x - here.x, next.z - here.z);
+        if dx != 0 || dz != 0 {
+            // The instance convention: yaw 0 faces -Z; face target yaw.
+            yaw = -(dz as f32).atan2(dx as f32) + std::f32::consts::FRAC_PI_2;
+        }
+    }
+
+    let mut parts = Vec::new();
+    let mut push = |parts: &mut Vec<RigPart>, off: [f32; 3], sc: [f32; 3], c: PartColor| {
+        parts.push(RigPart {
+            offset: off,
+            scale: sc,
+            color: c,
+        });
+    };
+    // The cast labels roles (resident/worker/guard); the rig reads the
+    // same mapping the mesh path established (guards distinct; the
+    // working roles share the worker kit).
+    let torso_color = match brain.role {
+        pc3d_world::npc::Role::Guard => PartColor::Guard,
+        _ if brain.work_site != brain.home => PartColor::Worker,
+        _ => PartColor::Resident,
+    };
+    match activity {
+        Activity::Walking => {
+            // Stride: legs swing fore/aft, arms counter-swing.
+            let phase = t * 6.0;
+            let s = phase.sin();
+            push(&mut parts, [-0.09, 0.375, 0.08 * s], [0.14, 0.75, 0.16], PartColor::Legs);
+            push(&mut parts, [0.09, 0.375, -0.08 * s], [0.14, 0.75, 0.16], PartColor::Legs);
+            push(&mut parts, [0.0, 1.05, 0.0], [0.4, 0.6, 0.24], torso_color);
+            push(&mut parts, [-0.26, 1.02, -0.10 * s], [0.11, 0.5, 0.13], torso_color);
+            push(&mut parts, [0.26, 1.02, 0.10 * s], [0.11, 0.5, 0.13], torso_color);
+            push(&mut parts, [0.0, 1.52, 0.0], [0.26, 0.3, 0.26], PartColor::Skin);
+        }
+        Activity::Farming | Activity::Fishing | Activity::Building | Activity::Guarding => {
+            // Work: the right arm swings like a tool stroke.
+            let phase = t * 3.2;
+            let s = phase.sin();
+            push(&mut parts, [-0.09, 0.375, 0.0], [0.14, 0.75, 0.16], PartColor::Legs);
+            push(&mut parts, [0.09, 0.375, 0.0], [0.14, 0.75, 0.16], PartColor::Legs);
+            push(&mut parts, [0.0, 1.05, 0.0], [0.4, 0.6, 0.24], torso_color);
+            push(&mut parts, [-0.26, 1.02, 0.0], [0.11, 0.5, 0.13], torso_color);
+            push(&mut parts, [0.26, 1.15 + 0.08 * s, 0.14 + 0.12 * s], [0.11, 0.5, 0.13], torso_color);
+            push(&mut parts, [0.0, 1.52, 0.0], [0.26, 0.3, 0.26], PartColor::Skin);
+        }
+        Activity::Sleeping => {
+            // Lying at home: a low, long silhouette.
+            push(&mut parts, [0.0, 0.15, 0.0], [0.45, 0.3, 1.7], torso_color);
+            push(&mut parts, [0.0, 0.18, 0.95], [0.24, 0.24, 0.24], PartColor::Skin);
+        }
+        _ => {
+            // Idle: a subtle breathe sway.
+            let b = (t * 1.5).sin() * 0.008;
+            push(&mut parts, [-0.09, 0.375, 0.0], [0.14, 0.75, 0.16], PartColor::Legs);
+            push(&mut parts, [0.09, 0.375, 0.0], [0.14, 0.75, 0.16], PartColor::Legs);
+            push(&mut parts, [0.0, 1.05 + b, 0.0], [0.4, 0.6, 0.24], torso_color);
+            push(&mut parts, [-0.26, 1.02, 0.0], [0.11, 0.5, 0.13], torso_color);
+            push(&mut parts, [0.26, 1.02, 0.0], [0.11, 0.5, 0.13], torso_color);
+            push(&mut parts, [0.0, 1.52, 0.0], [0.26, 0.3, 0.26], PartColor::Skin);
+        }
+    }
+    // Role gear (the role's identity — always readable):
+    // guard: spear + helm; worker: cap + tool WHEN WORKING; resident:
+    // a satchel.
+    match torso_color {
+        PartColor::Guard => {
+            push(&mut parts, [0.30, 1.0, 0.0], [0.05, 1.5, 0.05], PartColor::Wood);
+            push(&mut parts, [0.30, 1.85, 0.0], [0.09, 0.2, 0.09], PartColor::Steel);
+            push(&mut parts, [0.0, 1.72, 0.0], [0.3, 0.12, 0.3], PartColor::Steel);
+        }
+        PartColor::Worker => {
+            push(&mut parts, [0.0, 1.70, 0.0], [0.28, 0.1, 0.28], PartColor::Wood);
+            if matches!(brain.intent, Intent::Working { .. }) {
+                push(&mut parts, [0.34, 1.0, 0.1], [0.05, 0.4, 0.05], PartColor::Wood);
+                push(&mut parts, [0.34, 1.25, 0.1], [0.12, 0.12, 0.12], PartColor::Steel);
+            }
+        }
+        _ => {
+            push(&mut parts, [-0.24, 0.95, -0.12], [0.12, 0.16, 0.08], PartColor::Wood);
+        }
+    }
+    RigPose {
+        yaw,
+        parts,
+        impostor: false,
+    }
+}
+
+/// The far pose: one torso-colored box (the reduced-update impostor).
+pub fn impostor_pose(brain: &NpcBrain) -> RigPose {
+    // The cast labels roles (resident/worker/guard); the rig reads the
+    // same mapping the mesh path established (guards distinct; the
+    // working roles share the worker kit).
+    let torso_color = match brain.role {
+        pc3d_world::npc::Role::Guard => PartColor::Guard,
+        _ if brain.work_site != brain.home => PartColor::Worker,
+        _ => PartColor::Resident,
+    };
+    RigPose {
+        yaw: 0.0,
+        parts: vec![RigPart {
+            offset: [0.0, 0.85, 0.0],
+            scale: [0.42, 1.7, 0.42],
+            color: torso_color,
+        }],
+        impostor: true,
+    }
+}
+
+/// One rigged box instance: position, yaw, PER-AXIS scale (parts are
+/// stretched boxes, not uniform), bucketed by color.
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct BoxInstance {
+    pub pos: [f32; 3],
+    pub yaw: f32,
+    pub scale: [f32; 3],
+    pub pad: f32,
+}
+
+pub const BOX_INSTANCE_LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexBufferLayout {
+    array_stride: std::mem::size_of::<BoxInstance>() as wgpu::BufferAddress,
+    step_mode: wgpu::VertexStepMode::Instance,
+    attributes: &[
+        wgpu::VertexAttribute {
+            format: wgpu::VertexFormat::Float32x4, // pos + yaw
+            offset: 0,
+            shader_location: 3,
+        },
+        wgpu::VertexAttribute {
+            format: wgpu::VertexFormat::Float32x4, // scale + pad
+            offset: 16,
+            shader_location: 4,
+        },
+    ],
+};
+
+/// The crowd's instance rows: per part color, every part of every NPC
+/// (near = rig; far = the single-box impostor).
+pub fn crowd_instances(
+    gen: &WorldGen,
+    cast: &[NpcCast],
+    viewer: [f32; 2],
+    t: f32,
+    impostor_beyond: f32,
+) -> BTreeMap<PartColor, Vec<BoxInstance>> {
+    let mut out: BTreeMap<PartColor, Vec<BoxInstance>> = BTreeMap::new();
+    for c in cast {
+        let base = npc_world_pos(gen, &c.brain);
+        let d = (base[0] - viewer[0]).hypot(base[2] - viewer[1]);
+        let pose = if d > impostor_beyond {
+            impostor_pose(&c.brain)
+        } else {
+            rig_pose(&c.brain, t)
+        };
+        for p in &pose.parts {
+            let (cy, sy) = (pose.yaw.cos(), pose.yaw.sin());
+            let wx = base[0] + p.offset[0] * cy + p.offset[2] * sy;
+            let wz = base[2] - p.offset[0] * sy + p.offset[2] * cy;
+            out.entry(p.color).or_default().push(BoxInstance {
+                pos: [wx, base[1] + p.offset[1] - p.scale[1] / 2.0, wz],
+                yaw: pose.yaw,
+                scale: p.scale,
+                pad: 0.0,
+            });
+        }
+    }
+    out
+}
+
+/// The unit box mesh (centered at origin, 1 m cube) the crowd draws
+/// with — one shared buffer, per-axis scaled per instance.
+pub fn unit_box_mesh() -> (Vec<SceneVertex>, Vec<u16>) {
+    let mut verts = Vec::new();
+    let mut idx = Vec::new();
+    let h = 0.5f32;
+    let faces: [([f32; 3], [f32; 3], [f32; 3]); 6] = [
+        ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        ([1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+        ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        ([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+        ([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    ];
+    for (n, u, v) in faces {
+        let base = verts.len() as u16;
+        for (su, sv) in [(-1.0f32, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+            verts.push(SceneVertex {
+                pos: [
+                    (n[0] + u[0] * su + v[0] * sv) * h,
+                    (n[1] + u[1] * su + v[1] * sv) * h,
+                    (n[2] + u[2] * su + v[2] * sv) * h,
+                ],
+                normal: n,
+                color: [1.0, 1.0, 1.0],
+            });
+        }
+        idx.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+    (verts, idx)
+}
+
+/// Capsule collision adapter: the player's surface plus the crowd's
+/// occupied cells (an NPC body blocks like a chest-high capsule).
+pub struct CrowdGround<S> {
+    pub inner: S,
+    pub cells: std::collections::BTreeSet<(i32, i32)>,
+}
+
+impl<S: crate::player::CollisionSurface> crate::player::CollisionSurface for CrowdGround<S> {
+    fn ground_at(&self, gen: &WorldGen, x: f32, z: f32, from_y: f32) -> Option<f32> {
+        self.inner.ground_at(gen, x, z, from_y)
+    }
+
+    fn cell_solid(&self, gen: &WorldGen, x: i32, y: i32, z: i32) -> bool {
+        if self.inner.cell_solid(gen, x, y, z) {
+            return true;
+        }
+        if !self.cells.contains(&(x, z)) {
+            return false;
+        }
+        let ground = self
+            .inner
+            .ground_at(gen, x as f32 + 0.5, z as f32 + 0.5, f32::MAX / 4.0)
+            .unwrap_or(0.0);
+        let wy = y as f32;
+        wy >= ground - 0.5 && wy <= ground + 1.8
+    }
+}
+
+#[cfg(test)]
+mod rig_tests {
+    use super::*;
+    use pc3d_world::coords::CellCoord;
+    use pc3d_world::npc::{Intent, NpcBrain, Role};
+
+    fn brain(role: Role, intent: Intent) -> NpcBrain {
+        let mut b = NpcBrain::new(
+            role,
+            CellCoord { x: 10, y: 0, z: 10 },
+            CellCoord { x: 30, y: 0, z: 12 },
+        );
+        b.intent = intent;
+        b
+    }
+
+    fn walking_brain() -> NpcBrain {
+        brain(
+            Role::Farmer,
+            Intent::Walking {
+                path: vec![
+                    CellCoord { x: 10, y: 0, z: 10 },
+                    CellCoord { x: 14, y: 0, z: 10 },
+                    CellCoord { x: 18, y: 0, z: 10 },
+                ],
+                leg: 1,
+            },
+        )
+    }
+
+    #[test]
+    fn poses_are_deterministic_and_intent_driven() {
+        // Determinism: same (brain, t) -> identical pose.
+        let w = walking_brain();
+        assert_eq!(rig_pose(&w, 0.3), rig_pose(&w, 0.3));
+
+        // WALKING: the yaw faces the path leg (+X here; the instance
+        // convention yaw 0 = -Z, so +X faces yaw +PI/2).
+        let p = rig_pose(&w, 0.0);
+        assert!(
+            (p.yaw - std::f32::consts::FRAC_PI_2).abs() < 0.01,
+            "walking faces travel ({})",
+            p.yaw
+        );
+        // Legs alternate at mid-stride.
+        let p2 = rig_pose(&w, 0.2618); // sin(pi*0.5)=1
+        let legs: Vec<&RigPart> = p2.parts.iter().filter(|q| q.color == PartColor::Legs).collect();
+        assert_eq!(legs.len(), 2, "two legs");
+        assert!(
+            (legs[0].offset[2] - legs[1].offset[2]).abs() > 0.1,
+            "legs swing in counterphase ({:?} {:?})",
+            legs[0].offset,
+            legs[1].offset
+        );
+
+        // WORKING: the right arm swings between times.
+        let worker = brain(Role::Builder, Intent::Working { site: CellCoord { x: 30, y: 0, z: 12 } });
+        let a = rig_pose(&worker, 0.0);
+        let b = rig_pose(&worker, 0.5);
+        assert_ne!(a.parts, b.parts, "the work stroke animates");
+        // The tool appears ONLY while working.
+        assert!(a.parts.iter().any(|q| q.color == PartColor::Steel), "tool while working");
+        let idle_worker = brain(Role::Builder, Intent::Idle);
+        let c = rig_pose(&idle_worker, 0.0);
+        assert!(
+            !c.parts.iter().any(|q| q.color == PartColor::Steel),
+            "an idle worker never looks busy"
+        );
+
+        // GUARD gear is the role's identity: spear steel at ANY activity.
+        for mk in [
+            || Intent::Idle,
+            || Intent::Working { site: CellCoord { x: 2, y: 0, z: 2 } },
+            || Intent::Sleeping,
+        ] {
+            let g = brain(Role::Guard, mk());
+            let p = rig_pose(&g, 0.7);
+            assert!(
+                p.parts.iter().any(|q| q.color == PartColor::Steel),
+                "guard gear readable at {:?}",
+                g.intent
+            );
+        }
+
+        // SLEEPING: the body silhouette lies low (role GEAR may ride
+        // taller — a guard's spear leans where it may).
+        let sleeper = brain(Role::Farmer, Intent::Sleeping);
+        let sp = rig_pose(&sleeper, 1.0);
+        let top = sp
+            .parts
+            .iter()
+            .filter(|q| q.color != PartColor::Wood && q.color != PartColor::Steel)
+            .map(|q| q.offset[1] + q.scale[1])
+            .fold(0.0f32, f32::max);
+        assert!(top < 0.6, "sleeping lies low ({top})");
+
+        // IMPOSTOR: one box, torso color.
+        let ip = impostor_pose(&w);
+        assert!(ip.impostor && ip.parts.len() == 1);
+    }
+
+    #[test]
+    fn crowd_instances_follow_the_simulation_and_bucket_by_color() {
+        let gen = WorldGen::new(3);
+        let cast: Vec<NpcCast> = [
+            ("resident", brain(Role::Farmer, Intent::Idle)),
+            ("worker", brain(Role::Builder, Intent::Working { site: CellCoord { x: 30, y: 0, z: 12 } })),
+            ("guard", brain(Role::Guard, Intent::Idle)),
+        ]
+        .into_iter()
+        .map(|(label, b)| NpcCast { label, brain: b })
+        .collect();
+        let rows = crowd_instances(&gen, &cast, [0.0, 0.0], 0.0, 64.0);
+        assert!(rows.len() <= 8, "one bucket per color ({})", rows.len());
+        // Every instance's position sits at the sim position (the
+        // ground point + part offsets only).
+        for c in &cast {
+            let base = npc_world_pos(&gen, &c.brain);
+            let near: Vec<&BoxInstance> = rows
+                .values()
+                .flatten()
+                .filter(|i| (i.pos[0] - base[0]).abs() < 1.2 && (i.pos[2] - base[2]).abs() < 1.2)
+                .collect();
+            assert!(!near.is_empty(), "the body parts sit at the sim position");
+        }
+        // The crowd budget: ~6-9 parts per NPC, <= 8 buckets — a crowd
+        // of any size stays <= 8 draws.
+        let total: usize = rows.values().map(|v| v.len()).sum();
+        assert!(total >= 15 && total <= 27, "parts per 3 NPCs {total}");
+    }
+
+    #[test]
+    fn the_crowd_blocks_the_player_like_a_capsule() {
+        let gen = WorldGen::new(3);
+        let npc = brain(Role::Guard, Intent::Idle);
+        // Park the guard somewhere flat-ish and walk into them.
+        let pos = npc.pos;
+        struct Flat;
+        impl crate::player::CollisionSurface for Flat {
+            fn ground_at(&self, _g: &WorldGen, _x: f32, _z: f32, _y: f32) -> Option<f32> {
+                Some(0.0)
+            }
+            fn cell_solid(&self, _g: &WorldGen, _x: i32, _y: i32, _z: i32) -> bool {
+                false
+            }
+        }
+        let surface = CrowdGround {
+            inner: Flat,
+            cells: [(pos.x, pos.z)].into_iter().collect(),
+        };
+        let mut body = crate::player::PlayerBody {
+            pos: [pos.x as f32 - 5.0, 0.0, pos.z as f32 + 0.5],
+            yaw: std::f32::consts::PI, // +X
+            pitch: 0.0,
+        };
+        for _ in 0..300 {
+            body.walk_on(&gen, &surface, 1.0, 0.0, 1.0 / 60.0);
+        }
+        assert!(
+            body.pos[0] < pos.x as f32 - 0.4,
+            "the NPC body stops the walk ({:.1} < {})",
+            body.pos[0],
+            pos.x - 1
+        );
+    }
+
+    /// GPU: the crowd RENDERS (control diff), the walk animation moves
+    /// between two frozen times, and a far crowd draws impostors.
+    #[test]
+    fn crowd_renders_and_animates() {
+        let (gen, _center, layout, plan) =
+            crate::city::city_scene(3, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
+        let gen = std::rc::Rc::new(gen);
+        let (_, _, info) = crate::city::mesh_city(&gen, &layout, &plan);
+        let nav = NavPatch::from_gen(
+            &gen,
+            pc3d_world::coords::PatchCoord {
+                x: plan.plaza.x.div_euclid(16),
+                y: 0,
+                z: plan.plaza.z.div_euclid(16),
+            },
+        );
+        let mut cast = cast_for(&plan, &info);
+        let plaza = plan.plaza;
+        // Push the sim to the work phase, then STAGE a walker across
+        // the plaza (the sim's own Walking state — the pose path is
+        // identical; only the path is hand-set for the camera).
+        crate::npcs::advance(&mut cast, &nav, 0.35, 4);
+        cast[0].brain.intent = Intent::Walking {
+            path: vec![
+                CellCoord { x: plaza.x + 3, y: plaza.y, z: plaza.z + 3 },
+                CellCoord { x: plaza.x - 3, y: plaza.y, z: plaza.z - 3 },
+            ],
+            leg: 1,
+        };
+        cast[0].brain.pos = CellCoord { x: plaza.x + 3, y: plaza.y, z: plaza.z + 3 };
+        let walking = cast.iter().any(|c| matches!(c.brain.intent, Intent::Walking { .. }));
+        let working = cast.iter().any(|c| matches!(c.brain.intent, Intent::Working { .. }));
+        println!("cast states: walking {walking} working {working}");
+        assert!(walking || working, "the sim drives visible activity");
+
+        // Terrain patch + camera BESIDE the staged walker (a 0.16 m
+        // stride is sub-pixel at 13 m — the first animation probe
+        // compared specks; stand 3 m away).
+        let ground = gen.effective_surface_mm((plaza.x as i64) * 1000, (plaza.z as i64) * 1000) as f32
+            / 1000.0;
+        let eye = [plaza.x as f32 + 3.0, ground + 1.8, plaza.z as f32 + 5.0];
+        let aim = [plaza.x as f32 + 3.0, ground + 1.2, plaza.z as f32 + 2.0];
+        let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
+        let pose = crate::camera::CameraPose::new(
+            eye,
+            (-d[0]).atan2(-d[2]),
+            (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+        );
+
+        let mut ctrl = crate::renderer::Renderer::offscreen(384, 288);
+        ctrl.set_placeholder_scene(false);
+        ctrl.load_terrain(&gen.clone(), &[pc3d_world::coords::PatchCoord { x: plaza.x.div_euclid(16), y: 1, z: plaza.z.div_euclid(16) }]);
+        ctrl.set_pose(pose);
+        let (_, no_crowd) = ctrl.capture_png(&std::env::temp_dir().join("pc3d_crowd_off.png"), &[]);
+
+        let mut r = crate::renderer::Renderer::offscreen(384, 288);
+        r.set_placeholder_scene(false);
+        r.load_terrain(&gen.clone(), &[pc3d_world::coords::PatchCoord { x: plaza.x.div_euclid(16), y: 1, z: plaza.z.div_euclid(16) }]);
+        r.set_pose(pose);
+        r.set_water_time(Some(0.5));
+        r.attach_crowd(
+            gen.clone(),
+            cast.clone(),
+            NavPatch::from_gen(
+                &gen,
+                pc3d_world::coords::PatchCoord {
+                    x: plan.plaza.x.div_euclid(16),
+                    y: 0,
+                    z: plan.plaza.z.div_euclid(16),
+                },
+            ),
+        );
+        r.crowd_frame(0.5);
+        let (_, with_crowd) = r.capture_png(&std::env::temp_dir().join("pc3d_crowd_on.png"), &[]);
+        let (draws, instances) = r.crowd_stats();
+        let diff = crate::scene::pixel_difference_fraction(&no_crowd, &with_crowd);
+        println!("crowd: diff {diff:.4}, {draws} draws, {instances} part instances");
+        assert!(diff > 0.002, "characters render ({diff})");
+        assert!(draws <= 8, "the crowd is one draw per color ({draws})");
+        assert!(instances >= 15, "limbed bodies, not blobs ({instances})");
+
+        // Animation: two frozen times differ (stride/stroke motion).
+        // The time is SET, not poked: prepare_frame rebuilds poses from
+        // the shared frozen clock (the direct crowd_frame call was
+        // clobbered by it).
+        r.set_water_time(Some(1.6));
+        let (_, later) = ctrl_cap(&mut r);
+        let adiff = crate::scene::pixel_difference_fraction(&with_crowd, &later);
+        println!("crowd animation diff {adiff:.4}");
+        assert!(adiff > 0.0005, "the rig animates between times ({adiff})");
+    }
+
+    fn ctrl_cap(r: &mut crate::renderer::Renderer) -> (crate::scene::PixelReport, Vec<u8>) {
+        r.capture_png(&std::env::temp_dir().join("pc3d_crowd_tmp.png"), &[])
     }
 }

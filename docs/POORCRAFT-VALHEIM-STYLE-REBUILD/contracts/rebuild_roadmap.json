@@ -134,7 +134,8 @@
       ],
       "prompt": "prompts/08-NWR-009-npc-presentation.md",
       "completion": "Original role-aware rig-ready characters driven by authoritative brains.",
-      "status": "next"
+      "status": "done",
+      "evidence": "pc3d_render::npcs grew the RIG (NWR-009): an original low-poly limb-based NPC (legs 0-0.75, torso 0.75-1.35 + arms, head to 1.7) with role variants \u2014 guard (steel helm + spear, always readable), worker (wood cap + tool ONLY while Working \u2014 an idle worker never looks busy), resident (satchel) \u2014 and a DETERMINISTIC animation state machine rig_pose(brain, t): pure f(intent, t); Walking swings counterphase legs/arms and YAW FACES THE PATH LEG (from the sim path, never a visual guess); work activities stroke the right arm; Sleeping is a low lying silhouette; Idle breathes. Impostors beyond 64 m: one torso-colored box (the reduced-detail far policy). Drawing: a new inst_box pipeline (unit cube + PER-AXIS instance scale) with one bucket per part COLOR \u2014 a crowd of any size is <= ~8 draw calls (12-NPC proof: 7 draws / 92 part instances); poses rebuild per frame in prepare_frame from the shared clock (frozen-able \u2014 deterministic proofs). Positions always npc_world_pos(brain) \u2014 no visual simulation. attach_crowd stores the gen/cast/nav; crowd_tick advances the AUTHORITATIVE brains; crowd_stage_walkers stages presentation-copy walkers in the sim's own Walking state for camera-facing proofs (labeled as such). CrowdGround capsule adapter: NPC cells block the player chest-high. Proofs: 4 rig tests \u2014 pose determinism + intent laws (walking yaw/faces travel + counterphase legs at sin peak; work stroke animates and the tool is activity-gated; guard steel at every activity; sleeping body under 0.6 m; impostor = 1 box); crowd_instances follow the sim positions and bucket by color (<= 8); the capsule stops a walk; GPU \u2014 characters render (control-diff 0.0725), 7 draws / 23 instances, the rig ANIMATES between frozen times (0.0112). Windowed --play-people / make p3d-people (151 frames p50 5.9-6.0 ms with atmosphere + flora + kit + crowd; 12-NPC crowd 7 draws): plaza/stride/guard/anchors captures human-inspected PASS \u2014 limbed people with role gear in the lane, the full guard rig (helm, spear) close-up, the anchor frames visible; stride frames differ 0.35%. The existing npc-cast gate (the mesh path) stayed green untouched. 9/9 gates; p3d 418/418, root 474/474."
     },
     {
       "id": "NWR-010",
@@ -143,7 +144,8 @@
         "NWR-009"
       ],
       "prompt": "prompts/09-NWR-010-deck-quality.md",
-      "completion": "Reproducible low/medium/high benchmark and quality proof."
+      "completion": "Reproducible low/medium/high benchmark and quality proof.",
+      "status": "next"
     },
     {
       "id": "NWR-011",

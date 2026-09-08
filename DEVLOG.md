@@ -5441,3 +5441,66 @@ same as the primitive path); kit modules have no per-module texture
 variants; the LIVE --play/--play-slice shell still shows the primitive
 city path (NWR-011 slice integration swaps attach points). Next:
 NWR-009 — NPC presentation.
+
+## 2026-09-08 — NWR-009: the people
+
+WHAT: The NPCs graduated from static posed boxes to an original
+low-poly RIG with a deterministic animation state machine driven by
+the AUTHORITATIVE intent. pc3d_render::npcs grew rig_pose(brain, t) —
+a PURE function of (intent, time): Walking swings counterphase
+legs/arms and the body yaw FACES THE PATH LEG (read from the sim's
+path, never a visual guess); work activities stroke the right arm;
+Sleeping is a low lying silhouette; Idle breathes. Role variants read
+at a glance: the GUARD carries steel helm + spear at every activity
+(the role's identity), the WORKER's tool appears ONLY while Working
+(an idle worker never looks busy), the RESIDENT wears a satchel.
+Beyond 64 m NPCs draw as single torso-colored impostor boxes. The
+crowd draws through a new inst_box pipeline (unit cube + PER-AXIS
+instance scale) with one bucket per part COLOR — a crowd of any size
+is at most ~8 draw calls (the 12-NPC proof: 7 draws / 92 part
+instances). Poses rebuild per frame in prepare_frame from the shared
+clock (frozen-able, so proofs are deterministic); positions always
+come from npc_world_pos(brain) — there is no visual NPC simulation.
+attach_crowd keeps the gen/cast/nav; crowd_tick advances the real
+brains; crowd_stage_walkers stages presentation-copy walkers in the
+sim's own Walking state when a proof needs motion in frame (labeled
+as such). A CrowdGround adapter gives the bodies chest-high capsule
+collision.
+
+HOW: crates/pc3d_render/src/npcs.rs (the rig + BoxInstance + unit box
++ adapter + 4 tests); scene.wgsl (vs_inst_box); renderer.rs (the
+inst_box pipeline, attach_crowd/crowd_tick/crowd_stage_walkers/
+crowd_frame per-frame poses, CrowdGpu per-color buckets);
+pc3d_world::npc + nav (Clone derives — pure data); apps
+--play-people; Makefile p3d-people.
+
+EVIDENCE: 4 rig tests — pose determinism + intent laws (walking yaw
+faces travel and legs counterphase at the sin peak; the work stroke
+animates; guard steel at every activity; sleeping body under 0.6 m;
+impostor = one box), crowd instances follow the sim and bucket by
+color, the capsule stops a walk, and the GPU proof (characters render
+at control-diff 0.0725, 7 draws, and the rig ANIMATES between frozen
+times 0.5 -> 1.6 at 0.0112). WINDOWED --play-people /
+make p3d-people (151 frames p50 ~6 ms with atmosphere + flora + the
+settlement kit + the crowd): plaza/stride/guard/anchors captures
+human-inspected PASS — limbed people in the lane, the full guard rig
+close-up, the anchor frames still inspectable; stride frames differ
+0.35%. The pre-existing npc-cast gate (the mesh path) stayed green
+untouched. 9/9 gates; suites p3d 418/418, root 474/474.
+
+BUGS THE PROOFS CAUGHT (fixed): prepare_frame's per-frame pose
+rebuild from the frozen clock clobbered a directly-poked pose (the
+animation probe read 0.0000 until the time was SET, not poked); the
+first animation probe compared a 0.16 m stride at 13 m — sub-pixel —
+the camera now stands 3 m from the walker; the sleeping-height law
+initially measured role GEAR (a guard's spear stands taller than a
+lying body) — the law measures body parts.
+
+HONESTLY DEFERRED: no skinned meshes/gltf skinning (the rig is
+part-boxes — deliberately Deck-cheap); no NPC shadows in the sun pass
+(small boxes; flora/settlement cast); crowd poses rebuild every frame
+(the reduced-update policy applies to far impostors only — a 12-NPC
+crowd is trivially cheap, a 200-crowd would want chunked updates);
+NPC-vs-NPC avoidance is the sim's business (none yet); the LIVE
+--play/--play-slice shell still shows the mesh NPCs until NWR-011.
+Next: NWR-010 — the Steam Deck quality contract.

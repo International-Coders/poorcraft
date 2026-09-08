@@ -50,6 +50,8 @@ pub struct FloraPipelines {
     pub inst: wgpu::RenderPipeline,
     pub inst_cutout: wgpu::RenderPipeline,
     pub inst_shadow: wgpu::RenderPipeline,
+    /// NPC crowd boxes (NWR-009): unit cube + per-axis instance scale.
+    pub inst_box: wgpu::RenderPipeline,
 }
 
 struct Pipelines {
@@ -435,10 +437,22 @@ impl Pipelines {
             multiview: None,
             cache: None,
         });
+        let box_inst_layout = crate::npcs::BOX_INSTANCE_LAYOUT;
+        let inst_box = make(
+            "pc3d crowd box pipeline",
+            &pl_globals,
+            "vs_inst_box",
+            "fs_mesh",
+            &[VERTEX_LAYOUT.clone(), box_inst_layout],
+            Some(wgpu::Face::Back),
+            Some(depth24.clone()),
+            None,
+        );
         let flora = FloraPipelines {
             inst,
             inst_cutout,
             inst_shadow,
+            inst_box,
         };
         Self {
             sky: make(
@@ -587,6 +601,13 @@ pub struct Renderer {
     flora: Option<crate::flora::FloraStreamer>,
     /// The settlement kit scene (NWR-008): static instanced modules.
     settlement: Option<crate::settlement::SettlementGpu>,
+    /// The NPC crowd (NWR-009): rig instances per part color.
+    crowd: Option<CrowdGpu>,
+    /// The crowd's authority inputs (gen + cast + nav), for per-frame
+    /// poses and schedule ticks.
+    crowd_gen: Option<std::rc::Rc<pc3d_world::gen::WorldGen>>,
+    crowd_cast: Option<std::rc::Rc<std::cell::RefCell<Vec<crate::npcs::NpcCast>>>>,
+    crowd_nav: Option<pc3d_world::nav::NavPatch>,
     /// The generator the flora placement reads (authority).
     flora_gen: Option<std::rc::Rc<pc3d_world::gen::WorldGen>>,
 }
@@ -726,6 +747,10 @@ impl Renderer {
             flora: None,
             flora_gen: None,
             settlement: None,
+            crowd: None,
+            crowd_gen: None,
+            crowd_cast: None,
+            crowd_nav: None,
             construction: None,
             terrain: None,
             streamer: None,
@@ -805,6 +830,10 @@ impl Renderer {
             flora: None,
             flora_gen: None,
             settlement: None,
+            crowd: None,
+            crowd_gen: None,
+            crowd_cast: None,
+            crowd_nav: None,
             construction: None,
             terrain: None,
             streamer: None,
@@ -959,6 +988,73 @@ impl Renderer {
         let viewer = [self.camera.pose.position[0], self.camera.pose.position[2]];
         let gpu = crate::settlement::SettlementGpu::new(&self.ctx.device, scene, kit, viewer);
         self.settlement = Some(gpu);
+    }
+
+    /// Attaches the NPC crowd (NWR-009): the rig draws from the
+    /// authoritative brains; poses rebuild per frame from (intent, t).
+    pub fn attach_crowd(
+        &mut self,
+        gen: std::rc::Rc<pc3d_world::gen::WorldGen>,
+        cast: Vec<crate::npcs::NpcCast>,
+        nav: pc3d_world::nav::NavPatch,
+    ) {
+        self.crowd = Some(CrowdGpu::new(&self.ctx.device));
+        self.crowd_gen = Some(gen);
+        self.crowd_cast = Some(std::rc::Rc::new(std::cell::RefCell::new(cast)));
+        self.crowd_nav = Some(nav);
+    }
+
+    /// Stages N presentation-copy walkers crossing in front of the
+    /// camera (the sim's own Walking intent on cloned brains — proofs
+    /// may stage visible motion without touching the sim's cast).
+    pub fn crowd_stage_walkers(&mut self, n: usize) {
+        let Some(cast) = self.crowd_cast.clone() else { return };
+        let fwd = self.camera.fwd();
+        let pos = self.camera.pose.position;
+        let mut cast = cast.borrow_mut();
+        for k in 0..n.min(cast.len()) {
+            // A path crossing the view ~6 m ahead of the camera.
+            let cx = pos[0] + fwd[0] * 6.0 + fwd[2] * (k as f32 - (n as f32 - 1.0) / 2.0) * 2.0;
+            let cz = pos[2] + fwd[2] * 6.0 - fwd[0] * (k as f32 - (n as f32 - 1.0) / 2.0) * 2.0;
+            let (x0, z0) = (cx - fwd[2] * 4.0, cz + fwd[0] * 4.0);
+            let (x1, z1) = (cx + fwd[2] * 4.0, cz - fwd[0] * 4.0);
+            cast[k].brain.intent = pc3d_world::npc::Intent::Walking {
+                path: vec![
+                    pc3d_world::coords::CellCoord { x: x0 as i32, y: 0, z: z0 as i32 },
+                    pc3d_world::coords::CellCoord { x: cx as i32, y: 0, z: cz as i32 },
+                    pc3d_world::coords::CellCoord { x: x1 as i32, y: 0, z: z1 as i32 },
+                ],
+                leg: 1,
+            };
+            cast[k].brain.pos = pc3d_world::coords::CellCoord { x: x0 as i32, y: 0, z: z0 as i32 };
+        }
+    }
+
+    /// Ticks the crowd's AUTHORITATIVE brains (the schedule drives who
+    /// walks/works/sleeps; the renderer only poses what the sim says).
+    pub fn crowd_tick(&mut self, day_fraction: f32, ticks: usize) {
+        if let (Some(cast), Some(nav)) = (self.crowd_cast.clone(), self.crowd_nav.as_ref()) {
+            crate::npcs::advance(&mut cast.borrow_mut(), nav, day_fraction, ticks);
+        }
+    }
+
+    /// The crowd's draw/count record.
+    pub fn crowd_stats(&self) -> (usize, usize) {
+        self.crowd.as_ref().map(|c| (c.draws, c.instances)).unwrap_or((0, 0))
+    }
+
+    /// One crowd frame: pose from the authoritative intent at time t
+    /// (frozen-able for proofs) and upload the per-color buckets.
+    pub fn crowd_frame(&mut self, t: f32) {
+        let (Some(g), Some(cast)) = (self.crowd_gen.clone(), self.crowd_cast.clone()) else {
+            return;
+        };
+        let Some(crowd) = self.crowd.as_mut() else {
+            return;
+        };
+        let viewer = [self.camera.pose.position[0], self.camera.pose.position[2]];
+        let rows = crate::npcs::crowd_instances(&g, &cast.borrow(), viewer, t, 64.0);
+        crowd.upload(&self.ctx.device, &rows);
     }
 
     /// The settlement kit draw/triangle record.
@@ -1405,6 +1501,16 @@ impl Renderer {
             .queue
             .write_buffer(&self.env_buf, 0, bytemuck::bytes_of(&env));
 
+        // The crowd's pose rebuild per frame (NWR-009): time follows the
+        // shared clock (frozen when water time is frozen — deterministic
+        // proofs); positions always from the authoritative brains.
+        if self.crowd.is_some() {
+            let t = self
+                .water_time_override
+                .unwrap_or_else(|| self.start.elapsed().as_secs_f32());
+            self.crowd_frame(t);
+        }
+
         // HUD: re-rasterize the line and refresh the quad to the target size.
         let (bytes, tw, th) = crate::font::rasterize_line(&self.hud.line.clone(), HUD_SCALE);
         if (tw, th) != self.hud.size {
@@ -1781,6 +1887,10 @@ impl Renderer {
             f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
             f.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
         }
+        // 2b4d. The NPC crowd (NWR-009): rigged boxes per part color.
+        if let Some(crowd) = self.crowd.as_mut() {
+            crowd.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
+        }
         // 2b4c. The settlement kit (NWR-008): instanced modules + the
         // D-033 anchor markers.
         if let Some(st) = self.settlement.as_mut() {
@@ -1807,6 +1917,91 @@ impl Renderer {
         pass.set_bind_group(0, &self.bg_hud, &[]);
         pass.set_vertex_buffer(0, self.hud.vertex_buffer.slice(..));
         pass.draw(0..4, 0..1);
+    }
+}
+
+/// The uploaded crowd: per part color, a colored box mesh + its
+/// instance buffer (a whole crowd is one draw per color, <= ~8 draws).
+struct CrowdGpu {
+    /// (vertices, indices, instances, index count, instance count)
+    buckets: Vec<(wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, u32, u32)>,
+    pub draws: usize,
+    pub instances: usize,
+}
+
+impl CrowdGpu {
+    fn new(_device: &wgpu::Device) -> Self {
+        Self {
+            buckets: Vec::new(),
+            draws: 0,
+            instances: 0,
+        }
+    }
+
+    fn upload(
+        &mut self,
+        device: &wgpu::Device,
+        rows: &std::collections::BTreeMap<crate::npcs::PartColor, Vec<crate::npcs::BoxInstance>>,
+    ) {
+        use wgpu::util::DeviceExt;
+        // One colored box mesh per present part color.
+        let (verts, idx) = crate::npcs::unit_box_mesh();
+        let mut buckets = Vec::new();
+        let mut instances = 0usize;
+        for (color, list) in rows {
+            if list.is_empty() {
+                continue;
+            }
+            let colored: Vec<SceneVertex> = verts
+                .iter()
+                .map(|v| SceneVertex {
+                    pos: v.pos,
+                    normal: v.normal,
+                    color: color.albedo(),
+                })
+                .collect();
+            let vb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("crowd box vertices"),
+                contents: bytemuck::cast_slice(&colored),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+            let ib = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("crowd box indices"),
+                contents: bytemuck::cast_slice(&idx),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+            let inst = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("crowd instances"),
+                contents: bytemuck::cast_slice(list),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+            instances += list.len();
+            buckets.push((vb, ib, inst, idx.len() as u32, list.len() as u32));
+        }
+        self.buckets = buckets;
+        self.instances = instances;
+    }
+
+    fn draw<'rp>(
+        &mut self,
+        pass: &mut wgpu::RenderPass<'rp>,
+        pipelines: &FloraPipelines,
+        bg_globals: &wgpu::BindGroup,
+    ) {
+        pass.set_pipeline(&pipelines.inst_box);
+        pass.set_bind_group(0, bg_globals, &[]);
+        let mut draws = 0usize;
+        for (vb, ib, inst, ic, n) in &self.buckets {
+            if *n == 0 {
+                continue;
+            }
+            pass.set_vertex_buffer(0, vb.slice(..));
+            pass.set_vertex_buffer(1, inst.slice(..));
+            pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint16);
+            pass.draw_indexed(0..*ic, 0, 0..*n);
+            draws += 1;
+        }
+        self.draws = draws;
     }
 }
 

@@ -1521,3 +1521,13 @@ Deferred (honest notes):
 - DEFERRED: gate-approach terrain leveling (foundations work), a real
   well piece (banner stand-in), road rendering, module texture
   variants, live-shell kit attach (NWR-011).
+
+## 2026-09-08 — NWR-009 NPC rig shipped
+
+- DONE: the rig + role gear + deterministic intent-driven animation,
+  impostors, per-color instanced crowd (<= ~8 draws for any crowd),
+  capsule collision adapter, crowd_tick over the authoritative
+  brains, --play-people windowed proof, make p3d-people. 9/9 gates.
+- DEFERRED: skinned meshes, NPC shadows in the sun pass, chunked
+  updates for very large crowds, NPC-vs-NPC avoidance (sim's domain),
+  live-shell rig attach (NWR-011).

@@ -370,6 +370,42 @@ fn vs_inst_cutout(v: CutoutInstIn) -> CutoutOut {
     return out;
 }
 
+// --- NPC crowd boxes (NWR-009): unit cube + per-axis instance scale --------
+
+struct BoxInstIn {
+    @location(0) pos: vec3f,
+    @location(1) normal: vec3f,
+    @location(2) color: vec3f,
+    @location(3) pos_yaw: vec4f,
+    @location(4) scale_pad: vec4f,
+};
+
+@vertex
+fn vs_inst_box(v: BoxInstIn) -> MeshOut {
+    let c = cos(v.pos_yaw.w);
+    let s = sin(v.pos_yaw.w);
+    let p = v.pos * v.scale_pad.xyz;
+    let world = vec3f(
+        v.pos_yaw.x + p.x * c + p.z * s,
+        v.pos_yaw.y + p.y,
+        v.pos_yaw.z - p.x * s + p.z * c,
+    );
+    var out: MeshOut;
+    out.pos = globals.view_proj * vec4f(world, 1.0);
+    out.normal = normalize(vec3f(
+        v.normal.x * c + v.normal.z * s,
+        v.normal.y,
+        -v.normal.x * s + v.normal.z * c,
+    ));
+    // The mesh vertex color is WHITE: the part's albedo rides in via
+    // tint multiplication is not enough — parts are colored per BUCKET,
+    // so the mesh is remeshed per color... see renderer: one buffer per
+    // color, mesh color = bucket albedo, instance color here stays 1.
+    out.color = v.color;
+    out.world = world;
+    return out;
+}
+
 // --- HUD (bitmap-font debug line) ------------------------------------------
 
 struct HudIn {
