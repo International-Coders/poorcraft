@@ -34,6 +34,7 @@ pub mod surface;
 pub mod surface_stream;
 pub mod terrain;
 pub mod water;
+pub mod world_features;
 pub mod font;
 pub mod gpu;
 pub mod renderer;

@@ -170,6 +170,11 @@ impl SurfaceRegion {
         self.patches.insert(key, p);
     }
 
+    /// The patch for a key, or None outside this region.
+    pub fn try_patch(&self, coord: (i32, i32)) -> Option<&SurfacePatch> {
+        self.patches.get(&coord)
+    }
+
     pub fn patch(&self, coord: (i32, i32)) -> &SurfacePatch {
         self.patches.get(&coord).expect("patch in the 3x3 region")
     }
@@ -182,10 +187,19 @@ impl SurfaceRegion {
         )
     }
 
-    /// Surface height at a world point (cross-patch safe).
+    /// Surface height at a world point (cross-patch safe; outside the
+    /// region the authoritative generator's own surface answers — the
+    /// same value an unedited patch would hold).
     pub fn height_at(&self, wx_m: f32, wz_m: f32) -> f32 {
         let key = self.patch_at(wx_m, wz_m);
-        self.patch(key).height_at(&self.gen, wx_m, wz_m)
+        self.try_patch(key)
+            .map(|p| p.height_at(&self.gen, wx_m, wz_m))
+            .unwrap_or_else(|| {
+                self.gen
+                    .effective_surface_mm((wx_m * 1000.0) as i64, (wz_m * 1000.0) as i64)
+                    as f32
+                    / 1000.0
+            })
     }
 
     /// Walkability at a world point (collision derived from the SAME
@@ -217,7 +231,12 @@ impl SurfaceRegion {
                 SurfaceEdit::Lower { meters, .. } => Some(-meters),
                 SurfaceEdit::Level { to_m, .. } => None,
             };
-            let p = self.patches.get_mut(&key).expect("patch in region");
+            let Some(p) = self.patches.get_mut(&key) else {
+                // A boundary node owned by a patch outside this region:
+                // that neighbor applies it when IT is edited (edits at a
+                // region rim are naturally partial).
+                continue;
+            };
             let gx = ((wx - p.coord.x as f32 * PATCH_M) / STEP).round() as i32;
             let gz = ((wz - p.coord.z as f32 * PATCH_M) / STEP).round() as i32;
             if gx < 0 || gz < 0 || gx >= GRID as i32 || gz >= GRID as i32 {
@@ -427,6 +446,17 @@ pub fn decode_delta(gen: &WorldGen, coord: PatchCoord, bytes: &[u8]) -> Result<S
     }
     p.version = 2; // saved state is at least one edit old
     Ok(p)
+}
+
+impl crate::player::CollisionSurface for SurfaceRegion {
+    fn ground_at(&self, gen: &WorldGen, x: f32, z: f32, _from_y: f32) -> Option<f32> {
+        let key = ((x / PATCH_M).floor() as i32, (z / PATCH_M).floor() as i32);
+        self.try_patch(key).map(|p| p.height_at(gen, x, z))
+    }
+    fn cell_solid(&self, _gen: &WorldGen, _x: i32, _y: i32, _z: i32) -> bool {
+        false // surface terrain has no full-solid wall cells; slopes gate
+              // walkability at the movement level (see cell_slope).
+    }
 }
 
 #[cfg(test)]

@@ -5156,3 +5156,89 @@ costs ~11 ms/patch (comparable to the cube path's 7 ms) — a sampler
 optimization is future work, honest at 3 patches/frame; no caves (NWR-005);
 no per-LOD texture detail (NWR-006). Next: NWR-005 — sparse caves,
 conforming water, and foundations on the surface path.
+
+## 2026-09-08 — NWR-005: caves, conforming water, and foundations
+
+WHAT: The surface path gained its three natural-world features. Sparse
+CAVES: pc3d_render::world_features::CaveRegion grows a connected carved
+volume from a seed air cell by BFS over the ONE authority (final_solid
+is_carved — the same decision the sim makes), capped (16-cell half-extent,
+8000 cells), and meshes by face-net extraction: a quad wherever a solid
+cell faces a carved cell, with boundary faces at the region rim sampled
+from final_solid so the cave welds to the surface with NO duplicate faces
+or daylight leaks; cave_stone material = the Rock albedo.
+Terrain-CONFORMING WATER: ConformingWater builds one strip per river edge
+from the authoritative RiverGraph/FlowTable (width/speed from the real
+FlowRecord discharge), 17 samples along the 256 m edge whose heights
+follow the SURFACE patches (NWR-003 grids + edit deltas), water_line =
+strip min - 0.45 with banks appearing where terrain rises above it, and
+refresh_after_edit resamples ONLY sections whose strip passes near the
+edited patches (the P3D-303 dirty law). FOUNDATIONS: check_foundation
+verdicts (Valid{leveled_by} / Rejected{reason: outside-the-window, too
+steep, not-levelable-within-1.5}) from walkable + slope + corner-level
+checks on the surface path. The player body can now walk ANY
+CollisionSurface (new trait; SurfaceRegion implements it) — the
+player_walks_the_surface_and_feels_edits test walks on surface geometry
+and snaps up underfoot when an edit raises the ground.
+
+HOW: crates/pc3d_render/src/world_features.rs (new: the three features +
+5 tests + the GPU proof); surface.rs (try_patch, SurfaceRegion::empty +
+set_patch, generator-fallback height_at outside the window, graceful
+rim-node skipping in edit — boundary nodes owned by an out-of-window
+patch skip instead of panicking); player.rs (CollisionSurface trait,
+walk_on/blocked_on, AuthorityGround for the legacy column path);
+water.rs (a raw single-mesh section slot); renderer.rs (load_u32_mesh,
+load_water_vertices, device_for_tests); apps/poorcraft3d --play-caves;
+Makefile p3d-caves. Edits in every proof go through SurfaceRegion::edit
+(the edit-command path deltas); canonical world state is never touched
+by the renderer.
+
+EVIDENCE: unit laws green — cave volume extraction + surface weld
+(boundary owner cells reconstructed from quad centroids, seam-owned by
+exactly one side), water follows the surface + an edit changes only
+nearby sections, foundations accept level ground and reject steep and
+unlevel pads with named reasons, the player walks ~4 m on the surface
+and feels a 3 m raise underfoot. GPU proof
+cave_water_and_foundation_render_and_edit_locally: cave interior
+control-diff 0.63 (with-cave stone gray vs without-cave sky through the
+surface), 127 blue-dominant conforming-water pixels, an edit changes
+1/5 sections (EXACTLY the refreshed one — untouched sections are
+bit-identical), foundation Valid{leveled_by: 0.332} at +4 m on live
+ground near the river. WINDOWED make p3d-caves (--play-caves): 146
+frames p50 0.43 ms; cave-interior capture human-inspected PASS (warm
+faceted stone enclosing the view, a crevice receding into darkness, no
+sky leak, no seams); river before/after a 2x2-cell 6 m raise dam — the
+dam is plainly visible beside the water strip, image diff ~1%, LOCAL
+EDIT rows: 4 dirty patches, 1/5 sections refreshed, refresh 9 us, water
+remesh 6 us. make p3d-visual-gates 9/9 PASS. Suites: pc3d 385/385 green
+(5 new), root 474/474 green.
+
+BUGS FOUND BY THE PROOFS (all fixed before commit): (1) THE WINDOW BUG
+— a SurfaceRegion is a 3x3 PATCH window (48 m), but ConformingWater
+samples strips across 3x3 REGION edges (768 m); build wrote 0.0 for
+missing patches while refresh fell back to the generator, so 'refresh
+changed heights' evidence could hide behind the 0.0-vs-generator
+mismatch, and the first berm edit landed outside the window entirely
+(dirty set EMPTY — the windowed proof caught it). Both paths now use
+the generator fallback and every edit site sits inside a window built
+ON the strip. (2) Raise STACKS on shared corner nodes — a 4x4 'berm'
+piled a 24 m spike into the sky (the after-capture sky probe + human
+inspection caught it); the proof dam is now 2x2 (~12 m). (3) The
+change-count compared only water_line (the strip MIN) — an off-minimum
+raise moves heights but not the min; the count now compares heights OR
+line, so 'exactly the refreshed sections changed' is honest in both
+directions.
+
+HONESTLY DEFERRED: caves/water persist through the AUTHORITY (carve
+decisions derive deterministically from final_solid; surface edits
+persist via the NWR-003 delta layer) — no NEW save state was needed,
+but there is also no per-cave discovery cache yet (region-wide cave
+discovery cost is future perf work). The LIVE --play/--play-slice
+player still walks AuthorityGround; switching the live shell to the
+surface CollisionSurface is NWR-011 slice integration (the body's
+ability is proven by the tests here). Water refresh is explicit
+(refresh_after_edit after an edit) — no automatic dirty-patch
+subscription in the app loop yet. Cave meshes ride the u32 mesh slot in
+proofs (a dedicated cave batch pass comes with the wilderness assets).
+No new art families (per the task stop line). Next: NWR-006 —
+materials and atmosphere.

@@ -643,6 +643,42 @@ impl Renderer {
         }
     }
 
+    /// Loads a raw u32 mesh (cave interiors ride the asset slot).
+    pub fn load_u32_mesh(
+        &mut self,
+        verts: &[crate::scene::SceneVertex],
+        idx: &[u32],
+    ) {
+        self.assets.push((GpuMesh::from_mesh_u32(&self.ctx.device, verts, idx), idx.len() / 3));
+    }
+
+    /// Loads conforming-water vertices into the water pass (transparent,
+    /// depth-read) — the NWR-005 surface-path water.
+    pub fn load_water_vertices(
+        &mut self,
+        verts: &[crate::water::WaterVertex],
+        idx: &[u16],
+    ) {
+        use wgpu::util::DeviceExt;
+        if self.water.is_none() {
+            self.attach_water();
+        }
+        // Replace the section set with a single section holding this mesh.
+        let vertex_buffer = self.ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("conforming water verts"),
+            contents: bytemuck::cast_slice(verts),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = self.ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("conforming water indices"),
+            contents: bytemuck::cast_slice(idx),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        if let Some(w) = self.water.as_mut() {
+            w.set_single_mesh(vertex_buffer, index_buffer, idx.len() as u32);
+        }
+    }
+
     /// Detaches the construction layer (control renders for block proofs).
     pub fn detach_construction(&mut self) {
         self.construction = None;

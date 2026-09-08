@@ -90,7 +90,8 @@
       ],
       "prompt": "prompts/04-NWR-005-caves-water-foundations.md",
       "completion": "Seam-safe cave, conforming river and terrain-aware building proofs.",
-      "status": "next"
+      "status": "done",
+      "evidence": "pc3d_render::world_features: CaveRegion (BFS connected-component from final_solid carved cells, cap 16 half-extent/8000 cells, face-net quad extraction welding to the surface via the same final_solid boundary contract, cave_stone material), ConformingWater (17-sample strips over river edges following SurfaceRegion patch heights + deltas, water_line = strip min - 0.45, width/speed from the authoritative FlowRecord, local refresh_after_edit), check_foundation (walkable + slope + LEVEL_TOL 1.5 with named rejections). GPU proof cave_water_and_foundation_render_and_edit_locally: cave interior control-diff 0.63, 127 blue-dominant conforming-water pixels, 1/5 sections changed by a strip edit (exactly the refreshed section), foundation Valid at +4 m. Windowed make p3d-caves (--play-caves): cave-interior capture (no daylight leak, human-inspected), river before/after a 2x2 raise dam (image diff ~1%), LOCAL EDIT 1/5 sections refresh 9 us + water remesh 6 us, frames p50 0.43 ms. Unit laws: cave volume welds + walks the boundary without seams, water locality (an edit reaches only nearby sections), foundations accept level ground and reject steep/unlevel with reasons, player walks the surface and feels edits through CollisionSurface. Real bug the proofs caught: a SurfaceRegion is a 48 m 3x3-PATCH window, not a 3x3-region window; build wrote 0.0 for missing patches while refresh used the generator fallback, letting fake height changes hide behind the mismatch - both now use the generator fallback and the edit window sits on the strip itself."
     },
     {
       "id": "NWR-006",
@@ -99,7 +100,8 @@
         "NWR-005"
       ],
       "prompt": "prompts/05-NWR-006-materials-atmosphere.md",
-      "completion": "Tiered stylized materials, lighting, shadows, fog and water validated."
+      "completion": "Tiered stylized materials, lighting, shadows, fog and water validated.",
+      "status": "next"
     },
     {
       "id": "NWR-007",

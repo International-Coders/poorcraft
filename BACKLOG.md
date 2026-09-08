@@ -1472,3 +1472,18 @@ Deferred (honest notes):
 - DEFERRED: surface collision wired into the walking player (NWR-005),
   mid-ring mesh sampler optimization, caves/water on the surface path
   (NWR-005), texture LOD detail (NWR-006).
+
+## 2026-09-08 — NWR-005 caves/water/foundations shipped
+
+- DONE: pc3d_render::world_features (CaveRegion face-net extraction
+  welded to final_solid; ConformingWater strips following surface
+  patches with local refresh_after_edit; check_foundation verdicts),
+  CollisionSurface trait + SurfaceRegion implementation (the body walks
+  the surface and feels edits), --play-caves windowed proof, make
+  p3d-caves. GPU + unit + windowed evidence; 9/9 gates.
+- DEFERRED: per-cave discovery cache (world-wide cave scan cost),
+  live-player switch from AuthorityGround to the surface path (NWR-011
+  slice integration), automatic dirty-patch water subscription in the
+  app loop, dedicated cave batch pass (wilderness assets), asset
+  colliders feeding player collision (carried from NWR-002), texture
+  materials (NWR-006).

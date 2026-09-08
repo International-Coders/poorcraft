@@ -20,6 +20,38 @@ pub struct PlayerBody {
     pub pitch: f32,
 }
 
+/// The collision surface a body walks on: the default is the authoritative
+/// `final_solid` column; the surface path (NWR-005) overrides with the
+/// streamed surface's own heights so edits and foundations are felt under
+/// the player's feet.
+pub trait CollisionSurface {
+    /// Ground height under (x, z) or None if unsupported here.
+    fn ground_at(&self, gen: &WorldGen, x: f32, z: f32, from_y: f32) -> Option<f32>;
+    /// Solidity of a full cell (walls).
+    fn cell_solid(&self, gen: &WorldGen, x: i32, y: i32, z: i32) -> bool;
+}
+
+/// The default authority-backed surface (final_solid columns).
+pub struct AuthorityGround;
+
+impl CollisionSurface for AuthorityGround {
+    fn ground_at(&self, gen: &WorldGen, x: f32, z: f32, from_y: f32) -> Option<f32> {
+        let cx = x.floor() as i32;
+        let cz = z.floor() as i32;
+        let mut y = from_y.floor() as i32;
+        while y > (from_y - 3.0).floor() as i32 {
+            if solid_at(gen, cx, y, cz) {
+                return Some((y + 1) as f32);
+            }
+            y -= 1;
+        }
+        None
+    }
+    fn cell_solid(&self, gen: &WorldGen, x: i32, y: i32, z: i32) -> bool {
+        solid_at(gen, x, y, z)
+    }
+}
+
 fn solid_at(gen: &WorldGen, x: i32, y: i32, z: i32) -> bool {
     final_solid(gen, x as i64 * 1000, y as i64 * 1000, z as i64 * 1000).solid
 }
@@ -69,9 +101,22 @@ impl PlayerBody {
         false
     }
 
-    /// One walking step: yaw-relative movement, axis-separated collision,
-    /// then gravity snaps to the ground (with 1 m step-up).
+    /// One walking step on the AUTHORITY ground (the default).
     pub fn walk(&mut self, gen: &WorldGen, fwd: f32, strafe: f32, dt: f32) {
+        self.walk_on(gen, &AuthorityGround, fwd, strafe, dt);
+    }
+
+    /// One walking step over an explicit collision surface (the NWR-005
+    /// surface path feeds the streamed heights here): yaw-relative
+    /// movement, axis-separated wall blocking, gravity snap with step-up.
+    pub fn walk_on(
+        &mut self,
+        gen: &WorldGen,
+        surface: &dyn CollisionSurface,
+        fwd: f32,
+        strafe: f32,
+        dt: f32,
+    ) {
         let yaw = self.yaw;
         let hf = [-yaw.sin(), -yaw.cos()];
         let hr = [yaw.cos(), -yaw.sin()];
@@ -85,16 +130,42 @@ impl PlayerBody {
             dz *= k;
         }
         // Axis-separated: x then z.
-        if !self.blocked(gen, self.pos[0] + dx, self.pos[2]) {
+        if !self.blocked_on(gen, surface, self.pos[0] + dx, self.pos[2]) {
             self.pos[0] += dx;
         }
-        if !self.blocked(gen, self.pos[0], self.pos[2] + dz) {
+        if !self.blocked_on(gen, surface, self.pos[0], self.pos[2] + dz) {
             self.pos[2] += dz;
         }
-        // Gravity/ground: snap down to the column top, allowing a 1 m
+        // Gravity/ground: snap down to the surface top, allowing a 1 m
         // step-up when the ground rises under the new position.
-        let ground = self.ground_at(gen, self.pos[0], self.pos[2]);
-        self.pos[1] = ground;
+        if let Some(g) = surface.ground_at(gen, self.pos[0], self.pos[2], self.pos[1] + 2.0) {
+            self.pos[1] = g;
+        }
+    }
+
+    /// blocked() against an explicit surface.
+    fn blocked_on(
+        &self,
+        gen: &WorldGen,
+        surface: &dyn CollisionSurface,
+        x: f32,
+        z: f32,
+    ) -> bool {
+        const R: f32 = 0.3;
+        for dx in [-R, R] {
+            for dz in [-R, R] {
+                let cx = (x + dx).floor() as i32;
+                let cz = (z + dz).floor() as i32;
+                let y0 = (self.pos[1] + 0.2).floor() as i32;
+                let y1 = (self.pos[1] + 1.8).floor() as i32;
+                for y in y0..=y1 {
+                    if surface.cell_solid(gen, cx, y, cz) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// The cell a look ray targets (for place/remove): the first solid

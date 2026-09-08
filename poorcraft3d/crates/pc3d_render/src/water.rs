@@ -202,12 +202,20 @@ struct Section {
 /// Per-region water sections with revision-keyed remeshing.
 pub struct WaterSections {
     sections: BTreeMap<(i32, i32), Section>,
+    raw: Option<RawSection>,
+}
+
+struct RawSection {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    index_count: u32,
 }
 
 impl WaterSections {
     pub fn new() -> Self {
         Self {
             sections: BTreeMap::new(),
+            raw: None,
         }
     }
 
@@ -289,8 +297,32 @@ impl WaterSections {
         stats
     }
 
+    /// Replaces the section set with ONE raw mesh (the conforming-water
+    /// path from NWR-005 hands pre-built buffers).
+    pub fn set_single_mesh(
+        &mut self,
+        vertex_buffer: wgpu::Buffer,
+        index_buffer: wgpu::Buffer,
+        index_count: u32,
+    ) {
+        self.sections.clear();
+        self.raw = Some(RawSection {
+            vertex_buffer,
+            index_buffer,
+            index_count,
+        });
+    }
+
     /// Draws all sections with the caller's bound water pipeline.
     pub fn draw<'rp>(&self, pass: &mut wgpu::RenderPass<'rp>) {
+        if let Some(raw) = &self.raw {
+            if raw.index_count > 0 {
+                pass.set_vertex_buffer(0, raw.vertex_buffer.slice(..));
+                pass.set_index_buffer(raw.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                pass.draw_indexed(0..raw.index_count, 0, 0..1);
+            }
+            return;
+        }
         for s in self.sections.values() {
             if s.index_count == 0 {
                 continue;

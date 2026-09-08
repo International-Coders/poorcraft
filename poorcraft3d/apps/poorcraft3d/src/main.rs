@@ -2049,6 +2049,445 @@ fn main() {
                 }
             }
         }
+        Some("--play-caves") => {
+            // NWR-005: caves + conforming water + local edits, one live
+            // window. Stand INSIDE a carved cave aimed at its wall, fly
+            // to a river overlook with conforming water drawn at the
+            // strip water-line, then raise a berm ON a water strip
+            // through the surface-edit path: only nearby sections
+            // refresh (the P3D-303 local-remesh law) and the berm is
+            // visibly there before/after.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::surface::{SurfaceEdit, SurfaceRegion, PATCH_M};
+            use pc3d_render::world_features::{CaveRegion, ConformingWater, FoundationCheck};
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::flow::FlowTable;
+            use pc3d_world::hydro::RiverGraph;
+
+            // --- Cave scene on the hills region (same scene as --play-surface).
+            let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+            let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
+            let hills = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), coord);
+            let (hverts, hidx, _) = hills.mesh_region();
+            let pocket = pc3d_render::terrain::find_cave_pocket_near(&gen, coord, 1)
+                .map(|(air, _, _)| air)
+                .or_else(|| {
+                    let mut found = None;
+                    for dx in -3..=3i32 {
+                        for dz in -3..=3i32 {
+                            let p = pc3d_world::coords::PatchCoord {
+                                x: coord.x + dx,
+                                y: coord.y,
+                                z: coord.z + dz,
+                            };
+                            if let Some((air, _, _)) =
+                                pc3d_render::terrain::find_cave_pocket_near(&gen, p, 0)
+                            {
+                                found = Some(air);
+                            }
+                        }
+                    }
+                    found
+                })
+                .expect("a carved pocket near the hills region");
+            let cave = CaveRegion::around(&gen, pocket).expect("a cave region");
+            let (cverts, cidx) = cave.mesh(&gen);
+            println!(
+                "CAVE: pocket {pocket:?} spans {}x{}x{} cells, {} verts / {} tris",
+                cave.max[0] - cave.min[0] + 1,
+                cave.max[1] - cave.min[1] + 1,
+                cave.max[2] - cave.min[2] + 1,
+                cverts.len(),
+                cidx.len() / 3
+            );
+
+            // Camera inside the pocket aimed at the NEAREST enclosing
+            // wall (aiming down a corridor exits the mouth — the GPU
+            // proof run caught that).
+            let eye = [
+                pocket.x as f32 + 0.5,
+                pocket.y as f32 + 0.9,
+                pocket.z as f32 + 0.5,
+            ];
+            let dirs = [
+                [1.0f32, 0.0, 0.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [0.0, 0.0, -1.0],
+            ];
+            let mut look = dirs[0];
+            let mut wall_dist = f32::MAX;
+            for d in dirs {
+                for step in 1..=6i32 {
+                    let probe = pc3d_world::coords::CellCoord {
+                        x: pocket.x + (d[0] * step as f32) as i32,
+                        y: pocket.y,
+                        z: pocket.z + (d[2] * step as f32) as i32,
+                    };
+                    if pc3d_world::terrain::final_solid(
+                        &gen,
+                        probe.x as i64 * 1000,
+                        probe.y as i64 * 1000,
+                        probe.z as i64 * 1000,
+                    )
+                    .solid
+                    {
+                        if (step as f32) < wall_dist {
+                            wall_dist = step as f32;
+                            look = d;
+                        }
+                        break;
+                    }
+                }
+            }
+            assert!(wall_dist < f32::MAX, "an enclosing wall exists near the pocket");
+            let aim = [
+                eye[0] + look[0] * (wall_dist - 0.6),
+                eye[1] - 0.15,
+                eye[2] + look[2] * (wall_dist - 0.6),
+            ];
+            let dv = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
+            let pose_cave = pc3d_render::CameraPose::new(
+                eye,
+                (-dv[0]).atan2(-dv[2]),
+                (dv[1] / (dv[0] * dv[0] + dv[1] * dv[1] + dv[2] * dv[2]).sqrt()).asin(),
+            );
+
+            // --- River scene: nearest river region (graph band covers
+            // the hills scene — half=70 like the GPU proof).
+            let graph = RiverGraph::new(&gen, 70);
+            let flow = FlowTable::from_graph(&graph);
+            let cr = pc3d_world::coords::RegionCoord {
+                x: coord.x.div_euclid(16),
+                z: coord.z.div_euclid(16),
+            };
+            let mut best: Option<(pc3d_world::coords::RegionCoord, i32)> = None;
+            for dx in -8..=8i32 {
+                for dz in -8..=8i32 {
+                    let reg = pc3d_world::coords::RegionCoord { x: cr.x + dx, z: cr.z + dz };
+                    if let Some(d) = graph.downstream(reg) {
+                        if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
+                            let dist = dx.abs() + dz.abs();
+                            if best.as_ref().map(|(_, b)| dist < *b).unwrap_or(true) {
+                                best = Some((reg, dist));
+                            }
+                        }
+                    }
+                }
+            }
+            let (center, _) = best.expect("a river region within +/-8");
+            // Two-pass (the GPU proof found this first): a probe build
+            // names section 0's strip start; the REAL patch window is
+            // rebuilt AT that start — a SurfaceRegion is a 3x3 PATCH
+            // (48 m) window, not a 3x3 region, so the edit must land
+            // inside those 48 m.
+            let prov_patch = pc3d_world::coords::PatchCoord {
+                x: center.x * 16 + 8,
+                y: coord.y,
+                z: center.z * 16 + 8,
+            };
+            let prov = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), prov_patch);
+            let probe = ConformingWater::build(&gen, &graph, &flow, center, &prov);
+            let s0r = probe.sections[0].region;
+            let ox = (s0r.0 as f32 + 0.5) * 256.0;
+            let oz = (s0r.1 as f32 + 0.5) * 256.0;
+            let river_patch = pc3d_world::coords::PatchCoord {
+                x: (ox / PATCH_M).floor() as i32,
+                y: coord.y,
+                z: (oz / PATCH_M).floor() as i32,
+            };
+            let river_region = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), river_patch);
+            let water = ConformingWater::build(&gen, &graph, &flow, center, &river_region);
+            println!(
+                "RIVER: section 0 at region {s0r:?}, {} conforming sections",
+                water.sections.len()
+            );
+
+            // The strip's own direction (for the corridor windows, the
+            // camera, and the berm placement).
+            let s0 = &water.sections[0];
+            let sdir = match s0.direction {
+                0 => [1.0f32, 0.0],
+                1 => [1.0, 1.0],
+                2 => [0.0, 1.0],
+                3 => [-1.0, 1.0],
+                4 => [-1.0, 0.0],
+                5 => [-1.0, -1.0],
+                6 => [0.0, -1.0],
+                _ => [1.0, -1.0],
+            };
+            let sl = sdir[0].hypot(sdir[1]);
+            let dir = [sdir[0] / sl, sdir[1] / sl];
+            let slen = 256.0 * if sl > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+
+            // Corridor surface windows along the strip so the vantage
+            // sees a valley, not one floating 48 m tile.
+            let along = |t: f32| (ox + dir[0] * slen * t, oz + dir[1] * slen * t);
+            let corridor = |t: f32| {
+                let (cx, cz) = along(t);
+                pc3d_world::coords::PatchCoord {
+                    x: (cx / PATCH_M).floor() as i32,
+                    y: coord.y,
+                    z: (cz / PATCH_M).floor() as i32,
+                }
+            };
+            let region1 = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), corridor(0.3));
+            let region2 = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), corridor(0.6));
+
+            // Camera: standing on the bank BESIDE the berm site (the
+            // t=1/16 sample point), looking at it down the corridor —
+            // the berm must dominate its share of the after-capture.
+            let ground = |x: f32, z: f32| {
+                gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+            };
+            let (sx, sz) = along(1.0 / 16.0);
+            let perp = [-dir[1], dir[0]];
+            let mut eye2 = [
+                ox + dir[0] * 6.0 + perp[0] * 18.0,
+                0.0,
+                oz + dir[1] * 6.0 + perp[1] * 18.0,
+            ];
+            eye2[1] = ground(eye2[0], eye2[2]) + 6.0;
+            let aim2 = [sx, ground(sx, sz) + 1.0, sz];
+            let d2 = [aim2[0] - eye2[0], aim2[1] - eye2[1], aim2[2] - eye2[2]];
+            let pose_river = pc3d_render::CameraPose::new(
+                eye2,
+                (-d2[0]).atan2(-d2[2]),
+                (d2[1] / (d2[0] * d2[0] + d2[1] * d2[1] + d2[2] * d2[2]).sqrt()).asin(),
+            );
+
+            // Foundation evidence: scan pads inside the window — real
+            // ground near the river should offer a buildable spot (the
+            // accept/reject law is proven in the unit tests).
+            let mut valid_pad = None;
+            for d in [4.0f32, 8.0, 12.0, -8.0] {
+                let pad = pc3d_world::coords::CellCoord {
+                    x: (ox + d) as i32,
+                    y: 0,
+                    z: (oz + d) as i32,
+                };
+                if let FoundationCheck::Valid { leveled_by } =
+                    pc3d_render::world_features::check_foundation(
+                        &gen,
+                        &river_region,
+                        pad,
+                        (2, 2),
+                    )
+                {
+                    valid_pad = Some((d, leveled_by));
+                    break;
+                }
+            }
+            let (fd, lv) =
+                valid_pad.unwrap_or_else(|| {
+                    eprintln!("[FAIL] no buildable pad near the river strip");
+                    std::process::exit(1);
+                });
+            println!("FOUNDATION near river: Valid {{ leveled_by: {lv} }} at +{fd} m");
+
+            // --- Merged terrain mesh: hills + the three corridor windows
+            // coexist in one world (one surface slot); the cave rides the
+            // u32 mesh slot.
+            let (r0v, r0i, _) = river_region.mesh_region();
+            let (r1v, r1i, _) = region1.mesh_region();
+            let (r2v, r2i, _) = region2.mesh_region();
+            let mut mverts = hverts.clone();
+            let mut midx = hidx.clone();
+            for (v, i) in [(r0v, r0i), (r1v, r1i), (r2v, r2i)] {
+                let base = mverts.len() as u32;
+                mverts.extend(v.iter().cloned());
+                midx.extend(i.iter().map(|k| k + base));
+            }
+            let (wverts, widx) = water.mesh(&gen);
+
+            // The berm: a 2x2 cell block centered on the t=1/16 sample
+            // point. Raises STACK on shared nodes (Raise is additive per
+            // node), so 2x2 at 6 m is a ~12 m dam wall — a 4x4 block
+            // piled 24 m into the sky and the proof run caught it.
+            let bx = (sx - 1.0).floor() as i32;
+            let bz = (sz - 1.0).floor() as i32;
+
+            let water_rc = std::rc::Rc::new(std::cell::RefCell::new(water));
+            let w0 = water_rc.clone();
+            let g_edit = gen.clone();
+            let hv = hverts.clone();
+            let hi = hidx.clone();
+            let cp1 = corridor(0.3);
+            let cp2 = corridor(0.6);
+
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — caves and water".into(),
+                max_frames: Some(170),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![
+                    (0, pose_cave),
+                    (60, pose_river),
+                    (140, pose_river),
+                ],
+                shots: vec![
+                    Shot::new(25, format!("{out_dir}/windowed_cave_interior.png"))
+                        .sky(false), // the frame is cave wall, no sky
+                    Shot::new(85, format!("{out_dir}/windowed_river_water.png")),
+                    Shot::new(145, format!("{out_dir}/windowed_water_after_edit.png"))
+                        .sky(false), // the dam wall in the foreground can fill the top
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            r.set_placeholder_scene(false);
+                            r.load_surface(&mverts, &midx);
+                            r.load_u32_mesh(&cverts, &cidx);
+                            r.load_water_vertices(&wverts, &widx);
+                            r.set_water_time(Some(0.0));
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        120,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            // Raise the berm ON the strip through the
+                            // surface-edit path, refresh the conforming
+                            // water, remesh — all LOCAL work.
+                            let mut r0 = SurfaceRegion::new(
+                                pc3d_world::gen::WorldGen::new(seed),
+                                river_patch,
+                            );
+                            let mut dirty = std::collections::BTreeSet::new();
+                            for i in 0..2i32 {
+                                for j in 0..2i32 {
+                                    dirty.extend(r0.edit(SurfaceEdit::Raise {
+                                        cell: pc3d_world::coords::CellCoord {
+                                            x: bx + i,
+                                            y: 0,
+                                            z: bz + j,
+                                        },
+                                        meters: 6.0,
+                                    }));
+                                }
+                            }
+                            if dirty.is_empty() {
+                                eprintln!("[FAIL] the berm missed the patch window");
+                                std::process::exit(1);
+                            }
+                            // edit() reports (x,z) patch keys; the refresh
+                            // takes full PatchCoords at the region's Y.
+                            let edited: std::collections::BTreeSet<
+                                pc3d_world::coords::PatchCoord,
+                            > = dirty
+                                .iter()
+                                .map(|(x, z)| pc3d_world::coords::PatchCoord {
+                                    x: *x,
+                                    y: river_patch.y,
+                                    z: *z,
+                                })
+                                .collect();
+                            let total = w0.borrow().sections.len();
+                            let before: Vec<(Vec<f32>, f32)> = w0
+                                .borrow()
+                                .sections
+                                .iter()
+                                .map(|s| (s.heights.clone(), s.water_line))
+                                .collect();
+                            let t0 = std::time::Instant::now();
+                            let touched =
+                                w0.borrow_mut().refresh_after_edit(&g_edit, &r0, &edited);
+                            let refresh_us = t0.elapsed().as_micros();
+                            let changed = w0
+                                .borrow()
+                                .sections
+                                .iter()
+                                .zip(before.iter())
+                                .filter(|(s, (h, b))| {
+                                    (s.water_line - *b).abs() > 1e-6
+                                        || s.heights
+                                            .iter()
+                                            .zip(h.iter())
+                                            .any(|(a, c)| (a - c).abs() > 1e-6)
+                                })
+                                .count();
+                            let t1 = std::time::Instant::now();
+                            let (wv2, wi2) = w0.borrow().mesh(&g_edit);
+                            let remesh_us = t1.elapsed().as_micros();
+                            // Rebuild the corridor: the edited window plus
+                            // the two unedited ones (deterministic rebuild).
+                            let (rv0, ri0, _) = r0.mesh_region();
+                            let c1 = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), cp1);
+                            let c2 = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), cp2);
+                            let (rv1, ri1, _) = c1.mesh_region();
+                            let (rv2, ri2, _) = c2.mesh_region();
+                            println!(
+                                "LOCAL EDIT: dirty patches {dirty:?}; {touched}/{total} sections refreshed, {changed} changed data; refresh {refresh_us} us, water remesh {remesh_us} us, terrain remesh {} verts",
+                                rv0.len() + rv1.len() + rv2.len()
+                            );
+                            if touched != changed {
+                                eprintln!("[FAIL] exactly the refreshed sections may change");
+                                std::process::exit(1);
+                            }
+                            if touched == 0 || touched >= total {
+                                eprintln!("[FAIL] the edit must stay local ({touched}/{total})");
+                                std::process::exit(1);
+                            }
+                            let mut mv2 = hv.clone();
+                            let mut mi2 = hi.clone();
+                            for (v, i) in [(rv0, ri0), (rv1, ri1), (rv2, ri2)] {
+                                let base = mv2.len() as u32;
+                                mv2.extend(v.iter().cloned());
+                                mi2.extend(i.iter().map(|k| k + base));
+                            }
+                            r.load_surface(&mv2, &mi2);
+                            r.load_water_vertices(&wv2, &wi2);
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 3 {
+                        eprintln!("[FAIL] expected 3 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    // The cave interior is a close-up of a few flat faces:
+                    // the relaxed nonuniformity floor (3) applies there;
+                    // the open river views keep the 8 floor.
+                    for (i, cap) in report.captures.iter().enumerate() {
+                        let floor = if i == 0 { 3 } else { 8 };
+                        if !cap.report.passes_with(floor) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?} (distinct {}, floor {floor})",
+                                cap.path.display(),
+                                cap.report.failed_probes(),
+                                cap.report.distinct_colors
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    let diff = pc3d_render::scene::pixel_difference_fraction(
+                        &report.captures[1].rgba,
+                        &report.captures[2].rgba,
+                    );
+                    if diff < 0.005 {
+                        eprintln!("[FAIL] the berm edit must change the view ({diff})");
+                        std::process::exit(1);
+                    }
+                    println!("WATER EDIT VISIBLE: image diff {diff:.2}%");
+                    println!(
+                        "WINDOWED CAVES+WATER PROOF PASS -> cave interior, river before/after in {out_dir}"
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some("--play-surface-stream") => {
             // NWR-004: the MIGRATED ordinary terrain — streamed SURFACE
             // patches with LOD rings + skirts, a real vista to the horizon.
@@ -2123,7 +2562,7 @@ fn main() {
         }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-surface-stream [outdir]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-caves [outdir]|--play-surface-stream [outdir]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

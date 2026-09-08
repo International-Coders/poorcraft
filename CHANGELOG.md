@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## 2026-09-08 — NWR-005: caves, conforming water, foundations
+
+The surface path gains sparse caves, terrain-following rivers, and
+buildable-ground checks:
+
+- `pc3d_render::world_features::CaveRegion`: BFS connected-component
+  growth from a carved seed over the ONE authority (`final_solid`),
+  capped (16 half-extent / 8000 cells); face-net mesh extraction puts a
+  quad exactly where solid faces carved, boundary faces sampled from
+  the same authority — the cave welds to the surface with no duplicate
+  faces or daylight leaks.
+- `ConformingWater`: one strip per river edge from the authoritative
+  RiverGraph/FlowTable (width/speed from real discharge), 17 heights
+  per 256 m edge following the surface patches + edit deltas,
+  water_line = strip min − 0.45 (banks appear where terrain rises),
+  `refresh_after_edit` touches only sections near the edited patches.
+- `check_foundation`: Valid{leveled_by} / Rejected{named reason}
+  from walkable + slope + corner-level checks on live ground.
+- `CollisionSurface` trait (player.rs): PlayerBody can walk any
+  surface; SurfaceRegion implements it (the default authority path
+  unchanged) — walking on surface geometry and feeling edits underfoot
+  is test-proven.
+- Windowed `--play-caves` / `make p3d-caves`: cave-interior capture
+  (human-inspected: enclosing faceted stone, no sky leak), river
+  before/after a 2×2 6 m raise dam — visible dam, ~1% image diff,
+  LOCAL EDIT rows (4 dirty patches, 1/5 sections refreshed, 9 µs
+  refresh, 6 µs water remesh), frames p50 0.43 ms.
+- Real bug the proofs caught: a SurfaceRegion is a 48 m 3×3-PATCH
+  window, not a 3×3-region — build's 0.0 fallback vs refresh's
+  generator fallback could hide fake "changed heights"; both now share
+  the generator fallback and edit windows sit on the strip. Also:
+  Raise stacks on shared nodes (a 4×4 "berm" was a 24 m spike — the
+  sky probe caught it) and change-counting must compare heights, not
+  just the strip-min water line.
+
+# CHANGELOG
+
 ## 2026-09-08 — NWR-004: streamed surface terrain migration
 
 Ordinary natural terrain migrates from culled cube faces to the proven
