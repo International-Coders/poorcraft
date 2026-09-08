@@ -173,7 +173,7 @@ pub fn audit() -> Vec<String> {
 
     // 4. Asset reality, both directions: the compiled tree on disk must
     // match the batch rows exactly (the anti-finished-art law).
-    let compiled_root = root.join("poorcraft3d/assets/compiled");
+    let compiled_root = root.join("poorcraft3d").join("assets/compiled");
     let mut on_disk: BTreeSet<String> = BTreeSet::new();
     fn walk(dir: &std::path::Path, base: &std::path::Path, out: &mut BTreeSet<String>) {
         if let Ok(entries) = std::fs::read_dir(dir) {
@@ -189,7 +189,7 @@ pub fn audit() -> Vec<String> {
             }
         }
     }
-    walk(&compiled_root, &root, &mut on_disk);
+    walk(&compiled_root, &root.join("poorcraft3d"), &mut on_disk);
     let declared: BTreeSet<String> = inv
         .asset_files_on_disk
         .iter()

@@ -32,7 +32,16 @@
       ],
       "prompt": "prompts/01-NWR-002-asset-factory.md",
       "completion": "Validated source-to-GLB pipeline and real tree, rock, house rendered in a windowed scene.",
-      "status": "next"
+      "status": "done",
+      "evidence": {
+        "source": "Blender is NOT installed on this host \u2014 the pack's alternative path taken: repository-owned procedural source. tools/assetgen (new workspace bin): limb/blob/box mesh builders with deterministic hash-warps generate the three originals \u2014 crooked tapered ash trunk with 3 branch tiers + leaf clusters + root flares; broad granite outcrop with fracture seam + moss patch; croft house (stone plinth, timber walls, dark door inset, steep thatch roof, chimney, 4 named socket nodes) \u2014 written as valid glTF 2.0 GLBs (serde_json-assembled doc, named lod nodes, per-color materials with linear baseColorFactor)",
+        "budgets": "self-enforced at generation (exit 1 on overflow) AND independently asserted by the loader tests: tree 1666/1800 lod0 (+480/700 lod1, 86/180 lod2), rock 98/600 (+62/180), house 38/2500 \u2014 deterministic byte-identical regeneration checked in-tool",
+        "validator": "pc3d_assets::v2 (new, 6 tests incl. a 15-case rejection matrix): full schema-v2 rules in typed Rust \u2014 id pattern + category match, statuses, provenance kind + >=12-char statement, assets-src|tools source prefixes, assets/compiled/**.glb, mat.* materials, LOD names + >=1 budgets, collision kinds, socket snake_case, duplicates \u2014 plus the FACTORY HONESTY LAW: compiled/integrated/proven status requires the .glb on disk (missing-file test proves it)",
+        "loader": "pc3d_render::glb (new, 3 tests): GLB header/chunk/accessor parsing with named errors, per-primitive POSITION/NORMAL/u32-index reading, baseColorFactor -> vertex colors, socket.* translations; LOD selection lod0<40m/lod1<120m/lod2 beyond with FALLBACK to the coarsest present (rock has no lod2 \u2014 proven); malformed/missing inputs fail named",
+        "render_proof": "GPU test + --play-assets/make p3d-assets-window: one windowed scene with 4 placements (near tree lod0, FAR tree lod1 \u2014 LOD variety in one frame \u2014 rock lod0, house lod0) on real terrain with sky/depth: control-render diff proves tree/rock/house visibly render (deltas 0.22/0.33/0.34) and the crown region carries >=2 green-dominant foliage pixels; record: 4 draws 1725 tris, parsed mesh bytes tree 234480/rock 23760/house 10320, 26 frames p50 9.58 ms / avg 108.9 fps; PNG human-inspected PASS",
+        "inventory": "the NWR-001 guardrail rows moved honestly: all three assets integrated + compiled_exists, asset_files_on_disk lists the three .glb paths (recomputed scan), inventory_is_truthful still green \u2014 the anti-false-art law was satisfied by SHIPPING the artifacts first",
+        "gates": "existing 9-gate battery preserved and re-run green after the change"
+      }
     },
     {
       "id": "NWR-003",
@@ -41,7 +50,8 @@
         "NWR-002"
       ],
       "prompt": "prompts/02-NWR-003-natural-terrain-spike.md",
-      "completion": "Seam-free editable/collidable low-poly 3x3 terrain patch proof."
+      "completion": "Seam-free editable/collidable low-poly 3x3 terrain patch proof.",
+      "status": "next"
     },
     {
       "id": "NWR-004",

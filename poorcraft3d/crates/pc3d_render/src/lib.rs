@@ -21,6 +21,7 @@
 
 pub mod app;
 pub mod city;
+pub mod glb;
 pub mod inventory;
 pub mod machines;
 pub mod npcs;

@@ -326,6 +326,8 @@ pub struct Renderer {
     city: Option<GpuMesh>,
     /// NPCs + inspect anchor boxes (R3DV-009).
     npcs: Option<GpuMesh>,
+    /// Placed GLB assets (NWR-002): (mesh, triangles) for the record.
+    assets: Vec<(GpuMesh, usize)>,
     start: std::time::Instant,
     /// Frozen water time for deterministic proofs (None = wall clock).
     water_time_override: Option<f32>,
@@ -446,6 +448,7 @@ impl Renderer {
             water: None,
             city: None,
             npcs: None,
+            assets: Vec::new(),
             start: std::time::Instant::now(),
             water_time_override: None,
             detail_flag: 0.0,
@@ -499,6 +502,7 @@ impl Renderer {
             water: None,
             city: None,
             npcs: None,
+            assets: Vec::new(),
             start: std::time::Instant::now(),
             water_time_override: None,
             detail_flag: 0.0,
@@ -584,6 +588,30 @@ impl Renderer {
         }
     }
 
+    /// Loads a GLB asset LOD at a world placement (meters; pivot at
+    /// ground). Draws through the lit mesh pipeline; LOD choice is the
+    /// caller's (see glb::Asset::lod_for). Returns the LOD's triangle
+    /// count for the draw/triangle record.
+    pub fn load_asset(
+        &mut self,
+        asset: &crate::glb::Asset,
+        lod_name: &str,
+        placement: [f32; 3],
+    ) -> usize {
+        let lod = asset
+            .lods
+            .iter()
+            .find(|l| l.name == lod_name)
+            .unwrap_or_else(|| asset.lods.last().expect("asset lods"));
+        let baked = lod.translated(placement);
+        let verts: Vec<crate::scene::SceneVertex> = baked.vertices;
+        let idx: Vec<u32> = baked.indices;
+        let tris = idx.len() / 3;
+        let mesh = GpuMesh::from_mesh_u32(&self.ctx.device, &verts, &idx);
+        self.assets.push((mesh, tris));
+        tris
+    }
+
     /// Detaches the construction layer (control renders for block proofs).
     pub fn detach_construction(&mut self) {
         self.construction = None;
@@ -656,6 +684,11 @@ impl Renderer {
         self.streamer
             .as_mut()
             .map(|s| s.update(&self.ctx.device, viewer))
+    }
+
+    /// The placed-asset record: total triangles currently drawn.
+    pub fn asset_triangles(&self) -> usize {
+        self.assets.iter().map(|(_, t)| t).sum()
     }
 
     /// Streaming counters (None when not attached).
@@ -1032,6 +1065,10 @@ impl Renderer {
         // 2b3. NPCs + inspect anchor boxes.
         if let Some(n) = &self.npcs {
             n.draw(&mut pass);
+        }
+        // 2b4. GLB assets (NWR-002).
+        for (a, _) in &self.assets {
+            a.draw(&mut pass);
         }
         // 2c. Transparent river water LAST among world geometry: depth-read
         // only, alpha blend — banks show through, terrain occludes.

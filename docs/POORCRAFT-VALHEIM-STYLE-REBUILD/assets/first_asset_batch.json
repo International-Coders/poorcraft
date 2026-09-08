@@ -5,14 +5,14 @@
     {
       "id": "prop.tree_ash",
       "category": "prop",
-      "status": "planned",
+      "status": "integrated",
       "provenance": {
         "kind": "original_procedural",
-        "license_or_originality": "Repository-owned original Blender-script source.",
-        "reviewed": false
+        "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+        "reviewed": true
       },
       "source": [
-        "assets-src/blender/tree_ash.py"
+        "tools/assetgen/src/main.rs"
       ],
       "compiled": "assets/compiled/prop/tree_ash.glb",
       "materials": [
@@ -43,14 +43,14 @@
     {
       "id": "prop.rock_granite",
       "category": "prop",
-      "status": "planned",
+      "status": "integrated",
       "provenance": {
         "kind": "original_procedural",
-        "license_or_originality": "Repository-owned original Blender-script source.",
-        "reviewed": false
+        "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+        "reviewed": true
       },
       "source": [
-        "assets-src/blender/rock_granite.py"
+        "tools/assetgen/src/main.rs"
       ],
       "compiled": "assets/compiled/prop/rock_granite.glb",
       "materials": [
@@ -77,14 +77,14 @@
     {
       "id": "module.house_croft",
       "category": "module",
-      "status": "planned",
+      "status": "integrated",
       "provenance": {
         "kind": "original_procedural",
-        "license_or_originality": "Repository-owned original Blender-script source.",
-        "reviewed": false
+        "license_or_originality": "Repository-owned original Rust procedural generator (tools/assetgen); no external game assets.",
+        "reviewed": true
       },
       "source": [
-        "assets-src/blender/house_croft.py"
+        "tools/assetgen/src/main.rs"
       ],
       "compiled": "assets/compiled/module/house_croft.glb",
       "materials": [

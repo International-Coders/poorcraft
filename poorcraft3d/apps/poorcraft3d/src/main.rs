@@ -1792,9 +1792,131 @@ fn main() {
                 }
             }
         }
+        Some("--play-assets") => {
+            // NWR-002: the original GLB asset factory proof — tree, rock,
+            // and house rendered in a live window at correct scale with
+            // materials, depth, and LOD variety; prints the draw/triangle
+            // and asset-memory record.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::glb::{load_asset_file, Asset};
+            use pc3d_render::{ProbeSet, Shot};
+
+            let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+            let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
+            let assets_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../assets/compiled");
+            let tree = load_asset_file(&assets_root.join("prop/tree_ash.glb")).expect("tree glb");
+            let rock = load_asset_file(&assets_root.join("prop/rock_granite.glb")).expect("rock glb");
+            let house = load_asset_file(&assets_root.join("module/house_croft.glb")).expect("house glb");
+            // Asset memory record: parsed vertex/index bytes per asset.
+            let mem = |a: &Asset| -> usize {
+                a.lods
+                    .iter()
+                    .map(|l| l.vertices.len() * 36 + l.indices.len() * 4)
+                    .sum()
+            };
+            println!(
+                "ASSETS: tree {} B, rock {} B, house {} B (parsed mesh bytes)",
+                mem(&tree),
+                mem(&rock),
+                mem(&house)
+            );
+
+            let t_base = [
+                coord.origin().x as f32 / 1000.0 + 6.0,
+                0.0,
+                coord.origin().z as f32 / 1000.0 + 6.0,
+            ];
+            let g = std::rc::Rc::clone(&gen);
+            let ground = move |x: f32, z: f32| {
+                g.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+            };
+            let tp = [t_base[0], ground(t_base[0], t_base[2]), t_base[2]];
+            let far_p = [tp[0] + 12.0, ground(tp[0] + 12.0, tp[2] - 8.0), tp[2] - 8.0];
+            let rp = [tp[0] + 5.0, ground(tp[0] + 5.0, tp[2] + 2.0), tp[2] + 2.0];
+            let hp = [tp[0] - 2.0, ground(tp[0] - 2.0, tp[2] + 10.0), tp[2] + 10.0];
+
+            let eye = [tp[0] - 2.0, tp[1] + 3.2, tp[2] + 14.0];
+            let aim = [tp[0] + 1.0, tp[1] + 1.8, tp[2]];
+            let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
+            let pose = pc3d_render::CameraPose::new(
+                eye,
+                (-d[0]).atan2(-d[2]),
+                (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+            );
+
+            let g2 = std::rc::Rc::clone(&gen);
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — asset factory".into(),
+                max_frames: Some(40),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                shots: vec![Shot::new(25, format!("{out_dir}/windowed_assets.png"))],
+                frame_hooks: vec![(
+                    0,
+                    Box::new(move |r: &mut pc3d_render::Renderer| {
+                        r.set_placeholder_scene(false);
+                        let patch = pc3d_world::coords::PatchCoord {
+                            x: (tp[0] as i32).div_euclid(16),
+                            y: 1,
+                            z: (tp[2] as i32).div_euclid(16),
+                        };
+                        let mut patches = Vec::new();
+                        for dx in -1..=1i32 {
+                            for dz in -1..=1i32 {
+                                patches.push(pc3d_world::coords::PatchCoord {
+                                    x: patch.x + dx,
+                                    y: patch.y,
+                                    z: patch.z + dz,
+                                });
+                            }
+                        }
+                        r.load_terrain(&g2, &patches);
+                        // Near tree lod0, far tree lod1 (LOD variety),
+                        // rock lod0, house lod0.
+                        let tris = [
+                            r.load_asset(&tree, "lod0", tp),
+                            r.load_asset(&tree, "lod1", far_p),
+                            r.load_asset(&rock, "lod0", rp),
+                            r.load_asset(&house, "lod0", hp),
+                        ];
+                        println!(
+                            "ASSET SCENE: {} draws, {} tris ({} lod0 + {} lod1 + rock {} + house {})",
+                            4,
+                            tris.iter().sum::<usize>(),
+                            tris[0], tris[1], tris[2], tris[3]
+                        );
+                        r.set_pose(pose);
+                    }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                )],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 1 || !report.captures[0].report.passes_with(12) {
+                        eprintln!("[FAIL] asset capture failed");
+                        std::process::exit(1);
+                    }
+                    println!(
+                        "WINDOWED ASSET PROOF PASS -> {}",
+                        report.captures[0].path.display()
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

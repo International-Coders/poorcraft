@@ -364,6 +364,8 @@ mod material_tests {
     }
 }
 
+pub mod v2;
+
 impl Manifest {
     pub fn get(&self, id: &str) -> Option<&AssetRow> {
         self.assets.iter().find(|a| a.id == id)

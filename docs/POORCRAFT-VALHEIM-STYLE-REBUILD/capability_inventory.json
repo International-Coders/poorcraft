@@ -4,8 +4,8 @@
   "law": "This file is the honest machine-readable record of what the renderer ACTUALLY does today. A milestone may only change a row's maturity/target by shipping code + tests + a windowed proof; the validator (pc3d_render::inventory) fails the suite when a row claims more than reality (e.g. an asset marked shipped without its compiled file and consumer on disk).",
   "audit": {
     "date": "2026-09-07",
-    "milestone": "NWR-001",
-    "unit_tests": "356/356 pc3d",
+    "milestone": "NWR-002",
+    "unit_tests": "to be re-run (full suite)",
     "visual_gates": "9/9 PASS (make p3d-visual-gates)",
     "smoke": "P3D SMOKE OK",
     "root_workspace": "474/474 (untouched by the rebuild baseline)"
@@ -132,36 +132,98 @@
       "proof": "unit: slice round-trip; gates:vertical-slice (reload pixel-identical)"
     }
   ],
-  "asset_files_on_disk": [],
+  "asset_files_on_disk": [
+    "assets/compiled/module/house_croft.glb",
+    "assets/compiled/prop/rock_granite.glb",
+    "assets/compiled/prop/tree_ash.glb"
+  ],
   "asset_batch_status": {
     "pack": "docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/first_asset_batch.json",
     "rows": [
-      {"id": "prop.tree_ash", "status": "planned", "compiled_exists": false},
-      {"id": "prop.rock_granite", "status": "planned", "compiled_exists": false},
-      {"id": "module.house_croft", "status": "planned", "compiled_exists": false}
+      {
+        "id": "prop.tree_ash",
+        "status": "integrated",
+        "compiled_exists": true
+      },
+      {
+        "id": "prop.rock_granite",
+        "status": "integrated",
+        "compiled_exists": true
+      },
+      {
+        "id": "module.house_croft",
+        "status": "integrated",
+        "compiled_exists": true
+      }
     ]
   },
   "screenshot_gates": {
     "battery": "make p3d-visual-gates",
     "report": "poorcraft3d/apps/poorcraft3d/shots/gates_report.txt",
     "gates": [
-      {"name": "windowed-3d-axes", "command_flag": "--play-shot"},
-      {"name": "terrain-scenes", "command_flag": "--play-terrain"},
-      {"name": "stream-walk", "command_flag": "--play-stream"},
-      {"name": "river-water", "command_flag": "--play-water"},
-      {"name": "castle-city", "command_flag": "--play-city"},
-      {"name": "npc-cast", "command_flag": "--play-npcs"},
-      {"name": "quality-tiers", "command_flag": "--play-quality"},
-      {"name": "vertical-slice", "command_flag": "--play-slice"},
-      {"name": "asset-manifest", "command_flag": "--validate-assets"}
+      {
+        "name": "windowed-3d-axes",
+        "command_flag": "--play-shot"
+      },
+      {
+        "name": "terrain-scenes",
+        "command_flag": "--play-terrain"
+      },
+      {
+        "name": "stream-walk",
+        "command_flag": "--play-stream"
+      },
+      {
+        "name": "river-water",
+        "command_flag": "--play-water"
+      },
+      {
+        "name": "castle-city",
+        "command_flag": "--play-city"
+      },
+      {
+        "name": "npc-cast",
+        "command_flag": "--play-npcs"
+      },
+      {
+        "name": "quality-tiers",
+        "command_flag": "--play-quality"
+      },
+      {
+        "name": "vertical-slice",
+        "command_flag": "--play-slice"
+      },
+      {
+        "name": "asset-manifest",
+        "command_flag": "--validate-assets"
+      }
     ]
   },
   "runtime_commands": [
-    "--play", "--play-shot", "--play-build", "--play-build live", "--play-terrain",
-    "--play-stream", "--play-water", "--play-city", "--play-npcs", "--play-quality",
-    "--play-slice", "--play-slice live", "--validate-assets",
-    "--identity", "--format", "--baseline", "--run", "--atlas", "--terrain-bench",
-    "--debug-overlay", "--flow-map", "--diagnose", "--soak", "--journey"
+    "--play",
+    "--play-shot",
+    "--play-build",
+    "--play-build live",
+    "--play-terrain",
+    "--play-stream",
+    "--play-water",
+    "--play-city",
+    "--play-npcs",
+    "--play-quality",
+    "--play-slice",
+    "--play-slice live",
+    "--validate-assets",
+    "--identity",
+    "--format",
+    "--baseline",
+    "--run",
+    "--atlas",
+    "--terrain-bench",
+    "--debug-overlay",
+    "--flow-map",
+    "--diagnose",
+    "--soak",
+    "--journey"
   ],
   "data_boundaries": {
     "pc3d_world": "deterministic, rendering-free (no wgpu/winit/UI/texture deps)",

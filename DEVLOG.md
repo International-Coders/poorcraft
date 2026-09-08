@@ -5025,3 +5025,51 @@ known seed-4242 value), --validate-assets PASS (19 rows), --run 3 live,
 and the WINDOWED slice showcase PASS from the extract (86 frames, p50
 9.75 ms, avg 106 fps). The zip is the committed artifact; the extracted
 folder is reproducible from it.
+
+## 2026-09-07 — NWR-002: the original GLB asset factory (rebuild milestone 2)
+
+WHAT: The renderer loads real glTF assets. Three ORIGINAL proof assets now
+exist as source-controlled, reproducible artifacts: prop.tree_ash (crooked
+tapered trunk, three branch tiers, leaf clusters, root flares — 1666/1800
+tris), prop.rock_granite (broad outcrop with fracture seam + moss patch —
+98/600), module.house_croft (stone plinth, timber walls, door inset, steep
+thatch roof, chimney, four named sockets — 38/2500). Blender is NOT
+installed on this host, so the pack's alternative path was taken: a
+repository-owned procedural generator (tools/assetgen, new workspace bin)
+builds the meshes with deterministic hash-warps and writes valid glTF 2.0
+GLBs (named lod0/lod1/lod2 nodes, per-color materials with linear
+baseColorFactor). Regeneration is byte-identical (checked in-tool).
+
+HOW: tools/assetgen (limb/blob/box primitives; serde_json-assembled glTF
+doc; self-enforced budgets with exit 1). pc3d_assets::v2 (new): the full
+schema-v2 validator in typed Rust — id/category/status/provenance/
+source-prefix/compiled-path/material/LOD/collision/socket rules, duplicate
+ids, plus the FACTORY HONESTY LAW (compiled/integrated/proven status
+requires the .glb on disk); a 15-case rejection matrix tests every named
+rule. pc3d_render::glb (new): the GLB loader — header/chunk/accessor
+parsing with named errors, POSITION/NORMAL/u32 indices, baseColorFactor to
+vertex colors, socket.* translations, LOD selection (lod0 <40 m, lod1
+<120 m, lod2 beyond) with fallback to the coarsest present (rock has no
+lod2 — proven); malformed/missing inputs fail named tests. Renderer:
+load_asset (baked placements through the u32 mesh path) + draw through the
+lit pipeline; asset_triangles() for the record.
+
+EVIDENCE: GPU test + --play-assets / make p3d-assets-window: one windowed
+scene, FOUR placements (near tree lod0, FAR tree lod1 — LOD variety in one
+frame — rock lod0, house lod0) on real terrain: control-render diff proves
+all three visibly render (deltas 0.22/0.33/0.34) and the crown region
+carries >=2 green-dominant foliage pixels; record 4 draws / 1725 tris,
+parsed mesh bytes 234480/23760/10320, 26 frames p50 9.58 ms / avg 108.9
+fps; PNG human-inspected PASS (a crooked tree, a mossy rock, a croft with a
+steep thatch roof on rolling ground). The NWR-001 anti-false-art guardrail
+rows moved honestly — integrated + compiled_exists + the three files in
+the recomputed disk scan — and inventory_is_truthful is still green because
+the artifacts shipped FIRST. Existing 9-gate battery re-run green.
+
+HONESTLY DEFERRED: one material color per primitive (flat palettes; real
+texture maps come with the NWR-006 material library); instancing is baked
+vertices per placement (fine for 4 draws; NWR-007 brings instanced
+wilderness props); colliders are DECLARED in the manifest but not yet fed
+into player collision (terrain-only until NWR-005 foundations); glTF
+skinning/animation untouched (NWR-009). Next: NWR-003 — the natural
+terrain spike (low-poly 3x3 patch proof).

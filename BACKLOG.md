@@ -1446,3 +1446,12 @@ Deferred (honest notes):
   quality contract (NWR-010), rebuild vertical slice (NWR-011).
 - The prior visual reset's honest deferrals remain tracked in
   docs/POORCRAFT-3D-VISUAL-RESET/VISUAL-GATES-REPORT.md §Known limits.
+
+## 2026-09-07 — NWR-002 asset factory shipped
+
+- DONE: tools/assetgen (original GLB factory), pc3d_assets::v2 (schema-v2
+  validator + honesty law), pc3d_render::glb (loader + LOD fallback),
+  --play-assets windowed proof; three assets integrated.
+- DEFERRED to their milestones: texture maps (NWR-006 material library),
+  instanced placement (NWR-007), asset colliders feeding player collision
+  (NWR-005), glTF skinning/animation (NWR-009).

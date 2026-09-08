@@ -119,6 +119,14 @@ p3d-slice-live: ## THE WALKABLE SLICE: WASD walk, click look, F/R build, B save,
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice live $(if $(SEED),$(SEED),3)
 
+p3d-assetgen: ## NWR-002: regenerate the original GLB assets (deterministic, budget-checked): make p3d-assetgen
+	cargo run --manifest-path poorcraft3d/Cargo.toml -p assetgen -- $$(pwd) || exit 1
+
+p3d-assets-window: ## NWR-002: windowed asset-factory proof (tree/rock/house): make p3d-assets-window [OUTDIR=shots]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-assets $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
+	echo "P3D ASSET PROOF OK"
+
 p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowed proof must PASS); writes gates report to poorcraft3d/shots/gates_report.txt
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	@BIN=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
