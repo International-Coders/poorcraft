@@ -5013,3 +5013,15 @@ NWR-001 scope honored exactly.
 
 NEXT: NWR-002 (original GLB asset factory — tree/rock/house from
 repository-owned sources, validated pipeline, windowed render proof).
+
+RUNTIMES (NWR-001 close-out, per AGENTS.md): fresh release binary rebuilt
+(29 s), the desktop runtime repackaged as
+poorcraft3d/dist3d/poorcraft3d-macos.zip (2.4 MB) with a REWRITTEN PLAY.md —
+the old one still said "the windowed renderer does not exist yet"; the new
+one documents the walkable slice (--play-slice live: WASD/click/F/R/B/L/I)
+and every windowed proof command. CLEAN-EXTRACT VERIFIED from a fresh temp
+dir: --identity OK, --journey 4242 PASS (digest 7ab2295dafa0ec24 — the
+known seed-4242 value), --validate-assets PASS (19 rows), --run 3 live,
+and the WINDOWED slice showcase PASS from the extract (86 frames, p50
+9.75 ms, avg 106 fps). The zip is the committed artifact; the extracted
+folder is reproducible from it.
