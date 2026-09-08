@@ -1531,3 +1531,12 @@ Deferred (honest notes):
 - DEFERRED: skinned meshes, NPC shadows in the sun pass, chunked
   updates for very large crowds, NPC-vs-NPC avoidance (sim's domain),
   live-shell rig attach (NWR-011).
+
+## 2026-09-08 — NWR-010 Deck quality contract shipped
+
+- DONE: pc3d_render::deck (contract + presets + report, tested), the
+  crowd pose-rate lever, --deck-bench 3-tier benchmark + documented
+  report (measured: 167/149/146 fps low/mid/high; caps held; Low
+  readable), make p3d-deck-bench. 9/9 gates.
+- DEFERRED: internal render-scale path (declared 1.0), CPU/GPU time
+  split (no profiler), mid-ring mesh sampler optimization.

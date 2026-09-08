@@ -31,6 +31,7 @@ pub mod npcs;
 pub mod player;
 pub mod slice;
 pub mod camera;
+pub mod deck;
 pub mod construction;
 pub mod streaming;
 pub mod surface;

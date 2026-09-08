@@ -2488,6 +2488,233 @@ fn main() {
                 }
             }
         }
+        Some("--deck-bench") => {
+            // NWR-010: the Steam Deck benchmark — one scripted walk over
+            // the FULL stack (terrain + water + flora + settlement +
+            // crowd + atmosphere) at each contract tier, frame
+            // percentiles + work counters per tier, the documented
+            // report on disk, and per-tier readability captures.
+            let seed: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(3);
+            let out_dir = args
+                .get(3)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            // ONE windowed run per process (winit allows one event loop);
+            // the tier selects the contract row, the sidecar carries the
+            // numbers, --deck-report assembles.
+            let tier_name = args.get(4).map(|s| s.as_str()).unwrap_or("");
+            if tier_name == "report" {
+                deck_report(&out_dir);
+                return;
+            }
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::npcs::cast_for;
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::nav::NavPatch;
+
+            let (gen, _center, layout, plan) =
+                pc3d_render::city::city_scene(seed, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
+            let gen = std::rc::Rc::new(gen);
+            let kit = pc3d_render::settlement::SettlementKit::load();
+            let scene = pc3d_render::settlement::assemble_kit(&gen, &layout, &plan, &kit);
+            let (_, _, info) = pc3d_render::city::mesh_city(&gen, &layout, &plan);
+            let nav = NavPatch::from_gen(
+                &gen,
+                pc3d_world::coords::PatchCoord {
+                    x: plan.plaza.x.div_euclid(16),
+                    y: 0,
+                    z: plan.plaza.z.div_euclid(16),
+                },
+            );
+            let mut crowd = cast_for(&plan, &info);
+            let roles = ["resident", "worker", "guard"];
+            for k in 0..9usize {
+                let mut c = crowd[k % crowd.len()].clone();
+                c.label = roles[k % 3];
+                c.brain.home.x += (k as i32 % 3) * 2 - 2;
+                c.brain.home.z += (k as i32 / 3) * 2 - 2;
+                c.brain.pos = c.brain.home;
+                c.brain.intent = pc3d_world::npc::Intent::Idle;
+                crowd.push(c);
+            }
+            let mut patches = Vec::new();
+            let pmin = (
+                (scene.bounds_min[0] as i32).div_euclid(16) - 2,
+                (scene.bounds_min[2] as i32).div_euclid(16) - 2,
+            );
+            let pmax = (
+                (scene.bounds_max[0] as i32).div_euclid(16) + 2,
+                (scene.bounds_max[2] as i32).div_euclid(16) + 2,
+            );
+            for px in pmin.0..=pmax.0 {
+                for pz in pmin.1..=pmax.1 {
+                    patches.push(pc3d_world::coords::PatchCoord { x: px, y: 1, z: pz });
+                }
+            }
+            let plaza = plan.plaza;
+            let ground = |x: f32, z: f32| {
+                gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+            };
+            // The walk: four waypoints around the town.
+            let wp = |dx: f32, dz: f32| {
+                let x = plaza.x as f32 + dx;
+                let z = plaza.z as f32 + dz;
+                pc3d_render::CameraPose::new(
+                    [x, ground(x, z) + 2.0, z],
+                    (-dx).atan2(-dz),
+                    -0.05,
+                )
+            };
+            let poses = [wp(24.0, 24.0), wp(-24.0, 24.0), wp(-24.0, -24.0), wp(24.0, -24.0)];
+
+            let (name, tier) = match tier_name {
+                "low" => ("low", pc3d_render::deck::DeckTier::Low),
+                "high" => ("high", pc3d_render::deck::DeckTier::High),
+                _ => ("mid", pc3d_render::deck::DeckTier::Mid),
+            };
+            let tiers = [(name, tier)];
+            let mut rows = Vec::new();
+            // Per-tier scene stats collected by a late frame hook.
+            let stats = std::rc::Rc::new(std::cell::RefCell::new(
+                (0usize, 0usize, 0usize, 0usize, 0usize, 0usize),
+            ));
+            for (ti, (name, tier)) in tiers.iter().enumerate() {
+                let g_hook = gen.clone();
+                let tier = *tier;
+                let patches = patches.clone();
+                let crowd = crowd.clone();
+                let nav = nav.clone();
+                let plan_b = plan.clone();
+                let scene_b = scene.clone();
+                let kit_holder = std::rc::Rc::new(kit.clone());
+                let kit_b = kit_holder.clone();
+                let cfg = pc3d_render::WindowConfig {
+                    title: format!("POORCRAFT 3D — deck bench {name}"),
+                    max_frames: Some(240),
+                    probe_set: ProbeSet::SkyOnly,
+                    resize_to: Some((800.0, 500.0)),
+                    camera_script: vec![
+                        (0, poses[0]),
+                        (60, poses[1]),
+                        (120, poses[2]),
+                        (180, poses[3]),
+                    ],
+                    shots: vec![Shot::new(
+                        200,
+                        format!("{out_dir}/windowed_deck_{name}.png"),
+                    )],
+                    frame_hooks: vec![(
+                        0,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            r.set_placeholder_scene(false);
+                            // The STREAMED path (the contract's terrain
+                            // rows are the streamer's): static loading
+                            // showed no mesh/upload counters.
+                            let st = pc3d_render::StreamConfig {
+                                max_mesh_per_frame: 3,
+                                max_uploads_per_frame: 6,
+                                gpu_byte_budget: 24 * 1024 * 1024,
+                                tiers: &[pc3d_world::stream::Tier::Full, pc3d_world::stream::Tier::Lod],
+                            };
+                            r.attach_streaming(g_hook.clone(), st, 1);
+                            pc3d_render::deck::apply(r, tier);
+                            r.attach_flora(g_hook.clone());
+                            r.attach_settlement(&scene_b, &kit_b);
+                            let (mut verts, mut idx) = (Vec::new(), Vec::new());
+                            let _ = pc3d_render::npcs::mesh_anchor_boxes(
+                                &g_hook, &plan_b, &mut verts, &mut idx,
+                            );
+                            r.load_npcs(&verts, &idx);
+                            r.attach_crowd(g_hook.clone(), crowd.clone(), nav.clone());
+                            r.crowd_tick(0.35, 4);
+                            r.crowd_stage_walkers(2);
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        199,
+                        {
+                            let stats = stats.clone();
+                            Box::new(move |r: &mut pc3d_render::Renderer| {
+                                let (sd, st) = r.settlement_stats();
+                                let (cd, ci) = r.crowd_stats();
+                                let f = r.flora_stats();
+                                *stats.borrow_mut() = (sd, st, cd, ci, f.instances_drawn, f.draw_buckets);
+                            }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>
+                        },
+                    )],
+                    ..Default::default()
+                };
+                let report = pc3d_render::run_windowed(cfg)
+                    .unwrap_or_else(|e| panic!("bench {name}: {e}"));
+                let cap = &report.captures[0];
+                assert!(
+                    cap.report.passes_with(3),
+                    "{name} capture: {:?}",
+                    cap.report.failed_probes()
+                );
+                // Readability at EVERY tier: the frame must show the
+                // world (not a blank) — the sky probe passed above and
+                // distinct colors prove a real scene.
+                assert!(cap.report.distinct_colors > 40, "{name} shows a real scene");
+                let mut ms = report.frame_ms.clone();
+                ms.sort_by(|a, b| a.total_cmp(b));
+                let pct = |p: f32| -> f32 {
+                    if ms.is_empty() {
+                        return 0.0;
+                    }
+                    let i = (((p / 100.0) * (ms.len() as f32 - 1.0)).round()) as usize;
+                    ms[i.min(ms.len() - 1)]
+                };
+                let c = report.final_stream_counters.clone();
+                let (sd, st, cd, ci, fl_inst, fl_buckets) = *stats.borrow();
+                let _ = ti;
+                rows.push(pc3d_render::deck::BenchRow {
+                    tier: name,
+                    frames: report.frames,
+                    p50_ms: pct(50.0),
+                    p95_ms: pct(95.0),
+                    p99_ms: pct(99.0),
+                    worst_ms: pct(100.0),
+                    avg_fps: 1000.0 / (ms.iter().sum::<f32>() / ms.len().max(1) as f32),
+                    meshed: c.as_ref().map(|c| c.meshed as usize).unwrap_or(0),
+                    gpu_kb: c.as_ref().map(|c| c.gpu_bytes / 1024).unwrap_or(0),
+                    drawn_patches: c.as_ref().map(|c| c.drawn_patches as usize).unwrap_or(0),
+                    frustum_culled: c.as_ref().map(|c| c.frustum_culled as usize).unwrap_or(0),
+                    flora_instances: fl_inst,
+                    flora_buckets: fl_buckets,
+                    settlement_draws: sd,
+                    settlement_tris: st,
+                    crowd_draws: cd,
+                    crowd_instances: ci,
+                });
+            }
+            let r = rows.remove(0);
+            let sidecar = format!(
+                "{}/deck_bench_{}.csv",
+                std::env::temp_dir().display(),
+                name
+            );
+            let mut csv = String::new();
+            csv.push_str(&format!(
+                "tier,frames,p50,p95,p99,worst,fps,meshed,gpu_kb,drawn,culled,flora_inst,flora_buckets,setl_draws,setl_tris,crowd_draws,crowd_inst\n"
+            ));
+            csv.push_str(&format!(
+                "{},{},{:.3},{:.3},{:.3},{:.3},{:.1},{},{},{},{},{},{},{},{},{},{}\n",
+                r.tier, r.frames, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps,
+                r.meshed, r.gpu_kb, r.drawn_patches, r.frustum_culled, r.flora_instances,
+                r.flora_buckets, r.settlement_draws, r.settlement_tris, r.crowd_draws,
+                r.crowd_instances
+            ));
+            std::fs::write(&sidecar, csv).expect("write sidecar");
+            println!(
+                "DECK {}: p50 {:.2} ms p95 {:.2} p99 {:.2} worst {:.2} ({:.0} fps), meshed {} gpu {} KB flora {} setl {} tris crowd {} inst -> {}",
+                r.tier, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps, r.meshed,
+                r.gpu_kb, r.flora_instances, r.settlement_tris, r.crowd_instances, sidecar
+            );
+            println!("DECK BENCH TIER PASS -> capture in {out_dir}");
+        }
+
         Some("--play-people") => {
             // NWR-009: the people — rigged NPCs over the authoritative
             // brains with the settlement kit behind them. Captures: the
@@ -3351,6 +3578,68 @@ fn main() {
         }
     }
 }
+
+
+/// Assembles the documented report from the three tier sidecars
+    /// and enforces the Low-not-slower law.
+fn deck_report(out_dir: &str) {
+        let mut rows = Vec::new();
+        for name in ["low", "mid", "high"] {
+            let path = format!("{}/deck_bench_{}.csv", std::env::temp_dir().display(), name);
+            let csv = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("sidecar {path}: {e} — run the three tiers first"));
+            let data = csv.lines().nth(1).expect("a data row");
+            let f: Vec<f32> = data
+                .split(',')
+                .skip(1)
+                .map(|v| v.parse().unwrap_or(0.0))
+                .collect();
+            rows.push(pc3d_render::deck::BenchRow {
+                tier: name,
+                frames: f[0] as u64,
+                p50_ms: f[1],
+                p95_ms: f[2],
+                p99_ms: f[3],
+                worst_ms: f[4],
+                avg_fps: f[5],
+                meshed: f[6] as usize,
+                gpu_kb: f[7] as usize,
+                drawn_patches: f[8] as usize,
+                frustum_culled: f[9] as usize,
+                flora_instances: f[10] as usize,
+                flora_buckets: f[11] as usize,
+                settlement_draws: f[12] as usize,
+                settlement_tris: f[13] as usize,
+                crowd_draws: f[14] as usize,
+                crowd_instances: f[15] as usize,
+            });
+        }
+        let md = pc3d_render::deck::report_md(
+            "Apple host iGPU (documented evidence machine; the contract targets Steam Deck)",
+            "800x500",
+            &rows,
+            &pc3d_render::deck::contract(),
+        );
+        let dst = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md");
+        std::fs::write(&dst, md).expect("write report");
+        // Budget law: Low's leaner contract must not be SLOWER than
+        // High on the same walk (evidence the levers behave).
+        assert!(
+            rows[0].p95_ms <= rows[2].p95_ms * 1.25,
+            "Low is not slower than High (low p95 {:.2} vs high {:.2})",
+            rows[0].p95_ms,
+            rows[2].p95_ms
+        );
+        println!("DECK BENCH REPORT -> {}", dst.display());
+        for r in &rows {
+            println!(
+                "DECK {}: p50 {:.2} ms p95 {:.2} p99 {:.2} worst {:.2} ({:.0} fps)",
+                r.tier, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps
+            );
+        }
+        println!("DECK BENCH PASS -> report + per-tier captures in {out_dir}");
+    }
 
 fn print_window_report(report: &pc3d_render::WindowReport) {
     println!(

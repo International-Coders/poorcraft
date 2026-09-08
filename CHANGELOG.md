@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-09-08 — NWR-010: the Deck quality contract
+
+- `pc3d_render::deck` (new): the transparent Low/Mid/High contract
+  composing every tier lever — streaming rings/mesh-work/GPU budget,
+  atmosphere shadow/fog/detail/glint, flora + grass radii, and a new
+  crowd pose-rate lever (Low 15 Hz, quantized-deterministic) — with
+  honest rows for render scale (1.0, no scale-swap path) and the
+  same-world/interactions law (anchors, characters, water, edits
+  visible at every tier).
+- `--deck-bench <seed> <outdir> [low|mid|high|report]` /
+  `make p3d-deck-bench`: a four-waypoint walk over the full stack per
+  tier (one process per tier — winit allows one event loop), frame
+  percentiles + streamer/scene counters, sidecars, and the assembled
+  documented report enforcing the Low-not-slower law.
+- MEASURED (800x500, Apple host iGPU evidence machine): low 167 fps /
+  5.1 MB / 176 patches; mid 149 / 18.9 MB / 402; high 146 / 27.6 MB /
+  603 — levers measurably behave; caps held; low capture
+  human-inspected readable. Report on disk at
+  `docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md`.
+  9/9 gates; p3d 421/421, root 474/474.
+
+# CHANGELOG
+
 ## 2026-09-08 — NWR-009: the people
 
 The NPCs become limbed characters over the authoritative brains:

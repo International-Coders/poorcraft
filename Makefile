@@ -137,6 +137,10 @@ p3d-surface-stream: ## NWR-004: streamed SURFACE terrain vista proof: make p3d-s
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-surface-stream $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D SURFACE STREAM OK"
 
+p3d-deck-bench: ## NWR-010: Steam Deck benchmark walk (3 tiers + documented report): make p3d-deck-bench [SEED=3] [OUTDIR=shots]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	@BIN=$$(pwd)/poorcraft3d/target/release/poorcraft3d; 	SHOTS=$$(pwd)/poorcraft3d/apps/poorcraft3d/shots; 	for t in low mid high; do 		"$$BIN" --deck-bench $(SEED) "$$SHOTS" $$t || exit 1; 	done; 	"$$BIN" --deck-bench $(SEED) "$$SHOTS" report || exit 1; 	echo "P3D DECK BENCH OK"
+
 p3d-people: ## NWR-009: NPC rig proof (plaza/stride/guard/anchors, crowd budget): make p3d-people [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-people $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D PEOPLE OK"

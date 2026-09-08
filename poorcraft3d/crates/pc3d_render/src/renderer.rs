@@ -603,6 +603,8 @@ pub struct Renderer {
     settlement: Option<crate::settlement::SettlementGpu>,
     /// The NPC crowd (NWR-009): rig instances per part color.
     crowd: Option<CrowdGpu>,
+    /// The crowd's pose update rate (Hz) — the Deck Low lever.
+    crowd_pose_hz: f32,
     /// The crowd's authority inputs (gen + cast + nav), for per-frame
     /// poses and schedule ticks.
     crowd_gen: Option<std::rc::Rc<pc3d_world::gen::WorldGen>>,
@@ -751,6 +753,7 @@ impl Renderer {
             crowd_gen: None,
             crowd_cast: None,
             crowd_nav: None,
+            crowd_pose_hz: 60.0,
             construction: None,
             terrain: None,
             streamer: None,
@@ -834,6 +837,7 @@ impl Renderer {
             crowd_gen: None,
             crowd_cast: None,
             crowd_nav: None,
+            crowd_pose_hz: 60.0,
             construction: None,
             terrain: None,
             streamer: None,
@@ -1036,6 +1040,13 @@ impl Renderer {
         if let (Some(cast), Some(nav)) = (self.crowd_cast.clone(), self.crowd_nav.as_ref()) {
             crate::npcs::advance(&mut cast.borrow_mut(), nav, day_fraction, ticks);
         }
+    }
+
+    /// The Deck Low lever: gate the rig's pose updates to N Hz (the
+    /// rig still moves — at bench-stable steps; deterministic under
+    /// frozen time because the step is QUANTIZED).
+    pub fn set_crowd_pose_rate(&mut self, hz: f32) {
+        self.crowd_pose_hz = hz.max(1.0);
     }
 
     /// The crowd's draw/count record.
@@ -1508,7 +1519,10 @@ impl Renderer {
             let t = self
                 .water_time_override
                 .unwrap_or_else(|| self.start.elapsed().as_secs_f32());
-            self.crowd_frame(t);
+            // Quantize to the pose rate (the Low lever): frozen clocks
+            // still land on the same step — deterministic.
+            let step = 1.0 / self.crowd_pose_hz;
+            self.crowd_frame((t / step).floor() * step);
         }
 
         // HUD: re-rasterize the line and refresh the quad to the target size.

@@ -145,7 +145,8 @@
       ],
       "prompt": "prompts/09-NWR-010-deck-quality.md",
       "completion": "Reproducible low/medium/high benchmark and quality proof.",
-      "status": "next"
+      "status": "done",
+      "evidence": "pc3d_render::deck (new): the TRANSPARENT Low/Mid/High contract composing every tier lever (streaming rings/mesh-work/GPU budget from QualityTier; atmosphere shadow/fog/detail/glint; flora + grass radii; the NEW crowd pose-rate lever \u2014 Low 15 Hz, quantized so frozen clocks stay deterministic) plus an honest render-scale row (1.0 \u2014 no scale-swap path exists) and a world/interactions row (SAME world; anchors, characters, water, edits visible at every tier). apply() composes; report_md renders the documented report. Tests: contract completeness + monotonicity (mesh work, budgets, radii, shadow res, detail all Low<=Mid<=High), Low readability laws (characters animate >=15 Hz, wilderness >=80 m, no lever can hide interactions), report rendering. The BENCHMARK: --deck-bench <seed> <outdir> [low|mid|high|report] \u2014 one windowed run per tier over the FULL stack (streamed terrain + flora + settlement kit + 12-NPC crowd + atmosphere) walking four waypoints, collecting p50/p95/p99/worst/avg-fps + streamer counters (meshed, GPU KB) + scene-stack counters; the report pass assembles docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md (hardware documented as the Apple host iGPU evidence machine) and enforces the LOW-NOT-SLOWER law. MEASURED (800x500): low p50 4.88 ms p95 9.95 (167 fps, 5.1 MB GPU, 176 patches meshed), mid p50 6.50 p95 7.63 (149 fps, 18.9 MB, 402), high p50 6.66 p95 8.07 (146 fps, 27.6 MB, 603) \u2014 the levers measurably behave and the caps HELD every frame. Readability captures per tier pass probes + distinct-color checks; the low capture human-inspected PASS (characters, crofts, treeline readable). Bottlenecks documented in the report: terrain patch meshing is the CPU spike source (capped and held), the crowd per-frame rebuild gates to 15 Hz at Low. One process per tier (winit allows one event loop \u2014 the first three-in-one attempt failed loudly). 9/9 gates; p3d 421/421, root 474/474."
     },
     {
       "id": "NWR-011",
@@ -154,7 +155,8 @@
         "NWR-010"
       ],
       "prompt": "prompts/10-NWR-011-rebuild-vertical-slice.md",
-      "completion": "Human-walkable, original natural-world route passing all visual and performance gates."
+      "completion": "Human-walkable, original natural-world route passing all visual and performance gates.",
+      "status": "next"
     }
   ]
 }

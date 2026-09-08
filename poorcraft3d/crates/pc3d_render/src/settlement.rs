@@ -158,6 +158,7 @@ pub struct Socket {
 }
 
 /// Loads the kit GLBs (meshes + declared sockets).
+#[derive(Clone)]
 pub struct SettlementKit {
     pub assets: BTreeMap<KitModule, crate::glb::Asset>,
     sockets: BTreeMap<KitModule, Vec<Socket>>,

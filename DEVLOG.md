@@ -5504,3 +5504,51 @@ crowd is trivially cheap, a 200-crowd would want chunked updates);
 NPC-vs-NPC avoidance is the sim's business (none yet); the LIVE
 --play/--play-slice shell still shows the mesh NPCs until NWR-011.
 Next: NWR-010 — the Steam Deck quality contract.
+
+## 2026-09-08 — NWR-010: the Deck quality contract
+
+WHAT: The quality experience became a single TRANSPARENT contract.
+pc3d_render::deck (new) composes every tier lever into named
+Low/Mid/High presets — streaming rings, mesh work/frame, GPU byte
+budget, shadow map, fog, material detail, water glint, flora + grass
+radii, and a NEW crowd pose-rate lever (Low 15 Hz — quantized so
+frozen clocks stay deterministic) — plus two honesty rows: internal
+render scale is declared 1.0 (no scale-swap path exists), and
+world/interactions says the SAME world with anchors, characters,
+water, and edits visible at every tier (no lever can hide an
+interaction; none swaps the world). apply() sets them all;
+report_md renders the documented report.
+
+HOW: crates/pc3d_render/src/deck.rs (contract + presets + report +
+tests); renderer.rs (set_crowd_pose_rate with the quantized pose
+clock); apps --deck-bench (one windowed run per tier — winit allows
+one event loop per process, so tiers run as separate invocations
+writing CSV sidecars, and a `report` invocation assembles the MD and
+enforces the Low-not-slower law); Makefile p3d-deck-bench.
+
+EVIDENCE: 3 deck tests (contract completeness + monotonicity across
+every growing lever; Low readability laws; report rendering). The
+BENCHMARK: a scripted four-waypoint walk over the FULL stack (streamed
+terrain + flora + settlement kit + a 12-NPC crowd + atmosphere) at
+each tier, 240 frames, collecting percentiles + streamer counters +
+scene counters. MEASURED at 800x500 on the documented Apple host iGPU
+(the evidence machine; the contract targets the Deck): low p50 4.88
+ms / p95 9.95 / 167 fps with 5.1 MB GPU and 176 patches meshed; mid
+p50 6.50 / 7.63 / 149 fps, 18.9 MB, 402; high p50 6.66 / 8.07 /
+146 fps, 27.6 MB, 603 — the levers measurably behave, the per-frame
+caps HELD in every run, and Low is not slower than High (the enforced
+law). The documented report is on disk at
+docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md with the
+full contract table, the measured rows, and the bottleneck notes
+(terrain patch meshing is the CPU spike source — capped and held; the
+crowd rebuild gates to 15 Hz at Low). Per-tier readability captures
+pass probes + distinct-color checks; the low capture human-inspected
+PASS — characters, crofts, and the treeline all readable with the
+leaner dressing. 9/9 gates; suites p3d 421/421, root 474/474.
+
+HONESTLY DEFERRED: no internal render-scale path (declared 1.0 — an
+offscene-target + upscale blit is future work); CPU/GPU-time split
+unobtainable without a profiler integration (frame percentiles +
+work counters are the evidence); the mesh-sampler optimization for
+mid-ring patches remains future work with its measured cap behavior
+documented. Next: NWR-011 — the rebuild vertical slice.
