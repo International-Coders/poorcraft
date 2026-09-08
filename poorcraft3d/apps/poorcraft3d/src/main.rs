@@ -2049,9 +2049,81 @@ fn main() {
                 }
             }
         }
+        Some("--play-surface-stream") => {
+            // NWR-004: the MIGRATED ordinary terrain — streamed SURFACE
+            // patches with LOD rings + skirts, a real vista to the horizon.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::surface_stream::SurfaceStreamer;
+            use pc3d_render::{ProbeSet, Shot};
+            use pc3d_world::stream::Tier;
+
+            let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+            let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
+            let cx = coord.x as f32 * 16.0 + 8.0;
+            let cz = coord.z as f32 * 16.0 + 8.0;
+            let ground = gen
+                .effective_surface_mm((cx * 1000.0) as i64, ((cz + 30.0) * 1000.0) as i64)
+                as f32
+                / 1000.0;
+            let aim_h = gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64)
+                as f32
+                / 1000.0;
+            let eye = [cx, ground + 9.0, cz + 30.0];
+            let d = [cx - eye[0], aim_h - eye[1], cz - eye[2]];
+            let pose = pc3d_render::CameraPose::new(
+                eye,
+                (-d[0]).atan2(-d[2]),
+                (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+            );
+
+            let g1 = gen.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — streamed surface terrain".into(),
+                max_frames: Some(260),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![(0, pose)],
+                shots: vec![Shot::new(250, format!("{out_dir}/windowed_surface_stream.png"))],
+                frame_hooks: vec![(
+                    0,
+                    Box::new(move |r: &mut pc3d_render::Renderer| {
+                        r.set_placeholder_scene(false);
+                        let mut s = SurfaceStreamer::new(g1.clone(), &[Tier::Full, Tier::Lod], coord.y);
+                        s.set_budgets(3, 24 * 1024 * 1024);
+                        r.attach_surface_stream(s);
+                        r.set_pose(pose);
+                    }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                )],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 1
+                        || !report.captures[0].report.passes_with(12)
+                    {
+                        eprintln!("[FAIL] surface-stream capture failed");
+                        std::process::exit(1);
+                    }
+                    println!(
+                        "WINDOWED SURFACE STREAM PASS -> {}",
+                        report.captures[0].path.display()
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed>|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-surface-stream [outdir]|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

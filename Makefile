@@ -132,6 +132,11 @@ p3d-surface: ## NWR-003: natural-terrain surface spike proof (3x3 region + edit)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-surface $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D SURFACE SPIKE OK"
 
+p3d-surface-stream: ## NWR-004: streamed SURFACE terrain vista proof: make p3d-surface-stream [OUTDIR=shots]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-surface-stream $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
+	echo "P3D SURFACE STREAM OK"
+
 p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowed proof must PASS); writes gates report to poorcraft3d/shots/gates_report.txt
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	@BIN=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \

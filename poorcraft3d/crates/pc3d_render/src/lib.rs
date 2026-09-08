@@ -31,6 +31,7 @@ pub mod camera;
 pub mod construction;
 pub mod streaming;
 pub mod surface;
+pub mod surface_stream;
 pub mod terrain;
 pub mod water;
 pub mod font;

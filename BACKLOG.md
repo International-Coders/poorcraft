@@ -1463,3 +1463,12 @@ Deferred (honest notes):
   delta persistence), --play-surface windowed proof, discriminators.
 - DEFERRED: spike LOD, caves (NWR-005), host-authoritative edit wiring
   (NWR-004/005), texture materials (NWR-006).
+
+## 2026-09-08 — NWR-004 surface migration shipped
+
+- DONE: pc3d_render::surface_stream (rings/budget/queue/frustum, LOD +
+  skirts, distance-gated eviction), explicit TerrainPolicy, collision from
+  the full ring, --play-surface-stream windowed proof.
+- DEFERRED: surface collision wired into the walking player (NWR-005),
+  mid-ring mesh sampler optimization, caves/water on the surface path
+  (NWR-005), texture LOD detail (NWR-006).

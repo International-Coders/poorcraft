@@ -588,6 +588,7 @@ impl ApplicationHandler for App {
                         slice.last_message
                     ));
                     let _ = state.renderer.stream_frame();
+                    let _ = state.renderer.surface_stream_frame();
                 } else {
                     // Interactive movement (free flight), then streaming.
                     state.apply_movement(dt);

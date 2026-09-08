@@ -71,7 +71,16 @@
       ],
       "prompt": "prompts/03-NWR-004-terrain-migration.md",
       "completion": "Ordinary natural terrain streams via the new surface representation with bounded LOD work.",
-      "status": "next"
+      "status": "done",
+      "evidence": {
+        "surface_streamer": "pc3d_render::surface_stream (new): the NWR-003 surface patch goes STREAMED as the ordinary terrain path \u2014 the world's own interest rings + bounded queue with deferred re-admission + per-frame mesh/upload caps + GPU-byte budget with DISTANCE-GATED farthest-first eviction (only evicts a slot FARTHER than the incoming patch \u2014 the naive farthest-first churned forever under a saturating budget and the teleport test caught it) + frustum culling, exactly the R3DV-006 laws",
+        "lod_seams": "ring LOD steps the grid 17x17 (Full) -> 9x9 (Mid/Far) with a 2 m SKIRT wall around every patch edge \u2014 no cross-ring stitching needed, transitions cannot open holes; the skirt-index math is asserted (8*8*6 surface + 4*8*6 skirt at 9x9) and skirt verts proven below the surface",
+        "policy": "explicit TerrainPolicy { Surface, LegacyCubes } \u2014 attaching the surface stream makes it the ordinary path (drawn before the legacy stream); the legacy cube stream + all 9 gates remain green; saved worlds untouched (deltas are additive)",
+        "collision": "surface_height serves collision ONLY from FULL-ring patches (the tier contract) and REFUSES outside; the streamed answer is within 1 m of the generator's own effective_surface_mm on untouched ground; edits through the delta layer change collision measurably (raise 5 m -> height +3)",
+        "proofs": "4 streamer tests (LOD grids + skirts, full-ring completion within caps + generator-agreement + refusal, teleport recovery under a 2 MB saturating budget with caps held every frame and the near ring fully loaded within 1200 frames, edit->collision) + GPU vista test: 419 bounded frames load 1252 patches (112 full + 1140 mid = the horizon ring), render passes the sky probe",
+        "windowed": "--play-surface-stream / make p3d-surface-stream: a live-window vista of streamed SURFACE terrain to the horizon (251 frames p50 9.91 ms / avg 103 fps, LOD rings populating at 3 meshes/frame) \u2014 human-inspected PASS: rolling faceted hills with green/rock bands running to the skyline, no visible seams or holes at ring boundaries",
+        "gates": "existing 9-gate battery green after the migration (the cube path still serves the legacy gates); construction overlay untouched and stackable"
+      }
     },
     {
       "id": "NWR-005",
@@ -80,7 +89,8 @@
         "NWR-004"
       ],
       "prompt": "prompts/04-NWR-005-caves-water-foundations.md",
-      "completion": "Seam-safe cave, conforming river and terrain-aware building proofs."
+      "completion": "Seam-safe cave, conforming river and terrain-aware building proofs.",
+      "status": "next"
     },
     {
       "id": "NWR-006",

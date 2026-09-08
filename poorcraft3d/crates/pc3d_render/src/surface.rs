@@ -33,8 +33,8 @@ pub const MAX_WALK_SLOPE: f32 = 1.6;
 #[derive(Clone, Debug, PartialEq)]
 pub struct SurfacePatch {
     pub coord: PatchCoord,
-    base: Vec<f32>,
-    delta: Vec<f32>,
+    pub(crate) base: Vec<f32>,
+    pub(crate) delta: Vec<f32>,
     /// Bumped on any edit; the mesh cache version.
     pub version: u64,
 }
@@ -153,6 +153,23 @@ impl SurfaceRegion {
         Self { gen, center, patches }
     }
 
+    /// An empty region scaffold (for edit semantics around one patch).
+    pub fn empty(gen: &WorldGen, center: PatchCoord, ring: i32) -> Self {
+        let mut patches = std::collections::BTreeMap::new();
+        for dx in -ring..=ring {
+            for dz in -ring..=ring {
+                let coord = PatchCoord { x: center.x + dx, y: center.y, z: center.z + dz };
+                patches.insert((coord.x, coord.z), SurfacePatch::build(gen, coord));
+            }
+        }
+        Self { gen: *gen, center, patches }
+    }
+
+    /// Replaces one patch's state (used by the streamed-delta path).
+    pub fn set_patch(&mut self, key: (i32, i32), p: SurfacePatch) {
+        self.patches.insert(key, p);
+    }
+
     pub fn patch(&self, coord: (i32, i32)) -> &SurfacePatch {
         self.patches.get(&coord).expect("patch in the 3x3 region")
     }
@@ -247,7 +264,7 @@ impl SurfaceRegion {
 }
 
 impl SurfacePatch {
-    fn build(gen: &WorldGen, coord: PatchCoord) -> SurfacePatch {
+    pub(crate) fn build(gen: &WorldGen, coord: PatchCoord) -> SurfacePatch {
         let mut base = vec![0.0; GRID * GRID];
         for lz in 0..GRID {
             for lx in 0..GRID {

@@ -5117,3 +5117,42 @@ the sparse volumetric path); edits are renderer-local state for the spike
 (not yet host-authoritative world commands — that wiring is NWR-004/005
 with the dirty-patch contract); no texture materials (NWR-006). Next:
 NWR-004 — stream the NEW surface as the ordinary terrain path.
+
+## 2026-09-08 — NWR-004: streamed surface terrain migration (rebuild milestone 4)
+
+WHAT: Ordinary natural terrain is now the SURFACE path. pc3d_render::
+surface_stream (new) streams the NWR-003 surface patches under the exact
+R3DV-006 laws — the world's interest rings, the bounded queue with
+deferred re-admission, per-frame mesh/upload caps, GPU-byte budget with
+frustum culling — with ring LOD (17x17 Full, 9x9 Mid/Far) and a 2 m SKIRT
+wall around every patch edge so LOD transitions cannot open holes (no
+cross-ring stitching needed). Policy is explicit: attaching the surface
+stream makes it the ordinary path (TerrainPolicy::Surface); the legacy
+cube stream remains the proven fallback and all 9 gates stay green.
+Saved worlds untouched — the edit delta layer is additive.
+
+EVIDENCE: 4 streamer tests (LOD grid + skirt-index math with skirt verts
+proven below the surface; full-ring completion within caps with collision
+within 1 m of the generator's own answer and REFUSAL outside the loaded
+ring; teleport recovery under a saturating 2 MB budget — caps held every
+frame and the near ring fully loaded; edits feeding collision) + the GPU
+vista test (419 bounded frames load 1252 patches: 112 full + 1140 mid —
+the horizon ring — and the frame passes its probes) + the WINDOWED proof
+--play-surface-stream / make p3d-surface-stream (251 frames p50 9.91 ms /
+avg 103 fps): human-inspected PASS — rolling faceted hills with green and
+rock bands running to the skyline, no seams or holes at ring boundaries.
+
+BUGS FOUND BY THE PROOFS (fixed): naive farthest-first eviction churned
+forever under a saturating budget (equal-distance sets evict/remesh
+endlessly — the teleport test caught it); eviction is now DISTANCE-GATED
+(only slots farther than the incoming patch are evicted; otherwise the
+job defers honestly). The saturating-budget steady state is asserted as
+bounded churn + near-ring recovery, not a false 'fully settled'.
+
+HONESTLY DEFERRED: the surface stream does not yet feed the WALKING
+player's collision (player.rs still walks final_solid; the NWR-005
+foundations task wires surface collision into the body); mid-ring meshing
+costs ~11 ms/patch (comparable to the cube path's 7 ms) — a sampler
+optimization is future work, honest at 3 patches/frame; no caves (NWR-005);
+no per-LOD texture detail (NWR-006). Next: NWR-005 — sparse caves,
+conforming water, and foundations on the surface path.

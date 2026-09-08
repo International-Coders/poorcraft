@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-09-08 — NWR-004: streamed surface terrain migration
+
+Ordinary natural terrain migrates from culled cube faces to the proven
+surface path:
+
+- `pc3d_render::surface_stream`: interest rings, bounded queue, per-frame
+  caps, GPU budget with distance-gated farthest-first eviction (the naive
+  version churned forever under saturation — the teleport test caught it),
+  frustum culling, ring LOD (17×17 → 9×9) with 2 m skirts that make LOD
+  boundaries seam-safe by construction.
+- Explicit `TerrainPolicy` — the surface stream attaches as the ordinary
+  path; the legacy cube stream stays the fallback and all 9 gates remain
+  green. Saved worlds untouched.
+- Collision served only from the full ring (refuses outside), within 1 m
+  of the generator's own answer; edits through the delta layer change
+  collision measurably.
+- Proofs: 4 streamer tests + GPU vista (419 bounded frames, 1252 patches
+  incl. the 1140-patch horizon ring) + windowed `--play-surface-stream`
+  (251 frames, p50 9.91 ms, avg 103 fps) — human-inspected PASS: rolling
+  faceted hills to the skyline, no ring-boundary holes.
+
 ## 2026-09-07 — NWR-003: natural-terrain surface spike
 
 The first real break from cube terrain, isolated to a 3x3 test region:

@@ -320,6 +320,9 @@ pub struct Renderer {
     /// Streamed terrain with bounded per-frame work (R3DV-006); replaces
     /// the static terrain mesh while attached.
     streamer: Option<crate::streaming::TerrainStreamer>,
+    /// Streamed SURFACE terrain (NWR-004) — the ordinary path when
+    /// attached; draws before the legacy paths.
+    surface_stream: Option<crate::surface_stream::SurfaceStreamer>,
     /// River water from flow records (R3DV-007).
     water: Option<crate::water::WaterSections>,
     /// Castle/city modules from the placement authorities (R3DV-008).
@@ -445,6 +448,7 @@ impl Renderer {
             construction: None,
             terrain: None,
             streamer: None,
+            surface_stream: None,
             water: None,
             city: None,
             npcs: None,
@@ -499,6 +503,7 @@ impl Renderer {
             construction: None,
             terrain: None,
             streamer: None,
+            surface_stream: None,
             water: None,
             city: None,
             npcs: None,
@@ -616,6 +621,26 @@ impl Renderer {
     /// for the isolated proof).
     pub fn load_surface(&mut self, verts: &[crate::scene::SceneVertex], idx: &[u32]) {
         self.terrain = Some(GpuMesh::from_mesh_u32(&self.ctx.device, verts, idx));
+    }
+
+    /// Test hook: the device (for streamer unit tests driving real
+    /// buffers without a window).
+    pub fn device_for_tests(&self) -> &wgpu::Device {
+        &self.ctx.device
+    }
+
+    /// Attaches the SURFACE streamer (NWR-004 ordinary terrain path).
+    pub fn attach_surface_stream(&mut self, s: crate::surface_stream::SurfaceStreamer) {
+        self.surface_stream = Some(s);
+    }
+
+    /// One frame of surface streaming from the current camera pose.
+    pub fn surface_stream_frame(&mut self) {
+        let pose = self.camera.pose;
+        let viewer = crate::surface_stream::viewer_of_pub(pose);
+        if let Some(s) = self.surface_stream.as_mut() {
+            let _ = s.update(&self.ctx.device, viewer);
+        }
     }
 
     /// Detaches the construction layer (control renders for block proofs).
@@ -1051,9 +1076,12 @@ impl Renderer {
             pass.set_index_buffer(self.gpu_scene.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             pass.draw_indexed(0..self.gpu_scene.index_count, 0, 0..1);
         }
-        // 2a. Natural terrain: streamed patches (R3DV-006, frustum-culled,
-        // per-patch buffers) or the static load (R3DV-005).
+        // 2a. Natural terrain: the SURFACE stream first (NWR-004 — the
+        // ordinary path), then the legacy cube stream/static load.
         let view_proj: [f32; 16] = self.camera.view_proj(self.aspect());
+        if let Some(s) = self.surface_stream.as_mut() {
+            s.draw(&mut pass, &view_proj);
+        }
         if let Some(streamer) = self.streamer.as_mut() {
             streamer.draw(&mut pass, &view_proj);
         } else if let Some(t) = &self.terrain {
