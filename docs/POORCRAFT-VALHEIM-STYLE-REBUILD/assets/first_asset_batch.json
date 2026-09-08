@@ -1,0 +1,123 @@
+{
+  "schema_version": 2,
+  "coordinate_system": "meters,+Y-up,-Z-forward",
+  "assets": [
+    {
+      "id": "prop.tree_ash",
+      "category": "prop",
+      "status": "planned",
+      "provenance": {
+        "kind": "original_procedural",
+        "license_or_originality": "Repository-owned original Blender-script source.",
+        "reviewed": false
+      },
+      "source": [
+        "assets-src/blender/tree_ash.py"
+      ],
+      "compiled": "assets/compiled/prop/tree_ash.glb",
+      "materials": [
+        "mat.bark_ash",
+        "mat.leaf_ash"
+      ],
+      "lods": [
+        {
+          "name": "lod0",
+          "max_triangles": 1800
+        },
+        {
+          "name": "lod1",
+          "max_triangles": 700
+        },
+        {
+          "name": "lod2",
+          "max_triangles": 180
+        }
+      ],
+      "collision": {
+        "kind": "capsule",
+        "blocks_navigation": true
+      },
+      "runtime_consumer": "pc3d_render::foliage",
+      "proof_scene": "asset_factory_tree"
+    },
+    {
+      "id": "prop.rock_granite",
+      "category": "prop",
+      "status": "planned",
+      "provenance": {
+        "kind": "original_procedural",
+        "license_or_originality": "Repository-owned original Blender-script source.",
+        "reviewed": false
+      },
+      "source": [
+        "assets-src/blender/rock_granite.py"
+      ],
+      "compiled": "assets/compiled/prop/rock_granite.glb",
+      "materials": [
+        "mat.granite",
+        "mat.moss"
+      ],
+      "lods": [
+        {
+          "name": "lod0",
+          "max_triangles": 600
+        },
+        {
+          "name": "lod1",
+          "max_triangles": 180
+        }
+      ],
+      "collision": {
+        "kind": "convex",
+        "blocks_navigation": true
+      },
+      "runtime_consumer": "pc3d_render::props",
+      "proof_scene": "asset_factory_rock"
+    },
+    {
+      "id": "module.house_croft",
+      "category": "module",
+      "status": "planned",
+      "provenance": {
+        "kind": "original_procedural",
+        "license_or_originality": "Repository-owned original Blender-script source.",
+        "reviewed": false
+      },
+      "source": [
+        "assets-src/blender/house_croft.py"
+      ],
+      "compiled": "assets/compiled/module/house_croft.glb",
+      "materials": [
+        "mat.fieldstone",
+        "mat.timber_weathered",
+        "mat.roof_thatch"
+      ],
+      "lods": [
+        {
+          "name": "lod0",
+          "max_triangles": 2500
+        },
+        {
+          "name": "lod1",
+          "max_triangles": 900
+        },
+        {
+          "name": "lod2",
+          "max_triangles": 250
+        }
+      ],
+      "collision": {
+        "kind": "box",
+        "blocks_navigation": true
+      },
+      "sockets": [
+        "door_front",
+        "road_front",
+        "roof_smoke",
+        "build_base"
+      ],
+      "runtime_consumer": "pc3d_render::settlement_assets",
+      "proof_scene": "asset_factory_house"
+    }
+  ]
+}

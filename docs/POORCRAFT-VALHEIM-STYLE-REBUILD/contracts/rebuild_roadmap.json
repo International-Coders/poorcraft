@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "title": "POORCRAFT stylized natural-world rebuild",
+  "status": "in_progress",
+  "non_negotiables": [
+    "Rust runtime with winit and wgpu; Python/Blender only offline asset tooling",
+    "original or compatible-license assets only",
+    "construction remains grid/module based; natural terrain is surface-first hybrid",
+    "windowed proof, semantic test, human review, and proportional performance evidence for every visual milestone",
+    "existing p3d visual gates remain green"
+  ],
+  "milestones": [
+    {
+      "id": "NWR-001",
+      "title": "Baseline audit and guardrails",
+      "depends_on": [],
+      "prompt": "prompts/00-NWR-001-baseline-audit.md",
+      "completion": "Existing gates pass and a machine-readable capability inventory identifies every prototype visual path.",
+      "status": "done",
+      "evidence": {
+        "verification": "pc3d unit suite 356/356; make p3d-visual-gates 9/9 PASS; make p3d-smoke OK; root workspace untouched (474/474 at last run)",
+        "capability_inventory": "docs/POORCRAFT-VALHEIM-STYLE-REBUILD/capability_inventory.json \u2014 every renderer path's module/representation/maturity/rebuild-target/proof, asset-batch truth, the 9-gate battery, runtime commands, data boundaries, and the perf baseline",
+        "guardrail": "pc3d_render::inventory (new module + 2 tests): validates the inventory against the repo \u2014 module files exist, Makefile gates + shell flags match (count included), runtime commands exist, and the ANTI-FALSE-ART LAW: asset rows claiming shipped must match the pack status AND a disk-scanned .glb, in both directions (asset_files_on_disk is recomputed); sabotage-tested (a coordinated pack+inventory 'shipped' lie fails on the missing file)",
+        "no_scope_change": "no terrain/asset/rendering/worldgen/save changes in this milestone \u2014 audit + guardrail only"
+      }
+    },
+    {
+      "id": "NWR-002",
+      "title": "Original GLB asset factory",
+      "depends_on": [
+        "NWR-001"
+      ],
+      "prompt": "prompts/01-NWR-002-asset-factory.md",
+      "completion": "Validated source-to-GLB pipeline and real tree, rock, house rendered in a windowed scene.",
+      "status": "next"
+    },
+    {
+      "id": "NWR-003",
+      "title": "Natural terrain spike",
+      "depends_on": [
+        "NWR-002"
+      ],
+      "prompt": "prompts/02-NWR-003-natural-terrain-spike.md",
+      "completion": "Seam-free editable/collidable low-poly 3x3 terrain patch proof."
+    },
+    {
+      "id": "NWR-004",
+      "title": "Streamed surface terrain migration",
+      "depends_on": [
+        "NWR-003"
+      ],
+      "prompt": "prompts/03-NWR-004-terrain-migration.md",
+      "completion": "Ordinary natural terrain streams via the new surface representation with bounded LOD work."
+    },
+    {
+      "id": "NWR-005",
+      "title": "Sparse caves, water and foundations",
+      "depends_on": [
+        "NWR-004"
+      ],
+      "prompt": "prompts/04-NWR-005-caves-water-foundations.md",
+      "completion": "Seam-safe cave, conforming river and terrain-aware building proofs."
+    },
+    {
+      "id": "NWR-006",
+      "title": "Materials and atmosphere",
+      "depends_on": [
+        "NWR-005"
+      ],
+      "prompt": "prompts/05-NWR-006-materials-atmosphere.md",
+      "completion": "Tiered stylized materials, lighting, shadows, fog and water validated."
+    },
+    {
+      "id": "NWR-007",
+      "title": "Wilderness assets",
+      "depends_on": [
+        "NWR-006"
+      ],
+      "prompt": "prompts/06-NWR-007-wilderness-assets.md",
+      "completion": "Original instanced biome asset set with LOD, collision and performance proof."
+    },
+    {
+      "id": "NWR-008",
+      "title": "Settlement asset kit",
+      "depends_on": [
+        "NWR-007"
+      ],
+      "prompt": "prompts/07-NWR-008-settlement-assets.md",
+      "completion": "Original modular castle/town kit replaces visible primitive city forms."
+    },
+    {
+      "id": "NWR-009",
+      "title": "NPC presentation",
+      "depends_on": [
+        "NWR-008"
+      ],
+      "prompt": "prompts/08-NWR-009-npc-presentation.md",
+      "completion": "Original role-aware rig-ready characters driven by authoritative brains."
+    },
+    {
+      "id": "NWR-010",
+      "title": "Steam Deck quality contract",
+      "depends_on": [
+        "NWR-009"
+      ],
+      "prompt": "prompts/09-NWR-010-deck-quality.md",
+      "completion": "Reproducible low/medium/high benchmark and quality proof."
+    },
+    {
+      "id": "NWR-011",
+      "title": "Rebuild vertical slice",
+      "depends_on": [
+        "NWR-010"
+      ],
+      "prompt": "prompts/10-NWR-011-rebuild-vertical-slice.md",
+      "completion": "Human-walkable, original natural-world route passing all visual and performance gates."
+    }
+  ]
+}

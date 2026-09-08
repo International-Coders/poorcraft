@@ -13,4 +13,6 @@ pc3d_world = { path = "../pc3d_world" }
 pc3d_assets = { path = "../pc3d_assets" }
 pc3d_save = { path = "../pc3d_save" }
 pc3d_core = { path = "../pc3d_core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 tempfile = "3"

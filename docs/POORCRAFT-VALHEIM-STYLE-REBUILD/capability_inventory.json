@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "title": "POORCRAFT 3D rebuild capability inventory",
+  "law": "This file is the honest machine-readable record of what the renderer ACTUALLY does today. A milestone may only change a row's maturity/target by shipping code + tests + a windowed proof; the validator (pc3d_render::inventory) fails the suite when a row claims more than reality (e.g. an asset marked shipped without its compiled file and consumer on disk).",
+  "audit": {
+    "date": "2026-09-07",
+    "milestone": "NWR-001",
+    "unit_tests": "356/356 pc3d",
+    "visual_gates": "9/9 PASS (make p3d-visual-gates)",
+    "smoke": "P3D SMOKE OK",
+    "root_workspace": "474/474 (untouched by the rebuild baseline)"
+  },
+  "renderer_paths": [
+    {
+      "path": "natural_terrain",
+      "module": "pc3d_render::terrain",
+      "representation": "culled_block_faces",
+      "representation_class": "prototype_blocky",
+      "data_binding": "final_solid (pure world query; exact cross-patch culling)",
+      "maturity": "prototype",
+      "rebuild_target": "NWR-003/004: chunked low-poly heightfield surface with sculpt deltas",
+      "proof": "gates:terrain-scenes, gates:stream-walk"
+    },
+    {
+      "path": "caves_and_overhangs",
+      "module": "pc3d_render::terrain",
+      "representation": "culled_block_faces_within_terrain_mesh",
+      "representation_class": "prototype_blocky",
+      "data_binding": "final_solid carve (find_cave_pocket)",
+      "maturity": "prototype",
+      "rebuild_target": "NWR-005: sparse local volumetric surface (dual-contouring class), welded seams",
+      "proof": "gates:terrain-scenes (cave interior + overhang probes)"
+    },
+    {
+      "path": "streaming_and_lod",
+      "module": "pc3d_render::streaming",
+      "representation": "bounded_per_patch_buffers_with_face_lod",
+      "representation_class": "systems_grade",
+      "data_binding": "interest_patches/BoundedQueue/lod_for (P3D-105/206 machinery)",
+      "maturity": "working",
+      "rebuild_target": "NWR-004: same laws over the new surface representation",
+      "proof": "gates:stream-walk (caps held, 42-102 patches by tier)"
+    },
+    {
+      "path": "river_water",
+      "module": "pc3d_render::water",
+      "representation": "transparent_flow_strips",
+      "representation_class": "prototype_strip",
+      "data_binding": "FlowRecords (direction/slope/discharge drive the visible current)",
+      "maturity": "prototype",
+      "rebuild_target": "NWR-005: terrain-conforming river mesh with shore treatment",
+      "proof": "gates:river-water (control-render transparency, dam edit 5/281 remesh)"
+    },
+    {
+      "path": "construction",
+      "module": "pc3d_render::construction",
+      "representation": "culled_block_faces_per_patch",
+      "representation_class": "prototype_blocky_kept_by_design",
+      "data_binding": "Construction overlay, read-only; edits via HostCommand only",
+      "maturity": "working",
+      "rebuild_target": "kept grid/module-based; NWR-005 foundations adapt terrain around it",
+      "proof": "gates:vertical-slice (first-person build visibility), unit: bounded remesh"
+    },
+    {
+      "path": "city_and_castle",
+      "module": "pc3d_render::city",
+      "representation": "procedural_cuboids_and_prisms",
+      "representation_class": "prototype_primitives",
+      "data_binding": "plan_capital + settlement_plan (placement authorities)",
+      "maturity": "prototype",
+      "rebuild_target": "NWR-008: original glTF settlement kit with sockets/collision/LOD",
+      "proof": "gates:castle-city (13 silhouette kinds, gate opening delta 0.29)"
+    },
+    {
+      "path": "npcs",
+      "module": "pc3d_render::npcs",
+      "representation": "primitive_box_bodies_with_role_colors",
+      "representation_class": "prototype_primitives",
+      "data_binding": "NpcBrain positions/intents stepped on the real NavPatch",
+      "maturity": "prototype",
+      "rebuild_target": "NWR-009: original rig-ready characters with role gear + animation states",
+      "proof": "gates:npc-cast (control-diff presence, props==activity)"
+    },
+    {
+      "path": "machines",
+      "module": "pc3d_render::machines",
+      "representation": "procedural_octagonal_water_wheel",
+      "representation_class": "prototype_primitive",
+      "data_binding": "hydro::best_wheel_site (the sim's siting authority)",
+      "maturity": "prototype",
+      "rebuild_target": "NWR-007/008 utility family glTF (bridge/dock/wheel)",
+      "proof": "unit: wheel sits at the sim's best site; gates:quality-tiers frames"
+    },
+    {
+      "path": "materials",
+      "module": "pc3d_assets::material_albedo + pc3d_render detail texture",
+      "representation": "flat_registry_colors_plus_one_procedural_noise_tile",
+      "representation_class": "prototype_flat",
+      "data_binding": "beta-critical manifest material names (registry coverage tested)",
+      "maturity": "prototype",
+      "rebuild_target": "NWR-002/006: compact original texture/material library, channel-packed tileables",
+      "proof": "unit: registry covers every beta-critical material; gates:quality-tiers (noise at high tier)"
+    },
+    {
+      "path": "lighting_and_sky",
+      "module": "pc3d_render::renderer (pipelines; shaders/scene.wgsl fs_mesh/fs_sky)",
+      "representation": "lambert_sun_plus_hemisphere_ambient_and_ray_sky",
+      "representation_class": "prototype_lighting",
+      "data_binding": "fixed dawn sun; CPU mirror in lockstep (every pixel-exact probe)",
+      "maturity": "prototype",
+      "rebuild_target": "NWR-006: sun/sky lighting, shadows, fog, atmospheric depth",
+      "proof": "gates:windowed-3d-axes (sky probes), unit: lighting contract"
+    },
+    {
+      "path": "player",
+      "module": "pc3d_render::player",
+      "representation": "walking_body_with_final_solid_collision",
+      "representation_class": "systems_grade",
+      "data_binding": "read-only terrain queries; ray_target for building",
+      "maturity": "working",
+      "rebuild_target": "NWR-005: terrain collider from the new surface representation",
+      "proof": "unit: walker follows terrain/blocked by walls; gates:vertical-slice journey"
+    },
+    {
+      "path": "save_load",
+      "module": "pc3d_save (+ pc3d_render::slice)",
+      "representation": "versioned_framed_snapshots_meta_player",
+      "representation_class": "systems_grade",
+      "data_binding": "world meta + per-patch build snapshots + player.bin (refusal laws)",
+      "maturity": "working",
+      "rebuild_target": "NWR-005+: migrations must version + regression-test (hard exclusion)",
+      "proof": "unit: slice round-trip; gates:vertical-slice (reload pixel-identical)"
+    }
+  ],
+  "asset_files_on_disk": [],
+  "asset_batch_status": {
+    "pack": "docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/first_asset_batch.json",
+    "rows": [
+      {"id": "prop.tree_ash", "status": "planned", "compiled_exists": false},
+      {"id": "prop.rock_granite", "status": "planned", "compiled_exists": false},
+      {"id": "module.house_croft", "status": "planned", "compiled_exists": false}
+    ]
+  },
+  "screenshot_gates": {
+    "battery": "make p3d-visual-gates",
+    "report": "poorcraft3d/apps/poorcraft3d/shots/gates_report.txt",
+    "gates": [
+      {"name": "windowed-3d-axes", "command_flag": "--play-shot"},
+      {"name": "terrain-scenes", "command_flag": "--play-terrain"},
+      {"name": "stream-walk", "command_flag": "--play-stream"},
+      {"name": "river-water", "command_flag": "--play-water"},
+      {"name": "castle-city", "command_flag": "--play-city"},
+      {"name": "npc-cast", "command_flag": "--play-npcs"},
+      {"name": "quality-tiers", "command_flag": "--play-quality"},
+      {"name": "vertical-slice", "command_flag": "--play-slice"},
+      {"name": "asset-manifest", "command_flag": "--validate-assets"}
+    ]
+  },
+  "runtime_commands": [
+    "--play", "--play-shot", "--play-build", "--play-build live", "--play-terrain",
+    "--play-stream", "--play-water", "--play-city", "--play-npcs", "--play-quality",
+    "--play-slice", "--play-slice live", "--validate-assets",
+    "--identity", "--format", "--baseline", "--run", "--atlas", "--terrain-bench",
+    "--debug-overlay", "--flow-map", "--diagnose", "--soak", "--journey"
+  ],
+  "data_boundaries": {
+    "pc3d_world": "deterministic, rendering-free (no wgpu/winit/UI/texture deps)",
+    "pc3d_render": "reads snapshots/queries; never mutates canonical state",
+    "pc3d_assets": "manifests, validation, material metadata, asset paths",
+    "pc3d_save": "versioned persistence + migrations (P3D-002 refusal law)",
+    "apps/poorcraft3d": "thin input/window/presentation shell"
+  },
+  "performance_baseline": {
+    "host": "darwin 24.6.0 x64 (host iGPU)",
+    "all_rendered_gates": ">= 92 fps avg, worst p95 21.6 ms (VISUAL-GATES-REPORT.md)",
+    "streaming_steady_state": "~1.1 ms/frame after capped load",
+    "quality_tiers": "42/80/102 patches at 2831/5468/6908 KB GPU",
+    "slice_showcase": "p50 17.98 ms / 66 fps (band load included)"
+  }
+}

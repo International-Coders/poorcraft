@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-07 — NWR-001: rebuild baseline audit + anti-false-art guardrail
+
+The natural-world rebuild (owner's new pack, milestones NWR-001..011)
+begins. This milestone changed NO rendering — it secured the baseline:
+
+- Verification battery green: 356/356 pc3d tests, 9/9 visual gates, smoke
+  OK, root untouched.
+- `capability_inventory.json`: the machine-readable truth of all 12
+  renderer paths (module / representation / maturity / rebuild target /
+  proof), asset-batch status (all planned, zero GLBs on disk), the gate
+  battery, runtime commands, data boundaries, perf baseline.
+- `pc3d_render::inventory` (new, 2 tests): validates the inventory
+  against the repo and enforces the ANTI-FALSE-ART LAW — an asset row
+  claiming "shipped" must match the pack status AND a live disk scan of
+  `assets/compiled/**.glb`, in both directions. Sabotage-tested: even a
+  coordinated pack+inventory lie fails on the missing file. Future
+  milestones upgrade rows only by shipping real artifacts.
+
 ## 2026-09-07 — R3DV-012: regression + performance gates — VISUAL RESET COMPLETE
 
 - `make p3d-visual-gates`: the standing 9-gate regression battery re-runs

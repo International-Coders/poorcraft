@@ -1432,3 +1432,17 @@ Deferred (honest notes):
       engine work), gameplay-affecting resource rows per biome (mining
       tables are global today), and merging (no merge was needed: every
       biome now differs on the visible tuple).
+
+## 2026-09-07 — Natural-world rebuild (NWR pack) baseline recorded
+
+- DONE (NWR-001): baseline audit + capability inventory + the
+  anti-false-art guardrail (pc3d_render::inventory). No rendering changed.
+- NEXT (NWR-002): original GLB asset factory (tree/rock/house), validated
+  source-to-GLB pipeline, windowed render proof.
+- DEFERRED to their milestones (per rebuild_roadmap.json): natural
+  terrain surface migration (NWR-003/004), sparse caves + conforming
+  water (NWR-005), materials/atmosphere (NWR-006), wilderness assets
+  (NWR-007), settlement kit (NWR-008), NPC presentation (NWR-009), Deck
+  quality contract (NWR-010), rebuild vertical slice (NWR-011).
+- The prior visual reset's honest deferrals remain tracked in
+  docs/POORCRAFT-3D-VISUAL-RESET/VISUAL-GATES-REPORT.md §Known limits.

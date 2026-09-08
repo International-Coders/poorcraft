@@ -4975,3 +4975,41 @@ HONESTLY DEFERRED (beyond R3DV-012's known-limits list): the queue is
 done — future visual work (smooth terrain, shadows, authored assets,
 faction skins, day/night) is new scope to be scheduled by the owner, with
 the gates battery as its regression floor.
+
+## 2026-09-07 — NWR-001: rebuild baseline audit + the anti-false-art guardrail
+
+WHAT: The natural-world rebuild begins. The owner's new pack
+(docs/POORCRAFT-VALHEIM-STYLE-REBUILD/, 11 milestones NWR-001..011) was
+read in full and committed as the assignment of record. NWR-001's declared
+scope — audit + guardrails, NO rendering/terrain/asset/save changes — was
+executed: the verification battery re-run green (pc3d 356/356 unit tests,
+9/9 visual gates, smoke OK, tree clean), and the machine-readable
+CAPABILITY INVENTORY now records what every renderer path actually is:
+module, representation class, data binding, maturity, rebuild target, and
+proof — for all twelve paths (natural terrain, caves, streaming, water,
+construction, city, NPCs, machines, materials, lighting, player,
+save/load), plus the asset-batch truth (all three first-batch rows
+planned, ZERO .glb files on disk), the 9-gate battery, runtime commands,
+data boundaries, and the performance baseline.
+
+HOW (the guardrail is code, not prose): new pc3d_render::inventory module
+parses capability_inventory.json and FAILS the suite when it claims more
+than reality — renderer-path modules must exist as files; every declared
+gate must appear in the Makefile battery (count matched against the run
+list) and its CLI flag in the shell; runtime commands must exist; and the
+ANTI-FALSE-ART LAW: an asset row claiming shipped must match the pack
+manifest's status AND point at a .glb found by a live disk scan
+(asset_files_on_disk is recomputed both directions). Sabotage-tested
+twice: a lone inventory lie fails on the pack mismatch; a COORDINATED
+pack+inventory "shipped" lie still fails on the missing disk file.
+Baseline restored and green. This is what makes "finished art" claims
+impossible in later milestones: upgrading a row requires shipping the
+real artifact first.
+
+EVIDENCE: pc3d 356/356 + 2 new guardrail tests (the suite now enforces
+the inventory); make p3d-visual-gates 9/9 PASS; make p3d-smoke OK; root
+workspace untouched. No terrain/asset/rendering/worldgen/save changes —
+NWR-001 scope honored exactly.
+
+NEXT: NWR-002 (original GLB asset factory — tree/rock/house from
+repository-owned sources, validated pipeline, windowed render proof).
