@@ -20,6 +20,7 @@
 //! and semantic pixel proofs (face-flip, occlusion, parallax).
 
 pub mod app;
+pub mod atmosphere;
 pub mod city;
 pub mod glb;
 pub mod inventory;

@@ -2488,6 +2488,188 @@ fn main() {
                 }
             }
         }
+        Some("--play-materials") => {
+            // NWR-006: materials + atmosphere in one live window — the
+            // Mid tier vista (shadows + fog + material grain + glint),
+            // the LEGACY control (same scene, every term off), the High
+            // tier, and a walk into the cutout foliage.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+
+            use pc3d_render::atmosphere::{
+                foliage_quads, AtmosphereTier, CutoutMask, LEGACY,
+            };
+            use pc3d_render::surface::SurfaceRegion;
+            use pc3d_render::{ProbeSet, Shot};
+
+            let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+            let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
+            let region = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), coord);
+            let (verts, idx, _) = region.mesh_region();
+            let ox = coord.x as f32 * 16.0 - 16.0;
+            let oz = coord.z as f32 * 16.0 - 16.0;
+            let ground = |x: f32, z: f32| {
+                gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+            };
+            // Foliage field on the near hill + water strips in the dip.
+            let (fverts, fidx) = foliage_quads([ox + 6.0, ground(ox + 6.0, oz + 6.0), oz + 6.0], 3, 3, 2.2);
+            let mut wverts = Vec::new();
+            let mut widx = Vec::new();
+            for k in 0..10i32 {
+                let z0 = oz + 2.0 + k as f32 * 2.0;
+                let y = ground(ox + 14.0, z0) + 0.35;
+                let base = wverts.len() as u16;
+                for p in [
+                    [ox + 9.0, y, z0],
+                    [ox + 19.0, y, z0],
+                    [ox + 19.0, y, z0 + 2.0],
+                    [ox + 9.0, y, z0 + 2.0],
+                ] {
+                    wverts.push(pc3d_render::water::WaterVertex {
+                        pos: p,
+                        dir: [1.0, 0.0],
+                        speed: 2.0,
+                        alpha: 0.66,
+                    });
+                }
+                widx.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+            }
+            // Vista pose: above the hill looking across the water toward
+            // the sun (the glint) with the foliage in the mid-ground.
+            let eye = [
+                ox + 1.0,
+                ground(ox + 1.0, oz + 1.0) + 9.0,
+                oz + 1.0,
+            ];
+            let aim = [ox + 16.0, ground(ox + 16.0, oz + 10.0) + 1.0, oz + 10.0];
+            let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
+            let pose = pc3d_render::CameraPose::new(
+                eye,
+                (-d[0]).atan2(-d[2]),
+                (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+            );
+            // Cutout close-up: inside the foliage field.
+            let eye2 = [
+                ox + 4.0,
+                ground(ox + 4.0, oz + 5.0) + 1.7,
+                oz + 5.0,
+            ];
+            let aim2 = [ox + 9.0, ground(ox + 9.0, oz + 7.0) + 1.4, oz + 7.0];
+            let d2 = [aim2[0] - eye2[0], aim2[1] - eye2[1], aim2[2] - eye2[2]];
+            let pose2 = pc3d_render::CameraPose::new(
+                eye2,
+                (-d2[0]).atan2(-d2[2]),
+                (d2[1] / (d2[0] * d2[0] + d2[1] * d2[1] + d2[2] * d2[2]).sqrt()).asin(),
+            );
+
+            let v1 = verts.clone();
+            let i1 = idx.clone();
+            let fv = fverts.clone();
+            let fi = fidx.clone();
+            let wv = wverts.clone();
+            let wi = widx.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — materials and atmosphere".into(),
+                max_frames: Some(190),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![
+                    (0, pose),
+                    (130, pose2),
+                ],
+                shots: vec![
+                    Shot::new(30, format!("{out_dir}/windowed_materials_mid.png")),
+                    Shot::new(70, format!("{out_dir}/windowed_materials_legacy.png")),
+                    Shot::new(110, format!("{out_dir}/windowed_materials_high.png")),
+                    Shot::new(170, format!("{out_dir}/windowed_materials_cutout.png"))
+                        .sky(false), // inside the leaf cards
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            r.set_placeholder_scene(false);
+                            r.load_surface(&v1, &i1);
+                            let tris = r.load_cutout(&fv, &fi, CutoutMask::Leaf);
+                            r.load_water_vertices(&wv, &wi);
+                            r.set_water_time(Some(0.0));
+                            r.set_atmosphere_tier(AtmosphereTier::Mid);
+                            println!(
+                                "ATMOSPHERE: mid tier (shadow {}, fog {}, detail {}, glint), {} foliage tris",
+                                AtmosphereTier::Mid.params().shadow_res,
+                                AtmosphereTier::Mid.params().fog_density,
+                                AtmosphereTier::Mid.params().detail_strength,
+                                tris
+                            );
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        60,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            // The control: EXACTLY the legacy look.
+                            r.set_atmosphere(LEGACY);
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        100,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            let p = AtmosphereTier::High.params();
+                            r.set_atmosphere(p);
+                            println!(
+                                "ATMOSPHERE: high tier (shadow {}, fog {}, detail {})",
+                                p.shadow_res, p.fog_density, p.detail_strength
+                            );
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    print_window_report(&report);
+                    if report.captures.len() != 4 {
+                        eprintln!("[FAIL] expected 4 captures, got {}", report.captures.len());
+                        std::process::exit(1);
+                    }
+                    for cap in &report.captures {
+                        if !cap.report.passes_with(3) {
+                            eprintln!(
+                                "[FAIL] capture {}: {:?}",
+                                cap.path.display(),
+                                cap.report.failed_probes()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    let mid = &report.captures[0].rgba;
+                    let legacy = &report.captures[1].rgba;
+                    let high = &report.captures[2].rgba;
+                    let d_mid = pc3d_render::scene::pixel_difference_fraction(mid, legacy);
+                    let d_high = pc3d_render::scene::pixel_difference_fraction(high, legacy);
+                    if d_mid < 0.02 {
+                        eprintln!("[FAIL] the atmosphere must visibly change the scene ({d_mid})");
+                        std::process::exit(1);
+                    }
+                    if d_high < 0.02 {
+                        eprintln!("[FAIL] the high tier must differ from legacy ({d_high})");
+                        std::process::exit(1);
+                    }
+                    println!(
+                        "ATMOSPHERE DIFFS: mid vs legacy {d_mid:.2}%, high vs legacy {d_high:.2}%"
+                    );
+                    println!(
+                        "WINDOWED MATERIALS PROOF PASS -> mid/legacy/high/cutout in {out_dir}"
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some("--play-surface-stream") => {
             // NWR-004: the MIGRATED ordinary terrain — streamed SURFACE
             // patches with LOD rings + skirts, a real vista to the horizon.

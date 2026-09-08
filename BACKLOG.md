@@ -1487,3 +1487,14 @@ Deferred (honest notes):
   app loop, dedicated cave batch pass (wilderness assets), asset
   colliders feeding player collision (carried from NWR-002), texture
   materials (NWR-006).
+
+## 2026-09-08 — NWR-006 materials/atmosphere shipped
+
+- DONE: pc3d_render::atmosphere (tier table + budgets, texel-snapped
+  sun shadow map, exp2 fog, procedural material atlas from
+  pc3d_assets metadata, water glint, cutout foliage pipeline),
+  --play-materials windowed proof, make p3d-materials. LEGACY default
+  keeps all prior pixels; 9/9 gates green.
+- DEFERRED: one cascade (near field only), sky-band fog, masked
+  foliage shadows, GLB textured leaves (NWR-007), live-shell tier
+  binding (NWR-011).

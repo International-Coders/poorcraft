@@ -5242,3 +5242,75 @@ subscription in the app loop yet. Cave meshes ride the u32 mesh slot in
 proofs (a dedicated cave batch pass comes with the wilderness assets).
 No new art families (per the task stop line). Next: NWR-006 —
 materials and atmosphere.
+
+## 2026-09-08 — NWR-006: materials and atmosphere
+
+WHAT: The renderer gained its stylized atmosphere layer — sun shadows,
+distance fog, material grain, water glint, and alpha-cutout foliage —
+all tier-budgeted and all OFF by default: the renderer's initial
+Atmosphere is LEGACY (every term an identity), so every pre-NWR-006
+proof stays bit-identical until a tier is applied, and all 9 existing
+visual gates re-ran green untouched. AtmosphereTier rows document the
+budgets: Low = no shadow pass + thin fog; Mid (recommended) = 1024²
+depth (+~4 MB), fog 0.0055, material detail 0.55, glint; High = 2048²
+(+~16 MB), fog 0.0070, detail 0.85. No screen-space effects, no GI, no
+image files — the atlas is generated deterministically from
+pc3d_assets-owned metadata.
+
+HOW: crates/pc3d_render/src/atmosphere.rs (new; tier table, exp2 fog
+with CPU mirrors, texel-snapped light ortho, material weights, the
+256×64 atlas + leaf mask generators, foliage quads, 13 tests).
+scene.wgsl: an Env uniform (light VP + fog/shadow/detail/glint params)
+at group 0 bindings 3-5; vs_shadow depth-only entry (+ a cutout-layout
+variant); fs_mesh gains 3×3-PCF shadow sampling (normal offset +
+constant+slope bias, 0.35 soft floor), the atlas blend by albedo
+weights, and linear-space fog; fs_water gains the capped sun glint and
+fog; vs_cutout/fs_cutout discard on a group-1 mask. renderer.rs: env
+buffer, shadow map (rebuilt per tier), the light-pass bind group
+(bg_light — the shadow pass must not sample the texture it writes),
+cutout slot, set_atmosphere(_tier), and the shadow pass before the
+main pass (the streamers cull with the light matrix). pc3d_assets:
+material_detail registry + DETAIL_ATLAS_SPECS with a coverage test.
+apps: --play-materials; Makefile p3d-materials.
+
+EVIDENCE: 13 atmosphere tests (7 CPU laws + 6 GPU proofs). Shadows:
+strongest darkening 0.35 exactly at the computed cast point, mean
+frame delta 0.004 (local), sun-side ground unchanged, and a STILL
+camera produces a bit-identical map frame (the snap). Fog: far field
+distance-to-haze 0.70 → 0.07 with the near ground kept (mirror-true).
+Materials: grass patch 2 → 81 distinct colors, rock 2 → 108, with
+cross-patch separation and each hue preserved (grass stays green).
+Glint: brightest water pixel 2.36 → 2.84 looking sunward. Cutout: the
+marker wall shows through the leaf holes (3485 px) more than through
+the solid control (3361 — open wall around the plants), frame diff
+2.4%. Tier rows: Low/Mid/High render with their shadow budget and
+print timing. WINDOWED make p3d-materials (171 frames, p50 0.70-0.84
+ms, avg ~950 fps): mid/legacy/high/cutout captures human-inspected
+PASS — cast shadows behind the foliage, warm haze swallowing the far
+hills, a sun glint streak on the water, mottled grass against gray
+rock, and leaf cards you can see through; atmosphere diffs 34%/39% vs
+the legacy control. 9/9 visual gates green; render crate 104/104; full
+suites green (p3d 399/399, root 474/474).
+
+BUGS FOUND BY THE PROOFS (all fixed): (1) the RH orthographic depth
+row assumed view-space +z forward — the RH view looks down −z, so
+every shadow depth fell outside [0,1] and everything compared lit;
+(2) SUN_DIR points TOWARD the sun, so the light camera must look
+along −SUN_DIR with its eye up-sun — the first map ordered depths
+backwards; (3) the shadow lookup's v coordinate must FLIP against NDC
+y or the map is read upside-down (the everything-shadowed run); (4)
+wgpu float-depth pipeline bias units are whole-range — constant 2
+meant 'always lit'; bias now lives in the shader (constant + slope);
+(5) the shadow pass may not sample the texture it writes (wgpu
+usage-scope law) — the light pass binds bg_light with the 1×1 dummy.
+
+HONESTLY DEFERRED: one shadow cascade covers the near 110-130 m field
+(far terrain stays unshadowed — beyond the fog's influence anyway);
+fog colors geometry but not the sky band (the stylized horizon blend
+reads well; per-direction sky fog is future polish); cutout foliage
+casts SOLID shadows (no mask test in the depth pass — a documented
+choice); the GLB tree keeps solid-octahedron leaves (textured cutout
+leaves migrate with NWR-007's instanced wilderness batch); the live
+--play/--play-slice shell still runs LEGACY atmosphere (the tier binds
+at NWR-011 slice integration; the renderer API is proven here). Next:
+NWR-007 — wilderness assets and instanced placement.

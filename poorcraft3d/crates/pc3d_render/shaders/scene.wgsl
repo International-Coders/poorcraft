@@ -24,6 +24,95 @@ struct Globals {
 
 @group(0) @binding(0) var<uniform> globals: Globals;
 
+// --- Atmosphere (NWR-006) --------------------------------------------------
+// Shared by mesh/cutout/water; every term is identity at its zero value so
+// the legacy (pre-NWR-006) look is exactly reproducible.
+
+struct Env {
+    light_view_proj: mat4x4f,
+    fog_color: vec4f,
+    // x fog density, y shadow on, z shadow texel (m), w detail strength
+    params1: vec4f,
+    // x glint on, y shadow bias, z detail scale (uv/m), w shadow res (px)
+    params2: vec4f,
+};
+
+@group(0) @binding(3) var<uniform> env: Env;
+@group(0) @binding(4) var shadow_sampler: sampler_comparison;
+@group(0) @binding(5) var shadow_tex: texture_depth_2d;
+
+// 3x3 PCF over the sun's depth map; 1.0 = fully lit. Outside the ortho
+// box the world is simply lit (no shadow data there).
+fn shadow_factor(wp: vec3f, sun_cos: f32) -> f32 {
+    if env.params1.y < 0.5 { return 1.0; }
+    let p = env.light_view_proj * vec4f(wp, 1.0);
+    // NDC +y maps to attachment row 0 while texture v=0 also samples row
+    // 0 — v must flip, or the lookup reads the map upside-down (the
+    // everything-shadowed run proved it the hard way).
+    let ndc = p.xy / p.w;
+    let uv = vec2f(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    if uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || p.w <= 0.0 {
+        return 1.0;
+    }
+    // Constant + SLOPE-scaled bias: a surface grazing the light changes
+    // depth by ~texel/NdotL per shadow tap, which a constant alone can't
+    // cover (the pillar's lit wall broke out in acne until this landed).
+    let bias = env.params2.y
+        + (env.params1.z * 1.8 / max(sun_cos, 0.1)) / 759.0;
+    let d = p.z / p.w - bias;
+    let tr = max(env.params2.w, 1.0);
+    var acc = 0.0;
+    for (var dy = -1; dy <= 1; dy++) {
+        for (var dx = -1; dx <= 1; dx++) {
+            acc += textureSampleCompare(
+                shadow_tex, shadow_sampler,
+                uv + vec2f(f32(dx), f32(dy)) / tr, d,
+            );
+        }
+    }
+    return acc / 9.0;
+}
+
+@group(0) @binding(1) var detail_sampler: sampler;
+@group(0) @binding(2) var detail_texture: texture_2d<f32>;
+
+// Material-detail weights from the vertex albedo alone — the WGSL mirror
+// of atmosphere::material_weights: green excess -> grass, warm tan ->
+// sand, bright -> snow, low saturation -> rock.
+fn material_weights(a: vec3f) -> vec4f {
+    let mx = max(a.r, max(a.g, a.b));
+    let mn = min(a.r, min(a.g, a.b));
+    let sat = mx - mn;
+    let val = (a.r + a.g + a.b) / 3.0;
+    let w_grass = max(a.g - max(a.r, a.b), 0.0);
+    let w_rock = max(1.0 - sat * 3.0, 0.0);
+    let w_sand = max(min(a.r, a.g) - a.b, 0.0);
+    let w_snow = max((val - 0.70) * 6.0, 0.0);
+    let sum = w_grass + w_rock + w_sand + w_snow;
+    if sum < 1e-5 { return vec4f(0.0, 1.0, 0.0, 0.0); }
+    return vec4f(w_grass, w_rock, w_sand, w_snow) / sum;
+}
+
+// One atlas tile sampled with fract-wrap + an inset against bleeding.
+fn atlas_tile(uvw: vec2f, tile: u32) -> f32 {
+    var u = fract(uvw.x);
+    var v = fract(uvw.y);
+    u = clamp(u, 0.02, 0.98);
+    v = clamp(v, 0.02, 0.98);
+    return textureSample(
+        detail_texture, detail_sampler,
+        vec2f((f32(tile) + u) / 4.0, v),
+    ).r;
+}
+
+// Distance fog (identity at density 0) — the WGSL mirror of
+// atmosphere::fog_factor / apply_fog, mixed in LINEAR space.
+fn apply_fog(col: vec3f, world: vec3f) -> vec3f {
+    let t = distance(world, globals.cam_pos.xyz) * env.params1.x;
+    let f = 1.0 - exp(-t * t);
+    return mix(col, env.fog_color.rgb, f);
+}
+
 // --- Sky -------------------------------------------------------------------
 
 struct SkyOut {
@@ -87,23 +176,115 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
     return out;
 }
 
-@group(0) @binding(1) var detail_sampler: sampler;
-@group(0) @binding(2) var detail_texture: texture_2d<f32>;
-
 @fragment
 fn fs_mesh(in: MeshOut) -> @location(0) vec4f {
     let n = normalize(in.normal);
-    let sun = max(dot(n, globals.sun_dir.xyz), 0.0);
+    var sun = max(dot(n, globals.sun_dir.xyz), 0.0);
+    // Sun shadows (NWR-006): normal-offset the lookup, keep a soft 35%
+    // floor in shadow — a stylized penumbra, never black.
+    if sun > 0.0 {
+        let wp = in.world + n * env.params1.z * 2.0;
+        sun = sun * mix(0.35, 1.0, shadow_factor(wp, sun));
+    }
     // Hemisphere ambient (R3DV-010): sky above, ground below.
     var light = 0.38 * (0.5 + 0.5 * n.y) + 0.22 * (0.5 - 0.5 * n.y) + 1.05 * sun;
     var albedo = in.color;
     // Detail texture (high tier): subtle deterministic surface variation
     // from world-space UVs; globals.tan_aspect.w is the detail flag.
+    // (NWR-006: the noise now reads ATLAS TILE 0 — one texture serves
+    // both the legacy flag and the new material blend.)
     if globals.tan_aspect.w > 0.5 {
-        let d = textureSample(detail_texture, detail_sampler, in.pos.xz * 0.25).r;
+        let d = atlas_tile(in.pos.xz * 0.25, 0u);
         albedo = albedo * (0.88 + 0.24 * d);
     }
-    return vec4f(albedo * min(light, 1.0), 1.0);
+    // Material detail (NWR-006): the atlas tiles blend by the albedo's
+    // own material weights — grass/rock/sand/snow grain without any
+    // vertex format change.
+    let strength = env.params1.w;
+    if strength > 0.001 {
+        let w = material_weights(albedo);
+        let uvw = in.world.xz * env.params2.z;
+        let d = w.x * atlas_tile(uvw, 0u)
+            + w.y * atlas_tile(uvw, 1u)
+            + w.z * atlas_tile(uvw, 2u)
+            + w.w * atlas_tile(uvw, 3u);
+        albedo = albedo * (1.0 - strength + strength * (0.55 + 0.9 * d));
+    }
+    var col = albedo * min(light, 1.0);
+    col = apply_fog(col, in.world);
+    return vec4f(col, 1.0);
+}
+
+// --- Shadow depth pass (NWR-006): depth-only from the sun -----------
+
+struct ShadowOut {
+    @builtin(position) pos: vec4f,
+};
+
+@vertex
+fn vs_shadow(v: MeshIn) -> ShadowOut {
+    var out: ShadowOut;
+    out.pos = env.light_view_proj * vec4f(v.pos, 1.0);
+    return out;
+}
+
+// Depth-only entry for the cutout vertex layout (solid foliage shadow).
+@vertex
+fn vs_shadow_cutout(@location(0) pos: vec3f) -> ShadowOut {
+    var out: ShadowOut;
+    out.pos = env.light_view_proj * vec4f(pos, 1.0);
+    return out;
+}
+
+// --- Cutout foliage (NWR-006): mask-tested lit quads ----------------
+
+struct CutoutIn {
+    @location(0) pos: vec3f,
+    @location(1) normal: vec3f,
+    @location(2) color: vec3f,
+    @location(3) uv: vec2f,
+};
+
+struct CutoutOut {
+    @builtin(position) pos: vec4f,
+    @location(0) normal: vec3f,
+    @location(1) color: vec3f,
+    @location(2) world: vec3f,
+    @location(3) uv: vec2f,
+};
+
+// The cutout mask rides its OWN bind group (group 1) so the shared
+// module keeps unique bindings.
+@group(1) @binding(0) var mask_sampler: sampler;
+@group(1) @binding(1) var mask_texture: texture_2d<f32>;
+
+@vertex
+fn vs_cutout(v: CutoutIn) -> CutoutOut {
+    var out: CutoutOut;
+    out.pos = globals.view_proj * vec4f(v.pos, 1.0);
+    out.normal = v.normal;
+    out.color = v.color;
+    out.world = v.pos;
+    out.uv = v.uv;
+    return out;
+}
+
+@fragment
+fn fs_cutout(in: CutoutOut) -> @location(0) vec4f {
+    // Alpha cutout: hard discard at the mask threshold (no sorting, no
+    // alpha blend — Deck-cheap and order-independent).
+    let m = textureSample(mask_texture, mask_sampler, in.uv).a;
+    if m < 0.5 { discard; }
+    let n = normalize(in.normal);
+    var sun = max(dot(n, globals.sun_dir.xyz), 0.0);
+    if sun > 0.0 {
+        let wp = in.world + n * env.params1.z * 2.0;
+        sun = sun * mix(0.35, 1.0, shadow_factor(wp, sun));
+    }
+    var light = 0.38 * (0.5 + 0.5 * n.y) + 0.22 * (0.5 - 0.5 * n.y) + 1.05 * sun;
+    var col = in.color * min(light, 1.0);
+    col = apply_fog(col, in.world);
+    return vec4f(col, 1.0);
 }
 
 // --- HUD (bitmap-font debug line) ------------------------------------------
@@ -150,6 +331,7 @@ struct WaterIn {
 struct WaterOut {
     @builtin(position) pos: vec4f,
     @location(0) color: vec4f,
+    @location(1) world: vec3f,
 };
 
 @vertex
@@ -162,10 +344,20 @@ fn vs_water(v: WaterIn) -> WaterOut {
     let stripe = 0.5 + 0.5 * sin(phase * 0.8 - globals.tan_aspect.z * v.speed * 3.0);
     let base = vec3f(0.24, 0.52, 0.85);
     out.color = vec4f(base * (0.7 + 0.3 * stripe), v.alpha);
+    out.world = v.pos;
     return out;
 }
 
 @fragment
 fn fs_water(in: WaterOut) -> @location(0) vec4f {
-    return in.color;
+    var col = in.color;
+    // Restrained sun glint (NWR-006): one specular lobe off the flat
+    // surface toward the viewer; capped so it stays a highlight.
+    if env.params2.x > 0.5 {
+        let v = normalize(globals.cam_pos.xyz - in.world);
+        let r = reflect(-globals.sun_dir.xyz, vec3f(0.0, 1.0, 0.0));
+        let g = pow(max(dot(r, v), 0.0), 48.0);
+        col = vec4f(col.rgb + vec3f(0.90, 0.85, 0.70) * min(g, 0.8), col.a);
+    }
+    return vec4f(apply_fog(col.rgb, in.world), col.a);
 }

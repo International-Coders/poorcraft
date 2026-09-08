@@ -101,7 +101,8 @@
       ],
       "prompt": "prompts/05-NWR-006-materials-atmosphere.md",
       "completion": "Tiered stylized materials, lighting, shadows, fog and water validated.",
-      "status": "next"
+      "status": "done",
+      "evidence": "pc3d_render::atmosphere (new): AtmosphereTier Low/Mid/High with documented budgets (Low: no shadow pass, fog 0.0040; Mid 1024^2 depth +~4MB: fog 0.0055, detail 0.55, glint; High 2048^2 +~16MB: fog 0.0070, detail 0.85); LEGACY default (every term identity) keeps all pre-NWR-006 proofs bit-identical until a tier is applied. Stable sun shadow map: depth-only pass (vs_shadow + cutout variant), ortho box TEXEL-SNAPPED in light space (sub-texel motion leaves the matrix bit-fixed, unit-asserted), 3x3 PCF with constant + slope-scaled shader bias and normal offset, soft 0.35 floor. exp2 distance fog mixed in linear space (CPU mirror fog_factor/apply_flog is the probe truth). Material detail: 4-tile procedural atlas (grass/rock RIDGED/sand/snow sparkle) generated from pc3d_assets::material_detail + DETAIL_ATLAS_SPECS metadata, blended by albedo-derived material weights (WGSL mirror of material_weights; no vertex format change); the legacy detail flag now reads atlas tile 0. Water sun glint (view-dependent lobe, capped 0.8). Alpha-cutout foliage: vs_cutout/fs_cutout discard pipeline (mask at group 1), foliage_quads crossed leaf cards + deterministic leaf_mask with nibbled holes, Solid control mask. GPU proofs (13 atmosphere tests): shadow strongest darkening 0.35 mean-delta 0.004 local + sun-side unchanged + still-camera bit-identical stability; fog far-field pulled to haze (0.70 -> 0.07 distance-to-haze) with near ground kept; material grain grass 2->81 / rock 2->108 distinct colors with separation and hues preserved; glint brightest water pixel 2.36 -> 2.84; cutout wall pixels through leaf 3485 vs solid 3361 (+holes) with 2.4% frame diff; tier rows render with the tier's shadow budget and timing. Windowed --play-materials / make p3d-materials (171 frames p50 0.70-0.84 ms): mid/legacy/high/cutout captures human-inspected PASS (cast shadows behind foliage, haze at the horizon, sun glint streak on the water, mottled grass vs rock, leaf cards with visible-through holes), atmosphere diffs 34%/39% vs legacy. 9/9 visual gates green (LEGACY default). Real bugs the proofs caught: the RH ortho depth row assumed +z forward; SUN_DIR points TOWARD the sun so the light camera must look along -SUN_DIR; the shadow-map lookup v coordinate must flip vs NDC y (everything-shadowed run); wgpu float-depth pipeline bias units are whole-range (constant 2 lit everything); the shadow pass must not sample the texture it writes (usage-scope law -> bg_light)."
     },
     {
       "id": "NWR-007",
@@ -110,7 +111,8 @@
         "NWR-006"
       ],
       "prompt": "prompts/06-NWR-007-wilderness-assets.md",
-      "completion": "Original instanced biome asset set with LOD, collision and performance proof."
+      "completion": "Original instanced biome asset set with LOD, collision and performance proof.",
+      "status": "next"
     },
     {
       "id": "NWR-008",

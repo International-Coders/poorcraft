@@ -137,6 +137,10 @@ p3d-surface-stream: ## NWR-004: streamed SURFACE terrain vista proof: make p3d-s
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-surface-stream $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D SURFACE STREAM OK"
 
+p3d-materials: ## NWR-006: materials + atmosphere proof (shadows/fog/grain/glint/cutout, tier rows): make p3d-materials [OUTDIR=shots]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-materials $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D MATERIALS OK"
+
 p3d-caves: ## NWR-005: caves + conforming water + local-edit proof (cave interior, river before/after dam): make p3d-caves [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-caves $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \

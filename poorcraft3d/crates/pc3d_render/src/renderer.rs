@@ -31,13 +31,34 @@ struct Globals {
     tan_aspect: [f32; 4],
 }
 
+/// The atmosphere uniform (NWR-006), shared by mesh/cutout/water —
+/// 160 bytes, 16-aligned, mirroring `struct Env` in scene.wgsl.
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct EnvGpu {
+    light_view_proj: [f32; 16],
+    fog_color: [f32; 4],
+    /// x fog density, y shadow on, z shadow texel (m), w detail strength
+    params1: [f32; 4],
+    /// x glint on, y shadow bias, z detail scale, w shadow res
+    params2: [f32; 4],
+}
+
 struct Pipelines {
     sky: wgpu::RenderPipeline,
     mesh: wgpu::RenderPipeline,
     hud: wgpu::RenderPipeline,
     water: wgpu::RenderPipeline,
+    /// Depth-only sun pass (NWR-006); no fragment stage.
+    shadow: wgpu::RenderPipeline,
+    /// The same depth-only pass for the cutout vertex layout.
+    shadow_cutout: wgpu::RenderPipeline,
+    /// Alpha-cutout foliage (NWR-006); mask at group 1.
+    cutout: wgpu::RenderPipeline,
     layout_globals: wgpu::BindGroupLayout,
     layout_hud: wgpu::BindGroupLayout,
+    /// The cutout mask bind group layout (group 1).
+    layout_mask: wgpu::BindGroupLayout,
 }
 
 impl Pipelines {
@@ -60,7 +81,8 @@ impl Pipelines {
                         },
                         count: None,
                     },
-                    // Detail texture (R3DV-010 high tier).
+                    // Detail texture (R3DV-010 high tier; NWR-006: the
+                    // material atlas).
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
                         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -77,8 +99,57 @@ impl Pipelines {
                         },
                         count: None,
                     },
+                    // Atmosphere (NWR-006): env uniform, the comparison
+                    // sampler, and the sun's depth map.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
                 ],
             });
+        let layout_mask = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("pc3d cutout mask layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
+        });
         let layout_hud = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("pc3d hud layout"),
             entries: &[
@@ -216,6 +287,91 @@ impl Pipelines {
             ],
         };
 
+        let pl_cutout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("pc3d cutout pipe layout"),
+            bind_group_layouts: &[&layout_globals, &layout_mask],
+            push_constant_ranges: &[],
+        });
+        // Depth-only sun pass: vertex transforms by env.light_view_proj,
+        // no fragment stage at all.
+        let shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("pc3d shadow pipeline"),
+            layout: Some(&pl_globals),
+            vertex: wgpu::VertexState {
+                module: &module,
+                entry_point: Some("vs_shadow"),
+                buffers: std::slice::from_ref(&VERTEX_LAYOUT),
+                compilation_options: Default::default(),
+            },
+            fragment: None,
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: Some(wgpu::Face::Back),
+                front_face: wgpu::FrontFace::Ccw,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                // NO pipeline bias: these units are full float-depth
+                // steps on Depth32Float (constant 2 = the whole range —
+                // every compare lit; the first shadow run caught it).
+                // Acne is handled in the shader: normal offset + 0.0015.
+                bias: Default::default(),
+            }),
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        });
+        let shadow_cutout = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("pc3d shadow cutout pipeline"),
+            layout: Some(&pl_globals),
+            vertex: wgpu::VertexState {
+                module: &module,
+                entry_point: Some("vs_shadow_cutout"),
+                buffers: std::slice::from_ref(&crate::atmosphere::CUTOUT_LAYOUT),
+                compilation_options: Default::default(),
+            },
+            fragment: None,
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: None,
+                front_face: wgpu::FrontFace::Ccw,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        });
+        let cutout_layout = crate::atmosphere::CUTOUT_LAYOUT;
+        let cutout = make(
+            "pc3d cutout pipeline",
+            &pl_cutout,
+            "vs_cutout",
+            "fs_cutout",
+            std::slice::from_ref(&cutout_layout),
+            // Two-sided leaf cards: no culling (a card's back is seen
+            // through the field).
+            None,
+            Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth24Plus,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            None,
+        );
+
         Self {
             sky: make(
                 "pc3d sky pipeline",
@@ -248,8 +404,12 @@ impl Pipelines {
                 Some(wgpu::BlendState::ALPHA_BLENDING),
             ),
             water,
+            shadow,
+            shadow_cutout,
+            cutout,
             layout_globals,
             layout_hud,
+            layout_mask,
         }
     }
 }
@@ -336,6 +496,24 @@ pub struct Renderer {
     water_time_override: Option<f32>,
     /// Detail texture flag (high tier).
     detail_flag: f32,
+    /// Atmosphere state (NWR-006): LEGACY (all off) until a tier is set.
+    atmosphere: crate::atmosphere::Atmosphere,
+    /// The env uniform buffer (fog/shadow/material params + light VP).
+    env_buf: wgpu::Buffer,
+    /// The sun's depth map view (a cleared 1x1 dummy when shadows are off).
+    shadow_view: wgpu::TextureView,
+    /// The depth texture itself (diagnostic readback).
+    shadow_tex: wgpu::Texture,
+    /// The permanent 1x1 dummy view — the SHADOW pass's bind group must
+    /// not sample the texture it writes (wgpu usage-scope law), so the
+    /// light pass binds globals with the dummy in the sampled slot.
+    shadow_dummy: wgpu::TextureView,
+    /// The light pass's globals bind group (dummy in binding 5).
+    bg_light: wgpu::BindGroup,
+    /// The detail/material atlas texture (kept for bind-group rebuilds).
+    detail: wgpu::Texture,
+    /// Alpha-cutout foliage slot (NWR-006): mesh + its mask bind group.
+    cutout: Option<(GpuMesh, wgpu::BindGroup)>,
 }
 
 /// A plain vertex/index buffer pair (u16 or u32 indices).
@@ -347,7 +525,11 @@ struct GpuMesh {
 }
 
 impl GpuMesh {
-    fn from_mesh(device: &wgpu::Device, verts: &[crate::scene::SceneVertex], idx: &[u16]) -> Self {
+    fn from_mesh<T: bytemuck::Pod>(
+        device: &wgpu::Device,
+        verts: &[T],
+        idx: &[u16],
+    ) -> Self {
         use wgpu::util::DeviceExt;
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("mesh vertices"),
@@ -414,13 +596,26 @@ impl Renderer {
         let gpu_scene = GpuScene::new(&ctx.device);
         let camera = Camera::new(default_pose());
         let globals_buf = create_globals_buffer(&ctx.device);
-        let (detail, detail_data) = create_detail_texture(&ctx.device);
+        let (detail, detail_data) = create_atlas_texture(&ctx.device);
         upload_detail(&ctx.queue, &detail, &detail_data);
+        let env_buf = create_env_buffer(&ctx.device);
+        let (_dummy_tex, shadow_dummy) = create_shadow_map(&ctx.device, &ctx.queue, 0);
+        let shadow_view = shadow_dummy.clone();
         let bg_globals = create_globals_bind_group(
             &ctx.device,
             &pipelines.layout_globals,
             &globals_buf,
             &detail,
+            &env_buf,
+            &shadow_view,
+        );
+        let bg_light = create_globals_bind_group(
+            &ctx.device,
+            &pipelines.layout_globals,
+            &globals_buf,
+            &detail,
+            &env_buf,
+            &shadow_dummy,
         );
         let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
         hud.line = default_hud_line(&camera);
@@ -445,6 +640,14 @@ impl Renderer {
             hud,
             depth,
             offscreen: None,
+            atmosphere: crate::atmosphere::LEGACY,
+            env_buf,
+            shadow_view,
+            shadow_tex: _dummy_tex,
+            shadow_dummy,
+            bg_light,
+            detail,
+            cutout: None,
             construction: None,
             terrain: None,
             streamer: None,
@@ -468,13 +671,26 @@ impl Renderer {
         let gpu_scene = GpuScene::new(&ctx.device);
         let camera = Camera::new(default_pose());
         let globals_buf = create_globals_buffer(&ctx.device);
-        let (detail, detail_data) = create_detail_texture(&ctx.device);
+        let (detail, detail_data) = create_atlas_texture(&ctx.device);
         upload_detail(&ctx.queue, &detail, &detail_data);
+        let env_buf = create_env_buffer(&ctx.device);
+        let (_dummy_tex, shadow_dummy) = create_shadow_map(&ctx.device, &ctx.queue, 0);
+        let shadow_view = shadow_dummy.clone();
         let bg_globals = create_globals_bind_group(
             &ctx.device,
             &pipelines.layout_globals,
             &globals_buf,
             &detail,
+            &env_buf,
+            &shadow_view,
+        );
+        let bg_light = create_globals_bind_group(
+            &ctx.device,
+            &pipelines.layout_globals,
+            &globals_buf,
+            &detail,
+            &env_buf,
+            &shadow_dummy,
         );
         let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
         hud.line = default_hud_line(&camera);
@@ -500,6 +716,14 @@ impl Renderer {
             hud,
             depth,
             offscreen: Some(texture),
+            atmosphere: crate::atmosphere::LEGACY,
+            env_buf,
+            shadow_view,
+            shadow_tex: _dummy_tex,
+            shadow_dummy,
+            bg_light,
+            detail,
+            cutout: None,
             construction: None,
             terrain: None,
             streamer: None,
@@ -591,6 +815,168 @@ impl Renderer {
                 tiers: tier.tiers(),
             });
         }
+    }
+
+    /// Applies an atmosphere tier (NWR-006): shadows/fog/material
+    /// detail/water glint with the tier's documented budget. The renderer
+    /// starts at LEGACY (every term off) so pre-NWR-006 proofs stay
+    /// bit-identical until this is called.
+    pub fn set_atmosphere_tier(&mut self, tier: crate::atmosphere::AtmosphereTier) {
+        self.set_atmosphere(tier.params());
+    }
+
+    /// Applies raw atmosphere parameters (the control-render path for
+    /// proofs: same scene with one term toggled).
+    pub fn set_atmosphere(&mut self, atm: crate::atmosphere::Atmosphere) {
+        if atm.shadow_res != self.atmosphere.shadow_res {
+            let (tex, view) =
+                create_shadow_map(&self.ctx.device, &self.ctx.queue, atm.shadow_res);
+            self.shadow_tex = tex;
+            self.shadow_view = view;
+            self.bg_globals = create_globals_bind_group(
+                &self.ctx.device,
+                &self.pipelines.layout_globals,
+                &self.globals_buf,
+                &self.detail,
+                &self.env_buf,
+                &self.shadow_view,
+            );
+            self.bg_light = create_globals_bind_group(
+                &self.ctx.device,
+                &self.pipelines.layout_globals,
+                &self.globals_buf,
+                &self.detail,
+                &self.env_buf,
+                &self.shadow_dummy,
+            );
+        }
+        self.atmosphere = atm;
+    }
+
+    /// The current atmosphere parameters (proof introspection).
+    pub fn atmosphere(&self) -> crate::atmosphere::Atmosphere {
+        self.atmosphere
+    }
+
+    /// Diagnostic: reads the sun shadow map back as f32 depths (the
+    /// shadow proofs' debugging hook; 1x1 when shadows are off).
+    pub fn debug_shadow_map(&self) -> Vec<f32> {
+        let dim = self.atmosphere.shadow_res.max(1);
+        let bytes_per_row = (dim * 4).div_ceil(256) * 256;
+        let buf = self.ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("pc3d shadow readback"),
+            size: (bytes_per_row * dim) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self
+            .ctx
+            .device
+            .create_command_encoder(&Default::default());
+        encoder.copy_texture_to_buffer(
+            self.shadow_tex.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buf,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: None,
+                },
+            },
+            wgpu::Extent3d {
+                width: dim,
+                height: dim,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.ctx.queue.submit(Some(encoder.finish()));
+        let (snd, rcv) = std::sync::mpsc::channel();
+        let mapped = buf.slice(..).map_async(wgpu::MapMode::Read, move |r| {
+            let _ = snd.send(r);
+        });
+        let _ = mapped;
+        self.ctx.device.poll(wgpu::Maintain::Wait);
+        rcv.recv().expect("map");
+        let data = buf.slice(..).get_mapped_range().to_vec();
+        buf.unmap();
+        data.chunks_exact(4)
+            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+            .collect()
+    }
+
+    /// Loads alpha-cutout foliage (NWR-006): crossed leaf cards tested
+    /// against a deterministic mask (Leaf = nibbled silhouette, Solid =
+    /// the opaque control). Returns the triangle count.
+    pub fn load_cutout(
+        &mut self,
+        verts: &[crate::atmosphere::CutoutVertex],
+        idx: &[u16],
+        mask: crate::atmosphere::CutoutMask,
+    ) -> usize {
+        let mesh = GpuMesh::from_mesh(&self.ctx.device, verts, idx);
+        let data = match mask {
+            crate::atmosphere::CutoutMask::Leaf => crate::atmosphere::leaf_mask_rgba(),
+            crate::atmosphere::CutoutMask::Solid => crate::atmosphere::solid_mask_rgba(),
+        };
+        let n = crate::atmosphere::LEAF_MASK_PX;
+        let tex = self.ctx.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("pc3d cutout mask"),
+            size: wgpu::Extent3d {
+                width: n,
+                height: n,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        self.ctx.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &tex,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &data,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(n * 4),
+                rows_per_image: None,
+            },
+            wgpu::Extent3d {
+                width: n,
+                height: n,
+                depth_or_array_layers: 1,
+            },
+        );
+        let sampler = self.ctx.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("pc3d mask sampler"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        let bg = self.ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("pc3d cutout mask bind group"),
+            layout: &self.pipelines.layout_mask,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(
+                        &tex.create_view(&Default::default()),
+                    ),
+                },
+            ],
+        });
+        let tris = idx.len() / 3;
+        self.cutout = Some((mesh, bg));
+        tris
     }
 
     /// Loads a GLB asset LOD at a world placement (meters; pivot at
@@ -856,6 +1242,41 @@ impl Renderer {
             .queue
             .write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&globals));
 
+        // Atmosphere (NWR-006): the sun's stable ortho box follows the
+        // camera focus; every zero value keeps the legacy look.
+        let atm = self.atmosphere;
+        let focus = [
+            cam.pose.position[0] + fwd[0] * 45.0,
+            cam.pose.position[1] + fwd[1] * 45.0,
+            cam.pose.position[2] + fwd[2] * 45.0,
+        ];
+        let lvp = crate::atmosphere::light_view_proj(
+            focus,
+            crate::scene::SUN_DIR,
+            if atm.shadow_res > 0 { atm.shadow_half_m } else { 1.0 },
+            atm.shadow_res.max(1),
+            atm.shadow_res > 0,
+        );
+        let env = EnvGpu {
+            light_view_proj: lvp,
+            fog_color: [atm.fog_color[0], atm.fog_color[1], atm.fog_color[2], 1.0],
+            params1: [
+                atm.fog_density,
+                if atm.shadow_res > 0 { 1.0 } else { 0.0 },
+                crate::atmosphere::shadow_texel(atm.shadow_half_m, atm.shadow_res),
+                atm.detail_strength,
+            ],
+            params2: [
+                if atm.glint { 1.0 } else { 0.0 },
+                0.0015,
+                atm.detail_scale,
+                atm.shadow_res as f32,
+            ],
+        };
+        self.ctx
+            .queue
+            .write_buffer(&self.env_buf, 0, bytemuck::bytes_of(&env));
+
         // HUD: re-rasterize the line and refresh the quad to the target size.
         let (bytes, tw, th) = crate::font::rasterize_line(&self.hud.line.clone(), HUD_SCALE);
         if (tw, th) != self.hud.size {
@@ -1065,6 +1486,77 @@ impl Renderer {
     /// The single draw path shared by the window, the live-window screenshot,
     /// and the offscreen proof target.
     fn encode_frame(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+        // 0. Sun shadow pass (NWR-006): depth-only from the light's ortho
+        // box (env.light_view_proj, written in prepare_frame). The whole
+        // opaque world draws; the streamers cull with the LIGHT matrix.
+        let light_vp: [f32; 16] = {
+            let atm = self.atmosphere;
+            let cam = &self.camera;
+            let f = cam.fwd();
+            crate::atmosphere::light_view_proj(
+                [
+                    cam.pose.position[0] + f[0] * 45.0,
+                    cam.pose.position[1] + f[1] * 45.0,
+                    cam.pose.position[2] + f[2] * 45.0,
+                ],
+                crate::scene::SUN_DIR,
+                if atm.shadow_res > 0 { atm.shadow_half_m } else { 1.0 },
+                atm.shadow_res.max(1),
+                atm.shadow_res > 0,
+            )
+        };
+        if self.atmosphere.shadow_res > 0 {
+            let mut spass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("pc3d sun shadow pass"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.shadow_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            spass.set_pipeline(&self.pipelines.shadow);
+            spass.set_bind_group(0, &self.bg_light, &[]);
+            if self.gpu_scene.index_count > 0 {
+                spass.set_vertex_buffer(0, self.gpu_scene.vertex_buffer.slice(..));
+                spass.set_index_buffer(
+                    self.gpu_scene.index_buffer.slice(..),
+                    wgpu::IndexFormat::Uint16,
+                );
+                spass.draw_indexed(0..self.gpu_scene.index_count, 0, 0..1);
+            }
+            if let Some(s) = self.surface_stream.as_mut() {
+                s.draw(&mut spass, &light_vp);
+            }
+            if let Some(streamer) = self.streamer.as_mut() {
+                streamer.draw(&mut spass, &light_vp);
+            } else if let Some(t) = &self.terrain {
+                t.draw(&mut spass);
+            }
+            if let Some(con) = &self.construction {
+                con.draw(&mut spass);
+            }
+            if let Some(c) = &self.city {
+                c.draw(&mut spass);
+            }
+            if let Some(n) = &self.npcs {
+                n.draw(&mut spass);
+            }
+            for (a, _) in &self.assets {
+                a.draw(&mut spass);
+            }
+            // Foliage casts a SOLID shadow (depth-only has no mask test —
+            // a documented stylized choice).
+            if let Some((m, _)) = &self.cutout {
+                spass.set_pipeline(&self.pipelines.shadow_cutout);
+                m.draw(&mut spass);
+            }
+        }
         let depth_view = self
             .depth
             .as_ref()
@@ -1140,6 +1632,14 @@ impl Renderer {
         for (a, _) in &self.assets {
             a.draw(&mut pass);
         }
+        // 2b5. Alpha-cutout foliage (NWR-006): mask-tested, depth-writing,
+        // opaque blend — order-independent and Deck-cheap.
+        if let Some((m, bg_mask)) = &self.cutout {
+            pass.set_pipeline(&self.pipelines.cutout);
+            pass.set_bind_group(0, &self.bg_globals, &[]);
+            pass.set_bind_group(1, bg_mask, &[]);
+            m.draw(&mut pass);
+        }
         // 2c. Transparent river water LAST among world geometry: depth-read
         // only, alpha blend — banks show through, terrain occludes.
         if let Some(w) = &self.water {
@@ -1183,11 +1683,20 @@ fn create_globals_bind_group(
     layout: &wgpu::BindGroupLayout,
     buf: &wgpu::Buffer,
     detail: &wgpu::Texture,
+    env_buf: &wgpu::Buffer,
+    shadow_view: &wgpu::TextureView,
 ) -> wgpu::BindGroup {
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("pc3d detail sampler"),
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
+    let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("pc3d shadow comparison sampler"),
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        compare: Some(wgpu::CompareFunction::LessEqual),
         ..Default::default()
     });
     device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -1208,16 +1717,106 @@ fn create_globals_bind_group(
                     &detail.create_view(&Default::default()),
                 ),
             },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: env_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::Sampler(&shadow_sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: wgpu::BindingResource::TextureView(shadow_view),
+            },
         ],
     })
 }
 
-/// The detail texture (R3DV-010): a deterministic 64x64 grayscale noise
-/// tile sampled over world-space UVs at high tier — the renderer's first
-/// real texture binding (procedural, original).
-pub struct DetailTexture(wgpu::Texture);
+/// The env uniform buffer (NWR-006).
+fn create_env_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("pc3d env uniform"),
+        size: std::mem::size_of::<EnvGpu>() as wgpu::BufferAddress,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
+/// The sun's depth map (NWR-006). res 0 builds the 1x1 cleared dummy the
+/// layout needs when shadows are off — sampling it compares against 1.0
+/// depth, i.e. fully lit, so the shader path stays uniform.
+fn create_shadow_map(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    res: u32,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    let (w, h) = if res == 0 { (1, 1) } else { (res, res) };
+    let tex = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("pc3d sun shadow map"),
+        size: wgpu::Extent3d {
+            width: w,
+            height: h,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth32Float,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let view = tex.create_view(&Default::default());
+    // Clear once so no undefined memory is ever sampled (the dummy is
+    // never rendered into again).
+    let mut encoder = device.create_command_encoder(&Default::default());
+    {
+        let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("pc3d shadow clear"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+    }
+    queue.submit(Some(encoder.finish()));
+    (tex, view)
+}
+
+/// The material-detail atlas (NWR-006): 256x64 RGBA, generated from the
+/// pc3d_assets metadata — replaces the old single-tile noise (the legacy
+/// detail-flag path now reads atlas tile 0).
+fn create_atlas_texture(device: &wgpu::Device) -> (wgpu::Texture, Vec<u8>) {
+    let data = crate::atmosphere::material_atlas_rgba(&pc3d_assets::DETAIL_ATLAS_SPECS);
+    let tex = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("pc3d material atlas"),
+        size: wgpu::Extent3d {
+            width: crate::atmosphere::ATLAS_TILE_PX * crate::atmosphere::ATLAS_TILES as u32,
+            height: crate::atmosphere::ATLAS_TILE_PX,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    (tex, data)
+}
+
 
 fn upload_detail(queue: &wgpu::Queue, tex: &wgpu::Texture, data: &[u8]) {
+    let w = crate::atmosphere::ATLAS_TILE_PX * crate::atmosphere::ATLAS_TILES as u32;
     queue.write_texture(
         wgpu::TexelCopyTextureInfo {
             texture: tex,
@@ -1228,44 +1827,15 @@ fn upload_detail(queue: &wgpu::Queue, tex: &wgpu::Texture, data: &[u8]) {
         data,
         wgpu::TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(64),
+            bytes_per_row: Some(w * 4),
             rows_per_image: None,
         },
         wgpu::Extent3d {
-            width: 64,
-            height: 64,
+            width: w,
+            height: crate::atmosphere::ATLAS_TILE_PX,
             depth_or_array_layers: 1,
         },
     );
-}
-
-fn create_detail_texture(device: &wgpu::Device) -> (wgpu::Texture, Vec<u8>) {
-    let n = 64usize;
-    let mut data = vec![0u8; n * n];
-    for y in 0..n {
-        for x in 0..n {
-            // Deterministic value noise from cell coordinates.
-            let h = (x as u32).wrapping_mul(374761393)
-                ^ (y as u32).wrapping_mul(668265263);
-            let h = h.wrapping_mul(1274126177);
-            data[y * n + x] = ((h >> 24) & 0xff) as u8;
-        }
-    }
-    let tex = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("pc3d detail noise"),
-        size: wgpu::Extent3d {
-            width: n as u32,
-            height: n as u32,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R8Unorm,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
-    (tex, data)
 }
 
 /// Quality tiers (R3DV-010).

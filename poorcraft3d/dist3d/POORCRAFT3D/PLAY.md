@@ -1,25 +1,25 @@
-# POORCRAFT 3D — the walkable build (NWR-005 caves/water/foundations, 2026-09-08)
+# POORCRAFT 3D — the walkable build (NWR-006 materials & atmosphere, 2026-09-08)
 
 Windowed 3D game over the deterministic simulation: natural streamed
-surface terrain, original glTF assets, and now SPARSE CAVES, conforming
-river water, and terrain-aware foundation checks.
+surface terrain, caves, conforming rivers — now with SUN SHADOWS,
+distance fog, material grain, water glint, and cutout foliage.
 
 ## Play the world (first person)
   ./poorcraft3d --play-slice live
 WASD walk, click to look, F places / R removes at your aim, B saves,
 L reloads, I shows Bed/Work/Idle boxes, Esc quits.
 
-## NEW this build: caves + water + foundations
-  ./poorcraft3d --play-caves
-One live window: stand INSIDE a carved cave (enclosing faceted stone,
-no daylight leak), fly to a river overlook with water conforming to the
-valley, then watch a 6 m dam appear across the strip — only the nearby
-water sections remesh (the printout proves the local-work law).
+## NEW this build: the atmosphere proof
+  ./poorcraft3d --play-materials
+One live window through four looks at the same scene: the Mid tier
+(shadows + fog + grain + glint), the legacy flat control, the High
+tier, and a walk into the cutout foliage — cast shadows behind the
+plants, haze swallowing the far hills, a sun glint on the water.
 
 ## Other automated windowed proofs
-  ./poorcraft3d --play-surface-stream  # streamed surface vista
-  ./poorcraft3d --play-surface         # surface spike + edit
-  ./poorcraft3d --play-assets          # original GLB tree/rock/house
+  ./poorcraft3d --play-caves          # cave interior + river + dam edit
+  ./poorcraft3d --play-surface-stream # streamed surface vista
+  ./poorcraft3d --play-surface | --play-assets
   ./poorcraft3d --play-slice | --play-city | --play-npcs
   ./poorcraft3d --play-water | --play-terrain | --play-stream
   ./poorcraft3d --play-quality | --play-shot | --play

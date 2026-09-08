@@ -1,5 +1,40 @@
 # CHANGELOG
 
+## 2026-09-08 — NWR-006: materials and atmosphere
+
+The renderer's stylized atmosphere layer, tier-budgeted and OFF by
+default (LEGACY keeps every prior proof bit-identical):
+
+- `pc3d_render::atmosphere` (new): `AtmosphereTier` Low/Mid/High with
+  documented budgets (Low no shadow pass + thin fog; Mid 1024² depth
+  ~4 MB, fog 0.0055, detail 0.55, glint; High 2048² ~16 MB, 0.0070,
+  0.85); stable sun shadow map (texel-snapped light ortho — sub-texel
+  camera motion leaves the matrix bit-fixed); exp² distance fog in
+  linear space with CPU probe mirrors; a 4-tile procedural material
+  atlas (grass / ridged rock / sand / sparkling snow) generated from
+  `pc3d_assets::material_detail` metadata and blended by
+  albedo-derived material weights — no vertex format change, no image
+  files; water sun glint (capped lobe); alpha-cutout foliage pipeline
+  with deterministic leaf masks and crossed leaf cards.
+- Shadows: depth-only sun pass (incl. a cutout-layout variant) before
+  the main pass; 3×3 PCF with normal offset and constant + slope-scaled
+  bias; soft 0.35 floor in shadow. Streamers cull with the light
+  matrix.
+- Five real bugs the proofs caught: the RH ortho depth sign, the
+  light-camera direction (SUN_DIR points toward the sun), the
+  shadow-lookup v-flip, float-depth pipeline bias being whole-range,
+  and the wgpu usage-scope law (the shadow pass needs its own bind
+  group).
+- Proofs: 13 atmosphere tests (shadows darken 0.35 exactly at the cast
+  point, local mean 0.004, still-camera bit-stable; fog pulls the far
+  field to haze 0.70→0.07; grain 2→81/108 distinct colors with
+  separation preserved; glint 2.36→2.84; cutout shows the wall through
+  the holes; tier rows) + windowed `--play-materials` /
+  `make p3d-materials` (p50 0.70-0.84 ms, diffs 34%/39% vs legacy,
+  four captures human-inspected PASS). 9/9 gates green.
+
+# CHANGELOG
+
 ## 2026-09-08 — NWR-005: caves, conforming water, foundations
 
 The surface path gains sparse caves, terrain-following rivers, and

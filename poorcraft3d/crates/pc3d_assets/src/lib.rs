@@ -341,9 +341,76 @@ pub fn material_albedo(name: &str) -> Option<[f32; 3]> {
     })
 }
 
+/// NWR-006 material-detail metadata. Every beta-critical material names
+/// the DETAIL FAMILY it renders as (the atlas tile index the renderer
+/// blends from vertex albedo weights: 0 grass / 1 rock / 2 sand / 3 snow)
+/// plus its own grain seed. pc3d_assets owns the metadata; pc3d_render
+/// generates the atlas deterministically from [`DETAIL_ATLAS_SPECS`].
+pub fn material_detail(name: &str) -> Option<DetailSpec> {
+    Some(match name {
+        "mat.grass" | "mat.anchor_idle" => DetailSpec { family: 0 },
+        "mat.castle_stone"
+        | "mat.block_stone"
+        | "mat.rock"
+        | "mat.timber_metal"
+        | "mat.wood_metal"
+        | "mat.npc_guard" => DetailSpec { family: 1 },
+        "mat.timber_roof"
+        | "mat.block_wood"
+        | "mat.soil"
+        | "mat.sand"
+        | "mat.npc_resident"
+        | "mat.npc_worker"
+        | "mat.anchor_bed" => DetailSpec { family: 2 },
+        "mat.snow" | "mat.anchor_work" => DetailSpec { family: 3 },
+        "mat.water_flow" => DetailSpec { family: 2 }, // riverbed grain under water
+        _ => return None,
+    })
+}
+
+/// One material's detail family (atlas tile).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DetailSpec {
+    pub family: u8,
+}
+
+/// The four atlas tiles' generator parameters [noise scale (px), seed] —
+/// grass, rock, sand, snow. The renderer's procedural atlas is a pure
+/// function of this table (no image files ship).
+pub const DETAIL_ATLAS_SPECS: [[u32; 2]; 4] = [[8, 11], [10, 23], [6, 37], [7, 53]];
+
 #[cfg(test)]
 mod material_tests {
     use super::*;
+
+    #[test]
+    fn detail_registry_covers_every_albedo_material() {
+        for name in [
+            "mat.castle_stone",
+            "mat.timber_roof",
+            "mat.timber_metal",
+            "mat.block_stone",
+            "mat.block_wood",
+            "mat.grass",
+            "mat.soil",
+            "mat.rock",
+            "mat.sand",
+            "mat.snow",
+            "mat.water_flow",
+            "mat.wood_metal",
+            "mat.npc_resident",
+            "mat.npc_worker",
+            "mat.npc_guard",
+            "mat.anchor_bed",
+            "mat.anchor_work",
+            "mat.anchor_idle",
+        ] {
+            let spec = material_detail(name).unwrap_or_else(|| panic!("{name} missing detail spec"));
+            assert!(spec.family < 4, "{name} family out of atlas range");
+        }
+        assert!(material_detail("mat.plasma_gun").is_none());
+        assert_eq!(DETAIL_ATLAS_SPECS.len(), 4);
+    }
 
     #[test]
     fn registry_covers_every_beta_critical_material() {
