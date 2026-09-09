@@ -5829,3 +5829,46 @@ HONESTLY DEFERRED: the owner's queue continues (UI-008 visual polish
 with sliced concept art, MCP inspector hardening); per the pack's
 DO_NOT_CLAIM_DONE_UNTIL the owner play pass remains the gate for
 'playable'.
+
+## 2026-09-09 — Owner fixes: THE MOUSE, THE STAMINA, sprint + jump
+
+WHAT: The owner's directive — "play the game, take screenshots, FIX THE
+MOUSE, FIX THE STAMINA, fix the rest". Played via the inspector
+harness; found and fixed:
+
+1. THE MOUSE (dead in gameplay): device_event wrote look into the
+   renderer pose, but the live-slice loop calls
+   set_pose(player.pose()) EVERY FRAME — look was clobbered
+   instantly, so the mouse did nothing. FIX: look now writes the
+   PLAYER BODY through PlayerBody::apply_look — the ONE shared
+   definition (sensitivity, invert-Y, ±1.55 pitch clamp) used by the
+   slice, free flight, and proofs. End-to-end proof via two NEW
+   inspector commands (player_look + camera_pose): turn, wait 90 live
+   frames, the camera KEEPS yaw 0.88 / pitch −0.26 (before the fix
+   those frames rewound it to 0/0); the turned screenshot shows the
+   bright hillside + standing stone. The same proof PASSES from the
+   mounted DMG.
+2. THE STAMINA (drained while merely walking — empty in 20 s — and did
+   nothing): stamina is now a SPRINT resource — walking is FREE,
+   sprinting drains 0.22/s, rest regenerates 0.14/s, hitting empty
+   locks sprint until 25% recovery (no empty-flicker). The law lives
+   in HudValues::tick_vitals, unit-tested (walking-free, exhaustion
+   lockout thresholds, rest-to-full).
+3. SPRINT (the controls spec's Shift, previously unwired): Shift while
+   moving sprints at SPRINT_SPEED 6.6 m/s (walk 4.0) through
+   walk_on_speed on the streamed surface — proven to outrun the walker
+   on the authority ground.
+4. JUMP (the spec's Space, previously unwired): a real minimal hop —
+   vertical impulse 4.6 m/s, gravity 9.8, ground clamp, held-key
+   guard — in the live slice loop.
+
+EVIDENCE: 6 new proof tests (look persists the pose roundtrip,
+sensitivity/invert/clamp, sprint outruns walk, the three stamina
+laws); ui-shots 11/11 PASS; p3d 463/463 (+6); root 474/474; live
+slice ALIVE 12 s; DMG rebuilt, journey digest verified from the
+mount, and the mouse proof re-run green from the mounted volume.
+
+HONESTLY DEFERRED: no coyote-time/air control on the hop; stamina
+does not yet gate a visible speed penalty below empty (it locks
+sprint); the dark spawn-facing slope is the dawn sun, not a bug (the
+turned view is bright).

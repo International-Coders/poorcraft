@@ -4426,6 +4426,33 @@ fn run_ui_inspect(spec: &str) {
                 ));
                 frame += 3;
             }
+            "player_look" => {
+                let dx = cmd["dx"].as_f64().unwrap_or(-240.0) as f32;
+                let dy = cmd["dy"].as_f64().unwrap_or(60.0) as f32;
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, _r, ctx| {
+                        let _ = ui;
+                        ctx.actions.push(pc3d_render::ui::UiAction::PlayerLook { dx, dy });
+                    }),
+                ));
+                frame += 1;
+            }
+            "camera_pose" => {
+                let results = results.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |_ui, r: &mut pc3d_render::Renderer, _ctx| {
+                        let pose = r.pose();
+                        results.borrow_mut().push(serde_json::json!({
+                            "cmd": "camera_pose",
+                            "yaw": pose.yaw,
+                            "pitch": pose.pitch,
+                        }));
+                    }),
+                ));
+                frame += 1;
+            }
             "replay_input" => {
                 let events = cmd["events"].as_array().cloned().unwrap_or_default();
                 let results = results.clone();

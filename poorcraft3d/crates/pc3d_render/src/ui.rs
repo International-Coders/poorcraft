@@ -186,6 +186,32 @@ pub struct HudValues {
     pub selected: usize,
     /// The contextual action prompt near the crosshair/hotbar.
     pub prompt: String,
+    /// Sprint-exhaustion lockout: true once stamina hits 0; sprinting
+    /// returns only after stamina recovers to 25% (no empty-flicker).
+    pub exhausted: bool,
+}
+
+impl HudValues {
+    /// THE STAMINA LAW (one definition, shared by the frame loop and the
+    /// proofs): stamina is a SPRINT resource — walking is free,
+    /// sprinting drains 0.22/s, rest regenerates 0.14/s, empty locks
+    /// sprint until 25% recovery. Food drains slowly while moving.
+    pub fn tick_vitals(&mut self, sprinting: bool, moving: bool, dt: f32) {
+        if sprinting {
+            self.stamina = (self.stamina - 0.22 * dt).max(0.0);
+            if self.stamina <= 0.0 {
+                self.exhausted = true;
+            }
+        } else {
+            self.stamina = (self.stamina + 0.14 * dt).min(1.0);
+            if self.exhausted && self.stamina >= 0.25 {
+                self.exhausted = false;
+            }
+        }
+        if moving {
+            self.food = (self.food - 0.004 * dt).max(0.0);
+        }
+    }
 }
 
 impl Default for HudValues {
@@ -195,6 +221,7 @@ impl Default for HudValues {
             stamina: 1.0,
             food: 1.0,
             xp: 0.0,
+            exhausted: false,
             slots: [
                 Some(HotItem { label: "SOIL", color: [122, 85, 58] }),
                 Some(HotItem { label: "GRASS", color: [92, 138, 78] }),
@@ -1365,6 +1392,9 @@ pub enum UiAction {
     SetQuality(Quality),
     SelectHotbar(usize),
     CaptureMouse,
+    /// Proof hook (inspector): raw mouse deltas applied to the live
+    /// player body — the exact path real mouse motion takes.
+    PlayerLook { dx: f32, dy: f32 },
     Repaint,
 }
 
@@ -2576,4 +2606,52 @@ pub fn verify_ui_captures(
         }
     }
     Ok(lines.join("\n"))
+}
+
+#[cfg(test)]
+mod stamina_tests {
+    use super::HudValues;
+
+    /// THE STAMINA LAW (the owner-reported fix): walking is FREE,
+    /// sprinting drains, rest regenerates, empty locks until 25%.
+    #[test]
+    fn walking_is_free_and_sprinting_drains() {
+        let mut hud = HudValues::default();
+        // 60 s of plain walking: stamina untouched.
+        for _ in 0..3600 {
+            hud.tick_vitals(false, true, 1.0 / 60.0);
+        }
+        assert!((hud.stamina - 1.0).abs() < 1e-3, "walking never drains ({})", hud.stamina);
+        // 3 s of sprinting: ~0.66 drained.
+        for _ in 0..180 {
+            hud.tick_vitals(true, true, 1.0 / 60.0);
+        }
+        assert!(hud.stamina < 0.4 && hud.stamina > 0.25, "sprint drains ({})", hud.stamina);
+    }
+
+    #[test]
+    fn exhaustion_locks_until_quarter_recovery() {
+        let mut hud = HudValues::default();
+        hud.stamina = 0.001;
+        hud.tick_vitals(true, true, 0.1);
+        assert!(hud.exhausted, "empty sprinting exhausts");
+        // Rest to 20%: still locked.
+        hud.stamina = 0.20;
+        hud.tick_vitals(false, false, 0.0);
+        assert!(hud.exhausted, "locked below 25%");
+        // Rest to 26%: unlocked.
+        hud.stamina = 0.26;
+        hud.tick_vitals(false, false, 0.0);
+        assert!(!hud.exhausted, "unlocked at 25% recovery");
+    }
+
+    #[test]
+    fn rest_regenerates_to_full() {
+        let mut hud = HudValues::default();
+        hud.stamina = 0.2;
+        for _ in 0..3600 {
+            hud.tick_vitals(false, false, 1.0 / 60.0);
+        }
+        assert!(hud.stamina > 0.99, "a minute of rest refills ({})", hud.stamina);
+    }
 }

@@ -236,6 +236,9 @@ pub fn assemble(
     SliceHost {
         seed,
         rebuild: false,
+        jump_vy: 0.0,
+        jump_held: false,
+        ground_y: player.pos[1],
         foundation_ok: true,
         player,
         host: std::rc::Rc::new(std::cell::RefCell::new(pc3d_world::host::SoloHost::new(
@@ -725,6 +728,9 @@ pub fn assemble_rebuild(
     let mut host = SliceHost {
         seed,
         rebuild: true,
+        jump_vy: 0.0,
+        jump_held: false,
+        ground_y: player.pos[1],
         foundation_ok: true,
         player,
         host: std::rc::Rc::new(std::cell::RefCell::new(pc3d_world::host::SoloHost::new(

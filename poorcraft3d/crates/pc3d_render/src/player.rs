@@ -11,6 +11,8 @@ use pc3d_world::terrain::final_solid;
 
 pub const EYE_ABOVE_FEET: f32 = 1.7;
 pub const WALK_SPEED: f32 = 4.0;
+/// Sprint speed (Shift while moving, stamina permitting).
+pub const SPRINT_SPEED: f32 = 6.6;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlayerBody {
@@ -57,6 +59,17 @@ fn solid_at(gen: &WorldGen, x: i32, y: i32, z: i32) -> bool {
 }
 
 impl PlayerBody {
+    /// First-person look deltas (raw pointer units) with sensitivity and
+    /// invert-Y — the ONE place look is defined so the live slice, free
+    /// flight, and proofs share it. THE MOUSE FIX's core: the body owns
+    /// the camera in the slice, so look persists instead of being
+    /// clobbered by the per-frame set_pose(player.pose()).
+    pub fn apply_look(&mut self, dx: f32, dy: f32, sens: f32, invert_y: bool) {
+        let dy_signed = if invert_y { -dy } else { dy };
+        self.yaw -= dx * 0.0022 * sens;
+        self.pitch = (self.pitch - dy_signed * 0.0022 * sens).clamp(-1.55, 1.55);
+    }
+
     pub fn pose(&self) -> CameraPose {
         CameraPose::new(
             [self.pos[0], self.pos[1] + EYE_ABOVE_FEET, self.pos[2]],
@@ -117,15 +130,29 @@ impl PlayerBody {
         strafe: f32,
         dt: f32,
     ) {
+        self.walk_on_speed(gen, surface, fwd, strafe, dt, WALK_SPEED)
+    }
+
+    /// The same walk at an explicit speed (sprint path: Shift while
+    /// moving, stamina permitting).
+    pub fn walk_on_speed(
+        &mut self,
+        gen: &WorldGen,
+        surface: &dyn CollisionSurface,
+        fwd: f32,
+        strafe: f32,
+        dt: f32,
+        speed: f32,
+    ) {
         let yaw = self.yaw;
         let hf = [-yaw.sin(), -yaw.cos()];
         let hr = [yaw.cos(), -yaw.sin()];
-        let mut dx = (hf[0] * fwd + hr[0] * strafe) * WALK_SPEED * dt;
-        let mut dz = (hf[1] * fwd + hr[1] * strafe) * WALK_SPEED * dt;
+        let mut dx = (hf[0] * fwd + hr[0] * strafe) * speed * dt;
+        let mut dz = (hf[1] * fwd + hr[1] * strafe) * speed * dt;
         // Normalize diagonals.
         let planar = (dx * dx + dz * dz).sqrt();
-        if planar > WALK_SPEED * dt {
-            let k = WALK_SPEED * dt / planar;
+        if planar > speed * dt {
+            let k = speed * dt / planar;
             dx *= k;
             dz *= k;
         }
@@ -282,5 +309,70 @@ mod tests {
         let (hit, before) = p.ray_target(&gen, 30.0).expect("looking down hits ground");
         assert!(solid_at(&gen, hit.x, hit.y, hit.z));
         assert!(!solid_at(&gen, before.x, before.y, before.z));
+    }
+}
+
+#[cfg(test)]
+mod look_tests {
+    use super::*;
+
+    /// THE MOUSE regression: in the live slice the frame loop calls
+    /// set_pose(player.pose()) every frame — look must live in the BODY
+    /// or it is clobbered instantly (the owner-reported dead mouse).
+    #[test]
+    fn look_writes_the_body_and_survives_the_frame_pose_roundtrip() {
+        let mut body = PlayerBody {
+            pos: [0.0, 0.0, 0.0],
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let yaw0 = body.yaw;
+        body.apply_look(-300.0, 80.0, 1.0, false);
+        assert!(body.yaw > yaw0, "yaw turns right for leftward... sign check: {:.3} > {:.3}", body.yaw, yaw0);
+        assert!(body.pitch < 0.0, "looking up (negative dy) pitches up");
+        // The roundtrip the frame loop performs: camera = body.pose().
+        let pose = body.pose();
+        assert_eq!(pose.yaw, body.yaw);
+        assert_eq!(pose.pitch, body.pitch);
+    }
+
+    #[test]
+    fn look_respects_sensitivity_invert_and_clamps() {
+        let mut a = PlayerBody { pos: [0.0; 3], yaw: 0.0, pitch: 0.0 };
+        let mut b = PlayerBody { pos: [0.0; 3], yaw: 0.0, pitch: 0.0 };
+        a.apply_look(100.0, 100.0, 2.0, false);
+        b.apply_look(100.0, 100.0, 1.0, false);
+        assert!(a.yaw.abs() > b.yaw.abs(), "sensitivity scales the turn");
+        let mut up = PlayerBody { pos: [0.0; 3], yaw: 0.0, pitch: 0.0 };
+        let mut down = PlayerBody { pos: [0.0; 3], yaw: 0.0, pitch: 0.0 };
+        up.apply_look(0.0, -50.0, 1.0, false);
+        down.apply_look(0.0, -50.0, 1.0, true);
+        assert!(up.pitch > 0.0 && down.pitch < 0.0, "invert Y flips the pitch");
+        let mut clamp = PlayerBody { pos: [0.0; 3], yaw: 0.0, pitch: 0.0 };
+        for _ in 0..50 {
+            clamp.apply_look(0.0, -200.0, 1.0, false);
+        }
+        assert!(clamp.pitch <= 1.55, "pitch clamps at the poles ({})", clamp.pitch);
+    }
+
+    #[test]
+    fn sprint_speed_moves_farther_than_walk() {
+        // The sprint law's other half: SPRINT_SPEED > WALK_SPEED, and
+        // walk_on_speed honors it on a flat authority surface.
+        assert!(SPRINT_SPEED > WALK_SPEED * 1.4, "sprint is meaningfully faster");
+        let gen = pc3d_world::gen::WorldGen::new(22);
+        let ground_y = gen.effective_surface_mm(0, 0) as f32 / 1000.0;
+        let mut walker = PlayerBody { pos: [0.5, ground_y, 0.5], yaw: 0.0, pitch: 0.0 };
+        let mut sprinter = walker;
+        for _ in 0..120 {
+            walker.walk(&gen, 1.0, 0.0, 1.0 / 60.0);
+            sprinter.walk_on_speed(&gen, &AuthorityGround, 1.0, 0.0, 1.0 / 60.0, SPRINT_SPEED);
+        }
+        assert!(
+            sprinter.pos[2] < walker.pos[2] - 1.0,
+            "the sprinter outruns the walker ({:.1} vs {:.1})",
+            sprinter.pos[2],
+            walker.pos[2]
+        );
     }
 }

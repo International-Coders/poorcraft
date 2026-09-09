@@ -113,6 +113,11 @@ pub struct SliceHost {
     /// The NWR-011 rebuild stack: crowd ticking + surface walking +
     /// foundation-gated placement. None = the classic R3DV slice.
     pub rebuild: bool,
+    /// Jump state (the controls spec's Space): vertical velocity + the
+    /// remembered ground height.
+    pub jump_vy: f32,
+    pub jump_held: bool,
+    pub ground_y: f32,
     /// The last foundation verdict (placement gate).
     pub foundation_ok: bool,
     pub player: crate::player::PlayerBody,
@@ -686,6 +691,24 @@ impl App {
                         s.ui_dirty = true;
                     }
                 }
+                UiAction::PlayerLook { dx, dy } => {
+                    // Proof hook: the EXACT path real mouse motion takes —
+                    // deltas into the live player body, then the frame
+                    // loop's set_pose(player.pose()) must KEEP them.
+                    if let Some(slice) = self.cfg.slice_host.as_mut() {
+                        let sens = self
+                            .state
+                            .as_ref()
+                            .map(|s| if s.owner_menu { s.ui.settings.mouse_sensitivity } else { 1.0 })
+                            .unwrap_or(1.0);
+                        let invert = self
+                            .state
+                            .as_ref()
+                            .map(|s| s.owner_menu && s.ui.settings.invert_y)
+                            .unwrap_or(false);
+                        slice.player.apply_look(*dx, *dy, sens, invert);
+                    }
+                }
                 UiAction::Repaint => {
                     if let Some(s) = self.state.as_mut() {
                         s.ui_dirty = true;
@@ -922,12 +945,27 @@ impl ApplicationHandler for App {
             };
             let invert = state.owner_menu && state.ui.settings.invert_y;
             let dy_signed = if invert { -dy } else { dy };
-            let pose = state.renderer.pose();
-            let yaw = pose.yaw - (dx as f32) * 0.0022 * sens;
-            let pitch = (pose.pitch - (dy_signed as f32) * 0.0022 * sens).clamp(-1.55, 1.55);
-            state
-                .renderer
-                .set_pose(CameraPose::new(pose.position, yaw, pitch));
+            // THE MOUSE FIX: in the live slice the BODY owns the camera —
+            // the frame loop calls set_pose(player.pose()) every frame,
+            // which used to clobber renderer-pose look the instant it
+            // happened (the mouse did NOTHING). Look writes the body
+            // through the ONE shared definition.
+            if let Some(slice) = self.cfg.slice_host.as_mut() {
+                slice
+                    .player
+                    .apply_look(dx as f32, dy as f32, sens, invert);
+            } else {
+                let pose = state.renderer.pose();
+                let mut body = crate::player::PlayerBody {
+                    pos: pose.position,
+                    yaw: pose.yaw,
+                    pitch: pose.pitch,
+                };
+                body.apply_look(dx as f32, dy as f32, sens, invert);
+                state
+                    .renderer
+                    .set_pose(CameraPose::new(body.pos, body.yaw, body.pitch));
+            }
         }
     }
 
@@ -1405,6 +1443,7 @@ impl App {
         // The live slice: per-frame WALKING on colliding terrain, the
         // camera locked to the player, streaming continues.
         let gameplay_active = state.gameplay_active();
+        let mut sprinting = false;
         let moving;
         if let Some(slice) = self.cfg.slice_host.as_mut() {
             let key = |k: KeyCode| state.keys.contains(&k) as i32 as f32;
@@ -1420,12 +1459,49 @@ impl App {
             };
             moving = gameplay_active && (fwd != 0.0 || strafe != 0.0);
             let gen = slice.scene.gen.clone();
+            // SPRINT (the controls spec's Shift): only while moving and
+            // only while stamina holds — exhausted bodies must recover
+            // to 25% before sprinting again (no flicker at empty).
+            let shift = gameplay_active && state.keys.contains(&KeyCode::ShiftLeft);
+            let wants_sprint = shift && moving && !state.ui.hud.exhausted;
+            sprinting = wants_sprint && state.ui.hud.stamina > 0.0;
+            let speed = if slice.rebuild {
+                if sprinting {
+                    crate::player::SPRINT_SPEED
+                } else {
+                    crate::player::WALK_SPEED
+                }
+            } else {
+                crate::player::WALK_SPEED
+            };
             if slice.rebuild {
-                // The NWR-011 walk: on the STREAMED SURFACE, plus the
-                // schedule ticking the crowd's authoritative brains.
+                // The NWR-011 walk: on the STREAMED SURFACE at the
+                // sprint-aware speed, plus the schedule ticking the
+                // crowd's authoritative brains.
                 state
                     .renderer
-                    .walk_player_surface(&gen, &mut slice.player, fwd, strafe, dt);
+                    .walk_player_surface_speed(&gen, &mut slice.player, fwd, strafe, dt, speed);
+                // JUMP (the controls spec's Space): a real minimal hop —
+                // vertical velocity + gravity, clamped to the ground.
+                if gameplay_active {
+                    let grounded = slice.jump_vy <= 0.0;
+                    if state.keys.contains(&KeyCode::Space) && grounded && !slice.jump_held {
+                        slice.jump_vy = 4.6;
+                    }
+                    slice.jump_held = state.keys.contains(&KeyCode::Space);
+                    if slice.jump_vy > 0.0 || slice.player.pos[1] > slice.ground_y + 0.01 {
+                        slice.jump_vy -= 9.8 * dt;
+                        slice.player.pos[1] = (slice.player.pos[1] + slice.jump_vy * dt).max(slice.ground_y);
+                        if slice.player.pos[1] <= slice.ground_y {
+                            slice.player.pos[1] = slice.ground_y;
+                            slice.jump_vy = 0.0;
+                        }
+                    }
+                    if slice.jump_vy <= 0.0 {
+                        // Standing on ground: remember it for the next hop.
+                        slice.ground_y = slice.player.pos[1];
+                    }
+                }
                 if gameplay_active {
                     state.renderer.crowd_tick(0.35, 1);
                 }
@@ -1472,17 +1548,15 @@ impl App {
         if state.owner_menu {
             state.ui.tick_toasts(dt);
             if state.ui.screen == Screen::Gameplay && !state.ui.blocks_gameplay() {
-                // Stamina: real live state — drains while walking, recovers
-                // at rest. Food drains slowly with travel. Health stays full
+                // THE STAMINA FIX: stamina is a SPRINT resource — walking
+                // is free; sprinting (Shift while moving) drains it at
+                // 0.22/s; rest regenerates at 0.14/s; hitting empty
+                // locks sprint out until 25% recovery (no flicker).
+                // Food drains slowly with travel; health stays full
                 // until damage systems exist (honest placeholder).
                 let hud = &mut state.ui.hud;
                 let before = (hud.stamina * 100.0) as i32 * 100 + (hud.food * 100.0) as i32;
-                if moving {
-                    hud.stamina = (hud.stamina - 0.05 * dt).max(0.0);
-                    hud.food = (hud.food - 0.004 * dt).max(0.0);
-                } else {
-                    hud.stamina = (hud.stamina + 0.08 * dt).min(1.0);
-                }
+                hud.tick_vitals(sprinting, moving, dt);
                 let after = (hud.stamina * 100.0) as i32 * 100 + (hud.food * 100.0) as i32;
                 if before != after {
                     state.ui_dirty = true;

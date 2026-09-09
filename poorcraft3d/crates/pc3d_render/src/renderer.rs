@@ -1324,8 +1324,28 @@ impl Renderer {
         strafe: f32,
         dt: f32,
     ) {
+        self.walk_player_surface_speed(
+            gen,
+            player,
+            fwd,
+            strafe,
+            dt,
+            crate::player::WALK_SPEED,
+        );
+    }
+
+    /// The sprint-aware walk: the streamed surface at an explicit speed.
+    pub fn walk_player_surface_speed(
+        &mut self,
+        gen: &pc3d_world::gen::WorldGen,
+        player: &mut crate::player::PlayerBody,
+        fwd: f32,
+        strafe: f32,
+        dt: f32,
+        speed: f32,
+    ) {
         if let Some(ss) = self.surface_stream.as_ref() {
-            player.walk_on(gen, ss, fwd, strafe, dt);
+            player.walk_on_speed(gen, ss, fwd, strafe, dt, speed);
         } else {
             player.walk(gen, fwd, strafe, dt);
         }
