@@ -38,6 +38,11 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [x] POORCRAFT 3D owner UI asset handoff: transparent generated logo/HUD/bar/
       key/action/resource/panel/faction sheets, implementation guide, JSON
       naming manifest, and a code guard proving the sheet files exist (loop 411)
+- [x] POORCRAFT 3D GLM UI rework pack: drop-in prompt/spec/JSON folder for
+      GLM 5.3/Z-code, including screenshot/playtest protocol, local
+      MCP-style inspector spec, runtime data export authorization, failure
+      baseline screenshot, implementation queue, and a code guard proving the
+      pack is complete (loop 412)
 
 ## ui-world-craft pack (loop 328)
 

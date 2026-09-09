@@ -1,0 +1,13 @@
+We are rebuilding the POORCRAFT 3D owner-facing UI. Read the full pack in
+docs/POORCRAFT-3D/GLM-UI-REWORK-PACK, then start with task UI-001 from
+zcode_task_queue.json.
+
+The current HUD is unacceptable: clipped top-left debug text, no real status
+bars, no hotbar, no title menu, no save slot UI, no usable settings, and no
+strong screenshot loop for the owner-facing window. You are authorized to add
+runtime instrumentation, screenshot scenes, data exports, local MCP-style
+inspection tools, UI debug overlays, manifest loaders, and temporary diagnostic
+plugins so you can prove what the game is doing.
+
+Do not claim completion until the relevant acceptance gates pass and the
+screenshot artifacts are on disk.

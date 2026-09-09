@@ -79,6 +79,9 @@ only when its implementation, tests, runtime behavior, and evidence agree.
   implementation rules for turning the generated PNG sheets into runtime UI.
 - `assets/ui_asset_manifest.json` — first machine-readable naming map for
   generated sheets, intended runtime entries, and import rules.
+- `GLM-UI-REWORK-PACK/` — drop-in GLM 5.3/Z-code prompt pack with UI rebuild
+  specs, inspector/export authorization, screenshot protocol, JSON contracts,
+  and the current failure-baseline screenshot.
 
 ## What this project is
 

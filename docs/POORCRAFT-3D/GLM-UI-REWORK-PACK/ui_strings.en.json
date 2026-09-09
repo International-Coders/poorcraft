@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "title": {
+    "play": "Play",
+    "new_world": "New World",
+    "load_world": "Load World",
+    "settings": "Settings",
+    "quit": "Quit"
+  },
+  "pause": {
+    "resume": "Resume",
+    "save": "Save",
+    "load": "Load",
+    "settings": "Settings",
+    "quit_to_title": "Quit to Title",
+    "quit_to_desktop": "Quit to Desktop"
+  },
+  "settings": {
+    "mouse_sensitivity": "Mouse Sensitivity",
+    "invert_y": "Invert Y",
+    "fov": "Field of View",
+    "ui_scale": "UI Scale",
+    "quality": "Quality",
+    "back": "Back",
+    "apply": "Apply"
+  },
+  "hud": {
+    "health": "Health",
+    "stamina": "Stamina",
+    "food": "Food",
+    "mana": "Mana",
+    "air": "Air",
+    "xp": "XP",
+    "saved": "Saved",
+    "loaded": "Loaded",
+    "cannot_build": "Cannot build here"
+  },
+  "controls": {
+    "start": "Enter or click to start",
+    "capture_mouse": "Click to capture mouse",
+    "pause": "Esc pauses",
+    "quit": "Q quits",
+    "move": "WASD move",
+    "look": "Mouse look",
+    "build": "F build",
+    "remove": "R remove",
+    "save": "B save",
+    "load": "L load",
+    "inspect": "I inspect"
+  }
+}

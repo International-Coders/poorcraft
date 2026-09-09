@@ -5668,3 +5668,34 @@ the sandbox. Root cargo test --workspace first failed on sandboxed UDP bind
 permission, then cleared the UDP tests with escalation, but was manually
 interrupted after the unrelated wizard_towers_generate_in_gated_biomes
 exhaustive scan ran silent for several minutes.
+
+## 2026-09-09 — GLM UI rework pack
+
+WHAT: Created docs/POORCRAFT-3D/GLM-UI-REWORK-PACK as a drop-in pack for
+GLM 5.3/Z-code to continuously rebuild the POORCRAFT 3D UI. The pack includes
+prompt text, owner reality check, GLM operating rules, UI rebuild spec,
+HUD/hotbar spec, controls/mouse spec, screenshot/playtest protocol,
+MCP-style game inspector spec, data extraction authorization, asset pipeline,
+implementation queue, failure modes, acceptance gates, session log template,
+baseline screenshot notes, and machine-readable JSON contracts for gates,
+inspector commands, telemetry, screenshot scenes, strings, data exports, and
+the task queue.
+
+HOW: Inspected the existing
+poorcraft3d/apps/poorcraft3d/shots/windowed_slice_showcase.png and copied it
+into the pack as baseline/current-windowed-slice-showcase.png because it shows
+the owner complaint plainly: clipped top-left debug text and no real HUD. Tried
+to capture a fresh rebuild route with make p3d-rebuild
+OUTDIR=poorcraft3d/apps/poorcraft3d/shots/glm_ui_baseline; the build finished
+and the route seed was found, but the process stalled before writing PNGs and
+was interrupted. Added pc3d_assets::GLM_UI_REWORK_PACK_JSON plus a guard test
+that proves the required pack files exist, JSON files parse, and the owner's
+authorization for MCP-style inspector/wireframe/data extraction remains in the
+manifest.
+
+EVIDENCE: all GLM pack JSON files validated with python3 -m json.tool after
+the guard caught and forced a missing ui_strings.en.json version fix.
+pc3d_assets 25/25 passed. cargo build --release --manifest-path
+poorcraft3d/Cargo.toml -p poorcraft3d passed. Fresh screenshot capture attempt
+did not complete; the failure is recorded in
+13-BASELINE-SCREENSHOT-NOTES.md and is the first problem UI-001 must solve.

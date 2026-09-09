@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "output_root": "poorcraft3d/apps/poorcraft3d/shots",
+  "required_scenes": [
+    {"id": "ui_title_1280x720", "screen": "title", "size": [1280, 720]},
+    {"id": "ui_title_deck", "screen": "title", "size": [1280, 800]},
+    {"id": "ui_new_world", "screen": "new_world", "size": [1280, 720]},
+    {"id": "ui_load_world", "screen": "load_world", "size": [1280, 720]},
+    {"id": "ui_settings", "screen": "settings", "size": [1280, 720]},
+    {"id": "ui_gameplay_hud_default", "screen": "gameplay", "size": [1280, 720]},
+    {"id": "ui_gameplay_hud_debug_values", "screen": "gameplay", "size": [1280, 720], "debug_hud_values": true},
+    {"id": "ui_pause", "screen": "pause", "size": [1280, 720]},
+    {"id": "ui_modal_confirm", "screen": "modal", "size": [1280, 720]},
+    {"id": "ui_debug_inspector", "screen": "gameplay", "size": [1280, 720], "debug_overlay": true}
+  ],
+  "pixel_checks": ["nonblank", "safe_margin_text", "no_rect_overlap", "alpha_ui_present", "focused_state_distinct", "bright_and_dark_background_readability"]
+}

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "tasks": [
+    {"id": "UI-001", "title": "Screenshotable UI state harness", "priority": 1, "requires": [], "done_when": ["title_pause_gameplay_settings_screenshots_exist", "pixel_checks_exist", "layout_dump_exists"]},
+    {"id": "UI-002", "title": "Runtime UI draw list", "priority": 2, "requires": ["UI-001"], "done_when": ["panels_buttons_text_icons_bars_hotbar_draw_from_one_path", "unit_tests_cover_layout"]},
+    {"id": "UI-003", "title": "Real title and pause screens", "priority": 3, "requires": ["UI-002"], "done_when": ["temporary_bitmap_title_replaced", "escape_pause_resume_proven", "game_input_blocked_under_menu"]},
+    {"id": "UI-004", "title": "HUD bars and hotbar", "priority": 4, "requires": ["UI-002"], "done_when": ["health_stamina_food_hotbar_crosshair_toast_visible", "debug_text_hidden_by_default"]},
+    {"id": "UI-005", "title": "Settings and controls", "priority": 5, "requires": ["UI-003"], "done_when": ["sensitivity_invert_y_fov_ui_scale_quality_visible", "settings_affect_runtime_or_disabled"]},
+    {"id": "UI-006", "title": "Save slot UI", "priority": 6, "requires": ["UI-003"], "done_when": ["load_save_delete_confirmations", "test_save_dir_support"]},
+    {"id": "UI-007", "title": "Inspector tool", "priority": 7, "requires": ["UI-001"], "done_when": ["ui_state_layout_frame_stats_screenshot_replay_commands"]},
+    {"id": "UI-008", "title": "Asset import and polish", "priority": 8, "requires": ["UI-002"], "done_when": ["runtime_assets_or_native_frames", "all_required_ui_screens_human_inspected"]}
+  ]
+}

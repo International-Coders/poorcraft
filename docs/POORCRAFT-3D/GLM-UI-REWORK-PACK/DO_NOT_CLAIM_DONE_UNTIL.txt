@@ -1,0 +1,14 @@
+Do not claim done until all applicable items are true:
+
+- The game builds.
+- The touched crate tests pass.
+- The relevant screenshot scene exists and writes PNGs.
+- The PNGs are pixel-checked for nonblank UI, readable text bounds, alpha
+  overlays, and no obvious overlap.
+- You looked at the screenshots and wrote what you saw.
+- The owner-facing path can be launched from the documented command.
+- Escape pauses/resumes; Q quits explicitly.
+- HUD bars and hotbar reflect live state, not hard-coded art.
+- Key labels are rendered from bindings.
+- Any debug/MCP/export tooling is documented.
+- STATE.md, BACKLOG.md, CHANGELOG.md, and DEVLOG.md are updated.

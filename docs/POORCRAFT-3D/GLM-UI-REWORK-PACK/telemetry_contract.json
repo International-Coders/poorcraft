@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "frame": ["frame_index", "dt_ms", "screen", "draw_calls", "triangles", "ui_quads", "text_glyphs", "gpu_bytes_estimate"],
+  "input": ["pointer_captured", "keys_down", "mouse_delta", "last_action", "blocked_by_ui"],
+  "ui": ["active_screen", "focused_widget", "hovered_widget", "rect_count", "clip_failures", "overlap_warnings"],
+  "hud": ["health", "stamina", "food", "mana", "air", "xp", "selected_hotbar", "toast_count"],
+  "world": ["camera_pos", "player_pos", "visible_patches", "visible_instances", "npc_count"],
+  "output_formats": ["json", "csv"]
+}

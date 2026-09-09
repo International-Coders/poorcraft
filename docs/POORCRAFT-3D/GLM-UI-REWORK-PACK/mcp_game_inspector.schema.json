@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "transport": "local-json-cli-first-mcp-later",
+  "commands": {
+    "ui_state": {
+      "request": {},
+      "response": {
+        "screen": "title|new_world|load_world|settings|gameplay|pause|modal",
+        "pointer_captured": "boolean",
+        "focused_widget": "string|null",
+        "hovered_widget": "string|null"
+      }
+    },
+    "dump_ui_layout": {
+      "request": {"screenshot_size": "optional [width,height]"},
+      "response": {"rects": "array of {id,kind,x,y,w,h,visible,clip_ok}"}
+    },
+    "capture_screenshot": {
+      "request": {"scene": "string", "out": "path", "size": "optional [width,height]"},
+      "response": {"path": "path", "nonblank": "boolean", "ui_pixels": "number", "warnings": "array"}
+    },
+    "dump_frame_stats": {
+      "request": {},
+      "response": {"frame_ms": "number", "draw_calls": "number", "triangles": "number", "gpu_bytes": "number|null"}
+    },
+    "dump_visible_world": {
+      "request": {},
+      "response": {"camera": "object", "player": "object", "visible_chunks_or_patches": "number", "instances": "object"}
+    },
+    "dump_mesh_wireframe": {
+      "request": {"scope": "visible|ui|terrain|settlement"},
+      "response": {"path": "path", "vertices": "number", "indices": "number", "bounds": "object"}
+    },
+    "replay_input": {
+      "request": {"events": "array"},
+      "response": {"final_screen": "string", "pointer_captured": "boolean", "quit_requested": "boolean"}
+    }
+  }
+}

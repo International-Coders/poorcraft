@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "date": "2026-09-09",
+  "name": "POORCRAFT 3D GLM UI Rework Pack",
+  "purpose": "Drop-in GLM 5.3/Z-code instructions for rebuilding and proving the owner-facing UI.",
+  "baseline": {
+    "screenshot": "baseline/current-windowed-slice-showcase.png",
+    "status": "failure-baseline",
+    "fresh_capture_attempt": "make p3d-rebuild OUTDIR=poorcraft3d/apps/poorcraft3d/shots/glm_ui_baseline stalled before PNG output and was interrupted"
+  },
+  "required_files": [
+    "README.md",
+    "GLM_SYSTEM_PROMPT.txt",
+    "FIRST_MESSAGE_TO_GLM.txt",
+    "DO_NOT_CLAIM_DONE_UNTIL.txt",
+    "00-OWNER-REALITY-CHECK.md",
+    "01-GLM-OPERATING-RULES.md",
+    "02-UI-REBUILD-SPEC.md",
+    "03-HUD-HOTBAR-SPEC.md",
+    "04-CONTROLS-AND-MOUSE-SPEC.md",
+    "05-SCREENSHOT-AND-PLAYTEST-PROTOCOL.md",
+    "06-MCP-GAME-INSPECTOR-SPEC.md",
+    "07-DATA-EXTRACTION-AUTHORIZATION.md",
+    "08-ASSET-PIPELINE.md",
+    "09-IMPLEMENTATION-QUEUE.md",
+    "10-FAILURE-MODES.md",
+    "11-ACCEPTANCE-GATES.md",
+    "12-SESSION-LOG-TEMPLATE.md",
+    "13-BASELINE-SCREENSHOT-NOTES.md",
+    "ui_acceptance_gates.json",
+    "mcp_game_inspector.schema.json",
+    "telemetry_contract.json",
+    "screenshot_scenes.json",
+    "ui_strings.en.json",
+    "zcode_task_queue.json",
+    "data_exports.json",
+    "baseline/current-windowed-slice-showcase.png"
+  ],
+  "authorizations": [
+    "create local debug modules",
+    "create local MCP-style inspector tools",
+    "create mods/plugins for instrumentation",
+    "export UI layout, mesh, wireframe, world, input, and performance data",
+    "add screenshot scenes and pixel checks",
+    "use generated assets as concept sources"
+  ],
+  "must_not_claim_done_without": [
+    "build",
+    "tests",
+    "screenshot artifacts",
+    "pixel checks",
+    "human inspection note",
+    "bookkeeping updates"
+  ]
+}

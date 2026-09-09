@@ -3266,3 +3266,19 @@ The simulation-only roadmap was declared complete; the visual reset
   and then was manually interrupted after the unrelated
   `wizard_towers_generate_in_gated_biomes` exhaustive worldgen scan ran silent
   for several minutes.
+
+## Loop 412 — GLM UI Rework Pack
+- Added `docs/POORCRAFT-3D/GLM-UI-REWORK-PACK/`, a drop-in GLM 5.3/Z-code
+  handoff folder with prompt files, UI rebuild specs, HUD/hotbar/control
+  requirements, screenshot/playtest protocol, MCP-style inspector spec, data
+  extraction authorization, implementation queue, failure modes, acceptance
+  gates, JSON contracts, UI strings, telemetry/export schemas, and a baseline
+  screenshot copied from the current poor UI state.
+- `pc3d_assets` now embeds `glm_ui_rework_manifest.json` and tests that every
+  listed pack file exists, every JSON contract parses, and the owner's
+  inspector/wireframe/data-export authorization remains present.
+- Evidence: inspected `baseline/current-windowed-slice-showcase.png` and
+  recorded the clipped/debug HUD failure; attempted
+  `make p3d-rebuild OUTDIR=poorcraft3d/apps/poorcraft3d/shots/glm_ui_baseline`
+  but it stalled before PNG output and was interrupted; JSON validation passed;
+  `pc3d_assets` 25/25; POORCRAFT 3D release build OK.

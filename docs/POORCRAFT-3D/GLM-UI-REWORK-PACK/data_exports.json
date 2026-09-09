@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "authorized_exports": {
+    "ui_layout": {"format": "json", "fields": ["id", "kind", "x", "y", "w", "h", "visible", "clip_ok", "z_order"]},
+    "input_state": {"format": "json", "fields": ["pointer_captured", "keys_down", "mouse_delta", "last_command", "blocked_by_ui"]},
+    "frame_stats": {"format": "json_or_csv", "fields": ["frame_ms", "draw_calls", "triangles", "ui_quads", "gpu_bytes_estimate"]},
+    "world_visible": {"format": "json", "fields": ["camera", "player", "patches", "instances", "npc_count"]},
+    "wireframe": {"format": "obj_or_json", "fields": ["vertices", "indices", "bounds", "scope"]},
+    "screenshots": {"format": "png_plus_json_sidecar", "fields": ["path", "size", "nonblank", "ui_pixels", "warnings"]}
+  },
+  "save_policy": "Use temp/test save directories unless the owner explicitly asks to inspect a real save."
+}

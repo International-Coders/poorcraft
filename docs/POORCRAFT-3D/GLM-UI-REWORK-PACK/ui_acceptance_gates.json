@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "gates": [
+    {
+      "id": "launch",
+      "required": ["title_screen_visible", "cursor_visible", "no_text_clipping", "play_button_visible", "quit_button_visible"]
+    },
+    {
+      "id": "gameplay_hud",
+      "required": ["crosshair_visible", "hotbar_visible", "selected_slot_visible", "health_bar_visible", "stamina_bar_visible", "prompt_visible", "debug_text_hidden_by_default"]
+    },
+    {
+      "id": "pause",
+      "required": ["escape_opens_pause", "pointer_released", "resume_works", "movement_blocked", "explicit_quit_choices"]
+    },
+    {
+      "id": "settings",
+      "required": ["sensitivity_control", "invert_y_control", "fov_control", "ui_scale_control", "quality_control", "controls_summary"]
+    },
+    {
+      "id": "proof",
+      "required": ["screenshot_scene", "pixel_checks", "human_inspection_note", "touched_tests_green", "runtime_rebuilt_when_owner_facing"]
+    }
+  ]
+}

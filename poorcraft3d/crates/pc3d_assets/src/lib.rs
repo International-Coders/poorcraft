@@ -31,6 +31,11 @@ pub const BETA_CRITICAL_JSON: &str =
 pub const UI_ASSET_MANIFEST_JSON: &str =
     include_str!("../../../../docs/POORCRAFT-3D/assets/ui_asset_manifest.json");
 
+/// GLM/Z-code owner UI rework handoff pack. This keeps the machine-readable
+/// prompt pack parseable and present beside the generated assets.
+pub const GLM_UI_REWORK_PACK_JSON: &str =
+    include_str!("../../../../docs/POORCRAFT-3D/GLM-UI-REWORK-PACK/glm_ui_rework_manifest.json");
+
 // ---------------------------------------------------------------------------
 // Typed manifest (serde mirrors the JSON schema; enums reject out of contract)
 // ---------------------------------------------------------------------------
@@ -565,6 +570,55 @@ mod tests {
                 "{required} missing concept sheet at {}",
                 disk_path.display()
             );
+        }
+    }
+
+    #[test]
+    fn glm_ui_rework_pack_is_parseable_and_complete() {
+        let pack: serde_json::Value =
+            serde_json::from_str(GLM_UI_REWORK_PACK_JSON).expect("glm ui rework manifest json");
+        assert_eq!(pack["version"], serde_json::json!(1));
+
+        let auth = pack["authorizations"]
+            .as_array()
+            .expect("authorizations array");
+        assert!(
+            auth.iter().any(|value| value
+                .as_str()
+                .is_some_and(|s| s.contains("MCP-style inspector"))),
+            "pack must preserve the owner's inspector/MCP authorization"
+        );
+        assert!(
+            auth.iter().any(|value| value
+                .as_str()
+                .is_some_and(|s| s.contains("wireframe"))),
+            "pack must preserve the owner's wireframe/data export authorization"
+        );
+
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../docs/POORCRAFT-3D/GLM-UI-REWORK-PACK");
+        for rel in pack["required_files"]
+            .as_array()
+            .expect("required files array")
+        {
+            let rel = rel.as_str().expect("required file path");
+            let path = root.join(rel);
+            assert!(path.is_file(), "missing GLM UI rework pack file: {rel}");
+        }
+
+        for rel in [
+            "ui_acceptance_gates.json",
+            "mcp_game_inspector.schema.json",
+            "telemetry_contract.json",
+            "screenshot_scenes.json",
+            "ui_strings.en.json",
+            "zcode_task_queue.json",
+            "data_exports.json",
+        ] {
+            let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
+            let parsed: serde_json::Value =
+                serde_json::from_str(&json).unwrap_or_else(|e| panic!("{rel}: {e}"));
+            assert_eq!(parsed["version"], serde_json::json!(1), "{rel} version");
         }
     }
 
