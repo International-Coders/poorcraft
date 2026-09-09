@@ -2548,7 +2548,7 @@ fn main() {
             let scene = std::rc::Rc::new(scene);
 
             if live {
-                println!("live rebuild slice: Enter/click starts, click captures mouse, WASD walks the SURFACE, F builds on INSPECTED ground, B saves, L reloads, I inspects, Esc pauses, Q quits");
+                println!("live rebuild slice: title screen (mouse or arrows+Enter), PLAY captures the mouse, WASD walks the SURFACE, 1-9/wheel select the build material, F builds on INSPECTED ground, B saves, L reloads, I inspects, F3 debug, Esc pauses (never exits), Q on menus asks to quit");
                 let save_root = std::rc::Rc::new(
                     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
                 );
@@ -3829,9 +3829,38 @@ fn main() {
                 }
             }
         }
+        Some("--ui-shots") => {
+            // GLM UI rework UI-001: deterministic UI state screenshots for
+            // every owner-facing screen + pixel checks + layout dumps. One
+            // windowed run drives the UI through a script; every capture
+            // carries the UI canvas + layout dump it composited.
+            let out_dir: String = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+            run_ui_shots(&out_dir);
+        }
+        Some("--ui-inspect") => {
+            // GLM UI rework UI-007: the local JSON inspector. Argument is a
+            // JSON command object (or @file). Runs a live windowed session,
+            // executes the commands through the same path as real input,
+            // and prints a JSON response.
+            let spec = match args.get(2) {
+                Some(s) if s.starts_with('@') => {
+                    std::fs::read_to_string(s.trim_start_matches('@')).expect("read command file")
+                }
+                Some(s) => s.clone(),
+                None => {
+                    eprintln!("usage: poorcraft3d --ui-inspect '<json commands>'");
+                    std::process::exit(2);
+                }
+            };
+            run_ui_inspect(&spec);
+        }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-caves [outdir]|--play-surface-stream [outdir]|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-caves [outdir]|--play-surface-stream [outdir]|--ui-shots [outdir]|--ui-inspect '<json>'|--validate-assets [path]]"
             );
             std::process::exit(2);
         }
@@ -3907,4 +3936,582 @@ fn print_window_report(report: &pc3d_render::WindowReport) {
         report.p95_ms(),
         report.avg_fps()
     );
+}
+
+// ---------------------------------------------------------------------------
+// GLM UI rework: the screenshot harness (UI-001) and inspector (UI-007)
+// ---------------------------------------------------------------------------
+
+fn ui_shots_expectations() -> Vec<pc3d_render::ui::SceneExpectation> {
+    use pc3d_render::ui::SceneExpectation;
+    vec![
+        SceneExpectation {
+            id: "ui_title_1280x720",
+            required_elements: &["btn_play", "btn_new_world", "btn_load_world", "btn_settings", "btn_quit", "title_logo"],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_title_focus",
+            required_elements: &["btn_play", "btn_quit"],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_new_world",
+            required_elements: &["nw_create", "nw_seed_reroll", "nw_back"],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_load_world",
+            required_elements: &["lw_slot_0_load", "lw_slot_0_del", "lw_back"],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_settings",
+            required_elements: &[
+                "set_row_0_label", "set_row_0_dec", "set_row_1_label", "set_row_2_label",
+                "set_row_3_label", "set_row_4_label", "set_controls_title", "set_back",
+            ],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_gameplay_hud_default",
+            required_elements: &[
+                "crosshair", "bar_health", "bar_stamina", "bar_food", "xp_strip",
+                "hotbar_0", "hotbar_4", "hotbar_8", "prompt",
+            ],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_gameplay_hud_debug_values",
+            required_elements: &["crosshair", "bar_health", "bar_stamina", "bar_food", "hotbar_3", "toast_SAVED 'REBUILD'"],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_pause",
+            required_elements: &[
+                "pause_resume", "pause_save", "pause_load", "pause_settings",
+                "pause_quit_title", "pause_quit_desktop",
+            ],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_modal_confirm",
+            required_elements: &["modal_confirm", "modal_cancel", "modal_msg"],
+            forbidden_kinds: &[],
+        },
+        SceneExpectation {
+            id: "ui_debug_inspector",
+            required_elements: &["crosshair", "debug_strip"],
+            forbidden_kinds: &[],
+        },
+        SceneExpectation {
+            id: "ui_title_deck",
+            required_elements: &["btn_play", "btn_quit", "title_logo"],
+            forbidden_kinds: &["debug"],
+        },
+    ]
+}
+
+/// Creates two throwaway worlds in a test save root so the Load World
+/// screen lists real slots (and save/load/delete never touch owner saves).
+fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
+    let root = std::env::temp_dir().join(format!("p3d-ui-shots-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("test save root");
+    for (name, seed) in [("alpha-shot", 22u64), ("beta-shot", 7u64)] {
+        let host = pc3d_world::host::SoloHost::new(seed);
+        let player = pc3d_render::PlayerBody {
+            pos: [12.0, 6.0, -4.0],
+            yaw: 0.5,
+            pitch: -0.1,
+        };
+        pc3d_render::slice::save_slice(&root, name, seed, &host, &player)
+            .expect("write test world");
+    }
+    std::rc::Rc::new(root)
+}
+
+fn run_ui_shots(out_dir: &str) {
+    use pc3d_render::ui::{Key, ModalKind, Screen, UiAction};
+    use pc3d_render::Shot;
+
+    let save_root = ui_test_save_root();
+    let (seed, scene) = pc3d_render::slice::find_showcase(3);
+    println!("UI SHOTS: showcase seed {seed} (test save root {})", save_root.display());
+    let scene = std::rc::Rc::new(scene);
+
+    // A vantage that shows the world behind the menus (bright sky above,
+    // terrain below — the readability check covers both).
+    let pose_at = |eye: [f32; 3], at: [f32; 3]| {
+        let d = [at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]];
+        pc3d_render::CameraPose::new(
+            eye,
+            (-d[0]).atan2(-d[2]),
+            (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+        )
+    };
+    let spawn = pc3d_render::slice::spawn_player(&scene);
+    let ground = |x: f32, z: f32| {
+        scene.gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    let v_vista = pose_at(
+        [spawn.pos[0] + 60.0, ground(spawn.pos[0] + 60.0, spawn.pos[2] + 60.0) + 26.0, spawn.pos[2] + 60.0],
+        [spawn.pos[0], ground(spawn.pos[0], spawn.pos[2]), spawn.pos[2]],
+    );
+    // Bright: straight into the sky above the horizon.
+    let v_sky = pc3d_render::CameraPose::new([spawn.pos[0], spawn.pos[1] + 1.7, spawn.pos[2]], 0.0, 1.2);
+    // Dark: straight down at shadowed terrain.
+    let v_dark = pc3d_render::CameraPose::new([spawn.pos[0], spawn.pos[1] + 1.7, spawn.pos[2]], 0.0, -1.4);
+
+    let shot = |frame: u64, name: &str| -> Shot {
+        Shot::new(frame, format!("{out_dir}/{name}.png"))
+            .ui_dump(format!("{out_dir}/{name}.layout.json"))
+    };
+
+    // UI script steps set up each scene ~15 frames before its capture.
+    let mut ui_script: Vec<(u64, pc3d_render::UiStep)> = vec![
+        (
+            60,
+            Box::new(|ui, _r, _ctx| {
+                ui.focus = 1; // focus variant for the distinctness check
+            }),
+        ),
+        (
+            90,
+            Box::new(|_ui, _r, ctx| {
+                ctx.actions.push(UiAction::OpenScreen(Screen::NewWorld));
+            }),
+        ),
+        (
+            120,
+            Box::new(|_ui, _r, ctx| {
+                ctx.actions.push(UiAction::OpenScreen(Screen::LoadWorld));
+            }),
+        ),
+        (
+            150,
+            Box::new(|_ui, _r, ctx| {
+                ctx.actions.push(UiAction::OpenScreen(Screen::Settings));
+            }),
+        ),
+        (
+            180,
+            Box::new(|_ui, _r, ctx| {
+                ctx.actions.push(UiAction::StartPlaying);
+            }),
+        ),
+        (
+            210,
+            Box::new(|ui, _r, _ctx| {
+                // Debug-backed non-full values: the bars must follow them.
+                ui.hud.health = 0.45;
+                ui.hud.stamina = 0.30;
+                ui.hud.food = 0.70;
+                ui.hud.xp = 0.50;
+                ui.hud.selected = 3;
+                ui.hud.prompt = "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT".into();
+                ui.toast("SAVED 'REBUILD'");
+            }),
+        ),
+        (
+            240,
+            Box::new(|_ui, _r, ctx| {
+                ctx.actions.push(UiAction::OpenScreen(Screen::Pause));
+            }),
+        ),
+        (
+            270,
+            Box::new(|ui, _r, _ctx| {
+                ui.modal = Some(ModalKind::DeleteWorld("alpha-shot".into()));
+            }),
+        ),
+        (
+            300,
+            Box::new(|ui, _r, _ctx| {
+                ui.modal = None;
+                ui.screen = Screen::Gameplay;
+                ui.pointer_grabbed = true;
+                ui.debug_overlay = true;
+                ui.debug_text = "P3D 0.1 SEED 22 WORLD REBUILD POS 12 6 -4 YAW 28 FPS 240 BUILT 0".into();
+            }),
+        ),
+        (
+            340,
+            Box::new(|_ui, _r, ctx| {
+                ctx.actions.push(UiAction::OpenScreen(Screen::Title));
+            }),
+        ),
+    ];
+
+    let cfg = pc3d_render::WindowConfig {
+        title: "POORCRAFT 3D — UI state proof".into(),
+        logical_size: (1280.0, 720.0),
+        size_is_physical: true,
+        resize_to: None,
+        resize_script: vec![(335, (1280.0, 800.0))],
+        max_frames: Some(600),
+        probe_set: pc3d_render::ProbeSet::SkyOnly,
+        camera_script: vec![
+            (0, v_vista),
+            (240, v_sky),  // pause menu over bright sky
+            (270, v_dark), // modal over dark terrain
+        ],
+        shots: vec![
+            shot(45, "ui_title_1280x720"),
+            shot(75, "ui_title_focus"),
+            shot(105, "ui_new_world"),
+            shot(135, "ui_load_world"),
+            shot(165, "ui_settings"),
+            shot(195, "ui_gameplay_hud_default"),
+            shot(225, "ui_gameplay_hud_debug_values"),
+            shot(255, "ui_pause"),
+            shot(285, "ui_modal_confirm"),
+            shot(315, "ui_debug_inspector"),
+            shot(375, "ui_title_deck"),
+        ],
+        slice_setup: Some(pc3d_render::app::SliceSetup {
+            seed,
+            rebuild: true,
+            scene: scene.clone(),
+            save_root: save_root.clone(),
+            world_name: "rebuild".into(),
+        }),
+        owner_menu: true,
+        save_root_override: Some(save_root.clone()),
+        ui_script: std::mem::take(&mut ui_script),
+        ..Default::default()
+    };
+    match pc3d_render::run_windowed(cfg) {
+        Ok(report) => {
+            print_window_report(&report);
+            match pc3d_render::ui::verify_ui_captures(&report.captures, &ui_shots_expectations()) {
+                Ok(lines) => {
+                    println!("UI SCENE CHECKS PASS:");
+                    println!("{lines}");
+                    println!("UI SHOTS PASS -> {out_dir} (11 captures + layout dumps)");
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] UI scene checks: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[FAIL] windowed renderer: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn run_ui_inspect(spec: &str) {
+    use pc3d_render::ui::{self, Key, Screen, UiAction};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let v: serde_json::Value = serde_json::from_str(spec).unwrap_or_else(|e| {
+        eprintln!("[FAIL] inspector command JSON: {e}");
+        std::process::exit(2);
+    });
+    // The inspector never touches owner saves: a temp root unless the
+    // command explicitly passes one.
+    let save_root: Rc<std::path::PathBuf> = match v.get("save_root").and_then(|p| p.as_str()) {
+        Some(p) => Rc::new(p.into()),
+        None => Rc::new(std::env::temp_dir().join(format!("p3d-ui-inspect-{}", std::process::id()))),
+    };
+    let _ = std::fs::remove_dir_all(save_root.as_ref());
+    std::fs::create_dir_all(save_root.as_ref()).expect("inspector save root");
+    let results: Rc<RefCell<Vec<serde_json::Value>>> = Rc::new(RefCell::new(Vec::new()));
+
+    let cmds = v["cmds"].as_array().cloned().unwrap_or_default();
+    let mut ui_script: Vec<(u64, pc3d_render::UiStep)> = Vec::new();
+    let mut frame: u64 = 12; // let the world assemble first
+
+    let key_name = |k: &str| -> Option<Key> {
+        Some(match k {
+            "escape" => Key::Escape,
+            "enter" => Key::Enter,
+            "up" => Key::Up,
+            "down" => Key::Down,
+            "left" => Key::Left,
+            "right" => Key::Right,
+            "q" => Key::KeyQ,
+            "f3" => Key::F3,
+            "backspace" => Key::Backspace,
+            "wheel_up" => Key::WheelUp,
+            "wheel_down" => Key::WheelDown,
+            d if d.starts_with("digit") => Key::Digit(d[5..].parse().ok()?),
+            _ => return None,
+        })
+    };
+
+    for cmd in &cmds {
+        let name = cmd["cmd"].as_str().unwrap_or_default();
+        match name {
+            "wait" => {
+                frame += cmd["frames"].as_u64().unwrap_or(5);
+            }
+            "set_screen" => {
+                let sc = cmd["screen"].as_str().and_then(Screen::from_str).unwrap_or(Screen::Title);
+                let results = results.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |_ui, _r, _ctx| {
+                        results.borrow_mut().push(serde_json::json!({
+                            "cmd": "set_screen", "screen": sc.as_str(),
+                        }));
+                    }),
+                ));
+                // The actual screen change goes through the action path.
+                // (Steps are FnMut: hand the action over through a cell.)
+                let act = Rc::new(RefCell::new(Some(if sc == Screen::Gameplay {
+                    UiAction::StartPlaying
+                } else {
+                    UiAction::OpenScreen(sc)
+                })));
+                ui_script.push((
+                    frame,
+                    Box::new(move |_ui, _r, ctx| {
+                        if let Some(a) = act.borrow_mut().take() {
+                            ctx.actions.push(a);
+                        }
+                    }),
+                ));
+                frame += 5;
+            }
+            "set_debug_hud_values" => {
+                let c = cmd.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, _r, _ctx| {
+                        if let Some(x) = c["health"].as_f64() { ui.hud.health = x as f32; }
+                        if let Some(x) = c["stamina"].as_f64() { ui.hud.stamina = x as f32; }
+                        if let Some(x) = c["food"].as_f64() { ui.hud.food = x as f32; }
+                        if let Some(x) = c["xp"].as_f64() { ui.hud.xp = x as f32; }
+                        if let Some(x) = c["selected"].as_u64() { ui.hud.selected = x as usize; }
+                        if let Some(s) = c["toast"].as_str() { ui.toast(s); }
+                    }),
+                ));
+                frame += 5;
+            }
+            "ui_state" => {
+                let results = results.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut s = ui.to_json();
+                        s["cmd"] = "ui_state".into();
+                        results.borrow_mut().push(s);
+                    }),
+                ));
+                frame += 3;
+            }
+            "input_state" => {
+                let results = results.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, _r, _ctx| {
+                        results.borrow_mut().push(serde_json::json!({
+                            "cmd": "input_state",
+                            "screen": ui.screen.as_str(),
+                            "pointer_grabbed": ui.pointer_grabbed,
+                            "hover": ui.hover,
+                            "gameplay_input_blocked": ui.blocks_gameplay(),
+                        }));
+                    }),
+                ));
+                frame += 3;
+            }
+            "dump_ui_layout" => {
+                let results = results.clone();
+                let path = cmd["path"].as_str().map(str::to_string);
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, r, _ctx| {
+                        let (w, h) = r.size();
+                        let list = ui::build(ui, w, h);
+                        let mut dump = list.to_json(ui.screen.as_str());
+                        dump["cmd"] = "dump_ui_layout".into();
+                        dump["ui_state"] = ui.to_json();
+                        if let Some(p) = &path {
+                            let _ = std::fs::write(p, serde_json::to_string_pretty(&dump).unwrap_or_default());
+                        }
+                        results.borrow_mut().push(dump);
+                    }),
+                ));
+                frame += 3;
+            }
+            "capture_screenshot" => {
+                let results = results.clone();
+                let path = cmd["path"].as_str().unwrap_or("shots/inspect.png").to_string();
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, r, _ctx| {
+                        let (rep, _) = r.capture_png(std::path::Path::new(&path), &[]);
+                        results.borrow_mut().push(serde_json::json!({
+                            "cmd": "capture_screenshot",
+                            "path": path,
+                            "width": rep.width,
+                            "height": rep.height,
+                            "distinct_colors": rep.distinct_colors,
+                            "screen": ui.screen.as_str(),
+                        }));
+                    }),
+                ));
+                frame += 5;
+            }
+            "dump_frame_stats" => {
+                let results = results.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |_ui, _r, ctx| {
+                        results.borrow_mut().push(serde_json::json!({
+                            "cmd": "dump_frame_stats",
+                            "frame": ctx.frame,
+                            "p50_ms": ctx.p50_ms,
+                            "fps": ctx.fps,
+                        }));
+                    }),
+                ));
+                frame += 3;
+            }
+            "dump_visible_world" => {
+                let results = results.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let counters = r.stream_counters();
+                        results.borrow_mut().push(serde_json::json!({
+                            "cmd": "dump_visible_world",
+                            "screen": ui.screen.as_str(),
+                            "camera": {
+                                "position": pose.position,
+                                "yaw": pose.yaw,
+                                "pitch": pose.pitch,
+                            },
+                            "target_size": r.size(),
+                            "stream_counters": counters.map(|c| serde_json::json!({
+                                "loaded": c.loaded,
+                                "drawn_patches": c.drawn_patches,
+                                "frustum_culled": c.frustum_culled,
+                                "gpu_bytes": c.gpu_bytes,
+                            })),
+                        }));
+                    }),
+                ));
+                frame += 3;
+            }
+            "dump_mesh_wireframe" => {
+                let results = results.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, r, _ctx| {
+                        // Summary-level v1 (a full geometry export is a
+                        // documented deferral): what the frame drew.
+                        let pose = r.pose();
+                        results.borrow_mut().push(serde_json::json!({
+                            "cmd": "dump_mesh_wireframe",
+                            "note": "summary-level v1: draw/budget counters, not raw triangles",
+                            "screen": ui.screen.as_str(),
+                            "camera_yaw": pose.yaw,
+                            "target_size": r.size(),
+                            "stream_counters": r.stream_counters().map(|c| serde_json::json!({
+                                "loaded": c.loaded,
+                                "drawn_patches": c.drawn_patches,
+                                "frustum_culled": c.frustum_culled,
+                                "gpu_bytes": c.gpu_bytes,
+                            })),
+                        }));
+                    }),
+                ));
+                frame += 3;
+            }
+            "replay_input" => {
+                let events = cmd["events"].as_array().cloned().unwrap_or_default();
+                let results = results.clone();
+                ui_script.push((
+                    frame,
+                    Box::new(move |ui, r, ctx| {
+                        let mut applied = Vec::new();
+                        for ev in &events {
+                            match ev["type"].as_str().unwrap_or_default() {
+                                "key" => {
+                                    let k = ev["key"].as_str().and_then(&key_name);
+                                    if let Some(k) = k {
+                                        applied.push(format!("key:{k:?}"));
+                                        ctx.actions.extend(ui::on_key(ui, k));
+                                    }
+                                }
+                                "click" => {
+                                    let (x, y) = (
+                                        ev["x"].as_i64().unwrap_or(640) as i32,
+                                        ev["y"].as_i64().unwrap_or(360) as i32,
+                                    );
+                                    let (w, h) = r.size();
+                                    let list = ui::build(ui, w, h);
+                                    applied.push(format!("click:{x},{y}"));
+                                    ctx.actions.extend(ui::on_click(ui, x, y, &list));
+                                }
+                                _ => {}
+                            }
+                        }
+                        results.borrow_mut().push(serde_json::json!({
+                            "cmd": "replay_input",
+                            "applied": applied,
+                            "screen_after": ui.screen.as_str(),
+                            "gameplay_blocked_after": ui.blocks_gameplay(),
+                        }));
+                    }),
+                ));
+                frame += 5;
+            }
+            other => {
+                eprintln!("[FAIL] unknown inspector command: {other}");
+                std::process::exit(2);
+            }
+        }
+    }
+    let end_frame = frame + 20;
+
+    let (seed, scene) = pc3d_render::slice::find_showcase(3);
+    let scene = std::rc::Rc::new(scene);
+    let cfg = pc3d_render::WindowConfig {
+        title: "POORCRAFT 3D — inspector".into(),
+        logical_size: (1280.0, 720.0),
+        size_is_physical: true,
+        resize_to: None,
+        max_frames: Some(end_frame),
+        slice_setup: Some(pc3d_render::app::SliceSetup {
+            seed,
+            rebuild: true,
+            scene,
+            save_root: save_root.clone(),
+            world_name: "inspect".into(),
+        }),
+        owner_menu: true,
+        save_root_override: Some(save_root.clone()),
+        ui_script,
+        ..Default::default()
+    };
+    match pc3d_render::run_windowed(cfg) {
+        Ok(report) => {
+            let results = results.borrow();
+            let alive = report.frames >= end_frame - 30;
+            let out = serde_json::json!({
+                "ok": alive,
+                "frames_run": report.frames,
+                "final_ui_state": report.final_ui_state,
+                "results": *results,
+            });
+            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            if !alive {
+                eprintln!("[FAIL] the session died before the command script finished");
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("[FAIL] windowed renderer: {e}");
+            std::process::exit(1);
+        }
+    }
 }

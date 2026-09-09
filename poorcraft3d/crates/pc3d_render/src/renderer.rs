@@ -58,6 +58,9 @@ struct Pipelines {
     sky: wgpu::RenderPipeline,
     mesh: wgpu::RenderPipeline,
     hud: wgpu::RenderPipeline,
+    /// The full-RGBA UI layer (GLM UI rework): passthrough fragment over
+    /// the hud vertex layout, alpha-blended, drawn after the HUD line.
+    ui: wgpu::RenderPipeline,
     water: wgpu::RenderPipeline,
     /// Depth-only sun pass (NWR-006); no fragment stage.
     shadow: wgpu::RenderPipeline,
@@ -484,6 +487,16 @@ impl Pipelines {
                 "fs_hud",
                 std::slice::from_ref(&hud_layout),
                 None,
+                Some(depth_off.clone()),
+                Some(wgpu::BlendState::ALPHA_BLENDING),
+            ),
+            ui: make(
+                "pc3d ui layer pipeline",
+                &pl_hud,
+                "vs_hud",
+                "fs_ui",
+                std::slice::from_ref(&hud_layout),
+                None,
                 Some(depth_off),
                 Some(wgpu::BlendState::ALPHA_BLENDING),
             ),
@@ -548,6 +561,17 @@ enum HudAnchor {
     Center,
 }
 
+/// The uploaded UI canvas: one fullscreen straight-alpha RGBA texture.
+struct UiLayer {
+    texture: wgpu::Texture,
+    bind_group: wgpu::BindGroup,
+    vertex_buffer: wgpu::Buffer,
+    size: (u32, u32),
+    /// The last uploaded canvas bytes (proof pixel checks read this copy
+    /// instead of a GPU readback).
+    last_canvas: Vec<u8>,
+}
+
 pub struct Renderer {
     ctx: GpuContext,
     surface: Option<SurfaceGuard>,
@@ -560,6 +584,9 @@ pub struct Renderer {
     bg_globals: wgpu::BindGroup,
     bg_hud: wgpu::BindGroup,
     hud: HudResources,
+    /// The owner-facing UI layer canvas (GLM UI rework). Uploaded only when
+    /// the UI state changes; drawn fullscreen after the HUD debug line.
+    ui_layer: Option<UiLayer>,
     /// Depth attachment for the active target (window or offscreen).
     depth: Option<wgpu::Texture>,
     offscreen: Option<wgpu::Texture>,
@@ -741,6 +768,7 @@ impl Renderer {
             bg_globals,
             bg_hud,
             hud,
+            ui_layer: None,
             depth,
             offscreen: None,
             atmosphere: crate::atmosphere::LEGACY,
@@ -825,6 +853,7 @@ impl Renderer {
             bg_globals,
             bg_hud,
             hud,
+            ui_layer: None,
             depth,
             offscreen: Some(texture),
             atmosphere: crate::atmosphere::LEGACY,
@@ -1463,6 +1492,85 @@ impl Renderer {
         self.hud.anchor = HudAnchor::Center;
     }
 
+    /// Uploads (or clears) the owner-facing UI layer canvas. Straight-alpha
+    /// RGBA, sized to the render target; the app only calls this when the
+    /// UI actually changed so steady frames upload nothing.
+    pub fn set_ui_layer(&mut self, canvas: Option<(Vec<u8>, u32, u32)>) {
+        match canvas {
+            Some((bytes, w, h)) => {
+                assert_eq!(
+                    bytes.len(),
+                    (w * h * 4) as usize,
+                    "ui canvas must be exactly w*h*4 bytes"
+                );
+                if self.ui_layer.as_ref().map(|l| l.size) != Some((w, h)) {
+                    let texture = create_hud_texture(&self.ctx.device, w, h);
+                    let bind_group = create_hud_bind_group(
+                        &self.ctx.device,
+                        &self.pipelines.layout_hud,
+                        &self.globals_buf,
+                        &texture,
+                    );
+                    let vertex_buffer = self.ctx.device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("pc3d ui layer quad"),
+                        size: 4 * 16,
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    });
+                    // Fullscreen quad, uv origin top-left (v grows downward
+                    // exactly like the canvas rows).
+                    let quad: [[f32; 4]; 4] = [
+                        [-1.0, 1.0, 0.0, 0.0],
+                        [1.0, 1.0, 1.0, 0.0],
+                        [-1.0, -1.0, 0.0, 1.0],
+                        [1.0, -1.0, 1.0, 1.0],
+                    ];
+                    self.ctx.queue.write_buffer(
+                        &vertex_buffer,
+                        0,
+                        bytemuck::cast_slice(&quad),
+                    );
+                    self.ui_layer = Some(UiLayer { texture, bind_group, vertex_buffer, size: (w, h), last_canvas: Vec::new() });
+                }
+                let layer = self.ui_layer.as_mut().expect("layer just ensured");
+                layer.last_canvas = bytes.clone();
+                self.ctx.queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &layer.texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    &bytes,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(w * 4),
+                        rows_per_image: None,
+                    },
+                    wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                );
+            }
+            None => self.ui_layer = None,
+        }
+    }
+
+    /// Whether a UI canvas is currently uploaded.
+    pub fn has_ui_layer(&self) -> bool {
+        self.ui_layer.is_some()
+    }
+
+    /// The last uploaded UI canvas (bytes, w, h) — proof pixel checks.
+    pub fn ui_canvas_copy(&self) -> Option<(&[u8], u32, u32)> {
+        self.ui_layer
+            .as_ref()
+            .map(|l| (l.last_canvas.as_slice(), l.size.0, l.size.1))
+    }
+
+    /// Vertical FOV in degrees (the settings screen drives this live).
+    pub fn set_fov_y_deg(&mut self, deg: f32) {
+        self.camera.fov_y_rad = deg.clamp(30.0, 120.0).to_radians();
+    }
+
     pub fn size(&self) -> (u32, u32) {
         if let Some(guard) = &self.surface {
             (guard.config.width, guard.config.height)
@@ -1971,11 +2079,23 @@ impl Renderer {
             pass.set_bind_group(0, &self.bg_globals, &[]);
             w.draw(&mut pass);
         }
-        // 3. HUD debug line (alpha blend, no depth).
-        pass.set_pipeline(&self.pipelines.hud);
-        pass.set_bind_group(0, &self.bg_hud, &[]);
-        pass.set_vertex_buffer(0, self.hud.vertex_buffer.slice(..));
-        pass.draw(0..4, 0..1);
+        // 3. HUD debug line (alpha blend, no depth). Skipped entirely when
+        // the line is blank — owner runs draw their HUD through the UI
+        // layer and must never show stray debug text.
+        if !self.hud.line.trim().is_empty() {
+            pass.set_pipeline(&self.pipelines.hud);
+            pass.set_bind_group(0, &self.bg_hud, &[]);
+            pass.set_vertex_buffer(0, self.hud.vertex_buffer.slice(..));
+            pass.draw(0..4, 0..1);
+        }
+        // 4. The owner-facing UI layer (GLM UI rework): one fullscreen
+        // alpha-blended quad over everything — panels, bars, hotbar, menus.
+        if let Some(ui) = &self.ui_layer {
+            pass.set_pipeline(&self.pipelines.ui);
+            pass.set_bind_group(0, &ui.bind_group, &[]);
+            pass.set_vertex_buffer(0, ui.vertex_buffer.slice(..));
+            pass.draw(0..4, 0..1);
+        }
     }
 }
 

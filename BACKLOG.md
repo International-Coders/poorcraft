@@ -11,6 +11,13 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] GLM UI rework (2026-09-09): the owner-facing UI is real — menus,
+      HUD, settings, save slots, modals, screenshot harness
+      (`--ui-shots`), JSON inspector (`--ui-inspect`); 10-gate battery.
+      Deferred honestly: hotbar tools (6–9 reserved), damage-driven
+      health, XP beyond first-build, audio, rebinding, save thumbnails
+      (see docs/POORCRAFT-3D/GLM-UI-REWORK-PROOF.md).
+
 - [x] M1 window opens and clear color (lf_engine)
 - [x] M2 chunk data structure + culled meshing (lf_voxel) + texture array
 - [x] M3 voxel raycast (DDA) with tests (not yet wired to input — P1)

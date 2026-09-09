@@ -41,12 +41,13 @@ pub mod streaming;
 pub mod surface;
 pub mod surface_stream;
 pub mod terrain;
+pub mod ui;
 pub mod water;
 pub mod world_features;
 
 pub use app::{
-    run_windowed, InteractiveHost, ProbeSet, Shot, SliceHost, SliceSetup, WindowConfig,
-    WindowReport,
+    run_windowed, CaptureOutcome, InteractiveHost, ProbeSet, Shot, SliceHost, SliceSetup,
+    UiFrameCtx, UiStep, WindowConfig, WindowReport,
 };
 pub use camera::CameraPose;
 pub use city::{city_scene, mesh_city, CityInfo, NavAnchor};

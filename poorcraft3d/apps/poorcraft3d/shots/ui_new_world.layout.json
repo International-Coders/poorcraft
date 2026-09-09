@@ -1,0 +1,213 @@
+{
+  "elements": [
+    {
+      "id": "new_world_panel",
+      "kind": "panel",
+      "rect": [
+        330,
+        185,
+        620,
+        350
+      ]
+    },
+    {
+      "id": "nw_name_label",
+      "kind": "text",
+      "rect": [
+        350,
+        235,
+        118,
+        14
+      ]
+    },
+    {
+      "id": "nw_name_value",
+      "kind": "text",
+      "rect": [
+        740,
+        235,
+        94,
+        14
+      ]
+    },
+    {
+      "id": "nw_seed_label",
+      "kind": "text",
+      "rect": [
+        350,
+        267,
+        46,
+        14
+      ]
+    },
+    {
+      "id": "nw_seed_value",
+      "kind": "text",
+      "rect": [
+        740,
+        267,
+        22,
+        14
+      ]
+    },
+    {
+      "id": "nw_mode_label",
+      "kind": "text",
+      "rect": [
+        350,
+        299,
+        46,
+        14
+      ]
+    },
+    {
+      "id": "nw_mode_value",
+      "kind": "text",
+      "rect": [
+        740,
+        299,
+        286,
+        14
+      ]
+    },
+    {
+      "id": "nw_quality_label",
+      "kind": "text",
+      "rect": [
+        350,
+        331,
+        82,
+        14
+      ]
+    },
+    {
+      "id": "nw_quality_value",
+      "kind": "text",
+      "rect": [
+        740,
+        331,
+        34,
+        14
+      ]
+    },
+    {
+      "id": "nw_seed_reroll",
+      "kind": "button",
+      "rect": [
+        480,
+        365,
+        320,
+        44
+      ]
+    },
+    {
+      "id": "nw_quality_down",
+      "kind": "button",
+      "rect": [
+        489,
+        421,
+        148,
+        44
+      ]
+    },
+    {
+      "id": "nw_quality_up",
+      "kind": "button",
+      "rect": [
+        643,
+        421,
+        148,
+        44
+      ]
+    },
+    {
+      "id": "nw_create",
+      "kind": "button",
+      "rect": [
+        480,
+        477,
+        320,
+        44
+      ]
+    },
+    {
+      "id": "nw_back",
+      "kind": "button",
+      "rect": [
+        480,
+        533,
+        320,
+        44
+      ]
+    },
+    {
+      "id": "footer_left",
+      "kind": "text",
+      "rect": [
+        18,
+        695,
+        155,
+        7
+      ]
+    },
+    {
+      "id": "footer_right",
+      "kind": "text",
+      "rect": [
+        1011,
+        695,
+        251,
+        7
+      ]
+    }
+  ],
+  "scale": 1.0,
+  "screen": "new_world",
+  "size": [
+    1280,
+    720
+  ],
+  "ui_state": {
+    "debug_overlay": false,
+    "focus": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "xp": 0.0
+    },
+    "modal": null,
+    "pointer_grabbed": false,
+    "screen": "new_world",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-09-09 05:03",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-09-09 05:03",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "toasts": []
+  }
+}

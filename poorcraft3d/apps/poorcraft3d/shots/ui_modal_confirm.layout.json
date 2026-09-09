@@ -1,0 +1,121 @@
+{
+  "elements": [
+    {
+      "id": "modal_dim",
+      "kind": "dim",
+      "rect": [
+        0,
+        0,
+        1280,
+        720
+      ]
+    },
+    {
+      "id": "modal_panel",
+      "kind": "panel",
+      "rect": [
+        390,
+        242,
+        500,
+        236
+      ]
+    },
+    {
+      "id": "modal_msg",
+      "kind": "text",
+      "rect": [
+        485,
+        288,
+        310,
+        14
+      ]
+    },
+    {
+      "id": "modal_msg",
+      "kind": "text",
+      "rect": [
+        509,
+        312,
+        262,
+        14
+      ]
+    },
+    {
+      "id": "modal_confirm",
+      "kind": "button",
+      "rect": [
+        375,
+        342,
+        170,
+        44
+      ]
+    },
+    {
+      "id": "modal_cancel",
+      "kind": "button",
+      "rect": [
+        565,
+        342,
+        170,
+        44
+      ]
+    }
+  ],
+  "scale": 1.0,
+  "screen": "pause",
+  "size": [
+    1280,
+    720
+  ],
+  "ui_state": {
+    "debug_overlay": false,
+    "focus": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 0.699999988079071,
+      "health": 0.44999998807907104,
+      "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 3,
+      "stamina": 0.3471982479095459,
+      "xp": 0.5
+    },
+    "modal": {
+      "kind": "delete_world",
+      "message": "DELETE WORLD 'alpha-shot'?\nTHIS CANNOT BE UNDONE."
+    },
+    "pointer_grabbed": true,
+    "screen": "pause",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-09-09 05:03",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-09-09 05:03",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "toasts": [
+      {
+        "age_s": 1.4873126745224,
+        "text": "SAVED 'REBUILD'"
+      }
+    ]
+  }
+}

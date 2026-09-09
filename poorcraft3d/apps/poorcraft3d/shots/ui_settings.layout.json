@@ -1,0 +1,433 @@
+{
+  "elements": [
+    {
+      "id": "settings_panel",
+      "kind": "panel",
+      "rect": [
+        322,
+        72,
+        637,
+        576
+      ]
+    },
+    {
+      "id": "set_row_0_label",
+      "kind": "text",
+      "rect": [
+        341,
+        120,
+        202,
+        14
+      ]
+    },
+    {
+      "id": "set_row_0_value",
+      "kind": "text",
+      "rect": [
+        800,
+        120,
+        34,
+        14
+      ]
+    },
+    {
+      "id": "set_row_0_dec",
+      "kind": "button",
+      "rect": [
+        735,
+        113,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_0_inc",
+      "kind": "button",
+      "rect": [
+        892,
+        113,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_1_label",
+      "kind": "text",
+      "rect": [
+        341,
+        158,
+        94,
+        14
+      ]
+    },
+    {
+      "id": "set_row_1_value",
+      "kind": "text",
+      "rect": [
+        800,
+        158,
+        34,
+        14
+      ]
+    },
+    {
+      "id": "set_row_1_dec",
+      "kind": "button",
+      "rect": [
+        735,
+        151,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_1_inc",
+      "kind": "button",
+      "rect": [
+        892,
+        151,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_2_label",
+      "kind": "text",
+      "rect": [
+        341,
+        196,
+        154,
+        14
+      ]
+    },
+    {
+      "id": "set_row_2_value",
+      "kind": "text",
+      "rect": [
+        800,
+        196,
+        70,
+        14
+      ]
+    },
+    {
+      "id": "set_row_2_dec",
+      "kind": "button",
+      "rect": [
+        735,
+        189,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_2_inc",
+      "kind": "button",
+      "rect": [
+        892,
+        189,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_3_label",
+      "kind": "text",
+      "rect": [
+        341,
+        234,
+        94,
+        14
+      ]
+    },
+    {
+      "id": "set_row_3_value",
+      "kind": "text",
+      "rect": [
+        800,
+        234,
+        46,
+        14
+      ]
+    },
+    {
+      "id": "set_row_3_dec",
+      "kind": "button",
+      "rect": [
+        735,
+        227,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_3_inc",
+      "kind": "button",
+      "rect": [
+        892,
+        227,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_4_label",
+      "kind": "text",
+      "rect": [
+        341,
+        272,
+        166,
+        14
+      ]
+    },
+    {
+      "id": "set_row_4_value",
+      "kind": "text",
+      "rect": [
+        800,
+        272,
+        34,
+        14
+      ]
+    },
+    {
+      "id": "set_row_4_dec",
+      "kind": "button",
+      "rect": [
+        735,
+        265,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_row_4_inc",
+      "kind": "button",
+      "rect": [
+        892,
+        265,
+        32,
+        28
+      ]
+    },
+    {
+      "id": "set_controls_title",
+      "kind": "text",
+      "rect": [
+        341,
+        309,
+        94,
+        14
+      ]
+    },
+    {
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        341,
+        331,
+        77,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        668,
+        331,
+        65,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        341,
+        359,
+        65,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        668,
+        359,
+        77,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        341,
+        387,
+        95,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        668,
+        387,
+        83,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        341,
+        415,
+        113,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        668,
+        415,
+        47,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        341,
+        443,
+        53,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        668,
+        443,
+        41,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        341,
+        471,
+        41,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        668,
+        471,
+        59,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        341,
+        499,
+        59,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        668,
+        499,
+        41,
+        7
+      ]
+    },
+    {
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        341,
+        527,
+        53,
+        7
+      ]
+    },
+    {
+      "id": "set_back",
+      "kind": "button",
+      "rect": [
+        490,
+        550,
+        300,
+        41
+      ]
+    }
+  ],
+  "scale": 0.9360544085502625,
+  "screen": "settings",
+  "size": [
+    1280,
+    720
+  ],
+  "ui_state": {
+    "debug_overlay": false,
+    "focus": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "xp": 0.0
+    },
+    "modal": null,
+    "pointer_grabbed": false,
+    "screen": "settings",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-09-09 05:03",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-09-09 05:03",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "toasts": []
+  }
+}

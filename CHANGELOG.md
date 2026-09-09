@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-09-09 — GLM UI REWORK: the real owner UI (UI-001..UI-008)
+
+The temporary bitmap-font owner shell is replaced by a real UI layer,
+executed end-to-end from docs/POORCRAFT-3D/GLM-UI-REWORK-PACK:
+
+- `pc3d_render::ui` — state model, draw list, pure CPU painter, pure
+  input reducer; rendered as one fullscreen alpha-blended canvas after
+  the world (`Renderer::set_ui_layer`).
+- Title / New World / Load World / Settings / Pause screens with mouse
+  + keyboard navigation; confirmation modals own the frame; Escape
+  pauses/resumes and never exits; quitting is always explicit.
+- Live gameplay HUD: health/stamina/food bars, XP strip, 9-slot
+  build-palette hotbar (selection drives F), crosshair, prompt,
+  toasts; F3 debug strip hidden by default.
+- Settings drive the runtime (sensitivity, invert Y, FOV, UI scale,
+  quality) and persist; save slots list saves3d with seed + date and
+  confirm before load/delete.
+- `--ui-shots` (11 deterministic scenes + pixel checks + layout dumps)
+  and `--ui-inspect` (local JSON inspector with input replay proving
+  the Escape law).
+- Visual battery grew to 10 gates (`ui-states`); capability inventory
+  updated in the same commit (guardrail green). p3d 457/457, root
+  474/474. DMG rebuilt; route proof passed from the mounted volume.
+
 ## 2026-09-08 — NWR-011: the rebuild vertical slice
 
 The full rebuild stack on one deterministic, human-walkable route:

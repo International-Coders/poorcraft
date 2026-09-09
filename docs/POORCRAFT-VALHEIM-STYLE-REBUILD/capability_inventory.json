@@ -3,10 +3,10 @@
  "title": "POORCRAFT 3D rebuild capability inventory",
  "law": "This file is the honest machine-readable record of what the renderer ACTUALLY does today. A milestone may only change a row's maturity/target by shipping code + tests + a windowed proof; the validator (pc3d_render::inventory) fails the suite when a row claims more than reality (e.g. an asset marked shipped without its compiled file and consumer on disk).",
  "audit": {
-  "date": "2026-09-07",
-  "milestone": "NWR-002",
+  "date": "2026-09-09",
+  "milestone": "GLM UI rework (UI-001..UI-008)",
   "unit_tests": "to be re-run (full suite)",
-  "visual_gates": "9/9 PASS (make p3d-visual-gates)",
+  "visual_gates": "10/10 PASS (make p3d-visual-gates, ui-states gate added by the GLM UI rework)",
   "smoke": "P3D SMOKE OK",
   "root_workspace": "474/474 (untouched by the rebuild baseline)"
  },
@@ -130,6 +130,16 @@
    "maturity": "working",
    "rebuild_target": "NWR-005+: migrations must version + regression-test (hard exclusion)",
    "proof": "unit: slice round-trip; gates:vertical-slice (reload pixel-identical)"
+  },
+  {
+   "path": "owner_ui",
+   "module": "pc3d_render::ui",
+   "representation": "cpu_painted_canvas_over_world",
+   "representation_class": "prototype_primitives",
+   "data_binding": "UiState (explicit screen state; live HUD values from the app)",
+   "maturity": "working",
+   "rebuild_target": "GLM-UI-REWORK: the owner-facing screens + HUD replace the bitmap-text shell",
+   "proof": "gates:ui-states"
   }
  ],
  "asset_files_on_disk": [
@@ -314,6 +324,10 @@
    {
     "name": "asset-manifest",
     "command_flag": "--validate-assets"
+   },
+   {
+    "name": "ui-states",
+    "command_flag": "--ui-shots"
    }
   ]
  },
@@ -341,7 +355,9 @@
   "--flow-map",
   "--diagnose",
   "--soak",
-  "--journey"
+  "--journey",
+  "--ui-shots",
+  "--ui-inspect"
  ],
  "data_boundaries": {
   "pc3d_world": "deterministic, rendering-free (no wgpu/winit/UI/texture deps)",

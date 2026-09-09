@@ -438,6 +438,14 @@ fn fs_hud(in: HudOut) -> @location(0) vec4f {
     return mix(backing, text, a);
 }
 
+@fragment
+fn fs_ui(in: HudOut) -> @location(0) vec4f {
+    // The UI layer canvas: full RGBA passthrough (straight alpha, the
+    // pipeline blend state does src-over). Panels, bars, buttons, and
+    // colored text all live in this one texture.
+    return textureSample(hud_texture, hud_sampler, in.uv);
+}
+
 // --- Water (R3DV-007): transparent strip, current from the flow record ---
 
 struct WaterIn {

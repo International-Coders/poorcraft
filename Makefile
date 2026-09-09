@@ -153,9 +153,17 @@ p3d-rebuild: ## NWR-011: the rebuild vertical slice (route captures + save/reloa
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-rebuild $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(SEED) || exit 1; \
 	echo "P3D REBUILD SLICE OK"
 
-p3d-rebuild-live: ## Owner alpha menu + LIVE rebuild slice (Enter/click start, Esc pause, Q quit)
+p3d-rebuild-live: ## Owner LIVE slice with the real UI (title screen, menus, HUD; Esc pauses, never exits)
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-rebuild live
+
+p3d-ui-shots: ## GLM UI rework: 11 deterministic UI state screenshots + pixel checks + layout dumps
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --ui-shots poorcraft3d/apps/poorcraft3d/shots
+
+p3d-ui-inspect: ## GLM UI rework: the local JSON inspector (e.g. make p3d-ui-inspect CMD='<json>')
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --ui-inspect '$(CMD)'
 
 p3d-deck-bench: ## NWR-010: Steam Deck benchmark walk (3 tiers + documented report): make p3d-deck-bench [SEED=3] [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
@@ -208,6 +216,7 @@ p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowe
 	run npc-cast             $$BIN --play-npcs    "$$SHOTS" 3; \
 	run quality-tiers        $$BIN --play-quality "$$SHOTS" 3; \
 	run vertical-slice       $$BIN --play-slice   "$$SHOTS" 3; \
+	run ui-states            $$BIN --ui-shots     "$$SHOTS"; \
 	run asset-manifest       $$BIN --validate-assets; \
 	echo "" | tee -a "$$REPORT"; \
 	if [ $$fail -eq 0 ]; then \

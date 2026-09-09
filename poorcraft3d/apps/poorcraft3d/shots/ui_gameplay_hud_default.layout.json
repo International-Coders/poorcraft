@@ -1,0 +1,203 @@
+{
+  "elements": [
+    {
+      "id": "bar_health",
+      "kind": "bar",
+      "rect": [
+        20,
+        20,
+        240,
+        18
+      ]
+    },
+    {
+      "id": "bar_stamina",
+      "kind": "bar",
+      "rect": [
+        20,
+        48,
+        240,
+        18
+      ]
+    },
+    {
+      "id": "bar_food",
+      "kind": "bar",
+      "rect": [
+        20,
+        76,
+        240,
+        18
+      ]
+    },
+    {
+      "id": "crosshair",
+      "kind": "crosshair",
+      "rect": [
+        632,
+        352,
+        16,
+        16
+      ]
+    },
+    {
+      "id": "xp_strip",
+      "kind": "bar",
+      "rect": [
+        382,
+        641,
+        516,
+        5
+      ]
+    },
+    {
+      "id": "prompt",
+      "kind": "text",
+      "rect": [
+        353,
+        617,
+        574,
+        14
+      ]
+    },
+    {
+      "id": "hotbar_0",
+      "kind": "hotbar_slot",
+      "rect": [
+        382,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "id": "hotbar_1",
+      "kind": "hotbar_slot",
+      "rect": [
+        440,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "id": "hotbar_2",
+      "kind": "hotbar_slot",
+      "rect": [
+        498,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "id": "hotbar_3",
+      "kind": "hotbar_slot",
+      "rect": [
+        556,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "id": "hotbar_4",
+      "kind": "hotbar_slot",
+      "rect": [
+        614,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "id": "hotbar_5",
+      "kind": "hotbar_slot",
+      "rect": [
+        672,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "id": "hotbar_6",
+      "kind": "hotbar_slot",
+      "rect": [
+        730,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "id": "hotbar_7",
+      "kind": "hotbar_slot",
+      "rect": [
+        788,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "id": "hotbar_8",
+      "kind": "hotbar_slot",
+      "rect": [
+        846,
+        652,
+        52,
+        52
+      ]
+    }
+  ],
+  "scale": 1.0,
+  "screen": "gameplay",
+  "size": [
+    1280,
+    720
+  ],
+  "ui_state": {
+    "debug_overlay": false,
+    "focus": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": false,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "xp": 0.0
+    },
+    "modal": null,
+    "pointer_grabbed": true,
+    "screen": "gameplay",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-09-09 05:03",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-09-09 05:03",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "toasts": []
+  }
+}

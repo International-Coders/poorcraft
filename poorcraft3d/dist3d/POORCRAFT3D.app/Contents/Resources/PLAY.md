@@ -1,30 +1,47 @@
-# POORCRAFT 3D — THE REBUILD SLICE (play-test DMG, 2026-09-08)
+# POORCRAFT 3D — THE REBUILD SLICE (play-test DMG, 2026-09-09)
 
 ## Just play
-  Double-click POORCRAFT3D.app — it opens the owner alpha menu over the
+  Double-click POORCRAFT3D.app — it opens the TITLE SCREEN over the
   walkable rebuild slice. (Or from Terminal: open POORCRAFT3D.app)
-NOTE: saves (the B key) land in the build folder's saves3d/ on this
-machine; Escape pauses/resumes, and Q is the explicit quit key.
+NOTE: saves and settings land in the build folder's saves3d/ on this
+machine.
 
+## The real menus (GLM UI rework)
+  Title screen: PLAY (or CONTINUE), NEW WORLD, LOAD WORLD, SETTINGS,
+  QUIT. Click a button, or move with the arrow keys and press Enter.
+  ESC never exits the game — it pauses. Quitting is always an explicit
+  menu choice (or Q on the title/pause screen, which asks first).
 
-The full natural-world rebuild on one walkable route: streamed surface
-terrain, atmosphere, wilderness, the settlement kit, living people,
-rivers, caves — and YOU on the ground.
+- PLAY enters the world and captures the mouse; the first click in the
+  world also captures it. ESC pauses (mouse released), ESC or RESUME
+  continues.
+- Pause menu: RESUME, SAVE, LOAD, SETTINGS, QUIT TO TITLE, QUIT TO
+  DESKTOP.
+- LOAD WORLD lists your saves3d slots with seed + date; loading and
+  deleting both ask for confirmation first.
+- SETTINGS: mouse sensitivity, invert Y, FOV, UI scale, quality preset
+  (all live), and the full controls summary. Settings persist in
+  saves3d/settings.json.
+- NEW WORLD: type a seed (digits), reroll, pick a quality tier, CREATE.
 
-## Play the rebuild slice (first person)
-  ./poorcraft3d --play-rebuild live
-Enter or click starts. Click captures the mouse for look. WASD WALKS
-THE SURFACE, F builds on INSPECTED ground (rejections name the
-reason), R removes, B saves, L reloads, I shows Bed/Work/Idle boxes,
-Escape pauses/resumes, Q quits.
+## Gameplay HUD + keys
+  Health/stamina/food bars (live values — stamina drains while you
+  walk, food drifts down with travel), XP strip, 9-slot hotbar (slots
+  1-5 are build materials; 1-9 or the wheel selects — F builds with the
+  SELECTED material), crosshair, action prompt, fading toasts
+  (SAVED/LOADED/PLACED/...). F3 toggles the debug strip (off by
+  default).
 
-## The automated route proof
-  ./poorcraft3d --play-rebuild
-Five captures: the distant vantage, the town street, the river +
-wheel, the cave mouth, and the gate at player height (+ the
-construction save/reload proof).
+  WASD walk the surface · mouse look · F build on INSPECTED ground
+  (rejections name the reason) · R remove · B save · L reload · I
+  inspect Bed/Work/Idle boxes · ESC pause.
 
-## The quality contract + benchmark
+## The automated proofs
+  ./poorcraft3d --play-rebuild            # the 5-stop route proof
+  ./poorcraft3d --play-rebuild live       # the interactive slice
+  ./poorcraft3d --ui-shots                # 11 UI state screenshots
+                                          #   + pixel checks + layout dumps
+  ./poorcraft3d --ui-inspect '<json>'     # the local JSON inspector
   ./poorcraft3d --deck-bench 3 shots low|mid|high
   ./poorcraft3d --deck-bench 3 shots report
 

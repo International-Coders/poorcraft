@@ -9,6 +9,7 @@ pc3d_world = { path = "../../crates/pc3d_world" }
 pc3d_render = { path = "../../crates/pc3d_render" }
 pc3d_assets = { path = "../../crates/pc3d_assets" }
 image = { version = "0.25", default-features = false, features = ["png"] }
+serde_json = "1.0"
 
 [[bin]]
 name = "poorcraft3d"

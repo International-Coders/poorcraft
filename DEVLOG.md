@@ -5699,3 +5699,99 @@ pc3d_assets 25/25 passed. cargo build --release --manifest-path
 poorcraft3d/Cargo.toml -p poorcraft3d passed. Fresh screenshot capture attempt
 did not complete; the failure is recorded in
 13-BASELINE-SCREENSHOT-NOTES.md and is the first problem UI-001 must solve.
+
+## 2026-09-09 — GLM UI REWORK EXECUTED (UI-001..UI-008)
+
+### Task
+
+The full implementation queue from
+docs/POORCRAFT-3D/GLM-UI-REWORK-PACK/zcode_task_queue.json, executed in
+order: UI-001 screenshotable UI state harness, UI-002 runtime UI draw
+list, UI-003 real title/pause screens, UI-004 HUD bars + hotbar,
+UI-005 settings + controls, UI-006 save slot UI, UI-007 inspector,
+UI-008 visual polish.
+
+### What Changed
+
+- NEW `poorcraft3d/crates/pc3d_render/src/ui.rs` (~1500 lines incl. 26
+  tests): UiState/Screen/ModalKind/HudValues/UiSettings/KEYMAP, the
+  DrawList layout builder (SAFE_MARGIN_PX=16, fit-scale law, no
+  interactive overlap; tested at 1280x720, 1280x800, 1920x1080,
+  2560x1440), the pure CPU painter (straight-alpha RGBA canvas; forged
+  panels, ember buttons with normal/hover/focused/pressed states, live
+  bars, hotbar slots, crosshair, toasts, logo, dim), and the input
+  reducer (on_key/on_click/on_mouse_move -> UiAction).
+- `renderer.rs`: fs_ui passthrough shader + `ui` pipeline,
+  `set_ui_layer(canvas)` (texture re-created only on size change,
+  bytes uploaded only when the app says the UI changed),
+  `ui_canvas_copy()`, `set_fov_y_deg()`, blank HUD line = no debug
+  draw. `shaders/scene.wgsl`: fs_ui.
+- `app.rs` rewritten around UiState when owner_menu: mouse hover/click
+  hit-testing against the live draw list, arrow+Enter navigation,
+  Escape routed through the reducer (never exits), Q on menus opens a
+  quit confirm modal, exec_actions for save/load/delete/create-world
+  (live find_showcase + assemble_rebuild swap), settings persistence
+  (saves3d/settings.json, clamped), save-slot listing (framed-meta
+  seed parse + civil-date mtime), vitals (stamina/food live), build
+  palette BUILD_PALETTE (F places the SELECTED slot's material),
+  WindowConfig gains ui_script/resize_script/save_root_override/
+  size_is_physical, Shot gains ui_dump, CaptureOutcome gains
+  ui_canvas + ui_layout, run_ui_script drains all steps due at a
+  frame. Non-owner automated proof windows keep the exact legacy
+  behavior.
+- `main.rs`: `--ui-shots` (11-scene harness + ui::verify_ui_captures
+  pixel checks + layout dumps), `--ui-inspect '<json>'` (12-command
+  local inspector incl. replay_input), usage string updated; live
+  printout reflects the real menus.
+- Makefile: `p3d-ui-shots`, `p3d-ui-inspect`, and the `ui-states` gate
+  in the battery. PLAY.md rewritten for the menus/HUD/F3/Q contract.
+- capability_inventory.json: ui-states gate + owner_ui renderer path +
+  runtime commands (guardrail test count 9 -> 10, green).
+- Proof record: docs/POORCRAFT-3D/GLM-UI-REWORK-PROOF.md.
+
+### How It Was Proven
+
+- Build: `cargo build --release --manifest-path poorcraft3d/Cargo.toml`
+  clean. Tests: p3d 457/457 (pc3d_render 153; +30 new), root 474/474.
+- `make p3d-visual-gates`: 10/10 PASS (report:
+  poorcraft3d/apps/poorcraft3d/shots/gates_report.txt).
+- `make p3d-ui-shots`: 11 captures + 11 layout dumps in
+  poorcraft3d/apps/poorcraft3d/shots/ (ui_*.png / ui_*.layout.json);
+  the in-process checks PASS (nonblank, safe margins, no overlap,
+  alpha presence, required/forbidden elements, focus distinctness
+  2092 px in both focused buttons, health fill ~0.45).
+- Inspector: 12-command script incl. two Escape replays -> ok:true;
+  pause blocked+alive, then resume with the pointer re-grabbed
+  (shots/inspect_pause.png captured mid-run).
+- Human inspection: every ui_*.png read at native resolution
+  (paragraph notes per scene in GLM-UI-REWORK-PROOF.md).
+- Smoke: no-args launch ALIVE 12 s on the title screen (build + the
+  mounted DMG); DMG route proof PASS from the read-only volume;
+  `make p3d-dmg` artifact at poorcraft3d/dist3d/poorcraft3d-macos.dmg.
+
+### What Failed First
+
+Six real failures the proof loop caught and fixed: (1) script-driven
+OpenScreen/StartPlaying actions never set the screen — the executor is
+now idempotent; (2) several ui_script steps at the same frame index
+fired only the first — the runner now drains all due steps; (3) the
+overlap check caught the modal sharing the frame with pause buttons —
+modals now own the frame (dim + modal only); (4) settings [-]/[+]
+mini-buttons overlapped rows at UI scale 1.5 (and New World QUALITY
+-/+ overlapped each other) — heights/widths fixed; (5) the vision pass
+caught the legacy "P3D POS..." debug line rendering behind the title
+screen — owner runs blank it and a blank line skips the draw entirely;
+(6) save-slot seeds read 18/17 instead of 22/7 — the meta parser was
+reading the frame's payload-length field; offset fixed (16+8) with a
+regression test. A half-resolution contact sheet also produced a false
+"NO SAVED WORLDS YET" reading — full-res crops + the layout dump
+proved the slots were present; lesson recorded: inspect at native
+resolution.
+
+### Honest Deferrals
+
+Hotbar slots 6-9 reserved (no tools/items in the slice), health has no
+damage source yet, XP is the first-build marker only,
+dump_mesh_wireframe is summary-level v1, no audio/rebinding/save
+thumbnails, Deck layout proven at 1280x800 logical only. The owner's
+manual play pass remains the gate before "playable".

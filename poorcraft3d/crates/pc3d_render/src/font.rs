@@ -224,8 +224,23 @@ const GLYPHS: &[(char, [u8; 7])] = &[
     ),
     (' ', [0; 7]),
     ('.', [0, 0, 0, 0, 0, 0b01100, 0b01100]),
+    (',', [0, 0, 0, 0, 0b01100, 0b00100, 0b01000]),
     ('-', [0, 0, 0, 0b01110, 0, 0, 0]),
+    ('+', [0, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0]),
+    ('=', [0, 0, 0b11111, 0, 0b11111, 0, 0]),
+   ('_', [0, 0, 0, 0, 0, 0, 0b11111]),
     (':', [0, 0b01100, 0b01100, 0, 0b01100, 0b01100, 0]),
+    ('!', [0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0, 0b00100]),
+    ('?', [0b01110, 0b10001, 0b00001, 0b00110, 0b00100, 0, 0b00100]),
+    ('\'', [0b00100, 0b00100, 0, 0, 0, 0, 0]),
+    ('(', [0b00010, 0b00100, 0b01000, 0b01000, 0b01000, 0b00100, 0b00010]),
+    (')', [0b01000, 0b00100, 0b00010, 0b00010, 0b00010, 0b00100, 0b01000]),
+    ('[', [0b01110, 0b01000, 0b01000, 0b01000, 0b01000, 0b01000, 0b01110]),
+    (']', [0b01110, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b01110]),
+    ('<', [0b00001, 0b00010, 0b00100, 0b01000, 0b00100, 0b00010, 0b00001]),
+    ('>', [0b10000, 0b01000, 0b00100, 0b00010, 0b00100, 0b01000, 0b10000]),
+    ('%', [0b11001, 0b11010, 0b00010, 0b00100, 0b01000, 0b01011, 0b10011]),
+    ('*', [0, 0b10101, 0b01110, 0b11111, 0b01110, 0b10101, 0]),
     (
         '/',
         [
@@ -246,6 +261,28 @@ fn glyph(c: char) -> [u8; 7] {
         .find(|(gc, _)| *gc == upper)
         .map(|(_, rows)| *rows)
         .unwrap_or([0; 7])
+}
+
+/// The glyph rows for one character (unknown chars fall back to space) —
+/// the UI painter draws these directly so text can carry arbitrary color.
+pub fn glyph_rows(c: char) -> [u8; 7] {
+    glyph(c)
+}
+
+/// A run of text's pixel size at the given scale (tight packing, 1 px gaps).
+pub fn text_size(text: &str, scale: u32) -> (u32, u32) {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let max_chars = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+    let w = if max_chars == 0 {
+        scale
+    } else {
+        (((max_chars as u32 - 1) * ADVANCE) + GLYPH_W) * scale
+    };
+    let line_gap = scale;
+    let h = ((lines.len() as u32 * GLYPH_H * scale)
+        + (lines.len().saturating_sub(1) as u32 * line_gap))
+        .max(GLYPH_H * scale);
+    (w, h)
 }
 
 /// Rasterizes one or more lines into a tightly packed RGBA8 buffer (white,
