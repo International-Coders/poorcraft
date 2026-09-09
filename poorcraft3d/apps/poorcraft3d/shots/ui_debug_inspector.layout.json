@@ -164,9 +164,9 @@
       "id": "debug_strip",
       "kind": "debug",
       "rect": [
-        510,
+        498,
         20,
-        754,
+        766,
         14
       ]
     }
@@ -192,7 +192,7 @@
       "health": 0.44999998807907104,
       "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.3742697536945343,
+      "stamina": 0.3463519811630249,
       "xp": 0.5
     },
     "modal": null,
@@ -208,19 +208,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-09 05:03",
+        "modified": "2026-09-09 05:14",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-09 05:03",
+        "modified": "2026-09-09 05:14",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "toasts": [
       {
-        "age_s": 2.1255369186401367,
+        "age_s": 1.345220923423767,
         "text": "SAVED 'REBUILD'"
       }
     ]

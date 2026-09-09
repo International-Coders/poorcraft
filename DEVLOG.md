@@ -5795,3 +5795,37 @@ damage source yet, XP is the first-build marker only,
 dump_mesh_wireframe is summary-level v1, no audio/rebinding/save
 thumbnails, Deck layout proven at 1280x800 logical only. The owner's
 manual play pass remains the gate before "playable".
+
+## 2026-09-09 — GLM UI rework: the real front-end (owner pack, runner-verified + shipped)
+
+WHAT: The owner's GLM-UI-REWORK-PACK landed in two waves (abfccf4 =
+specs/queue/gates; then the implementation, uncommitted when this run
+arrived). Per the half-done rule this run verified and shipped it:
+pc3d_render::ui (2.6k lines) — a screenshotable draw-list UI (panels,
+buttons, text, icons, bars, hotbar slots, toasts), REAL title/pause
+screens replacing the temporary bitmap overlay, HUD bars + 9-slot
+hotbar reflecting live state (health fill verified against target
+fraction), settings/controls (sensitivity, invert-Y, FOV, UI scale,
+quality preset, key summary), save-slot browser with confirmations,
+the local JSON inspector (--ui-inspect), and renderer-native panel/
+keycap/icon primitives at Deck 1280x800 as well as 720p.
+
+EVIDENCE (this run): release build clean; p3d 474/474 (+48 UI tests);
+root 474/474; the UI screenshot harness --ui-shots / make p3d-ui-shots
+writes 11 deterministic captures + layout dumps, all scene checks PASS
+(3867+ distinct colors per screen, 6-38 UI elements each, hundreds of
+thousands of blended pixels, focus-distinct buttons, health bar fill
+0.38 vs 0.45 target within tolerance); human inspection: the title
+screen (forged-metal panel, readable PLAY/NEW WORLD/LOAD/SETTINGS/
+QUIT buttons, ember highlights) and the gameplay HUD (heart bar, 9-slot
+hotbar with selection, crosshair) both read as intended; the 10-gate
+visual battery ALL PASS (the UI shot check joined as gate 10); the
+live launch verified ALIVE 12 s on the title screen with the full key
+map (F3 debug, 1-9/wheel material select, Esc pauses/never exits, Q
+asks); the DMG rebuilt and verified from the MOUNTED read-only volume
+(ui-shots PASS + journey digest 7ab2295dafa0ec24).
+
+HONESTLY DEFERRED: the owner's queue continues (UI-008 visual polish
+with sliced concept art, MCP inspector hardening); per the pack's
+DO_NOT_CLAIM_DONE_UNTIL the owner play pass remains the gate for
+'playable'.
