@@ -115,7 +115,12 @@ pub(crate) fn push_city_box(
         push_quad(
             verts,
             idx,
-            [corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)],
+            [
+                corner(-1.0, -1.0),
+                corner(1.0, -1.0),
+                corner(1.0, 1.0),
+                corner(-1.0, 1.0),
+            ],
             n,
             color,
         );
@@ -138,29 +143,55 @@ fn push_pitched_roof(
         let yr = min[1] + ridge_h;
         // North slope (z = min) up to ridge (z mid), south slope down.
         let zm = (min[2] + max[2]) / 2.0;
-        let n_slope_n = [0.0, (max[2] - zm).abs().max(1e-3), -(yr - y0) / (zm - min[2]).max(1e-3) * 0.0 + 1.0];
+        let n_slope_n = [
+            0.0,
+            (max[2] - zm).abs().max(1e-3),
+            -(yr - y0) / (zm - min[2]).max(1e-3) * 0.0 + 1.0,
+        ];
         let _ = n_slope_n;
         // Slopes as quads with approximate normals (visual placeholder).
         push_quad(
             verts,
             idx,
-            [[min[0], y0, min[2]], [max[0], y0, min[2]], [max[0], yr, zm], [min[0], yr, zm]],
+            [
+                [min[0], y0, min[2]],
+                [max[0], y0, min[2]],
+                [max[0], yr, zm],
+                [min[0], yr, zm],
+            ],
             [0.0, 0.6, -0.8],
             color,
         );
         push_quad(
             verts,
             idx,
-            [[min[0], y0, max[2]], [max[0], y0, max[2]], [max[0], yr, zm], [min[0], yr, zm]],
+            [
+                [min[0], y0, max[2]],
+                [max[0], y0, max[2]],
+                [max[0], yr, zm],
+                [min[0], yr, zm],
+            ],
             [0.0, 0.6, 0.8],
             color,
         );
         // Gables (west/east).
         for (x, n) in [(min[0], [-1.0, 0.0, 0.0]), (max[0], [1.0, 0.0, 0.0])] {
             let a = verts.len() as u16;
-            verts.push(SceneVertex { pos: [x, y0, min[2]], normal: n, color });
-            verts.push(SceneVertex { pos: [x, y0, max[2]], normal: n, color });
-            verts.push(SceneVertex { pos: [x, yr, zm], normal: n, color });
+            verts.push(SceneVertex {
+                pos: [x, y0, min[2]],
+                normal: n,
+                color,
+            });
+            verts.push(SceneVertex {
+                pos: [x, y0, max[2]],
+                normal: n,
+                color,
+            });
+            verts.push(SceneVertex {
+                pos: [x, yr, zm],
+                normal: n,
+                color,
+            });
             idx.extend([a, a + 1, a + 2]);
         }
     } else {
@@ -170,22 +201,44 @@ fn push_pitched_roof(
         push_quad(
             verts,
             idx,
-            [[min[0], y0, min[2]], [min[0], y0, max[2]], [xm, yr, max[2]], [xm, yr, min[2]]],
+            [
+                [min[0], y0, min[2]],
+                [min[0], y0, max[2]],
+                [xm, yr, max[2]],
+                [xm, yr, min[2]],
+            ],
             [-0.8, 0.6, 0.0],
             color,
         );
         push_quad(
             verts,
             idx,
-            [[max[0], y0, min[2]], [max[0], y0, max[2]], [xm, yr, max[2]], [xm, yr, min[2]]],
+            [
+                [max[0], y0, min[2]],
+                [max[0], y0, max[2]],
+                [xm, yr, max[2]],
+                [xm, yr, min[2]],
+            ],
             [0.8, 0.6, 0.0],
             color,
         );
         for (z, n) in [(min[2], [0.0, 0.0, -1.0]), (max[2], [0.0, 0.0, 1.0])] {
             let a = verts.len() as u16;
-            verts.push(SceneVertex { pos: [min[0], y0, z], normal: n, color });
-            verts.push(SceneVertex { pos: [max[0], y0, z], normal: n, color });
-            verts.push(SceneVertex { pos: [xm, yr, z], normal: n, color });
+            verts.push(SceneVertex {
+                pos: [min[0], y0, z],
+                normal: n,
+                color,
+            });
+            verts.push(SceneVertex {
+                pos: [max[0], y0, z],
+                normal: n,
+                color,
+            });
+            verts.push(SceneVertex {
+                pos: [xm, yr, z],
+                normal: n,
+                color,
+            });
             idx.extend([a, a + 1, a + 2]);
         }
     }
@@ -228,38 +281,100 @@ fn castle_module_mesh(
             // top — readable as a GATE.
             let (px, pz) = (fw as f32, fh as f32);
             push_city_box(verts, idx, [x0, y, z0], [x0 + 1.0, y + 4.0, z0 + pz], stone);
-            push_city_box(verts, idx, [x0 + px - 1.0, y, z0], [x0 + px, y + 4.0, z0 + pz], stone);
-            push_city_box(verts, idx, [x0, y + 4.0, z0], [x0 + px, y + 5.0, z0 + pz], stone);
-            push_city_box(verts, idx, [x0, y + 5.0, z0], [x0 + 1.0, y + 6.0, z0 + pz], stone);
             push_city_box(
-                verts, idx,
+                verts,
+                idx,
+                [x0 + px - 1.0, y, z0],
+                [x0 + px, y + 4.0, z0 + pz],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0, y + 4.0, z0],
+                [x0 + px, y + 5.0, z0 + pz],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0, y + 5.0, z0],
+                [x0 + 1.0, y + 6.0, z0 + pz],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
                 [x0 + px - 1.0, y + 5.0, z0],
                 [x0 + px, y + 6.0, z0 + pz],
                 stone,
             );
         }
         ModuleKind::Wall => {
-            push_city_box(verts, idx, [x0, y, z0], [x0 + fw as f32, y + 2.2, z0 + fh as f32], stone);
+            push_city_box(
+                verts,
+                idx,
+                [x0, y, z0],
+                [x0 + fw as f32, y + 2.2, z0 + fh as f32],
+                stone,
+            );
             let step = 1.0;
             let mut mx = x0;
             while mx < x0 + fw as f32 {
                 let seg_end = (mx + 0.6).min(x0 + fw as f32);
-                push_city_box(verts, idx, [mx, y + 2.2, z0], [seg_end, y + 3.0, z0 + fh as f32], stone);
+                push_city_box(
+                    verts,
+                    idx,
+                    [mx, y + 2.2, z0],
+                    [seg_end, y + 3.0, z0 + fh as f32],
+                    stone,
+                );
                 mx += step;
             }
         }
         ModuleKind::Tower => {
-            push_city_box(verts, idx, [x0, y, z0], [x0 + 2.0, y + 5.0, z0 + 2.0], stone);
-            push_city_box(verts, idx, [x0 - 0.25, y + 5.0, z0 - 0.25], [x0 + 2.25, y + 5.8, z0 + 2.25], stone);
-            push_city_box(verts, idx, [x0 + 0.6, y + 5.8, z0 + 0.6], [x0 + 1.4, y + 7.0, z0 + 1.4], timber);
+            push_city_box(
+                verts,
+                idx,
+                [x0, y, z0],
+                [x0 + 2.0, y + 5.0, z0 + 2.0],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0 - 0.25, y + 5.0, z0 - 0.25],
+                [x0 + 2.25, y + 5.8, z0 + 2.25],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.6, y + 5.8, z0 + 0.6],
+                [x0 + 1.4, y + 7.0, z0 + 1.4],
+                timber,
+            );
         }
         ModuleKind::Keep => {
-            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + 4.8, y + 7.0, z0 + 4.8], stone);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.2, y, z0 + 0.2],
+                [x0 + 4.8, y + 7.0, z0 + 4.8],
+                stone,
+            );
             for (cx, cz) in [(0.0f32, 0.0f32), (4.0, 0.0), (0.0, 4.0), (4.0, 4.0)] {
-                push_city_box(verts, idx, [x0 + cx, y, z0 + cz], [x0 + cx + 1.0, y + 9.0, z0 + cz + 1.0], stone);
+                push_city_box(
+                    verts,
+                    idx,
+                    [x0 + cx, y, z0 + cz],
+                    [x0 + cx + 1.0, y + 9.0, z0 + cz + 1.0],
+                    stone,
+                );
             }
             push_pitched_roof(
-                verts, idx,
+                verts,
+                idx,
                 [x0 + 1.4, y + 7.0, z0 + 1.4],
                 [x0 + 3.6, y + 7.6, z0 + 3.6],
                 1.6,
@@ -267,9 +382,16 @@ fn castle_module_mesh(
             );
         }
         ModuleKind::Barracks => {
-            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 2.6, z0 + fh as f32 - 0.2], stone);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.2, y, z0 + 0.2],
+                [x0 + fw as f32 - 0.2, y + 2.6, z0 + fh as f32 - 0.2],
+                stone,
+            );
             push_pitched_roof(
-                verts, idx,
+                verts,
+                idx,
                 [x0 + 0.1, y + 2.6, z0 + 0.1],
                 [x0 + fw as f32 - 0.1, y + 3.1, z0 + fh as f32 - 0.1],
                 1.2,
@@ -277,9 +399,16 @@ fn castle_module_mesh(
             );
         }
         ModuleKind::Chapel => {
-            push_city_box(verts, idx, [x0 + 0.3, y, z0 + 0.3], [x0 + fw as f32 - 0.3, y + 4.0, z0 + fh as f32 - 0.3], stone);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.3, y, z0 + 0.3],
+                [x0 + fw as f32 - 0.3, y + 4.0, z0 + fh as f32 - 0.3],
+                stone,
+            );
             push_pitched_roof(
-                verts, idx,
+                verts,
+                idx,
                 [x0 + 0.2, y + 4.0, z0 + 0.2],
                 [x0 + fw as f32 - 0.2, y + 4.4, z0 + fh as f32 - 0.2],
                 2.6,
@@ -287,14 +416,38 @@ fn castle_module_mesh(
             );
         }
         ModuleKind::Market => {
-            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 1.4, z0 + fh as f32 - 0.2], stone);
-            push_city_box(verts, idx, [x0, y + 1.4, z0], [x0 + fw as f32, y + 2.2, z0 + fh as f32], timber);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.2, y, z0 + 0.2],
+                [x0 + fw as f32 - 0.2, y + 1.4, z0 + fh as f32 - 0.2],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0, y + 1.4, z0],
+                [x0 + fw as f32, y + 2.2, z0 + fh as f32],
+                timber,
+            );
         }
         _ => {
             // Kit signature modules (arsenal, vault, ...): a tall stone
             // block with the kit color band — placeholder silhouette.
-            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + fw as f32 - 0.2, y + 3.4, z0 + fh as f32 - 0.2], stone);
-            push_city_box(verts, idx, [x0, y + 3.4, z0], [x0 + fw as f32, y + 3.8, z0 + fh as f32], timber);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.2, y, z0 + 0.2],
+                [x0 + fw as f32 - 0.2, y + 3.4, z0 + fh as f32 - 0.2],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0, y + 3.4, z0],
+                [x0 + fw as f32, y + 3.8, z0 + fh as f32],
+                timber,
+            );
         }
     }
     (idx.len() - start_idx) / 3
@@ -318,9 +471,16 @@ fn settlement_building_mesh(
     match b.kind {
         BuildingKind::Home => {
             // HOUSE: walls + pitched roof (the queue's "house").
-            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.2, z0 + sh as f32 - 0.2], timber);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.2, y, z0 + 0.2],
+                [x0 + sw as f32 - 0.2, y + 2.2, z0 + sh as f32 - 0.2],
+                timber,
+            );
             push_pitched_roof(
-                verts, idx,
+                verts,
+                idx,
                 [x0 + 0.1, y + 2.2, z0 + 0.1],
                 [x0 + sw as f32 - 0.1, y + 2.7, z0 + sh as f32 - 0.1],
                 1.4,
@@ -329,25 +489,68 @@ fn settlement_building_mesh(
         }
         BuildingKind::Workshop => {
             // WORKSHOP: hall + chimney + overhanging roof slab.
-            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.6, z0 + sh as f32 - 0.2], metal);
-            push_city_box(verts, idx, [x0, y + 2.6, z0], [x0 + sw as f32, y + 3.2, z0 + sh as f32], timber);
             push_city_box(
-                verts, idx,
+                verts,
+                idx,
+                [x0 + 0.2, y, z0 + 0.2],
+                [x0 + sw as f32 - 0.2, y + 2.6, z0 + sh as f32 - 0.2],
+                metal,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0, y + 2.6, z0],
+                [x0 + sw as f32, y + 3.2, z0 + sh as f32],
+                timber,
+            );
+            push_city_box(
+                verts,
+                idx,
                 [x0 + sw as f32 - 0.9, y + 3.2, z0 + 0.3],
                 [x0 + sw as f32 - 0.4, y + 4.6, z0 + 0.8],
                 stone,
             );
         }
         BuildingKind::Well => {
-            push_city_box(verts, idx, [x0 + 0.1, y, z0 + 0.1], [x0 + 0.9, y + 0.7, z0 + 0.9], stone);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.1, y, z0 + 0.1],
+                [x0 + 0.9, y + 0.7, z0 + 0.9],
+                stone,
+            );
         }
         BuildingKind::Watchtower => {
-            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + 1.4, y + 4.0, z0 + 1.4], stone);
-            push_city_box(verts, idx, [x0, y + 4.0, z0], [x0 + 1.6, y + 4.5, z0 + 1.6], timber);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.2, y, z0 + 0.2],
+                [x0 + 1.4, y + 4.0, z0 + 1.4],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0, y + 4.0, z0],
+                [x0 + 1.6, y + 4.5, z0 + 1.6],
+                timber,
+            );
         }
         _ => {
-            push_city_box(verts, idx, [x0 + 0.2, y, z0 + 0.2], [x0 + sw as f32 - 0.2, y + 2.2, z0 + sh as f32 - 0.2], stone);
-            push_city_box(verts, idx, [x0, y + 2.2, z0], [x0 + sw as f32, y + 2.8, z0 + sh as f32], timber);
+            push_city_box(
+                verts,
+                idx,
+                [x0 + 0.2, y, z0 + 0.2],
+                [x0 + sw as f32 - 0.2, y + 2.2, z0 + sh as f32 - 0.2],
+                stone,
+            );
+            push_city_box(
+                verts,
+                idx,
+                [x0, y + 2.2, z0],
+                [x0 + sw as f32, y + 2.8, z0 + sh as f32],
+                timber,
+            );
         }
     }
     (idx.len() - start_idx) / 3
@@ -393,13 +596,11 @@ fn derived_walls(layout: &CastleLayout) -> Vec<PlacedModule> {
         sorted.last().unwrap().origin.x,
     );
     let zs: Vec<i32> = sorted.iter().map(|t| t.origin.z).collect();
-    let (minz, maxz) = (zs.iter().copied().min().unwrap(), zs.iter().copied().max().unwrap());
-    let corners = [
-        (minx, minz),
-        (maxx, minz),
-        (maxx, maxz),
-        (minx, maxz),
-    ];
+    let (minz, maxz) = (
+        zs.iter().copied().min().unwrap(),
+        zs.iter().copied().max().unwrap(),
+    );
+    let corners = [(minx, minz), (maxx, minz), (maxx, maxz), (minx, maxz)];
     let mut circuit: Vec<(i32, i32)> = Vec::new();
     for w in 0..4 {
         let a = corners[w];
@@ -454,7 +655,11 @@ pub fn mesh_city(
     info.bounds_min = [f32::MAX; 3];
     info.bounds_max = [f32::MIN; 3];
 
-    let mut record = |info: &mut CityInfo, verts: &Vec<SceneVertex>, start_v: usize, kind: &'static str, tris: usize| {
+    let mut record = |info: &mut CityInfo,
+                      verts: &Vec<SceneVertex>,
+                      start_v: usize,
+                      kind: &'static str,
+                      tris: usize| {
         *info.tris_by_kind.entry(kind).or_insert(0) += tris;
         for v in &verts[start_v..] {
             for a in 0..3 {
@@ -486,7 +691,8 @@ pub fn mesh_city(
     // Anchors sit on the LOCAL terrain surface at their column (a port two
     // cells downhill from its module must not float at module floor level).
     let ground = |x: i32, z: i32| -> i32 {
-        gen.effective_surface_mm(x as i64 * 1000, z as i64 * 1000).div_euclid(1000) as i32
+        gen.effective_surface_mm(x as i64 * 1000, z as i64 * 1000)
+            .div_euclid(1000) as i32
     };
     let kit = manifest();
     for m in layout.modules.iter() {
@@ -510,7 +716,10 @@ pub fn mesh_city(
     for cell in plan.anchors.bed_cells.iter().take(3) {
         if !info.collision_cells.contains(&(cell.x, cell.z)) {
             info.nav_anchors.push(NavAnchor {
-                cell: CellCoord { y: ground(cell.x, cell.z), ..*cell },
+                cell: CellCoord {
+                    y: ground(cell.x, cell.z),
+                    ..*cell
+                },
                 facing: 0,
                 serves: "bed",
             });
@@ -519,7 +728,10 @@ pub fn mesh_city(
     for cell in plan.anchors.work_cells.iter().take(3) {
         if !info.collision_cells.contains(&(cell.x, cell.z)) {
             info.nav_anchors.push(NavAnchor {
-                cell: CellCoord { y: ground(cell.x, cell.z), ..*cell },
+                cell: CellCoord {
+                    y: ground(cell.x, cell.z),
+                    ..*cell
+                },
                 facing: 0,
                 serves: "work",
             });
@@ -527,7 +739,10 @@ pub fn mesh_city(
     }
     if !info.collision_cells.contains(&(plan.plaza.x, plan.plaza.z)) {
         info.nav_anchors.push(NavAnchor {
-            cell: CellCoord { y: ground(plan.plaza.x, plan.plaza.z), ..plan.plaza },
+            cell: CellCoord {
+                y: ground(plan.plaza.x, plan.plaza.z),
+                ..plan.plaza
+            },
             facing: 0,
             serves: "plaza",
         });
@@ -554,16 +769,28 @@ pub fn city_scene(
                 if dx.abs() != ring && dz.abs() != ring {
                     continue;
                 }
-                let center = RegionCoord { x: near.x + dx, z: near.z + dz };
+                let center = RegionCoord {
+                    x: near.x + dx,
+                    z: near.z + dz,
+                };
                 let layout = plan_capital(&gen, center);
-                let town = SettlementPlan::plan(&gen, RegionCoord { x: center.x + 1, z: center.z });
+                let town = SettlementPlan::plan(
+                    &gen,
+                    RegionCoord {
+                        x: center.x + 1,
+                        z: center.z,
+                    },
+                );
                 let has_all = layout
                     .modules
                     .iter()
                     .any(|m| m.kind == ModuleKind::GateHouse)
                     && layout.modules.iter().any(|m| m.kind == ModuleKind::Tower)
                     && town.buildings.iter().any(|b| b.kind == BuildingKind::Home)
-                    && town.buildings.iter().any(|b| b.kind == BuildingKind::Workshop);
+                    && town
+                        .buildings
+                        .iter()
+                        .any(|b| b.kind == BuildingKind::Workshop);
                 if has_all {
                     return (gen, center, layout, town);
                 }
@@ -648,7 +875,10 @@ mod tests {
         for m in &layout.modules {
             let (fw, fh) = m.kind.footprint();
             for (x, z) in cells_of(m.origin, fw as i32, fh as i32) {
-                assert!(info.collision_cells.contains(&(x, z)), "module cell missing");
+                assert!(
+                    info.collision_cells.contains(&(x, z)),
+                    "module cell missing"
+                );
             }
         }
         // NOTE (observed data truth): P3D-601's own anchors can overlap
@@ -699,14 +929,14 @@ mod tests {
                 "{mat} missing from the material registry"
             );
             assert!(
-                beta.assets
-                    .iter()
-                    .any(|a| a.material == mat && a.runtime_consumers.iter().any(|c| c == "capital_module_renderer")),
+                beta.assets.iter().any(|a| a.material == mat
+                    && a.runtime_consumers
+                        .iter()
+                        .any(|c| c == "capital_module_renderer")),
                 "{mat} has no beta-critical row consumed by capital_module_renderer"
             );
         }
     }
-
 
     /// The outermost building of a kind, with its outward face normal
     /// (away from the plaza): the one silhouette of its kind with no
@@ -733,9 +963,15 @@ mod tests {
         for step in 0..=4 {
             for along in 0..(b.size.0.max(b.size.1) as i32) {
                 let (cx, cz) = if n[0] != 0.0 {
-                    (b.cell.x + n[0] as i32 * (b.size.0 as i32 + step), b.cell.z + along)
+                    (
+                        b.cell.x + n[0] as i32 * (b.size.0 as i32 + step),
+                        b.cell.z + along,
+                    )
                 } else {
-                    (b.cell.x + along, b.cell.z + n[2] as i32 * (b.size.1 as i32 + step))
+                    (
+                        b.cell.x + along,
+                        b.cell.z + n[2] as i32 * (b.size.1 as i32 + step),
+                    )
                 };
                 if info.collision_cells.contains(&(cx, cz)) {
                     return None;
@@ -763,10 +999,8 @@ mod tests {
             b.cell.x + normal[0] as i32 * b.size.0 as i32,
             b.cell.z + normal[2] as i32 * b.size.1 as i32,
         );
-        let fs = gen
-            .effective_surface_mm(front.0 as i64 * 1000, front.1 as i64 * 1000)
-            as f32
-            / 1000.0;
+        let fs =
+            gen.effective_surface_mm(front.0 as i64 * 1000, front.1 as i64 * 1000) as f32 / 1000.0;
         let h = (fs + 0.6).clamp(base + 0.5, base + 1.9);
         let point = [
             b.cell.x as f32 + bw / 2.0 + normal[0] * (bw / 2.0 - 0.19).max(0.05),
@@ -778,16 +1012,11 @@ mod tests {
             point[1],
             point[2] + normal[2] * 3.0,
         ];
-        let es = gen
-            .effective_surface_mm((eye[0] * 1000.0) as i64, (eye[2] * 1000.0) as i64)
+        let es = gen.effective_surface_mm((eye[0] * 1000.0) as i64, (eye[2] * 1000.0) as i64)
             as f32
             / 1000.0;
         eye[1] = eye[1].max(es) + 0.5;
-        let d = [
-            point[0] - eye[0],
-            point[1] - eye[1],
-            point[2] - eye[2],
-        ];
+        let d = [point[0] - eye[0], point[1] - eye[1], point[2] - eye[2]];
         let pose = CameraPose::new(
             eye,
             (-d[0]).atan2(-d[2]),
@@ -832,7 +1061,11 @@ mod tests {
         for px in pmin.0..=pmax.0 {
             for pz in pmin.1..=pmax.1 {
                 for py in (y_level - 1)..=(y_level + 1) {
-                    patches.push(pc3d_world::coords::PatchCoord { x: px, y: py, z: pz });
+                    patches.push(pc3d_world::coords::PatchCoord {
+                        x: px,
+                        y: py,
+                        z: pz,
+                    });
                 }
             }
         }
@@ -892,18 +1125,48 @@ mod tests {
         };
         let wall_base = surface_base(&gen, wall.origin.x, wall.origin.z, 3, 1);
         let tower_base = surface_base(&gen, tower.origin.x, tower.origin.z, 2, 2);
-        let home_base = surface_base(&gen, home.cell.x, home.cell.z, home.size.0 as i32, home.size.1 as i32);
-        let ws_base = surface_base(&gen, workshop.cell.x, workshop.cell.z, workshop.size.0 as i32, workshop.size.1 as i32);
+        let home_base = surface_base(
+            &gen,
+            home.cell.x,
+            home.cell.z,
+            home.size.0 as i32,
+            home.size.1 as i32,
+        );
+        let ws_base = surface_base(
+            &gen,
+            workshop.cell.x,
+            workshop.cell.z,
+            workshop.size.0 as i32,
+            workshop.size.1 as i32,
+        );
         let probes = vec![
             Probe {
                 name: "wall_stone_face",
-                ndc: project_ndc(pose, aspect, south_face_point((wall.origin.x, wall.origin.z), (3, 1), wall_base + 1.1, false)),
+                ndc: project_ndc(
+                    pose,
+                    aspect,
+                    south_face_point(
+                        (wall.origin.x, wall.origin.z),
+                        (3, 1),
+                        wall_base + 1.1,
+                        false,
+                    ),
+                ),
                 expected: to_srgb4(crate::scene::lit_color(stone, [0.0, 0.0, 1.0])),
                 tol: 0.06,
             },
             Probe {
                 name: "tower_stone_face",
-                ndc: project_ndc(pose, aspect, south_face_point((tower.origin.x, tower.origin.z), (2, 2), tower_base + 2.5, false)),
+                ndc: project_ndc(
+                    pose,
+                    aspect,
+                    south_face_point(
+                        (tower.origin.x, tower.origin.z),
+                        (2, 2),
+                        tower_base + 2.5,
+                        false,
+                    ),
+                ),
                 expected: to_srgb4(crate::scene::lit_color(stone, [0.0, 0.0, 1.0])),
                 tol: 0.06,
             },
@@ -935,7 +1198,13 @@ mod tests {
                 .find(|b| b.kind == BuildingKind::Workshop)
                 .expect("workshop");
             let (sw, sh) = (wb.size.0 as f32, wb.size.1 as f32);
-            let base = surface_base(&gen, wb.cell.x, wb.cell.z, wb.size.0 as i32, wb.size.1 as i32);
+            let base = surface_base(
+                &gen,
+                wb.cell.x,
+                wb.cell.z,
+                wb.size.0 as i32,
+                wb.size.1 as i32,
+            );
             let slab_top = base + 3.2;
             let point = [
                 wb.cell.x as f32 + sw * 0.35,
@@ -943,11 +1212,7 @@ mod tests {
                 wb.cell.z as f32 + sh * 0.5,
             ];
             let eye = [point[0], slab_top + 3.0, point[2] + 2.0];
-            let d = [
-                point[0] - eye[0],
-                point[1] - eye[1],
-                point[2] - eye[2],
-            ];
+            let d = [point[0] - eye[0], point[1] - eye[1], point[2] - eye[2]];
             let wpose = CameraPose::new(
                 eye,
                 (-d[0]).atan2(-d[2]),
@@ -999,8 +1264,7 @@ mod tests {
             gbase + 1.9,
             gate.origin.z as f32 + 2.4,
         ];
-        let eye_surf = gen
-            .effective_surface_mm((eye[0] * 1000.0) as i64, (eye[2] * 1000.0) as i64)
+        let eye_surf = gen.effective_surface_mm((eye[0] * 1000.0) as i64, (eye[2] * 1000.0) as i64)
             as f32
             / 1000.0;
         eye[1] = eye[1].max(eye_surf + 0.5);
@@ -1031,11 +1295,18 @@ mod tests {
             "gate opening must differ from its pillar: {arch_px:?} vs {pillar_px:?}"
         );
         let pillar_expect = to_srgb4(crate::scene::lit_color(stone, [1.0, 0.0, 0.0]));
-        let pd: f32 = (0..3).map(|i| (pillar_px[i] - pillar_expect[i]).abs()).sum();
-        assert!(pd < 0.15, "pillar should be lit stone: {pillar_px:?} vs {pillar_expect:?}");
+        let pd: f32 = (0..3)
+            .map(|i| (pillar_px[i] - pillar_expect[i]).abs())
+            .sum();
+        assert!(
+            pd < 0.15,
+            "pillar should be lit stone: {pillar_px:?} vs {pillar_expect:?}"
+        );
         println!(
             "city: {} verts / {} tris, kinds {:?}; gate opening delta {delta:.2}",
-            info.vertices, info.triangles, info.tris_by_kind.keys().collect::<Vec<_>>()
+            info.vertices,
+            info.triangles,
+            info.tris_by_kind.keys().collect::<Vec<_>>()
         );
     }
 

@@ -61,7 +61,10 @@ pub struct Inventory {
 
 impl Inventory {
     pub fn new(slot_count: usize) -> Self {
-        Inventory { slots: vec![None; slot_count.max(1)], stack_max: 64 }
+        Inventory {
+            slots: vec![None; slot_count.max(1)],
+            stack_max: 64,
+        }
     }
 
     /// Add a stack; returns the leftover count that did not fit.
@@ -137,7 +140,11 @@ pub struct ToolState {
 
 impl ToolState {
     pub fn new(item: ItemId, durability_max: u32) -> Self {
-        ToolState { item, durability: durability_max, durability_max }
+        ToolState {
+            item,
+            durability: durability_max,
+            durability_max,
+        }
     }
 
     /// Use the tool; returns false when it just BROKE (durability hit 0).

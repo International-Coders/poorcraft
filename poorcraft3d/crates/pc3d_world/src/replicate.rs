@@ -37,14 +37,21 @@ pub fn interest_snapshot(
 ) -> RepSnapshot {
     let mut values = BTreeMap::new();
     for s in &settlements.list {
-        let d = (s.center.x - player_region.x).abs().max((s.center.z - player_region.z).abs());
+        let d = (s.center.x - player_region.x)
+            .abs()
+            .max((s.center.z - player_region.z).abs());
         if d > radius {
             continue;
         }
         let a = &s.aggregate;
         values.insert(s.id, [a.population, a.food, a.defense, a.prosperity]);
     }
-    RepSnapshot { tick, origin: player_region, radius, values }
+    RepSnapshot {
+        tick,
+        origin: player_region,
+        radius,
+        values,
+    }
 }
 
 /// The client-side mirror of replicated state.
@@ -157,7 +164,10 @@ impl ReliableChannel {
     }
 
     fn current_ack(&self) -> Ack {
-        Ack { high: self.recv_high, bits: self.recv_bits }
+        Ack {
+            high: self.recv_high,
+            bits: self.recv_bits,
+        }
     }
 
     pub fn unacked_count(&self) -> usize {
@@ -181,9 +191,16 @@ mod tests {
             name: "Rep",
             center: RegionCoord { x, z },
             state: SettlementState::Aggregate,
-            aggregate: Aggregate { population: 40, food: 90, defense: 25, prosperity: 55 },
+            aggregate: Aggregate {
+                population: 40,
+                food: 90,
+                defense: 25,
+                prosperity: 55,
+            },
         };
-        Settlements { list: vec![mk(1, 0, 0), mk(2, 3, 0), mk(3, 50, 50)] }
+        Settlements {
+            list: vec![mk(1, 0, 0), mk(2, 3, 0), mk(3, 50, 50)],
+        }
     }
 
     /// Out-of-order and lost frames: 1,2,4 delivered — 4 buffers; when
@@ -229,7 +246,10 @@ mod tests {
 
         // Peer got 1,2,3,4 contiguous, plus 6 (5 lost): ack high=4;
         // bit i=1 (0b10) means high+1+1 = 6 was received.
-        tx.ack(Ack { high: 4, bits: 0b10 });
+        tx.ack(Ack {
+            high: 4,
+            bits: 0b10,
+        });
         assert_eq!(tx.unacked_count(), 1, "only 5 remains unacked");
         let resend: Vec<u64> = tx.needs_resend().iter().map(|(s, _)| *s).collect();
         assert_eq!(resend, vec![5]);

@@ -92,7 +92,11 @@ mod tests {
         let mut ra = a.rng(TERRAIN);
         let mut rb = b.rng(TERRAIN);
         for _ in 0..8 {
-            assert_eq!(ra.next_u64(), rb.next_u64(), "same stream must advance identically");
+            assert_eq!(
+                ra.next_u64(),
+                rb.next_u64(),
+                "same stream must advance identically"
+            );
         }
         // A cloned stream is an exact snapshot of that moment.
         let mut snapshot = ra.clone();
@@ -113,11 +117,17 @@ mod tests {
         let mut firsts = Vec::new();
         for l in labels {
             let v = s.rng(l).next_u64();
-            assert!(!firsts.contains(&v), "label {l} collided with an earlier stream");
+            assert!(
+                !firsts.contains(&v),
+                "label {l} collided with an earlier stream"
+            );
             firsts.push(v);
         }
         // Same label, different seed → different stream.
-        assert_ne!(s.rng(TERRAIN).next_u64(), SeedStreams::new(43).rng(TERRAIN).next_u64());
+        assert_ne!(
+            s.rng(TERRAIN).next_u64(),
+            SeedStreams::new(43).rng(TERRAIN).next_u64()
+        );
         // Stream seeds themselves are stable for persistence.
         assert_eq!(s.stream_seed(SITES), s.stream_seed(SITES));
     }
@@ -136,7 +146,11 @@ mod tests {
             }
         }
         assert!(low > 40 && high > 40, "below(2) collapsed: {low} vs {high}");
-        assert_eq!(SplitMix64::new(0).below(0), 0, "below(0) is defined as 0, never panics");
+        assert_eq!(
+            SplitMix64::new(0).below(0),
+            0,
+            "below(0) is defined as 0, never panics"
+        );
         let x = SplitMix64::new(1).next_u64();
         let y = SplitMix64::new(2).next_u64();
         assert_ne!(x, y);

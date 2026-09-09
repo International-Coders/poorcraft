@@ -90,7 +90,11 @@ pub fn contract() -> Vec<ContractRow> {
         let a = s.atmosphere.params();
         (st, a, s.flora, s.crowd_pose_hz)
     };
-    let (l, m, h) = (rows(DeckTier::Low), rows(DeckTier::Mid), rows(DeckTier::High));
+    let (l, m, h) = (
+        rows(DeckTier::Low),
+        rows(DeckTier::Mid),
+        rows(DeckTier::High),
+    );
     let v = |x: usize| x.to_string();
     vec![
         ContractRow {
@@ -113,9 +117,17 @@ pub fn contract() -> Vec<ContractRow> {
         },
         ContractRow {
             lever: "shadow map",
-            low: if l.1.shadow_res == 0 { "off".into() } else { v(l.1.shadow_res as usize) },
+            low: if l.1.shadow_res == 0 {
+                "off".into()
+            } else {
+                v(l.1.shadow_res as usize)
+            },
             mid: v(m.1.shadow_res as usize),
-            high: format!("{} ({} MB)", h.1.shadow_res, h.1.shadow_res * h.1.shadow_res * 4 / (1024 * 1024)),
+            high: format!(
+                "{} ({} MB)",
+                h.1.shadow_res,
+                h.1.shadow_res * h.1.shadow_res * 4 / (1024 * 1024)
+            ),
         },
         ContractRow {
             lever: "fog density",
@@ -212,7 +224,10 @@ pub fn report_md(hw: &str, res: &str, rows: &[BenchRow], contract: &[ContractRow
     out.push_str("## The quality contract\n\n");
     out.push_str("| lever | low | mid | high |\n|---|---|---|---|\n");
     for r in contract {
-        out.push_str(&format!("| {} | {} | {} | {} |\n", r.lever, r.low, r.mid, r.high));
+        out.push_str(&format!(
+            "| {} | {} | {} | {} |\n",
+            r.lever, r.low, r.mid, r.high
+        ));
     }
     out.push_str("\n## Benchmark walk\n\n");
     out.push_str("| tier | frames | p50 ms | p95 ms | p99 ms | worst | avg fps | meshed | GPU KB | flora inst | setl tris | crowd inst |\n");
@@ -281,12 +296,8 @@ mod tests {
         assert!(low.stream.gpu_byte_budget() <= high.stream.gpu_byte_budget());
         assert!(low.flora.radius_m < high.flora.radius_m);
         assert!(low.flora.grass_radius_m < high.flora.grass_radius_m);
-        assert!(
-            low.atmosphere.params().shadow_res < high.atmosphere.params().shadow_res
-        );
-        assert!(
-            low.atmosphere.params().detail_strength < high.atmosphere.params().detail_strength
-        );
+        assert!(low.atmosphere.params().shadow_res < high.atmosphere.params().shadow_res);
+        assert!(low.atmosphere.params().detail_strength < high.atmosphere.params().detail_strength);
     }
 
     #[test]
@@ -304,7 +315,10 @@ mod tests {
         // interaction paths are unconditional; the contract row says
         // the same world, and no code path can swap it.
         let rows = contract();
-        let world = rows.iter().find(|r| r.lever == "world / interactions").unwrap();
+        let world = rows
+            .iter()
+            .find(|r| r.lever == "world / interactions")
+            .unwrap();
         assert!(world.low.contains("SAME world"));
     }
 

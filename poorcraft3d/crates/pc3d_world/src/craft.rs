@@ -6,12 +6,12 @@
 //! the output — returning the output count. All recipes live in the
 //! static [`RECIPES`] table; adding new recipes is append-only.
 
-use crate::hydro::{FishStocks, RiverGraph};
-use crate::gen::{CellMaterial, WorldGen};
-use crate::items::{item_name, Inventory, ItemId};
-use crate::coords::{PatchCoord, RegionCoord};
 use crate::build::Construction;
-use crate::edit::{EditKind, EditOp, Brush};
+use crate::coords::{PatchCoord, RegionCoord};
+use crate::edit::{Brush, EditKind, EditOp};
+use crate::gen::{CellMaterial, WorldGen};
+use crate::hydro::{FishStocks, RiverGraph};
+use crate::items::{item_name, Inventory, ItemId};
 
 /// A crafting recipe: inputs → output.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,12 +28,42 @@ pub struct Recipe {
 
 /// All known recipes, in code order. Adding new recipes is append-only.
 pub const RECIPES: &[Recipe] = &[
-    Recipe { code: 1, ingredients: &[(1, 3), (2, 2)], output: 10, output_count: 1 }, // wood×3 + stone×2 → stone_pick
-    Recipe { code: 2, ingredients: &[(2, 5), (1, 2)], output: 11, output_count: 1 }, // stone×5 + wood×2 → iron_pick
-    Recipe { code: 3, ingredients: &[(5, 3)], output: 20, output_count: 1 },         // soil×3 → bread
-    Recipe { code: 4, ingredients: &[(3, 2)], output: 4, output_count: 1 },           // sand×2 → snow (glass-smelting stand-in)
-    Recipe { code: 5, ingredients: &[(1, 1), (5, 2)], output: 5, output_count: 2 },  // wood×1 + soil×2 → soil×2 (compost)
-    Recipe { code: 6, ingredients: &[(1, 4)], output: 12, output_count: 1 },         // wood×4 → wood_pick: the craftable FIRST tool
+    Recipe {
+        code: 1,
+        ingredients: &[(1, 3), (2, 2)],
+        output: 10,
+        output_count: 1,
+    }, // wood×3 + stone×2 → stone_pick
+    Recipe {
+        code: 2,
+        ingredients: &[(2, 5), (1, 2)],
+        output: 11,
+        output_count: 1,
+    }, // stone×5 + wood×2 → iron_pick
+    Recipe {
+        code: 3,
+        ingredients: &[(5, 3)],
+        output: 20,
+        output_count: 1,
+    }, // soil×3 → bread
+    Recipe {
+        code: 4,
+        ingredients: &[(3, 2)],
+        output: 4,
+        output_count: 1,
+    }, // sand×2 → snow (glass-smelting stand-in)
+    Recipe {
+        code: 5,
+        ingredients: &[(1, 1), (5, 2)],
+        output: 5,
+        output_count: 2,
+    }, // wood×1 + soil×2 → soil×2 (compost)
+    Recipe {
+        code: 6,
+        ingredients: &[(1, 4)],
+        output: 12,
+        output_count: 1,
+    }, // wood×4 → wood_pick: the craftable FIRST tool
 ];
 
 /// Find a recipe by code.
@@ -87,7 +117,10 @@ pub fn craft_all(graph: &RiverGraph) -> CraftAllResult {
     let mut stocks = FishStocks::new(graph);
     let mut construction = Construction::new(PatchCoord { x: 0, y: 0, z: 0 });
     let mut needs = crate::npc::Needs {
-        hunger: 50, energy: 50, hunger_f: 50.0, energy_f: 50.0,
+        hunger: 50,
+        energy: 50,
+        hunger_f: 50.0,
+        energy_f: 50.0,
     };
     let mut result = CraftAllResult {
         bread_crafted: false,
@@ -100,9 +133,9 @@ pub fn craft_all(graph: &RiverGraph) -> CraftAllResult {
     };
 
     // 1. Gather raw materials (simulating harvest from the world).
-    inv.add(ItemId(5), 6);  // soil
-    inv.add(ItemId(1), 5);  // wood
-    inv.add(ItemId(2), 7);  // stone
+    inv.add(ItemId(5), 6); // soil
+    inv.add(ItemId(1), 5); // wood
+    inv.add(ItemId(2), 7); // stone
 
     // 2. Craft bread from soil (food loop).
     if let Some(bread_recipe) = recipe_by_code(3) {
@@ -142,10 +175,16 @@ pub fn craft_all(graph: &RiverGraph) -> CraftAllResult {
     }
 
     // 6. Place a build.
-    if construction.place(
-        crate::coords::CellCoord { x: 3, y: 3, z: 3 },
-        crate::build::BuildBlock { material: CellMaterial::Rock, owner: 1 },
-    ).is_ok() {
+    if construction
+        .place(
+            crate::coords::CellCoord { x: 3, y: 3, z: 3 },
+            crate::build::BuildBlock {
+                material: CellMaterial::Rock,
+                owner: 1,
+            },
+        )
+        .is_ok()
+    {
         result.build_placed = true;
     }
 
@@ -154,7 +193,10 @@ pub fn craft_all(graph: &RiverGraph) -> CraftAllResult {
         id: 999,
         tick: 1,
         kind: EditKind::Dig,
-        brush: Brush { center: crate::coords::CellCoord { x: 1, y: 1, z: 1 }, radius: 1 },
+        brush: Brush {
+            center: crate::coords::CellCoord { x: 1, y: 1, z: 1 },
+            radius: 1,
+        },
         material: CellMaterial::Air,
     };
     let gen = WorldGen::new(graph.seed);
@@ -170,8 +212,13 @@ pub fn craft_all(graph: &RiverGraph) -> CraftAllResult {
 /// The chain passes when every step produces its expected result.
 pub fn craft_all_loop_passes(graph: &RiverGraph) -> bool {
     let r = craft_all(graph);
-    r.bread_crafted && r.pick_crafted && r.iron_pick_crafted
-        && r.fish_caught && r.fish_eaten && r.build_placed && r.terrain_dug
+    r.bread_crafted
+        && r.pick_crafted
+        && r.iron_pick_crafted
+        && r.fish_caught
+        && r.fish_eaten
+        && r.build_placed
+        && r.terrain_dug
 }
 
 #[cfg(test)]
@@ -213,7 +260,11 @@ mod tests {
         let mut outputs = std::collections::BTreeSet::new();
         for r in RECIPES {
             assert!(codes.insert(r.code), "duplicate recipe code {}", r.code);
-            assert!(!outputs.contains(&r.output), "duplicate output {}", r.output);
+            assert!(
+                !outputs.contains(&r.output),
+                "duplicate output {}",
+                r.output
+            );
             outputs.insert(r.output);
             assert!(r.output_count > 0);
             assert!(!r.ingredients.is_empty());

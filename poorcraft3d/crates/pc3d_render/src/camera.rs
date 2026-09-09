@@ -79,10 +79,22 @@ pub fn view_matrix(eye: [f32; 3], fwd: [f32; 3], right: [f32; 3], up: [f32; 3]) 
     let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     // Rows are the basis; stored column-major.
     [
-        right[0], up[0], -fwd[0], 0.0, //
-        right[1], up[1], -fwd[1], 0.0, //
-        right[2], up[2], -fwd[2], 0.0, //
-        -dot(right, eye), -dot(up, eye), dot(fwd, eye), 1.0,
+        right[0],
+        up[0],
+        -fwd[0],
+        0.0, //
+        right[1],
+        up[1],
+        -fwd[1],
+        0.0, //
+        right[2],
+        up[2],
+        -fwd[2],
+        0.0, //
+        -dot(right, eye),
+        -dot(up, eye),
+        dot(fwd, eye),
+        1.0,
     ]
 }
 
@@ -90,10 +102,22 @@ pub fn view_matrix(eye: [f32; 3], fwd: [f32; 3], right: [f32; 3], up: [f32; 3]) 
 pub fn perspective(fov_y_rad: f32, aspect: f32, near: f32, far: f32) -> Mat4 {
     let f = 1.0 / (fov_y_rad / 2.0).tan();
     [
-        f / aspect, 0.0, 0.0, 0.0, //
-        0.0, f, 0.0, 0.0, //
-        0.0, 0.0, far / (near - far), -1.0, //
-        0.0, 0.0, far * near / (near - far), 0.0,
+        f / aspect,
+        0.0,
+        0.0,
+        0.0, //
+        0.0,
+        f,
+        0.0,
+        0.0, //
+        0.0,
+        0.0,
+        far / (near - far),
+        -1.0, //
+        0.0,
+        0.0,
+        far * near / (near - far),
+        0.0,
     ]
 }
 
@@ -157,7 +181,14 @@ impl Camera {
     /// First-person ground movement: forward/back along yaw (pitch ignored,
     /// standard FPS walk), strafe along right, plus explicit vertical.
     /// Returns the world-space displacement for `dt` seconds at `speed`.
-    pub fn walk_step(&self, fwd_amt: f32, strafe_amt: f32, vert_amt: f32, dt: f32, speed: f32) -> [f32; 3] {
+    pub fn walk_step(
+        &self,
+        fwd_amt: f32,
+        strafe_amt: f32,
+        vert_amt: f32,
+        dt: f32,
+        speed: f32,
+    ) -> [f32; 3] {
         let yaw = self.pose.yaw;
         let hf = [-yaw.sin(), 0.0, -yaw.cos()];
         let hr = [yaw.cos(), 0.0, -yaw.sin()];
@@ -192,8 +223,14 @@ mod tests {
         // yaw 0, pitch 0: looking north (-Z).
         assert!(close(fwd_of(0.0, 0.0), [0.0, 0.0, -1.0]));
         // Positive yaw turns toward west (-X); right hand then points north.
-        assert!(close(fwd_of(std::f32::consts::FRAC_PI_2, 0.0), [-1.0, 0.0, 0.0]));
-        assert!(close(right_of(fwd_of(std::f32::consts::FRAC_PI_2, 0.0)), [0.0, 0.0, -1.0]));
+        assert!(close(
+            fwd_of(std::f32::consts::FRAC_PI_2, 0.0),
+            [-1.0, 0.0, 0.0]
+        ));
+        assert!(close(
+            right_of(fwd_of(std::f32::consts::FRAC_PI_2, 0.0)),
+            [0.0, 0.0, -1.0]
+        ));
         // Facing north, right hand points east (+X).
         assert!(close(right_of(fwd_of(0.0, 0.0)), [1.0, 0.0, 0.0]));
         // Positive pitch looks up.
@@ -229,7 +266,10 @@ mod tests {
         };
         let (nx, ny) = project([0.0, 1.0, -3.0]);
         assert!(nx.abs() < EPS, "on-axis point must be centered, got {nx}");
-        assert!(ny < -0.1 && ny > -0.3, "below-eye point must sit below center, got {ny}");
+        assert!(
+            ny < -0.1 && ny > -0.3,
+            "below-eye point must sit below center, got {ny}"
+        );
 
         // A point to the east of the view axis lands on the right half.
         let (nx, _) = project([1.0, 1.0, -3.0]);

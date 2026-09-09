@@ -189,10 +189,8 @@ impl WorldGen {
         let t = self.fbm(2, u, v, 2);
         let hum = self.fbm(3, u, v, 2);
         let half = (MAX_ELEVATION_M - MIN_ELEVATION_M) as f64 / 2.0;
-        let elev_m = (16.0 + (e - 0.5) * 2.4 * half).clamp(
-            MIN_ELEVATION_M as f64,
-            MAX_ELEVATION_M as f64,
-        ) as i32;
+        let elev_m = (16.0 + (e - 0.5) * 2.4 * half)
+            .clamp(MIN_ELEVATION_M as f64, MAX_ELEVATION_M as f64) as i32;
         MacroField {
             elevation_m: elev_m,
             temperature: (t * 100.0) as u8,
@@ -253,8 +251,8 @@ impl WorldGen {
     fn detail_mm(&self, wx: i64, wz: i64) -> i64 {
         let u = wx as f64 / 8000.0;
         let v = wz as f64 / 8000.0;
-        let n = self.value_noise(10, 0, u, v) * 0.7
-            + self.value_noise(11, 0, u * 2.0, v * 2.0) * 0.3;
+        let n =
+            self.value_noise(10, 0, u, v) * 0.7 + self.value_noise(11, 0, u * 2.0, v * 2.0) * 0.3;
         ((n - 0.5) * 2.0 * 1500.0) as i64
     }
 
@@ -270,7 +268,13 @@ impl WorldGen {
         let (sx, sy, sz) = (smoothstep(fx), smoothstep(fy), smoothstep(fz));
         let h = |ox: i64, oy: i64, oz: i64| -> f32 {
             let mut hh = fnv1a64(&self.seed.to_le_bytes());
-            for word in [channel, 0u64, (gx + ox) as u64, (gy + oy) as u64, (gz + oz) as u64] {
+            for word in [
+                channel,
+                0u64,
+                (gx + ox) as u64,
+                (gy + oy) as u64,
+                (gz + oz) as u64,
+            ] {
                 for b in word.to_le_bytes() {
                     hh ^= b as u64;
                     hh = hh.wrapping_mul(0x100000001b3);
@@ -305,10 +309,8 @@ impl WorldGen {
     pub fn surface_base_mm(&self, wx: i64, wz: i64) -> i64 {
         let e = self.fbm(1, wx as f64 / REGION_MM_F, wz as f64 / REGION_MM_F, 3) as f64;
         let half = (MAX_ELEVATION_M - MIN_ELEVATION_M) as f64 / 2.0;
-        ((16.0 + (e - 0.5) * 2.4 * half).clamp(
-            MIN_ELEVATION_M as f64,
-            MAX_ELEVATION_M as f64,
-        ) * 1000.0) as i64
+        ((16.0 + (e - 0.5) * 2.4 * half).clamp(MIN_ELEVATION_M as f64, MAX_ELEVATION_M as f64)
+            * 1000.0) as i64
     }
 
     /// The cliff mask value at a point (public for tests/diagnostics).
@@ -471,8 +473,14 @@ mod tests {
                 }
             }
         }
-        assert!(differing_fields > 0, "different seeds produced identical fields");
-        assert!(differing_heights > 0, "field differences never reached the ground");
+        assert!(
+            differing_fields > 0,
+            "different seeds produced identical fields"
+        );
+        assert!(
+            differing_heights > 0,
+            "field differences never reached the ground"
+        );
         // The most-different region's center SURFACE differs between seeds.
         // (Material-cube divergence is deliberately NOT asserted here: a
         // uniformly deep-rock window quantizes to the same cube under small
@@ -484,8 +492,15 @@ mod tests {
             c.surface_height_mm(center_mm, center_mm)
         );
         // Same seed replays exactly.
-        let coord = PatchCoord { x: r.x * 16 + 8, y: 0, z: r.z * 16 + 8 };
-        assert_eq!(a.regenerate_patch(coord).hash(), b.regenerate_patch(coord).hash());
+        let coord = PatchCoord {
+            x: r.x * 16 + 8,
+            y: 0,
+            z: r.z * 16 + 8,
+        };
+        assert_eq!(
+            a.regenerate_patch(coord).hash(),
+            b.regenerate_patch(coord).hash()
+        );
     }
 
     /// Field/biome coherence across many seeds over a 80×80-region sweep
@@ -525,7 +540,11 @@ mod tests {
             Biome::Forest,
             Biome::Mountains,
         ] {
-            assert!(seen.contains(&b), "biome {} unreachable across seeds", b.name());
+            assert!(
+                seen.contains(&b),
+                "biome {} unreachable across seeds",
+                b.name()
+            );
         }
     }
 
@@ -568,7 +587,10 @@ mod tests {
             let wz = z as i64 * 1000 - 3;
             let left = g.surface_height_mm(256 * 1000 - 1, wz);
             let right = g.surface_height_mm(256 * 1000, wz);
-            assert!((left - right).abs() <= 3_000, "region seam {left} vs {right}");
+            assert!(
+                (left - right).abs() <= 3_000,
+                "region seam {left} vs {right}"
+            );
         }
         // Pure: same input, same answer, forever.
         assert_eq!(
@@ -679,7 +701,11 @@ mod tests {
         let mut patches_with_caves = 0usize;
         for px in -10..=10i32 {
             for pz in -10..=10i32 {
-                let coord = PatchCoord { x: px * 16, y: 0, z: pz * 16 };
+                let coord = PatchCoord {
+                    x: px * 16,
+                    y: 0,
+                    z: pz * 16,
+                };
                 let patch = g.regenerate_patch(coord);
                 let o = coord.origin();
                 let ax = o.x.div_euclid(1000) as i32;
@@ -714,7 +740,10 @@ mod tests {
             }
         }
         assert!(carved_total > 0, "no caves found across 441 land patches");
-        assert!(patches_with_caves >= 3, "caves too rare: {patches_with_caves} patches");
+        assert!(
+            patches_with_caves >= 3,
+            "caves too rare: {patches_with_caves} patches"
+        );
     }
 
     /// P3D-203: cliffs are REAL — terraced 4 m steps appear between
@@ -757,6 +786,9 @@ mod tests {
             }
         }
         assert!(stepped > 0, "no >=3 m cliff step inside the masked band");
-        assert!(stepped < total, "a wall of steps everywhere is not terracing");
+        assert!(
+            stepped < total,
+            "a wall of steps everywhere is not terracing"
+        );
     }
 }

@@ -8,8 +8,8 @@
 //! promotes/demotes between the two while preserving scalar state.
 
 use crate::coords::RegionCoord;
-use crate::hydro::RiverGraph;
 use crate::gen::WorldGen;
+use crate::hydro::RiverGraph;
 use std::collections::BTreeMap;
 
 /// The four scalars of an aggregate settlement.
@@ -194,13 +194,23 @@ mod tests {
     /// nothing goes negative.
     #[test]
     fn p3d407_aggregate_day_rules() {
-        let mut rich = Aggregate { population: 10, food: 500, defense: 50, prosperity: 40 };
+        let mut rich = Aggregate {
+            population: 10,
+            food: 500,
+            defense: 50,
+            prosperity: 40,
+        };
         rich.simulate_day();
         assert_eq!(rich.population, 11, "surplus grows");
         assert!(rich.food >= 400);
         assert!(rich.prosperity >= 40);
 
-        let mut starving = Aggregate { population: 10, food: 0, defense: 0, prosperity: 10 };
+        let mut starving = Aggregate {
+            population: 10,
+            food: 0,
+            defense: 0,
+            prosperity: 10,
+        };
         starving.simulate_day();
         assert_eq!(starving.population, 9, "starvation shrinks");
         assert_eq!(starving.food, 0);
@@ -223,7 +233,11 @@ mod tests {
 
         set.promote(set.list[1].id, vec![101, 102]);
         assert!(matches!(
-            set.list.iter().find(|s| s.id == set.list[1].id).unwrap().state,
+            set.list
+                .iter()
+                .find(|s| s.id == set.list[1].id)
+                .unwrap()
+                .state,
             SettlementState::Full { .. }
         ));
         assert!(matches!(set.list[0].state, SettlementState::Aggregate));
@@ -236,7 +250,12 @@ mod tests {
         let full_food_before = set.list[1].aggregate.food;
         set.simulate_far_days(5);
         assert_eq!(
-            set.list.iter().find(|s| s.id == set.list[1].id).unwrap().aggregate.food,
+            set.list
+                .iter()
+                .find(|s| s.id == set.list[1].id)
+                .unwrap()
+                .aggregate
+                .food,
             full_food_before
         );
 

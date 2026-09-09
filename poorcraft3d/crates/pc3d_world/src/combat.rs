@@ -82,18 +82,17 @@ impl CreatureSystem {
     /// Creature melee: any creature within MELEE_RANGE of the player and
     /// off cooldown deals its damage and starts its cooldown. Returns the
     /// hits landed this tick.
-    pub fn creature_attacks(
-        &mut self,
-        player_pos: CellCoord,
-        tick: u64,
-    ) -> Vec<Hit> {
+    pub fn creature_attacks(&mut self, player_pos: CellCoord, tick: u64) -> Vec<Hit> {
         let mut hits = Vec::new();
         for c in &mut self.creatures {
             let dx = (c.pos.x - player_pos.x).abs();
             let dz = (c.pos.z - player_pos.z).abs();
             let dy = (c.pos.y - player_pos.y).abs();
             if dx.max(dz).max(dy) <= MELEE_RANGE && tick >= c.cooldown_until {
-                hits.push(Hit { creature_id: c.id, damage: c.kind.base_damage() });
+                hits.push(Hit {
+                    creature_id: c.id,
+                    damage: c.kind.base_damage(),
+                });
                 c.cooldown_until = tick + CREATURE_COOLDOWN;
             }
         }
@@ -103,11 +102,7 @@ impl CreatureSystem {
     /// Player melee: damages one creature within MELEE_RANGE of the
     /// player (first by id — deterministic). Dead creatures are removed
     /// and their loot returned.
-    pub fn player_attack(
-        &mut self,
-        player_pos: CellCoord,
-        tick: u64,
-    ) -> Vec<(ItemId, u32)> {
+    pub fn player_attack(&mut self, player_pos: CellCoord, tick: u64) -> Vec<(ItemId, u32)> {
         // Choose the lowest-id creature in range (deterministic), then
         // damage it.
         let target_id = {
@@ -196,11 +191,7 @@ impl DungeonRoom {
 }
 
 /// Survival helpers re-used by the combat loop.
-pub fn eat_to_heal(
-    inventory: &mut Inventory,
-    needs: &mut Needs,
-    food: ItemId,
-) -> bool {
+pub fn eat_to_heal(inventory: &mut Inventory, needs: &mut Needs, food: ItemId) -> bool {
     let removed = inventory.remove(food, 1);
     if removed == 0 {
         return false;
@@ -221,7 +212,10 @@ pub fn loot_into(inventory: &mut Inventory, loot: &[(ItemId, u32)]) -> u32 {
 }
 
 /// Harvest-yield passthrough for consistency tests.
-pub fn yields_match_terrain(material: crate::gen::CellMaterial, tier: Option<u8>) -> Vec<(ItemId, u32)> {
+pub fn yields_match_terrain(
+    material: crate::gen::CellMaterial,
+    tier: Option<u8>,
+) -> Vec<(ItemId, u32)> {
     harvest_yields(material, tier)
 }
 
@@ -272,7 +266,10 @@ mod tests {
             let got = sys.player_attack(at, 100);
             loot.extend(got);
         }
-        assert!(sys.creatures.is_empty(), "all creatures die to 10 hits of 10");
+        assert!(
+            sys.creatures.is_empty(),
+            "all creatures die to 10 hits of 10"
+        );
         assert!(
             loot.contains(&(ItemId(2), 2)),
             "goblin loot must include 2 stone: {loot:?}"
@@ -287,7 +284,15 @@ mod tests {
     /// carving; the floor layer is present.
     #[test]
     fn p3d503_dungeon_room_carve_is_deterministic_and_bounded() {
-        let room = DungeonRoom { center: CellCoord { x: 100, y: -20, z: 100 }, half: 4, corridor: 5 };
+        let room = DungeonRoom {
+            center: CellCoord {
+                x: 100,
+                y: -20,
+                z: 100,
+            },
+            half: 4,
+            corridor: 5,
+        };
         let a = room.carve_cells();
         let b = room.carve_cells();
         assert_eq!(a, b, "carve must be deterministic");
@@ -309,7 +314,12 @@ mod tests {
         assert_eq!(stored, 5);
         assert_eq!(inv.count(ItemId(2)), 2);
         assert_eq!(inv.count(ItemId(1)), 3);
-        let mut needs = Needs { hunger: 50, energy: 50, hunger_f: 50.0, energy_f: 50.0 };
+        let mut needs = Needs {
+            hunger: 50,
+            energy: 50,
+            hunger_f: 50.0,
+            energy_f: 50.0,
+        };
         assert!(eat_to_heal(&mut inv, &mut needs, ItemId(20)));
         let _ = yields_match_terrain(crate::gen::CellMaterial::Rock, Some(1));
     }

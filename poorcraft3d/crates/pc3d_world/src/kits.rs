@@ -8,8 +8,8 @@
 //! and different ideologies grow visibly different capitals.
 
 use crate::castle::{plan_capital, ModuleKind, PlacedModule};
-use crate::coords::{CellCoord, RegionCoord};
 use crate::castle_law::LawKind;
+use crate::coords::{CellCoord, RegionCoord};
 use crate::gen::WorldGen;
 use crate::ideology::Ideology;
 
@@ -54,7 +54,9 @@ pub const KITS: &[FactionKit] = &[
 
 /// The kit for an ideology.
 pub fn kit_for(ideology: Ideology) -> &'static FactionKit {
-    KITS.iter().find(|k| k.ideology == ideology).expect("every ideology has a kit")
+    KITS.iter()
+        .find(|k| k.ideology == ideology)
+        .expect("every ideology has a kit")
 }
 
 /// Candidate origins around a center, deterministic order: expanding
@@ -94,7 +96,10 @@ fn place_if_free(
             occupied.insert((ox + dx, oz + dz));
         }
     }
-    Some(PlacedModule { kind, origin: CellCoord { x: ox, y, z: oz } })
+    Some(PlacedModule {
+        kind,
+        origin: CellCoord { x: ox, y, z: oz },
+    })
 }
 
 /// The kit-aware capital planner: the deep core plan from P3D-602 plus
@@ -107,11 +112,7 @@ pub fn plan_capital_kit(
 ) -> crate::castle::CastleLayout {
     let kit = kit_for(ideology);
     let mut layout = plan_capital(gen, center);
-    let cy = layout
-        .modules
-        .first()
-        .map(|m| m.origin.y)
-        .unwrap_or(0);
+    let cy = layout.modules.first().map(|m| m.origin.y).unwrap_or(0);
 
     // Occupied cells from the core plan.
     let mut occupied: std::collections::BTreeSet<(i32, i32)> = std::collections::BTreeSet::new();
@@ -129,7 +130,11 @@ pub fn plan_capital_kit(
         'sites: for (dx, dz) in candidate_offsets(radius) {
             let ox = center.origin().x.div_euclid(1000) as i32 + dx;
             let oz = center.origin().z.div_euclid(1000) as i32 + dz;
-            let probe = CellCoord { x: ox, y: cy, z: oz };
+            let probe = CellCoord {
+                x: ox,
+                y: cy,
+                z: oz,
+            };
             if !crate::castle::footprint_fits(gen, probe, kind.footprint().0, kind.footprint().1) {
                 continue;
             }
@@ -165,13 +170,18 @@ mod tests {
                 assert!(!m.name().is_empty());
                 let (fw, fh) = m.footprint();
                 assert!(fw > 0 && fh > 0);
-                assert!(seen_modules.insert(*m), "a module serves one kit only: {m:?}");
+                assert!(
+                    seen_modules.insert(*m),
+                    "a module serves one kit only: {m:?}"
+                );
             }
             assert!(seen_kits.insert(k.ideology), "one kit per ideology");
         }
         // Pairwise-distinct kits as module sets.
-        let sets: Vec<std::collections::BTreeSet<ModuleKind>> =
-            KITS.iter().map(|k| k.modules.iter().copied().collect()).collect();
+        let sets: Vec<std::collections::BTreeSet<ModuleKind>> = KITS
+            .iter()
+            .map(|k| k.modules.iter().copied().collect())
+            .collect();
         for i in 0..sets.len() {
             for j in i + 1..sets.len() {
                 assert_ne!(sets[i], sets[j], "kits must differ architecturally");

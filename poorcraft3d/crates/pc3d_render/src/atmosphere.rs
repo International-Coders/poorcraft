@@ -196,10 +196,22 @@ fn normalize3(v: [f32; 3]) -> [f32; 3] {
 /// every compare lit, delta 0.00; the CPU mirror caught it.
 fn ortho(half: f32, near: f32, far: f32) -> Mat4 {
     [
-        1.0 / half, 0.0, 0.0, 0.0, //
-        0.0, 1.0 / half, 0.0, 0.0, //
-        0.0, 0.0, -1.0 / (far - near), 0.0, //
-        0.0, 0.0, -near / (far - near), 1.0,
+        1.0 / half,
+        0.0,
+        0.0,
+        0.0, //
+        0.0,
+        1.0 / half,
+        0.0,
+        0.0, //
+        0.0,
+        0.0,
+        -1.0 / (far - near),
+        0.0, //
+        0.0,
+        0.0,
+        -near / (far - near),
+        1.0,
     ]
 }
 
@@ -239,9 +251,18 @@ pub fn light_view_proj(
     // in the last ulp — the exact opposite of stability.
     let eye_back = 380.0;
     let view: Mat4 = [
-        right[0], up[0], -fwd[0], 0.0, //
-        right[1], up[1], -fwd[1], 0.0, //
-        right[2], up[2], -fwd[2], 0.0, //
+        right[0],
+        up[0],
+        -fwd[0],
+        0.0, //
+        right[1],
+        up[1],
+        -fwd[1],
+        0.0, //
+        right[2],
+        up[2],
+        -fwd[2],
+        0.0, //
         -(cx - eye_back * dot3(right, fwd)),
         -(cy - eye_back * dot3(up, fwd)),
         cz - eye_back,
@@ -424,7 +445,7 @@ pub enum CutoutMask {
 }
 
 /// A fully opaque mask (the control for cutout proofs: the same quads
-    /// with no holes must hide the background completely).
+/// with no holes must hide the background completely).
 pub fn solid_mask_rgba() -> Vec<u8> {
     let mut v = Vec::with_capacity((LEAF_MASK_PX * LEAF_MASK_PX * 4) as usize);
     for _ in 0..(LEAF_MASK_PX * LEAF_MASK_PX) {
@@ -545,7 +566,10 @@ mod tests {
             assert!(f <= 1.0);
             prev = f;
         }
-        assert!(fog_factor(600.0, d) > 0.9, "far field saturates toward haze");
+        assert!(
+            fog_factor(600.0, d) > 0.9,
+            "far field saturates toward haze"
+        );
         assert_eq!(fog_factor(500.0, 0.0), 0.0, "zero density = no fog");
     }
 
@@ -613,15 +637,21 @@ mod tests {
         let mut focus = [12.0f32, 3.0, -7.0];
         for probe in 0..40 {
             let f = probe as f32 * 0.25;
-            let fx = ((focus[0] * right[0] + focus[1] * right[1] + focus[2] * right[2]) / texel)
-                % 1.0;
+            let fx =
+                ((focus[0] * right[0] + focus[1] * right[1] + focus[2] * right[2]) / texel) % 1.0;
             let _ = f;
             if fx > 0.2 && fx < 0.8 {
                 break;
             }
             focus[0] += texel * 0.37; // slide along +X until mid-cell
         }
-        let a = light_view_proj(focus, crate::scene::SUN_DIR, p.shadow_half_m, p.shadow_res, true);
+        let a = light_view_proj(
+            focus,
+            crate::scene::SUN_DIR,
+            p.shadow_half_m,
+            p.shadow_res,
+            true,
+        );
         // Sub-texel motion (0.05 m << 0.127 m texel) must not move the box.
         let b = light_view_proj(
             [focus[0] + 0.03, focus[1] + 0.02, focus[2] + 0.02],
@@ -642,8 +672,20 @@ mod tests {
         );
         assert_ne!(a, c, "texel-scale motion re-centers the box");
         // Unsnapped is exactly the snapped one at a grid-aligned focus.
-        let d = light_view_proj([0.0, 0.0, 0.0], crate::scene::SUN_DIR, p.shadow_half_m, p.shadow_res, false);
-        let e = light_view_proj([0.0, 0.0, 0.0], crate::scene::SUN_DIR, p.shadow_half_m, p.shadow_res, true);
+        let d = light_view_proj(
+            [0.0, 0.0, 0.0],
+            crate::scene::SUN_DIR,
+            p.shadow_half_m,
+            p.shadow_res,
+            false,
+        );
+        let e = light_view_proj(
+            [0.0, 0.0, 0.0],
+            crate::scene::SUN_DIR,
+            p.shadow_half_m,
+            p.shadow_res,
+            true,
+        );
         assert_eq!(d, e, "origin focus: snapping is a no-op");
     }
 
@@ -659,9 +701,21 @@ mod tests {
         assert!(mid.detail_strength > 0.0 && high.detail_strength > mid.detail_strength);
         assert!(!low.glint && mid.glint && high.glint);
         // VRAM rows: depth32 = res^2 * 4 bytes.
-        assert_eq!(mid.shadow_res as u64 * mid.shadow_res as u64 * 4, 4 * 1024 * 1024);
-        assert_eq!(high.shadow_res as u64 * high.shadow_res as u64 * 4, 16 * 1024 * 1024);
-        assert_eq!(LEGACY, Atmosphere { shadow_res: 0, ..LEGACY });
+        assert_eq!(
+            mid.shadow_res as u64 * mid.shadow_res as u64 * 4,
+            4 * 1024 * 1024
+        );
+        assert_eq!(
+            high.shadow_res as u64 * high.shadow_res as u64 * 4,
+            16 * 1024 * 1024
+        );
+        assert_eq!(
+            LEGACY,
+            Atmosphere {
+                shadow_res: 0,
+                ..LEGACY
+            }
+        );
         assert_eq!(LEGACY.fog_density, 0.0);
         assert!(!LEGACY.glint);
     }
@@ -717,9 +771,7 @@ mod tests {
         assert!(verts.iter().any(|v| v.uv == [0.0, 0.0]));
         assert!(verts.iter().any(|v| v.uv == [1.0, 1.0]));
         // Heights vary deterministically per plant.
-        let hs: Vec<f32> = (0..9)
-            .map(|i| verts[i * 8 + 2].pos[1])
-            .collect();
+        let hs: Vec<f32> = (0..9).map(|i| verts[i * 8 + 2].pos[1]).collect();
         let mut sorted = hs.clone();
         sorted.sort_by(|a, b| a.total_cmp(b));
         assert_ne!(sorted[0], sorted[8], "plant heights vary");
@@ -773,21 +825,79 @@ mod gpu_tests {
         // Ground: 9x9 tiles over [-60, 60]^2 (flat, +Y normal).
         for gz in 0..9 {
             for gx in 0..9 {
-                let (x0, x1) = (-60.0 + gx as f32 * 120.0 / 9.0, -60.0 + (gx + 1) as f32 * 120.0 / 9.0);
-                let (z0, z1) = (-60.0 + gz as f32 * 120.0 / 9.0, -60.0 + (gz + 1) as f32 * 120.0 / 9.0);
-                quad(&mut v, &mut i,
-                     [x0, 0.0, z0], [x0, 0.0, z1], [x1, 0.0, z1], [x1, 0.0, z0],
-                     [0.0, 1.0, 0.0], grass);
+                let (x0, x1) = (
+                    -60.0 + gx as f32 * 120.0 / 9.0,
+                    -60.0 + (gx + 1) as f32 * 120.0 / 9.0,
+                );
+                let (z0, z1) = (
+                    -60.0 + gz as f32 * 120.0 / 9.0,
+                    -60.0 + (gz + 1) as f32 * 120.0 / 9.0,
+                );
+                quad(
+                    &mut v,
+                    &mut i,
+                    [x0, 0.0, z0],
+                    [x0, 0.0, z1],
+                    [x1, 0.0, z1],
+                    [x1, 0.0, z0],
+                    [0.0, 1.0, 0.0],
+                    grass,
+                );
             }
         }
         // Pillar: 3x14x3 rock box at the origin.
         let rock: [f32; 3] = [0.55, 0.54, 0.50];
         let (lo, hi) = ([-1.5f32, 0.0, -1.5], [1.5f32, 14.0, 1.5]);
-        quad(&mut v, &mut i, [lo[0], lo[1], hi[2]], [hi[0], lo[1], hi[2]], [hi[0], hi[1], hi[2]], [lo[0], hi[1], hi[2]], [0.0, 0.0, 1.0], rock); // +Z
-        quad(&mut v, &mut i, [hi[0], lo[1], lo[2]], [lo[0], lo[1], lo[2]], [lo[0], hi[1], lo[2]], [hi[0], hi[1], lo[2]], [0.0, 0.0, -1.0], rock); // -Z
-        quad(&mut v, &mut i, [hi[0], lo[1], hi[2]], [hi[0], lo[1], lo[2]], [hi[0], hi[1], lo[2]], [hi[0], hi[1], hi[2]], [1.0, 0.0, 0.0], rock); // +X
-        quad(&mut v, &mut i, [lo[0], lo[1], lo[2]], [lo[0], lo[1], hi[2]], [lo[0], hi[1], hi[2]], [lo[0], hi[1], lo[2]], [-1.0, 0.0, 0.0], rock); // -X
-        quad(&mut v, &mut i, [lo[0], hi[1], hi[2]], [hi[0], hi[1], hi[2]], [hi[0], hi[1], lo[2]], [lo[0], hi[1], lo[2]], [0.0, 1.0, 0.0], rock); // +Y
+        quad(
+            &mut v,
+            &mut i,
+            [lo[0], lo[1], hi[2]],
+            [hi[0], lo[1], hi[2]],
+            [hi[0], hi[1], hi[2]],
+            [lo[0], hi[1], hi[2]],
+            [0.0, 0.0, 1.0],
+            rock,
+        ); // +Z
+        quad(
+            &mut v,
+            &mut i,
+            [hi[0], lo[1], lo[2]],
+            [lo[0], lo[1], lo[2]],
+            [lo[0], hi[1], lo[2]],
+            [hi[0], hi[1], lo[2]],
+            [0.0, 0.0, -1.0],
+            rock,
+        ); // -Z
+        quad(
+            &mut v,
+            &mut i,
+            [hi[0], lo[1], hi[2]],
+            [hi[0], lo[1], lo[2]],
+            [hi[0], hi[1], lo[2]],
+            [hi[0], hi[1], hi[2]],
+            [1.0, 0.0, 0.0],
+            rock,
+        ); // +X
+        quad(
+            &mut v,
+            &mut i,
+            [lo[0], lo[1], lo[2]],
+            [lo[0], lo[1], hi[2]],
+            [lo[0], hi[1], hi[2]],
+            [lo[0], hi[1], lo[2]],
+            [-1.0, 0.0, 0.0],
+            rock,
+        ); // -X
+        quad(
+            &mut v,
+            &mut i,
+            [lo[0], hi[1], hi[2]],
+            [hi[0], hi[1], hi[2]],
+            [hi[0], hi[1], lo[2]],
+            [lo[0], hi[1], lo[2]],
+            [0.0, 1.0, 0.0],
+            rock,
+        ); // +Y
         (v, i)
     }
 
@@ -822,11 +932,7 @@ mod gpu_tests {
         let (verts, idx) = ground_and_pillar();
         // Shadow of the pillar TOP (0,14,0): t = 14 / SUN_DIR[1].
         let t = 14.0 / SUN_DIR[1];
-        let sp = [
-            -SUN_DIR[0] * t,
-            0.0,
-            -SUN_DIR[2] * t,
-        ];
+        let sp = [-SUN_DIR[0] * t, 0.0, -SUN_DIR[2] * t];
         let eye = [sp[0] - 12.0, 9.0, sp[2] + 26.0];
         let pose = pose_looking_at(eye, [sp[0], 0.4, sp[2]]);
 
@@ -835,12 +941,14 @@ mod gpu_tests {
         r.load_surface(&verts, &idx);
         r.set_pose(pose);
         r.set_atmosphere(all_off());
-        let (_, no_shadow) = r.capture_png(&std::env::temp_dir().join("pc3d_atm_shadow_off.png"), &[]);
+        let (_, no_shadow) =
+            r.capture_png(&std::env::temp_dir().join("pc3d_atm_shadow_off.png"), &[]);
         r.set_atmosphere(Atmosphere {
             shadow_res: 1024,
             ..all_off()
         });
-        let (_, with_shadow) = r.capture_png(&std::env::temp_dir().join("pc3d_atm_shadow_on.png"), &[]);
+        let (_, with_shadow) =
+            r.capture_png(&std::env::temp_dir().join("pc3d_atm_shadow_on.png"), &[]);
         // Diagnostics: what does the sun map actually hold?
         {
             let m = r.debug_shadow_map();
@@ -882,9 +990,14 @@ mod gpu_tests {
             }
         }
         mean /= n;
-        println!("shadow: strongest darkening {best:.2} at NDC {best_at:?}, mean |delta| {mean:.4}");
+        println!(
+            "shadow: strongest darkening {best:.2} at NDC {best_at:?}, mean |delta| {mean:.4}"
+        );
         assert!(best > 0.08, "the cast shadow darkens its ground ({best})");
-        assert!(mean < 0.03, "the shadow change is local, not global ({mean})");
+        assert!(
+            mean < 0.03,
+            "the shadow change is local, not global ({mean})"
+        );
 
         // Sun-side ground is NOT in shadow: a point +X of the pillar.
         let lit_pt = sample_ndc(&with_shadow, W as u32, H as u32, (0.7, -0.15));
@@ -894,8 +1007,12 @@ mod gpu_tests {
         assert!(lit_delta < 0.04, "lit ground stays lit ({lit_delta})");
 
         // Temporal stability: two identical frames are bit-identical.
-        let (_, again) = r.capture_png(&std::env::temp_dir().join("pc3d_atm_shadow_again.png"), &[]);
-        assert_eq!(with_shadow, again, "a still camera gives a bit-identical shadow frame");
+        let (_, again) =
+            r.capture_png(&std::env::temp_dir().join("pc3d_atm_shadow_again.png"), &[]);
+        assert_eq!(
+            with_shadow, again,
+            "a still camera gives a bit-identical shadow frame"
+        );
     }
 
     /// Distance fog: a long ground strip recedes to the horizon; with fog
@@ -908,9 +1025,16 @@ mod gpu_tests {
         let grass: [f32; 3] = [0.30, 0.55, 0.22];
         for gz in 0..30 {
             let z0 = -4.0 + gz as f32 * 12.0;
-            quad(&mut v, &mut i,
-                 [-30.0, 0.0, z0], [-30.0, 0.0, z0 + 12.0], [30.0, 0.0, z0 + 12.0], [30.0, 0.0, z0],
-                 [0.0, 1.0, 0.0], grass);
+            quad(
+                &mut v,
+                &mut i,
+                [-30.0, 0.0, z0],
+                [-30.0, 0.0, z0 + 12.0],
+                [30.0, 0.0, z0 + 12.0],
+                [30.0, 0.0, z0],
+                [0.0, 1.0, 0.0],
+                grass,
+            );
         }
         let eye = [0.0, 6.0, -14.0];
         let pose = pose_looking_at(eye, [0.0, 0.0, 220.0]);
@@ -940,8 +1064,13 @@ mod gpu_tests {
         let far_on = dist_to_haze(&fog, 0.0);
         let near_off = dist_to_haze(&clear, -0.7);
         let near_on = dist_to_haze(&fog, -0.7);
-        println!("fog: far off {far_off:.2} on {far_on:.2}; near off {near_off:.2} on {near_on:.2}");
-        assert!(far_on < far_off * 0.7, "fog pulls the far field toward the haze");
+        println!(
+            "fog: far off {far_off:.2} on {far_on:.2}; near off {near_off:.2} on {near_on:.2}"
+        );
+        assert!(
+            far_on < far_off * 0.7,
+            "fog pulls the far field toward the haze"
+        );
         assert!(
             near_on > far_on + 0.1,
             "near ground keeps its lit color more than the far field"
@@ -960,12 +1089,26 @@ mod gpu_tests {
     fn material_detail_textures_and_separates_materials() {
         let mut v = Vec::new();
         let mut i = Vec::new();
-        quad(&mut v, &mut i,
-             [-20.0, 0.0, -10.0], [-20.0, 0.0, 10.0], [-1.0, 0.0, 10.0], [-1.0, 0.0, -10.0],
-             [0.0, 1.0, 0.0], [0.30, 0.55, 0.22]); // grass (left)
-        quad(&mut v, &mut i,
-             [1.0, 0.0, -10.0], [1.0, 0.0, 10.0], [20.0, 0.0, 10.0], [20.0, 0.0, -10.0],
-             [0.0, 1.0, 0.0], [0.55, 0.54, 0.50]); // rock (right)
+        quad(
+            &mut v,
+            &mut i,
+            [-20.0, 0.0, -10.0],
+            [-20.0, 0.0, 10.0],
+            [-1.0, 0.0, 10.0],
+            [-1.0, 0.0, -10.0],
+            [0.0, 1.0, 0.0],
+            [0.30, 0.55, 0.22],
+        ); // grass (left)
+        quad(
+            &mut v,
+            &mut i,
+            [1.0, 0.0, -10.0],
+            [1.0, 0.0, 10.0],
+            [20.0, 0.0, 10.0],
+            [20.0, 0.0, -10.0],
+            [0.0, 1.0, 0.0],
+            [0.55, 0.54, 0.50],
+        ); // rock (right)
         let eye = [0.0, 7.0, 26.0];
         let pose = pose_looking_at(eye, [0.0, 0.0, 0.0]);
 
@@ -987,7 +1130,12 @@ mod gpu_tests {
             let mut n = 0.0;
             for x in (x0..x1).step_by(2) {
                 for y in (132..178usize).step_by(2) {
-                    let p = sample_ndc(img, W as u32, H as u32, (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0));
+                    let p = sample_ndc(
+                        img,
+                        W as u32,
+                        H as u32,
+                        (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0),
+                    );
                     colors.insert([
                         (p[0] * 255.0) as u32,
                         (p[1] * 255.0) as u32,
@@ -1011,14 +1159,19 @@ mod gpu_tests {
         assert!(det_r > flat_r + 20, "the rock patch gains grain");
         // Separation: the cross-patch mean distance is preserved, and each
         // patch keeps its dominant hue.
-        let sep_flat: f32 = (0..3).map(|i| (g_mean_flat[i] - r_mean_flat[i]).abs()).sum();
+        let sep_flat: f32 = (0..3)
+            .map(|i| (g_mean_flat[i] - r_mean_flat[i]).abs())
+            .sum();
         let sep_det: f32 = (0..3).map(|i| (g_mean_det[i] - r_mean_det[i]).abs()).sum();
         assert!(
             sep_det > sep_flat * 0.8,
             "materials stay separated ({sep_flat} -> {sep_det})"
         );
         assert!(g_mean_det[1] > g_mean_det[0], "grass stays green-dominant");
-        assert!((r_mean_det[0] - r_mean_det[1]).abs() < 0.06, "rock stays gray");
+        assert!(
+            (r_mean_det[0] - r_mean_det[1]).abs() < 0.06,
+            "rock stays gray"
+        );
     }
 
     /// Water glint: looking sunward across the water, the glint-on frame
@@ -1032,7 +1185,12 @@ mod gpu_tests {
             let z0 = -40.0 + z as f32 * 5.0;
             let z1 = z0 + 5.0;
             let base = wverts.len() as u16;
-            for p in [[-40.0, 0.4, z0], [40.0, 0.4, z0], [40.0, 0.4, z1], [-40.0, 0.4, z1]] {
+            for p in [
+                [-40.0, 0.4, z0],
+                [40.0, 0.4, z0],
+                [40.0, 0.4, z1],
+                [-40.0, 0.4, z1],
+            ] {
                 wverts.push(crate::water::WaterVertex {
                     pos: p,
                     dir: [0.0, 1.0],
@@ -1053,7 +1211,8 @@ mod gpu_tests {
         r.set_water_time(Some(0.0));
         r.set_pose(pose);
         r.set_atmosphere(all_off());
-        let (_, no_glint) = r.capture_png(&std::env::temp_dir().join("pc3d_atm_glint_off.png"), &[]);
+        let (_, no_glint) =
+            r.capture_png(&std::env::temp_dir().join("pc3d_atm_glint_off.png"), &[]);
         r.set_atmosphere(Atmosphere {
             glint: true,
             ..all_off()
@@ -1067,8 +1226,18 @@ mod gpu_tests {
         // nothing by comparing suns).
         for x in (0..W).step_by(4) {
             for y in (H / 2..H).step_by(4) {
-                let a = sample_ndc(&no_glint, W as u32, H as u32, (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0));
-                let b = sample_ndc(&glint, W as u32, H as u32, (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0));
+                let a = sample_ndc(
+                    &no_glint,
+                    W as u32,
+                    H as u32,
+                    (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0),
+                );
+                let b = sample_ndc(
+                    &glint,
+                    W as u32,
+                    H as u32,
+                    (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0),
+                );
                 best_off = best_off.max(a[0] + a[1] + a[2]);
                 best_on = best_on.max(b[0] + b[1] + b[2]);
             }
@@ -1088,9 +1257,16 @@ mod gpu_tests {
         // Marker wall (magenta — unique in the scene).
         let mut v = Vec::new();
         let mut i = Vec::new();
-        quad(&mut v, &mut i,
-             [-14.0, 0.0, -12.0], [14.0, 0.0, -12.0], [14.0, 8.0, -12.0], [-14.0, 8.0, -12.0],
-             [0.0, 0.0, 1.0], [0.55, 0.25, 0.60]);
+        quad(
+            &mut v,
+            &mut i,
+            [-14.0, 0.0, -12.0],
+            [14.0, 0.0, -12.0],
+            [14.0, 8.0, -12.0],
+            [-14.0, 8.0, -12.0],
+            [0.0, 0.0, 1.0],
+            [0.55, 0.25, 0.60],
+        );
         let (fverts, fidx) = foliage_quads([-6.0, 0.0, -4.0], 4, 3, 3.2);
         let eye = [0.0, 3.5, 14.0];
         let pose = pose_looking_at(eye, [0.0, 1.6, -8.0]);
@@ -1102,7 +1278,8 @@ mod gpu_tests {
         r.set_pose(pose);
         let (_, leaf) = r.capture_png(&std::env::temp_dir().join("pc3d_atm_cutout_leaf.png"), &[]);
         r.load_cutout(&fverts, &fidx, CutoutMask::Solid);
-        let (_, solid) = r.capture_png(&std::env::temp_dir().join("pc3d_atm_cutout_solid.png"), &[]);
+        let (_, solid) =
+            r.capture_png(&std::env::temp_dir().join("pc3d_atm_cutout_solid.png"), &[]);
 
         // Magenta-dominant pixels in the FOLIAGE screen band (the wall
         // seen through holes): leaf > threshold, solid ~ none.
@@ -1110,7 +1287,12 @@ mod gpu_tests {
             let mut n = 0;
             for x in (0..W).step_by(2) {
                 for y in (y0..y1).step_by(2) {
-                    let p = sample_ndc(img, W as u32, H as u32, (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0));
+                    let p = sample_ndc(
+                        img,
+                        W as u32,
+                        H as u32,
+                        (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0),
+                    );
                     // The plum wall under dawn light lands near
                     // sRGB (0.64, 0.43, 0.67) — dominance, not ratio 1.8.
                     if p[0] > 0.45 && p[0] > p[1] * 1.25 && p[2] > p[1] * 1.25 {
@@ -1144,7 +1326,11 @@ mod gpu_tests {
         let (verts, idx) = ground_and_pillar();
         let eye = [-24.0, 9.0, 28.0];
         let pose = pose_looking_at(eye, [0.0, 2.0, 0.0]);
-        for tier in [AtmosphereTier::Low, AtmosphereTier::Mid, AtmosphereTier::High] {
+        for tier in [
+            AtmosphereTier::Low,
+            AtmosphereTier::Mid,
+            AtmosphereTier::High,
+        ] {
             let mut r = crate::renderer::Renderer::offscreen(W as u32, H as u32);
             r.set_placeholder_scene(false);
             r.load_surface(&verts, &idx);

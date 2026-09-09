@@ -108,15 +108,27 @@ pub fn manifest() -> Vec<CastleModule> {
         CastleModule {
             kind: ModuleKind::Keep,
             footprint: (5, 5),
-            ports: vec![Port { dx: 2, dz: 5, dir: 2 }],
+            ports: vec![Port {
+                dx: 2,
+                dz: 5,
+                dir: 2,
+            }],
             min_elevation_m: 4,
         },
         CastleModule {
             kind: ModuleKind::Wall,
             footprint: (3, 1),
             ports: vec![
-                Port { dx: 0, dz: 0, dir: 4 },
-                Port { dx: 3, dz: 0, dir: 0 },
+                Port {
+                    dx: 0,
+                    dz: 0,
+                    dir: 4,
+                },
+                Port {
+                    dx: 3,
+                    dz: 0,
+                    dir: 0,
+                },
             ],
             min_elevation_m: 0,
         },
@@ -124,33 +136,57 @@ pub fn manifest() -> Vec<CastleModule> {
             kind: ModuleKind::GateHouse,
             footprint: (3, 2),
             ports: vec![
-                Port { dx: 1, dz: 0, dir: 0 },
-                Port { dx: 1, dz: 2, dir: 2 },
+                Port {
+                    dx: 1,
+                    dz: 0,
+                    dir: 0,
+                },
+                Port {
+                    dx: 1,
+                    dz: 2,
+                    dir: 2,
+                },
             ],
             min_elevation_m: 2,
         },
         CastleModule {
             kind: ModuleKind::Tower,
             footprint: (2, 2),
-            ports: vec![Port { dx: 1, dz: 1, dir: 2 }],
+            ports: vec![Port {
+                dx: 1,
+                dz: 1,
+                dir: 2,
+            }],
             min_elevation_m: 0,
         },
         CastleModule {
             kind: ModuleKind::Barracks,
             footprint: (3, 2),
-            ports: vec![Port { dx: 1, dz: 2, dir: 2 }],
+            ports: vec![Port {
+                dx: 1,
+                dz: 2,
+                dir: 2,
+            }],
             min_elevation_m: 2,
         },
         CastleModule {
             kind: ModuleKind::Chapel,
             footprint: (3, 3),
-            ports: vec![Port { dx: 1, dz: 3, dir: 2 }],
+            ports: vec![Port {
+                dx: 1,
+                dz: 3,
+                dir: 2,
+            }],
             min_elevation_m: 2,
         },
         CastleModule {
             kind: ModuleKind::Market,
             footprint: (4, 2),
-            ports: vec![Port { dx: 2, dz: 2, dir: 2 }],
+            ports: vec![Port {
+                dx: 2,
+                dz: 2,
+                dir: 2,
+            }],
             min_elevation_m: 1,
         },
     ]
@@ -195,7 +231,10 @@ struct SolidProbe {
 
 fn solid_probe(gen: &WorldGen, x: i64, y: i64, z: i64) -> SolidProbe {
     let surface = gen.effective_surface_mm(x, z);
-    SolidProbe { solid: y <= surface, floor_y: surface.div_euclid(1000) }
+    SolidProbe {
+        solid: y <= surface,
+        floor_y: surface.div_euclid(1000),
+    }
 }
 
 /// The castle layout planner.
@@ -204,7 +243,9 @@ pub fn plan_capital(gen: &WorldGen, center: RegionCoord) -> CastleLayout {
     let o = center.origin();
     let cx = o.x.div_euclid(1000) as i32;
     let cz = o.z.div_euclid(1000) as i32;
-    let cy = gen.effective_surface_mm(cx as i64 * 1000, cz as i64 * 1000).div_euclid(1000) as i32;
+    let cy = gen
+        .effective_surface_mm(cx as i64 * 1000, cz as i64 * 1000)
+        .div_euclid(1000) as i32;
 
     let mut modules = Vec::new();
     let mut roads = Vec::new();
@@ -224,7 +265,11 @@ pub fn plan_capital(gen: &WorldGen, center: RegionCoord) -> CastleLayout {
         }
         modules.push(PlacedModule {
             kind,
-            origin: CellCoord { x: ox, y: floor_y, z: oz },
+            origin: CellCoord {
+                x: ox,
+                y: floor_y,
+                z: oz,
+            },
         });
     };
 
@@ -248,16 +293,38 @@ pub fn plan_capital(gen: &WorldGen, center: RegionCoord) -> CastleLayout {
     let keep_fw = 5i32;
     let keep_ox = cx - keep_fw / 2;
     let keep_oz = cz - keep_fw / 2;
-    place(&mut modules, &mut occupied, ModuleKind::Keep, keep_ox, keep_oz, cy);
+    place(
+        &mut modules,
+        &mut occupied,
+        ModuleKind::Keep,
+        keep_ox,
+        keep_oz,
+        cy,
+    );
 
     // Place GateHouse south of Keep.
     let gate_ox = cx - 1;
     let gate_oz = keep_oz + keep_fw;
     if fits(&occupied, gate_ox, gate_oz, 3, 2) {
-        place(&mut modules, &mut occupied, ModuleKind::GateHouse, gate_ox, gate_oz, cy);
+        place(
+            &mut modules,
+            &mut occupied,
+            ModuleKind::GateHouse,
+            gate_ox,
+            gate_oz,
+            cy,
+        );
         roads.push((
-            CellCoord { x: cx, y: cy, z: cz },
-            CellCoord { x: gate_ox + 1, y: cy, z: gate_oz },
+            CellCoord {
+                x: cx,
+                y: cy,
+                z: cz,
+            },
+            CellCoord {
+                x: gate_ox + 1,
+                y: cy,
+                z: gate_oz,
+            },
         ));
     }
 
@@ -269,8 +336,16 @@ pub fn plan_capital(gen: &WorldGen, center: RegionCoord) -> CastleLayout {
         if fits(&occupied, tx, tz, 2, 2) {
             place(&mut modules, &mut occupied, ModuleKind::Tower, tx, tz, cy);
             roads.push((
-                CellCoord { x: cx, y: cy, z: cz },
-                CellCoord { x: tx, y: cy, z: tz },
+                CellCoord {
+                    x: cx,
+                    y: cy,
+                    z: cz,
+                },
+                CellCoord {
+                    x: tx,
+                    y: cy,
+                    z: tz,
+                },
             ));
         }
     }
@@ -290,7 +365,11 @@ pub fn plan_capital(gen: &WorldGen, center: RegionCoord) -> CastleLayout {
         }
     }
 
-    CastleLayout { center, modules, roads }
+    CastleLayout {
+        center,
+        modules,
+        roads,
+    }
 }
 
 #[cfg(test)]
@@ -321,7 +400,11 @@ mod tests {
             ModuleKind::Chapel,
             ModuleKind::Market,
         ] {
-            assert!(kinds.contains(&expected), "missing module: {}", expected.name());
+            assert!(
+                kinds.contains(&expected),
+                "missing module: {}",
+                expected.name()
+            );
         }
         for m in &kit {
             assert!(m.footprint.0 > 0 && m.footprint.1 > 0);
@@ -340,7 +423,10 @@ mod tests {
         let kinds: Vec<ModuleKind> = layout.modules.iter().map(|m| m.kind).collect();
         assert!(kinds.contains(&ModuleKind::Keep), "no keep");
         assert!(kinds.contains(&ModuleKind::GateHouse), "no gatehouse");
-        assert!(kinds.iter().filter(|&&k| k == ModuleKind::Tower).count() >= 2, "towers");
+        assert!(
+            kinds.iter().filter(|&&k| k == ModuleKind::Tower).count() >= 2,
+            "towers"
+        );
         assert!(kinds.contains(&ModuleKind::Barracks), "no barracks");
 
         // No overlapping footprints.

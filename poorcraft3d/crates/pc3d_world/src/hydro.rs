@@ -51,11 +51,7 @@ impl RiverGraph {
     /// delta in meters per region, clamped to the declared range. This is
     /// the dirty-region entry point — edits in a valley reroute its river
     /// locally.
-    pub fn build(
-        gen: &WorldGen,
-        half: i32,
-        overrides: &BTreeMap<(i32, i32), i32>,
-    ) -> Self {
+    pub fn build(gen: &WorldGen, half: i32, overrides: &BTreeMap<(i32, i32), i32>) -> Self {
         // 1. Elevations over the lattice.
         let mut elevation: BTreeMap<(i32, i32), i32> = BTreeMap::new();
         for x in -half..=half {
@@ -172,8 +168,14 @@ impl RiverGraph {
             .windows(2)
             .map(|w| {
                 (
-                    RegionCoord { x: w[0].0, z: w[0].1 },
-                    RegionCoord { x: w[1].0, z: w[1].1 },
+                    RegionCoord {
+                        x: w[0].0,
+                        z: w[0].1,
+                    },
+                    RegionCoord {
+                        x: w[1].0,
+                        z: w[1].1,
+                    },
                 )
             })
             .collect();
@@ -212,8 +214,6 @@ impl RiverGraph {
     }
 }
 
-
-
 /// P3D-305: bounded reservoir volume model. Volumes are fixed-point
 /// thousand-liters (kl). Conservation law: within a closed system,
 /// filled − drained == Σ volumes; overflow ALWAYS routes downstream
@@ -246,7 +246,11 @@ impl Reservoirs {
             let capacity = (10_000 + max_neighbor_diff as i64 * 500).max(1_000);
             map.insert(
                 *k,
-                Reservoir { region: RegionCoord { x: k.0, z: k.1 }, capacity_kl: capacity, volume_kl: 0 },
+                Reservoir {
+                    region: RegionCoord { x: k.0, z: k.1 },
+                    capacity_kl: capacity,
+                    volume_kl: 0,
+                },
             );
         }
         Reservoirs { map }
@@ -362,9 +366,7 @@ impl RiverGraph {
             let r = RegionCoord { x, z };
             let downstream = self.downstream(r);
             let slope = match downstream {
-                Some(d) => {
-                    ((e - self.elevation[&(d.x, d.z)]).max(0) as u64) * 1_000_000 / 256_000
-                }
+                Some(d) => ((e - self.elevation[&(d.x, d.z)]).max(0) as u64) * 1_000_000 / 256_000,
                 None => 0,
             };
             // Only VIABLE regions compete: real water and real slope.
@@ -427,15 +429,15 @@ mod consumer_tests {
             let o = RegionCoord { x, z };
             let slope = graph
                 .downstream(o)
-                .map(|d| {
-                    ((e - graph.elevation[&(d.x, d.z)]).max(0) as u64) * 1_000_000 / 256_000
-                })
+                .map(|d| ((e - graph.elevation[&(d.x, d.z)]).max(0) as u64) * 1_000_000 / 256_000)
                 .unwrap_or(0);
             if slope == 0 || graph.discharge(o) < crate::hydro::RIVER_THRESHOLD {
                 continue;
             }
             let score = graph.discharge(o).saturating_mul(slope.max(1));
-            let best_score = graph.discharge(r).saturating_mul(p.slope_per_mille.max(0) as u64);
+            let best_score = graph
+                .discharge(r)
+                .saturating_mul(p.slope_per_mille.max(0) as u64);
             assert!(
                 score <= best_score,
                 "region {o:?} scores {score} > best {best_score}"
@@ -524,7 +526,10 @@ mod tests {
         assert_eq!(a.downstream, b.downstream);
         assert_eq!(a.discharge, b.discharge);
         let other = RiverGraph::new(&WorldGen::new(2025), 24);
-        assert_ne!(a.discharge, other.discharge, "different seed, same discharge map");
+        assert_ne!(
+            a.discharge, other.discharge,
+            "different seed, same discharge map"
+        );
     }
 
     /// THE watershed law: no cycles — every downstream chain reaches a
@@ -549,8 +554,7 @@ mod tests {
         // Conservation: recompute each node's discharge from upstream.
         let mut recomputed: BTreeMap<(i32, i32), u64> = BTreeMap::new();
         // Process in ascending elevation (opposite of the build order):
-        let mut order: Vec<(i32, i32)> =
-            graph.elevation.keys().copied().collect();
+        let mut order: Vec<(i32, i32)> = graph.elevation.keys().copied().collect();
         order.sort_by_key(|k| std::cmp::Reverse(graph.elevation[k]));
         for k in order {
             let upstream: u64 = graph
@@ -592,7 +596,10 @@ mod tests {
                 };
                 let d_elev = base.elevation[d];
                 for (dx, dz) in NEIGHBORS {
-                    let n = RegionCoord { x: x + dx, z: z + dz };
+                    let n = RegionCoord {
+                        x: x + dx,
+                        z: z + dz,
+                    };
                     if (n.x, n.z) == (d.0, d.1) {
                         continue;
                     }
@@ -666,7 +673,10 @@ mod tests {
                 }
             }
         }
-        assert!(seeds_with_rivers >= 4, "rivers missing in {seeds_with_rivers}/6 seeds");
+        assert!(
+            seeds_with_rivers >= 4,
+            "rivers missing in {seeds_with_rivers}/6 seeds"
+        );
 
         // Wetness corridor: for one seed with rivers, wetness adjacent to
         // river regions exceeds wetness far away.
@@ -678,7 +688,10 @@ mod tests {
             .map(|r| graph.wetness(&g, RegionCoord { x: r.0, z: r.1 }));
         if let Some(n) = near {
             let far = graph.wetness(&g, RegionCoord { x: 24, z: 24 });
-            assert!(n > far || far == 100, "wet corridor absent: near={n} far={far}");
+            assert!(
+                n > far || far == 100,
+                "wet corridor absent: near={n} far={far}"
+            );
         }
     }
 }
@@ -763,7 +776,10 @@ mod fishing_tests {
         assert!(!fish.stock.is_empty(), "river regions must hold fish");
 
         // Pick a stocked region.
-        let r = RegionCoord { x: graph.river_regions[0].0, z: graph.river_regions[0].1 };
+        let r = RegionCoord {
+            x: graph.river_regions[0].0,
+            z: graph.river_regions[0].1,
+        };
         let before_stock = fish.stock_at(r);
         let before_discharge = graph.discharge(r);
         let before_pot = graph.flow_potential_at(&g, None, 0, 0);

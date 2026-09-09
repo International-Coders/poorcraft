@@ -21,40 +21,43 @@
 
 pub mod app;
 pub mod atmosphere;
-pub mod flora;
-pub mod settlement;
+pub mod camera;
 pub mod city;
+pub mod construction;
+pub mod deck;
+pub mod flora;
+pub mod font;
 pub mod glb;
+pub mod gpu;
 pub mod inventory;
 pub mod machines;
 pub mod npcs;
 pub mod player;
+pub mod renderer;
+pub mod scene;
+pub mod settlement;
 pub mod slice;
-pub mod camera;
-pub mod deck;
-pub mod construction;
 pub mod streaming;
 pub mod surface;
 pub mod surface_stream;
 pub mod terrain;
 pub mod water;
 pub mod world_features;
-pub mod font;
-pub mod gpu;
-pub mod renderer;
-pub mod scene;
 
-pub use app::{run_windowed, InteractiveHost, ProbeSet, Shot, SliceHost, SliceSetup, WindowConfig, WindowReport};
-pub use slice::assemble;
+pub use app::{
+    run_windowed, InteractiveHost, ProbeSet, Shot, SliceHost, SliceSetup, WindowConfig,
+    WindowReport,
+};
 pub use camera::CameraPose;
 pub use city::{city_scene, mesh_city, CityInfo, NavAnchor};
-pub use machines::mesh_water_wheel;
-pub use player::PlayerBody;
-pub use slice::{find_showcase, load_slice, save_slice, spawn_player, SliceScene};
-pub use npcs::{advance, cast_for, mesh_npc, npc_world_pos, NpcCast};
-pub use renderer::{QualityTier, Renderer};
 pub use construction::{material_albedo, mesh_patch, UpdateStats};
+pub use machines::mesh_water_wheel;
+pub use npcs::{advance, cast_for, mesh_npc, npc_world_pos, NpcCast};
+pub use player::PlayerBody;
+pub use renderer::PixelReport;
+pub use renderer::{QualityTier, Renderer};
+pub use slice::assemble;
+pub use slice::{find_showcase, load_slice, save_slice, spawn_player, SliceScene};
 pub use streaming::{StreamConfig, StreamCounters, TerrainStreamer};
 pub use terrain::{mesh_patch_natural, MeshLod, TerrainStats};
 pub use water::WaterStats;
-pub use renderer::PixelReport;

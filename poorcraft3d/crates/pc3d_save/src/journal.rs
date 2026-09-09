@@ -37,23 +37,25 @@ fn encode_ops(ops: &[EditOp]) -> Vec<u8> {
 
 fn decode_ops(bytes: &[u8]) -> Result<Vec<EditOp>, LoadError> {
     if bytes.len() < 8 {
-        return Err(LoadError::Framing(crate::framing::FrameError::LengthMismatch {
-            declared: 8,
-            actual: bytes.len(),
-        }));
+        return Err(LoadError::Framing(
+            crate::framing::FrameError::LengthMismatch {
+                declared: 8,
+                actual: bytes.len(),
+            },
+        ));
     }
     let count = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
     if bytes.len() != 8 + count * 48 {
-        return Err(LoadError::Framing(crate::framing::FrameError::LengthMismatch {
-            declared: (8 + count * 48) as u64,
-            actual: bytes.len(),
-        }));
+        return Err(LoadError::Framing(
+            crate::framing::FrameError::LengthMismatch {
+                declared: (8 + count * 48) as u64,
+                actual: bytes.len(),
+            },
+        ));
     }
     let mut ops = Vec::with_capacity(count);
     for i in 0..count {
-        let rec: [u8; 48] = bytes[8 + i * 48..8 + (i + 1) * 48]
-            .try_into()
-            .unwrap();
+        let rec: [u8; 48] = bytes[8 + i * 48..8 + (i + 1) * 48].try_into().unwrap();
         let op = EditOp::decode(&rec).ok_or_else(|| {
             LoadError::Framing(crate::framing::FrameError::ChecksumMismatch {
                 expected: 0,
@@ -73,7 +75,10 @@ pub fn save_journal(
     ops: &[EditOp],
     supported: &SupportedVersions,
 ) -> Result<(), LoadError> {
-    let header = FormatHeader { save: supported.save, ..FormatHeader::current() };
+    let header = FormatHeader {
+        save: supported.save,
+        ..FormatHeader::current()
+    };
     let bytes = frame(&header, &encode_ops(ops));
     let path = crate::paths::world_root(save_root, world_name).join(journal_rel(coord));
     write_atomic(&path, &bytes)?;
@@ -100,7 +105,10 @@ pub fn save_snapshot(
     cells: &[u8],
     supported: &SupportedVersions,
 ) -> Result<(), LoadError> {
-    let header = FormatHeader { save: supported.save, ..FormatHeader::current() };
+    let header = FormatHeader {
+        save: supported.save,
+        ..FormatHeader::current()
+    };
     let bytes = frame(&header, cells);
     let path = crate::paths::world_root(save_root, world_name).join(snapshot_rel(coord));
     write_atomic(&path, &bytes)?;
@@ -119,12 +127,10 @@ pub fn load_snapshot(
     Ok(unframe(&bytes, supported)?)
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pc3d_world::edit::{EditKind, Brush};
+    use pc3d_world::edit::{Brush, EditKind};
     use pc3d_world::{CellCoord, CellMaterial};
 
     const SUP: SupportedVersions = SupportedVersions::epoch1();
@@ -133,8 +139,15 @@ mod tests {
         EditOp {
             id,
             tick,
-            kind: if id % 2 == 0 { EditKind::Dig } else { EditKind::Fill },
-            brush: Brush { center: CellCoord { x: cx, y: 7, z: 3 }, radius: 2 },
+            kind: if id % 2 == 0 {
+                EditKind::Dig
+            } else {
+                EditKind::Fill
+            },
+            brush: Brush {
+                center: CellCoord { x: cx, y: 7, z: 3 },
+                radius: 2,
+            },
             material: CellMaterial::Rock,
         }
     }
@@ -173,7 +186,11 @@ mod tests {
         fs::write(&path, frame(&newer, &encode_ops(&[]))).unwrap();
         assert!(matches!(
             load_journal(root, "w", coord, &SUP),
-            Err(LoadError::Framing(FrameError::Newer { section: "save", file: 6, supported: 1 }))
+            Err(LoadError::Framing(FrameError::Newer {
+                section: "save",
+                file: 6,
+                supported: 1
+            }))
         ));
     }
 

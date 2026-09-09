@@ -42,8 +42,7 @@ pub fn material_albedo(m: CellMaterial) -> [f32; 3] {
 pub fn patch_version(con: &Construction) -> u64 {
     let mut h: u64 = 0xcbf29ce484222325;
     for cell in &con.cells {
-        h = (h ^ cell.map_or(0u8, |b| b.material as u8 + 1) as u64)
-            .wrapping_mul(0x100000001b3);
+        h = (h ^ cell.map_or(0u8, |b| b.material as u8 + 1) as u64).wrapping_mul(0x100000001b3);
         if let Some(b) = cell {
             h = (h ^ b.owner).wrapping_mul(0x100000001b3);
         }
@@ -84,7 +83,11 @@ pub fn mesh_patch(con: &Construction) -> (Vec<SceneVertex>, Vec<u16>) {
                 let center = [cx as f32 + 0.5, cy as f32 + 0.5, cz as f32 + 0.5];
                 let color = material_albedo(block.material);
                 for (normal, u, v) in FACE_BASIS {
-                    let neighbor = at(cx + normal[0] as i32, cy + normal[1] as i32, cz + normal[2] as i32);
+                    let neighbor = at(
+                        cx + normal[0] as i32,
+                        cy + normal[1] as i32,
+                        cz + normal[2] as i32,
+                    );
                     if neighbor.is_some() {
                         continue; // culled: the neighbor cell is also built
                     }
@@ -237,7 +240,10 @@ mod tests {
     fn place(con: &mut Construction, x: i32, y: i32, z: i32, m: CellMaterial) {
         con.place(
             CellCoord { x, y, z },
-            BuildBlock { material: m, owner: 7 },
+            BuildBlock {
+                material: m,
+                owner: 7,
+            },
         )
         .expect("place");
     }
@@ -295,8 +301,16 @@ mod tests {
             let a = verts[tri[0] as usize];
             let b = verts[tri[1] as usize];
             let c = verts[tri[2] as usize];
-            let e1 = [b.pos[0] - a.pos[0], b.pos[1] - a.pos[1], b.pos[2] - a.pos[2]];
-            let e2 = [c.pos[0] - a.pos[0], c.pos[1] - a.pos[1], c.pos[2] - a.pos[2]];
+            let e1 = [
+                b.pos[0] - a.pos[0],
+                b.pos[1] - a.pos[1],
+                b.pos[2] - a.pos[2],
+            ];
+            let e2 = [
+                c.pos[0] - a.pos[0],
+                c.pos[1] - a.pos[1],
+                c.pos[2] - a.pos[2],
+            ];
             let cross = [
                 e1[1] * e2[2] - e1[2] * e2[1],
                 e1[2] * e2[0] - e1[0] * e2[2],

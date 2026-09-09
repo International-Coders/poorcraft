@@ -36,13 +36,38 @@ pub const EV_DRAGON_SPAWN: u32 = 6;
 /// Everything a player or system can ask the host to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HostCommand {
-    Build { cell: CellCoord, material: CellMaterial, owner: u64 },
-    RemoveBuild { cell: CellCoord, owner: u64 },
-    FeedBoiler { machine: u64, fuel_milli: i64, water_milli: i64 },
-    FuelReactor { reactor: u64, fuel_milli: i64, coolant_milli: i64 },
-    SetRods { reactor: u64, pct: i64 },
-    SpawnDragon { lair: RegionCoord },
-    AssaultDragon { dragon: u64, party_power: i64, faction: u64, seed: u64 },
+    Build {
+        cell: CellCoord,
+        material: CellMaterial,
+        owner: u64,
+    },
+    RemoveBuild {
+        cell: CellCoord,
+        owner: u64,
+    },
+    FeedBoiler {
+        machine: u64,
+        fuel_milli: i64,
+        water_milli: i64,
+    },
+    FuelReactor {
+        reactor: u64,
+        fuel_milli: i64,
+        coolant_milli: i64,
+    },
+    SetRods {
+        reactor: u64,
+        pct: i64,
+    },
+    SpawnDragon {
+        lair: RegionCoord,
+    },
+    AssaultDragon {
+        dragon: u64,
+        party_power: i64,
+        faction: u64,
+        seed: u64,
+    },
 }
 
 /// The integrated host: spine + world systems, one deterministic loop.
@@ -90,7 +115,8 @@ impl SoloHost {
     /// Queue a command; it lands at the next tick, in canonical order.
     pub fn submit(&mut self, command: HostCommand) -> u64 {
         let id = self.sequencer.assign();
-        self.pending.push(CommandEnvelope::new(id, self.tick + 1, command));
+        self.pending
+            .push(CommandEnvelope::new(id, self.tick + 1, command));
         id
     }
 
@@ -102,10 +128,17 @@ impl SoloHost {
     /// unknown ids) are refused without touching state.
     fn apply(&mut self, cmd: &HostCommand) {
         match *cmd {
-            HostCommand::Build { cell, material, owner } => {
+            HostCommand::Build {
+                cell,
+                material,
+                owner,
+            } => {
                 let key = patch_key(cell);
                 let op = BuildOp {
-                    id: { self.next_build_id += 1; self.next_build_id },
+                    id: {
+                        self.next_build_id += 1;
+                        self.next_build_id
+                    },
                     tick: self.tick,
                     kind: BuildKind::Place,
                     cell,
@@ -113,7 +146,11 @@ impl SoloHost {
                     owner,
                 };
                 let con = self.construction.entry(key).or_insert_with(|| {
-                    Construction::new(PatchCoord { x: key.0, y: key.1, z: key.2 })
+                    Construction::new(PatchCoord {
+                        x: key.0,
+                        y: key.1,
+                        z: key.2,
+                    })
                 });
                 if replay_builds(con, &[op]) == 1 {
                     self.record(EV_BUILD_APPLIED, owner, cell_hash(cell));
@@ -122,7 +159,10 @@ impl SoloHost {
             HostCommand::RemoveBuild { cell, owner } => {
                 let key = patch_key(cell);
                 let op = BuildOp {
-                    id: { self.next_build_id += 1; self.next_build_id },
+                    id: {
+                        self.next_build_id += 1;
+                        self.next_build_id
+                    },
                     tick: self.tick,
                     kind: BuildKind::RemoveBuild,
                     cell,
@@ -135,10 +175,18 @@ impl SoloHost {
                     }
                 }
             }
-            HostCommand::FeedBoiler { machine, fuel_milli, water_milli } => {
+            HostCommand::FeedBoiler {
+                machine,
+                fuel_milli,
+                water_milli,
+            } => {
                 self.machines.supply(machine, fuel_milli, water_milli);
             }
-            HostCommand::FuelReactor { reactor, fuel_milli, coolant_milli } => {
+            HostCommand::FuelReactor {
+                reactor,
+                fuel_milli,
+                coolant_milli,
+            } => {
                 self.nuclear.supply(reactor, fuel_milli, coolant_milli);
             }
             HostCommand::SetRods { reactor, pct } => {
@@ -148,7 +196,12 @@ impl SoloHost {
                 let id = self.dragons.spawn(lair);
                 self.record(EV_DRAGON_SPAWN, id, 0);
             }
-            HostCommand::AssaultDragon { dragon, party_power, faction, seed } => {
+            HostCommand::AssaultDragon {
+                dragon,
+                party_power,
+                faction,
+                seed,
+            } => {
                 let out = self.dragons.assault(dragon, party_power, faction, seed);
                 if let AssaultOutcome::Slain = out {
                     self.record(EV_DRAGON_SLAIN, dragon, faction);
@@ -171,8 +224,7 @@ impl SoloHost {
                 .cloned()
                 .collect();
             due = CommandEnvelope::canonical_batch(due);
-            let used: std::collections::BTreeSet<u64> =
-                due.iter().map(|e| e.id).collect();
+            let used: std::collections::BTreeSet<u64> = due.iter().map(|e| e.id).collect();
             self.pending.retain(|e| !used.contains(&e.id));
             for env in due {
                 self.apply(&env.command);
@@ -293,14 +345,28 @@ mod tests {
         let run = |reverse_submit: bool| {
             let mut h = SoloHost::new(4242);
             let boiler = h.machines.add_machine(crate::machines::MachineKind::Boiler);
-            let engine = h.machines.add_machine(crate::machines::MachineKind::SteamEngine);
+            let engine = h
+                .machines
+                .add_machine(crate::machines::MachineKind::SteamEngine);
             h.machines.connect(boiler, engine).expect("typed wire");
             let reactor = h.nuclear.site_reactor(RegionCoord { x: 1, z: 1 }).unwrap();
             let cell = CellCoord { x: 8, y: 0, z: 8 };
             let mut cmds = vec![
-                HostCommand::Build { cell, material: CellMaterial::Rock, owner: 7 },
-                HostCommand::FeedBoiler { machine: boiler, fuel_milli: 5_000, water_milli: 20_000 },
-                HostCommand::FuelReactor { reactor, fuel_milli: 50_000, coolant_milli: 0 },
+                HostCommand::Build {
+                    cell,
+                    material: CellMaterial::Rock,
+                    owner: 7,
+                },
+                HostCommand::FeedBoiler {
+                    machine: boiler,
+                    fuel_milli: 5_000,
+                    water_milli: 20_000,
+                },
+                HostCommand::FuelReactor {
+                    reactor,
+                    fuel_milli: 50_000,
+                    coolant_milli: 0,
+                },
                 HostCommand::SetRods { reactor, pct: 40 },
             ];
             if reverse_submit {
@@ -324,7 +390,11 @@ mod tests {
     fn p3d801_build_commands_reach_construction() {
         let mut h = SoloHost::new(777);
         let cell = CellCoord { x: 8, y: 0, z: 8 };
-        h.submit(HostCommand::Build { cell, material: CellMaterial::Rock, owner: 7 });
+        h.submit(HostCommand::Build {
+            cell,
+            material: CellMaterial::Rock,
+            owner: 7,
+        });
         h.run_ticks(1);
         let key = patch_key(cell);
         let con = h.construction.get(&key).expect("patch materialized");
@@ -352,27 +422,47 @@ mod tests {
     fn p3d801_machines_and_reactors_share_the_world() {
         let mut h = SoloHost::new(99);
         let boiler = h.machines.add_machine(crate::machines::MachineKind::Boiler);
-        let engine = h.machines.add_machine(crate::machines::MachineKind::SteamEngine);
-        let gen = h.machines.add_machine(crate::machines::MachineKind::Generator);
-        let bat = h.machines.add_machine(crate::machines::MachineKind::Battery);
+        let engine = h
+            .machines
+            .add_machine(crate::machines::MachineKind::SteamEngine);
+        let gen = h
+            .machines
+            .add_machine(crate::machines::MachineKind::Generator);
+        let bat = h
+            .machines
+            .add_machine(crate::machines::MachineKind::Battery);
         assert!(h.machines.connect(boiler, engine).is_ok());
         assert!(h.machines.connect(engine, gen).is_ok());
         assert!(h.machines.connect(gen, bat).is_ok());
         let reactor = h.nuclear.site_reactor(RegionCoord { x: 2, z: -2 }).unwrap();
 
-        h.submit(HostCommand::FeedBoiler { machine: boiler, fuel_milli: 8_000, water_milli: 40_000 });
-        h.submit(HostCommand::FuelReactor { reactor, fuel_milli: 200_000, coolant_milli: 0 });
+        h.submit(HostCommand::FeedBoiler {
+            machine: boiler,
+            fuel_milli: 8_000,
+            water_milli: 40_000,
+        });
+        h.submit(HostCommand::FuelReactor {
+            reactor,
+            fuel_milli: 200_000,
+            coolant_milli: 0,
+        });
         h.submit(HostCommand::SetRods { reactor, pct: 30 }); // climbs to SCRAM
         h.run_ticks(2_000);
 
         assert!(h.machines.stored_charge() > 0, "boiler charged the battery");
         let r = &h.nuclear.reactors[&reactor];
         assert!(r.fuel_milli < 200_000, "the reactor burned before SCRAM");
-        assert_eq!(r.control_pct, 100, "SCRAM slammed the rods and they stay in");
+        assert_eq!(
+            r.control_pct, 100,
+            "SCRAM slammed the rods and they stay in"
+        );
         assert!(r.temp_milli < crate::nuclear::SAFE_TEMP, "core cooled");
         assert_eq!(r.integrity, crate::nuclear::FULL_INTEGRITY, "no damage");
         assert_eq!(h.nuclear.contamination.dose.len(), 0, "SCRAM kept it clean");
-        assert!(h.journal.iter().any(|(_, k, ..)| *k == EV_HEARTBEAT), "heartbeat journaled");
+        assert!(
+            h.journal.iter().any(|(_, k, ..)| *k == EV_HEARTBEAT),
+            "heartbeat journaled"
+        );
     }
 
     /// A dragon spawned near a settlement raids through the host loop
@@ -386,7 +476,10 @@ mod tests {
         let mut h = SoloHost::new(31);
         let mut control = SoloHost::new(31);
         let center = h.settlements.list[0].center;
-        let lair = RegionCoord { x: center.x + 5, z: center.z };
+        let lair = RegionCoord {
+            x: center.x + 5,
+            z: center.z,
+        };
         let dragon = h.dragons.spawn(lair);
         assert!(h.dragons.dragons[&dragon].in_territory(center));
         // Only settlement[0] can be in territory: sites are >= 24 apart,
@@ -403,11 +496,16 @@ mod tests {
         );
         assert!(control.dragons.scorched.is_empty());
         assert!(
-            h.journal.iter().any(|(_, k, a, _)| *k == EV_DRAGON_RAID && *a == h.settlements.list[0].id),
+            h.journal
+                .iter()
+                .any(|(_, k, a, _)| *k == EV_DRAGON_RAID && *a == h.settlements.list[0].id),
             "raid journaled"
         );
         assert!(
-            !control.journal.iter().any(|(_, k, ..)| *k == EV_DRAGON_RAID),
+            !control
+                .journal
+                .iter()
+                .any(|(_, k, ..)| *k == EV_DRAGON_RAID),
             "control world saw no raid"
         );
 
@@ -425,11 +523,18 @@ mod tests {
             }
         }
         let seed = slain_seed.expect("party of 1000 slays with some die roll");
-        h.submit(HostCommand::AssaultDragon { dragon, party_power: 1000, faction: 5, seed });
+        h.submit(HostCommand::AssaultDragon {
+            dragon,
+            party_power: 1000,
+            faction: 5,
+            seed,
+        });
         h.run_ticks(2);
         assert!(!h.dragons.dragons[&dragon].alive);
         assert!(
-            h.journal.iter().any(|(_, k, a, _)| *k == EV_DRAGON_SLAIN && *a == dragon),
+            h.journal
+                .iter()
+                .any(|(_, k, a, _)| *k == EV_DRAGON_SLAIN && *a == dragon),
             "kill journaled"
         );
         assert_eq!(h.dragons.reputation.of(5), crate::dragon::AWE_FOR_SLAYING);
@@ -443,7 +548,11 @@ mod tests {
             let mut h = SoloHost::new(555);
             let cell = CellCoord { x: 8, y: 0, z: 8 };
             if build {
-                h.submit(HostCommand::Build { cell, material: CellMaterial::Rock, owner: 7 });
+                h.submit(HostCommand::Build {
+                    cell,
+                    material: CellMaterial::Rock,
+                    owner: 7,
+                });
             }
             h.run_ticks(700);
             h.digest_state()

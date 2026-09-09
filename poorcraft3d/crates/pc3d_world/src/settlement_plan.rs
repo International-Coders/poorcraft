@@ -156,21 +156,33 @@ impl SettlementPlan {
         for (kind, ox, oz) in LAYOUT_RING0 {
             buildings.push(BuildingSlot {
                 kind: *kind,
-                cell: CellCoord { x: plaza.x + ox, y: 0, z: plaza.z + oz },
+                cell: CellCoord {
+                    x: plaza.x + ox,
+                    y: 0,
+                    z: plaza.z + oz,
+                },
                 size: (2, 2),
             });
         }
         for (kind, ox, oz) in LAYOUT_RING1 {
             buildings.push(BuildingSlot {
                 kind: *kind,
-                cell: CellCoord { x: plaza.x + ox, y: 0, z: plaza.z + oz },
+                cell: CellCoord {
+                    x: plaza.x + ox,
+                    y: 0,
+                    z: plaza.z + oz,
+                },
                 size: (2, 2),
             });
         }
         for (kind, ox, oz) in LAYOUT_RING2 {
             buildings.push(BuildingSlot {
                 kind: *kind,
-                cell: CellCoord { x: plaza.x + ox, y: 0, z: plaza.z + oz },
+                cell: CellCoord {
+                    x: plaza.x + ox,
+                    y: 0,
+                    z: plaza.z + oz,
+                },
                 size: (2, 2),
             });
         }
@@ -178,7 +190,10 @@ impl SettlementPlan {
         // Roads: from plaza to each non-well building (the well IS the
         // plaza center).
         for b in buildings.iter().filter(|b| b.kind != BuildingKind::Well) {
-            roads.push(RoadSegment { from: plaza, to: b.cell });
+            roads.push(RoadSegment {
+                from: plaza,
+                to: b.cell,
+            });
         }
 
         // Derive anchors from buildings.
@@ -199,13 +214,20 @@ impl SettlementPlan {
         anchors.idle_cells.push(plaza);
 
         let _ = gen; // reserved for terrain-aware placement (P3D-602)
-        SettlementPlan { center, plaza, buildings, roads, anchors }
+        SettlementPlan {
+            center,
+            plaza,
+            buildings,
+            roads,
+            anchors,
+        }
     }
 
     /// Validate the plan: all buildings present, plaza exists, roads
     /// connect plaza to every building, anchors populated.
     pub fn validate(&self) -> PlanValidation {
-        let all_present = self.buildings.len() == LAYOUT_RING0.len() + LAYOUT_RING1.len() + LAYOUT_RING2.len();
+        let all_present =
+            self.buildings.len() == LAYOUT_RING0.len() + LAYOUT_RING1.len() + LAYOUT_RING2.len();
         let plaza_exists = self
             .buildings
             .iter()
@@ -295,7 +317,10 @@ mod tests {
         }
         // Anchors populated from buildings.
         assert!(!plan.anchors.bed_cells.is_empty(), "beds from homes");
-        assert!(!plan.anchors.work_cells.is_empty(), "work from workshop/farm");
+        assert!(
+            !plan.anchors.work_cells.is_empty(),
+            "work from workshop/farm"
+        );
         assert!(!plan.anchors.idle_cells.is_empty(), "idle from plaza");
     }
 
@@ -304,7 +329,11 @@ mod tests {
     fn p3d601_roads_connect_plaza_to_buildings() {
         let gen = WorldGen::new(1);
         let plan = SettlementPlan::plan(&gen, RegionCoord { x: 0, z: 0 });
-        let non_well = plan.buildings.iter().filter(|b| b.kind != BuildingKind::Well).count();
+        let non_well = plan
+            .buildings
+            .iter()
+            .filter(|b| b.kind != BuildingKind::Well)
+            .count();
         assert_eq!(plan.roads.len(), non_well, "one road per non-well building");
         for road in &plan.roads {
             assert_eq!(road.from, plan.plaza, "roads start at plaza");

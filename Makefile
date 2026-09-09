@@ -115,7 +115,7 @@ p3d-slice: ## Windowed VERTICAL SLICE showcase (city+cave+build captures): make 
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
 	echo "P3D SLICE PROOF OK"
 
-p3d-slice-live: ## THE WALKABLE SLICE: WASD walk, click look, F/R build, B save, L reload, I boxes: make p3d-slice-live [SEED=3]
+p3d-slice-live: ## Classic slice with owner menu: Enter/click start, WASD, F/R, B/L, I, Esc pause, Q quit
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice live $(if $(SEED),$(SEED),3)
 
@@ -143,7 +143,7 @@ p3d-dmg: ## The play-test DMG (.app bundle + hdiutil): make p3d-dmg -> poorcraft
 	mkdir -p "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/MacOS" "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Resources"
 	cp poorcraft3d/target/release/poorcraft3d "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/MacOS/poorcraft3d"
 	printf 'APPLPC3D' > "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/PkgInfo"
-	printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>CFBundleExecutable</key><string>poorcraft3d</string>\n<key>CFBundleIdentifier</key><string>com.poorcraft.poorcraft3d</string>\n<key>CFBundleName</key><string>POORCRAFT 3D</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleShortVersionString</key><string>0.11.0</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n' > "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Info.plist"
+	printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>CFBundleExecutable</key><string>poorcraft3d</string>\n<key>CFBundleIdentifier</key><string>com.poorcraft.poorcraft3d</string>\n<key>CFBundleName</key><string>POORCRAFT 3D</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleShortVersionString</key><string>0.11.1</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n' > "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Info.plist"
 	cp poorcraft3d/dist3d/POORCRAFT3D/PLAY.md "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Resources/PLAY.md"
 	hdiutil create -volname "POORCRAFT 3D" -srcfolder poorcraft3d/dist3d/POORCRAFT3D.app -ov -format UDZO poorcraft3d/dist3d/poorcraft3d-macos.dmg
 	ls -la poorcraft3d/dist3d/poorcraft3d-macos.dmg
@@ -153,7 +153,7 @@ p3d-rebuild: ## NWR-011: the rebuild vertical slice (route captures + save/reloa
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-rebuild $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(SEED) || exit 1; \
 	echo "P3D REBUILD SLICE OK"
 
-p3d-rebuild-live: ## NWR-011: the LIVE walkable rebuild slice (interactive)
+p3d-rebuild-live: ## Owner alpha menu + LIVE rebuild slice (Enter/click start, Esc pause, Q quit)
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-rebuild live
 

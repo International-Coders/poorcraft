@@ -41,7 +41,12 @@ fn check(name: &'static str, gen: &WorldGen, f: impl Fn(&MacroSample) -> bool) -
             checked += 1;
         }
     }
-    ConstraintResult { name, passed: violations == 0, regions_checked: checked, violations }
+    ConstraintResult {
+        name,
+        passed: violations == 0,
+        regions_checked: checked,
+        violations,
+    }
 }
 
 /// One region's macro data flattened for constraint checking.
@@ -166,7 +171,11 @@ mod tests {
         for seed in [3u64, 42, 2024, 7777] {
             let results = run_biome_constraints(seed);
             for r in &results {
-                assert!(r.passed, "seed {seed}: {} has {} violations", r.name, r.violations);
+                assert!(
+                    r.passed,
+                    "seed {seed}: {} has {} violations",
+                    r.name, r.violations
+                );
                 assert!(r.regions_checked > 0);
             }
         }

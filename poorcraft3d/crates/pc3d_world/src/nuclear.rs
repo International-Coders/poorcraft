@@ -218,7 +218,9 @@ impl NuclearProgram {
 
     /// Load fuel or refill coolant (milli-units). kind: true = fuel.
     pub fn supply(&mut self, id: u64, fuel_milli: i64, coolant_milli: i64) -> bool {
-        let Some(r) = self.reactors.get_mut(&id) else { return false };
+        let Some(r) = self.reactors.get_mut(&id) else {
+            return false;
+        };
         r.fuel_milli += fuel_milli;
         r.coolant_milli = (r.coolant_milli + coolant_milli).min(FULL_COOLANT * 2);
         true
@@ -226,7 +228,9 @@ impl NuclearProgram {
 
     /// Set control-rod insertion (0 = full flux, 100 = idle).
     pub fn set_rods(&mut self, id: u64, pct: i64) -> bool {
-        let Some(r) = self.reactors.get_mut(&id) else { return false };
+        let Some(r) = self.reactors.get_mut(&id) else {
+            return false;
+        };
         r.control_pct = pct.clamp(0, 100);
         true
     }
@@ -314,7 +318,10 @@ mod tests {
         }
         assert!(scram_tick.is_some(), "over-temperature must SCRAM");
         assert!(p.reactors[&r].temp_milli >= SAFE_TEMP);
-        assert!(p.reactors[&r].temp_milli < MELTDOWN_TEMP, "SCRAM beats meltdown");
+        assert!(
+            p.reactors[&r].temp_milli < MELTDOWN_TEMP,
+            "SCRAM beats meltdown"
+        );
         assert_eq!(p.reactors[&r].control_pct, 100, "rods slammed in");
         assert_eq!(p.reactors[&r].output_heat, 0, "SCRAM stops the chain");
         assert_eq!(p.reactors[&r].integrity, FULL_INTEGRITY, "no damage");
@@ -349,9 +356,15 @@ mod tests {
                 hot_ticks += 1;
             }
         }
-        assert_eq!(p.reactors[&r].integrity, 0, "lost coolant melts containment");
+        assert_eq!(
+            p.reactors[&r].integrity, 0,
+            "lost coolant melts containment"
+        );
         assert!(hot_ticks > 0, "breached hot core must leak");
-        assert!(p.reactors[&r].scrammed, "SCRAM still fired — it just was not enough");
+        assert!(
+            p.reactors[&r].scrammed,
+            "SCRAM still fired — it just was not enough"
+        );
 
         // Plume: center dose, half-dose neighbours, clean far region.
         let here = p.contamination.at(RegionCoord { x: 10, z: 10 });
@@ -369,7 +382,10 @@ mod tests {
         for _ in 0..20_000 {
             p.tick();
         }
-        assert!(p.reactors[&r].temp_milli < MELTDOWN_TEMP, "core cools when spent");
+        assert!(
+            p.reactors[&r].temp_milli < MELTDOWN_TEMP,
+            "core cools when spent"
+        );
         let after = p.contamination.at(RegionCoord { x: 10, z: 10 });
         assert!(after < here / 2, "dose decays: {after} vs {here}");
     }

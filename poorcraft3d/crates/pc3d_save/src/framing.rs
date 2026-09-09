@@ -11,11 +11,28 @@ pub const FRAME_OVERHEAD: usize = HEADER_LEN + 8 + 8;
 pub enum FrameError {
     TooShort,
     ForeignFormat,
-    UnknownEpoch { file_epoch: u32, supported_epoch: u32 },
-    Newer { section: &'static str, file: u16, supported: u16 },
-    Older { section: &'static str, file: u16, supported: u16 },
-    LengthMismatch { declared: u64, actual: usize },
-    ChecksumMismatch { expected: u64, actual: u64 },
+    UnknownEpoch {
+        file_epoch: u32,
+        supported_epoch: u32,
+    },
+    Newer {
+        section: &'static str,
+        file: u16,
+        supported: u16,
+    },
+    Older {
+        section: &'static str,
+        file: u16,
+        supported: u16,
+    },
+    LengthMismatch {
+        declared: u64,
+        actual: usize,
+    },
+    ChecksumMismatch {
+        expected: u64,
+        actual: u64,
+    },
 }
 
 impl FrameError {
@@ -26,23 +43,34 @@ impl FrameError {
             FrameError::ForeignFormat => {
                 "not a POORCRAFT 3D file (magic mismatch) — refused".into()
             }
-            FrameError::UnknownEpoch { file_epoch, supported_epoch } => format!(
+            FrameError::UnknownEpoch {
+                file_epoch,
+                supported_epoch,
+            } => format!(
                 "unknown format epoch {file_epoch} (build speaks {supported_epoch}) — refused"
             ),
-            FrameError::Newer { section, file, supported } => format!(
+            FrameError::Newer {
+                section,
+                file,
+                supported,
+            } => format!(
                 "{} version {file} is NEWER than supported {supported} — update the game",
                 section
             ),
-            FrameError::Older { section, file, supported } => format!(
+            FrameError::Older {
+                section,
+                file,
+                supported,
+            } => format!(
                 "{} version {file} is OLDER than supported {supported} — cannot downgrade",
                 section
             ),
             FrameError::LengthMismatch { declared, actual } => format!(
                 "declared payload {declared} bytes but file holds {actual} — corrupt or truncated"
             ),
-            FrameError::ChecksumMismatch { expected, actual } => format!(
-                "payload checksum {actual:016x} != expected {expected:016x} — corrupt"
-            ),
+            FrameError::ChecksumMismatch { expected, actual } => {
+                format!("payload checksum {actual:016x} != expected {expected:016x} — corrupt")
+            }
         }
     }
 }
@@ -65,17 +93,31 @@ pub fn unframe(bytes: &[u8], supported: &SupportedVersions) -> Result<Vec<u8>, F
         OpenDecision::Accepted => {}
         OpenDecision::TooShort => return Err(FrameError::TooShort),
         OpenDecision::ForeignFormat => return Err(FrameError::ForeignFormat),
-        OpenDecision::UnknownEpoch { file_epoch, supported_epoch } => {
-            return Err(FrameError::UnknownEpoch { file_epoch, supported_epoch })
+        OpenDecision::UnknownEpoch {
+            file_epoch,
+            supported_epoch,
+        } => {
+            return Err(FrameError::UnknownEpoch {
+                file_epoch,
+                supported_epoch,
+            })
         }
-        OpenDecision::Newer { section, file, supported } => {
+        OpenDecision::Newer {
+            section,
+            file,
+            supported,
+        } => {
             return Err(FrameError::Newer {
                 section: section.name(),
                 file,
                 supported,
             })
         }
-        OpenDecision::Older { section, file, supported } => {
+        OpenDecision::Older {
+            section,
+            file,
+            supported,
+        } => {
             return Err(FrameError::Older {
                 section: section.name(),
                 file,
@@ -95,7 +137,10 @@ pub fn unframe(bytes: &[u8], supported: &SupportedVersions) -> Result<Vec<u8>, F
     ]);
     let available = bytes.len().saturating_sub(FRAME_OVERHEAD);
     if declared != available as u64 {
-        return Err(FrameError::LengthMismatch { declared, actual: available });
+        return Err(FrameError::LengthMismatch {
+            declared,
+            actual: available,
+        });
     }
     // Layer 3: payload checksum.
     let payload = &bytes[HEADER_LEN + 8..HEADER_LEN + 8 + available];
@@ -188,19 +233,30 @@ mod tests {
         let framed = frame(&newer, b"payload");
         assert!(matches!(
             unframe(&framed, &SUP),
-            Err(FrameError::Newer { section: "save", file: 9, supported: 1 })
+            Err(FrameError::Newer {
+                section: "save",
+                file: 9,
+                supported: 1
+            })
         ));
         let mut older = FormatHeader::current();
         older.content = 0;
         assert!(matches!(
             unframe(&frame(&older, b"x"), &SUP),
-            Err(FrameError::Older { section: "content", file: 0, supported: 1 })
+            Err(FrameError::Older {
+                section: "content",
+                file: 0,
+                supported: 1
+            })
         ));
         let mut epoch2 = FormatHeader::current();
         epoch2.epoch = 2;
         assert!(matches!(
             unframe(&frame(&epoch2, b"x"), &SUP),
-            Err(FrameError::UnknownEpoch { file_epoch: 2, supported_epoch: 1 })
+            Err(FrameError::UnknownEpoch {
+                file_epoch: 2,
+                supported_epoch: 1
+            })
         ));
         let _ = Section::World; // keep the section type visible in this scope
     }
@@ -208,14 +264,25 @@ mod tests {
     /// Explanations name the action.
     #[test]
     fn p3d102_explanations_name_the_action() {
-        assert!(FrameError::Newer { section: "save", file: 9, supported: 1 }
-            .explanation()
-            .contains("update the game"));
-        assert!(FrameError::Older { section: "save", file: 0, supported: 1 }
-            .explanation()
-            .contains("cannot downgrade"));
-        assert!(FrameError::ChecksumMismatch { expected: 1, actual: 2 }
-            .explanation()
-            .contains("corrupt"));
+        assert!(FrameError::Newer {
+            section: "save",
+            file: 9,
+            supported: 1
+        }
+        .explanation()
+        .contains("update the game"));
+        assert!(FrameError::Older {
+            section: "save",
+            file: 0,
+            supported: 1
+        }
+        .explanation()
+        .contains("cannot downgrade"));
+        assert!(FrameError::ChecksumMismatch {
+            expected: 1,
+            actual: 2
+        }
+        .explanation()
+        .contains("corrupt"));
     }
 }

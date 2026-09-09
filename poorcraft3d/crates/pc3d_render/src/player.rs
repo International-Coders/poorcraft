@@ -144,13 +144,7 @@ impl PlayerBody {
     }
 
     /// blocked() against an explicit surface.
-    fn blocked_on(
-        &self,
-        gen: &WorldGen,
-        surface: &dyn CollisionSurface,
-        x: f32,
-        z: f32,
-    ) -> bool {
+    fn blocked_on(&self, gen: &WorldGen, surface: &dyn CollisionSurface, x: f32, z: f32) -> bool {
         const R: f32 = 0.3;
         for dx in [-R, R] {
             for dz in [-R, R] {
@@ -206,15 +200,24 @@ mod tests {
                 while y > 0 && !solid_at(&gen, x, y, z) {
                     y -= 1;
                 }
-                if solid_at(&gen, x, y, z) && !solid_at(&gen, x, y + 1, z) && !solid_at(&gen, x, y + 2, z) {
+                if solid_at(&gen, x, y, z)
+                    && !solid_at(&gen, x, y + 1, z)
+                    && !solid_at(&gen, x, y + 2, z)
+                {
                     start = Some([x as f32, (y + 1) as f32, z as f32]);
                     break;
                 }
             }
-            if start.is_some() { break; }
+            if start.is_some() {
+                break;
+            }
         }
         let start = start.expect("open ground");
-        let mut p = PlayerBody { pos: start, yaw: 0.0, pitch: 0.0 };
+        let mut p = PlayerBody {
+            pos: start,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
 
         // Walking 4 m north moves and keeps feet on the terrain columns.
         for _ in 0..60 {

@@ -47,7 +47,10 @@ pub fn save_player(
     state: &PlayerState,
     supported: &SupportedVersions,
 ) -> Result<(), LoadError> {
-    let header = FormatHeader { save: supported.save, ..FormatHeader::current() };
+    let header = FormatHeader {
+        save: supported.save,
+        ..FormatHeader::current()
+    };
     let bytes = frame(&header, &state.encode());
     let path = world_root(save_root, world_name).join("player.bin");
     write_atomic(&path, &bytes)?;
@@ -73,7 +76,11 @@ mod tests {
     fn player_state_round_trips_on_disk() {
         let root = tempfile::tempdir().expect("tmp");
         let sup = SupportedVersions::epoch1();
-        let s = PlayerState { pos: [12.5, -3.25, 88.0], yaw: 1.25, pitch: -0.1 };
+        let s = PlayerState {
+            pos: [12.5, -3.25, 88.0],
+            yaw: 1.25,
+            pitch: -0.1,
+        };
         save_player(root.path(), "slice", &s, &sup).expect("save");
         let back = load_player(root.path(), "slice", &sup).expect("load");
         assert_eq!(s, back);

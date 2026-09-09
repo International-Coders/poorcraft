@@ -191,8 +191,8 @@ impl FloraStreamer {
     /// Loads the wilderness set and builds the shared GPU meshes.
     pub fn new(device: &wgpu::Device) -> Self {
         use wgpu::util::DeviceExt;
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../assets/compiled");
+        let root =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/compiled");
         let mut kinds = BTreeMap::new();
         for kind in [
             PlantKind::TreePine,
@@ -223,7 +223,13 @@ impl FloraStreamer {
                 height = height.max(lod.vertices.iter().map(|v| v.pos[1]).fold(0.0, f32::max));
                 lods.push((vb, ib, lod.indices.len() as u32));
             }
-            kinds.insert(kind, KindGpu { lods, _height: height });
+            kinds.insert(
+                kind,
+                KindGpu {
+                    lods,
+                    _height: height,
+                },
+            );
         }
         let (gverts, gidx) = grass_card_mesh();
         let gv = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -283,7 +289,10 @@ impl FloraStreamer {
                     if dx.abs() != dr && dz.abs() != dr {
                         continue; // ring perimeter
                     }
-                    let slot = SlotCoord { x: cx + dx, z: cz + dz };
+                    let slot = SlotCoord {
+                        x: cx + dx,
+                        z: cz + dz,
+                    };
                     if self.cache.contains_key(&slot) {
                         continue;
                     }
@@ -349,7 +358,11 @@ impl FloraStreamer {
         self.dirty = false;
         use wgpu::util::DeviceExt;
         let mut rows: BTreeMap<(PlantKind, u8), Vec<Instance>> = BTreeMap::new();
-        for (_, (kind, inst)) in self.cache.iter().filter_map(|(k, v)| v.as_ref().map(|v| (k, v))) {
+        for (_, (kind, inst)) in self
+            .cache
+            .iter()
+            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v)))
+        {
             let d = (inst.pos_scale[0] - viewer[0]).hypot(inst.pos_scale[2] - viewer[1]);
             // Mirror of glb::lod_for thresholds.
             let lod = if d < 40.0 {
@@ -374,7 +387,13 @@ impl FloraStreamer {
                 contents: bytemuck::cast_slice(&list),
                 usage: wgpu::BufferUsages::VERTEX,
             });
-            buckets.insert(key, Bucket { buf, count: list.len() as u32 });
+            buckets.insert(
+                key,
+                Bucket {
+                    buf,
+                    count: list.len() as u32,
+                },
+            );
         }
         // Grass bucket: its own tighter radius, own jittered instances.
         let gr = self.config.grass_radius_m;
@@ -384,7 +403,10 @@ impl FloraStreamer {
         let mut grass = Vec::new();
         for dx in -ring..=ring {
             for dz in -ring..=ring {
-                let slot = SlotCoord { x: cx + dx, z: cz + dz };
+                let slot = SlotCoord {
+                    x: cx + dx,
+                    z: cz + dz,
+                };
                 if flora::plant_at(gen, slot).map(|p| p.kind) != Some(PlantKind::Grass) {
                     continue;
                 }
@@ -501,8 +523,12 @@ impl FloraStreamer {
         pass.set_pipeline(&pipelines.inst);
         pass.set_bind_group(0, bg_globals, &[]);
         for (key, b) in &self.buckets {
-            let Some(k) = self.kinds.get(&key.0) else { continue };
-            let Some((vb, ib, count)) = k.lods.get(key.1 as usize) else { continue };
+            let Some(k) = self.kinds.get(&key.0) else {
+                continue;
+            };
+            let Some((vb, ib, count)) = k.lods.get(key.1 as usize) else {
+                continue;
+            };
             pass.set_vertex_buffer(0, vb.slice(..));
             pass.set_vertex_buffer(1, b.buf.slice(..));
             pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
@@ -535,8 +561,12 @@ impl FloraStreamer {
         pass.set_pipeline(&pipelines.inst_shadow);
         pass.set_bind_group(0, bg_light, &[]);
         for (key, b) in &self.buckets {
-            let Some(k) = self.kinds.get(&key.0) else { continue };
-            let Some((vb, ib, count)) = k.lods.get(key.1 as usize) else { continue };
+            let Some(k) = self.kinds.get(&key.0) else {
+                continue;
+            };
+            let Some((vb, ib, count)) = k.lods.get(key.1 as usize) else {
+                continue;
+            };
             pass.set_vertex_buffer(0, vb.slice(..));
             pass.set_vertex_buffer(1, b.buf.slice(..));
             pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
@@ -693,7 +723,10 @@ mod tests {
         }
         let t = tree_slot.expect("a solid plant near the center");
         let [tx, tz] = t.center_m();
-        assert!(trunk_solid(&gen, tx, tz), "the trunk is solid at its center");
+        assert!(
+            trunk_solid(&gen, tx, tz),
+            "the trunk is solid at its center"
+        );
         assert!(
             !trunk_solid(&gen, tx + 2.4, tz + 2.4),
             "two meters aside is clear"
@@ -706,7 +739,12 @@ mod tests {
         // walk on clear ground moves.
         let ground = crate::player::AuthorityGround;
         let flora_ground = FloraGround { inner: ground };
-        let start = [tx - 6.0, gen.effective_surface_mm(((tx - 6.0) * 1000.0) as i64, (tz * 1000.0) as i64) as f32 / 1000.0, tz];
+        let start = [
+            tx - 6.0,
+            gen.effective_surface_mm(((tx - 6.0) * 1000.0) as i64, (tz * 1000.0) as i64) as f32
+                / 1000.0,
+            tz,
+        ];
         let mut body = crate::player::PlayerBody {
             pos: start,
             yaw: 0.0,
@@ -777,12 +815,12 @@ mod tests {
 
         // Presence: the frame changed where plants appeared.
         let diff = crate::scene::pixel_difference_fraction(&no_flora, &with_flora);
-        println!(
-            "wilderness: diff {diff:.3}, stats {:?}",
-            r.flora_stats()
-        );
+        println!("wilderness: diff {diff:.3}, stats {:?}", r.flora_stats());
         assert!(diff > 0.005, "the wilderness is visible ({diff})");
-        assert!(r.flora_stats().instances_drawn > 40, "a populated ring draws");
+        assert!(
+            r.flora_stats().instances_drawn > 40,
+            "a populated ring draws"
+        );
         assert!(r.flora_stats().draw_buckets >= 2, "LOD buckets split");
 
         // Wind: two frozen times differ (grass sways).

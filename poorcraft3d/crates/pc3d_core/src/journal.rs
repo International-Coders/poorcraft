@@ -40,7 +40,10 @@ pub fn fnv1a64(bytes: &[u8]) -> u64 {
 
 impl EventJournal {
     pub fn new() -> Self {
-        EventJournal { events: Vec::new(), next_seq: 0 }
+        EventJournal {
+            events: Vec::new(),
+            next_seq: 0,
+        }
     }
 
     /// Record one event at `tick`; returns its sequence number (dense,
@@ -48,7 +51,12 @@ impl EventJournal {
     pub fn record(&mut self, tick: u64, kind: u32, payload: [u64; 2]) -> u64 {
         let seq = self.next_seq;
         self.next_seq += 1;
-        self.events.push(JournalEvent { tick, seq, kind, payload });
+        self.events.push(JournalEvent {
+            tick,
+            seq,
+            kind,
+            payload,
+        });
         seq
     }
 
@@ -126,7 +134,10 @@ mod tests {
 
         let mut swapped: Vec<JournalEvent> = j.iter().cloned().collect();
         swapped.swap(10, 11);
-        assert_ne!(EventJournal::restore(j.high_water_mark(), swapped).digest(), d);
+        assert_ne!(
+            EventJournal::restore(j.high_water_mark(), swapped).digest(),
+            d
+        );
 
         // Deterministic across repeats.
         assert_eq!(j.digest(), d);

@@ -34,13 +34,32 @@ pub struct SoakReport {
 /// START of the day so commands spread across the run (no bursts).
 fn script_day(host: &mut SoloHost, day: u64, boiler: u64, reactor: u64) {
     // Construction: one block placed and removed on a wandering cell.
-    let cell = CellCoord { x: ((day * 7) % 16) as i32, y: 0, z: ((day * 3) % 16) as i32 };
-    host.submit(HostCommand::Build { cell, material: CellMaterial::Rock, owner: day + 1 });
-    host.submit(HostCommand::RemoveBuild { cell, owner: day + 1 });
+    let cell = CellCoord {
+        x: ((day * 7) % 16) as i32,
+        y: 0,
+        z: ((day * 3) % 16) as i32,
+    };
+    host.submit(HostCommand::Build {
+        cell,
+        material: CellMaterial::Rock,
+        owner: day + 1,
+    });
+    host.submit(HostCommand::RemoveBuild {
+        cell,
+        owner: day + 1,
+    });
     // Industry: fuel and water for the boiler.
-    host.submit(HostCommand::FeedBoiler { machine: boiler, fuel_milli: 500, water_milli: 4_000 });
+    host.submit(HostCommand::FeedBoiler {
+        machine: boiler,
+        fuel_milli: 500,
+        water_milli: 4_000,
+    });
     // Nuclear: daily fuel top-up; rods eased to keep the core calm.
-    host.submit(HostCommand::FuelReactor { reactor, fuel_milli: 300, coolant_milli: 400 });
+    host.submit(HostCommand::FuelReactor {
+        reactor,
+        fuel_milli: 300,
+        coolant_milli: 400,
+    });
     host.submit(HostCommand::SetRods { reactor, pct: 80 });
     // Menace: every 10 days a dragon spawns near town; 5 days later a
     // party of 5_000 assaults every living one (some rolls lose, and
@@ -75,7 +94,10 @@ pub fn run_soak(seed: u64, days: u64) -> SoakReport {
     host.machines.connect(boiler, engine).expect("typed wire");
     host.machines.connect(engine, gen).expect("typed wire");
     host.machines.connect(gen, battery).expect("typed wire");
-    let reactor = host.nuclear.site_reactor(RegionCoord { x: 1, z: 1 }).expect("cap not hit");
+    let reactor = host
+        .nuclear
+        .site_reactor(RegionCoord { x: 1, z: 1 })
+        .expect("cap not hit");
 
     for day in 0..days {
         script_day(&mut host, day, boiler, reactor);
@@ -157,7 +179,11 @@ mod tests {
         assert!(a.bounds_ok, "violations: {:?}", a.violations);
         assert_eq!(a, b, "soak must be bit-identical on re-run");
         assert_eq!(a.ticks, TICKS_PER_DAY * 40);
-        assert!(a.journal_len > 40, "the run was journaled: {}", a.journal_len);
+        assert!(
+            a.journal_len > 40,
+            "the run was journaled: {}",
+            a.journal_len
+        );
         assert!(a.max_events_per_tick <= 8);
         // The soak's dragons: spawned every 10 days, all dealt with.
         // (The digest already binds this, but say it out loud.)

@@ -20,10 +20,7 @@ use std::path::PathBuf;
 // Deterministic hash "noise" (same family as the detail texture)
 // ---------------------------------------------------------------------------
 fn hash01(seed: u32, i: u32) -> f32 {
-    let h = seed
-        .wrapping_mul(374761393)
-        ^ i.wrapping_mul(668265263)
-        ^ 0x9E3779B9;
+    let h = seed.wrapping_mul(374761393) ^ i.wrapping_mul(668265263) ^ 0x9E3779B9;
     let h = h.wrapping_mul(1274126177);
     ((h >> 8) & 0xffff) as f32 / 65535.0
 }
@@ -93,7 +90,11 @@ fn limb(
     let axis = [x1 - x0, y1 - y0, z1 - z0];
     let l = axis.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-9);
     let a = [axis[0] / l, axis[1] / l, axis[2] / l];
-    let up = if a[1].abs() > 0.95 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let up = if a[1].abs() > 0.95 {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
     let u = [
         a[1] * up[2] - a[2] * up[1],
         a[2] * up[0] - a[0] * up[2],
@@ -129,9 +130,21 @@ fn limb(
     for i in 1..sides - 1 {
         let n = face_normal(hi[0], hi[i], hi[i + 1]);
         m.tri(
-            V { p: hi[0], n, c: col },
-            V { p: hi[i], n, c: col },
-            V { p: hi[i + 1], n, c: col },
+            V {
+                p: hi[0],
+                n,
+                c: col,
+            },
+            V {
+                p: hi[i],
+                n,
+                c: col,
+            },
+            V {
+                p: hi[i + 1],
+                n,
+                c: col,
+            },
         );
     }
 }
@@ -159,8 +172,14 @@ fn blob(
         [0.0, -1.0, 0.0],
     ];
     let faces: [[usize; 3]; 8] = [
-        [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1],
-        [5, 2, 1], [5, 3, 2], [5, 4, 3], [5, 1, 4],
+        [0, 1, 2],
+        [0, 2, 3],
+        [0, 3, 4],
+        [0, 4, 1],
+        [5, 2, 1],
+        [5, 3, 2],
+        [5, 4, 3],
+        [5, 1, 4],
     ];
     let mut counter = 0u32;
     let mut warp = |p: [f32; 3]| -> [f32; 3] {
@@ -200,7 +219,20 @@ fn blob(
             _ => 12,
         }
     };
-    for (a, b) in [(0usize,1usize),(0,2),(0,3),(0,4),(1,2),(2,3),(3,4),(4,1),(5,1),(5,2),(5,3),(5,4)] {
+    for (a, b) in [
+        (0usize, 1usize),
+        (0, 2),
+        (0, 3),
+        (0, 4),
+        (1, 2),
+        (2, 3),
+        (3, 4),
+        (4, 1),
+        (5, 1),
+        (5, 2),
+        (5, 3),
+        (5, 4),
+    ] {
         mids[edge(a, b)] = mid(a, b);
     }
     let _ = &mut corner;
@@ -216,7 +248,10 @@ fn blob(
         let mca = mids[edge(c, a)];
         // Ensure midpoints exist for edges touching vertex 5 pairs already built.
         let tris: [[f32; 3]; 4] = [
-            [0.0, 0.5, 0.5], [1.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 1.0, 0.5],
+            [0.0, 0.5, 0.5],
+            [1.0, 0.5, 0.5],
+            [0.5, 0.0, 0.5],
+            [0.5, 1.0, 0.5],
         ];
         // Sub-triangle vertex positions in face-local coords.
         let mix = |w0: [f32; 3], w1: [f32; 3], t: f32| -> [f32; 3] {
@@ -231,15 +266,20 @@ fn blob(
         let wc = corner[c];
         let sub: [[f32; 3]; 3] = [
             mix(wa, mab, 0.0), // = wa
-            [0.0; 3], [0.0; 3],
+            [0.0; 3],
+            [0.0; 3],
         ];
         let _ = sub;
         let _ = tris;
         // Emit the three corner sub-triangles + the center one.
         let n0 = face_normal(wa, mab, mca);
         let (ia, iab, ica, ibc, ib, ic) = (
-            push(m, wa, n0), push(m, mab, n0), push(m, mca, n0),
-            push(m, mbc, n0), push(m, wb, n0), push(m, wc, n0),
+            push(m, wa, n0),
+            push(m, mab, n0),
+            push(m, mca, n0),
+            push(m, mbc, n0),
+            push(m, wb, n0),
+            push(m, wc, n0),
         );
         m.idx.extend_from_slice(&[ia, iab, ica]);
         let n1 = face_normal(mab, wb, mbc);
@@ -298,7 +338,9 @@ fn asset_tree() -> Vec<(&'static str, Mesh)> {
     ];
     let radii: [[f32; 2]; 4] = [[0.30, 0.24], [0.24, 0.17], [0.17, 0.11], [0.11, 0.05]];
     for (s, r) in segs.iter().zip(radii.iter()) {
-        limb(&mut lod0, s[0], s[1], s[2], s[3], s[4], s[5], r[0], r[1], 8, BARK);
+        limb(
+            &mut lod0, s[0], s[1], s[2], s[3], s[4], s[5], r[0], r[1], 8, BARK,
+        );
     }
     // Exposed roots: 5 flared short limbs at the base.
     for i in 0..5u32 {
@@ -306,9 +348,16 @@ fn asset_tree() -> Vec<(&'static str, Mesh)> {
         let (dx, dz) = (a.cos(), a.sin());
         limb(
             &mut lod0,
-            dx * 0.18, 0.35, dz * 0.18,
-            dx * 0.62, 0.0, dz * 0.62,
-            0.13, 0.03, 5, BARK_DARK,
+            dx * 0.18,
+            0.35,
+            dz * 0.18,
+            dx * 0.62,
+            0.0,
+            dz * 0.62,
+            0.13,
+            0.03,
+            5,
+            BARK_DARK,
         );
     }
     // Three branch tiers + leaf clusters.
@@ -328,13 +377,40 @@ fn asset_tree() -> Vec<(&'static str, Mesh)> {
             let tipy = t[0] + t[3] * 0.8;
             limb(
                 &mut lod0,
-                -0.02 + dx * 0.10, t[0], 0.06 + dz * 0.10,
-                tipx, tipy, tipz,
-                0.06, 0.025, 5, BARK,
+                -0.02 + dx * 0.10,
+                t[0],
+                0.06 + dz * 0.10,
+                tipx,
+                tipy,
+                tipz,
+                0.06,
+                0.025,
+                5,
+                BARK,
             );
             // Cluster of 2 blobs at each tip.
-            blob(&mut lod0, tipx, tipy + 0.22, tipz, 0.55, 0.45, 0.55, 700 + blob_i, LEAF);
-            blob(&mut lod0, tipx + dx * 0.3, tipy + 0.05, tipz + dz * 0.3, 0.42, 0.36, 0.42, 900 + blob_i, LEAF_LIGHT);
+            blob(
+                &mut lod0,
+                tipx,
+                tipy + 0.22,
+                tipz,
+                0.55,
+                0.45,
+                0.55,
+                700 + blob_i,
+                LEAF,
+            );
+            blob(
+                &mut lod0,
+                tipx + dx * 0.3,
+                tipy + 0.05,
+                tipz + dz * 0.3,
+                0.42,
+                0.36,
+                0.42,
+                900 + blob_i,
+                LEAF_LIGHT,
+            );
             blob_i += 1;
         }
     }
@@ -343,7 +419,9 @@ fn asset_tree() -> Vec<(&'static str, Mesh)> {
 
     let mut lod1 = Mesh::default();
     for (s, r) in segs.iter().zip(radii.iter()) {
-        limb(&mut lod1, s[0], s[1], s[2], s[3], s[4], s[5], r[0], r[1], 6, BARK);
+        limb(
+            &mut lod1, s[0], s[1], s[2], s[3], s[4], s[5], r[0], r[1], 6, BARK,
+        );
     }
     for (ti, t) in tiers.iter().enumerate() {
         for i in 0..t[2] as u32 {
@@ -352,13 +430,25 @@ fn asset_tree() -> Vec<(&'static str, Mesh)> {
             let tipx = -0.02 + dx * t[1];
             let tipz = 0.06 + dz * t[1];
             let tipy = t[0] + t[3] * 0.8;
-            blob(&mut lod1, tipx, tipy + 0.2, tipz, 0.6, 0.5, 0.6, (700 + ti * 9 + i as usize) as u32, LEAF);
+            blob(
+                &mut lod1,
+                tipx,
+                tipy + 0.2,
+                tipz,
+                0.6,
+                0.5,
+                0.6,
+                (700 + ti * 9 + i as usize) as u32,
+                LEAF,
+            );
         }
     }
     blob(&mut lod1, -0.06, 6.3, 0.16, 0.62, 0.52, 0.62, 1234, LEAF);
 
     let mut lod2 = Mesh::default();
-    limb(&mut lod2, 0.0, 0.0, 0.0, -0.04, 5.6, 0.12, 0.22, 0.04, 5, BARK);
+    limb(
+        &mut lod2, 0.0, 0.0, 0.0, -0.04, 5.6, 0.12, 0.22, 0.04, 5, BARK,
+    );
     blob(&mut lod2, 0.0, 3.2, 0.0, 1.3, 1.0, 1.3, 11, LEAF);
     blob(&mut lod2, -0.04, 5.6, 0.12, 0.9, 0.7, 0.9, 12, LEAF);
 
@@ -370,10 +460,23 @@ fn asset_rock() -> Vec<(&'static str, Mesh)> {
     // Broad outcrop: two stacked displaced blobs + fracture seam prism +
     // moss patch blob, sitting on y=0.
     blob(&mut lod0, 0.0, 0.42, 0.0, 1.15, 0.5, 0.95, 21, GRANITE);
-    blob(&mut lod0, 0.18, 0.78, -0.10, 0.7, 0.36, 0.6, 22, GRANITE_DARK);
+    blob(
+        &mut lod0,
+        0.18,
+        0.78,
+        -0.10,
+        0.7,
+        0.36,
+        0.6,
+        22,
+        GRANITE_DARK,
+    );
     // Fracture seam: a thin dark slab sunk into the top.
     lod0.quad(
-        [0.05, 0.62, -0.55], [0.28, 0.86, 0.42], [0.34, 0.80, 0.42], [0.11, 0.58, -0.55],
+        [0.05, 0.62, -0.55],
+        [0.28, 0.86, 0.42],
+        [0.34, 0.80, 0.42],
+        [0.11, 0.58, -0.55],
         GRANITE_DARK,
     );
     // Moss patch on the sunny side.
@@ -381,7 +484,17 @@ fn asset_rock() -> Vec<(&'static str, Mesh)> {
 
     let mut lod1 = Mesh::default();
     blob(&mut lod1, 0.0, 0.42, 0.0, 1.15, 0.5, 0.95, 21, GRANITE);
-    blob(&mut lod1, 0.18, 0.78, -0.10, 0.7, 0.36, 0.6, 22, GRANITE_DARK);
+    blob(
+        &mut lod1,
+        0.18,
+        0.78,
+        -0.10,
+        0.7,
+        0.36,
+        0.6,
+        22,
+        GRANITE_DARK,
+    );
 
     vec![("lod0", lod0), ("lod1", lod1)]
 }
@@ -394,7 +507,9 @@ fn asset_rock() -> Vec<(&'static str, Mesh)> {
 /// Conical evergreen: straight trunk + stacked tapering tiers.
 fn asset_tree_pine() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    limb(&mut lod0, 0.0, 0.0, 0.0, 0.04, 5.6, 0.0, 0.20, 0.05, 7, BARK_DARK);
+    limb(
+        &mut lod0, 0.0, 0.0, 0.0, 0.04, 5.6, 0.0, 0.20, 0.05, 7, BARK_DARK,
+    );
     // Five cone tiers, wide at the skirt, tight at the crown.
     let tiers: [[f32; 3]; 5] = [
         [0.9, 1.30, 0.0],
@@ -407,49 +522,134 @@ fn asset_tree_pine() -> Vec<(&'static str, Mesh)> {
         let y0 = t[0];
         let y1 = y0 + 1.15;
         let r = t[1];
-        limb(&mut lod0, 0.0, y0, 0.0, 0.0, y1, 0.0, r, 0.02, 8,
-             if i % 2 == 0 { PINE_LEAF } else { PINE_LEAF_LIGHT });
+        limb(
+            &mut lod0,
+            0.0,
+            y0,
+            0.0,
+            0.0,
+            y1,
+            0.0,
+            r,
+            0.02,
+            8,
+            if i % 2 == 0 {
+                PINE_LEAF
+            } else {
+                PINE_LEAF_LIGHT
+            },
+        );
     }
-    limb(&mut lod0, 0.0, 5.9, 0.0, 0.0, 6.4, 0.0, 0.16, 0.02, 6, PINE_LEAF);
+    limb(
+        &mut lod0, 0.0, 5.9, 0.0, 0.0, 6.4, 0.0, 0.16, 0.02, 6, PINE_LEAF,
+    );
 
     let mut lod1 = Mesh::default();
-    limb(&mut lod1, 0.0, 0.0, 0.0, 0.02, 5.4, 0.0, 0.20, 0.05, 6, BARK_DARK);
+    limb(
+        &mut lod1, 0.0, 0.0, 0.0, 0.02, 5.4, 0.0, 0.20, 0.05, 6, BARK_DARK,
+    );
     for (i, t) in tiers.iter().step_by(2).enumerate() {
-        limb(&mut lod1, 0.0, t[0], 0.0, 0.0, t[0] + 1.5, 0.0, t[1] * 1.1, 0.02, 6,
-             if i % 2 == 0 { PINE_LEAF } else { PINE_LEAF_LIGHT });
+        limb(
+            &mut lod1,
+            0.0,
+            t[0],
+            0.0,
+            0.0,
+            t[0] + 1.5,
+            0.0,
+            t[1] * 1.1,
+            0.02,
+            6,
+            if i % 2 == 0 {
+                PINE_LEAF
+            } else {
+                PINE_LEAF_LIGHT
+            },
+        );
     }
 
     let mut lod2 = Mesh::default();
-    limb(&mut lod2, 0.0, 0.0, 0.0, 0.0, 5.0, 0.0, 1.15, 0.02, 6, PINE_LEAF);
-    limb(&mut lod2, 0.0, 4.6, 0.0, 0.0, 6.0, 0.0, 0.5, 0.02, 5, PINE_LEAF);
+    limb(
+        &mut lod2, 0.0, 0.0, 0.0, 0.0, 5.0, 0.0, 1.15, 0.02, 6, PINE_LEAF,
+    );
+    limb(
+        &mut lod2, 0.0, 4.6, 0.0, 0.0, 6.0, 0.0, 0.5, 0.02, 5, PINE_LEAF,
+    );
     vec![("lod0", lod0), ("lod1", lod1), ("lod2", lod2)]
 }
 
 /// Broad billowing canopy: thick short trunk, big rounded crown.
 fn asset_tree_broadleaf() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    limb(&mut lod0, 0.0, 0.0, 0.0, 0.12, 1.5, -0.06, 0.38, 0.26, 8, BARK);
-    limb(&mut lod0, 0.12, 1.5, -0.06, 0.22, 2.8, 0.10, 0.26, 0.14, 7, BARK);
+    limb(
+        &mut lod0, 0.0, 0.0, 0.0, 0.12, 1.5, -0.06, 0.38, 0.26, 8, BARK,
+    );
+    limb(
+        &mut lod0, 0.12, 1.5, -0.06, 0.22, 2.8, 0.10, 0.26, 0.14, 7, BARK,
+    );
     // Three scaffold branches into the crown.
     for i in 0..3u32 {
         let a = i as f32 / 3.0 * std::f32::consts::TAU + 0.5;
-        limb(&mut lod0, 0.18, 2.6, 0.02, 0.18 + a.cos() * 0.9, 3.6, 0.02 + a.sin() * 0.9,
-             0.09, 0.03, 5, BARK);
+        limb(
+            &mut lod0,
+            0.18,
+            2.6,
+            0.02,
+            0.18 + a.cos() * 0.9,
+            3.6,
+            0.02 + a.sin() * 0.9,
+            0.09,
+            0.03,
+            5,
+            BARK,
+        );
     }
     // The billow: five overlapping crown blobs.
     blob(&mut lod0, 0.18, 4.2, 0.02, 1.55, 1.15, 1.55, 41, BROAD_LEAF);
     blob(&mut lod0, -0.75, 3.7, 0.45, 1.0, 0.85, 1.0, 42, BROAD_LEAF);
-    blob(&mut lod0, 1.05, 3.8, -0.35, 1.05, 0.9, 1.05, 43, BROAD_LEAF_LIGHT);
+    blob(
+        &mut lod0,
+        1.05,
+        3.8,
+        -0.35,
+        1.05,
+        0.9,
+        1.05,
+        43,
+        BROAD_LEAF_LIGHT,
+    );
     blob(&mut lod0, 0.35, 4.9, -0.7, 0.95, 0.8, 0.95, 44, BROAD_LEAF);
-    blob(&mut lod0, -0.15, 4.8, 0.95, 0.9, 0.75, 0.9, 45, BROAD_LEAF_LIGHT);
+    blob(
+        &mut lod0,
+        -0.15,
+        4.8,
+        0.95,
+        0.9,
+        0.75,
+        0.9,
+        45,
+        BROAD_LEAF_LIGHT,
+    );
 
     let mut lod1 = Mesh::default();
     limb(&mut lod1, 0.0, 0.0, 0.0, 0.2, 2.8, 0.1, 0.38, 0.14, 7, BARK);
     blob(&mut lod1, 0.18, 4.2, 0.02, 1.7, 1.25, 1.7, 41, BROAD_LEAF);
-    blob(&mut lod1, 0.6, 4.4, -0.4, 1.1, 0.9, 1.1, 43, BROAD_LEAF_LIGHT);
+    blob(
+        &mut lod1,
+        0.6,
+        4.4,
+        -0.4,
+        1.1,
+        0.9,
+        1.1,
+        43,
+        BROAD_LEAF_LIGHT,
+    );
 
     let mut lod2 = Mesh::default();
-    limb(&mut lod2, 0.0, 0.0, 0.0, 0.15, 2.6, 0.05, 0.36, 0.1, 5, BARK);
+    limb(
+        &mut lod2, 0.0, 0.0, 0.0, 0.15, 2.6, 0.05, 0.36, 0.1, 5, BARK,
+    );
     blob(&mut lod2, 0.15, 4.1, 0.0, 1.9, 1.4, 1.9, 41, BROAD_LEAF);
     vec![("lod0", lod0), ("lod1", lod1), ("lod2", lod2)]
 }
@@ -458,27 +658,85 @@ fn asset_tree_broadleaf() -> Vec<(&'static str, Mesh)> {
 fn asset_tree_birch() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
     // Pale leaning trunk with dark branch collars.
-    limb(&mut lod0, 0.0, 0.0, 0.0, 0.22, 2.2, 0.10, 0.14, 0.10, 7, BIRCH_BARK);
-    limb(&mut lod0, 0.22, 2.2, 0.10, 0.52, 4.4, -0.06, 0.10, 0.06, 6, BIRCH_BARK);
-    limb(&mut lod0, 0.52, 4.4, -0.06, 0.62, 5.8, -0.18, 0.06, 0.02, 5, BIRCH_BARK_DARK);
+    limb(
+        &mut lod0, 0.0, 0.0, 0.0, 0.22, 2.2, 0.10, 0.14, 0.10, 7, BIRCH_BARK,
+    );
+    limb(
+        &mut lod0, 0.22, 2.2, 0.10, 0.52, 4.4, -0.06, 0.10, 0.06, 6, BIRCH_BARK,
+    );
+    limb(
+        &mut lod0,
+        0.52,
+        4.4,
+        -0.06,
+        0.62,
+        5.8,
+        -0.18,
+        0.06,
+        0.02,
+        5,
+        BIRCH_BARK_DARK,
+    );
     // Airy crown: small blobs on thin branches.
     for i in 0..5u32 {
         let a = i as f32 / 5.0 * std::f32::consts::TAU;
         let bx = 0.45 + a.cos() * 0.55;
         let bz = -0.10 + a.sin() * 0.55;
         let by = 4.6 + (i % 2) as f32 * 0.7;
-        limb(&mut lod0, 0.45, by - 0.5, -0.10, bx, by, bz, 0.03, 0.015, 4, BIRCH_BARK_DARK);
-        blob(&mut lod0, bx, by + 0.25, bz, 0.5, 0.42, 0.5, 60 + i, BIRCH_LEAF);
+        limb(
+            &mut lod0,
+            0.45,
+            by - 0.5,
+            -0.10,
+            bx,
+            by,
+            bz,
+            0.03,
+            0.015,
+            4,
+            BIRCH_BARK_DARK,
+        );
+        blob(
+            &mut lod0,
+            bx,
+            by + 0.25,
+            bz,
+            0.5,
+            0.42,
+            0.5,
+            60 + i,
+            BIRCH_LEAF,
+        );
     }
-    blob(&mut lod0, 0.60, 6.1, -0.20, 0.42, 0.36, 0.42, 70, BIRCH_LEAF);
+    blob(
+        &mut lod0, 0.60, 6.1, -0.20, 0.42, 0.36, 0.42, 70, BIRCH_LEAF,
+    );
 
     let mut lod1 = Mesh::default();
-    limb(&mut lod1, 0.0, 0.0, 0.0, 0.45, 4.4, -0.06, 0.14, 0.07, 6, BIRCH_BARK);
-    limb(&mut lod1, 0.45, 4.4, -0.06, 0.62, 5.8, -0.18, 0.07, 0.02, 5, BIRCH_BARK_DARK);
-    blob(&mut lod1, 0.45, 5.1, -0.05, 0.95, 0.85, 0.95, 60, BIRCH_LEAF);
+    limb(
+        &mut lod1, 0.0, 0.0, 0.0, 0.45, 4.4, -0.06, 0.14, 0.07, 6, BIRCH_BARK,
+    );
+    limb(
+        &mut lod1,
+        0.45,
+        4.4,
+        -0.06,
+        0.62,
+        5.8,
+        -0.18,
+        0.07,
+        0.02,
+        5,
+        BIRCH_BARK_DARK,
+    );
+    blob(
+        &mut lod1, 0.45, 5.1, -0.05, 0.95, 0.85, 0.95, 60, BIRCH_LEAF,
+    );
 
     let mut lod2 = Mesh::default();
-    limb(&mut lod2, 0.0, 0.0, 0.0, 0.55, 5.4, -0.15, 0.14, 0.03, 5, BIRCH_BARK);
+    limb(
+        &mut lod2, 0.0, 0.0, 0.0, 0.55, 5.4, -0.15, 0.14, 0.03, 5, BIRCH_BARK,
+    );
     blob(&mut lod2, 0.5, 5.2, -0.1, 1.0, 0.9, 1.0, 60, BIRCH_LEAF);
     vec![("lod0", lod0), ("lod1", lod1), ("lod2", lod2)]
 }
@@ -497,17 +755,30 @@ fn asset_rock_boulder() -> Vec<(&'static str, Mesh)> {
 /// Tall fractured spire: stacked tapering shafts with dark seams.
 fn asset_rock_spire() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    limb(&mut lod0, 0.0, 0.0, 0.0, 0.10, 1.4, 0.06, 0.55, 0.38, 6, SLATE);
-    limb(&mut lod0, 0.10, 1.4, 0.06, 0.28, 2.6, -0.10, 0.38, 0.22, 5, SLATE_DARK);
-    limb(&mut lod0, 0.28, 2.6, -0.10, 0.42, 3.6, -0.04, 0.22, 0.04, 5, SLATE);
+    limb(
+        &mut lod0, 0.0, 0.0, 0.0, 0.10, 1.4, 0.06, 0.55, 0.38, 6, SLATE,
+    );
+    limb(
+        &mut lod0, 0.10, 1.4, 0.06, 0.28, 2.6, -0.10, 0.38, 0.22, 5, SLATE_DARK,
+    );
+    limb(
+        &mut lod0, 0.28, 2.6, -0.10, 0.42, 3.6, -0.04, 0.22, 0.04, 5, SLATE,
+    );
     lod0.quad(
-        [0.02, 0.3, -0.50], [0.30, 1.7, 0.35], [0.42, 1.6, 0.30], [0.12, 0.25, -0.45],
+        [0.02, 0.3, -0.50],
+        [0.30, 1.7, 0.35],
+        [0.42, 1.6, 0.30],
+        [0.12, 0.25, -0.45],
         SLATE_DARK,
     );
     blob(&mut lod0, 0.55, 0.18, 0.30, 0.30, 0.16, 0.28, 54, MOSS);
     let mut lod1 = Mesh::default();
-    limb(&mut lod1, 0.0, 0.0, 0.0, 0.20, 2.0, 0.0, 0.55, 0.30, 5, SLATE);
-    limb(&mut lod1, 0.20, 2.0, 0.0, 0.36, 3.5, -0.05, 0.30, 0.04, 5, SLATE_DARK);
+    limb(
+        &mut lod1, 0.0, 0.0, 0.0, 0.20, 2.0, 0.0, 0.55, 0.30, 5, SLATE,
+    );
+    limb(
+        &mut lod1, 0.20, 2.0, 0.0, 0.36, 3.5, -0.05, 0.30, 0.04, 5, SLATE_DARK,
+    );
     vec![("lod0", lod0), ("lod1", lod1)]
 }
 
@@ -539,17 +810,33 @@ fn asset_shrub() -> Vec<(&'static str, Mesh)> {
 /// Fallen log: horizontal tapered trunk, moss, bracket fungi.
 fn asset_log_fallen() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    limb(&mut lod0, -1.5, 0.26, 0.0, 1.4, 0.30, 0.12, 0.30, 0.17, 8, BARK);
+    limb(
+        &mut lod0, -1.5, 0.26, 0.0, 1.4, 0.30, 0.12, 0.30, 0.17, 8, BARK,
+    );
     // Torn root end.
-    limb(&mut lod0, -1.5, 0.26, 0.0, -1.95, 0.36, -0.25, 0.30, 0.10, 6, BARK_DARK);
+    limb(
+        &mut lod0, -1.5, 0.26, 0.0, -1.95, 0.36, -0.25, 0.30, 0.10, 6, BARK_DARK,
+    );
     blob(&mut lod0, -0.6, 0.52, 0.18, 0.4, 0.14, 0.35, 65, MOSS);
     blob(&mut lod0, 0.5, 0.5, -0.1, 0.35, 0.12, 0.3, 66, MOSS);
     // Bracket fungi on the flank.
     for (i, fx) in [-1.0f32, -0.2, 0.7].iter().enumerate() {
-        blob(&mut lod0, *fx, 0.42 - i as f32 * 0.02, 0.34, 0.14, 0.10, 0.12, 70 + i as u32, FUNGUS);
+        blob(
+            &mut lod0,
+            *fx,
+            0.42 - i as f32 * 0.02,
+            0.34,
+            0.14,
+            0.10,
+            0.12,
+            70 + i as u32,
+            FUNGUS,
+        );
     }
     let mut lod1 = Mesh::default();
-    limb(&mut lod1, -1.5, 0.26, 0.0, 1.4, 0.3, 0.12, 0.30, 0.17, 6, BARK);
+    limb(
+        &mut lod1, -1.5, 0.26, 0.0, 1.4, 0.3, 0.12, 0.30, 0.17, 6, BARK,
+    );
     blob(&mut lod1, -0.6, 0.5, 0.15, 0.4, 0.15, 0.35, 65, MOSS);
     vec![("lod0", lod0), ("lod1", lod1)]
 }
@@ -560,19 +847,38 @@ fn asset_landmark_stone() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
     box_at(&mut lod0, 0.0, 0.15, 0.0, 1.5, 0.15, 0.9, FIELDSTONE);
     // The monolith: 5-sided tapering shaft with a lean.
-    limb(&mut lod0, 0.0, 0.3, 0.0, 0.28, 2.4, -0.22, 0.62, 0.30, 5, FIELDSTONE);
-    limb(&mut lod0, 0.28, 2.4, -0.22, 0.44, 3.7, -0.40, 0.30, 0.10, 5, SLATE_DARK);
+    limb(
+        &mut lod0, 0.0, 0.3, 0.0, 0.28, 2.4, -0.22, 0.62, 0.30, 5, FIELDSTONE,
+    );
+    limb(
+        &mut lod0, 0.28, 2.4, -0.22, 0.44, 3.7, -0.40, 0.30, 0.10, 5, SLATE_DARK,
+    );
     // Carved seam down the face.
     lod0.quad(
-        [-0.28, 0.5, 0.44], [0.02, 1.6, 0.34], [0.10, 1.6, 0.32], [-0.20, 0.5, 0.42],
+        [-0.28, 0.5, 0.44],
+        [0.02, 1.6, 0.34],
+        [0.10, 1.6, 0.32],
+        [-0.20, 0.5, 0.42],
         RUNE,
     );
     // Flank stones.
     blob(&mut lod0, -1.15, 0.35, 0.35, 0.34, 0.3, 0.3, 80, GRANITE);
-    blob(&mut lod0, 1.05, 0.3, -0.3, 0.28, 0.24, 0.26, 81, GRANITE_DARK);
+    blob(
+        &mut lod0,
+        1.05,
+        0.3,
+        -0.3,
+        0.28,
+        0.24,
+        0.26,
+        81,
+        GRANITE_DARK,
+    );
     let mut lod1 = Mesh::default();
     box_at(&mut lod1, 0.0, 0.15, 0.0, 1.5, 0.15, 0.9, FIELDSTONE);
-    limb(&mut lod1, 0.0, 0.3, 0.0, 0.36, 3.4, -0.30, 0.62, 0.12, 5, FIELDSTONE);
+    limb(
+        &mut lod1, 0.0, 0.3, 0.0, 0.36, 3.4, -0.30, 0.62, 0.12, 5, FIELDSTONE,
+    );
     vec![("lod0", lod0), ("lod1", lod1)]
 }
 
@@ -585,19 +891,61 @@ fn asset_landmark_stone() -> Vec<(&'static str, Mesh)> {
 /// A stone-and-timber croft: plinth, walls, gable roof, chimney.
 fn kit_settlement_house() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    box_at(&mut lod0, 0.0, 0.25, 0.0, 2.0, 0.25, 1.6, FIELDSTONE);          // plinth
-    box_at(&mut lod0, 0.0, 1.25, 0.0, 1.85, 0.75, 1.45, TIMBER);            // walls
-    // Gable roof: two sloped quads + gable ends (thatch).
-    lod0.quad([-2.0, 1.9, -1.5], [2.0, 1.9, -1.5], [2.0, 3.0, 0.0], [-2.0, 3.0, 0.0], THATCH);
-    lod0.quad([2.0, 1.9, 1.5], [-2.0, 1.9, 1.5], [-2.0, 3.0, 0.0], [2.0, 3.0, 0.0], THATCH);
-    lod0.quad([-2.0, 1.9, -1.5], [-2.0, 1.9, 1.5], [-2.0, 3.0, 0.0], [-2.0, 3.0, 0.0], TIMBER);
-    lod0.quad([2.0, 1.9, 1.5], [2.0, 1.9, -1.5], [2.0, 3.0, 0.0], [2.0, 3.0, 0.0], TIMBER);
-    box_at(&mut lod0, -1.1, 3.1, 0.4, 0.28, 0.5, 0.28, FIELDSTONE);         // chimney
-    lod0.quad([1.9, 0.6, -0.5], [2.1, 0.6, -0.5], [2.1, 1.7, -0.5], [1.9, 1.7, -0.5], DOOR_DARK); // door (front +X)
+    box_at(&mut lod0, 0.0, 0.25, 0.0, 2.0, 0.25, 1.6, FIELDSTONE); // plinth
+    box_at(&mut lod0, 0.0, 1.25, 0.0, 1.85, 0.75, 1.45, TIMBER); // walls
+                                                                 // Gable roof: two sloped quads + gable ends (thatch).
+    lod0.quad(
+        [-2.0, 1.9, -1.5],
+        [2.0, 1.9, -1.5],
+        [2.0, 3.0, 0.0],
+        [-2.0, 3.0, 0.0],
+        THATCH,
+    );
+    lod0.quad(
+        [2.0, 1.9, 1.5],
+        [-2.0, 1.9, 1.5],
+        [-2.0, 3.0, 0.0],
+        [2.0, 3.0, 0.0],
+        THATCH,
+    );
+    lod0.quad(
+        [-2.0, 1.9, -1.5],
+        [-2.0, 1.9, 1.5],
+        [-2.0, 3.0, 0.0],
+        [-2.0, 3.0, 0.0],
+        TIMBER,
+    );
+    lod0.quad(
+        [2.0, 1.9, 1.5],
+        [2.0, 1.9, -1.5],
+        [2.0, 3.0, 0.0],
+        [2.0, 3.0, 0.0],
+        TIMBER,
+    );
+    box_at(&mut lod0, -1.1, 3.1, 0.4, 0.28, 0.5, 0.28, FIELDSTONE); // chimney
+    lod0.quad(
+        [1.9, 0.6, -0.5],
+        [2.1, 0.6, -0.5],
+        [2.1, 1.7, -0.5],
+        [1.9, 1.7, -0.5],
+        DOOR_DARK,
+    ); // door (front +X)
     let mut lod1 = Mesh::default();
     box_at(&mut lod1, 0.0, 1.0, 0.0, 1.9, 1.0, 1.5, TIMBER);
-    lod1.quad([-2.0, 1.9, -1.5], [2.0, 1.9, -1.5], [2.0, 3.0, 0.0], [-2.0, 3.0, 0.0], THATCH);
-    lod1.quad([2.0, 1.9, 1.5], [-2.0, 1.9, 1.5], [-2.0, 3.0, 0.0], [2.0, 3.0, 0.0], THATCH);
+    lod1.quad(
+        [-2.0, 1.9, -1.5],
+        [2.0, 1.9, -1.5],
+        [2.0, 3.0, 0.0],
+        [-2.0, 3.0, 0.0],
+        THATCH,
+    );
+    lod1.quad(
+        [2.0, 1.9, 1.5],
+        [-2.0, 1.9, 1.5],
+        [-2.0, 3.0, 0.0],
+        [2.0, 3.0, 0.0],
+        THATCH,
+    );
     vec![("lod0", lod0), ("lod1", lod1)]
 }
 
@@ -608,12 +956,14 @@ fn kit_settlement_workshop() -> Vec<(&'static str, Mesh)> {
     for (px, pz) in [(-2.4, -1.7), (2.0, -1.7), (-2.4, 1.7), (2.0, 1.7)] {
         limb(&mut lod0, px, 0.3, pz, px, 2.6, pz, 0.09, 0.07, 5, TIMBER);
     }
-    box_at(&mut lod0, -0.4, 2.45, 0.0, 2.4, 0.12, 1.9, THATCH);              // roof slab
-    box_at(&mut lod0, -0.4, 1.45, 0.0, 2.15, 0.45, 0.35, TIMBER);            // back wall
-    box_at(&mut lod0, 0.9, 2.9, -0.9, 0.3, 0.55, 0.3, FIELDSTONE);           // forge chimney
-    box_at(&mut lod0, 1.2, 0.5, 0.2, 0.5, 0.25, 0.5, SLATE_DARK);            // anvil block
-    box_at(&mut lod0, -1.9, 1.0, 1.9, 1.1, 0.06, 0.9, THATCH);               // lean-to roof
-    limb(&mut lod0, -2.8, 0.3, 2.5, -2.8, 1.0, 2.5, 0.06, 0.05, 4, TIMBER);
+    box_at(&mut lod0, -0.4, 2.45, 0.0, 2.4, 0.12, 1.9, THATCH); // roof slab
+    box_at(&mut lod0, -0.4, 1.45, 0.0, 2.15, 0.45, 0.35, TIMBER); // back wall
+    box_at(&mut lod0, 0.9, 2.9, -0.9, 0.3, 0.55, 0.3, FIELDSTONE); // forge chimney
+    box_at(&mut lod0, 1.2, 0.5, 0.2, 0.5, 0.25, 0.5, SLATE_DARK); // anvil block
+    box_at(&mut lod0, -1.9, 1.0, 1.9, 1.1, 0.06, 0.9, THATCH); // lean-to roof
+    limb(
+        &mut lod0, -2.8, 0.3, 2.5, -2.8, 1.0, 2.5, 0.06, 0.05, 4, TIMBER,
+    );
     let mut lod1 = Mesh::default();
     box_at(&mut lod1, -0.4, 1.2, 0.0, 2.2, 1.2, 1.8, TIMBER);
     box_at(&mut lod1, -0.4, 2.45, 0.0, 2.4, 0.12, 1.9, THATCH);
@@ -626,12 +976,24 @@ fn kit_market_stall() -> Vec<(&'static str, Mesh)> {
     for (px, pz) in [(-1.2, -0.9), (1.2, -0.9), (-1.2, 0.9), (1.2, 0.9)] {
         limb(&mut lod0, px, 0.1, pz, px, 2.1, pz, 0.07, 0.05, 4, TIMBER);
     }
-    box_at(&mut lod0, 0.0, 0.55, 0.0, 1.3, 0.08, 0.85, TIMBER);              // counter
-    box_at(&mut lod0, 0.0, 2.15, 0.0, 1.45, 0.06, 1.05, THATCH);             // awning
-    lod0.quad([-1.45, 2.2, -1.05], [1.45, 2.2, -1.05], [1.45, 1.85, -1.05], [-1.45, 1.85, -1.05], BANNER_RED);
-    lod0.quad([1.45, 2.2, 1.05], [-1.45, 2.2, 1.05], [-1.45, 1.85, 1.05], [1.45, 1.85, 1.05], BANNER_RED);
-    box_at(&mut lod0, -0.7, 0.75, 0.3, 0.28, 0.22, 0.28, TIMBER);            // crate
-    box_at(&mut lod0, 0.5, 0.72, -0.2, 0.22, 0.18, 0.22, FIELDSTONE);        // goods
+    box_at(&mut lod0, 0.0, 0.55, 0.0, 1.3, 0.08, 0.85, TIMBER); // counter
+    box_at(&mut lod0, 0.0, 2.15, 0.0, 1.45, 0.06, 1.05, THATCH); // awning
+    lod0.quad(
+        [-1.45, 2.2, -1.05],
+        [1.45, 2.2, -1.05],
+        [1.45, 1.85, -1.05],
+        [-1.45, 1.85, -1.05],
+        BANNER_RED,
+    );
+    lod0.quad(
+        [1.45, 2.2, 1.05],
+        [-1.45, 2.2, 1.05],
+        [-1.45, 1.85, 1.05],
+        [1.45, 1.85, 1.05],
+        BANNER_RED,
+    );
+    box_at(&mut lod0, -0.7, 0.75, 0.3, 0.28, 0.22, 0.28, TIMBER); // crate
+    box_at(&mut lod0, 0.5, 0.72, -0.2, 0.22, 0.18, 0.22, FIELDSTONE); // goods
     let mut lod1 = Mesh::default();
     box_at(&mut lod1, 0.0, 1.0, 0.0, 1.3, 1.0, 0.95, TIMBER);
     box_at(&mut lod1, 0.0, 2.15, 0.0, 1.45, 0.06, 1.05, THATCH);
@@ -643,10 +1005,16 @@ fn kit_market_stall() -> Vec<(&'static str, Mesh)> {
 fn kit_wall_segment() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
     box_at(&mut lod0, 0.0, 1.5, 0.0, 2.0, 1.5, 0.45, FIELDSTONE);
-    box_at(&mut lod0, -1.4, 3.15, 0.0, 0.28, 0.18, 0.4, FIELDSTONE);         // merlon a
-    box_at(&mut lod0, 1.4, 3.15, 0.0, 0.28, 0.18, 0.4, FIELDSTONE);          // merlon b
-    box_at(&mut lod0, 0.0, 3.02, 0.32, 2.0, 0.04, 0.12, GRANITE_DARK);       // walk lip
-    lod0.quad([0.4, 2.8, -0.45], [1.2, 2.8, -0.45], [1.2, 3.3, -0.45], [0.4, 3.3, -0.45], GRANITE_DARK); // seam
+    box_at(&mut lod0, -1.4, 3.15, 0.0, 0.28, 0.18, 0.4, FIELDSTONE); // merlon a
+    box_at(&mut lod0, 1.4, 3.15, 0.0, 0.28, 0.18, 0.4, FIELDSTONE); // merlon b
+    box_at(&mut lod0, 0.0, 3.02, 0.32, 2.0, 0.04, 0.12, GRANITE_DARK); // walk lip
+    lod0.quad(
+        [0.4, 2.8, -0.45],
+        [1.2, 2.8, -0.45],
+        [1.2, 3.3, -0.45],
+        [0.4, 3.3, -0.45],
+        GRANITE_DARK,
+    ); // seam
     let mut lod1 = Mesh::default();
     box_at(&mut lod1, 0.0, 1.5, 0.0, 2.0, 1.5, 0.45, FIELDSTONE);
     vec![("lod0", lod0), ("lod1", lod1)]
@@ -656,16 +1024,38 @@ fn kit_wall_segment() -> Vec<(&'static str, Mesh)> {
 fn kit_gate_arch() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
     for px in [-3.4f32, 3.4] {
-        limb(&mut lod0, px, 2.6, 0.0, px, 2.8, 0.0, 1.15, 1.0, 8, FIELDSTONE);
-        limb(&mut lod0, px, 5.3, 0.0, px, 5.6, 0.0, 1.25, 0.9, 8, GRANITE_DARK);
+        limb(
+            &mut lod0, px, 2.6, 0.0, px, 2.8, 0.0, 1.15, 1.0, 8, FIELDSTONE,
+        );
+        limb(
+            &mut lod0,
+            px,
+            5.3,
+            0.0,
+            px,
+            5.6,
+            0.0,
+            1.25,
+            0.9,
+            8,
+            GRANITE_DARK,
+        );
     }
-    box_at(&mut lod0, 0.0, 6.1, 0.0, 4.6, 0.45, 1.3, FIELDSTONE);            // lintel
-    box_at(&mut lod0, 0.0, 6.8, 0.0, 3.9, 0.2, 1.1, GRANITE_DARK);           // parapet
-    lod0.quad([-1.9, 1.4, 1.25], [1.9, 1.4, 1.25], [1.9, 4.6, 1.25], [-1.9, 4.6, 1.25], TIMBER); // arch face board
-    box_at(&mut lod0, 0.0, 3.3, -0.95, 1.8, 0.18, 0.1, TIMBER);              // dropped portcullis hint
+    box_at(&mut lod0, 0.0, 6.1, 0.0, 4.6, 0.45, 1.3, FIELDSTONE); // lintel
+    box_at(&mut lod0, 0.0, 6.8, 0.0, 3.9, 0.2, 1.1, GRANITE_DARK); // parapet
+    lod0.quad(
+        [-1.9, 1.4, 1.25],
+        [1.9, 1.4, 1.25],
+        [1.9, 4.6, 1.25],
+        [-1.9, 4.6, 1.25],
+        TIMBER,
+    ); // arch face board
+    box_at(&mut lod0, 0.0, 3.3, -0.95, 1.8, 0.18, 0.1, TIMBER); // dropped portcullis hint
     let mut lod1 = Mesh::default();
     for px in [-3.4f32, 3.4] {
-        limb(&mut lod1, px, 2.6, 0.0, px, 2.8, 0.0, 1.15, 1.0, 6, FIELDSTONE);
+        limb(
+            &mut lod1, px, 2.6, 0.0, px, 2.8, 0.0, 1.15, 1.0, 6, FIELDSTONE,
+        );
     }
     box_at(&mut lod1, 0.0, 6.1, 0.0, 4.6, 0.45, 1.3, FIELDSTONE);
     vec![("lod0", lod0), ("lod1", lod1)]
@@ -674,16 +1064,44 @@ fn kit_gate_arch() -> Vec<(&'static str, Mesh)> {
 /// A watchtower: square stone shaft, top room, pyramidal roof.
 fn kit_watchtower() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    limb(&mut lod0, 0.0, 3.4, 0.0, 0.05, 3.6, 0.0, 1.7, 1.35, 4, FIELDSTONE);
-    box_at(&mut lod0, 0.05, 4.4, 0.0, 1.85, 0.85, 1.85, TIMBER);             // top room
-    box_at(&mut lod0, -1.5, 5.15, 1.55, 0.35, 0.15, 0.35, TIMBER);           // bretache
+    limb(
+        &mut lod0, 0.0, 3.4, 0.0, 0.05, 3.6, 0.0, 1.7, 1.35, 4, FIELDSTONE,
+    );
+    box_at(&mut lod0, 0.05, 4.4, 0.0, 1.85, 0.85, 1.85, TIMBER); // top room
+    box_at(&mut lod0, -1.5, 5.15, 1.55, 0.35, 0.15, 0.35, TIMBER); // bretache
     box_at(&mut lod0, 1.6, 5.15, -1.55, 0.35, 0.15, 0.35, TIMBER);
-    lod0.quad([-2.1, 5.2, -2.1], [2.2, 5.2, -2.1], [0.05, 7.0, 0.0], [-2.1, 5.2, 2.1], THATCH); // roof faces
-    lod0.quad([2.2, 5.2, -2.1], [-2.1, 5.2, -2.1], [-2.1, 5.2, 2.1], [0.05, 7.0, 0.0], THATCH);
-    lod0.quad([-2.1, 5.2, 2.1], [2.2, 5.2, 2.1], [0.05, 7.0, 0.0], [2.2, 5.2, -2.1], THATCH);
-    lod0.quad([1.9, 0.7, 1.75], [2.1, 0.7, 1.75], [2.1, 1.9, 1.75], [1.9, 1.9, 1.75], DOOR_DARK);
+    lod0.quad(
+        [-2.1, 5.2, -2.1],
+        [2.2, 5.2, -2.1],
+        [0.05, 7.0, 0.0],
+        [-2.1, 5.2, 2.1],
+        THATCH,
+    ); // roof faces
+    lod0.quad(
+        [2.2, 5.2, -2.1],
+        [-2.1, 5.2, -2.1],
+        [-2.1, 5.2, 2.1],
+        [0.05, 7.0, 0.0],
+        THATCH,
+    );
+    lod0.quad(
+        [-2.1, 5.2, 2.1],
+        [2.2, 5.2, 2.1],
+        [0.05, 7.0, 0.0],
+        [2.2, 5.2, -2.1],
+        THATCH,
+    );
+    lod0.quad(
+        [1.9, 0.7, 1.75],
+        [2.1, 0.7, 1.75],
+        [2.1, 1.9, 1.75],
+        [1.9, 1.9, 1.75],
+        DOOR_DARK,
+    );
     let mut lod1 = Mesh::default();
-    limb(&mut lod1, 0.0, 3.6, 0.0, 0.05, 3.8, 0.0, 1.7, 1.3, 4, FIELDSTONE);
+    limb(
+        &mut lod1, 0.0, 3.6, 0.0, 0.05, 3.8, 0.0, 1.7, 1.3, 4, FIELDSTONE,
+    );
     box_at(&mut lod1, 0.05, 4.5, 0.0, 1.8, 0.9, 1.8, TIMBER);
     vec![("lod0", lod0), ("lod1", lod1)]
 }
@@ -691,25 +1109,79 @@ fn kit_watchtower() -> Vec<(&'static str, Mesh)> {
 /// The keep: tall stone donjon with corner turrets and a banner pole.
 fn kit_keep() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    box_at(&mut lod0, 0.0, 0.5, 0.0, 4.6, 0.5, 3.6, FIELDSTONE);             // base course
-    limb(&mut lod0, 0.0, 6.2, 0.0, 0.05, 6.4, 0.0, 3.5, 3.1, 4, FIELDSTONE); // main shaft
+    box_at(&mut lod0, 0.0, 0.5, 0.0, 4.6, 0.5, 3.6, FIELDSTONE); // base course
+    limb(
+        &mut lod0, 0.0, 6.2, 0.0, 0.05, 6.4, 0.0, 3.5, 3.1, 4, FIELDSTONE,
+    ); // main shaft
     for (tx, tz) in [(-4.2, -3.2), (4.2, -3.2), (-4.2, 3.2), (4.2, 3.2)] {
-        limb(&mut lod0, tx, 7.0, tz, tx, 7.2, tz, 1.0, 0.85, 6, GRANITE_DARK);
-        limb(&mut lod0, tx, 8.4, tz, tx, 8.6, tz, 1.1, 0.55, 6, GRANITE_DARK);
+        limb(
+            &mut lod0,
+            tx,
+            7.0,
+            tz,
+            tx,
+            7.2,
+            tz,
+            1.0,
+            0.85,
+            6,
+            GRANITE_DARK,
+        );
+        limb(
+            &mut lod0,
+            tx,
+            8.4,
+            tz,
+            tx,
+            8.6,
+            tz,
+            1.1,
+            0.55,
+            6,
+            GRANITE_DARK,
+        );
     }
-    box_at(&mut lod0, 0.05, 12.5, 0.0, 3.7, 0.18, 3.2, GRANITE_DARK);        // crown
-    limb(&mut lod0, 0.05, 13.8, 0.0, 0.05, 14.0, 0.0, 0.08, 0.05, 4, TIMBER); // banner pole
-    lod0.quad([0.1, 13.4, 0.0], [1.4, 13.4, 0.0], [1.4, 12.6, 0.0], [0.1, 12.6, 0.0], BANNER_RED);
+    box_at(&mut lod0, 0.05, 12.5, 0.0, 3.7, 0.18, 3.2, GRANITE_DARK); // crown
+    limb(
+        &mut lod0, 0.05, 13.8, 0.0, 0.05, 14.0, 0.0, 0.08, 0.05, 4, TIMBER,
+    ); // banner pole
+    lod0.quad(
+        [0.1, 13.4, 0.0],
+        [1.4, 13.4, 0.0],
+        [1.4, 12.6, 0.0],
+        [0.1, 12.6, 0.0],
+        BANNER_RED,
+    );
     // Window slits + door.
     for wy in [4.0, 6.5, 9.0] {
         box_at(&mut lod0, 3.45, wy, 1.0, 0.06, 0.35, 0.12, DOOR_DARK);
         box_at(&mut lod0, 3.45, wy, -1.0, 0.06, 0.35, 0.12, DOOR_DARK);
     }
-    lod0.quad([3.5, 1.4, 0.0], [3.7, 1.4, 0.0], [3.7, 3.0, 0.0], [3.5, 3.0, 0.0], DOOR_DARK);
+    lod0.quad(
+        [3.5, 1.4, 0.0],
+        [3.7, 1.4, 0.0],
+        [3.7, 3.0, 0.0],
+        [3.5, 3.0, 0.0],
+        DOOR_DARK,
+    );
     let mut lod1 = Mesh::default();
-    limb(&mut lod1, 0.0, 6.4, 0.0, 0.05, 6.6, 0.0, 3.6, 3.2, 4, FIELDSTONE);
+    limb(
+        &mut lod1, 0.0, 6.4, 0.0, 0.05, 6.6, 0.0, 3.6, 3.2, 4, FIELDSTONE,
+    );
     for (tx, tz) in [(-4.2, -3.2), (4.2, -3.2), (-4.2, 3.2), (4.2, 3.2)] {
-        limb(&mut lod1, tx, 7.2, tz, tx, 7.4, tz, 1.0, 0.8, 5, GRANITE_DARK);
+        limb(
+            &mut lod1,
+            tx,
+            7.2,
+            tz,
+            tx,
+            7.4,
+            tz,
+            1.0,
+            0.8,
+            5,
+            GRANITE_DARK,
+        );
     }
     vec![("lod0", lod0), ("lod1", lod1)]
 }
@@ -717,14 +1189,16 @@ fn kit_keep() -> Vec<(&'static str, Mesh)> {
 /// A wooden dock: deck on posts with a mooring post and crates.
 fn kit_bridge_dock() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    box_at(&mut lod0, 0.0, 0.9, 0.0, 1.4, 0.08, 3.8, TIMBER);                // deck
+    box_at(&mut lod0, 0.0, 0.9, 0.0, 1.4, 0.08, 3.8, TIMBER); // deck
     for px in [-1.2f32, 1.2] {
         for pz in [-3.4f32, 0.0, 3.4] {
             limb(&mut lod0, px, 0.5, pz, px, -0.6, pz, 0.09, 0.07, 5, TIMBER); // posts (into water)
         }
     }
-    limb(&mut lod0, -1.2, 1.3, 3.4, -1.2, 1.9, 3.4, 0.08, 0.06, 4, TIMBER);  // mooring post
-    box_at(&mut lod0, 0.7, 1.06, -2.6, 0.3, 0.22, 0.3, TIMBER);              // crate
+    limb(
+        &mut lod0, -1.2, 1.3, 3.4, -1.2, 1.9, 3.4, 0.08, 0.06, 4, TIMBER,
+    ); // mooring post
+    box_at(&mut lod0, 0.7, 1.06, -2.6, 0.3, 0.22, 0.3, TIMBER); // crate
     let mut lod1 = Mesh::default();
     box_at(&mut lod1, 0.0, 0.9, 0.0, 1.4, 0.08, 3.8, TIMBER);
     vec![("lod0", lod0), ("lod1", lod1)]
@@ -733,13 +1207,37 @@ fn kit_bridge_dock() -> Vec<(&'static str, Mesh)> {
 /// A banner sign: pole, crossbar, hanging cloth with a simple charge.
 fn kit_banner_sign() -> Vec<(&'static str, Mesh)> {
     let mut lod0 = Mesh::default();
-    limb(&mut lod0, 0.0, 2.2, 0.0, 0.0, 2.4, 0.0, 0.07, 0.05, 5, TIMBER);
-    limb(&mut lod0, 0.55, 2.45, 0.0, 0.55, 2.65, 0.0, 0.05, 0.04, 4, TIMBER);
-    lod0.quad([0.25, 2.4, 0.02], [0.85, 2.4, 0.02], [0.85, 1.5, 0.02], [0.25, 1.5, 0.02], BANNER_RED);
-    lod0.quad([0.55, 2.1, 0.03], [0.67, 1.95, 0.03], [0.55, 1.78, 0.03], [0.43, 1.95, 0.03], DOOR_DARK); // charge
+    limb(
+        &mut lod0, 0.0, 2.2, 0.0, 0.0, 2.4, 0.0, 0.07, 0.05, 5, TIMBER,
+    );
+    limb(
+        &mut lod0, 0.55, 2.45, 0.0, 0.55, 2.65, 0.0, 0.05, 0.04, 4, TIMBER,
+    );
+    lod0.quad(
+        [0.25, 2.4, 0.02],
+        [0.85, 2.4, 0.02],
+        [0.85, 1.5, 0.02],
+        [0.25, 1.5, 0.02],
+        BANNER_RED,
+    );
+    lod0.quad(
+        [0.55, 2.1, 0.03],
+        [0.67, 1.95, 0.03],
+        [0.55, 1.78, 0.03],
+        [0.43, 1.95, 0.03],
+        DOOR_DARK,
+    ); // charge
     let mut lod1 = Mesh::default();
-    limb(&mut lod1, 0.0, 2.3, 0.0, 0.0, 2.5, 0.0, 0.07, 0.05, 4, TIMBER);
-    lod1.quad([0.25, 2.4, 0.02], [0.85, 2.4, 0.02], [0.85, 1.5, 0.02], [0.25, 1.5, 0.02], BANNER_RED);
+    limb(
+        &mut lod1, 0.0, 2.3, 0.0, 0.0, 2.5, 0.0, 0.07, 0.05, 4, TIMBER,
+    );
+    lod1.quad(
+        [0.25, 2.4, 0.02],
+        [0.85, 2.4, 0.02],
+        [0.85, 1.5, 0.02],
+        [0.25, 1.5, 0.02],
+        BANNER_RED,
+    );
     vec![("lod0", lod0), ("lod1", lod1)]
 }
 
@@ -752,32 +1250,79 @@ fn kit_water_wheel() -> Vec<(&'static str, Mesh)> {
         let (c, s) = (a.cos(), a.sin());
         // Spokes on ONE face (the far side is rim-only — the budget
         // caught the doubled layer at 578 tris).
-        limb(&mut lod0, 0.0, 2.4, 0.45, c * 2.2, 2.4 + s * 2.2, 0.45, 0.05, 0.04, 4, TIMBER);
+        limb(
+            &mut lod0,
+            0.0,
+            2.4,
+            0.45,
+            c * 2.2,
+            2.4 + s * 2.2,
+            0.45,
+            0.05,
+            0.04,
+            4,
+            TIMBER,
+        );
         // Paddle across the rim.
-        limb(&mut lod0, c * 2.3, 2.4 + s * 2.3, -0.5, c * 2.3, 2.4 + s * 2.3, 0.5, 0.16, 0.16, 4, TIMBER);
+        limb(
+            &mut lod0,
+            c * 2.3,
+            2.4 + s * 2.3,
+            -0.5,
+            c * 2.3,
+            2.4 + s * 2.3,
+            0.5,
+            0.16,
+            0.16,
+            4,
+            TIMBER,
+        );
     }
     // Rim rails (thin octagon rings both faces).
     for fz in [-0.5f32, 0.5] {
         for i in 0..8u32 {
             let a0 = i as f32 / 8.0 * std::f32::consts::TAU;
             let a1 = (i + 1) as f32 / 8.0 * std::f32::consts::TAU;
-            limb(&mut lod0,
-                 a0.cos() * 2.35, 2.4 + a0.sin() * 2.35, fz,
-                 a1.cos() * 2.35, 2.4 + a1.sin() * 2.35, fz,
-                 0.06, 0.06, 4, TIMBER);
+            limb(
+                &mut lod0,
+                a0.cos() * 2.35,
+                2.4 + a0.sin() * 2.35,
+                fz,
+                a1.cos() * 2.35,
+                2.4 + a1.sin() * 2.35,
+                fz,
+                0.06,
+                0.06,
+                4,
+                TIMBER,
+            );
         }
     }
     // Axle + frame + sluice.
-    limb(&mut lod0, 0.0, 2.4, 0.0, 0.0, 2.4, 0.9, 0.09, 0.09, 6, TIMBER);
+    limb(
+        &mut lod0, 0.0, 2.4, 0.0, 0.0, 2.4, 0.9, 0.09, 0.09, 6, TIMBER,
+    );
     for fz in [-1.1f32, 1.1] {
         limb(&mut lod0, 0.0, 1.2, fz, 0.0, 2.5, fz, 0.09, 0.08, 4, TIMBER);
     }
-    box_at(&mut lod0, 0.0, 0.5, 1.3, 0.5, 0.5, 0.5, TIMBER);                 // sluice box
+    box_at(&mut lod0, 0.0, 0.5, 1.3, 0.5, 0.5, 0.5, TIMBER); // sluice box
     let mut lod1 = Mesh::default();
     limb(&mut lod1, 0.0, 2.4, 0.0, 0.0, 2.4, 0.9, 0.1, 0.1, 6, TIMBER);
     for i in 0..8u32 {
         let a = i as f32 / 8.0 * std::f32::consts::TAU;
-        limb(&mut lod1, 0.0, 2.4, 0.0, a.cos() * 2.3, 2.4 + a.sin() * 2.3, 0.0, 0.07, 0.05, 3, TIMBER);
+        limb(
+            &mut lod1,
+            0.0,
+            2.4,
+            0.0,
+            a.cos() * 2.3,
+            2.4 + a.sin() * 2.3,
+            0.0,
+            0.07,
+            0.05,
+            3,
+            TIMBER,
+        );
     }
     vec![("lod0", lod0), ("lod1", lod1)]
 }
@@ -792,22 +1337,29 @@ fn asset_house() -> Vec<(&'static str, Mesh)> {
     box_at(&mut lod0, 0.0, 0.5 + 1.1, 0.0, 2.7, 1.1, 2.2, TIMBER);
     // Door (dark inset quad on the front, -Z face).
     lod0.quad(
-        [0.0, 0.55, -2.21], [0.9, 0.55, -2.21], [0.9, 2.15, -2.21], [0.0, 2.15, -2.21],
+        [0.0, 0.55, -2.21],
+        [0.9, 0.55, -2.21],
+        [0.9, 2.15, -2.21],
+        [0.0, 2.15, -2.21],
         DOOR_DARK,
     );
     // Steep gabled roof: ridge along X at y=4.3, eaves at y=2.7 over z=±2.5.
     let (ridge_y, eave_y, eave_z, overhang) = (4.3f32, 2.7f32, 2.5f32, 0.35);
     let rx = 3.05; // roof extends past the walls in x too
-    // South slope (+z).
+                   // South slope (+z).
     lod0.quad(
-        [-rx, eave_y, eave_z + overhang], [rx, eave_y, eave_z + overhang],
-        [rx, ridge_y, 0.0], [-rx, ridge_y, 0.0],
+        [-rx, eave_y, eave_z + overhang],
+        [rx, eave_y, eave_z + overhang],
+        [rx, ridge_y, 0.0],
+        [-rx, ridge_y, 0.0],
         THATCH,
     );
     // North slope (-z).
     lod0.quad(
-        [rx, eave_y, -eave_z - overhang], [-rx, eave_y, -eave_z - overhang],
-        [-rx, ridge_y, 0.0], [rx, ridge_y, 0.0],
+        [rx, eave_y, -eave_z - overhang],
+        [-rx, eave_y, -eave_z - overhang],
+        [-rx, ridge_y, 0.0],
+        [rx, ridge_y, 0.0],
         THATCH,
     );
     // Gable ends (triangles).
@@ -815,9 +1367,7 @@ fn asset_house() -> Vec<(&'static str, Mesh)> {
         let x = sx * 2.7;
         let n = [sx as f32, 0.0, 0.0];
         let mk = |p: [f32; 3]| V { p, n, c: TIMBER };
-        lod0.tri(
-            mk([x, 2.7, 2.2]), mk([x, 2.7, -2.2]), mk([x, 4.3, 0.0]),
-        );
+        lod0.tri(mk([x, 2.7, 2.2]), mk([x, 2.7, -2.2]), mk([x, 4.3, 0.0]));
         let _ = n;
     }
     // Chimney (stone box at the ridge, east side).
@@ -827,24 +1377,36 @@ fn asset_house() -> Vec<(&'static str, Mesh)> {
     box_at(&mut lod1, 0.0, 0.25, 0.0, 3.0, 0.25, 2.5, FIELDSTONE);
     box_at(&mut lod1, 0.0, 1.6, 0.0, 2.7, 1.1, 2.2, TIMBER);
     lod1.quad(
-        [-rx, eave_y, eave_z + overhang], [rx, eave_y, eave_z + overhang],
-        [rx, ridge_y, 0.0], [-rx, ridge_y, 0.0], THATCH,
+        [-rx, eave_y, eave_z + overhang],
+        [rx, eave_y, eave_z + overhang],
+        [rx, ridge_y, 0.0],
+        [-rx, ridge_y, 0.0],
+        THATCH,
     );
     lod1.quad(
-        [rx, eave_y, -eave_z - overhang], [-rx, eave_y, -eave_z - overhang],
-        [-rx, ridge_y, 0.0], [rx, ridge_y, 0.0], THATCH,
+        [rx, eave_y, -eave_z - overhang],
+        [-rx, eave_y, -eave_z - overhang],
+        [-rx, ridge_y, 0.0],
+        [rx, ridge_y, 0.0],
+        THATCH,
     );
     box_at(&mut lod1, 1.7, 4.15, 0.55, 0.28, 0.75, 0.28, FIELDSTONE);
 
     let mut lod2 = Mesh::default();
     box_at(&mut lod2, 0.0, 1.55, 0.0, 2.85, 1.55, 2.35, TIMBER);
     lod2.quad(
-        [-rx, eave_y, eave_z + overhang], [rx, eave_y, eave_z + overhang],
-        [rx, ridge_y, 0.0], [-rx, ridge_y, 0.0], THATCH,
+        [-rx, eave_y, eave_z + overhang],
+        [rx, eave_y, eave_z + overhang],
+        [rx, ridge_y, 0.0],
+        [-rx, ridge_y, 0.0],
+        THATCH,
     );
     lod2.quad(
-        [rx, eave_y, -eave_z - overhang], [-rx, eave_y, -eave_z - overhang],
-        [-rx, ridge_y, 0.0], [rx, ridge_y, 0.0], THATCH,
+        [rx, eave_y, -eave_z - overhang],
+        [-rx, eave_y, -eave_z - overhang],
+        [-rx, ridge_y, 0.0],
+        [rx, ridge_y, 0.0],
+        THATCH,
     );
 
     vec![("lod0", lod0), ("lod1", lod1), ("lod2", lod2)]
@@ -900,17 +1462,30 @@ fn split_by_color(m: &Mesh) -> Vec<Prim> {
         let mut idx = Vec::new();
         for t in m.idx.chunks(3) {
             if m.v[t[0] as usize].c == *col {
-                idx.extend([id_map[t[0] as usize], id_map[t[1] as usize], id_map[t[2] as usize]]);
+                idx.extend([
+                    id_map[t[0] as usize],
+                    id_map[t[1] as usize],
+                    id_map[t[2] as usize],
+                ]);
             }
         }
         if !idx.is_empty() {
-            out.push(Prim { vertices: verts, normals: norms, indices: idx, color: *col });
+            out.push(Prim {
+                vertices: verts,
+                normals: norms,
+                indices: idx,
+                color: *col,
+            });
         }
     }
     out
 }
 
-fn write_glb(path: &std::path::Path, lods: Vec<(&str, Mesh)>, sockets: &[(&str, [f32; 3])]) -> usize {
+fn write_glb(
+    path: &std::path::Path,
+    lods: Vec<(&str, Mesh)>,
+    sockets: &[(&str, [f32; 3])],
+) -> usize {
     let mut bin: Vec<u8> = Vec::new();
     let mut buffer_views = Vec::new();
     let mut accessors = Vec::new();
@@ -918,9 +1493,15 @@ fn write_glb(path: &std::path::Path, lods: Vec<(&str, Mesh)>, sockets: &[(&str, 
     let mut meshes_json = Vec::new();
     let mut nodes = Vec::new();
 
-    let mut push_data = |bin: &mut Vec<u8>, views: &mut Vec<serde_json::Value>, bytes: &[u8], target: u32| -> usize {
+    let mut push_data = |bin: &mut Vec<u8>,
+                         views: &mut Vec<serde_json::Value>,
+                         bytes: &[u8],
+                         target: u32|
+     -> usize {
         let off = bin.len();
-        views.push(json!({"buffer": 0, "byteOffset": off, "byteLength": bytes.len(), "target": target}));
+        views.push(
+            json!({"buffer": 0, "byteOffset": off, "byteLength": bytes.len(), "target": target}),
+        );
         bin.extend_from_slice(bytes);
         while bin.len() % 4 != 0 {
             bin.push(0);
@@ -933,9 +1514,17 @@ fn write_glb(path: &std::path::Path, lods: Vec<(&str, Mesh)>, sockets: &[(&str, 
         total_tris += m.triangles();
         let mut prims = Vec::new();
         for p in split_by_color(m) {
-            let pv = push_data(&mut bin, &mut buffer_views, unsafe {
-                std::slice::from_raw_parts(p.vertices.as_ptr() as *const u8, p.vertices.len() * 12)
-            }, 34962);
+            let pv = push_data(
+                &mut bin,
+                &mut buffer_views,
+                unsafe {
+                    std::slice::from_raw_parts(
+                        p.vertices.as_ptr() as *const u8,
+                        p.vertices.len() * 12,
+                    )
+                },
+                34962,
+            );
             let mut mn = [f32::MAX; 3];
             let mut mx = [f32::MIN; 3];
             for v in &p.vertices {
@@ -950,15 +1539,28 @@ fn write_glb(path: &std::path::Path, lods: Vec<(&str, Mesh)>, sockets: &[(&str, 
             }));
             let pos_acc = accessors.len() - 1;
 
-            let nv = push_data(&mut bin, &mut buffer_views, unsafe {
-                std::slice::from_raw_parts(p.normals.as_ptr() as *const u8, p.normals.len() * 12)
-            }, 34962);
+            let nv = push_data(
+                &mut bin,
+                &mut buffer_views,
+                unsafe {
+                    std::slice::from_raw_parts(
+                        p.normals.as_ptr() as *const u8,
+                        p.normals.len() * 12,
+                    )
+                },
+                34962,
+            );
             accessors.push(json!({"bufferView": nv, "componentType": 5126, "count": p.normals.len(), "type": "VEC3"}));
             let nrm_acc = accessors.len() - 1;
 
-            let iv = push_data(&mut bin, &mut buffer_views, unsafe {
-                std::slice::from_raw_parts(p.indices.as_ptr() as *const u8, p.indices.len() * 4)
-            }, 34963);
+            let iv = push_data(
+                &mut bin,
+                &mut buffer_views,
+                unsafe {
+                    std::slice::from_raw_parts(p.indices.as_ptr() as *const u8, p.indices.len() * 4)
+                },
+                34963,
+            );
             accessors.push(json!({"bufferView": iv, "componentType": 5125, "count": p.indices.len(), "type": "SCALAR"}));
             let idx_acc = accessors.len() - 1;
 
@@ -978,7 +1580,9 @@ fn write_glb(path: &std::path::Path, lods: Vec<(&str, Mesh)>, sockets: &[(&str, 
         nodes.push(json!({"name": lname, "mesh": meshes_json.len() - 1}));
     }
     for (sname, pos) in sockets {
-        nodes.push(json!({"name": format!("socket.{sname}"), "translation": [pos[0], pos[1], pos[2]]}));
+        nodes.push(
+            json!({"name": format!("socket.{sname}"), "translation": [pos[0], pos[1], pos[2]]}),
+        );
     }
 
     let roots: Vec<usize> = (0..nodes.len()).collect();
@@ -1046,54 +1650,70 @@ fn generate(id: &str) -> Vec<(&'static str, Mesh)> {
 
 fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
     match id {
-        "module.settlement_house" => return &[
-            ("door_front", [2.2, 0.0, 0.0]),
-            ("road_front", [2.2, 0.0, -5.0]),
-            ("roof_smoke", [-1.1, 3.6, 0.4]),
-            ("build_base", [0.0, 0.0, 0.0]),
-        ],
-        "module.settlement_workshop" => return &[
-            ("door_front", [2.6, 0.0, 0.0]),
-            ("road_front", [2.6, 0.0, -5.0]),
-            ("work_anchor", [0.9, 0.0, 0.2]),
-            ("build_base", [0.0, 0.0, 0.0]),
-        ],
+        "module.settlement_house" => {
+            return &[
+                ("door_front", [2.2, 0.0, 0.0]),
+                ("road_front", [2.2, 0.0, -5.0]),
+                ("roof_smoke", [-1.1, 3.6, 0.4]),
+                ("build_base", [0.0, 0.0, 0.0]),
+            ]
+        }
+        "module.settlement_workshop" => {
+            return &[
+                ("door_front", [2.6, 0.0, 0.0]),
+                ("road_front", [2.6, 0.0, -5.0]),
+                ("work_anchor", [0.9, 0.0, 0.2]),
+                ("build_base", [0.0, 0.0, 0.0]),
+            ]
+        }
         "module.market_stall" => return &[("front", [1.5, 0.0, 0.0]), ("base", [0.0, 0.0, 0.0])],
-        "module.wall_segment" => return &[
-            ("wall_a", [-2.05, 1.5, 0.0]),
-            ("wall_b", [2.05, 1.5, 0.0]),
-            ("top", [0.0, 3.3, 0.0]),
-            ("build_base", [0.0, 0.0, 0.0]),
-        ],
-        "module.gate_arch" => return &[
-            ("passage_a", [0.0, 0.0, -6.0]),
-            ("passage_b", [0.0, 0.0, 6.0]),
-            ("wall_a", [-6.0, 2.0, 0.0]),
-            ("wall_b", [6.0, 2.0, 0.0]),
-            ("build_base", [0.0, 0.0, 0.0]),
-        ],
-        "module.watchtower" => return &[
-            ("door", [2.0, 0.0, 0.0]),
-            ("top", [0.0, 7.2, 0.0]),
-            ("build_base", [0.0, 0.0, 0.0]),
-        ],
-        "module.keep" => return &[
-            ("door", [3.8, 0.0, 0.0]),
-            ("banner_top", [0.05, 14.2, 0.0]),
-            ("build_base", [0.0, 0.0, 0.0]),
-        ],
-        "module.bridge_dock" => return &[
-            ("deck_a", [0.0, 0.9, -3.9]),
-            ("deck_b", [0.0, 0.9, 3.9]),
-            ("water_line", [0.0, -0.4, 0.0]),
-            ("build_base", [0.0, 0.0, 0.0]),
-        ],
+        "module.wall_segment" => {
+            return &[
+                ("wall_a", [-2.05, 1.5, 0.0]),
+                ("wall_b", [2.05, 1.5, 0.0]),
+                ("top", [0.0, 3.3, 0.0]),
+                ("build_base", [0.0, 0.0, 0.0]),
+            ]
+        }
+        "module.gate_arch" => {
+            return &[
+                ("passage_a", [0.0, 0.0, -6.0]),
+                ("passage_b", [0.0, 0.0, 6.0]),
+                ("wall_a", [-6.0, 2.0, 0.0]),
+                ("wall_b", [6.0, 2.0, 0.0]),
+                ("build_base", [0.0, 0.0, 0.0]),
+            ]
+        }
+        "module.watchtower" => {
+            return &[
+                ("door", [2.0, 0.0, 0.0]),
+                ("top", [0.0, 7.2, 0.0]),
+                ("build_base", [0.0, 0.0, 0.0]),
+            ]
+        }
+        "module.keep" => {
+            return &[
+                ("door", [3.8, 0.0, 0.0]),
+                ("banner_top", [0.05, 14.2, 0.0]),
+                ("build_base", [0.0, 0.0, 0.0]),
+            ]
+        }
+        "module.bridge_dock" => {
+            return &[
+                ("deck_a", [0.0, 0.9, -3.9]),
+                ("deck_b", [0.0, 0.9, 3.9]),
+                ("water_line", [0.0, -0.4, 0.0]),
+                ("build_base", [0.0, 0.0, 0.0]),
+            ]
+        }
         "module.banner_sign" => return &[("base", [0.0, 0.0, 0.0])],
-        "module.water_wheel" => return &[
-            ("axle", [0.0, 2.4, 0.95]),
-            ("water_line", [0.0, -0.2, 0.0]),
-            ("power_anchor", [0.8, 0.0, 1.3]),
-        ],
+        "module.water_wheel" => {
+            return &[
+                ("axle", [0.0, 2.4, 0.95]),
+                ("water_line", [0.0, -0.2, 0.0]),
+                ("power_anchor", [0.8, 0.0, 1.3]),
+            ]
+        }
         _ => {}
     }
     if id == "module.house_croft" {
@@ -1109,7 +1729,9 @@ fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
 }
 
 fn main() {
-    let root = std::env::args().nth(1).expect("usage: assetgen <repo-root>");
+    let root = std::env::args()
+        .nth(1)
+        .expect("usage: assetgen <repo-root>");
     let root = PathBuf::from(root);
     let out_prop = root.join("poorcraft3d/assets/compiled/prop");
     let out_module = root.join("poorcraft3d/assets/compiled/module");

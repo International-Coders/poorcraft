@@ -171,7 +171,11 @@ impl TerrainStreamer {
         let mut want = BTreeMap::new();
         for tier in self.cfg.tiers {
             for col in interest_patches(viewer, *tier).expect("interest ring") {
-                let coord = PatchCoord { x: col.x, y: self.y_level, z: col.z };
+                let coord = PatchCoord {
+                    x: col.x,
+                    y: self.y_level,
+                    z: col.z,
+                };
                 let center = WorldPos::from_mm(
                     coord.x as i64 * 16_000 + 8_000,
                     coord.y as i64 * 16_000 + 8_000,
@@ -273,7 +277,9 @@ impl TerrainStreamer {
         while meshed < self.cfg.max_mesh_per_frame && uploaded < self.cfg.max_uploads_per_frame {
             let Some(coord) = self.queue.pop() else { break };
             self.pending.remove(&coord);
-            let Some(&lod) = want.get(&coord) else { continue };
+            let Some(&lod) = want.get(&coord) else {
+                continue;
+            };
             // Already at the right level (a stale/duplicate survivor):
             // free, skip — it must not consume mesh budget.
             if self.loaded.get(&coord).map(|s| s.lod) == Some(lod) {
@@ -341,11 +347,7 @@ impl TerrainStreamer {
                     index_buffer,
                     index_count: idx.len() as u32,
                     bytes,
-                    center: [
-                        to_m(o.x) + 8.0,
-                        to_m(o.y) + 8.0,
-                        to_m(o.z) + 8.0,
-                    ],
+                    center: [to_m(o.x) + 8.0, to_m(o.y) + 8.0, to_m(o.z) + 8.0],
                     aabb_min: [to_m(o.x), to_m(o.y), to_m(o.z)],
                     aabb_max: [to_m(o.x) + 16.0, to_m(o.y) + 16.0, to_m(o.z) + 16.0],
                 },
@@ -358,12 +360,9 @@ impl TerrainStreamer {
         self.counters.queue_pushed = self.queue.pushed;
         self.counters.queue_admitted = self.queue.admitted;
         self.counters.queue_rejected = self.queue.rejected;
-        self.counters.max_mesh_per_frame_seen =
-            self.counters.max_mesh_per_frame_seen.max(meshed);
-        self.counters.max_uploads_per_frame_seen = self
-            .counters
-            .max_uploads_per_frame_seen
-            .max(uploaded);
+        self.counters.max_mesh_per_frame_seen = self.counters.max_mesh_per_frame_seen.max(meshed);
+        self.counters.max_uploads_per_frame_seen =
+            self.counters.max_uploads_per_frame_seen.max(uploaded);
         StreamFrameStats {
             meshed,
             uploaded,
@@ -380,12 +379,42 @@ impl TerrainStreamer {
         let mut planes = [[0.0f32; 4]; 6];
         // left, right, bottom, top, near, far — row combos of M.
         let rows = [
-            (m(3, 0) + m(0, 0), m(3, 1) + m(0, 1), m(3, 2) + m(0, 2), m(3, 3) + m(0, 3)),
-            (m(3, 0) - m(0, 0), m(3, 1) - m(0, 1), m(3, 2) - m(0, 2), m(3, 3) - m(0, 3)),
-            (m(3, 0) + m(1, 0), m(3, 1) + m(1, 1), m(3, 2) + m(1, 2), m(3, 3) + m(1, 3)),
-            (m(3, 0) - m(1, 0), m(3, 1) - m(1, 1), m(3, 2) - m(1, 2), m(3, 3) - m(1, 3)),
-            (m(3, 0) + m(2, 0), m(3, 1) + m(2, 1), m(3, 2) + m(2, 2), m(3, 3) + m(2, 3)),
-            (m(3, 0) - m(2, 0), m(3, 1) - m(2, 1), m(3, 2) - m(2, 2), m(3, 3) - m(2, 3)),
+            (
+                m(3, 0) + m(0, 0),
+                m(3, 1) + m(0, 1),
+                m(3, 2) + m(0, 2),
+                m(3, 3) + m(0, 3),
+            ),
+            (
+                m(3, 0) - m(0, 0),
+                m(3, 1) - m(0, 1),
+                m(3, 2) - m(0, 2),
+                m(3, 3) - m(0, 3),
+            ),
+            (
+                m(3, 0) + m(1, 0),
+                m(3, 1) + m(1, 1),
+                m(3, 2) + m(1, 2),
+                m(3, 3) + m(1, 3),
+            ),
+            (
+                m(3, 0) - m(1, 0),
+                m(3, 1) - m(1, 1),
+                m(3, 2) - m(1, 2),
+                m(3, 3) - m(1, 3),
+            ),
+            (
+                m(3, 0) + m(2, 0),
+                m(3, 1) + m(2, 1),
+                m(3, 2) + m(2, 2),
+                m(3, 3) + m(2, 3),
+            ),
+            (
+                m(3, 0) - m(2, 0),
+                m(3, 1) - m(2, 1),
+                m(3, 2) - m(2, 2),
+                m(3, 3) - m(2, 3),
+            ),
         ];
         for (i, (a, b, c, d)) in rows.into_iter().enumerate() {
             let l = (a * a + b * b + c * c).sqrt().max(1e-9);
@@ -479,26 +508,17 @@ mod tests {
         let cam = crate::camera::Camera::new(pose);
         let vp = cam.view_proj(1.6);
         let planes = TerrainStreamer::frustum_planes(&vp);
-        assert!(TerrainStreamer::aabb_in_frustum(
-            &planes,
-            [0.0, 29.0, -40.0],
-            [16.0, 45.0, -24.0]
-        ), "patch ahead of the camera must be visible");
         assert!(
-            !TerrainStreamer::aabb_in_frustum(
-                &planes,
-                [0.0, 29.0, 24.0],
-                [16.0, 45.0, 40.0]
-            ),
+            TerrainStreamer::aabb_in_frustum(&planes, [0.0, 29.0, -40.0], [16.0, 45.0, -24.0]),
+            "patch ahead of the camera must be visible"
+        );
+        assert!(
+            !TerrainStreamer::aabb_in_frustum(&planes, [0.0, 29.0, 24.0], [16.0, 45.0, 40.0]),
             "patch behind the camera must cull"
         );
         // A patch at the side edge (outside the 70 deg fov) culls too.
         assert!(
-            !TerrainStreamer::aabb_in_frustum(
-                &planes,
-                [-90.0, 20.0, -40.0],
-                [-74.0, 36.0, -24.0]
-            ),
+            !TerrainStreamer::aabb_in_frustum(&planes, [-90.0, 20.0, -40.0], [-74.0, 36.0, -24.0]),
             "patch far off to the side must cull"
         );
     }
@@ -579,7 +599,11 @@ mod tests {
             1,
         );
         // Teleport far away: the whole vista is new work.
-        r.set_pose(crate::camera::CameraPose::new([80_000.0, 30.0, 0.0], 0.0, 0.0));
+        r.set_pose(crate::camera::CameraPose::new(
+            [80_000.0, 30.0, 0.0],
+            0.0,
+            0.0,
+        ));
         let mut deferred_seen = 0usize;
         for frame in 0..400 {
             let stats = r.stream_frame().expect("streaming attached");
@@ -600,7 +624,10 @@ mod tests {
                 assert!(c.loaded > 50, "a full ring is ~100 patches");
                 assert!(c.max_mesh_per_frame_seen <= 2);
                 assert!(c.max_uploads_per_frame_seen <= 2);
-                assert!(deferred_seen > 0, "the burst must have deferred some frames");
+                assert!(
+                    deferred_seen > 0,
+                    "the burst must have deferred some frames"
+                );
                 println!(
                     "teleport vista: {} frames, {} patches, {} meshed total, {} us mesh, deferral peak {}",
                     frame + 1,
@@ -684,13 +711,25 @@ mod tests {
             let _ = r.stream_frame();
             let c = r.stream_counters().unwrap();
             if c.loaded_full >= 100 {
-                full_at = Some((frame, c.loaded, c.loaded_full, c.loaded_mid, c.evicted, c.gpu_bytes));
+                full_at = Some((
+                    frame,
+                    c.loaded,
+                    c.loaded_full,
+                    c.loaded_mid,
+                    c.evicted,
+                    c.gpu_bytes,
+                ));
                 break;
             }
             if frame % 40 == 0 {
                 eprintln!(
                     "f{frame}: loaded {} (full {} mid {}), evicted {}, gpu {} KB, deferred {}",
-                    c.loaded, c.loaded_full, c.loaded_mid, c.evicted, c.gpu_bytes / 1024, c.deferred
+                    c.loaded,
+                    c.loaded_full,
+                    c.loaded_mid,
+                    c.evicted,
+                    c.gpu_bytes / 1024,
+                    c.deferred
                 );
             }
         }
@@ -711,23 +750,27 @@ mod tests {
         let g = WorldGen::new(seed);
         let full = mesh_patch_lod(&g, coord, MeshLod::Full);
         let far = mesh_patch_lod(&g, coord, MeshLod::Far);
-        let top_faces = |m: &(Vec<SceneVertex>, Vec<u16>)| -> std::collections::HashSet<(i32, i32, i32)> {
-            let mut set = std::collections::HashSet::new();
-            for &vi in &m.1 {
-                let v = &m.0[vi as usize];
-                if v.normal == [0.0, 1.0, 0.0] {
-                    set.insert((
-                        v.pos[0].floor() as i32,
-                        (v.pos[1] - 1.0) as i32,
-                        v.pos[2].floor() as i32,
-                    ));
+        let top_faces =
+            |m: &(Vec<SceneVertex>, Vec<u16>)| -> std::collections::HashSet<(i32, i32, i32)> {
+                let mut set = std::collections::HashSet::new();
+                for &vi in &m.1 {
+                    let v = &m.0[vi as usize];
+                    if v.normal == [0.0, 1.0, 0.0] {
+                        set.insert((
+                            v.pos[0].floor() as i32,
+                            (v.pos[1] - 1.0) as i32,
+                            v.pos[2].floor() as i32,
+                        ));
+                    }
                 }
-            }
-            set
-        };
+                set
+            };
         let tf = top_faces(&full);
         let t_far = top_faces(&far);
-        assert_eq!(tf, t_far, "the visible top shell must be identical at every LOD");
+        assert_eq!(
+            tf, t_far,
+            "the visible top shell must be identical at every LOD"
+        );
         assert!(!tf.is_empty());
     }
 }

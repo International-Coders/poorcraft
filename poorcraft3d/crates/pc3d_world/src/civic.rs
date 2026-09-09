@@ -97,7 +97,8 @@ impl CivicBoard {
         work_required: u64,
         materials_needed: u64,
     ) -> usize {
-        self.projects.push(CivicProject::new(name, by, work_required, materials_needed));
+        self.projects
+            .push(CivicProject::new(name, by, work_required, materials_needed));
         self.projects.len() - 1
     }
 
@@ -150,7 +151,10 @@ mod tests {
         for _ in 0..5 {
             board.npc_tick(10, 3); // 3 NPCs doing 10 work each
         }
-        assert!(board.projects[idx].completed, "150 work in 5 ticks completes 100");
+        assert!(
+            board.projects[idx].completed,
+            "150 work in 5 ticks completes 100"
+        );
     }
 
     /// Both player and NPC paths produce identical completion states.

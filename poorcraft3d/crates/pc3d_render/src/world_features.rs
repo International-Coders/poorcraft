@@ -28,7 +28,7 @@
 //!    placements are REJECTED, never silently flattened.
 
 use crate::scene::SceneVertex;
-use crate::surface::{SurfaceRegion, SurfacePatch, PATCH_M};
+use crate::surface::{SurfacePatch, SurfaceRegion, PATCH_M};
 use pc3d_world::coords::{CellCoord, PatchCoord, RegionCoord};
 use pc3d_world::flow::FlowTable;
 use pc3d_world::gen::WorldGen;
@@ -63,8 +63,13 @@ impl CaveRegion {
     /// the ONE authority (`final_solid`). Both the extractor and the
     /// surface path call this, which is the shared-boundary contract.
     fn density(gen: &WorldGen, cell: CellCoord) -> f32 {
-        if final_solid(gen, cell.x as i64 * 1000, cell.y as i64 * 1000, cell.z as i64 * 1000)
-            .solid
+        if final_solid(
+            gen,
+            cell.x as i64 * 1000,
+            cell.y as i64 * 1000,
+            cell.z as i64 * 1000,
+        )
+        .solid
         {
             1.0
         } else {
@@ -86,8 +91,19 @@ impl CaveRegion {
         queue.push_back(seed);
         seen.insert(seed);
         while let Some(c) = queue.pop_front() {
-            for d in [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] {
-                let n = CellCoord { x: c.x + d[0], y: c.y + d[1], z: c.z + d[2] };
+            for d in [
+                [1, 0, 0],
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, -1, 0],
+                [0, 0, 1],
+                [0, 0, -1],
+            ] {
+                let n = CellCoord {
+                    x: c.x + d[0],
+                    y: c.y + d[1],
+                    z: c.z + d[2],
+                };
                 if (n.x - seed.x).abs() > cap
                     || (n.y - seed.y).abs() > cap
                     || (n.z - seed.z).abs() > cap
@@ -98,8 +114,16 @@ impl CaveRegion {
                 if Self::density(gen, n) < 0.0 {
                     seen.insert(n);
                     for a in 0..3 {
-                        min[a] = min[a].min(match a { 0 => n.x, 1 => n.y, _ => n.z });
-                        max[a] = max[a].max(match a { 0 => n.x + 1, 1 => n.y + 1, _ => n.z + 1 });
+                        min[a] = min[a].min(match a {
+                            0 => n.x,
+                            1 => n.y,
+                            _ => n.z,
+                        });
+                        max[a] = max[a].max(match a {
+                            0 => n.x + 1,
+                            1 => n.y + 1,
+                            _ => n.z + 1,
+                        });
                     }
                     queue.push_back(n);
                 }
@@ -155,7 +179,14 @@ impl CaveRegion {
                             corner(1.0, 1.0),
                             corner(-1.0, 1.0),
                         ]);
-                        idx.extend_from_slice(&[start, start + 1, start + 2, start, start + 2, start + 3]);
+                        idx.extend_from_slice(&[
+                            start,
+                            start + 1,
+                            start + 2,
+                            start,
+                            start + 2,
+                            start + 3,
+                        ]);
                     }
                 }
             }
@@ -209,7 +240,9 @@ impl ConformingWater {
         for x in center.x - 1..=center.x + 1 {
             for z in center.z - 1..=center.z + 1 {
                 let r = RegionCoord { x, z };
-                let Some(down) = graph.downstream(r) else { continue };
+                let Some(down) = graph.downstream(r) else {
+                    continue;
+                };
                 if graph.discharge(down) < pc3d_world::hydro::RIVER_THRESHOLD {
                     continue;
                 }
@@ -221,15 +254,17 @@ impl ConformingWater {
                 let mx = ((r.x as f32 + 0.5) + (down.x as f32 + 0.5)) / 2.0 * REGION_M;
                 let mz = ((r.z as f32 + 0.5) + (down.z as f32 + 0.5)) / 2.0 * REGION_M;
                 // Water line: min terrain height along the strip minus depth.
-                let dir = [
-                    (down.x - r.x) as f32,
-                    (down.z - r.z) as f32,
-                ];
+                let dir = [(down.x - r.x) as f32, (down.z - r.z) as f32];
                 let l = dir[0].hypot(dir[1]);
                 let dir = [dir[0] / l, dir[1] / l];
                 let perp = [-dir[1], dir[0]];
                 let half_w = crate::water::width_of(rec.discharge) / 2.0;
-                let len = REGION_M * if l > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+                let len = REGION_M
+                    * if l > 1.4 {
+                        std::f32::consts::SQRT_2
+                    } else {
+                        1.0
+                    };
                 let ox = (r.x as f32 + 0.5) * REGION_M;
                 let oz = (r.z as f32 + 0.5) * REGION_M;
                 let mut heights = Vec::new();
@@ -239,10 +274,7 @@ impl ConformingWater {
                     let t = s as f32 / samples as f32;
                     let cx = ox + dir[0] * len * t;
                     let cz = oz + dir[1] * len * t;
-                    let key = (
-                        (cx / PATCH_M).floor() as i32,
-                        (cz / PATCH_M).floor() as i32,
-                    );
+                    let key = ((cx / PATCH_M).floor() as i32, (cz / PATCH_M).floor() as i32);
                     // Same fallback as refresh_after_edit (the GENERATOR,
                     // not zero): a patch window is a LOCAL edit carrier,
                     // so un-windowed samples must be identical before and
@@ -296,7 +328,12 @@ impl ConformingWater {
             let dir = [dir[0] / l, dir[1] / l];
             let perp = [-dir[1], dir[0]];
             let half_w = crate::water::width_of(s.discharge) / 2.0;
-            let len = REGION_M * if l > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+            let len = REGION_M
+                * if l > 1.4 {
+                    std::f32::consts::SQRT_2
+                } else {
+                    1.0
+                };
             let ox = (s.region.0 as f32 + 0.5) * REGION_M;
             let oz = (s.region.1 as f32 + 0.5) * REGION_M;
             let speed = crate::water::speed_of(0); // flow-record slope carried by direction+speed class at render time
@@ -353,7 +390,12 @@ impl ConformingWater {
                 _ => [1.0, -1.0],
             };
             let l = dir[0].hypot(dir[1]);
-            let len = REGION_M * if l > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+            let len = REGION_M
+                * if l > 1.4 {
+                    std::f32::consts::SQRT_2
+                } else {
+                    1.0
+                };
             // Near = the edited patch is within one patch of ANY patch the
             // 256 m strip crosses (sampled every half-patch — the strip
             // spans 16 patches, so endpoint sampling missed mid-strip
@@ -387,7 +429,12 @@ impl ConformingWater {
             };
             let l = dir[0].hypot(dir[1]);
             let dir = [dir[0] / l, dir[1] / l];
-            let len = REGION_M * if l > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+            let len = REGION_M
+                * if l > 1.4 {
+                    std::f32::consts::SQRT_2
+                } else {
+                    1.0
+                };
             let mut wl = f32::MAX;
             let n = s.heights.len().max(2);
             for si in 0..s.heights.len() {
@@ -399,8 +446,7 @@ impl ConformingWater {
                     .try_patch(key)
                     .map(|p| p.height_at(gen, cx, cz))
                     .unwrap_or_else(|| {
-                        gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64)
-                            as f32
+                        gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64) as f32
                             / 1000.0
                     });
                 s.heights[si] = new_h;
@@ -484,12 +530,7 @@ mod tests_support {
 
     fn carved_seed(gen: &WorldGen, center: PatchCoord) -> Option<CellCoord> {
         // Scan the center patch's columns for a carved pocket.
-        crate::terrain::find_cave_pocket_near(
-            gen,
-            center,
-            1,
-        )
-        .map(|(air, _, _)| air)
+        crate::terrain::find_cave_pocket_near(gen, center, 1).map(|(air, _, _)| air)
     }
 
     #[test]
@@ -500,7 +541,10 @@ mod tests_support {
         assert!(cave.contains(seed));
         // Bounded (sparse stays sparse).
         for a in 0..3 {
-            assert!(cave.max[a] - cave.min[a] <= 33, "cave bounds bounded (cap 16 + 1)");
+            assert!(
+                cave.max[a] - cave.min[a] <= 33,
+                "cave bounds bounded (cap 16 + 1)"
+            );
         }
         // The mesh is real geometry and its faces sit between solid/air.
         let (verts, idx) = cave.mesh(&gen);
@@ -512,13 +556,13 @@ mod tests_support {
         // overhang their cell by half a meter, so a corner-based floor()
         // lands in the neighbor — a test bug the run exposed).
         for quad in verts.chunks(4) {
-            let c = quad
-                .iter()
-                .fold([0.0f32; 3], |acc, v| [
+            let c = quad.iter().fold([0.0f32; 3], |acc, v| {
+                [
                     acc[0] + v.pos[0] / 4.0,
                     acc[1] + v.pos[1] / 4.0,
                     acc[2] + v.pos[2] / 4.0,
-                ]);
+                ]
+            });
             let n0 = quad[0].normal;
             let cell = CellCoord {
                 x: (c[0] - n0[0] * 0.5).floor() as i32,
@@ -537,12 +581,21 @@ mod tests_support {
         }
         // Collision agrees with the authority inside the region.
         for dy in -1..=1 {
-            let c = CellCoord { x: seed.x, y: seed.y + dy, z: seed.z };
+            let c = CellCoord {
+                x: seed.x,
+                y: seed.y + dy,
+                z: seed.z,
+            };
             if cave.contains(c) {
                 assert_eq!(
                     cave.solid_at(&gen, c),
-                    final_solid(&gen, c.x as i64 * 1000, c.y as i64 * 1000, c.z as i64 * 1000)
-                        .solid
+                    final_solid(
+                        &gen,
+                        c.x as i64 * 1000,
+                        c.y as i64 * 1000,
+                        c.z as i64 * 1000
+                    )
+                    .solid
                 );
             }
         }
@@ -582,7 +635,10 @@ mod tests_support {
         let mut edited = std::collections::BTreeSet::new();
         edited.insert(edit_patch);
         let touched = water.refresh_after_edit(&gen, &r, &edited);
-        assert!(touched >= 1 && touched <= total, "local refresh: {touched}/{total}");
+        assert!(
+            touched >= 1 && touched <= total,
+            "local refresh: {touched}/{total}"
+        );
     }
 
     #[test]
@@ -599,9 +655,7 @@ mod tests_support {
                     y: 0,
                     z: (oz + dz as f32) as i32,
                 };
-                if let FoundationCheck::Valid { .. } =
-                    check_foundation(&gen, &r, origin, (2, 2))
-                {
+                if let FoundationCheck::Valid { .. } = check_foundation(&gen, &r, origin, (2, 2)) {
                     found_valid = true;
                     break;
                 }
@@ -610,7 +664,10 @@ mod tests_support {
                 break;
             }
         }
-        assert!(found_valid, "some level walkable ground accepts a foundation");
+        assert!(
+            found_valid,
+            "some level walkable ground accepts a foundation"
+        );
         // A carved cliff rejects: dig a deep pit and check its rim.
         let mut r2 = r;
         let cell = CellCoord {
@@ -623,7 +680,11 @@ mod tests_support {
         let verdict = check_foundation(
             &gen,
             &r2,
-            CellCoord { x: cell.x, y: 0, z: cell.z },
+            CellCoord {
+                x: cell.x,
+                y: 0,
+                z: cell.z,
+            },
             (1, 1),
         );
         assert!(
@@ -672,7 +733,8 @@ mod player_surface_tests {
         assert!(
             (after[1] - h).abs() < 1.6,
             "feet on the surface: {} vs {}",
-            after[1], h
+            after[1],
+            h
         );
         // An edit is felt: raise under the player, walk in place, snap up.
         let cell = CellCoord {
@@ -687,22 +749,23 @@ mod player_surface_tests {
         assert!(
             body.pos[1] > after[1] + 2.0,
             "the raise is underfoot: {} -> {}",
-            after[1], body.pos[1]
+            after[1],
+            body.pos[1]
         );
     }
 }
 
 #[cfg(test)]
 mod gpu_tests {
-    use super::{check_foundation, CaveRegion, ConformingWater, FoundationCheck};
-    use pc3d_world::terrain::final_solid;
     use super::tests_support::region;
+    use super::{check_foundation, CaveRegion, ConformingWater, FoundationCheck};
     use crate::camera::CameraPose;
     use crate::scene::{dir_from_ndc, sample_ndc, sky_color_linear, to_srgb4, Probe};
     use crate::surface::{SurfaceEdit, SurfaceRegion, PATCH_M};
     use pc3d_world::coords::CellCoord;
     use pc3d_world::flow::FlowTable;
     use pc3d_world::hydro::RiverGraph;
+    use pc3d_world::terrain::final_solid;
 
     /// GPU proof: a sparse CAVE renders (interior visible from the pocket,
     /// no daylight leak past the cave mouth), CONFORMING WATER renders
@@ -751,7 +814,10 @@ mod gpu_tests {
         let mut best: Option<(pc3d_world::coords::RegionCoord, i32)> = None;
         for dx in -8..=8i32 {
             for dz in -8..=8i32 {
-                let reg = pc3d_world::coords::RegionCoord { x: cr.x + dx, z: cr.z + dz };
+                let reg = pc3d_world::coords::RegionCoord {
+                    x: cr.x + dx,
+                    z: cr.z + dz,
+                };
                 if let Some(d) = graph.downstream(reg) {
                     if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
                         let dist = dx.abs() + dz.abs();
@@ -796,7 +862,11 @@ mod gpu_tests {
         // Camera inside the pocket aimed at the NEAREST WALL FACE (scan
         // the six directions; aiming down a corridor exits the mouth and
         // the control-diff sees only sky — the first proof run caught it).
-        let eye = [seed.x as f32 + 0.5, seed.y as f32 + 0.9, seed.z as f32 + 0.5];
+        let eye = [
+            seed.x as f32 + 0.5,
+            seed.y as f32 + 0.9,
+            seed.z as f32 + 0.5,
+        ];
         let dirs = [
             [1.0f32, 0.0, 0.0],
             [-1.0, 0.0, 0.0],
@@ -828,7 +898,10 @@ mod gpu_tests {
                 }
             }
         }
-        assert!(wall_dist < f32::MAX, "an enclosing wall exists near the seed");
+        assert!(
+            wall_dist < f32::MAX,
+            "an enclosing wall exists near the seed"
+        );
         let aim = [
             eye[0] + look[0] * (wall_dist - 0.6),
             eye[1] - 0.15,
@@ -849,10 +922,8 @@ mod gpu_tests {
         ctrl.load_surface(&sverts, &sidx);
         ctrl.set_pose(pose);
 
-        let (report, inside) = renderer.capture_png(
-            &std::env::temp_dir().join("pc3d_cave_inside.png"),
-            &[],
-        );
+        let (report, inside) =
+            renderer.capture_png(&std::env::temp_dir().join("pc3d_cave_inside.png"), &[]);
         assert!(report.distinct_colors >= 2, "a real interior frame");
         let (_, inside_ctrl) =
             ctrl.capture_png(&std::env::temp_dir().join("pc3d_cave_ctrl.png"), &[]);
@@ -869,7 +940,11 @@ mod gpu_tests {
         let rz = (center.z as f32 + 0.5) * 256.0;
         let rground = river_region.height_at(rx, rz + 40.0);
         let eye2 = [rx, rground + 14.0, rz + 40.0];
-        let d2 = [rx - eye2[0], river_region.height_at(rx, rz) - eye2[1], rz - eye2[2]];
+        let d2 = [
+            rx - eye2[0],
+            river_region.height_at(rx, rz) - eye2[1],
+            rz - eye2[2],
+        ];
         let pose2 = CameraPose::new(
             eye2,
             (-d2[0]).atan2(-d2[2]),
@@ -908,8 +983,18 @@ mod gpu_tests {
         let mut blue_pixels = 0usize;
         for x in (0..384usize).step_by(4) {
             for y in (0..288usize).step_by(4) {
-                let a = sample_ndc(&with_water, 384, 288, (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0));
-                let b = sample_ndc(&no_water, 384, 288, (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0));
+                let a = sample_ndc(
+                    &with_water,
+                    384,
+                    288,
+                    (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0),
+                );
+                let b = sample_ndc(
+                    &no_water,
+                    384,
+                    288,
+                    (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0),
+                );
                 let changed = (0..3).map(|i| (a[i] - b[i]).abs()).sum::<f32>() > 0.08;
                 if changed && a[2] > a[0] && a[2] > a[1] {
                     blue_pixels += 1;
@@ -941,7 +1026,12 @@ mod gpu_tests {
             _ => [1.0, -1.0],
         };
         let sl = sdir[0].hypot(sdir[1]);
-        let slen = 256.0 * if sl > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+        let slen = 256.0
+            * if sl > 1.4 {
+                std::f32::consts::SQRT_2
+            } else {
+                1.0
+            };
         let ex = ox + sdir[0] / sl * slen / 16.0;
         let ez = oz + sdir[1] / sl * slen / 16.0;
         let edit_patch = pc3d_world::coords::PatchCoord {
@@ -958,7 +1048,10 @@ mod gpu_tests {
             y: 0,
             z: ez.floor() as i32,
         };
-        river_region.edit(SurfaceEdit::Raise { cell: edit_cell, meters: 6.0 });
+        river_region.edit(SurfaceEdit::Raise {
+            cell: edit_cell,
+            meters: 6.0,
+        });
         let mut edited = std::collections::BTreeSet::new();
         edited.insert(edit_patch);
         // A section "changed" if ANY strip height moved or the water line
@@ -977,8 +1070,7 @@ mod gpu_tests {
             .zip(before.iter())
             .filter(|(s, (h, b))| {
                 (s.water_line - *b).abs() > 1e-6
-                    || s
-                        .heights
+                    || s.heights
                         .iter()
                         .zip(h.iter())
                         .any(|(a, c)| (a - c).abs() > 1e-6)
@@ -989,7 +1081,10 @@ mod gpu_tests {
             "exactly the refreshed sections changed (heights or line)"
         );
         assert!(touched >= 1, "the edit must reach at least one section");
-        println!("water local remesh: {touched}/{} sections changed", water.sections.len());
+        println!(
+            "water local remesh: {touched}/{} sections changed",
+            water.sections.len()
+        );
 
         // --- Foundation: scan a few pads INSIDE the patch window around
         // the strip start — real terrain near the river must offer at

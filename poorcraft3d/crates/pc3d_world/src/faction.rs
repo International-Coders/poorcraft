@@ -139,14 +139,24 @@ impl FactionRelations {
         let id = self.next_quest_id;
         self.quests.insert(
             id,
-            Quest { id, faction, target_cell, reward_reputation, accepted: false, completed: false },
+            Quest {
+                id,
+                faction,
+                target_cell,
+                reward_reputation,
+                accepted: false,
+                completed: false,
+            },
         );
         id
     }
 
     /// Accept a quest.
     pub fn accept_quest(&mut self, quest_id: u64) -> bool {
-        self.quests.get_mut(&quest_id).map(|q| q.accepted = true).is_some()
+        self.quests
+            .get_mut(&quest_id)
+            .map(|q| q.accepted = true)
+            .is_some()
     }
 
     /// Complete a quest (must be accepted first).
@@ -211,7 +221,10 @@ mod tests {
         let mut f = FactionRelations::new();
         // Default trust 50 = Neutral, which CAN trade. Start hostile.
         f.set_trust(A, B, 5);
-        assert!(!TrustLevel::from_score(f.trust(A, B)).can_trade(), "hostile cannot trade");
+        assert!(
+            !TrustLevel::from_score(f.trust(A, B)).can_trade(),
+            "hostile cannot trade"
+        );
 
         // Build trust to Friendly via trade agreements.
         for _ in 0..2 {

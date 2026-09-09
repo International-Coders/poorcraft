@@ -122,7 +122,9 @@ pub fn audit() -> Vec<String> {
         // contract is: the first `pc3d_render::<name>` segment must resolve.
         if let Some(module) = p.module.strip_prefix("pc3d_render::") {
             let seg = module.split([' ', '(']).next().unwrap_or(module);
-            let file = root.join("poorcraft3d/crates/pc3d_render/src").join(format!("{seg}.rs"));
+            let file = root
+                .join("poorcraft3d/crates/pc3d_render/src")
+                .join(format!("{seg}.rs"));
             if !file.exists() {
                 errors.push(format!(
                     "path {}: module file {} does not exist",
@@ -142,11 +144,14 @@ pub fn audit() -> Vec<String> {
     let makefile = std::fs::read_to_string(root.join("Makefile")).expect("Makefile");
     for g in &inv.screenshot_gates.gates {
         if !makefile.contains(&g.name) {
-            errors.push(format!("gate {}: not present in the Makefile battery", g.name));
+            errors.push(format!(
+                "gate {}: not present in the Makefile battery",
+                g.name
+            ));
         }
     }
-    let shell =
-        std::fs::read_to_string(root.join("poorcraft3d/apps/poorcraft3d/src/main.rs")).expect("main.rs");
+    let shell = std::fs::read_to_string(root.join("poorcraft3d/apps/poorcraft3d/src/main.rs"))
+        .expect("main.rs");
     for g in &inv.screenshot_gates.gates {
         if !shell.contains(&g.command_flag) {
             errors.push(format!(
@@ -194,11 +199,7 @@ pub fn audit() -> Vec<String> {
         }
     }
     walk(&compiled_root, &root.join("poorcraft3d"), &mut on_disk);
-    let declared: BTreeSet<String> = inv
-        .asset_files_on_disk
-        .iter()
-        .cloned()
-        .collect();
+    let declared: BTreeSet<String> = inv.asset_files_on_disk.iter().cloned().collect();
     if declared != on_disk {
         errors.push(format!(
             "asset_files_on_disk mismatch: inventory {:?} vs disk {:?}",
@@ -209,8 +210,7 @@ pub fn audit() -> Vec<String> {
     // summary (status planned => no compiled file).
     // Union every declared pack (the primary + any extras).
     let mut pack_ids: BTreeSet<String> = BTreeSet::new();
-    let mut pack_rows: std::collections::BTreeMap<String, (String, String)> =
-        Default::default();
+    let mut pack_rows: std::collections::BTreeMap<String, (String, String)> = Default::default();
     for pack_rel in std::iter::once(&inv.asset_batch_status.pack)
         .chain(inv.asset_batch_status.extra_packs.iter())
     {

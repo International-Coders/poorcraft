@@ -91,7 +91,11 @@ impl CastleLaw {
 
     /// Raise an alarm at a position. Only one active alarm at a time.
     pub fn raise_alarm(&mut self, at: CellCoord, tick: u64) {
-        self.alarm = Some(Alarm { raised_at: at, tick, active: true });
+        self.alarm = Some(Alarm {
+            raised_at: at,
+            tick,
+            active: true,
+        });
     }
 
     /// Clear the alarm (guards arrived).
@@ -115,8 +119,7 @@ impl CastleLaw {
     /// Faction access: is a character with `standing` allowed to enter?
     /// The gate must be open AND standing must meet all law thresholds.
     pub fn access_allowed(&self, standing: i32) -> bool {
-        self.gate.open
-            && self.laws.iter().all(|l| standing >= l.standing_threshold)
+        self.gate.open && self.laws.iter().all(|l| standing >= l.standing_threshold)
     }
 
     /// Which law (if any) does this standing violate?
@@ -136,9 +139,21 @@ mod tests {
 
     fn laws() -> Vec<Law> {
         vec![
-            Law { kind: LawKind::Theft, standing_threshold: -20, punishment: Punishment::Fine },
-            Law { kind: LawKind::Assault, standing_threshold: 0, punishment: Punishment::Attack },
-            Law { kind: LawKind::Trespass, standing_threshold: -50, punishment: Punishment::Exile },
+            Law {
+                kind: LawKind::Theft,
+                standing_threshold: -20,
+                punishment: Punishment::Fine,
+            },
+            Law {
+                kind: LawKind::Assault,
+                standing_threshold: 0,
+                punishment: Punishment::Attack,
+            },
+            Law {
+                kind: LawKind::Trespass,
+                standing_threshold: -50,
+                punishment: Punishment::Exile,
+            },
         ]
     }
 
@@ -172,16 +187,24 @@ mod tests {
     fn p3d603_closed_gate_denies_all() {
         let mut c = castle();
         c.toggle_gate();
-        assert!(!c.access_allowed(100), "even max standing denied by closed gate");
+        assert!(
+            !c.access_allowed(100),
+            "even max standing denied by closed gate"
+        );
     }
 
     /// The violated law is identified correctly.
     #[test]
     fn p3d603_violated_law_identified() {
         let c = castle();
-        assert!(c.violated_law(50).is_none(), "high standing violates nothing");
+        assert!(
+            c.violated_law(50).is_none(),
+            "high standing violates nothing"
+        );
         // Standing -25 violates Theft (threshold -20) first in law order.
-        let v = c.violated_law(-25).expect("standing -25 violates something");
+        let v = c
+            .violated_law(-25)
+            .expect("standing -25 violates something");
         assert_eq!(v.kind, LawKind::Theft, "theft threshold -20 hit first");
         assert_eq!(v.punishment, Punishment::Fine);
     }
@@ -192,9 +215,22 @@ mod tests {
         let mut c = castle();
         let alarm_pos = CellCoord { x: 10, y: 0, z: 10 };
         c.raise_alarm(alarm_pos, 100);
-        assert!(c.alarm_near(CellCoord { x: 15, y: 0, z: 15 }), "guard nearby sees alarm");
-        assert!(!c.alarm_near(CellCoord { x: 100, y: 0, z: 100 }), "far guard doesn't see alarm");
+        assert!(
+            c.alarm_near(CellCoord { x: 15, y: 0, z: 15 }),
+            "guard nearby sees alarm"
+        );
+        assert!(
+            !c.alarm_near(CellCoord {
+                x: 100,
+                y: 0,
+                z: 100
+            }),
+            "far guard doesn't see alarm"
+        );
         c.clear_alarm();
-        assert!(!c.alarm_near(CellCoord { x: 10, y: 0, z: 10 }), "cleared alarm invisible");
+        assert!(
+            !c.alarm_near(CellCoord { x: 10, y: 0, z: 10 }),
+            "cleared alarm invisible"
+        );
     }
 }

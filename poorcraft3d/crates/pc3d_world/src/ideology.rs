@@ -70,7 +70,12 @@ pub struct PlayerFaction {
 
 impl PlayerFaction {
     pub fn new(faction: crate::faction::FactionId, name: String, ideology: Ideology) -> Self {
-        PlayerFaction { faction, name, ideology, ideology_drift: 0 }
+        PlayerFaction {
+            faction,
+            name,
+            ideology,
+            ideology_drift: 0,
+        }
     }
 
     /// Ideology can evolve through play (D-031).
@@ -111,12 +116,23 @@ mod tests {
         let mut pf = PlayerFaction::new(fid, "Iron Pact".into(), Ideology::Commerce);
         assert_eq!(pf.ideology, Ideology::Commerce);
         assert_eq!(pf.ideology_drift, 0);
-        assert!(pf.diplomacy_bonus_with(Ideology::Commerce) > 0, "same ideology bonus active");
+        assert!(
+            pf.diplomacy_bonus_with(Ideology::Commerce) > 0,
+            "same ideology bonus active"
+        );
         // Shift to Faith: drift increases, bonus shifts.
         pf.shift_ideology(Ideology::Faith);
         assert_eq!(pf.ideology, Ideology::Faith);
         assert!(pf.ideology_drift > 0);
-        assert_eq!(pf.diplomacy_bonus_with(Ideology::Faith), 15, "new ideology bonus active");
-        assert_eq!(pf.diplomacy_bonus_with(Ideology::Commerce), 0, "old ideology bonus gone");
+        assert_eq!(
+            pf.diplomacy_bonus_with(Ideology::Faith),
+            15,
+            "new ideology bonus active"
+        );
+        assert_eq!(
+            pf.diplomacy_bonus_with(Ideology::Commerce),
+            0,
+            "old ideology bonus gone"
+        );
     }
 }

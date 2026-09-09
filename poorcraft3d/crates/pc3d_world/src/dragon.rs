@@ -150,7 +150,8 @@ impl DragonWorld {
                 if !dragon.in_territory(s.center) {
                     continue;
                 }
-                let d = (dragon.lair.x - s.center.x).abs()
+                let d = (dragon.lair.x - s.center.x)
+                    .abs()
                     .max((dragon.lair.z - s.center.z).abs());
                 let key = (d, s.id);
                 if target.map(|t| key < t).unwrap_or(true) {
@@ -223,7 +224,10 @@ impl DragonWorld {
         if tribute_per_month <= 0 {
             return Err("tribute must be real");
         }
-        d.pact = Some(Pact { tribute_per_month, sealed_day: day });
+        d.pact = Some(Pact {
+            tribute_per_month,
+            sealed_day: day,
+        });
         d.awake = false;
         *self.reputation.stance.entry(faction).or_insert(0) -= SUSPICION_FOR_PACT;
         Ok(())
@@ -231,7 +235,9 @@ impl DragonWorld {
 
     /// Break the pact: the dragon wakes enraged and raiding resumes.
     pub fn breach_pact(&mut self, dragon_id: u64) -> bool {
-        let Some(d) = self.dragons.get_mut(&dragon_id) else { return false };
+        let Some(d) = self.dragons.get_mut(&dragon_id) else {
+            return false;
+        };
         if d.pact.take().is_none() {
             return false;
         }
@@ -261,13 +267,15 @@ mod tests {
             name: "Test",
             center: RegionCoord { x, z },
             state: crate::settlement::SettlementState::Aggregate,
-            aggregate: Aggregate { population: 100, food: 200, defense: 50, prosperity: 60 },
+            aggregate: Aggregate {
+                population: 100,
+                food: 200,
+                defense: 50,
+                prosperity: 60,
+            },
         };
         Settlements {
-            list: vec![
-                mk(1, lair.x + 5, lair.z),
-                mk(2, lair.x + 40, lair.z),
-            ],
+            list: vec![mk(1, lair.x + 5, lair.z), mk(2, lair.x + 40, lair.z)],
         }
     }
 
@@ -296,7 +304,10 @@ mod tests {
         assert_eq!(hit, Some(1));
         let near = &s.list[0].aggregate;
         assert!(near.prosperity < 60 && near.population < 100 && near.defense < 50);
-        assert_eq!(s.list[1].aggregate, before_far, "outside territory: untouched");
+        assert_eq!(
+            s.list[1].aggregate, before_far,
+            "outside territory: untouched"
+        );
         assert!(w.scorched.contains(&(lair.x + 5, lair.z)));
         assert!(!w.scorched.contains(&(lair.x + 40, lair.z)));
         // Cadence: next raid a full cooldown later.
@@ -321,7 +332,12 @@ mod tests {
     /// toward ruin without panicking.
     #[test]
     fn p3d704_raid_damage_clamps() {
-        let mut a = Aggregate { population: 3, food: 10, defense: 2, prosperity: 5 };
+        let mut a = Aggregate {
+            population: 3,
+            food: 10,
+            defense: 2,
+            prosperity: 5,
+        };
         for _ in 0..10 {
             raid_settlement(&mut a, 500);
         }
@@ -362,7 +378,10 @@ mod tests {
         // Re-running the same assault on a fresh world: same verdict.
         let mut w2 = DragonWorld::new();
         let id2 = w2.spawn(RegionCoord { x: 0, z: 0 });
-        assert_eq!(w2.assault(id2, strength - 10, 7, seed), AssaultOutcome::Slain);
+        assert_eq!(
+            w2.assault(id2, strength - 10, 7, seed),
+            AssaultOutcome::Slain
+        );
 
         // A hopeless party is repelled with casualties; dragon grows.
         // (A lone swordsman CAN slay a dragon on a lucky roll — hunt a
@@ -407,7 +426,11 @@ mod tests {
         // Wound it to ≤30% hp; terms are accepted.
         w.dragons.get_mut(&id).unwrap().hp = DRAGON_HP * 3 / 10;
         assert!(w.offer_pact(id, 25, 3, 100).is_ok());
-        assert_eq!(w.reputation.of(3), -SUSPICION_FOR_PACT, "suspicion for pacts");
+        assert_eq!(
+            w.reputation.of(3),
+            -SUSPICION_FOR_PACT,
+            "suspicion for pacts"
+        );
         // Warded: no raids ever, no growth.
         let snap = (w.dragons[&id].power, s.list[0].aggregate);
         for day in 101..400u64 {

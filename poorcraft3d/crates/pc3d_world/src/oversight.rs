@@ -46,8 +46,8 @@ impl OversightPanel {
         let food_score = if food_sufficient { 40 } else { 0 };
         let defense_score = garrison.readiness() as i64 * 30 / 100;
         let prosperity_score = agg.prosperity * 30 / 100;
-        let health = (food_score + defense_score as i64 + prosperity_score as i64)
-            .clamp(0, 100) as u8;
+        let health =
+            (food_score + defense_score as i64 + prosperity_score as i64).clamp(0, 100) as u8;
 
         OversightSummary {
             population: agg.population,
@@ -74,7 +74,12 @@ pub struct Project {
 
 impl Project {
     pub fn new(name: &'static str, work_required: u64) -> Self {
-        Project { name, work_required, work_done: 0, completed: false }
+        Project {
+            name,
+            work_required,
+            work_done: 0,
+            completed: false,
+        }
     }
 
     /// Advance work; returns total done. Completes at >= work_required.
@@ -116,11 +121,21 @@ mod tests {
     use crate::gen::WorldGen;
 
     fn setup() -> (Aggregate, Garrison, EconomicState) {
-        let agg = Aggregate { population: 20, food: 100, defense: 20, prosperity: 50 };
+        let agg = Aggregate {
+            population: 20,
+            food: 100,
+            defense: 20,
+            prosperity: 50,
+        };
         let mut garrison = Garrison::new(10, 500);
         garrison.recruit(0, 5);
         garrison.supply = 200;
-        let econ = EconomicState { goods: 50, food: 200, prosperity: 50, population: 20 };
+        let econ = EconomicState {
+            goods: 50,
+            food: 200,
+            prosperity: 50,
+            population: 20,
+        };
         (agg, garrison, econ)
     }
 
@@ -143,7 +158,12 @@ mod tests {
     fn p3d608_zero_state_handled() {
         let agg = Aggregate::default();
         let garrison = Garrison::new(0, 0);
-        let econ = EconomicState { goods: 0, food: 0, prosperity: 0, population: 0 };
+        let econ = EconomicState {
+            goods: 0,
+            food: 0,
+            prosperity: 0,
+            population: 0,
+        };
         let summary = OversightPanel::query(&agg, &garrison, &econ);
         assert_eq!(summary.population, 0);
         // Health is 40 because food_sufficient is vacuously true for

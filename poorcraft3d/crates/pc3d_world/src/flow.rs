@@ -66,15 +66,13 @@ impl FlowTable {
     /// previous record KEEPS the previous revision; a changed region's
     /// revision increments (or starts at 1 when there was none). The
     /// table revision increments by one per rebuild.
-    pub fn from_graph_with_revisions(
-        previous: Option<&FlowTable>,
-        graph: &RiverGraph,
-    ) -> Self {
+    pub fn from_graph_with_revisions(previous: Option<&FlowTable>, graph: &RiverGraph) -> Self {
         let mut table = Self::from_graph(graph);
         table.revision = previous.map(|p| p.revision + 1).unwrap_or(1);
         for rec in table.records.values_mut() {
             rec.revision = table.revision;
-            if let Some(prev) = previous.and_then(|p| p.records.get(&(rec.region_x, rec.region_z))) {
+            if let Some(prev) = previous.and_then(|p| p.records.get(&(rec.region_x, rec.region_z)))
+            {
                 let same = prev.direction == rec.direction
                     && prev.slope_per_mille == rec.slope_per_mille
                     && prev.discharge == rec.discharge
@@ -100,8 +98,7 @@ impl FlowTable {
                         let here = graph.elevation[&(r.x, r.z)];
                         let there = graph.elevation[&(d.x, d.z)];
                         let drop_mm = (here - there).max(0) as i64 * 1000;
-                        let dist_mm = 256_000i64
-                            * if dx_dz_diagonal(r, d) { 2 } else { 1 };
+                        let dist_mm = 256_000i64 * if dx_dz_diagonal(r, d) { 2 } else { 1 };
                         (
                             direction_code(r, d).unwrap_or(DIR_SINK),
                             (drop_mm * 1000 / dist_mm.max(1)) as i32,
@@ -125,7 +122,10 @@ impl FlowTable {
                 );
             }
         }
-        FlowTable { revision: 1, records }
+        FlowTable {
+            revision: 1,
+            records,
+        }
     }
 
     pub fn get(&self, r: RegionCoord) -> Option<&FlowRecord> {
@@ -174,7 +174,10 @@ impl FlowTable {
             (0, -1),
             (1, -1),
         ] {
-            let n = RegionCoord { x: r.x + dx, z: r.z + dz };
+            let n = RegionCoord {
+                x: r.x + dx,
+                z: r.z + dz,
+            };
             if let Some(nrec) = self.get(n) {
                 if nrec.direction != DIR_SINK {
                     if let Some(target) = compass_target(n, nrec.direction) {
@@ -221,7 +224,10 @@ fn compass_target(r: RegionCoord, dir: u8) -> Option<RegionCoord> {
         7 => (1, -1),
         _ => return None,
     };
-    Some(RegionCoord { x: r.x + dx, z: r.z + dz })
+    Some(RegionCoord {
+        x: r.x + dx,
+        z: r.z + dz,
+    })
 }
 
 /// World midpoint (mm) of the border between `r` and its neighbor in
@@ -323,10 +329,7 @@ mod tests {
         assert_eq!(before, 1);
         t.bump_revision();
         assert_eq!(t.revision(), 2);
-        assert!(t
-            .records
-            .values()
-            .all(|r| r.revision == 2));
+        assert!(t.records.values().all(|r| r.revision == 2));
     }
 
     /// P3D-303: dirty-region revisions — a reroute bumps ONLY the regions
@@ -351,7 +354,10 @@ mod tests {
                 };
                 let d_elev = base.elevation[d];
                 for (dx, dz) in [(1, 0), (0, 1), (-1, 0), (0, -1)] {
-                    let n = RegionCoord { x: x + dx, z: z + dz };
+                    let n = RegionCoord {
+                        x: x + dx,
+                        z: z + dz,
+                    };
                     if (n.x, n.z) == (d.0, d.1) {
                         continue;
                     }

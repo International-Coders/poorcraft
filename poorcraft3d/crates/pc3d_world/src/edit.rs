@@ -55,9 +55,8 @@ impl Brush {
         let r = self.radius as i32;
         let (cx, cy, cz) = (self.center.x, self.center.y, self.center.z);
         (cx - r..=cx + r).flat_map(move |x| {
-            (cy - r..=cy + r).flat_map(move |y| {
-                (cz - r..=cz + r).map(move |z| CellCoord { x, y, z })
-            })
+            (cy - r..=cy + r)
+                .flat_map(move |y| (cz - r..=cz + r).map(move |z| CellCoord { x, y, z }))
         })
     }
 }
@@ -218,11 +217,17 @@ impl Snapshot {
     /// snapshot's cells ARE the replayed cells.
     pub fn from_replay(gen: &WorldGen, coord: PatchCoord, ops: &[EditOp]) -> Snapshot {
         let cells = replay(gen, coord, ops);
-        Snapshot { coord, cells: cells.cells }
+        Snapshot {
+            coord,
+            cells: cells.cells,
+        }
     }
 
     pub fn apply(&self) -> PatchCells {
-        PatchCells { coord: self.coord, cells: self.cells.clone() }
+        PatchCells {
+            coord: self.coord,
+            cells: self.cells.clone(),
+        }
     }
 
     /// Fixed-width material bytes (one byte per cell) for persistence.
@@ -348,7 +353,10 @@ mod tests {
             id: 1,
             tick: 0,
             kind: EditKind::Fill,
-            brush: Brush { center: target, radius: 2 },
+            brush: Brush {
+                center: target,
+                radius: 2,
+            },
             material: CellMaterial::Rock,
         };
         let before = patch.cells.clone();
@@ -401,12 +409,24 @@ mod tests {
             id,
             tick,
             kind: EditKind::Fill,
-            brush: Brush { center: c, radius: 1 },
+            brush: Brush {
+                center: c,
+                radius: 1,
+            },
             material: m,
         };
         let ops_a = vec![
             mk(1, 5, CellCoord { x: 4, y: 15, z: 4 }, CellMaterial::Rock),
-            mk(2, 5, CellCoord { x: 10, y: 15, z: 10 }, CellMaterial::Sand),
+            mk(
+                2,
+                5,
+                CellCoord {
+                    x: 10,
+                    y: 15,
+                    z: 10,
+                },
+                CellMaterial::Sand,
+            ),
             mk(3, 2, CellCoord { x: 6, y: 15, z: 6 }, CellMaterial::Grass),
         ];
         let mut ops_b = ops_a.clone();
@@ -427,8 +447,19 @@ mod tests {
             .map(|i| EditOp {
                 id: i,
                 tick: i,
-                kind: if i % 2 == 0 { EditKind::Fill } else { EditKind::Dig },
-                brush: Brush { center: CellCoord { x: 3 + i as i32, y: 14, z: 6 }, radius: 1 },
+                kind: if i % 2 == 0 {
+                    EditKind::Fill
+                } else {
+                    EditKind::Dig
+                },
+                brush: Brush {
+                    center: CellCoord {
+                        x: 3 + i as i32,
+                        y: 14,
+                        z: 6,
+                    },
+                    radius: 1,
+                },
                 material: CellMaterial::Rock,
             })
             .collect();
@@ -462,7 +493,13 @@ mod tests {
         let built_at = world(8, 7, 8);
         let mut construction = crate::build::Construction::new(coord);
         construction
-            .place(built_at, crate::build::BuildBlock { material: CellMaterial::Rock, owner: 5 })
+            .place(
+                built_at,
+                crate::build::BuildBlock {
+                    material: CellMaterial::Rock,
+                    owner: 5,
+                },
+            )
             .expect("place");
         assert!(construction.at(built_at).is_some());
 
@@ -488,8 +525,7 @@ mod tests {
     }
 
     fn before_surface_cell(gen: &WorldGen, coord: PatchCoord, cell: CellCoord) -> CellMaterial {
-        gen.regenerate_patch(coord)
-            .cells
+        gen.regenerate_patch(coord).cells
             [((cell.x as usize % 16) * 16 + (cell.y as usize % 16)) * 16 + (cell.z as usize % 16)]
     }
 
@@ -500,7 +536,10 @@ mod tests {
             id: 0xDEAD_BEEF,
             tick: 777,
             kind: EditKind::Fill,
-            brush: Brush { center: CellCoord { x: -5, y: 3, z: 99 }, radius: 4 },
+            brush: Brush {
+                center: CellCoord { x: -5, y: 3, z: 99 },
+                radius: 4,
+            },
             material: CellMaterial::Sand,
         };
         let bytes = op.encode();

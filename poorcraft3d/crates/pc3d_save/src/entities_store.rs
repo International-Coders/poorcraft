@@ -14,7 +14,10 @@ pub fn save_entities(
     registry: &EntityRegistry,
     supported: &SupportedVersions,
 ) -> Result<(), LoadError> {
-    let header = FormatHeader { save: supported.save, ..FormatHeader::current() };
+    let header = FormatHeader {
+        save: supported.save,
+        ..FormatHeader::current()
+    };
     let bytes = frame(&header, &registry.encode());
     let path = crate::paths::world_root(save_root, world_name)
         .join(std::path::PathBuf::from("entities/registry.p3d"));
@@ -32,8 +35,10 @@ pub fn load_entities(
         .join(std::path::PathBuf::from("entities/registry.p3d"));
     let bytes = fs::read(path)?;
     let payload = unframe(&bytes, supported)?;
-    EntityRegistry::decode(&payload)
-        .ok_or(LoadError::Framing(FrameError::ChecksumMismatch { expected: 0, actual: 0 }))
+    EntityRegistry::decode(&payload).ok_or(LoadError::Framing(FrameError::ChecksumMismatch {
+        expected: 0,
+        actual: 0,
+    }))
 }
 
 #[cfg(test)]

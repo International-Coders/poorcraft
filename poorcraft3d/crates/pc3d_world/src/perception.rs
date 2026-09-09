@@ -91,11 +91,11 @@ impl Knowledge {
     /// Remember an event: merging raises confidence to the max of
     /// (existing, new); capacity drops the LOWEST-confidence item first.
     pub fn remember(&mut self, event: MoralEvent, confidence: f32) {
-        if let Some(e) = self
-            .evidence
-            .iter_mut()
-            .find(|e| e.event.actor_id == event.actor_id && e.event.kind == event.kind && e.event.at == event.at)
-        {
+        if let Some(e) = self.evidence.iter_mut().find(|e| {
+            e.event.actor_id == event.actor_id
+                && e.event.kind == event.kind
+                && e.event.at == event.at
+        }) {
             e.confidence = e.confidence.max(confidence);
             return;
         }
@@ -183,7 +183,12 @@ mod tests {
     use super::*;
 
     fn event(actor: u64, kind: MoralKind, x: i32, tick: u64) -> MoralEvent {
-        MoralEvent { actor_id: actor, kind, at: CellCoord { x, y: 5, z: 5 }, tick }
+        MoralEvent {
+            actor_id: actor,
+            kind,
+            at: CellCoord { x, y: 5, z: 5 },
+            tick,
+        }
     }
 
     /// Witness radius: inside true, boundary exact, outside false.
@@ -230,7 +235,10 @@ mod tests {
         // the survivors all have confidence >= the 8 dropped ones' (0.1..0.17).
         let mut full = Knowledge::default();
         for i in 0..40u64 {
-            full.remember(event(i, MoralKind::Gift, i as i32, i), 0.1 + i as f32 / 100.0);
+            full.remember(
+                event(i, MoralKind::Gift, i as i32, i),
+                0.1 + i as f32 / 100.0,
+            );
         }
         assert_eq!(full.evidence.len(), KNOWLEDGE_CAPACITY);
         let min_kept = full
@@ -252,7 +260,11 @@ mod tests {
         // One theft witnessed at full confidence: -10 delta.
         karma.apply(9, MoralKind::Theft, 1.0);
         assert_eq!(karma.disposition_toward(1, 9), 10, "20 - 10");
-        assert_eq!(karma.disposition_toward(2, 9), -40, "-30 - 10 clamped >= -100");
+        assert_eq!(
+            karma.disposition_toward(2, 9),
+            -40,
+            "-30 - 10 clamped >= -100"
+        );
         // Gifts push back up.
         karma.apply(9, MoralKind::Gift, 1.0);
         karma.apply(9, MoralKind::Help, 0.5);
@@ -273,7 +285,16 @@ mod tests {
             let mut k = Karma::new(&[(5, 0)]);
             let mut kn = Knowledge::default();
             for t in 0..10u64 {
-                let e = event(3, if t % 2 == 0 { MoralKind::Help } else { MoralKind::Theft }, t as i32, t);
+                let e = event(
+                    3,
+                    if t % 2 == 0 {
+                        MoralKind::Help
+                    } else {
+                        MoralKind::Theft
+                    },
+                    t as i32,
+                    t,
+                );
                 kn.remember(e, 0.9);
                 k.apply(3, e.kind, 0.9);
             }

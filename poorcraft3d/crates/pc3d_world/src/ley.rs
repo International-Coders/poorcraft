@@ -175,8 +175,7 @@ impl LeyCaster {
             .expect("target id came from the list");
         match ritual {
             Ritual::Bless => {
-                s.aggregate.prosperity =
-                    (s.aggregate.prosperity + BLESS_PROSPERITY).min(100);
+                s.aggregate.prosperity = (s.aggregate.prosperity + BLESS_PROSPERITY).min(100);
                 s.aggregate.population += 1;
                 self.blessings += 1;
             }
@@ -240,7 +239,9 @@ mod tests {
         let mut c = LeyCaster::new(Attunement::Wakened);
         let mut s = one_town(1, 2, 0, 50);
 
-        let id = c.work(Ritual::Bless, RegionCoord { x: 0, z: 0 }, 5, &mut s).unwrap();
+        let id = c
+            .work(Ritual::Bless, RegionCoord { x: 0, z: 0 }, 5, &mut s)
+            .unwrap();
         assert_eq!(id, 1);
         let town = &s.list[0].aggregate;
         assert_eq!(town.prosperity, 56, "blessing lifts");
@@ -283,7 +284,9 @@ mod tests {
         let mut c = LeyCaster::new(Attunement::Chorus);
         let mut s = one_town(9, 0, 0, 50);
 
-        assert!(c.work(Ritual::Blight, RegionCoord { x: 0, z: 0 }, 3, &mut s).is_ok());
+        assert!(c
+            .work(Ritual::Blight, RegionCoord { x: 0, z: 0 }, 3, &mut s)
+            .is_ok());
         let town = &s.list[0].aggregate;
         assert_eq!(town.prosperity, 42, "drained");
         assert_eq!(town.food, 160, "rotted stores");
@@ -298,13 +301,17 @@ mod tests {
             c.mana = 100;
             c.herbs = 50;
             c.cd_days = 0;
-            assert!(c.work(Ritual::Bless, RegionCoord { x: 0, z: 0 }, 3, &mut s).is_ok());
+            assert!(c
+                .work(Ritual::Bless, RegionCoord { x: 0, z: 0 }, 3, &mut s)
+                .is_ok());
         }
         assert!(!c.backlash_due(), "21 < 30 so far");
         c.mana = 100;
         c.herbs = 50;
         c.cd_days = 0;
-        assert!(c.work(Ritual::Blight, RegionCoord { x: 0, z: 0 }, 3, &mut s).is_ok());
+        assert!(c
+            .work(Ritual::Blight, RegionCoord { x: 0, z: 0 }, 3, &mut s)
+            .is_ok());
         assert_eq!(c.strain, 33, "12 + 3×3 + 12");
         assert!(c.backlash_due());
 
@@ -335,8 +342,12 @@ mod tests {
         let mut ch = LeyCaster::new(Attunement::Chorus);
         let mut sw = one_town(1, 1, 1, 40);
         let mut sch = one_town(1, 1, 1, 40);
-        assert!(w.work(Ritual::Bless, RegionCoord { x: 0, z: 0 }, 5, &mut sw).is_ok());
-        assert!(ch.work(Ritual::Bless, RegionCoord { x: 0, z: 0 }, 5, &mut sch).is_ok());
+        assert!(w
+            .work(Ritual::Bless, RegionCoord { x: 0, z: 0 }, 5, &mut sw)
+            .is_ok());
+        assert!(ch
+            .work(Ritual::Bless, RegionCoord { x: 0, z: 0 }, 5, &mut sch)
+            .is_ok());
         assert_eq!(w.mana, 60);
         assert_eq!(ch.mana, 100 - BLESS_MANA * 60 / 100);
         assert_eq!(Attunement::Bound.cooldown_days(), 12);

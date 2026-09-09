@@ -68,7 +68,10 @@ pub struct LogicCircuit {
 
 impl LogicCircuit {
     pub fn new(signal_count: usize) -> Self {
-        LogicCircuit { signals: vec![0; signal_count], gates: Vec::new() }
+        LogicCircuit {
+            signals: vec![0; signal_count],
+            gates: Vec::new(),
+        }
     }
 
     pub fn set_input(&mut self, idx: usize, value: Signal) {
@@ -78,14 +81,22 @@ impl LogicCircuit {
     }
 
     pub fn add_gate(&mut self, name: &str, kind: GateKind, inputs: Vec<usize>, output: usize) {
-        self.gates.push(LogicGate { name: name.to_string(), kind, inputs, output });
+        self.gates.push(LogicGate {
+            name: name.to_string(),
+            kind,
+            inputs,
+            output,
+        });
     }
 
     /// Evaluate all gates in declaration order (deterministic).
     pub fn evaluate(&mut self) {
         for gate in &self.gates {
-            let inputs: Vec<Signal> =
-                gate.inputs.iter().map(|&i| self.signals.get(i).copied().unwrap_or(0)).collect();
+            let inputs: Vec<Signal> = gate
+                .inputs
+                .iter()
+                .map(|&i| self.signals.get(i).copied().unwrap_or(0))
+                .collect();
             let result = gate.kind.evaluate(&inputs);
             if gate.output < self.signals.len() {
                 self.signals[gate.output] = result;
@@ -117,7 +128,9 @@ pub struct ValveController {
 
 impl ValveController {
     pub fn new(signal_count: usize) -> Self {
-        ValveController { circuit: LogicCircuit::new(signal_count) }
+        ValveController {
+            circuit: LogicCircuit::new(signal_count),
+        }
     }
 
     pub fn set_input(&mut self, idx: usize, value: Signal) {

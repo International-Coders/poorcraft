@@ -110,15 +110,28 @@ impl SceneSpec {
         match self {
             SceneSpec::SmoothHills => (
                 3,
-                PatchCoord { x: -60 * 16 + 8, y: 1, z: -31 * 16 + 8 },
+                PatchCoord {
+                    x: -60 * 16 + 8,
+                    y: 1,
+                    z: -31 * 16 + 8,
+                },
             ),
             SceneSpec::Highlands => (
                 3,
-                PatchCoord { x: -9 * 16 + 8, y: 5, z: -12 * 16 + 8 },
+                PatchCoord {
+                    x: -9 * 16 + 8,
+                    y: 5,
+                    z: -12 * 16 + 8,
+                },
             ),
-            SceneSpec::Coast => {
-                (3, PatchCoord { x: -60 * 16 + 8, y: 0, z: -11 * 16 + 8 })
-            }
+            SceneSpec::Coast => (
+                3,
+                PatchCoord {
+                    x: -60 * 16 + 8,
+                    y: 0,
+                    z: -11 * 16 + 8,
+                },
+            ),
             SceneSpec::Cliff => {
                 // Deterministic seek: first 400 m-grid point (sweeping
                 // +-20 km) inside a cliff mask band > 4 m above sea level.
@@ -140,7 +153,11 @@ impl SceneSpec {
                                 let py = surface.div_euclid(16_000) as i32;
                                 return (
                                     3,
-                                    PatchCoord { x: x.div_euclid(16) as i32, y: py, z: z.div_euclid(16) as i32 },
+                                    PatchCoord {
+                                        x: x.div_euclid(16) as i32,
+                                        y: py,
+                                        z: z.div_euclid(16) as i32,
+                                    },
                                 );
                             }
                         }
@@ -243,7 +260,11 @@ fn measured_columns(gen: &WorldGen, coord: PatchCoord) -> usize {
     let mut m = 0usize;
     for cx in 0..n {
         for cz in 0..n {
-            let s = gen.surface_height_mm((ax + cx as i32) as i64 * 1000, (az + cz as i32) as i64 * 1000) as f64 / 1000.0;
+            let s = gen.surface_height_mm(
+                (ax + cx as i32) as i64 * 1000,
+                (az + cz as i32) as i64 * 1000,
+            ) as f64
+                / 1000.0;
             if s >= ay as f64 && s < (ay + PATCH_CELL_AXIS as i32) as f64 {
                 m += 1;
             }
@@ -318,7 +339,8 @@ pub fn run_bakeoff() -> Vec<BenchResult> {
                     for dy in 0..2 {
                         let idx = ((c + dx) * PATCH_CELL_AXIS as usize + c + 1 + dy)
                             * PATCH_CELL_AXIS as usize
-                            + c + dz;
+                            + c
+                            + dz;
                         g.solid[idx] = false;
                     }
                 }
@@ -364,7 +386,11 @@ mod tests {
         let mut flat: Option<PatchCoord> = None;
         'outer: for px in -30..=30 {
             for pz in -30..=30 {
-                let coord = PatchCoord { x: px * 16, y: 0, z: pz * 16 };
+                let coord = PatchCoord {
+                    x: px * 16,
+                    y: 0,
+                    z: pz * 16,
+                };
                 let o = coord.origin();
                 let ax = o.x.div_euclid(1000) as i32;
                 let az = o.z.div_euclid(1000) as i32;
@@ -372,9 +398,9 @@ mod tests {
                 let mut max_t = i32::MIN;
                 for cx in 0..16 {
                     for cz in 0..16 {
-                        let h =
-                            (gen.surface_height_mm((ax + cx) as i64 * 1000, (az + cz) as i64 * 1000)
-                                / 1000) as i32;
+                        let h = (gen
+                            .surface_height_mm((ax + cx) as i64 * 1000, (az + cz) as i64 * 1000)
+                            / 1000) as i32;
                         min_t = min_t.min(h);
                         max_t = max_t.max(h);
                     }
@@ -435,7 +461,12 @@ mod tests {
     /// Grids are deterministic: same scene, same bytes.
     #[test]
     fn p3d201_grids_are_deterministic() {
-        for scene in [SceneSpec::SmoothHills, SceneSpec::Highlands, SceneSpec::Coast, SceneSpec::Cliff] {
+        for scene in [
+            SceneSpec::SmoothHills,
+            SceneSpec::Highlands,
+            SceneSpec::Coast,
+            SceneSpec::Cliff,
+        ] {
             let (seed, coord) = scene.patch();
             let gen = WorldGen::new(seed);
             let a = candidate::heightfield(&gen, coord);
@@ -471,7 +502,12 @@ mod tests {
     /// Patch span sanity for the scene patches (guards against pin typos).
     #[test]
     fn p3d201_scene_patches_are_aligned() {
-        for scene in [SceneSpec::SmoothHills, SceneSpec::Highlands, SceneSpec::Coast, SceneSpec::Cliff] {
+        for scene in [
+            SceneSpec::SmoothHills,
+            SceneSpec::Highlands,
+            SceneSpec::Coast,
+            SceneSpec::Cliff,
+        ] {
             let (_, coord) = scene.patch();
             let o = coord.origin();
             assert_eq!(o.x.rem_euclid(PATCH_MM), 0);
@@ -492,10 +528,26 @@ mod tests {
         for seed in [3u64, 777, 2024] {
             let gen = WorldGen::new(seed);
             for coord in [
-                PatchCoord { x: -60 * 16 + 8, y: 1, z: -31 * 16 + 8 },
-                PatchCoord { x: -9 * 16 + 8, y: 5, z: -12 * 16 + 8 },
-                PatchCoord { x: -60 * 16 + 8, y: 0, z: -11 * 16 + 8 },
-                PatchCoord { x: -3 * 16, y: -2 * 16, z: 5 * 16 },
+                PatchCoord {
+                    x: -60 * 16 + 8,
+                    y: 1,
+                    z: -31 * 16 + 8,
+                },
+                PatchCoord {
+                    x: -9 * 16 + 8,
+                    y: 5,
+                    z: -12 * 16 + 8,
+                },
+                PatchCoord {
+                    x: -60 * 16 + 8,
+                    y: 0,
+                    z: -11 * 16 + 8,
+                },
+                PatchCoord {
+                    x: -3 * 16,
+                    y: -2 * 16,
+                    z: 5 * 16,
+                },
             ] {
                 let patch = gen.regenerate_patch(coord);
                 let n = PATCH_CELL_AXIS as usize;
@@ -559,7 +611,10 @@ mod tests {
                 }
             }
         }
-        assert!(checked_water, "no ocean region found for the semantics probe");
+        assert!(
+            checked_water,
+            "no ocean region found for the semantics probe"
+        );
         // Above the land surface: air, not solid.
         let air = final_solid(&gen, 8_000, 500_000, 8_000);
         assert!(!air.solid);

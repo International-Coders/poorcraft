@@ -30,10 +30,10 @@ pub mod runtime;
 pub use clock::{FixedClock, MAX_CATCHUP_TICKS, SIM_HZ, TICK_US};
 pub use command::{CommandEnvelope, CommandSequencer};
 pub use journal::{fnv1a64, EventJournal, JournalEvent};
+pub use profile::{BaselineRecord, CounterId, Counters, FrameTimes, MemoryCounters};
 pub use replay::ReplayDigest;
-pub use seed::{stream, SeedStreams, SplitMix64};
-pub use profile::{BaselineRecord, Counters, CounterId, FrameTimes, MemoryCounters};
 pub use runtime::{run_headless, RuntimeStats, WorldRuntime, HEARTBEAT_TICKS};
+pub use seed::{stream, SeedStreams, SplitMix64};
 
 pub use header::{
     open_decision, FormatHeader, OpenDecision, Section, SupportedVersions, HEADER_LEN,

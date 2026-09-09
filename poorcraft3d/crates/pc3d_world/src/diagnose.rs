@@ -6,16 +6,16 @@
 //! PASS/FAIL verdict per check. One failing check fails the run.
 
 use crate::companion::Companion;
+use crate::coords::WorldPos;
 use crate::edit::{apply_edit, Brush, EditKind, EditOp};
 use crate::entities::{EntityKind, EntityRegistry};
 use crate::gen::{CellMaterial, WorldGen};
 use crate::hydro::{FishStocks, Reservoirs, RiverGraph};
-use crate::proof::{render_flow_map, AtlasImage};
-use crate::coords::WorldPos;
 use crate::items::{harvest_yields, Inventory, ItemId};
 use crate::magic::{CastEffect, Mage, Rune};
 use crate::nav::NavPatch;
 use crate::player::{MoveInput, Player};
+use crate::proof::{render_flow_map, AtlasImage};
 use crate::settlement::Settlements;
 
 /// One check's verdict.
@@ -39,15 +39,30 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
     // 1. SPAWN: the player starts on walkable land above sea level.
     let mut player = Player::spawn_safe(&gen);
     let spawn_ok = player.pos[1] > 0.0 && player.on_ground;
-    push("spawn_safe", spawn_ok, format!("feet at y={:.2}", player.pos[1]));
+    push(
+        "spawn_safe",
+        spawn_ok,
+        format!("feet at y={:.2}", player.pos[1]),
+    );
 
     // 2. MOVEMENT: walking +x moves the player at least 2 m in 60 ticks.
     let start_x = player.pos[0];
     for _ in 0..60 {
-        player.step(&gen, MoveInput { move_x: 1.0, move_z: 0.0, jump: false });
+        player.step(
+            &gen,
+            MoveInput {
+                move_x: 1.0,
+                move_z: 0.0,
+                jump: false,
+            },
+        );
     }
     let moved = (player.pos[0] - start_x).abs() > 2.0;
-    push("movement", moved, format!("walked {:.1} m in 60 ticks", player.pos[0] - start_x));
+    push(
+        "movement",
+        moved,
+        format!("walked {:.1} m in 60 ticks", player.pos[0] - start_x),
+    );
 
     // 3. DIG + HARVEST: dig a cell near the player, yields land in the
     //    inventory (tier-0 materials).
@@ -61,7 +76,10 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
         id: 1,
         tick: 1,
         kind: EditKind::Dig,
-        brush: Brush { center: dig_cell, radius: 1 },
+        brush: Brush {
+            center: dig_cell,
+            radius: 1,
+        },
         material: CellMaterial::Air,
     };
     // A real regenerated patch containing the dig cell.
@@ -72,12 +90,7 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
     };
     let mut base_patch = gen.regenerate_patch(patch_coord);
     let changed = apply_edit(&mut base_patch, &op, None);
-    let harvested = crate::survival::harvest_into(
-        &gen,
-        &mut inventory,
-        CellMaterial::Soil,
-        None,
-    );
+    let harvested = crate::survival::harvest_into(&gen, &mut inventory, CellMaterial::Soil, None);
     push(
         "dig_harvest",
         harvested > 0,
@@ -109,7 +122,9 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
     let mut stocks = FishStocks::new(&graph);
     let Some(r) = graph.river_regions.first() else {
         push("fishing", false, "no river regions".into());
-        return Diagnosis { checks: checks.clone() };
+        return Diagnosis {
+            checks: checks.clone(),
+        };
     };
     let region = crate::coords::RegionCoord { x: r.0, z: r.1 };
     let stock_before = stocks.stock_at(region);
@@ -117,7 +132,11 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
     let fish_ok = caught.is_some()
         && stocks.stock_at(region) == stock_before - 1
         && inventory.count(crate::survival::FISH) == 1;
-    push("fishing", fish_ok, format!("stock {stock_before} -> {}", stocks.stock_at(region)));
+    push(
+        "fishing",
+        fish_ok,
+        format!("stock {stock_before} -> {}", stocks.stock_at(region)),
+    );
 
     // 6. EAT: eating the fish clears hunger.
     let mut needs = crate::npc::Needs {
@@ -130,33 +149,44 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
     push("eat", ate && needs.hunger == 0, "fish consumed".into());
 
     // 7. BUILD: place a block; it survives a terrain dig brush.
-    let mut construction = crate::build::Construction::new(crate::coords::PatchCoord {
-        x: 0,
-        y: 0,
-        z: 0,
-    });
+    let mut construction =
+        crate::build::Construction::new(crate::coords::PatchCoord { x: 0, y: 0, z: 0 });
     let build_cell = crate::coords::CellCoord { x: 2, y: 2, z: 2 };
     let placed = construction.place(
         build_cell,
-        crate::build::BuildBlock { material: CellMaterial::Rock, owner: 1 },
+        crate::build::BuildBlock {
+            material: CellMaterial::Rock,
+            owner: 1,
+        },
     );
-    let built_survives =
-        placed.is_ok() && construction.at(build_cell).is_some();
-    push("build", built_survives, "placed block owned and intact".into());
+    let built_survives = placed.is_ok() && construction.at(build_cell).is_some();
+    push(
+        "build",
+        built_survives,
+        "placed block owned and intact".into(),
+    );
 
     // 8. MAGIC: learn + cast Lumen with full mana.
     let mut mage = Mage::new();
     mage.learn(Rune::Lumen);
     let cast = mage.cast(Rune::Lumen, build_cell);
     let magic_ok = matches!(cast, Ok(CastEffect::Light(ref cells)) if cells.len() == 7);
-    push("magic", magic_ok, "lumen cast produced 7 light cells".into());
+    push(
+        "magic",
+        magic_ok,
+        "lumen cast produced 7 light cells".into(),
+    );
 
     // 9. ENTITIES: registry spawn + persistence encoding.
     let mut registry = EntityRegistry::new();
     let id = registry.spawn(EntityKind::Villager, dig_cell, 7);
     let enc = registry.encode();
     let ent_ok = registry.get(id).is_some() && !enc.is_empty();
-    push("entities", ent_ok, format!("{} entity registered", registry.len()));
+    push(
+        "entities",
+        ent_ok,
+        format!("{} entity registered", registry.len()),
+    );
 
     // 10. COMPANION: assist reaches a target cell (on known walkable
     // terrain, mirroring the navigation check).
@@ -176,7 +206,11 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
         companion.step(&comp_nav, world(0, 0));
     }
     let comp_ok = companion.at_target(world(10, 10));
-    push("companion", comp_ok, format!("companion at {:?}", companion.pos));
+    push(
+        "companion",
+        comp_ok,
+        format!("companion at {:?}", companion.pos),
+    );
 
     // 11. SETTLEMENTS: sites exist in this world.
     let set = Settlements::new(&gen, &graph, 24);
@@ -190,13 +224,22 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
     let mut reservoirs = Reservoirs::from_graph(&graph);
     let Some(start) = graph.river_regions.first() else {
         push("reservoirs", false, "no river regions".into());
-        return Diagnosis { checks: checks.clone() };
+        return Diagnosis {
+            checks: checks.clone(),
+        };
     };
-    let start_r = crate::coords::RegionCoord { x: start.0, z: start.1 };
+    let start_r = crate::coords::RegionCoord {
+        x: start.0,
+        z: start.1,
+    };
     let total_before = reservoirs.total_volume();
     reservoirs.fill(&graph, start_r, 50_000);
     let conserved = reservoirs.total_volume() >= total_before;
-    push("reservoirs", conserved, "volume only grows when filled".into());
+    push(
+        "reservoirs",
+        conserved,
+        "volume only grows when filled".into(),
+    );
 
     // 13. CRAFTING: the full craft progression — gather materials,
     //     craft a stone_pick, verify the output. Uses a fresh inventory
@@ -204,14 +247,17 @@ pub fn run_diagnosis(seed: u64) -> Diagnosis {
     let mut craft_inv = Inventory::new(8);
     craft_inv.add(ItemId(1), 3); // wood
     craft_inv.add(ItemId(2), 2); // stone
-    let pick_recipe = crate::craft::recipe_by_code(1)
-        .expect("stone_pick recipe exists");
+    let pick_recipe = crate::craft::recipe_by_code(1).expect("stone_pick recipe exists");
     let crafted = crate::craft::craft(&mut craft_inv, pick_recipe);
     let craft_ok = crafted == Some(1)
         && craft_inv.count(ItemId(10)) == 1
         && craft_inv.count(ItemId(1)) == 0
         && craft_inv.count(ItemId(2)) == 0;
-    push("crafting", craft_ok, "stone_pick crafted from wood+stone".into());
+    push(
+        "crafting",
+        craft_ok,
+        "stone_pick crafted from wood+stone".into(),
+    );
 
     Diagnosis { checks }
 }

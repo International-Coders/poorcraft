@@ -97,12 +97,7 @@ pub const WATER_VERTEX_LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexB
 
 /// CPU mirror of the water fragment shader (probes share one truth).
 /// `phase_m` = the vertex's signed distance along the flow axis.
-pub fn water_color(
-    phase_m: f32,
-    speed: f32,
-    alpha_unused: f32,
-    time_s: f32,
-) -> [f32; 4] {
+pub fn water_color(phase_m: f32, speed: f32, alpha_unused: f32, time_s: f32) -> [f32; 4] {
     let stripe = 0.5 + 0.5 * (phase_m * 0.8 - time_s * speed * 3.0).sin();
     let base = pc3d_assets::material_albedo("mat.water_flow").unwrap_or([0.24, 0.52, 0.85]);
     let shade = 0.7 + 0.3 * stripe;
@@ -132,7 +127,10 @@ pub fn strip_for(
     graph: &RiverGraph,
     rec: &FlowRecord,
 ) -> (Vec<WaterVertex>, Vec<u16>) {
-    let Some(down) = graph.downstream(RegionCoord { x: rec.region_x, z: rec.region_z }) else {
+    let Some(down) = graph.downstream(RegionCoord {
+        x: rec.region_x,
+        z: rec.region_z,
+    }) else {
         return (Vec::new(), Vec::new());
     };
     let Some(dir) = compass_vec(rec.direction) else {
@@ -166,7 +164,11 @@ pub fn strip_for(
         let y = terrain_mm as f32 / 1000.0 + SURFACE_OFFSET_M;
         for side in [-1.0f32, 1.0] {
             verts.push(WaterVertex {
-                pos: [cx + perp[0] * half_w * side, y, cz + perp[1] * half_w * side],
+                pos: [
+                    cx + perp[0] * half_w * side,
+                    y,
+                    cz + perp[1] * half_w * side,
+                ],
                 dir,
                 speed,
                 alpha,
@@ -238,7 +240,10 @@ impl WaterSections {
             .filter(|r| {
                 r.direction != DIR_SINK
                     && graph
-                        .downstream(RegionCoord { x: r.region_x, z: r.region_z })
+                        .downstream(RegionCoord {
+                            x: r.region_x,
+                            z: r.region_z,
+                        })
                         .map(|d| graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD)
                         .unwrap_or(false)
             })
@@ -337,10 +342,7 @@ impl WaterSections {
 /// A river edge worth proving with: a river region with discharge ≥
 /// threshold and a downstream neighbor that is also a river, nearest to
 /// `near` — deterministic choice.
-pub fn pick_river_edge(
-    graph: &RiverGraph,
-    near: (i32, i32),
-) -> Option<((i32, i32), (i32, i32))> {
+pub fn pick_river_edge(graph: &RiverGraph, near: (i32, i32)) -> Option<((i32, i32), (i32, i32))> {
     // Real downstream pairs only (river_edges() lists sorted-adjacent
     // regions, not graph links): r flows into d, both with river-class
     // discharge — exactly the strip's live condition.
@@ -348,7 +350,9 @@ pub fn pick_river_edge(
     for x in -graph.half..=graph.half {
         for z in -graph.half..=graph.half {
             let r = RegionCoord { x, z };
-            let Some(d) = graph.downstream(r) else { continue };
+            let Some(d) = graph.downstream(r) else {
+                continue;
+            };
             if graph.discharge(r) < pc3d_world::hydro::RIVER_THRESHOLD
                 || graph.discharge(d) < pc3d_world::hydro::RIVER_THRESHOLD
             {
@@ -371,25 +375,14 @@ pub fn river_pose(graph: &RiverGraph, gen: &WorldGen, a: (i32, i32), b: (i32, i3
     let mid_z = (a.1 as f32 + 0.5 + b.1 as f32 + 0.5) / 2.0 * REGION_M;
     let terrain_mm = gen.effective_surface_mm((mid_x * 1000.0) as i64, (mid_z * 1000.0) as i64);
     let mid_y = terrain_mm as f32 / 1000.0;
-    let dir = [
-        b.0 as f32 - a.0 as f32,
-        b.1 as f32 - a.1 as f32,
-    ];
+    let dir = [b.0 as f32 - a.0 as f32, b.1 as f32 - a.1 as f32];
     let l = (dir[0] * dir[0] + dir[1] * dir[1]).sqrt();
     let dir = [dir[0] / l, dir[1] / l];
     // Eye 60 m upstream of the midpoint, 18 m above the water, looking
     // downstream and down.
-    let eye = [
-        mid_x - dir[0] * 60.0,
-        mid_y + 18.0,
-        mid_z - dir[1] * 60.0,
-    ];
+    let eye = [mid_x - dir[0] * 60.0, mid_y + 18.0, mid_z - dir[1] * 60.0];
     let target = [mid_x + dir[0] * 40.0, mid_y, mid_z + dir[1] * 40.0];
-    let d = [
-        target[0] - eye[0],
-        target[1] - eye[1],
-        target[2] - eye[2],
-    ];
+    let d = [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]];
     let yaw = (-d[0]).atan2(-d[2]);
     let pitch = (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin();
     CameraPose::new(eye, yaw, pitch)
@@ -406,7 +399,10 @@ pub fn proof_scene(seed: u64) -> (WorldGen, RiverGraph, FlowTable, ((i32, i32), 
         half += 8;
         graph = RiverGraph::new(&gen, half);
     }
-    assert!(!graph.river_edges().is_empty(), "seed {seed} must have rivers");
+    assert!(
+        !graph.river_edges().is_empty(),
+        "seed {seed} must have rivers"
+    );
     let anchor = graph
         .river_region_list()
         .first()
@@ -444,19 +440,23 @@ pub fn visible_water_crossing(
     let mut prev_above = false;
     let mut t = 0.5f32;
     while t < 300.0 {
-        let p = [eye[0] + dir[0] * t, eye[1] + dir[1] * t, eye[2] + dir[2] * t];
+        let p = [
+            eye[0] + dir[0] * t,
+            eye[1] + dir[1] * t,
+            eye[2] + dir[2] * t,
+        ];
         let region = RiverGraph::region_at((p[0] * 1000.0) as i64, (p[2] * 1000.0) as i64);
         let rec = table.get(region)?;
         if rec.direction != DIR_SINK {
-            let Some(d) = graph.downstream(region) else { return None };
+            let Some(d) = graph.downstream(region) else {
+                return None;
+            };
             if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
                 // The strip plane height under this point.
-                let strip_y = gen.effective_surface_mm(
-                    (p[0] * 1000.0) as i64,
-                    (p[2] * 1000.0) as i64,
-                ) as f32
-                    / 1000.0
-                    + SURFACE_OFFSET_M;
+                let strip_y =
+                    gen.effective_surface_mm((p[0] * 1000.0) as i64, (p[2] * 1000.0) as i64) as f32
+                        / 1000.0
+                        + SURFACE_OFFSET_M;
                 let above = p[1] > strip_y;
                 if prev_above && !above {
                     // Crossing between prev_t and t: refine, then require a
@@ -465,11 +465,14 @@ pub fn visible_water_crossing(
                     // crossings further along may still be visible.
                     let mut ft = prev_t;
                     while ft < t {
-                        let q = [eye[0] + dir[0] * ft, eye[1] + dir[1] * ft, eye[2] + dir[2] * ft];
-                        let qy = gen.effective_surface_mm(
-                            (q[0] * 1000.0) as i64,
-                            (q[2] * 1000.0) as i64,
-                        ) as f32
+                        let q = [
+                            eye[0] + dir[0] * ft,
+                            eye[1] + dir[1] * ft,
+                            eye[2] + dir[2] * ft,
+                        ];
+                        let qy = gen
+                            .effective_surface_mm((q[0] * 1000.0) as i64, (q[2] * 1000.0) as i64)
+                            as f32
                             / 1000.0
                             + SURFACE_OFFSET_M;
                         if q[1] <= qy {
@@ -563,10 +566,17 @@ mod tests {
             .iter()
             .filter(|(k, r)| {
                 (k.0.abs() > 5 || k.1.abs() > 5)
-                    && t0.records.get(*k).map(|p| p.revision == r.revision).unwrap_or(false)
+                    && t0
+                        .records
+                        .get(*k)
+                        .map(|p| p.revision == r.revision)
+                        .unwrap_or(false)
             })
             .count();
-        assert!(untouched > 20, "distant records keep revisions: {untouched}");
+        assert!(
+            untouched > 20,
+            "distant records keep revisions: {untouched}"
+        );
     }
 
     #[test]
@@ -675,18 +685,20 @@ mod tests {
             let view = crate::camera::fwd_of(pose.yaw, pose.pitch);
             // Continue the view ray through the water surface.
             let under = crate::terrain::ray_first_hit(&gen, point, view, 40.0)
-                .map(|(cell, normal, _)| to_srgb4(crate::scene::lit_color(
-                    crate::construction::material_albedo(
-                        pc3d_world::terrain::final_solid(
-                            &gen,
-                            cell.x as i64 * 1000,
-                            cell.y as i64 * 1000,
-                            cell.z as i64 * 1000,
-                        )
-                        .material,
-                    ),
-                    normal,
-                )))
+                .map(|(cell, normal, _)| {
+                    to_srgb4(crate::scene::lit_color(
+                        crate::construction::material_albedo(
+                            pc3d_world::terrain::final_solid(
+                                &gen,
+                                cell.x as i64 * 1000,
+                                cell.y as i64 * 1000,
+                                cell.z as i64 * 1000,
+                            )
+                            .material,
+                        ),
+                        normal,
+                    ))
+                })
                 .unwrap_or([0.5, 0.5, 0.5, 1.0]);
             let w = to_srgb4([wc[0], wc[1], wc[2]]);
             let mut out = [0.0f32; 4];
@@ -743,16 +755,12 @@ mod tests {
         let (_, rgba_control) = r.capture_png(&control_path, &[]);
         r.attach_water();
         let _ = r.update_water(&gen, &graph, &t0);
-        let under = crate::scene::sample_ndc(
-            &rgba_control, w, h, project_ndc(pose, aspect, p1),
-        );
+        let under = crate::scene::sample_ndc(&rgba_control, w, h, project_ndc(pose, aspect, p1));
         let phase1 = phase_along([p1[0], p1[2]], strip_origin_of(&rec1), dir1);
         let wc1 = water_color(phase1, speed_of(rec1.slope_per_mille), 1.0, 0.0);
         let water_only = to_srgb4([wc1[0], wc1[1], wc1[2]]);
         let px1 = crate::scene::sample_ndc(&rgba_before, w, h, project_ndc(pose, aspect, p1));
-        let dist = |a: [f32; 4], b: [f32; 4]| -> f32 {
-            (0..3).map(|i| (a[i] - b[i]).abs()).sum()
-        };
+        let dist = |a: [f32; 4], b: [f32; 4]| -> f32 { (0..3).map(|i| (a[i] - b[i]).abs()).sum() };
         let d_water = dist(px1, water_only);
         let d_under = dist(px1, under);
         assert!(
@@ -781,7 +789,9 @@ mod tests {
         let along_minus = mk(p1[0] - dir1[0] * 5.0, p1[2] - dir1[1] * 5.0);
         let across_a = [p1[0] + perp[0] * hw, p1[1], p1[2] + perp[1] * hw];
         let across_b = [p1[0] - perp[0] * hw, p1[1], p1[2] - perp[1] * hw];
-        let px_at = |p: [f32; 3]| crate::scene::sample_ndc(&rgba_before, w, h, project_ndc(pose, aspect, p));
+        let px_at = |p: [f32; 3]| {
+            crate::scene::sample_ndc(&rgba_before, w, h, project_ndc(pose, aspect, p))
+        };
         let pa = px_at(along_plus);
         let pb = px_at(along_minus);
         let ca = px_at(across_a);
@@ -806,14 +816,16 @@ mod tests {
         let path_after = std::env::temp_dir().join("pc3d_water_after.png");
         // After the dam the strip at this edge may reroute; verify the frame
         // is still a valid render and differs from before.
-        let (report_after, rgba_after) =
-            r.capture_png(&path_after, &[]); // plain validity probes below
+        let (report_after, rgba_after) = r.capture_png(&path_after, &[]); // plain validity probes below
         let diff = crate::scene::pixel_difference_fraction(&rgba_before, &rgba_after);
         assert!(diff > 0.005, "the dam must change the image ({diff})");
         assert!(report_after.distinct_colors >= 8);
         println!(
             "water: {} sections (remeshed {} after dam, {} us), image diff {:.2}%",
-            w0.sections, w1.remeshed, w1.mesh_us, diff * 100.0
+            w0.sections,
+            w1.remeshed,
+            w1.mesh_us,
+            diff * 100.0
         );
     }
 

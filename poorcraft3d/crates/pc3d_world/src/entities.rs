@@ -91,7 +91,11 @@ pub struct EntityRegistry {
 
 impl EntityRegistry {
     pub fn new() -> Self {
-        EntityRegistry { entities: BTreeMap::new(), by_patch: BTreeMap::new(), next_id: 0 }
+        EntityRegistry {
+            entities: BTreeMap::new(),
+            by_patch: BTreeMap::new(),
+            next_id: 0,
+        }
     }
 
     fn patch_of(cell: CellCoord) -> PatchCoord {
@@ -106,9 +110,17 @@ impl EntityRegistry {
     pub fn spawn(&mut self, kind: EntityKind, cell: CellCoord, data: u64) -> EntityId {
         self.next_id += 1;
         let id = EntityId(self.next_id);
-        let e = Entity { id, kind, cell, data };
+        let e = Entity {
+            id,
+            kind,
+            cell,
+            data,
+        };
         self.entities.insert(id, e);
-        self.by_patch.entry(Self::patch_of(cell)).or_default().push(id);
+        self.by_patch
+            .entry(Self::patch_of(cell))
+            .or_default()
+            .push(id);
         id
     }
 
@@ -119,7 +131,10 @@ impl EntityRegistry {
         }
         self.next_id = self.next_id.max(e.id.0);
         self.entities.insert(e.id, e);
-        self.by_patch.entry(Self::patch_of(e.cell)).or_default().push(e.id);
+        self.by_patch
+            .entry(Self::patch_of(e.cell))
+            .or_default()
+            .push(e.id);
         true
     }
 
@@ -172,7 +187,11 @@ impl EntityRegistry {
     pub fn by_patch(&self, patch: PatchCoord) -> Vec<Entity> {
         self.by_patch
             .get(&patch)
-            .map(|ids| ids.iter().filter_map(|i| self.entities.get(i).copied()).collect())
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|i| self.entities.get(i).copied())
+                    .collect()
+            })
             .unwrap_or_default()
     }
 
@@ -194,7 +213,11 @@ impl EntityRegistry {
         for px in min.x..=max.x {
             for py in min.y..=max.y {
                 for pz in min.z..=max.z {
-                    out.extend(self.by_patch(PatchCoord { x: px, y: py, z: pz }));
+                    out.extend(self.by_patch(PatchCoord {
+                        x: px,
+                        y: py,
+                        z: pz,
+                    }));
                 }
             }
         }
@@ -215,10 +238,7 @@ impl EntityRegistry {
     /// Per-entity interest state from the viewer (P3D-206 lod_for).
     /// Entities in the Horizon band are EXCLUDED (callers must not tick
     /// them), the rest are (id, lod) ascending.
-    pub fn interest_state(
-        &self,
-        viewer: WorldPos,
-    ) -> Vec<(EntityId, crate::lod::LodLevel)> {
+    pub fn interest_state(&self, viewer: WorldPos) -> Vec<(EntityId, crate::lod::LodLevel)> {
         let mut out = Vec::new();
         for e in self.entities.values() {
             let center_mm = [
@@ -295,7 +315,12 @@ mod tests {
         assert_eq!(order1, order2);
         assert_eq!(order1, vec![a, b, c], "insertion ids are ascending");
         // Duplicate explicit insert refused.
-        assert!(!reg.insert(Entity { id: a, kind: EntityKind::Marker, cell: CellCoord { x: 0, y: 0, z: 0 }, data: 0 }));
+        assert!(!reg.insert(Entity {
+            id: a,
+            kind: EntityKind::Marker,
+            cell: CellCoord { x: 0, y: 0, z: 0 },
+            data: 0
+        }));
     }
 
     /// Spatial queries: by_patch and entities_near are exact (including
@@ -305,7 +330,15 @@ mod tests {
         let mut reg = EntityRegistry::new();
         let in_patch = reg.spawn(EntityKind::Villager, CellCoord { x: 8, y: 0, z: 8 }, 0);
         let neg = reg.spawn(EntityKind::Animal, CellCoord { x: -8, y: 0, z: -8 }, 0);
-        let far = reg.spawn(EntityKind::Fish, CellCoord { x: 500, y: 0, z: 500 }, 0);
+        let far = reg.spawn(
+            EntityKind::Fish,
+            CellCoord {
+                x: 500,
+                y: 0,
+                z: 500,
+            },
+            0,
+        );
 
         let p0 = reg.by_patch(PatchCoord { x: 0, y: 0, z: 0 });
         assert_eq!(p0.len(), 1);
@@ -338,7 +371,15 @@ mod tests {
     fn p3d402_registry_persists_exactly() {
         let mut reg = EntityRegistry::new();
         let a = reg.spawn(EntityKind::Villager, CellCoord { x: 1, y: 2, z: 3 }, 42);
-        reg.spawn(EntityKind::Animal, CellCoord { x: -1, y: -2, z: -3 }, 7);
+        reg.spawn(
+            EntityKind::Animal,
+            CellCoord {
+                x: -1,
+                y: -2,
+                z: -3,
+            },
+            7,
+        );
         let bytes = reg.encode();
         let back = EntityRegistry::decode(&bytes).expect("decode");
         assert_eq!(back.get(a).map(|e| e.data), Some(42));
@@ -362,7 +403,11 @@ mod tests {
         let near = reg.spawn(EntityKind::Villager, CellCoord { x: 0, y: 0, z: 0 }, 0);
         let far = reg.spawn(
             EntityKind::Animal,
-            CellCoord { x: 5_000, y: 0, z: 5_000 },
+            CellCoord {
+                x: 5_000,
+                y: 0,
+                z: 5_000,
+            },
             0,
         );
         let viewer = WorldPos::default();

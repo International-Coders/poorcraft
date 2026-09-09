@@ -80,13 +80,10 @@ impl Player {
             }
             r *= 2;
             if r > 4096 {
-                panic!(
-                    "no safe spawn found within +-64 km — generator produced an ocean world"
-                );
+                panic!("no safe spawn found within +-64 km — generator produced an ocean world");
             }
         }
     }
-
 
     fn try_spawn_at(gen: &WorldGen, cx: i32, _cy: i32, cz: i32) -> Option<Player> {
         // Find the surface: topmost solid cell in a generous y range.
@@ -124,7 +121,11 @@ impl Player {
         self.swimming = is_water_at(gen, px, py + 0.9, pz);
 
         // Horizontal velocity toward input (accelerate hard, snap to cap).
-        let speed = if self.swimming { SWIM_SPEED } else { WALK_SPEED };
+        let speed = if self.swimming {
+            SWIM_SPEED
+        } else {
+            WALK_SPEED
+        };
         let in_len = (input.move_x * input.move_x + input.move_z * input.move_z).sqrt();
         let (tx, tz) = if in_len > 1.0 {
             (input.move_x / in_len, input.move_z / in_len)
@@ -133,7 +134,11 @@ impl Player {
         };
         let target_vx = tx * speed;
         let target_vz = tz * speed;
-        let accel = if self.on_ground || self.swimming { 40.0 } else { 12.0 };
+        let accel = if self.on_ground || self.swimming {
+            40.0
+        } else {
+            12.0
+        };
         self.vel[0] = approach(self.vel[0], target_vx, accel * SIM_DT);
         self.vel[2] = approach(self.vel[2], target_vz, accel * SIM_DT);
 
@@ -214,7 +219,12 @@ impl Player {
                 [-HALF_WIDTH, HALF_WIDTH],
                 [HALF_WIDTH, HALF_WIDTH],
             ] {
-                if solid_at(gen, (px + ox).floor() as i32, y.floor() as i32, (pz + oz).floor() as i32) {
+                if solid_at(
+                    gen,
+                    (px + ox).floor() as i32,
+                    y.floor() as i32,
+                    (pz + oz).floor() as i32,
+                ) {
                     return true;
                 }
             }
@@ -234,28 +244,22 @@ fn approach(current: f32, target: f32, max_delta: f32) -> f32 {
 
 /// Terrain solidity at a world CELL.
 fn solid_at(gen: &WorldGen, cx: i32, cy: i32, cz: i32) -> bool {
-    final_solid(
-        gen,
-        cx as i64 * 1000,
-        cy as i64 * 1000,
-        cz as i64 * 1000,
-    )
-    .solid
+    final_solid(gen, cx as i64 * 1000, cy as i64 * 1000, cz as i64 * 1000).solid
 }
 
 /// Passable = air or water (swimmable).
 fn passable_at(gen: &WorldGen, cx: i32, cy: i32, cz: i32) -> bool {
-    let a = final_solid(
-        gen,
-        cx as i64 * 1000,
-        cy as i64 * 1000,
-        cz as i64 * 1000,
-    );
+    let a = final_solid(gen, cx as i64 * 1000, cy as i64 * 1000, cz as i64 * 1000);
     matches!(a.material, CellMaterial::Air | CellMaterial::Water)
 }
 
 fn is_water_at(gen: &WorldGen, x: f32, y: f32, z: f32) -> bool {
-    let a = final_solid(gen, (x.floor() as i64) * 1000, (y.floor() as i64) * 1000, (z.floor() as i64) * 1000);
+    let a = final_solid(
+        gen,
+        (x.floor() as i64) * 1000,
+        (y.floor() as i64) * 1000,
+        (z.floor() as i64) * 1000,
+    );
     a.material == CellMaterial::Water
 }
 
@@ -300,7 +304,14 @@ mod tests {
         let start_x = p.pos[0];
         // Walk +x for a second: y must stay within a step of start.
         for _ in 0..60 {
-            p.step(&gen, MoveInput { move_x: 1.0, move_z: 0.0, jump: false });
+            p.step(
+                &gen,
+                MoveInput {
+                    move_x: 1.0,
+                    move_z: 0.0,
+                    jump: false,
+                },
+            );
         }
         assert!(
             (p.pos[0] - start_x).abs() > 2.0,
@@ -323,14 +334,28 @@ mod tests {
         // Climb test: step into whatever slope exists ahead and verify no
         // vertical escape beyond +2 over 60 ticks of walking.
         for _ in 0..60 {
-            p.step(&gen, MoveInput { move_x: 1.0, move_z: 0.0, jump: false });
+            p.step(
+                &gen,
+                MoveInput {
+                    move_x: 1.0,
+                    move_z: 0.0,
+                    jump: false,
+                },
+            );
         }
         assert!(p.pos[1] - start_y <= 2.0, "walked up too high");
         // Wall test: force the player into deep terrain by walking a long
         // time in -x; movement must eventually stop changing y wildly and
         // never clip below the world floor.
         for _ in 0..600 {
-            p.step(&gen, MoveInput { move_x: -1.0, move_z: 0.0, jump: false });
+            p.step(
+                &gen,
+                MoveInput {
+                    move_x: -1.0,
+                    move_z: 0.0,
+                    jump: false,
+                },
+            );
         }
         assert!(p.pos[1] > -1.0, "fell through the world");
     }
@@ -379,7 +404,12 @@ mod tests {
         let Some((wy, px, pz)) = water_cell else {
             return; // seed has no deep ocean nearby: skip honestly
         };
-        let mut p = Player { pos: [px as f32, wy as f32, pz as f32], vel: [0.0; 3], on_ground: false, swimming: false };
+        let mut p = Player {
+            pos: [px as f32, wy as f32, pz as f32],
+            vel: [0.0; 3],
+            on_ground: false,
+            swimming: false,
+        };
         p.step(&gen, MoveInput::default());
         assert!(p.swimming, "player in a water column must be swimming");
         // Sink slowly: velocity magnitude bounded by TERMINAL_SINK.
@@ -392,8 +422,18 @@ mod tests {
         );
         // Swim up against the sink.
         for _ in 0..30 {
-            p.step(&gen, MoveInput { move_x: 0.0, move_z: 0.0, jump: true });
+            p.step(
+                &gen,
+                MoveInput {
+                    move_x: 0.0,
+                    move_z: 0.0,
+                    jump: true,
+                },
+            );
         }
-        assert!(p.vel[1] > 0.0 || p.pos[1] > wy as f32 - 2.0, "cannot swim up");
+        assert!(
+            p.vel[1] > 0.0 || p.pos[1] > wy as f32 - 2.0,
+            "cannot swim up"
+        );
     }
 }

@@ -73,10 +73,9 @@ pub fn lit_color(albedo: [f32; 3], normal: [f32; 3]) -> [f32; 3] {
     // Hemisphere ambient (R3DV-010): sky above, ground below, sun on top —
     // the exact fs_mesh formula.
     let d = normal.iter().zip(SUN_DIR).map(|(n, s)| n * s).sum::<f32>();
-    let light = (0.38 * (0.5 + 0.5 * normal[1])
-        + 0.22 * (0.5 - 0.5 * normal[1])
-        + 1.05 * d.max(0.0))
-        .min(1.0);
+    let light =
+        (0.38 * (0.5 + 0.5 * normal[1]) + 0.22 * (0.5 - 0.5 * normal[1]) + 1.05 * d.max(0.0))
+            .min(1.0);
     [
         (albedo[0] * light).clamp(0.0, 1.0),
         (albedo[1] * light).clamp(0.0, 1.0),
@@ -117,16 +116,20 @@ pub fn sky_color_linear(dir: [f32; 3], sun: [f32; 3]) -> [f32; 3] {
 /// (FrontFace::Ccw + backface culling). Shared by the placeholder scene and
 /// the construction mesher so both obey the same winding law.
 pub const FACE_BASIS: [([f32; 3], [f32; 3], [f32; 3]); 6] = [
-    ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),  // south +Z
+    ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]), // south +Z
     ([0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]), // north -Z
-    ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),  // east +X
+    ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]), // east +X
     ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]), // west -X
-    ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),  // top +Y
+    ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]), // top +Y
     ([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]), // bottom -Y
 ];
 
 /// One axis-aligned box: six faces, each with its own albedo.
-fn box_faces(center: [f32; 3], half: f32, colors: &[[f32; 3]; 6]) -> ([SceneVertex; 24], [u16; 36]) {
+fn box_faces(
+    center: [f32; 3],
+    half: f32,
+    colors: &[[f32; 3]; 6],
+) -> ([SceneVertex; 24], [u16; 36]) {
     let basis = FACE_BASIS;
     let mut verts = [SceneVertex {
         pos: [0.0; 3],
@@ -168,10 +171,26 @@ pub fn build_scene() -> (Vec<SceneVertex>, Vec<u16>) {
 
     // Ground: 40x40 m plane at y=0 (normal +Y).
     let gv = [
-        SceneVertex { pos: [-20.0, 0.0, 20.0], normal: [0.0, 1.0, 0.0], color: COLOR_STONE },
-        SceneVertex { pos: [20.0, 0.0, 20.0], normal: [0.0, 1.0, 0.0], color: COLOR_STONE },
-        SceneVertex { pos: [20.0, 0.0, -20.0], normal: [0.0, 1.0, 0.0], color: COLOR_STONE },
-        SceneVertex { pos: [-20.0, 0.0, -20.0], normal: [0.0, 1.0, 0.0], color: COLOR_STONE },
+        SceneVertex {
+            pos: [-20.0, 0.0, 20.0],
+            normal: [0.0, 1.0, 0.0],
+            color: COLOR_STONE,
+        },
+        SceneVertex {
+            pos: [20.0, 0.0, 20.0],
+            normal: [0.0, 1.0, 0.0],
+            color: COLOR_STONE,
+        },
+        SceneVertex {
+            pos: [20.0, 0.0, -20.0],
+            normal: [0.0, 1.0, 0.0],
+            color: COLOR_STONE,
+        },
+        SceneVertex {
+            pos: [-20.0, 0.0, -20.0],
+            normal: [0.0, 1.0, 0.0],
+            color: COLOR_STONE,
+        },
     ];
     push(&gv, &[0, 1, 2, 0, 2, 3]);
 
@@ -182,11 +201,11 @@ pub fn build_scene() -> (Vec<SceneVertex>, Vec<u16>) {
         [0.0, 1.0, -4.0],
         1.0,
         &[
-            COLOR_CRIMSON, // +Z south
-            COLOR_JADE,    // -Z north
-            COLOR_GOLD,    // +X east
-            COLOR_PLUM,    // -X west
-            COLOR_PALE,    // +Y top
+            COLOR_CRIMSON,  // +Z south
+            COLOR_JADE,     // -Z north
+            COLOR_GOLD,     // +X east
+            COLOR_PLUM,     // -X west
+            COLOR_PALE,     // +Y top
             COLOR_CHARCOAL, // -Y bottom
         ],
     );
@@ -260,9 +279,7 @@ impl PixelReport {
     /// for open scenes.
     pub fn passes_with(&self, min_distinct: usize) -> bool {
         // A flat clear reports 1; any real lit 3D scene yields hundreds.
-        self.distinct_colors >= min_distinct
-            && self.opaque
-            && self.probes.iter().all(|(_, ok)| *ok)
+        self.distinct_colors >= min_distinct && self.opaque && self.probes.iter().all(|(_, ok)| *ok)
     }
 
     pub fn failed_probes(&self) -> Vec<&'static str> {
@@ -283,12 +300,7 @@ fn to_srgb(c: f32) -> f32 {
 }
 
 pub fn to_srgb4(c: [f32; 3]) -> [f32; 4] {
-    [
-        to_srgb(c[0]),
-        to_srgb(c[1]),
-        to_srgb(c[2]),
-        1.0,
-    ]
+    [to_srgb(c[0]), to_srgb(c[1]), to_srgb(c[2]), 1.0]
 }
 
 /// NDC (x right, y up) to pixel coordinates (row 0 = top).
@@ -424,7 +436,11 @@ pub fn probes_for_pose(pose: CameraPose, aspect: f32) -> Vec<Probe> {
     // Ground below the horizon (stone, top face lighting). From pose B the
     // near stone's east face fills the region just below center, so sample
     // further down where bare ground is guaranteed.
-    let ground_ndc = if pose == pose_b() { (0.0, -0.85) } else { (0.0, -0.6) };
+    let ground_ndc = if pose == pose_b() {
+        (0.0, -0.85)
+    } else {
+        (0.0, -0.6)
+    };
     probes.push(Probe {
         name: "ground_below_horizon",
         ndc: ground_ndc,
@@ -494,8 +510,16 @@ mod tests {
                 verts[tri[1] as usize],
                 verts[tri[2] as usize],
             );
-            let e1 = [b.pos[0] - a.pos[0], b.pos[1] - a.pos[1], b.pos[2] - a.pos[2]];
-            let e2 = [c.pos[0] - a.pos[0], c.pos[1] - a.pos[1], c.pos[2] - a.pos[2]];
+            let e1 = [
+                b.pos[0] - a.pos[0],
+                b.pos[1] - a.pos[1],
+                b.pos[2] - a.pos[2],
+            ];
+            let e2 = [
+                c.pos[0] - a.pos[0],
+                c.pos[1] - a.pos[1],
+                c.pos[2] - a.pos[2],
+            ];
             let cross = [
                 e1[1] * e2[2] - e1[2] * e2[1],
                 e1[2] * e2[0] - e1[0] * e2[2],
@@ -538,8 +562,14 @@ mod tests {
         // content from different viewpoints.
         let a = probes_for_pose(pose_a(), 4.0 / 3.0);
         let b = probes_for_pose(pose_b(), 4.0 / 3.0);
-        let ca = a.iter().find(|p| p.name == "center_is_crimson_south_face").unwrap();
-        let cb = b.iter().find(|p| p.name == "center_is_gold_east_face").unwrap();
+        let ca = a
+            .iter()
+            .find(|p| p.name == "center_is_crimson_south_face")
+            .unwrap();
+        let cb = b
+            .iter()
+            .find(|p| p.name == "center_is_gold_east_face")
+            .unwrap();
         let dr = (ca.expected[0] - cb.expected[0]).abs();
         assert!(dr > 0.15, "crimson and gold centers must be far apart");
     }

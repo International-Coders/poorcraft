@@ -173,7 +173,9 @@ pub fn render_flow_map(seed: u64, half_regions: i32) -> AtlasImage {
                 Some(rec) if rec.direction != crate::flow::DIR_SINK => rec,
                 _ => continue,
             };
-            let Some(down) = rivers.downstream(r) else { continue };
+            let Some(down) = rivers.downstream(r) else {
+                continue;
+            };
             if rivers.discharge(down) < crate::hydro::RIVER_THRESHOLD {
                 continue;
             }
@@ -395,7 +397,11 @@ mod flow_map_tests {
         // At least some pixels are bright river blue (strokes drawn).
         let mut bright = 0;
         for i in 0..(a.size * a.size) {
-            let (r, g, bl) = (a.rgb[i * 3] as i32, a.rgb[i * 3 + 1] as i32, a.rgb[i * 3 + 2] as i32);
+            let (r, g, bl) = (
+                a.rgb[i * 3] as i32,
+                a.rgb[i * 3 + 1] as i32,
+                a.rgb[i * 3 + 2] as i32,
+            );
             if bl > 150 && bl > r + 60 && g > r {
                 bright += 1;
             }
@@ -412,10 +418,7 @@ mod flow_map_tests {
         let r = RegionCoord { x: 0, z: 0 };
         let wx = (r.x * 256 + 128) as i64 * 1000;
         let wz = (r.z * 256 + 128) as i64 * 1000;
-        assert_eq!(
-            graph.wetness_at_mm(&gen, wx, wz),
-            graph.wetness(&gen, r)
-        );
+        assert_eq!(graph.wetness_at_mm(&gen, wx, wz), graph.wetness(&gen, r));
     }
 }
 

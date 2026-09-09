@@ -2,8 +2,8 @@
 //!
 //! R3DV-002 scope: first-person input (click to grab the mouse, mouse look,
 //! WASD + Space/Shift movement), camera scripts for automated proof runs,
-//! scheduled live-window screenshot captures, resize/loss recovery, Escape
-//! to quit, and frame-time accounting.
+//! scheduled live-window screenshot captures, resize/loss recovery, an
+//! owner-facing title/pause overlay for live runs, and frame-time accounting.
 
 use crate::camera::CameraPose;
 use crate::renderer::{PixelReport, Renderer};
@@ -71,7 +71,8 @@ pub struct SliceSetup {
 /// The live vertical slice: a walking player on colliding terrain, a host
 /// for place/remove through commands, save/reload on disk, and inspect
 /// boxes. Keys: WASD walk, mouse look (click), F place at ray target, R
-/// remove at ray target, B save, L reload, I inspect boxes, Esc quits.
+/// remove at ray target, B save, L reload, I inspect boxes; live owner builds
+/// use Escape for pause/resume and Q for explicit quit.
 pub struct SliceHost {
     pub seed: u64,
     /// The NWR-011 rebuild stack: crowd ticking + surface walking +
@@ -115,6 +116,10 @@ pub struct WindowConfig {
     pub slice_host: Option<Box<SliceHost>>,
     /// Data-only setup: assembled into slice_host at window creation.
     pub slice_setup: Option<SliceSetup>,
+    /// Owner-facing live shell: starts at a welcome overlay, uses Escape for
+    /// pause/resume, and reserves Q as the explicit quit command. Automated
+    /// proof windows leave this false so old gate timing stays stable.
+    pub owner_menu: bool,
     /// If set, the window is resized halfway to the first shot so the run
     /// proves live surface resize recovery before capturing.
     pub resize_to: Option<(f64, f64)>,
@@ -133,9 +138,46 @@ impl Default for WindowConfig {
             interactive_host: None,
             slice_host: None,
             slice_setup: None,
+            owner_menu: false,
             resize_to: Some((800.0, 500.0)),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OwnerOverlay {
+    Title,
+    Playing,
+    Paused,
+}
+
+impl OwnerOverlay {
+    fn escape(self) -> (Self, PointerIntent) {
+        match self {
+            OwnerOverlay::Title => (OwnerOverlay::Title, PointerIntent::Release),
+            OwnerOverlay::Playing => (OwnerOverlay::Paused, PointerIntent::Release),
+            OwnerOverlay::Paused => (OwnerOverlay::Playing, PointerIntent::Grab),
+        }
+    }
+
+    fn start(self) -> (Self, PointerIntent) {
+        match self {
+            OwnerOverlay::Title | OwnerOverlay::Paused => {
+                (OwnerOverlay::Playing, PointerIntent::Grab)
+            }
+            OwnerOverlay::Playing => (OwnerOverlay::Playing, PointerIntent::Grab),
+        }
+    }
+
+    fn blocks_gameplay(self) -> bool {
+        !matches!(self, OwnerOverlay::Playing)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PointerIntent {
+    Grab,
+    Release,
 }
 
 /// One completed live-window capture: the PNG path, its semantic report, and
@@ -203,12 +245,65 @@ struct WindowState {
     captures: Vec<CaptureOutcome>,
     keys: HashSet<KeyCode>,
     pointer_grabbed: bool,
+    owner_menu: bool,
+    owner_overlay: OwnerOverlay,
     done: bool,
     /// Blocks in the interactive host's overlay (HUD readout).
     built_count: usize,
 }
 
 impl WindowState {
+    fn gameplay_active(&self) -> bool {
+        !self.owner_menu || !self.owner_overlay.blocks_gameplay()
+    }
+
+    fn apply_pointer_intent(&mut self, intent: PointerIntent) {
+        match intent {
+            PointerIntent::Grab => self.grab_pointer(),
+            PointerIntent::Release => self.release_pointer(),
+        }
+    }
+
+    fn grab_pointer(&mut self) {
+        let grabbed = self
+            .window
+            .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+            .or_else(|_| {
+                self.window
+                    .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+            })
+            .is_ok();
+        self.window.set_cursor_visible(!grabbed);
+        self.pointer_grabbed = grabbed;
+    }
+
+    fn release_pointer(&mut self) {
+        let _ = self
+            .window
+            .set_cursor_grab(winit::window::CursorGrabMode::None);
+        self.window.set_cursor_visible(true);
+        self.pointer_grabbed = false;
+        self.keys.clear();
+    }
+
+    fn owner_overlay_text(&self) -> Option<&'static str> {
+        if !self.owner_menu {
+            return None;
+        }
+        match self.owner_overlay {
+            OwnerOverlay::Title => Some(
+                "POORCRAFT 3D\nOWNER ALPHA SLICE\nENTER OR CLICK TO START\nWASD WALK   MOUSE LOOK\nF BUILD   R REMOVE\nB SAVE   L LOAD   I INSPECT\nESC PAUSES   Q QUITS",
+            ),
+            OwnerOverlay::Paused => Some(
+                "PAUSED\nENTER OR CLICK TO RESUME\nESC ALSO RESUMES\nQ QUITS TO DESKTOP",
+            ),
+            OwnerOverlay::Playing if !self.pointer_grabbed => Some(
+                "CLICK TO CAPTURE MOUSE\nESC PAUSES   Q QUITS",
+            ),
+            OwnerOverlay::Playing => None,
+        }
+    }
+
     /// First-person movement from the current key set (4 m/s walk).
     fn apply_movement(&mut self, dt: f32) {
         let key = |k: KeyCode| if self.keys.contains(&k) { 1.0f32 } else { 0.0 };
@@ -218,12 +313,11 @@ impl WindowState {
         if fwd != 0.0 || strafe != 0.0 || vert != 0.0 {
             let step = self.renderer.camera_walk_step(fwd, strafe, vert, dt);
             let pos = self.renderer.pose().position;
-            self.renderer
-                .set_pose(CameraPose::new(
-                    [pos[0] + step[0], pos[1] + step[1], pos[2] + step[2]],
-                    self.renderer.pose().yaw,
-                    self.renderer.pose().pitch,
-                ));
+            self.renderer.set_pose(CameraPose::new(
+                [pos[0] + step[0], pos[1] + step[1], pos[2] + step[2]],
+                self.renderer.pose().yaw,
+                self.renderer.pose().pitch,
+            ));
         }
     }
 
@@ -316,7 +410,13 @@ impl ApplicationHandler for App {
             .cfg
             .interactive_host
             .as_ref()
-            .map(|h| h.0.borrow().construction.values().map(|c| c.built_count()).sum())
+            .map(|h| {
+                h.0.borrow()
+                    .construction
+                    .values()
+                    .map(|c| c.built_count())
+                    .sum()
+            })
             .unwrap_or(0);
         self.state = Some(WindowState {
             window,
@@ -329,13 +429,19 @@ impl ApplicationHandler for App {
             captures: Vec::new(),
             keys: HashSet::new(),
             pointer_grabbed: false,
+            owner_menu: self.cfg.owner_menu,
+            owner_overlay: if self.cfg.owner_menu {
+                OwnerOverlay::Title
+            } else {
+                OwnerOverlay::Playing
+            },
             done: false,
             built_count,
         });
     }
 
     /// Global mouse motion: used for first-person look while the pointer is
-    /// grabbed (click the window to grab, Escape to quit).
+    /// grabbed and gameplay is active.
     fn device_event(
         &mut self,
         _event_loop: &ActiveEventLoop,
@@ -346,7 +452,7 @@ impl ApplicationHandler for App {
             let Some(state) = &mut self.state else {
                 return;
             };
-            if !state.pointer_grabbed {
+            if !state.pointer_grabbed || !state.gameplay_active() {
                 return;
             }
             // Guard against pointer-lock re-entry spikes.
@@ -382,12 +488,36 @@ impl ApplicationHandler for App {
                     },
                 ..
             } => {
-                event_loop.exit();
+                if state.owner_menu {
+                    let (overlay, intent) = state.owner_overlay.escape();
+                    state.owner_overlay = overlay;
+                    state.apply_pointer_intent(intent);
+                } else {
+                    event_loop.exit();
+                }
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(code) = event.physical_key {
                     match event.state {
                         ElementState::Pressed => {
+                            if state.owner_menu {
+                                match code {
+                                    KeyCode::Enter => {
+                                        let (overlay, intent) = state.owner_overlay.start();
+                                        state.owner_overlay = overlay;
+                                        state.apply_pointer_intent(intent);
+                                        return;
+                                    }
+                                    KeyCode::KeyQ => {
+                                        event_loop.exit();
+                                        return;
+                                    }
+                                    _ if !state.gameplay_active() => {
+                                        return;
+                                    }
+                                    _ => {}
+                                }
+                            }
                             state.keys.insert(code);
                             // Live-slice keys: F/R build at the ray target,
                             // B/L save+reload, I inspect boxes.
@@ -397,7 +527,8 @@ impl ApplicationHandler for App {
                                     KeyCode::KeyF | KeyCode::KeyR => {
                                         let target = slice.player.ray_target(&gen, 8.0);
                                         if let Some((hit, air)) = target {
-                                            let cell = if code == KeyCode::KeyF { air } else { hit };
+                                            let cell =
+                                                if code == KeyCode::KeyF { air } else { hit };
                                             let mut h = slice.host.borrow_mut();
                                             if code == KeyCode::KeyF && slice.rebuild {
                                                 // NWR-011: construction
@@ -415,7 +546,10 @@ impl ApplicationHandler for App {
                                                 );
                                                 let verdict =
                                                     crate::world_features::check_foundation(
-                                                        &gen, &region, cell, (1, 1),
+                                                        &gen,
+                                                        &region,
+                                                        cell,
+                                                        (1, 1),
                                                     );
                                                 let rejected = matches!(
                                                     verdict,
@@ -435,16 +569,22 @@ impl ApplicationHandler for App {
                                                     owner: 7,
                                                 });
                                             } else {
-                                                h.submit(pc3d_world::host::HostCommand::RemoveBuild {
-                                                    cell,
-                                                    owner: 7,
-                                                });
+                                                h.submit(
+                                                    pc3d_world::host::HostCommand::RemoveBuild {
+                                                        cell,
+                                                        owner: 7,
+                                                    },
+                                                );
                                             }
                                             h.run_ticks(1);
                                             state.renderer.update_construction(&h.construction);
                                             slice.last_message = format!(
                                                 "{} {:?}",
-                                                if code == KeyCode::KeyF { "PLACED" } else { "REMOVED" },
+                                                if code == KeyCode::KeyF {
+                                                    "PLACED"
+                                                } else {
+                                                    "REMOVED"
+                                                },
                                                 cell
                                             );
                                         } else {
@@ -517,24 +657,22 @@ impl ApplicationHandler for App {
                                 if let Some(cell) = target_cell {
                                     let mut h = host.0.borrow_mut();
                                     match code {
-                                        KeyCode::KeyF => h.submit(
-                                            pc3d_world::host::HostCommand::Build {
+                                        KeyCode::KeyF => {
+                                            h.submit(pc3d_world::host::HostCommand::Build {
                                                 cell,
                                                 material: pc3d_world::gen::CellMaterial::Rock,
                                                 owner: 7,
-                                            },
-                                        ),
-                                        _ => h.submit(
-                                            pc3d_world::host::HostCommand::RemoveBuild { cell, owner: 7 },
-                                        ),
+                                            })
+                                        }
+                                        _ => h.submit(pc3d_world::host::HostCommand::RemoveBuild {
+                                            cell,
+                                            owner: 7,
+                                        }),
                                     };
                                     h.run_ticks(1);
                                     state.renderer.update_construction(&h.construction);
-                                    state.built_count = h
-                                        .construction
-                                        .values()
-                                        .map(|c| c.built_count())
-                                        .sum();
+                                    state.built_count =
+                                        h.construction.values().map(|c| c.built_count()).sum();
                                 }
                             }
                         }
@@ -549,18 +687,14 @@ impl ApplicationHandler for App {
                 state: ElementState::Pressed,
                 ..
             } => {
-                // Click to look around: lock the pointer, FPS-style.
-                let grabbed = state
-                    .window
-                    .set_cursor_grab(winit::window::CursorGrabMode::Locked)
-                    .or_else(|_| {
-                        state
-                            .window
-                            .set_cursor_grab(winit::window::CursorGrabMode::Confined)
-                    })
-                    .is_ok();
-                state.window.set_cursor_visible(!grabbed);
-                state.pointer_grabbed = grabbed;
+                if state.owner_menu && state.owner_overlay.blocks_gameplay() {
+                    let (overlay, intent) = state.owner_overlay.start();
+                    state.owner_overlay = overlay;
+                    state.apply_pointer_intent(intent);
+                } else {
+                    // Click to look around: lock the pointer, FPS-style.
+                    state.grab_pointer();
+                }
             }
             // Resize + scale-factor changes both land here; the renderer
             // reconfigures the surface (and clamps 0-sized events).
@@ -590,8 +724,10 @@ impl ApplicationHandler for App {
                 if self.next_hook < self.cfg.frame_hooks.len() {
                     let (frame, _) = &self.cfg.frame_hooks[self.next_hook];
                     if state.frame_no == *frame {
-                        let (_, mut hook) =
-                            std::mem::replace(&mut self.cfg.frame_hooks[self.next_hook], (0, Box::new(|_| {})));
+                        let (_, mut hook) = std::mem::replace(
+                            &mut self.cfg.frame_hooks[self.next_hook],
+                            (0, Box::new(|_| {})),
+                        );
                         hook(&mut state.renderer);
                         self.next_hook += 1;
                     }
@@ -601,7 +737,7 @@ impl ApplicationHandler for App {
                 // before the captures run.
                 if let Some((frame, w, h)) = self.resize_plan {
                     if state.frame_no == frame {
-                        state
+                        let _ = state
                             .window
                             .request_inner_size(winit::dpi::LogicalSize::new(w, h));
                         self.resize_plan = None;
@@ -610,17 +746,34 @@ impl ApplicationHandler for App {
 
                 // The live slice: per-frame WALKING on colliding terrain,
                 // the camera locked to the player, streaming continues.
+                let gameplay_active = state.gameplay_active();
                 if let Some(slice) = self.cfg.slice_host.as_mut() {
                     let key = |k: KeyCode| state.keys.contains(&k) as i32 as f32;
-                    let fwd = key(KeyCode::KeyW) - key(KeyCode::KeyS);
-                    let strafe = key(KeyCode::KeyD) - key(KeyCode::KeyA);
+                    let fwd = if gameplay_active {
+                        key(KeyCode::KeyW) - key(KeyCode::KeyS)
+                    } else {
+                        0.0
+                    };
+                    let strafe = if gameplay_active {
+                        key(KeyCode::KeyD) - key(KeyCode::KeyA)
+                    } else {
+                        0.0
+                    };
                     let gen = slice.scene.gen.clone();
                     if slice.rebuild {
                         // The NWR-011 walk: on the STREAMED SURFACE (the
                         // NWR-005 deferral landing), plus the schedule
                         // ticking the crowd's authoritative brains.
-                        state.renderer.walk_player_surface(&gen, &mut slice.player, fwd, strafe, dt);
-                        state.renderer.crowd_tick(0.35, 1);
+                        state.renderer.walk_player_surface(
+                            &gen,
+                            &mut slice.player,
+                            fwd,
+                            strafe,
+                            dt,
+                        );
+                        if gameplay_active {
+                            state.renderer.crowd_tick(0.35, 1);
+                        }
                     } else {
                         slice.player.walk(&gen, fwd, strafe, dt);
                     }
@@ -645,18 +798,20 @@ impl ApplicationHandler for App {
                     let _ = state.renderer.surface_stream_frame();
                 } else {
                     // Interactive movement (free flight), then streaming.
-                    state.apply_movement(dt);
+                    if gameplay_active {
+                        state.apply_movement(dt);
+                    }
                     let _ = state.renderer.stream_frame();
                     state.renderer.set_hud_line(&state.hud_line());
                 }
 
+                if let Some(text) = state.owner_overlay_text() {
+                    state.renderer.set_hud_text_centered(text);
+                }
+
                 // Scheduled capture replaces this frame's presentation (the
                 // swapchain texture is the copy source); ends after the last.
-                let next_shot = self
-                    .cfg
-                    .shots
-                    .get(self.next_shot)
-                    .cloned();
+                let next_shot = self.cfg.shots.get(self.next_shot).cloned();
                 if let Some(shot) = next_shot {
                     if state.frame_no == shot.frame {
                         let pose = state.renderer.pose();
@@ -698,7 +853,9 @@ impl ApplicationHandler for App {
                     Err(err) => {
                         state.consecutive_surface_errors += 1;
                         if state.consecutive_surface_errors > 120 {
-                            eprintln!("[FAIL] surface unusable for 120 consecutive frames: {err:?}");
+                            eprintln!(
+                                "[FAIL] surface unusable for 120 consecutive frames: {err:?}"
+                            );
                             state.done = true;
                         }
                     }
@@ -756,4 +913,31 @@ pub fn run_windowed(cfg: WindowConfig) -> Result<WindowReport, String> {
         .run_app(&mut app)
         .map_err(|e| format!("event loop error: {e}"))?;
     Ok(app.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owner_escape_pauses_instead_of_exiting() {
+        let (overlay, intent) = OwnerOverlay::Playing.escape();
+        assert_eq!(overlay, OwnerOverlay::Paused);
+        assert_eq!(intent, PointerIntent::Release);
+    }
+
+    #[test]
+    fn owner_escape_from_title_stays_on_title() {
+        let (overlay, intent) = OwnerOverlay::Title.escape();
+        assert_eq!(overlay, OwnerOverlay::Title);
+        assert_eq!(intent, PointerIntent::Release);
+    }
+
+    #[test]
+    fn owner_resume_requests_pointer_grab() {
+        let (overlay, intent) = OwnerOverlay::Paused.start();
+        assert_eq!(overlay, OwnerOverlay::Playing);
+        assert_eq!(intent, PointerIntent::Grab);
+        assert!(!overlay.blocks_gameplay());
+    }
 }

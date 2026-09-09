@@ -20,7 +20,12 @@ pub const MORALE_PER_SUPPLY: i64 = 2;
 
 impl Garrison {
     pub fn new(max_soldiers: u32, initial_supply: i64) -> Self {
-        Garrison { soldiers: 0, max_soldiers, supply: initial_supply, morale: 50 }
+        Garrison {
+            soldiers: 0,
+            max_soldiers,
+            supply: initial_supply,
+            morale: 50,
+        }
     }
 
     /// Recruit soldiers from population. Bounded by max_soldiers and
@@ -51,7 +56,11 @@ impl Garrison {
             return 0;
         }
         let strength = (self.soldiers as i64 * 100 / self.max_soldiers as i64) as i64;
-        let supply_ok = if self.soldiers > 0 { self.supply / self.soldiers as i64 } else { 100 };
+        let supply_ok = if self.soldiers > 0 {
+            self.supply / self.soldiers as i64
+        } else {
+            100
+        };
         let supply_score = supply_ok.clamp(0, 100);
         let composite = (strength * 3 + supply_score + self.morale as i64 * 2) / 6;
         composite.clamp(0, 100) as u8

@@ -78,68 +78,67 @@ impl Pipelines {
             label: Some("pc3d_render scene.wgsl"),
             source: wgpu::ShaderSource::Wgsl(SHADER.into()),
         });
-        let layout_globals =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("pc3d globals layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
+        let layout_globals = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("pc3d globals layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                    // Detail texture (R3DV-010 high tier; NWR-006: the
-                    // material atlas).
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
+                    count: None,
+                },
+                // Detail texture (R3DV-010 high tier; NWR-006: the
+                // material atlas).
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
+                    count: None,
+                },
+                // Atmosphere (NWR-006): env uniform, the comparison
+                // sampler, and the sun's depth map.
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                    // Atmosphere (NWR-006): env uniform, the comparison
-                    // sampler, and the sun's depth map.
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 4,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 5,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Depth,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                ],
-            });
+                    count: None,
+                },
+            ],
+        });
         let layout_mask = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("pc3d cutout mask layout"),
             entries: &[
@@ -399,7 +398,10 @@ impl Pipelines {
             &pl_cutout,
             "vs_inst_cutout",
             "fs_cutout",
-            &[crate::atmosphere::CUTOUT_LAYOUT, crate::flora::INSTANCE_LAYOUT_LATE],
+            &[
+                crate::atmosphere::CUTOUT_LAYOUT,
+                crate::flora::INSTANCE_LAYOUT_LATE,
+            ],
             None,
             Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth24Plus,
@@ -537,6 +539,13 @@ struct HudResources {
     size: (u32, u32),
     vertex_buffer: wgpu::Buffer,
     line: String,
+    anchor: HudAnchor,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HudAnchor {
+    TopLeft,
+    Center,
 }
 
 pub struct Renderer {
@@ -623,11 +632,7 @@ struct GpuMesh {
 }
 
 impl GpuMesh {
-    fn from_mesh<T: bytemuck::Pod>(
-        device: &wgpu::Device,
-        verts: &[T],
-        idx: &[u16],
-    ) -> Self {
+    fn from_mesh<T: bytemuck::Pod>(device: &wgpu::Device, verts: &[T], idx: &[u16]) -> Self {
         use wgpu::util::DeviceExt;
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("mesh vertices"),
@@ -943,8 +948,7 @@ impl Renderer {
     /// proofs: same scene with one term toggled).
     pub fn set_atmosphere(&mut self, atm: crate::atmosphere::Atmosphere) {
         if atm.shadow_res != self.atmosphere.shadow_res {
-            let (tex, view) =
-                create_shadow_map(&self.ctx.device, &self.ctx.queue, atm.shadow_res);
+            let (tex, view) = create_shadow_map(&self.ctx.device, &self.ctx.queue, atm.shadow_res);
             self.shadow_tex = tex;
             self.shadow_view = view;
             self.bg_globals = create_globals_bind_group(
@@ -977,7 +981,11 @@ impl Renderer {
     /// bounded slot budget every frame.
     pub fn attach_flora(&mut self, gen: std::rc::Rc<pc3d_world::gen::WorldGen>) {
         let mut f = crate::flora::FloraStreamer::new(&self.ctx.device);
-        f.attach_mask(&self.ctx.device, &self.ctx.queue, &self.pipelines.layout_mask);
+        f.attach_mask(
+            &self.ctx.device,
+            &self.ctx.queue,
+            &self.pipelines.layout_mask,
+        );
         self.flora = Some(f);
         self.flora_gen = Some(gen);
     }
@@ -1012,7 +1020,9 @@ impl Renderer {
     /// camera (the sim's own Walking intent on cloned brains — proofs
     /// may stage visible motion without touching the sim's cast).
     pub fn crowd_stage_walkers(&mut self, n: usize) {
-        let Some(cast) = self.crowd_cast.clone() else { return };
+        let Some(cast) = self.crowd_cast.clone() else {
+            return;
+        };
         let fwd = self.camera.fwd();
         let pos = self.camera.pose.position;
         let mut cast = cast.borrow_mut();
@@ -1024,13 +1034,29 @@ impl Renderer {
             let (x1, z1) = (cx + fwd[2] * 4.0, cz - fwd[0] * 4.0);
             cast[k].brain.intent = pc3d_world::npc::Intent::Walking {
                 path: vec![
-                    pc3d_world::coords::CellCoord { x: x0 as i32, y: 0, z: z0 as i32 },
-                    pc3d_world::coords::CellCoord { x: cx as i32, y: 0, z: cz as i32 },
-                    pc3d_world::coords::CellCoord { x: x1 as i32, y: 0, z: z1 as i32 },
+                    pc3d_world::coords::CellCoord {
+                        x: x0 as i32,
+                        y: 0,
+                        z: z0 as i32,
+                    },
+                    pc3d_world::coords::CellCoord {
+                        x: cx as i32,
+                        y: 0,
+                        z: cz as i32,
+                    },
+                    pc3d_world::coords::CellCoord {
+                        x: x1 as i32,
+                        y: 0,
+                        z: z1 as i32,
+                    },
                 ],
                 leg: 1,
             };
-            cast[k].brain.pos = pc3d_world::coords::CellCoord { x: x0 as i32, y: 0, z: z0 as i32 };
+            cast[k].brain.pos = pc3d_world::coords::CellCoord {
+                x: x0 as i32,
+                y: 0,
+                z: z0 as i32,
+            };
         }
     }
 
@@ -1051,7 +1077,10 @@ impl Renderer {
 
     /// The crowd's draw/count record.
     pub fn crowd_stats(&self) -> (usize, usize) {
-        self.crowd.as_ref().map(|c| (c.draws, c.instances)).unwrap_or((0, 0))
+        self.crowd
+            .as_ref()
+            .map(|c| (c.draws, c.instances))
+            .unwrap_or((0, 0))
     }
 
     /// One crowd frame: pose from the authoritative intent at time t
@@ -1099,10 +1128,7 @@ impl Renderer {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
-        let mut encoder = self
-            .ctx
-            .device
-            .create_command_encoder(&Default::default());
+        let mut encoder = self.ctx.device.create_command_encoder(&Default::default());
         encoder.copy_texture_to_buffer(
             self.shadow_tex.as_image_copy(),
             wgpu::TexelCopyBufferInfo {
@@ -1188,22 +1214,25 @@ impl Renderer {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        let bg = self.ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("pc3d cutout mask bind group"),
-            layout: &self.pipelines.layout_mask,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(
-                        &tex.create_view(&Default::default()),
-                    ),
-                },
-            ],
-        });
+        let bg = self
+            .ctx
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("pc3d cutout mask bind group"),
+                layout: &self.pipelines.layout_mask,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(
+                            &tex.create_view(&Default::default()),
+                        ),
+                    },
+                ],
+            });
         let tris = idx.len() / 3;
         self.cutout = Some((mesh, bg));
         tris
@@ -1283,36 +1312,37 @@ impl Renderer {
     }
 
     /// Loads a raw u32 mesh (cave interiors ride the asset slot).
-    pub fn load_u32_mesh(
-        &mut self,
-        verts: &[crate::scene::SceneVertex],
-        idx: &[u32],
-    ) {
-        self.assets.push((GpuMesh::from_mesh_u32(&self.ctx.device, verts, idx), idx.len() / 3));
+    pub fn load_u32_mesh(&mut self, verts: &[crate::scene::SceneVertex], idx: &[u32]) {
+        self.assets.push((
+            GpuMesh::from_mesh_u32(&self.ctx.device, verts, idx),
+            idx.len() / 3,
+        ));
     }
 
     /// Loads conforming-water vertices into the water pass (transparent,
     /// depth-read) — the NWR-005 surface-path water.
-    pub fn load_water_vertices(
-        &mut self,
-        verts: &[crate::water::WaterVertex],
-        idx: &[u16],
-    ) {
+    pub fn load_water_vertices(&mut self, verts: &[crate::water::WaterVertex], idx: &[u16]) {
         use wgpu::util::DeviceExt;
         if self.water.is_none() {
             self.attach_water();
         }
         // Replace the section set with a single section holding this mesh.
-        let vertex_buffer = self.ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("conforming water verts"),
-            contents: bytemuck::cast_slice(verts),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = self.ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("conforming water indices"),
-            contents: bytemuck::cast_slice(idx),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let vertex_buffer = self
+            .ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("conforming water verts"),
+                contents: bytemuck::cast_slice(verts),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let index_buffer = self
+            .ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("conforming water indices"),
+                contents: bytemuck::cast_slice(idx),
+                usage: wgpu::BufferUsages::INDEX,
+            });
         if let Some(w) = self.water.as_mut() {
             w.set_single_mesh(vertex_buffer, index_buffer, idx.len() as u32);
         }
@@ -1405,10 +1435,9 @@ impl Renderer {
     /// Test hook: the streamer's current desired set.
     pub fn stream_desired_debug(
         &self,
-    ) -> Option<std::collections::BTreeMap<pc3d_world::coords::PatchCoord, pc3d_world::lod::LodLevel>> {
-        self.streamer
-            .as_ref()
-            .map(|s| s.debug_desired())
+    ) -> Option<std::collections::BTreeMap<pc3d_world::coords::PatchCoord, pc3d_world::lod::LodLevel>>
+    {
+        self.streamer.as_ref().map(|s| s.debug_desired())
     }
 
     /// Shows or hides the R3DV-002 placeholder scene (ground plane + dawn
@@ -1426,6 +1455,12 @@ impl Renderer {
     /// texture never needs reallocation).
     pub fn set_hud_line(&mut self, line: &str) {
         self.hud.line = format!("{:<width$}", line, width = HUD_LINE_CHARS);
+        self.hud.anchor = HudAnchor::TopLeft;
+    }
+
+    pub fn set_hud_text_centered(&mut self, text: &str) {
+        self.hud.line = text.to_string();
+        self.hud.anchor = HudAnchor::Center;
     }
 
     pub fn size(&self) -> (u32, u32) {
@@ -1506,7 +1541,11 @@ impl Renderer {
         let lvp = crate::atmosphere::light_view_proj(
             focus,
             crate::scene::SUN_DIR,
-            if atm.shadow_res > 0 { atm.shadow_half_m } else { 1.0 },
+            if atm.shadow_res > 0 {
+                atm.shadow_half_m
+            } else {
+                1.0
+            },
             atm.shadow_res.max(1),
             atm.shadow_res > 0,
         );
@@ -1544,7 +1583,7 @@ impl Renderer {
         }
 
         // HUD: re-rasterize the line and refresh the quad to the target size.
-        let (bytes, tw, th) = crate::font::rasterize_line(&self.hud.line.clone(), HUD_SCALE);
+        let (bytes, tw, th) = crate::font::rasterize_text(&self.hud.line.clone(), HUD_SCALE);
         if (tw, th) != self.hud.size {
             self.hud.texture = create_hud_texture(&self.ctx.device, tw, th);
             self.hud.size = (tw, th);
@@ -1574,18 +1613,16 @@ impl Renderer {
                 depth_or_array_layers: 1,
             },
         );
-        let (x0, y1, x1, y0) = hud_quad_ndc(tw, th, w, h);
+        let (x0, y1, x1, y0) = hud_quad_ndc(tw, th, w, h, self.hud.anchor);
         let quad: [[f32; 4]; 4] = [
             [x0, y1, 0.0, 0.0],
             [x1, y1, 1.0, 0.0],
             [x0, y0, 0.0, 1.0],
             [x1, y0, 1.0, 1.0],
         ];
-        self.ctx.queue.write_buffer(
-            &self.hud.vertex_buffer,
-            0,
-            bytemuck::cast_slice(&quad),
-        );
+        self.ctx
+            .queue
+            .write_buffer(&self.hud.vertex_buffer, 0, bytemuck::cast_slice(&quad));
     }
 
     /// Renders one frame. Windowed: acquire → draw → present, with the
@@ -1596,8 +1633,7 @@ impl Renderer {
         if self.surface.is_some() {
             let mut attempt = 0;
             let output = loop {
-                let err = match self.surface.as_ref().unwrap().surface.get_current_texture()
-                {
+                let err = match self.surface.as_ref().unwrap().surface.get_current_texture() {
                     Ok(t) => break t,
                     Err(e) => e,
                 };
@@ -1605,16 +1641,10 @@ impl Renderer {
                 match surface_action(&err) {
                     SurfaceAction::RecreateRetry if attempt == 1 => {
                         let window = self.window.clone().expect("windowed renderer window");
-                        self.surface
-                            .as_mut()
-                            .unwrap()
-                            .recreate(&self.ctx, &window);
+                        self.surface.as_mut().unwrap().recreate(&self.ctx, &window);
                     }
                     SurfaceAction::ReconfigureRetry if attempt == 1 => {
-                        self.surface
-                            .as_ref()
-                            .unwrap()
-                            .reconfigure(&self.ctx.device);
+                        self.surface.as_ref().unwrap().reconfigure(&self.ctx.device);
                     }
                     _ => return Err(err),
                 }
@@ -1671,8 +1701,7 @@ impl Renderer {
         if self.surface.is_some() {
             let mut attempt = 0;
             let output = loop {
-                let err = match self.surface.as_ref().unwrap().surface.get_current_texture()
-                {
+                let err = match self.surface.as_ref().unwrap().surface.get_current_texture() {
                     Ok(t) => break t,
                     Err(e) => e,
                 };
@@ -1680,16 +1709,10 @@ impl Renderer {
                 match surface_action(&err) {
                     SurfaceAction::RecreateRetry if attempt == 1 => {
                         let window = self.window.clone().expect("windowed renderer window");
-                        self.surface
-                            .as_mut()
-                            .unwrap()
-                            .recreate(&self.ctx, &window);
+                        self.surface.as_mut().unwrap().recreate(&self.ctx, &window);
                     }
                     SurfaceAction::ReconfigureRetry if attempt == 1 => {
-                        self.surface
-                            .as_ref()
-                            .unwrap()
-                            .reconfigure(&self.ctx.device);
+                        self.surface.as_ref().unwrap().reconfigure(&self.ctx.device);
                     }
                     _ => panic!("surface unavailable for capture: {err:?}"),
                 }
@@ -1714,10 +1737,7 @@ impl Renderer {
             let _ = self.ctx.device.poll(wgpu::Maintain::Wait);
             output.present();
         } else {
-            let tex = self
-                .offscreen
-                .take()
-                .expect("renderer has no target");
+            let tex = self.offscreen.take().expect("renderer has no target");
             let view = tex.create_view(&Default::default());
             self.encode_frame(&mut encoder, &view);
             encoder.copy_texture_to_buffer(
@@ -1766,7 +1786,11 @@ impl Renderer {
                     cam.pose.position[2] + f[2] * 45.0,
                 ],
                 crate::scene::SUN_DIR,
-                if atm.shadow_res > 0 { atm.shadow_half_m } else { 1.0 },
+                if atm.shadow_res > 0 {
+                    atm.shadow_half_m
+                } else {
+                    1.0
+                },
                 atm.shadow_res.max(1),
                 atm.shadow_res > 0,
             )
@@ -1880,7 +1904,10 @@ impl Renderer {
         pass.set_bind_group(0, &self.bg_globals, &[]);
         if self.gpu_scene.index_count > 0 {
             pass.set_vertex_buffer(0, self.gpu_scene.vertex_buffer.slice(..));
-            pass.set_index_buffer(self.gpu_scene.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.set_index_buffer(
+                self.gpu_scene.index_buffer.slice(..),
+                wgpu::IndexFormat::Uint16,
+            );
             pass.draw_indexed(0..self.gpu_scene.index_count, 0, 0..1);
         }
         // 2a. Natural terrain: the SURFACE stream first (NWR-004 — the
@@ -2196,7 +2223,6 @@ fn create_atlas_texture(device: &wgpu::Device) -> (wgpu::Texture, Vec<u8>) {
     (tex, data)
 }
 
-
 fn upload_detail(queue: &wgpu::Queue, tex: &wgpu::Texture, data: &[u8]) {
     let w = crate::atmosphere::ATLAS_TILE_PX * crate::atmosphere::ATLAS_TILES as u32;
     queue.write_texture(
@@ -2276,6 +2302,7 @@ fn create_hud(device: &wgpu::Device, _layout: &wgpu::BindGroupLayout) -> HudReso
         size: (tw, th),
         vertex_buffer,
         line: String::new(),
+        anchor: HudAnchor::TopLeft,
     }
 }
 
@@ -2331,13 +2358,28 @@ fn create_hud_bind_group(
 }
 
 /// Top-left pixel-anchored HUD quad in NDC.
-fn hud_quad_ndc(tw: u32, th: u32, target_w: u32, target_h: u32) -> (f32, f32, f32, f32) {
+fn hud_quad_ndc(
+    tw: u32,
+    th: u32,
+    target_w: u32,
+    target_h: u32,
+    anchor: HudAnchor,
+) -> (f32, f32, f32, f32) {
     let margin = 8.0;
-    let x0 = -1.0 + margin * 2.0 / target_w as f32;
-    let y1 = 1.0 - margin * 2.0 / target_h as f32;
-    let x1 = x0 + tw as f32 * 2.0 / target_w as f32;
-    let y0 = y1 - th as f32 * 2.0 / target_h as f32;
-    (x0, y1, x1, y0)
+    let w = tw as f32 * 2.0 / target_w as f32;
+    let h = th as f32 * 2.0 / target_h as f32;
+    match anchor {
+        HudAnchor::TopLeft => {
+            let x0 = -1.0 + margin * 2.0 / target_w as f32;
+            let y1 = 1.0 - margin * 2.0 / target_h as f32;
+            (x0, y1, x0 + w, y1 - h)
+        }
+        HudAnchor::Center => {
+            let x0 = -w * 0.5;
+            let y1 = h * 0.5;
+            (x0, y1, x0 + w, y1 - h)
+        }
+    }
 }
 
 fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
@@ -2468,7 +2510,10 @@ mod tests {
         // PARALLAX: the two frames must differ across a large fraction of
         // pixels — different viewpoints of a 3D world.
         let diff = pixel_difference_fraction(&rgba_a, &rgba_b);
-        println!("parallax: {:.1}% of pixels differ between poses A and B", diff * 100.0);
+        println!(
+            "parallax: {:.1}% of pixels differ between poses A and B",
+            diff * 100.0
+        );
         assert!(diff > 0.15, "poses A and B frames barely differ ({diff})");
     }
 
@@ -2511,7 +2556,11 @@ mod tests {
         let path = std::env::temp_dir().join("pc3d_3d_resized.png");
         let (report, _) = r.capture_png(&path, &probes_for_pose(pose_a(), 256.0 / 192.0));
         assert_eq!(report.width, 256);
-        assert!(report.passes(), "resized frame failed: {:?}", report.failed_probes());
+        assert!(
+            report.passes(),
+            "resized frame failed: {:?}",
+            report.failed_probes()
+        );
         // Zero-sized resize must clamp, not poison the target.
         r.resize(0, 0);
         assert_eq!(r.size(), (1, 1));
@@ -2554,19 +2603,18 @@ mod tests {
     #[test]
     fn host_construction_edits_change_the_frame_through_bounded_remesh() {
         use crate::construction::material_albedo;
+        use crate::scene::{
+            dir_from_ndc, lit_color, project_ndc, sky_color_linear, to_srgb4, Probe, SUN_DIR,
+        };
         use pc3d_world::coords::CellCoord;
         use pc3d_world::gen::CellMaterial;
         use pc3d_world::host::HostCommand;
-        use crate::scene::{dir_from_ndc, lit_color, project_ndc, sky_color_linear, to_srgb4, Probe, SUN_DIR};
 
         let mut host = pc3d_world::host::SoloHost::new(4242);
         build_wall(&mut host);
         // 8 blocks, all in patch (0, 0, -1).
         assert_eq!(host.construction.len(), 1);
-        assert_eq!(
-            host.construction.values().next().unwrap().built_count(),
-            8
-        );
+        assert_eq!(host.construction.values().next().unwrap().built_count(), 8);
 
         let mut r = Renderer::offscreen(W, H);
         r.set_placeholder_scene(false); // construction is the only world geometry
@@ -2578,9 +2626,18 @@ mod tests {
 
         // The (0,1,-8) block's south-face center projects near screen center.
         let target = project_ndc(pose, ASPECT, [2.5, 1.5, -7.0]);
-        assert!(target.0.abs() < 0.2 && target.1.abs() < 0.3, "probe at {target:?}");
-        let rock_face = to_srgb4(lit_color(material_albedo(CellMaterial::Rock), [0.0, 0.0, 1.0]));
-        let sand_face = to_srgb4(lit_color(material_albedo(CellMaterial::Sand), [0.0, 0.0, 1.0]));
+        assert!(
+            target.0.abs() < 0.2 && target.1.abs() < 0.3,
+            "probe at {target:?}"
+        );
+        let rock_face = to_srgb4(lit_color(
+            material_albedo(CellMaterial::Rock),
+            [0.0, 0.0, 1.0],
+        ));
+        let sand_face = to_srgb4(lit_color(
+            material_albedo(CellMaterial::Sand),
+            [0.0, 0.0, 1.0],
+        ));
 
         // BEFORE: the rock block's south face is on screen.
         let before_path = std::env::temp_dir().join("pc3d_build_before.png");
@@ -2631,7 +2688,10 @@ mod tests {
         let p_before = crate::scene::sample_ndc(&rgba_before, W, H, target);
         let p_after = crate::scene::sample_ndc(&rgba_after, W, H, target);
         let delta = (p_before[0] - p_after[0]).abs() + (p_before[1] - p_after[1]).abs();
-        assert!(delta > 0.15, "edited cell barely changed: {p_before:?} vs {p_after:?}");
+        assert!(
+            delta > 0.15,
+            "edited cell barely changed: {p_before:?} vs {p_after:?}"
+        );
         let s_before = crate::scene::sample_ndc(&rgba_before, W, H, sky_ctrl);
         let s_after = crate::scene::sample_ndc(&rgba_after, W, H, sky_ctrl);
         for i in 0..3 {
@@ -2672,7 +2732,7 @@ mod tests {
 
     #[test]
     fn terrain_hill_renders_with_query_derived_probes() {
-        use crate::scene::{dir_from_ndc, Probe, SUN_DIR, sky_color_linear, to_srgb4, project_ndc};
+        use crate::scene::{dir_from_ndc, project_ndc, sky_color_linear, to_srgb4, Probe, SUN_DIR};
         use crate::terrain::{column_top, face_expectation, overview_pose};
         use pc3d_world::coords::{CellCoord, PatchCoord};
         use pc3d_world::terrain::SceneSpec;
@@ -2683,7 +2743,10 @@ mod tests {
         r.set_placeholder_scene(false);
         let stats = r.load_terrain(&gen, &[coord]);
         assert_eq!(stats.patches, 1);
-        assert!(stats.triangles > 500, "expected a real hill mesh: {stats:?}");
+        assert!(
+            stats.triangles > 500,
+            "expected a real hill mesh: {stats:?}"
+        );
         let pose = overview_pose(&gen, coord);
         r.set_pose(pose);
 
@@ -2704,7 +2767,11 @@ mod tests {
                 let x = o.x.div_euclid(1000) as i32 + lx;
                 let z = o.z.div_euclid(1000) as i32 + lz;
                 if let Some(cell) = column_top(&gen, x, z, o.y.div_euclid(1000) as i32 + 15) {
-                    let east = CellCoord { x: cell.x + 1, y: cell.y, z: cell.z };
+                    let east = CellCoord {
+                        x: cell.x + 1,
+                        y: cell.y,
+                        z: cell.z,
+                    };
                     let east_solid = pc3d_world::terrain::final_solid(
                         &gen,
                         east.x as i64 * 1000,
@@ -2716,7 +2783,11 @@ mod tests {
                         slope = Some((
                             cell,
                             [1.0, 0.0, 0.0],
-                            [cell.x as f32 + 1.0, cell.y as f32 + 0.5, cell.z as f32 + 0.5],
+                            [
+                                cell.x as f32 + 1.0,
+                                cell.y as f32 + 0.5,
+                                cell.z as f32 + 0.5,
+                            ],
                         ));
                         break;
                     }
@@ -2726,8 +2797,7 @@ mod tests {
                 break;
             }
         }
-        let (slope_cell, slope_normal, slope_point) =
-            slope.expect("a hill slope step must exist");
+        let (slope_cell, slope_normal, slope_point) = slope.expect("a hill slope step must exist");
 
         let probes = vec![
             Probe {
@@ -2753,8 +2823,12 @@ mod tests {
             },
         ];
         for p in &probes {
-            assert!(p.ndc.0 > -0.99 && p.ndc.0 < 0.99 && p.ndc.1 > -0.99 && p.ndc.1 < 0.99,
-                "probe {} off-screen at {:?}", p.name, p.ndc);
+            assert!(
+                p.ndc.0 > -0.99 && p.ndc.0 < 0.99 && p.ndc.1 > -0.99 && p.ndc.1 < 0.99,
+                "probe {} off-screen at {:?}",
+                p.name,
+                p.ndc
+            );
         }
         let path = std::env::temp_dir().join("pc3d_terrain_hills.png");
         let (report, _) = r.capture_png(&path, &probes);
@@ -2771,7 +2845,7 @@ mod tests {
 
     #[test]
     fn terrain_cave_interior_and_overhang_render() {
-        use crate::scene::{dir_from_ndc, Probe, SUN_DIR, sky_color_linear, to_srgb4, project_ndc};
+        use crate::scene::{dir_from_ndc, project_ndc, sky_color_linear, to_srgb4, Probe, SUN_DIR};
         use crate::terrain::{cave_pose, face_expectation, find_cave_pocket};
         use pc3d_world::coords::PatchCoord;
         use pc3d_world::terrain::SceneSpec;
@@ -2779,18 +2853,13 @@ mod tests {
         // Find a camera-friendly cave pocket near a scene patch.
         let (seed, coord) = SceneSpec::Highlands.patch();
         let gen = pc3d_world::gen::WorldGen::new(seed);
-        let (air, wall, dir) =
-            crate::terrain::find_cave_pocket_near(&gen, coord, 1)
-                .or_else(|| {
-                    let (s, c) = SceneSpec::SmoothHills.patch();
-                    let _ = s;
-                    crate::terrain::find_cave_pocket_near(
-                        &pc3d_world::gen::WorldGen::new(3),
-                        c,
-                        1,
-                    )
-                })
-                .expect("cave pocket");
+        let (air, wall, dir) = crate::terrain::find_cave_pocket_near(&gen, coord, 1)
+            .or_else(|| {
+                let (s, c) = SceneSpec::SmoothHills.patch();
+                let _ = s;
+                crate::terrain::find_cave_pocket_near(&pc3d_world::gen::WorldGen::new(3), c, 1)
+            })
+            .expect("cave pocket");
         let cave_patch = PatchCoord {
             x: air.x.div_euclid(16),
             y: air.y.div_euclid(16),
@@ -2831,14 +2900,21 @@ mod tests {
             crate::terrain::pocket_has_corridor(&gen, air, dir),
             "GPU cave proof needs a corridor pocket"
         );
-        let ceiling = pc3d_world::coords::CellCoord { x: air.x, y: air.y + 1, z: air.z };
+        let ceiling = pc3d_world::coords::CellCoord {
+            x: air.x,
+            y: air.y + 1,
+            z: air.z,
+        };
         let corridor = pc3d_world::coords::CellCoord {
             x: air.x + dir[0],
             y: air.y,
             z: air.z + dir[2],
         };
-        let corridor_ceiling =
-            pc3d_world::coords::CellCoord { x: corridor.x, y: corridor.y + 1, z: corridor.z };
+        let corridor_ceiling = pc3d_world::coords::CellCoord {
+            x: corridor.x,
+            y: corridor.y + 1,
+            z: corridor.z,
+        };
         let wall_face_point = [
             wall.x as f32 + 0.5 - dir[0] as f32 * 0.5,
             wall.y as f32 + 0.5,
@@ -2848,11 +2924,7 @@ mod tests {
             Probe {
                 name: "cave_wall_face",
                 ndc: project_ndc(pose, ASPECT, wall_face_point),
-                expected: face_expectation(
-                    &gen,
-                    wall,
-                    [-dir[0] as f32, 0.0, -dir[2] as f32],
-                ),
+                expected: face_expectation(&gen, wall, [-dir[0] as f32, 0.0, -dir[2] as f32]),
                 tol: 0.06,
             },
             Probe {
@@ -2860,21 +2932,32 @@ mod tests {
                 ndc: project_ndc(
                     pose,
                     ASPECT,
-                    [corridor.x as f32 + 0.5, corridor.y as f32 + 1.0, corridor.z as f32 + 0.5],
+                    [
+                        corridor.x as f32 + 0.5,
+                        corridor.y as f32 + 1.0,
+                        corridor.z as f32 + 0.5,
+                    ],
                 ),
                 expected: face_expectation(&gen, corridor_ceiling, [0.0, -1.0, 0.0]),
                 tol: 0.06,
             },
         ];
         for p in &probes {
-            assert!(p.ndc.0 > -0.99 && p.ndc.0 < 0.99 && p.ndc.1 > -0.99 && p.ndc.1 < 0.99,
-                "probe {} off-screen at {:?}", p.name, p.ndc);
+            assert!(
+                p.ndc.0 > -0.99 && p.ndc.0 < 0.99 && p.ndc.1 > -0.99 && p.ndc.1 < 0.99,
+                "probe {} off-screen at {:?}",
+                p.name,
+                p.ndc
+            );
         }
         let path = std::env::temp_dir().join("pc3d_terrain_cave.png");
         let (report, rgba) = r.capture_png(&path, &probes);
         for p in &probes {
             let px = crate::scene::sample_ndc(&rgba, W, H, p.ndc);
-            println!("probe {} at {:?}: got {:?} want {:?}", p.name, p.ndc, px, p.expected);
+            println!(
+                "probe {} at {:?}: got {:?} want {:?}",
+                p.name, p.ndc, px, p.expected
+            );
         }
         // Interior close-up: a fully enclosed corridor view is a handful of
         // FLAT face colors (wall/floor/ceiling shades + HUD); the
@@ -2897,7 +2980,7 @@ mod tests {
 
         let mut host = pc3d_world::host::SoloHost::new(7);
         build_wall(&mut host); // patch (0, 0, -1)
-        // A second, far-away patch: x=20 lives in patch (1, 0, -1).
+                               // A second, far-away patch: x=20 lives in patch (1, 0, -1).
         host.submit(HostCommand::Build {
             cell: CellCoord { x: 20, y: 0, z: -8 },
             material: CellMaterial::Soil,

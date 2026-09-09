@@ -174,7 +174,9 @@ mod tests {
         assert_eq!(RelationshipKind::Allied.tribute_rate(), 0);
         // Conquered has lowest autonomy, highest tribute.
         assert!(RelationshipKind::Conquered.autonomy() < RelationshipKind::Puppet.autonomy());
-        assert!(RelationshipKind::Conquered.tribute_rate() > RelationshipKind::Puppet.tribute_rate());
+        assert!(
+            RelationshipKind::Conquered.tribute_rate() > RelationshipKind::Puppet.tribute_rate()
+        );
         // All have nonzero growth.
         for k in kinds {
             assert!(k.growth_pct() > 0);
@@ -246,7 +248,13 @@ mod tests {
             a.simulate_day();
             b.simulate_day();
         }
-        assert_eq!(a.relationships[&1].population, b.relationships[&1].population);
-        assert_eq!(a.relationships[&1].prosperity, b.relationships[&1].prosperity);
+        assert_eq!(
+            a.relationships[&1].population,
+            b.relationships[&1].population
+        );
+        assert_eq!(
+            a.relationships[&1].prosperity,
+            b.relationships[&1].prosperity
+        );
     }
 }

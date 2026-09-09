@@ -34,8 +34,14 @@ mod tests {
     fn p3d102_paths_are_deterministic_and_separated() {
         let root = world_root(Path::new("/data"), "alpha");
         let rendered = root.to_str().expect("utf8 path");
-        assert!(rendered.contains("saves3d"), "must live under the P3D save root");
-        assert!(!rendered.contains("worlds/"), "must never touch the original game's dir");
+        assert!(
+            rendered.contains("saves3d"),
+            "must live under the P3D save root"
+        );
+        assert!(
+            !rendered.contains("worlds/"),
+            "must never touch the original game's dir"
+        );
         assert_eq!(root, Path::new("/data/saves3d/alpha"));
 
         assert_eq!(world_file_rel_path().to_str(), Some("world.p3d"));

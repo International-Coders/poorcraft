@@ -56,9 +56,21 @@ mod tests {
     #[test]
     fn p3d613_multi_axis_karma() {
         let mut k = MultiAxisKarma::default();
-        k.record(AxisEvidence { axis: KarmaAxis::Personal, weight: -10, confidence: 1.0 });
-        k.record(AxisEvidence { axis: KarmaAxis::Civic, weight: 20, confidence: 0.5 });
-        k.record(AxisEvidence { axis: KarmaAxis::Faction, weight: -5, confidence: 1.0 });
+        k.record(AxisEvidence {
+            axis: KarmaAxis::Personal,
+            weight: -10,
+            confidence: 1.0,
+        });
+        k.record(AxisEvidence {
+            axis: KarmaAxis::Civic,
+            weight: 20,
+            confidence: 0.5,
+        });
+        k.record(AxisEvidence {
+            axis: KarmaAxis::Faction,
+            weight: -5,
+            confidence: 1.0,
+        });
 
         assert_eq!(k.axes[&KarmaAxis::Personal], -10);
         assert_eq!(k.axes[&KarmaAxis::Civic], 10);
@@ -78,7 +90,11 @@ mod tests {
     fn p3d613_disposition_clamped() {
         let mut k = MultiAxisKarma::default();
         for _ in 0..100 {
-            k.record(AxisEvidence { axis: KarmaAxis::Personal, weight: -100, confidence: 1.0 });
+            k.record(AxisEvidence {
+                axis: KarmaAxis::Personal,
+                weight: -100,
+                confidence: 1.0,
+            });
         }
         let d = k.disposition(&[(KarmaAxis::Personal, 1)]);
         assert_eq!(d, -100);

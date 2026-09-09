@@ -121,9 +121,21 @@ impl SurfaceStreamer {
     pub fn counters(&self) -> SurfaceStreamCounters {
         let mut c = self.counters;
         c.loaded = self.loaded.len();
-        c.loaded_full = self.loaded.values().filter(|s| s.lod == LodLevel::Full).count();
-        c.loaded_mid = self.loaded.values().filter(|s| s.lod == LodLevel::Mid).count();
-        c.loaded_far = self.loaded.values().filter(|s| s.lod == LodLevel::Far).count();
+        c.loaded_full = self
+            .loaded
+            .values()
+            .filter(|s| s.lod == LodLevel::Full)
+            .count();
+        c.loaded_mid = self
+            .loaded
+            .values()
+            .filter(|s| s.lod == LodLevel::Mid)
+            .count();
+        c.loaded_far = self
+            .loaded
+            .values()
+            .filter(|s| s.lod == LodLevel::Far)
+            .count();
         c.deferred = self.deferred.len();
         c.gpu_bytes = self.loaded.values().map(|s| s.bytes).sum();
         c
@@ -148,18 +160,18 @@ impl SurfaceStreamer {
 
     /// Applies a surface edit to the delta layer; returns the dirty patch
     /// keys (patch + border neighbors of the touched edge nodes).
-    pub fn edit(
-        &mut self,
-        cell: CellCoord,
-        meters: f32,
-    ) -> std::collections::BTreeSet<PatchCoord> {
+    pub fn edit(&mut self, cell: CellCoord, meters: f32) -> std::collections::BTreeSet<PatchCoord> {
         use crate::surface::SurfaceEdit;
         let mut region = self.region_around(cell.patch(), 1);
         let dirty = region.edit(SurfaceEdit::Raise { cell, meters });
         // Persist the deltas of every dirty patch.
         let mut keys = std::collections::BTreeSet::new();
         for key in dirty {
-            let coord = PatchCoord { x: key.0, y: self.y_level, z: key.1 };
+            let coord = PatchCoord {
+                x: key.0,
+                y: self.y_level,
+                z: key.1,
+            };
             {
                 let p = region.patch((key.0, key.1));
                 if p.delta.iter().any(|d| *d != 0.0) {
@@ -196,7 +208,11 @@ impl SurfaceStreamer {
         let mut region = crate::surface::SurfaceRegion::empty(&self.gen, center, ring);
         for dx in -ring..=ring {
             for dz in -ring..=ring {
-                let coord = PatchCoord { x: center.x + dx, y: self.y_level, z: center.z + dz };
+                let coord = PatchCoord {
+                    x: center.x + dx,
+                    y: self.y_level,
+                    z: center.z + dz,
+                };
                 let p = self.patch_with_deltas(coord);
                 region.set_patch((coord.x, coord.z), p);
             }
@@ -208,7 +224,11 @@ impl SurfaceStreamer {
         let mut want = BTreeMap::new();
         for tier in self.tiers {
             for col in interest_patches(viewer, *tier).expect("interest ring") {
-                let coord = PatchCoord { x: col.x, y: self.y_level, z: col.z };
+                let coord = PatchCoord {
+                    x: col.x,
+                    y: self.y_level,
+                    z: col.z,
+                };
                 let center = WorldPos::from_mm(
                     coord.x as i64 * 16_000 + 8_000,
                     0,
@@ -299,7 +319,9 @@ impl SurfaceStreamer {
         while meshed < self.max_mesh_per_frame {
             let Some(coord) = self.queue.pop() else { break };
             self.pending.remove(&coord);
-            let Some(&lod) = want.get(&coord) else { continue };
+            let Some(&lod) = want.get(&coord) else {
+                continue;
+            };
             let t_mesh = std::time::Instant::now();
             let (verts, idx) = self.mesh_patch(coord, lod);
             self.counters.mesh_us_total += t_mesh.elapsed().as_micros();
@@ -370,7 +392,11 @@ impl SurfaceStreamer {
                     bytes,
                     aabb_min: [to_m(o.x), min_y, to_m(o.z)],
                     aabb_max: [to_m(o.x) + PATCH_M, max_y + 0.1, to_m(o.z) + PATCH_M],
-                    version: self.deltas.get(&coord).map(|d| 1 + d.len() as u64).unwrap_or(1),
+                    version: self
+                        .deltas
+                        .get(&coord)
+                        .map(|d| 1 + d.len() as u64)
+                        .unwrap_or(1),
                 },
             );
             if existed.is_some() {
@@ -379,8 +405,7 @@ impl SurfaceStreamer {
             self.counters.meshed += 1;
             meshed += 1;
         }
-        self.counters.max_mesh_per_frame_seen =
-            self.counters.max_mesh_per_frame_seen.max(meshed);
+        self.counters.max_mesh_per_frame_seen = self.counters.max_mesh_per_frame_seen.max(meshed);
         SurfaceStreamFrameStats {
             meshed,
             deferred: self.deferred.len(),
@@ -412,13 +437,15 @@ impl SurfaceStreamer {
         let mat = |gx: usize, gz: usize| -> [f32; 3] {
             let wx = ox + (gx as f32 + 0.5) * step;
             let wz = oz + (gz as f32 + 0.5) * step;
-            crate::terrain::terrain_albedo(pc3d_world::terrain::final_solid(
-                &self.gen,
-                (wx * 1000.0) as i64,
-                0,
-                (wz * 1000.0) as i64,
+            crate::terrain::terrain_albedo(
+                pc3d_world::terrain::final_solid(
+                    &self.gen,
+                    (wx * 1000.0) as i64,
+                    0,
+                    (wz * 1000.0) as i64,
+                )
+                .material,
             )
-            .material)
         };
         let mut verts: Vec<SceneVertex> = Vec::with_capacity(n * n + 4 * n);
         let mut grid_idx = vec![0u32; n * n];
@@ -475,9 +502,17 @@ impl SurfaceStreamer {
                 let ca = verts[ia as usize].color;
                 let cb = verts[ib as usize].color;
                 let ia2 = verts.len() as u32;
-                verts.push(SceneVertex { pos: [pa[0], pa[1] - SKIRT, pa[2]], normal: [0.0, 0.0, 1.0], color: ca });
+                verts.push(SceneVertex {
+                    pos: [pa[0], pa[1] - SKIRT, pa[2]],
+                    normal: [0.0, 0.0, 1.0],
+                    color: ca,
+                });
                 let ib2 = verts.len() as u32;
-                verts.push(SceneVertex { pos: [pb[0], pb[1] - SKIRT, pb[2]], normal: [0.0, 0.0, 1.0], color: cb });
+                verts.push(SceneVertex {
+                    pos: [pb[0], pb[1] - SKIRT, pb[2]],
+                    normal: [0.0, 0.0, 1.0],
+                    color: cb,
+                });
                 idx.extend_from_slice(&[ia, ib2, ib, ia, ia2, ib2]);
             }
         }
@@ -551,10 +586,17 @@ mod tests {
         SurfaceStreamer::new(gen, tiers, coord.y)
     }
 
-    fn walk_to_completion(r: &mut crate::renderer::Renderer, s: &mut SurfaceStreamer, pose: crate::camera::CameraPose) -> SurfaceStreamCounters {
+    fn walk_to_completion(
+        r: &mut crate::renderer::Renderer,
+        s: &mut SurfaceStreamer,
+        pose: crate::camera::CameraPose,
+    ) -> SurfaceStreamCounters {
         let mut frames = 0;
         loop {
-            let stats = s.update(r.device_for_tests(), crate::surface_stream::viewer_of_pub(pose));
+            let stats = s.update(
+                r.device_for_tests(),
+                crate::surface_stream::viewer_of_pub(pose),
+            );
             frames += 1;
             let c = s.counters();
             if stats.meshed == 0 && stats.deferred == 0 && stats.evicted == 0 {
@@ -577,8 +619,14 @@ mod tests {
         let (verts, idx) = s.mesh_patch(coord, LodLevel::Far);
         assert_eq!(idx.len(), 8 * 8 * 6 + 4 * 8 * 6);
         // Skirt verts exist below the surface min.
-        let top_min = verts[..9 * 9].iter().map(|v| v.pos[1]).fold(f32::MAX, f32::min);
-        let skirt_min = verts[9 * 9..].iter().map(|v| v.pos[1]).fold(f32::MAX, f32::min);
+        let top_min = verts[..9 * 9]
+            .iter()
+            .map(|v| v.pos[1])
+            .fold(f32::MAX, f32::min);
+        let skirt_min = verts[9 * 9..]
+            .iter()
+            .map(|v| v.pos[1])
+            .fold(f32::MAX, f32::min);
         assert!(skirt_min < top_min - 1.5, "skirt hangs below the surface");
     }
 
@@ -591,7 +639,11 @@ mod tests {
         let mut s = SurfaceStreamer::new(gen.clone(), &[Tier::Full], coord.y);
         s.set_budgets(2, usize::MAX);
         let pose = crate::camera::CameraPose::new(
-            [coord.x as f32 * PATCH_M + 8.0, 60.0, coord.z as f32 * PATCH_M + 8.0],
+            [
+                coord.x as f32 * PATCH_M + 8.0,
+                60.0,
+                coord.z as f32 * PATCH_M + 8.0,
+            ],
             0.0,
             0.0,
         );
@@ -602,10 +654,15 @@ mod tests {
         // generator's answer at the same column (delta-free ground).
         let wx = coord.x as f32 * PATCH_M + 8.0;
         let wz = coord.z as f32 * PATCH_M + 8.0;
-        let h = s.surface_height(wx, wz).expect("collision in the full ring");
-        let gen_h = gen.effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64) as f32
-            / 1000.0;
-        assert!((h - gen_h).abs() < 1.0, "streamed surface vs generator: {h} vs {gen_h}");
+        let h = s
+            .surface_height(wx, wz)
+            .expect("collision in the full ring");
+        let gen_h =
+            gen.effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64) as f32 / 1000.0;
+        assert!(
+            (h - gen_h).abs() < 1.0,
+            "streamed surface vs generator: {h} vs {gen_h}"
+        );
         // Outside the loaded ring the query REFUSES.
         assert!(s.surface_height(90_000.0, 90_000.0).is_none());
     }
@@ -632,7 +689,11 @@ mod tests {
                 )),
             );
             let c = s.counters();
-            assert!(c.gpu_bytes <= 2 * 1024 * 1024, "budget exceeded at {frame}: {}", c.gpu_bytes);
+            assert!(
+                c.gpu_bytes <= 2 * 1024 * 1024,
+                "budget exceeded at {frame}: {}",
+                c.gpu_bytes
+            );
             assert!(c.max_mesh_per_frame_seen <= 2, "mesh cap");
             if c.loaded_full >= 80 {
                 settled_frames += 1;
@@ -643,7 +704,10 @@ mod tests {
                 settled_frames = 0;
             }
         }
-        assert!(settled_frames >= 30, "teleport never recovered the near ring");
+        assert!(
+            settled_frames >= 30,
+            "teleport never recovered the near ring"
+        );
     }
 
     #[test]
@@ -654,7 +718,11 @@ mod tests {
         let mut s = SurfaceStreamer::new(gen, &[Tier::Full], coord.y);
         s.set_budgets(2, usize::MAX);
         let pose = crate::camera::CameraPose::new(
-            [coord.x as f32 * PATCH_M + 8.0, 60.0, coord.z as f32 * PATCH_M + 8.0],
+            [
+                coord.x as f32 * PATCH_M + 8.0,
+                60.0,
+                coord.z as f32 * PATCH_M + 8.0,
+            ],
             0.0,
             0.0,
         );
@@ -718,7 +786,11 @@ mod gpu_tests {
             as f32
             / 1000.0;
         let eye = [cx, ground + 9.0, cz + 30.0];
-        let aim = [cx, gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64) as f32 / 1000.0, cz];
+        let aim = [
+            cx,
+            gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64) as f32 / 1000.0,
+            cz,
+        ];
         let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
         let pose = CameraPose::new(
             eye,
@@ -738,7 +810,11 @@ mod gpu_tests {
         let counters = s.counters();
         println!(
             "surface stream: {} frames, loaded {} (full {} mid {}), mesh {} us",
-            frames, counters.loaded, counters.loaded_full, counters.loaded_mid, counters.mesh_us_total
+            frames,
+            counters.loaded,
+            counters.loaded_full,
+            counters.loaded_mid,
+            counters.mesh_us_total
         );
         assert!(counters.loaded_full > 80);
 

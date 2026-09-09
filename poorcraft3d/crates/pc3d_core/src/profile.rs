@@ -69,7 +69,10 @@ impl Counters {
     }
     /// (id, value) pairs in enum order — the deterministic snapshot.
     pub fn snapshot(&self) -> Vec<(CounterId, u64)> {
-        CounterId::ALL.iter().map(|&id| (id, self.get(id))).collect()
+        CounterId::ALL
+            .iter()
+            .map(|&id| (id, self.get(id)))
+            .collect()
     }
 }
 
@@ -90,7 +93,11 @@ impl Default for FrameTimes {
 
 impl FrameTimes {
     pub fn new(capacity: usize) -> Self {
-        FrameTimes { ring: vec![0.0; capacity.max(1)], head: 0, filled: 0 }
+        FrameTimes {
+            ring: vec![0.0; capacity.max(1)],
+            head: 0,
+            filled: 0,
+        }
     }
 
     pub fn push(&mut self, frame_ms: f32) {
@@ -117,8 +124,7 @@ impl FrameTimes {
         }
         let mut sorted: Vec<f32> = self.ring[..self.filled].to_vec();
         sorted.sort_by(|a, b| a.total_cmp(b));
-        let rank = ((p.clamp(0.0, 1.0) * self.filled as f32).ceil() as usize)
-            .clamp(1, self.filled);
+        let rank = ((p.clamp(0.0, 1.0) * self.filled as f32).ceil() as usize).clamp(1, self.filled);
         sorted[rank - 1]
     }
 
@@ -206,8 +212,10 @@ impl BaselineRecord {
         }
         s.push_str("},");
         s.push_str(&format!("\"frames\":{},", self.frames));
-        s.push_str(&format!("\"frame_ms\":{{\"p50\":{:.3},\"p95\":{:.3},\"min\":{:.3},\"max\":{:.3}}}",
-            self.p50_ms, self.p95_ms, self.min_ms, self.max_ms));
+        s.push_str(&format!(
+            "\"frame_ms\":{{\"p50\":{:.3},\"p95\":{:.3},\"min\":{:.3},\"max\":{:.3}}}",
+            self.p50_ms, self.p95_ms, self.min_ms, self.max_ms
+        ));
         s.push('}');
         s
     }
@@ -248,8 +256,14 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                "mesh_work", "fluid_work", "path_requests", "entity_ticks",
-                "network_bytes", "save_bytes", "patch_rebuilds", "journal_events"
+                "mesh_work",
+                "fluid_work",
+                "path_requests",
+                "entity_ticks",
+                "network_bytes",
+                "save_bytes",
+                "patch_rebuilds",
+                "journal_events"
             ]
         );
         assert_eq!(c.get(CounterId::MeshWork), 10);
@@ -257,7 +271,11 @@ mod tests {
         assert_eq!(c.get(CounterId::FluidWork), 0);
         c.add(CounterId::SaveBytes, u64::MAX);
         c.add(CounterId::SaveBytes, 100);
-        assert_eq!(c.get(CounterId::SaveBytes), u64::MAX, "saturate, never wrap");
+        assert_eq!(
+            c.get(CounterId::SaveBytes),
+            u64::MAX,
+            "saturate, never wrap"
+        );
     }
 
     /// Nearest-rank percentiles on a known 100-sample set, plus the ring's
@@ -335,9 +353,14 @@ mod tests {
         assert_eq!(a, b, "same inputs must produce identical bytes");
         assert!(a.starts_with('{') && a.ends_with('}'));
         for key in [
-            "\"profile\":\"p3d000-synthetic\"", "\"arch\":", "\"os\":",
-            "\"format_epoch\":1", "\"mesh_work\":120", "\"entity_ticks\":600",
-            "\"frames\":3", "\"p50\":16.600",
+            "\"profile\":\"p3d000-synthetic\"",
+            "\"arch\":",
+            "\"os\":",
+            "\"format_epoch\":1",
+            "\"mesh_work\":120",
+            "\"entity_ticks\":600",
+            "\"frames\":3",
+            "\"p50\":16.600",
         ] {
             assert!(a.contains(key), "record missing {key}: {a}");
         }

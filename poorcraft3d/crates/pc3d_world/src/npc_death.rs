@@ -27,7 +27,12 @@ impl NpcRoster {
     }
 
     /// Add a named NPC.
-    pub fn recruit(&mut self, name: &str, role: crate::npc::Role, skill: u8) -> crate::entities::EntityId {
+    pub fn recruit(
+        &mut self,
+        name: &str,
+        role: crate::npc::Role,
+        skill: u8,
+    ) -> crate::entities::EntityId {
         self.next_id += 1;
         let id = crate::entities::EntityId(self.next_id);
         self.npcs.push(NamedNpc {
@@ -51,7 +56,11 @@ impl NpcRoster {
 
     /// Replace a dead NPC with a lower-skilled replacement.
     /// Returns the new entity id, or None if the original is still alive.
-    pub fn replace(&mut self, dead_id: crate::entities::EntityId, name: &str) -> Option<crate::entities::EntityId> {
+    pub fn replace(
+        &mut self,
+        dead_id: crate::entities::EntityId,
+        name: &str,
+    ) -> Option<crate::entities::EntityId> {
         let dead = self.npcs.iter().find(|n| n.entity == dead_id)?;
         if dead.alive {
             return None;
@@ -68,7 +77,10 @@ impl NpcRoster {
 
     /// Living NPCs of a given role.
     pub fn living_by_role(&self, role: crate::npc::Role) -> Vec<&NamedNpc> {
-        self.npcs.iter().filter(|n| n.alive && n.role == role).collect()
+        self.npcs
+            .iter()
+            .filter(|n| n.alive && n.role == role)
+            .collect()
     }
 }
 
@@ -83,7 +95,10 @@ mod tests {
         let id = roster.recruit("Grimward", Role::Builder, 5);
         assert!(roster.kill(id));
         assert!(!roster.kill(id), "double death refused");
-        assert!(!roster.has_service(Role::Builder), "dead builder provides no service");
+        assert!(
+            !roster.has_service(Role::Builder),
+            "dead builder provides no service"
+        );
     }
 
     #[test]
@@ -104,11 +119,19 @@ mod tests {
         roster.recruit("Blacksmith B", Role::Builder, 3);
         assert!(roster.has_service(Role::Builder));
         // Kill one: service still exists.
-        let alive_ids: Vec<_> = roster.living_by_role(Role::Builder).iter().map(|n| n.entity).collect();
+        let alive_ids: Vec<_> = roster
+            .living_by_role(Role::Builder)
+            .iter()
+            .map(|n| n.entity)
+            .collect();
         roster.kill(alive_ids[0]);
         assert!(roster.has_service(Role::Builder), "one builder still alive");
         // Kill the other: service lost.
-        let alive_ids: Vec<_> = roster.living_by_role(Role::Builder).iter().map(|n| n.entity).collect();
+        let alive_ids: Vec<_> = roster
+            .living_by_role(Role::Builder)
+            .iter()
+            .map(|n| n.entity)
+            .collect();
         for id in alive_ids {
             roster.kill(id);
         }

@@ -25,9 +25,8 @@ pub enum QueryError {
 pub fn patches_touching(bounds: &WorldBounds) -> Result<Vec<PatchCoord>, QueryError> {
     let min = bounds.min.patch();
     let max = bounds.max.patch();
-    let count = |lo: i32, hi: i32| -> Option<u64> {
-        u64::try_from(i64::from(hi) - i64::from(lo) + 1).ok()
-    };
+    let count =
+        |lo: i32, hi: i32| -> Option<u64> { u64::try_from(i64::from(hi) - i64::from(lo) + 1).ok() };
     let (nx, ny, nz) = match (
         count(min.x, max.x),
         count(min.y, max.y),
@@ -38,7 +37,10 @@ pub fn patches_touching(bounds: &WorldBounds) -> Result<Vec<PatchCoord>, QueryEr
     };
     let total = nx.saturating_mul(ny).saturating_mul(nz);
     if total > MAX_QUERY_PATCHES as u64 {
-        return Err(QueryError::TooManyPatches { requested: total, cap: MAX_QUERY_PATCHES });
+        return Err(QueryError::TooManyPatches {
+            requested: total,
+            cap: MAX_QUERY_PATCHES,
+        });
     }
     let mut out = Vec::with_capacity(total as usize);
     for x in min.x..=max.x {
@@ -56,10 +58,10 @@ pub fn patches_touching(bounds: &WorldBounds) -> Result<Vec<PatchCoord>, QueryEr
 pub fn regions_touching(bounds: &WorldBounds) -> Result<Vec<RegionCoord>, QueryError> {
     let min = bounds.min.region();
     let max = bounds.max.region();
-    let nx = u64::try_from(i64::from(max.x) - i64::from(min.x) + 1)
-        .map_err(|_| QueryError::TooLarge)?;
-    let nz = u64::try_from(i64::from(max.z) - i64::from(min.z) + 1)
-        .map_err(|_| QueryError::TooLarge)?;
+    let nx =
+        u64::try_from(i64::from(max.x) - i64::from(min.x) + 1).map_err(|_| QueryError::TooLarge)?;
+    let nz =
+        u64::try_from(i64::from(max.z) - i64::from(min.z) + 1).map_err(|_| QueryError::TooLarge)?;
     if nx.saturating_mul(nz) > MAX_QUERY_PATCHES as u64 {
         return Err(QueryError::TooManyPatches {
             requested: nx.saturating_mul(nz),
@@ -108,7 +110,11 @@ mod tests {
         assert_eq!(patches.len(), 27);
         assert_eq!(
             patches[0],
-            PatchCoord { x: -1, y: -1, z: -1 },
+            PatchCoord {
+                x: -1,
+                y: -1,
+                z: -1
+            },
             "ascending order starts at the min corner"
         );
         assert_eq!(patches[26], PatchCoord { x: 1, y: 1, z: 1 });
@@ -189,7 +195,14 @@ mod tests {
     fn p3d101_region_patch_columns_are_16x16() {
         let cols = patches_in_region(RegionCoord { x: -1, z: 1 });
         assert_eq!(cols.len(), (REGION_PATCH_AXIS * REGION_PATCH_AXIS) as usize);
-        assert_eq!(cols[0], PatchCoord { x: -16, y: 0, z: 16 });
+        assert_eq!(
+            cols[0],
+            PatchCoord {
+                x: -16,
+                y: 0,
+                z: 16
+            }
+        );
         for p in &cols {
             assert_eq!(p.region(), RegionCoord { x: -1, z: 1 });
         }

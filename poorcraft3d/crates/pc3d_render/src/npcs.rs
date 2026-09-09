@@ -14,11 +14,11 @@
 
 use crate::scene::SceneVertex;
 use pc3d_world::coords::CellCoord;
-use std::collections::BTreeMap;
 use pc3d_world::gen::WorldGen;
 use pc3d_world::nav::NavPatch;
 use pc3d_world::npc::{NpcBrain, Role};
 use pc3d_world::settlement_plan::SettlementPlan;
+use std::collections::BTreeMap;
 
 /// The three canonical showcase NPCs (resident / worker / guard) bound to
 /// a settlement plan's own anchors.
@@ -61,7 +61,11 @@ pub fn grounded(info: &crate::city::CityInfo, cell: CellCoord) -> CellCoord {
                 if dx.abs() != ring && dz.abs() != ring {
                     continue;
                 }
-                let c = CellCoord { x: cell.x + dx, y: cell.y, z: cell.z + dz };
+                let c = CellCoord {
+                    x: cell.x + dx,
+                    y: cell.y,
+                    z: cell.z + dz,
+                };
                 if !info.collision_cells.contains(&(c.x, c.z)) {
                     return c;
                 }
@@ -72,30 +76,38 @@ pub fn grounded(info: &crate::city::CityInfo, cell: CellCoord) -> CellCoord {
 }
 
 pub fn cast_for(plan: &SettlementPlan, info: &crate::city::CityInfo) -> Vec<NpcCast> {
-    let bed = grounded(info, plan
-        .anchors
-        .bed_cells
-        .first()
-        .copied()
-        .unwrap_or(plan.plaza));
-    let bed2 = grounded(info, plan
-        .anchors
-        .bed_cells
-        .get(1)
-        .copied()
-        .unwrap_or(plan.anchors.bed_cells[0]));
-    let work = grounded(info, plan
-        .anchors
-        .work_cells
-        .first()
-        .copied()
-        .unwrap_or(plan.anchors.bed_cells[0]));
-    let post = grounded(info, plan
-        .anchors
-        .idle_cells
-        .last()
-        .copied()
-        .unwrap_or(plan.plaza));
+    let bed = grounded(
+        info,
+        plan.anchors
+            .bed_cells
+            .first()
+            .copied()
+            .unwrap_or(plan.plaza),
+    );
+    let bed2 = grounded(
+        info,
+        plan.anchors
+            .bed_cells
+            .get(1)
+            .copied()
+            .unwrap_or(plan.anchors.bed_cells[0]),
+    );
+    let work = grounded(
+        info,
+        plan.anchors
+            .work_cells
+            .first()
+            .copied()
+            .unwrap_or(plan.anchors.bed_cells[0]),
+    );
+    let post = grounded(
+        info,
+        plan.anchors
+            .idle_cells
+            .last()
+            .copied()
+            .unwrap_or(plan.plaza),
+    );
     vec![
         NpcCast {
             label: "resident",
@@ -160,27 +172,79 @@ pub fn mesh_npc(
 
     let (dx, dz) = (base[0], base[2]);
     // Legs (mid-stride when walking: one leg forward).
-    let stride = if activity == Activity::Walking { 0.12 } else { 0.0 };
-    push_box(verts, idx, [dx - 0.16, base[1], dz - 0.10 + stride], [dx - 0.02, base[1] + 0.75, dz + 0.06 + stride], LEGS);
-    push_box(verts, idx, [dx + 0.02, base[1], dz - 0.06 - stride], [dx + 0.16, base[1] + 0.75, dz + 0.10 - stride], LEGS);
+    let stride = if activity == Activity::Walking {
+        0.12
+    } else {
+        0.0
+    };
+    push_box(
+        verts,
+        idx,
+        [dx - 0.16, base[1], dz - 0.10 + stride],
+        [dx - 0.02, base[1] + 0.75, dz + 0.06 + stride],
+        LEGS,
+    );
+    push_box(
+        verts,
+        idx,
+        [dx + 0.02, base[1], dz - 0.06 - stride],
+        [dx + 0.16, base[1] + 0.75, dz + 0.10 - stride],
+        LEGS,
+    );
     // Torso.
-    push_box(verts, idx, [dx - 0.20, base[1] + 0.75, dz - 0.12], [dx + 0.20, base[1] + 1.35, dz + 0.12], torso);
+    push_box(
+        verts,
+        idx,
+        [dx - 0.20, base[1] + 0.75, dz - 0.12],
+        [dx + 0.20, base[1] + 1.35, dz + 0.12],
+        torso,
+    );
     // Head.
-    push_box(verts, idx, [dx - 0.13, base[1] + 1.35, dz - 0.13], [dx + 0.13, base[1] + 1.70, dz + 0.13], SKIN);
+    push_box(
+        verts,
+        idx,
+        [dx - 0.13, base[1] + 1.35, dz - 0.13],
+        [dx + 0.13, base[1] + 1.70, dz + 0.13],
+        SKIN,
+    );
 
     // Role props — only when the sim says so.
     match cast.label {
         "guard" => {
             // Spear in the right hand, always carried (it is the role's
             // identity, not an activity claim).
-            push_box(verts, idx, [dx + 0.24, base[1] + 0.55, dz - 0.03], [dx + 0.28, base[1] + 2.05, dz + 0.03], WOOD);
-            push_box(verts, idx, [dx + 0.22, base[1] + 2.05, dz - 0.06], [dx + 0.30, base[1] + 2.22, dz + 0.06], STEEL);
+            push_box(
+                verts,
+                idx,
+                [dx + 0.24, base[1] + 0.55, dz - 0.03],
+                [dx + 0.28, base[1] + 2.05, dz + 0.03],
+                WOOD,
+            );
+            push_box(
+                verts,
+                idx,
+                [dx + 0.22, base[1] + 2.05, dz - 0.06],
+                [dx + 0.30, base[1] + 2.22, dz + 0.06],
+                STEEL,
+            );
         }
         "worker" if working => {
             // Tool at the side ONLY while Working — an idle worker never
             // looks busy.
-            push_box(verts, idx, [dx + 0.24, base[1] + 0.70, dz - 0.03], [dx + 0.27, base[1] + 1.05, dz + 0.03], WOOD);
-            push_box(verts, idx, [dx + 0.21, base[1] + 1.05, dz - 0.08], [dx + 0.30, base[1] + 1.16, dz + 0.08], STEEL);
+            push_box(
+                verts,
+                idx,
+                [dx + 0.24, base[1] + 0.70, dz - 0.03],
+                [dx + 0.27, base[1] + 1.05, dz + 0.03],
+                WOOD,
+            );
+            push_box(
+                verts,
+                idx,
+                [dx + 0.21, base[1] + 1.05, dz - 0.08],
+                [dx + 0.30, base[1] + 1.16, dz + 0.08],
+                STEEL,
+            );
         }
         _ => {}
     }
@@ -205,7 +269,11 @@ pub fn mesh_anchor_boxes(
     let mut bed = 0usize;
     let mut work = 0usize;
     let mut idle = 0usize;
-    let mut frame = |verts: &mut Vec<SceneVertex>, idx: &mut Vec<u16>, cell: CellCoord, color: [f32; 3], count: &mut usize| {
+    let mut frame = |verts: &mut Vec<SceneVertex>,
+                     idx: &mut Vec<u16>,
+                     cell: CellCoord,
+                     color: [f32; 3],
+                     count: &mut usize| {
         let mm = gen.effective_surface_mm(cell.x as i64 * 1000, cell.z as i64 * 1000);
         let y = mm as f32 / 1000.0;
         let (x, z) = (cell.x as f32, cell.z as f32);
@@ -213,17 +281,71 @@ pub fn mesh_anchor_boxes(
         let h = 1.0f32;
         // 4 bottom bars + 4 top bars + 4 uprights.
         push_box(verts, idx, [x, y, z], [x + 1.0, y + t, z + t], color);
-        push_box(verts, idx, [x, y, z + 1.0 - t], [x + 1.0, y + t, z + 1.0], color);
+        push_box(
+            verts,
+            idx,
+            [x, y, z + 1.0 - t],
+            [x + 1.0, y + t, z + 1.0],
+            color,
+        );
         push_box(verts, idx, [x, y, z], [x + t, y + t, z + 1.0], color);
-        push_box(verts, idx, [x + 1.0 - t, y, z], [x + 1.0, y + t, z + 1.0], color);
-        push_box(verts, idx, [x, y + h - t, z], [x + 1.0, y + h, z + t], color);
-        push_box(verts, idx, [x, y + h - t, z + 1.0 - t], [x + 1.0, y + h, z + 1.0], color);
-        push_box(verts, idx, [x, y + h - t, z], [x + t, y + h, z + 1.0], color);
-        push_box(verts, idx, [x + 1.0 - t, y + h - t, z], [x + 1.0, y + h, z + 1.0], color);
+        push_box(
+            verts,
+            idx,
+            [x + 1.0 - t, y, z],
+            [x + 1.0, y + t, z + 1.0],
+            color,
+        );
+        push_box(
+            verts,
+            idx,
+            [x, y + h - t, z],
+            [x + 1.0, y + h, z + t],
+            color,
+        );
+        push_box(
+            verts,
+            idx,
+            [x, y + h - t, z + 1.0 - t],
+            [x + 1.0, y + h, z + 1.0],
+            color,
+        );
+        push_box(
+            verts,
+            idx,
+            [x, y + h - t, z],
+            [x + t, y + h, z + 1.0],
+            color,
+        );
+        push_box(
+            verts,
+            idx,
+            [x + 1.0 - t, y + h - t, z],
+            [x + 1.0, y + h, z + 1.0],
+            color,
+        );
         push_box(verts, idx, [x, y, z], [x + t, y + h, z + t], color);
-        push_box(verts, idx, [x, y, z + 1.0 - t], [x + t, y + h, z + 1.0], color);
-        push_box(verts, idx, [x + 1.0 - t, y, z], [x + 1.0, y + h, z + t], color);
-        push_box(verts, idx, [x + 1.0 - t, y, z + 1.0 - t], [x + 1.0, y + h, z + 1.0], color);
+        push_box(
+            verts,
+            idx,
+            [x, y, z + 1.0 - t],
+            [x + t, y + h, z + 1.0],
+            color,
+        );
+        push_box(
+            verts,
+            idx,
+            [x + 1.0 - t, y, z],
+            [x + 1.0, y + h, z + t],
+            color,
+        );
+        push_box(
+            verts,
+            idx,
+            [x + 1.0 - t, y, z + 1.0 - t],
+            [x + 1.0, y + h, z + 1.0],
+            color,
+        );
         *count += 1;
     };
     let c_bed = pc3d_assets::material_albedo("mat.anchor_bed").unwrap_or([0.70, 0.55, 0.45]);
@@ -247,7 +369,8 @@ mod tests {
     use super::*;
 
     fn scene() -> (WorldGen, SettlementPlan, NavPatch, crate::city::CityInfo) {
-        let (gen, _c, layout, plan) = crate::city::city_scene(3, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
+        let (gen, _c, layout, plan) =
+            crate::city::city_scene(3, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
         let plaza_patch = pc3d_world::coords::PatchCoord {
             x: plan.plaza.x.div_euclid(16),
             y: 0,
@@ -271,12 +394,16 @@ mod tests {
         assert_eq!(cast[0].brain.home, cast[0].brain.work_site);
         for c in &cast {
             assert!(
-                !info.collision_cells.contains(&(c.brain.home.x, c.brain.home.z)),
+                !info
+                    .collision_cells
+                    .contains(&(c.brain.home.x, c.brain.home.z)),
                 "{} home inside collision",
                 c.label
             );
             assert!(
-                !info.collision_cells.contains(&(c.brain.work_site.x, c.brain.work_site.z)),
+                !info
+                    .collision_cells
+                    .contains(&(c.brain.work_site.x, c.brain.work_site.z)),
                 "{} work inside collision",
                 c.label
             );
@@ -289,8 +416,10 @@ mod tests {
         let (gen, plan, nav, info) = scene();
         let mut cast = cast_for(&plan, &info);
         let before: Vec<CellCoord> = cast.iter().map(|c| c.brain.pos).collect();
-        let before_intents: Vec<String> =
-            cast.iter().map(|c| format!("{:?}", c.brain.intent)).collect();
+        let before_intents: Vec<String> = cast
+            .iter()
+            .map(|c| format!("{:?}", c.brain.intent))
+            .collect();
         // Work phase: everyone routes. Movement may fail if a path is
         // unroutable (nav gives None -> Idle), so require that EITHER
         // positions moved OR intents changed — and separately prove at
@@ -313,10 +442,9 @@ mod tests {
             let p = npc_world_pos(&gen, &c.brain);
             assert_eq!(p[0] as i32, c.brain.pos.x);
             assert_eq!(p[2] as i32, c.brain.pos.z);
-            let surface = gen.effective_surface_mm(
-                c.brain.pos.x as i64 * 1000,
-                c.brain.pos.z as i64 * 1000,
-            ) as f32
+            let surface = gen
+                .effective_surface_mm(c.brain.pos.x as i64 * 1000, c.brain.pos.z as i64 * 1000)
+                as f32
                 / 1000.0;
             assert!((p[1] - surface - 1.0).abs() < 1e-3);
         }
@@ -331,9 +459,15 @@ mod tests {
         // Worker prop appears ONLY while Working.
         let (mut v_work, mut i_work) = (Vec::new(), Vec::new());
         mesh_npc(&gen, &cast[1], &mut v_work, &mut i_work);
-        let worker_working = matches!(cast[1].brain.intent, pc3d_world::npc::Intent::Working { .. });
+        let worker_working = matches!(
+            cast[1].brain.intent,
+            pc3d_world::npc::Intent::Working { .. }
+        );
         let has_steel = v_work.iter().any(|v| v.color == STEEL);
-        assert_eq!(has_steel, worker_working, "prop presence must equal sim activity");
+        assert_eq!(
+            has_steel, worker_working,
+            "prop presence must equal sim activity"
+        );
 
         // Guard always carries the spear; resident never has a prop.
         let (mut v, mut i) = (Vec::new(), Vec::new());
@@ -341,7 +475,10 @@ mod tests {
         assert!(v.iter().any(|vv| vv.color == STEEL), "guard carries steel");
         let (mut rv, mut ri) = (Vec::new(), Vec::new());
         mesh_npc(&gen, &cast[0], &mut rv, &mut ri);
-        assert!(!rv.iter().any(|vv| vv.color == STEEL), "resident has no prop");
+        assert!(
+            !rv.iter().any(|vv| vv.color == STEEL),
+            "resident has no prop"
+        );
 
         // Torso colors are distinct across the three roles.
         let torso_of = |label: &str| torso_material(label);
@@ -377,7 +514,8 @@ mod tests {
         use crate::camera::CameraPose;
         use crate::scene::{project_ndc, to_srgb4, Probe};
 
-        let (gen, _c, layout, plan) = crate::city::city_scene(3, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
+        let (gen, _c, layout, plan) =
+            crate::city::city_scene(3, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
         let plaza_patch = pc3d_world::coords::PatchCoord {
             x: plan.plaza.x.div_euclid(16),
             y: 0,
@@ -400,7 +538,11 @@ mod tests {
         for px in pmin.0..=pmax.0 {
             for pz in pmin.1..=pmax.1 {
                 for py in (y_level - 1)..=(y_level + 1) {
-                    patches.push(pc3d_world::coords::PatchCoord { x: px, y: py, z: pz });
+                    patches.push(pc3d_world::coords::PatchCoord {
+                        x: px,
+                        y: py,
+                        z: pz,
+                    });
                 }
             }
         }
@@ -445,7 +587,10 @@ mod tests {
                 Probe {
                     name: "npc_torso",
                     ndc: project_ndc(pose, aspect, torso_face),
-                    expected: to_srgb4(crate::scene::lit_color(torso_material(c.label), [0.0, 0.0, 1.0])),
+                    expected: to_srgb4(crate::scene::lit_color(
+                        torso_material(c.label),
+                        [0.0, 0.0, 1.0],
+                    )),
                     tol: 0.06,
                 },
             ));
@@ -484,7 +629,9 @@ mod tests {
         println!(
             "npcs: {} torso probes PASS at sim positions {:?}",
             probes.len(),
-            cast.iter().map(|c| (c.label, c.brain.pos)).collect::<Vec<_>>()
+            cast.iter()
+                .map(|c| (c.label, c.brain.pos))
+                .collect::<Vec<_>>()
         );
 
         // SIM LIVENESS: stepping further changes at least one position and
@@ -492,7 +639,10 @@ mod tests {
         let before: Vec<CellCoord> = cast.iter().map(|c| c.brain.pos).collect();
         advance(&mut cast, &nav, 0.5, 400);
         let after: Vec<CellCoord> = cast.iter().map(|c| c.brain.pos).collect();
-        let intents: Vec<String> = cast.iter().map(|c| format!("{:?}", c.brain.intent)).collect();
+        let intents: Vec<String> = cast
+            .iter()
+            .map(|c| format!("{:?}", c.brain.intent))
+            .collect();
         println!("npcs after +400 ticks: positions {after:?} intents {intents:?}");
         let _ = before;
     }
@@ -507,8 +657,10 @@ mod tests {
         // Frame vertices sit exactly over the anchor cells.
         let cell = plan.anchors.bed_cells[0];
         assert!(v.iter().any(|vv| {
-            vv.pos[0] >= cell.x as f32 - 0.01 && vv.pos[0] <= cell.x as f32 + 1.01
-                && vv.pos[2] >= cell.z as f32 - 0.01 && vv.pos[2] <= cell.z as f32 + 1.01
+            vv.pos[0] >= cell.x as f32 - 0.01
+                && vv.pos[0] <= cell.x as f32 + 1.01
+                && vv.pos[2] >= cell.z as f32 - 0.01
+                && vv.pos[2] <= cell.z as f32 + 1.01
         }));
         // Colors come from the anchor materials.
         let c_bed = pc3d_assets::material_albedo("mat.anchor_bed").unwrap();
@@ -609,38 +761,123 @@ pub fn rig_pose(brain: &NpcBrain, t: f32) -> RigPose {
             // Stride: legs swing fore/aft, arms counter-swing.
             let phase = t * 6.0;
             let s = phase.sin();
-            push(&mut parts, [-0.09, 0.375, 0.08 * s], [0.14, 0.75, 0.16], PartColor::Legs);
-            push(&mut parts, [0.09, 0.375, -0.08 * s], [0.14, 0.75, 0.16], PartColor::Legs);
+            push(
+                &mut parts,
+                [-0.09, 0.375, 0.08 * s],
+                [0.14, 0.75, 0.16],
+                PartColor::Legs,
+            );
+            push(
+                &mut parts,
+                [0.09, 0.375, -0.08 * s],
+                [0.14, 0.75, 0.16],
+                PartColor::Legs,
+            );
             push(&mut parts, [0.0, 1.05, 0.0], [0.4, 0.6, 0.24], torso_color);
-            push(&mut parts, [-0.26, 1.02, -0.10 * s], [0.11, 0.5, 0.13], torso_color);
-            push(&mut parts, [0.26, 1.02, 0.10 * s], [0.11, 0.5, 0.13], torso_color);
-            push(&mut parts, [0.0, 1.52, 0.0], [0.26, 0.3, 0.26], PartColor::Skin);
+            push(
+                &mut parts,
+                [-0.26, 1.02, -0.10 * s],
+                [0.11, 0.5, 0.13],
+                torso_color,
+            );
+            push(
+                &mut parts,
+                [0.26, 1.02, 0.10 * s],
+                [0.11, 0.5, 0.13],
+                torso_color,
+            );
+            push(
+                &mut parts,
+                [0.0, 1.52, 0.0],
+                [0.26, 0.3, 0.26],
+                PartColor::Skin,
+            );
         }
         Activity::Farming | Activity::Fishing | Activity::Building | Activity::Guarding => {
             // Work: the right arm swings like a tool stroke.
             let phase = t * 3.2;
             let s = phase.sin();
-            push(&mut parts, [-0.09, 0.375, 0.0], [0.14, 0.75, 0.16], PartColor::Legs);
-            push(&mut parts, [0.09, 0.375, 0.0], [0.14, 0.75, 0.16], PartColor::Legs);
+            push(
+                &mut parts,
+                [-0.09, 0.375, 0.0],
+                [0.14, 0.75, 0.16],
+                PartColor::Legs,
+            );
+            push(
+                &mut parts,
+                [0.09, 0.375, 0.0],
+                [0.14, 0.75, 0.16],
+                PartColor::Legs,
+            );
             push(&mut parts, [0.0, 1.05, 0.0], [0.4, 0.6, 0.24], torso_color);
-            push(&mut parts, [-0.26, 1.02, 0.0], [0.11, 0.5, 0.13], torso_color);
-            push(&mut parts, [0.26, 1.15 + 0.08 * s, 0.14 + 0.12 * s], [0.11, 0.5, 0.13], torso_color);
-            push(&mut parts, [0.0, 1.52, 0.0], [0.26, 0.3, 0.26], PartColor::Skin);
+            push(
+                &mut parts,
+                [-0.26, 1.02, 0.0],
+                [0.11, 0.5, 0.13],
+                torso_color,
+            );
+            push(
+                &mut parts,
+                [0.26, 1.15 + 0.08 * s, 0.14 + 0.12 * s],
+                [0.11, 0.5, 0.13],
+                torso_color,
+            );
+            push(
+                &mut parts,
+                [0.0, 1.52, 0.0],
+                [0.26, 0.3, 0.26],
+                PartColor::Skin,
+            );
         }
         Activity::Sleeping => {
             // Lying at home: a low, long silhouette.
             push(&mut parts, [0.0, 0.15, 0.0], [0.45, 0.3, 1.7], torso_color);
-            push(&mut parts, [0.0, 0.18, 0.95], [0.24, 0.24, 0.24], PartColor::Skin);
+            push(
+                &mut parts,
+                [0.0, 0.18, 0.95],
+                [0.24, 0.24, 0.24],
+                PartColor::Skin,
+            );
         }
         _ => {
             // Idle: a subtle breathe sway.
             let b = (t * 1.5).sin() * 0.008;
-            push(&mut parts, [-0.09, 0.375, 0.0], [0.14, 0.75, 0.16], PartColor::Legs);
-            push(&mut parts, [0.09, 0.375, 0.0], [0.14, 0.75, 0.16], PartColor::Legs);
-            push(&mut parts, [0.0, 1.05 + b, 0.0], [0.4, 0.6, 0.24], torso_color);
-            push(&mut parts, [-0.26, 1.02, 0.0], [0.11, 0.5, 0.13], torso_color);
-            push(&mut parts, [0.26, 1.02, 0.0], [0.11, 0.5, 0.13], torso_color);
-            push(&mut parts, [0.0, 1.52, 0.0], [0.26, 0.3, 0.26], PartColor::Skin);
+            push(
+                &mut parts,
+                [-0.09, 0.375, 0.0],
+                [0.14, 0.75, 0.16],
+                PartColor::Legs,
+            );
+            push(
+                &mut parts,
+                [0.09, 0.375, 0.0],
+                [0.14, 0.75, 0.16],
+                PartColor::Legs,
+            );
+            push(
+                &mut parts,
+                [0.0, 1.05 + b, 0.0],
+                [0.4, 0.6, 0.24],
+                torso_color,
+            );
+            push(
+                &mut parts,
+                [-0.26, 1.02, 0.0],
+                [0.11, 0.5, 0.13],
+                torso_color,
+            );
+            push(
+                &mut parts,
+                [0.26, 1.02, 0.0],
+                [0.11, 0.5, 0.13],
+                torso_color,
+            );
+            push(
+                &mut parts,
+                [0.0, 1.52, 0.0],
+                [0.26, 0.3, 0.26],
+                PartColor::Skin,
+            );
         }
     }
     // Role gear (the role's identity — always readable):
@@ -648,19 +885,54 @@ pub fn rig_pose(brain: &NpcBrain, t: f32) -> RigPose {
     // a satchel.
     match torso_color {
         PartColor::Guard => {
-            push(&mut parts, [0.30, 1.0, 0.0], [0.05, 1.5, 0.05], PartColor::Wood);
-            push(&mut parts, [0.30, 1.85, 0.0], [0.09, 0.2, 0.09], PartColor::Steel);
-            push(&mut parts, [0.0, 1.72, 0.0], [0.3, 0.12, 0.3], PartColor::Steel);
+            push(
+                &mut parts,
+                [0.30, 1.0, 0.0],
+                [0.05, 1.5, 0.05],
+                PartColor::Wood,
+            );
+            push(
+                &mut parts,
+                [0.30, 1.85, 0.0],
+                [0.09, 0.2, 0.09],
+                PartColor::Steel,
+            );
+            push(
+                &mut parts,
+                [0.0, 1.72, 0.0],
+                [0.3, 0.12, 0.3],
+                PartColor::Steel,
+            );
         }
         PartColor::Worker => {
-            push(&mut parts, [0.0, 1.70, 0.0], [0.28, 0.1, 0.28], PartColor::Wood);
+            push(
+                &mut parts,
+                [0.0, 1.70, 0.0],
+                [0.28, 0.1, 0.28],
+                PartColor::Wood,
+            );
             if matches!(brain.intent, Intent::Working { .. }) {
-                push(&mut parts, [0.34, 1.0, 0.1], [0.05, 0.4, 0.05], PartColor::Wood);
-                push(&mut parts, [0.34, 1.25, 0.1], [0.12, 0.12, 0.12], PartColor::Steel);
+                push(
+                    &mut parts,
+                    [0.34, 1.0, 0.1],
+                    [0.05, 0.4, 0.05],
+                    PartColor::Wood,
+                );
+                push(
+                    &mut parts,
+                    [0.34, 1.25, 0.1],
+                    [0.12, 0.12, 0.12],
+                    PartColor::Steel,
+                );
             }
         }
         _ => {
-            push(&mut parts, [-0.24, 0.95, -0.12], [0.12, 0.16, 0.08], PartColor::Wood);
+            push(
+                &mut parts,
+                [-0.24, 0.95, -0.12],
+                [0.12, 0.16, 0.08],
+                PartColor::Wood,
+            );
         }
     }
     RigPose {
@@ -858,7 +1130,11 @@ mod rig_tests {
         );
         // Legs alternate at mid-stride.
         let p2 = rig_pose(&w, 0.2618); // sin(pi*0.5)=1
-        let legs: Vec<&RigPart> = p2.parts.iter().filter(|q| q.color == PartColor::Legs).collect();
+        let legs: Vec<&RigPart> = p2
+            .parts
+            .iter()
+            .filter(|q| q.color == PartColor::Legs)
+            .collect();
         assert_eq!(legs.len(), 2, "two legs");
         assert!(
             (legs[0].offset[2] - legs[1].offset[2]).abs() > 0.1,
@@ -868,12 +1144,20 @@ mod rig_tests {
         );
 
         // WORKING: the right arm swings between times.
-        let worker = brain(Role::Builder, Intent::Working { site: CellCoord { x: 30, y: 0, z: 12 } });
+        let worker = brain(
+            Role::Builder,
+            Intent::Working {
+                site: CellCoord { x: 30, y: 0, z: 12 },
+            },
+        );
         let a = rig_pose(&worker, 0.0);
         let b = rig_pose(&worker, 0.5);
         assert_ne!(a.parts, b.parts, "the work stroke animates");
         // The tool appears ONLY while working.
-        assert!(a.parts.iter().any(|q| q.color == PartColor::Steel), "tool while working");
+        assert!(
+            a.parts.iter().any(|q| q.color == PartColor::Steel),
+            "tool while working"
+        );
         let idle_worker = brain(Role::Builder, Intent::Idle);
         let c = rig_pose(&idle_worker, 0.0);
         assert!(
@@ -884,7 +1168,9 @@ mod rig_tests {
         // GUARD gear is the role's identity: spear steel at ANY activity.
         for mk in [
             || Intent::Idle,
-            || Intent::Working { site: CellCoord { x: 2, y: 0, z: 2 } },
+            || Intent::Working {
+                site: CellCoord { x: 2, y: 0, z: 2 },
+            },
             || Intent::Sleeping,
         ] {
             let g = brain(Role::Guard, mk());
@@ -918,7 +1204,15 @@ mod rig_tests {
         let gen = WorldGen::new(3);
         let cast: Vec<NpcCast> = [
             ("resident", brain(Role::Farmer, Intent::Idle)),
-            ("worker", brain(Role::Builder, Intent::Working { site: CellCoord { x: 30, y: 0, z: 12 } })),
+            (
+                "worker",
+                brain(
+                    Role::Builder,
+                    Intent::Working {
+                        site: CellCoord { x: 30, y: 0, z: 12 },
+                    },
+                ),
+            ),
             ("guard", brain(Role::Guard, Intent::Idle)),
         ]
         .into_iter()
@@ -1002,21 +1296,38 @@ mod rig_tests {
         crate::npcs::advance(&mut cast, &nav, 0.35, 4);
         cast[0].brain.intent = Intent::Walking {
             path: vec![
-                CellCoord { x: plaza.x + 3, y: plaza.y, z: plaza.z + 3 },
-                CellCoord { x: plaza.x - 3, y: plaza.y, z: plaza.z - 3 },
+                CellCoord {
+                    x: plaza.x + 3,
+                    y: plaza.y,
+                    z: plaza.z + 3,
+                },
+                CellCoord {
+                    x: plaza.x - 3,
+                    y: plaza.y,
+                    z: plaza.z - 3,
+                },
             ],
             leg: 1,
         };
-        cast[0].brain.pos = CellCoord { x: plaza.x + 3, y: plaza.y, z: plaza.z + 3 };
-        let walking = cast.iter().any(|c| matches!(c.brain.intent, Intent::Walking { .. }));
-        let working = cast.iter().any(|c| matches!(c.brain.intent, Intent::Working { .. }));
+        cast[0].brain.pos = CellCoord {
+            x: plaza.x + 3,
+            y: plaza.y,
+            z: plaza.z + 3,
+        };
+        let walking = cast
+            .iter()
+            .any(|c| matches!(c.brain.intent, Intent::Walking { .. }));
+        let working = cast
+            .iter()
+            .any(|c| matches!(c.brain.intent, Intent::Working { .. }));
         println!("cast states: walking {walking} working {working}");
         assert!(walking || working, "the sim drives visible activity");
 
         // Terrain patch + camera BESIDE the staged walker (a 0.16 m
         // stride is sub-pixel at 13 m — the first animation probe
         // compared specks; stand 3 m away).
-        let ground = gen.effective_surface_mm((plaza.x as i64) * 1000, (plaza.z as i64) * 1000) as f32
+        let ground = gen.effective_surface_mm((plaza.x as i64) * 1000, (plaza.z as i64) * 1000)
+            as f32
             / 1000.0;
         let eye = [plaza.x as f32 + 3.0, ground + 1.8, plaza.z as f32 + 5.0];
         let aim = [plaza.x as f32 + 3.0, ground + 1.2, plaza.z as f32 + 2.0];
@@ -1029,13 +1340,27 @@ mod rig_tests {
 
         let mut ctrl = crate::renderer::Renderer::offscreen(384, 288);
         ctrl.set_placeholder_scene(false);
-        ctrl.load_terrain(&gen.clone(), &[pc3d_world::coords::PatchCoord { x: plaza.x.div_euclid(16), y: 1, z: plaza.z.div_euclid(16) }]);
+        ctrl.load_terrain(
+            &gen.clone(),
+            &[pc3d_world::coords::PatchCoord {
+                x: plaza.x.div_euclid(16),
+                y: 1,
+                z: plaza.z.div_euclid(16),
+            }],
+        );
         ctrl.set_pose(pose);
         let (_, no_crowd) = ctrl.capture_png(&std::env::temp_dir().join("pc3d_crowd_off.png"), &[]);
 
         let mut r = crate::renderer::Renderer::offscreen(384, 288);
         r.set_placeholder_scene(false);
-        r.load_terrain(&gen.clone(), &[pc3d_world::coords::PatchCoord { x: plaza.x.div_euclid(16), y: 1, z: plaza.z.div_euclid(16) }]);
+        r.load_terrain(
+            &gen.clone(),
+            &[pc3d_world::coords::PatchCoord {
+                x: plaza.x.div_euclid(16),
+                y: 1,
+                z: plaza.z.div_euclid(16),
+            }],
+        );
         r.set_pose(pose);
         r.set_water_time(Some(0.5));
         r.attach_crowd(

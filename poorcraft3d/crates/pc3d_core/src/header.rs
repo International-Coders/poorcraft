@@ -44,7 +44,13 @@ pub struct SupportedVersions {
 
 impl SupportedVersions {
     pub const fn epoch1() -> Self {
-        SupportedVersions { epoch: 1, world: 1, save: 1, content: 1, protocol: 1 }
+        SupportedVersions {
+            epoch: 1,
+            world: 1,
+            save: 1,
+            content: 1,
+            protocol: 1,
+        }
     }
 }
 
@@ -52,7 +58,13 @@ impl FormatHeader {
     /// The current build's header, as written into every new file.
     pub const fn current() -> Self {
         let s = SupportedVersions::epoch1();
-        FormatHeader { epoch: s.epoch, world: s.world, save: s.save, content: s.content, protocol: s.protocol }
+        FormatHeader {
+            epoch: s.epoch,
+            world: s.world,
+            save: s.save,
+            content: s.content,
+            protocol: s.protocol,
+        }
     }
 
     pub fn encode(&self) -> [u8; HEADER_LEN] {
@@ -100,8 +112,12 @@ impl Section {
             Section::Protocol => "protocol",
         }
     }
-    pub const ALL: [Section; 4] =
-        [Section::World, Section::Save, Section::Content, Section::Protocol];
+    pub const ALL: [Section; 4] = [
+        Section::World,
+        Section::Save,
+        Section::Content,
+        Section::Protocol,
+    ];
 }
 
 /// The loader's verdict on a candidate file. `Accepted` is the only verdict
@@ -115,9 +131,20 @@ pub enum OpenDecision {
     TooShort,
     /// The P3D-001 magic guard's verdicts, passed through.
     ForeignFormat,
-    UnknownEpoch { file_epoch: u32, supported_epoch: u32 },
-    Newer { section: Section, file: u16, supported: u16 },
-    Older { section: Section, file: u16, supported: u16 },
+    UnknownEpoch {
+        file_epoch: u32,
+        supported_epoch: u32,
+    },
+    Newer {
+        section: Section,
+        file: u16,
+        supported: u16,
+    },
+    Older {
+        section: Section,
+        file: u16,
+        supported: u16,
+    },
 }
 
 impl OpenDecision {
@@ -132,18 +159,29 @@ impl OpenDecision {
             OpenDecision::ForeignFormat => {
                 "not a POORCRAFT 3D file (magic mismatch) — refused".into()
             }
-            OpenDecision::UnknownEpoch { file_epoch, supported_epoch } => format!(
+            OpenDecision::UnknownEpoch {
+                file_epoch,
+                supported_epoch,
+            } => format!(
                 "unknown format epoch {file_epoch} (this build speaks epoch {supported_epoch}) — \
                  the file comes from a different format family; refused"
             ),
-            OpenDecision::Newer { section, file, supported } => format!(
+            OpenDecision::Newer {
+                section,
+                file,
+                supported,
+            } => format!(
                 "{} version {} is NEWER than this build supports ({}) — \
                  update the game to open this file",
                 section.name(),
                 file,
                 supported
             ),
-            OpenDecision::Older { section, file, supported } => format!(
+            OpenDecision::Older {
+                section,
+                file,
+                supported,
+            } => format!(
                 "{} version {} is OLDER than this build supports ({}) — \
                  this build cannot downgrade; refused",
                 section.name(),
@@ -182,10 +220,18 @@ pub fn open_decision(bytes: &[u8], supported: &SupportedVersions) -> OpenDecisio
         (Section::Protocol, header.protocol, supported.protocol),
     ] {
         if file_v > sup {
-            return OpenDecision::Newer { section, file: file_v, supported: sup };
+            return OpenDecision::Newer {
+                section,
+                file: file_v,
+                supported: sup,
+            };
         }
         if file_v < sup {
-            return OpenDecision::Older { section, file: file_v, supported: sup };
+            return OpenDecision::Older {
+                section,
+                file: file_v,
+                supported: sup,
+            };
         }
     }
     OpenDecision::Accepted
@@ -199,7 +245,13 @@ mod tests {
     /// move. If it changes, every file ever written changes meaning.
     #[test]
     fn p3d002_layout_is_byte_stable() {
-        let h = FormatHeader { epoch: 1, world: 1, save: 2, content: 3, protocol: 4 };
+        let h = FormatHeader {
+            epoch: 1,
+            world: 1,
+            save: 2,
+            content: 3,
+            protocol: 4,
+        };
         let bytes = h.encode();
         assert_eq!(bytes.len(), HEADER_LEN);
         assert_eq!(HEADER_LEN, 16);
@@ -211,12 +263,21 @@ mod tests {
             3, 0, // content
             4, 0, // protocol
         ];
-        assert_eq!(bytes, expected, "header layout moved — that is a format break");
+        assert_eq!(
+            bytes, expected,
+            "header layout moved — that is a format break"
+        );
     }
 
     #[test]
     fn p3d002_round_trips() {
-        let h = FormatHeader { epoch: 7, world: 11, save: 12, content: 13, protocol: 14 };
+        let h = FormatHeader {
+            epoch: 7,
+            world: 11,
+            save: 12,
+            content: 13,
+            protocol: 14,
+        };
         let bytes = h.encode();
         assert_eq!(FormatHeader::decode(&bytes), Some(h));
         // Extra payload after the header does not disturb decoding.
@@ -247,7 +308,11 @@ mod tests {
             let newer = open_decision(&bump(FormatHeader::current(), section, 2), &sup);
             assert_eq!(
                 newer,
-                OpenDecision::Newer { section, file: 2, supported: 1 },
+                OpenDecision::Newer {
+                    section,
+                    file: 2,
+                    supported: 1
+                },
                 "newer {} must refuse",
                 section.name()
             );
@@ -258,7 +323,11 @@ mod tests {
             let older = open_decision(&bump(FormatHeader::current(), section, 0), &sup);
             assert_eq!(
                 older,
-                OpenDecision::Older { section, file: 0, supported: 1 },
+                OpenDecision::Older {
+                    section,
+                    file: 0,
+                    supported: 1
+                },
                 "older {} must refuse",
                 section.name()
             );
@@ -270,7 +339,14 @@ mod tests {
         multi.save = 9;
         multi.protocol = 9;
         let d = open_decision(&multi.encode(), &sup);
-        assert_eq!(d, OpenDecision::Newer { section: Section::Save, file: 9, supported: 1 });
+        assert_eq!(
+            d,
+            OpenDecision::Newer {
+                section: Section::Save,
+                file: 9,
+                supported: 1
+            }
+        );
     }
 
     #[test]
@@ -279,7 +355,13 @@ mod tests {
         let mut h = FormatHeader::current();
         h.epoch = 2;
         let d = open_decision(&h.encode(), &sup);
-        assert_eq!(d, OpenDecision::UnknownEpoch { file_epoch: 2, supported_epoch: 1 });
+        assert_eq!(
+            d,
+            OpenDecision::UnknownEpoch {
+                file_epoch: 2,
+                supported_epoch: 1
+            }
+        );
         assert!(d.explanation().contains("different format family"));
         h.epoch = 0;
         assert!(matches!(
@@ -301,10 +383,20 @@ mod tests {
         for n in 4..HEADER_LEN {
             let mut partial = b"PC3D...".to_vec();
             partial.truncate(n);
-            assert_eq!(open_decision(&partial, &sup), OpenDecision::TooShort, "len {n}");
+            assert_eq!(
+                open_decision(&partial, &sup),
+                OpenDecision::TooShort,
+                "len {n}"
+            );
         }
-        assert_eq!(open_decision(b"LOREFORGE save data", &sup), OpenDecision::ForeignFormat);
-        assert_eq!(open_decision(b"pc3d too lowercase", &sup), OpenDecision::ForeignFormat);
+        assert_eq!(
+            open_decision(b"LOREFORGE save data", &sup),
+            OpenDecision::ForeignFormat
+        );
+        assert_eq!(
+            open_decision(b"pc3d too lowercase", &sup),
+            OpenDecision::ForeignFormat
+        );
     }
 
     /// Deciding is pure: the same bytes always produce the same verdict.

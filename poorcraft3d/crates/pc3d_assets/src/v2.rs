@@ -56,19 +56,32 @@ pub struct V2Collision {
 }
 
 pub const CATEGORIES: &[&str] = &[
-    "prop", "module", "character", "material", "effect", "flora", "landmark",
+    "prop",
+    "module",
+    "character",
+    "material",
+    "effect",
+    "flora",
+    "landmark",
 ];
-pub const STATUSES: &[&str] = &["planned", "source_ready", "compiled", "integrated", "proven"];
-pub const PROVENANCE_KINDS: &[&str] = &["original_manual", "original_procedural", "compatible_license"];
+pub const STATUSES: &[&str] = &[
+    "planned",
+    "source_ready",
+    "compiled",
+    "integrated",
+    "proven",
+];
+pub const PROVENANCE_KINDS: &[&str] = &[
+    "original_manual",
+    "original_procedural",
+    "compatible_license",
+];
 pub const LOD_NAMES: &[&str] = &["lod0", "lod1", "lod2", "impostor"];
 pub const COLLISION_KINDS: &[&str] = &["none", "box", "capsule", "convex", "mesh"];
 
 /// Full validation. `compiled_root` (when given) checks that non-planned
 /// rows have their compiled file on disk — the factory honesty check.
-pub fn validate_v2(
-    json: &str,
-    compiled_root: Option<&Path>,
-) -> Result<V2Manifest, Vec<String>> {
+pub fn validate_v2(json: &str, compiled_root: Option<&Path>) -> Result<V2Manifest, Vec<String>> {
     let mut errors = Vec::new();
     let m: V2Manifest = match serde_json::from_str(json) {
         Ok(m) => m,
@@ -76,7 +89,10 @@ pub fn validate_v2(
     };
 
     if m.schema_version != 2 {
-        errors.push(format!("schema_version must be 2, got {}", m.schema_version));
+        errors.push(format!(
+            "schema_version must be 2, got {}",
+            m.schema_version
+        ));
     }
     if m.coordinate_system != "meters,+Y-up,-Z-forward" {
         errors.push(format!(
@@ -111,8 +127,16 @@ pub fn validate_v2(
         if a.provenance.license_or_originality.len() < 12 {
             errors.push(format!("{}: provenance statement too short (<12)", a.id));
         }
-        if a.source.is_empty() || !a.source.iter().all(|s| s.starts_with("assets-src/") || s.starts_with("tools/")) {
-            errors.push(format!("{}: every source must be under assets-src/ or tools/", a.id));
+        if a.source.is_empty()
+            || !a
+                .source
+                .iter()
+                .all(|s| s.starts_with("assets-src/") || s.starts_with("tools/"))
+        {
+            errors.push(format!(
+                "{}: every source must be under assets-src/ or tools/",
+                a.id
+            ));
         }
         if !(a.compiled.starts_with("assets/compiled/") && a.compiled.ends_with(".glb")) {
             errors.push(format!("{}: compiled must be assets/compiled/**.glb", a.id));
@@ -135,8 +159,12 @@ pub fn validate_v2(
             errors.push(format!("{}: bad collision kind", a.id));
         }
         if !a.sockets.iter().all(|s| {
-            s.chars().next().map(|c| c.is_ascii_lowercase()).unwrap_or(false)
-                && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            s.chars()
+                .next()
+                .map(|c| c.is_ascii_lowercase())
+                .unwrap_or(false)
+                && s.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
         }) {
             errors.push(format!("{}: socket names must be lower snake_case", a.id));
         }
@@ -149,11 +177,15 @@ pub fn validate_v2(
         // Factory honesty: compiled/integrated/proven rows need the file.
         if let Some(root) = compiled_root {
             if ["compiled", "integrated", "proven"].contains(&a.status.as_str()) {
-                let p = root.join("assets/compiled").join(a.compiled.trim_start_matches("assets/compiled/"));
+                let p = root
+                    .join("assets/compiled")
+                    .join(a.compiled.trim_start_matches("assets/compiled/"));
                 if !p.exists() {
                     errors.push(format!(
                         "{}: status {} but compiled file missing: {}",
-                        a.id, a.status, p.display()
+                        a.id,
+                        a.status,
+                        p.display()
                     ));
                 }
             }
@@ -167,7 +199,8 @@ pub fn validate_v2(
 }
 
 pub fn load_pack(path: &Path, compiled_root: Option<&Path>) -> Result<V2Manifest, Vec<String>> {
-    let json = std::fs::read_to_string(path).map_err(|e| vec![format!("read {}: {e}", path.display())])?;
+    let json =
+        std::fs::read_to_string(path).map_err(|e| vec![format!("read {}: {e}", path.display())])?;
     validate_v2(&json, compiled_root)
 }
 
@@ -249,21 +282,84 @@ mod tests {
         // Build a matrix of single-field corruptions; each must fail with
         // a message naming the problem.
         let cases: Vec<(&str, String, &str)> = vec![
-            ("bad id", wrap(&good_row().replace("prop.tree_test", "PROP.tree_test")), "id must be"),
-            ("category mismatch", wrap(&good_row().replace("\"category\": \"prop\"", "\"category\": \"module\"")), "category"),
-            ("bad status", wrap(&good_row().replace("\"planned\"", "\"shipped\"")), "status"),
-            ("bad provenance kind", wrap(&good_row().replace("original_procedural", "ripped_from_a_game")), "provenance kind"),
-            ("short license", wrap(&good_row().replace("Repository-owned original Rust generator.", "mine")), "too short"),
-            ("bad source prefix", wrap(&good_row().replace("tools/assetgen/src/main.rs", "downloads/model.glb")), "source"),
-            ("bad compiled path", wrap(&good_row().replace("assets/compiled/prop/tree_test.glb", "somewhere/x.gltf")), "compiled"),
-            ("bad material", wrap(&good_row().replace("mat.bark", "bark")), "materials"),
-            ("no lods", wrap(&good_row().replace("[{\"name\": \"lod0\", \"max_triangles\": 100}]", "[]")), "LOD"),
-            ("bad lod name", wrap(&good_row().replace("\"lod0\"", "\"high\"")), "lod name"),
-            ("zero budget", wrap(&good_row().replace("\"max_triangles\": 100", "\"max_triangles\": 0")), "budget"),
-            ("bad collision", wrap(&good_row().replace("\"capsule\"", "\"forcefield\"")), "collision kind"),
-            ("bad socket", wrap(&good_row().replace("\"collision\"", "\"sockets\": [\"Front Door\"], \"collision\"")), "socket"),
-            ("bad coordinate system", wrap(&good_row()).replace("meters,+Y-up,-Z-forward", "feet"), "coordinate_system"),
-            ("bad schema version", wrap(&good_row()).replace("\"schema_version\":2", "\"schema_version\":1"), "schema_version"),
+            (
+                "bad id",
+                wrap(&good_row().replace("prop.tree_test", "PROP.tree_test")),
+                "id must be",
+            ),
+            (
+                "category mismatch",
+                wrap(&good_row().replace("\"category\": \"prop\"", "\"category\": \"module\"")),
+                "category",
+            ),
+            (
+                "bad status",
+                wrap(&good_row().replace("\"planned\"", "\"shipped\"")),
+                "status",
+            ),
+            (
+                "bad provenance kind",
+                wrap(&good_row().replace("original_procedural", "ripped_from_a_game")),
+                "provenance kind",
+            ),
+            (
+                "short license",
+                wrap(&good_row().replace("Repository-owned original Rust generator.", "mine")),
+                "too short",
+            ),
+            (
+                "bad source prefix",
+                wrap(&good_row().replace("tools/assetgen/src/main.rs", "downloads/model.glb")),
+                "source",
+            ),
+            (
+                "bad compiled path",
+                wrap(&good_row().replace("assets/compiled/prop/tree_test.glb", "somewhere/x.gltf")),
+                "compiled",
+            ),
+            (
+                "bad material",
+                wrap(&good_row().replace("mat.bark", "bark")),
+                "materials",
+            ),
+            (
+                "no lods",
+                wrap(&good_row().replace("[{\"name\": \"lod0\", \"max_triangles\": 100}]", "[]")),
+                "LOD",
+            ),
+            (
+                "bad lod name",
+                wrap(&good_row().replace("\"lod0\"", "\"high\"")),
+                "lod name",
+            ),
+            (
+                "zero budget",
+                wrap(&good_row().replace("\"max_triangles\": 100", "\"max_triangles\": 0")),
+                "budget",
+            ),
+            (
+                "bad collision",
+                wrap(&good_row().replace("\"capsule\"", "\"forcefield\"")),
+                "collision kind",
+            ),
+            (
+                "bad socket",
+                wrap(&good_row().replace(
+                    "\"collision\"",
+                    "\"sockets\": [\"Front Door\"], \"collision\"",
+                )),
+                "socket",
+            ),
+            (
+                "bad coordinate system",
+                wrap(&good_row()).replace("meters,+Y-up,-Z-forward", "feet"),
+                "coordinate_system",
+            ),
+            (
+                "bad schema version",
+                wrap(&good_row()).replace("\"schema_version\":2", "\"schema_version\":1"),
+                "schema_version",
+            ),
         ];
         for (name, json, expect) in cases {
             let errs = validate_v2(&json, None).unwrap_err();

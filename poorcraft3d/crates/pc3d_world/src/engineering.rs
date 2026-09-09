@@ -27,7 +27,10 @@ pub struct ValveNetwork {
 
 impl ValveNetwork {
     pub fn new() -> Self {
-        ValveNetwork { valves: BTreeMap::new(), next_id: 0 }
+        ValveNetwork {
+            valves: BTreeMap::new(),
+            next_id: 0,
+        }
     }
 
     pub fn add(&mut self, on: bool, edge: ((i32, i32), (i32, i32))) -> u64 {
@@ -90,7 +93,11 @@ impl WaterWheel {
             .unwrap_or(0);
         // Spin: milli-RPM = discharge × slope / 4096, floor 5 when flowing.
         let rpm_milli = (discharge.saturating_mul(slope as u64) / 4096).max(5) as i64;
-        Some(WaterWheel { id, site, rpm_milli })
+        Some(WaterWheel {
+            id,
+            site,
+            rpm_milli,
+        })
     }
 }
 

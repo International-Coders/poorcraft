@@ -5,8 +5,8 @@
 fn main() {
     let mut args: Vec<String> = std::env::args().collect();
     if args.len() == 1 {
-        // Double-click launch (the DMG app): straight into the walkable
-        // rebuild slice — the game, not a help printout.
+        // Double-click launch (the DMG app): into the owner-facing rebuild
+        // slice menu — the game, not a help printout.
         args = vec![args[0].clone(), "--play-rebuild".into(), "live".into()];
     }
     match args.get(1).map(String::as_str) {
@@ -116,7 +116,11 @@ fn main() {
                 .map(|i| {
                     pc3d_world::proof::verify_patch_hash(
                         seed,
-                        pc3d_world::PatchCoord { x: i * 4, y: -1, z: i * 3 },
+                        pc3d_world::PatchCoord {
+                            x: i * 4,
+                            y: -1,
+                            z: i * 3,
+                        },
                     )
                 })
                 .collect();
@@ -141,8 +145,13 @@ fn main() {
             for r in &rows {
                 println!(
                     "{:<14} {:<18} {:>10} {:>8} {:>11} {:>9.3} {:>8}",
-                    r.scene, r.candidate, r.extract_us, r.grid_bytes, r.edit_rebuild_us,
-                    r.fidelity_err_m, r.fidelity_columns
+                    r.scene,
+                    r.candidate,
+                    r.extract_us,
+                    r.grid_bytes,
+                    r.edit_rebuild_us,
+                    r.fidelity_err_m,
+                    r.fidelity_columns
                 );
             }
         }
@@ -277,10 +286,11 @@ fn main() {
             }
         }
         Some("--play") => {
-            // R3DV-002: the interactive 3D renderer. Click to grab the mouse,
-            // WASD + Space/Shift to move, Esc quits.
+            // R3DV-002: the interactive 3D renderer. Click/Enter to grab the
+            // mouse, WASD + Space/Shift to move, Esc pauses, Q quits.
             let cfg = pc3d_render::WindowConfig {
                 resize_to: None,
+                owner_menu: true,
                 ..Default::default()
             };
             match pc3d_render::run_windowed(cfg) {
@@ -297,9 +307,10 @@ fn main() {
             // camera to pose B (gold face), capture B — then assert the
             // FACE FLIP, the PARALLAX between the two frames, and the resize
             // recovery. A 2D renderer cannot pass this.
-            let out = args.get(2).cloned().unwrap_or_else(|| {
-                format!("{}/shots/windowed_3d.png", env!("CARGO_MANIFEST_DIR"))
-            });
+            let out = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/windowed_3d.png", env!("CARGO_MANIFEST_DIR")));
             let out_b = out.replace(".png", "_poseb.png");
             let cfg = pc3d_render::WindowConfig {
                 max_frames: Some(45),
@@ -464,11 +475,12 @@ fn main() {
             let wall_pose = pc3d_render::CameraPose::new([2.0, 2.2, -2.0], 0.0, -0.18);
 
             if live {
-                println!("live construction mode: click to look, WASD move, F place, R remove, Esc quits");
+                println!("live construction mode: Enter/click starts, click captures mouse, WASD move, F place, R remove, Esc pauses, Q quits");
                 let cfg = pc3d_render::WindowConfig {
                     resize_to: None,
                     camera_script: vec![(0, wall_pose)],
                     interactive_host: Some(pc3d_render::InteractiveHost(host)),
+                    owner_menu: true,
                     ..Default::default()
                 };
                 match pc3d_render::run_windowed(cfg) {
@@ -481,10 +493,9 @@ fn main() {
                 return;
             }
 
-            let base = args
-                .get(2)
-                .cloned()
-                .unwrap_or_else(|| format!("{}/shots/windowed_build.png", env!("CARGO_MANIFEST_DIR")));
+            let base = args.get(2).cloned().unwrap_or_else(|| {
+                format!("{}/shots/windowed_build.png", env!("CARGO_MANIFEST_DIR"))
+            });
             let after_path = base.replace(".png", "_after.png");
 
             let host_edit = host.clone();
@@ -566,12 +577,19 @@ fn main() {
 
                     // The edited cell's pixels must flip rock -> sand while a
                     // control sky pixel stays identical.
-                    let (w, h) = (report.captures[0].report.width, report.captures[0].report.height);
+                    let (w, h) = (
+                        report.captures[0].report.width,
+                        report.captures[0].report.height,
+                    );
                     let aspect = w as f32 / h as f32;
-                    let target = pc3d_render::scene::project_ndc(wall_pose, aspect, [2.5, 1.5, -7.0]);
-                    let before_px = pc3d_render::scene::sample_ndc(&report.captures[0].rgba, w, h, target);
-                    let after_px = pc3d_render::scene::sample_ndc(&report.captures[1].rgba, w, h, target);
-                    let delta = (before_px[0] - after_px[0]).abs() + (before_px[1] - after_px[1]).abs();
+                    let target =
+                        pc3d_render::scene::project_ndc(wall_pose, aspect, [2.5, 1.5, -7.0]);
+                    let before_px =
+                        pc3d_render::scene::sample_ndc(&report.captures[0].rgba, w, h, target);
+                    let after_px =
+                        pc3d_render::scene::sample_ndc(&report.captures[1].rgba, w, h, target);
+                    let delta =
+                        (before_px[0] - after_px[0]).abs() + (before_px[1] - after_px[1]).abs();
                     if delta < 0.15 {
                         eprintln!(
                             "[FAIL] edited block barely changed on screen: {before_px:?} vs {after_px:?}"
@@ -631,8 +649,7 @@ fn main() {
             let cave_gen_h = WorldGen::new(cave_seed);
             let pocket = find_cave_pocket_near(&cave_gen_h, near_coord, 1)
                 .or_else(|| find_cave_pocket_near(&WorldGen::new(hill_seed), hill_coord, 2));
-            let (cave_air, cave_wall, cave_dir) =
-                pocket.expect("a cave pocket near a scene patch");
+            let (cave_air, cave_wall, cave_dir) = pocket.expect("a cave pocket near a scene patch");
             let cave_used_hills = find_cave_pocket_near(&cave_gen_h, near_coord, 1).is_none();
             let cave_gen = if cave_used_hills {
                 hill_gen.clone()
@@ -647,8 +664,10 @@ fn main() {
             let hg = hill_gen.clone();
             let cg = cliff_gen.clone();
             let kg = cave_gen.clone();
-            let stats_rc =
-                std::rc::Rc::new(std::cell::RefCell::new(Vec::<(String, pc3d_render::TerrainStats)>::new()));
+            let stats_rc = std::rc::Rc::new(std::cell::RefCell::new(Vec::<(
+                String,
+                pc3d_render::TerrainStats,
+            )>::new()));
             let st0 = stats_rc.clone();
             let st1 = stats_rc.clone();
             let st2 = stats_rc.clone();
@@ -708,7 +727,10 @@ fn main() {
                     for (name, st) in stats_rc.borrow().iter() {
                         println!(
                             "TERRAIN {name}: {} patches, {} verts, {} tris, {} ms mesh",
-                            st.patches, st.vertices, st.triangles, st.mesh_us / 1000
+                            st.patches,
+                            st.vertices,
+                            st.triangles,
+                            st.mesh_us / 1000
                         );
                     }
                     let (w, h) = (
@@ -778,8 +800,7 @@ fn main() {
             let cx = o.x as f32 / 1000.0 + 8.0;
             let cz = o.z as f32 / 1000.0 + 8.0;
             let surface_at = |x: f32| {
-                gen.effective_surface_mm((x * 1000.0) as i64, (cz * 1000.0) as i64) as f32
-                    / 1000.0
+                gen.effective_surface_mm((x * 1000.0) as i64, (cz * 1000.0) as i64) as f32 / 1000.0
             };
             let pose_at = |x: f32| {
                 let s = surface_at(x);
@@ -825,9 +846,7 @@ fn main() {
                         eprintln!("[FAIL] expected 3 captures, got {}", report.captures.len());
                         std::process::exit(1);
                     }
-                    let c = report
-                        .final_stream_counters
-                        .expect("streaming counters");
+                    let c = report.final_stream_counters.expect("streaming counters");
                     println!(
                         "STREAM: loaded {} (full {} / mid {}), meshed {} in {} ms total, gpu {} KB of {} KB budget",
                         c.loaded,
@@ -923,8 +942,7 @@ fn main() {
             let gen = std::rc::Rc::new(gen);
             let mid_x = ((a.0 as f32 + 0.5) + (b.0 as f32 + 0.5)) / 2.0 * 256.0;
             let mid_z = ((a.1 as f32 + 0.5) + (b.1 as f32 + 0.5)) / 2.0 * 256.0;
-            let mid_y = gen
-                .effective_surface_mm((mid_x * 1000.0) as i64, (mid_z * 1000.0) as i64)
+            let mid_y = gen.effective_surface_mm((mid_x * 1000.0) as i64, (mid_z * 1000.0) as i64)
                 as f32
                 / 1000.0;
             let mid_patch = pc3d_world::coords::PatchCoord {
@@ -1090,7 +1108,11 @@ fn main() {
             for px in pmin.0..=pmax.0 {
                 for pz in pmin.1..=pmax.1 {
                     for py in (y_level - 1)..=(y_level + 1) {
-                        patches.push(pc3d_world::coords::PatchCoord { x: px, y: py, z: pz });
+                        patches.push(pc3d_world::coords::PatchCoord {
+                            x: px,
+                            y: py,
+                            z: pz,
+                        });
                     }
                 }
             }
@@ -1160,8 +1182,7 @@ fn main() {
                 camera_script: vec![(0, overview)],
                 shots: vec![
                     Shot::new(25, format!("{out_dir}/windowed_city.png")),
-                    Shot::new(55, format!("{out_dir}/windowed_city_gate.png"))
-                        .sky(false),
+                    Shot::new(55, format!("{out_dir}/windowed_city_gate.png")).sky(false),
                 ],
                 frame_hooks: vec![
                     (
@@ -1206,8 +1227,7 @@ fn main() {
                         report.captures[1].report.height,
                     );
                     let aspect = w as f32 / h as f32;
-                    let arch_ndc =
-                        pc3d_render::scene::project_ndc(gate_pose, aspect, arch_mid);
+                    let arch_ndc = pc3d_render::scene::project_ndc(gate_pose, aspect, arch_mid);
                     let pillar = [
                         gate.origin.x as f32 + 0.95,
                         gate_base + 2.0,
@@ -1220,9 +1240,7 @@ fn main() {
                         pc3d_render::scene::sample_ndc(&report.captures[1].rgba, w, h, pillar_ndc);
                     let delta: f32 = (0..3).map(|i| (arch_px[i] - pillar_px[i]).abs()).sum();
                     if delta < 0.08 {
-                        eprintln!(
-                            "[FAIL] gate opening not open: {arch_px:?} vs {pillar_px:?}"
-                        );
+                        eprintln!("[FAIL] gate opening not open: {arch_px:?} vs {pillar_px:?}");
                         std::process::exit(1);
                     }
                     println!("GATE OK: opening/pillar delta {delta:.2}");
@@ -1296,17 +1314,24 @@ fn main() {
             for px in pmin.0..=pmax.0 {
                 for pz in pmin.1..=pmax.1 {
                     for py in (y_level - 1)..=(y_level + 1) {
-                        patches.push(pc3d_world::coords::PatchCoord { x: px, y: py, z: pz });
+                        patches.push(pc3d_world::coords::PatchCoord {
+                            x: px,
+                            y: py,
+                            z: pz,
+                        });
                     }
                 }
             }
             let town_c = plan.plaza;
-            let town_surf = gen
-                .effective_surface_mm(town_c.x as i64 * 1000, town_c.z as i64 * 1000)
+            let town_surf = gen.effective_surface_mm(town_c.x as i64 * 1000, town_c.z as i64 * 1000)
                 as f32
                 / 1000.0;
             let overview = pc3d_render::CameraPose::new(
-                [town_c.x as f32 + 0.5, town_surf + 26.0, town_c.z as f32 + 22.0],
+                [
+                    town_c.x as f32 + 0.5,
+                    town_surf + 26.0,
+                    town_c.z as f32 + 22.0,
+                ],
                 0.0,
                 (-0.75f32).atan2(1.3),
             );
@@ -1318,11 +1343,7 @@ fn main() {
                     let base = npc_world_pos(&gen, &c.brain);
                     let face = [base[0], base[1] + 1.05, base[2] + 0.14];
                     let eye = [base[0], base[1] + 1.25, base[2] + 3.0];
-                    let d = [
-                        face[0] - eye[0],
-                        face[1] - eye[1],
-                        face[2] - eye[2],
-                    ];
+                    let d = [face[0] - eye[0], face[1] - eye[1], face[2] - eye[2]];
                     (
                         0usize,
                         pc3d_render::CameraPose::new(
@@ -1422,7 +1443,11 @@ fn main() {
                         let ndc = pc3d_render::scene::project_ndc(
                             closeups[i].1,
                             aspect,
-                            [closeups[i].2[0], closeups[i].2[1] + 1.05, closeups[i].2[2] + 0.14],
+                            [
+                                closeups[i].2[0],
+                                closeups[i].2[1] + 1.05,
+                                closeups[i].2[2] + 0.14,
+                            ],
                         );
                         let px = pc3d_render::scene::sample_ndc(&cap.rgba, w, h, ndc);
                         let s = sky(ndc);
@@ -1508,7 +1533,10 @@ fn main() {
                 .iter()
                 .enumerate()
                 .map(|(i, (_, name))| {
-                    Shot::new(35 + (i as u64) * 40, format!("{out_dir}/windowed_quality_{name}.png"))
+                    Shot::new(
+                        35 + (i as u64) * 40,
+                        format!("{out_dir}/windowed_quality_{name}.png"),
+                    )
                 })
                 .collect();
 
@@ -1663,7 +1691,7 @@ fn main() {
             let scene = std::rc::Rc::new(scene);
 
             if live {
-                println!("live slice: WASD walk, click to look, F place / R remove (ray target), B save, L reload, I inspect boxes, Esc quits");
+                println!("live slice: Enter/click starts, click captures mouse, WASD walk, F/R build, B save, L reload, I inspect boxes, Esc pauses, Q quits");
                 let save_root = std::rc::Rc::new(
                     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
                 );
@@ -1677,6 +1705,7 @@ fn main() {
                         save_root,
                         world_name: "slice".into(),
                     }),
+                    owner_menu: true,
                     ..Default::default()
                 };
                 match pc3d_render::run_windowed(cfg) {
@@ -1698,7 +1727,11 @@ fn main() {
             );
             let spawn = pc3d_render::spawn_player(&scene);
             let overview = pc3d_render::CameraPose::new(
-                [spawn.pos[0] + 18.0, spawn.pos[1] + 24.0, spawn.pos[2] + 30.0],
+                [
+                    spawn.pos[0] + 18.0,
+                    spawn.pos[1] + 24.0,
+                    spawn.pos[2] + 30.0,
+                ],
                 0.0,
                 (-0.75f32).atan2(1.4),
             );
@@ -1731,7 +1764,10 @@ fn main() {
                             r.set_pose(overview);
                         }),
                     ),
-                    (30, Box::new(move |r: &mut pc3d_render::Renderer| r.set_pose(cave_pose))),
+                    (
+                        30,
+                        Box::new(move |r: &mut pc3d_render::Renderer| r.set_pose(cave_pose)),
+                    ),
                     (
                         60,
                         Box::new(move |r: &mut pc3d_render::Renderer| {
@@ -1745,21 +1781,13 @@ fn main() {
                             h.run_ticks(1);
                             r.update_construction(&h.construction);
                             // Back at the spawn eye the block is visible.
-                            let eye = [
-                                spawn.pos[0],
-                                spawn.pos[1] + 1.7,
-                                spawn.pos[2],
-                            ];
+                            let eye = [spawn.pos[0], spawn.pos[1] + 1.7, spawn.pos[2]];
                             let face = [
                                 built_spot.x as f32 + 0.5,
                                 built_spot.y as f32 + 0.5,
                                 built_spot.z as f32 + 1.05,
                             ];
-                            let d = [
-                                face[0] - eye[0],
-                                face[1] - eye[1],
-                                face[2] - eye[2],
-                            ];
+                            let d = [face[0] - eye[0], face[1] - eye[1], face[2] - eye[2]];
                             r.set_pose(pc3d_render::CameraPose::new(
                                 eye,
                                 (-d[0]).atan2(-d[2]),
@@ -1788,9 +1816,7 @@ fn main() {
                             std::process::exit(1);
                         }
                     }
-                    println!(
-                        "WINDOWED SLICE PROOF PASS -> showcase + cave + built in {out_dir}"
-                    );
+                    println!("WINDOWED SLICE PROOF PASS -> showcase + cave + built in {out_dir}");
                 }
                 Err(e) => {
                     eprintln!("[FAIL] windowed renderer: {e}");
@@ -1814,11 +1840,13 @@ fn main() {
 
             let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
             let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
-            let assets_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../assets/compiled");
+            let assets_root =
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/compiled");
             let tree = load_asset_file(&assets_root.join("prop/tree_ash.glb")).expect("tree glb");
-            let rock = load_asset_file(&assets_root.join("prop/rock_granite.glb")).expect("rock glb");
-            let house = load_asset_file(&assets_root.join("module/house_croft.glb")).expect("house glb");
+            let rock =
+                load_asset_file(&assets_root.join("prop/rock_granite.glb")).expect("rock glb");
+            let house =
+                load_asset_file(&assets_root.join("module/house_croft.glb")).expect("house glb");
             // Asset memory record: parsed vertex/index bytes per asset.
             let mem = |a: &Asset| -> usize {
                 a.lods
@@ -1936,10 +1964,7 @@ fn main() {
 
             let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
             let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
-            let mut region = SurfaceRegion::new(
-                pc3d_world::gen::WorldGen::new(seed),
-                coord,
-            );
+            let mut region = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), coord);
             let t0mesh = std::time::Instant::now();
             let (verts, idx, versions) = region.mesh_region();
             let mesh_us = t0mesh.elapsed().as_micros();
@@ -1974,8 +1999,7 @@ fn main() {
                 resize_to: Some((800.0, 500.0)),
                 shots: vec![
                     Shot::new(25, format!("{out_dir}/windowed_surface_before.png")),
-                    Shot::new(65, format!("{out_dir}/windowed_surface_after.png"))
-                        .sky(false), // the raised plateau can fill the frame
+                    Shot::new(65, format!("{out_dir}/windowed_surface_after.png")).sky(false), // the raised plateau can fill the frame
                 ],
                 frame_hooks: vec![
                     (
@@ -2045,9 +2069,7 @@ fn main() {
                         std::process::exit(1);
                     }
                     println!("SURFACE EDIT VISIBLE: image diff {diff:.2}%");
-                    println!(
-                        "WINDOWED SURFACE SPIKE PASS -> before/after in {out_dir}"
-                    );
+                    println!("WINDOWED SURFACE SPIKE PASS -> before/after in {out_dir}");
                 }
                 Err(e) => {
                     eprintln!("[FAIL] windowed renderer: {e}");
@@ -2151,7 +2173,10 @@ fn main() {
                     }
                 }
             }
-            assert!(wall_dist < f32::MAX, "an enclosing wall exists near the pocket");
+            assert!(
+                wall_dist < f32::MAX,
+                "an enclosing wall exists near the pocket"
+            );
             let aim = [
                 eye[0] + look[0] * (wall_dist - 0.6),
                 eye[1] - 0.15,
@@ -2175,7 +2200,10 @@ fn main() {
             let mut best: Option<(pc3d_world::coords::RegionCoord, i32)> = None;
             for dx in -8..=8i32 {
                 for dz in -8..=8i32 {
-                    let reg = pc3d_world::coords::RegionCoord { x: cr.x + dx, z: cr.z + dz };
+                    let reg = pc3d_world::coords::RegionCoord {
+                        x: cr.x + dx,
+                        z: cr.z + dz,
+                    };
                     if let Some(d) = graph.downstream(reg) {
                         if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
                             let dist = dx.abs() + dz.abs();
@@ -2207,7 +2235,8 @@ fn main() {
                 y: coord.y,
                 z: (oz / PATCH_M).floor() as i32,
             };
-            let river_region = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), river_patch);
+            let river_region =
+                SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), river_patch);
             let water = ConformingWater::build(&gen, &graph, &flow, center, &river_region);
             println!(
                 "RIVER: section 0 at region {s0r:?}, {} conforming sections",
@@ -2229,7 +2258,12 @@ fn main() {
             };
             let sl = sdir[0].hypot(sdir[1]);
             let dir = [sdir[0] / sl, sdir[1] / sl];
-            let slen = 256.0 * if sl > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+            let slen = 256.0
+                * if sl > 1.4 {
+                    std::f32::consts::SQRT_2
+                } else {
+                    1.0
+                };
 
             // Corridor surface windows along the strip so the vantage
             // sees a valley, not one floating 48 m tile.
@@ -2278,22 +2312,16 @@ fn main() {
                     z: (oz + d) as i32,
                 };
                 if let FoundationCheck::Valid { leveled_by } =
-                    pc3d_render::world_features::check_foundation(
-                        &gen,
-                        &river_region,
-                        pad,
-                        (2, 2),
-                    )
+                    pc3d_render::world_features::check_foundation(&gen, &river_region, pad, (2, 2))
                 {
                     valid_pad = Some((d, leveled_by));
                     break;
                 }
             }
-            let (fd, lv) =
-                valid_pad.unwrap_or_else(|| {
-                    eprintln!("[FAIL] no buildable pad near the river strip");
-                    std::process::exit(1);
-                });
+            let (fd, lv) = valid_pad.unwrap_or_else(|| {
+                eprintln!("[FAIL] no buildable pad near the river strip");
+                std::process::exit(1);
+            });
             println!("FOUNDATION near river: Valid {{ leveled_by: {lv} }} at +{fd} m");
 
             // --- Merged terrain mesh: hills + the three corridor windows
@@ -2331,17 +2359,11 @@ fn main() {
                 max_frames: Some(170),
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
-                camera_script: vec![
-                    (0, pose_cave),
-                    (60, pose_river),
-                    (140, pose_river),
-                ],
+                camera_script: vec![(0, pose_cave), (60, pose_river), (140, pose_river)],
                 shots: vec![
-                    Shot::new(25, format!("{out_dir}/windowed_cave_interior.png"))
-                        .sky(false), // the frame is cave wall, no sky
+                    Shot::new(25, format!("{out_dir}/windowed_cave_interior.png")).sky(false), // the frame is cave wall, no sky
                     Shot::new(85, format!("{out_dir}/windowed_river_water.png")),
-                    Shot::new(145, format!("{out_dir}/windowed_water_after_edit.png"))
-                        .sky(false), // the dam wall in the foreground can fill the top
+                    Shot::new(145, format!("{out_dir}/windowed_water_after_edit.png")).sky(false), // the dam wall in the foreground can fill the top
                 ],
                 frame_hooks: vec![
                     (
@@ -2383,16 +2405,15 @@ fn main() {
                             }
                             // edit() reports (x,z) patch keys; the refresh
                             // takes full PatchCoords at the region's Y.
-                            let edited: std::collections::BTreeSet<
-                                pc3d_world::coords::PatchCoord,
-                            > = dirty
-                                .iter()
-                                .map(|(x, z)| pc3d_world::coords::PatchCoord {
-                                    x: *x,
-                                    y: river_patch.y,
-                                    z: *z,
-                                })
-                                .collect();
+                            let edited: std::collections::BTreeSet<pc3d_world::coords::PatchCoord> =
+                                dirty
+                                    .iter()
+                                    .map(|(x, z)| pc3d_world::coords::PatchCoord {
+                                        x: *x,
+                                        y: river_patch.y,
+                                        z: *z,
+                                    })
+                                    .collect();
                             let total = w0.borrow().sections.len();
                             let before: Vec<(Vec<f32>, f32)> = w0
                                 .borrow()
@@ -2401,8 +2422,7 @@ fn main() {
                                 .map(|s| (s.heights.clone(), s.water_line))
                                 .collect();
                             let t0 = std::time::Instant::now();
-                            let touched =
-                                w0.borrow_mut().refresh_after_edit(&g_edit, &r0, &edited);
+                            let touched = w0.borrow_mut().refresh_after_edit(&g_edit, &r0, &edited);
                             let refresh_us = t0.elapsed().as_micros();
                             let changed = w0
                                 .borrow()
@@ -2528,7 +2548,7 @@ fn main() {
             let scene = std::rc::Rc::new(scene);
 
             if live {
-                println!("live rebuild slice: WASD walks the SURFACE, F builds on INSPECTED ground (rejections name the reason), B saves, L reloads, I inspects, Esc quits");
+                println!("live rebuild slice: Enter/click starts, click captures mouse, WASD walks the SURFACE, F builds on INSPECTED ground, B saves, L reloads, I inspects, Esc pauses, Q quits");
                 let save_root = std::rc::Rc::new(
                     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
                 );
@@ -2542,6 +2562,7 @@ fn main() {
                         save_root,
                         world_name: "rebuild".into(),
                     }),
+                    owner_menu: true,
                     ..Default::default()
                 };
                 match pc3d_render::run_windowed(cfg) {
@@ -2581,13 +2602,25 @@ fn main() {
                     ground(spawn.pos[0] + 60.0, spawn.pos[2] + 60.0) + 26.0,
                     spawn.pos[2] + 60.0,
                 ],
-                [spawn.pos[0], ground(spawn.pos[0], spawn.pos[2]), spawn.pos[2]],
+                [
+                    spawn.pos[0],
+                    ground(spawn.pos[0], spawn.pos[2]),
+                    spawn.pos[2],
+                ],
             );
             // 2: the town street (plaza at player height).
             let plaza = scene.plan.plaza;
             let v2 = pose_at(
-                [plaza.x as f32 + 5.0, ground(plaza.x as f32 + 5.0, plaza.z as f32 + 5.0) + 7.0, plaza.z as f32 + 5.0],
-                [plaza.x as f32 - 3.0, ground(plaza.x as f32, plaza.z as f32) + 0.8, plaza.z as f32 - 3.0],
+                [
+                    plaza.x as f32 + 5.0,
+                    ground(plaza.x as f32 + 5.0, plaza.z as f32 + 5.0) + 7.0,
+                    plaza.z as f32 + 5.0,
+                ],
+                [
+                    plaza.x as f32 - 3.0,
+                    ground(plaza.x as f32, plaza.z as f32) + 0.8,
+                    plaza.z as f32 - 3.0,
+                ],
             );
             // 3: the river + wheel (the kit's water-wheel placement).
             let wheel = scene
@@ -2624,26 +2657,19 @@ fn main() {
                 max_frames: Some(200),
                 probe_set: pc3d_render::ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
-                camera_script: vec![
-                    (0, v1),
-                    (40, v2),
-                    (80, v3),
-                    (120, v4),
-                    (160, v5),
-                ],
+                camera_script: vec![(0, v1), (40, v2), (80, v3), (120, v4), (160, v5)],
                 shots: vec![
                     Shot::new(30, format!("{out_dir}/windowed_rebuild_vantage.png")),
                     Shot::new(70, format!("{out_dir}/windowed_rebuild_street.png")),
-                    Shot::new(110, format!("{out_dir}/windowed_rebuild_river.png"))
-                        .sky(false),
-                    Shot::new(150, format!("{out_dir}/windowed_rebuild_cave.png"))
-                        .sky(false),
+                    Shot::new(110, format!("{out_dir}/windowed_rebuild_river.png")).sky(false),
+                    Shot::new(150, format!("{out_dir}/windowed_rebuild_cave.png")).sky(false),
                     Shot::new(190, format!("{out_dir}/windowed_rebuild_gate.png")),
                 ],
                 frame_hooks: vec![(
                     0,
                     Box::new(move |r: &mut pc3d_render::Renderer| {
-                        let _host = assemble_rebuild(r, &scene_cap, seed, save_cap.clone(), "rebuild");
+                        let _host =
+                            assemble_rebuild(r, &scene_cap, seed, save_cap.clone(), "rebuild");
                         r.set_pose(v1);
                     }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
                 )],
@@ -2781,13 +2807,14 @@ fn main() {
             let wp = |dx: f32, dz: f32| {
                 let x = plaza.x as f32 + dx;
                 let z = plaza.z as f32 + dz;
-                pc3d_render::CameraPose::new(
-                    [x, ground(x, z) + 2.0, z],
-                    (-dx).atan2(-dz),
-                    -0.05,
-                )
+                pc3d_render::CameraPose::new([x, ground(x, z) + 2.0, z], (-dx).atan2(-dz), -0.05)
             };
-            let poses = [wp(24.0, 24.0), wp(-24.0, 24.0), wp(-24.0, -24.0), wp(24.0, -24.0)];
+            let poses = [
+                wp(24.0, 24.0),
+                wp(-24.0, 24.0),
+                wp(-24.0, -24.0),
+                wp(24.0, -24.0),
+            ];
 
             let (name, tier) = match tier_name {
                 "low" => ("low", pc3d_render::deck::DeckTier::Low),
@@ -2797,9 +2824,9 @@ fn main() {
             let tiers = [(name, tier)];
             let mut rows = Vec::new();
             // Per-tier scene stats collected by a late frame hook.
-            let stats = std::rc::Rc::new(std::cell::RefCell::new(
-                (0usize, 0usize, 0usize, 0usize, 0usize, 0usize),
-            ));
+            let stats = std::rc::Rc::new(std::cell::RefCell::new((
+                0usize, 0usize, 0usize, 0usize, 0usize, 0usize,
+            )));
             for (ti, (name, tier)) in tiers.iter().enumerate() {
                 let g_hook = gen.clone();
                 let tier = *tier;
@@ -2825,49 +2852,54 @@ fn main() {
                         200,
                         format!("{out_dir}/windowed_deck_{name}.png"),
                     )],
-                    frame_hooks: vec![(
-                        0,
-                        Box::new(move |r: &mut pc3d_render::Renderer| {
-                            r.set_placeholder_scene(false);
-                            // The STREAMED path (the contract's terrain
-                            // rows are the streamer's): static loading
-                            // showed no mesh/upload counters.
-                            let st = pc3d_render::StreamConfig {
-                                max_mesh_per_frame: 3,
-                                max_uploads_per_frame: 6,
-                                gpu_byte_budget: 24 * 1024 * 1024,
-                                tiers: &[pc3d_world::stream::Tier::Full, pc3d_world::stream::Tier::Lod],
-                            };
-                            r.attach_streaming(g_hook.clone(), st, 1);
-                            pc3d_render::deck::apply(r, tier);
-                            r.attach_flora(g_hook.clone());
-                            r.attach_settlement(&scene_b, &kit_b);
-                            let (mut verts, mut idx) = (Vec::new(), Vec::new());
-                            let _ = pc3d_render::npcs::mesh_anchor_boxes(
-                                &g_hook, &plan_b, &mut verts, &mut idx,
-                            );
-                            r.load_npcs(&verts, &idx);
-                            r.attach_crowd(g_hook.clone(), crowd.clone(), nav.clone());
-                            r.crowd_tick(0.35, 4);
-                            r.crowd_stage_walkers(2);
-                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
-                    ),
-                    (
-                        199,
-                        {
+                    frame_hooks: vec![
+                        (
+                            0,
+                            Box::new(move |r: &mut pc3d_render::Renderer| {
+                                r.set_placeholder_scene(false);
+                                // The STREAMED path (the contract's terrain
+                                // rows are the streamer's): static loading
+                                // showed no mesh/upload counters.
+                                let st = pc3d_render::StreamConfig {
+                                    max_mesh_per_frame: 3,
+                                    max_uploads_per_frame: 6,
+                                    gpu_byte_budget: 24 * 1024 * 1024,
+                                    tiers: &[
+                                        pc3d_world::stream::Tier::Full,
+                                        pc3d_world::stream::Tier::Lod,
+                                    ],
+                                };
+                                r.attach_streaming(g_hook.clone(), st, 1);
+                                pc3d_render::deck::apply(r, tier);
+                                r.attach_flora(g_hook.clone());
+                                r.attach_settlement(&scene_b, &kit_b);
+                                let (mut verts, mut idx) = (Vec::new(), Vec::new());
+                                let _ = pc3d_render::npcs::mesh_anchor_boxes(
+                                    &g_hook, &plan_b, &mut verts, &mut idx,
+                                );
+                                r.load_npcs(&verts, &idx);
+                                r.attach_crowd(g_hook.clone(), crowd.clone(), nav.clone());
+                                r.crowd_tick(0.35, 4);
+                                r.crowd_stage_walkers(2);
+                            })
+                                as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                        ),
+                        (199, {
                             let stats = stats.clone();
                             Box::new(move |r: &mut pc3d_render::Renderer| {
                                 let (sd, st) = r.settlement_stats();
                                 let (cd, ci) = r.crowd_stats();
                                 let f = r.flora_stats();
-                                *stats.borrow_mut() = (sd, st, cd, ci, f.instances_drawn, f.draw_buckets);
-                            }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>
-                        },
-                    )],
+                                *stats.borrow_mut() =
+                                    (sd, st, cd, ci, f.instances_drawn, f.draw_buckets);
+                            })
+                                as Box<dyn FnMut(&mut pc3d_render::Renderer)>
+                        }),
+                    ],
                     ..Default::default()
                 };
-                let report = pc3d_render::run_windowed(cfg)
-                    .unwrap_or_else(|e| panic!("bench {name}: {e}"));
+                let report =
+                    pc3d_render::run_windowed(cfg).unwrap_or_else(|e| panic!("bench {name}: {e}"));
                 let cap = &report.captures[0];
                 assert!(
                     cap.report.passes_with(3),
@@ -2911,20 +2943,29 @@ fn main() {
                 });
             }
             let r = rows.remove(0);
-            let sidecar = format!(
-                "{}/deck_bench_{}.csv",
-                std::env::temp_dir().display(),
-                name
-            );
+            let sidecar = format!("{}/deck_bench_{}.csv", std::env::temp_dir().display(), name);
             let mut csv = String::new();
             csv.push_str(&format!(
                 "tier,frames,p50,p95,p99,worst,fps,meshed,gpu_kb,drawn,culled,flora_inst,flora_buckets,setl_draws,setl_tris,crowd_draws,crowd_inst\n"
             ));
             csv.push_str(&format!(
                 "{},{},{:.3},{:.3},{:.3},{:.3},{:.1},{},{},{},{},{},{},{},{},{},{}\n",
-                r.tier, r.frames, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps,
-                r.meshed, r.gpu_kb, r.drawn_patches, r.frustum_culled, r.flora_instances,
-                r.flora_buckets, r.settlement_draws, r.settlement_tris, r.crowd_draws,
+                r.tier,
+                r.frames,
+                r.p50_ms,
+                r.p95_ms,
+                r.p99_ms,
+                r.worst_ms,
+                r.avg_fps,
+                r.meshed,
+                r.gpu_kb,
+                r.drawn_patches,
+                r.frustum_culled,
+                r.flora_instances,
+                r.flora_buckets,
+                r.settlement_draws,
+                r.settlement_tris,
+                r.crowd_draws,
                 r.crowd_instances
             ));
             std::fs::write(&sidecar, csv).expect("write sidecar");
@@ -3015,7 +3056,11 @@ fn main() {
                 ground(plaza.x as f32 + 3.0, plaza.z as f32 + 5.0) + 1.8,
                 plaza.z as f32 + 5.0,
             ];
-            let aim1 = [plaza.x as f32 + 3.0, ground(plaza.x as f32 + 3.0, plaza.z as f32 + 3.0) + 1.2, plaza.z as f32 + 3.0];
+            let aim1 = [
+                plaza.x as f32 + 3.0,
+                ground(plaza.x as f32 + 3.0, plaza.z as f32 + 3.0) + 1.2,
+                plaza.z as f32 + 3.0,
+            ];
             let d1 = [aim1[0] - eye1[0], aim1[1] - eye1[1], aim1[2] - eye1[2]];
             let pose1 = pc3d_render::CameraPose::new(
                 eye1,
@@ -3029,7 +3074,11 @@ fn main() {
                 .map(|c| pc3d_render::npcs::npc_world_pos(&gen, &c.brain))
                 .unwrap_or(aim1);
             let eye2 = [guard_pos[0] + 3.0, guard_pos[1] + 1.7, guard_pos[2] + 3.0];
-            let d2 = [guard_pos[0] - eye2[0], guard_pos[1] + 1.2 - eye2[1], guard_pos[2] - eye2[2]];
+            let d2 = [
+                guard_pos[0] - eye2[0],
+                guard_pos[1] + 1.2 - eye2[1],
+                guard_pos[2] - eye2[2],
+            ];
             let pose2 = pc3d_render::CameraPose::new(
                 eye2,
                 (-d2[0]).atan2(-d2[2]),
@@ -3041,7 +3090,11 @@ fn main() {
                 ground(plaza.x as f32 + 8.0, plaza.z as f32 + 8.0) + 3.5,
                 plaza.z as f32 + 8.0,
             ];
-            let d3 = [plaza.x as f32 - eye3[0], ground(plaza.x as f32, plaza.z as f32) + 0.8 - eye3[1], plaza.z as f32 - eye3[2]];
+            let d3 = [
+                plaza.x as f32 - eye3[0],
+                ground(plaza.x as f32, plaza.z as f32) + 0.8 - eye3[1],
+                plaza.z as f32 - eye3[2],
+            ];
             let pose3 = pc3d_render::CameraPose::new(
                 eye3,
                 (-d3[0]).atan2(-d3[2]),
@@ -3054,11 +3107,7 @@ fn main() {
                 max_frames: Some(170),
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
-                camera_script: vec![
-                    (0, pose1),
-                    (60, pose2),
-                    (110, pose3),
-                ],
+                camera_script: vec![(0, pose1), (60, pose2), (110, pose3)],
                 shots: vec![
                     Shot::new(30, format!("{out_dir}/windowed_people_plaza.png")),
                     Shot::new(50, format!("{out_dir}/windowed_people_stride.png")),
@@ -3134,7 +3183,10 @@ fn main() {
                         eprintln!("[FAIL] the people must move ({d})");
                         std::process::exit(1);
                     }
-                    println!("PEOPLE MOTION: stride frames differ {:.2}% (d {d:.4})", d * 100.0);
+                    println!(
+                        "PEOPLE MOTION: stride frames differ {:.2}% (d {d:.4})",
+                        d * 100.0
+                    );
                     println!(
                         "WINDOWED PEOPLE PROOF PASS -> plaza/stride/guard/anchors in {out_dir}"
                     );
@@ -3197,8 +3249,8 @@ fn main() {
                 .find(|p| p.module == pc3d_render::settlement::KitModule::Keep)
                 .map(|p| p.pos);
             // Overview: above the town side looking across the keep.
-            let kpos = keep
-                .unwrap_or([scene.bounds_min[0] + 40.0, 0.0, scene.bounds_min[2] + 40.0]);
+            let kpos =
+                keep.unwrap_or([scene.bounds_min[0] + 40.0, 0.0, scene.bounds_min[2] + 40.0]);
             let (kx, kz) = (kpos[0], kpos[2]);
             let eye1 = [kx + 46.0, ground(kx + 46.0, kz + 46.0) + 26.0, kz + 46.0];
             let d1 = [kx - eye1[0], ground(kx, kz) + 8.0 - eye1[1], kz - eye1[2]];
@@ -3230,7 +3282,11 @@ fn main() {
                 .map(|p| p.pos);
             let pose3 = wheel
                 .map(|w| {
-                    let eye = [w[0] + 10.0, ground(w[0] + 10.0, w[2] + 10.0) + 4.0, w[2] + 10.0];
+                    let eye = [
+                        w[0] + 10.0,
+                        ground(w[0] + 10.0, w[2] + 10.0) + 4.0,
+                        w[2] + 10.0,
+                    ];
                     let d = [w[0] - eye[0], w[1] + 2.0 - eye[1], w[2] - eye[2]];
                     pc3d_render::CameraPose::new(
                         eye,
@@ -3246,38 +3302,36 @@ fn main() {
                 max_frames: Some(160),
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
-                camera_script: vec![
-                    (0, pose1),
-                    (50, pose2),
-                    (100, pose3),
-                ],
+                camera_script: vec![(0, pose1), (50, pose2), (100, pose3)],
                 shots: vec![
                     Shot::new(30, format!("{out_dir}/windowed_settlement_overview.png")),
                     Shot::new(80, format!("{out_dir}/windowed_settlement_street.png")),
                     Shot::new(140, format!("{out_dir}/windowed_settlement_wheel.png")),
                 ],
-                frame_hooks: vec![(
-                    0,
-                    Box::new(move |r: &mut pc3d_render::Renderer| {
-                        r.set_placeholder_scene(false);
-                        r.load_terrain(&g_hook, &patches);
-                        r.set_atmosphere_tier(pc3d_render::atmosphere::AtmosphereTier::Mid);
-                        r.set_water_time(Some(0.5));
-                        r.attach_flora(g_hook.clone());
-                        r.attach_settlement(&scene, &kit);
-                    }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
-                ),
-                (
-                    20,
-                    Box::new(move |r: &mut pc3d_render::Renderer| {
-                        // After draws have actually happened (the first
-                        // print ran before any frame drew 0).
-                        let (draws, tris) = r.settlement_stats();
-                        println!(
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            r.set_placeholder_scene(false);
+                            r.load_terrain(&g_hook, &patches);
+                            r.set_atmosphere_tier(pc3d_render::atmosphere::AtmosphereTier::Mid);
+                            r.set_water_time(Some(0.5));
+                            r.attach_flora(g_hook.clone());
+                            r.attach_settlement(&scene, &kit);
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        20,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            // After draws have actually happened (the first
+                            // print ran before any frame drew 0).
+                            let (draws, tris) = r.settlement_stats();
+                            println!(
                             "SETTLEMENT GPU: {draws} bucket draws, {tris} tris (LOD by vantage)"
                         );
-                    }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
-                )],
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                ],
                 ..Default::default()
             };
             match pc3d_render::run_windowed(cfg) {
@@ -3377,12 +3431,13 @@ fn main() {
                         if dx.abs() != dr && dz.abs() != dr {
                             continue;
                         }
-                        if let Some(p) =
-                            flora::landmark_at(&gen, pc3d_world::coords::RegionCoord {
+                        if let Some(p) = flora::landmark_at(
+                            &gen,
+                            pc3d_world::coords::RegionCoord {
                                 x: cr.x + dx,
                                 z: cr.z + dz,
-                            })
-                        {
+                            },
+                        ) {
                             landmark = Some(p);
                             break 'lm;
                         }
@@ -3439,10 +3494,7 @@ fn main() {
                 max_frames: Some(210),
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
-                camera_script: vec![
-                    (0, pose),
-                    (95, lm_pose.unwrap_or(pose)),
-                ],
+                camera_script: vec![(0, pose), (95, lm_pose.unwrap_or(pose))],
                 shots: vec![
                     Shot::new(25, format!("{out_dir}/windowed_wild_control.png")),
                     Shot::new(80, format!("{out_dir}/windowed_wild_vista.png")),
@@ -3476,10 +3528,8 @@ fn main() {
                             if let Some([lx, ly, lz]) = lm_pos {
                                 let _ = (lx, ly, lz);
                                 // The landmark GLB rides the asset slot.
-                                let root = std::path::PathBuf::from(
-                                    env!("CARGO_MANIFEST_DIR"),
-                                )
-                                .join("../../assets/compiled");
+                                let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                                    .join("../../assets/compiled");
                                 if let Ok(asset) = pc3d_render::glb::load_asset_file(
                                     &root.join("landmark/standing_stone.glb"),
                                 ) {
@@ -3548,9 +3598,7 @@ fn main() {
                 .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
             std::fs::create_dir_all(&out_dir).expect("mkdir shots");
 
-            use pc3d_render::atmosphere::{
-                foliage_quads, AtmosphereTier, CutoutMask, LEGACY,
-            };
+            use pc3d_render::atmosphere::{foliage_quads, AtmosphereTier, CutoutMask, LEGACY};
             use pc3d_render::surface::SurfaceRegion;
             use pc3d_render::{ProbeSet, Shot};
 
@@ -3564,7 +3612,8 @@ fn main() {
                 gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
             };
             // Foliage field on the near hill + water strips in the dip.
-            let (fverts, fidx) = foliage_quads([ox + 6.0, ground(ox + 6.0, oz + 6.0), oz + 6.0], 3, 3, 2.2);
+            let (fverts, fidx) =
+                foliage_quads([ox + 6.0, ground(ox + 6.0, oz + 6.0), oz + 6.0], 3, 3, 2.2);
             let mut wverts = Vec::new();
             let mut widx = Vec::new();
             for k in 0..10i32 {
@@ -3588,11 +3637,7 @@ fn main() {
             }
             // Vista pose: above the hill looking across the water toward
             // the sun (the glint) with the foliage in the mid-ground.
-            let eye = [
-                ox + 1.0,
-                ground(ox + 1.0, oz + 1.0) + 9.0,
-                oz + 1.0,
-            ];
+            let eye = [ox + 1.0, ground(ox + 1.0, oz + 1.0) + 9.0, oz + 1.0];
             let aim = [ox + 16.0, ground(ox + 16.0, oz + 10.0) + 1.0, oz + 10.0];
             let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
             let pose = pc3d_render::CameraPose::new(
@@ -3601,11 +3646,7 @@ fn main() {
                 (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
             );
             // Cutout close-up: inside the foliage field.
-            let eye2 = [
-                ox + 4.0,
-                ground(ox + 4.0, oz + 5.0) + 1.7,
-                oz + 5.0,
-            ];
+            let eye2 = [ox + 4.0, ground(ox + 4.0, oz + 5.0) + 1.7, oz + 5.0];
             let aim2 = [ox + 9.0, ground(ox + 9.0, oz + 7.0) + 1.4, oz + 7.0];
             let d2 = [aim2[0] - eye2[0], aim2[1] - eye2[1], aim2[2] - eye2[2]];
             let pose2 = pc3d_render::CameraPose::new(
@@ -3625,16 +3666,12 @@ fn main() {
                 max_frames: Some(190),
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
-                camera_script: vec![
-                    (0, pose),
-                    (130, pose2),
-                ],
+                camera_script: vec![(0, pose), (130, pose2)],
                 shots: vec![
                     Shot::new(30, format!("{out_dir}/windowed_materials_mid.png")),
                     Shot::new(70, format!("{out_dir}/windowed_materials_legacy.png")),
                     Shot::new(110, format!("{out_dir}/windowed_materials_high.png")),
-                    Shot::new(170, format!("{out_dir}/windowed_materials_cutout.png"))
-                        .sky(false), // inside the leaf cards
+                    Shot::new(170, format!("{out_dir}/windowed_materials_cutout.png")).sky(false), // inside the leaf cards
                 ],
                 frame_hooks: vec![
                     (
@@ -3740,8 +3777,7 @@ fn main() {
                 .effective_surface_mm((cx * 1000.0) as i64, ((cz + 30.0) * 1000.0) as i64)
                 as f32
                 / 1000.0;
-            let aim_h = gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64)
-                as f32
+            let aim_h = gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64) as f32
                 / 1000.0;
             let eye = [cx, ground + 9.0, cz + 30.0];
             let d = [cx - eye[0], aim_h - eye[1], cz - eye[2]];
@@ -3758,12 +3794,16 @@ fn main() {
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
                 camera_script: vec![(0, pose)],
-                shots: vec![Shot::new(250, format!("{out_dir}/windowed_surface_stream.png"))],
+                shots: vec![Shot::new(
+                    250,
+                    format!("{out_dir}/windowed_surface_stream.png"),
+                )],
                 frame_hooks: vec![(
                     0,
                     Box::new(move |r: &mut pc3d_render::Renderer| {
                         r.set_placeholder_scene(false);
-                        let mut s = SurfaceStreamer::new(g1.clone(), &[Tier::Full, Tier::Lod], coord.y);
+                        let mut s =
+                            SurfaceStreamer::new(g1.clone(), &[Tier::Full, Tier::Lod], coord.y);
                         s.set_budgets(3, 24 * 1024 * 1024);
                         r.attach_surface_stream(s);
                         r.set_pose(pose);
@@ -3774,9 +3814,7 @@ fn main() {
             match pc3d_render::run_windowed(cfg) {
                 Ok(report) => {
                     print_window_report(&report);
-                    if report.captures.len() != 1
-                        || !report.captures[0].report.passes_with(12)
-                    {
+                    if report.captures.len() != 1 || !report.captures[0].report.passes_with(12) {
                         eprintln!("[FAIL] surface-stream capture failed");
                         std::process::exit(1);
                     }
@@ -3800,67 +3838,66 @@ fn main() {
     }
 }
 
-
 /// Assembles the documented report from the three tier sidecars
-    /// and enforces the Low-not-slower law.
+/// and enforces the Low-not-slower law.
 fn deck_report(out_dir: &str) {
-        let mut rows = Vec::new();
-        for name in ["low", "mid", "high"] {
-            let path = format!("{}/deck_bench_{}.csv", std::env::temp_dir().display(), name);
-            let csv = std::fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("sidecar {path}: {e} — run the three tiers first"));
-            let data = csv.lines().nth(1).expect("a data row");
-            let f: Vec<f32> = data
-                .split(',')
-                .skip(1)
-                .map(|v| v.parse().unwrap_or(0.0))
-                .collect();
-            rows.push(pc3d_render::deck::BenchRow {
-                tier: name,
-                frames: f[0] as u64,
-                p50_ms: f[1],
-                p95_ms: f[2],
-                p99_ms: f[3],
-                worst_ms: f[4],
-                avg_fps: f[5],
-                meshed: f[6] as usize,
-                gpu_kb: f[7] as usize,
-                drawn_patches: f[8] as usize,
-                frustum_culled: f[9] as usize,
-                flora_instances: f[10] as usize,
-                flora_buckets: f[11] as usize,
-                settlement_draws: f[12] as usize,
-                settlement_tris: f[13] as usize,
-                crowd_draws: f[14] as usize,
-                crowd_instances: f[15] as usize,
-            });
-        }
-        let md = pc3d_render::deck::report_md(
-            "Apple host iGPU (documented evidence machine; the contract targets Steam Deck)",
-            "800x500",
-            &rows,
-            &pc3d_render::deck::contract(),
-        );
-        let dst = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md");
-        std::fs::write(&dst, md).expect("write report");
-        // Budget law: Low's leaner contract must not be SLOWER than
-        // High on the same walk (evidence the levers behave).
-        assert!(
-            rows[0].p95_ms <= rows[2].p95_ms * 1.25,
-            "Low is not slower than High (low p95 {:.2} vs high {:.2})",
-            rows[0].p95_ms,
-            rows[2].p95_ms
-        );
-        println!("DECK BENCH REPORT -> {}", dst.display());
-        for r in &rows {
-            println!(
-                "DECK {}: p50 {:.2} ms p95 {:.2} p99 {:.2} worst {:.2} ({:.0} fps)",
-                r.tier, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps
-            );
-        }
-        println!("DECK BENCH PASS -> report + per-tier captures in {out_dir}");
+    let mut rows = Vec::new();
+    for name in ["low", "mid", "high"] {
+        let path = format!("{}/deck_bench_{}.csv", std::env::temp_dir().display(), name);
+        let csv = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("sidecar {path}: {e} — run the three tiers first"));
+        let data = csv.lines().nth(1).expect("a data row");
+        let f: Vec<f32> = data
+            .split(',')
+            .skip(1)
+            .map(|v| v.parse().unwrap_or(0.0))
+            .collect();
+        rows.push(pc3d_render::deck::BenchRow {
+            tier: name,
+            frames: f[0] as u64,
+            p50_ms: f[1],
+            p95_ms: f[2],
+            p99_ms: f[3],
+            worst_ms: f[4],
+            avg_fps: f[5],
+            meshed: f[6] as usize,
+            gpu_kb: f[7] as usize,
+            drawn_patches: f[8] as usize,
+            frustum_culled: f[9] as usize,
+            flora_instances: f[10] as usize,
+            flora_buckets: f[11] as usize,
+            settlement_draws: f[12] as usize,
+            settlement_tris: f[13] as usize,
+            crowd_draws: f[14] as usize,
+            crowd_instances: f[15] as usize,
+        });
     }
+    let md = pc3d_render::deck::report_md(
+        "Apple host iGPU (documented evidence machine; the contract targets Steam Deck)",
+        "800x500",
+        &rows,
+        &pc3d_render::deck::contract(),
+    );
+    let dst = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md");
+    std::fs::write(&dst, md).expect("write report");
+    // Budget law: Low's leaner contract must not be SLOWER than
+    // High on the same walk (evidence the levers behave).
+    assert!(
+        rows[0].p95_ms <= rows[2].p95_ms * 1.25,
+        "Low is not slower than High (low p95 {:.2} vs high {:.2})",
+        rows[0].p95_ms,
+        rows[2].p95_ms
+    );
+    println!("DECK BENCH REPORT -> {}", dst.display());
+    for r in &rows {
+        println!(
+            "DECK {}: p50 {:.2} ms p95 {:.2} p99 {:.2} worst {:.2} ({:.0} fps)",
+            r.tier, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps
+        );
+    }
+    println!("DECK BENCH PASS -> report + per-tier captures in {out_dir}");
+}
 
 fn print_window_report(report: &pc3d_render::WindowReport) {
     println!(

@@ -31,8 +31,7 @@ pub fn mesh_water_wheel(
     // Site at the region's river centerline.
     let cx = region.x as f32 * 256.0 + 128.0;
     let cz = region.z as f32 * 256.0 + 128.0;
-    let surf = gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64) as f32
-        / 1000.0;
+    let surf = gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64) as f32 / 1000.0;
     let hub = [cx, surf + 1.9, cz];
     let metal = pc3d_assets::material_albedo("mat.wood_metal").unwrap_or([0.48, 0.42, 0.38]);
     let timber = pc3d_assets::material_albedo("mat.timber_roof").unwrap_or([0.55, 0.30, 0.18]);
@@ -67,14 +66,25 @@ pub fn mesh_water_wheel(
         push_oriented_box(verts, idx, hub, end, 0.09, timber);
         let _ = mid;
         // Rim paddle at the spoke end.
-        push_oriented_box(verts, idx, end, [end[0] + axis[0] * 0.0, end[1], end[2]], 0.16, timber);
+        push_oriented_box(
+            verts,
+            idx,
+            end,
+            [end[0] + axis[0] * 0.0, end[1], end[2]],
+            0.16,
+            timber,
+        );
     }
     // Axle along the flow + two posts either side.
     let axle_a = [hub[0] - axis[0] * 1.9, hub[1], hub[2] - axis[2] * 1.9];
     let axle_b = [hub[0] + axis[0] * 1.9, hub[1], hub[2] + axis[2] * 1.9];
     push_oriented_box(verts, idx, axle_a, axle_b, 0.09, metal);
     for sign in [-1.0f32, 1.0] {
-        let top = [hub[0] + axis[0] * 1.7 * sign, hub[1], hub[2] + axis[2] * 1.7 * sign];
+        let top = [
+            hub[0] + axis[0] * 1.7 * sign,
+            hub[1],
+            hub[2] + axis[2] * 1.7 * sign,
+        ];
         let bottom = [top[0], surf - 0.4, top[2]];
         push_oriented_box(verts, idx, bottom, top, 0.12, timber);
     }
@@ -93,16 +103,8 @@ fn push_oriented_box(
     t: f32,
     color: [f32; 3],
 ) {
-    let min = [
-        a[0].min(b[0]) - t,
-        a[1].min(b[1]) - t,
-        a[2].min(b[2]) - t,
-    ];
-    let max = [
-        a[0].max(b[0]) + t,
-        a[1].max(b[1]) + t,
-        a[2].max(b[2]) + t,
-    ];
+    let min = [a[0].min(b[0]) - t, a[1].min(b[1]) - t, a[2].min(b[2]) - t];
+    let max = [a[0].max(b[0]) + t, a[1].max(b[1]) + t, a[2].max(b[2]) + t];
     crate::city::push_city_box(verts, idx, min, max, color);
 }
 
@@ -132,15 +134,15 @@ mod tests {
         // maps to a concrete renderer module in this crate.
         let beta = pc3d_assets::beta_critical().expect("manifest");
         let known: &[&str] = &[
-            "natural_terrain_renderer",   // terrain.rs (R3DV-005/006)
-            "cave_renderer",              // terrain.rs caves (R3DV-005)
-            "river_renderer",             // water.rs (R3DV-007)
-            "construction_renderer",      // construction.rs (R3DV-004)
-            "ray_target",                 // construction.rs + collision (R3DV-004)
-            "capital_module_renderer",    // city.rs (R3DV-008)
-            "city_anchor_renderer",       // npcs.rs inspect boxes (R3DV-009)
-            "npc_renderer",               // npcs.rs (R3DV-009)
-            "machine_renderer",           // machines.rs (this task)
+            "natural_terrain_renderer", // terrain.rs (R3DV-005/006)
+            "cave_renderer",            // terrain.rs caves (R3DV-005)
+            "river_renderer",           // water.rs (R3DV-007)
+            "construction_renderer",    // construction.rs (R3DV-004)
+            "ray_target",               // construction.rs + collision (R3DV-004)
+            "capital_module_renderer",  // city.rs (R3DV-008)
+            "city_anchor_renderer",     // npcs.rs inspect boxes (R3DV-009)
+            "npc_renderer",             // npcs.rs (R3DV-009)
+            "machine_renderer",         // machines.rs (this task)
         ];
         for a in &beta.assets {
             for c in &a.runtime_consumers {

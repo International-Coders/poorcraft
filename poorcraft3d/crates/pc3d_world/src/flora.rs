@@ -143,7 +143,10 @@ fn biome_table(b: Biome) -> &'static [(PlantKind, f32)] {
             (PlantKind::RockSlab, 0.02),
             (PlantKind::TreePine, 0.012),
         ],
-        Biome::SnowPeaks => &[(PlantKind::RockBoulder, 0.03), (PlantKind::RockSpire, 0.012)],
+        Biome::SnowPeaks => &[
+            (PlantKind::RockBoulder, 0.03),
+            (PlantKind::RockSpire, 0.012),
+        ],
     }
 }
 
@@ -245,10 +248,7 @@ pub fn jitter(gen: &WorldGen, slot: SlotCoord) -> [f32; 3] {
 /// One per region at most — the wilderness' fixed point of reference.
 pub fn landmark_at(gen: &WorldGen, region: RegionCoord) -> Option<[f32; 2]> {
     let biome = gen.biome(region);
-    if !matches!(
-        biome,
-        Biome::Plains | Biome::Forest | Biome::Highlands
-    ) {
+    if !matches!(biome, Biome::Plains | Biome::Forest | Biome::Highlands) {
         return None;
     }
     let r = unit(gen.hash_seed(), [region.x as u64, region.z as u64, 0xAA11]);
@@ -260,8 +260,14 @@ pub fn landmark_at(gen: &WorldGen, region: RegionCoord) -> Option<[f32; 2]> {
     let cx = (base.x + crate::scales::REGION_MM / 2) as f32 / 1000.0;
     let cz = (base.z + crate::scales::REGION_MM / 2) as f32 / 1000.0;
     for k in 0..24i32 {
-        let a = unit(gen.hash_seed(), [region.x as u64, region.z as u64, 0xAA12 + k as u64]);
-        let b = unit(gen.hash_seed(), [region.x as u64, region.z as u64, 0xAA40 + k as u64]);
+        let a = unit(
+            gen.hash_seed(),
+            [region.x as u64, region.z as u64, 0xAA12 + k as u64],
+        );
+        let b = unit(
+            gen.hash_seed(),
+            [region.x as u64, region.z as u64, 0xAA40 + k as u64],
+        );
         let x = cx + (a - 0.5) * 160.0;
         let z = cz + (b - 0.5) * 160.0;
         let h0 = gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64);
@@ -347,9 +353,17 @@ mod tests {
         }
         let sample = |region: RegionCoord| -> (usize, usize, usize) {
             let mut t = (0, 0, 0);
-            for (_, p) in scan(&g, region.x * 64, region.z * 64, region.x * 64 + 64, region.z * 64 + 64) {
+            for (_, p) in scan(
+                &g,
+                region.x * 64,
+                region.z * 64,
+                region.x * 64 + 64,
+                region.z * 64 + 64,
+            ) {
                 match p.kind {
-                    PlantKind::TreePine | PlantKind::TreeBroadleaf | PlantKind::TreeBirch => t.0 += 1,
+                    PlantKind::TreePine | PlantKind::TreeBroadleaf | PlantKind::TreeBirch => {
+                        t.0 += 1
+                    }
                     PlantKind::Grass => t.1 += 1,
                     PlantKind::RockBoulder | PlantKind::RockSpire | PlantKind::RockSlab => t.2 += 1,
                     _ => {}

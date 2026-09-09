@@ -172,7 +172,10 @@ mod tests {
         let center = river_center(&graph);
         let mut set = PlayerSettlements::default();
         set.found(&graph, center, "first".into()).expect("first");
-        assert_eq!(set.found(&graph, center, "second".into()), Err(FoundError::Occupied));
+        assert_eq!(
+            set.found(&graph, center, "second".into()),
+            Err(FoundError::Occupied)
+        );
     }
 
     /// Expansion claims Chebyshev-adjacent regions.
@@ -181,13 +184,16 @@ mod tests {
         let graph = graph();
         let center = river_center(&graph);
         let mut set = PlayerSettlements::default();
-        set.found(&graph, center, "expanding".into()).expect("found");
+        set.found(&graph, center, "expanding".into())
+            .expect("found");
         let claimed = set.expand(&center);
         assert_eq!(claimed.len(), 8, "8 Chebyshev-adjacent regions");
         for (dx, dz) in &claimed {
             let d = (dx.abs() - 1).max(dz.abs() - 1);
             let _ = d;
         }
-        assert!(set.founded[&center].claimed.contains(&(center.x + 1, center.z)));
+        assert!(set.founded[&center]
+            .claimed
+            .contains(&(center.x + 1, center.z)));
     }
 }

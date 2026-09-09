@@ -9,8 +9,8 @@
 
 use crate::coords::{PatchCoord, WorldPos};
 use crate::gen::{cell_material, WorldGen};
-use crate::scales::REGION_MM;
 use crate::scales::PATCH_MM;
+use crate::scales::REGION_MM;
 
 /// LOD bands in meters (blueprint streaming tiers). Configurable here.
 pub const LOD_FULL_M: f32 = 96.0;
@@ -47,7 +47,12 @@ pub fn lod_for(viewer: WorldPos, patch_center: WorldPos) -> LodLevel {
 /// for the 16 columns along `axis` on the `side` (min/max) edge of
 /// `patch`. Two neighbors sharing that border sample the SAME world
 /// positions, so their signatures must be identical.
-pub fn seam_signature(gen: &WorldGen, patch: PatchCoord, axis: crate::coords::Axis, side: bool) -> u64 {
+pub fn seam_signature(
+    gen: &WorldGen,
+    patch: PatchCoord,
+    axis: crate::coords::Axis,
+    side: bool,
+) -> u64 {
     let o = patch.origin();
     let mut h: u64 = 0xcbf29ce484222325;
     let mix = |h: &mut u64, word: u64| {
@@ -81,7 +86,12 @@ pub fn seam_signature(gen: &WorldGen, patch: PatchCoord, axis: crate::coords::Ax
 
 /// Neighbors `a` and `b` agree at their shared border (b is on a's +x or
 /// +z side).
-pub fn border_agrees(gen: &WorldGen, a: PatchCoord, b: PatchCoord, axis: crate::coords::Axis) -> bool {
+pub fn border_agrees(
+    gen: &WorldGen,
+    a: PatchCoord,
+    b: PatchCoord,
+    axis: crate::coords::Axis,
+) -> bool {
     seam_signature(gen, a, axis, true) == seam_signature(gen, b, axis, false)
 }
 

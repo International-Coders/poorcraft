@@ -8,8 +8,8 @@
 
 use crate::coords::{CellCoord, PatchCoord};
 use crate::gen::{CellMaterial, WorldGen};
-use crate::terrain::final_solid;
 use crate::scales::PATCH_CELL_AXIS;
+use crate::terrain::final_solid;
 
 /// Hard cap on A* expansions — unreachable goals return None, never hang.
 pub const MAX_NAV_NODES: usize = 4096;
@@ -96,9 +96,7 @@ impl NavPatch {
             return None;
         }
         let n = PATCH_CELL_AXIS as usize;
-        let h = |x: usize, z: usize| -> usize {
-            (x.abs_diff(tx) + z.abs_diff(tz)) as usize
-        };
+        let h = |x: usize, z: usize| -> usize { (x.abs_diff(tx) + z.abs_diff(tz)) as usize };
         let mut open: std::collections::BinaryHeap<(
             std::cmp::Reverse<usize>,
             std::cmp::Reverse<usize>,
@@ -161,7 +159,11 @@ impl NavPatch {
                     continue;
                 }
                 let ng = g + 1;
-                if g_score.get(&(nx, nz)).map(|&old| ng >= old).unwrap_or(false) {
+                if g_score
+                    .get(&(nx, nz))
+                    .map(|&old| ng >= old)
+                    .unwrap_or(false)
+                {
                     continue;
                 }
                 g_score.insert((nx, nz), ng);
@@ -240,9 +242,17 @@ pub fn cross_patch_path(
     let head = a.path(from, portal)?;
     // The b-side entry cell sits just past the shared border.
     let entry = if to_patch.x > from_patch.x {
-        CellCoord { x: portal.x + 1, y: portal.y, z: portal.z }
+        CellCoord {
+            x: portal.x + 1,
+            y: portal.y,
+            z: portal.z,
+        }
     } else {
-        CellCoord { x: portal.x, y: portal.y, z: portal.z + 1 }
+        CellCoord {
+            x: portal.x,
+            y: portal.y,
+            z: portal.z + 1,
+        }
     };
     let tail = b.path(entry, to)?;
     let mut full = head;
@@ -261,8 +271,16 @@ mod tests {
     fn hills() -> (WorldGen, PatchCoord, PatchCoord) {
         (
             WorldGen::new(3),
-            PatchCoord { x: -60 * 16, y: 1, z: -31 * 16 },
-            PatchCoord { x: -60 * 16 + 1, y: 1, z: -31 * 16 },
+            PatchCoord {
+                x: -60 * 16,
+                y: 1,
+                z: -31 * 16,
+            },
+            PatchCoord {
+                x: -60 * 16 + 1,
+                y: 1,
+                z: -31 * 16,
+            },
         )
     }
 
@@ -273,8 +291,16 @@ mod tests {
         let (gen, patch, _) = hills();
         let nav = NavPatch::from_gen(&gen, patch);
         let o = patch.origin();
-        let from = CellCoord { x: o.x.div_euclid(1000) as i32 + 2, y: 0, z: o.z.div_euclid(1000) as i32 + 2 };
-        let to = CellCoord { x: o.x.div_euclid(1000) as i32 + 13, y: 0, z: o.z.div_euclid(1000) as i32 + 13 };
+        let from = CellCoord {
+            x: o.x.div_euclid(1000) as i32 + 2,
+            y: 0,
+            z: o.z.div_euclid(1000) as i32 + 2,
+        };
+        let to = CellCoord {
+            x: o.x.div_euclid(1000) as i32 + 13,
+            y: 0,
+            z: o.z.div_euclid(1000) as i32 + 13,
+        };
         let Some(path) = nav.path(from, to) else {
             panic!("no path on smooth terrain");
         };
@@ -312,8 +338,16 @@ mod tests {
             nav.heights[idx] = None;
         }
         let o2 = o;
-        let from = CellCoord { x: o2.x.div_euclid(1000) as i32 + 2, y: 0, z: o2.z.div_euclid(1000) as i32 + 8 };
-        let to = CellCoord { x: o2.x.div_euclid(1000) as i32 + 13, y: 0, z: o2.z.div_euclid(1000) as i32 + 8 };
+        let from = CellCoord {
+            x: o2.x.div_euclid(1000) as i32 + 2,
+            y: 0,
+            z: o2.z.div_euclid(1000) as i32 + 8,
+        };
+        let to = CellCoord {
+            x: o2.x.div_euclid(1000) as i32 + 13,
+            y: 0,
+            z: o2.z.div_euclid(1000) as i32 + 8,
+        };
         let path = nav.path(from, to).expect("a route around the wall exists");
         for cell in &path {
             let (lx, lz) = nav.local_of(*cell).expect("in-patch");
@@ -336,12 +370,23 @@ mod tests {
         let (gen, a_patch, b_patch) = hills();
         let a = NavPatch::from_gen(&gen, a_patch);
         let portals = a.portals_to(&gen, b_patch);
-        assert!(!portals.is_empty(), "adjacent land patches must share portals");
+        assert!(
+            !portals.is_empty(),
+            "adjacent land patches must share portals"
+        );
         // The cross-patch path exists and is continuous across the border.
         let o = a_patch.origin();
-        let from = CellCoord { x: o.x.div_euclid(1000) as i32 + 2, y: 0, z: o.z.div_euclid(1000) as i32 + 8 };
+        let from = CellCoord {
+            x: o.x.div_euclid(1000) as i32 + 2,
+            y: 0,
+            z: o.z.div_euclid(1000) as i32 + 8,
+        };
         let ob = b_patch.origin();
-        let to = CellCoord { x: ob.x.div_euclid(1000) as i32 + 13, y: 0, z: ob.z.div_euclid(1000) as i32 + 8 };
+        let to = CellCoord {
+            x: ob.x.div_euclid(1000) as i32 + 13,
+            y: 0,
+            z: ob.z.div_euclid(1000) as i32 + 8,
+        };
         let Some(path) = cross_patch_path(&gen, a_patch, from, b_patch, to) else {
             panic!("cross-patch path missing");
         };

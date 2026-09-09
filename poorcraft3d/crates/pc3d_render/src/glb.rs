@@ -56,14 +56,18 @@ fn parse_glb(bytes: &[u8]) -> Result<Document, GlbError> {
         let len = u32::from_le_bytes(bytes[pos..pos + 4].try_into().unwrap()) as usize;
         let kind = &bytes[pos + 4..pos + 8];
         let start = pos + 8;
-        let end = start.checked_add(len).ok_or(GlbError::Truncated("chunk length"))?;
+        let end = start
+            .checked_add(len)
+            .ok_or(GlbError::Truncated("chunk length"))?;
         if end > bytes.len() {
             return Err(GlbError::Truncated("chunk exceeds file"));
         }
         if kind == b"JSON" {
             let s = std::str::from_utf8(&bytes[start..end])
                 .map_err(|_| GlbError::Json("utf8".into()))?;
-            json = Some(serde_json::from_str(s.trim_end()).map_err(|e| GlbError::Json(e.to_string()))?);
+            json = Some(
+                serde_json::from_str(s.trim_end()).map_err(|e| GlbError::Json(e.to_string()))?,
+            );
         } else if kind == b"BIN\x00" {
             bin = bytes[start..end].to_vec();
         }
@@ -76,33 +80,51 @@ fn parse_glb(bytes: &[u8]) -> Result<Document, GlbError> {
 }
 
 fn read_f32_vec3(doc: &Document, accessor: &Value) -> Result<Vec<[f32; 3]>, GlbError> {
-    let view_i = accessor["bufferView"].as_u64().ok_or(GlbError::Missing("bufferView"))? as usize;
-    let views = doc.json["bufferViews"].as_array().ok_or(GlbError::Missing("bufferViews"))?;
-    let view = views.get(view_i).ok_or(GlbError::Missing("bufferView entry"))?;
+    let view_i = accessor["bufferView"]
+        .as_u64()
+        .ok_or(GlbError::Missing("bufferView"))? as usize;
+    let views = doc.json["bufferViews"]
+        .as_array()
+        .ok_or(GlbError::Missing("bufferViews"))?;
+    let view = views
+        .get(view_i)
+        .ok_or(GlbError::Missing("bufferView entry"))?;
     let off = view["byteOffset"].as_u64().unwrap_or(0) as usize;
-    let len = view["byteLength"].as_u64().ok_or(GlbError::Missing("byteLength"))? as usize;
-    let count = accessor["count"].as_u64().ok_or(GlbError::Missing("count"))? as usize;
+    let len = view["byteLength"]
+        .as_u64()
+        .ok_or(GlbError::Missing("byteLength"))? as usize;
+    let count = accessor["count"]
+        .as_u64()
+        .ok_or(GlbError::Missing("count"))? as usize;
     let mut out = Vec::with_capacity(count);
     for i in 0..count {
         let b = off + i * 12;
         if b + 12 > doc.bin.len() || b + 12 > off + len {
             return Err(GlbError::Truncated("accessor data"));
         }
-        let f = |k: usize| {
-            f32::from_le_bytes(doc.bin[b + k..b + k + 4].try_into().unwrap())
-        };
+        let f = |k: usize| f32::from_le_bytes(doc.bin[b + k..b + k + 4].try_into().unwrap());
         out.push([f(0), f(4), f(8)]);
     }
     Ok(out)
 }
 
 fn read_u32_indices(doc: &Document, accessor: &Value) -> Result<Vec<u32>, GlbError> {
-    let view_i = accessor["bufferView"].as_u64().ok_or(GlbError::Missing("bufferView"))? as usize;
-    let views = doc.json["bufferViews"].as_array().ok_or(GlbError::Missing("bufferViews"))?;
-    let view = views.get(view_i).ok_or(GlbError::Missing("bufferView entry"))?;
+    let view_i = accessor["bufferView"]
+        .as_u64()
+        .ok_or(GlbError::Missing("bufferView"))? as usize;
+    let views = doc.json["bufferViews"]
+        .as_array()
+        .ok_or(GlbError::Missing("bufferViews"))?;
+    let view = views
+        .get(view_i)
+        .ok_or(GlbError::Missing("bufferView entry"))?;
     let off = view["byteOffset"].as_u64().unwrap_or(0) as usize;
-    let len = view["byteLength"].as_u64().ok_or(GlbError::Missing("byteLength"))? as usize;
-    let count = accessor["count"].as_u64().ok_or(GlbError::Missing("count"))? as usize;
+    let len = view["byteLength"]
+        .as_u64()
+        .ok_or(GlbError::Missing("byteLength"))? as usize;
+    let count = accessor["count"]
+        .as_u64()
+        .ok_or(GlbError::Missing("count"))? as usize;
     let mut out = Vec::with_capacity(count);
     for i in 0..count {
         let b = off + i * 4;
@@ -177,36 +199,63 @@ impl Asset {
 /// Parses an asset GLB from bytes.
 pub fn load_asset(bytes: &[u8]) -> Result<Asset, GlbError> {
     let doc = parse_glb(bytes)?;
-    let meshes = doc.json["meshes"].as_array().ok_or(GlbError::Missing("meshes"))?;
-    let nodes = doc.json["nodes"].as_array().ok_or(GlbError::Missing("nodes"))?;
-    let accessors = doc.json["accessors"].as_array().ok_or(GlbError::Missing("accessors"))?;
-    let materials = doc.json["materials"].as_array().ok_or(GlbError::Missing("materials"))?;
+    let meshes = doc.json["meshes"]
+        .as_array()
+        .ok_or(GlbError::Missing("meshes"))?;
+    let nodes = doc.json["nodes"]
+        .as_array()
+        .ok_or(GlbError::Missing("nodes"))?;
+    let accessors = doc.json["accessors"]
+        .as_array()
+        .ok_or(GlbError::Missing("accessors"))?;
+    let materials = doc.json["materials"]
+        .as_array()
+        .ok_or(GlbError::Missing("materials"))?;
 
     let mut asset = Asset::default();
     for node in nodes {
         let name = node["name"].as_str().unwrap_or("");
         if let Some(mesh_i) = node["mesh"].as_u64() {
-            let mesh = meshes.get(mesh_i as usize).ok_or(GlbError::Missing("mesh entry"))?;
+            let mesh = meshes
+                .get(mesh_i as usize)
+                .ok_or(GlbError::Missing("mesh entry"))?;
             let mut verts: Vec<SceneVertex> = Vec::new();
             let mut idx: Vec<u32> = Vec::new();
-            let prims = mesh["primitives"].as_array().ok_or(GlbError::Missing("primitives"))?;
+            let prims = mesh["primitives"]
+                .as_array()
+                .ok_or(GlbError::Missing("primitives"))?;
             for prim in prims {
                 let pos = read_f32_vec3(
                     &doc,
                     accessors
-                        .get(prim["attributes"]["POSITION"].as_u64().ok_or(GlbError::Missing("POSITION"))? as usize)
+                        .get(
+                            prim["attributes"]["POSITION"]
+                                .as_u64()
+                                .ok_or(GlbError::Missing("POSITION"))?
+                                as usize,
+                        )
                         .ok_or(GlbError::Missing("POSITION accessor"))?,
                 )?;
                 let nrm = read_f32_vec3(
                     &doc,
                     accessors
-                        .get(prim["attributes"]["NORMAL"].as_u64().ok_or(GlbError::Missing("NORMAL"))? as usize)
+                        .get(
+                            prim["attributes"]["NORMAL"]
+                                .as_u64()
+                                .ok_or(GlbError::Missing("NORMAL"))?
+                                as usize,
+                        )
                         .ok_or(GlbError::Missing("NORMAL accessor"))?,
                 )?;
                 let indices = read_u32_indices(
                     &doc,
                     accessors
-                        .get(prim["indices"].as_u64().ok_or(GlbError::Missing("indices"))? as usize)
+                        .get(
+                            prim["indices"]
+                                .as_u64()
+                                .ok_or(GlbError::Missing("indices"))?
+                                as usize,
+                        )
                         .ok_or(GlbError::Missing("indices accessor"))?,
                 )?;
                 let mat_i = prim["material"].as_u64().unwrap_or(0) as usize;
@@ -282,12 +331,20 @@ mod tests {
         let tree = load_asset_file(&asset_path("prop/tree_ash.glb")).expect("tree");
         let names: Vec<&str> = tree.lods.iter().map(|l| l.name.as_str()).collect();
         assert_eq!(names, vec!["lod0", "lod1", "lod2"]);
-        assert!(tree.lods[0].triangles() <= 1800, "{} > 1800", tree.lods[0].triangles());
+        assert!(
+            tree.lods[0].triangles() <= 1800,
+            "{} > 1800",
+            tree.lods[0].triangles()
+        );
         assert!(tree.lods[1].triangles() <= 700);
         assert!(tree.lods[2].triangles() <= 180);
         // Every vertex sits above ground (pivot at feet) and within a sane
         // bounding box (a ~6-7 m tree).
-        let max_y = tree.lods[0].vertices.iter().map(|v| v.pos[1]).fold(f32::MIN, f32::max);
+        let max_y = tree.lods[0]
+            .vertices
+            .iter()
+            .map(|v| v.pos[1])
+            .fold(f32::MIN, f32::max);
         assert!(max_y > 5.0 && max_y < 8.5, "tree height {max_y}");
         // Rock: 2 LODs.
         let rock = load_asset_file(&asset_path("prop/rock_granite.glb")).expect("rock");
@@ -330,7 +387,9 @@ mod tests {
             "bufferViews": [],
         });
         let mut json = serde_json::to_vec(&doc).unwrap();
-        while json.len() % 4 != 0 { json.push(b' '); }
+        while json.len() % 4 != 0 {
+            json.push(b' ');
+        }
         let mut f = Vec::new();
         f.extend_from_slice(b"glTF");
         f.extend_from_slice(&2u32.to_le_bytes());
@@ -366,7 +425,11 @@ mod gpu_tests {
         let ground = |x: f32, z: f32| {
             gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
         };
-        let t_pos = [coord.origin().x as f32 / 1000.0 + 6.0, 0.0, coord.origin().z as f32 / 1000.0 + 6.0];
+        let t_pos = [
+            coord.origin().x as f32 / 1000.0 + 6.0,
+            0.0,
+            coord.origin().z as f32 / 1000.0 + 6.0,
+        ];
         let r_pos = [t_pos[0] + 5.0, 0.0, t_pos[2] + 2.0];
         let h_pos = [t_pos[0] - 2.0, 0.0, t_pos[2] + 10.0];
         let (tp, rp, hp) = (
@@ -386,7 +449,11 @@ mod gpu_tests {
         let mut patches = Vec::new();
         for dx in -1..=1i32 {
             for dz in -1..=1i32 {
-                patches.push(pc3d_world::coords::PatchCoord { x: patch.x + dx, y: patch.y, z: patch.z + dz });
+                patches.push(pc3d_world::coords::PatchCoord {
+                    x: patch.x + dx,
+                    y: patch.y,
+                    z: patch.z + dz,
+                });
             }
         }
         r.load_terrain(&gen, &patches);
@@ -394,7 +461,11 @@ mod gpu_tests {
         // lod0, house lod0.
         let tris = [
             r.load_asset(&tree, "lod0", tp),
-            r.load_asset(&tree, "lod1", [tp[0] + 12.0, ground(tp[0] + 12.0, tp[2] - 8.0), tp[2] - 8.0]),
+            r.load_asset(
+                &tree,
+                "lod1",
+                [tp[0] + 12.0, ground(tp[0] + 12.0, tp[2] - 8.0), tp[2] - 8.0],
+            ),
             r.load_asset(&rock, "lod0", rp),
             r.load_asset(&house, "lod0", hp),
         ];
@@ -446,7 +517,8 @@ mod gpu_tests {
             }],
         );
         assert!(report.passes_with(12), "{:?}", report.failed_probes());
-        let (_, ctrl_rgba) = ctrl.capture_png(&std::env::temp_dir().join("pc3d_assets_ctrl.png"), &[]);
+        let (_, ctrl_rgba) =
+            ctrl.capture_png(&std::env::temp_dir().join("pc3d_assets_ctrl.png"), &[]);
         for (name, point) in probes {
             let ndc = project_ndc(pose, aspect, point);
             let with = crate::scene::sample_ndc(&rgba, 384, 288, ndc);

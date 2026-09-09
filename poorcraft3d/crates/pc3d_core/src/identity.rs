@@ -67,14 +67,20 @@ mod tests {
     /// other, this fails before a save can cross projects.
     #[test]
     fn p3d_identity_is_separate_from_the_original_game() {
-        assert_ne!(PROJECT_EXE, ORIGINAL_GAME_EXE, "executable names must differ");
+        assert_ne!(
+            PROJECT_EXE, ORIGINAL_GAME_EXE,
+            "executable names must differ"
+        );
         assert_ne!(PROJECT_NAME, "LOREFORGE");
         assert_ne!(P3D_SAVE_DIR, ORIGINAL_SAVE_DIR, "save roots must differ");
         assert!(
             !ORIGINAL_SAVE_DIR.contains(P3D_SAVE_DIR) && !P3D_SAVE_DIR.contains(ORIGINAL_SAVE_DIR),
             "neither save dir may be a substring of the other"
         );
-        assert_ne!(P3D_FORMAT_MAGIC, b"LORE" , "save magic must not echo the original game's identity");
+        assert_ne!(
+            P3D_FORMAT_MAGIC, b"LORE",
+            "save magic must not echo the original game's identity"
+        );
     }
 
     /// A LOREFORGE-style save file is refused before parsing.
@@ -99,7 +105,11 @@ mod tests {
         assert_eq!(refuse_foreign_save(&ok), Accepted);
         // Magic is case- and content-strict.
         assert_eq!(refuse_foreign_save(b"pc3d"), ForeignFormat);
-        assert_eq!(refuse_foreign_save(b"PC3Dx"), Accepted, "extra bytes after the magic are payload");
+        assert_eq!(
+            refuse_foreign_save(b"PC3Dx"),
+            Accepted,
+            "extra bytes after the magic are payload"
+        );
     }
 
     /// Truncated headers are refused as too short, never guessed.

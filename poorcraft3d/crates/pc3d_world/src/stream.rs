@@ -62,7 +62,11 @@ pub fn interest_patches(
             cap: MAX_QUERY_PATCHES,
         });
     }
-    let r2 = i64::from(radius.checked_mul(radius).ok_or(crate::query::QueryError::TooLarge)?);
+    let r2 = i64::from(
+        radius
+            .checked_mul(radius)
+            .ok_or(crate::query::QueryError::TooLarge)?,
+    );
     let mut out = Vec::new();
     for px in min.x..=max.x {
         for pz in min.z..=max.z {
@@ -208,8 +212,7 @@ mod tests {
         sorted.dedup();
         assert_eq!(sorted, full);
         // Far-away viewer still works (no origin bias).
-        let far = interest_patches(viewer_at_m(-100_000, 250_000), Tier::Full)
-            .expect("far viewer");
+        let far = interest_patches(viewer_at_m(-100_000, 250_000), Tier::Full).expect("far viewer");
         assert!(!far.is_empty());
         assert!(far.iter().all(|p| p.x < 0 || p.z > 0));
         // Macro tier is strictly larger than the full tier.
@@ -225,7 +228,11 @@ mod tests {
         for i in 0..3 {
             assert_eq!(q.push(i), Admit::Admitted);
         }
-        assert_eq!(q.push(99), Admit::RejectedFull(99), "overflow returns the item");
+        assert_eq!(
+            q.push(99),
+            Admit::RejectedFull(99),
+            "overflow returns the item"
+        );
         assert_eq!(q.len(), 3);
         assert_eq!((q.pushed, q.admitted, q.rejected), (4, 3, 1));
         assert_eq!(q.pop(), Some(0), "FIFO order");
@@ -284,10 +291,16 @@ mod tests {
             to_load.len() + deferred.len(),
             "every planned patch was pushed exactly once per wave"
         );
-        assert_eq!(mesh.admitted as usize, 8 + (deferred.len() - still_deferred.len()));
+        assert_eq!(
+            mesh.admitted as usize,
+            8 + (deferred.len() - still_deferred.len())
+        );
         // Rejections accumulate across BOTH waves: wave 1's deferrals plus
         // wave 2's overflow.
-        assert_eq!(mesh.rejected as usize, deferred.len() + still_deferred.len());
+        assert_eq!(
+            mesh.rejected as usize,
+            deferred.len() + still_deferred.len()
+        );
         assert!(mesh.rejected > 0, "the backlog stayed visible in counters");
     }
 

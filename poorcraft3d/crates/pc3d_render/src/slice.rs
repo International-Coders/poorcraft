@@ -51,7 +51,9 @@ fn river_near_city(
     for x in -half..=half {
         for z in -half..=half {
             let r = RegionCoord { x, z };
-            let Some(d) = graph.downstream(r) else { continue };
+            let Some(d) = graph.downstream(r) else {
+                continue;
+            };
             if graph.discharge(d) < pc3d_world::hydro::RIVER_THRESHOLD {
                 continue;
             }
@@ -71,10 +73,7 @@ fn river_near_city(
     Some((graph, table, edge))
 }
 
-fn cave_near_city(
-    gen: &WorldGen,
-    center: RegionCoord,
-) -> Option<(CellCoord, CellCoord, [i32; 3])> {
+fn cave_near_city(gen: &WorldGen, center: RegionCoord) -> Option<(CellCoord, CellCoord, [i32; 3])> {
     // Patches in a TIGHT ring around the city center (the pocket scan is
     // expensive: 16x16 columns x depth bands x final_solid queries per
     // patch — a wide ring would take minutes).
@@ -157,8 +156,10 @@ pub fn spawn_player(scene: &SliceScene) -> PlayerBody {
         let z = scene.gate.z + dz;
         let mut y = (scene.gate.y + 40).max(60);
         while y > scene.gate.y - 40 {
-            let solid_here = final_solid(gen, x as i64 * 1000, y as i64 * 1000, z as i64 * 1000).solid;
-            let solid_above = final_solid(gen, x as i64 * 1000, (y + 1) as i64 * 1000, z as i64 * 1000).solid;
+            let solid_here =
+                final_solid(gen, x as i64 * 1000, y as i64 * 1000, z as i64 * 1000).solid;
+            let solid_above =
+                final_solid(gen, x as i64 * 1000, (y + 1) as i64 * 1000, z as i64 * 1000).solid;
             if solid_here && !solid_above {
                 return PlayerBody {
                     pos: [x as f32, (y + 1) as f32, z as f32],
@@ -171,7 +172,11 @@ pub fn spawn_player(scene: &SliceScene) -> PlayerBody {
     }
     // Fallback: the gate cell itself.
     PlayerBody {
-        pos: [scene.gate.x as f32, scene.gate.y as f32 + 4.0, scene.gate.z as f32],
+        pos: [
+            scene.gate.x as f32,
+            scene.gate.y as f32 + 4.0,
+            scene.gate.z as f32,
+        ],
         yaw: 0.0,
         pitch: 0.0,
     }
@@ -233,7 +238,9 @@ pub fn assemble(
         rebuild: false,
         foundation_ok: true,
         player,
-        host: std::rc::Rc::new(std::cell::RefCell::new(pc3d_world::host::SoloHost::new(seed))),
+        host: std::rc::Rc::new(std::cell::RefCell::new(pc3d_world::host::SoloHost::new(
+            seed,
+        ))),
         scene: scene.clone(),
         save_root,
         world_name: world_name.into(),
@@ -253,7 +260,10 @@ pub fn save_slice(
     let sup = pc3d_core::SupportedVersions::epoch1();
     pc3d_save::store::save_world_meta(
         save_root,
-        &pc3d_save::store::WorldMeta { seed, name: world.into() },
+        &pc3d_save::store::WorldMeta {
+            seed,
+            name: world.into(),
+        },
         &sup,
     )?;
     for (key, con) in &host.construction {
@@ -289,16 +299,16 @@ pub fn load_slice(
     let mut host = pc3d_world::host::SoloHost::new(meta.seed);
     // Construction snapshots: edits/s<x>_<y>_<z>.bsnap (see paths of the
     // save crate) — scan the edits dir and parse the coordinates back.
-    let dir = save_root.join(pc3d_core::P3D_SAVE_DIR).join(world).join("edits");
+    let dir = save_root
+        .join(pc3d_core::P3D_SAVE_DIR)
+        .join(world)
+        .join("edits");
     let mut coords: Vec<(i32, i32, i32)> = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().into_owned();
             let stem = name.trim_start_matches('s').trim_end_matches(".bsnap");
-            let parts: Vec<i32> = stem
-                .split('_')
-                .filter_map(|p| p.parse().ok())
-                .collect();
+            let parts: Vec<i32> = stem.split('_').filter_map(|p| p.parse().ok()).collect();
             if parts.len() == 3 {
                 coords.push((parts[0], parts[1], parts[2]));
             }
@@ -307,13 +317,18 @@ pub fn load_slice(
     coords.sort();
     for (x, y, z) in coords {
         let coord = pc3d_world::coords::PatchCoord { x, y, z };
-        if let Ok(con) = pc3d_save::build_journal::load_build_snapshot(save_root, world, coord, &sup)
+        if let Ok(con) =
+            pc3d_save::build_journal::load_build_snapshot(save_root, world, coord, &sup)
         {
             host.construction.insert((x, y, z), con);
         }
     }
     let p = pc3d_save::player_store::load_player(save_root, world, &sup)?;
-    let player = PlayerBody { pos: p.pos, yaw: p.yaw, pitch: p.pitch };
+    let player = PlayerBody {
+        pos: p.pos,
+        yaw: p.yaw,
+        pitch: p.pitch,
+    };
     Ok((meta.seed, host, player))
 }
 
@@ -334,7 +349,10 @@ mod tests {
         // River: the edge is real and near.
         let (a, b) = scene.river_edge;
         assert!(a != b);
-        assert!(scene.river.downstream(RegionCoord { x: a.0, z: a.1 }).is_some());
+        assert!(scene
+            .river
+            .downstream(RegionCoord { x: a.0, z: a.1 })
+            .is_some());
         // Cave: enclosed pocket with wall + ceiling.
         let (air, wall, _) = scene.cave;
         assert_ne!((air.x, air.z), (wall.x, wall.z));
@@ -384,13 +402,15 @@ mod tests {
 
         // 2. CAVE: teleport to the pocket — enclosed by definition.
         let (air, _wall, _dir) = scene.cave;
-        assert!(!pc3d_world::terrain::final_solid(
-            &scene.gen,
-            air.x as i64 * 1000,
-            air.y as i64 * 1000,
-            air.z as i64 * 1000,
-        )
-        .solid);
+        assert!(
+            !pc3d_world::terrain::final_solid(
+                &scene.gen,
+                air.x as i64 * 1000,
+                air.y as i64 * 1000,
+                air.z as i64 * 1000,
+            )
+            .solid
+        );
 
         // 3. RIVER + CITY + NPC + BUILD: render the showcase.
         let mut r = crate::renderer::Renderer::offscreen(384, 288);
@@ -428,7 +448,11 @@ mod tests {
 
         // The overview from the spawn eye: city + terrain + water + npcs.
         let overview = CameraPose::new(
-            [spawn_pose.position[0] + 18.0, spawn_pose.position[1] + 22.0, spawn_pose.position[2] + 26.0],
+            [
+                spawn_pose.position[0] + 18.0,
+                spawn_pose.position[1] + 22.0,
+                spawn_pose.position[2] + 26.0,
+            ],
             0.0,
             (-0.7f32).atan2(1.4),
         );
@@ -465,7 +489,11 @@ mod tests {
         let _stats = r.update_construction(&host.construction);
         // Close-up at the block from the player's own eye: the block MUST
         // be visible in first person (control-diff at its projected cell).
-        let spot_face = [spot.x as f32 + 0.5, spot.y as f32 + 0.5, spot.z as f32 + 1.05];
+        let spot_face = [
+            spot.x as f32 + 0.5,
+            spot.y as f32 + 0.5,
+            spot.z as f32 + 1.05,
+        ];
         let eye = [player.pos[0], player.pos[1] + 1.7, player.pos[2]];
         let d = [
             spot_face[0] - eye[0],
@@ -478,15 +506,11 @@ mod tests {
             (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
         );
         r.set_pose(block_pose);
-        let (_, rgba_built) = r.capture_png(
-            &std::env::temp_dir().join("pc3d_slice_built.png"),
-            &[],
-        );
+        let (_, rgba_built) =
+            r.capture_png(&std::env::temp_dir().join("pc3d_slice_built.png"), &[]);
         r.detach_construction();
-        let (_, rgba_no_block) = r.capture_png(
-            &std::env::temp_dir().join("pc3d_slice_noblock.png"),
-            &[],
-        );
+        let (_, rgba_no_block) =
+            r.capture_png(&std::env::temp_dir().join("pc3d_slice_noblock.png"), &[]);
         r.attach_construction();
         let _ = r.update_construction(&host.construction);
         let ndc = project_ndc(block_pose, aspect, spot_face);
@@ -516,10 +540,7 @@ mod tests {
         assert_eq!(seed, seed2);
         assert_eq!(p2.pos, save_player.pos);
         assert_eq!(p2.yaw, save_player.yaw);
-        let reloaded_block = host2
-            .construction
-            .values()
-            .any(|c| c.at(spot).is_some());
+        let reloaded_block = host2.construction.values().any(|c| c.at(spot).is_some());
         assert!(reloaded_block, "the built block reloaded from disk");
 
         // The renderer, fed the RELOADED host, draws the same pixels.
@@ -543,19 +564,19 @@ mod tests {
             as f32
             / 1000.0;
         let town_pose = CameraPose::new(
-            [plaza.x as f32 + 6.0, plaza_surf + 12.0, plaza.z as f32 + 12.0],
+            [
+                plaza.x as f32 + 6.0,
+                plaza_surf + 12.0,
+                plaza.z as f32 + 12.0,
+            ],
             0.0,
             (-0.7f32).atan2(1.5),
         );
         r.set_pose(town_pose);
         r.load_npcs(&nverts, &nidx);
-        let (_, rgba_after) = r.capture_png(
-            &std::env::temp_dir().join("pc3d_slice_town.png"),
-            &[],
-        );
+        let (_, rgba_after) = r.capture_png(&std::env::temp_dir().join("pc3d_slice_town.png"), &[]);
         r.detach_npcs();
-        let (_, rgba_ctrl) =
-            r.capture_png(&std::env::temp_dir().join("pc3d_slice_ctrl.png"), &[]);
+        let (_, rgba_ctrl) = r.capture_png(&std::env::temp_dir().join("pc3d_slice_ctrl.png"), &[]);
         r.load_npcs(&nverts, &nidx);
         let mut npc_delta = 0.0f32;
         for x in (0..384usize).step_by(4) {
@@ -603,8 +624,8 @@ mod tests {
         let (seed, scene) = find_showcase(3);
         let mut host = pc3d_world::host::SoloHost::new(seed);
         // Build two blocks through the host command path.
-        use pc3d_world::host::HostCommand;
         use pc3d_world::coords::CellCoord;
+        use pc3d_world::host::HostCommand;
         let spot = CellCoord {
             x: scene.gate.x + 3,
             y: scene.gate.y + 1,
@@ -664,7 +685,10 @@ pub fn assemble_rebuild(
     // atmosphere + the wilderness.
     let ss = crate::surface_stream::SurfaceStreamer::new(
         std::rc::Rc::new(scene.gen),
-        &[pc3d_world::stream::Tier::Full, pc3d_world::stream::Tier::Lod],
+        &[
+            pc3d_world::stream::Tier::Full,
+            pc3d_world::stream::Tier::Lod,
+        ],
         (scene.gate.y as i32).max(1),
     );
     r.attach_surface_stream(ss);
@@ -703,12 +727,15 @@ pub fn assemble_rebuild(
         rebuild: true,
         foundation_ok: true,
         player,
-        host: std::rc::Rc::new(std::cell::RefCell::new(pc3d_world::host::SoloHost::new(seed))),
+        host: std::rc::Rc::new(std::cell::RefCell::new(pc3d_world::host::SoloHost::new(
+            seed,
+        ))),
         scene: scene.clone(),
         save_root,
         world_name: world_name.into(),
         inspect: false,
-        last_message: "REBUILD SLICE - WASD WALKS THE SURFACE - F BUILDS ON INSPECTED GROUND".into(),
+        last_message: "REBUILD SLICE - WASD WALKS THE SURFACE - F BUILDS ON INSPECTED GROUND"
+            .into(),
     };
     host.host.borrow_mut().run_ticks(0);
     host

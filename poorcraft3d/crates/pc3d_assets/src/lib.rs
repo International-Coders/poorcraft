@@ -21,9 +21,8 @@ use serde::{Deserialize, Serialize};
 /// The canonical beta-critical manifest supplied by the visual-reset pack,
 /// embedded at compile time so the validator always has the real data (a
 /// test re-reads the file from disk and fails if the pack drifts).
-pub const BETA_CRITICAL_JSON: &str = include_str!(
-    "../../../../docs/POORCRAFT-3D-VISUAL-RESET/assets/beta_critical_assets.json"
-);
+pub const BETA_CRITICAL_JSON: &str =
+    include_str!("../../../../docs/POORCRAFT-3D-VISUAL-RESET/assets/beta_critical_assets.json");
 
 // ---------------------------------------------------------------------------
 // Typed manifest (serde mirrors the JSON schema; enums reject out of contract)
@@ -185,9 +184,8 @@ fn id_matches_pattern(id: &str) -> bool {
         Some(c) if c.is_ascii_lowercase() || c.is_ascii_digit() => {}
         _ => return false,
     }
-    let rest_ok = chars.all(|c| {
-        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '.' || c == '-'
-    });
+    let rest_ok = chars
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '.' || c == '-');
     rest_ok && id.len() >= 2
 }
 
@@ -274,9 +272,15 @@ pub fn validate_str(json: &str) -> Result<Manifest, Vec<String>> {
         // row's text fields.
         let haystacks: [(&str, &str); 8] = [
             ("id", id),
-            ("geometry.source_or_generator", &a.geometry.source_or_generator),
+            (
+                "geometry.source_or_generator",
+                &a.geometry.source_or_generator,
+            ),
             ("material", &a.material),
-            ("license_note", a.provenance.license_note.as_deref().unwrap_or("")),
+            (
+                "license_note",
+                a.provenance.license_note.as_deref().unwrap_or(""),
+            ),
             ("collision", a.collision.as_deref().unwrap_or("")),
             ("navigation", a.navigation.as_deref().unwrap_or("")),
             ("runtime_consumers", &a.runtime_consumers.join(" ")),
@@ -349,19 +353,10 @@ pub fn material_albedo(name: &str) -> Option<[f32; 3]> {
 pub fn material_detail(name: &str) -> Option<DetailSpec> {
     Some(match name {
         "mat.grass" | "mat.anchor_idle" => DetailSpec { family: 0 },
-        "mat.castle_stone"
-        | "mat.block_stone"
-        | "mat.rock"
-        | "mat.timber_metal"
-        | "mat.wood_metal"
-        | "mat.npc_guard" => DetailSpec { family: 1 },
-        "mat.timber_roof"
-        | "mat.block_wood"
-        | "mat.soil"
-        | "mat.sand"
-        | "mat.npc_resident"
-        | "mat.npc_worker"
-        | "mat.anchor_bed" => DetailSpec { family: 2 },
+        "mat.castle_stone" | "mat.block_stone" | "mat.rock" | "mat.timber_metal"
+        | "mat.wood_metal" | "mat.npc_guard" => DetailSpec { family: 1 },
+        "mat.timber_roof" | "mat.block_wood" | "mat.soil" | "mat.sand" | "mat.npc_resident"
+        | "mat.npc_worker" | "mat.anchor_bed" => DetailSpec { family: 2 },
         "mat.snow" | "mat.anchor_work" => DetailSpec { family: 3 },
         "mat.water_flow" => DetailSpec { family: 2 }, // riverbed grain under water
         _ => return None,
@@ -405,7 +400,8 @@ mod material_tests {
             "mat.anchor_work",
             "mat.anchor_idle",
         ] {
-            let spec = material_detail(name).unwrap_or_else(|| panic!("{name} missing detail spec"));
+            let spec =
+                material_detail(name).unwrap_or_else(|| panic!("{name} missing detail spec"));
             assert!(spec.family < 4, "{name} family out of atlas range");
         }
         assert!(material_detail("mat.plasma_gun").is_none());
@@ -496,7 +492,9 @@ mod tests {
         // Spot lookup: the guard NPC's row is queryable by id.
         let guard = m.get("npc.guard").expect("npc.guard row");
         assert_eq!(guard.category, Category::Npc);
-        assert!(guard.runtime_consumers.contains(&"npc_renderer".to_string()));
+        assert!(guard
+            .runtime_consumers
+            .contains(&"npc_renderer".to_string()));
         assert_eq!(guard.proof_scene, "vertical_slice_city");
     }
 
@@ -528,8 +526,16 @@ mod tests {
     #[test]
     fn rejects_wrong_header_fields() {
         for (field, value, expect) in [
-            ("schema_version", serde_json::json!(2), "schema_version must be 1"),
-            ("project", serde_json::json!("Some Other Game"), "project must be"),
+            (
+                "schema_version",
+                serde_json::json!(2),
+                "schema_version must be 1",
+            ),
+            (
+                "project",
+                serde_json::json!("Some Other Game"),
+                "project must be",
+            ),
         ] {
             let mut v: serde_json::Value = serde_json::from_str(MIN_GOOD).unwrap();
             v[field] = value;
@@ -552,7 +558,10 @@ mod tests {
             ("category", serde_json::json!("spaceship")),
             ("status", serde_json::json!("shipped")),
             ("lod", serde_json::json!({"policy": "ultra"})),
-            ("provenance", serde_json::json!({"kind": "ripped_from_cd", "originality_reviewed": true})),
+            (
+                "provenance",
+                serde_json::json!({"kind": "ripped_from_cd", "originality_reviewed": true}),
+            ),
         ] {
             let errs = validate_str(&row_overriding(MIN_GOOD, field, value)).unwrap_err();
             assert!(
@@ -567,9 +576,14 @@ mod tests {
         assert!(errs.iter().any(|e| e.contains("unknown field")));
         // Missing a required field entirely.
         let mut v: serde_json::Value = serde_json::from_str(MIN_GOOD).unwrap();
-        v["assets"][0].as_object_mut().unwrap().remove("proof_scene");
+        v["assets"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("proof_scene");
         let errs = validate_str(&v.to_string()).unwrap_err();
-        assert!(errs.iter().any(|e| e.contains("missing field `proof_scene`")));
+        assert!(errs
+            .iter()
+            .any(|e| e.contains("missing field `proof_scene`")));
     }
 
     #[test]
@@ -623,18 +637,21 @@ mod tests {
             serde_json::json!({"kind": "licensed", "originality_reviewed": true}),
         ))
         .unwrap_err();
-        assert!(
-            errs.iter()
-                .any(|e| e.contains("licensed assets require"))
-        );
+        assert!(errs.iter().any(|e| e.contains("licensed assets require")));
     }
 
     #[test]
     fn rejects_forbidden_source_policy_anywhere_in_the_row() {
         for (field, value) in [
-            ("geometry", serde_json::json!({"kind": "gltf", "source_or_generator": "minecraft_texture_pack.glb"})),
+            (
+                "geometry",
+                serde_json::json!({"kind": "gltf", "source_or_generator": "minecraft_texture_pack.glb"}),
+            ),
             ("material", serde_json::json!("mat.skyrim_stone")),
-            ("runtime_consumers", serde_json::json!(["warcraft_renderer"])),
+            (
+                "runtime_consumers",
+                serde_json::json!(["warcraft_renderer"]),
+            ),
             ("proof_scene", serde_json::json!("all_the_mods_showcase")),
         ] {
             let errs = validate_str(&row_overriding(MIN_GOOD, field, value)).unwrap_err();
@@ -652,7 +669,9 @@ mod tests {
         v["assets"][0]["status"] = serde_json::json!("final");
         v["assets"][0]["geometry"]["kind"] = serde_json::json!("none");
         let errs = validate_str(&v.to_string()).unwrap_err();
-        assert!(errs.iter().any(|e| e.contains("final asset must have real geometry")));
+        assert!(errs
+            .iter()
+            .any(|e| e.contains("final asset must have real geometry")));
 
         // Empty generator string is rejected for every status.
         let errs = validate_str(&row_overriding(

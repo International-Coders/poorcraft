@@ -67,7 +67,12 @@ impl Cart {
             }
             Move::Brake => (2u32, [0, self.pos as u64]),
         };
-        journal.push(JournalEvent { tick, seq: u64::MAX, kind, payload });
+        journal.push(JournalEvent {
+            tick,
+            seq: u64::MAX,
+            kind,
+            payload,
+        });
     }
     fn digest(&self) -> ReplayDigest {
         let mut d = ReplayDigest::new();
@@ -92,7 +97,11 @@ fn run(dts: &[f32]) -> (ReplayDigest, u64, u64) {
             // a move for the next tick.
             if tick > 1 && (tick - 1) % 37 == 0 {
                 let id = seq.assign();
-                let cmd = if ((tick - 1) / 37) % 2 == 1 { Move::Step(250) } else { Move::Step(-90) };
+                let cmd = if ((tick - 1) / 37) % 2 == 1 {
+                    Move::Step(250)
+                } else {
+                    Move::Step(-90)
+                };
                 pending.push(CommandEnvelope::new(id, tick, cmd));
             }
             let due: Vec<CommandEnvelope<Move>> =
@@ -126,7 +135,10 @@ struct EventJournalSink {
 
 impl EventJournalSink {
     fn new() -> Self {
-        EventJournalSink { events: Vec::new(), next: 0 }
+        EventJournalSink {
+            events: Vec::new(),
+            next: 0,
+        }
     }
     fn next_seq(&self) -> u64 {
         self.next
@@ -178,26 +190,28 @@ mod tests {
         let commands: Vec<(u64, u64, Move)> = (0..30u64)
             .map(|i| {
                 let tick = i / 3;
-                let cmd =
-                    if i % 7 == 0 { Move::Brake } else { Move::Step((i as i64 % 5 - 2) * 100) };
+                let cmd = if i % 7 == 0 {
+                    Move::Brake
+                } else {
+                    Move::Step((i as i64 % 5 - 2) * 100)
+                };
                 (i, tick, cmd)
             })
             .collect();
 
-        let apply =
-            |batch: Vec<CommandEnvelope<Move>>| -> (ReplayDigest, ReplayDigest) {
-                let mut cart = Cart { pos: 0, applied: 0 };
-                let mut journal: Vec<JournalEvent> = Vec::new();
-                for env in CommandEnvelope::canonical_batch(batch) {
-                    cart.apply(env.tick, &env.command, &mut journal);
-                }
-                let mut jd = ReplayDigest::new();
-                for (seq, mut e) in journal.into_iter().enumerate() {
-                    e.seq = seq as u64;
-                    jd.mix_event(&e);
-                }
-                (cart.digest(), jd)
-            };
+        let apply = |batch: Vec<CommandEnvelope<Move>>| -> (ReplayDigest, ReplayDigest) {
+            let mut cart = Cart { pos: 0, applied: 0 };
+            let mut journal: Vec<JournalEvent> = Vec::new();
+            for env in CommandEnvelope::canonical_batch(batch) {
+                cart.apply(env.tick, &env.command, &mut journal);
+            }
+            let mut jd = ReplayDigest::new();
+            for (seq, mut e) in journal.into_iter().enumerate() {
+                e.seq = seq as u64;
+                jd.mix_event(&e);
+            }
+            (cart.digest(), jd)
+        };
 
         let one_by_one: Vec<CommandEnvelope<Move>> = commands
             .iter()

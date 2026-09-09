@@ -41,7 +41,11 @@ pub fn rows_for(
     let mut rows = Vec::new();
     for rx in -half..=half {
         for rz in -half..=half {
-            let coord = PatchCoord { x: rx * 16, y: 0, z: rz * 16 };
+            let coord = PatchCoord {
+                x: rx * 16,
+                y: 0,
+                z: rz * 16,
+            };
             let center = WorldPos::from_mm(
                 coord.x as i64 * crate::scales::PATCH_MM + crate::scales::PATCH_MM / 2,
                 0,
@@ -90,8 +94,8 @@ pub fn render_overlay(gen: &WorldGen, viewer: WorldPos, half: i32) -> AtlasImage
             };
             let elev = gen.macro_field(region).elevation_m;
             let [r, g, b] = lod_color(lod);
-            let gain = 0.8
-                + 0.4 * ((elev - crate::gen::MIN_ELEVATION_M).clamp(0, 192) as f32 / 192.0);
+            let gain =
+                0.8 + 0.4 * ((elev - crate::gen::MIN_ELEVATION_M).clamp(0, 192) as f32 / 192.0);
             let i = (iz * side + ix) * 3;
             rgb[i] = ((r as f32 * gain).round() as i32).clamp(0, 255) as u8;
             rgb[i + 1] = ((g as f32 * gain).round() as i32).clamp(0, 255) as u8;
@@ -111,13 +115,7 @@ mod tests {
     fn p3d207_rows_are_complete_ordered_and_lod_consistent() {
         let gen = WorldGen::new(1);
         let viewer = WorldPos::default();
-        let rows = rows_for(
-            &gen,
-            viewer,
-            4,
-            |_| 0,
-            |_| 0,
-        );
+        let rows = rows_for(&gen, viewer, 4, |_| 0, |_| 0);
         assert_eq!(rows.len(), 81);
         for w in rows.windows(2) {
             assert!(
@@ -160,13 +158,17 @@ mod tests {
         let rim = a.pixel(0, 0);
         assert!(rim != center);
         // All pixels belong to one of the four ring palettes (with gain).
-        let palette = [lod_color(LodLevel::Full), lod_color(LodLevel::Mid), lod_color(LodLevel::Far), lod_color(LodLevel::Horizon)];
+        let palette = [
+            lod_color(LodLevel::Full),
+            lod_color(LodLevel::Mid),
+            lod_color(LodLevel::Far),
+            lod_color(LodLevel::Horizon),
+        ];
         for i in 0..(a.size * a.size) {
             let px = [a.rgb[i * 3], a.rgb[i * 3 + 1], a.rgb[i * 3 + 2]];
             let ok = palette.iter().any(|c| {
                 (0..3).all(|ch| {
-                    (px[ch] as i32 - c[ch] as i32).abs() as f32
-                        <= 0.21 * c[ch] as f32 + 1.0
+                    (px[ch] as i32 - c[ch] as i32).abs() as f32 <= 0.21 * c[ch] as f32 + 1.0
                 })
             });
             assert!(ok, "off-palette pixel {px:?}");
@@ -185,7 +187,10 @@ mod tests {
             |c| (c.x.abs() + c.z.abs()) as usize,
             |c| (c.x == 0 && c.z == 0) as usize,
         );
-        let center = rows.iter().find(|r| r.coord.x == 0 && r.coord.z == 0).unwrap();
+        let center = rows
+            .iter()
+            .find(|r| r.coord.x == 0 && r.coord.z == 0)
+            .unwrap();
         assert_eq!(center.edit_count, 0);
         assert_eq!(center.built_count, 1);
         let other = rows.iter().find(|r| r.coord.x == 16).unwrap();

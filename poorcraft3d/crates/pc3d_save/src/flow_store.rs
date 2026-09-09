@@ -73,7 +73,10 @@ pub fn save_flow_table(
     table: &FlowTable,
     supported: &SupportedVersions,
 ) -> Result<(), LoadError> {
-    let header = FormatHeader { save: supported.save, ..FormatHeader::current() };
+    let header = FormatHeader {
+        save: supported.save,
+        ..FormatHeader::current()
+    };
     let bytes = frame(&header, &encode_table(table));
     let path = crate::paths::world_root(save_root, world_name)
         .join(std::path::PathBuf::from("water/flow.p3d"));
@@ -119,10 +122,14 @@ mod tests {
         assert_eq!(load_flow_table(root, "w", &SUP).unwrap().revision(), 2);
 
         // Foreign file refused.
-        let path = crate::paths::world_root(root, "w")
-            .join(std::path::PathBuf::from("water/flow.p3d"));
+        let path =
+            crate::paths::world_root(root, "w").join(std::path::PathBuf::from("water/flow.p3d"));
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, b"garbage bytes that are long enough to pass the magic check").unwrap();
+        fs::write(
+            &path,
+            b"garbage bytes that are long enough to pass the magic check",
+        )
+        .unwrap();
         assert!(matches!(
             load_flow_table(root, "w", &SUP),
             Err(LoadError::Framing(FrameError::ForeignFormat))

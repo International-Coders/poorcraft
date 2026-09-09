@@ -1,10 +1,10 @@
 # POORCRAFT 3D — THE REBUILD SLICE (play-test DMG, 2026-09-08)
 
 ## Just play
-  Double-click POORCRAFT3D.app — it opens straight into the walkable
-  world. (Or from Terminal: open POORCRAFT3D.app)
+  Double-click POORCRAFT3D.app — it opens the owner alpha menu over the
+  walkable rebuild slice. (Or from Terminal: open POORCRAFT3D.app)
 NOTE: saves (the B key) land in the build folder's saves3d/ on this
-machine; quit with Esc.
+machine; Escape pauses/resumes, and Q is the explicit quit key.
 
 
 The full natural-world rebuild on one walkable route: streamed surface
@@ -13,9 +13,10 @@ rivers, caves — and YOU on the ground.
 
 ## Play the rebuild slice (first person)
   ./poorcraft3d --play-rebuild live
-WASD WALKS THE SURFACE, click to look, F builds on INSPECTED ground
-(rejections name the reason), R removes, B saves, L reloads,
-I shows Bed/Work/Idle boxes, Esc quits.
+Enter or click starts. Click captures the mouse for look. WASD WALKS
+THE SURFACE, F builds on INSPECTED ground (rejections name the
+reason), R removes, B saves, L reloads, I shows Bed/Work/Idle boxes,
+Escape pauses/resumes, Q quits.
 
 ## The automated route proof
   ./poorcraft3d --play-rebuild

@@ -70,6 +70,11 @@ only when its implementation, tests, runtime behavior, and evidence agree.
 - `21-FIRST-PERSON-WAR-KARMA-AND-SERVER-SCALE.md` — first-person warfare,
   player/NPC construction choices, karma-driven autonomy, ideology-based new
   factions, and staged scaling toward host-selected populations.
+- `22-OWNER-ALPHA-RESCUE.md` — the current owner-facing alpha rescue: title
+  overlay, mouse capture, Escape pause/resume, explicit quit, and the next
+  proper front-end job.
+- `assets/GENERATED-ASSETS.md` — generated transparent logo/HUD concept
+  assets and the rules for turning them into real runtime art.
 
 ## What this project is
 

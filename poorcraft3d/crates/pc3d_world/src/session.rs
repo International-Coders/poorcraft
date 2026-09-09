@@ -39,7 +39,10 @@ impl Transport for LoopbackTransport {
     fn send(&mut self, to: PeerId, payload: &[u8]) {
         // Loopback frames carry sender 0 (the bus); real transports
         // stamp the true sender.
-        self.queues.entry(to).or_default().push_back((0, payload.to_vec()));
+        self.queues
+            .entry(to)
+            .or_default()
+            .push_back((0, payload.to_vec()));
     }
     fn recv(&mut self) -> Option<(PeerId, Vec<u8>)> {
         // Loopback drains peer 0's queue (the test bus).
@@ -108,13 +111,24 @@ impl LobbyManager {
         let id = self.next_lobby;
         let mut members = BTreeMap::new();
         members.insert(host, MemberState::Joined);
-        self.lobbies.insert(id, Lobby { id, host, cap, members });
+        self.lobbies.insert(
+            id,
+            Lobby {
+                id,
+                host,
+                cap,
+                members,
+            },
+        );
         Ok(id)
     }
 
     /// Invite a peer into a lobby (host-only).
     pub fn invite(&mut self, lobby: u64, host: PeerId, peer: PeerId) -> Result<(), SessionError> {
-        let l = self.lobbies.get_mut(&lobby).ok_or(SessionError::UnknownLobby)?;
+        let l = self
+            .lobbies
+            .get_mut(&lobby)
+            .ok_or(SessionError::UnknownLobby)?;
         if l.host != host {
             return Err(SessionError::WrongHost);
         }
@@ -130,7 +144,10 @@ impl LobbyManager {
 
     /// Accept a pending invite.
     pub fn accept(&mut self, lobby: u64, peer: PeerId) -> Result<(), SessionError> {
-        let l = self.lobbies.get_mut(&lobby).ok_or(SessionError::UnknownLobby)?;
+        let l = self
+            .lobbies
+            .get_mut(&lobby)
+            .ok_or(SessionError::UnknownLobby)?;
         match l.members.get(&peer) {
             Some(MemberState::Joined) => Err(SessionError::AlreadyMember),
             Some(MemberState::Invited) => {
@@ -150,7 +167,10 @@ impl LobbyManager {
     /// Leave: removes the peer; if the HOST left, the lowest remaining
     /// joined member becomes host; an emptied lobby dissolves.
     pub fn leave(&mut self, lobby: u64, peer: PeerId) -> Result<(), SessionError> {
-        let l = self.lobbies.get_mut(&lobby).ok_or(SessionError::UnknownLobby)?;
+        let l = self
+            .lobbies
+            .get_mut(&lobby)
+            .ok_or(SessionError::UnknownLobby)?;
         if l.members.remove(&peer).is_none() {
             return Err(SessionError::NotMember);
         }
@@ -241,11 +261,21 @@ mod tests {
 
         assert!(m.invite(lobby, 1, 2).is_ok());
         assert!(m.invite(lobby, 1, 3).is_ok());
-        assert!(m.invite(lobby, 1, 4).is_ok(), "invites do not reserve slots");
+        assert!(
+            m.invite(lobby, 1, 4).is_ok(),
+            "invites do not reserve slots"
+        );
         assert!(m.accept(lobby, 2).is_ok());
         assert!(m.accept(lobby, 3).is_ok()); // 3 joined = full
-        assert_eq!(m.accept(lobby, 4), Err(SessionError::LobbyFull), "cap binds at accept");
-        assert!(!m.lobbies[&lobby].members.contains_key(&4), "failed invite withdrawn");
+        assert_eq!(
+            m.accept(lobby, 4),
+            Err(SessionError::LobbyFull),
+            "cap binds at accept"
+        );
+        assert!(
+            !m.lobbies[&lobby].members.contains_key(&4),
+            "failed invite withdrawn"
+        );
         assert!(m.leave(lobby, 2).is_ok());
         assert!(m.invite(lobby, 1, 4).is_ok());
         assert!(m.accept(lobby, 4).is_ok(), "freed slot reopens");
@@ -310,7 +340,11 @@ mod tests {
         let mut bus = LoopbackTransport::new();
         {
             let mut session = Session::new(lobby, &mut bus);
-            assert_eq!(session.broadcast(&members, 1, b"hello"), 2, "fan-out to 2 and 3");
+            assert_eq!(
+                session.broadcast(&members, 1, b"hello"),
+                2,
+                "fan-out to 2 and 3"
+            );
             assert_eq!(session.broadcast(&members, 2, b"hi"), 2, "sender excluded");
         }
         // Loopback queues: peer 2 got hello+hi, peer 3 got hello+hi,
@@ -338,7 +372,9 @@ mod tests {
                 None
             }
         }
-        let mut spy = Spy { sent: BTreeMap::new() };
+        let mut spy = Spy {
+            sent: BTreeMap::new(),
+        };
         {
             let mut session = Session::new(lobby, &mut spy);
             assert_eq!(session.broadcast(&members, 1, b"x"), 2);

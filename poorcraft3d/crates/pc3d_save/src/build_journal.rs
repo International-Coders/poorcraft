@@ -13,17 +13,11 @@ use std::fs;
 use std::path::Path;
 
 fn build_journal_rel(coord: PatchCoord) -> std::path::PathBuf {
-    std::path::PathBuf::from(format!(
-        "edits/b{}_{}_{}.build",
-        coord.x, coord.y, coord.z
-    ))
+    std::path::PathBuf::from(format!("edits/b{}_{}_{}.build", coord.x, coord.y, coord.z))
 }
 
 fn build_snap_rel(coord: PatchCoord) -> std::path::PathBuf {
-    std::path::PathBuf::from(format!(
-        "edits/s{}_{}_{}.bsnap",
-        coord.x, coord.y, coord.z
-    ))
+    std::path::PathBuf::from(format!("edits/s{}_{}_{}.bsnap", coord.x, coord.y, coord.z))
 }
 
 /// Journal encoding: count u64 LE, then each op's fixed 48-byte record.
@@ -53,11 +47,10 @@ fn decode_ops(bytes: &[u8]) -> Result<Vec<BuildOp>, LoadError> {
     let mut ops = Vec::with_capacity(count);
     for i in 0..count {
         let rec: [u8; 48] = bytes[8 + i * 48..8 + (i + 1) * 48].try_into().unwrap();
-        let op =
-            BuildOp::decode(&rec).ok_or(LoadError::Framing(FrameError::ChecksumMismatch {
-                expected: 0,
-                actual: 0,
-            }))?;
+        let op = BuildOp::decode(&rec).ok_or(LoadError::Framing(FrameError::ChecksumMismatch {
+            expected: 0,
+            actual: 0,
+        }))?;
         ops.push(op);
     }
     Ok(ops)
@@ -118,15 +111,19 @@ fn decode_construction(coord: PatchCoord, bytes: &[u8]) -> Result<Construction, 
             y: i32::from_le_bytes(rec[4..8].try_into().unwrap()),
             z: i32::from_le_bytes(rec[8..12].try_into().unwrap()),
         };
-        let material = pc3d_world::CellMaterial::from_code(rec[12])
-            .ok_or(LoadError::Framing(FrameError::ChecksumMismatch {
+        let material = pc3d_world::CellMaterial::from_code(rec[12]).ok_or(LoadError::Framing(
+            FrameError::ChecksumMismatch {
                 expected: 0,
                 actual: 0,
-            }))?;
+            },
+        ))?;
         let owner = u64::from_le_bytes(rec[16..24].try_into().unwrap());
         c.place(cell, pc3d_world::BuildBlock { material, owner })
             .map_err(|_| {
-                LoadError::Framing(FrameError::ChecksumMismatch { expected: 0, actual: 0 })
+                LoadError::Framing(FrameError::ChecksumMismatch {
+                    expected: 0,
+                    actual: 0,
+                })
             })?;
     }
     Ok(c)
@@ -140,7 +137,10 @@ pub fn save_build_journal(
     ops: &[BuildOp],
     supported: &SupportedVersions,
 ) -> Result<(), LoadError> {
-    let header = FormatHeader { save: supported.save, ..FormatHeader::current() };
+    let header = FormatHeader {
+        save: supported.save,
+        ..FormatHeader::current()
+    };
     let bytes = frame(&header, &encode_ops(ops));
     let path = crate::paths::world_root(save_root, world_name).join(build_journal_rel(coord));
     write_atomic(&path, &bytes)?;
@@ -167,7 +167,10 @@ pub fn save_build_snapshot(
     c: &Construction,
     supported: &SupportedVersions,
 ) -> Result<(), LoadError> {
-    let header = FormatHeader { save: supported.save, ..FormatHeader::current() };
+    let header = FormatHeader {
+        save: supported.save,
+        ..FormatHeader::current()
+    };
     let bytes = frame(&header, &encode_construction(c));
     let path = crate::paths::world_root(save_root, world_name).join(build_snap_rel(coord));
     write_atomic(&path, &bytes)?;
@@ -233,12 +236,18 @@ mod tests {
         let mut c = Construction::new(coord);
         c.place(
             CellCoord { x: 1, y: 2, z: 3 },
-            pc3d_world::BuildBlock { material: CellMaterial::Grass, owner: 5 },
+            pc3d_world::BuildBlock {
+                material: CellMaterial::Grass,
+                owner: 5,
+            },
         )
         .unwrap();
         c.place(
             CellCoord { x: 14, y: 8, z: 6 },
-            pc3d_world::BuildBlock { material: CellMaterial::Snow, owner: 6 },
+            pc3d_world::BuildBlock {
+                material: CellMaterial::Snow,
+                owner: 6,
+            },
         )
         .unwrap();
         save_build_snapshot(root, "w", coord, &c, &SUP).unwrap();
@@ -247,7 +256,10 @@ mod tests {
         assert_eq!(loaded.built_count(), 2);
         assert_eq!(
             loaded.at(CellCoord { x: 1, y: 2, z: 3 }),
-            Some(pc3d_world::BuildBlock { material: CellMaterial::Grass, owner: 5 })
+            Some(pc3d_world::BuildBlock {
+                material: CellMaterial::Grass,
+                owner: 5
+            })
         );
 
         let path = crate::paths::world_root(root, "w").join(build_snap_rel(coord));

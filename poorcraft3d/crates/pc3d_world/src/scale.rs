@@ -49,11 +49,14 @@ pub fn measure_scale(seed: u64, players: usize, ticks: u64) -> ScaleRow {
     let boiler = host.machines.add_machine(MachineKind::Boiler);
     let engine = host.machines.add_machine(MachineKind::SteamEngine);
     host.machines.connect(boiler, engine).expect("typed wire");
-    host.submit(HostCommand::FeedBoiler { machine: boiler, fuel_milli: i64::MAX / 8, water_milli: i64::MAX / 8 });
+    host.submit(HostCommand::FeedBoiler {
+        machine: boiler,
+        fuel_milli: i64::MAX / 8,
+        water_milli: i64::MAX / 8,
+    });
 
     let regions: Vec<RegionCoord> = (0..players).map(player_region).collect();
-    let mut channels: Vec<ReliableChannel> =
-        (0..players).map(|_| ReliableChannel::new()).collect();
+    let mut channels: Vec<ReliableChannel> = (0..players).map(|_| ReliableChannel::new()).collect();
 
     let mut total_entries: usize = 0;
     let mut max_entries: usize = 0;
@@ -91,7 +94,10 @@ pub fn measure_scale(seed: u64, players: usize, ticks: u64) -> ScaleRow {
 /// The staged proof: measure each count in order.
 pub fn scale_proof(seed: u64, counts: &[usize]) -> Vec<ScaleRow> {
     let ticks = 5u64;
-    counts.iter().map(|n| measure_scale(seed, *n, ticks)).collect()
+    counts
+        .iter()
+        .map(|n| measure_scale(seed, *n, ticks))
+        .collect()
 }
 
 #[cfg(test)]
@@ -109,7 +115,9 @@ mod tests {
             assert!(
                 row.max_entries_per_player <= per_player_at_4 + 1,
                 "player {} replicates {} entries vs {} at scale 4 — interest leaked",
-                row.players, row.max_entries_per_player, per_player_at_4
+                row.players,
+                row.max_entries_per_player,
+                per_player_at_4
             );
         }
         // And the structure is honest: snapshots per tick == players.

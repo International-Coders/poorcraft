@@ -74,7 +74,11 @@ impl Needs {
         self.hunger_f = (self.hunger_f + HUNGER_PER_TICK).min(100.0);
         self.hunger = self.hunger_f as u8;
         let drain = if working { ENERGY_DRAIN_WORKING } else { 0.0 };
-        let restore = if !working { ENERGY_RESTORE_SLEEPING } else { 0.0 };
+        let restore = if !working {
+            ENERGY_RESTORE_SLEEPING
+        } else {
+            0.0
+        };
         self.energy_f = (self.energy_f - drain + restore).clamp(0.0, 100.0);
         self.energy = self.energy_f as u8;
     }
@@ -124,7 +128,12 @@ impl NpcBrain {
             home,
             work_site,
             pos: home,
-            needs: Needs { hunger: 0, energy: 100, hunger_f: 0.0, energy_f: 100.0 },
+            needs: Needs {
+                hunger: 0,
+                energy: 100,
+                hunger_f: 0.0,
+                energy_f: 100.0,
+            },
             intent: Intent::Idle,
         }
     }
@@ -161,7 +170,9 @@ impl NpcBrain {
                 if !self.at(&self.work_site) {
                     self.walk_toward(nav, self.work_site);
                 } else {
-                    self.intent = Intent::Working { site: self.work_site };
+                    self.intent = Intent::Working {
+                        site: self.work_site,
+                    };
                     self.needs.decay(true);
                 }
             }
@@ -190,7 +201,10 @@ impl NpcBrain {
     fn walk_toward(&mut self, nav: &NavPatch, target: CellCoord) {
         if let Intent::Walking { path, leg } = &mut self.intent {
             if *leg < path.len() {
-                self.intent = Intent::Walking { path: path.clone(), leg: *leg };
+                self.intent = Intent::Walking {
+                    path: path.clone(),
+                    leg: *leg,
+                };
                 return;
             }
         }
@@ -215,8 +229,8 @@ impl NpcBrain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gen::WorldGen;
     use crate::coords::PatchCoord;
+    use crate::gen::WorldGen;
 
     fn brain_and_nav() -> (WorldGen, NpcBrain, NavPatch) {
         let gen = WorldGen::new(3);
@@ -249,7 +263,12 @@ mod tests {
     /// restores energy.
     #[test]
     fn p3d404_needs_decay_and_restore() {
-        let mut n = Needs { hunger: 0, energy: 100, hunger_f: 0.0, energy_f: 100.0 };
+        let mut n = Needs {
+            hunger: 0,
+            energy: 100,
+            hunger_f: 0.0,
+            energy_f: 100.0,
+        };
         for _ in 0..300 {
             n.decay(true);
         }

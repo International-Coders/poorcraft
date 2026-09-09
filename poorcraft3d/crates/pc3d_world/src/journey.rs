@@ -70,14 +70,22 @@ pub fn run_journey(seed: u64) -> JourneyReport {
 
     let mut host = SoloHost::new(seed);
     let mut inv = Inventory::new(12);
-    let mut needs = Needs { hunger: 0, energy: 100, hunger_f: 0.0, energy_f: 100.0 };
+    let mut needs = Needs {
+        hunger: 0,
+        energy: 100,
+        hunger_f: 0.0,
+        energy_f: 100.0,
+    };
 
     // 1. Spawn: on dry, valid ground chosen by the world.
     let player = Player::spawn_safe(&host.gen);
     step(
         "spawn",
         player.pos.iter().all(|v| v.is_finite()),
-        format!("player at {:.0}/{:.0}/{:.0}", player.pos[0], player.pos[1], player.pos[2]),
+        format!(
+            "player at {:.0}/{:.0}/{:.0}",
+            player.pos[0], player.pos[1], player.pos[2]
+        ),
     );
 
     // 2. Gather: bare hands take grass yields (soil + wood). Enough
@@ -131,7 +139,11 @@ pub fn run_journey(seed: u64) -> JourneyReport {
 
     // 6. Build through the host's authoritative path.
     let cell = CellCoord { x: 4, y: 0, z: 4 };
-    host.submit(HostCommand::Build { cell, material: CellMaterial::Rock, owner: 1 });
+    host.submit(HostCommand::Build {
+        cell,
+        material: CellMaterial::Rock,
+        owner: 1,
+    });
     host.run_ticks(2);
     let p = cell.patch();
     let built = host
@@ -177,7 +189,10 @@ pub fn run_journey(seed: u64) -> JourneyReport {
         .settlements
         .list
         .first()
-        .map(|s| RegionCoord { x: s.center.x + 5, z: s.center.z })
+        .map(|s| RegionCoord {
+            x: s.center.x + 5,
+            z: s.center.z,
+        })
         .unwrap_or(RegionCoord { x: 0, z: 0 });
     host.submit(HostCommand::SpawnDragon { lair });
     host.run_ticks(2);
@@ -204,8 +219,14 @@ pub fn run_journey(seed: u64) -> JourneyReport {
         })
         .unwrap_or(false);
     host.run_ticks(2);
-    let really_dead = dragon.map(|d| !host.dragons.dragons[&d].alive).unwrap_or(false);
-    step("dragon", slain && really_dead, format!("dragon slain={slain} dead={really_dead}"));
+    let really_dead = dragon
+        .map(|d| !host.dragons.dragons[&d].alive)
+        .unwrap_or(false);
+    step(
+        "dragon",
+        slain && really_dead,
+        format!("dragon slain={slain} dead={really_dead}"),
+    );
 
     // 10. Onboarding: the taught steps are all marked done.
     let mut onboarding = crate::survival::Onboarding::default();
@@ -215,7 +236,11 @@ pub fn run_journey(seed: u64) -> JourneyReport {
     step(
         "onboarding",
         onboarding.all_done(),
-        format!("{} of {} done", onboarding.progress().len(), crate::survival::ONBOARDING_STEPS.len()),
+        format!(
+            "{} of {} done",
+            onboarding.progress().len(),
+            crate::survival::ONBOARDING_STEPS.len()
+        ),
     );
 
     // The journey digest binds WHERE the life was lived too: the
@@ -229,7 +254,11 @@ pub fn run_journey(seed: u64) -> JourneyReport {
     bytes.extend_from_slice(&lair.x.to_le_bytes());
     bytes.extend_from_slice(&lair.z.to_le_bytes());
     let digest = host.digest_state() ^ pc3d_core::journal::fnv1a64(&bytes);
-    JourneyReport { seed, steps, digest }
+    JourneyReport {
+        seed,
+        steps,
+        digest,
+    }
 }
 
 #[cfg(test)]
@@ -248,7 +277,10 @@ mod tests {
             assert!(a.passed(), "seed {seed}: {a:#?}");
             assert_eq!(a, b, "seed {seed}: identical re-run");
             assert_eq!(a.steps.len(), 10);
-            assert!(digests.insert(a.digest), "seed {seed}: digest must differ across seeds");
+            assert!(
+                digests.insert(a.digest),
+                "seed {seed}: digest must differ across seeds"
+            );
         }
     }
 
@@ -258,13 +290,28 @@ mod tests {
     fn p3d805_first_tool_opens_the_rock_gate() {
         // Bare hands: nothing from rock.
         let mut inv = Inventory::new(8);
-        assert_eq!(harvest_into(&crate::gen::WorldGen::new(1), &mut inv, CellMaterial::Rock, None), 0);
+        assert_eq!(
+            harvest_into(
+                &crate::gen::WorldGen::new(1),
+                &mut inv,
+                CellMaterial::Rock,
+                None
+            ),
+            0
+        );
         // Wood×4 crafts the pick; the pick opens the gate.
         inv.add(WOOD, 4);
         let recipe = crate::craft::recipe_by_code(6).unwrap();
         assert!(crate::craft::craft(&mut inv, recipe).is_some());
         assert_eq!(inv.count(WOOD_PICK), 1);
         assert_eq!(item_name(WOOD_PICK), "wood_pick");
-        assert!(harvest_into(&crate::gen::WorldGen::new(1), &mut inv, CellMaterial::Rock, Some(1)) > 0);
+        assert!(
+            harvest_into(
+                &crate::gen::WorldGen::new(1),
+                &mut inv,
+                CellMaterial::Rock,
+                Some(1)
+            ) > 0
+        );
     }
 }

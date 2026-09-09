@@ -34,7 +34,10 @@ impl Default for FixedClock {
 
 impl FixedClock {
     pub fn new() -> Self {
-        FixedClock { accumulated_us: 0, tick: 0 }
+        FixedClock {
+            accumulated_us: 0,
+            tick: 0,
+        }
     }
 
     /// Feed real elapsed seconds; get the INCLUSIVE range of ticks that must
@@ -123,7 +126,11 @@ mod tests {
     fn p3d003_multi_tick_frames_carry_tick_numbers() {
         let mut clock = FixedClock::new();
         let seen: Vec<u64> = clock.advance(3.0 / 60.0).collect();
-        assert_eq!(seen, vec![1, 2, 3], "each fired tick must report its own number");
+        assert_eq!(
+            seen,
+            vec![1, 2, 3],
+            "each fired tick must report its own number"
+        );
         assert_eq!(clock.tick, 3);
         // A second frame continues the numbering without gaps.
         let next: Vec<u64> = clock.advance(3.0 / 60.0).collect();

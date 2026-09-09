@@ -44,7 +44,12 @@ pub struct EconomicState {
 
 impl EconomicState {
     pub fn new(population: i64, food: i64) -> Self {
-        EconomicState { goods: 0, food, prosperity: 50, population }
+        EconomicState {
+            goods: 0,
+            food,
+            prosperity: 50,
+            population,
+        }
     }
 
     /// Simulate one economic day: production adds goods, consumption
@@ -121,8 +126,14 @@ mod tests {
             state.simulate_day(3, 10);
         }
         assert!(state.goods > 0, "workshops must produce goods");
-        assert_eq!(state.population, initial_pop, "no starvation with surplus food");
-        assert!(state.prosperity >= 50, "prosperity should grow with surplus");
+        assert_eq!(
+            state.population, initial_pop,
+            "no starvation with surplus food"
+        );
+        assert!(
+            state.prosperity >= 50,
+            "prosperity should grow with surplus"
+        );
     }
 
     /// Starvation: food runs out, population shrinks, prosperity drops.

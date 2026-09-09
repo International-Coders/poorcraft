@@ -10,7 +10,7 @@
 use crate::clock::FixedClock;
 use crate::command::CommandSequencer;
 use crate::journal::JournalEvent;
-use crate::profile::{Counters, CounterId, FrameTimes};
+use crate::profile::{CounterId, Counters, FrameTimes};
 use crate::replay::ReplayDigest;
 use crate::seed::SeedStreams;
 
@@ -46,7 +46,12 @@ impl EventJournalOwner {
     pub fn record(&mut self, tick: u64, kind: u32, payload: [u64; 2]) -> u64 {
         let seq = self.next_seq;
         self.next_seq += 1;
-        self.events.push(JournalEvent { tick, seq, kind, payload });
+        self.events.push(JournalEvent {
+            tick,
+            seq,
+            kind,
+            payload,
+        });
         seq
     }
     pub fn len(&self) -> usize {
@@ -113,8 +118,11 @@ impl WorldRuntime {
             }
         }
         if fired > 0 {
-            self.journal
-                .record(self.clock.tick, EV_FRAME_BATCH, [fired as u64, self.clock.tick]);
+            self.journal.record(
+                self.clock.tick,
+                EV_FRAME_BATCH,
+                [fired as u64, self.clock.tick],
+            );
         }
         self.frames.push(frame_ms);
         self.counters.add(CounterId::JournalEvents, 1);
@@ -184,7 +192,11 @@ mod tests {
         // counts therefore need not match — only same-seed runs must replay.
         assert!(a.clock.tick > 0 && b.clock.tick > 0);
         let again = run_headless(2, 700);
-        assert_eq!(again.digest(), b.digest(), "the second world must replay itself");
+        assert_eq!(
+            again.digest(),
+            b.digest(),
+            "the second world must replay itself"
+        );
     }
 
     /// Liveness + heartbeat cadence: ticks fire, the journal beats on the
@@ -194,9 +206,12 @@ mod tests {
         // 700 frames of ~11-33 ms ≈ 11.6 sim-seconds ≈ 700 ticks: crosses
         // the 600 heartbeat but not 1200.
         let rt = run_headless(9, 700);
-        assert!(rt.clock.tick >= 600 && rt.clock.tick < 1200, "tick={}", rt.clock.tick);
-        let heartbeats =
-            rt.journal.iter().filter(|e| e.kind == EV_HEARTBEAT).count();
+        assert!(
+            rt.clock.tick >= 600 && rt.clock.tick < 1200,
+            "tick={}",
+            rt.clock.tick
+        );
+        let heartbeats = rt.journal.iter().filter(|e| e.kind == EV_HEARTBEAT).count();
         assert_eq!(heartbeats, 1, "exactly one heartbeat at tick 600");
         assert!(rt.journal.iter().any(|e| e.kind == EV_FRAME_BATCH));
         let s = rt.stats();
@@ -206,7 +221,11 @@ mod tests {
         assert!(s.journal_events >= heartbeats);
         // Batches fire only on frames that fired >= 1 tick: sub-tick frames
         // (11-16.6 ms jitter) record the frame but journal nothing.
-        let batches = rt.journal.iter().filter(|e| e.kind == EV_FRAME_BATCH).count();
+        let batches = rt
+            .journal
+            .iter()
+            .filter(|e| e.kind == EV_FRAME_BATCH)
+            .count();
         assert!(batches > 0 && batches <= 700, "batches={batches}");
         // Every batch's fired-count is positive and within the shed cap.
         for e in rt.journal.iter().filter(|e| e.kind == EV_FRAME_BATCH) {

@@ -70,8 +70,7 @@ pub struct Onboarding {
 }
 
 /// The ordered milestones.
-pub const ONBOARDING_STEPS: &[&str] =
-    &["first_tree", "first_catch", "first_build", "first_night"];
+pub const ONBOARDING_STEPS: &[&str] = &["first_tree", "first_catch", "first_build", "first_night"];
 
 impl Onboarding {
     /// Mark a step done (idempotent; only known steps accepted).
@@ -140,7 +139,12 @@ mod tests {
         let graph = RiverGraph::new(&g, 20);
         let mut stocks = FishStocks::new(&graph);
         let mut inv = Inventory::new(8);
-        let mut needs = Needs { hunger: 80, energy: 50, hunger_f: 80.0, energy_f: 50.0 };
+        let mut needs = Needs {
+            hunger: 80,
+            energy: 50,
+            hunger_f: 80.0,
+            energy_f: 50.0,
+        };
 
         let Some(r) = graph.river_regions.first() else {
             panic!("rivers must exist");
@@ -172,7 +176,10 @@ mod tests {
         let mut stocks = FishStocks::new(&graph);
         let mut inv = Inventory::new(8);
         // Empty the first region's stock.
-        let r = crate::coords::RegionCoord { x: graph.river_regions[0].0, z: graph.river_regions[0].1 };
+        let r = crate::coords::RegionCoord {
+            x: graph.river_regions[0].0,
+            z: graph.river_regions[0].1,
+        };
         let _ = stocks.catch_fish(r, u64::MAX);
         let _before_stock = stocks.stock_at(r);
         let before_items = inv.count(FISH);

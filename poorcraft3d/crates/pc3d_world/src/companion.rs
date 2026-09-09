@@ -69,7 +69,9 @@ impl Companion {
         match self.command {
             CompanionCommand::Wait => return, // hold position, ignore paths
             CompanionCommand::Assist => {
-                let Some(target) = self.assist_target else { return };
+                let Some(target) = self.assist_target else {
+                    return;
+                };
                 if self.pos == target {
                     return; // holding the assist position
                 }
@@ -119,9 +121,9 @@ impl Companion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gen::WorldGen;
     use crate::coords::PatchCoord;
     use crate::entities::EntityId;
+    use crate::gen::WorldGen;
 
     fn nav_hills() -> NavPatch {
         // A NavPatch containing the origin cells the tests move through.

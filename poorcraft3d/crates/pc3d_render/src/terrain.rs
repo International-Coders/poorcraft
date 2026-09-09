@@ -19,8 +19,8 @@
 //! 03-VOXEL-TERRAIN-AND-MESHING.md.
 
 use crate::camera::CameraPose;
-use crate::terrain::terrain_albedo as material_albedo;
 use crate::scene::{lit_color, to_srgb4, SceneVertex, FACE_BASIS};
+use crate::terrain::terrain_albedo as material_albedo;
 use pc3d_world::coords::{CellCoord, PatchCoord};
 use pc3d_world::gen::WorldGen;
 use pc3d_world::scales::PATCH_CELL_AXIS;
@@ -29,13 +29,23 @@ use pc3d_world::terrain::final_solid;
 const CELL_MM: i64 = 1_000;
 
 fn solid_at(gen: &WorldGen, cell: CellCoord) -> bool {
-    final_solid(gen, cell.x as i64 * CELL_MM, cell.y as i64 * CELL_MM, cell.z as i64 * CELL_MM)
-        .solid
+    final_solid(
+        gen,
+        cell.x as i64 * CELL_MM,
+        cell.y as i64 * CELL_MM,
+        cell.z as i64 * CELL_MM,
+    )
+    .solid
 }
 
 fn material_at(gen: &WorldGen, cell: CellCoord) -> pc3d_world::gen::CellMaterial {
-    final_solid(gen, cell.x as i64 * CELL_MM, cell.y as i64 * CELL_MM, cell.z as i64 * CELL_MM)
-        .material
+    final_solid(
+        gen,
+        cell.x as i64 * CELL_MM,
+        cell.y as i64 * CELL_MM,
+        cell.z as i64 * CELL_MM,
+    )
+    .material
 }
 
 /// Terrain material albedo VIA THE ASSET MANIFEST material registry
@@ -93,7 +103,10 @@ pub fn mesh_patch_lod(
     // answer — the consistency tests verify it against direct queries.
     let stride = (n + 2) as usize;
     let mut cache = vec![
-        pc3d_world::terrain::SolidAnswer { solid: false, material: pc3d_world::gen::CellMaterial::Air };
+        pc3d_world::terrain::SolidAnswer {
+            solid: false,
+            material: pc3d_world::gen::CellMaterial::Air
+        };
         stride * stride * stride
     ];
     for bx in 0..stride {
@@ -115,9 +128,7 @@ pub fn mesh_patch_lod(
         }
     }
     let cached = |cell: CellCoord| -> pc3d_world::terrain::SolidAnswer {
-        cache[(((cell.x - base.0 + 1) as usize) * stride
-            + (cell.y - base.1 + 1) as usize)
-            * stride
+        cache[(((cell.x - base.0 + 1) as usize) * stride + (cell.y - base.1 + 1) as usize) * stride
             + (cell.z - base.2 + 1) as usize]
     };
     let mut verts = Vec::new();
@@ -199,8 +210,21 @@ pub struct TerrainStats {
 pub fn column_top(gen: &WorldGen, cell_x: i32, cell_z: i32, y_from: i32) -> Option<CellCoord> {
     let mut y = y_from;
     while y > y_from - 256 {
-        let cell = CellCoord { x: cell_x, y, z: cell_z };
-        if solid_at(gen, cell) && !solid_at(gen, CellCoord { x: cell_x, y: y + 1, z: cell_z }) {
+        let cell = CellCoord {
+            x: cell_x,
+            y,
+            z: cell_z,
+        };
+        if solid_at(gen, cell)
+            && !solid_at(
+                gen,
+                CellCoord {
+                    x: cell_x,
+                    y: y + 1,
+                    z: cell_z,
+                },
+            )
+        {
             return Some(cell);
         }
         y -= 1;
@@ -237,12 +261,24 @@ pub fn find_cave_pocket(
             let surface_m = gen.effective_surface_mm(wx, wz).div_euclid(CELL_MM);
             for depth in 5..40i64 {
                 let y = (surface_m - depth) as i32;
-                let air = CellCoord { x: base.0 + lx, y, z: base.2 + lz };
+                let air = CellCoord {
+                    x: base.0 + lx,
+                    y,
+                    z: base.2 + lz,
+                };
                 if solid_at(gen, air) {
                     continue;
                 }
-                let floor = CellCoord { x: air.x, y: y - 1, z: air.z };
-                let ceiling = CellCoord { x: air.x, y: y + 1, z: air.z };
+                let floor = CellCoord {
+                    x: air.x,
+                    y: y - 1,
+                    z: air.z,
+                };
+                let ceiling = CellCoord {
+                    x: air.x,
+                    y: y + 1,
+                    z: air.z,
+                };
                 if !solid_at(gen, floor) || !solid_at(gen, ceiling) {
                     continue;
                 }
@@ -258,8 +294,22 @@ pub fn find_cave_pocket(
                     let enclosed = |k: i32| {
                         let c = step(k);
                         !solid_at(gen, c)
-                            && solid_at(gen, CellCoord { x: c.x, y: c.y - 1, z: c.z })
-                            && solid_at(gen, CellCoord { x: c.x, y: c.y + 1, z: c.z })
+                            && solid_at(
+                                gen,
+                                CellCoord {
+                                    x: c.x,
+                                    y: c.y - 1,
+                                    z: c.z,
+                                },
+                            )
+                            && solid_at(
+                                gen,
+                                CellCoord {
+                                    x: c.x,
+                                    y: c.y + 1,
+                                    z: c.z,
+                                },
+                            )
                     };
                     let corridor_open = enclosed(1) && enclosed(2);
                     for dist in 1..=6 {
@@ -282,12 +332,15 @@ pub fn find_cave_pocket(
 
 /// True when the pocket has an open corridor (air eye-line toward the
 /// wall) — the camera-friendly case.
-pub fn pocket_has_corridor(
-    gen: &WorldGen,
-    air: CellCoord,
-    dir: [i32; 3],
-) -> bool {
-    !solid_at(gen, CellCoord { x: air.x + dir[0], y: air.y, z: air.z + dir[2] })
+pub fn pocket_has_corridor(gen: &WorldGen, air: CellCoord, dir: [i32; 3]) -> bool {
+    !solid_at(
+        gen,
+        CellCoord {
+            x: air.x + dir[0],
+            y: air.y,
+            z: air.z + dir[2],
+        },
+    )
 }
 
 /// Scans a ring of patches around `center` for a camera-friendly pocket
@@ -326,15 +379,11 @@ pub fn overview_pose(gen: &WorldGen, coord: PatchCoord) -> CameraPose {
     let o = coord.origin();
     let cx = o.x.div_euclid(CELL_MM) as f32 + 8.0;
     let cz = o.z.div_euclid(CELL_MM) as f32 + 8.0;
-    let surface_m = gen.effective_surface_mm(cx as i64 * CELL_MM, cz as i64 * CELL_MM) as f32
-        / CELL_MM as f32;
+    let surface_m =
+        gen.effective_surface_mm(cx as i64 * CELL_MM, cz as i64 * CELL_MM) as f32 / CELL_MM as f32;
     let eye = [cx, surface_m + 14.0, cz + 22.0];
     let target = [cx, surface_m, cz];
-    let d = [
-        target[0] - eye[0],
-        target[1] - eye[1],
-        target[2] - eye[2],
-    ];
+    let d = [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]];
     let yaw = (-d[0]).atan2(-d[2]);
     let pitch = (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin();
     CameraPose::new(eye, yaw, pitch)
@@ -351,11 +400,7 @@ pub fn cave_pose(air: CellCoord, wall: CellCoord) -> CameraPose {
         air.y as f32 + 1.35,
         wall.z as f32 + 0.5,
     ];
-    let d = [
-        target[0] - eye[0],
-        target[1] - eye[1],
-        target[2] - eye[2],
-    ];
+    let d = [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]];
     let yaw = (-d[0]).atan2(-d[2]);
     let pitch = (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin();
     CameraPose::new(eye, yaw, pitch)
@@ -370,7 +415,7 @@ pub fn vista_probes(
     pose: CameraPose,
     aspect: f32,
 ) -> Vec<crate::scene::Probe> {
-    use crate::scene::{dir_from_ndc, project_ndc, Probe, SUN_DIR, sky_color_linear, to_srgb4};
+    use crate::scene::{dir_from_ndc, project_ndc, sky_color_linear, to_srgb4, Probe, SUN_DIR};
 
     let o = coord.origin();
     let bx = o.x.div_euclid(CELL_MM) as i32;
@@ -385,12 +430,20 @@ pub fn vista_probes(
             if let Some(cell) = column_top(gen, bx + lx, bz + lz, by + 15) {
                 if !solid_at(
                     gen,
-                    CellCoord { x: cell.x + 1, y: cell.y, z: cell.z },
+                    CellCoord {
+                        x: cell.x + 1,
+                        y: cell.y,
+                        z: cell.z,
+                    },
                 ) {
                     slope = Some((
                         cell,
                         [1.0, 0.0, 0.0],
-                        [cell.x as f32 + 1.0, cell.y as f32 + 0.5, cell.z as f32 + 0.5],
+                        [
+                            cell.x as f32 + 1.0,
+                            cell.y as f32 + 0.5,
+                            cell.z as f32 + 0.5,
+                        ],
                     ));
                     break;
                 }
@@ -406,7 +459,10 @@ pub fn vista_probes(
         Probe {
             name: "sky_above_horizon",
             ndc: (0.0, 0.8),
-            expected: to_srgb4(sky_color_linear(dir_from_ndc(pose, (0.0, 0.8), aspect), SUN_DIR)),
+            expected: to_srgb4(sky_color_linear(
+                dir_from_ndc(pose, (0.0, 0.8), aspect),
+                SUN_DIR,
+            )),
             tol: 0.05,
         },
         Probe {
@@ -435,8 +491,16 @@ pub fn cave_probes(
     aspect: f32,
 ) -> Vec<crate::scene::Probe> {
     use crate::scene::{project_ndc, Probe};
-    let corridor = CellCoord { x: air.x + dir[0], y: air.y, z: air.z + dir[2] };
-    let corridor_ceiling = CellCoord { x: corridor.x, y: corridor.y + 1, z: corridor.z };
+    let corridor = CellCoord {
+        x: air.x + dir[0],
+        y: air.y,
+        z: air.z + dir[2],
+    };
+    let corridor_ceiling = CellCoord {
+        x: corridor.x,
+        y: corridor.y + 1,
+        z: corridor.z,
+    };
     let wall_face_point = [
         wall.x as f32 + 0.5 - dir[0] as f32 * 0.5,
         wall.y as f32 + 0.5,
@@ -454,7 +518,11 @@ pub fn cave_probes(
             ndc: project_ndc(
                 pose,
                 aspect,
-                [corridor.x as f32 + 0.5, corridor.y as f32 + 1.0, corridor.z as f32 + 0.5],
+                [
+                    corridor.x as f32 + 0.5,
+                    corridor.y as f32 + 1.0,
+                    corridor.z as f32 + 0.5,
+                ],
             ),
             expected: face_expectation(gen, corridor_ceiling, [0.0, -1.0, 0.0]),
             tol: 0.06,
@@ -510,9 +578,17 @@ pub fn ray_first_hit(
                 z: prev[2].floor() as i32,
             };
             let normal = if cell.x != pc.x {
-                if cell.x > pc.x { [-1.0, 0.0, 0.0] } else { [1.0, 0.0, 0.0] }
+                if cell.x > pc.x {
+                    [-1.0, 0.0, 0.0]
+                } else {
+                    [1.0, 0.0, 0.0]
+                }
             } else if cell.y != pc.y {
-                if cell.y > pc.y { [0.0, -1.0, 0.0] } else { [0.0, 1.0, 0.0] }
+                if cell.y > pc.y {
+                    [0.0, -1.0, 0.0]
+                } else {
+                    [0.0, 1.0, 0.0]
+                }
             } else if cell.z > pc.z {
                 [0.0, 0.0, -1.0]
             } else {
@@ -545,11 +621,7 @@ pub fn probe_view_center(
 }
 
 /// Expected sRGB color of a cell face as the lit shader would render it.
-pub fn face_expectation(
-    gen: &WorldGen,
-    cell: CellCoord,
-    normal: [f32; 3],
-) -> [f32; 4] {
+pub fn face_expectation(gen: &WorldGen, cell: CellCoord, normal: [f32; 3]) -> [f32; 4] {
     to_srgb4(lit_color(material_albedo(material_at(gen, cell)), normal))
 }
 
@@ -594,23 +666,44 @@ mod tests {
             let n = a.normal;
             let Some(slot) = dir_slot(n) else { continue };
             let (cell, plane) = if n[1].abs() > 0.5 {
-                (CellCoord {
-                    x: p[0].floor() as i32,
-                    y: if n[1] > 0.0 { (p[1] - 1.0) as i32 } else { p[1] as i32 },
-                    z: p[2].floor() as i32,
-                }, p[1] as i32)
+                (
+                    CellCoord {
+                        x: p[0].floor() as i32,
+                        y: if n[1] > 0.0 {
+                            (p[1] - 1.0) as i32
+                        } else {
+                            p[1] as i32
+                        },
+                        z: p[2].floor() as i32,
+                    },
+                    p[1] as i32,
+                )
             } else if n[0].abs() > 0.5 {
-                (CellCoord {
-                    x: if n[0] > 0.0 { (p[0] - 1.0) as i32 } else { p[0] as i32 },
-                    y: p[1].floor() as i32,
-                    z: p[2].floor() as i32,
-                }, p[0] as i32)
+                (
+                    CellCoord {
+                        x: if n[0] > 0.0 {
+                            (p[0] - 1.0) as i32
+                        } else {
+                            p[0] as i32
+                        },
+                        y: p[1].floor() as i32,
+                        z: p[2].floor() as i32,
+                    },
+                    p[0] as i32,
+                )
             } else {
-                (CellCoord {
-                    x: p[0].floor() as i32,
-                    y: p[1].floor() as i32,
-                    z: if n[2] > 0.0 { (p[2] - 1.0) as i32 } else { p[2] as i32 },
-                }, p[2] as i32)
+                (
+                    CellCoord {
+                        x: p[0].floor() as i32,
+                        y: p[1].floor() as i32,
+                        z: if n[2] > 0.0 {
+                            (p[2] - 1.0) as i32
+                        } else {
+                            p[2] as i32
+                        },
+                    },
+                    p[2] as i32,
+                )
             };
             face_set.insert((cell, plane, slot));
         }
@@ -659,7 +752,10 @@ mod tests {
                 }
             }
         }
-        assert!(checked > 1_000, "expected substantial solid cells, got {checked}");
+        assert!(
+            checked > 1_000,
+            "expected substantial solid cells, got {checked}"
+        );
     }
 
     #[test]
@@ -720,8 +816,16 @@ mod tests {
             let a = verts[tri[0] as usize];
             let b = verts[tri[1] as usize];
             let c = verts[tri[2] as usize];
-            let e1 = [b.pos[0] - a.pos[0], b.pos[1] - a.pos[1], b.pos[2] - a.pos[2]];
-            let e2 = [c.pos[0] - a.pos[0], c.pos[1] - a.pos[1], c.pos[2] - a.pos[2]];
+            let e1 = [
+                b.pos[0] - a.pos[0],
+                b.pos[1] - a.pos[1],
+                b.pos[2] - a.pos[2],
+            ];
+            let e2 = [
+                c.pos[0] - a.pos[0],
+                c.pos[1] - a.pos[1],
+                c.pos[2] - a.pos[2],
+            ];
             let cross = [
                 e1[1] * e2[2] - e1[2] * e2[1],
                 e1[2] * e2[0] - e1[0] * e2[2],
@@ -749,14 +853,32 @@ mod tests {
         let (air, wall, dir) = pocket;
         // Structure: floor solid, ceiling solid, wall solid along dir.
         assert!(!solid_at(&gen, air));
-        assert!(solid_at(&gen, CellCoord { x: air.x, y: air.y - 1, z: air.z }));
-        assert!(solid_at(&gen, CellCoord { x: air.x, y: air.y + 1, z: air.z }));
+        assert!(solid_at(
+            &gen,
+            CellCoord {
+                x: air.x,
+                y: air.y - 1,
+                z: air.z
+            }
+        ));
+        assert!(solid_at(
+            &gen,
+            CellCoord {
+                x: air.x,
+                y: air.y + 1,
+                z: air.z
+            }
+        ));
         assert!(solid_at(&gen, wall));
         assert_ne!((wall.x - air.x, wall.z - air.z), (0, 0));
 
         // Mesh the patch containing the ceiling: its underside face must be
         // present (the overhang).
-        let ceiling = CellCoord { x: air.x, y: air.y + 1, z: air.z };
+        let ceiling = CellCoord {
+            x: air.x,
+            y: air.y + 1,
+            z: air.z,
+        };
         let cp = PatchCoord {
             x: ceiling.x.div_euclid(16),
             y: ceiling.y.div_euclid(16),
@@ -828,8 +950,7 @@ mod tests {
             cz - pose.position[2],
         ];
         let yaw = (-d[0]).atan2(-d[2]);
-        let pitch =
-            (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin();
+        let pitch = (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin();
         assert!((pose.yaw - yaw).abs() < 1e-4);
         assert!((pose.pitch - pitch).abs() < 1e-4);
     }

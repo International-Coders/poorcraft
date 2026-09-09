@@ -42,25 +42,28 @@ pub struct SurfacePatch {
 /// A terrain edit command (surface layer).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SurfaceEdit {
-    Raise { cell: CellCoord, meters: f32 },
-    Lower { cell: CellCoord, meters: f32 },
+    Raise {
+        cell: CellCoord,
+        meters: f32,
+    },
+    Lower {
+        cell: CellCoord,
+        meters: f32,
+    },
     /// Level a 1 m cell to a target height.
-    Level { cell: CellCoord, to_m: f32 },
+    Level {
+        cell: CellCoord,
+        to_m: f32,
+    },
 }
 
 fn sample_height(gen: &WorldGen, wx_m: f32, wz_m: f32) -> f32 {
-    gen.effective_surface_mm((wx_m * 1000.0) as i64, (wz_m * 1000.0) as i64) as f32
-        / 1000.0
+    gen.effective_surface_mm((wx_m * 1000.0) as i64, (wz_m * 1000.0) as i64) as f32 / 1000.0
 }
 
 fn sample_material(gen: &WorldGen, wx_m: f32, wz_m: f32) -> pc3d_world::gen::CellMaterial {
-    pc3d_world::terrain::final_solid(
-        gen,
-        (wx_m * 1000.0) as i64,
-        0,
-        (wz_m * 1000.0) as i64,
-    )
-    .material
+    pc3d_world::terrain::final_solid(gen, (wx_m * 1000.0) as i64, 0, (wz_m * 1000.0) as i64)
+        .material
 }
 
 impl SurfacePatch {
@@ -77,11 +80,7 @@ impl SurfacePatch {
         // is the delta of the cell containing the vertex (floor), so a
         // raised cell lifts its four corner vertices — a clean edit
         // footprint with soft falloff to the cell's own corners only.
-        [
-            wx,
-            self.base[i] + self.delta[i],
-            wz,
-        ]
+        [wx, self.base[i] + self.delta[i], wz]
     }
 
     fn idx(lx: usize, lz: usize) -> usize {
@@ -128,7 +127,6 @@ impl SurfacePatch {
     pub fn walkable(&self, gen: &WorldGen, wx_m: f32, wz_m: f32) -> bool {
         self.cell_slope(gen, wx_m, wz_m) <= MAX_WALK_SLOPE
     }
-
 }
 
 /// The 3x3 spike region: a center patch and its eight neighbors.
@@ -146,11 +144,19 @@ impl SurfaceRegion {
         let mut patches = std::collections::BTreeMap::new();
         for dx in -1..=1i32 {
             for dz in -1..=1i32 {
-                let coord = PatchCoord { x: center.x + dx, y: center.y, z: center.z + dz };
+                let coord = PatchCoord {
+                    x: center.x + dx,
+                    y: center.y,
+                    z: center.z + dz,
+                };
                 patches.insert((coord.x, coord.z), SurfacePatch::build(&gen, coord));
             }
         }
-        Self { gen, center, patches }
+        Self {
+            gen,
+            center,
+            patches,
+        }
     }
 
     /// An empty region scaffold (for edit semantics around one patch).
@@ -158,11 +164,19 @@ impl SurfaceRegion {
         let mut patches = std::collections::BTreeMap::new();
         for dx in -ring..=ring {
             for dz in -ring..=ring {
-                let coord = PatchCoord { x: center.x + dx, y: center.y, z: center.z + dz };
+                let coord = PatchCoord {
+                    x: center.x + dx,
+                    y: center.y,
+                    z: center.z + dz,
+                };
                 patches.insert((coord.x, coord.z), SurfacePatch::build(gen, coord));
             }
         }
-        Self { gen: *gen, center, patches }
+        Self {
+            gen: *gen,
+            center,
+            patches,
+        }
     }
 
     /// Replaces one patch's state (used by the streamed-delta path).
@@ -425,7 +439,11 @@ pub fn encode_delta(p: &SurfacePatch) -> Vec<u8> {
 }
 
 /// Decodes onto a freshly built patch (base from the same generator).
-pub fn decode_delta(gen: &WorldGen, coord: PatchCoord, bytes: &[u8]) -> Result<SurfacePatch, String> {
+pub fn decode_delta(
+    gen: &WorldGen,
+    coord: PatchCoord,
+    bytes: &[u8],
+) -> Result<SurfacePatch, String> {
     if bytes.len() < 4 {
         return Err("delta payload too short".into());
     }
@@ -574,7 +592,10 @@ mod tests {
                 }
             }
         }
-        assert!(walkable > 100, "gentle ground must be walkable ({walkable})");
+        assert!(
+            walkable > 100,
+            "gentle ground must be walkable ({walkable})"
+        );
         let _ = blocked;
         // Man-made cliff: lower a cell by 8 m -> its slope cell is a wall.
         let mut r2 = region();
@@ -599,7 +620,10 @@ mod tests {
             y: 0,
             z: (oz + 8.0) as i32,
         };
-        let dirty = r.edit(SurfaceEdit::Raise { cell: interior, meters: 1.5 });
+        let dirty = r.edit(SurfaceEdit::Raise {
+            cell: interior,
+            meters: 1.5,
+        });
         assert_eq!(dirty.len(), 1, "interior edit dirties one patch: {dirty:?}");
         // Border cell on the center patch's east edge: center + east.
         let border = CellCoord {
@@ -607,21 +631,26 @@ mod tests {
             y: 0,
             z: (oz + 8.0) as i32,
         };
-        let dirty = r.edit(SurfaceEdit::Raise { cell: border, meters: 0.5 });
+        let dirty = r.edit(SurfaceEdit::Raise {
+            cell: border,
+            meters: 0.5,
+        });
         assert!(
             dirty.contains(&(c.x, c.z)) && dirty.contains(&(c.x + 1, c.z)) && dirty.len() == 2,
             "border edit dirties patch + east neighbor: {dirty:?}"
         );
         // Bounded remesh: after an edit, meshing again changes only the
         // dirty patch's version.
-        let before: std::collections::BTreeMap<_, _> =
-            r.mesh_region().2.into_iter().collect();
+        let before: std::collections::BTreeMap<_, _> = r.mesh_region().2.into_iter().collect();
         let dirty = r.edit(SurfaceEdit::Lower {
-            cell: CellCoord { x: (ox + 4.0) as i32, y: 0, z: (oz + 4.0) as i32 },
+            cell: CellCoord {
+                x: (ox + 4.0) as i32,
+                y: 0,
+                z: (oz + 4.0) as i32,
+            },
             meters: 2.0,
         });
-        let after: std::collections::BTreeMap<_, _> =
-            r.mesh_region().2.into_iter().collect();
+        let after: std::collections::BTreeMap<_, _> = r.mesh_region().2.into_iter().collect();
         let changed: Vec<_> = before
             .iter()
             .filter(|(k, v)| after.get(*k) != Some(v))
@@ -640,12 +669,22 @@ mod tests {
         let c = r.center;
         let ox = c.x as f32 * PATCH_M;
         let oz = c.z as f32 * PATCH_M;
-        let cell = CellCoord { x: (ox + 6.0) as i32, y: 0, z: (oz + 6.0) as i32 };
+        let cell = CellCoord {
+            x: (ox + 6.0) as i32,
+            y: 0,
+            z: (oz + 6.0) as i32,
+        };
         let before = r.height_at(cell.x as f32 + 0.5, cell.z as f32 + 0.5);
         r.edit(SurfaceEdit::Raise { cell, meters: 3.0 });
         let after = r.height_at(cell.x as f32 + 0.5, cell.z as f32 + 0.5);
-        assert!((after - before - 3.0).abs() < 0.05, "raise by 3: {before} -> {after}");
-        r.edit(SurfaceEdit::Level { cell, to_m: before + 10.0 });
+        assert!(
+            (after - before - 3.0).abs() < 0.05,
+            "raise by 3: {before} -> {after}"
+        );
+        r.edit(SurfaceEdit::Level {
+            cell,
+            to_m: before + 10.0,
+        });
         let leveled = r.height_at(cell.x as f32 + 0.5, cell.z as f32 + 0.5);
         assert!((leveled - (before + 10.0)).abs() < 0.05, "level: {leveled}");
     }
@@ -658,11 +697,19 @@ mod tests {
         let ox = c.x as f32 * PATCH_M;
         let oz = c.z as f32 * PATCH_M;
         r.edit(SurfaceEdit::Raise {
-            cell: CellCoord { x: (ox + 5.0) as i32, y: 0, z: (oz + 7.0) as i32 },
+            cell: CellCoord {
+                x: (ox + 5.0) as i32,
+                y: 0,
+                z: (oz + 7.0) as i32,
+            },
             meters: 2.5,
         });
         r.edit(SurfaceEdit::Lower {
-            cell: CellCoord { x: (ox + 9.0) as i32, y: 0, z: (oz + 3.0) as i32 },
+            cell: CellCoord {
+                x: (ox + 9.0) as i32,
+                y: 0,
+                z: (oz + 3.0) as i32,
+            },
             meters: 1.25,
         });
         let edited = r.patch((c.x, c.z)).clone();
@@ -706,7 +753,11 @@ mod gpu_tests {
         // Steep down-slope vantage: eye 12 m above the near ridge, aim at
         // the ground 24 m down the fall line — the center column runs
         // downhill across facets.
-        let eye = [ox + 24.0, region.height_at(ox + 24.0, oz + 34.0) + 12.0, oz + 34.0];
+        let eye = [
+            ox + 24.0,
+            region.height_at(ox + 24.0, oz + 34.0) + 12.0,
+            oz + 34.0,
+        ];
         let aim = [ox + 24.0, region.height_at(ox + 24.0, oz + 10.0), oz + 10.0];
         let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
         let pose = CameraPose::new(
@@ -737,7 +788,8 @@ mod gpu_tests {
         // quantized into 8 luminance bands — a sloped facet run crosses
         // several bands (a flat plane sits in one; a cube staircase bands
         // into flats at quantized heights).
-        let strip = |f: &Vec<u8>, y: usize| sample_ndc(f, 384, 288, (-0.5, 1.0 - 2.0 * y as f32 / 288.0));
+        let strip =
+            |f: &Vec<u8>, y: usize| sample_ndc(f, 384, 288, (-0.5, 1.0 - 2.0 * y as f32 / 288.0));
         let mut luminance_bands = std::collections::BTreeSet::new();
         for y in 40..240usize {
             let px = strip(&before, y);
@@ -758,13 +810,15 @@ mod gpu_tests {
         // every row; a cube staircase has EXACTLY-identical flat bands
         // (delta == 0) punctuated by a few wall-edge jumps. So: many rows
         // with small nonzero change, and few hard jumps.
-        let px_at = |f: &Vec<u8>, y: usize| sample_ndc(f, 384, 288, (-0.5, 1.0 - 2.0 * y as f32 / 288.0));
+        let px_at =
+            |f: &Vec<u8>, y: usize| sample_ndc(f, 384, 288, (-0.5, 1.0 - 2.0 * y as f32 / 288.0));
         // GROUND rows are identified by CONTROL DIFFERENCE (a render with
         // no surface mesh): palette-independent, the codebase's standard.
         let mut ctrl_r = crate::renderer::Renderer::offscreen(384, 288);
         ctrl_r.set_placeholder_scene(false);
         ctrl_r.set_pose(pose);
-        let (_, ctrl) = ctrl_r.capture_png(&std::env::temp_dir().join("pc3d_surface_ctrl.png"), &[]);
+        let (_, ctrl) =
+            ctrl_r.capture_png(&std::env::temp_dir().join("pc3d_surface_ctrl.png"), &[]);
         let ground = |y: usize| {
             let a = px_at(&before, y);
             let c = px_at(&ctrl, y);
@@ -789,7 +843,10 @@ mod gpu_tests {
                 }
             }
         }
-        assert!(ground_rows >= 80, "the run must cross ground ({ground_rows} rows)");
+        assert!(
+            ground_rows >= 80,
+            "the run must cross ground ({ground_rows} rows)"
+        );
         assert!(
             smooth_rows >= ground_rows / 2,
             "a continuous slope shades on most ground rows (smooth {smooth_rows}/{ground_rows})"
@@ -818,12 +875,15 @@ mod gpu_tests {
         assert!(!dirty.is_empty());
         let (verts2, idx2, _) = region.mesh_region();
         r.load_surface(&verts2, &idx2);
-        let (_, after) = r.capture_png(
-            &std::env::temp_dir().join("pc3d_surface_after.png"),
-            &[],
-        );
+        let (_, after) = r.capture_png(&std::env::temp_dir().join("pc3d_surface_after.png"), &[]);
         let diff = crate::scene::pixel_difference_fraction(&before, &after);
-        assert!(diff > 0.01, "the raised plateau must change the view ({diff})");
-        println!("surface spike: dirty {dirty:?}, image diff {diff:.2}%, {} verts", verts2.len());
+        assert!(
+            diff > 0.01,
+            "the raised plateau must change the view ({diff})"
+        );
+        println!(
+            "surface spike: dirty {dirty:?}, image diff {diff:.2}%, {} verts",
+            verts2.len()
+        );
     }
 }

@@ -32,8 +32,7 @@ pub fn assign_npcs(
     objective_cell: CellCoord,
     objective: WarObjective,
 ) -> Vec<WarAssignment> {
-    npcs
-        .iter()
+    npcs.iter()
         .filter_map(|e| {
             let path = nav.path(e.cell, objective_cell)?;
             Some(WarAssignment {
@@ -78,8 +77,18 @@ mod tests {
             z: o.z.div_euclid(1000) as i32 + lz,
         };
         let npcs = vec![
-            crate::entities::Entity { id: crate::entities::EntityId(1), kind: crate::entities::EntityKind::Villager, cell: cell(2, 2), data: 0 },
-            crate::entities::Entity { id: crate::entities::EntityId(2), kind: crate::entities::EntityKind::Villager, cell: cell(3, 3), data: 0 },
+            crate::entities::Entity {
+                id: crate::entities::EntityId(1),
+                kind: crate::entities::EntityKind::Villager,
+                cell: cell(2, 2),
+                data: 0,
+            },
+            crate::entities::Entity {
+                id: crate::entities::EntityId(2),
+                kind: crate::entities::EntityKind::Villager,
+                cell: cell(3, 3),
+                data: 0,
+            },
         ];
         let target = cell(10, 10);
         let mut assignments = assign_npcs(&nav, &npcs, target, WarObjective::DefendGate);
@@ -88,6 +97,9 @@ mod tests {
         for _ in 0..100 {
             advance(&mut assignments);
         }
-        assert!(assignments.iter().all(|a| a.arrived), "all NPCs must arrive");
+        assert!(
+            assignments.iter().all(|a| a.arrived),
+            "all NPCs must arrive"
+        );
     }
 }

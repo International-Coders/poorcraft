@@ -9,8 +9,8 @@
 
 use crate::coords::{CellCoord, PatchCoord};
 use crate::gen::{CellMaterial, WorldGen};
-use crate::terrain::{final_solid, SolidAnswer};
 use crate::scales::PATCH_CELL_AXIS;
+use crate::terrain::{final_solid, SolidAnswer};
 
 /// A player-built block: what it is made of and who built it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,7 +29,10 @@ pub struct Construction {
 impl Construction {
     pub fn new(coord: PatchCoord) -> Self {
         let n = (PATCH_CELL_AXIS * PATCH_CELL_AXIS * PATCH_CELL_AXIS) as usize;
-        Construction { coord, cells: vec![None; n] }
+        Construction {
+            coord,
+            cells: vec![None; n],
+        }
     }
 
     fn idx(cell: CellCoord, coord: PatchCoord) -> Option<usize> {
@@ -46,8 +49,7 @@ impl Construction {
 
     /// Place a block; fails if a build already occupies the cell.
     pub fn place(&mut self, cell: CellCoord, block: BuildBlock) -> Result<(), PlaceError> {
-        let idx = Self::idx(cell, self.coord)
-            .ok_or(PlaceError::OutsidePatch)?;
+        let idx = Self::idx(cell, self.coord).ok_or(PlaceError::OutsidePatch)?;
         if self.cells[idx].is_some() {
             return Err(PlaceError::Occupied);
         }
@@ -57,15 +59,17 @@ impl Construction {
 
     /// Remove a block; only the owning authority may remove it.
     pub fn remove(&mut self, cell: CellCoord, owner: u64) -> Result<BuildBlock, RemoveError> {
-        let idx = Self::idx(cell, self.coord)
-            .ok_or(RemoveError::OutsidePatch)?;
+        let idx = Self::idx(cell, self.coord).ok_or(RemoveError::OutsidePatch)?;
         match self.cells[idx] {
             None => Err(RemoveError::NothingBuilt),
             Some(b) if b.owner == owner => {
                 self.cells[idx] = None;
                 Ok(b)
             }
-            Some(b) => Err(RemoveError::NotOwner { built_owner: b.owner, remover: owner }),
+            Some(b) => Err(RemoveError::NotOwner {
+                built_owner: b.owner,
+                remover: owner,
+            }),
         }
     }
 
@@ -171,7 +175,13 @@ pub fn replay_builds(genless_construction: &mut Construction, ops: &[BuildOp]) -
     for op in ordered {
         let ok = match op.kind {
             BuildKind::Place => genless_construction
-                .place(op.cell, BuildBlock { material: op.material, owner: op.owner })
+                .place(
+                    op.cell,
+                    BuildBlock {
+                        material: op.material,
+                        owner: op.owner,
+                    },
+                )
                 .is_ok(),
             BuildKind::RemoveBuild => genless_construction.remove(op.cell, op.owner).is_ok(),
         };
@@ -198,7 +208,10 @@ pub fn effective_answer(
             y: wy.div_euclid(1000) as i32,
             z: wz.div_euclid(1000) as i32,
         }) {
-            return SolidAnswer { solid: true, material: b.material };
+            return SolidAnswer {
+                solid: true,
+                material: b.material,
+            };
         }
     }
     final_solid(gen, wx, wy, wz)
@@ -212,7 +225,9 @@ pub fn brush_touches_built(
     brush_cells: impl Iterator<Item = CellCoord>,
     construction: &Construction,
 ) -> usize {
-    brush_cells.filter(|c| construction.at(*c).is_some()).count()
+    brush_cells
+        .filter(|c| construction.at(*c).is_some())
+        .count()
 }
 
 #[cfg(test)]
@@ -225,7 +240,10 @@ mod tests {
     }
 
     fn block(owner: u64) -> BuildBlock {
-        BuildBlock { material: CellMaterial::Rock, owner }
+        BuildBlock {
+            material: CellMaterial::Rock,
+            owner,
+        }
     }
 
     /// Place/remove with ownership: a foreign remover is rejected, the
@@ -241,7 +259,10 @@ mod tests {
         // Foreign removal refused, block intact.
         assert_eq!(
             c.remove(cell, 8),
-            Err(RemoveError::NotOwner { built_owner: 7, remover: 8 })
+            Err(RemoveError::NotOwner {
+                built_owner: 7,
+                remover: 8
+            })
         );
         assert_eq!(c.at(cell), Some(block(7)));
 
@@ -286,8 +307,9 @@ mod tests {
         // P3D-204 path) skips built cells — the machine-protection law.
         let brush_cells = (cell.x - 1..=cell.x + 1)
             .flat_map(|x| {
-                (cell.y - 1..=cell.y + 1)
-                    .flat_map(move |y| (cell.z - 1..=cell.z + 1).map(move |z| CellCoord { x, y, z }))
+                (cell.y - 1..=cell.y + 1).flat_map(move |y| {
+                    (cell.z - 1..=cell.z + 1).map(move |z| CellCoord { x, y, z })
+                })
             })
             .collect::<Vec<_>>();
         assert_eq!(
@@ -346,7 +368,10 @@ mod tests {
         let mut c = Construction::new(patch0());
         // Reverse delivery of [remove, place]: canonical order places
         // first, so the removal finds the block and succeeds.
-        let remove = BuildOp { kind: BuildKind::RemoveBuild, ..mk(2, 9, BuildKind::RemoveBuild) };
+        let remove = BuildOp {
+            kind: BuildKind::RemoveBuild,
+            ..mk(2, 9, BuildKind::RemoveBuild)
+        };
         let applied = replay_builds(&mut c, &[remove, place]);
         assert_eq!(applied, 2, "canonical order makes reversed delivery work");
         assert_eq!(c.built_count(), 0, "placed then removed");

@@ -28,7 +28,9 @@ impl CommandSequencer {
         self.next
     }
     pub fn restore(high_water_mark: u64) -> Self {
-        CommandSequencer { next: high_water_mark }
+        CommandSequencer {
+            next: high_water_mark,
+        }
     }
     /// The next id that would be assigned — the persistence value.
     pub fn high_water_mark(&self) -> u64 {
@@ -74,7 +76,13 @@ mod tests {
     #[test]
     fn p3d003_canonical_order_is_total_and_dedups() {
         let mk = |id: u64, tick: u64, v: u32| CommandEnvelope::new(id, tick, Echo(v));
-        let batch = vec![mk(3, 1, 30), mk(1, 2, 10), mk(3, 0, 99), mk(2, 1, 20), mk(1, 0, 5)];
+        let batch = vec![
+            mk(3, 1, 30),
+            mk(1, 2, 10),
+            mk(3, 0, 99),
+            mk(2, 1, 20),
+            mk(1, 0, 5),
+        ];
         let canon = CommandEnvelope::canonical_batch(batch);
         let order: Vec<(u64, u64)> = canon.iter().map(|e| (e.tick, e.id)).collect();
         assert_eq!(order, vec![(0, 1), (0, 3), (1, 2)]);

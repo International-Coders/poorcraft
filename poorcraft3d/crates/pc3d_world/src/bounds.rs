@@ -194,7 +194,11 @@ mod tests {
         let (ex, ey, ez) = planet.cell_extent().expect("axes fit u64");
         assert_eq!(ey, 1);
         assert!(ex > 9_000_000_000_000_000 && ez > 9_000_000_000_000_000);
-        assert_eq!(planet.cell_count(), u64::MAX, "the product saturates, never wraps");
+        assert_eq!(
+            planet.cell_count(),
+            u64::MAX,
+            "the product saturates, never wraps"
+        );
 
         assert_eq!(block.center(), WorldPos::from_mm(-500, -500, -500));
     }
@@ -208,6 +212,9 @@ mod tests {
         assert!(!r.contains_xz(r.max_x + 1, r.min_z));
         assert!(r.intersects_xz(&r));
         let other = RegionCoord { x: 3, z: -1 }.footprint_xz();
-        assert!(!r.intersects_xz(&other), "adjacent regions tile, not overlap");
+        assert!(
+            !r.intersects_xz(&other),
+            "adjacent regions tile, not overlap"
+        );
     }
 }

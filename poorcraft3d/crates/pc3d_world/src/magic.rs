@@ -46,7 +46,10 @@ pub const MANA_MAX: i32 = 100;
 
 impl Default for Mana {
     fn default() -> Self {
-        Mana { current: MANA_MAX, max: MANA_MAX }
+        Mana {
+            current: MANA_MAX,
+            max: MANA_MAX,
+        }
     }
 }
 
@@ -93,7 +96,10 @@ pub struct Mage {
 
 impl Mage {
     pub fn new() -> Self {
-        Mage { learned: BTreeSet::new(), mana: Mana::default() }
+        Mage {
+            learned: BTreeSet::new(),
+            mana: Mana::default(),
+        }
     }
 
     /// Learn a rune (progression; idempotent).
@@ -136,7 +142,11 @@ impl Mage {
                 let (x, y, z) = (target.x, target.y, target.z);
                 (0..3)
                     .map(|dx| {
-                        (0..3).map(move |dz| CellCoord { x: x + dx - 1, y, z: z + dz - 1 })
+                        (0..3).map(move |dz| CellCoord {
+                            x: x + dx - 1,
+                            y,
+                            z: z + dz - 1,
+                        })
                     })
                     .flatten()
                     .collect()
@@ -157,7 +167,10 @@ mod tests {
         let mana_before = mage.mana.current;
         let target = CellCoord { x: 5, y: 5, z: 5 };
         assert_eq!(mage.cast(Rune::Lumen, target), Err(CastError::NotLearned));
-        assert_eq!(mage.mana.current, mana_before, "failed cast must not drain mana");
+        assert_eq!(
+            mage.mana.current, mana_before,
+            "failed cast must not drain mana"
+        );
         mage.learn(Rune::Lumen);
         assert!(mage.knows(Rune::Lumen));
         assert!(mage.cast(Rune::Lumen, target).is_ok());

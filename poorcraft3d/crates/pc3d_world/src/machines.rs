@@ -222,7 +222,9 @@ impl MachineNetwork {
 
     /// Refuel / refill a boiler (milli-units).
     pub fn supply(&mut self, id: u64, fuel_milli: i64, water_milli: i64) -> bool {
-        let Some(m) = self.machines.get_mut(&id) else { return false };
+        let Some(m) = self.machines.get_mut(&id) else {
+            return false;
+        };
         if m.kind != MachineKind::Boiler {
             return false;
         }
@@ -232,7 +234,9 @@ impl MachineNetwork {
     }
 
     pub fn set_on(&mut self, id: u64, on: bool) -> bool {
-        let Some(m) = self.machines.get_mut(&id) else { return false };
+        let Some(m) = self.machines.get_mut(&id) else {
+            return false;
+        };
         m.on = on;
         true
     }
@@ -253,7 +257,16 @@ impl MachineNetwork {
         }
         self.next_wire += 1;
         let id = self.next_wire;
-        self.wires.insert(id, Wire { id, from, to, carrier, throughput: EDGE_THROUGHPUT });
+        self.wires.insert(
+            id,
+            Wire {
+                id,
+                from,
+                to,
+                carrier,
+                throughput: EDGE_THROUGHPUT,
+            },
+        );
         Ok(id)
     }
 
@@ -310,7 +323,11 @@ impl MachineNetwork {
 
     /// Total electrical charge held by all batteries.
     pub fn stored_charge(&self) -> i64 {
-        self.machines.values().filter(|m| m.kind == MachineKind::Battery).map(|m| m.stored).sum()
+        self.machines
+            .values()
+            .filter(|m| m.kind == MachineKind::Battery)
+            .map(|m| m.stored)
+            .sum()
     }
 }
 
@@ -353,9 +370,18 @@ mod tests {
         assert_eq!(net.connect(boiler, engine), Err(WireError::Duplicate));
         // Carriers are ordered heat→steam→mech→electric; port decls agree.
         assert_eq!(MachineKind::Boiler.output_carrier(), Some(PowerType::Steam));
-        assert_eq!(MachineKind::SteamEngine.input_carrier(), Some(PowerType::Steam));
-        assert_eq!(MachineKind::Generator.input_carrier(), Some(PowerType::Mechanical));
-        assert_eq!(MachineKind::Battery.input_carrier(), Some(PowerType::Electrical));
+        assert_eq!(
+            MachineKind::SteamEngine.input_carrier(),
+            Some(PowerType::Steam)
+        );
+        assert_eq!(
+            MachineKind::Generator.input_carrier(),
+            Some(PowerType::Mechanical)
+        );
+        assert_eq!(
+            MachineKind::Battery.input_carrier(),
+            Some(PowerType::Electrical)
+        );
     }
 
     /// The full fuel→steam→shaft→electric chain charges a battery from
@@ -430,7 +456,10 @@ mod tests {
         net.water_milli_at(boiler, 500);
         net.tick();
         // The wire moved the whole (tiny) boil downstream this tick.
-        assert_eq!(net.machines[&engine].in_buffer, 500, "steam capped by fluid");
+        assert_eq!(
+            net.machines[&engine].in_buffer, 500,
+            "steam capped by fluid"
+        );
         // Fuel burned only for the water-limited fraction, rounded up:
         // a full burn would boil 6_000, we boiled 500 → 84 milli-fuel.
         let fuel_left = net.machines[&boiler].fuel_milli;
@@ -450,7 +479,10 @@ mod tests {
         assert!(net.supply(boiler, FUEL_UNIT, 5_000));
         net.tick();
         assert_eq!(net.machines[&boiler].out_buffer, 0, "off boiler idles");
-        assert_eq!(net.machines[&boiler].fuel_milli, FUEL_UNIT, "off boiler keeps fuel");
+        assert_eq!(
+            net.machines[&boiler].fuel_milli, FUEL_UNIT,
+            "off boiler keeps fuel"
+        );
         net.set_on(boiler, true);
 
         // With ample fuel+water the boiler boils 6_000/tick but the
@@ -459,12 +491,24 @@ mod tests {
         // wire-load per tick (a documented one-tick pipeline lag).
         assert!(net.supply(boiler, 10 * FUEL_UNIT, 30_000));
         net.tick();
-        assert_eq!(net.machines[&engine].in_buffer, EDGE_THROUGHPUT, "wire caps flow");
+        assert_eq!(
+            net.machines[&engine].in_buffer, EDGE_THROUGHPUT,
+            "wire caps flow"
+        );
         assert_eq!(net.machines[&boiler].out_buffer, 5_000, "surplus waits");
-        assert_eq!(net.machines[&engine].lifetime_out, 0, "conversion lags one tick");
+        assert_eq!(
+            net.machines[&engine].lifetime_out, 0,
+            "conversion lags one tick"
+        );
         net.tick();
-        assert_eq!(net.machines[&engine].in_buffer, EDGE_THROUGHPUT, "drained then refilled");
-        assert_eq!(net.machines[&boiler].out_buffer, 10_000, "+5_000/tick surplus");
+        assert_eq!(
+            net.machines[&engine].in_buffer, EDGE_THROUGHPUT,
+            "drained then refilled"
+        );
+        assert_eq!(
+            net.machines[&boiler].out_buffer, 10_000,
+            "+5_000/tick surplus"
+        );
         assert_eq!(
             net.machines[&engine].lifetime_out, 500,
             "1_000 steam × 1/2 per tick"

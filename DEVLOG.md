@@ -5609,3 +5609,32 @@ verified ALIVE for 10 s in the live slice ("WASD walks the SURFACE…").
 
 FOR THE OWNER: this is the play-pass build — walk it with
 docs/POORCRAFT-VALHEIM-STYLE-REBUILD/REVIEW-CHECKLIST.md in hand.
+
+## 2026-09-08 — Owner Alpha Rescue landed (owner-authored work, verified + shipped by the runner)
+
+WHAT: The owner's uncommitted changeset (docs/POORCRAFT-3D/
+22-OWNER-ALPHA-RESCUE.md + ~7k insertions): the owner-facing UX
+contract — double-click opens the rebuild slice behind a centered
+WELCOME overlay (the raw live dump looked like a crash), Enter/click
+starts, the first click captures the mouse, Esc PAUSES instead of
+exiting, Q is the explicit quit, movement/build/crowd blocked while
+title or pause is open, and automated proof windows keep the old
+behavior unless they opt into owner_menu (gate timing unchanged).
+Plus: a major assetgen expansion (+1k lines) and generated concept
+art for the future UI/brand pass (logo + HUD sheet under
+docs/POORCRAFT-3D/assets/generated/, declared concept references, not
+shipping art).
+
+HOW THE RUNNER HANDLED IT: per the queue contract's half-done rule —
+surveyed, built, and verified rather than rewritten. EVIDENCE: release
+build clean; p3d 425/425 (+4 owner tests), root 474/474; 9/9 visual
+gates (owner_menu opt-in kept proof timing stable); the rebuild route
+proof PASSES; the no-args launch verified ALIVE 12 s showing the
+welcome overlay and the new key map; the DMG rebuilt and verified from
+the mounted read-only volume (route PASS + journey digest
+7ab2295dafa0ec24).
+
+HONESTLY DEFERRED (the owner's own next-job list in the rescue doc):
+the proper alpha front-end — title/pause menus, save-slot browser,
+settings, HUD/hotbar from the concept sheet — must REPLACE this
+temporary bitmap-font shell, not pile onto it.

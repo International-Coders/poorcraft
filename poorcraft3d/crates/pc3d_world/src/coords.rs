@@ -18,7 +18,11 @@ pub struct WorldPos {
 
 impl WorldPos {
     pub const fn from_meters(x: i64, y: i64, z: i64) -> Self {
-        WorldPos { x: x * MM_PER_METER, y: y * MM_PER_METER, z: z * MM_PER_METER }
+        WorldPos {
+            x: x * MM_PER_METER,
+            y: y * MM_PER_METER,
+            z: z * MM_PER_METER,
+        }
     }
     pub const fn from_mm(x: i64, y: i64, z: i64) -> Self {
         WorldPos { x, y, z }
@@ -101,11 +105,7 @@ impl PatchCoord {
         let o = self.origin();
         crate::bounds::WorldBounds {
             min: o,
-            max: WorldPos::from_mm(
-                o.x + PATCH_MM - 1,
-                o.y + PATCH_MM - 1,
-                o.z + PATCH_MM - 1,
-            ),
+            max: WorldPos::from_mm(o.x + PATCH_MM - 1, o.y + PATCH_MM - 1, o.z + PATCH_MM - 1),
         }
     }
     pub fn region(self) -> RegionCoord {
@@ -167,7 +167,11 @@ impl WorldPos {
         let o = p.origin();
         (
             p,
-            LocalPos { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z },
+            LocalPos {
+                x: self.x - o.x,
+                y: self.y - o.y,
+                z: self.z - o.z,
+            },
         )
     }
 }
@@ -182,13 +186,33 @@ mod tests {
     #[test]
     fn p3d101_negative_coordinates_floor_like_a_globe() {
         let p = WorldPos::from_mm(-500, -500, -500);
-        assert_eq!(p.cell(), CellCoord { x: -1, y: -1, z: -1 });
+        assert_eq!(
+            p.cell(),
+            CellCoord {
+                x: -1,
+                y: -1,
+                z: -1
+            }
+        );
         assert_eq!(p.cell().origin(), WorldPos::from_mm(-1_000, -1_000, -1_000));
-        assert_eq!(p.patch(), PatchCoord { x: -1, y: -1, z: -1 });
-        assert_eq!(p.patch().origin(), WorldPos::from_mm(-16_000, -16_000, -16_000));
+        assert_eq!(
+            p.patch(),
+            PatchCoord {
+                x: -1,
+                y: -1,
+                z: -1
+            }
+        );
+        assert_eq!(
+            p.patch().origin(),
+            WorldPos::from_mm(-16_000, -16_000, -16_000)
+        );
         assert_eq!(p.region(), RegionCoord { x: -1, z: -1 });
         // Just above zero is cell 0.
-        assert_eq!(WorldPos::from_mm(1, 1, 1).cell(), CellCoord { x: 0, y: 0, z: 0 });
+        assert_eq!(
+            WorldPos::from_mm(1, 1, 1).cell(),
+            CellCoord { x: 0, y: 0, z: 0 }
+        );
     }
 
     /// pos -> cell -> origin round-trip: every position projects into its
@@ -197,8 +221,8 @@ mod tests {
     #[test]
     fn p3d101_round_trips_hold_across_signs_and_boundaries() {
         let samples = [
-            0i64, 1, 999, 1_000, 15_999, 16_000, -1, -999, -1_000, -16_000, -16_001,
-            256_000, -256_001, 4_096_000, -4_096_001,
+            0i64, 1, 999, 1_000, 15_999, 16_000, -1, -999, -1_000, -16_000, -16_001, 256_000,
+            -256_001, 4_096_000, -4_096_001,
         ];
         for &sx in &samples {
             for &sy in &samples {
@@ -247,10 +271,16 @@ mod tests {
 
         // Regions tile in x/z and contain 16×16 patches per level.
         let r = RegionCoord { x: -1, z: -1 }.footprint_xz();
-        assert_eq!((r.max_x - r.min_x + 1) / PATCH_MM, REGION_PATCH_AXIS as i64);        let right = RegionCoord { x: 0, z: -1 }.footprint_xz();
+        assert_eq!((r.max_x - r.min_x + 1) / PATCH_MM, REGION_PATCH_AXIS as i64);
+        let right = RegionCoord { x: 0, z: -1 }.footprint_xz();
         assert_eq!(r.max_x + 1, right.min_x);
         assert_eq!(
-            PatchCoord { x: -1, y: -1, z: -1 }.region(),
+            PatchCoord {
+                x: -1,
+                y: -1,
+                z: -1
+            }
+            .region(),
             RegionCoord { x: -1, z: -1 }
         );
         assert_eq!(

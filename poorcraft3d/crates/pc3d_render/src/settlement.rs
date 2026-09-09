@@ -166,8 +166,8 @@ pub struct SettlementKit {
 
 impl SettlementKit {
     pub fn load() -> Self {
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../assets/compiled");
+        let root =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/compiled");
         let mut assets = BTreeMap::new();
         let mut sockets = BTreeMap::new();
         for m in [
@@ -232,13 +232,13 @@ fn rot_y(v: [f32; 3], rot: f32) -> [f32; 3] {
 impl Placement {
     /// A socket's world position for this placement.
     pub fn socket_world(&self, s: &Socket) -> [f32; 3] {
-        let local = [s.offset[0] * self.scale, s.offset[1], s.offset[2] * self.scale];
+        let local = [
+            s.offset[0] * self.scale,
+            s.offset[1],
+            s.offset[2] * self.scale,
+        ];
         let r = rot_y(local, self.rot_y);
-        [
-            self.pos[0] + r[0],
-            self.pos[1] + r[1],
-            self.pos[2] + r[2],
-        ]
+        [self.pos[0] + r[0], self.pos[1] + r[1], self.pos[2] + r[2]]
     }
 }
 
@@ -304,8 +304,14 @@ pub fn assemble_kit(
     let center_x = (layout.center.x as f32 + 0.5) * 256.0;
     let center_z = (layout.center.z as f32 + 0.5) * 256.0;
 
-    let mut push = |scene: &mut KitScene, m: KitModule, vis_scale: f32, fw: i32, fh: i32,
-                    origin: CellCoord, rot: f32, serves: &'static str| {
+    let mut push = |scene: &mut KitScene,
+                    m: KitModule,
+                    vis_scale: f32,
+                    fw: i32,
+                    fh: i32,
+                    origin: CellCoord,
+                    rot: f32,
+                    serves: &'static str| {
         let target = if m == KitModule::WallSegment {
             // Walls scale to their 3 m circuit step along the LONG axis.
             fw.max(fh) as f32
@@ -348,12 +354,23 @@ pub fn assemble_kit(
         } else {
             face_target(cx, cz, center_x, center_z)
         };
-        push(&mut scene, km, vis, fw as i32, fh as i32, m.origin, rot, m.kind.name());
+        push(
+            &mut scene,
+            km,
+            vis,
+            fw as i32,
+            fh as i32,
+            m.origin,
+            rot,
+            m.kind.name(),
+        );
         if m.kind == ModuleKind::GateHouse {
             // GATE REFINEMENT: open the middle column of the footprint —
             // the pillars keep the edge columns, the passage walks.
             for dz in 0..fh as i32 {
-                scene.collision_cells.remove(&(m.origin.x + 1, m.origin.z + dz));
+                scene
+                    .collision_cells
+                    .remove(&(m.origin.x + 1, m.origin.z + dz));
             }
         }
     }
@@ -368,10 +385,8 @@ pub fn assemble_kit(
             .iter()
             .find(|o| {
                 o.origin != w.origin
-                    && ((o.origin.z == w.origin.z
-                        && (o.origin.x - w.origin.x).abs() == 3)
-                        || (o.origin.x == w.origin.x
-                            && (o.origin.z - w.origin.z).abs() == 3))
+                    && ((o.origin.z == w.origin.z && (o.origin.x - w.origin.x).abs() == 3)
+                        || (o.origin.x == w.origin.x && (o.origin.z - w.origin.z).abs() == 3))
             })
             .map(|o| (o.origin.x - w.origin.x, o.origin.z - w.origin.z));
         let rot = match dir {
@@ -379,7 +394,16 @@ pub fn assemble_kit(
             Some(_) => std::f32::consts::FRAC_PI_2,
             None => 0.0,
         };
-        push(&mut scene, KitModule::WallSegment, 1.0, fw as i32, fh as i32, w.origin, rot, "wall");
+        push(
+            &mut scene,
+            KitModule::WallSegment,
+            1.0,
+            fw as i32,
+            fh as i32,
+            w.origin,
+            rot,
+            "wall",
+        );
     }
     // Settlement buildings (rotation: face the plaza).
     for b in plan.buildings.iter() {
@@ -387,7 +411,16 @@ pub fn assemble_kit(
         let cx = b.cell.x as f32 + b.size.0 as f32 / 2.0;
         let cz = b.cell.z as f32 + b.size.1 as f32 / 2.0;
         let rot = face_target(cx, cz, plaza_x, plaza_z);
-        push(&mut scene, km, vis, b.size.0 as i32, b.size.1 as i32, b.cell, rot, b.kind.name());
+        push(
+            &mut scene,
+            km,
+            vis,
+            b.size.0 as i32,
+            b.size.1 as i32,
+            b.cell,
+            rot,
+            b.kind.name(),
+        );
     }
     // The plaza banner + a dock/water-wheel pair when a river is near.
     push(
@@ -483,7 +516,10 @@ fn nearest_river_point(gen: &WorldGen, from: CellCoord) -> Option<(f32, f32, f32
     let mut best: Option<(pc3d_world::coords::RegionCoord, i32)> = None;
     for dx in -4..=4i32 {
         for dz in -4..=4i32 {
-            let reg = pc3d_world::coords::RegionCoord { x: cr.x + dx, z: cr.z + dz };
+            let reg = pc3d_world::coords::RegionCoord {
+                x: cr.x + dx,
+                z: cr.z + dz,
+            };
             if let Some(d) = graph.downstream(reg) {
                 if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
                     let dist = dx.abs() + dz.abs();
@@ -497,7 +533,8 @@ fn nearest_river_point(gen: &WorldGen, from: CellCoord) -> Option<(f32, f32, f32
     let (reg, _) = best?;
     let wx = (reg.x as f32 + 0.5) * 256.0;
     let wz = (reg.z as f32 + 0.5) * 256.0;
-    let ground = gen.effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64) as f32 / 1000.0;
+    let ground =
+        gen.effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64) as f32 / 1000.0;
     Some((wx, wz, ground))
 }
 
@@ -562,10 +599,17 @@ fn anchor_box(
 impl SettlementGpu {
     /// Uploads the scene: kit meshes shared per module, one instance
     /// buffer per (module, lod) — the viewer distance picks the LOD.
-    pub fn new(device: &wgpu::Device, scene: &KitScene, kit: &SettlementKit, viewer: [f32; 2]) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        scene: &KitScene,
+        kit: &SettlementKit,
+        viewer: [f32; 2],
+    ) -> Self {
         use wgpu::util::DeviceExt;
-        let mut rows: BTreeMap<(KitModule, u8), (Vec<crate::flora::Instance>, &crate::glb::LodMesh)> =
-            BTreeMap::new();
+        let mut rows: BTreeMap<
+            (KitModule, u8),
+            (Vec<crate::flora::Instance>, &crate::glb::LodMesh),
+        > = BTreeMap::new();
         for p in &scene.placements {
             let asset = &kit.assets[&p.module];
             let d = (p.pos[0] - viewer[0]).hypot(p.pos[2] - viewer[1]);
@@ -582,7 +626,16 @@ impl SettlementGpu {
                 .find(|l| l.name == want)
                 .or_else(|| asset.lods.last());
             let (lod, li) = match lod {
-                Some(l) => (l, if l.name == "lod0" { 0 } else if l.name == "lod1" { 1 } else { 2 }),
+                Some(l) => (
+                    l,
+                    if l.name == "lod0" {
+                        0
+                    } else if l.name == "lod1" {
+                        1
+                    } else {
+                        2
+                    },
+                ),
                 None => continue,
             };
             let (_, _, _, wind, _, _) = (p.pos, p.rot_y, p.scale, 0.0, 0.0, 0.0);
@@ -710,7 +763,6 @@ impl SettlementGpu {
     }
 }
 
-
 /// A collision adapter: another surface plus the kit's solid cells
 /// (footprints minus the refined gate passages).
 pub struct SettlementGround<S> {
@@ -794,7 +846,10 @@ mod tests {
         }
         // The mapping covers every plan kind (the counts prove use).
         for kind in ["keep", "gatehouse", "tower"] {
-            assert!(layout.modules.iter().any(|m| m.kind.name() == kind), "{kind} in the capital");
+            assert!(
+                layout.modules.iter().any(|m| m.kind.name() == kind),
+                "{kind} in the capital"
+            );
         }
     }
 
@@ -860,11 +915,13 @@ mod tests {
             .expect("a gatehouse");
         for dz in 0..gate.kind.footprint().1 as i32 {
             assert!(
-                !a.collision_cells.contains(&(gate.origin.x + 1, gate.origin.z + dz)),
+                !a.collision_cells
+                    .contains(&(gate.origin.x + 1, gate.origin.z + dz)),
                 "the gate passage column is open"
             );
             assert!(
-                a.collision_cells.contains(&(gate.origin.x, gate.origin.z + dz)),
+                a.collision_cells
+                    .contains(&(gate.origin.x, gate.origin.z + dz)),
                 "the gate pillar column stays solid"
             );
         }
@@ -879,8 +936,14 @@ mod tests {
         // Nav anchors and the D-033 zones pass through unchanged.
         assert_eq!(a.nav_anchors, prim.nav_anchors, "nav anchors preserved");
         assert_eq!(a.bed_cells, plan.anchors.bed_cells, "bed zones preserved");
-        assert_eq!(a.work_cells, plan.anchors.work_cells, "work zones preserved");
-        assert_eq!(a.idle_cells, plan.anchors.idle_cells, "idle zones preserved");
+        assert_eq!(
+            a.work_cells, plan.anchors.work_cells,
+            "work zones preserved"
+        );
+        assert_eq!(
+            a.idle_cells, plan.anchors.idle_cells,
+            "idle zones preserved"
+        );
         // Collision: the kit is the primitive set MINUS the gate
         // passages (a strict refinement).
         assert!(
@@ -918,7 +981,11 @@ mod tests {
         };
         let plan = SettlementPlan {
             center: pc3d_world::coords::RegionCoord { x: 5, z: 5 },
-            plaza: CellCoord { x: 1280, y: 0, z: 1280 },
+            plaza: CellCoord {
+                x: 1280,
+                y: 0,
+                z: 1280,
+            },
             buildings: vec![],
             roads: vec![],
             anchors: pc3d_world::settlement_plan::Anchors::default(),
@@ -1014,10 +1081,15 @@ mod tests {
             Some(k) => (k.pos[0] + 30.0, k.pos[2] + 30.0),
             None => (a.bounds_min[0] + 20.0, a.bounds_min[2] + 20.0),
         };
-        let gy = gen.effective_surface_mm((ex * 1000.0) as i64, (ez * 1000.0) as i64) as f32 / 1000.0;
+        let gy =
+            gen.effective_surface_mm((ex * 1000.0) as i64, (ez * 1000.0) as i64) as f32 / 1000.0;
         let eye = [ex, gy + 16.0, ez];
         let target = keep.map(|k| k.pos).unwrap_or([ex - 30.0, gy, ez - 30.0]);
-        let d = [target[0] - eye[0], target[1] + 6.0 - eye[1], target[2] - eye[2]];
+        let d = [
+            target[0] - eye[0],
+            target[1] + 6.0 - eye[1],
+            target[2] - eye[2],
+        ];
         let pose = crate::camera::CameraPose::new(
             eye,
             (-d[0]).atan2(-d[2]),
