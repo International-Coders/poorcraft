@@ -4504,7 +4504,10 @@ fn run_ui_inspect(spec: &str) {
     let scene = std::rc::Rc::new(scene);
     let cfg = pc3d_render::WindowConfig {
         title: "POORCRAFT 3D — inspector".into(),
-        logical_size: (1280.0, 720.0),
+        logical_size: (
+            std::env::var("PC3D_INSPECT_W").ok().and_then(|v| v.parse().ok()).unwrap_or(1280.0),
+            std::env::var("PC3D_INSPECT_H").ok().and_then(|v| v.parse().ok()).unwrap_or(720.0),
+        ),
         size_is_physical: true,
         resize_to: None,
         max_frames: Some(end_frame),

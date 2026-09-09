@@ -1554,6 +1554,24 @@ impl Renderer {
                 }
                 let layer = self.ui_layer.as_mut().expect("layer just ensured");
                 layer.last_canvas = bytes.clone();
+                // THE DIAGONAL-CUT FIX: wgpu requires a 256-byte-aligned
+                // row pitch for texture uploads — raw w*4 shifts every
+                // row progressively at unaligned window widths (the
+                // owner's resized window tore diagonally; the proof
+                // widths 1280/2560 were accidentally aligned). Stage the
+                // rows into an aligned pitch.
+                let pitch = (w * 4).div_ceil(256) * 256;
+                let staged: Vec<u8> = if pitch == w * 4 {
+                    bytes
+                } else {
+                    let mut v = Vec::with_capacity((pitch * h) as usize);
+                    for row in 0..h {
+                        let start = (row * w * 4) as usize;
+                        v.extend_from_slice(&bytes[start..start + (w * 4) as usize]);
+                        v.extend(std::iter::repeat(0u8).take((pitch - w * 4) as usize));
+                    }
+                    v
+                };
                 self.ctx.queue.write_texture(
                     wgpu::TexelCopyTextureInfo {
                         texture: &layer.texture,
@@ -1561,10 +1579,10 @@ impl Renderer {
                         origin: wgpu::Origin3d::ZERO,
                         aspect: wgpu::TextureAspect::All,
                     },
-                    &bytes,
+                    &staged,
                     wgpu::TexelCopyBufferLayout {
                         offset: 0,
-                        bytes_per_row: Some(w * 4),
+                        bytes_per_row: Some(pitch),
                         rows_per_image: None,
                     },
                     wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },

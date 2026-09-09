@@ -122,7 +122,7 @@
       "health": 0.44999998807907104,
       "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.6373321413993835,
+      "stamina": 0.426841139793396,
       "xp": 0.5
     },
     "modal": null,
@@ -138,16 +138,21 @@
     },
     "slots": [
       {
-        "modified": "2026-09-09 14:51",
+        "modified": "2026-09-09 18:02",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-09 14:51",
+        "modified": "2026-09-09 18:02",
         "name": "beta-shot",
         "seed": 7
       }
     ],
-    "toasts": []
+    "toasts": [
+      {
+        "age_s": 2.1741442680358887,
+        "text": "SAVED 'REBUILD'"
+      }
+    ]
   }
 }

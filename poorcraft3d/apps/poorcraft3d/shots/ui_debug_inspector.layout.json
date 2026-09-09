@@ -61,6 +61,16 @@
       ]
     },
     {
+      "id": "toast_SAVED 'REBUILD'",
+      "kind": "toast",
+      "rect": [
+        541,
+        595,
+        198,
+        16
+      ]
+    },
+    {
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -154,9 +164,9 @@
       "id": "debug_strip",
       "kind": "debug",
       "rect": [
-        510,
+        498,
         20,
-        754,
+        766,
         14
       ]
     }
@@ -182,7 +192,7 @@
       "health": 0.44999998807907104,
       "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.5036647319793701,
+      "stamina": 0.38010451197624207,
       "xp": 0.5
     },
     "modal": null,
@@ -198,16 +208,21 @@
     },
     "slots": [
       {
-        "modified": "2026-09-09 14:51",
+        "modified": "2026-09-09 18:02",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-09 14:51",
+        "modified": "2026-09-09 18:02",
         "name": "beta-shot",
         "seed": 7
       }
     ],
-    "toasts": []
+    "toasts": [
+      {
+        "age_s": 1.3831579685211182,
+        "text": "SAVED 'REBUILD'"
+      }
+    ]
   }
 }

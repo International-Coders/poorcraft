@@ -5872,3 +5872,38 @@ HONESTLY DEFERRED: no coyote-time/air control on the hop; stamina
 does not yet gate a visible speed penalty below empty (it locks
 sprint); the dark spawn-facing slope is the dawn sun, not a bug (the
 turned view is bright).
+
+## 2026-09-09 — The menu fixes: HiDPI layout + THE DIAGONAL CUT
+
+WHAT: The owner reported the menus "STILL broken and in half" and then
+"cut diagonally". Both reproduced, both fixed:
+
+1. HALF-SIZE MENUS ON RETINA (the "in half"): the UI laid out in
+   PHYSICAL pixels with fixed constants — on a 2x display a logical
+   1280x720 window has a 2560x1440 canvas, so every panel/button/text
+   rendered at HALF its intended relative size: a tiny fragment
+   floating in a huge screen (reproduced at 2560x1440: settings was a
+   small block in the middle). FIX: ui::build_dpi — the layout runs in
+   LOGICAL pixels (w/dpi x h/dpi) and every rect scales to physical at
+   push time; glyph scales multiply by the rounded dpi; the app tracks
+   the window scale factor (init + ScaleFactorChanged) and refresh_ui
+   builds with it. dpi=1.0 is byte-identical to the old build.
+2. THE DIAGONAL CUT: set_ui_layer uploaded the canvas with
+   bytes_per_row = w*4 — wgpu requires a 256-BYTE-ALIGNED row pitch,
+   so at unaligned window widths every row shifted progressively and
+   the whole UI tore diagonally (the proof widths 1280/2560 were
+   accidentally aligned, which is why every earlier capture looked
+   fine while the owner's real window tore). FIX: rows stage into a
+   256-aligned pitch before the upload.
+
+EVIDENCE: captures at the owner's failure modes — 2560x1440 (Retina
+logical 1280x720): title/settings/pause now full-size and centered
+(human-inspected); 3024x1964 (an UNALIGNED pitch, the diagonal mode):
+title + gameplay HUD clean with straight edges, no tearing. ui-shots
+11/11 PASS; render lib 159/159; p3d 463/463; root 474/474; 10/10
+gates; the DMG rebuilt and its title capture + journey digest verified
+from the MOUNTED volume. The inspector gained PC3D_INSPECT_W/H env
+overrides (how arbitrary window sizes are reproduced).
+
+HONESTLY DEFERRED: fractional dpi (1.5x) rounds the font multiplier —
+rects scale exactly, glyphs round to the nearest integer scale.

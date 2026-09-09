@@ -625,6 +625,12 @@ fn fit_scale(w: i32, h: i32, wanted: f32, panel_w: i32, panel_h: i32) -> f32 {
 
 struct Ctx {
     s: f32,
+    /// The display's DPI scale: layout runs in LOGICAL pixels, rects are
+    /// scaled to PHYSICAL at push time (the HiDPI fix — fixed-px UI
+    /// constants rendered at half relative size on Retina before).
+    d: f32,
+    /// The font multiplier (glyph raster scales are integers).
+    k: u32,
     out: Vec<UiElement>,
 }
 
@@ -634,6 +640,13 @@ impl Ctx {
     }
 
     fn push(&mut self, id: &str, kind: ElementKind, rect: Rect) {
+        // Logical -> physical.
+        let rect = Rect::new(
+            (rect.x as f32 * self.d).round() as i32,
+            (rect.y as f32 * self.d).round() as i32,
+            (rect.w as f32 * self.d).round() as u32,
+            (rect.h as f32 * self.d).round() as u32,
+        );
         self.out.push(UiElement { id: id.into(), kind, rect });
     }
 
@@ -644,7 +657,7 @@ impl Ctx {
     fn text(&mut self, id: &str, label: &str, x: i32, y: i32, scale: u32) -> Rect {
         let (tw, th) = font::text_size(label, scale);
         let r = Rect::new(x, y, tw, th);
-        self.push(id, ElementKind::Text { label: label.into(), scale }, r);
+        self.push(id, ElementKind::Text { label: label.into(), scale: scale * self.k }, r);
         r
     }
 
@@ -673,8 +686,23 @@ fn button_state(state: &UiState, id: &str, index: usize, total_focusables: usize
 /// Builds the draw list for the current state at a physical target size.
 /// Pure: same state + size, same list.
 pub fn build(state: &UiState, w: u32, h: u32) -> DrawList {
-    let (wi, hi) = (w as i32, h as i32);
-    let mut ctx = Ctx { s: state.settings.ui_scale, out: Vec::new() };
+    build_dpi(state, w, h, 1.0)
+}
+
+/// The DPI-aware build: layout runs in LOGICAL pixels (w/dpi x h/dpi)
+/// and every rect scales to PHYSICAL at push time — on a 2x Retina
+/// display the UI renders at the SAME relative size as 1x, instead of
+/// the half-size fragments the owner saw. dpi=1.0 is byte-identical to
+/// the classic build.
+pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
+    let dpi = dpi.max(0.75);
+    let (wi, hi) = ((w as f32 / dpi) as i32, (h as f32 / dpi) as i32);
+    let mut ctx = Ctx {
+        s: state.settings.ui_scale,
+        d: dpi,
+        k: dpi.round().max(1.0) as u32,
+        out: Vec::new(),
+    };
     let cx = wi / 2;
 
     // The screen's own layout only when no modal owns the frame.

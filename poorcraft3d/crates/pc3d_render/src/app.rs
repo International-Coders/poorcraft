@@ -310,6 +310,8 @@ struct WindowState {
     settings_path: Option<PathBuf>,
     /// The effective saves3d root (override or the slice's).
     save_root: Option<std::rc::Rc<PathBuf>>,
+    /// The window's current DPI scale (UI layout input).
+    ui_dpi: f32,
 }
 
 impl WindowState {
@@ -416,7 +418,7 @@ impl WindowState {
             return;
         }
         if self.ui_dirty || self.ui_list.is_none() {
-            let list = ui::build(&self.ui, w, h);
+            let list = ui::build_dpi(&self.ui, w, h, self.ui_dpi);
             let canvas = ui::paint(&list);
             self.renderer.set_ui_layer(Some((canvas, w, h)));
             self.ui_list = Some(list);
@@ -840,6 +842,7 @@ impl ApplicationHandler for App {
             .with_resizable(true);
         let window = event_loop.create_window(attrs).expect("create window");
         let window = Arc::new(window);
+        let window_dpi = window.scale_factor() as f32;
         let mut renderer = Renderer::windowed(&window);
         if let Some(setup) = self.cfg.slice_setup.take() {
             let host = if setup.rebuild {
@@ -899,6 +902,7 @@ impl ApplicationHandler for App {
             ui_list: None,
             ui_dirty: true,
             mouse_px: (0.0, 0.0),
+            ui_dpi: window_dpi,
             settings_path,
             save_root,
         };
@@ -1100,6 +1104,12 @@ impl ApplicationHandler for App {
             }
             // Resize + scale-factor changes both land here; the renderer
             // reconfigures the surface (and clamps 0-sized events).
+            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                if let Some(state) = self.state.as_mut() {
+                    state.ui_dpi = scale_factor as f32;
+                    state.ui_dirty = true;
+                }
+            }
             WindowEvent::Resized(size) => {
                 state.resizes_observed += 1;
                 state.final_physical = (size.width, size.height);
