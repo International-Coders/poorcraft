@@ -35,6 +35,9 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 - [x] Real offscreen headless renderer + scene harness (P0)
 - [x] xtask vistest/screenshot commands producing real PNGs (P0)
 - [x] real item icons + tooltips + recipe book + minimap/world map/waypoints (P22)
+- [x] POORCRAFT 3D owner UI asset handoff: transparent generated logo/HUD/bar/
+      key/action/resource/panel/faction sheets, implementation guide, JSON
+      naming manifest, and a code guard proving the sheet files exist (loop 411)
 
 ## ui-world-craft pack (loop 328)
 

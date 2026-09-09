@@ -5638,3 +5638,33 @@ HONESTLY DEFERRED (the owner's own next-job list in the rescue doc):
 the proper alpha front-end — title/pause menus, save-slot browser,
 settings, HUD/hotbar from the concept sheet — must REPLACE this
 temporary bitmap-font shell, not pile onto it.
+
+## 2026-09-09 — Owner UI asset handoff expansion
+
+WHAT: Kept the owner-menu/docs/assets changes and expanded the POORCRAFT
+3D generated UI direction into a larger transparent PNG pack: HUD bars,
+control/key glyphs, action icons, resource icons, panel/menu frames, and
+faction/strategy markers, alongside the prior logo and HUD concept sheet.
+Added docs/POORCRAFT-3D/assets/UI-ASSET-IMPLEMENTATION-GUIDE.md and
+docs/POORCRAFT-3D/assets/ui_asset_manifest.json so future work knows how
+to use the assets in-game: render key labels from bindings, draw bar fill
+from state, keep counts/cooldowns out of PNGs, and use nine-slice or
+renderer-native frames for scalable menus.
+
+HOW: Copied generated PNGs into docs/POORCRAFT-3D/assets/generated/,
+audited their RGBA alpha channels, linked the guide/manifest from the
+POORCRAFT 3D README and owner rescue doc, and added a pc3d_assets guardrail
+test embedding the JSON manifest and proving every referenced generated PNG
+exists on disk. Verified the accidental cargo-fmt churn in untouched Rust
+files was gone before making the focused code/doc edits.
+
+EVIDENCE: alpha audit passed for all eight generated sheets. Tests:
+pc3d_assets 24/24; pc3d_render owner 3/3; pc3d_render font 4/4. Build:
+cargo build --release --manifest-path poorcraft3d/Cargo.toml -p
+poorcraft3d passed. Runtime: make p3d-dmg rebuilt
+poorcraft3d/dist3d/POORCRAFT3D.app and
+poorcraft3d/dist3d/poorcraft3d-macos.dmg after rerunning hdiutil outside
+the sandbox. Root cargo test --workspace first failed on sandboxed UDP bind
+permission, then cleared the UDP tests with escalation, but was manually
+interrupted after the unrelated wizard_towers_generate_in_gated_biomes
+exhaustive scan ran silent for several minutes.

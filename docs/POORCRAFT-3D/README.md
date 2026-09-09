@@ -75,6 +75,10 @@ only when its implementation, tests, runtime behavior, and evidence agree.
   proper front-end job.
 - `assets/GENERATED-ASSETS.md` — generated transparent logo/HUD concept
   assets and the rules for turning them into real runtime art.
+- `assets/UI-ASSET-IMPLEMENTATION-GUIDE.md` — practical HUD/menu/key/icon
+  implementation rules for turning the generated PNG sheets into runtime UI.
+- `assets/ui_asset_manifest.json` — first machine-readable naming map for
+  generated sheets, intended runtime entries, and import rules.
 
 ## What this project is
 

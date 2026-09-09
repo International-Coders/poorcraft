@@ -30,16 +30,28 @@ land as follow-up work with a proper UI layer.
 
 ## Generated Visual Assets
 
-Two transparent PNG concept assets were generated for direction and stored in
-the repository:
+Transparent PNG concept assets were generated for direction and stored in the
+repository:
 
 - `docs/POORCRAFT-3D/assets/generated/poorcraft3d-logo-concept.png`
 - `docs/POORCRAFT-3D/assets/generated/poorcraft3d-hud-concept-sheet.png`
+- `docs/POORCRAFT-3D/assets/generated/poorcraft3d-hud-bars-pack.png`
+- `docs/POORCRAFT-3D/assets/generated/poorcraft3d-key-glyphs-pack.png`
+- `docs/POORCRAFT-3D/assets/generated/poorcraft3d-action-icons-pack.png`
+- `docs/POORCRAFT-3D/assets/generated/poorcraft3d-resource-icons-pack.png`
+- `docs/POORCRAFT-3D/assets/generated/poorcraft3d-panel-frames-pack.png`
+- `docs/POORCRAFT-3D/assets/generated/poorcraft3d-faction-strategy-pack.png`
 
 They are concept references, not final shipping art. Their role is to give the
 next UI/brand pass a concrete target: rugged fantasy survival, forged-metal
 panels, transparent alpha overlays, ember highlights, forest/river accents, and
 Steam Deck-readable controls.
+
+The runtime handoff is documented in
+`docs/POORCRAFT-3D/assets/UI-ASSET-IMPLEMENTATION-GUIDE.md` and
+`docs/POORCRAFT-3D/assets/ui_asset_manifest.json`. Key labels, item counts,
+bar fill amounts, cooldowns, and menu text must be rendered by the engine
+rather than baked into generated PNGs.
 
 ## Next Required Job
 
@@ -49,7 +61,7 @@ Build the proper alpha front-end:
 - pause menu with Resume, Save, Settings, Quit to Title, Quit to Desktop;
 - save-slot browser for the current `saves3d` path;
 - mouse sensitivity and invert-Y settings;
-- HUD bar/hotbar implementation based on the generated HUD concept sheet;
+- HUD bar/hotbar/key/icon implementation based on the generated asset sheets;
 - screenshot proof that title, pause, and gameplay HUD render in the live
   window.
 

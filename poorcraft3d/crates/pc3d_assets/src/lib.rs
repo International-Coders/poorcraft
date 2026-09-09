@@ -24,6 +24,13 @@ use serde::{Deserialize, Serialize};
 pub const BETA_CRITICAL_JSON: &str =
     include_str!("../../../../docs/POORCRAFT-3D-VISUAL-RESET/assets/beta_critical_assets.json");
 
+/// Owner-facing UI concept manifest for the generated alpha rescue asset pack.
+/// It is intentionally a concept-source manifest until the renderer has a
+/// sliced runtime atlas; tests still keep the docs, names, and PNG files in
+/// sync.
+pub const UI_ASSET_MANIFEST_JSON: &str =
+    include_str!("../../../../docs/POORCRAFT-3D/assets/ui_asset_manifest.json");
+
 // ---------------------------------------------------------------------------
 // Typed manifest (serde mirrors the JSON schema; enums reject out of contract)
 // ---------------------------------------------------------------------------
@@ -510,6 +517,55 @@ mod tests {
             BETA_CRITICAL_JSON.trim_end(),
             "embedded beta-critical manifest drifted from docs/"
         );
+    }
+
+    #[test]
+    fn generated_ui_asset_manifest_names_existing_png_sheets() {
+        let manifest: serde_json::Value =
+            serde_json::from_str(UI_ASSET_MANIFEST_JSON).expect("ui asset manifest json");
+        assert_eq!(manifest["version"], serde_json::json!(1));
+        assert_eq!(manifest["status"], serde_json::json!("concept-source"));
+
+        let rules = manifest["rules"].as_array().expect("rules array");
+        assert!(
+            rules.iter().any(|rule| rule
+                .as_str()
+                .is_some_and(|s| s.contains("Runtime key labels"))),
+            "manifest must keep generated key text out of the binding source"
+        );
+        assert!(
+            rules.iter().any(|rule| rule
+                .as_str()
+                .is_some_and(|s| s.contains("preserve RGBA alpha"))),
+            "manifest must keep alpha proof as a runtime import rule"
+        );
+
+        let sheets = manifest["sheets"].as_object().expect("sheets object");
+        for required in [
+            "brand.logo",
+            "hud.composition",
+            "hud.bars",
+            "controls.keys",
+            "icons.actions",
+            "icons.resources",
+            "ui.frames",
+            "strategy.markers",
+        ] {
+            let sheet = sheets.get(required).expect("required UI sheet");
+            let rel = sheet["path"].as_str().expect("sheet path");
+            assert!(
+                rel.ends_with(".png"),
+                "{required} should point at a PNG concept sheet"
+            );
+            let disk_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/POORCRAFT-3D/assets")
+                .join(rel);
+            assert!(
+                disk_path.is_file(),
+                "{required} missing concept sheet at {}",
+                disk_path.display()
+            );
+        }
     }
 
     #[test]

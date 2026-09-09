@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "date": "2026-09-09",
+  "status": "concept-source",
+  "rules": [
+    "Concept sheets are not final runtime atlases.",
+    "Runtime key labels must be rendered by the engine from active bindings.",
+    "Counts, cooldowns, fill amounts, and state text must not be baked into PNG assets.",
+    "Panels and slots should use nine-slice scaling or renderer-native primitives.",
+    "Every runtime import must preserve RGBA alpha and pass screenshot proof."
+  ],
+  "sheets": {
+    "brand.logo": {
+      "path": "generated/poorcraft3d-logo-concept.png",
+      "use": "title logo and brand direction"
+    },
+    "hud.composition": {
+      "path": "generated/poorcraft3d-hud-concept-sheet.png",
+      "use": "overall HUD composition and material direction"
+    },
+    "hud.bars": {
+      "path": "generated/poorcraft3d-hud-bars-pack.png",
+      "use": "bar frames, icon medallions, fill materials",
+      "entries": [
+        "health",
+        "stamina",
+        "food",
+        "armor",
+        "mana",
+        "air",
+        "experience",
+        "temperature",
+        "karma_corruption"
+      ]
+    },
+    "controls.keys": {
+      "path": "generated/poorcraft3d-key-glyphs-pack.png",
+      "use": "keycap and mouse prompt styling",
+      "entries": [
+        "w",
+        "a",
+        "s",
+        "d",
+        "space",
+        "shift",
+        "ctrl",
+        "tab",
+        "e",
+        "f",
+        "r",
+        "b",
+        "l",
+        "i",
+        "m",
+        "c",
+        "esc",
+        "q",
+        "hotbar_1_to_9",
+        "mouse_left",
+        "mouse_right",
+        "mouse_wheel",
+        "crosshair"
+      ]
+    },
+    "icons.actions": {
+      "path": "generated/poorcraft3d-action-icons-pack.png",
+      "use": "action and mode icons",
+      "entries": [
+        "build",
+        "mine",
+        "chop",
+        "pickaxe",
+        "attack",
+        "bow",
+        "shield",
+        "torch",
+        "campfire",
+        "bed",
+        "inventory",
+        "map",
+        "journal",
+        "save",
+        "load",
+        "settings",
+        "research",
+        "crafting",
+        "smelter",
+        "settlement",
+        "recruit",
+        "trade",
+        "magic",
+        "stealth",
+        "karma"
+      ]
+    },
+    "icons.resources": {
+      "path": "generated/poorcraft3d-resource-icons-pack.png",
+      "use": "inventory and crafting resources",
+      "entries": [
+        "wood",
+        "stone",
+        "clay",
+        "sand",
+        "coal",
+        "copper_ore",
+        "iron_ore",
+        "gold_ore",
+        "crystal",
+        "herb",
+        "berry",
+        "meat",
+        "leather",
+        "bone",
+        "water",
+        "resin",
+        "ember_core",
+        "mana_dust",
+        "gear",
+        "pipe",
+        "wire",
+        "valve",
+        "cell",
+        "steam_pressure",
+        "circuit_rune",
+        "ancient_relic",
+        "coin",
+        "town_supply"
+      ]
+    },
+    "ui.frames": {
+      "path": "generated/poorcraft3d-panel-frames-pack.png",
+      "use": "menus, panels, buttons, slots, minimap, toasts",
+      "entries": [
+        "title_panel",
+        "pause_panel",
+        "settings_panel",
+        "tooltip",
+        "inventory_slot",
+        "hotbar_slot_selected",
+        "hotbar_slot",
+        "minimap_frame",
+        "quest_tracker",
+        "toast",
+        "dialogue_box",
+        "button_normal",
+        "button_hover",
+        "button_pressed"
+      ]
+    },
+    "strategy.markers": {
+      "path": "generated/poorcraft3d-faction-strategy-pack.png",
+      "use": "factions, settlements, resource camps, realm state markers",
+      "entries": [
+        "forest_clan",
+        "mountain_forge",
+        "river_league",
+        "crypt",
+        "arcane_tower",
+        "desert_nomads",
+        "snowhold",
+        "swamp_alchemists",
+        "neutral_village",
+        "player_kingdom",
+        "raider_camp",
+        "dungeon",
+        "mine",
+        "lumber_camp",
+        "farm",
+        "watchtower",
+        "castle",
+        "shrine",
+        "portal",
+        "road_sign",
+        "town_growth",
+        "diplomacy",
+        "war",
+        "peace"
+      ]
+    }
+  }
+}

@@ -3247,3 +3247,22 @@ The simulation-only roadmap was declared complete; the visual reset
   spawn clearance, hillside carving, clean courtyard; gen v6).
 - 399 tests green (+12); 93/93 vistest scenes; smoke OK; runtimes
   rebuilt; pushed.
+
+## Loop 411 — Owner UI Asset Handoff
+- Expanded the POORCRAFT 3D owner-facing UI art pack with transparent PNG
+  concept sheets for HUD bars, control/key glyphs, action icons, resource
+  icons, menu/panel frames, and faction/strategy markers. The existing
+  owner-menu/docs/assets changes were kept, and the accidental Rust formatting
+  churn in untouched files was absent after cleanup.
+- Added `assets/UI-ASSET-IMPLEMENTATION-GUIDE.md` and
+  `assets/ui_asset_manifest.json` so future work knows how to turn the sheets
+  into runtime HUD/menu/key/icon assets without baking key labels, item counts,
+  or bar fill values into images. `pc3d_assets` now embeds the manifest and has
+  a guardrail test proving every referenced generated sheet exists.
+- Evidence: generated PNG alpha audit passed for all eight sheets; `pc3d_assets`
+  24/24; `pc3d_render owner` 3/3; `pc3d_render font` 4/4; POORCRAFT 3D release
+  build OK; `make p3d-dmg` rebuilt the macOS app/DMG after unsandboxed
+  `hdiutil`. Root `cargo test --workspace` required unsandboxed UDP permission
+  and then was manually interrupted after the unrelated
+  `wizard_towers_generate_in_gated_biomes` exhaustive worldgen scan ran silent
+  for several minutes.
