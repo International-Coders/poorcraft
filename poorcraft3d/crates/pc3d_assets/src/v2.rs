@@ -243,6 +243,20 @@ mod tests {
     }
 
     #[test]
+    fn variant_pack_validates_300_integrated_rows_on_disk() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .canonicalize()
+            .unwrap();
+        let pack = root.join("docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/variant_batch.json");
+        let m = load_pack(&pack, Some(&root.join("poorcraft3d"))).expect("pack validates");
+        assert!(m.assets.len() >= 300, "the owner-ordered batch ({})", m.assets.len());
+        for a in &m.assets {
+            assert!(a.id.contains("_v"), "{} is a variant", a.id);
+        }
+    }
+
+    #[test]
     fn settlement_pack_validates_with_files_on_disk() {
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../..")

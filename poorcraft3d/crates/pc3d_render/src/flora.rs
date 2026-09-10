@@ -580,6 +580,38 @@ impl FloraStreamer {
 // a solid plant blocks the meter around its trunk.
 // ---------------------------------------------------------------------------
 
+#[cfg(test)]
+mod variant_batch_tests {
+    /// THE VARIANT CONSUMER LAW: every one of the 300 generated variant
+    /// GLBs loads through the real loader with two LODs and real mesh
+    /// content — the batch is consumed, not decorative.
+    #[test]
+    fn every_variant_glb_loads_with_two_lods() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/compiled/flora");
+        let pack = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/variant_batch.json");
+        let text = std::fs::read_to_string(pack).expect("variant pack");
+        let ids: Vec<String> = text
+            .split("\u{22}id\u{22}:")
+            .skip(1)
+            .filter_map(|s| s.split('\u{22}').nth(1).map(|id| id.to_string()))
+            .collect();
+        assert!(ids.len() >= 300, "the pack lists 300+ ({})", ids.len());
+        let mut loaded = 0usize;
+        for id in &ids {
+            let path = root.join(format!("{}.glb", id.trim_start_matches("flora.")));
+            let asset = crate::glb::load_asset_file(&path)
+                .unwrap_or_else(|e| panic!("{} loads: {e}", id));
+            assert!(asset.lods.len() >= 2, "{id} has two LODs");
+            assert!(asset.lods[0].triangles() > 0, "{id} lod0 non-empty");
+            assert!(asset.lods[1].triangles() > 0, "{id} lod1 non-empty");
+            loaded += 1;
+        }
+        println!("variant batch: {loaded}/{} GLBs load with 2 LODs each", ids.len());
+    }
+}
+
 /// A collision adapter: another surface plus the wilderness trunks.
 /// The answer is derived from the AUTHORITY (never the render cache),
 /// so eviction/reload cannot ghost it — the law the walk test asserts.

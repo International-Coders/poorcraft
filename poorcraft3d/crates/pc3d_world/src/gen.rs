@@ -298,7 +298,12 @@ impl WorldGen {
     pub fn effective_surface_mm(&self, wx: i64, wz: i64) -> i64 {
         let base = self.surface_base_mm(wx, wz);
         let mask = self.cliff_mask(wx, wz);
-        if mask > 0.54 && base > 2_000 {
+        // THE TERRACING FIX (found by the screen height map): the old
+        // 0.54 mask threshold put ~40% of the world inside cliff bands —
+        // broad horizontal 4 m steps everywhere the height map exposed as
+        // repeating stripes. Terraces now survive only on RARE, strongly
+        // masked ground; ordinary terrain is the smooth fbm + detail.
+        if mask > 0.78 && base > 2_000 {
             (base as f64 / 4_000.0).floor() as i64 * 4_000
         } else {
             base + self.detail_mm(wx, wz)
@@ -790,5 +795,150 @@ mod tests {
             stepped < total,
             "a wall of steps everywhere is not terracing"
         );
+    }
+}
+
+#[cfg(test)]
+mod biome_behavior_tests {
+    use super::*;
+    use crate::coords::RegionCoord;
+
+    fn biome_at(g: &WorldGen, x: i64, z: i64) -> Biome {
+        g.biome(RegionCoord {
+            x: (x.div_euclid(256)) as i32,
+            z: (z.div_euclid(256)) as i32,
+        })
+    }
+
+    /// THE BIOME TABLE: every classification rule is asserted against a
+    /// synthetic macro field — one line per biome law.
+    #[test]
+    fn biome_classification_table_is_exact() {
+        let g = WorldGen::new(1);
+        let b = |e: i32, t: u8, h: u8| g.biome_of(&MacroField {
+            elevation_m: e,
+            temperature: t,
+            humidity: h,
+        });
+        assert_eq!(b(-5, 50, 50), Biome::Ocean, "below sea level is Ocean");
+        assert_eq!(b(1, 50, 50), Biome::Coast, "thin band above sea is Coast");
+        assert_eq!(b(128, 20, 50), Biome::SnowPeaks, "cold 128m+ is SnowPeaks");
+        assert_eq!(b(128, 40, 50), Biome::Mountains, "warm 128m+ is Mountains");
+        assert_eq!(b(100, 50, 50), Biome::Highlands, "72..127m is Highlands");
+        assert_eq!(b(10, 50, 90), Biome::Wetland, "humid lowland is Wetland");
+        assert_eq!(b(30, 50, 60), Biome::Forest, "humidity>=55 is Forest");
+        assert_eq!(b(30, 50, 40), Biome::Plains, "dry lowland is Plains");
+    }
+
+    #[test]
+    fn biome_lookup_is_deterministic_and_seed_varied() {
+        let a = WorldGen::new(4242);
+        let b = WorldGen::new(4242);
+        let c = WorldGen::new(7);
+        for r in -20..20i32 {
+            let reg = RegionCoord { x: r, z: -r };
+            assert_eq!(a.biome(reg), b.biome(reg), "same seed agrees at {reg:?}");
+        }
+        let mut diff = 0;
+        for r in -30..30i32 {
+            let reg = RegionCoord { x: r, z: r };
+            if a.biome(reg) != c.biome(reg) {
+                diff += 1;
+            }
+        }
+        assert!(diff > 10, "seeds vary the biome map ({diff})");
+    }
+
+    /// A wide sweep must find at least 5 distinct biomes — the world is
+    /// varied, not one giant plains.
+    #[test]
+    fn the_world_spans_many_biomes() {
+        let g = WorldGen::new(2024);
+        let mut seen = std::collections::BTreeSet::new();
+        for x in -80..80i32 {
+            for z in -80..80i32 {
+                seen.insert(biome_at(&g, x as i64 * 256, z as i64 * 256));
+            }
+        }
+        assert!(seen.len() >= 5, "biome diversity ({:?})", seen);
+    }
+
+    /// Biome drives the water law: Ocean/Coast regions sit at/below the
+    /// sea band; Highlands+ sit high — the elevation contract behind
+    /// rivers and coasts.
+    #[test]
+    fn biome_elevations_follow_their_band_contract() {
+        let g = WorldGen::new(11);
+        let mut checked = 0;
+        for x in -60..60i32 {
+            for z in -60..60i32 {
+                let reg = RegionCoord { x, z };
+                let f = g.macro_field(reg);
+                match g.biome(reg) {
+                    Biome::Ocean => assert!(f.elevation_m < 8, "ocean low"),
+                    Biome::SnowPeaks | Biome::Mountains => assert!(f.elevation_m >= 128),
+                    Biome::Highlands => assert!(f.elevation_m >= 72 && f.elevation_m < 128),
+                    _ => {}
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked > 1000);
+    }
+
+    /// The flora authority obeys biomes (NWR-007): forest is treed,
+    /// plains grassy, mountains rocky, ocean empty.
+    #[test]
+    fn biomes_drive_flora_character() {
+        use crate::flora::{self, PlantKind, SlotCoord};
+        let g = WorldGen::new(2024);
+        // Find one region of each target biome by scanning.
+        let mut by: std::collections::BTreeMap<Biome, RegionCoord> = Default::default();
+        'find: for ring in 0..200i32 {
+            for dx in -ring..=ring {
+                for dz in -ring..=ring {
+                    if dx.abs() != ring && dz.abs() != ring {
+                        continue;
+                    }
+                    let reg = RegionCoord { x: dx, z: dz };
+                    by.entry(g.biome(reg)).or_insert(reg);
+                    if by.len() >= 7 {
+                        break 'find;
+                    }
+                }
+            }
+        }
+        let sample = |reg: RegionCoord| {
+            let (mut trees, mut grass, mut rocks) = (0, 0, 0);
+            for dx in 0..64i32 {
+                for dz in 0..64i32 {
+                    let slot = SlotCoord { x: reg.x * 64 + dx, z: reg.z * 64 + dz };
+                    match flora::plant_at(&g, slot).map(|p| p.kind) {
+                        Some(k) if matches!(k, PlantKind::RockBoulder | PlantKind::RockSpire | PlantKind::RockSlab) => rocks += 1,
+                        Some(PlantKind::Log) => {}
+                        Some(PlantKind::Grass) => grass += 1,
+                        Some(k) if k.blocks_movement() => trees += 1,
+                        _ => {}
+                    }
+                }
+            }
+            (trees, grass, rocks)
+        };
+        for (biome, reg) in &by {
+            let (t, gr, r) = sample(*reg);
+            match biome {
+                Biome::Ocean => assert_eq!((t, gr, r), (0, 0, 0), "ocean empty"),
+                Biome::Forest => assert!(t > 20, "forest treed ({t})"),
+                Biome::Plains => assert!(gr > 100, "plains grassy ({gr})"),
+                // Terracing-free smoother slopes now allow rare mountain
+                // grass — the LAW is rocky dominance, not zero grass.
+                Biome::Mountains | Biome::SnowPeaks => {
+                    assert!(r > 0, "rocky ({r})");
+                    assert!(r > t, "rocks dominate trees ({r} vs {t})");
+                    assert!(gr == 0, "no grass in the heights ({gr})");
+                }
+                _ => {}
+            }
+        }
     }
 }

@@ -42,6 +42,8 @@ struct EnvGpu {
     params1: [f32; 4],
     /// x glint on, y shadow bias, z detail scale, w shadow res
     params2: [f32; 4],
+    /// x = the SCREEN HEIGHT MAP debug flag (world-height ramp output).
+    params3: [f32; 4],
 }
 
 /// The instanced wilderness pipelines (NWR-007) — one draw per
@@ -641,6 +643,8 @@ pub struct Renderer {
     crowd: Option<CrowdGpu>,
     /// The crowd's pose update rate (Hz) — the Deck Low lever.
     crowd_pose_hz: f32,
+    /// SCREEN HEIGHT MAP debug: fragments output a world-height ramp.
+    height_debug: bool,
     /// The crowd's authority inputs (gen + cast + nav), for per-frame
     /// poses and schedule ticks.
     crowd_gen: Option<std::rc::Rc<pc3d_world::gen::WorldGen>>,
@@ -787,6 +791,7 @@ impl Renderer {
             crowd_cast: None,
             crowd_nav: None,
             crowd_pose_hz: 60.0,
+            height_debug: false,
             construction: None,
             terrain: None,
             streamer: None,
@@ -872,6 +877,7 @@ impl Renderer {
             crowd_cast: None,
             crowd_nav: None,
             crowd_pose_hz: 60.0,
+            height_debug: false,
             construction: None,
             terrain: None,
             streamer: None,
@@ -1095,6 +1101,13 @@ impl Renderer {
         if let (Some(cast), Some(nav)) = (self.crowd_cast.clone(), self.crowd_nav.as_ref()) {
             crate::npcs::advance(&mut cast.borrow_mut(), nav, day_fraction, ticks);
         }
+    }
+
+    /// The SCREEN HEIGHT MAP mode: every world fragment outputs a
+    /// world-height ramp instead of its lit color — a per-pixel map of
+    /// WHAT IS SHOWN, for inspecting terrain shape, LOD seams, and holes.
+    pub fn set_height_debug(&mut self, on: bool) {
+        self.height_debug = on;
     }
 
     /// The Deck Low lever: gate the rig's pose updates to N Hz (the
@@ -1710,6 +1723,7 @@ impl Renderer {
                 atm.detail_scale,
                 atm.shadow_res as f32,
             ],
+            params3: [if self.height_debug { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
         };
         self.ctx
             .queue

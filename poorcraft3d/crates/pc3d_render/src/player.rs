@@ -360,13 +360,25 @@ mod look_tests {
         // The sprint law's other half: SPRINT_SPEED > WALK_SPEED, and
         // walk_on_speed honors it on a flat authority surface.
         assert!(SPRINT_SPEED > WALK_SPEED * 1.4, "sprint is meaningfully faster");
+        // On the (post-terracing-fix) natural ground, walls can block
+        // either body differently — the LAW is proven on a synthetic
+        // flat surface: same flat ground, sprint covers strictly more
+        // distance in the same time.
+        struct Flat;
+        impl crate::player::CollisionSurface for Flat {
+            fn ground_at(&self, _g: &pc3d_world::gen::WorldGen, _x: f32, _z: f32, _y: f32) -> Option<f32> {
+                Some(10.0)
+            }
+            fn cell_solid(&self, _g: &pc3d_world::gen::WorldGen, _x: i32, _y: i32, _z: i32) -> bool {
+                false
+            }
+        }
         let gen = pc3d_world::gen::WorldGen::new(22);
-        let ground_y = gen.effective_surface_mm(0, 0) as f32 / 1000.0;
-        let mut walker = PlayerBody { pos: [0.5, ground_y, 0.5], yaw: 0.0, pitch: 0.0 };
+        let mut walker = PlayerBody { pos: [0.5, 10.0, 0.5], yaw: 0.0, pitch: 0.0 };
         let mut sprinter = walker;
         for _ in 0..120 {
-            walker.walk(&gen, 1.0, 0.0, 1.0 / 60.0);
-            sprinter.walk_on_speed(&gen, &AuthorityGround, 1.0, 0.0, 1.0 / 60.0, SPRINT_SPEED);
+            walker.walk_on_speed(&gen, &Flat, 1.0, 0.0, 1.0 / 60.0, WALK_SPEED);
+            sprinter.walk_on_speed(&gen, &Flat, 1.0, 0.0, 1.0 / 60.0, SPRINT_SPEED);
         }
         assert!(
             sprinter.pos[2] < walker.pos[2] - 1.0,

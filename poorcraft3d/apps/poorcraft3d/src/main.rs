@@ -3841,6 +3841,83 @@ fn main() {
             std::fs::create_dir_all(&out_dir).expect("mkdir shots");
             run_ui_shots(&out_dir);
         }
+        Some("--screen-heightmap") => {
+            // The SCREEN HEIGHT MAP: one live view rendered as a
+            // world-height ramp (blue low -> green mid -> brown high ->
+            // white peaks) — a per-pixel map of WHAT IS SHOWN, for
+            // inspecting terrain shape, LOD seams, and holes.
+            let out = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(std::path::Path::new(&out).parent().unwrap_or(std::path::Path::new(".")))
+                .expect("mkdir");
+            let (seed, scene) = pc3d_render::slice::find_showcase(3);
+            let scene = std::rc::Rc::new(scene);
+            let save_root = std::rc::Rc::new(
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
+            );
+            let scene_cap = scene.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — screen height map".into(),
+                logical_size: (1280.0, 720.0),
+                max_frames: Some(60),
+                probe_set: pc3d_render::ProbeSet::SkyOnly,
+                resize_to: None,
+                slice_setup: Some(pc3d_render::app::SliceSetup {
+                    seed,
+                    rebuild: true,
+                    scene,
+                    save_root,
+                    world_name: "heightmap".into(),
+                }),
+                owner_menu: false,
+                shots: vec![pc3d_render::Shot::new(
+                    40,
+                    format!("{out}"),
+                )],
+                frame_hooks: vec![(
+                    10,
+                    Box::new(move |r: &mut pc3d_render::Renderer| {
+                        r.set_height_debug(true);
+                        // A high vantage over the route for a wide map.
+                        let spawn = pc3d_render::slice::spawn_player(&scene_cap);
+                        let g = scene_cap.gen;
+                        let gy = g.effective_surface_mm(
+                            ((spawn.pos[0] + 40.0) * 1000.0) as i64,
+                            ((spawn.pos[2] + 40.0) * 1000.0) as i64,
+                        ) as f32
+                            / 1000.0;
+                        let eye = [spawn.pos[0] + 40.0, gy + 30.0, spawn.pos[2] + 40.0];
+                        let d = [
+                            spawn.pos[0] - eye[0],
+                            gy - eye[1],
+                            spawn.pos[2] - eye[2],
+                        ];
+                        r.set_pose(pc3d_render::CameraPose::new(
+                            eye,
+                            (-d[0]).atan2(-d[2]),
+                            (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                        ));
+                    }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                )],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    println!(
+                        "SCREEN HEIGHT MAP -> {} ({}x{})",
+                        out,
+                        report.final_physical.0,
+                        report.final_physical.1
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some("--ui-inspect") => {
             // GLM UI rework UI-007: the local JSON inspector. Argument is a
             // JSON command object (or @file). Runs a live windowed session,

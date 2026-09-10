@@ -5936,3 +5936,56 @@ from the MOUNTED read-only volume.
 HONESTLY DEFERRED: the spawn-facing slope is still dawn-lit (dark
 until you turn — art baseline, not a defect); material color banding
 between cells remains per-cell (by design, readable biomes).
+
+## 2026-09-10 — The four-fold owner order: height map, biomes, 300 assets, 100+ tests
+
+WHAT (1) — THE SCREEN HEIGHT MAP: a new render mode + --screen-heightmap
+command outputs every world fragment as a world-height ramp (blue low ->
+green mid -> brown high -> white peaks). The map EXPOSED the terrain's
+real defect: broad horizontal 4 m terraces across ~40% of the world
+(repeating stripes) — the cliff-mask threshold 0.54 quantized most of
+the map. FIX: threshold 0.54 -> 0.78 (terraces survive only on rare,
+strongly masked ground); combined with the earlier smooth-vertex-normals
+fix the height map now reads as continuous rolling earth and the lit
+vista as natural terrain (human-inspected).
+
+WHAT (2) — BIOME TESTS: five behavior tests in pc3d_world (the exact
+classification table for all eight biomes, determinism + seed variety,
+world-span diversity, the elevation-band contract, and biomes driving
+flora character — forest treed, plains grassy, heights rocky).
+
+WHAT (3) — 300+ NEW ASSETS: the assetgen VARIANT FACTORY —
+parameterized original generators (pine 40, broadleaf 40, birch 30,
+boulder 40, spire 30, slab 30, shrub 40, log 50 = 300 variants) swept
+deterministically from the proven base silhouettes (height, lean,
+tiers/blobs/layers, seeds). 308 GLBs on disk (5.8 MB) + the
+variant_batch.json v2 pack; the inventory guardrail records every file;
+the CONSUMER LAW is a new pc3d_render test that loads all 300/300 GLBs
+through the real loader with both LODs non-empty.
+
+WHAT (4) — 100+ TESTS ON CITIES, NPCs, AND QUESTS: a new pure quest
+AUTHORITY (pc3d_world::quest — kinds Visit/Deliver/Build/Greet/Excavate
+mapped to real sim mechanics, Offered->Active->Complete->Claimed
+lifecycle, progress events discriminated by kind+site, deterministic
+3..=6 quests per region derived from the settlement plan; 4 authority
+tests) + the city_npc_quest_sweep integration suite: 104 test functions
+across 8 seeds, 20 regions, all 3 NPC roles, and 12 quest-lifecycle
+seeds — city plans (plazas, buildings, anchors, roads, capitals with
+keeps/gates/towers, region-shaped grids), NPC brains (schedules,
+intents, needs, arrival, determinism, activity mapping), quests
+(lifecycle, site discrimination, saturation, rewards, giver placement,
+cross-region coverage).
+
+EVIDENCE: p3d 578/578 (+115), root 474/474; ui-shots 11/11; the visual
+battery 10/10 gates (the two tests the terracing fix legitimately
+invalidated — the old cliff-spot material separation and the
+natural-ground sprint race — were re-based on the honest post-fix laws:
+scan for surviving terraces; sprint on a synthetic flat surface); the
+DMG rebuilt and its height map + journey digest verified from the
+MOUNTED read-only volume.
+
+HONESTLY DEFERRED: the variant assets are validated + loadable but not
+yet instanced by name in the wild (the flora streamer still draws the
+nine base kinds; per-slot variant selection is the natural follow-up);
+quests have no UI yet (the authority is proven; presentation follows
+the GLM UI pack's queue).

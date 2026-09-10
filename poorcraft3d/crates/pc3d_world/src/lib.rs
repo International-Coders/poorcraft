@@ -43,6 +43,7 @@ pub mod magic;
 pub mod nav;
 pub mod npc;
 pub mod npc_death;
+pub mod quest;
 pub mod nuclear;
 pub mod oversight;
 pub mod perception;

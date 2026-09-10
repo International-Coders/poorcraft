@@ -35,7 +35,22 @@ struct Env {
     params1: vec4f,
     // x glint on, y shadow bias, z detail scale (uv/m), w shadow res (px)
     params2: vec4f,
+    // x = the SCREEN HEIGHT MAP debug flag
+    params3: vec4f,
 };
+
+/// The height-ramp debug output (screen height map): blue low, green
+/// mid, brown high, white peaks — 96 m full scale.
+fn height_ramp(world_y: f32) -> vec3f {
+    let h = clamp(world_y / 96.0, 0.0, 1.0);
+    if h < 0.33 {
+        return mix(vec3f(0.10, 0.15, 0.55), vec3f(0.15, 0.55, 0.35), h / 0.33);
+    }
+    if h < 0.66 {
+        return mix(vec3f(0.15, 0.55, 0.35), vec3f(0.55, 0.42, 0.25), (h - 0.33) / 0.33);
+    }
+    return mix(vec3f(0.55, 0.42, 0.25), vec3f(0.95, 0.95, 0.95), (h - 0.66) / 0.34);
+}
 
 @group(0) @binding(3) var<uniform> env: Env;
 @group(0) @binding(4) var shadow_sampler: sampler_comparison;
@@ -178,6 +193,9 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
 
 @fragment
 fn fs_mesh(in: MeshOut) -> @location(0) vec4f {
+    if env.params3.x > 0.5 {
+        return vec4f(height_ramp(in.world.y), 1.0);
+    }
     let n = normalize(in.normal);
     var sun = max(dot(n, globals.sun_dir.xyz), 0.0);
     // Sun shadows (NWR-006): normal-offset the lookup, keep a soft 35%
@@ -275,6 +293,9 @@ fn fs_cutout(in: CutoutOut) -> @location(0) vec4f {
     // alpha blend — Deck-cheap and order-independent).
     let m = textureSample(mask_texture, mask_sampler, in.uv).a;
     if m < 0.5 { discard; }
+    if env.params3.x > 0.5 {
+        return vec4f(height_ramp(in.world.y), 1.0);
+    }
     let n = normalize(in.normal);
     var sun = max(dot(n, globals.sun_dir.xyz), 0.0);
     if sun > 0.0 {
