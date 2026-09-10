@@ -350,9 +350,13 @@ impl SurfacePatch {
                 idx.extend_from_slice(&[i00, i11, i10, i00, i01, i11]);
             }
         }
-        // Flat facet normals: compute per triangle and write to its verts
-        // (vertices are shared only per quad pair — acceptable facet look;
-        // per-triangle normals would need unshared verts, doubling them).
+        // SMOOTH vertex normals (the terrain-quality fix): accumulate every
+        // adjacent face's normal onto each shared grid vertex, then
+        // normalize. The flat-facet shading produced harsh irregular
+        // banding across the TIN quads — the owner read it as broken
+        // terrain ("cut diagonally"); smooth normals keep the low-poly
+        // silhouette but shade the ground as continuous earth.
+        let mut acc = vec![[0.0f32; 3]; verts.len()];
         for t in idx.chunks(3) {
             let a = verts[t[0] as usize].pos;
             let b = verts[t[1] as usize].pos;
@@ -364,11 +368,16 @@ impl SurfacePatch {
                 e1[2] * e2[0] - e1[0] * e2[2],
                 e1[0] * e2[1] - e1[1] * e2[0],
             ];
-            let l = n.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-9);
-            let n = [n[0] / l, n[1] / l, n[2] / l];
             for vi in t {
-                verts[*vi as usize].normal = n;
+                let av = &mut acc[*vi as usize];
+                av[0] += n[0];
+                av[1] += n[1];
+                av[2] += n[2];
             }
+        }
+        for (v, a) in verts.iter_mut().zip(acc.iter()) {
+            let l = a.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-9);
+            v.normal = [a[0] / l, a[1] / l, a[2] / l];
         }
         (verts, idx)
     }

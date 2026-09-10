@@ -5907,3 +5907,32 @@ overrides (how arbitrary window sizes are reproduced).
 
 HONESTLY DEFERRED: fractional dpi (1.5x) rounds the font multiplier —
 rects scale exactly, glyphs round to the nearest integer scale.
+
+## 2026-09-10 — The terrain-quality fix (owner evidence pass)
+
+WHAT: The owner asked for screenshots to SEE the state ("menus cut
+diagonally AND the terrain is NOT good"). Fresh captures at the live
+window size (2560x1440, the Retina physical of the default logical
+1280x720) and several odd sizes showed: (1) the MENUS ARE CLEAN after
+the f5d75b6 fixes — full-size, centered, no diagonal tearing at any
+tested size; (2) the owner is RIGHT about the terrain — the surface
+path's FLAT FACET NORMALS produced harsh irregular banding across the
+TIN quads, reading as broken "diagonally cut" ground rather than
+intentional low-poly style (the gameplay captures showed the ugly
+faceting plainly).
+
+FIX: SurfacePatch::mesh now accumulates every adjacent face normal
+onto each shared grid vertex and normalizes — SMOOTH VERTEX NORMALS.
+The low-poly silhouette is unchanged (same triangles), but the ground
+shades as continuous earth: the after-capture at the same vantage
+shows rolling light with the standing stone and trees sitting
+naturally — a night-and-day improvement, human-inspected.
+
+EVIDENCE: before/after gameplay captures at 2560x1440; surface tests
+18/18; p3d 463/463; root 474/474; ui-shots 11/11; 10/10 gates; the
+DMG rebuilt with the same terrain capture + journey digest verified
+from the MOUNTED read-only volume.
+
+HONESTLY DEFERRED: the spawn-facing slope is still dawn-lit (dark
+until you turn — art baseline, not a defect); material color banding
+between cells remains per-cell (by design, readable biomes).
