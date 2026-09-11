@@ -683,6 +683,18 @@ fn button_state(state: &UiState, id: &str, index: usize, total_focusables: usize
     }
 }
 
+/// The source revision this binary was built from — stamped by
+/// `make p3d-dmg` (PC3D_BUILD); local/test builds say "dev". Every build
+/// must identify itself on the title screen: an owner kept playing a
+/// pre-fix binary because a stale mounted DMG volume looked identical to
+/// the fresh one (same crate version, same volume name).
+pub fn build_stamp() -> &'static str {
+    match option_env!("PC3D_BUILD") {
+        Some(hash) => hash,
+        None => "dev",
+    }
+}
+
 /// Builds the draw list for the current state at a physical target size.
 /// Pure: same state + size, same list.
 pub fn build(state: &UiState, w: u32, h: u32) -> DrawList {
@@ -715,7 +727,11 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             let logo_h = lh as i32 + 10;
             let logo_y = safe_y(hi, (hi as f32 * 0.16) as i32, logo_h + 8);
             ctx.push("title_logo", ElementKind::Logo, Rect::new(cx - lw as i32 / 2 - 30, logo_y, lw + 60, logo_h as u32));
-            let sub = format!("3D · OWNER ALPHA · BUILD {}", env!("CARGO_PKG_VERSION"));
+            let sub = format!(
+                "3D · OWNER ALPHA · BUILD {} {}",
+                env!("CARGO_PKG_VERSION"),
+                build_stamp()
+            );
             let (sw, _) = font::text_size(&sub, 2);
             ctx.text("title_sub", &sub, cx - sw as i32 / 2, logo_y + logo_h + 6, 2);
 
@@ -2114,6 +2130,46 @@ mod tests {
     }
 
     #[test]
+    fn title_canvas_has_no_row_shear_at_unaligned_widths() {
+        // The diagonal cut only appeared at target widths whose 4-byte
+        // row pitch is NOT 256-aligned (the classic proof widths
+        // 1280/2560 were accidentally aligned, hiding the bug). The law:
+        // the painted canvas itself must show zero row drift at such
+        // widths, at 1x and at 2x Retina.
+        let s = state(Screen::Title);
+        for (w, h, dpi) in [(1501u32, 801u32, 1.0f32), (3024u32, 1964u32, 2.0f32)] {
+            let list = build_dpi(&s, w, h, dpi);
+            let canvas = paint(&list);
+            let (median, mode) = row_shear_metrics(&canvas, w, h);
+            assert_eq!(
+                median, 0.0,
+                "{w}x{h}@{dpi}: canvas rows drift {median:+}px/row — diagonal cut regression"
+            );
+            assert!(
+                mode <= 0.25,
+                "{w}x{h}@{dpi}: one nonzero shift owns {}% of rows — diagonal cut regression",
+                mode * 100.0
+            );
+        }
+    }
+
+    #[test]
+    fn build_stamp_never_empty_and_shown_on_title() {
+        // Every binary must identify itself: the title subtitle carries
+        // the stamp (`make p3d-dmg` bakes the git hash; "dev" locally),
+        // so a stale mounted DMG can never masquerade as a fresh build.
+        assert!(build_stamp().len() >= 3);
+        let s = state(Screen::Title);
+        let list = build(&s, 1280, 720);
+        let sub = list.by_id("title_sub").expect("title subtitle element");
+        let canvas = paint(&list);
+        assert!(
+            ink_px(&canvas, 1280, sub.rect) > 0,
+            "title subtitle painted no ink"
+        );
+    }
+
+    #[test]
     fn focused_state_paints_differently_from_normal() {
         let mut a = state(Screen::Title);
         a.focus = 0;
@@ -2451,6 +2507,73 @@ pub struct SceneExpectation {
     pub forbidden_kinds: &'static [&'static str],
 }
 
+/// Row-shear metrics for a straight-alpha RGBA image: (median best shift
+/// between adjacent rows in px/row, fraction of structured rows sharing
+/// the single most common NONZERO shift). A row-pitch mismatch anywhere
+/// in the pixel path (canvas paint, texture upload, blit, readback)
+/// displaces every row by a CONSTANT and tears the image along a
+/// diagonal — the owner's "menus cut in half" bug class. That bug shows
+/// as a nonzero median (the constant dominates). Noisy-but-healthy
+/// content (dark terrain shot straight down) scatters a minority of rows
+/// over ±1..2px with the median still 0 — so the second number only
+/// convicts when ONE nonzero shift owns a large share of rows.
+pub fn row_shear_metrics(rgba: &[u8], w: u32, h: u32) -> (f32, f32) {
+    let w = w as usize;
+    let h = h as usize;
+    if w < 128 || h < 8 || rgba.len() < w * h * 4 {
+        return (0.0, 0.0);
+    }
+    let lum = |x: usize, y: usize| -> f32 {
+        let i = (y * w + x) * 4;
+        0.299 * rgba[i] as f32 + 0.587 * rgba[i + 1] as f32 + 0.114 * rgba[i + 2] as f32
+    };
+    const RANGE: usize = 32;
+    let x_lo = RANGE + 1;
+    let x_hi = w.saturating_sub(RANGE + 2).max(x_lo + 1);
+    let mut bests: Vec<i32> = Vec::new();
+    for y in (0..h - 1).step_by(4) {
+        let mut best = 0i32;
+        let mut best_score = -1f32;
+        for s in -(RANGE as i32)..=(RANGE as i32) {
+            let mut num = 0f32;
+            let mut ea = 0f32;
+            let mut eb = 0f32;
+            for x in (x_lo..x_hi).step_by(2) {
+                let ga = (lum(x + 1, y) - lum(x - 1, y)).abs();
+                let xb = x as i32 + s;
+                let gb = (lum((xb + 1) as usize, y + 1) - lum((xb - 1) as usize, y + 1)).abs();
+                num += ga * gb;
+                ea += ga * ga;
+                eb += gb * gb;
+            }
+            let score = num / (ea * eb).sqrt().max(1e-9);
+            if score > best_score {
+                best_score = score;
+                best = s;
+            }
+        }
+        // Only rows with real structure (edges/text) discriminate; flat
+        // sky rows align with everything.
+        if best_score > 0.5 {
+            bests.push(best);
+        }
+    }
+    if bests.is_empty() {
+        return (0.0, 0.0);
+    }
+    bests.sort_unstable();
+    let median = bests[bests.len() / 2] as f32;
+    let mut mode_nonzero = 0usize;
+    for &s in &bests {
+        if s == 0 {
+            continue;
+        }
+        let n = bests.iter().filter(|&&b| b == s).count();
+        mode_nonzero = mode_nonzero.max(n);
+    }
+    (median, mode_nonzero as f32 / bests.len() as f32)
+}
+
 /// Verifies a `--ui-shots` run: per-capture nonblank/UI presence, safe
 /// margins + no interactive overlaps from each layout dump, required ink,
 /// focused-state distinctness, and bar-fill reality. Returns a human-
@@ -2473,6 +2596,21 @@ pub fn verify_ui_captures(
         // 1. Nonblank world/UI frame.
         if cap.report.distinct_colors < 30 {
             return Err(format!("{scene}: blank frame ({} distinct colors)", cap.report.distinct_colors));
+        }
+        // 1b. Row-shear law (the diagonal-cut bug class): the presented
+        //     frame must not drift row-to-row. Runs on the composited
+        //     readback, so the canvas paint, texture upload, blit and
+        //     capture pitches are ALL covered — the original bug hid from
+        //     proofs whose widths were accidentally 256-aligned. A pitch
+        //     bug = nonzero MEDIAN drift or one nonzero shift owning a
+        //     large share of structured rows; healthy noise scatters.
+        let (shear, mode_nonzero) =
+            row_shear_metrics(&cap.rgba, cap.report.width, cap.report.height);
+        if shear != 0.0 || mode_nonzero > 0.25 {
+            return Err(format!(
+                "{scene}: row shear detected (median {shear:+.0}px/row, dominant nonzero shift on {}% of rows) — pitch/alignment regression",
+                mode_nonzero * 100.0
+            ));
         }
         // 2. The UI canvas was present and blended.
         let Some((canvas, cw, _ch)) = &cap.ui_canvas else {
@@ -2563,7 +2701,7 @@ pub fn verify_ui_captures(
             }
         }
         lines.push(format!(
-            "  {scene}: {} distinct colors, {} ui elements, {} blended px — OK",
+            "  {scene}: {} distinct colors, {} ui elements, {} blended px, no row shear — OK",
             cap.report.distinct_colors,
             elements.len(),
             blended_px(canvas)

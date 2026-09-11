@@ -4086,6 +4086,18 @@ fn ui_shots_expectations() -> Vec<pc3d_render::ui::SceneExpectation> {
             required_elements: &["btn_play", "btn_quit", "title_logo"],
             forbidden_kinds: &["debug"],
         },
+        SceneExpectation {
+            id: "ui_gameplay_hud_1501x801",
+            required_elements: &[
+                "crosshair", "bar_health", "bar_stamina", "bar_food", "hotbar_0", "prompt",
+            ],
+            forbidden_kinds: &["debug"],
+        },
+        SceneExpectation {
+            id: "ui_title_1501x801",
+            required_elements: &["btn_play", "btn_new_world", "btn_settings", "btn_quit", "title_logo", "title_sub"],
+            forbidden_kinds: &["debug"],
+        },
     ]
 }
 
@@ -4218,6 +4230,24 @@ fn run_ui_shots(out_dir: &str) {
                 ctx.actions.push(UiAction::OpenScreen(Screen::Title));
             }),
         ),
+        // The unaligned-width leg: 1501x801 has a row pitch that is NOT
+        // 256-aligned (1280/2560 were accidentally aligned, hiding the
+        // original diagonal cut). Gameplay HUD + title must render there,
+        // and the row-shear law in verify_ui_captures holds the whole
+        // pixel path (paint -> upload -> blit -> readback) to zero drift.
+        (
+            400,
+            Box::new(|ui, _r, ctx| {
+                ui.debug_overlay = false; // the 300-step toggled it on
+                ctx.actions.push(UiAction::StartPlaying);
+            }),
+        ),
+        (
+            445,
+            Box::new(|_ui, _r, ctx| {
+                ctx.actions.push(UiAction::OpenScreen(Screen::Title));
+            }),
+        ),
     ];
 
     let cfg = pc3d_render::WindowConfig {
@@ -4225,7 +4255,7 @@ fn run_ui_shots(out_dir: &str) {
         logical_size: (1280.0, 720.0),
         size_is_physical: true,
         resize_to: None,
-        resize_script: vec![(335, (1280.0, 800.0))],
+        resize_script: vec![(335, (1280.0, 800.0)), (390, (1501.0, 801.0))],
         max_frames: Some(600),
         probe_set: pc3d_render::ProbeSet::SkyOnly,
         camera_script: vec![
@@ -4245,6 +4275,8 @@ fn run_ui_shots(out_dir: &str) {
             shot(285, "ui_modal_confirm"),
             shot(315, "ui_debug_inspector"),
             shot(375, "ui_title_deck"),
+            shot(430, "ui_gameplay_hud_1501x801"),
+            shot(480, "ui_title_1501x801"),
         ],
         slice_setup: Some(pc3d_render::app::SliceSetup {
             seed,
@@ -4265,7 +4297,7 @@ fn run_ui_shots(out_dir: &str) {
                 Ok(lines) => {
                     println!("UI SCENE CHECKS PASS:");
                     println!("{lines}");
-                    println!("UI SHOTS PASS -> {out_dir} (11 captures + layout dumps)");
+                    println!("UI SHOTS PASS -> {out_dir} (13 captures + layout dumps, incl. unaligned 1501x801 + row-shear law)");
                 }
                 Err(e) => {
                     eprintln!("[FAIL] UI scene checks: {e}");

@@ -3306,3 +3306,23 @@ The simulation-only roadmap was declared complete; the visual reset
   `make p3d-rebuild OUTDIR=poorcraft3d/apps/poorcraft3d/shots/glm_ui_baseline`
   but it stalled before PNG output and was interrupted; JSON validation passed;
   `pc3d_assets` 25/25; POORCRAFT 3D release build OK.
+
+## Loop 414 — Build identity + row-shear law (the stale-volume fix)
+- The owner kept seeing the diagonal menu cut although the fix shipped in
+  every DMG: `/Volumes/POORCRAFT 3D` was a stale mount from one minute
+  before the fix commit, and rebuilt DMGs reused the volume name (fresh
+  mounts collided as "POORCRAFT 3D 1"). Both stale volumes ejected.
+- Builds are now self-identifying: the title subtitle reads
+  `3D · OWNER ALPHA · BUILD <version> <git-hash>` (`ui::build_stamp`,
+  baked from `PC3D_BUILD` by `make p3d-dmg`; "dev" locally) and the DMG
+  volume is named `POORCRAFT3D-<hash>` — a stale mount can never
+  masquerade as a fresh build again. PLAY.md documents how to verify.
+- The ui-shots gate covers the bug's hiding place: proof widths were all
+  accidentally 64-px aligned. The harness now resizes to 1501x801
+  mid-run and captures the HUD + title there (13 captures), and every
+  capture must pass a row-shear law (adjacent-row cross-correlation on
+  the composited readback: zero median drift, no dominant nonzero shift).
+- Evidence: ui-shots 13/13 with "no row shear" on every capture; the
+  mounted DMG binary measured on the real screen at 1280/1501 across
+  title/gameplay/pause (median +0.0px); journey digest 7ab2295dafa0ec24
+  from the mounted volume; p3d 580/580, root green.

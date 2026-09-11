@@ -5989,3 +5989,73 @@ yet instanced by name in the wild (the flora streamer still draws the
 nine base kinds; per-slot variant selection is the natural follow-up);
 quests have no UI yet (the authority is proven; presentation follows
 the GLM UI pack's queue).
+
+## 2026-09-10 — The stale-volume root cause: builds are self-identifying + the row-shear law
+
+WHAT (owner order: "play the game again and really test the screen — the
+menus are still cut in half diagonally, and you keep telling me you fixed
+it"): reproduced on the REAL screen, found the actual reason the owner
+kept seeing the cut, fixed the artifact-identity failure that allowed it,
+and closed the proof blind spot that let the original bug hide.
+
+HOW:
+- REPRODUCTION (real screen, not readback): launched the current release
+  binary windowed; resized the live window through widths 1000/1501/1512/
+  1777/1024 (1501/1777/1000 have 4-byte row pitch NOT 256-aligned — the
+  exact failure mode; the machine's displays are 1x so physical = logical)
+  and drove the UI through title/focus/new-world/Esc/gameplay; photographed
+  the composited display with screencapture and measured shear objectively
+  (a small Python adjacent-row gradient cross-correlation analyzer,
+  /tmp/shear.py): median row drift +0.0px, frac 0.01-0.10 at EVERY width
+  and state. The shipped binary is shear-free. The DMG binary is
+  byte-identical to target/release (sha256 0f31c20b...).
+- ROOT CAUSE: /Volumes/"POORCRAFT 3D" was a stale DMG mount from
+  Sep 9 15:03 — the diagonal-cut fix committed at 15:04:20, ONE MINUTE
+  later. hdiutil create -ov overwrites the DMG FILE but the mounted
+  snapshot stays; because every rebuild reused the volume name
+  "POORCRAFT 3D", fresh mounts collided as "POORCRAFT 3D 1" while the
+  owner double-clicked the old no-suffix volume (its app: POORCRAFT3D.app,
+  sha256 716d063a... = the pre-fix binary). So every fix shipped, and the
+  owner kept playing the game from before all of them.
+- FIX 1: both stale volumes ejected (hdiutil detach; /Volumes now clean).
+- FIX 2 (builds self-identify): ui.rs build_stamp() bakes PC3D_BUILD
+  (git short hash; "dev" for local builds) into the title subtitle
+  "3D · OWNER ALPHA · BUILD <version> <hash>"; make p3d-dmg passes
+  PC3D_BUILD=$(git rev-parse --short HEAD) AND stamps the DMG volume name
+  POORCRAFT3D-<hash> — two builds can never collide under one Finder name
+  again. PLAY.md gained a "WHICH BUILD AM I RUNNING?" section.
+- FIX 3 (the gate blind spot): the original bug hid because every proof
+  width (1280/2560/1280x800) was accidentally 64-px aligned. --ui-shots
+  now resizes to 1501x801 mid-run (resize_script leg) and captures the
+  gameplay HUD + title there — 13 captures total — and
+  ui::verify_ui_captures runs a ROW-SHEAR LAW on every capture's
+  composited readback (paint -> upload -> blit -> readback all covered):
+  adjacent-row gradient cross-correlation, fail if the median best shift
+  != 0 or a single nonzero shift owns >25% of structured rows (threshold
+  calibrated against the genuinely-noisy modal-over-dark-terrain capture,
+  which scatters -2/-1/+1 with a 12.7% max nonzero mode — noise, not
+  shear). New unit tests: title_canvas_has_no_row_shear_at_unaligned_widths
+  (1501x801@1x + 3024x1964@2x through build_dpi+paint) and
+  build_stamp_never_empty_and_shown_on_title.
+
+EVIDENCE: make p3d-ui-shots 13/13 PASS — every capture reports "no row
+shear", including the new ui_gameplay_hud_1501x801 and ui_title_1501x801
+legs (481 frames, p50 18.7-19.8 ms); real-screen analyzer on the MOUNTED
+DMG binary (volume POORCRAFT3D-898f337): title at 1280 default and 1501
+unaligned, gameplay HUD and pause menu at 1501 — median +0.0px, frac
+0.03-0.04; journey digest 7ab2295dafa0ec24 (10 steps, 31.9 ms) run from
+the mounted volume; stamp "898f337" verified inside the mounted binary's
+rodata adjacent to title_sub; suites p3d 580/580 (+2), root workspace
+exit 0 (untouched by these changes, standing 474); screen proofs
+committed at poorcraft3d/apps/poorcraft3d/shots/screen-proofs/
+(p3d_mount_title1501/pause/gameplay/buildline + the default-size title).
+Fresh DMG: poorcraft3d/dist3d/poorcraft3d-macos.dmg, volume
+POORCRAFT3D-898f337, 3.2 MB.
+
+HONESTLY DEFERRED: this host's displays are 1x, so the Retina-2x
+real-screen pass is covered by the 3024x1964@2x canvas law + the
+build_dpi path rather than a 2x photograph; the shear thresholds are
+calibrated to this content set (a future scene with legitimately
+diagonal-dominant content could need a per-scene carve-out); the owner's
+manual play pass remains the gate — now with the BUILD line making the
+running binary self-evident.

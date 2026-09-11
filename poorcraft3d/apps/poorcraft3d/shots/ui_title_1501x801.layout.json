@@ -4,8 +4,8 @@
       "id": "title_logo",
       "kind": "logo",
       "rect": [
-        451,
-        115,
+        561,
+        128,
         378,
         52
       ]
@@ -14,8 +14,8 @@
       "id": "title_sub",
       "kind": "text",
       "rect": [
-        437,
-        173,
+        547,
+        186,
         406,
         14
       ]
@@ -24,8 +24,8 @@
       "id": "title_panel",
       "kind": "panel",
       "rect": [
-        460,
-        302,
+        570,
+        336,
         360,
         342
       ]
@@ -34,8 +34,8 @@
       "id": "btn_play",
       "kind": "button",
       "rect": [
-        480,
-        348,
+        590,
+        382,
         320,
         44
       ]
@@ -44,8 +44,8 @@
       "id": "btn_new_world",
       "kind": "button",
       "rect": [
-        480,
-        404,
+        590,
+        438,
         320,
         44
       ]
@@ -54,8 +54,8 @@
       "id": "btn_load_world",
       "kind": "button",
       "rect": [
-        480,
-        460,
+        590,
+        494,
         320,
         44
       ]
@@ -64,8 +64,8 @@
       "id": "btn_settings",
       "kind": "button",
       "rect": [
-        480,
-        516,
+        590,
+        550,
         320,
         44
       ]
@@ -74,8 +74,8 @@
       "id": "btn_quit",
       "kind": "button",
       "rect": [
-        480,
-        572,
+        590,
+        606,
         320,
         44
       ]
@@ -85,7 +85,7 @@
       "kind": "text",
       "rect": [
         18,
-        695,
+        776,
         155,
         7
       ]
@@ -94,8 +94,8 @@
       "id": "footer_right",
       "kind": "text",
       "rect": [
-        1011,
-        695,
+        1232,
+        776,
         251,
         7
       ]
@@ -104,8 +104,8 @@
   "scale": 1.0,
   "screen": "title",
   "size": [
-    1280,
-    720
+    1501,
+    801
   ],
   "ui_state": {
     "debug_overlay": false,
@@ -118,15 +118,15 @@
     "gameplay_input_blocked": true,
     "hover": null,
     "hud": {
-      "food": 1.0,
-      "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
-      "selected_slot": 0,
-      "stamina": 1.0,
-      "xp": 0.0
+      "food": 0.699999988079071,
+      "health": 0.44999998807907104,
+      "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 3,
+      "stamina": 0.7799919247627258,
+      "xp": 0.5
     },
     "modal": null,
-    "pointer_grabbed": false,
+    "pointer_grabbed": true,
     "screen": "title",
     "session_live": true,
     "settings": {

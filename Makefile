@@ -2,6 +2,10 @@
 # Living documentation of what can be done and how. Agents: keep this file
 # in sync whenever commands change, and log each job in DEVLOG.md.
 
+# The source revision stamped into play-test builds (binary + DMG volume
+# name): a stale mounted DMG must never be mistakable for a fresh one.
+P3D_GIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+
 .PHONY: help build test run smoke vistest perf package runtimes push night-plan-check seedlab sounds
 
 help: ## Show this help
@@ -137,15 +141,15 @@ p3d-surface-stream: ## NWR-004: streamed SURFACE terrain vista proof: make p3d-s
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-surface-stream $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D SURFACE STREAM OK"
 
-p3d-dmg: ## The play-test DMG (.app bundle + hdiutil): make p3d-dmg -> poorcraft3d/dist3d/poorcraft3d-macos.dmg
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+p3d-dmg: ## The play-test DMG (.app bundle + hdiutil): make p3d-dmg -> poorcraft3d/dist3d/poorcraft3d-macos.dmg (volume POORCRAFT3D-<git>, title screen shows BUILD <git>)
+	PC3D_BUILD=$(P3D_GIT) cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/dist3d/POORCRAFT3D.app poorcraft3d/dist3d/poorcraft3d-macos.dmg
 	mkdir -p "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/MacOS" "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Resources"
 	cp poorcraft3d/target/release/poorcraft3d "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/MacOS/poorcraft3d"
 	printf 'APPLPC3D' > "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/PkgInfo"
 	printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>CFBundleExecutable</key><string>poorcraft3d</string>\n<key>CFBundleIdentifier</key><string>com.poorcraft.poorcraft3d</string>\n<key>CFBundleName</key><string>POORCRAFT 3D</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleShortVersionString</key><string>0.11.1</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n' > "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Info.plist"
 	cp poorcraft3d/dist3d/POORCRAFT3D/PLAY.md "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Resources/PLAY.md"
-	hdiutil create -volname "POORCRAFT 3D" -srcfolder poorcraft3d/dist3d/POORCRAFT3D.app -ov -format UDZO poorcraft3d/dist3d/poorcraft3d-macos.dmg
+	hdiutil create -volname "POORCRAFT3D-$(P3D_GIT)" -srcfolder poorcraft3d/dist3d/POORCRAFT3D.app -ov -format UDZO poorcraft3d/dist3d/poorcraft3d-macos.dmg
 	ls -la poorcraft3d/dist3d/poorcraft3d-macos.dmg
 
 p3d-rebuild: ## NWR-011: the rebuild vertical slice (route captures + save/reload proof): make p3d-rebuild [SEED=3] [OUTDIR=shots]

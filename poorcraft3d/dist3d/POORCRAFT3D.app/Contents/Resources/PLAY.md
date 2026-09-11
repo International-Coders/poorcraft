@@ -1,4 +1,13 @@
-# POORCRAFT 3D — THE REBUILD SLICE (play-test DMG, 2026-09-09)
+# POORCRAFT 3D — THE REBUILD SLICE (play-test DMG, 2026-09-10)
+
+## WHICH BUILD AM I RUNNING? (read this first)
+  The title screen subtitle shows BUILD <version> <git-hash> (e.g.
+  BUILD 0.11.1 a1b2c3d), and the DMG volume itself is named
+  POORCRAFT3D-<git-hash>. If the subtitle says an older hash than the
+  volume you think you opened — or Finder shows two POORCRAFT volumes —
+  you are playing a STALE mount: eject every POORCRAFT3D-* volume in
+  Finder (the eject button next to each) and open the new DMG again.
+  Local dev builds (cargo) say "dev".
 
 ## Just play
   Double-click POORCRAFT3D.app — it opens the TITLE SCREEN over the
@@ -39,8 +48,9 @@ machine.
 ## The automated proofs
   ./poorcraft3d --play-rebuild            # the 5-stop route proof
   ./poorcraft3d --play-rebuild live       # the interactive slice
-  ./poorcraft3d --ui-shots                # 11 UI state screenshots
+  ./poorcraft3d --ui-shots                # 13 UI state screenshots
                                           #   + pixel checks + layout dumps
+                                          #   + the row-shear (diagonal-cut) law
   ./poorcraft3d --ui-inspect '<json>'     # the local JSON inspector
   ./poorcraft3d --deck-bench 3 shots low|mid|high
   ./poorcraft3d --deck-bench 3 shots report

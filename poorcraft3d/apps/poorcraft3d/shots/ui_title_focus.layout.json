@@ -14,9 +14,9 @@
       "id": "title_sub",
       "kind": "text",
       "rect": [
-        461,
+        437,
         173,
-        358,
+        406,
         14
       ]
     },
@@ -138,12 +138,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-10 07:20",
+        "modified": "2026-09-11 00:51",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-10 07:20",
+        "modified": "2026-09-11 00:51",
         "name": "beta-shot",
         "seed": 7
       }

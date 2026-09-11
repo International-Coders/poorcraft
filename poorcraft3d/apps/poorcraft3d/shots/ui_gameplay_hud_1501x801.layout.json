@@ -34,8 +34,8 @@
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
-        632,
-        352,
+        742,
+        392,
         16,
         16
       ]
@@ -44,8 +44,8 @@
       "id": "xp_strip",
       "kind": "bar",
       "rect": [
-        382,
-        641,
+        492,
+        722,
         516,
         5
       ]
@@ -54,8 +54,8 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        323,
-        617,
+        433,
+        698,
         634,
         14
       ]
@@ -64,8 +64,8 @@
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
-        382,
-        652,
+        492,
+        733,
         52,
         52
       ]
@@ -74,8 +74,8 @@
       "id": "hotbar_1",
       "kind": "hotbar_slot",
       "rect": [
-        440,
-        652,
+        550,
+        733,
         52,
         52
       ]
@@ -84,8 +84,8 @@
       "id": "hotbar_2",
       "kind": "hotbar_slot",
       "rect": [
-        498,
-        652,
+        608,
+        733,
         52,
         52
       ]
@@ -94,8 +94,8 @@
       "id": "hotbar_3",
       "kind": "hotbar_slot",
       "rect": [
-        556,
-        652,
+        666,
+        733,
         52,
         52
       ]
@@ -104,8 +104,8 @@
       "id": "hotbar_4",
       "kind": "hotbar_slot",
       "rect": [
-        614,
-        652,
+        724,
+        733,
         52,
         52
       ]
@@ -114,8 +114,8 @@
       "id": "hotbar_5",
       "kind": "hotbar_slot",
       "rect": [
-        672,
-        652,
+        782,
+        733,
         52,
         52
       ]
@@ -124,8 +124,8 @@
       "id": "hotbar_6",
       "kind": "hotbar_slot",
       "rect": [
-        730,
-        652,
+        840,
+        733,
         52,
         52
       ]
@@ -134,8 +134,8 @@
       "id": "hotbar_7",
       "kind": "hotbar_slot",
       "rect": [
-        788,
-        652,
+        898,
+        733,
         52,
         52
       ]
@@ -144,31 +144,21 @@
       "id": "hotbar_8",
       "kind": "hotbar_slot",
       "rect": [
-        846,
-        652,
+        956,
+        733,
         52,
         52
-      ]
-    },
-    {
-      "id": "debug_strip",
-      "kind": "debug",
-      "rect": [
-        510,
-        20,
-        754,
-        14
       ]
     }
   ],
   "scale": 1.0,
   "screen": "gameplay",
   "size": [
-    1280,
-    720
+    1501,
+    801
   ],
   "ui_state": {
-    "debug_overlay": true,
+    "debug_overlay": false,
     "focus": 0,
     "form": {
       "name": "WORLD-22",
@@ -182,7 +172,7 @@
       "health": 0.44999998807907104,
       "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.490000456571579,
+      "stamina": 0.7126049399375916,
       "xp": 0.5
     },
     "modal": null,
