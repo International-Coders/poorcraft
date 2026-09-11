@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "task_id": "WT-002",
+  "name": "Semantic Asset Factory Lab",
+  "purpose": "Create high-volume game assets with interaction semantics, inspection exports, screenshot proof, and GPU capture discipline.",
+  "required_contracts": [
+    "asset_factory_queue.json",
+    "gameplay_asset_catalog.json",
+    "asset_affordance_schema.json",
+    "inspection_export_contract.json",
+    "gpu_capture_contract.json",
+    "tool_commands_manifest.json",
+    "playtest_evidence_matrix.json",
+    "asset_iteration_budgets.json"
+  ],
+  "must_preserve": [
+    "no fake assets",
+    "house must be enterable",
+    "npc must be talkable",
+    "forge must forge",
+    "wireframe and anchor screenshots are required",
+    "gpu claims require markers and before-after captures"
+  ]
+}

@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-09-11 — WT-002 semantic asset factory lab
+
+The GLM world/tools pack now has a second implementation-ready subpack:
+
+- `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-002-SEMANTIC-ASSET-FACTORY-LAB/`
+  defines a playable asset factory, not a decorative screenshot pile:
+  buildings need enterable doors/interiors, NPCs need talk states, forges need
+  input/output/heat/workspot behavior, and every asset needs inspection proof.
+- The subpack adds a GLM prompt, owner brief, semantic rulebook, brainstormed
+  catalog, interaction anchor specs, inspector/wireframe capture rules,
+  material/LOD/collision rules, AMD/NVIDIA-informed profiling gates, tool
+  commands, implementation slices, acceptance checklist, failure modes, and a
+  deterministic screenshot playtest route.
+- Nine JSON contracts cover the asset factory manifest, queue, gameplay
+  catalog, affordance schema, inspection exports, GPU captures, tool commands,
+  playtest evidence, and iteration budgets. `pc3d_assets` parses them through
+  the world/tools guard and preserves the law that asset factory outputs must
+  be gameplay-semantic.
+
 ## 2026-09-11 — WT-001 seed preview execution pack
 
 The broad GLM world/tools pack now has a concrete first implementation job:

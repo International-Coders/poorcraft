@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "required_asset_fields": [
+    "id",
+    "category",
+    "provenance",
+    "dimensions_m",
+    "materials",
+    "lods",
+    "collision",
+    "nav",
+    "anchors",
+    "gameplay",
+    "proofs"
+  ],
+  "required_anchor_fields": [
+    "id",
+    "kind",
+    "position_m",
+    "rotation_y_deg",
+    "radius_m",
+    "requires_clearance",
+    "runtime_action"
+  ],
+  "category_laws": {
+    "building": ["door", "nav_entry", "interior"],
+    "npc": ["talk"],
+    "machine": ["input", "output", "work_state"],
+    "forge": ["forge_input", "forge_output", "heat", "workspot"],
+    "chest": ["open", "inventory"],
+    "bridge": ["nav_entry_a", "nav_entry_b", "walkable_surface"]
+  }
+}

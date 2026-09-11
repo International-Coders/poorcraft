@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "routes": [
+    {
+      "id": "semantic_factory_001",
+      "seed": "semantic_factory_001",
+      "viewports": [[1501, 801], [1280, 720]],
+      "required_steps": [
+        "spawn",
+        "capture_beauty_wireframe_anchors",
+        "open_house_door",
+        "enter_house",
+        "talk_to_npc",
+        "use_forge",
+        "open_chest",
+        "harvest_resource",
+        "open_map_marker",
+        "export_perf"
+      ],
+      "required_assertions": [
+        "all_steps_success",
+        "screenshots_nonblank",
+        "wireframe_matches_asset_ids",
+        "anchors_match_json",
+        "no_text_overlap",
+        "deterministic_same_seed"
+      ]
+    }
+  ]
+}

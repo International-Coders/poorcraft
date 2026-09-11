@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "required_outputs": [
+    "beauty_png",
+    "wireframe_png",
+    "anchor_overlay_png",
+    "inspection_json",
+    "perf_json"
+  ],
+  "inspection_json_fields": [
+    "version",
+    "build_hash",
+    "command",
+    "asset_id",
+    "scene",
+    "seed",
+    "viewport",
+    "bounds",
+    "triangles",
+    "materials",
+    "lods",
+    "collision",
+    "nav",
+    "anchors",
+    "gameplay",
+    "proof_paths"
+  ],
+  "pixel_checks": [
+    "beauty_nonblank",
+    "wireframe_edges_visible",
+    "anchors_visible",
+    "labels_readable",
+    "no_text_overlap"
+  ]
+}

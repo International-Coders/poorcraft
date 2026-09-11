@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "commands": [
+    {"name": "--asset-factory", "writes": ["asset_manifest", "generated_assets"], "must_be_headless": true},
+    {"name": "--asset-validate", "writes": ["validation_report"], "must_be_headless": true},
+    {"name": "--asset-inspect", "writes": ["beauty_png", "wireframe_png", "inspection_json"], "must_be_headless": true},
+    {"name": "--asset-batch-inspect", "writes": ["batch_report"], "must_be_headless": true},
+    {"name": "--semantic-playtest", "writes": ["route_json", "screenshots", "perf_json"], "must_be_headless": true},
+    {"name": "--gpu-markers-audit", "writes": ["marker_report"], "must_be_headless": true},
+    {"name": "--vendor-capture-plan", "writes": ["capture_plan"], "must_be_headless": true}
+  ]
+}

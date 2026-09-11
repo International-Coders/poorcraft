@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "required_markers": [
+    "frame",
+    "terrain",
+    "asset_instances",
+    "ui",
+    "wireframe",
+    "postprocess",
+    "screenshot_readback"
+  ],
+  "vendor_tools": {
+    "amd": ["Radeon GPU Profiler", "Radeon Developer Panel", "FidelityFX SDK"],
+    "nvidia": ["Nsight Graphics", "GPU Trace", "Streamline", "DLSS"]
+  },
+  "required_capture_fields": [
+    "build_hash",
+    "gpu_vendor",
+    "gpu_name",
+    "api_backend",
+    "scene",
+    "seed",
+    "viewport",
+    "quality",
+    "markers_present",
+    "frame_ms_p50",
+    "frame_ms_p95",
+    "draw_calls",
+    "triangles",
+    "notes"
+  ],
+  "upscaler_prerequisites": [
+    "depth",
+    "motion_vectors",
+    "jitter",
+    "ui_composition",
+    "reactive_or_transparency_masks",
+    "frame_pacing"
+  ]
+}

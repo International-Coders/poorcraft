@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "budgets": {
+    "starter_house": {"max_triangles_lod0": 2500, "max_materials": 6, "required_lods": 2},
+    "talkable_villager": {"max_triangles_lod0": 1800, "max_materials": 5, "required_lods": 2},
+    "working_forge": {"max_triangles_lod0": 2200, "max_materials": 7, "required_lods": 2},
+    "openable_chest": {"max_triangles_lod0": 900, "max_materials": 4, "required_lods": 2},
+    "harvestable_ore_node": {"max_triangles_lod0": 800, "max_materials": 3, "required_lods": 2},
+    "map_marker_set": {"max_pixels": 65536, "required_states": ["normal", "hover", "selected", "disabled"]},
+    "hud_icon_set": {"max_pixels": 262144, "required_states": ["normal", "hover", "disabled", "cooldown"]}
+  },
+  "batch_limits": {
+    "max_draw_calls_for_starter_scene": 120,
+    "max_unique_material_buckets": 32,
+    "max_cpu_export_seconds": 20
+  }
+}

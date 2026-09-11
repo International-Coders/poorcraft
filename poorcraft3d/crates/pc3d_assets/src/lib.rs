@@ -644,6 +644,7 @@ mod tests {
             "seed preview must be deterministic",
             "gpu vendor work starts with markers and data",
             "screenshots and wireframes are required evidence",
+            "asset factory outputs must be gameplay-semantic",
         ] {
             assert!(
                 preserved.iter().any(|value| value
@@ -679,6 +680,15 @@ mod tests {
             "WT-001-SEED-PREVIEW-HARNESS/seed_preview_ui_wireframe.json",
             "WT-001-SEED-PREVIEW-HARNESS/seed_preview_outputs.schema.json",
             "WT-001-SEED-PREVIEW-HARNESS/seed_preview_test_matrix.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/semantic_asset_factory_manifest.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/asset_factory_queue.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/gameplay_asset_catalog.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/asset_affordance_schema.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/inspection_export_contract.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/gpu_capture_contract.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/tool_commands_manifest.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/playtest_evidence_matrix.json",
+            "WT-002-SEMANTIC-ASSET-FACTORY-LAB/asset_iteration_budgets.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

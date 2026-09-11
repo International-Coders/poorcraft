@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "id": "building",
+      "examples": ["starter_house", "workshop", "tavern", "watchtower", "market", "barn", "keep"],
+      "required_affordances": ["door", "nav_entry", "interior", "collision"]
+    },
+    {
+      "id": "npc",
+      "examples": ["villager", "guard", "trader", "miner", "builder", "quest_giver"],
+      "required_affordances": ["talk", "identity", "schedule", "state"]
+    },
+    {
+      "id": "machine",
+      "examples": ["forge", "kiln", "sawmill", "water_wheel", "generator", "crusher"],
+      "required_affordances": ["input", "output", "work_state", "blocked_state"]
+    },
+    {
+      "id": "resource",
+      "examples": ["ore_node", "tree", "herb_patch", "fish_node", "crystal_cluster"],
+      "required_affordances": ["harvest", "yield", "depleted_state", "rarity"]
+    },
+    {
+      "id": "ui",
+      "examples": ["hud_bars", "keycaps", "tool_icons", "resource_icons", "map_markers"],
+      "required_affordances": ["semantic_id", "alpha_policy", "contrast", "state_variants"]
+    }
+  ]
+}

@@ -6116,3 +6116,37 @@ glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
 --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
+
+## 2026-09-11 — WT-002 semantic asset factory lab
+
+WHAT: Added
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-002-SEMANTIC-ASSET-FACTORY-LAB,
+a second concrete implementation handoff for the owner request to create way
+more assets and way more tools without accepting fake decorative objects. The
+pack demands playable semantics: houses need enterable doors/interiors, NPCs
+need talk state, forges need input/output/heat/workspot behavior, and every
+asset needs screenshot, wireframe, anchor, bounds, material, collision, nav,
+LOD, provenance, and runtime-consumer evidence.
+
+HOW: Created Markdown files for the GLM prompt, owner brief, semantic asset
+rulebook, asset catalog brainstorm, interaction anchors, inspector/wireframe
+capture, material/LOD/collision rules, AMD/NVIDIA-informed GPU profiling and
+upscaling gates, concrete tool commands, Z-code implementation slices,
+acceptance checklist, failure modes, and screenshot playtest route. Added JSON
+contracts for the semantic asset factory manifest, asset factory queue,
+gameplay asset catalog, affordance schema, inspection export contract, GPU
+capture contract, tool commands manifest, playtest evidence matrix, and asset
+iteration budgets. Linked WT-002 from the parent GLM world/tools README and
+main POORCRAFT 3D README, updated zcode_world_tools_task_queue.json, expanded
+world_tools_manifest.json, and extended the pc3d_assets guard to parse the
+nine WT-002 JSON contracts while asserting the new "asset factory outputs must
+be gameplay-semantic" law. Existing dirty pc3d_render/ui-shot files were
+present before this pass and were left untouched.
+
+EVIDENCE: WT-002 JSON contracts, expanded world_tools_manifest.json, and
+zcode_world_tools_task_queue.json validate with python3 -m json.tool. cargo
+test --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets
+glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
+--manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
+needed.

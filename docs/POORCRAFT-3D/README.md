@@ -88,6 +88,10 @@ only when its implementation, tests, runtime behavior, and evidence agree.
 - `GLM-WORLD-TOOLS-ASSET-PACK/WT-001-SEED-PREVIEW-HARNESS/` — first concrete
   implementation handoff for a New World seed preview UI, deterministic preview
   metadata export, screenshot gates, and GLM test commands.
+- `GLM-WORLD-TOOLS-ASSET-PACK/WT-002-SEMANTIC-ASSET-FACTORY-LAB/` — concrete
+  handoff for high-volume gameplay-semantic asset generation, inspection
+  exports, wireframe/anchor screenshots, playtest routes, and GPU capture
+  rules.
 
 ## What this project is
 

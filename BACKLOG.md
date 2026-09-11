@@ -61,6 +61,13 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       sketch, UI wireframe, deterministic preview algorithm, screenshot gates,
       Z-code commands, failure modes, checklist, JSON contracts, and a code
       guard proving the subpack files parse and exist (loop 416)
+- [x] POORCRAFT 3D WT-002 semantic asset factory lab: concrete
+      implementation-ready subfolder under GLM-WORLD-TOOLS-ASSET-PACK for
+      high-volume playable asset generation, interaction anchors, inspector
+      exports, wireframe/bounds screenshots, material/LOD/collision rules,
+      semantic playtest routes, AMD/NVIDIA-informed capture gates, nine JSON
+      contracts, and a code guard proving the subpack files parse and exist
+      (loop 417)
 
 ## ui-world-craft pack (loop 328)
 

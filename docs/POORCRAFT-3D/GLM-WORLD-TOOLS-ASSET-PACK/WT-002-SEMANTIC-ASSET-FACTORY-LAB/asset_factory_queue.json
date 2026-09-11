@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "batches": [
+    {
+      "id": "starter_semantic_batch",
+      "required_assets": [
+        "starter_house",
+        "talkable_villager",
+        "working_forge",
+        "openable_chest",
+        "harvestable_ore_node",
+        "map_marker_set",
+        "hud_icon_set"
+      ],
+      "required_proofs": [
+        "beauty_png",
+        "wireframe_png",
+        "anchor_overlay_png",
+        "inspection_json",
+        "playtest_json",
+        "perf_json"
+      ]
+    }
+  ],
+  "order": [
+    "contract_loader",
+    "affordance_validation",
+    "asset_generation",
+    "inspection_export",
+    "screenshot_capture",
+    "semantic_playtest",
+    "gpu_marker_audit"
+  ]
+}

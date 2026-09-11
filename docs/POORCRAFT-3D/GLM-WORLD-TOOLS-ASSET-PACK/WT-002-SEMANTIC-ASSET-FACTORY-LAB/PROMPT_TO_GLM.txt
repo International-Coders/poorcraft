@@ -1,0 +1,21 @@
+Implement WT-002: the POORCRAFT 3D semantic asset factory and inspection lab.
+
+Read every file in:
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-002-SEMANTIC-ASSET-FACTORY-LAB
+
+Build tools and data, not vibes. Required:
+
+1. Create a semantic asset factory pipeline that can generate and register
+   batches of buildings, machines, NPC kits, props, resources, UI icons, and
+   strategy/world markers.
+2. Every asset must declare gameplay affordances. A house needs a real
+   enterable door/interior anchor. An NPC needs talk state. A forge needs a
+   forging interaction, heat state, input/output, and proof scene.
+3. Add screenshot, wireframe, bounds, material, collision, nav, and anchor
+   export tools. If GLM cannot inspect it, GLM cannot claim it works.
+4. Add a playtest route that walks to assets, opens doors, talks to NPCs,
+   uses machines, and writes JSON evidence.
+5. Add GPU markers and vendor capture instructions before any AMD/NVIDIA
+   optimization claim. AMD/NVIDIA work starts with measured frame data.
+6. Do not claim done until tests, screenshots, wireframes, and JSON sidecars
+   exist on disk and disagreeing evidence is fixed.

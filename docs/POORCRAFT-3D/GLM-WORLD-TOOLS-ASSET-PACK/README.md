@@ -29,6 +29,11 @@ into one implementation-ready Z-code task: build a real New World seed preview
 screen with seed entry, random/reroll, deterministic map preview, metadata
 export, screenshot proof, and stability/change tests.
 
+Then use `WT-002-SEMANTIC-ASSET-FACTORY-LAB/`. It turns "create way more
+assets" into a gameplay-semantic asset factory with doors, interiors, NPC talk
+states, forge actions, screenshot/wireframe/anchor exports, playtest routes,
+and AMD/NVIDIA-informed capture gates.
+
 ## Folder Map
 
 - `00-OWNER-DEMANDS.md` — plain owner intent.
@@ -48,6 +53,8 @@ export, screenshot proof, and stability/change tests.
 - `14-NO-FAKE-ASSETS.txt` — short rules to keep beside the editor.
 - `WT-001-SEED-PREVIEW-HARNESS/` — implementation-ready first task for the
   start-menu seed preview harness.
+- `WT-002-SEMANTIC-ASSET-FACTORY-LAB/` — implementation-ready second task for
+  high-volume playable assets, inspection tools, and GPU capture discipline.
 
 ## Machine Contracts
 
