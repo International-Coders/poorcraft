@@ -1,0 +1,20 @@
+Implement WT-005: POORCRAFT 3D asset prompt atlas and batch generation rules.
+
+Read every file in:
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-005-ASSET-PROMPT-ATLAS
+
+Use this pack to create many original assets and UI sprites, but accept only
+assets that pass gameplay, import, screenshot, wireframe, and metadata gates.
+
+Required:
+
+1. Generate assets in batches from prompt families, not one-off vibes.
+2. Every 3D asset needs a stable id, category, dimensions, bounds, PBR material
+   plan, LOD plan, collision/nav plan, anchors, and gameplay affordances.
+3. Every UI sprite/icon/key/bar needs alpha policy, states, contrast target,
+   semantic id, and source-free runtime text rules.
+4. Prefer GLB/glTF-compatible structure, original PBR materials, and validator
+   reports.
+5. Use observatory output: beauty screenshot, wireframe, bounds/anchor overlay,
+   mesh/material dump, and JSON sidecar.
+6. Reject assets that are pretty but not usable.

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id_pattern": "pc3d.<category>.<family>.<variant>",
+  "categories": ["building", "npc", "creature", "machine", "item", "resource", "world_prop", "ui_sprite", "map_marker", "effect"],
+  "variant_axes": ["biome", "faction", "condition", "tier", "state", "scale"],
+  "examples": [
+    "pc3d.building.house.forest_weathered",
+    "pc3d.npc.guard.red_banner",
+    "pc3d.machine.forge.bronze_hot",
+    "pc3d.ui_sprite.action.talk_normal"
+  ]
+}

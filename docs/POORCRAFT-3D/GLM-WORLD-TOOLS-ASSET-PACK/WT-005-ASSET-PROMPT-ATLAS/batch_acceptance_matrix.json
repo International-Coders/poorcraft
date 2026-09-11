@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "required_proofs": [
+    "manifest_row",
+    "import_validation",
+    "beauty_screenshot",
+    "wireframe_screenshot",
+    "anchor_overlay",
+    "mesh_material_dump",
+    "gameplay_affordance_test",
+    "runtime_consumer_or_backlog"
+  ],
+  "deliberate_rejections": [
+    "house_without_door",
+    "npc_without_talk_anchor",
+    "forge_without_output",
+    "ui_icon_without_alpha",
+    "mesh_with_nan_bounds",
+    "asset_without_material_id"
+  ],
+  "verdicts": ["accept", "reject", "defer_with_reason"]
+}

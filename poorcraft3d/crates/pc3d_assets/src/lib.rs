@@ -647,6 +647,7 @@ mod tests {
             "asset factory outputs must be gameplay-semantic",
             "GLM must inspect real game evidence before claiming success",
             "broad features must be sliced into proofable gameplay",
+            "asset prompts must produce importable playable assets",
         ] {
             assert!(
                 preserved.iter().any(|value| value
@@ -712,6 +713,15 @@ mod tests {
             "WT-004-FEATURE-EXPANSION-MATRIX/multiplayer_steam_contract.json",
             "WT-004-FEATURE-EXPANSION-MATRIX/modding_tools_contract.json",
             "WT-004-FEATURE-EXPANSION-MATRIX/proof_gate_matrix.json",
+            "WT-005-ASSET-PROMPT-ATLAS/asset_prompt_atlas_manifest.json",
+            "WT-005-ASSET-PROMPT-ATLAS/prompt_batches.json",
+            "WT-005-ASSET-PROMPT-ATLAS/asset_naming_taxonomy.json",
+            "WT-005-ASSET-PROMPT-ATLAS/ui_sprite_contract.json",
+            "WT-005-ASSET-PROMPT-ATLAS/gltf_import_contract.json",
+            "WT-005-ASSET-PROMPT-ATLAS/material_palette_contract.json",
+            "WT-005-ASSET-PROMPT-ATLAS/animation_rig_contract.json",
+            "WT-005-ASSET-PROMPT-ATLAS/texture_compression_contract.json",
+            "WT-005-ASSET-PROMPT-ATLAS/batch_acceptance_matrix.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

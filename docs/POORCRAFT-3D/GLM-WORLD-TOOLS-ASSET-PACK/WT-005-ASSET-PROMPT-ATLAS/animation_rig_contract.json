@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "humanoid_required_clips": ["idle", "walk", "talk", "work", "attack", "hurt", "flee"],
+  "creature_required_clips": ["idle", "move", "alert", "attack", "hurt", "retreat"],
+  "required_fields": ["asset_id", "skeleton_or_rig", "clips", "root_motion_policy", "lod_preserves_silhouette", "anchors"],
+  "rejections": ["missing_talk_clip_for_npc", "missing_attack_clip_for_hostile", "lod_hides_face_or_hands", "anchor_moves_without_export"]
+}

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "batches": [
+    {"id": "core_7", "count": 7, "families": ["starter_house", "talkable_villager", "working_forge", "openable_chest", "harvestable_ore_node", "map_marker_set", "hud_icon_set"]},
+    {"id": "settlement_30", "count": 30, "families": ["houses", "workshops", "tavern", "market", "town_hall", "props", "npc_roles"]},
+    {"id": "worldgen_60", "count": 60, "families": ["trees", "rocks", "resources", "ruins", "road_props", "dungeon_props"]},
+    {"id": "ui_100", "count": 100, "families": ["actions", "resources", "status", "keycaps", "bars", "map_markers"]}
+  ],
+  "requires_rejection_examples": true
+}

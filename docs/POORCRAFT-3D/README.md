@@ -100,6 +100,9 @@ only when its implementation, tests, runtime behavior, and evidence agree.
   handoff for broad feature brainstorming converted into proofable slices
   across worldgen, NPCs, factions, industry, magic, survival, UI, mods,
   multiplayer, Steam, tools, and gates.
+- `GLM-WORLD-TOOLS-ASSET-PACK/WT-005-ASSET-PROMPT-ATLAS/` — concrete handoff
+  for high-volume original asset prompts, UI sprite/key/bar rules, glTF/Blender
+  import contracts, material/rig/texture contracts, and batch acceptance gates.
 
 ## What this project is
 

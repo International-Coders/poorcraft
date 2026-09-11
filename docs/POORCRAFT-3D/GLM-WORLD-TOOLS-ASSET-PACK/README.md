@@ -43,6 +43,10 @@ breaks worldgen, NPCs, factions, settlements, industry, magic, survival,
 combat, exploration, UI/HUD, mods, multiplayer, Steam, tools, and proof gates
 into vertical slices.
 
+Use `WT-005-ASSET-PROMPT-ATLAS/` to generate lots of original assets and UI
+sprites. It provides prompt libraries, batch rules, glTF/Blender import
+requirements, UI icon/key/bar contracts, and acceptance gates.
+
 ## Folder Map
 
 - `00-OWNER-DEMANDS.md` — plain owner intent.
@@ -69,6 +73,9 @@ into vertical slices.
   replay, GPU markers, and regression comparison.
 - `WT-004-FEATURE-EXPANSION-MATRIX/` — implementation-ready feature matrix for
   broad gameplay systems, vertical slices, and proof gates.
+- `WT-005-ASSET-PROMPT-ATLAS/` — implementation-ready prompt atlas for
+  high-volume original 3D assets, UI sprites, import contracts, and batch
+  acceptance.
 
 ## Machine Contracts
 
@@ -84,6 +91,7 @@ into vertical slices.
 - `tooling_backlog.json`
 - `WT-003-GAME-OBSERVATORY-MCP-LAB/observatory_manifest.json`
 - `WT-004-FEATURE-EXPANSION-MATRIX/feature_expansion_manifest.json`
+- `WT-005-ASSET-PROMPT-ATLAS/asset_prompt_atlas_manifest.json`
 
 ## Relationship To The Existing Packs
 

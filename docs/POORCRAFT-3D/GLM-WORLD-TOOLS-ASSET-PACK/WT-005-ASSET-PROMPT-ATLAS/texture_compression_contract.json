@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source_formats": ["png", "exr_optional"],
+  "runtime_candidates": ["png", "ktx2_basisu_later"],
+  "required_fields": ["texture_id", "semantic_role", "dimensions", "alpha", "mip_policy", "memory_bytes", "proofs"],
+  "compression_gate": {
+    "allowed_after": ["baseline_png_proof", "memory_budget_report", "visual_diff_check"],
+    "must_not_block_alpha_ui": true
+  }
+}

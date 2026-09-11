@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "preferred_runtime_format": "glb",
+  "required_fields": ["asset_id", "source_path", "validator_report", "bounds", "materials", "nodes", "meshes", "anchors_or_sidecar", "proofs"],
+  "required_material_channels": ["base_color", "metallic", "roughness", "normal_optional", "occlusion_optional", "emissive_optional", "alpha_mode"],
+  "rejections": ["validator_error", "nan_bounds", "missing_buffer", "missing_material", "missing_semantic_sidecar", "branded_source"]
+}

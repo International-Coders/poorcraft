@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "required_fields": ["id", "kind", "semantic_id", "source_path", "alpha_policy", "states", "contrast_targets", "runtime_text_policy", "proofs"],
+  "required_states": ["normal", "hover", "pressed", "disabled", "focused"],
+  "required_kinds": ["hud_bar", "action_icon", "resource_icon", "status_icon", "keycap", "map_marker", "panel_frame"],
+  "proofs": ["transparent_background", "dark_backdrop", "light_backdrop", "ui_scale_1x", "ui_scale_2x", "no_baked_key_text"]
+}

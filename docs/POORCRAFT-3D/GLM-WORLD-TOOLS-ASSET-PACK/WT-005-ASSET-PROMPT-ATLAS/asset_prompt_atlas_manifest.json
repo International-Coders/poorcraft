@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "task_id": "WT-005",
+  "name": "Asset Prompt Atlas",
+  "purpose": "Create high-volume original asset and UI prompt libraries with import, semantic, and proof gates.",
+  "required_contracts": [
+    "prompt_batches.json",
+    "asset_naming_taxonomy.json",
+    "ui_sprite_contract.json",
+    "gltf_import_contract.json",
+    "material_palette_contract.json",
+    "animation_rig_contract.json",
+    "texture_compression_contract.json",
+    "batch_acceptance_matrix.json"
+  ],
+  "must_preserve": [
+    "generated assets must be original",
+    "prompts must name gameplay affordances",
+    "UI sprites require alpha and states",
+    "GLB assets require validation and semantic sidecars",
+    "batch generation must include rejection tests"
+  ]
+}

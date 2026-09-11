@@ -81,6 +81,12 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       exploration, UI/HUD, mods, multiplayer, Steam, tools, eleven JSON
       contracts, and a code guard proving the subpack files parse and exist
       (loop 419)
+- [x] POORCRAFT 3D WT-005 asset prompt atlas: concrete implementation-ready
+      subfolder under GLM-WORLD-TOOLS-ASSET-PACK for high-volume original asset
+      prompts, UI sprite/key/bar contracts, glTF/Blender import rules,
+      material/rig/texture contracts, batch rejection tests, nine JSON
+      contracts, and a code guard proving the subpack files parse and exist
+      (loop 420)
 
 ## ui-world-craft pack (loop 328)
 

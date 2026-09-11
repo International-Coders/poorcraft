@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "materials": [
+    "pc3d.weathered_oak",
+    "pc3d.wet_pine",
+    "pc3d.hammered_iron",
+    "pc3d.warm_forge_stone",
+    "pc3d.clay_brick",
+    "pc3d.mossy_granite",
+    "pc3d.faction_cloth_red",
+    "pc3d.mana_crystal_blue",
+    "pc3d.ash_blackened_wood",
+    "pc3d.ui_gold_trim"
+  ],
+  "required_properties": ["base_color", "roughness", "metallic", "semantic_role", "interactive_importance"]
+}

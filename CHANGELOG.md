@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-11 — WT-005 asset prompt atlas
+
+The GLM world/tools pack now has a fifth implementation-ready subpack:
+
+- `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-005-ASSET-PROMPT-ATLAS/`
+  defines prompt libraries and batch rules for original buildings, NPCs,
+  creatures, machines, items, UI sprites, keycaps, bars, map markers, world
+  props, resources, and environmental storytelling.
+- The subpack adds style/source rules, glTF/Blender import rules, UI alpha and
+  runtime-text rules, material/rig/texture requirements, deliberate rejection
+  examples, and acceptance gates so mass generation produces importable
+  gameplay assets instead of pretty junk.
+- Nine JSON contracts cover prompt batches, naming taxonomy, UI sprites, glTF
+  import, material palette, animation rigs, texture compression, batch
+  acceptance, and the atlas manifest. `pc3d_assets` parses them through the
+  world/tools guard and preserves the law that asset prompts must produce
+  importable playable assets.
+
 ## 2026-09-11 — WT-004 feature expansion matrix
 
 The GLM world/tools pack now has a fourth implementation-ready subpack:

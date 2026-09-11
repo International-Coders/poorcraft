@@ -6117,6 +6117,39 @@ glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
+## 2026-09-11 — WT-005 asset prompt atlas
+
+WHAT: Added
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-005-ASSET-PROMPT-ATLAS,
+a fifth concrete implementation handoff for generating many original POORCRAFT
+3D assets and UI sprites while preserving gameplay semantics. The pack gives
+GLM prompt libraries for buildings, NPCs, creatures, machines, items, UI
+icons/keycaps/bars, world props, resources, and environmental storytelling.
+
+HOW: Created Markdown files for the GLM prompt, production brief, style
+identity/source policy, building prompt library, NPC/creature prompt library,
+machine/item prompt library, UI sprite/icon/key/bar library, world
+prop/resource library, batch generation rules, glTF/Blender import rules,
+acceptance checklist, and failure modes. Added JSON contracts for the prompt
+atlas manifest, prompt batches, naming taxonomy, UI sprites, glTF import,
+material palette, animation rig, texture compression, and batch acceptance.
+Linked WT-005 from the parent GLM world/tools README and main POORCRAFT 3D
+README, updated zcode_world_tools_task_queue.json, expanded
+world_tools_manifest.json, and extended the pc3d_assets guard to parse the
+nine WT-005 JSON contracts while asserting the new law that asset prompts must
+produce importable playable assets. Official source assumptions were recorded
+for Khronos glTF/PBR/KTX, the glTF Validator, and Blender command-line/glTF
+flows. Existing dirty pc3d_render/ui-shot files were present before this pass
+and were left untouched.
+
+EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
+validates with python3 -m json.tool. cargo test --manifest-path
+poorcraft3d/Cargo.toml -p pc3d_assets
+glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
+--manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
+needed.
+
 ## 2026-09-11 — WT-004 feature expansion matrix
 
 WHAT: Added
