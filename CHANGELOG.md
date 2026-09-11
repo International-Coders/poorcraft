@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-09-11 — WT-006 Z-code continuous runbook
+
+The GLM world/tools pack now has a sixth implementation-ready subpack:
+
+- `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-006-ZCODE-CONTINUOUS-RUNBOOK/`
+  defines the operating loop for long GLM/Z-code sessions: orient, select one
+  proofable task, implement, test, capture evidence, compare to contract, fix
+  failures, bookkeep, stage intended files, commit, push, and continue.
+- The subpack adds task priority rules, proof-first language, failure recovery,
+  commit/bookkeeping discipline, sprint cards for WT-001..WT-005, and
+  no-excuses laws for mouse/Escape/screenshots/wireframes/gameplay semantics.
+- Eight JSON contracts cover the runbook manifest, operating loop, task
+  priority, proof gates, failure recovery, sprint cards, evidence bundles, and
+  completion audit. `pc3d_assets` parses them through the world/tools guard and
+  preserves the law that Z-code must continue through proofable green
+  checkpoints.
+
 ## 2026-09-11 — WT-005 asset prompt atlas
 
 The GLM world/tools pack now has a fifth implementation-ready subpack:

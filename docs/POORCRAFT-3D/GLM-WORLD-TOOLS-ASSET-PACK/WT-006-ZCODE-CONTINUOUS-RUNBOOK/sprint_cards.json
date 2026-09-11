@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "cards": [
+    {"id": "card_a_seed_preview", "source": "WT-001", "proofs": ["same_seed_metadata", "different_seed_preview", "png", "json"]},
+    {"id": "card_b_observatory_minimum", "source": "WT-003", "proofs": ["screenshot", "runtime_state_json", "build_hash"]},
+    {"id": "card_c_semantic_route", "source": "WT-002", "proofs": ["door_entry", "npc_talk", "forge_use", "route_json"]},
+    {"id": "card_d_ui_sprite_batch", "source": "WT-005", "proofs": ["alpha_dark_light", "states", "no_baked_key_text"]},
+    {"id": "card_e_feature_slice", "source": "WT-004", "proofs": ["player_story", "runtime_behavior", "observatory_evidence"]}
+  ]
+}

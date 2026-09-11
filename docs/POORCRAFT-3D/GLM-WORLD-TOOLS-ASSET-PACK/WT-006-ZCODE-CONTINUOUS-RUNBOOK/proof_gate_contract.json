@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "claim_types": {
+    "ui": ["screenshot_png", "layout_json", "input_route_json"],
+    "asset": ["beauty_png", "wireframe_png", "anchor_overlay_png", "asset_json"],
+    "interaction": ["route_json", "runtime_state_json", "screenshot_png"],
+    "worldgen": ["metadata_json", "same_seed_test", "different_seed_test", "preview_png"],
+    "performance": ["markers_json", "before_after_json", "screenshot_digest"]
+  },
+  "not_proven_verdict": "not_done"
+}

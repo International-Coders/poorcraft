@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "failure_kinds": ["test_failure", "screenshot_failure", "wireframe_failure", "json_mismatch", "perf_regression", "oversized_task"],
+  "required_response": ["reproduce", "inspect_evidence", "fix_cause", "rerun_targeted", "rerun_guard", "document_result"],
+  "forbidden_response": ["weaken_gate_without_reason", "hide_failure", "claim_success_anyway"]
+}

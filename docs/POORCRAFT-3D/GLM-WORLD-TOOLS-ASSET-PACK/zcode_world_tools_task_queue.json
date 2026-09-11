@@ -6,7 +6,7 @@
     {"id": "WT-003", "title": "Game observatory MCP lab", "priority": 3, "done_when": ["mcp_tool_contracts", "runtime_state_exports", "screenshot_wireframe_overlays", "input_replay_routes", "gpu_marker_audit", "evidence_bundle_verdicts"]},
     {"id": "WT-004", "title": "Feature expansion matrix", "priority": 4, "done_when": ["feature_contracts", "vertical_slices", "proof_gate_matrix", "broad_system_backlog"]},
     {"id": "WT-005", "title": "Asset prompt atlas", "priority": 5, "done_when": ["prompt_libraries", "ui_sprite_contracts", "gltf_import_contracts", "batch_acceptance_matrix"]},
-    {"id": "WT-006", "title": "Forge gameplay slice", "priority": 6, "done_when": ["input_output_heat_recipe", "forge_action_test", "forge_ui_or_prompt_screenshot"]},
+    {"id": "WT-006", "title": "Z-code continuous runbook", "priority": 6, "done_when": ["operating_loop_contract", "proof_gate_contract", "failure_recovery_contract", "sprint_cards", "completion_audit"]},
     {"id": "WT-007", "title": "GPU profiling markers and frame report", "priority": 7, "done_when": ["marker_names", "frame_stats_json", "ui_pass_visible_in_report"]},
     {"id": "WT-008", "title": "AMD/NVIDIA capture checklist outputs", "priority": 8, "done_when": ["rgp_checklist", "nsight_aftermath_checklist", "streamline_ui_buffer_plan"]},
     {"id": "WT-009", "title": "300-plus semantic asset expansion", "priority": 9, "done_when": ["asset_backlog_rows", "semantic_tags", "loader_tests", "proof_screenshots"]}

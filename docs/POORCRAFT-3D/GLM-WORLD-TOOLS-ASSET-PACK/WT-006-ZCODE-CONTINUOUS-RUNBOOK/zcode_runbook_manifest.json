@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "task_id": "WT-006",
+  "name": "Z-code Continuous Runbook",
+  "purpose": "Force long-running GLM/Z-code sessions to select proofable tasks, implement code, generate evidence, recover from failures, bookkeep, commit, push, and continue.",
+  "required_contracts": [
+    "operating_loop_contract.json",
+    "task_priority_contract.json",
+    "proof_gate_contract.json",
+    "failure_recovery_contract.json",
+    "sprint_cards.json",
+    "evidence_bundle_contract.json",
+    "completion_audit_contract.json"
+  ],
+  "must_preserve": [
+    "one job must ship real code or a code guard",
+    "success claims require current evidence",
+    "failed proof changes the next action",
+    "stage only intended files",
+    "continue into the next proofable task"
+  ]
+}

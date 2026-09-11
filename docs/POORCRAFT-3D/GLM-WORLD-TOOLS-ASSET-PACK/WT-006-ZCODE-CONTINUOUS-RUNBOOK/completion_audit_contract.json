@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "required_questions": [
+    "Did code or a code guard change?",
+    "Did tests run in this session?",
+    "Did visual claims write current screenshots?",
+    "Did interaction claims write runtime state or route JSON?",
+    "Are deferrals explicit?",
+    "Are unrelated dirty files unstaged?",
+    "Was the commit pushed?"
+  ],
+  "all_must_be_true_for_done": true
+}

@@ -648,6 +648,7 @@ mod tests {
             "GLM must inspect real game evidence before claiming success",
             "broad features must be sliced into proofable gameplay",
             "asset prompts must produce importable playable assets",
+            "Z-code must continue through proofable green checkpoints",
         ] {
             assert!(
                 preserved.iter().any(|value| value
@@ -722,6 +723,14 @@ mod tests {
             "WT-005-ASSET-PROMPT-ATLAS/animation_rig_contract.json",
             "WT-005-ASSET-PROMPT-ATLAS/texture_compression_contract.json",
             "WT-005-ASSET-PROMPT-ATLAS/batch_acceptance_matrix.json",
+            "WT-006-ZCODE-CONTINUOUS-RUNBOOK/zcode_runbook_manifest.json",
+            "WT-006-ZCODE-CONTINUOUS-RUNBOOK/operating_loop_contract.json",
+            "WT-006-ZCODE-CONTINUOUS-RUNBOOK/task_priority_contract.json",
+            "WT-006-ZCODE-CONTINUOUS-RUNBOOK/proof_gate_contract.json",
+            "WT-006-ZCODE-CONTINUOUS-RUNBOOK/failure_recovery_contract.json",
+            "WT-006-ZCODE-CONTINUOUS-RUNBOOK/sprint_cards.json",
+            "WT-006-ZCODE-CONTINUOUS-RUNBOOK/evidence_bundle_contract.json",
+            "WT-006-ZCODE-CONTINUOUS-RUNBOOK/completion_audit_contract.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

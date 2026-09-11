@@ -128,6 +128,23 @@
     "WT-005-ASSET-PROMPT-ATLAS/animation_rig_contract.json",
     "WT-005-ASSET-PROMPT-ATLAS/texture_compression_contract.json",
     "WT-005-ASSET-PROMPT-ATLAS/batch_acceptance_matrix.json",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/README.md",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/PROMPT_TO_GLM.txt",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/00-OPERATING-LOOP.md",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/01-TASK-SELECTION.md",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/02-PROOF-FIRST-DEVELOPMENT.md",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/03-FAILURE-RECOVERY.md",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/04-COMMIT-AND-BOOKKEEPING.md",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/05-SPRINT-CARDS.md",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/06-NO-EXCUSES-LAWS.md",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/zcode_runbook_manifest.json",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/operating_loop_contract.json",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/task_priority_contract.json",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/proof_gate_contract.json",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/failure_recovery_contract.json",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/sprint_cards.json",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/evidence_bundle_contract.json",
+    "WT-006-ZCODE-CONTINUOUS-RUNBOOK/completion_audit_contract.json",
     "zcode_world_tools_task_queue.json",
     "asset_generation_backlog.json",
     "asset_prompt_matrix.json",
@@ -149,6 +166,7 @@
     "asset factory outputs must be gameplay-semantic",
     "GLM must inspect real game evidence before claiming success",
     "broad features must be sliced into proofable gameplay",
-    "asset prompts must produce importable playable assets"
+    "asset prompts must produce importable playable assets",
+    "Z-code must continue through proofable green checkpoints"
   ]
 }

@@ -47,6 +47,10 @@ Use `WT-005-ASSET-PROMPT-ATLAS/` to generate lots of original assets and UI
 sprites. It provides prompt libraries, batch rules, glTF/Blender import
 requirements, UI icon/key/bar contracts, and acceptance gates.
 
+Use `WT-006-ZCODE-CONTINUOUS-RUNBOOK/` to keep long Z-code sessions moving. It
+defines task order, proof-first development, failure recovery, evidence
+bundles, sprint cards, bookkeeping, commit, and push discipline.
+
 ## Folder Map
 
 - `00-OWNER-DEMANDS.md` — plain owner intent.
@@ -76,6 +80,9 @@ requirements, UI icon/key/bar contracts, and acceptance gates.
 - `WT-005-ASSET-PROMPT-ATLAS/` — implementation-ready prompt atlas for
   high-volume original 3D assets, UI sprites, import contracts, and batch
   acceptance.
+- `WT-006-ZCODE-CONTINUOUS-RUNBOOK/` — implementation-ready runbook for
+  continuous Z-code work, proof gates, failure recovery, evidence bundles, and
+  green checkpoints.
 
 ## Machine Contracts
 
@@ -92,6 +99,7 @@ requirements, UI icon/key/bar contracts, and acceptance gates.
 - `WT-003-GAME-OBSERVATORY-MCP-LAB/observatory_manifest.json`
 - `WT-004-FEATURE-EXPANSION-MATRIX/feature_expansion_manifest.json`
 - `WT-005-ASSET-PROMPT-ATLAS/asset_prompt_atlas_manifest.json`
+- `WT-006-ZCODE-CONTINUOUS-RUNBOOK/zcode_runbook_manifest.json`
 
 ## Relationship To The Existing Packs
 

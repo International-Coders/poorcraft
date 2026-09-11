@@ -103,6 +103,10 @@ only when its implementation, tests, runtime behavior, and evidence agree.
 - `GLM-WORLD-TOOLS-ASSET-PACK/WT-005-ASSET-PROMPT-ATLAS/` — concrete handoff
   for high-volume original asset prompts, UI sprite/key/bar rules, glTF/Blender
   import contracts, material/rig/texture contracts, and batch acceptance gates.
+- `GLM-WORLD-TOOLS-ASSET-PACK/WT-006-ZCODE-CONTINUOUS-RUNBOOK/` — concrete
+  handoff for continuous Z-code work: task selection, proof-first development,
+  failure recovery, evidence bundles, sprint cards, bookkeeping, commit, and
+  push discipline.
 
 ## What this project is
 

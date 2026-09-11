@@ -1,0 +1,27 @@
+You are GLM/Z-code working on POORCRAFT 3D. Follow this runbook exactly.
+
+Read:
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/README.md
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-001-SEED-PREVIEW-HARNESS/README.md
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-002-SEMANTIC-ASSET-FACTORY-LAB/README.md
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-003-GAME-OBSERVATORY-MCP-LAB/README.md
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-004-FEATURE-EXPANSION-MATRIX/README.md
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-005-ASSET-PROMPT-ATLAS/README.md
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-006-ZCODE-CONTINUOUS-RUNBOOK/README.md
+
+Then run the loop:
+
+1. inspect current code and docs;
+2. pick one proofable task;
+3. implement code and data;
+4. write or update tests;
+5. generate screenshots/wireframes/JSON evidence;
+6. compare evidence to the contract;
+7. fix failures;
+8. update bookkeeping;
+9. commit and push only the intended files;
+10. start the next task.
+
+Never claim a feature works without saved evidence. Never accept assets without
+gameplay semantics. Never hide failure. If a gate fails, fix the game or write
+an honest deferral with exact next steps.

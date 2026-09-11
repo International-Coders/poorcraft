@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "required_fields": [
+    "bundle_id",
+    "task_id",
+    "build_hash",
+    "commands",
+    "test_results",
+    "screenshots",
+    "wireframes",
+    "json_sidecars",
+    "verdict",
+    "deferrals"
+  ],
+  "paths_must_exist": true
+}

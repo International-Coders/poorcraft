@@ -6117,6 +6117,36 @@ glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
+## 2026-09-11 — WT-006 Z-code continuous runbook
+
+WHAT: Added
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-006-ZCODE-CONTINUOUS-RUNBOOK,
+a sixth concrete implementation handoff for keeping GLM/Z-code working in
+proofable loops instead of stopping at vague planning. The pack defines how to
+select tasks, implement one shippable unit, test it, capture screenshots and
+JSON evidence, recover from failures, update bookkeeping, stage only intended
+files, commit, push, and continue.
+
+HOW: Created Markdown files for the GLM prompt, operating loop, task selection,
+proof-first development, failure recovery, commit/bookkeeping, sprint cards,
+and no-excuses laws. Added JSON contracts for the runbook manifest, operating
+loop, task priority, proof gates, failure recovery, sprint cards, evidence
+bundle, and completion audit. Linked WT-006 from the parent GLM world/tools
+README and main POORCRAFT 3D README, updated zcode_world_tools_task_queue.json,
+expanded world_tools_manifest.json, and extended the pc3d_assets guard to
+parse the eight WT-006 JSON contracts while asserting the new law that Z-code
+must continue through proofable green checkpoints. Existing dirty
+pc3d_render/ui-shot and pc3d_world seed-preview files were present before this
+pass and were left untouched.
+
+EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
+validates with python3 -m json.tool. cargo test --manifest-path
+poorcraft3d/Cargo.toml -p pc3d_assets
+glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
+--manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
+needed.
+
 ## 2026-09-11 — WT-005 asset prompt atlas
 
 WHAT: Added

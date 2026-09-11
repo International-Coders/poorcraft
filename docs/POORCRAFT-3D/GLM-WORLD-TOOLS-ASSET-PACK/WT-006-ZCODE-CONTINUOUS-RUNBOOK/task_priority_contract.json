@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "priority_order": [
+    "playability_recovery",
+    "wt001_seed_preview",
+    "wt003_observatory_minimum",
+    "wt002_semantic_route",
+    "wt005_asset_batch",
+    "wt004_feature_slice",
+    "gpu_marker_perf_gate",
+    "mod_multiplayer_steam_slice"
+  ],
+  "task_requires": ["files_to_edit", "runtime_behavior", "test_command", "evidence_output", "acceptance_gate"]
+}

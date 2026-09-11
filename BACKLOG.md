@@ -87,6 +87,12 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       material/rig/texture contracts, batch rejection tests, nine JSON
       contracts, and a code guard proving the subpack files parse and exist
       (loop 420)
+- [x] POORCRAFT 3D WT-006 Z-code continuous runbook: concrete
+      implementation-ready subfolder under GLM-WORLD-TOOLS-ASSET-PACK for
+      task selection, proof-first development, failure recovery, evidence
+      bundles, sprint cards, completion audits, bookkeeping, commit/push
+      discipline, eight JSON contracts, and a code guard proving the subpack
+      files parse and exist (loop 421)
 
 ## ui-world-craft pack (loop 328)
 

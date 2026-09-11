@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "steps": [
+    "orient",
+    "select_task",
+    "inspect_code",
+    "implement",
+    "test",
+    "capture_evidence",
+    "compare_to_contract",
+    "fix_failures",
+    "bookkeep",
+    "stage_intended_files",
+    "commit",
+    "push",
+    "continue"
+  ],
+  "green_checkpoint_required": true
+}
