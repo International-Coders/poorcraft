@@ -1,0 +1,229 @@
+{
+  "all_pass": true,
+  "shots": [
+    {
+      "checks": [
+        {
+          "detail": "(280, 280)",
+          "name": "preview_map_present",
+          "pass": true
+        },
+        {
+          "detail": "3 distinct colors (map live: false)",
+          "name": "preview_nonblank",
+          "pass": true
+        },
+        {
+          "detail": "marker=false valid=false",
+          "name": "spawn_marker_visible",
+          "pass": true
+        },
+        {
+          "detail": "state=disabled disabled_expected=true",
+          "name": "create_button_state_correct",
+          "pass": true
+        },
+        {
+          "detail": "overlap=false",
+          "name": "no_text_overlaps_map",
+          "pass": true
+        },
+        {
+          "detail": "1280x720",
+          "name": "dimensions_match_viewport",
+          "pass": true
+        }
+      ],
+      "seed": null,
+      "shot": "seed_preview_empty",
+      "valid": false
+    },
+    {
+      "checks": [
+        {
+          "detail": "(280, 280)",
+          "name": "preview_map_present",
+          "pass": true
+        },
+        {
+          "detail": "57 distinct colors (map live: true)",
+          "name": "preview_nonblank",
+          "pass": true
+        },
+        {
+          "detail": "marker=true valid=true",
+          "name": "spawn_marker_visible",
+          "pass": true
+        },
+        {
+          "detail": "state=focused disabled_expected=false",
+          "name": "create_button_state_correct",
+          "pass": true
+        },
+        {
+          "detail": "overlap=false",
+          "name": "no_text_overlaps_map",
+          "pass": true
+        },
+        {
+          "detail": "1280x720",
+          "name": "dimensions_match_viewport",
+          "pass": true
+        }
+      ],
+      "seed": "4242",
+      "shot": "seed_preview_typed",
+      "valid": true
+    },
+    {
+      "checks": [
+        {
+          "detail": "(280, 280)",
+          "name": "preview_map_present",
+          "pass": true
+        },
+        {
+          "detail": "80 distinct colors (map live: true)",
+          "name": "preview_nonblank",
+          "pass": true
+        },
+        {
+          "detail": "marker=true valid=true",
+          "name": "spawn_marker_visible",
+          "pass": true
+        },
+        {
+          "detail": "state=normal disabled_expected=false",
+          "name": "create_button_state_correct",
+          "pass": true
+        },
+        {
+          "detail": "overlap=false",
+          "name": "no_text_overlaps_map",
+          "pass": true
+        },
+        {
+          "detail": "1280x720",
+          "name": "dimensions_match_viewport",
+          "pass": true
+        }
+      ],
+      "seed": "575351061107524",
+      "shot": "seed_preview_rerolled",
+      "valid": true
+    },
+    {
+      "checks": [
+        {
+          "detail": "(280, 280)",
+          "name": "preview_map_present",
+          "pass": true
+        },
+        {
+          "detail": "36 distinct colors (map live: true)",
+          "name": "preview_nonblank",
+          "pass": true
+        },
+        {
+          "detail": "marker=false valid=false",
+          "name": "spawn_marker_visible",
+          "pass": true
+        },
+        {
+          "detail": "state=disabled disabled_expected=true",
+          "name": "create_button_state_correct",
+          "pass": true
+        },
+        {
+          "detail": "overlap=false",
+          "name": "no_text_overlaps_map",
+          "pass": true
+        },
+        {
+          "detail": "1280x720",
+          "name": "dimensions_match_viewport",
+          "pass": true
+        }
+      ],
+      "seed": "739535761893614",
+      "shot": "seed_preview_random",
+      "valid": false
+    },
+    {
+      "checks": [
+        {
+          "detail": "(280, 280)",
+          "name": "preview_map_present",
+          "pass": true
+        },
+        {
+          "detail": "36 distinct colors (map live: true)",
+          "name": "preview_nonblank",
+          "pass": true
+        },
+        {
+          "detail": "marker=false valid=false",
+          "name": "spawn_marker_visible",
+          "pass": true
+        },
+        {
+          "detail": "state=disabled disabled_expected=true",
+          "name": "create_button_state_correct",
+          "pass": true
+        },
+        {
+          "detail": "overlap=false",
+          "name": "no_text_overlaps_map",
+          "pass": true
+        },
+        {
+          "detail": "1280x800",
+          "name": "dimensions_match_viewport",
+          "pass": true
+        }
+      ],
+      "seed": "739535761893614",
+      "shot": "seed_preview_deck_1280x800",
+      "valid": false
+    },
+    {
+      "checks": [
+        {
+          "detail": "(280, 280)",
+          "name": "preview_map_present",
+          "pass": true
+        },
+        {
+          "detail": "48 distinct colors (map live: true)",
+          "name": "preview_nonblank",
+          "pass": true
+        },
+        {
+          "detail": "marker=false valid=false",
+          "name": "spawn_marker_visible",
+          "pass": true
+        },
+        {
+          "detail": "state=disabled disabled_expected=true",
+          "name": "create_button_state_correct",
+          "pass": true
+        },
+        {
+          "detail": "overlap=false",
+          "name": "no_text_overlaps_map",
+          "pass": true
+        },
+        {
+          "detail": "1280x800",
+          "name": "dimensions_match_viewport",
+          "pass": true
+        }
+      ],
+      "seed": "8",
+      "shot": "seed_preview_invalid_or_warning",
+      "valid": false
+    }
+  ],
+  "version": 1,
+  "warning_state_seed": "8"
+}

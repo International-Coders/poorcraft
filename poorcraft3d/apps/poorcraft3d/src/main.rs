@@ -3829,6 +3829,58 @@ fn main() {
                 }
             }
         }
+        Some("--seed-preview") => {
+            // WT-001 developer export: the deterministic preview for one
+            // seed (text or `random`) as PNG + JSON sidecar, no window.
+            let text: String = args.get(2).cloned().unwrap_or_else(|| "random".into());
+            let out_dir: String = args
+                .get(3)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir out dir");
+            let rs = if text == "random" {
+                let entropy = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos() as u64)
+                    .unwrap_or(42);
+                pc3d_world::seed_preview::resolve_seed("", Some(entropy))
+            } else {
+                pc3d_world::seed_preview::resolve_seed(&text, None)
+            };
+            let p = pc3d_world::seed_preview::preview_seed(
+                &pc3d_world::seed_preview::SeedPreviewRequest {
+                    seed_text: rs.text.clone(),
+                    ..Default::default()
+                },
+            );
+            let label: String = rs.text.chars().take(24).filter(|c| c.is_alphanumeric()).collect();
+            let png = format!("{out_dir}/seed_preview_{label}.png");
+            let json = format!("{out_dir}/seed_preview_{label}.json");
+            image::save_buffer(
+                &png,
+                &p.pixels_rgba,
+                p.width,
+                p.height,
+                image::ColorType::Rgba8,
+            )
+            .expect("encode preview png");
+            let side = pc3d_render::ui::seed_preview_json(&p, &png, "");
+            std::fs::write(&json, serde_json::to_string_pretty(&side).unwrap()).expect("write sidecar");
+            println!(
+                "SEED PREVIEW: seed {} ({}), spawn safe={}, {} biomes, {} warnings -> {png} + {json}",
+                p.resolved_seed, p.seed_source, p.valid, p.biome_counts.len(), p.warnings.len()
+            );
+        }
+        Some("--ui-seed-preview-shots") => {
+            // WT-001: the New World screen with the live seed preview —
+            // deterministic screenshots + metadata sidecars + a pixel
+            // check report (map nonblank, spawn marker, create gating).
+            let out_dir: String = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            run_ui_seed_preview_shots(&out_dir);
+        }
         Some("--ui-shots") => {
             // GLM UI rework UI-001: deterministic UI state screenshots for
             // every owner-facing screen + pixel checks + layout dumps. One
@@ -3937,7 +3989,7 @@ fn main() {
         }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-caves [outdir]|--play-surface-stream [outdir]|--ui-shots [outdir]|--ui-inspect '<json>'|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-caves [outdir]|--play-surface-stream [outdir]|--ui-shots [outdir]|--ui-seed-preview-shots [outdir]|--seed-preview <seed-text|random> [outdir]|--ui-inspect '<json>'|--validate-assets [path]]"
             );
             std::process::exit(2);
         }
@@ -4118,6 +4170,281 @@ fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
             .expect("write test world");
     }
     std::rc::Rc::new(root)
+}
+
+/// WT-001: the New World seed-preview screenshot battery — deterministic
+/// UI states (empty / typed / rerolled / random / deck / warning), each
+/// with a layout dump, a metadata sidecar, and pixel checks.
+fn run_ui_seed_preview_shots(out_dir: &str) {
+    use pc3d_render::ui::{self, Key, Screen, UiAction};
+    use pc3d_render::Shot;
+
+    std::fs::create_dir_all(out_dir).expect("mkdir out dir");
+    let save_root = ui_test_save_root();
+    let (seed, scene) = pc3d_render::slice::find_showcase(3);
+    let scene = std::rc::Rc::new(scene);
+
+    // Deterministic search for a warning-state seed: the first in 0..500
+    // whose preview window has NO safe spawn. If the generator always
+    // finds one, the warning shot is honestly omitted.
+    let mut invalid_seed: Option<String> = None;
+    for s in 0u64..500 {
+        let p = pc3d_world::seed_preview::preview_seed(
+            &pc3d_world::seed_preview::SeedPreviewRequest {
+                seed_text: s.to_string(),
+                ..Default::default()
+            },
+        );
+        if !p.valid {
+            invalid_seed = Some(s.to_string());
+            break;
+        }
+    }
+    let invalid_for_script = invalid_seed.clone();
+    println!(
+        "SEED PREVIEW SHOTS: warning-state seed: {}",
+        invalid_seed.as_deref().unwrap_or("<none in 0..500 — shot omitted>")
+    );
+
+    let shot = |frame: u64, name: &str| -> Shot {
+        Shot::new(frame, format!("{out_dir}/{name}.png"))
+            .ui_dump(format!("{out_dir}/{name}.layout.json"))
+    };
+    let mut ui_script: Vec<(u64, pc3d_render::UiStep)> = vec![
+        (
+            12,
+            Box::new(|ui, _r, _ctx| {
+                ui.screen = Screen::NewWorld;
+                ui.focus = 0;
+                ui.form.seed_digits.clear();
+            }),
+        ),
+        (
+            70,
+            Box::new(|ui, _r, _ctx| {
+                ui.form.seed_digits = "4242".into();
+                ui.seed_preview_stale = true;
+            }),
+        ),
+        (
+            130,
+            Box::new(|ui, _r, _ctx| {
+                ui.focus = 1; // REROLL — the real reducer path
+                let _ = ui::on_key(ui, Key::Enter);
+            }),
+        ),
+        (
+            195,
+            Box::new(|ui, _r, _ctx| {
+                ui.focus = 2; // RANDOM — the real reducer path
+                let _ = ui::on_key(ui, Key::Enter);
+            }),
+        ),
+        (
+            360,
+            Box::new(move |ui, _r, _ctx| {
+                if let Some(s) = &invalid_for_script {
+                    ui.form.seed_digits = s.clone();
+                    ui.seed_preview_stale = true;
+                }
+            }),
+        ),
+    ];
+    let mut shots = vec![
+        shot(45, "seed_preview_empty"),
+        shot(100, "seed_preview_typed"),
+        shot(165, "seed_preview_rerolled"),
+        shot(230, "seed_preview_random"),
+        shot(340, "seed_preview_deck_1280x800"),
+    ];
+    if invalid_seed.is_some() {
+        shots.push(shot(400, "seed_preview_invalid_or_warning"));
+    }
+
+    let cfg = pc3d_render::WindowConfig {
+        title: "POORCRAFT 3D — seed preview proof".into(),
+        logical_size: (1280.0, 720.0),
+        size_is_physical: true,
+        resize_to: None,
+        resize_script: vec![(300, (1280.0, 800.0))],
+        max_frames: Some(560),
+        probe_set: pc3d_render::ProbeSet::SkyOnly,
+        shots,
+        slice_setup: Some(pc3d_render::app::SliceSetup {
+            seed,
+            rebuild: true,
+            scene,
+            save_root: save_root.clone(),
+            world_name: "rebuild".into(),
+        }),
+        owner_menu: true,
+        save_root_override: Some(save_root.clone()),
+        ui_script: std::mem::take(&mut ui_script),
+        ..Default::default()
+    };
+    match pc3d_render::run_windowed(cfg) {
+        Ok(report) => {
+            print_window_report(&report);
+            if let Err(e) = verify_seed_preview_captures(&report.captures, out_dir, &invalid_seed)
+            {
+                eprintln!("[FAIL] seed preview checks: {e}");
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("[FAIL] windowed renderer: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// The WT-001 pixel checks: per capture, the metadata sidecar is written
+/// and the map/marker/gating/overlap laws are asserted against the
+/// composited UI canvas + layout dump. Returns a PASS report.
+fn verify_seed_preview_captures(
+    captures: &[pc3d_render::app::CaptureOutcome],
+    out_dir: &str,
+    invalid_seed: &Option<String>,
+) -> Result<String, String> {
+    use pc3d_render::ui::Rect;
+    let mut lines = Vec::new();
+    let mut report_rows: Vec<serde_json::Value> = Vec::new();
+    for cap in captures {
+        let name = cap
+            .path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("?")
+            .to_string();
+        let png = cap.path.display().to_string();
+        let layout_path = format!("{out_dir}/{name}.layout.json");
+        let meta_path = format!("{out_dir}/{name}.seed.json");
+        // Metadata sidecar (only when a preview was live).
+        if let Some(p) = &cap.seed_preview {
+            let side = pc3d_render::ui::seed_preview_json(p, &png, &layout_path);
+            std::fs::write(&meta_path, serde_json::to_string_pretty(&side).unwrap())
+                .map_err(|e| format!("{name}: sidecar write failed: {e}"))?;
+        }
+        let layout = cap.ui_layout.as_ref().ok_or_else(|| format!("{name}: no layout dump"))?;
+        let elements = layout["elements"]
+            .as_array()
+            .ok_or_else(|| format!("{name}: layout has no elements"))?;
+        let rect_of = |id: &str| -> Option<Rect> {
+            let e = elements.iter().find(|e| e["id"] == id)?;
+            let a = e["rect"].as_array()?;
+            Some(Rect::new(
+                a[0].as_i64()? as i32,
+                a[1].as_i64()? as i32,
+                a[2].as_u64()? as u32,
+                a[3].as_u64()? as u32,
+            ))
+        };
+        let canvas_info = cap.ui_canvas.as_ref().ok_or_else(|| format!("{name}: no UI canvas"))?;
+        let (canvas, cw, _ch) = canvas_info;
+        let mut checks: Vec<(&str, bool, String)> = Vec::new();
+        // 1. The map element exists.
+        let map = rect_of("preview_map").ok_or_else(|| format!("{name}: preview_map missing"))?;
+        checks.push(("preview_map_present", true, format!("{:?}", (map.w, map.h))));
+        // 2. Map nonblank: distinct colors inside the map rect (>=4 for
+        // a real biome map; the empty placeholder is the flat dark fill).
+        let mut colors = std::collections::BTreeSet::new();
+        for y in map.y..map.bottom() {
+            for x in map.x..map.right() {
+                if x >= 0 && (x as u32) < *cw {
+                    let i = ((y as u32 * cw + x as u32) * 4) as usize;
+                    if i + 4 <= canvas.len() {
+                        colors.insert((canvas[i], canvas[i + 1], canvas[i + 2]));
+                    }
+                }
+            }
+        }
+        let expect_map = cap.seed_preview.is_some();
+        let nonblank = if expect_map { colors.len() >= 4 } else { colors.len() >= 1 };
+        checks.push((
+            "preview_nonblank",
+            nonblank,
+            format!("{} distinct colors (map live: {expect_map})", colors.len()),
+        ));
+        // 3. Spawn marker visible exactly when the preview is valid.
+        let marker = colors.contains(&(255, 140, 40));
+        let valid = cap.seed_preview.as_ref().map(|p| p.valid).unwrap_or(false);
+        checks.push((
+            "spawn_marker_visible",
+            marker == valid,
+            format!("marker={marker} valid={valid}"),
+        ));
+        // 4. CREATE gating: disabled exactly when no valid preview.
+        let create_state = elements
+            .iter()
+            .find(|e| e["id"] == "nw_create")
+            .and_then(|e| e["button_state"].as_str())
+            .unwrap_or("");
+        let should_disable = !valid;
+        let gating_ok = (create_state == "disabled") == should_disable;
+        checks.push((
+            "create_button_state_correct",
+            gating_ok,
+            format!("state={create_state} disabled_expected={should_disable}"),
+        ));
+        // 5. No text overlaps the map.
+        let overlap = elements.iter().any(|e| {
+            if e["kind"] != "text" || e["id"] == "preview_map" {
+                return false;
+            }
+            let a = e["rect"].as_array().unwrap();
+            let r = Rect::new(
+                a[0].as_i64().unwrap_or(0) as i32,
+                a[1].as_i64().unwrap_or(0) as i32,
+                a[2].as_u64().unwrap_or(0) as u32,
+                a[3].as_u64().unwrap_or(0) as u32,
+            );
+            r.intersects(&map)
+        });
+        checks.push(("no_text_overlaps_map", !overlap, format!("overlap={overlap}")));
+        // 6. Dimensions match the requested viewport.
+        let dims_ok = (cap.report.width, cap.report.height) == (*cw, cap.report.height.max(1))
+            && matches!(
+                (cap.report.width, cap.report.height),
+                (1280, 720) | (1280, 800)
+            );
+        checks.push((
+            "dimensions_match_viewport",
+            dims_ok,
+            format!("{}x{}", cap.report.width, cap.report.height),
+        ));
+        let row = serde_json::json!({
+            "shot": name,
+            "valid": valid,
+            "seed": cap.seed_preview.as_ref().map(|p| p.resolved_seed.to_string()),
+            "checks": checks.iter().map(|(n, ok, detail)| serde_json::json!({
+                "name": n, "pass": ok, "detail": detail,
+            })).collect::<Vec<_>>(),
+        });
+        report_rows.push(row);
+        for (n, ok, detail) in &checks {
+            if !ok {
+                return Err(format!("{name}: check {n} failed ({detail})"));
+            }
+        }
+        lines.push(format!(
+            "  {name}: valid={valid} map colors={}, create={create_state}, marker={} — OK",
+            colors.len(),
+            if valid { "yes" } else { "no" },
+        ));
+    }
+    let report = serde_json::json!({
+        "version": 1,
+        "shots": report_rows,
+        "warning_state_seed": invalid_seed,
+        "all_pass": true,
+    });
+    let report_path = format!("{out_dir}/seed_preview_pixel_report.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&report).unwrap())
+        .map_err(|e| format!("report write failed: {e}"))?;
+    lines.push(format!("  pixel report -> {report_path}"));
+    println!("SEED PREVIEW SHOTS PASS:");
+    println!("{}", lines.join("\n"));
+    Ok(String::new())
 }
 
 fn run_ui_shots(out_dir: &str) {

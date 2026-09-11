@@ -6,7 +6,7 @@
       "kind": "panel",
       "rect": [
         158,
-        157,
+        197,
         620,
         406
       ]
@@ -17,7 +17,7 @@
       "kind": "text",
       "rect": [
         178,
-        207,
+        247,
         118,
         14
       ]
@@ -28,8 +28,8 @@
       "kind": "text",
       "rect": [
         568,
-        207,
-        94,
+        247,
+        178,
         14
       ]
     },
@@ -39,7 +39,7 @@
       "kind": "text",
       "rect": [
         178,
-        239,
+        279,
         46,
         14
       ]
@@ -50,8 +50,8 @@
       "kind": "text",
       "rect": [
         568,
-        239,
-        22,
+        279,
+        178,
         14
       ]
     },
@@ -61,7 +61,7 @@
       "kind": "text",
       "rect": [
         178,
-        271,
+        311,
         46,
         14
       ]
@@ -72,7 +72,7 @@
       "kind": "text",
       "rect": [
         568,
-        271,
+        311,
         178,
         14
       ]
@@ -83,7 +83,7 @@
       "kind": "text",
       "rect": [
         178,
-        303,
+        343,
         82,
         14
       ]
@@ -94,7 +94,7 @@
       "kind": "text",
       "rect": [
         568,
-        303,
+        343,
         34,
         14
       ]
@@ -105,18 +105,18 @@
       "kind": "button",
       "rect": [
         317,
-        337,
+        377,
         148,
         44
       ]
     },
     {
-      "button_state": "normal",
+      "button_state": "focused",
       "id": "nw_seed_random",
       "kind": "button",
       "rect": [
         471,
-        337,
+        377,
         148,
         44
       ]
@@ -127,7 +127,7 @@
       "kind": "button",
       "rect": [
         317,
-        393,
+        433,
         148,
         44
       ]
@@ -138,18 +138,18 @@
       "kind": "button",
       "rect": [
         471,
-        393,
+        433,
         148,
         44
       ]
     },
     {
-      "button_state": "focused",
+      "button_state": "disabled",
       "id": "nw_create",
       "kind": "button",
       "rect": [
         308,
-        449,
+        489,
         320,
         44
       ]
@@ -160,7 +160,7 @@
       "kind": "button",
       "rect": [
         308,
-        505,
+        545,
         320,
         44
       ]
@@ -171,7 +171,7 @@
       "kind": "panel",
       "rect": [
         802,
-        89,
+        129,
         320,
         542
       ]
@@ -182,7 +182,7 @@
       "kind": "image",
       "rect": [
         822,
-        133,
+        173,
         280,
         280
       ]
@@ -193,8 +193,8 @@
       "kind": "text",
       "rect": [
         822,
-        423,
-        226,
+        463,
+        274,
         14
       ]
     },
@@ -204,8 +204,8 @@
       "kind": "text",
       "rect": [
         822,
-        447,
-        274,
+        487,
+        118,
         14
       ]
     },
@@ -215,29 +215,7 @@
       "kind": "text",
       "rect": [
         822,
-        471,
-        142,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "feature_hint_1",
-      "kind": "text",
-      "rect": [
-        822,
-        495,
-        274,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "feature_hint_2",
-      "kind": "text",
-      "rect": [
-        822,
-        519,
+        511,
         274,
         14
       ]
@@ -248,8 +226,8 @@
       "kind": "text",
       "rect": [
         822,
-        543,
-        250,
+        535,
+        274,
         14
       ]
     },
@@ -259,7 +237,7 @@
       "kind": "text",
       "rect": [
         18,
-        695,
+        775,
         155,
         7
       ]
@@ -270,7 +248,7 @@
       "kind": "text",
       "rect": [
         1011,
-        695,
+        775,
         251,
         7
       ]
@@ -280,15 +258,15 @@
   "screen": "new_world",
   "size": [
     1280,
-    720
+    800
   ],
   "ui_state": {
     "debug_overlay": false,
-    "focus": 0,
+    "focus": 2,
     "form": {
-      "name": "WORLD-22",
+      "name": "WORLD-739535761893614",
       "quality": "MID",
-      "seed": 22
+      "seed": 739535761893614
     },
     "gameplay_input_blocked": true,
     "hover": null,
@@ -313,12 +291,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:30",
+        "modified": "2026-09-11 06:29",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:30",
+        "modified": "2026-09-11 06:29",
         "name": "beta-shot",
         "seed": 7
       }

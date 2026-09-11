@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "button_state": "",
       "id": "title_logo",
       "kind": "logo",
       "rect": [
@@ -11,6 +12,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "title_sub",
       "kind": "text",
       "rect": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "title_panel",
       "kind": "panel",
       "rect": [
@@ -31,6 +34,7 @@
       ]
     },
     {
+      "button_state": "focused",
       "id": "btn_play",
       "kind": "button",
       "rect": [
@@ -41,6 +45,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "btn_new_world",
       "kind": "button",
       "rect": [
@@ -51,6 +56,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "btn_load_world",
       "kind": "button",
       "rect": [
@@ -61,6 +67,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "btn_settings",
       "kind": "button",
       "rect": [
@@ -71,6 +78,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "btn_quit",
       "kind": "button",
       "rect": [
@@ -81,6 +89,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "footer_left",
       "kind": "text",
       "rect": [
@@ -91,6 +100,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "footer_right",
       "kind": "text",
       "rect": [
@@ -122,7 +132,7 @@
       "health": 0.44999998807907104,
       "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.4322194755077362,
+      "stamina": 0.424603134393692,
       "xp": 0.5
     },
     "modal": null,
@@ -138,19 +148,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "toasts": [
       {
-        "age_s": 2.244704008102417,
+        "age_s": 2.0784785747528076,
         "text": "SAVED 'REBUILD'"
       }
     ]

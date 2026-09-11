@@ -1,0 +1,55 @@
+{
+  "biome_counts": [
+    {
+      "biome": "ocean",
+      "percent": 95.9000015258789,
+      "regions": 982
+    },
+    {
+      "biome": "coast",
+      "percent": 0.8999999761581421,
+      "regions": 9
+    },
+    {
+      "biome": "plains",
+      "percent": 3.200000047683716,
+      "regions": 33
+    }
+  ],
+  "feature_hints": [
+    {
+      "confidence": 0.8999999761581421,
+      "distance_m": 1536.0,
+      "kind": "stronghold-ground",
+      "placeholder": false
+    },
+    {
+      "confidence": 0.0,
+      "distance_m": 0.0,
+      "kind": "settlement",
+      "placeholder": true
+    }
+  ],
+  "layout_path": "poorcraft3d/apps/poorcraft3d/shots/seed_preview_rerolled.layout.json",
+  "preview_size": [
+    96,
+    96
+  ],
+  "resolved_seed": "575351061107524",
+  "screenshot_path": "poorcraft3d/apps/poorcraft3d/shots/seed_preview_rerolled.png",
+  "seed_source": "numeric",
+  "seed_text": "575351061107524",
+  "spawn": {
+    "reason": "safe",
+    "safe": true,
+    "x": 3200.0,
+    "y": 10.062999725341797,
+    "z": -3200.0
+  },
+  "valid": true,
+  "warnings": [
+    "settlement hint is a placeholder: no published siting authority yet"
+  ],
+  "window_regions": 32,
+  "world_type": "normal"
+}

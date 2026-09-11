@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "button_state": "",
       "id": "pause_panel",
       "kind": "panel",
       "rect": [
@@ -11,6 +12,7 @@
       ]
     },
     {
+      "button_state": "focused",
       "id": "pause_resume",
       "kind": "button",
       "rect": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "pause_save",
       "kind": "button",
       "rect": [
@@ -31,6 +34,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "pause_load",
       "kind": "button",
       "rect": [
@@ -41,6 +45,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "pause_settings",
       "kind": "button",
       "rect": [
@@ -51,6 +56,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "pause_quit_title",
       "kind": "button",
       "rect": [
@@ -61,6 +67,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "pause_quit_desktop",
       "kind": "button",
       "rect": [
@@ -92,7 +99,7 @@
       "health": 0.44999998807907104,
       "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.354984313249588,
+      "stamina": 0.35261020064353943,
       "xp": 0.5
     },
     "modal": null,
@@ -108,19 +115,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "toasts": [
       {
-        "age_s": 0.5848137736320496,
+        "age_s": 0.5577906370162964,
         "text": "SAVED 'REBUILD'"
       }
     ]

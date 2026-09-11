@@ -165,6 +165,12 @@ p3d-ui-shots: ## GLM UI rework: 11 deterministic UI state screenshots + pixel ch
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --ui-shots poorcraft3d/apps/poorcraft3d/shots
 
+p3d-seed-preview: ## WT-001: New World seed preview shots + sidecars + pixel report; make p3d-seed-preview [SEED=4242]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --ui-seed-preview-shots poorcraft3d/apps/poorcraft3d/shots || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --seed-preview $(if $(SEED),$(SEED),4242) poorcraft3d/apps/poorcraft3d/shots || exit 1; \
+	echo "P3D SEED PREVIEW OK"
+
 p3d-ui-inspect: ## GLM UI rework: the local JSON inspector (e.g. make p3d-ui-inspect CMD='<json>')
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --ui-inspect '$(CMD)'

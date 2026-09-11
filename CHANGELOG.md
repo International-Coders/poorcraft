@@ -3476,3 +3476,23 @@ The simulation-only roadmap was declared complete; the visual reset
   listed file exists, all JSON contracts parse, and the core asset/gameplay
   laws remain present. Evidence: JSON validation passed and `pc3d_assets`
   27/27. No runtime DMG rebuild was needed for this tooling/spec pack.
+
+## Loop 422 — WT-001 implemented: New World seed preview
+- `pc3d_world::seed_preview` (pure): seed resolution (numeric/text/entropy),
+  a never-repeating reroll, and the deterministic preview — biome census,
+  spawn-safety spiral (water/slope/walkable-area/keep-footprint laws),
+  real river + stronghold-ground hints (settlement honestly placeholder),
+  and the 96×96 CPU map with spawn marker.
+- The New World screen gained the WORLD PREVIEW panel (map image element,
+  spawn safety, biome summary, feature hints, resolved seed) and the
+  RANDOM button; REROLL/RANDOM never repeat the current seed and fit
+  their column; CREATE is disabled — Enter and click both refuse — when
+  the preview is unsafe; the layout dump exposes button states.
+- `--ui-seed-preview-shots` (6 deterministic states + sidecars + pixel
+  report), `--seed-preview <seed|random>` headless export, `make
+  p3d-seed-preview`.
+- Evidence: 9/9 authority laws, 36/36 ui tests, 6/6 windowed shots at
+  p50 7.5 ms, map structure 70%+ neighbor agreement (not noise), ui-shots
+  13/13, p3d 596/596, root green.
+- Also restores green HEAD after a concurrent commit swept the in-flight
+  UI panel without its module.

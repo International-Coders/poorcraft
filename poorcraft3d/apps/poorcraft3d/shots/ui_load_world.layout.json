@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "button_state": "",
       "id": "load_world_panel",
       "kind": "panel",
       "rect": [
@@ -11,6 +12,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "lw_slot_0_label",
       "kind": "text",
       "rect": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "lw_slot_0_load",
       "kind": "button",
       "rect": [
@@ -31,6 +34,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "lw_slot_0_del",
       "kind": "button",
       "rect": [
@@ -41,6 +45,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "lw_slot_1_label",
       "kind": "text",
       "rect": [
@@ -51,6 +56,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "lw_slot_1_load",
       "kind": "button",
       "rect": [
@@ -61,6 +67,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "lw_slot_1_del",
       "kind": "button",
       "rect": [
@@ -71,6 +78,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "lw_back",
       "kind": "button",
       "rect": [
@@ -81,6 +89,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "footer_left",
       "kind": "text",
       "rect": [
@@ -91,6 +100,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "footer_right",
       "kind": "text",
       "rect": [
@@ -138,12 +148,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "beta-shot",
         "seed": 7
       }

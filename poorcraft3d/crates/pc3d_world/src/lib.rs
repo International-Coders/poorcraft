@@ -55,6 +55,7 @@ pub mod relationships;
 pub mod replicate;
 pub mod scale;
 pub mod scales;
+pub mod seed_preview;
 pub mod session;
 pub mod settlement;
 pub mod settlement_plan;

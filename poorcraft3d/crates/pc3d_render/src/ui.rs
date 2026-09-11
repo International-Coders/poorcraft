@@ -832,10 +832,14 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             let mut y = panel.y + ctx.px(PANEL_PAD) + ctx.px(24);
             let lx = panel.x + ctx.px(PANEL_PAD);
             let vx = panel.x + pw - ctx.px(PANEL_PAD) - ctx.px(190);
-            // Rows: NAME / SEED / TYPE / QUALITY.
+            // Rows: NAME / SEED / TYPE / QUALITY. Values are truncated to
+            // their column so a long seed or name can never run under
+            // the preview panel (the WT-001 overlap law).
+            let value_w = (panel.right() - ctx.px(PANEL_PAD) - vx - ctx.px(4)).max(ctx.px(40)) as u32;
             let row = |ctx: &mut Ctx, y: &mut i32, label: &str, value: &str, id: &str| {
                 ctx.text(&format!("{id}_label"), label, lx, *y + ctx.px(6), 2);
-                ctx.text(&format!("{id}_value"), value, vx, *y + ctx.px(6), 2);
+                let value = fit_to_width(value, 2 * ctx.k, value_w);
+                ctx.text(&format!("{id}_value"), &value, vx, *y + ctx.px(6), 2);
                 *y += ctx.px(TEXT_ROW_H) + ctx.px(14);
             };
             row(&mut ctx, &mut y, "WORLD NAME", &state.form.name, "nw_name");
@@ -1880,7 +1884,9 @@ fn activate_new_world(state: &mut UiState, idx: usize) -> Vec<UiAction> {
         1 | 2 => {
             // REROLL / RANDOM: the WT-001 law — never the same seed
             // twice. Entropy is the clock-free counter (reroll count),
-            // mixed per-button so the two paths diverge.
+            // mixed per-button so the two paths diverge. Capped to 15
+            // digits so the seed always fits its form column and the
+            // RESOLVED line at the drawn glyph scale.
             state.form.reroll_count += 1;
             let cur = state.form.seed();
             let mix = if idx == 1 { 0 } else { 0x5DEECE66D };
@@ -1888,6 +1894,8 @@ fn activate_new_world(state: &mut UiState, idx: usize) -> Vec<UiAction> {
                 cur,
                 state.form.reroll_count.wrapping_mul(0x9E3779B1) ^ mix,
             );
+            let next = next % 1_000_000_000_000_000;
+            let next = if next == cur { next + 1 } else { next };
             state.form.seed_digits = next.to_string();
             state.form.name = format!("WORLD-{next}");
             state.seed_preview_stale = true;
@@ -2494,6 +2502,133 @@ mod tests {
             ink_px(&canvas, 1280, sub.rect) > 0,
             "title subtitle painted no ink"
         );
+    }
+
+    #[test]
+    fn new_world_with_seed_preview_shows_map_safety_and_hints() {
+        // WT-001: the preview panel carries the map (as a real image
+        // blit), the spawn safety verdict, the biome summary, feature
+        // hints, the resolved seed line, and the RANDOM button.
+        let mut s = state(Screen::NewWorld);
+        s.form.seed_digits = "4242".into();
+        s.seed_preview = Some(pc3d_world::seed_preview::preview_seed(
+            &pc3d_world::seed_preview::SeedPreviewRequest {
+                seed_text: "4242".into(),
+                ..Default::default()
+            },
+        ));
+        let list = build(&s, 1280, 720);
+        for id in [
+            "preview_map", "spawn_safety", "biome_summary", "feature_hint_0",
+            "nw_seed_resolved", "nw_seed_random", "nw_seed_reroll", "nw_create",
+        ] {
+            assert!(list.by_id(id).is_some(), "WT-001 element {id} missing");
+        }
+        let map = list.by_id("preview_map").unwrap();
+        assert!(
+            matches!(map.kind, ElementKind::Image { .. }),
+            "preview_map must be an image element"
+        );
+        // The map must paint visible ink (not the placeholder fill).
+        let canvas = paint(&list);
+        let ink = ink_px(&canvas, 1280, map.rect);
+        assert!(ink > 500, "preview map painted only {ink} px of ink");
+        // Layout dump must expose the button states (the harness gates
+        // CREATE enabled-only-when-valid on it).
+        let dump = list.to_json("new_world");
+        let create = dump["elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["id"] == "nw_create")
+            .unwrap();
+        assert_ne!(
+            create["button_state"], "disabled",
+            "valid preview keeps CREATE enabled"
+        );
+    }
+
+    #[test]
+    fn create_is_disabled_when_preview_is_unsafe() {
+        // WT-001 failure mode: "Create button works when preview is
+        // invalid". An unsafe preview disables CREATE and Enter does
+        // not emit CreateWorld.
+        let mut s = state(Screen::NewWorld);
+        let mut p = pc3d_world::seed_preview::preview_seed(
+            &pc3d_world::seed_preview::SeedPreviewRequest {
+                seed_text: "4242".into(),
+                ..Default::default()
+            },
+        );
+        p.valid = false;
+        p.spawn.safe = false;
+        p.spawn.reason = "test rejection".into();
+        s.seed_preview = Some(p);
+        let list = build(&s, 1280, 720);
+        let dump = list.to_json("new_world");
+        let create = dump["elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["id"] == "nw_create")
+            .unwrap();
+        assert_eq!(create["button_state"], "disabled");
+        s.focus = 0; // CREATE
+        let acts = on_key(&mut s, Key::Enter);
+        assert!(
+            !acts.iter().any(|a| matches!(a, UiAction::CreateWorld { .. })),
+            "Enter on a disabled CREATE must not create the world"
+        );
+    }
+
+    #[test]
+    fn reroll_and_random_change_seed_and_mark_preview_stale() {
+        // WT-001 laws: reroll never repeats the current seed, both seed
+        // buttons mark the preview stale for recompute.
+        let mut s = state(Screen::NewWorld);
+        s.focus = 1; // REROLL
+        let before = s.form.seed();
+        let _ = on_key(&mut s, Key::Enter);
+        let after_reroll = s.form.seed();
+        assert_ne!(before, after_reroll, "reroll must change the seed");
+        assert!(s.seed_preview_stale, "reroll must mark the preview stale");
+        s.seed_preview_stale = false;
+        s.focus = 2; // RANDOM
+        let _ = on_key(&mut s, Key::Enter);
+        assert_ne!(after_reroll, s.form.seed(), "random must change the seed");
+        assert!(s.seed_preview_stale, "random must mark the preview stale");
+        // And seed editing marks it stale too (backspace always applies;
+        // a random u64 can exceed the 10-digit typing cap).
+        s.seed_preview_stale = false;
+        let _ = on_key(&mut s, Key::Backspace);
+        assert!(s.seed_preview_stale, "seed editing must mark the preview stale");
+    }
+
+    #[test]
+    fn seed_preview_sidecar_matches_the_output_contract() {
+        let p = pc3d_world::seed_preview::preview_seed(
+            &pc3d_world::seed_preview::SeedPreviewRequest {
+                seed_text: "typed-seed".into(),
+                ..Default::default()
+            },
+        );
+        let v = seed_preview_json(&p, "shots/a.png", "shots/a.layout.json");
+        for field in [
+            "seed_text", "resolved_seed", "world_type", "preview_size", "spawn",
+            "biome_counts", "feature_hints", "valid", "warnings", "screenshot_path",
+            "layout_path",
+        ] {
+            assert!(v.get(field).is_some(), "contract field {field} missing");
+        }
+        for field in ["x", "y", "z", "safe", "reason"] {
+            assert!(v["spawn"].get(field).is_some(), "spawn field {field} missing");
+        }
+        for field in ["kind", "distance_m", "confidence", "placeholder"] {
+            assert!(
+                v["feature_hints"][0].get(field).is_some(),
+                "feature hint field {field} missing"
+            );
+        }
     }
 
     #[test]

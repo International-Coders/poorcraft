@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "button_state": "",
       "id": "title_logo",
       "kind": "logo",
       "rect": [
@@ -11,6 +12,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "title_sub",
       "kind": "text",
       "rect": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "title_panel",
       "kind": "panel",
       "rect": [
@@ -31,6 +34,7 @@
       ]
     },
     {
+      "button_state": "focused",
       "id": "btn_play",
       "kind": "button",
       "rect": [
@@ -41,6 +45,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "btn_new_world",
       "kind": "button",
       "rect": [
@@ -51,6 +56,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "btn_load_world",
       "kind": "button",
       "rect": [
@@ -61,6 +67,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "btn_settings",
       "kind": "button",
       "rect": [
@@ -71,6 +78,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "btn_quit",
       "kind": "button",
       "rect": [
@@ -81,6 +89,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "footer_left",
       "kind": "text",
       "rect": [
@@ -91,6 +100,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "footer_right",
       "kind": "text",
       "rect": [
@@ -138,12 +148,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "beta-shot",
         "seed": 7
       }

@@ -220,6 +220,8 @@ pub struct CaptureOutcome {
     /// The UI layout dump for this frame (already also written to
     /// `Shot::ui_dump` when requested).
     pub ui_layout: Option<serde_json::Value>,
+    /// The seed preview live at capture time (WT-001 sidecars/checks).
+    pub seed_preview: Option<pc3d_world::seed_preview::SeedPreview>,
 }
 
 /// What a windowed run produced.
@@ -416,6 +418,26 @@ impl WindowState {
         let (w, h) = self.renderer.size();
         if w == 0 || h == 0 {
             return;
+        }
+        // WT-001: the seed preview follows the form — recompute when the
+        // reducer marked it stale or when New World opened without one.
+        // Same text through the same resolver the world creation uses.
+        // An EMPTY seed field shows the placeholder, never a fake map.
+        if self.ui.screen == ui::Screen::NewWorld
+            && (self.ui.seed_preview_stale || self.ui.seed_preview.is_none())
+        {
+            if self.ui.form.seed_digits.is_empty() {
+                self.ui.seed_preview = None;
+            } else {
+                self.ui.seed_preview = Some(pc3d_world::seed_preview::preview_seed(
+                    &pc3d_world::seed_preview::SeedPreviewRequest {
+                        seed_text: self.ui.form.seed_digits.clone(),
+                        ..Default::default()
+                    },
+                ));
+            }
+            self.ui.seed_preview_stale = false;
+            self.ui_dirty = true;
         }
         if self.ui_dirty || self.ui_list.is_none() {
             let list = ui::build_dpi(&self.ui, w, h, self.ui_dpi);
@@ -1633,6 +1655,7 @@ impl App {
                     rgba,
                     ui_canvas,
                     ui_layout,
+                    seed_preview: state.ui.seed_preview.clone(),
                 });
                 self.next_shot += 1;
                 state.frame_no += 1;

@@ -6358,3 +6358,74 @@ green: p3d 592/592 (+2 tests). Visual gates 10/10 PASS. Journey digest
 untouched — this was a presentation bug). DMG rebuilt from the committed
 tree and verified from the mounted read-only volume (stamp + real-screen
 title capture; see STATE.md last_screenshot).
+
+## 2026-09-11 — WT-001 in code: the New World seed preview harness
+
+WHAT (the first "implement in code" task of the WT queue, per STATE's
+next_task): the player can now choose New World, type/reroll/random a
+seed, SEE the world before creating it — map, spawn safety, biome
+summary, feature hints — and CREATE is gated on spawn safety.
+
+HOW:
+- pc3d_world::seed_preview (NEW, pure — no rendering/UI deps):
+  resolve_seed (numeric exact / text FNV-1a / empty+entropy random),
+  reroll_seed (can NEVER return the current seed — the old UI reroll's
+  %100000 LCG could collide silently), preview_seed (32x32-region window
+  = 8.192 km: exact biome census from macro fields, spawn spiral with
+  the full safety law — not water, above sea level, slope < 2.6 m per
+  16 m, >= 6/9 walkable neighbors, not inside a capital-keep footprint
+  via the castle footprint_fits law; feature hints: REAL river distance
+  from hydro::RiverGraph and REAL stronghold-ground from footprint_fits,
+  with settlement marked as an honest PLACEHOLDER until the sim
+  publishes a siting authority), and a 96x96 CPU map (biome palette +
+  relief shading + river overlay + ember/white spawn marker). JSON
+  sidecar lives in pc3d_render::ui::seed_preview_json (pc3d_world stays
+  serde-free).
+- ui.rs: ElementKind::Image (nearest-neighbor blit + forged frame) —
+  the New World screen is now TWO panels (form left, WORLD PREVIEW
+  right: preview_map image, spawn_safety line, biome_summary top-3,
+  feature_hint rows, nw_seed_resolved). RANDOM button added; REROLL and
+  RANDOM are capped to 15 digits so the seed always fits its column (a
+  19-digit reroll ran under the map — caught by the overlap check);
+  form values are fit_to_width-truncated; CREATE is Disabled when the
+  preview is invalid and Enter/click both no-op (activate guard). The
+  layout dump now carries per-button state (the harness gates on it).
+- app.rs: refresh_ui recomputes the preview when the reducer marks it
+  stale or New World opens (empty seed field = placeholder, never a
+  fake map); CaptureOutcome carries the live preview for sidecars.
+- apps/poorcraft3d: --ui-seed-preview-shots (the screenshot battery)
+  and --seed-preview <text|random> (headless PNG+JSON export); make
+  p3d-seed-preview runs both.
+
+EVIDENCE: seed_preview unit laws 9/9 (the WT-001 test matrix verbatim:
+empty-randomizes, text-hashes-stably, numeric-exact, same-seed-bit-
+identical pixels, different-seed-differs, reroll-never-repeats, spawn
+safety vs REAL worldgen, metadata==worldgen recount + spawn y ==
+effective_surface, form/preview seed agreement); ui tests 36/36 (map
+element + ink, create disabled on unsafe preview + Enter blocked,
+reroll/random change seed + mark stale, sidecar contract); the windowed
+battery 6/6 SHOTS PASS at p50 7.47 ms / 133 fps avg — empty (placeholder
+map, CREATE disabled), typed 4242 (57 map colors, spawn marker, CREATE
+on), rerolled (80 colors), random (resolved seed displayed; its window
+happens to be unsafe — CREATE correctly disabled), deck 1280x800, and
+the warning state (deterministic search found seed 8 unsafe in 0..500);
+per-shot sidecars + seed_preview_pixel_report.json; map structure
+measured NOT noise (70-72% adjacent-pixel agreement in the map band);
+make p3d-ui-shots still 13/13 (two-panel layout inside every margin/
+overlap law); p3d suite 596/596 (+16); root suite green.
+
+NOTE ON THE CONCURRENT SESSION: another GLM loop committed the samurai-
+cut fix mid-task and swept this session's in-flight ui.rs (the NewWorld
+preview panel) into its commit WITHOUT the seed_preview module it
+references — HEAD was briefly red (ui.rs compiled against a missing
+pc3d_world::seed_preview). This commit restores green by shipping the
+module + the remaining wiring. The dist3d DMG is rebuilt AFTER this
+commit with the new stamp.
+
+HONESTLY DEFERRED: the settlement feature hint is a declared placeholder
+(no published siting authority to query — rivers and stronghold ground
+are real); PreviewWorldType is a one-value hook (worldgen has one type);
+preview recomputes on the frame after the seed changes (not per
+keystroke); the random-seed shot landed on an unsafe window (legitimate
+— it exercises the warning state, but a friendlier seed would read
+better); no zoom/pan on the preview map.

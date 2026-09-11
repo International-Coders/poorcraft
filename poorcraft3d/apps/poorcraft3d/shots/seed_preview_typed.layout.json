@@ -51,7 +51,7 @@
       "rect": [
         568,
         239,
-        22,
+        46,
         14
       ]
     },
@@ -216,7 +216,7 @@
       "rect": [
         822,
         471,
-        142,
+        274,
         14
       ]
     },
@@ -233,23 +233,12 @@
     },
     {
       "button_state": "",
-      "id": "feature_hint_2",
+      "id": "nw_seed_resolved",
       "kind": "text",
       "rect": [
         822,
         519,
         274,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "nw_seed_resolved",
-      "kind": "text",
-      "rect": [
-        822,
-        543,
-        250,
         14
       ]
     },
@@ -288,7 +277,7 @@
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
-      "seed": 22
+      "seed": 4242
     },
     "gameplay_input_blocked": true,
     "hover": null,
@@ -313,12 +302,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:30",
+        "modified": "2026-09-11 06:29",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:30",
+        "modified": "2026-09-11 06:29",
         "name": "beta-shot",
         "seed": 7
       }

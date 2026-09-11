@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "button_state": "",
       "id": "bar_health",
       "kind": "bar",
       "rect": [
@@ -11,6 +12,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "bar_stamina",
       "kind": "bar",
       "rect": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "bar_food",
       "kind": "bar",
       "rect": [
@@ -31,6 +34,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -41,6 +45,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "xp_strip",
       "kind": "bar",
       "rect": [
@@ -51,6 +56,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "prompt",
       "kind": "text",
       "rect": [
@@ -61,6 +67,18 @@
       ]
     },
     {
+      "button_state": "",
+      "id": "toast_SAVED 'REBUILD'",
+      "kind": "toast",
+      "rect": [
+        651,
+        676,
+        198,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -71,6 +89,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "hotbar_1",
       "kind": "hotbar_slot",
       "rect": [
@@ -81,6 +100,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "hotbar_2",
       "kind": "hotbar_slot",
       "rect": [
@@ -91,6 +111,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "hotbar_3",
       "kind": "hotbar_slot",
       "rect": [
@@ -101,6 +122,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "hotbar_4",
       "kind": "hotbar_slot",
       "rect": [
@@ -111,6 +133,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "hotbar_5",
       "kind": "hotbar_slot",
       "rect": [
@@ -121,6 +144,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "hotbar_6",
       "kind": "hotbar_slot",
       "rect": [
@@ -131,6 +155,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "hotbar_7",
       "kind": "hotbar_slot",
       "rect": [
@@ -141,6 +166,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "hotbar_8",
       "kind": "hotbar_slot",
       "rect": [
@@ -172,7 +198,7 @@
       "health": 0.44999998807907104,
       "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.49494096636772156,
+      "stamina": 0.48789530992507935,
       "xp": 0.5
     },
     "modal": null,
@@ -188,16 +214,21 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "beta-shot",
         "seed": 7
       }
     ],
-    "toasts": []
+    "toasts": [
+      {
+        "age_s": 2.892655849456787,
+        "text": "SAVED 'REBUILD'"
+      }
+    ]
   }
 }

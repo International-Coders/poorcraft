@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "button_state": "",
       "id": "settings_panel",
       "kind": "panel",
       "rect": [
@@ -11,6 +12,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_0_label",
       "kind": "text",
       "rect": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_0_value",
       "kind": "text",
       "rect": [
@@ -31,6 +34,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_0_dec",
       "kind": "button",
       "rect": [
@@ -41,6 +45,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_0_inc",
       "kind": "button",
       "rect": [
@@ -51,6 +56,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_1_label",
       "kind": "text",
       "rect": [
@@ -61,6 +67,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_1_value",
       "kind": "text",
       "rect": [
@@ -71,6 +78,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_1_dec",
       "kind": "button",
       "rect": [
@@ -81,6 +89,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_1_inc",
       "kind": "button",
       "rect": [
@@ -91,6 +100,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_2_label",
       "kind": "text",
       "rect": [
@@ -101,6 +111,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_2_value",
       "kind": "text",
       "rect": [
@@ -111,6 +122,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_2_dec",
       "kind": "button",
       "rect": [
@@ -121,6 +133,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_2_inc",
       "kind": "button",
       "rect": [
@@ -131,6 +144,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_3_label",
       "kind": "text",
       "rect": [
@@ -141,6 +155,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_3_value",
       "kind": "text",
       "rect": [
@@ -151,6 +166,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_3_dec",
       "kind": "button",
       "rect": [
@@ -161,6 +177,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_3_inc",
       "kind": "button",
       "rect": [
@@ -171,6 +188,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_4_label",
       "kind": "text",
       "rect": [
@@ -181,6 +199,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_row_4_value",
       "kind": "text",
       "rect": [
@@ -191,6 +210,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_4_dec",
       "kind": "button",
       "rect": [
@@ -201,6 +221,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_row_4_inc",
       "kind": "button",
       "rect": [
@@ -211,6 +232,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_controls_title",
       "kind": "text",
       "rect": [
@@ -221,6 +243,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap",
       "kind": "text",
       "rect": [
@@ -231,6 +254,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
@@ -241,6 +265,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap",
       "kind": "text",
       "rect": [
@@ -251,6 +276,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
@@ -261,6 +287,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap",
       "kind": "text",
       "rect": [
@@ -271,6 +298,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
@@ -281,6 +309,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap",
       "kind": "text",
       "rect": [
@@ -291,6 +320,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
@@ -301,6 +331,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap",
       "kind": "text",
       "rect": [
@@ -311,6 +342,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
@@ -321,6 +353,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap",
       "kind": "text",
       "rect": [
@@ -331,6 +364,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
@@ -341,6 +375,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap",
       "kind": "text",
       "rect": [
@@ -351,6 +386,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
@@ -361,6 +397,7 @@
       ]
     },
     {
+      "button_state": "",
       "id": "set_keymap",
       "kind": "text",
       "rect": [
@@ -371,6 +408,7 @@
       ]
     },
     {
+      "button_state": "normal",
       "id": "set_back",
       "kind": "button",
       "rect": [
@@ -418,12 +456,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:17",
+        "modified": "2026-09-11 06:30",
         "name": "beta-shot",
         "seed": 7
       }
