@@ -104,6 +104,13 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       gates, NVIDIA Nsight/DLSS gates, capture scenes, upscaler readiness,
       shader debug rules, before/after perf evidence, seven JSON contracts, and
       a code guard proving the subpack files parse and exist (loop 422)
+- [x] POORCRAFT 3D WT-008 data extraction plugin lab: concrete
+      implementation-ready subfolder under GLM-WORLD-TOOLS-ASSET-PACK for
+      local-safe mods/plugins/exporters, loopback MCP-style inspector endpoints,
+      scene/UI/asset/mesh/material/player/NPC/machine/worldgen/perf/evidence
+      extraction, good/bad sample mod packs, telemetry traces, data safety
+      rules, eight JSON contracts, and a code guard proving the subpack files
+      parse and exist (loop 426)
 
 ## ui-world-craft pack (loop 328)
 

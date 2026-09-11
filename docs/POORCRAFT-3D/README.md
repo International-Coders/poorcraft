@@ -110,6 +110,9 @@ only when its implementation, tests, runtime behavior, and evidence agree.
 - `GLM-WORLD-TOOLS-ASSET-PACK/WT-007-GPU-VENDOR-COOKBOOK/` — concrete handoff
   for wgpu markers, AMD/NVIDIA capture workflows, upscaler readiness, shader
   debug rules, capture scenes, and before/after performance evidence.
+- `GLM-WORLD-TOOLS-ASSET-PACK/WT-008-DATA-EXTRACTION-PLUGIN-LAB/` — concrete
+  handoff for local mods/plugins/exporters, telemetry files, sample validation
+  packs, MCP-style endpoints, and safe extraction of runtime proof data.
 
 ## What this project is
 

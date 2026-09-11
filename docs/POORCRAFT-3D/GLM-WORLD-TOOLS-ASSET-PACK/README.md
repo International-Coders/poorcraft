@@ -56,6 +56,10 @@ defines wgpu marker placement, capture scenes, AMD RGP/FSR gates, NVIDIA
 Nsight/DLSS gates, upscaler prerequisites, shader-debug rules, and before/after
 perf evidence.
 
+Use `WT-008-DATA-EXTRACTION-PLUGIN-LAB/` when GLM needs deeper game data. It
+authorizes local plugins, mods, exporters, telemetry files, sample packs, and
+MCP-style endpoints that extract state safely for proofs.
+
 ## Folder Map
 
 - `00-OWNER-DEMANDS.md` — plain owner intent.
@@ -91,6 +95,9 @@ perf evidence.
 - `WT-007-GPU-VENDOR-COOKBOOK/` — implementation-ready GPU capture cookbook
   for wgpu markers, AMD/NVIDIA vendor tools, upscaler readiness, and measured
   before/after evidence.
+- `WT-008-DATA-EXTRACTION-PLUGIN-LAB/` — implementation-ready local extraction
+  pack for plugins, mods, exporters, telemetry, validation sample packs, and
+  MCP-style endpoint contracts.
 
 ## Machine Contracts
 
@@ -109,6 +116,7 @@ perf evidence.
 - `WT-005-ASSET-PROMPT-ATLAS/asset_prompt_atlas_manifest.json`
 - `WT-006-ZCODE-CONTINUOUS-RUNBOOK/zcode_runbook_manifest.json`
 - `WT-007-GPU-VENDOR-COOKBOOK/gpu_vendor_cookbook_manifest.json`
+- `WT-008-DATA-EXTRACTION-PLUGIN-LAB/data_extraction_plugin_manifest.json`
 
 ## Relationship To The Existing Packs
 

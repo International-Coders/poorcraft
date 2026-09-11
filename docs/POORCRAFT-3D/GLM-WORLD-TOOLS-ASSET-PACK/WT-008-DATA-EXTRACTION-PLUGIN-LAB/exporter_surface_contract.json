@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "exporters": ["scene", "ui", "asset", "mesh", "materials", "player", "npc", "machine", "seed_preview", "worldgen_sample", "perf", "evidence_bundle"],
+  "formats": ["json", "png", "csv", "obj_debug", "glb_debug", "jsonl_trace"],
+  "required_common_fields": ["version", "build_hash", "command", "scene", "seed", "viewport", "timestamp_utc", "verdict"]
+}

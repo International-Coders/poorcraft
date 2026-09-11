@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "required_outputs": ["export_json", "screenshot_if_visual", "wireframe_if_mesh", "verdict_json", "validation_report"],
+  "claim_checks": ["screenshots_match_json", "bad_packs_rejected", "paths_exist", "build_hash_present", "schema_version_present"],
+  "not_proven_verdict": "not_done"
+}

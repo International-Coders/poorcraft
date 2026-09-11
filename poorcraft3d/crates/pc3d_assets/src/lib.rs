@@ -756,6 +756,49 @@ mod tests {
                 serde_json::from_str(&json).unwrap_or_else(|e| panic!("{rel}: {e}"));
             assert_eq!(parsed["version"], serde_json::json!(1), "{rel} version");
         }
+
+        let wt008_safety: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join(
+                "WT-008-DATA-EXTRACTION-PLUGIN-LAB/data_safety_contract.json",
+            ))
+            .expect("WT-008 data safety readable"),
+        )
+        .expect("WT-008 data safety json");
+        let forbidden = wt008_safety["forbidden"]
+            .as_array()
+            .expect("WT-008 forbidden list");
+        for forbidden_claim in [
+            "public_listener",
+            "external_upload_by_default",
+            "secret_export",
+            "silent_save_mutation",
+        ] {
+            assert!(
+                forbidden.iter().any(|value| value
+                    .as_str()
+                    .is_some_and(|s| s == forbidden_claim)),
+                "WT-008 extraction safety must forbid {forbidden_claim}"
+            );
+        }
+
+        let wt008_exporters: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join(
+                "WT-008-DATA-EXTRACTION-PLUGIN-LAB/exporter_surface_contract.json",
+            ))
+            .expect("WT-008 exporter surface readable"),
+        )
+        .expect("WT-008 exporter surface json");
+        let exporters = wt008_exporters["exporters"]
+            .as_array()
+            .expect("WT-008 exporters list");
+        for exporter in ["scene", "ui", "mesh", "npc", "machine", "evidence_bundle"] {
+            assert!(
+                exporters
+                    .iter()
+                    .any(|value| value.as_str().is_some_and(|s| s == exporter)),
+                "WT-008 exporter surface must include {exporter}"
+            );
+        }
     }
 
     #[test]

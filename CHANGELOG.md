@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-09-11 — WT-008 data extraction plugin lab
+
+The GLM world/tools pack now has an eighth implementation-ready subpack:
+
+- `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-008-DATA-EXTRACTION-PLUGIN-LAB/`
+  defines the local-safe inspection layer GLM needs to stop guessing from
+  screenshots alone: scene graph exports, UI layout, asset manifests,
+  mesh/material dumps, player/NPC/machine/worldgen state, perf counters,
+  evidence bundles, screenshots, and optional debug OBJ/GLB exports.
+- The subpack authorizes mods/plugins/exporters and loopback MCP-style tools
+  only inside explicit local output directories, with no public listener, no
+  secret capture, no save mutation by default, and no "AI inspected it" claim
+  unless a real exported file is listed in the evidence bundle.
+- Eight JSON contracts cover plugin manifests, exporter surfaces, inspector
+  endpoints, telemetry signals, sample mod packs, data safety, extraction
+  evidence, and the WT-008 manifest. `pc3d_assets` parses them through the
+  world/tools guard and preserves the law that data extraction must be local,
+  safe, and proof-oriented.
+
 ## 2026-09-11 — THE SAMURAI CUT: the UI layer was ONE triangle
 
 The owner's "menus/buttons/text fields diagonally cut" was a second,
@@ -3536,3 +3555,16 @@ The simulation-only roadmap was declared complete; the visual reset
 - Deferred: wireframe/anchor-overlay captures (slice 3, with WT-002
   slice 3), gameplay routes flip on when the talk/forge/entry slices
   land, GPU markers (WT-007).
+
+## Loop 425 — WT-002/003 slice 3: wireframe + anchor overlays
+- The renderer gained `SceneDebugMode`: Wireframe (deduped mesh edges as
+  sun-lit lines over a dimmed world, via a new LineList pipeline with
+  x-ray depth) and AnchorOverlay (per-socket axis crosses + bounds wire
+  boxes). `load_asset` retains sockets/bounds/edges for the debug passes.
+- `--asset-capture <id|all>` + `make p3d-asset-captures`: beauty /
+  wireframe / overlay windowed captures per GLB starter asset with
+  center-region, diff-gated pixel checks and JSON sidecars — 4/4 assets
+  pass (frame diffs 50–77%, lines verified thin-structured).
+- Found + fixed by the proofs: the ui_script owner_menu gate (silent
+  no-op scripts) and the offscreen readback's late-pass draw drop
+  (documented; the windowed path is the visual law's evidence).

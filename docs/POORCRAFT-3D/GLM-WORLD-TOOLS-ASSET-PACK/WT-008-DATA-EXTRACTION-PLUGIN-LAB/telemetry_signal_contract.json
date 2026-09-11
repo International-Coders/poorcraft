@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "signals": ["trace", "metric", "log"],
+  "local_output_formats": ["jsonl", "json", "csv"],
+  "external_export_default": false,
+  "required_namespaces": ["pc3d.route", "pc3d.ui", "pc3d.asset", "pc3d.worldgen", "pc3d.machine", "pc3d.gpu", "pc3d.export"]
+}

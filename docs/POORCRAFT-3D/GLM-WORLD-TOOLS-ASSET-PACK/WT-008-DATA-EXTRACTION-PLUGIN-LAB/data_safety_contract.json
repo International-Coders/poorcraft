@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "allowed_outputs": ["explicit_outdir", "target_observatory", "shots_observatory", "docs_evidence"],
+  "forbidden": ["public_listener", "external_upload_by_default", "secret_export", "unrelated_file_scan", "silent_save_mutation"],
+  "player_save_policy": "read_only_unless_owner_requested"
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "task_id": "WT-008",
+  "name": "Data Extraction Plugin Lab",
+  "purpose": "Authorize and constrain local mods, plugins, endpoints, and exporters that let GLM inspect POORCRAFT 3D runtime data.",
+  "required_contracts": [
+    "plugin_manifest_contract.json",
+    "exporter_surface_contract.json",
+    "inspector_endpoint_contract.json",
+    "telemetry_signal_contract.json",
+    "mod_sample_pack_contract.json",
+    "data_safety_contract.json",
+    "extraction_evidence_contract.json"
+  ],
+  "must_preserve": [
+    "local first extraction",
+    "exporters require build hash",
+    "bad sample packs must fail",
+    "telemetry is optional local evidence",
+    "extraction must not replace gameplay fixes"
+  ]
+}

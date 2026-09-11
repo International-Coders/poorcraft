@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "good_packs": ["sample_house_good", "sample_npc_good", "sample_forge_good", "sample_ui_good", "sample_seed_good"],
+  "bad_packs": ["bad_house_no_door", "bad_npc_no_talk", "bad_forge_no_output", "bad_ui_baked_key_text", "bad_asset_nan_bounds", "bad_mod_missing_material", "bad_perf_claim_no_before_after"],
+  "bad_packs_must_fail": true
+}

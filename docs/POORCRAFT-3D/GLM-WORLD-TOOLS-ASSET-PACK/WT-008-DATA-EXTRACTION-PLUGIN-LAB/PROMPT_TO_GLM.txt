@@ -1,0 +1,19 @@
+Implement WT-008: POORCRAFT 3D data extraction plugin lab.
+
+Read every file in:
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-008-DATA-EXTRACTION-PLUGIN-LAB
+
+You are authorized to add local debug plugins, mods, exporters, and
+MCP-style endpoints when they help prove the game state. Required:
+
+1. Keep all extraction local by default.
+2. Export JSON sidecars for scene, UI, assets, mesh, materials, player, NPC,
+   machines, seed preview, worldgen, perf, and proof verdicts.
+3. Export screenshot PNGs, wireframe PNGs, overlay PNGs, and optional OBJ/GLB
+   debug dumps when needed.
+4. Add sample mod/plugin packs that intentionally include good and bad content
+   so validators can prove rejection.
+5. Use telemetry concepts only as local traces/metrics/logs unless the owner
+   explicitly asks for external export.
+6. Never claim a feature works unless extraction agrees with screenshots and
+   route evidence.

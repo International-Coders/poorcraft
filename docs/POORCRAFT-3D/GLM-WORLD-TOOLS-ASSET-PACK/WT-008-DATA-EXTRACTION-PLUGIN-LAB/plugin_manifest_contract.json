@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "required_fields": ["plugin_id", "schema_version", "purpose", "commands", "outputs", "mutates_world", "safety_scope"],
+  "allowed_shapes": ["cli_command", "dev_module", "sample_mod_pack", "loopback_endpoint", "offline_validator"],
+  "default_network_policy": "loopback_or_none"
+}

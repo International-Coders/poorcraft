@@ -8,7 +8,7 @@
     {"id": "WT-005", "title": "Asset prompt atlas", "priority": 5, "done_when": ["prompt_libraries", "ui_sprite_contracts", "gltf_import_contracts", "batch_acceptance_matrix"]},
     {"id": "WT-006", "title": "Z-code continuous runbook", "priority": 6, "done_when": ["operating_loop_contract", "proof_gate_contract", "failure_recovery_contract", "sprint_cards", "completion_audit"]},
     {"id": "WT-007", "title": "GPU vendor cookbook", "priority": 7, "done_when": ["wgpu_marker_matrix", "amd_capture_gates", "nvidia_capture_gates", "upscaler_readiness", "before_after_perf_bundle"]},
-    {"id": "WT-008", "title": "AMD/NVIDIA capture checklist outputs", "priority": 8, "done_when": ["rgp_checklist", "nsight_aftermath_checklist", "streamline_ui_buffer_plan"]},
+    {"id": "WT-008", "title": "Data extraction plugin lab", "priority": 8, "done_when": ["local_plugin_contracts", "exporter_surface", "sample_good_bad_mods", "telemetry_files", "safe_evidence_exports"]},
     {"id": "WT-009", "title": "300-plus semantic asset expansion", "priority": 9, "done_when": ["asset_backlog_rows", "semantic_tags", "loader_tests", "proof_screenshots"]}
   ]
 }

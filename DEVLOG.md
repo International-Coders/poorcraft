@@ -6543,3 +6543,97 @@ slice 6 GPU pass markers (WT-007 slice 1 — the runtime state honestly
 carries null-with-reason until then). The beauty captures use the
 windowed readback path (the same presented-frame path the quad-coverage
 law verifies byte-exact); timestamp is unix-seconds (no chrono dep).
+
+## 2026-09-11 — WT-002/003 slice 3: wireframe + anchor-overlay captures
+
+WHAT (the visual evidence slices both packs deferred to this cycle): the
+renderer grew real inspection modes — WIREFRAME (deduped mesh edges as
+sun-lit lines over a 12%-dimmed world) and ANCHOR OVERLAY (per-socket
+axis crosses in ember/green/blue + white bounds wire boxes) — and every
+GLB starter asset ships beauty/wireframe/overlay windowed captures with
+center-region pixel checks and JSON sidecars.
+
+HOW:
+- renderer.rs: SceneDebugMode (Normal/Wireframe/AnchorOverlay) + a WIRE
+  PIPELINE (the lit vertex path on LineList, x-ray depth — lines
+  rasterize depth in ulp-different steps than their triangles, so
+  LessEqual made 1px edges lose every z-fight and vanish; Always +
+  no-write is the see-through inspection look); load_asset retains each
+  asset's sockets+bounds and accumulates deduped wire edges
+  (extract_wire_edges: unique sorted-index-pair edges, sun-aligned
+  normals so the dim exemption keeps lines bright); build_overlay_edges
+  (3 axis lines per socket + a 12-edge bounds box); the line buffers
+  rebuild in prepare_frame OUTSIDE any encoder; the world dims through
+  env.params3.y with the shader exempting exactly-sun-aligned debug
+  lines (dot > 0.9999 — the vertex normals are SUN_DIR by construction).
+- apps: --asset-capture <id|all> (per-asset re-exec per the winit law;
+  the ui_script loads the asset, frames the camera from its lod0 bounds,
+  flips modes; pixel checks run on the CENTER REGION ONLY with a
+  genuine-diff-vs-beauty requirement so the sky/sun disk and the HUD
+  band cannot fake a pass) + wireframe.json/overlay.json sidecars
+  (unique-edge count; labeled anchors + bounds); make
+  p3d-asset-captures.
+
+EVIDENCE: all four GLB starter assets PASS all three captures —
+starter_house (254 beauty colors; wireframe 5400 center bright px at
+50.8% real diff; overlay 50.9% diff), openable_chest (77.2% diff),
+harvestable_ore_node (73.1%), map_marker_set (64.5%); the chest
+wireframe measured 39% of bright pixels as THIN-LINE structures (lines,
+not fills); unit laws: edge dedup (triangulated cube = 18 unique edges
+from 36 instances), overlay builder (2 sockets -> 12 cross + 24 box
+vertices, ember axis present), offscreen data+dim laws (edges retained
+sun-aligned, anchors >= 4 sockets, debug mode darkens > 2000 px).
+
+TWO REAL BUGS THIS SLATE (both found by the proofs, both documented):
+(1) the first arm run showed three IDENTICAL frames — the ui_script
+gate is `if state.owner_menu` and the arm had owner_menu:false, so the
+asset never even loaded (the placeholder scene + the sky's sun disk
+faked the early "bright pixel" passes until the checks became
+center-region + diff-gated); (2) the OFFSCREEN readback path silently
+drops late-pass draws on this backend — even a hardcoded fullscreen
+draw after the asset pass painted nothing — so the offscreen GPU test
+honestly carries the data+dim laws and the WINDOWED captures are the
+visual law's evidence (a backend note, not a claim).
+
+HONESTLY DEFERRED: wireframe covers GLB assets (not yet streamed
+terrain/flora batches — their edge extraction follows the same recipe
+when needed); no 3D text labels (anchors are labeled in the overlay.json
+sidecar); the offscreen late-pass draw drop is a backend investigation
+ticket, not a workaround to forget.
+
+## 2026-09-11 — WT-008 data extraction plugin lab
+
+WHAT: added the eighth GLM world/tools handoff subpack, focused on
+local-safe data extraction. The goal is to let GLM inspect POORCRAFT 3D
+through real exported files and loopback inspector commands instead of
+only eyeballing screenshots.
+
+HOW:
+- Added `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-008-DATA-EXTRACTION-PLUGIN-LAB/`
+  with README, PROMPT_TO_GLM, eight Markdown implementation notes, and
+  eight JSON contracts.
+- Defined contracts for local plugin manifests, exporter surfaces,
+  inspector endpoints, telemetry traces, mod sample packs, data safety,
+  extraction evidence, and the WT-008 manifest.
+- Covered scene graph, UI layout, asset manifest, mesh/material,
+  player/NPC/machine, seed preview/worldgen, performance, screenshots,
+  JSON/CSV/JSONL traces, and optional debug OBJ/GLB export evidence.
+- Added good/bad sample-pack rules for semantic gameplay validation:
+  house door works versus decorative facade, NPC talk route works versus
+  inert model, forge output works versus static prop, UI key icons versus
+  baked text, NaN bounds, missing materials, and perf claims without
+  before/after proof.
+- Wired WT-008 into the world/tools README, root POORCRAFT-3D README,
+  `world_tools_manifest.json`, `zcode_world_tools_task_queue.json`,
+  `STATE.md`, `BACKLOG.md`, and `CHANGELOG.md`. The existing
+  `pc3d_assets` world/tools guard already includes the WT-008 contract
+  paths and law.
+
+EVIDENCE: all JSON under `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK`
+validates with `python3 -m json.tool`; focused guard
+`cargo test --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets
+glm_world_tools_pack_is_parseable_and_complete` passed 1/1; full
+`cargo test --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets`
+passed 33/33. No fresh runtime/DMG was produced for this pass because it
+is a docs/contracts/code-guard handoff pack rather than a playable
+runtime change.
