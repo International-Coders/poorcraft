@@ -1,0 +1,55 @@
+{
+  "build_hash": "dev",
+  "camera": "scripted_route_camera",
+  "command": "--observe route_semantic_playtest",
+  "gpu_markers": {
+    "reason": "pass markers pending WT-007 slice 1",
+    "value": null
+  },
+  "interactions": {
+    "gameplay_input_blocked": false,
+    "pointer_grabbed": false,
+    "tracked_ui_state_events": 0
+  },
+  "machines": {
+    "reason": "sim machines not mounted in UI routes (see --journey)",
+    "value": null
+  },
+  "npcs": {
+    "reason": "no crowd mounted in UI routes (see --play-people)",
+    "value": null
+  },
+  "perf": {
+    "avg_fps": 47.400001525878906,
+    "frames": 466,
+    "p50_ms": 18.43000030517578,
+    "p95_ms": 39.630001068115234
+  },
+  "player": {
+    "note": "player pose rides the route camera script in UI routes"
+  },
+  "proof_paths": [],
+  "quality": "mid",
+  "scene": "showcase_seed_3_rebuild",
+  "seed": "3",
+  "timestamp_utc": "1789152070",
+  "ui": {},
+  "verdict": "exported",
+  "version": 1,
+  "viewport": [
+    800,
+    500
+  ],
+  "visible_assets": {
+    "count": 7,
+    "note": "the asset inspection route dumps the full starter batch"
+  },
+  "world": {
+    "built_count": {
+      "reason": "construction not mounted in UI routes",
+      "value": null
+    },
+    "seed_resolved": "3",
+    "spawn_safe": null
+  }
+}

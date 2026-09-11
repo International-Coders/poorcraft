@@ -143,6 +143,14 @@ p3d-asset-captures: ## WT-002/003 slice 3: beauty+wireframe+anchor-overlay windo
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-capture all poorcraft3d/apps/poorcraft3d/shots/asset-captures || exit 1; \
 	echo "P3D ASSET CAPTURES OK"
 
+p3d-playtest: ## WT-002 slice 5 capstone: the semantic playtest (house->talk->forge in one walk) run TWICE + comparator (deterministic same seed): make p3d-playtest
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/playtest-a poorcraft3d/apps/poorcraft3d/shots/playtest-b
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_semantic_playtest poorcraft3d/apps/poorcraft3d/shots/playtest-a || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_semantic_playtest poorcraft3d/apps/poorcraft3d/shots/playtest-b || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/playtest-a/route_semantic_playtest poorcraft3d/apps/poorcraft3d/shots/playtest-b/route_semantic_playtest || exit 1; \
+	echo "P3D SEMANTIC PLAYTEST OK (chained + deterministic)"
+
 p3d-assets-window: ## NWR-002: windowed asset-factory proof (tree/rock/house): make p3d-assets-window [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-assets $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \

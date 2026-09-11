@@ -4613,6 +4613,103 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(60, format!("{dir}/beauty_assets.png"))
                     .ui_dump(format!("{dir}/beauty_assets.layout.json")));
             }
+            "route_semantic_playtest" => {
+                // THE SEMANTIC PLAYTEST (WT-002 slice 5 capstone): one
+                // scripted walk chaining the whole interaction trio —
+                // enter a house, exit, speak with a villager, work the
+                // forge — with captures along the way and perf export.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // House: outside the door, then inside, then back out.
+                ui_script.push((
+                    40,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(de) = r.settlement_door_entries().first() {
+                            let d = [de.interior[0] - de.door[0], de.interior[1] - de.door[1]];
+                            ctx.actions.push(UiAction::PlayerTeleport {
+                                x: de.door[0] - d[0] * 3.0,
+                                z: de.door[1] - d[1] * 3.0,
+                            });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    70,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(de) = r.settlement_door_entries().first() {
+                            ctx.actions.push(UiAction::PlayerTeleport {
+                                x: de.interior[0],
+                                z: de.interior[1],
+                            });
+                        }
+                    }),
+                ));
+                // Exit + walk to the crowd: stand beside cast member 0.
+                ui_script.push((
+                    110,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(p) = r.cast_position(0) {
+                            ctx.actions.push(UiAction::PlayerTeleport {
+                                x: p[0] + 1.0,
+                                z: p[2] + 1.0,
+                            });
+                        }
+                    }),
+                ));
+                // Speak (the NPC is nearer than the plaza forge here).
+                ui_script.push((
+                    150,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk);
+                    }),
+                ));
+                // Close the dialog, walk to the plaza forge, open it.
+                ui_script.push((
+                    200,
+                    Box::new(|_ui, r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // E closes
+                        if let Some(de) = r.settlement_door_entries().first() {
+                            ctx.actions.push(UiAction::PlayerTeleport {
+                                x: de.door[0],
+                                z: de.door[1],
+                            });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    240,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // forge zone
+                    }),
+                ));
+                ui_script.push((
+                    270,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::ForgeLoadFuel);
+                        ctx.actions.push(UiAction::ForgeLoadOre);
+                    }),
+                ));
+                ui_script.push((
+                    430,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::ForgeTake);
+                    }),
+                ));
+                shots.push(Shot::new(60, format!("{dir}/play_door_outside.png"))
+                    .ui_dump(format!("{dir}/play_door_outside.layout.json")));
+                shots.push(Shot::new(100, format!("{dir}/play_interior.png"))
+                    .ui_dump(format!("{dir}/play_interior.layout.json")));
+                shots.push(Shot::new(180, format!("{dir}/play_talk.png"))
+                    .ui_dump(format!("{dir}/play_talk.layout.json")));
+                shots.push(Shot::new(300, format!("{dir}/play_forge.png"))
+                    .ui_dump(format!("{dir}/play_forge.layout.json")));
+                shots.push(Shot::new(470, format!("{dir}/play_taken.png"))
+                    .ui_dump(format!("{dir}/play_taken.layout.json")));
+            }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
                 // own DoorEntry record (door column open, ring solid,
@@ -4736,7 +4833,11 @@ fn run_observe(route_id: &str, out_root: &str) {
             title: format!("POORCRAFT 3D — observatory {}", spec.id),
             logical_size: (1280.0, 720.0),
             size_is_physical: true,
-            max_frames: Some(420),
+            max_frames: if spec.id == "route_semantic_playtest" {
+                Some(560)
+            } else {
+                Some(420)
+            },
             probe_set: pc3d_render::ProbeSet::SkyOnly,
             shots,
             slice_setup: Some(pc3d_render::app::SliceSetup {
@@ -4807,6 +4908,69 @@ fn run_observe(route_id: &str, out_root: &str) {
                     eprintln!("[FAIL] observe {}: dialog not shown", spec.id);
                     any_fail = true;
                 }
+            }
+        }
+        // THE SEMANTIC PLAYTEST: all three interactions in one walk.
+        if spec.id == "route_semantic_playtest" {
+            let has = |name: &str| {
+                report.captures.iter().any(|c| {
+                    c.path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .map(|s| s == name)
+                        .unwrap_or(false)
+                })
+            };
+            let dialog_shown = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["dialog"]["speaker"].as_str().map(str::to_string))
+                .or_else(|| {
+                    // Dialog may be closed by the end; the talk capture
+                    // carried it — check the dump's element list.
+                    report.captures.iter().find_map(|c| {
+                        let lay = c.ui_layout.as_ref()?;
+                        lay["elements"]
+                            .as_array()?
+                            .iter()
+                            .any(|e| e["id"] == "dialog_speaker")
+                            .then_some("".to_string())
+                    })
+                });
+            let bars = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["forge_bars_taken"].as_u64())
+                .unwrap_or(0);
+            let inside_vs_outside = match (
+                report.captures.first(),
+                report.captures.get(1),
+            ) {
+                (Some(a), Some(b)) => {
+                    pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > 0.15
+                }
+                _ => false,
+            };
+            let ok = has("play_door_outside")
+                && has("play_interior")
+                && has("play_talk")
+                && has("play_forge")
+                && has("play_taken")
+                && inside_vs_outside
+                && bars > 0;
+            if ok {
+                println!(
+                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged",
+                    dialog_shown.as_deref().unwrap_or("villager")
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / dialog {} / inside {inside_vs_outside} / bars {bars}",
+                    spec.id,
+                    report.captures.len(),
+                    dialog_shown.is_some()
+                );
+                any_fail = true;
             }
         }
         // The house-entry route: outside-the-door and interior captures

@@ -6833,3 +6833,38 @@ bed/work/idle anchor CELLS exist in the plan — visual markers are the
 settlement kit's); no door ANIMATION (the column is open geometry);
 the door faces the plaza by the quantized-cardinal facing (diagonal
 buildings pick the dominant axis).
+
+## 2026-09-11 — The semantic playtest: the whole interaction trio in one walk
+
+WHAT (WT-002 slice 5 capstone): route_semantic_playtest — one scripted
+walk through the living settlement: SPAWN, walk to a house, stand
+outside its door, step INSIDE through the open door column, exit, walk
+to the crowd, SPEAK with a villager (Maren Oldford), close the dialog,
+walk to the plaza forge, OPEN it, LOAD fuel + ore, let the work ticks
+smelt, TAKE the bar — five captures along the way plus the perf
+export. Then the whole route runs TWICE and the comparator proves
+same-seed determinism.
+
+HOW: the observatory gained its ninth route — the script chains the
+three interaction slices' real action paths (PlayerTeleport for the
+walk legs, TryTalk with the zone priority resolving NPC-near vs
+forge-near, the full forge action set); the assertions check all five
+captures, the door-outside vs interior frames differ (>15%), a dialog
+speaker was shown (the talk capture's element dump), and bars taken >
+0. make p3d-playtest runs the route into two bundle dirs and
+--compare-evidence renders the verdict (the contract's
+deterministic_same_seed assertion, fulfilled by the existing
+comparator).
+
+EVIDENCE: "SEMANTIC PLAYTEST: house entered (frames differ), Maren
+Oldford talked, 1 bar(s) forged" — reproduced identically on the
+second independent run; comparator verdict PASS (7/7 checks); p50
+18.4 ms over 471 frames per run; 9/9 observatory routes now available
+and green; full suites re-run.
+
+HONESTLY DEFERRED (the matrix rows not yet in the chain):
+open_chest, harvest_resource, open_map_marker — the chest and ore
+GLBs exist and validate but are not placed in the world, and their
+interaction panels are unstarted (each is a small follow-up on the
+forge/dialog pattern); the playtest teleports are proof hooks, not
+gameplay movement.

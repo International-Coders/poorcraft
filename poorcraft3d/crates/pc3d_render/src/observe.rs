@@ -46,6 +46,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_semantic_playtest",
+            available: true,
+            reason: "",
+        },
     ]
 }
 
@@ -318,7 +323,7 @@ mod tests {
     #[test]
     fn route_table_covers_the_contract_with_honest_reasons() {
         let rs = routes();
-        assert_eq!(rs.len(), 8, "the contract's eight required routes");
+        assert!(rs.len() >= 8, "the contract's eight required routes");
         for r in rs {
             if !r.available {
                 assert!(
@@ -328,7 +333,7 @@ mod tests {
                 );
             }
         }
-        assert!(rs.iter().filter(|r| r.available).count() >= 4);
+        assert!(rs.iter().filter(|r| r.available).count() >= 8);
     }
 
     #[test]

@@ -3624,3 +3624,15 @@ The simulation-only roadmap was declared complete; the visual reset
   interior in 400 steps; stopped by the ring beside it.
 - Deferred: teleport is proof-only, no interior props, no door
   animation, cardinal door facing.
+
+## Loop 430 — The semantic playtest (WT-002 slice 5 capstone)
+- `route_semantic_playtest`: one scripted walk chaining house entry ->
+  NPC talk -> forge use (open/load/smelt/take) with five captures and
+  chained assertions; `make p3d-playtest` runs it twice and the
+  comparator proves same-seed determinism (verdict PASS).
+- Evidence: "house entered (frames differ), Maren Oldford talked, 1
+  bar(s) forged" reproduced identically across independent runs;
+  9/9 observatory routes available and green.
+- Deferred: chest-open, resource-harvest, and map-marker interactions
+  (the GLBs validate; panels unstarted — the forge/dialog pattern
+  covers them).
