@@ -3660,3 +3660,15 @@ The simulation-only roadmap was declared complete; the visual reset
   chain) stamped with the contract's 8 common fields + the full
   12-row exporter surface manifest. Local only.
 - Evidence: pc3d_assets 36/36, export gate green, suites green.
+
+## Loop 433 — WT-009: per-slot variant instancing
+- Each flora slot picks its variant from the 300-GLB batch by a pure
+  hash of its coordinates + kind; meshes lazy-load on first sight
+  (negative-cached); buckets split per (kind, LOD, variant) in both
+  the lit and shadow draws; `FloraStats.variant_buckets` is the proof
+  stat.
+- Evidence: the wilderness vista draws 59 variant buckets of 62; the
+  300-GLB consumer law stands; pick determinism/diversity/no-aliasing
+  laws green; suites green.
+- Deferred: seed-independent picks (deliberate), shared collision
+  envelope per kind, no generated far-LODs.

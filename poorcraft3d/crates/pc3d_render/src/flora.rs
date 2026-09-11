@@ -23,6 +23,22 @@ pub struct Instance {
     pub params: [f32; 4],
 }
 
+/// A stable hash tag per kind (the variant pick must be stable across
+/// builds — not the enum's memory discriminant).
+pub fn variant_kind_tag(kind: PlantKind) -> u64 {
+    match kind {
+        PlantKind::TreePine => 1,
+        PlantKind::TreeBroadleaf => 2,
+        PlantKind::TreeBirch => 3,
+        PlantKind::RockBoulder => 4,
+        PlantKind::RockSpire => 5,
+        PlantKind::RockSlab => 6,
+        PlantKind::Shrub => 7,
+        PlantKind::Log => 8,
+        PlantKind::Grass => 9,
+    }
+}
+
 /// The instance buffer layout (step mode Instance) — shader locations
 /// 3/4 when the mesh occupies 0..2.
 pub const INSTANCE_LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexBufferLayout {
@@ -109,6 +125,9 @@ pub struct FloraStats {
     pub scanned: usize,
     pub draw_buckets: usize,
     pub instances_drawn: usize,
+    /// WT-009: distinct variant buckets in the last draw (the wild
+    /// draws the 300-variant batch, not nine meshes).
+    pub variant_buckets: usize,
 }
 
 struct KindGpu {
@@ -116,6 +135,11 @@ struct KindGpu {
     lods: Vec<(wgpu::Buffer, wgpu::Buffer, u32)>,
     /// World-space height of the asset (for wind normalization).
     _height: f32,
+    /// WT-009: lazily loaded variant meshes (variant index -> LODs),
+    /// drawn where the slot hash picks them.
+    variants: BTreeMap<u16, Vec<(wgpu::Buffer, wgpu::Buffer, u32)>>,
+    /// How many variants exist for this kind on disk (0 = none).
+    variant_count: u16,
 }
 
 /// The per-(kind, lod) instance bucket, uploaded when dirty.
@@ -163,14 +187,47 @@ pub struct FloraStreamer {
     /// Slot -> what grows there (None = known empty; cached so empty
     /// slots are not re-queried every call — the settle test caught the
     /// re-examination churn).
-    cache: BTreeMap<SlotCoord, Option<(PlantKind, Instance)>>,
+    cache: BTreeMap<SlotCoord, Option<(PlantKind, Instance, u16)>>,
     config: FloraConfig,
-    buckets: BTreeMap<(PlantKind, u8), Bucket>,
+    buckets: BTreeMap<(PlantKind, u8, u16), Bucket>,
     grass_bucket: Option<Bucket>,
     dirty: bool,
     last_viewer: [f32; 2],
     scan_phase: u32,
     pub stats: FloraStats,
+}
+
+/// WT-009: which variant a slot grows — a pure FNV pick of the slot
+/// coordinates + kind, deterministic everywhere (cosmetic diversity
+/// derived from the world's own coordinates).
+pub fn variant_of(kind: PlantKind, slot: SlotCoord, count: u16) -> u16 {
+    if count == 0 {
+        return 0;
+    }
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in [
+        slot.x as i64 as u64,
+        slot.z as i64 as u64,
+        variant_kind_tag(kind),
+    ] {
+        h ^= b;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    (h % count as u64) as u16
+}
+
+fn asset_base(kind: PlantKind) -> &'static str {
+    match kind {
+        PlantKind::TreePine => "pine",
+        PlantKind::TreeBroadleaf => "broadleaf",
+        PlantKind::TreeBirch => "birch",
+        PlantKind::RockBoulder => "boulder",
+        PlantKind::RockSpire => "spire",
+        PlantKind::RockSlab => "slab",
+        PlantKind::Shrub => "shrub",
+        PlantKind::Log => "log",
+        PlantKind::Grass => "shrub",
+    }
 }
 
 fn asset_rel(kind: PlantKind) -> &'static str {
@@ -223,9 +280,22 @@ impl FloraStreamer {
                 height = height.max(lod.vertices.iter().map(|v| v.pos[1]).fold(0.0, f32::max));
                 lods.push((vb, ib, lod.indices.len() as u32));
             }
+            // WT-009: count this kind's variants on disk (the 300
+            // GLB batch: <base>_vNN.glb).
+            let base = asset_base(kind);
+            let mut variant_count = 0u16;
+            while variant_count < 60 {
+                let vp = root.join(format!("flora/{base}_v{:02}.glb", variant_count));
+                if !vp.is_file() {
+                    break;
+                }
+                variant_count += 1;
+            }
             kinds.insert(
                 kind,
                 KindGpu {
+                    variants: BTreeMap::new(),
+                    variant_count,
                     lods,
                     _height: height,
                 },
@@ -312,12 +382,21 @@ impl FloraStreamer {
                             as f32
                             / 1000.0;
                         let rot = j[2] * 6.28;
+                        // WT-009: which variant this slot grows — the
+                        // pure slot-hash pick over the kind's batch.
+                        let count = self
+                            .kinds
+                            .get(&plant.kind)
+                            .map(|k| k.variant_count)
+                            .unwrap_or(0);
+                        let variant = variant_of(plant.kind, slot, count);
                         Some((
                             plant.kind,
                             Instance {
                                 pos_scale: [x, y, z, j[2]],
                                 params: [rot, plant.kind.wind(), 1.0, 0.0],
                             },
+                            variant,
                         ))
                     });
                     if entry.is_some() {
@@ -346,7 +425,42 @@ impl FloraStreamer {
         &self.stats
     }
 
-    /// Rebuilds the per-(kind, lod) instance buckets when dirty or the
+    /// WT-009: load variant `v`'s LOD meshes for `kind` (once).
+    fn ensure_variant(&mut self, device: &wgpu::Device, kind: PlantKind, v: u16) {
+        if v == 0 {
+            return; // 0 = the canonical base mesh
+        }
+        let Some(k) = self.kinds.get_mut(&kind) else { return };
+        if k.variants.contains_key(&v) || v >= k.variant_count {
+            return;
+        }
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/compiled");
+        let base = asset_base(kind);
+        let path = root.join(format!("flora/{base}_v{:02}.glb", v));
+        let Ok(asset) = crate::glb::load_asset_file(&path) else {
+            k.variants.insert(v, Vec::new()); // negative cache: fall back
+            return;
+        };
+        use wgpu::util::DeviceExt;
+        let mut lods = Vec::new();
+        for lod in &asset.lods {
+            let vb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("flora variant vertices"),
+                contents: bytemuck::cast_slice(&lod.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+            let ib = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("flora variant indices"),
+                contents: bytemuck::cast_slice(&lod.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+            lods.push((vb, ib, lod.indices.len() as u32));
+        }
+        k.variants.insert(v, lods);
+    }
+
+    /// Rebuilds the per-(kind, lod, variant) instance buckets when dirty or the
     /// viewer moved >= 2 m (LOD re-bucketing).
     pub fn upload(&mut self, gen: &WorldGen, device: &wgpu::Device, viewer: [f32; 2]) {
         if !self.dirty
@@ -357,8 +471,8 @@ impl FloraStreamer {
         self.last_viewer = viewer;
         self.dirty = false;
         use wgpu::util::DeviceExt;
-        let mut rows: BTreeMap<(PlantKind, u8), Vec<Instance>> = BTreeMap::new();
-        for (_, (kind, inst)) in self
+        let mut rows: BTreeMap<(PlantKind, u8, u16), Vec<Instance>> = BTreeMap::new();
+        for (_, (kind, inst, variant)) in self
             .cache
             .iter()
             .filter_map(|(k, v)| v.as_ref().map(|v| (k, v)))
@@ -372,7 +486,7 @@ impl FloraStreamer {
             } else {
                 2
             };
-            rows.entry((*kind, lod)).or_default().push(*inst);
+            rows.entry((*kind, lod, *variant)).or_default().push(*inst);
         }
         let mut buckets = BTreeMap::new();
         for (key, list) in rows {
@@ -382,6 +496,8 @@ impl FloraStreamer {
             if self.kinds[&key.0].lods.len() <= key.1 as usize {
                 continue; // asset has no such LOD — skip (coarsest was bucketed)
             }
+            // WT-009: lazily load this variant's meshes (first sight).
+            self.ensure_variant(device, key.0, key.2);
             let buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("flora instances"),
                 contents: bytemuck::cast_slice(&list),
@@ -522,11 +638,19 @@ impl FloraStreamer {
         let mut buckets = 0usize;
         pass.set_pipeline(&pipelines.inst);
         pass.set_bind_group(0, bg_globals, &[]);
+        let mut variant_buckets = 0usize;
         for (key, b) in &self.buckets {
             let Some(k) = self.kinds.get(&key.0) else {
                 continue;
             };
-            let Some((vb, ib, count)) = k.lods.get(key.1 as usize) else {
+            // WT-009: the slot hash picked a variant — its meshes when
+            // loaded, else the canonical base.
+            let lods = if key.2 == 0 {
+                &k.lods
+            } else {
+                k.variants.get(&key.2).unwrap_or(&k.lods)
+            };
+            let Some((vb, ib, count)) = lods.get(key.1 as usize) else {
                 continue;
             };
             pass.set_vertex_buffer(0, vb.slice(..));
@@ -535,6 +659,9 @@ impl FloraStreamer {
             pass.draw_indexed(0..*count, 0, 0..b.count);
             drawn += b.count as usize;
             buckets += 1;
+            if key.2 != 0 {
+                variant_buckets += 1;
+            }
         }
         if let (Some(g), Some(bg_mask)) = (&self.grass_bucket, &self.grass_mask_bg) {
             pass.set_pipeline(&pipelines.inst_cutout);
@@ -549,6 +676,7 @@ impl FloraStreamer {
         }
         self.stats.instances_drawn = drawn;
         self.stats.draw_buckets = buckets;
+        self.stats.variant_buckets = variant_buckets;
     }
 
     /// The sun-shadow draw: solid kinds only (grass casts nothing).
@@ -564,7 +692,12 @@ impl FloraStreamer {
             let Some(k) = self.kinds.get(&key.0) else {
                 continue;
             };
-            let Some((vb, ib, count)) = k.lods.get(key.1 as usize) else {
+            let lods = if key.2 == 0 {
+                &k.lods
+            } else {
+                k.variants.get(&key.2).unwrap_or(&k.lods)
+            };
+            let Some((vb, ib, count)) = lods.get(key.1 as usize) else {
                 continue;
             };
             pass.set_vertex_buffer(0, vb.slice(..));
@@ -582,6 +715,49 @@ impl FloraStreamer {
 
 #[cfg(test)]
 mod variant_batch_tests {
+    use crate::flora::variant_of;
+    use pc3d_world::flora::PlantKind;
+    /// WT-009: the slot-hash pick is deterministic and DIVERSE — a
+    /// walk of slots hits many variants per kind (the wild draws the
+    /// 300-batch, not one mesh).
+    #[test]
+    fn variant_pick_is_deterministic_and_diverse() {
+        use pc3d_world::flora::SlotCoord;
+        let slot = SlotCoord { x: 12, z: -7 };
+        for kind in [
+            PlantKind::TreePine,
+            PlantKind::TreeBroadleaf,
+            PlantKind::TreeBirch,
+            PlantKind::RockBoulder,
+            PlantKind::RockSpire,
+            PlantKind::RockSlab,
+            PlantKind::Shrub,
+            PlantKind::Log,
+        ] {
+            assert_eq!(variant_of(kind, slot, 40), variant_of(kind, slot, 40));
+        }
+        // Diversity: 400 slots -> >= 12 distinct picks per kind.
+        for kind in [PlantKind::TreePine, PlantKind::RockBoulder, PlantKind::Log] {
+            let mut seen = std::collections::BTreeSet::new();
+            for x in 0..20i32 {
+                for z in 0..20i32 {
+                    seen.insert(variant_of(kind, SlotCoord { x, z }, 40));
+                }
+            }
+            assert!(
+                seen.len() >= 12,
+                "{kind:?}: only {} distinct variants over 400 slots",
+                seen.len()
+            );
+        }
+        // Different kinds at the same slot diverge (a forest isn't a
+        // monoculture echo of its rocks).
+        let a = variant_of(PlantKind::TreePine, slot, 40);
+        let b = variant_of(PlantKind::RockBoulder, slot, 40);
+        let c = variant_of(PlantKind::Log, slot, 40);
+        assert!(a != b || b != c, "kinds must not alias the same pick");
+    }
+
     /// THE VARIANT CONSUMER LAW: every one of the 300 generated variant
     /// GLBs loads through the real loader with two LODs and real mesh
     /// content — the batch is consumed, not decorative.

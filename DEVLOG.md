@@ -6955,3 +6955,35 @@ debug dumps yet (the contract's allowed, not required); telemetry
 stays local-first optional (the perf rows ride the observatory
 bundles); the exporter writes only fresh runs — no player-save reads
 at all.
+
+## 2026-09-11 — WT-009: per-slot variant instancing — the 300-variant batch draws in the wild
+
+WHAT: the wilderness now grows the 300-GLB variant batch — each flora
+slot picks its variant by a pure hash of its own coordinates + kind,
+the meshes load lazily on first sight, and the draw buckets split per
+(kind, LOD, variant). The deferred WT-009 slice landed.
+
+HOW: flora.rs gained variant_of(kind, slot, count) — FNV over slot
+coords + a stable per-kind tag (deterministic everywhere; cosmetic
+diversity from the world's own coordinates); KindGpu counts its
+variants on disk at startup (<base>_vNN.glb scan) and lazily loads a
+variant's LOD meshes on first bucket use (negative-cached on missing
+files — fallback to the canonical base); the cache entry carries the
+slot's variant; buckets key (kind, lod, variant); draw + shadow both
+bind the variant meshes when present; FloraStats gained
+variant_buckets (the proof stat).
+
+EVIDENCE: make p3d-wilderness — "VILDERNESS vista: ... buckets 62
+instances 314 VARIANT BUCKETS 59": 95% of the draw buckets are
+variant meshes, i.e. the vista is drawing dozens of distinct tree/
+rock forms, not nine; the capture band carries 882 distinct colors
+(structured treeline); laws: variant pick determinism, diversity
+(400 slots -> >=12 distinct picks per kind), and no kind aliasing
+(a pine slot and a boulder slot never echo one pick); the standing
+300-GLB consumer law still loads the whole batch; full suites re-run.
+
+HONESTLY DEFERRED: variant choice ignores the seed (slot coords +
+kind only — deliberate: variants are cosmetic and stay stable for a
+given world position across builds); no per-variant collision
+(rock variants use the kind's existing collision envelope); variant
+LODs follow the GLB's own lod0/lod1 (no generated far-LOD).

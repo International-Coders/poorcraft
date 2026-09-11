@@ -3485,8 +3485,9 @@ fn main() {
             let g_low = gen.clone();
             let stats_note = |s: &FloraStats, tag: &str| {
                 println!(
-                    "WILDERNESS {tag}: added {} evicted {} cached {} scanned {} buckets {} instances {}",
-                    s.added, s.evicted, s.cached, s.scanned, s.draw_buckets, s.instances_drawn
+                    "WILDERNESS {tag}: added {} evicted {} cached {} scanned {} buckets {} instances {} VARIANT BUCKETS {}",
+                    s.added, s.evicted, s.cached, s.scanned, s.draw_buckets,
+                    s.instances_drawn, s.variant_buckets
                 );
             };
             let cfg = pc3d_render::WindowConfig {
