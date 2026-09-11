@@ -1734,6 +1734,10 @@ pub enum UiAction {
     /// The NPC talk slice: the player pressed E near a villager — the
     /// app resolves the nearest brain in talk range and opens the dialog.
     TryTalk,
+    /// Proof hook (inspector/routes): teleport the player body to a
+    /// world XZ (grounded through the live walk surface) — the route
+    /// version of PlayerLook; the world state itself never moves.
+    PlayerTeleport { x: f32, z: f32 },
     /// The forge slice: load fuel (with the water the firebox needs).
     ForgeLoadFuel,
     /// The forge slice: load ore into the slots.

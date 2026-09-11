@@ -676,6 +676,11 @@ pub struct Renderer {
     overlay_dirty: bool,
     /// The scene debug mode: Normal / Wireframe / AnchorOverlay.
     scene_debug: SceneDebugMode,
+    /// HOUSE ENTRY (WT-002 slice 5): the settlement's collision cells
+    /// (wall rings solid, doors + interiors open) mounted over the
+    /// streamed surface when the kit attaches.
+    settlement_cells: Option<std::collections::BTreeSet<(i32, i32)>>,
+    settlement_doors: Vec<crate::settlement::DoorEntry>,
     /// WT-007 slice 1: the debug groups pushed this frame (the marker
     /// tree audit reads this) + the top-level draw-call count.
     marker_log: Vec<&'static str>,
@@ -964,6 +969,8 @@ impl Renderer {
             overlay_gpu: None,
             overlay_dirty: true,
             scene_debug: SceneDebugMode::Normal,
+            settlement_cells: None,
+            settlement_doors: Vec::new(),
             marker_log: Vec::new(),
             draw_calls: 0,
             start: std::time::Instant::now(),
@@ -1063,6 +1070,8 @@ impl Renderer {
             overlay_gpu: None,
             overlay_dirty: true,
             scene_debug: SceneDebugMode::Normal,
+            settlement_cells: None,
+            settlement_doors: Vec::new(),
             marker_log: Vec::new(),
             draw_calls: 0,
             start: std::time::Instant::now(),
@@ -1213,7 +1222,27 @@ impl Renderer {
     ) {
         let viewer = [self.camera.pose.position[0], self.camera.pose.position[2]];
         let gpu = crate::settlement::SettlementGpu::new(&self.ctx.device, scene, kit, viewer);
+        self.settlement_cells = Some(scene.collision_cells.clone());
+        self.settlement_doors = scene.door_entries.clone();
         self.settlement = Some(gpu);
+    }
+
+    /// The settlement's enterable-building record (the route's framing).
+    pub fn settlement_door_entries(&self) -> &[crate::settlement::DoorEntry] {
+        &self.settlement_doors
+    }
+
+    /// The walk-surface ground height at a world XZ (the streamed
+    /// surface when attached, else the generator authority) — the
+    /// teleport hook's grounding.
+    pub fn ground_y_at(&self, gen: &pc3d_world::gen::WorldGen, x: f32, z: f32) -> f32 {
+        use crate::player::CollisionSurface as _;
+        if let Some(ss) = self.surface_stream.as_ref() {
+            if let Some(g) = ss.ground_at(gen, x, z, f32::MAX / 4.0) {
+                return g;
+            }
+        }
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
     }
 
     /// Attaches the NPC crowd (NWR-009): the rig draws from the
@@ -1691,6 +1720,18 @@ impl Renderer {
         dt: f32,
         speed: f32,
     ) {
+        if let Some(cells) = self.settlement_cells.as_ref() {
+            // HOUSE ENTRY: the kit's cells ride OVER the streamed
+            // surface — walls stop the player, doors + interiors pass.
+            if let Some(ss) = self.surface_stream.as_ref() {
+                let ground = crate::settlement::SettlementGround {
+                    inner: ss,
+                    cells: cells.clone(),
+                };
+                player.walk_on_speed(gen, &ground, fwd, strafe, dt, speed);
+                return;
+            }
+        }
         if let Some(ss) = self.surface_stream.as_ref() {
             player.walk_on_speed(gen, ss, fwd, strafe, dt, speed);
         } else {

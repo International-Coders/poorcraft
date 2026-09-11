@@ -685,6 +685,26 @@ impl App {
                         }
                     }
                 }
+                UiAction::PlayerTeleport { x, z } => {
+                    // Proof hook: move the PLAYER (the camera follows
+                    // through the normal per-frame path).
+                    let (gen, ground) = {
+                        let Some(slice) = self.cfg.slice_host.as_ref() else {
+                            return;
+                        };
+                        let gen = slice.scene.gen.clone();
+                        let g = self
+                            .state
+                            .as_ref()
+                            .map(|s| s.renderer.ground_y_at(&gen, *x, *z))
+                            .unwrap_or(0.0);
+                        (gen, g)
+                    };
+                    let _ = gen;
+                    if let Some(slice) = self.cfg.slice_host.as_mut() {
+                        slice.player.pos = [*x, ground + 0.1, *z];
+                    }
+                }
                 UiAction::ForgeLoadFuel => {
                     let ok = self
                         .cfg

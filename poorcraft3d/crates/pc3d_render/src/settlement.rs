@@ -148,6 +148,18 @@ pub struct KitScene {
     pub bounds_max: [f32; 3],
     /// Placements per kit module name (the draw/tri budget record).
     pub count_by_module: BTreeMap<&'static str, usize>,
+    /// HOUSE ENTRY (WT-002 slice 5): per town building, the open door
+    /// cell and the walkable interior center (world meters, XZ).
+    pub door_entries: Vec<DoorEntry>,
+}
+
+/// One enterable building: where the door stands and where the
+/// interior center is (world XZ meters).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DoorEntry {
+    pub kind: &'static str,
+    pub door: [f32; 2],
+    pub interior: [f32; 2],
 }
 
 /// A kit's declared socket in module-local meters.
@@ -421,6 +433,45 @@ pub fn assemble_kit(
             rot,
             b.kind.name(),
         );
+    }
+    // HOUSE ENTRY refinement (WT-002 slice 5): every town building is
+    // ENTERABLE — the interior cells open (the wall RING stays solid),
+    // and the door column on the plaza-facing edge opens so the player
+    // walks in. Mirrors the gate refinement one loop above.
+    for b in plan.buildings.iter() {
+        let (sw, sh) = (b.size.0 as i32, b.size.1 as i32);
+        for dx in 0..sw {
+            for dz in 0..sh {
+                let on_ring =
+                    dx == 0 || dz == 0 || dx == sw - 1 || dz == sh - 1;
+                if !on_ring {
+                    scene
+                        .collision_cells
+                        .remove(&(b.cell.x + dx, b.cell.z + dz));
+                }
+            }
+        }
+        // The door column: the ring cell at the center of the edge
+        // facing the plaza (the same facing the module was rotated to).
+        let cx = b.cell.x as f32 + sw as f32 / 2.0;
+        let cz = b.cell.z as f32 + sh as f32 / 2.0;
+        let (dxs, dzs) = if (plaza_x - cx).abs() >= (plaza_z - cz).abs() {
+            (
+                if plaza_x > cx { sw - 1 } else { 0 },
+                (sh - 1) / 2,
+            )
+        } else {
+            (
+                (sw - 1) / 2,
+                if plaza_z > cz { sh - 1 } else { 0 },
+            )
+        };
+        scene.collision_cells.remove(&(b.cell.x + dxs, b.cell.z + dzs));
+        scene.door_entries.push(DoorEntry {
+            kind: b.kind.name(),
+            door: [b.cell.x as f32 + dxs as f32 + 0.5, b.cell.z as f32 + dzs as f32 + 0.5],
+            interior: [cx, cz],
+        });
     }
     // The plaza banner + a dock/water-wheel pair when a river is near.
     push(
@@ -952,6 +1003,107 @@ mod tests {
         );
         let opened = prim.collision_cells.difference(&a.collision_cells).count();
         assert!(opened > 0, "the gate passages opened ({opened} cells)");
+    }
+
+    #[test]
+    fn houses_are_enterable_ring_solid_door_open_interior_walks() {
+        // WT-002 slice 5: a town Home on flat ground — the wall RING
+        // stays solid, the interior opens, and the player WALKS from
+        // the road through the DOOR to the interior center.
+        let gen = WorldGen::new(77);
+        let layout = pc3d_world::castle::CastleLayout {
+            center: pc3d_world::coords::RegionCoord { x: 9, z: 9 },
+            modules: vec![],
+            roads: vec![],
+        };
+        let home = pc3d_world::settlement_plan::BuildingSlot {
+            kind: pc3d_world::settlement_plan::BuildingKind::Home,
+            cell: CellCoord { x: 100, y: 0, z: 100 },
+            size: (5, 5),
+        };
+        let plan = SettlementPlan {
+            center: pc3d_world::coords::RegionCoord { x: 9, z: 9 },
+            plaza: CellCoord { x: 120, y: 0, z: 100 },
+            buildings: vec![home],
+            roads: vec![],
+            anchors: pc3d_world::settlement_plan::Anchors::default(),
+        };
+        let kit = SettlementKit::load();
+        let a = assemble_kit(&gen, &layout, &plan, &kit);
+
+        // The door entry is recorded: plaza at +X -> door on the EAST
+        // ring, center row; the interior center is the footprint middle.
+        assert_eq!(a.door_entries.len(), 1);
+        let de = a.door_entries[0].clone();
+        assert_eq!(de.kind, "home");
+        assert_eq!((de.door[0] as i32, de.door[1] as i32), (104, 102));
+        assert_eq!(
+            (de.interior[0] as i32, de.interior[1] as i32),
+            (102, 102)
+        );
+        // Ring SOLID beside the door; door OPEN; interior cells OPEN.
+        assert!(a.collision_cells.contains(&(104, 100)), "ring solid");
+        assert!(a.collision_cells.contains(&(104, 104)), "ring solid");
+        assert!(
+            !a.collision_cells.contains(&(104, 102)),
+            "the door column is open"
+        );
+        for dx in 101..104i32 {
+            for dz in 101..104i32 {
+                assert!(
+                    !a.collision_cells.contains(&(dx, dz)),
+                    "interior ({dx},{dz}) open"
+                );
+            }
+        }
+
+        // The WALK: flat ground isolates the kit collision law; the
+        // player walks WEST (-X) from the road at x 107 through the
+        // door at (104.5, 102.5) into the interior center (102.5, 102.5).
+        struct FlatGround;
+        impl crate::player::CollisionSurface for FlatGround {
+            fn ground_at(&self, _gen: &WorldGen, _x: f32, _z: f32, _from_y: f32) -> Option<f32> {
+                Some(0.0)
+            }
+            fn cell_solid(&self, _gen: &WorldGen, _x: i32, _y: i32, _z: i32) -> bool {
+                false
+            }
+        }
+        let surface = SettlementGround {
+            inner: FlatGround,
+            cells: a.collision_cells.clone(),
+        };
+        let mut body = crate::player::PlayerBody {
+            pos: [107.0, 0.0, 102.5],
+            yaw: std::f32::consts::FRAC_PI_2, // yaw pi/2 walks -X (west)
+            pitch: 0.0,
+        };
+        for _ in 0..400 {
+            body.walk_on(&gen, &surface, 1.0, 0.0, 1.0 / 60.0);
+        }
+        let reached_interior = body.pos[0] < 104.0 && body.pos[0] > 100.0
+            && body.pos[2] > 101.0
+            && body.pos[2] < 104.0;
+        assert!(
+            reached_interior,
+            "the player must reach the interior through the door (pos {:?})",
+            body.pos
+        );
+        // And the WALLS still stop a straight line: walking west along
+        // z=100.5 (a ring row) never crosses the west wall.
+        let mut wallbody = crate::player::PlayerBody {
+            pos: [107.0, 0.0, 100.5],
+            yaw: std::f32::consts::FRAC_PI_2,
+            pitch: 0.0,
+        };
+        for _ in 0..400 {
+            wallbody.walk_on(&gen, &surface, 1.0, 0.0, 1.0 / 60.0);
+        }
+        assert!(
+            wallbody.pos[0] >= 104.0,
+            "the ring beside the door must stop the player (pos {:?})",
+            wallbody.pos
+        );
     }
 
     #[test]

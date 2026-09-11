@@ -301,23 +301,23 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 16:36",
+        "modified": "2026-09-11 17:50",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 16:36",
+        "modified": "2026-09-11 17:50",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "toasts": [
       {
-        "age_s": 1.7183119058609009,
+        "age_s": 0.6179748773574829,
         "text": "FUEL LOADED"
       },
       {
-        "age_s": 1.7183119058609009,
+        "age_s": 0.6179748773574829,
         "text": "ORE LOADED (2)"
       }
     ]

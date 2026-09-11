@@ -4613,6 +4613,52 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(60, format!("{dir}/beauty_assets.png"))
                     .ui_dump(format!("{dir}/beauty_assets.layout.json")));
             }
+            "route_house_entry" => {
+                // WT-002 slice 5: the enterable house — from the kit's
+                // own DoorEntry record (door column open, ring solid,
+                // interior walkable — the walk law is the unit test),
+                // captures OUTSIDE the door and INSIDE the interior.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                ui_script.push((
+                    40,
+                    Box::new(|_ui, r, ctx| {
+                        // Stand OUTSIDE the first door (the PLAYER —
+                        // the camera follows through the normal path).
+                        if let Some(de) = r.settlement_door_entries().first().clone() {
+                            let (door, interior) = (de.door, de.interior);
+                            let d = [interior[0] - door[0], interior[1] - door[1]];
+                            let outside = [door[0] - d[0] * 3.0, door[1] - d[1] * 3.0];
+                            ctx.actions.push(UiAction::PlayerTeleport {
+                                x: outside[0],
+                                z: outside[1],
+                            });
+                            let _ = d;
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    90,
+                    Box::new(|_ui, r, ctx| {
+                        // Step INSIDE to the interior center — through
+                        // the door column the refinement opened.
+                        if let Some(de) = r.settlement_door_entries().first() {
+                            ctx.actions.push(UiAction::PlayerTeleport {
+                                x: de.interior[0],
+                                z: de.interior[1],
+                            });
+                        }
+                    }),
+                ));
+                shots.push(Shot::new(70, format!("{dir}/beauty_door_outside.png"))
+                    .ui_dump(format!("{dir}/beauty_door_outside.layout.json")));
+                shots.push(Shot::new(120, format!("{dir}/beauty_interior.png"))
+                    .ui_dump(format!("{dir}/beauty_interior.layout.json")));
+            }
             "route_forge_use" => {
                 // The forge slice, end to end: enter the world, stand at
                 // the plaza forge, E (opens THE FORGE through the zone
@@ -4761,6 +4807,24 @@ fn run_observe(route_id: &str, out_root: &str) {
                     eprintln!("[FAIL] observe {}: dialog not shown", spec.id);
                     any_fail = true;
                 }
+            }
+        }
+        // The house-entry route: outside-the-door and interior captures
+        // must exist and differ substantially (a different PLACE, not a
+        // nudge). The collision walk law is the unit test.
+        if spec.id == "route_house_entry" {
+            let ok = match (report.captures.first(), report.captures.get(1)) {
+                (Some(a), Some(b)) => {
+                    let d = pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba);
+                    let passes = d > 0.15 && a.report.distinct_colors >= 30;
+                    println!("HOUSE ENTRY: outside vs inside frames differ {}%", (d * 1000.0).round() / 10.0);
+                    passes
+                }
+                _ => false,
+            };
+            if !ok {
+                eprintln!("[FAIL] observe {}: door/interior captures missing or identical", spec.id);
+                any_fail = true;
             }
         }
         // The forge route: the panel must show AND bars must be taken.

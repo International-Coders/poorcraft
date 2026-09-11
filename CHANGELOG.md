@@ -3610,3 +3610,17 @@ The simulation-only roadmap was declared complete; the visual reset
   honestly unavailable.
 - Evidence: route captures + assertion, ui-shots 13/13, forge laws
   4/4 + 1/1, full suites green.
+
+## Loop 429 — House entry: the last route flips
+- Town buildings are enterable: interior cells open, wall ring solid,
+  the plaza-facing door column opens (DoorEntry records the way in);
+  the live walk mounts the settlement collision over the streamed
+  surface (walls stop, doors pass).
+- `UiAction::PlayerTeleport` proof hook (PlayerLook precedent) with
+  live-surface grounding; `CollisionSurface` composes over borrows.
+- Observatory `route_house_entry` UNAVAILABLE -> PASS (outside vs
+  inside frames differ 56.4%) — **8/8 required routes green, zero
+  unavailabilities remain**. The walk law: through the door to the
+  interior in 400 steps; stopped by the ring beside it.
+- Deferred: teleport is proof-only, no interior props, no door
+  animation, cardinal door facing.

@@ -6787,3 +6787,49 @@ zone is the plaza; the working_forge semantic row declares the anchors
 sourcing is granted loads in the panel interaction (no mining economy
 in the slice yet); bars have no downstream use (the crafting economy
 follows); house_entry is the final honest unavailable route.
+
+## 2026-09-11 — House entry: doors open, interiors walk — 8/8 observatory routes green
+
+WHAT (WT-002 slice 5, the last honest unavailability): town buildings
+are ENTERABLE — the wall ring stays solid, the interior opens, the
+door column on the plaza-facing edge opens, the LIVE walk mounts the
+settlement collision over the streamed surface, and observatory
+route_house_entry flipped UNAVAILABLE -> PASS. Every required
+observatory route now passes.
+
+HOW:
+- assemble_kit: the HOUSE ENTRY refinement (mirroring the gate
+  refinement) — for every plan building the interior cells leave the
+  collision set (the ring keeps them), the door column (the ring cell
+  at the center of the plaza-facing edge — the same facing the module
+  rotates to) opens, and a DoorEntry { kind, door, interior } records
+  the walkable way in.
+- renderer: attach_settlement now keeps the collision cells + door
+  entries; the LIVE walk (walk_player_surface_speed) consults the
+  settlement cells over the streamed surface through SettlementGround
+  (walls stop the player, doors + interiors pass); CollisionSurface
+  gained a blanket ref-impl so adapters compose over borrows.
+- The proof hook: UiAction::PlayerTeleport { x, z } (the PlayerLook
+  precedent) — moves the PLAYER grounded through the live walk
+  surface; the camera follows through the normal per-frame path. The
+  first route attempt set the RENDERER camera directly and the frames
+  barely differed — the slice loop re-poses the camera from the player
+  every frame (the mouse-fix lesson, found again by the proof).
+- The route: teleport outside the first door -> capture; teleport to
+  the interior center -> capture; the assertion: both captures exist
+  and differ > 15%.
+
+EVIDENCE: route_house_entry PASS — outside vs inside differ 56.4%
+(p50 ~15 ms); make p3d-observe: 8/8 required routes PASS, zero
+unavailabilities remain; the WALK LAW (settlement.rs): the ring beside
+the door stays solid, the door column opens, the interior cells open,
+a 400-step walk reaches the interior through the door, and a parallel
+walk at the ring row is STOPPED by the wall; ui-shots 13/13
+regression; full suites re-run green.
+
+HONESTLY DEFERRED: the teleport is a PROOF HOOK (routes/inspector),
+not a gameplay ability; the interior has no furniture/props yet (the
+bed/work/idle anchor CELLS exist in the plan — visual markers are the
+settlement kit's); no door ANIMATION (the column is open geometry);
+the door faces the plaza by the quantized-cardinal facing (diagonal
+buildings pick the dominant axis).

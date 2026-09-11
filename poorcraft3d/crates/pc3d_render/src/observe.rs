@@ -28,8 +28,8 @@ pub fn routes() -> &'static [RouteSpec] {
         RouteSpec { id: "route_asset_inspect", available: true, reason: "" },
         RouteSpec {
             id: "route_house_entry",
-            available: false,
-            reason: "house entry needs door collision + interior interactions — the semantic playtest slice (WT-002 slice 5)",
+            available: true,
+            reason: "",
         },
         RouteSpec {
             id: "route_npc_talk",

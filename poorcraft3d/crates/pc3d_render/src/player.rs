@@ -33,6 +33,16 @@ pub trait CollisionSurface {
     fn cell_solid(&self, gen: &WorldGen, x: i32, y: i32, z: i32) -> bool;
 }
 
+/// Any surface by reference is a surface (adapters compose over borrows).
+impl<S: CollisionSurface> CollisionSurface for &S {
+    fn ground_at(&self, gen: &WorldGen, x: f32, z: f32, from_y: f32) -> Option<f32> {
+        (*self).ground_at(gen, x, z, from_y)
+    }
+    fn cell_solid(&self, gen: &WorldGen, x: i32, y: i32, z: i32) -> bool {
+        (*self).cell_solid(gen, x, y, z)
+    }
+}
+
 /// The default authority-backed surface (final_solid columns).
 pub struct AuthorityGround;
 
