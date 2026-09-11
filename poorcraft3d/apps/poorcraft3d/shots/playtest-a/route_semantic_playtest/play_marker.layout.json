@@ -68,33 +68,11 @@
     },
     {
       "button_state": "",
-      "id": "toast_ORE LOADED (2)",
-      "kind": "toast",
-      "rect": [
-        307,
-        375,
-        186,
-        16
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "toast_FUEL LOADED",
-      "kind": "toast",
-      "rect": [
-        325,
-        353,
-        150,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "toast_HARVESTED 2 IRON ORE",
       "kind": "toast",
       "rect": [
         271,
-        331,
+        375,
         258,
         16
       ]
@@ -296,72 +274,6 @@
         82,
         14
       ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        219,
-        560,
-        150
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_state",
-      "kind": "text",
-      "rect": [
-        140,
-        261,
-        166,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_fuel",
-      "kind": "bar",
-      "rect": [
-        140,
-        283,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_heat",
-      "kind": "bar",
-      "rect": [
-        140,
-        307,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_slots",
-      "kind": "text",
-      "rect": [
-        140,
-        337,
-        262,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_hint",
-      "kind": "text",
-      "rect": [
-        266,
-        345,
-        394,
-        14
-      ]
     }
   ],
   "scale": 1.0,
@@ -379,14 +291,7 @@
       "text": "We build it once, we build it right."
     },
     "focus": 0,
-    "forge": {
-      "bars": 0,
-      "blocked": false,
-      "fuel": 0.3166666626930237,
-      "heat": 0.0416666679084301,
-      "ore": 2,
-      "state": "HEATING"
-    },
+    "forge": null,
     "forge_bars_taken": 0,
     "form": {
       "name": "WORLD-22",
@@ -429,22 +334,14 @@
       }
     ],
     "stock": [
-      "IRON_ORE x2",
+      "IRON_ORE x4",
       "WOOD_PICK x1",
       "BREAD x2"
     ],
     "toasts": [
       {
-        "age_s": 2.602229118347168,
+        "age_s": 1.1565309762954712,
         "text": "HARVESTED 2 IRON ORE"
-      },
-      {
-        "age_s": 0.3029651343822479,
-        "text": "FUEL LOADED"
-      },
-      {
-        "age_s": 0.3029651343822479,
-        "text": "ORE LOADED (2)"
       }
     ]
   }

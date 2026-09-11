@@ -3636,3 +3636,15 @@ The simulation-only roadmap was declared complete; the visual reset
 - Deferred: chest-open, resource-harvest, and map-marker interactions
   (the GLBs validate; panels unstarted — the forge/dialog pattern
   covers them).
+
+## Loop 431 — The playtest matrix completes
+- The three remaining rows, live and chained: the chest (one loot
+  drop: the first WOOD PICK + bread), the ore node (2 iron ore per
+  swing, REQUIRES the pick — bare hands yield nothing), the plaza
+  map-marker read; a generic interact panel + stock lines.
+- The CLOSED ORE LOOP: the forge's ore load consumes harvested stock;
+  taken bars land in the inventory. Items: iron_ore, iron_bar.
+- The extended semantic playtest covers every matrix row in one walk:
+  "house entered, Maren Oldford talked, 1 bar forged, 4 ore
+  harvested, chest+marker read, IRON BAR in stock" — deterministic
+  across two runs (comparator PASS).

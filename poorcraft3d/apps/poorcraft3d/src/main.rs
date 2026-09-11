@@ -4667,11 +4667,65 @@ fn run_observe(route_id: &str, out_root: &str) {
                         ctx.actions.push(UiAction::TryTalk);
                     }),
                 ));
-                // Close the dialog, walk to the plaza forge, open it.
+                // Close the dialog, walk to the CHEST (the pick!).
                 ui_script.push((
                     200,
                     Box::new(|_ui, r, ctx| {
                         ctx.actions.push(UiAction::TryTalk); // E closes
+                        if let Some(p) = r.plaza_interactable_pos(0) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    230,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // chest zone
+                    }),
+                ));
+                // Close the chest, HARVEST the ore node (with the pick).
+                ui_script.push((
+                    260,
+                    Box::new(|_ui, r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // E closes chest
+                        if let Some(p) = r.plaza_interactable_pos(1) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    290,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::HarvestOre);
+                    }),
+                ));
+                ui_script.push((
+                    300,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::HarvestOre);
+                    }),
+                ));
+                // Read the MAP MARKER, then the forge with the stock ore.
+                ui_script.push((
+                    330,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(p) = r.plaza_interactable_pos(2) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    360,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // marker read
+                    }),
+                ));
+                // THE FORGE with the CLOSED ORE LOOP: open, fuel, the
+                // STOCK ore (harvested above), smelt, take.
+                ui_script.push((
+                    400,
+                    Box::new(|_ui, r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // E closes marker
                         if let Some(de) = r.settlement_door_entries().first() {
                             ctx.actions.push(UiAction::PlayerTeleport {
                                 x: de.door[0],
@@ -4681,20 +4735,20 @@ fn run_observe(route_id: &str, out_root: &str) {
                     }),
                 ));
                 ui_script.push((
-                    240,
+                    430,
                     Box::new(|_ui, _r, ctx| {
                         ctx.actions.push(UiAction::TryTalk); // forge zone
                     }),
                 ));
                 ui_script.push((
-                    270,
+                    460,
                     Box::new(|_ui, _r, ctx| {
                         ctx.actions.push(UiAction::ForgeLoadFuel);
                         ctx.actions.push(UiAction::ForgeLoadOre);
                     }),
                 ));
                 ui_script.push((
-                    430,
+                    620,
                     Box::new(|_ui, _r, ctx| {
                         ctx.actions.push(UiAction::ForgeTake);
                     }),
@@ -4705,9 +4759,17 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/play_interior.layout.json")));
                 shots.push(Shot::new(180, format!("{dir}/play_talk.png"))
                     .ui_dump(format!("{dir}/play_talk.layout.json")));
-                shots.push(Shot::new(300, format!("{dir}/play_forge.png"))
+                shots.push(Shot::new(250, format!("{dir}/play_chest.png"))
+                    .ui_dump(format!("{dir}/play_chest.layout.json")));
+                shots.push(Shot::new(310, format!("{dir}/play_harvest.png"))
+                    .ui_dump(format!("{dir}/play_harvest.layout.json")));
+                shots.push(Shot::new(380, format!("{dir}/play_marker.png"))
+                    .ui_dump(format!("{dir}/play_marker.layout.json")));
+                shots.push(Shot::new(480, format!("{dir}/play_forge.png"))
                     .ui_dump(format!("{dir}/play_forge.layout.json")));
-                shots.push(Shot::new(470, format!("{dir}/play_taken.png"))
+                shots.push(Shot::new(660, format!("{dir}/play_taken.png"))
+                    .ui_dump(format!("{dir}/play_taken.layout.json")));
+                shots.push(Shot::new(660, format!("{dir}/play_taken.png"))
                     .ui_dump(format!("{dir}/play_taken.layout.json")));
             }
             "route_house_entry" => {
@@ -4834,7 +4896,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             logical_size: (1280.0, 720.0),
             size_is_physical: true,
             max_frames: if spec.id == "route_semantic_playtest" {
-                Some(560)
+                Some(760)
             } else {
                 Some(420)
             },
@@ -4951,16 +5013,51 @@ fn run_observe(route_id: &str, out_root: &str) {
                 }
                 _ => false,
             };
+            let panel_shown = |name: &str, id: &str| {
+                report.captures.iter().any(|c| {
+                    let stem = c
+                        .path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("");
+                    stem == name
+                        && c.ui_layout
+                            .as_ref()
+                            .and_then(|l| l["elements"].as_array())
+                            .map(|els| els.iter().any(|e| e["id"] == id))
+                            .unwrap_or(false)
+                })
+            };
+            let ore = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["ore_harvested"].as_u64())
+                .unwrap_or(0);
+            let stock = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["stock"].as_array().cloned())
+                .unwrap_or_default();
+            let has_bar = stock
+                .iter()
+                .any(|l| l.as_str().map(|s| s.contains("IRON_BAR")).unwrap_or(false));
             let ok = has("play_door_outside")
                 && has("play_interior")
                 && has("play_talk")
                 && has("play_forge")
                 && has("play_taken")
+                && has("play_chest")
+                && has("play_harvest")
+                && has("play_marker")
                 && inside_vs_outside
-                && bars > 0;
+                && bars > 0
+                && panel_shown("play_chest", "interact_panel")
+                && panel_shown("play_marker", "interact_panel")
+                && ore > 0
+                && has_bar;
             if ok {
                 println!(
-                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged",
+                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, IRON BAR in stock",
                     dialog_shown.as_deref().unwrap_or("villager")
                 );
             } else {

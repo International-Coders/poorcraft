@@ -21,6 +21,8 @@ pub const ITEMS: &[(u16, &str, ItemKind)] = &[
     (3, "sand", ItemKind::Material),
     (4, "snow", ItemKind::Material),
     (5, "soil", ItemKind::Material),
+    (6, "iron_ore", ItemKind::Material),
+    (7, "iron_bar", ItemKind::Material),
     (10, "stone_pick", ItemKind::Tool { tier: 1 }),
     (11, "iron_pick", ItemKind::Tool { tier: 2 }),
     (12, "wood_pick", ItemKind::Tool { tier: 1 }),

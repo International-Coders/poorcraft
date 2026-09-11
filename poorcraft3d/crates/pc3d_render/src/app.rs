@@ -130,6 +130,13 @@ pub struct SliceHost {
     /// The forge slice: the plaza forge (created on first use), ticking
     /// with gameplay while it exists.
     pub forge: Option<pc3d_world::forge::Forge>,
+    /// The player's items (the chest's loot lands here; the forge's H
+    /// consumes iron_ore from here).
+    pub inventory: pc3d_world::items::Inventory,
+    /// The ore node's remaining yield.
+    pub ore_remaining: u8,
+    /// Whether the chest has been looted.
+    pub chest_opened: bool,
     /// Frame counter for the forge's work tick.
     pub forge_tick_frame: u64,
 }
@@ -636,6 +643,21 @@ impl App {
         (d <= 3.5).then_some(d)
     }
 
+    /// The stock lines (what the player carries) for panels/toasts.
+    fn sync_stock_lines_of(slice: &SliceHost) -> Vec<String> {
+        let mut lines = Vec::new();
+        for (code, name, _) in pc3d_world::items::ITEMS {
+            let n = slice.inventory.count(pc3d_world::items::ItemId(*code));
+            if n > 0 {
+                lines.push(format!("{} x{}", name.to_uppercase(), n));
+            }
+        }
+        if lines.is_empty() {
+            lines.push("CARRYING NOTHING".to_string());
+        }
+        lines
+    }
+
     /// Sync the live forge authority into the UI panel view.
     fn sync_forge_view(&mut self) {
         let view = self
@@ -656,8 +678,78 @@ impl App {
         for act in actions {
             match act {
                 UiAction::TryTalk => {
-                    // E interacts: the FORGE zone wins when it is nearer
-                    // than the nearest villager; else the NPC talk.
+                    // E interacts, by nearest zone: the plaza props
+                    // (chest/ore/marker, 2.2 m) win first, then the
+                    // forge plaza zone, then the NPC.
+                    let plaza = self.state.as_ref().and_then(|s| {
+                        s.renderer.nearest_plaza_interactable()
+                    });
+                    if let Some((which, _)) = plaza {
+                        let (title, lines, loot) = match which {
+                            0 => {
+                                // The chest: one loot drop (the first
+                                // pick + travelling bread).
+                                let (title, lines, loot) = if let Some(slice) =
+                                    self.cfg.slice_host.as_ref()
+                                {
+                                    if slice.chest_opened {
+                                        (
+                                            "THE CHEST",
+                                            vec!["Empty — you already took the pick.".to_string()],
+                                            None,
+                                        )
+                                    } else {
+                                        (
+                                            "THE CHEST",
+                                            vec![
+                                                "Inside: a WOOD PICK and two BREAD.".to_string(),
+                                                "Taken — the mine's gate is open.".to_string(),
+                                            ],
+                                            Some((12u16, 1u32, 20u16, 2u32)),
+                                        )
+                                    }
+                                } else {
+                                    ("THE CHEST", vec![], None)
+                                };
+                                (title.to_string(), lines, loot)
+                            }
+                            _ => (
+                                "MAP MARKER".to_string(),
+                                vec![
+                                    "The plaza banner of the settlement.".to_string(),
+                                    "Roads lead out: homes, forge, mine.".to_string(),
+                                ],
+                                None,
+                            ),
+                        };
+                        if let Some(slice) = self.cfg.slice_host.as_mut() {
+                            if which == 0 && !slice.chest_opened {
+                                slice.chest_opened = true;
+                                let (pick, pn, bread, bn) =
+                                    loot.unwrap_or((0, 0, 0, 0));
+                                slice.inventory.add(
+                                    pc3d_world::items::ItemId(pick),
+                                    pn,
+                                );
+                                slice.inventory.add(
+                                    pc3d_world::items::ItemId(bread),
+                                    bn,
+                                );
+                            }
+                        }
+                        let stock = self
+                            .cfg
+                            .slice_host
+                            .as_ref()
+                            .map(|slice| Self::sync_stock_lines_of(slice))
+                            .unwrap_or_default();
+                        if let Some(s) = self.state.as_mut() {
+                            s.ui.interact = Some((title, lines));
+                            s.ui.stock_lines = stock;
+                            s.ui_dirty = true;
+                        }
+                        return;
+                    }
                     let npc = self
                         .state
                         .as_ref()
@@ -705,6 +797,73 @@ impl App {
                         slice.player.pos = [*x, ground + 0.1, *z];
                     }
                 }
+                UiAction::HarvestOre => {
+                    // The resource row: a swing at the ore node — needs
+                    // a PICK (the chest's loot; bare hands yield nothing,
+                    // the journey's own gate law).
+                    let (has_pick, remaining) = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| {
+                            (
+                                slice
+                                    .inventory
+                                    .count(pc3d_world::items::ItemId(12))
+                                    > 0,
+                                slice.ore_remaining,
+                            )
+                        })
+                        .unwrap_or((false, 0));
+                    let yielded = if let Some(slice) = self.cfg.slice_host.as_mut() {
+                        if !has_pick {
+                            0
+                        } else if slice.ore_remaining >= 2 {
+                            slice.ore_remaining -= 2;
+                            slice
+                                .inventory
+                                .add(pc3d_world::items::ItemId(6), 2);
+                            2
+                        } else if slice.ore_remaining > 0 {
+                            let y = slice.ore_remaining;
+                            slice.ore_remaining = 0;
+                            slice
+                                .inventory
+                                .add(pc3d_world::items::ItemId(6), y as u32);
+                            y
+                        } else {
+                            0
+                        }
+                    } else {
+                        0
+                    };
+                    let stock = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::sync_stock_lines_of(slice))
+                        .unwrap_or_default();
+                    if let Some(s) = self.state.as_mut() {
+                        match yielded {
+                            0 if !has_pick => s.ui.toast("NEED A PICK — OPEN THE CHEST"),
+                            0 => s.ui.toast("THE NODE IS SPENT"),
+                            n => {
+                                s.ui.toast(format!("HARVESTED {n} IRON ORE"));
+                                s.ui.ore_harvested += n as u64;
+                            }
+                        }
+                        s.ui.stock_lines = stock;
+                        s.ui_dirty = true;
+                    }
+                }
+                UiAction::OpenInteract => {
+                    // Route/inspector hook: same resolution as E.
+                    if let Some(s) = self.state.as_mut() {
+                        let _ = s;
+                    }
+                    let fake = UiAction::TryTalk;
+                    self.exec_actions(std::slice::from_ref(&fake), event_loop);
+                }
                 UiAction::ForgeLoadFuel => {
                     let ok = self
                         .cfg
@@ -728,16 +887,39 @@ impl App {
                     self.sync_forge_view();
                 }
                 UiAction::ForgeLoadOre => {
+                    // The closed loop: ore comes from the player's
+                    // stock (harvested with the pick), never granted.
                     let ok = self
                         .cfg
                         .slice_host
                         .as_mut()
                         .map(|slice| {
-                            slice.forge.get_or_insert_with(Default::default).load_ore(2)
+                            if slice.inventory.count(pc3d_world::items::ItemId(6)) < 2 {
+                                return false;
+                            }
+                            if !slice.forge.get_or_insert_with(Default::default).load_ore(2) {
+                                return false;
+                            }
+                            // Inventory::add with count 0 = remove? Check
+                            // API: use add-negative? Safer: take via a
+                            // removal helper on Inventory if present.
+                            slice.inventory.remove(pc3d_world::items::ItemId(6), 2);
+                            true
                         })
                         .unwrap_or(false);
+                    let stock = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::sync_stock_lines_of(slice))
+                        .unwrap_or_default();
                     if let Some(s) = self.state.as_mut() {
-                        s.ui.toast(if ok { "ORE LOADED (2)" } else { "ORE SLOTS FULL" });
+                        s.ui.toast(if ok {
+                            "ORE LOADED (2)"
+                        } else {
+                            "NO ORE IN STOCK - HARVEST THE NODE (WITH A PICK)"
+                        });
+                        s.ui.stock_lines = stock;
                         s.ui_dirty = true;
                     }
                     self.sync_forge_view();
@@ -750,6 +932,19 @@ impl App {
                         .and_then(|slice| slice.forge.as_mut())
                         .map(pc3d_world::forge::Forge::take_bars)
                         .unwrap_or(0);
+                    if bars > 0 {
+                        if let Some(slice) = self.cfg.slice_host.as_mut() {
+                            slice
+                                .inventory
+                                .add(pc3d_world::items::ItemId(7), bars as u32);
+                        }
+                    }
+                    let stock = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::sync_stock_lines_of(slice))
+                        .unwrap_or_default();
                     if let Some(s) = self.state.as_mut() {
                         if bars > 0 {
                             s.ui.toast(format!("FORGED {} BARS", bars));
@@ -757,6 +952,7 @@ impl App {
                         } else {
                             s.ui.toast("NOTHING TO TAKE YET");
                         }
+                        s.ui.stock_lines = stock;
                         s.ui_dirty = true;
                     }
                     self.sync_forge_view();

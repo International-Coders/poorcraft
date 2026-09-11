@@ -681,6 +681,7 @@ pub struct Renderer {
     /// streamed surface when the kit attaches.
     settlement_cells: Option<std::collections::BTreeSet<(i32, i32)>>,
     settlement_doors: Vec<crate::settlement::DoorEntry>,
+    plaza_interactables: Option<[[f32; 3]; 3]>,
     /// WT-007 slice 1: the debug groups pushed this frame (the marker
     /// tree audit reads this) + the top-level draw-call count.
     marker_log: Vec<&'static str>,
@@ -971,6 +972,7 @@ impl Renderer {
             scene_debug: SceneDebugMode::Normal,
             settlement_cells: None,
             settlement_doors: Vec::new(),
+            plaza_interactables: None,
             marker_log: Vec::new(),
             draw_calls: 0,
             start: std::time::Instant::now(),
@@ -1072,6 +1074,7 @@ impl Renderer {
             scene_debug: SceneDebugMode::Normal,
             settlement_cells: None,
             settlement_doors: Vec::new(),
+            plaza_interactables: None,
             marker_log: Vec::new(),
             draw_calls: 0,
             start: std::time::Instant::now(),
@@ -1230,6 +1233,33 @@ impl Renderer {
     /// The settlement's enterable-building record (the route's framing).
     pub fn settlement_door_entries(&self) -> &[crate::settlement::DoorEntry] {
         &self.settlement_doors
+    }
+
+    /// The plaza interactables (WT-002 matrix rows): chest, ore node,
+    /// map-marker banner positions in world meters.
+    pub fn set_plaza_interactables(&mut self, chest: [f32; 3], ore: [f32; 3], banner: [f32; 3]) {
+        self.plaza_interactables = Some([chest, ore, banner]);
+    }
+
+    /// A plaza interactable's world position by index.
+    pub fn plaza_interactable_pos(&self, i: usize) -> Option<[f32; 3]> {
+        self.plaza_interactables.as_ref()?.get(i).copied()
+    }
+
+    /// The nearest plaza interactable within range: (0=chest, 1=ore,
+    /// 2=marker, distance).
+    pub fn nearest_plaza_interactable(&self) -> Option<(usize, f32)> {
+        const RANGE: f32 = 2.2;
+        let list = self.plaza_interactables.as_ref()?;
+        let p = self.camera.pose.position;
+        let mut best: Option<(usize, f32)> = None;
+        for (i, pos) in list.iter().enumerate() {
+            let d = ((p[0] - pos[0]).powi(2) + (p[2] - pos[2]).powi(2)).sqrt();
+            if d <= RANGE && best.map(|(_, bd)| d < bd).unwrap_or(true) {
+                best = Some((i, d));
+            }
+        }
+        best
     }
 
     /// The walk-surface ground height at a world XZ (the streamed

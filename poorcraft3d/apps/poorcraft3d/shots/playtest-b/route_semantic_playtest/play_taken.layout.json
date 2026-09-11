@@ -233,6 +233,50 @@
     },
     {
       "button_state": "",
+      "id": "interact_panel",
+      "kind": "panel",
+      "rect": [
+        120,
+        219,
+        560,
+        150
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_line_0",
+      "kind": "text",
+      "rect": [
+        140,
+        261,
+        418,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_line_1",
+      "kind": "text",
+      "rect": [
+        140,
+        283,
+        418,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_hint",
+      "kind": "text",
+      "rect": [
+        578,
+        345,
+        82,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "forge_panel",
       "kind": "panel",
       "rect": [
@@ -337,7 +381,9 @@
       "stamina": 1.0,
       "xp": 0.0
     },
+    "interact": "MAP MARKER",
     "modal": null,
+    "ore_harvested": 4,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -350,19 +396,25 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 18:42",
+        "modified": "2026-09-11 20:00",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 18:42",
+        "modified": "2026-09-11 20:00",
         "name": "beta-shot",
         "seed": 7
       }
     ],
+    "stock": [
+      "IRON_ORE x2",
+      "IRON_BAR x1",
+      "WOOD_PICK x1",
+      "BREAD x2"
+    ],
     "toasts": [
       {
-        "age_s": 1.2408785820007324,
+        "age_s": 0.609886884689331,
         "text": "FORGED 1 BARS"
       }
     ]

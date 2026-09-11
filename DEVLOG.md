@@ -6868,3 +6868,43 @@ GLBs exist and validate but are not placed in the world, and their
 interaction panels are unstarted (each is a small follow-up on the
 forge/dialog pattern); the playtest teleports are proof hooks, not
 gameplay movement.
+
+## 2026-09-11 — The playtest matrix completes: chest, harvest, marker + the closed ore loop
+
+WHAT: the three remaining playtest-matrix rows are live and CHAINED —
+open_chest (the chest GLB at the plaza, one loot drop: the WOOD PICK +
+travelling bread), harvest_resource (the ore node GLB, yields 2 iron
+ore per swing, REQUIRES the pick — the journey's own gate law: bare
+hands yield nothing), open_map_marker (the plaza banner reads) — and
+the ore loop is CLOSED: the forge's H now CONSUMES iron_ore from the
+player's stock (never granted), and taken bars land in the inventory.
+The full progression: chest gives the pick -> harvest ore with it ->
+fuel + stock-ore the forge -> smelt -> take IRON BARS.
+
+HOW: items.rs gained iron_ore (6) + iron_bar (7) (append-only); the
+rebuild slice places prop.chest + prop.ore_node at deterministic plaza
+offsets on real ground and records them as plaza interactables
+(renderer: nearest_plaza_interactable, 2.2 m zones that win the
+E-resolver before the forge/NPC zones); ui.rs gained a generic
+interact panel (title + lines + E CLOSE) + the stock lines view +
+ore_harvested/forge counters in the runtime state; the app's
+SliceHost carries a real items::Inventory (12 slots), the ore node's
+remaining yield, and the chest's looted flag; toasts narrate and
+honest-refuse ("NEED A PICK — OPEN THE CHEST", "NO ORE IN STOCK -
+HARVEST THE NODE (WITH A PICK)").
+
+EVIDENCE: route_semantic_playtest (extended, reordered so the closed
+loop's order is honored — ore BEFORE the forge load; the shot schedule
+fixed to ascending frames after an out-of-order list silently skipped
+four captures): "house entered (frames differ), Maren Oldford talked,
+1 bar(s) forged, 4 ore harvested, chest+marker read, IRON BAR in
+stock" — 8 captures, p50 10.4 ms; make p3d-playtest runs it TWICE
+with identical results + comparator PASS (deterministic); the full
+playtest-matrix route now covers EVERY required_steps row; suites
+re-run green.
+
+HONESTLY DEFERRED: the chest/ore props have no collision or
+interaction animation (the zones carry the semantics); the map
+marker's text is static (a living map reads the seed preview's biome
+census — a follow-up); bread is carried but not eaten in this slice
+(the eat path exists in the sim).

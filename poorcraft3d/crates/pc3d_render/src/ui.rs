@@ -406,6 +406,12 @@ pub struct UiState {
     pub forge: Option<ForgeView>,
     /// Bars successfully taken from the forge (the route's proof).
     pub forge_bars_taken: u64,
+    /// The generic interact panel (chest / map marker): title + lines.
+    pub interact: Option<(String, Vec<String>)>,
+    /// The player stock lines (the chest/harvest panel view).
+    pub stock_lines: Vec<String>,
+    /// Ore harvested + bars obtained (the route's proof).
+    pub ore_harvested: u64,
 }
 
 impl Default for UiState {
@@ -431,6 +437,9 @@ impl Default for UiState {
             dialog: None,
             forge: None,
             forge_bars_taken: 0,
+            interact: None,
+            stock_lines: Vec::new(),
+            ore_harvested: 0,
         }
     }
 }
@@ -482,6 +491,9 @@ impl UiState {
                 "ore": f.ore, "bars": f.bars,
             })),
             "forge_bars_taken": self.forge_bars_taken,
+            "ore_harvested": self.ore_harvested,
+            "stock": self.stock_lines,
+            "interact": self.interact.as_ref().map(|(t, _)| t.clone()),
         })
     }
 
@@ -490,6 +502,7 @@ impl UiState {
             || self.modal.is_some()
             || self.dialog.is_some()
             || self.forge.is_some()
+            || self.interact.is_some()
     }
 
     pub fn toast(&mut self, text: impl Into<String>) {
@@ -1178,6 +1191,36 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     2,
                 );
             }
+            // The generic interact panel (chest loot / map marker).
+            if let Some((title, lines)) = &state.interact {
+                let panel_w = 560;
+                let panel_h = 150;
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = (hy - ctx.px(5) - ctx.px(6) - ctx.px(24) - ph - ctx.px(28))
+                    .max(SAFE_MARGIN_PX + ctx.px(60));
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("interact_panel", panel, Some(title));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut iy = panel.y + ctx.px(PANEL_PAD) + ctx.px(22);
+                let max_w = (pw - PANEL_PAD * 2) as u32;
+                let mut shown = 0;
+                for line in lines.iter().take(4) {
+                    let l = fit_to_width(line, 2 * ctx.k, max_w);
+                    ctx.text(&format!("interact_line_{shown}"), &l, lx, iy, 2);
+                    iy += ctx.px(22);
+                    shown += 1;
+                }
+                let hint = "E CLOSE";
+                let (hw, _) = font::text_size(hint, 2);
+                ctx.text(
+                    "interact_hint",
+                    hint,
+                    panel.right() - ctx.px(PANEL_PAD) - hw as i32,
+                    panel.bottom() - ctx.px(24),
+                    2,
+                );
+            }
             // The forge panel: the live authority view (fuel/heat bars,
             // ore/bar slots, state line, key hints).
             if let Some(f) = &state.forge {
@@ -1744,6 +1787,11 @@ pub enum UiAction {
     ForgeLoadOre,
     /// The forge slice: take the smelted bars.
     ForgeTake,
+    /// The chest/marker slice: open the chest (loot) or read the
+    /// marker — the app resolves which.
+    OpenInteract,
+    /// The harvest slice: swing at the ore node.
+    HarvestOre,
     /// Proof hook (inspector): raw mouse deltas applied to the live
     /// player body — the exact path real mouse motion takes.
     PlayerLook { dx: f32, dy: f32 },
@@ -1798,6 +1846,8 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                     let _ = d;
                 } else if state.forge.take().is_some() {
                     // E closes the forge panel too.
+                } else if state.interact.take().is_some() {
+                    // E closes the interact panel.
                 } else {
                     acts.push(UiAction::TryTalk);
                 }

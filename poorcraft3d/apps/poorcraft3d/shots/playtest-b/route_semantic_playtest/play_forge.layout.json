@@ -90,6 +90,17 @@
     },
     {
       "button_state": "",
+      "id": "toast_HARVESTED 2 IRON ORE",
+      "kind": "toast",
+      "rect": [
+        271,
+        331,
+        258,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -244,6 +255,50 @@
     },
     {
       "button_state": "",
+      "id": "interact_panel",
+      "kind": "panel",
+      "rect": [
+        120,
+        219,
+        560,
+        150
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_line_0",
+      "kind": "text",
+      "rect": [
+        140,
+        261,
+        418,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_line_1",
+      "kind": "text",
+      "rect": [
+        140,
+        283,
+        418,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_hint",
+      "kind": "text",
+      "rect": [
+        578,
+        345,
+        82,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "forge_panel",
       "kind": "panel",
       "rect": [
@@ -327,8 +382,8 @@
     "forge": {
       "bars": 0,
       "blocked": false,
-      "fuel": 0.30000001192092896,
-      "heat": 0.0833333358168602,
+      "fuel": 0.3166666626930237,
+      "heat": 0.0416666679084301,
       "ore": 2,
       "state": "HEATING"
     },
@@ -348,7 +403,9 @@
       "stamina": 1.0,
       "xp": 0.0
     },
+    "interact": "MAP MARKER",
     "modal": null,
+    "ore_harvested": 4,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -361,23 +418,32 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 18:42",
+        "modified": "2026-09-11 20:00",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 18:42",
+        "modified": "2026-09-11 20:00",
         "name": "beta-shot",
         "seed": 7
       }
     ],
+    "stock": [
+      "IRON_ORE x2",
+      "WOOD_PICK x1",
+      "BREAD x2"
+    ],
     "toasts": [
       {
-        "age_s": 0.8843261003494263,
+        "age_s": 2.7660913467407227,
+        "text": "HARVESTED 2 IRON ORE"
+      },
+      {
+        "age_s": 0.30219921469688416,
         "text": "FUEL LOADED"
       },
       {
-        "age_s": 0.8843261003494263,
+        "age_s": 0.30219921469688416,
         "text": "ORE LOADED (2)"
       }
     ]

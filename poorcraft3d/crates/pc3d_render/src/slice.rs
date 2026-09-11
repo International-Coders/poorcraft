@@ -251,6 +251,9 @@ pub fn assemble(
         last_message: "WALK WITH WASD - CLICK TO LOOK".into(),
         forge: None,
         forge_tick_frame: 0,
+        inventory: pc3d_world::items::Inventory::new(12),
+        ore_remaining: 6,
+        chest_opened: false,
     }
 }
 
@@ -703,6 +706,33 @@ pub fn assemble_rebuild(
     let kit = crate::settlement::SettlementKit::load();
     let kit_scene = crate::settlement::assemble_kit(&scene.gen, &scene.layout, &scene.plan, &kit);
     r.attach_settlement(&kit_scene, &kit);
+    // WT-002 matrix rows: the plaza's interactables — the CHEST (loot:
+    // the first pick) and the ORE NODE (harvest with a pick), placed at
+    // deterministic offsets from the plan's own plaza on real ground.
+    {
+        let plaza = scene.plan.plaza;
+        let props = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/compiled");
+        let place = |r: &mut crate::renderer::Renderer, rel: &str, ox: i32, oz: i32| {
+            let path = props.join(rel);
+            if let Ok(asset) = crate::glb::load_asset_file(&path) {
+                let wx = plaza.x as f32 + ox as f32 + 0.5;
+                let wz = plaza.z as f32 + oz as f32 + 0.5;
+                let gy = scene
+                    .gen
+                    .effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64)
+                    as f32
+                    / 1000.0;
+                r.load_asset(&asset, "lod0", [wx, gy, wz]);
+                [wx, gy, wz]
+            } else {
+                [0.0; 3]
+            }
+        };
+        let chest = place(r, "prop/chest.glb", 3, 2);
+        let ore = place(r, "prop/ore_node.glb", -3, 2);
+        r.set_plaza_interactables(chest, ore, [plaza.x as f32 + 0.5, 0.0, plaza.z as f32 + 0.5]);
+    }
     // The rigged crowd on the real schedule.
     let nav = pc3d_world::nav::NavPatch::from_gen(
         &scene.gen,
@@ -746,6 +776,9 @@ pub fn assemble_rebuild(
             .into(),
         forge: None,
         forge_tick_frame: 0,
+        inventory: pc3d_world::items::Inventory::new(12),
+        ore_remaining: 6,
+        chest_opened: false,
     };
     host.host.borrow_mut().run_ticks(0);
     host
