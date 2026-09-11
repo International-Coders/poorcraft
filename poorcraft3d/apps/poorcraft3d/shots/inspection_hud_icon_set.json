@@ -1,0 +1,54 @@
+{
+  "anchors": [],
+  "asset_id": "hud_icon_set",
+  "bounds": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "build_hash": "dev",
+  "category": "ui",
+  "collision": "none",
+  "command": "--asset-sidecar all",
+  "declared_materials": [
+    "flat_ui_palette"
+  ],
+  "failures": [],
+  "gameplay": [
+    {
+      "key": "semantic_id",
+      "value": "hud_icon_set: fixed icon ids"
+    },
+    {
+      "key": "alpha_policy",
+      "value": "alpha-blended quad over the world"
+    },
+    {
+      "key": "contrast",
+      "value": "ember-on-dark forged theme"
+    },
+    {
+      "key": "state_variants",
+      "value": "hotbar normal/selected/hover + bar fills"
+    }
+  ],
+  "lods": [],
+  "materials": [],
+  "nav": "none",
+  "notes": [
+    "non-GLB provenance: pc3d_render::ui painter (hotbar material swatches, bar icons, toasts)"
+  ],
+  "proof_paths": [
+    "ui_shots_13",
+    "quad_coverage_law"
+  ],
+  "provenance": "Painter(\"pc3d_render::ui painter (hotbar material swatches, bar icons, toasts)\")",
+  "scene": "windowless",
+  "seed": "",
+  "triangles": 0,
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

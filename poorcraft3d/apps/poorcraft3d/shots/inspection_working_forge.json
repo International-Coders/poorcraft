@@ -1,0 +1,95 @@
+{
+  "anchors": [
+    {
+      "id": "forge_input",
+      "in_glb": false,
+      "kind": "input",
+      "position_m": [
+        -0.8999999761581421,
+        0.8999999761581421,
+        -0.5
+      ],
+      "radius_m": 0.800000011920929,
+      "requires_clearance": true,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "place_fuel"
+    },
+    {
+      "id": "forge_output",
+      "in_glb": false,
+      "kind": "output",
+      "position_m": [
+        0.8999999761581421,
+        0.8999999761581421,
+        -0.5
+      ],
+      "radius_m": 0.800000011920929,
+      "requires_clearance": true,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "take_result"
+    },
+    {
+      "id": "workspot",
+      "in_glb": false,
+      "kind": "workspot",
+      "position_m": [
+        0.0,
+        0.0,
+        -1.399999976158142
+      ],
+      "radius_m": 1.0,
+      "requires_clearance": true,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "forge_work"
+    }
+  ],
+  "asset_id": "working_forge",
+  "bounds": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "build_hash": "dev",
+  "category": "machine",
+  "collision": "solid_box",
+  "command": "--asset-sidecar all",
+  "declared_materials": [
+    "stone",
+    "iron",
+    "ember"
+  ],
+  "failures": [],
+  "gameplay": [
+    {
+      "key": "heat",
+      "value": "boiler thermal state"
+    },
+    {
+      "key": "work_state",
+      "value": "machine running/stalled"
+    },
+    {
+      "key": "blocked_state",
+      "value": "no fuel / contaminated"
+    }
+  ],
+  "lods": [],
+  "materials": [],
+  "nav": "workspot",
+  "notes": [
+    "non-GLB provenance: pc3d_world machines (boiler->engine->generator->battery chain proven by --journey)"
+  ],
+  "proof_paths": [
+    "journey_battery_chain",
+    "asset_sidecar"
+  ],
+  "provenance": "SimAuthority(\"pc3d_world machines (boiler->engine->generator->battery chain proven by --journey)\")",
+  "scene": "windowless",
+  "seed": "",
+  "triangles": 0,
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

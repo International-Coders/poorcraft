@@ -1,0 +1,79 @@
+{
+  "anchors": [
+    {
+      "id": "harvest",
+      "in_glb": true,
+      "kind": "harvest",
+      "position_m": [
+        0.0,
+        0.5,
+        -0.8500000238418579
+      ],
+      "radius_m": 1.2000000476837158,
+      "requires_clearance": true,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "harvest_ore"
+    }
+  ],
+  "asset_id": "harvestable_ore_node",
+  "bounds": [
+    null,
+    null,
+    null
+  ],
+  "build_hash": "dev",
+  "category": "resource",
+  "collision": "solid_blob",
+  "command": "--asset-sidecar all",
+  "declared_materials": [
+    "granite",
+    "ember_quartz"
+  ],
+  "failures": [],
+  "gameplay": [
+    {
+      "key": "yield",
+      "value": "items::harvest_yields"
+    },
+    {
+      "key": "depleted_state",
+      "value": "harvest clears the node until regrow"
+    },
+    {
+      "key": "rarity",
+      "value": "ore rarity keyed by depth/biome"
+    }
+  ],
+  "lods": [
+    {
+      "name": "lod0",
+      "triangles": 146
+    },
+    {
+      "name": "lod1",
+      "triangles": 52
+    }
+  ],
+  "materials": [
+    "#757a7f",
+    "#54595e",
+    "#d18438",
+    "#eaad56",
+    "#426035"
+  ],
+  "nav": "approach_front",
+  "notes": [],
+  "proof_paths": [
+    "asset_sidecar",
+    "budget_checked_regeneration"
+  ],
+  "provenance": "Glb(\"prop.ore_node\")",
+  "scene": "windowless",
+  "seed": "",
+  "triangles": 146,
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

@@ -29,6 +29,7 @@ pub mod flora;
 pub mod font;
 pub mod glb;
 pub mod gpu;
+pub mod inspect;
 pub mod inventory;
 pub mod machines;
 pub mod npcs;

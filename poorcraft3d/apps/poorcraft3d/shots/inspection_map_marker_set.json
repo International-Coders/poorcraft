@@ -1,0 +1,73 @@
+{
+  "anchors": [
+    {
+      "id": "inspect",
+      "in_glb": true,
+      "kind": "inspect",
+      "position_m": [
+        0.0,
+        1.2000000476837158,
+        -0.6000000238418579
+      ],
+      "radius_m": 1.5,
+      "requires_clearance": false,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "read_marker"
+    }
+  ],
+  "asset_id": "map_marker_set",
+  "bounds": [
+    null,
+    null,
+    null
+  ],
+  "build_hash": "dev",
+  "category": "marker",
+  "collision": "solid_post",
+  "command": "--asset-sidecar all",
+  "declared_materials": [
+    "timber",
+    "banner_cloth"
+  ],
+  "failures": [],
+  "gameplay": [
+    {
+      "key": "spawn_marker",
+      "value": "seed preview map"
+    },
+    {
+      "key": "world_marker",
+      "value": "banner_sign GLB"
+    }
+  ],
+  "lods": [
+    {
+      "name": "lod0",
+      "triangles": 27
+    },
+    {
+      "name": "lod1",
+      "triangles": 12
+    }
+  ],
+  "materials": [
+    "#6b4f33",
+    "#9e331e",
+    "#3d2b1c"
+  ],
+  "nav": "none",
+  "notes": [],
+  "proof_paths": [
+    "play_settlement_windowed",
+    "asset_sidecar"
+  ],
+  "provenance": "Glb(\"module.banner_sign\")",
+  "scene": "windowless",
+  "seed": "",
+  "triangles": 27,
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

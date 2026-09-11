@@ -3496,3 +3496,24 @@ The simulation-only roadmap was declared complete; the visual reset
   13/13, p3d 596/596, root green.
 - Also restores green HEAD after a concurrent commit swept the in-flight
   UI panel without its module.
+
+## Loop 423 — WT-002 implemented: semantic asset factory lab (slices 1/2/4)
+- `pc3d_assets::semantic`: the WT-002 contracts (catalog, affordance
+  schema, factory queue) parse and the rejection law is code — assets
+  missing their category's affordances (door/talk/input/…) are refused;
+  the seven starter-batch assets are registered against real artifacts
+  (GLBs, the npc/machine sim authorities, the UI painter).
+- New GLBs: `prop.chest` (open/lid/inventory anchors) and
+  `prop.ore_node` (harvest anchor); every building GLB gained the
+  schema-required `interior` socket; `module.banner_sign` gained
+  `inspect`.
+- `pc3d_render::inspect`: windowless inspection sidecars per the
+  contract (bounds/triangles/LODs/materials/anchors/gameplay) — every
+  registry anchor is verified against the GLB bytes; a promised anchor
+  missing from disk is a named failure. `--asset-sidecar`, `make
+  p3d-asset-sidecars` (7/7 PASS).
+- Evidence: pc3d_assets 32/32 (+5), inspect 4/4, deterministic assetgen
+  regen under budgets, p3d + root suites green.
+- Deferred to their queue entries: beauty/wireframe/anchor-overlay
+  captures (WT-003), the semantic playtest route (talk/forge slices),
+  GPU pass markers (WT-007).

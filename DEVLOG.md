@@ -6429,3 +6429,62 @@ preview recomputes on the frame after the seed changes (not per
 keystroke); the random-seed shot landed on an unsafe window (legitimate
 — it exercises the warning state, but a friendlier seed would read
 better); no zoom/pan on the preview map.
+
+## 2026-09-11 — WT-002 in code: the semantic asset factory lab (slices 1, 2, 4)
+
+WHAT (per the WT queue's next implement-in-code task): the owner's
+"no asset without gameplay metadata" law is now CODE — contracts parse,
+the rejection law bites, the starter batch is registered against real
+artifacts, and every asset exports a windowless inspection sidecar
+whose anchor list is verified against the GLB bytes on disk.
+
+HOW:
+- pc3d_assets::semantic (NEW): the three WT-002 contracts embedded at
+  compile time (gameplay catalog, affordance schema, factory queue) with
+  typed parsers; missing_affordances() enforces the category laws —
+  every required affordance must come from an anchor of that kind, a
+  gameplay key, or the collision/nav fields; a category no contract
+  covers is never silently accepted (minimal metadata surface
+  required). starter_batch() registers all seven queue-required assets
+  against REAL artifacts: starter_house -> module.house_croft (GLB),
+  talkable_villager -> the npc sim authority (identity/schedule/state
+  are the brain's), working_forge -> the machine chain the journey
+  proved, openable_chest -> prop.chest (NEW GLB: timber chest, iron
+  bands, thrown-open lid, open/lid/inventory anchors), 
+  harvestable_ore_node -> prop.ore_node (NEW GLB: granite host +
+  ember-quartz veins, harvest anchor), map_marker_set ->
+  module.banner_sign (gained an inspect anchor), hud_icon_set -> the
+  UI painter (semantic_id/alpha_policy/contrast/state_variants keys).
+- assetgen: every building GLB gained the schema-required `interior`
+  socket (house_croft, settlement_house, settlement_workshop,
+  watchtower, keep); prop.chest (120 tris/200) and prop.ore_node
+  (198/400) generated deterministically under budget.
+- pc3d_render::inspect (NEW): asset_sidecar() loads the REAL GLB,
+  measures bounds/triangles/LODs/materials from lod0, cross-checks
+  EVERY registry anchor against the GLB's actual sockets — a promised
+  anchor missing from the bytes is a named FAILURE — and emits the
+  sidecar exactly per inspection_export_contract.json (16 fields);
+  sidecar_passes() refuses failures while provenance notes stay
+  informational.
+- apps: --asset-sidecar <all|id> [outdir] (windowless; exits nonzero on
+  any failing sidecar); make p3d-asset-sidecars.
+
+EVIDENCE: pc3d_assets 32/32 (+5: contracts parse, batch complete per
+the queue's own required_assets list, every starter asset satisfies its
+category laws, the rejection law bites — doorless house / talkless NPC
+/ inputless forge all refused, anchor contract fields); pc3d_render
+inspect 4/4 (contract fields on all sidecars, HOUSE DOOR+NAV+INTERIOR
+PROVEN FROM GLB BYTES with in_glb=true on every anchor, chest open +
+ore harvest anchors, a sabotaged ghost anchor fails and is named);
+make p3d-asset-sidecars: 7/7 INSPECTION PASS on disk
+(inspection_*.json in apps/poorcraft3d/shots); assetgen deterministic
+regen with budgets respected. Full suites: p3d + root (see below).
+
+HONESTLY DEFERRED (the remaining WT-002 slices, tracked for the next
+cycles): slice 3 screenshot modes (beauty/wireframe/anchor-overlay
+captures with pixel checks — overlaps WT-003 observatory); slice 5 the
+semantic playtest route (walk-through-door, talk, forge, harvest —
+talk/forge interactions are gameplay slices, queued as their own WT
+entries); slice 6 GPU pass markers (WT-007 territory). The sidecar's
+scene/seed/viewport honestly say windowless until the capture slice
+fills them.

@@ -445,6 +445,7 @@ mod material_tests {
     }
 }
 
+pub mod semantic;
 pub mod v2;
 
 impl Manifest {
@@ -650,6 +651,7 @@ mod tests {
             "asset prompts must produce importable playable assets",
             "Z-code must continue through proofable green checkpoints",
             "vendor GPU claims require before-after capture evidence",
+            "data extraction must be local safe and proof-oriented",
         ] {
             assert!(
                 preserved.iter().any(|value| value
@@ -739,6 +741,14 @@ mod tests {
             "WT-007-GPU-VENDOR-COOKBOOK/upscaler_readiness_contract.json",
             "WT-007-GPU-VENDOR-COOKBOOK/before_after_evidence_contract.json",
             "WT-007-GPU-VENDOR-COOKBOOK/shader_debug_contract.json",
+            "WT-008-DATA-EXTRACTION-PLUGIN-LAB/data_extraction_plugin_manifest.json",
+            "WT-008-DATA-EXTRACTION-PLUGIN-LAB/plugin_manifest_contract.json",
+            "WT-008-DATA-EXTRACTION-PLUGIN-LAB/exporter_surface_contract.json",
+            "WT-008-DATA-EXTRACTION-PLUGIN-LAB/inspector_endpoint_contract.json",
+            "WT-008-DATA-EXTRACTION-PLUGIN-LAB/telemetry_signal_contract.json",
+            "WT-008-DATA-EXTRACTION-PLUGIN-LAB/mod_sample_pack_contract.json",
+            "WT-008-DATA-EXTRACTION-PLUGIN-LAB/data_safety_contract.json",
+            "WT-008-DATA-EXTRACTION-PLUGIN-LAB/extraction_evidence_contract.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

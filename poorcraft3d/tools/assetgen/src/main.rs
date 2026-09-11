@@ -311,6 +311,9 @@ const TIMBER: [f32; 3] = [0.42, 0.31, 0.20];
 const PINE_LEAF: [f32; 3] = [0.15, 0.29, 0.18];
 const PINE_LEAF_LIGHT: [f32; 3] = [0.20, 0.36, 0.21];
 const BIRCH_BARK: [f32; 3] = [0.74, 0.72, 0.66];
+const IRON_BAND: [f32; 3] = [0.22, 0.23, 0.26];
+const ORE_CRYSTAL: [f32; 3] = [0.82, 0.52, 0.22];
+const ORE_CRYSTAL_LIGHT: [f32; 3] = [0.92, 0.68, 0.34];
 const BIRCH_BARK_DARK: [f32; 3] = [0.55, 0.53, 0.48];
 const BIRCH_LEAF: [f32; 3] = [0.36, 0.47, 0.22];
 const BROAD_LEAF: [f32; 3] = [0.24, 0.42, 0.20];
@@ -791,6 +794,56 @@ fn asset_rock_slab() -> Vec<(&'static str, Mesh)> {
     blob(&mut lod0, -0.95, 0.28, 0.62, 0.34, 0.16, 0.3, 55, MOSS);
     let mut lod1 = Mesh::default();
     box_at(&mut lod1, 0.0, 0.3, 0.0, 1.35, 0.3, 1.0, SLATE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// WT-002 starter batch — the openable chest: timber box, iron bands,
+/// keyhole plate, and a lid thrown open against the back edge. The
+/// `open` anchor sits at the front where the player stands; `lid` marks
+/// the hinge line for a future animated lid.
+fn asset_chest() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    // Chest body (1.0 x 0.6 x 0.6 m; pivot at ground).
+    box_at(&mut lod0, 0.0, 0.30, 0.0, 0.50, 0.30, 0.30, TIMBER);
+    box_at(&mut lod0, 0.0, 0.30, 0.0, 0.52, 0.31, 0.31, DOOR_DARK);
+    // Iron bands around the body.
+    box_at(&mut lod0, 0.0, 0.30, -0.315, 0.50, 0.05, 0.005, IRON_BAND);
+    box_at(&mut lod0, 0.0, 0.30, 0.315, 0.50, 0.05, 0.005, IRON_BAND);
+    box_at(&mut lod0, -0.525, 0.30, 0.0, 0.005, 0.05, 0.31, IRON_BAND);
+    box_at(&mut lod0, 0.525, 0.30, 0.0, 0.005, 0.05, 0.31, IRON_BAND);
+    // Keyhole plate on the front.
+    box_at(&mut lod0, 0.0, 0.32, -0.32, 0.06, 0.08, 0.008, IRON_BAND);
+    // Open lid: standing tall against the back edge (hinge at +Z).
+    box_at(&mut lod0, 0.0, 0.62, 0.28, 0.50, 0.28, 0.03, TIMBER);
+    box_at(&mut lod0, 0.0, 0.62, 0.245, 0.52, 0.29, 0.005, IRON_BAND);
+    // Dark interior visible through the open top.
+    box_at(&mut lod0, 0.0, 0.32, 0.0, 0.44, 0.03, 0.24, DOOR_DARK);
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, 0.0, 0.30, 0.0, 0.52, 0.31, 0.31, TIMBER);
+    box_at(&mut lod1, 0.0, 0.62, 0.28, 0.50, 0.28, 0.03, TIMBER);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// WT-002 starter batch — the harvestable ore node: a granite host
+/// boulder with jutting ember-quartz crystal facets. The `harvest`
+/// anchor sits at the richest face.
+fn asset_ore_node() -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    // Host boulder (1.4 x 0.9 x 1.1 m; pivot at ground).
+    blob(&mut lod0, 0.0, 0.42, 0.0, 0.70, 0.45, 0.55, 61, GRANITE);
+    blob(&mut lod0, 0.22, 0.20, 0.18, 0.40, 0.22, 0.32, 62, GRANITE_DARK);
+    // Ember-quartz veins: thin tall boxes jutting from the faces.
+    box_at(&mut lod0, -0.30, 0.55, -0.30, 0.10, 0.30, 0.10, ORE_CRYSTAL);
+    box_at(&mut lod0, 0.05, 0.68, -0.18, 0.07, 0.42, 0.07, ORE_CRYSTAL);
+    box_at(&mut lod0, 0.38, 0.42, 0.10, 0.09, 0.26, 0.09, ORE_CRYSTAL);
+    box_at(&mut lod0, -0.12, 0.80, 0.22, 0.06, 0.20, 0.06, ORE_CRYSTAL_LIGHT);
+    box_at(&mut lod0, 0.20, 0.28, -0.52, 0.08, 0.18, 0.06, ORE_CRYSTAL);
+    // Moss at the base.
+    blob(&mut lod0, -0.50, 0.16, 0.30, 0.28, 0.10, 0.22, 63, MOSS);
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, 0.42, 0.0, 0.70, 0.45, 0.55, 61, GRANITE);
+    box_at(&mut lod1, 0.05, 0.68, -0.18, 0.07, 0.42, 0.07, ORE_CRYSTAL);
+    box_at(&mut lod1, -0.30, 0.55, -0.30, 0.10, 0.30, 0.10, ORE_CRYSTAL);
     vec![("lod0", lod0), ("lod1", lod1)]
 }
 
@@ -1825,6 +1878,8 @@ fn generate(id: &str) -> Vec<(&'static str, Mesh)> {
     match id {
         "prop.tree_ash" => asset_tree(),
         "prop.rock_granite" => asset_rock(),
+        "prop.chest" => asset_chest(),
+        "prop.ore_node" => asset_ore_node(),
         "module.house_croft" => asset_house(),
         "flora.tree_pine" => asset_tree_pine(),
         "flora.tree_broadleaf" => asset_tree_broadleaf(),
@@ -1861,6 +1916,7 @@ fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
             return &[
                 ("door_front", [2.2, 0.0, 0.0]),
                 ("road_front", [2.2, 0.0, -5.0]),
+                ("interior", [0.0, 0.0, 0.6]),
                 ("roof_smoke", [-1.1, 3.6, 0.4]),
                 ("build_base", [0.0, 0.0, 0.0]),
             ]
@@ -1869,6 +1925,7 @@ fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
             return &[
                 ("door_front", [2.6, 0.0, 0.0]),
                 ("road_front", [2.6, 0.0, -5.0]),
+                ("interior", [0.0, 0.0, 0.6]),
                 ("work_anchor", [0.9, 0.0, 0.2]),
                 ("build_base", [0.0, 0.0, 0.0]),
             ]
@@ -1894,6 +1951,7 @@ fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
         "module.watchtower" => {
             return &[
                 ("door", [2.0, 0.0, 0.0]),
+                ("interior", [0.0, 0.0, 0.0]),
                 ("top", [0.0, 7.2, 0.0]),
                 ("build_base", [0.0, 0.0, 0.0]),
             ]
@@ -1901,6 +1959,7 @@ fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
         "module.keep" => {
             return &[
                 ("door", [3.8, 0.0, 0.0]),
+                ("interior", [0.0, 0.0, 0.0]),
                 ("banner_top", [0.05, 14.2, 0.0]),
                 ("build_base", [0.0, 0.0, 0.0]),
             ]
@@ -1913,7 +1972,12 @@ fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
                 ("build_base", [0.0, 0.0, 0.0]),
             ]
         }
-        "module.banner_sign" => return &[("base", [0.0, 0.0, 0.0])],
+        "module.banner_sign" => {
+            return &[
+                ("inspect", [0.0, 1.2, -0.6]),
+                ("base", [0.0, 0.0, 0.0]),
+            ]
+        }
         "module.water_wheel" => {
             return &[
                 ("axle", [0.0, 2.4, 0.95]),
@@ -1927,9 +1991,21 @@ fn sockets_for(id: &str) -> &'static [(&'static str, [f32; 3])] {
         &[
             ("door_front", [0.45, 0.0, -2.5]),
             ("road_front", [0.45, 0.0, -5.0]),
+            ("interior", [0.45, 0.0, 0.4]),
             ("roof_smoke", [1.7, 4.9, 0.55]),
             ("build_base", [0.0, 0.0, 0.0]),
         ]
+    } else if id == "prop.chest" {
+        // WT-002 chest laws: open + inventory anchors.
+        &[
+            ("open", [0.0, 0.4, -0.75]),
+            ("lid", [0.0, 0.62, 0.28]),
+            ("inventory", [0.0, 0.32, 0.0]),
+            ("base", [0.0, 0.0, 0.0]),
+        ]
+    } else if id == "prop.ore_node" {
+        // WT-002 resource law: harvest anchor at the richest face.
+        &[("harvest", [0.0, 0.5, -0.85]), ("base", [0.0, 0.0, 0.0])]
     } else {
         &[]
     }
@@ -1954,6 +2030,10 @@ fn main() {
         ("prop.tree_ash", 1800),
         ("prop.rock_granite", 600),
         ("module.house_croft", 2500),
+        // WT-002 starter batch (docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/
+        // WT-002-SEMANTIC-ASSET-FACTORY-LAB/asset_factory_queue.json).
+        ("prop.chest", 200),
+        ("prop.ore_node", 400),
         // NWR-007 wilderness set (budgets from
         // docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/wilderness_batch.json).
         ("flora.tree_pine", 900),

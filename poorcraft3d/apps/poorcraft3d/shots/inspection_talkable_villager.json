@@ -1,0 +1,68 @@
+{
+  "anchors": [
+    {
+      "id": "talk",
+      "in_glb": false,
+      "kind": "talk",
+      "position_m": [
+        0.0,
+        1.399999976158142,
+        0.0
+      ],
+      "radius_m": 2.0,
+      "requires_clearance": false,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "open_dialog"
+    }
+  ],
+  "asset_id": "talkable_villager",
+  "bounds": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "build_hash": "dev",
+  "category": "npc",
+  "collision": "capsule_chest_high",
+  "command": "--asset-sidecar all",
+  "declared_materials": [
+    "tunic",
+    "skin",
+    "role_gear"
+  ],
+  "failures": [],
+  "gameplay": [
+    {
+      "key": "identity",
+      "value": "npc brain name + role"
+    },
+    {
+      "key": "schedule",
+      "value": "npc daily schedule"
+    },
+    {
+      "key": "state",
+      "value": "Idle/Walking/Working/Sleeping intent"
+    }
+  ],
+  "lods": [],
+  "materials": [],
+  "nav": "walks_paths",
+  "notes": [
+    "non-GLB provenance: pc3d_world::npcs (brain: identity + schedule + intent; crowd rig renders it)"
+  ],
+  "proof_paths": [
+    "play_people_windowed",
+    "npc_cast_gate",
+    "asset_sidecar"
+  ],
+  "provenance": "SimAuthority(\"pc3d_world::npcs (brain: identity + schedule + intent; crowd rig renders it)\")",
+  "scene": "windowless",
+  "seed": "",
+  "triangles": 0,
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

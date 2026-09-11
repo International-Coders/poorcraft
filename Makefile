@@ -126,6 +126,11 @@ p3d-slice-live: ## Classic slice with owner menu: Enter/click start, WASD, F/R, 
 p3d-assetgen: ## NWR-002: regenerate the original GLB assets (deterministic, budget-checked): make p3d-assetgen
 	cargo run --manifest-path poorcraft3d/Cargo.toml -p assetgen -- $$(pwd) || exit 1
 
+p3d-asset-sidecars: ## WT-002: semantic starter-batch inspection sidecars (windowless; anchor law vs GLB bytes): make p3d-asset-sidecars
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-sidecar all poorcraft3d/apps/poorcraft3d/shots || exit 1; \
+	echo "P3D ASSET SIDECARS OK"
+
 p3d-assets-window: ## NWR-002: windowed asset-factory proof (tree/rock/house): make p3d-assets-window [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-assets $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \

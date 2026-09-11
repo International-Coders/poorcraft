@@ -3829,6 +3829,39 @@ fn main() {
                 }
             }
         }
+        Some("--asset-sidecar") => {
+            // WT-002 slice 2: windowless inspection sidecars for the
+            // semantic starter batch (bounds/LODs/materials/anchors/
+            // gameplay per inspection_export_contract.json). A failing
+            // sidecar (anchor missing from the GLB) exits nonzero.
+            let which: String = args.get(2).cloned().unwrap_or_else(|| "all".into());
+            let out_dir: String = args
+                .get(3)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir out dir");
+            let command = format!("--asset-sidecar {which}");
+            let sidecars = pc3d_render::inspect::starter_batch_sidecars(&command);
+            let mut failed = 0;
+            for (id, v) in &sidecars {
+                if which != "all" && which != *id {
+                    continue;
+                }
+                let path = format!("{out_dir}/inspection_{id}.json");
+                std::fs::write(&path, serde_json::to_string_pretty(v).unwrap())
+                    .expect("write sidecar");
+                if pc3d_render::inspect::sidecar_passes(v) {
+                    println!("INSPECTION PASS {id} -> {path}");
+                } else {
+                    eprintln!("[FAIL] inspection {id}: {:?}", v["failures"]);
+                    failed += 1;
+                }
+            }
+            if failed > 0 {
+                std::process::exit(1);
+            }
+            println!("ASSET SIDECARS OK ({} assets)", sidecars.len());
+        }
         Some("--seed-preview") => {
             // WT-001 developer export: the deterministic preview for one
             // seed (text or `random`) as PNG + JSON sidecar, no window.
@@ -3989,7 +4022,7 @@ fn main() {
         }
         Some(other) => {
             eprintln!(
-                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-caves [outdir]|--play-surface-stream [outdir]|--ui-shots [outdir]|--ui-seed-preview-shots [outdir]|--seed-preview <seed-text|random> [outdir]|--ui-inspect '<json>'|--validate-assets [path]]"
+                "unknown argument: {other}\nusage: poorcraft3d [--identity|--format|--baseline|--run [seconds]|--atlas <seed> [half_regions]|--terrain-bench|--debug-overlay <seed>|--flow-map <seed]|--diagnose <seed]|--soak <days> [seed]|--journey [seed]|--play|--play-shot [png]|--play-build [png|live] [seed]|--play-terrain [outdir]|--play-stream [outdir]|--play-water [outdir] [seed]|--play-city [outdir] [seed]|--play-npcs [outdir] [seed]|--play-quality [outdir] [seed]|--play-slice [outdir|live] [seed]|--play-assets [outdir]|--play-surface [outdir]|--play-caves [outdir]|--play-surface-stream [outdir]|--ui-shots [outdir]|--ui-seed-preview-shots [outdir]|--seed-preview <seed-text|random> [outdir]|--asset-sidecar <all|id> [outdir]|--ui-inspect '<json>'|--validate-assets [path]]"
             );
             std::process::exit(2);
         }

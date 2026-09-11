@@ -1,0 +1,83 @@
+{
+  "anchors": [
+    {
+      "id": "open",
+      "in_glb": true,
+      "kind": "open",
+      "position_m": [
+        0.0,
+        0.4000000059604645,
+        -0.75
+      ],
+      "radius_m": 1.2000000476837158,
+      "requires_clearance": true,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "open_chest"
+    },
+    {
+      "id": "lid",
+      "in_glb": true,
+      "kind": "fx",
+      "position_m": [
+        0.0,
+        0.6200000047683716,
+        0.2800000011920929
+      ],
+      "radius_m": 0.5,
+      "requires_clearance": false,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "lid_hinge"
+    }
+  ],
+  "asset_id": "openable_chest",
+  "bounds": [
+    null,
+    null,
+    null
+  ],
+  "build_hash": "dev",
+  "category": "chest",
+  "collision": "solid_box",
+  "command": "--asset-sidecar all",
+  "declared_materials": [
+    "timber",
+    "iron_band"
+  ],
+  "failures": [],
+  "gameplay": [
+    {
+      "key": "inventory",
+      "value": "items::Inventory"
+    }
+  ],
+  "lods": [
+    {
+      "name": "lod0",
+      "triangles": 100
+    },
+    {
+      "name": "lod1",
+      "triangles": 20
+    }
+  ],
+  "materials": [
+    "#6b4f33",
+    "#3d2b1c",
+    "#383a42"
+  ],
+  "nav": "approach_front",
+  "notes": [],
+  "proof_paths": [
+    "asset_sidecar",
+    "budget_checked_regeneration"
+  ],
+  "provenance": "Glb(\"prop.chest\")",
+  "scene": "windowless",
+  "seed": "",
+  "triangles": 100,
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}
