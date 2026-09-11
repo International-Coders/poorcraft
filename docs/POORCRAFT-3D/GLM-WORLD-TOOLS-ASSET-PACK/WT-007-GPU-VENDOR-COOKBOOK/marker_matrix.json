@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "required_markers": [
+    "pc3d.frame",
+    "pc3d.frame.prepare",
+    "pc3d.pass.terrain",
+    "pc3d.pass.sky_atmosphere",
+    "pc3d.pass.water",
+    "pc3d.pass.assets",
+    "pc3d.pass.npcs",
+    "pc3d.pass.machines",
+    "pc3d.pass.wireframe_overlay",
+    "pc3d.pass.ui",
+    "pc3d.pass.screenshot_readback"
+  ],
+  "stable_names_required": true
+}

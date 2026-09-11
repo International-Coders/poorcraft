@@ -649,6 +649,7 @@ mod tests {
             "broad features must be sliced into proofable gameplay",
             "asset prompts must produce importable playable assets",
             "Z-code must continue through proofable green checkpoints",
+            "vendor GPU claims require before-after capture evidence",
         ] {
             assert!(
                 preserved.iter().any(|value| value
@@ -731,6 +732,13 @@ mod tests {
             "WT-006-ZCODE-CONTINUOUS-RUNBOOK/sprint_cards.json",
             "WT-006-ZCODE-CONTINUOUS-RUNBOOK/evidence_bundle_contract.json",
             "WT-006-ZCODE-CONTINUOUS-RUNBOOK/completion_audit_contract.json",
+            "WT-007-GPU-VENDOR-COOKBOOK/gpu_vendor_cookbook_manifest.json",
+            "WT-007-GPU-VENDOR-COOKBOOK/vendor_toolchain_contract.json",
+            "WT-007-GPU-VENDOR-COOKBOOK/marker_matrix.json",
+            "WT-007-GPU-VENDOR-COOKBOOK/capture_scene_matrix.json",
+            "WT-007-GPU-VENDOR-COOKBOOK/upscaler_readiness_contract.json",
+            "WT-007-GPU-VENDOR-COOKBOOK/before_after_evidence_contract.json",
+            "WT-007-GPU-VENDOR-COOKBOOK/shader_debug_contract.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

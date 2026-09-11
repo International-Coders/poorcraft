@@ -93,6 +93,11 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       bundles, sprint cards, completion audits, bookkeeping, commit/push
       discipline, eight JSON contracts, and a code guard proving the subpack
       files parse and exist (loop 421)
+- [x] POORCRAFT 3D WT-007 GPU vendor cookbook: concrete implementation-ready
+      subfolder under GLM-WORLD-TOOLS-ASSET-PACK for wgpu markers, AMD RGP/FSR
+      gates, NVIDIA Nsight/DLSS gates, capture scenes, upscaler readiness,
+      shader debug rules, before/after perf evidence, seven JSON contracts, and
+      a code guard proving the subpack files parse and exist (loop 422)
 
 ## ui-world-craft pack (loop 328)
 

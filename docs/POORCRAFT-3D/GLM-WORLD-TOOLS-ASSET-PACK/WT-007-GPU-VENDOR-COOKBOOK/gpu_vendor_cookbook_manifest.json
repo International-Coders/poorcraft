@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "task_id": "WT-007",
+  "name": "GPU Vendor Cookbook",
+  "purpose": "Turn AMD/NVIDIA/wgpu performance work into measured capture gates with markers, scenes, metrics, screenshots, and before-after evidence.",
+  "required_contracts": [
+    "vendor_toolchain_contract.json",
+    "marker_matrix.json",
+    "capture_scene_matrix.json",
+    "upscaler_readiness_contract.json",
+    "before_after_evidence_contract.json",
+    "shader_debug_contract.json"
+  ],
+  "must_preserve": [
+    "no vendor optimization without before-after evidence",
+    "markers must be stable",
+    "upscalers require depth and motion vectors",
+    "UI must remain readable",
+    "perf cannot break gameplay"
+  ]
+}

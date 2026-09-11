@@ -51,6 +51,11 @@ Use `WT-006-ZCODE-CONTINUOUS-RUNBOOK/` to keep long Z-code sessions moving. It
 defines task order, proof-first development, failure recovery, evidence
 bundles, sprint cards, bookkeeping, commit, and push discipline.
 
+Use `WT-007-GPU-VENDOR-COOKBOOK/` before claiming AMD/NVIDIA improvements. It
+defines wgpu marker placement, capture scenes, AMD RGP/FSR gates, NVIDIA
+Nsight/DLSS gates, upscaler prerequisites, shader-debug rules, and before/after
+perf evidence.
+
 ## Folder Map
 
 - `00-OWNER-DEMANDS.md` — plain owner intent.
@@ -83,6 +88,9 @@ bundles, sprint cards, bookkeeping, commit, and push discipline.
 - `WT-006-ZCODE-CONTINUOUS-RUNBOOK/` — implementation-ready runbook for
   continuous Z-code work, proof gates, failure recovery, evidence bundles, and
   green checkpoints.
+- `WT-007-GPU-VENDOR-COOKBOOK/` — implementation-ready GPU capture cookbook
+  for wgpu markers, AMD/NVIDIA vendor tools, upscaler readiness, and measured
+  before/after evidence.
 
 ## Machine Contracts
 
@@ -100,6 +108,7 @@ bundles, sprint cards, bookkeeping, commit, and push discipline.
 - `WT-004-FEATURE-EXPANSION-MATRIX/feature_expansion_manifest.json`
 - `WT-005-ASSET-PROMPT-ATLAS/asset_prompt_atlas_manifest.json`
 - `WT-006-ZCODE-CONTINUOUS-RUNBOOK/zcode_runbook_manifest.json`
+- `WT-007-GPU-VENDOR-COOKBOOK/gpu_vendor_cookbook_manifest.json`
 
 ## Relationship To The Existing Packs
 

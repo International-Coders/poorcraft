@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "scenes": [
+    "gpu_title_ui",
+    "gpu_seed_preview",
+    "gpu_semantic_assets",
+    "gpu_terrain_water",
+    "gpu_settlement_crowd",
+    "gpu_wireframe_overlay",
+    "gpu_stress_asset_batch"
+  ],
+  "viewports": [[1280, 720], [1501, 801], [1920, 1080]],
+  "outputs": ["png", "runtime_json", "marker_json", "perf_json", "verdict_json"]
+}

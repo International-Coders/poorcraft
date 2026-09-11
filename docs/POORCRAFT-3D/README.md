@@ -107,6 +107,9 @@ only when its implementation, tests, runtime behavior, and evidence agree.
   handoff for continuous Z-code work: task selection, proof-first development,
   failure recovery, evidence bundles, sprint cards, bookkeeping, commit, and
   push discipline.
+- `GLM-WORLD-TOOLS-ASSET-PACK/WT-007-GPU-VENDOR-COOKBOOK/` — concrete handoff
+  for wgpu markers, AMD/NVIDIA capture workflows, upscaler readiness, shader
+  debug rules, capture scenes, and before/after performance evidence.
 
 ## What this project is
 

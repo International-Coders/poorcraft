@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "required_fields": ["shader_or_pipeline_name", "pass_marker", "debug_info_status", "source_available", "bottleneck_note", "before_after_evidence"],
+  "rejections": ["shader_optimization_without_pass_marker", "shader_claim_without_debug_info_status", "shader_claim_without_before_after"]
+}

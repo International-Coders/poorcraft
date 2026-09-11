@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-09-11 — WT-007 GPU vendor cookbook
+
+The GLM world/tools pack now has a seventh implementation-ready subpack:
+
+- `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-007-GPU-VENDOR-COOKBOOK/`
+  defines the measured route for AMD/NVIDIA improvements: neutral wgpu markers,
+  timestamp capability checks, deterministic capture scenes, vendor capture
+  gates, upscaler prerequisites, shader debug status, and before/after proof.
+- The subpack turns AMD RGP/FSR and NVIDIA Nsight/DLSS guidance into project
+  rules: no vendor optimization claim without marker audit, screenshots,
+  p50/p95/p99 metrics, same-scene comparisons, and preserved gameplay/UI gates.
+- Seven JSON contracts cover vendor toolchain, marker matrix, capture scenes,
+  upscaler readiness, before/after evidence, shader debug status, and the
+  cookbook manifest. `pc3d_assets` parses them through the world/tools guard
+  and preserves the law that vendor GPU claims require before-after capture
+  evidence.
+
 ## 2026-09-11 — WT-006 Z-code continuous runbook
 
 The GLM world/tools pack now has a sixth implementation-ready subpack:

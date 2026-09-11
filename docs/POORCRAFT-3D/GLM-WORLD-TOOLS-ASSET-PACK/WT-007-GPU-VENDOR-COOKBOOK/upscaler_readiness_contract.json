@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "required_engine_inputs": ["depth", "motion_vectors", "jitter", "history_reset", "ui_composition", "transparent_reactive_policy", "frame_pacing"],
+  "required_tests": ["camera_pan", "moving_npc", "transparent_water", "ui_sharpness", "pause_transition", "resize_1501x801"],
+  "default_status": "not_ready_until_proven"
+}

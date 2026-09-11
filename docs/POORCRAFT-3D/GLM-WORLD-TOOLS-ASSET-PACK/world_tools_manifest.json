@@ -145,6 +145,23 @@
     "WT-006-ZCODE-CONTINUOUS-RUNBOOK/sprint_cards.json",
     "WT-006-ZCODE-CONTINUOUS-RUNBOOK/evidence_bundle_contract.json",
     "WT-006-ZCODE-CONTINUOUS-RUNBOOK/completion_audit_contract.json",
+    "WT-007-GPU-VENDOR-COOKBOOK/README.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/PROMPT_TO_GLM.txt",
+    "WT-007-GPU-VENDOR-COOKBOOK/00-GPU-COOKBOOK-BRIEF.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/01-WGPU-MARKER-PLAN.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/02-AMD-RGP-FSR-GATES.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/03-NVIDIA-NSIGHT-DLSS-GATES.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/04-CAPTURE-SCENES.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/05-UPSCALER-PREREQUISITES.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/06-PERF-EVIDENCE-RULES.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/07-FAILURE-MODES.md",
+    "WT-007-GPU-VENDOR-COOKBOOK/gpu_vendor_cookbook_manifest.json",
+    "WT-007-GPU-VENDOR-COOKBOOK/vendor_toolchain_contract.json",
+    "WT-007-GPU-VENDOR-COOKBOOK/marker_matrix.json",
+    "WT-007-GPU-VENDOR-COOKBOOK/capture_scene_matrix.json",
+    "WT-007-GPU-VENDOR-COOKBOOK/upscaler_readiness_contract.json",
+    "WT-007-GPU-VENDOR-COOKBOOK/before_after_evidence_contract.json",
+    "WT-007-GPU-VENDOR-COOKBOOK/shader_debug_contract.json",
     "zcode_world_tools_task_queue.json",
     "asset_generation_backlog.json",
     "asset_prompt_matrix.json",
@@ -167,6 +184,7 @@
     "GLM must inspect real game evidence before claiming success",
     "broad features must be sliced into proofable gameplay",
     "asset prompts must produce importable playable assets",
-    "Z-code must continue through proofable green checkpoints"
+    "Z-code must continue through proofable green checkpoints",
+    "vendor GPU claims require before-after capture evidence"
   ]
 }

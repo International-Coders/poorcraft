@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "vendors": {
+    "amd": ["Radeon Developer Panel", "Radeon GPU Profiler", "FidelityFX SDK"],
+    "nvidia": ["Nsight Graphics GPU Trace", "Nsight Shader Profiler", "Nsight Aftermath", "Streamline/DLSS spike"]
+  },
+  "neutral_engine_requirements": ["wgpu_debug_groups", "debug_markers", "timestamp_capability_check", "capture_scenes", "perf_json"],
+  "claim_requires": ["build_hash", "adapter_name", "backend", "scene", "seed", "viewport", "quality", "before_json", "after_json", "screenshots"]
+}

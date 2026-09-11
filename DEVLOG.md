@@ -6117,6 +6117,36 @@ glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
+## 2026-09-11 — WT-007 GPU vendor cookbook
+
+WHAT: Added
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-007-GPU-VENDOR-COOKBOOK,
+a seventh concrete implementation handoff for the owner's AMD/NVIDIA tooling
+request. The pack defines how future GLM/Z-code work must add wgpu markers,
+capture deterministic scenes, collect before/after metrics, and gate AMD/NVIDIA
+claims on screenshots, JSON evidence, marker audits, and preserved gameplay.
+
+HOW: Created Markdown files for the GLM prompt, GPU cookbook brief, wgpu marker
+plan, AMD RGP/FSR gates, NVIDIA Nsight/DLSS gates, capture scenes, upscaler
+prerequisites, performance evidence rules, and failure modes. Added JSON
+contracts for the GPU vendor cookbook manifest, vendor toolchain, marker
+matrix, capture scene matrix, upscaler readiness, before/after evidence, and
+shader debug status. Linked WT-007 from the parent GLM world/tools README and
+main POORCRAFT 3D README, updated zcode_world_tools_task_queue.json, expanded
+world_tools_manifest.json, and extended the pc3d_assets guard to parse the
+seven WT-007 JSON contracts while asserting the new law that vendor GPU claims
+require before-after capture evidence. Existing dirty pc3d_render/ui-shot and
+pc3d_world seed-preview files were present before this pass and were left
+untouched.
+
+EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
+validates with python3 -m json.tool. cargo test --manifest-path
+poorcraft3d/Cargo.toml -p pc3d_assets
+glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
+--manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
+needed.
+
 ## 2026-09-11 — WT-006 Z-code continuous runbook
 
 WHAT: Added

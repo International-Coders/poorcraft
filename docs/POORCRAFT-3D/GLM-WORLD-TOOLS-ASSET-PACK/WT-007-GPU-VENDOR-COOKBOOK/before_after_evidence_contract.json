@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "required_fields": ["build_hash_before", "build_hash_after", "gpu_vendor", "adapter_name", "backend", "scene", "seed", "viewport", "quality", "p50_ms", "p95_ms", "p99_ms", "draw_calls", "triangles", "material_buckets", "screenshot_digest", "verdict"],
+  "comparison_laws": ["same_scene_seed_viewport_quality", "visual_gates_must_stay_green", "interaction_gates_must_stay_green", "negative_results_are_allowed"]
+}

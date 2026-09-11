@@ -1,0 +1,18 @@
+Implement WT-007: POORCRAFT 3D GPU vendor cookbook and capture gates.
+
+Read every file in:
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-007-GPU-VENDOR-COOKBOOK
+
+Required:
+
+1. Add neutral wgpu debug groups and debug markers around major render passes.
+2. Add timestamp support only when the adapter exposes it; otherwise export a
+   clear null reason and keep CPU frame timing.
+3. Add capture scenes for title UI, seed preview, semantic asset route,
+   settlement/crowd, terrain/water, and wireframe overlays.
+4. Produce before/after evidence before claiming AMD/NVIDIA improvement.
+5. Treat FSR/DLSS/Frame Generation as later integration spikes that require
+   motion vectors, depth, jitter, UI composition, transparency/reactive masks,
+   and frame pacing.
+6. Never claim GPU work is done without screenshots, JSON metrics, marker
+   audits, and current build hashes.
