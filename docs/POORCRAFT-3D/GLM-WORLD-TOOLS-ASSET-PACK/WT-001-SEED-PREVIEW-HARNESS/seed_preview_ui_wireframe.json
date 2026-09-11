@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "screen": "new_world_seed_preview",
+  "controls": [
+    {"id": "world_name", "kind": "text_input", "required": true},
+    {"id": "seed_input", "kind": "text_input", "required": true},
+    {"id": "random_seed", "kind": "button", "required": true},
+    {"id": "reroll_seed", "kind": "button", "required": true},
+    {"id": "world_type", "kind": "segmented_control", "required": true},
+    {"id": "preview_map", "kind": "image_panel", "required": true},
+    {"id": "spawn_marker", "kind": "map_marker", "required": true},
+    {"id": "spawn_safety", "kind": "status_text", "required": true},
+    {"id": "biome_summary", "kind": "summary_panel", "required": true},
+    {"id": "feature_hints", "kind": "summary_panel", "required": true},
+    {"id": "create_world", "kind": "button", "required": true},
+    {"id": "back", "kind": "button", "required": true}
+  ],
+  "viewports": [[1280, 720], [1280, 800], [1501, 801], [1920, 1080]]
+}

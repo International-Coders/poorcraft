@@ -6088,3 +6088,31 @@ owner laws are preserved. pc3d_assets 27/27 passed. This is a tooling/spec
 pack with a code guard, so no runtime DMG rebuild was needed. Existing
 dirty pc3d_render/ui-shot files were present before this pass and were
 left untouched.
+
+## 2026-09-11 — WT-001 seed preview execution pack
+
+WHAT: Added a concrete first-job subpack at
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-001-SEED-PREVIEW-HARNESS
+so GLM/Z-code can stop treating "start menu seed preview" as a vague idea.
+The subpack contains a paste-ready prompt, implementation brief, Rust API
+sketch, New World screen wireframe, deterministic preview algorithm,
+screenshot gates, Z-code commands, failure modes, acceptance checklist, and
+machine-readable contracts for plan/UI/output/test evidence.
+
+HOW: Linked the subpack from the parent GLM world/tools README and the main
+POORCRAFT 3D README. Added every WT-001 file to world_tools_manifest.json so
+the pack cannot silently drop the seed-preview handoff. Extended the
+pc3d_assets glm_world_tools_pack_is_parseable_and_complete guard to parse the
+four WT-001 JSON contracts in addition to the existing world/tools JSON files.
+Updated STATE/BACKLOG/CHANGELOG for loop 416. Existing dirty
+pc3d_render/ui-shot files were present before this pass and were left
+untouched.
+
+EVIDENCE: seed_preview_execution_plan.json, seed_preview_ui_wireframe.json,
+seed_preview_outputs.schema.json, seed_preview_test_matrix.json, and the
+parent world_tools_manifest.json all validate with python3 -m json.tool.
+cargo test --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets
+glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
+--manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
+needed.

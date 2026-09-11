@@ -1,0 +1,20 @@
+Implement WT-001: the screenshotable POORCRAFT 3D New World seed preview
+harness.
+
+Read:
+- docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/README.md
+- docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-001-SEED-PREVIEW-HARNESS/README.md
+- all JSON files in this WT-001 folder
+
+Build a real deterministic seed preview, not a static picture. Required:
+
+1. New World screen state with seed input, random seed, reroll, world type,
+   preview map, spawn summary, biome summary, and create/back controls.
+2. A deterministic preview data function that returns height/water/biome/spawn
+   metadata for a seed.
+3. A screenshot command or UI-shot scene that writes PNG + layout JSON +
+   preview metadata JSON.
+4. Tests for same seed stability, different seed variety, random/reroll change,
+   spawn safety, and preview/worldgen agreement.
+5. Do not claim done until screenshots and JSON sidecars exist on disk and pass
+   checks.

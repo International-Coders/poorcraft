@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "unit_tests": [
+    "empty_seed_randomizes_when_requested",
+    "text_seed_hashes_stably",
+    "numeric_seed_parses_exactly",
+    "same_seed_same_preview_metadata",
+    "different_seed_changes_preview",
+    "reroll_changes_seed",
+    "spawn_safety_rejects_water_or_steep_or_solid",
+    "preview_metadata_agrees_with_worldgen"
+  ],
+  "screenshot_tests": [
+    "seed_preview_empty",
+    "seed_preview_random",
+    "seed_preview_typed",
+    "seed_preview_rerolled",
+    "seed_preview_deck_1280x800"
+  ],
+  "pixel_checks": [
+    "preview_nonblank",
+    "spawn_marker_visible",
+    "seed_text_not_clipped",
+    "create_button_state_correct",
+    "no_ui_overlap"
+  ]
+}

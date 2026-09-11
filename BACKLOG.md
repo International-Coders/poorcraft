@@ -55,6 +55,12 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       AMD/NVIDIA profiling rules, screenshot/wireframe/data extraction,
       asset brainstorms, and "no fake assets" laws with a code guard proving
       the pack is complete (loop 415)
+- [x] POORCRAFT 3D WT-001 seed preview execution pack: concrete
+      implementation-ready subfolder under GLM-WORLD-TOOLS-ASSET-PACK for
+      the New World seed-preview harness, including GLM prompt, Rust API
+      sketch, UI wireframe, deterministic preview algorithm, screenshot gates,
+      Z-code commands, failure modes, checklist, JSON contracts, and a code
+      guard proving the subpack files parse and exist (loop 416)
 
 ## ui-world-craft pack (loop 328)
 

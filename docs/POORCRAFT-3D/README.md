@@ -85,6 +85,9 @@ only when its implementation, tests, runtime behavior, and evidence agree.
 - `GLM-WORLD-TOOLS-ASSET-PACK/` — drop-in GLM 5.3/Z-code pack for start-menu
   seed/world preview work, gameplay-semantic assets, AMD/NVIDIA profiling
   rules, wireframe/data extraction, and "no fake assets" interaction laws.
+- `GLM-WORLD-TOOLS-ASSET-PACK/WT-001-SEED-PREVIEW-HARNESS/` — first concrete
+  implementation handoff for a New World seed preview UI, deterministic preview
+  metadata export, screenshot gates, and GLM test commands.
 
 ## What this project is
 

@@ -675,6 +675,10 @@ mod tests {
             "screenshot_wiremesh_capture_contract.json",
             "semantic_asset_tags.schema.json",
             "tooling_backlog.json",
+            "WT-001-SEED-PREVIEW-HARNESS/seed_preview_execution_plan.json",
+            "WT-001-SEED-PREVIEW-HARNESS/seed_preview_ui_wireframe.json",
+            "WT-001-SEED-PREVIEW-HARNESS/seed_preview_outputs.schema.json",
+            "WT-001-SEED-PREVIEW-HARNESS/seed_preview_test_matrix.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

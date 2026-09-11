@@ -22,6 +22,13 @@ from a game perspective.
 5. Do not generate assets that cannot be inspected, entered, used, talked to,
    harvested, opened, crafted with, or otherwise justified by gameplay.
 
+## First Concrete Job
+
+Start with `WT-001-SEED-PREVIEW-HARNESS/`. It turns the broad world-tool rules
+into one implementation-ready Z-code task: build a real New World seed preview
+screen with seed entry, random/reroll, deterministic map preview, metadata
+export, screenshot proof, and stability/change tests.
+
 ## Folder Map
 
 - `00-OWNER-DEMANDS.md` — plain owner intent.
@@ -39,6 +46,8 @@ from a game perspective.
 - `12-VALIDATION-MATRIX.md` — screenshots, tests, metrics, gameplay probes.
 - `13-BRAINSTORM-NOT-MENTIONED.md` — additional systems the owner did not name.
 - `14-NO-FAKE-ASSETS.txt` — short rules to keep beside the editor.
+- `WT-001-SEED-PREVIEW-HARNESS/` — implementation-ready first task for the
+  start-menu seed preview harness.
 
 ## Machine Contracts
 

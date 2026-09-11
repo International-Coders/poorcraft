@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "task_id": "WT-001",
+  "title": "Start menu seed preview harness",
+  "steps": [
+    "add pure seed resolution",
+    "add pure seed preview data",
+    "add preview metadata JSON writer",
+    "add New World screen state",
+    "add preview map render path",
+    "add screenshot scenes",
+    "add pixel checks",
+    "add tests",
+    "update docs and logs"
+  ],
+  "required_outputs": [
+    "seed preview PNG",
+    "layout JSON",
+    "preview metadata JSON",
+    "pixel-check JSON",
+    "test evidence"
+  ]
+}

@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-09-11 — WT-001 seed preview execution pack
+
+The broad GLM world/tools pack now has a concrete first implementation job:
+
+- `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-001-SEED-PREVIEW-HARNESS/`
+  contains the paste-ready GLM prompt, implementation brief, Rust API sketch,
+  New World wireframe, deterministic preview algorithm, screenshot gates,
+  Z-code commands, failure modes, and acceptance checklist.
+- Machine contracts define the execution plan, UI wireframe, output sidecar
+  schema, and screenshot/test matrix, so a future Z-code pass can prove same
+  seed stability, different-seed change, spawn safety, preview metadata, and
+  screenshot evidence.
+- `pc3d_assets` now parses those subpack JSON contracts in the world/tools
+  guard test, and the parent manifest enumerates every WT-001 file.
+
 ## 2026-09-09 — GLM UI REWORK: the real owner UI (UI-001..UI-008)
 
 The temporary bitmap-font owner shell is replaced by a real UI layer,
