@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "captures": ["screenshot_png", "layout_json", "wireframe_png", "wireframe_obj_or_json", "semantic_dump_json", "frame_stats_json"],
+  "required_scenes": ["start_menu_seed_preview", "house_enterable", "npc_talk", "forge_use", "town_street_nav", "gpu_frame_report", "world_preview_layers"],
+  "pixel_checks": ["nonblank", "ui_not_clipped", "doorway_visible", "prompt_visible", "wireframe_bounds_visible", "semantic_sidecar_exists"],
+  "human_notes_required": true
+}

@@ -36,6 +36,12 @@ pub const UI_ASSET_MANIFEST_JSON: &str =
 pub const GLM_UI_REWORK_PACK_JSON: &str =
     include_str!("../../../../docs/POORCRAFT-3D/GLM-UI-REWORK-PACK/glm_ui_rework_manifest.json");
 
+/// GLM/Z-code world tools and semantic asset handoff pack. This pack keeps
+/// start-menu seed generation, asset semantics, GPU tooling, and wireframe
+/// extraction rules machine-checkable.
+pub const GLM_WORLD_TOOLS_PACK_JSON: &str =
+    include_str!("../../../../docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/world_tools_manifest.json");
+
 // ---------------------------------------------------------------------------
 // Typed manifest (serde mirrors the JSON schema; enums reject out of contract)
 // ---------------------------------------------------------------------------
@@ -614,6 +620,61 @@ mod tests {
             "ui_strings.en.json",
             "zcode_task_queue.json",
             "data_exports.json",
+        ] {
+            let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
+            let parsed: serde_json::Value =
+                serde_json::from_str(&json).unwrap_or_else(|e| panic!("{rel}: {e}"));
+            assert_eq!(parsed["version"], serde_json::json!(1), "{rel} version");
+        }
+    }
+
+    #[test]
+    fn glm_world_tools_pack_is_parseable_and_complete() {
+        let pack: serde_json::Value =
+            serde_json::from_str(GLM_WORLD_TOOLS_PACK_JSON).expect("glm world tools manifest json");
+        assert_eq!(pack["version"], serde_json::json!(1));
+
+        let preserved = pack["must_preserve"]
+            .as_array()
+            .expect("must_preserve array");
+        for law in [
+            "house needs door",
+            "npc needs talk",
+            "forge needs forging",
+            "seed preview must be deterministic",
+            "gpu vendor work starts with markers and data",
+            "screenshots and wireframes are required evidence",
+        ] {
+            assert!(
+                preserved.iter().any(|value| value
+                    .as_str()
+                    .is_some_and(|s| s == law)),
+                "world tools pack must preserve law: {law}"
+            );
+        }
+
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK");
+        for rel in pack["required_files"]
+            .as_array()
+            .expect("required files array")
+        {
+            let rel = rel.as_str().expect("required file path");
+            let path = root.join(rel);
+            assert!(path.is_file(), "missing GLM world tools pack file: {rel}");
+        }
+
+        for rel in [
+            "world_tools_manifest.json",
+            "zcode_world_tools_task_queue.json",
+            "asset_generation_backlog.json",
+            "asset_prompt_matrix.json",
+            "interactive_object_contracts.json",
+            "start_menu_worldgen_contract.json",
+            "gpu_vendor_tooling_contract.json",
+            "screenshot_wiremesh_capture_contract.json",
+            "semantic_asset_tags.schema.json",
+            "tooling_backlog.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

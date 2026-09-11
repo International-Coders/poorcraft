@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "tasks": [
+    {"id": "WT-001", "title": "Start menu seed preview harness", "priority": 1, "done_when": ["title_new_world_seed_preview_screenshot", "seed_preview_json", "random_seed_reroll_test"]},
+    {"id": "WT-002", "title": "Asset semantic manifest validator", "priority": 2, "done_when": ["semantic_asset_tags_schema_enforced", "house_npc_forge_contract_tests"]},
+    {"id": "WT-003", "title": "Wireframe and mesh dump tool", "priority": 3, "done_when": ["wireframe_png_or_obj", "finite_bounds_test", "sample_outputs"]},
+    {"id": "WT-004", "title": "Interactive house door slice", "priority": 4, "done_when": ["enterable_door", "collision_opening", "inside_threshold_screenshot"]},
+    {"id": "WT-005", "title": "NPC talk slice", "priority": 5, "done_when": ["talk_prompt", "dialogue_state", "npc_probe_json", "screenshot"]},
+    {"id": "WT-006", "title": "Forge gameplay slice", "priority": 6, "done_when": ["input_output_heat_recipe", "forge_action_test", "forge_ui_or_prompt_screenshot"]},
+    {"id": "WT-007", "title": "GPU profiling markers and frame report", "priority": 7, "done_when": ["marker_names", "frame_stats_json", "ui_pass_visible_in_report"]},
+    {"id": "WT-008", "title": "AMD/NVIDIA capture checklist outputs", "priority": 8, "done_when": ["rgp_checklist", "nsight_aftermath_checklist", "streamline_ui_buffer_plan"]},
+    {"id": "WT-009", "title": "300-plus semantic asset expansion", "priority": 9, "done_when": ["asset_backlog_rows", "semantic_tags", "loader_tests", "proof_screenshots"]}
+  ]
+}

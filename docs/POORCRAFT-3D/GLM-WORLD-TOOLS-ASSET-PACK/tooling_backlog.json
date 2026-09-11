@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "tools": [
+    {"name": "inspect-ui", "output": "ui layout json"},
+    {"name": "inspect-asset", "output": "asset semantic json"},
+    {"name": "seed-preview", "output": "preview png plus json"},
+    {"name": "seed-corpus", "output": "preview montage plus diversity json"},
+    {"name": "wireframe", "output": "wireframe png and obj/json"},
+    {"name": "perf-capture", "output": "frame stats json/csv"},
+    {"name": "interaction-probe", "output": "use/talk/open/forge/enter result json"},
+    {"name": "gpu-marker-dump", "output": "marker list json"},
+    {"name": "asset-law-check", "output": "semantic compliance report"}
+  ]
+}

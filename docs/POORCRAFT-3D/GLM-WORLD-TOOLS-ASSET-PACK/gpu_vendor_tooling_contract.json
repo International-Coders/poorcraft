@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "sources": {
+    "amd": ["Radeon GPU Profiler", "Radeon Developer Panel", "Radeon GPU Analyzer", "FidelityFX Super Resolution"],
+    "nvidia": ["Nsight Aftermath", "Nsight Graphics", "Streamline", "DLSS"]
+  },
+  "phase_1_vendor_neutral": ["gpu_marker_names", "frame_stats_json", "draw_counts", "triangle_counts", "ui_pass_label", "screenshot_sidecars"],
+  "amd_ready": ["rgp_marker_names", "barrier_pass_names", "wave_occupancy_notes", "rdp_cli_capture_plan"],
+  "nvidia_ready": ["aftermath_marker_names", "shader_debug_paths_plan", "hudless_buffer_plan", "ui_alpha_or_color_buffer_plan", "disable_frame_generation_in_menus"],
+  "upscaling_architecture": ["scene_without_ui", "ui_alpha_or_color", "final_composite", "pause_menu_disable_state", "native_screenshot_baseline"]
+}

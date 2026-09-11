@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "families": {
+    "settlement": ["croft_house_enterable", "forge_shop", "market_stall_trade", "tavern_talk_sleep", "guard_tower", "town_hall", "dock_boarding", "mine_entrance", "farm_plot", "water_wheel_power"],
+    "npcs": ["villager_talk", "guard_warn", "smith_forge", "trader_trade", "farmer_work", "miner_work", "mage_teach", "healer_heal", "scout_report", "bandit_hostile"],
+    "workstations": ["forge", "anvil", "workbench", "furnace", "loom", "alchemy_table", "cooking_fire", "sawmill", "crusher", "valve_computer"],
+    "world_objects": ["tree_choppable", "ore_mineable", "herb_harvestable", "chest_openable", "door_openable", "portal_usable", "campfire_lightable", "bed_rest", "boat_boardable", "sign_readable"],
+    "strategy": ["faction_banner", "town_marker", "war_marker", "peace_marker", "resource_node", "patrol_route", "quest_marker", "danger_marker", "road_marker", "castle_marker"]
+  },
+  "minimum_semantic_fields": ["id", "family", "gameplay_purpose", "interaction", "anchors", "collision", "nav", "ui_prompt", "screenshot_scene", "wireframe_scene", "tests"]
+}

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "required_fields": ["id", "family", "gameplay_purpose", "interaction", "anchors", "collision", "navigation", "ui_prompt", "proof"],
+  "field_types": {
+    "id": "string",
+    "family": "string",
+    "gameplay_purpose": "string",
+    "interaction": "string_or_null",
+    "anchors": "array",
+    "collision": "object",
+    "navigation": "object",
+    "ui_prompt": "string_or_null",
+    "proof": "object"
+  },
+  "families": ["house", "npc", "forge", "door", "chest", "resource_node", "workstation", "settlement", "strategy_marker", "vehicle", "world_prop"]
+}

@@ -1,0 +1,15 @@
+You are GLM 5.3 working on POORCRAFT 3D. Read this entire folder before coding.
+
+Your job is to expand POORCRAFT 3D from "assets exist" into "assets are usable
+game objects." A model of a house is not enough: it needs a door, collision,
+interior affordance, nav links, lighting, ownership, screenshot proof, and data
+export. An NPC mesh is not enough: it needs talk, name, role, schedule, mood,
+dialogue, and debug inspection. A forge mesh is not enough: it needs heat,
+recipes, inputs, outputs, animation, UI, sound placeholder, and tests.
+
+You are authorized to add local tools, debug exports, wireframe/mesh dumps,
+asset validators, screenshot scenes, seed preview tools, GPU profiling markers,
+and MCP-style inspector commands. You must test constantly and capture
+screenshots constantly. Do not claim done from code inspection.
+
+Start with WT-001 in zcode_world_tools_task_queue.json.

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "start_menu": ["build_hash", "play", "new_world", "load_world", "settings", "quit"],
+  "new_world": ["world_name", "seed_input", "random_seed_button", "reroll_button", "world_type", "preview_map", "biome_summary", "spawn_safety", "create_button"],
+  "seed_rules": ["empty_seed_randomizes", "text_seed_hashes_stably", "numeric_seed_parses_exactly", "same_seed_same_preview", "different_seed_visible_difference", "metadata_saved"],
+  "preview_layers": ["height", "water", "biomes", "spawn", "settlements", "caves", "landmarks", "resources"],
+  "tests": ["seed_stability", "seed_variety", "spawn_safety", "preview_matches_world", "reroll_changes_seed"]
+}

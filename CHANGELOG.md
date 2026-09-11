@@ -3326,3 +3326,20 @@ The simulation-only roadmap was declared complete; the visual reset
   mounted DMG binary measured on the real screen at 1280/1501 across
   title/gameplay/pause (median +0.0px); journey digest 7ab2295dafa0ec24
   from the mounted volume; p3d 580/580, root green.
+
+## Loop 415 — GLM World Tools + Semantic Assets Pack
+- Added `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/`, a second drop-in
+  GLM 5.3/Z-code handoff folder for start-menu seed/world preview work,
+  gameplay-semantic asset generation, MCP/inspector expansion, wireframe and
+  data extraction, AMD/NVIDIA profiling/upscaling preparation, and broad
+  asset brainstorming. The pack makes the owner's rule explicit: no fake
+  assets — a house needs a door, an NPC needs talk, a forge needs forging.
+- Added machine-readable contracts for the world/tools task queue, semantic
+  asset tags, asset generation backlog, prompt matrix, start-menu/worldgen
+  requirements, screenshot/wireframe capture, GPU vendor tooling, and concrete
+  tools GLM may build (`seed-preview`, `inspect-asset`, `wireframe`,
+  `interaction-probe`, `gpu-marker-dump`, etc.).
+- `pc3d_assets` now embeds `world_tools_manifest.json` and tests that every
+  listed file exists, all JSON contracts parse, and the core asset/gameplay
+  laws remain present. Evidence: JSON validation passed and `pc3d_assets`
+  27/27. No runtime DMG rebuild was needed for this tooling/spec pack.

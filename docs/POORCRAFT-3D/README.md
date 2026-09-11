@@ -82,6 +82,9 @@ only when its implementation, tests, runtime behavior, and evidence agree.
 - `GLM-UI-REWORK-PACK/` — drop-in GLM 5.3/Z-code prompt pack with UI rebuild
   specs, inspector/export authorization, screenshot protocol, JSON contracts,
   and the current failure-baseline screenshot.
+- `GLM-WORLD-TOOLS-ASSET-PACK/` — drop-in GLM 5.3/Z-code pack for start-menu
+  seed/world preview work, gameplay-semantic assets, AMD/NVIDIA profiling
+  rules, wireframe/data extraction, and "no fake assets" interaction laws.
 
 ## What this project is
 

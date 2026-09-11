@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "date": "2026-09-11",
+  "name": "POORCRAFT 3D GLM World Tools And Asset Pack",
+  "purpose": "Drop-in Z-code/GLM rules for gameplay-semantic assets, start menu seed tools, GPU tooling, wireframe capture, and inspector expansion.",
+  "required_files": [
+    "README.md",
+    "ZCODE_WORLD_TOOLS_PROMPT.txt",
+    "00-OWNER-DEMANDS.md",
+    "01-ZCODE-RULES.md",
+    "02-START-MENU-SEED-WORLDGEN.md",
+    "03-RANDOM-MAP-AND-SEED-LAB.md",
+    "04-GAMEPLAY-SEMANTIC-ASSET-LAWS.md",
+    "05-ASSET-BRAINSTORM-CATALOG.md",
+    "06-ASSET-GENERATION-PROMPTS.md",
+    "07-AMD-NVIDIA-GPU-RESEARCH.md",
+    "08-GPU-PROFILING-AND-UPSCALING-SPEC.md",
+    "09-MCP-INSPECTOR-EXPANSION.md",
+    "10-WIREFRAME-AND-ASSET-INTROSPECTION.md",
+    "11-TOOLS-TO-BUILD.md",
+    "12-VALIDATION-MATRIX.md",
+    "13-BRAINSTORM-NOT-MENTIONED.md",
+    "14-NO-FAKE-ASSETS.txt",
+    "zcode_world_tools_task_queue.json",
+    "asset_generation_backlog.json",
+    "asset_prompt_matrix.json",
+    "interactive_object_contracts.json",
+    "start_menu_worldgen_contract.json",
+    "gpu_vendor_tooling_contract.json",
+    "screenshot_wiremesh_capture_contract.json",
+    "semantic_asset_tags.schema.json",
+    "tooling_backlog.json"
+  ],
+  "must_preserve": [
+    "no fake assets",
+    "house needs door",
+    "npc needs talk",
+    "forge needs forging",
+    "seed preview must be deterministic",
+    "gpu vendor work starts with markers and data",
+    "screenshots and wireframes are required evidence"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "contracts": {
+    "house": {"must_have": ["door_socket", "entry_anchor", "interior_or_transition", "open_nav_path", "collision_opening", "outside_screenshot", "threshold_screenshot"]},
+    "npc": {"must_have": ["name", "role", "talk_prompt", "dialogue_state", "schedule", "faction_or_settlement", "inspect_dump", "closeup_screenshot"]},
+    "forge": {"must_have": ["heat_state", "input_slot", "output_slot", "recipe_action", "active_visual", "use_prompt", "forge_action_test"]},
+    "door": {"must_have": ["open_state", "closed_state", "blocks_when_closed", "passes_when_open", "serialized_state"]},
+    "chest": {"must_have": ["open_prompt", "inventory", "persisted_contents", "blocked_or_locked_state"]},
+    "resource_node": {"must_have": ["harvest_action", "depleted_state", "drop_table", "respawn_or_no_respawn_rule"]},
+    "workstation": {"must_have": ["use_side", "ui_or_action", "recipes_or_behavior", "blocked_message", "screenshot_scene"]}
+  }
+}

@@ -50,6 +50,11 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       MCP-style inspector spec, runtime data export authorization, failure
       baseline screenshot, implementation queue, and a code guard proving the
       pack is complete (loop 412)
+- [x] POORCRAFT 3D GLM world/tools/semantic asset pack: drop-in prompt/spec/
+      JSON folder for start-menu seed previews, gameplay-semantic assets,
+      AMD/NVIDIA profiling rules, screenshot/wireframe/data extraction,
+      asset brainstorms, and "no fake assets" laws with a code guard proving
+      the pack is complete (loop 415)
 
 ## ui-world-craft pack (loop 328)
 

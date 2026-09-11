@@ -6059,3 +6059,32 @@ calibrated to this content set (a future scene with legitimately
 diagonal-dominant content could need a per-scene carve-out); the owner's
 manual play pass remains the gate — now with the BUILD line making the
 running binary self-evident.
+
+## 2026-09-11 — GLM world tools + semantic asset pack
+
+WHAT: Added docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK, a second
+drop-in GLM 5.3/Z-code handoff pack focused on the owner's next demand:
+more rules and files for generating WAY more assets, a start menu with
+random map/seed preview like the old game, AMD/NVIDIA tooling research,
+wireframe/screenshot/data extraction, and gameplay-first asset semantics
+(house needs a door, NPC needs talk, forge needs forging).
+
+HOW: Created Markdown specs for owner demands, Z-code rules, start menu
+seed/worldgen, seed lab, gameplay semantic asset laws, asset brainstorms,
+asset generation prompts, AMD/NVIDIA GPU research, GPU profiling/upscaling,
+MCP inspector expansion, wireframe/asset introspection, tools to build,
+validation matrix, brainstormed unmentioned systems, and a "NO FAKE ASSETS"
+text file. Added JSON contracts for the world/tools manifest, task queue,
+asset generation backlog, prompt matrix, interactive object laws,
+start-menu/worldgen contract, GPU vendor tooling contract,
+screenshot/wiremesh capture contract, semantic asset tags, and tooling
+backlog. Official-source research was folded into the GPU docs: AMD
+RGP/RDP/RGA/FSR and NVIDIA Aftermath/Streamline/DLSS.
+
+EVIDENCE: all new JSON contracts validated with python3 -m json.tool.
+pc3d_assets now embeds world_tools_manifest.json and the new guard test
+proves every listed file exists, all JSON contracts parse, and the key
+owner laws are preserved. pc3d_assets 27/27 passed. This is a tooling/spec
+pack with a code guard, so no runtime DMG rebuild was needed. Existing
+dirty pc3d_render/ui-shot files were present before this pass and were
+left untouched.

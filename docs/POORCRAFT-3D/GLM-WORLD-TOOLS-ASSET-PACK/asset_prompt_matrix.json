@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "prompt_patterns": {
+    "enterable_building": "Original POORCRAFT 3D {building} with readable door, open threshold, interior affordance, collision-safe doorway, light source, role-specific work socket, and settlement identity.",
+    "talkable_npc": "Original POORCRAFT 3D {role} NPC with readable silhouette, face direction, talk stance, work prop, faction color slot, and dialogue anchor.",
+    "usable_workstation": "Original POORCRAFT 3D {station} with clear use side, input area, output area, active state, inactive state, failure hint, and UI prompt anchor.",
+    "harvestable_world_object": "Original POORCRAFT 3D {object} with mature/empty states, interaction side, dropped-resource identity, collision shape, and screenshot proof angle."
+  },
+  "negative_prompts": ["no franchise copy", "no visual-only object", "no blocked doorway", "no unreadable silhouette", "no baked UI text", "no interaction-free prop"]
+}

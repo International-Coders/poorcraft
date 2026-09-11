@@ -1,0 +1,10 @@
+NO FAKE ASSETS.
+
+A house without a door is scenery.
+An NPC without talk is a statue.
+A forge without forging is a prop.
+A chest without storage is a box.
+A map without seed proof is wallpaper.
+A screenshot without inspection is not evidence.
+A generated asset without semantic tags is unfinished.
+A beautiful object that the player cannot understand or use is not done.
