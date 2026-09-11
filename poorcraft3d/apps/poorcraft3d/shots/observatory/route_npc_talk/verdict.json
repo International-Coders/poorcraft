@@ -1,5 +1,6 @@
 {
-  "reason": "talk UI does not exist yet — the NPC talk slice",
+  "captures": 1,
+  "frames": 91,
   "route_id": "route_npc_talk",
-  "verdict": "unavailable"
+  "verdict": "pass"
 }

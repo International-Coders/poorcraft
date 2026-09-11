@@ -1316,6 +1316,44 @@ impl Renderer {
         &self.marker_log
     }
 
+    /// The NPC talk slice: the nearest LIVE villager within TALK_RANGE
+    /// of the camera — (name, distance, cast index). None when no one
+    /// is close enough to address.
+    pub fn nearest_talk_target(&self) -> Option<(String, f32, usize)> {
+        const TALK_RANGE: f32 = 3.0;
+        let cast = self.crowd_cast.as_ref()?;
+        let gen = self.crowd_gen.as_ref()?;
+        let cast = cast.borrow();
+        let p = self.camera.pose.position;
+        let mut best: Option<(f32, usize)> = None;
+        for (i, c) in cast.iter().enumerate() {
+            let np = crate::npcs::npc_world_pos(gen, &c.brain);
+            let d = ((np[0] - p[0]).powi(2) + (np[1] - p[1]).powi(2) + (np[2] - p[2]).powi(2))
+                .sqrt();
+            if d <= TALK_RANGE && best.map(|(bd, _)| d < bd).unwrap_or(true) {
+                best = Some((d, i));
+            }
+        }
+        let (d, i) = best?;
+        Some((pc3d_world::dialog::villager_name(cast[i].brain.home), d, i))
+    }
+
+    /// The world position of cast member `i` (talk-route framing).
+    pub fn cast_position(&self, i: usize) -> Option<[f32; 3]> {
+        let cast = self.crowd_cast.as_ref()?;
+        let gen = self.crowd_gen.as_ref()?;
+        let cast = cast.borrow();
+        Some(crate::npcs::npc_world_pos(gen, &cast.get(i)?.brain))
+    }
+
+    /// Speaks with the cast member at `i` — the dialog authority's line
+    /// for their LIVE brain.
+    pub fn talk_with_index(&self, i: usize) -> Option<pc3d_world::dialog::DialogLine> {
+        let cast = self.crowd_cast.as_ref()?.borrow();
+        let brain = cast.get(i)?;
+        Some(pc3d_world::dialog::talk_with(&brain.brain))
+    }
+
     /// The top-level draw-call count for this frame (per-patch draws
     /// inside streamer modules are counted by their own counters).
     pub fn frame_draw_calls(&self) -> u32 {

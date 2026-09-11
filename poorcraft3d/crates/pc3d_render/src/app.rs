@@ -598,6 +598,18 @@ impl App {
     fn exec_actions(&mut self, actions: &[UiAction], event_loop: &ActiveEventLoop) {
         for act in actions {
             match act {
+                UiAction::TryTalk => {
+                    // The NPC talk slice: resolve the nearest LIVE brain
+                    // in talk range and open the dialog with its line.
+                    if let Some(s) = self.state.as_mut() {
+                        if let Some((_, _, i)) = s.renderer.nearest_talk_target() {
+                            if let Some(line) = s.renderer.talk_with_index(i) {
+                                s.ui.dialog = Some(line);
+                                s.ui_dirty = true;
+                            }
+                        }
+                    }
+                }
                 UiAction::StartPlaying => {
                     if let Some(s) = self.state.as_mut() {
                         // The reducer sets these itself; script-driven
@@ -942,6 +954,12 @@ impl ApplicationHandler for App {
             state.ui.session_live = self.cfg.slice_setup.is_some() || self.cfg.slice_host.is_some();
             if state.ui.session_live {
                 state.ui.hud.prompt = "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT".into();
+                // The talk prompt: name the villager in range, live.
+                if state.ui.dialog.is_none() {
+                    if let Some((name, _, _)) = state.renderer.nearest_talk_target() {
+                        state.ui.hud.prompt = format!("E TALK {name} · F BUILD · R REMOVE · ESC PAUSE");
+                    }
+                }
             }
         }
         self.state = Some(state);
@@ -1548,6 +1566,24 @@ impl App {
                 slice.player.walk(&gen, fwd, strafe, dt);
             }
             state.renderer.set_pose(slice.player.pose());
+            // The NPC talk slice, live: while no dialog is open, the
+            // prompt names the villager in talk range (E to speak).
+            if state.owner_menu && state.ui.dialog.is_none() && !state.ui.blocks_gameplay() {
+                match state.renderer.nearest_talk_target() {
+                    Some((name, _, _)) => {
+                        state.ui.hud.prompt =
+                            format!("E TALK {name} · F BUILD · R REMOVE · ESC PAUSE");
+                        state.ui_dirty = true;
+                    }
+                    None => {
+                        let base = "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT";
+                        if state.ui.hud.prompt != base {
+                            state.ui.hud.prompt = base.into();
+                            state.ui_dirty = true;
+                        }
+                    }
+                }
+            }
             let built: usize = slice
                 .host
                 .borrow()
@@ -1713,6 +1749,7 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         KeyCode::Backspace => Key::Backspace,
         KeyCode::F3 => Key::F3,
         KeyCode::KeyQ => Key::KeyQ,
+        KeyCode::KeyE => Key::Char('e'),
         KeyCode::Digit1 | KeyCode::Numpad1 => Key::Digit(1),
         KeyCode::Digit2 | KeyCode::Numpad2 => Key::Digit(2),
         KeyCode::Digit3 | KeyCode::Numpad3 => Key::Digit(3),

@@ -19,6 +19,7 @@ pub mod coords;
 pub mod craft;
 pub mod debug_overlay;
 pub mod diagnose;
+pub mod dialog;
 pub mod dragon;
 pub mod economy;
 pub mod edit;

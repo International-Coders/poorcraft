@@ -3583,3 +3583,16 @@ The simulation-only roadmap was declared complete; the visual reset
   5/5 available routes PASS + 3 honest gameplay-slice unavailabilities.
 - Deferred: enabling timestamp queries, per-module draw counting,
   vendor capture cookbooks (docs today, markers were the prerequisite).
+
+## Loop 427 — The NPC talk slice
+- `pc3d_world::dialog` (pure): deterministic villager names + lines
+  derived from each brain's live activity and role; 3 authority laws.
+- The gameplay UI: "E TALK <name>" prompt in range (3 m, nearest live
+  cast brain), the SPEAKING panel (speaker/role/activity/line/E-close)
+  on E, dialog blocks gameplay, Escape/E close; the runtime-state
+  export carries the open dialog.
+- Observatory `route_npc_talk` UNAVAILABLE -> PASS end to end (real
+  TryTalk path, "speaking with Maren Oldford"); `make p3d-observe` now
+  6/6 available routes + 2 honest unavailabilities (house entry, forge).
+- Evidence: route capture with all five dialog elements, ui-shots 13/13
+  regression, dialog laws green, full suites green.

@@ -75,6 +75,7 @@
   ],
   "ui_state": {
     "debug_overlay": false,
+    "dialog": null,
     "focus": 0,
     "form": {
       "name": "WORLD-22",
@@ -86,9 +87,9 @@
     "hud": {
       "food": 0.699999988079071,
       "health": 0.44999998807907104,
-      "prompt": "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.35261020064353943,
+      "stamina": 0.45881950855255127,
       "xp": 0.5
     },
     "modal": {
@@ -107,19 +108,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 06:30",
+        "modified": "2026-09-11 15:19",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 06:30",
+        "modified": "2026-09-11 15:19",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "toasts": [
       {
-        "age_s": 0.9378886818885803,
+        "age_s": 2.7942745685577393,
         "text": "SAVED 'REBUILD'"
       }
     ]

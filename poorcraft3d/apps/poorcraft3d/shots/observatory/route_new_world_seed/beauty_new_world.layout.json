@@ -273,6 +273,7 @@
   ],
   "ui_state": {
     "debug_overlay": false,
+    "dialog": null,
     "focus": 0,
     "form": {
       "name": "WORLD-22",
@@ -302,12 +303,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 14:15",
+        "modified": "2026-09-11 15:18",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 14:15",
+        "modified": "2026-09-11 15:18",
         "name": "beta-shot",
         "seed": 7
       }

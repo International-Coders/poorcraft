@@ -1,7 +1,7 @@
 {
   "build_hash": "dev",
   "camera": "scripted_route_camera",
-  "command": "--observe route_new_world_seed",
+  "command": "--observe route_npc_talk",
   "gpu_markers": {
     "reason": "pass markers pending WT-007 slice 1",
     "value": null
@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 70.4000015258789,
-    "frames": 70,
-    "p50_ms": 11.760000228881836,
-    "p95_ms": 27.860000610351562
+    "avg_fps": 27.5,
+    "frames": 90,
+    "p50_ms": 36.290000915527344,
+    "p95_ms": 62.58000183105469
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1789139943",
+  "timestamp_utc": "1789139969",
   "ui": {},
   "verdict": "exported",
   "version": 1,
@@ -49,7 +49,7 @@
       "reason": "construction not mounted in UI routes",
       "value": null
     },
-    "seed_resolved": "4242",
-    "spawn_safe": true
+    "seed_resolved": "3",
+    "spawn_safe": null
   }
 }

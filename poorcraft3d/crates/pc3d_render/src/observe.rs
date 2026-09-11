@@ -33,8 +33,8 @@ pub fn routes() -> &'static [RouteSpec] {
         },
         RouteSpec {
             id: "route_npc_talk",
-            available: false,
-            reason: "talk UI does not exist yet — the NPC talk slice",
+            available: true,
+            reason: "",
         },
         RouteSpec {
             id: "route_forge_use",

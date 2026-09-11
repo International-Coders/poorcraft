@@ -379,6 +379,8 @@ pub struct UiState {
     pub pointer_grabbed: bool,
     /// The last clicked/activated button id (transient, for proofs).
     pub last_activated: Option<String>,
+    /// The NPC talk slice: the open villager dialog (E to talk/close).
+    pub dialog: Option<pc3d_world::dialog::DialogLine>,
 }
 
 impl Default for UiState {
@@ -401,6 +403,7 @@ impl Default for UiState {
             session_live: false,
             pointer_grabbed: false,
             last_activated: None,
+            dialog: None,
         }
     }
 }
@@ -442,11 +445,15 @@ impl UiState {
             "session_live": self.session_live,
             "pointer_grabbed": self.pointer_grabbed,
             "gameplay_input_blocked": self.blocks_gameplay(),
+            "dialog": self.dialog.as_ref().map(|d| serde_json::json!({
+                "speaker": d.speaker, "role": d.role,
+                "activity": d.activity, "text": d.text,
+            })),
         })
     }
 
     pub fn blocks_gameplay(&self) -> bool {
-        self.screen.blocks_gameplay() || self.modal.is_some()
+        self.screen.blocks_gameplay() || self.modal.is_some() || self.dialog.is_some()
     }
 
     pub fn toast(&mut self, text: impl Into<String>) {
@@ -1102,6 +1109,39 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     Rect::new(wi - SAFE_MARGIN_PX - tw as i32, SAFE_MARGIN_PX + ctx.px(4), tw as u32, th as u32),
                 );
             }
+            // The NPC talk panel: above the toast band, centered — the
+            // villager's name, role + live activity, their line, the
+            // close hint. A dialog owns the frame like a modal.
+            if let Some(d) = &state.dialog {
+                let panel_w = 560;
+                let panel_h = 132;
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = (hy - xp_h - ctx.px(6) - ctx.px(24) - ph - ctx.px(28))
+                    .max(SAFE_MARGIN_PX + ctx.px(60));
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("dialog_panel", panel, Some("SPEAKING"));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut dy = panel.y + ctx.px(PANEL_PAD) + ctx.px(22);
+                let head = format!("{} · {}", d.speaker, d.role);
+                let head = fit_to_width(&head, 3 * ctx.k, (pw - PANEL_PAD * 2) as u32);
+                ctx.text("dialog_speaker", &head, lx, dy, 3);
+                dy += ctx.px(26);
+                let tag = format!("NOW: {}", d.activity);
+                ctx.text("dialog_activity", &tag, lx, dy, 2);
+                dy += ctx.px(24);
+                let line_w = (pw - PANEL_PAD * 2) as u32;
+                let text = fit_to_width(&d.text, 2 * ctx.k, line_w);
+                ctx.text("dialog_text", &text, lx, dy, 2);
+                let (hw, _) = font::text_size("E CLOSE", 2);
+                ctx.text(
+                    "dialog_hint",
+                    "E CLOSE",
+                    panel.right() - ctx.px(PANEL_PAD) - hw as i32,
+                    panel.bottom() - ctx.px(24),
+                    2,
+                );
+            }
             // Click-to-capture hint when the pointer is free.
             if !state.pointer_grabbed {
                 let hint = "CLICK TO CAPTURE MOUSE · ESC PAUSES";
@@ -1610,6 +1650,9 @@ pub enum UiAction {
     SetQuality(Quality),
     SelectHotbar(usize),
     CaptureMouse,
+    /// The NPC talk slice: the player pressed E near a villager — the
+    /// app resolves the nearest brain in talk range and opens the dialog.
+    TryTalk,
     /// Proof hook (inspector): raw mouse deltas applied to the live
     /// player body — the exact path real mouse motion takes.
     PlayerLook { dx: f32, dy: f32 },
@@ -1651,6 +1694,18 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
 
     match state.screen {
         Screen::Gameplay => match key {
+            Key::Escape if state.dialog.is_some() => {
+                state.dialog = None;
+                acts.push(UiAction::Repaint);
+            }
+            Key::Char('e') => {
+                if state.dialog.is_some() {
+                    state.dialog = None;
+                } else {
+                    acts.push(UiAction::TryTalk);
+                }
+                acts.push(UiAction::Repaint);
+            }
             Key::Escape => {
                 state.screen = Screen::Pause;
                 state.pointer_grabbed = false;
@@ -2602,6 +2657,46 @@ mod tests {
         s.seed_preview_stale = false;
         let _ = on_key(&mut s, Key::Backspace);
         assert!(s.seed_preview_stale, "seed editing must mark the preview stale");
+    }
+
+    #[test]
+    fn dialog_panel_lays_out_inks_and_owns_the_frame() {
+        // The NPC talk slice: a live dialog draws the speaker panel,
+        // blocks gameplay input, and E closes it (Escape too).
+        let mut s = state(Screen::Gameplay);
+        s.dialog = Some(pc3d_world::dialog::DialogLine {
+            speaker: "Bram Stonehand".into(),
+            role: "FARMER",
+            activity: "FARMING",
+            text: "Good soil this season. The village will eat well.".into(),
+        });
+        assert!(s.blocks_gameplay(), "a dialog owns the frame like a modal");
+        let list = build(&s, 1280, 720);
+        for id in [
+            "dialog_panel", "dialog_speaker", "dialog_activity",
+            "dialog_text", "dialog_hint",
+        ] {
+            assert!(list.by_id(id).is_some(), "dialog element {id} missing");
+        }
+        let canvas = paint(&list);
+        for id in ["dialog_speaker", "dialog_text"] {
+            let r = list.by_id(id).unwrap().rect;
+            assert!(
+                ink_px(&canvas, 1280, r) > 0,
+                "dialog element {id} painted no ink"
+            );
+        }
+        // E closes.
+        let acts = on_key(&mut s, Key::Char('e'));
+        assert!(s.dialog.is_none(), "E must close the dialog");
+        assert!(!s.blocks_gameplay());
+        assert!(acts.iter().any(|a| matches!(a, UiAction::Repaint)));
+        // E with no dialog emits TryTalk (the app resolves proximity).
+        let acts = on_key(&mut s, Key::Char('e'));
+        assert!(
+            acts.iter().any(|a| matches!(a, UiAction::TryTalk)),
+            "E with no dialog must ask the app to talk"
+        );
     }
 
     #[test]

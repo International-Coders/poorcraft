@@ -6681,3 +6681,54 @@ own counters, noted in the audit); triangles report the asset sum
 exactly (streamer/crowd sums live in their counters); the AMD/NVIDIA
 capture cookbooks (WT-007's vendor slices) are docs today — the marker
 tree is the prerequisite they needed and it now exists.
+
+## 2026-09-11 — The NPC talk slice: dialog authority + live talk + route PASS
+
+WHAT: villagers can be SPOKEN TO — a pure dialog authority derives each
+villager's line from their LIVE brain, the gameplay UI shows a talk
+prompt when someone is in range and a speaking panel on E, and the
+observatory's route_npc_talk flipped UNAVAILABLE -> PASS end to end.
+
+HOW:
+- pc3d_world::dialog (NEW, pure): villager_name(home) — deterministic
+  people (FNV over the home cell into an original-flavor name table;
+  the same villager is the same person in every save/capture/route);
+  talk_with(brain) — the line class follows the brain's LIVE activity
+  (sleeping mumbles, walking errands, idle small talk, and per-role
+  working lines for Farmer/Fisher/Builder/Guard), the pick FNV-seeded
+  by the name. 3 laws: determinism + state discrimination, every
+  role/activity combination speaks, name stability + variety (>=16
+  distinct people over a sample).
+- ui.rs: UiState.dialog + the SPEAKING panel on Gameplay (speaker +
+  role head, NOW: activity tag, the line, E CLOSE hint; above the toast
+  band, inside every margin/overlap law); a dialog BLOCKS gameplay like
+  a modal; E opens (UiAction::TryTalk) or closes, Escape closes first;
+  the runtime-state export carries the live dialog.
+- app.rs: the live loop names the villager in the prompt (E TALK
+  <NAME>) via renderer.nearest_talk_target (crowd_cast + crowd_gen +
+  npc_world_pos, 3 m range); TryTalk resolves the nearest LIVE brain
+  and opens the panel with its line; KeyE maps to the talk key.
+- The route: enter the world, stand beside cast member 0 (the script
+  sets the camera pose from the REAL cast position), fire TryTalk
+  through the app path — the capture must show dialog_panel +
+  dialog_speaker and the final UI state names the speaker.
+
+EVIDENCE: route_npc_talk PASS — "NPC TALK: speaking with Maren Oldford"
+(a Builder, BUILDING: "We build it once, we build it right.") with all
+five dialog elements in the capture layout at p50 8.7 ms; make
+p3d-observe: 6/6 available routes PASS + 2 honest UNAVAILABLE
+(house_entry, forge_use); ui-shots 13/13 regression green (dialog None
+by default leaves every existing capture untouched); dialog unit laws:
+authority 3/3 + UI panel 1/1 (elements + ink + frame-ownership + E
+close/TryTalk); full suites re-run.
+
+BUGS THE PROOFS CAUGHT: the first route run showed a Title screen with
+a dialog state — the script never entered the world (StartPlaying step
+added); the assertion initially read the in-memory layout's ui_state,
+which only exists in the dumped file (the check now uses elements +
+the report's final_ui_state — three consecutive repros before the fix).
+HONESTLY DEFERRED: no dialog CHOICES yet (one live line per open — a
+conversation tree is a gameplay slice of its own); talking does not
+pause the crowd schedule; no voice/portrait (text panel is the
+expression); house_entry and forge_use remain the two honest
+unavailable routes.

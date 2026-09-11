@@ -4619,6 +4619,35 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(60, format!("{dir}/beauty_markers.png"))
                     .ui_dump(format!("{dir}/beauty_markers.layout.json")));
             }
+            "route_npc_talk" => {
+                // The talk slice, end to end: enter the world, stand
+                // beside the first cast member, then E — the app's
+                // TryTalk resolves the nearest LIVE brain and opens the
+                // REAL dialog panel.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                ui_script.push((
+                    40,
+                    Box::new(|ui, r, ctx| {
+                        let _ = ui;
+                        if let Some(p) = r.cast_position(0) {
+                            let pose = pc3d_render::CameraPose::new(
+                                [p[0] + 1.2, p[1] + 1.7, p[2] + 1.2],
+                                (-1.2_f32).atan2(-1.2),
+                                -0.25,
+                            );
+                            r.set_pose(pose);
+                        }
+                        ctx.actions.push(UiAction::TryTalk);
+                    }),
+                ));
+                shots.push(Shot::new(90, format!("{dir}/beauty_talk.png"))
+                    .ui_dump(format!("{dir}/beauty_talk.layout.json")));
+            }
             _ => unreachable!("availability checked above"),
         }
         let cfg = pc3d_render::WindowConfig {
@@ -4671,6 +4700,33 @@ fn run_observe(route_id: &str, out_root: &str) {
             &command,
             "scripted_route_camera",
         );
+        // The NPC talk route: the capture MUST show the real dialog.
+        if spec.id == "route_npc_talk" {
+            // The in-memory layout carries the ELEMENTS (the ui_state
+            // is injected into the dump at write time); the speaker
+            // rides the report's final UI state.
+            let elements_ok = report
+                .captures
+                .first()
+                .and_then(|c| c.ui_layout.as_ref())
+                .and_then(|l| l["elements"].as_array())
+                .map(|els| {
+                    els.iter().any(|e| e["id"] == "dialog_panel")
+                        && els.iter().any(|e| e["id"] == "dialog_speaker")
+                })
+                .unwrap_or(false);
+            let speaker = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["dialog"]["speaker"].as_str().map(str::to_string));
+            match (elements_ok, speaker) {
+                (true, Some(name)) => println!("NPC TALK: speaking with {name}"),
+                _ => {
+                    eprintln!("[FAIL] observe {}: dialog not shown", spec.id);
+                    any_fail = true;
+                }
+            }
+        }
         // WT-007 slice 1: the gpu-markers route ships the audit in-bundle.
         let mut gpu_marker_path = String::new();
         if spec.id == "route_gpu_markers" {

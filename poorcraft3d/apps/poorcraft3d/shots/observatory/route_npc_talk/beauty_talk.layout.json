@@ -38,8 +38,8 @@
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
-        632,
-        352,
+        392,
+        242,
         16,
         16
       ]
@@ -49,8 +49,8 @@
       "id": "xp_strip",
       "kind": "bar",
       "rect": [
-        382,
-        641,
+        142,
+        421,
         516,
         5
       ]
@@ -60,21 +60,10 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        353,
-        617,
+        113,
+        397,
         574,
         14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "toast_SAVED 'REBUILD'",
-      "kind": "toast",
-      "rect": [
-        541,
-        595,
-        198,
-        16
       ]
     },
     {
@@ -82,8 +71,8 @@
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
-        382,
-        652,
+        142,
+        432,
         52,
         52
       ]
@@ -93,8 +82,8 @@
       "id": "hotbar_1",
       "kind": "hotbar_slot",
       "rect": [
-        440,
-        652,
+        200,
+        432,
         52,
         52
       ]
@@ -104,8 +93,8 @@
       "id": "hotbar_2",
       "kind": "hotbar_slot",
       "rect": [
-        498,
-        652,
+        258,
+        432,
         52,
         52
       ]
@@ -115,8 +104,8 @@
       "id": "hotbar_3",
       "kind": "hotbar_slot",
       "rect": [
-        556,
-        652,
+        316,
+        432,
         52,
         52
       ]
@@ -126,8 +115,8 @@
       "id": "hotbar_4",
       "kind": "hotbar_slot",
       "rect": [
-        614,
-        652,
+        374,
+        432,
         52,
         52
       ]
@@ -137,8 +126,8 @@
       "id": "hotbar_5",
       "kind": "hotbar_slot",
       "rect": [
-        672,
-        652,
+        432,
+        432,
         52,
         52
       ]
@@ -148,8 +137,8 @@
       "id": "hotbar_6",
       "kind": "hotbar_slot",
       "rect": [
-        730,
-        652,
+        490,
+        432,
         52,
         52
       ]
@@ -159,8 +148,8 @@
       "id": "hotbar_7",
       "kind": "hotbar_slot",
       "rect": [
-        788,
-        652,
+        548,
+        432,
         52,
         52
       ]
@@ -170,37 +159,97 @@
       "id": "hotbar_8",
       "kind": "hotbar_slot",
       "rect": [
-        846,
-        652,
+        606,
+        432,
         52,
         52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "dialog_panel",
+      "kind": "panel",
+      "rect": [
+        120,
+        237,
+        560,
+        132
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "dialog_speaker",
+      "kind": "text",
+      "rect": [
+        140,
+        279,
+        411,
+        21
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "dialog_activity",
+      "kind": "text",
+      "rect": [
+        140,
+        305,
+        154,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "dialog_text",
+      "kind": "text",
+      "rect": [
+        140,
+        329,
+        430,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "dialog_hint",
+      "kind": "text",
+      "rect": [
+        578,
+        345,
+        82,
+        14
       ]
     }
   ],
   "scale": 1.0,
   "screen": "gameplay",
   "size": [
-    1280,
-    720
+    800,
+    500
   ],
   "ui_state": {
     "debug_overlay": false,
-    "dialog": null,
+    "dialog": {
+      "activity": "BUILDING",
+      "role": "BUILDER",
+      "speaker": "Maren Oldford",
+      "text": "We build it once, we build it right."
+    },
     "focus": 0,
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
       "seed": 22
     },
-    "gameplay_input_blocked": false,
+    "gameplay_input_blocked": true,
     "hover": null,
     "hud": {
-      "food": 0.699999988079071,
-      "health": 0.44999998807907104,
+      "food": 1.0,
+      "health": 1.0,
       "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
-      "selected_slot": 3,
-      "stamina": 0.3768402338027954,
-      "xp": 0.5
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "xp": 0.0
     },
     "modal": null,
     "pointer_grabbed": true,
@@ -225,11 +274,6 @@
         "seed": 7
       }
     ],
-    "toasts": [
-      {
-        "age_s": 0.548858642578125,
-        "text": "SAVED 'REBUILD'"
-      }
-    ]
+    "toasts": []
   }
 }
