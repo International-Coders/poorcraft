@@ -446,6 +446,7 @@ mod material_tests {
 }
 
 pub mod observatory;
+pub mod plugins;
 pub mod semantic;
 pub mod v2;
 

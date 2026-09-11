@@ -1,0 +1,22 @@
+{
+  "build_hash": "dev",
+  "command": "--export-data machine",
+  "network": {
+    "machines": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "stored_charge_milli": 1350
+  },
+  "scene": "windowless_authority",
+  "seed": "3",
+  "timestamp_utc": 1789158699,
+  "verdict": "exported",
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

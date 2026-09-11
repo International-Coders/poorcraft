@@ -1,0 +1,45 @@
+{
+  "build_hash": "dev",
+  "cast": [
+    {
+      "activity": "Idle",
+      "label": "resident",
+      "name": "Maren Oldford",
+      "needs": {
+        "energy": 100,
+        "hunger": 0
+      },
+      "role": "Builder"
+    },
+    {
+      "activity": "Idle",
+      "label": "worker",
+      "name": "Edda Longbarrow",
+      "needs": {
+        "energy": 100,
+        "hunger": 0
+      },
+      "role": "Farmer"
+    },
+    {
+      "activity": "Idle",
+      "label": "guard",
+      "name": "Edda Longbarrow",
+      "needs": {
+        "energy": 100,
+        "hunger": 0
+      },
+      "role": "Guard"
+    }
+  ],
+  "command": "--export-data npc",
+  "scene": "windowless_authority",
+  "seed": "3",
+  "timestamp_utc": 1789158699,
+  "verdict": "exported",
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

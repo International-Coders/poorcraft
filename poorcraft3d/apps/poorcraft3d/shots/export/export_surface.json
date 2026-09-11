@@ -1,0 +1,32 @@
+{
+  "build_hash": "dev",
+  "command": "--export-data all",
+  "rows": {
+    "asset": "--asset-sidecar all (inspection sidecars)",
+    "evidence_bundle": "--observe <route> + --compare-evidence",
+    "machine": "--export-data machine (live windowless)",
+    "materials": "--asset-sidecar (declared + measured materials)",
+    "mesh": "--asset-sidecar (bounds/lods/triangles)",
+    "npc": "--export-data npc (live windowless)",
+    "perf": "--observe <route> perf.json (p50/p95)",
+    "player": "--ui-inspect player_look/camera_pose",
+    "scene": "--ui-inspect dump_visible_world",
+    "seed_preview": "--seed-preview <seed> (png + json)",
+    "ui": "--ui-shots (layout dumps + pixel checks)",
+    "worldgen_sample": "--export-data worldgen_sample (live windowless)"
+  },
+  "safety": {
+    "local_only": true,
+    "network": "none",
+    "player_saves": "read_only_unless_owner_requested"
+  },
+  "scene": "windowless_authority",
+  "seed": "3",
+  "timestamp_utc": 1789158699,
+  "verdict": "exported",
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

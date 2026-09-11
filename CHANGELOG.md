@@ -3648,3 +3648,15 @@ The simulation-only roadmap was declared complete; the visual reset
   "house entered, Maren Oldford talked, 1 bar forged, 4 ore
   harvested, chest+marker read, IRON BAR in stock" — deterministic
   across two runs (comparator PASS).
+
+## Loop 432 — WT-008 in code: data extraction + mod validation
+- `pc3d_assets::plugins`: the WT-008 contracts embedded + the mod
+  validator with the contract's 12 sample packs — 5 good pass, 7 bad
+  fail with named reasons (fake house/NPC/forge/UI/perf, NaN bounds,
+  missing materials). Safety laws asserted verbatim (local-only,
+  read-only saves).
+- `--export-data` / `make p3d-export-data`: windowless LIVE exports
+  (worldgen 289-region sample, the cast's brains, a charged machine
+  chain) stamped with the contract's 8 common fields + the full
+  12-row exporter surface manifest. Local only.
+- Evidence: pc3d_assets 36/36, export gate green, suites green.

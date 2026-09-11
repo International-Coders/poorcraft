@@ -3883,6 +3883,136 @@ fn main() {
             }
             println!("ASSET CAPTURES OK");
         }
+        Some("--export-data") => {
+            // WT-008: the local data-extraction surface. Windowless rows
+            // (worldgen_sample, npc, machine) export straight from the
+            // sim authorities; every other row maps to the existing
+            // local exporter command — one manifest names them all.
+            // LOCAL ONLY: writes under the outdir, never the network.
+            let out_dir: String = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/export", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir export dir");
+            let stamp = |command: &str| -> serde_json::Value {
+                serde_json::json!({
+                    "version": 1,
+                    "build_hash": pc3d_render::ui::build_stamp(),
+                    "command": command,
+                    "scene": "windowless_authority",
+                    "seed": "3",
+                    "viewport": [0, 0],
+                    "timestamp_utc": std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs()).unwrap_or(0),
+                    "verdict": "exported",
+                })
+            };
+            let mut failures = 0usize;
+
+            // worldgen_sample: a 17x17 biome/height grid from the
+            // authority around the showcase origin.
+            let gen = pc3d_world::gen::WorldGen::new(3);
+            let mut rows = Vec::new();
+            for z in -8i32..=8 {
+                for x in -8i32..=8 {
+                    let r = pc3d_world::coords::RegionCoord { x, z };
+                    let f = gen.macro_field(r);
+                    rows.push(serde_json::json!({
+                        "region": [x, z],
+                        "biome": gen.biome(r).name(),
+                        "elevation_m": f.elevation_m,
+                        "temperature": f.temperature,
+                        "humidity": f.humidity,
+                    }));
+                }
+            }
+            let mut wg = stamp("--export-data worldgen_sample");
+            wg["samples"] = rows.into();
+            std::fs::write(format!("{out_dir}/worldgen_sample.json"),
+                serde_json::to_string_pretty(&wg).unwrap()).unwrap();
+            println!("EXPORT worldgen_sample: 289 region samples -> {out_dir}/worldgen_sample.json");
+
+            // npc: the showcase cast's LIVE brains (the crowd authority).
+            let (_, scene) = pc3d_render::slice::find_showcase(3);
+            let cast = pc3d_render::npcs::cast_for(&scene.plan, &scene.info);
+            let mut npc = stamp("--export-data npc");
+            npc["cast"] = cast.iter().map(|c| serde_json::json!({
+                "label": c.label,
+                "role": format!("{:?}", c.brain.role),
+                "activity": format!("{:?}", c.brain.activity()),
+                "needs": {"hunger": c.brain.needs.hunger, "energy": c.brain.needs.energy},
+                "name": pc3d_world::dialog::villager_name(c.brain.home),
+            })).collect::<Vec<_>>().into();
+            std::fs::write(format!("{out_dir}/npc.json"),
+                serde_json::to_string_pretty(&npc).unwrap()).unwrap();
+            println!("EXPORT npc: {} cast members -> {out_dir}/npc.json", cast.len());
+
+            // machine: a fresh machine network snapshot (the proven
+            // chain: boiler->engine->generator->battery).
+            let mut net = pc3d_world::machines::MachineNetwork::new();
+            let b = net.add_machine(pc3d_world::machines::MachineKind::Boiler);
+            let e = net.add_machine(pc3d_world::machines::MachineKind::SteamEngine);
+            let g = net.add_machine(pc3d_world::machines::MachineKind::Generator);
+            let bat = net.add_machine(pc3d_world::machines::MachineKind::Battery);
+            for (f, t) in [(b, e), (e, g), (g, bat)] {
+                net.connect(f, t).expect("the proven chain wires");
+            }
+            net.supply(b, 5000, 3000);
+            for _ in 0..50 {
+                net.tick();
+            }
+            let mut mach = stamp("--export-data machine");
+            mach["network"] = serde_json::json!({
+                "machines": [b, e, g, bat],
+                "stored_charge_milli": net.stored_charge(),
+            });
+            std::fs::write(format!("{out_dir}/machine.json"),
+                serde_json::to_string_pretty(&mach).unwrap()).unwrap();
+            println!("EXPORT machine: chain charged to {} milli -> {out_dir}/machine.json", net.stored_charge());
+
+            // The surface manifest: every contract row -> its exporter.
+            let mut surface = stamp("--export-data all");
+            surface["rows"] = serde_json::json!({
+                "scene": "--ui-inspect dump_visible_world",
+                "ui": "--ui-shots (layout dumps + pixel checks)",
+                "asset": "--asset-sidecar all (inspection sidecars)",
+                "mesh": "--asset-sidecar (bounds/lods/triangles)",
+                "materials": "--asset-sidecar (declared + measured materials)",
+                "player": "--ui-inspect player_look/camera_pose",
+                "npc": "--export-data npc (live windowless)",
+                "machine": "--export-data machine (live windowless)",
+                "seed_preview": "--seed-preview <seed> (png + json)",
+                "worldgen_sample": "--export-data worldgen_sample (live windowless)",
+                "perf": "--observe <route> perf.json (p50/p95)",
+                "evidence_bundle": "--observe <route> + --compare-evidence",
+            });
+            surface["safety"] = serde_json::json!({
+                "local_only": true,
+                "player_saves": "read_only_unless_owner_requested",
+                "network": "none",
+            });
+            std::fs::write(format!("{out_dir}/export_surface.json"),
+                serde_json::to_string_pretty(&surface).unwrap()).unwrap();
+            println!("EXPORT surface manifest -> {out_dir}/export_surface.json");
+            // Common-field law on every live export.
+            for f in ["worldgen_sample", "npc", "machine"] {
+                let v: serde_json::Value = serde_json::from_str(
+                    &std::fs::read_to_string(format!("{out_dir}/{f}.json")).unwrap(),
+                ).unwrap();
+                for field in ["version", "build_hash", "command", "scene", "seed",
+                    "viewport", "timestamp_utc", "verdict"] {
+                    if v.get(field).is_none() {
+                        eprintln!("[FAIL] {f}: common field {field} missing");
+                        failures += 1;
+                    }
+                }
+            }
+            if failures > 0 {
+                std::process::exit(1);
+            }
+            println!("EXPORT DATA OK (local-only)");
+        }
         Some("--observe") => {
             // WT-003: the observatory — one route run = one evidence
             // bundle directory (beauty PNG + layout + runtime state +

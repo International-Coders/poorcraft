@@ -6908,3 +6908,50 @@ interaction animation (the zones carry the semantics); the map
 marker's text is static (a living map reads the seed preview's biome
 census — a follow-up); bread is carried but not eaten in this slice
 (the eat path exists in the sim).
+
+## 2026-09-11 — WT-008 in code: the local data-extraction surface + the mod validator
+
+WHAT: the data-extraction plugin lab is executable — the four WT-008
+contracts embed and parse; the MOD PACK VALIDATOR ships with the
+contract's own twelve sample packs (5 good, 7 bad — bad packs MUST
+fail with named reasons: fake house with no door, fake NPC with no
+talk, fake forge with no output, baked UI key text, NaN bounds, mod
+missing materials, perf claim with no before/after); and
+--export-data / make p3d-export-data gives the local-only exporter
+surface: windowless LIVE exports for the three sim rows + a manifest
+mapping all twelve contract rows to their exporter commands.
+
+HOW:
+- pc3d_assets::plugins (NEW): the plugin-manifest/exporter-surface/
+  data-safety/mod-pack JSONs embedded; validate_mod_pack enforces the
+  per-kind laws (building door+interior, npc talk+>=2 state variants,
+  machine output+named blocked state, ui keymap-not-baked,
+  seed_preview deterministic, asset materials declared, perf claims
+  need before+after numbers; NaN caught pre-parse since strict JSON
+  rejects it); the safety test asserts the contract's own forbidden
+  list verbatim (public_listener, external_upload_by_default,
+  secret_export, unrelated_file_scan, silent_save_mutation) + the
+  read-only save policy.
+- apps --export-data <outdir> (LOCAL ONLY — files under the outdir,
+  never the network): worldgen_sample (289 region samples: biome/
+  elevation/temperature/humidity from the authority), npc (the
+  showcase cast's LIVE brains with their villager names + needs),
+  machine (a fresh boiler->engine->generator->battery chain, wired,
+  fuelled, ticked 50x — charge 1350 milli exported); each stamped with
+  the contract's 8 common fields (asserted in-arm); plus the surface
+  manifest mapping every row — scene/ui/player -> --ui-inspect /
+  --ui-shots, asset/mesh/materials -> --asset-sidecar, seed_preview ->
+  --seed-preview, perf/evidence_bundle -> --observe/--compare-evidence.
+
+EVIDENCE: pc3d_assets 36/36 (+3: contracts parse + all 12 exporter
+rows present; 5 good pass / 7 bad fail NAMED; safety laws verbatim);
+make p3d-export-data: EXPORT DATA OK (local-only) with worldgen 289
+samples, npc 3 cast members, machine 1350 milli charge, surface
+manifest; full suites re-run.
+
+HONESTLY DEFERRED: no loopback MCP server yet (the contract allows
+CLI-first — the same command names map when one lands); no CSV/OBJ
+debug dumps yet (the contract's allowed, not required); telemetry
+stays local-first optional (the perf rows ride the observatory
+bundles); the exporter writes only fresh runs — no player-save reads
+at all.

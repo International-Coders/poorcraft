@@ -151,6 +151,12 @@ p3d-playtest: ## WT-002 slice 5 capstone: the semantic playtest (house->talk->fo
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/playtest-a/route_semantic_playtest poorcraft3d/apps/poorcraft3d/shots/playtest-b/route_semantic_playtest || exit 1; \
 	echo "P3D SEMANTIC PLAYTEST OK (chained + deterministic)"
 
+p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/export
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --export-data poorcraft3d/apps/poorcraft3d/shots/export || exit 1; \
+	echo "P3D EXPORT DATA OK (local-only)"
+
 p3d-assets-window: ## NWR-002: windowed asset-factory proof (tree/rock/house): make p3d-assets-window [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-assets $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
