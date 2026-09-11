@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-09-11 — THE SAMURAI CUT: the UI layer was ONE triangle
+
+The owner's "menus/buttons/text fields diagonally cut" was a second,
+coarser diagonal-cut bug beside the fixed row-shear/pitch bug: both UI
+quads (owner UI layer + HUD debug line) were drawn with 4 vertices on
+TriangleList pipelines — one triangle, so the entire bottom-right half of
+every screen showed raw world along the top-right→bottom-left diagonal.
+Fixed with 6-vertex quads, a new byte-exact "quad coverage" proof law in
+--ui-shots, an sRGB texture view so the UI is no longer double-gamma
+washed-out on the sRGB swapchain, and two label-overflow fixes the cut had
+been hiding (new-world quality steppers, load-world timestamps under the
+LOAD button). p3d 592/592; gates 10/10; journey/smoke digests unchanged.
+
 ## 2026-09-11 — WT-007 GPU vendor cookbook
 
 The GLM world/tools pack now has a seventh implementation-ready subpack:

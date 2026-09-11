@@ -11,6 +11,12 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The samurai cut (2026-09-11): the owner-facing UI layer and HUD quads
+      drew as ONE TriangleList triangle — the bottom-right half of every
+      menu/button/text field showed raw world along the screen diagonal.
+      6-vertex quads + byte-exact quad-coverage proof law + sRGB view fix;
+      p3d 592/592, gates 10/10, journey/smoke digests unchanged.
+
 - [x] GLM UI rework (2026-09-09): the owner-facing UI is real — menus,
       HUD, settings, save slots, modals, screenshot harness
       (`--ui-shots`), JSON inspector (`--ui-inspect`); 10-gate battery.

@@ -6309,3 +6309,52 @@ glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
 --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
+
+## 2026-09-11 — THE SAMURAI CUT fixed: the UI quad was one triangle
+
+WHAT: The owner reported the menus/buttons/text-fields "diagonally cut, as
+like a samurai cutted them". Reproduced in the proof captures: every screen
+(title, new-world, settings, pause) was sliced along ONE straight line from
+the screen's top-right corner to the bottom-left corner — the hypotenuse of
+a single triangle. ROOT CAUSE (second species of the diagonal-cut class,
+distinct from the row-shear/pitch bug fixed in 3079472): the owner UI layer
+quad and the HUD debug-line quad were uploaded with 4 vertices and drawn
+with pass.draw(0..4) on pipelines hard-coded to TriangleList — 4 vertices in
+a triangle list is ONE triangle; the 4th vertex was discarded, so the whole
+bottom-right half of the UI showed raw world. Every canvas-side check and
+the row-shear law stayed green because the CPU canvas was always whole.
+
+HOW (crates/pc3d_render): renderer.rs set_ui_layer + prepare_frame hud quads
+now upload SIX vertices (two triangles) and draw(0..6). NEW LAW against the
+bug class: ui::quad_coverage_per_rect + verify_ui_captures step 3b — the
+PRESENTED frame must reproduce the canvas's opaque ink EXACTLY inside every
+required element rect (alpha=255 makes alpha-over byte-exact; >= 150 probes,
+< 95% match fails with the worst rect as evidence). ui-shots report now
+prints "quad coverage N/N" per scene. NEW GAMMA FIX exposed by that law: the
+swapchain deliberately prefers sRGB (gpu.rs) but the UI canvas rode a linear
+texture view — the UI was double-gamma washed-out on the real screen; the
+view is now Rgba8UnormSrgb on sRGB targets (ui_view_format) so canvas bytes
+decode on sample and re-encode on store (byte-exact, richer correct colors).
+NEW TESTS: renderer::tests::ui_layer_quad_covers_the_entire_target (opaque
+fullscreen canvas must composite byte-exact at all 4 corners + edges — the
+old code fails at the bottom-right corner) and ui::tests::
+quad_coverage_law_detects_a_missing_triangle. Also re-based on honest laws:
+5 world-probe GPU tests (offscreen_resize, factory_assets, surface_sloped,
+streamed_surface, cave_water) had been silently calibrated against the TORN
+half-drawn debug-line quad; Renderer::offscreen now defaults to NO debug
+line (empty = no draw, the same rule the owner path uses). Two label
+defects the cut had hidden, now fixed in ui.rs: new-world quality steppers
+labeled "-"/"+" (were "QUALITY -"/"QUALITY +" overflowing their half-width
+buttons) and load-world row labels truncate with fit_to_width at the DRAWN
+glyph scale (2*ctx.k) so long timestamps never run under the LOAD button.
+
+EVIDENCE: --ui-shots 13/13 PASS incl. both 1501x801 unaligned legs, every
+scene now "quad coverage N/N" (100% byte-exact); before/after captures human
+inspected — title menu whole (CONTINUE..QUIT + both footer bars that were
+previously sliced away entirely), full 9-slot hotbar + key hints visible in
+the HUD, confirm modal dim layer even across the full screen. Full suite
+green: p3d 592/592 (+2 tests). Visual gates 10/10 PASS. Journey digest
+7ab2295dafa0ec24 and smoke digest dd019eca900f5a61 UNCHANGED (simulation
+untouched — this was a presentation bug). DMG rebuilt from the committed
+tree and verified from the mounted read-only volume (stamp + real-screen
+title capture; see STATE.md last_screenshot).

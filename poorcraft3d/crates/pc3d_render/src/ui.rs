@@ -297,6 +297,9 @@ pub struct NewWorldForm {
     pub seed_digits: String,
     pub name: String,
     pub quality: Quality,
+    /// Monotonic reroll/random counter — the reducer's clock-free entropy
+    /// (the WT-001 never-the-same-seed law derives from it).
+    pub reroll_count: u64,
 }
 
 impl Default for NewWorldForm {
@@ -305,6 +308,7 @@ impl Default for NewWorldForm {
             seed_digits: "22".into(),
             name: "WORLD-22".into(),
             quality: Quality::Mid,
+            reroll_count: 0,
         }
     }
 }
@@ -358,6 +362,12 @@ pub struct UiState {
     pub modal: Option<ModalKind>,
     pub slots: Vec<SaveSlot>,
     pub form: NewWorldForm,
+    /// WT-001: the live seed preview (the app computes it from the form
+    /// through pc3d_world::seed_preview; pure data — the painter blits).
+    pub seed_preview: Option<pc3d_world::seed_preview::SeedPreview>,
+    /// Set by the reducer on any seed change; the app recomputes and
+    /// clears it. Entering New World always recomputes (preview None).
+    pub seed_preview_stale: bool,
     /// The F3 debug strip (hidden unless true — debug text is never the
     /// owner HUD).
     pub debug_overlay: bool,
@@ -384,6 +394,8 @@ impl Default for UiState {
             modal: None,
             slots: Vec::new(),
             form: NewWorldForm::default(),
+            seed_preview: None,
+            seed_preview_stale: false,
             debug_overlay: false,
             debug_text: String::new(),
             session_live: false,
@@ -524,6 +536,13 @@ pub enum ElementKind {
     Toast { label: String, alpha: f32 },
     /// The debug strip (only present when the debug overlay is on).
     Debug { label: String },
+    /// A blitted image (WT-001: the seed-preview map). Straight-alpha
+    /// RGBA, nearest-neighbor scaled into the element rect.
+    Image {
+        w: u32,
+        h: u32,
+        pixels: std::rc::Rc<Vec<u8>>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -578,8 +597,22 @@ impl DrawList {
                 "id": e.id,
                 "kind": kind_name(&e.kind),
                 "rect": [e.rect.x, e.rect.y, e.rect.w, e.rect.h],
+                "button_state": match &e.kind {
+                    ElementKind::Button { state, .. } => button_state_name(*state),
+                    _ => "",
+                },
             })).collect::<Vec<_>>(),
         })
+    }
+}
+
+fn button_state_name(s: ButtonState) -> &'static str {
+    match s {
+        ButtonState::Normal => "normal",
+        ButtonState::Hover => "hover",
+        ButtonState::Focused => "focused",
+        ButtonState::Pressed => "pressed",
+        ButtonState::Disabled => "disabled",
     }
 }
 
@@ -595,6 +628,7 @@ fn kind_name(k: &ElementKind) -> &'static str {
         ElementKind::Dim => "dim",
         ElementKind::Toast { .. } => "toast",
         ElementKind::Debug { .. } => "debug",
+        ElementKind::Image { .. } => "image",
     }
 }
 
@@ -761,19 +795,44 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             footer(&mut ctx, wi, hi);
         }
         Screen::NewWorld => {
+            // Two panels: the form (left) and the WT-001 seed preview
+            // (right) — map, spawn safety, biome summary, feature hints.
             let rows = 4i32;
             let panel_w = BTN_W + 260 + PANEL_PAD * 2;
-            let panel_h = TEXT_ROW_H * rows * 2 + BTN_H * 2 + BTN_GAP * 4 + PANEL_PAD * 2 + 30;
-            let s = fit_scale(wi, hi, state.settings.ui_scale, panel_w, panel_h + 120);
+            let panel_h = TEXT_ROW_H * rows * 2 + BTN_H * 3 + BTN_GAP * 5 + PANEL_PAD * 2 + 30;
+            let pv_w = 320i32;
+            let map_side = pv_w - PANEL_PAD * 2;
+            let pv_text_rows = 8i32;
+            let pv_h = map_side + (TEXT_ROW_H + 6) * pv_text_rows + PANEL_PAD * 2 + 30;
+            let gap = 24i32;
+            let combo_w = panel_w + gap + pv_w;
+            let s = fit_scale(
+                wi,
+                hi,
+                state.settings.ui_scale,
+                combo_w,
+                panel_h.max(pv_h) + 120,
+            );
             ctx.s = s;
             let pw = ctx.px(panel_w);
             let ph = ctx.px(panel_h);
-            let panel = Rect::new(cx - pw / 2, centered_y(hi, ph), pw as u32, ph as u32);
+            let pvw = ctx.px(pv_w);
+            let pvh = ctx.px(pv_h);
+            let total_w = pw + ctx.px(gap) + pvw;
+            let left = cx - total_w / 2;
+            let panel = Rect::new(left, centered_y(hi, ph), pw as u32, ph as u32);
+            let pv = Rect::new(
+                left + pw + ctx.px(gap),
+                centered_y(hi, pvh),
+                pvw as u32,
+                pvh as u32,
+            );
             ctx.panel("new_world_panel", panel, Some("NEW WORLD"));
+            let fcx = panel.cx();
             let mut y = panel.y + ctx.px(PANEL_PAD) + ctx.px(24);
             let lx = panel.x + ctx.px(PANEL_PAD);
             let vx = panel.x + pw - ctx.px(PANEL_PAD) - ctx.px(190);
-            // Rows: NAME / SEED / MODE / QUALITY.
+            // Rows: NAME / SEED / TYPE / QUALITY.
             let row = |ctx: &mut Ctx, y: &mut i32, label: &str, value: &str, id: &str| {
                 ctx.text(&format!("{id}_label"), label, lx, *y + ctx.px(6), 2);
                 ctx.text(&format!("{id}_value"), value, vx, *y + ctx.px(6), 2);
@@ -781,18 +840,105 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             };
             row(&mut ctx, &mut y, "WORLD NAME", &state.form.name, "nw_name");
             row(&mut ctx, &mut y, "SEED", &state.form.seed_digits, "nw_seed");
-            row(&mut ctx, &mut y, "MODE", "SURVIVAL (CREATIVE SOON)", "nw_mode");
+            row(&mut ctx, &mut y, "TYPE", "NORMAL (MORE SOON)", "nw_type");
             row(&mut ctx, &mut y, "QUALITY", state.form.quality.label(), "nw_quality");
             y += ctx.px(8);
-            ctx.button("nw_seed_reroll", "REROLL SEED", cx, y, ctx.px(BTN_W), ctx.px(BTN_H), ButtonState::Normal);
-            y += ctx.px(BTN_H) + ctx.px(BTN_GAP);
+            // REROLL + RANDOM side by side (both change the seed; the
+            // WT-001 law: never the same seed twice in a row).
             let half_w = (BTN_W - 24) / 2;
-            ctx.button("nw_quality_down", "QUALITY -", cx - ctx.px(half_w) / 2 - ctx.px(3), y, ctx.px(half_w), ctx.px(BTN_H), ButtonState::Normal);
-            ctx.button("nw_quality_up", "QUALITY +", cx + ctx.px(half_w) / 2 + ctx.px(3), y, ctx.px(half_w), ctx.px(BTN_H), ButtonState::Normal);
+            ctx.button("nw_seed_reroll", "REROLL", fcx - ctx.px(half_w) / 2 - ctx.px(3), y, ctx.px(half_w), ctx.px(BTN_H), button_state(state, "nw_seed_reroll", 1, 6));
+            ctx.button("nw_seed_random", "RANDOM", fcx + ctx.px(half_w) / 2 + ctx.px(3), y, ctx.px(half_w), ctx.px(BTN_H), button_state(state, "nw_seed_random", 2, 6));
             y += ctx.px(BTN_H) + ctx.px(BTN_GAP);
-            ctx.button("nw_create", "CREATE WORLD", cx, y, ctx.px(BTN_W), ctx.px(BTN_H), ButtonState::Normal);
+            // The quality VALUE rides the row above (`QUALITY  MID`), so
+            // the steppers stay single-glyph — "QUALITY -"/"QUALITY +"
+            // overflowed their half-width buttons (visible once the
+            // samurai cut stopped hiding it).
+            ctx.button("nw_quality_down", "-", fcx - ctx.px(half_w) / 2 - ctx.px(3), y, ctx.px(half_w), ctx.px(BTN_H), ButtonState::Normal);
+            ctx.button("nw_quality_up", "+", fcx + ctx.px(half_w) / 2 + ctx.px(3), y, ctx.px(half_w), ctx.px(BTN_H), ButtonState::Normal);
             y += ctx.px(BTN_H) + ctx.px(BTN_GAP);
-            ctx.button("nw_back", "BACK", cx, y, ctx.px(BTN_W), ctx.px(BTN_H), ButtonState::Normal);
+            // CREATE only when the preview is valid (WT-001: an unsafe
+            // spawn must not be creatable through the button).
+            let create_ok = match &state.seed_preview {
+                Some(p) => p.valid,
+                None => !state.form.seed_digits.is_empty(),
+            };
+            let create_state = if create_ok {
+                button_state(state, "nw_create", 0, 6)
+            } else {
+                ButtonState::Disabled
+            };
+            ctx.button("nw_create", "CREATE WORLD", fcx, y, ctx.px(BTN_W), ctx.px(BTN_H), create_state);
+            y += ctx.px(BTN_H) + ctx.px(BTN_GAP);
+            ctx.button("nw_back", "BACK", fcx, y, ctx.px(BTN_W), ctx.px(BTN_H), button_state(state, "nw_back", 5, 6));
+            // The preview panel: pure blit of the pc3d_world authority.
+            ctx.panel("nw_preview_panel", pv, Some("WORLD PREVIEW"));
+            let mut py = pv.y + ctx.px(PANEL_PAD) + ctx.px(24);
+            let plx = pv.x + ctx.px(PANEL_PAD);
+            let line = |ctx: &mut Ctx, py: &mut i32, id: &str, label: &str| {
+                let label = fit_to_width(label, 2 * ctx.k, (pv.right() - plx - ctx.px(PANEL_PAD)) as u32);
+                ctx.text(id, &label, plx, *py, 2);
+                *py += ctx.px(TEXT_ROW_H) + ctx.px(6);
+            };
+            match &state.seed_preview {
+                Some(p) => {
+                    let side = ctx.px(map_side);
+                    let map = Rect::new(plx, py, side as u32, side as u32);
+                    ctx.push(
+                        "preview_map",
+                        ElementKind::Image {
+                            w: p.width,
+                            h: p.height,
+                            pixels: std::rc::Rc::new(p.pixels_rgba.clone()),
+                        },
+                        map,
+                    );
+                    py += side + ctx.px(10);
+                    let safety = if p.spawn.safe {
+                        format!("SPAWN SAFE · Y {:.0} M", p.spawn.y_m)
+                    } else {
+                        format!("UNSAFE: {}", p.spawn.reason.to_uppercase())
+                    };
+                    line(&mut ctx, &mut py, "spawn_safety", &safety);
+                    let top: Vec<String> = p
+                        .biome_counts
+                        .iter()
+                        .filter(|b| b.biome != pc3d_world::gen::Biome::Ocean || b.percent > 0.0)
+                        .take(3)
+                        .map(|b| format!("{} {:.0}%", b.biome.name().to_uppercase(), b.percent))
+                        .collect();
+                    line(&mut ctx, &mut py, "biome_summary", &top.join(" · "));
+                    for (i, h) in p.feature_hints.iter().take(3).enumerate() {
+                        let label = if h.placeholder {
+                            format!("{}: UNKNOWN (PLACEHOLDER)", h.kind.to_uppercase())
+                        } else {
+                            format!("{} ~{:.0} M", h.kind.to_uppercase(), h.distance_m)
+                        };
+                        line(&mut ctx, &mut py, &format!("feature_hint_{i}"), &label);
+                    }
+                    line(
+                        &mut ctx,
+                        &mut py,
+                        "nw_seed_resolved",
+                        &format!("RESOLVED {} ({})", p.resolved_seed, p.seed_source),
+                    );
+                }
+                None => {
+                    let side = ctx.px(map_side);
+                    let map = Rect::new(plx, py, side as u32, side as u32);
+                    ctx.push(
+                        "preview_map",
+                        ElementKind::Image {
+                            w: 1,
+                            h: 1,
+                            pixels: std::rc::Rc::new(vec![20, 24, 28, 255]),
+                        },
+                        map,
+                    );
+                    py += side + ctx.px(10);
+                    line(&mut ctx, &mut py, "spawn_safety", "TYPE A SEED OR PRESS RANDOM");
+                    line(&mut ctx, &mut py, "biome_summary", "MAP APPEARS WHEN A SEED IS SET");
+                }
+            }
             footer(&mut ctx, wi, hi);
         }
         Screen::LoadWorld => {
@@ -814,13 +960,19 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 y += ctx.px(TEXT_ROW_H) + ctx.px(14);
             }
             let bw = ctx.px(110);
+            let load_x = panel.right() - ctx.px(PANEL_PAD) - bw * 2 - ctx.px(6);
+            let label_max_w = (load_x - lx - ctx.px(10)).max(ctx.px(40)) as u32;
             for (i, slot) in state.slots.iter().take(6).enumerate() {
                 let seed = slot.seed.map(|s| s.to_string()).unwrap_or_else(|| "?".into());
                 let label = format!("{} · SEED {} · {}", slot.name, seed, slot.modified);
-                let (tw, _) = font::text_size(&label, 2);
+                // The row label must never run under the LOAD button:
+                // truncate to the width actually available, measured at
+                // the DRAWN glyph scale (scale * font multiplier k — the
+                // layout rect alone under-reports it). Long timestamps
+                // used to collide with the button.
+                let label = fit_to_width(&label, 2 * ctx.k, label_max_w);
                 ctx.text(&format!("lw_slot_{i}_label"), &label, lx, y + ctx.px(8), 2);
-                let _ = tw;
-                ctx.button(&format!("lw_slot_{i}_load"), "LOAD", panel.right() - ctx.px(PANEL_PAD) - bw * 2 - ctx.px(6), y, bw, ctx.px(30), ButtonState::Normal);
+                ctx.button(&format!("lw_slot_{i}_load"), "LOAD", load_x, y, bw, ctx.px(30), ButtonState::Normal);
                 ctx.button(&format!("lw_slot_{i}_del"), "DELETE", panel.right() - ctx.px(PANEL_PAD) - bw, y, bw, ctx.px(30), ButtonState::Normal);
                 y += ctx.px(row_h) + ctx.px(BTN_GAP);
             }
@@ -1333,6 +1485,24 @@ pub fn paint(list: &DrawList) -> Vec<u8> {
                 c.bevel(e.rect, theme::DEBUG_EDGE, theme::DEBUG_EDGE);
                 c.text(label, e.rect.x + 8, e.rect.y + 4, 2, theme::DEBUG_TEXT, true);
             }
+            ElementKind::Image { w, h, pixels } => {
+                // Nearest-neighbor blit into the rect, clipped to the
+                // canvas. The forged frame keeps it reading as UI.
+                c.fill(e.rect, theme::SLOT_FILL);
+                for y in 0..e.rect.h as i32 {
+                    for x in 0..e.rect.w as i32 {
+                        let sx = ((x as u64 * *w as u64) / e.rect.w.max(1) as u64) as u32;
+                        let sy = ((y as u64 * *h as u64) / e.rect.h.max(1) as u64) as u32;
+                        let si = ((sy * *w + sx) * 4) as usize;
+                        if si + 4 <= pixels.len() {
+                            let px: [u8; 4] =
+                                [pixels[si], pixels[si + 1], pixels[si + 2], pixels[si + 3]];
+                            c.px_set(e.rect.x + x, e.rect.y + y, px);
+                        }
+                    }
+                }
+                c.bevel(e.rect, theme::PANEL_EDGE_L, theme::PANEL_EDGE_D);
+            }
         }
     }
     c.px
@@ -1564,6 +1734,7 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
             Key::Digit(d) => {
                 if state.form.seed_digits.len() < 10 {
                     state.form.seed_digits.push((b'0' + d) as char);
+                    state.seed_preview_stale = true;
                     acts.push(UiAction::Repaint);
                 }
             }
@@ -1572,6 +1743,7 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                 if state.form.seed_digits.is_empty() {
                     state.form.seed_digits.push('0');
                 }
+                state.seed_preview_stale = true;
                 acts.push(UiAction::Repaint);
             }
             _ => {}
@@ -1688,8 +1860,15 @@ fn activate_pause(state: &mut UiState, idx: usize) -> Vec<UiAction> {
 
 fn activate_new_world(state: &mut UiState, idx: usize) -> Vec<UiAction> {
     match idx {
-        // 0 CREATE, 1 REROLL, 2 QUALITY-, 3 QUALITY+, 4 BACK
+        // 0 CREATE, 1 REROLL, 2 RANDOM, 3 QUALITY-, 4 QUALITY+, 5 BACK
         0 => {
+            // WT-001: an invalid preview (unsafe spawn) must not be
+            // creatable — Enter and click both route through here.
+            if let Some(p) = &state.seed_preview {
+                if !p.valid {
+                    return vec![UiAction::Repaint];
+                }
+            }
             let seed = state.form.seed();
             let name = if state.form.name.is_empty() {
                 format!("WORLD-{seed}")
@@ -1698,19 +1877,27 @@ fn activate_new_world(state: &mut UiState, idx: usize) -> Vec<UiAction> {
             };
             vec![UiAction::CreateWorld { seed, name }]
         }
-        1 => {
-            // Deterministic-ish reroll from the clock-free counter.
+        1 | 2 => {
+            // REROLL / RANDOM: the WT-001 law — never the same seed
+            // twice. Entropy is the clock-free counter (reroll count),
+            // mixed per-button so the two paths diverge.
+            state.form.reroll_count += 1;
             let cur = state.form.seed();
-            let next = cur.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407) % 100000;
+            let mix = if idx == 1 { 0 } else { 0x5DEECE66D };
+            let next = pc3d_world::seed_preview::reroll_seed(
+                cur,
+                state.form.reroll_count.wrapping_mul(0x9E3779B1) ^ mix,
+            );
             state.form.seed_digits = next.to_string();
             state.form.name = format!("WORLD-{next}");
-            vec![UiAction::Repaint]
-        }
-        2 => {
-            state.form.quality = state.form.quality.cycle(false);
+            state.seed_preview_stale = true;
             vec![UiAction::Repaint]
         }
         3 => {
+            state.form.quality = state.form.quality.cycle(false);
+            vec![UiAction::Repaint]
+        }
+        4 => {
             state.form.quality = state.form.quality.cycle(true);
             vec![UiAction::Repaint]
         }
@@ -1858,9 +2045,10 @@ pub fn on_click(state: &mut UiState, x: i32, y: i32, list: &DrawList) -> Vec<UiA
                 let idx = match e.id.as_str() {
                     "nw_create" => Some(0),
                     "nw_seed_reroll" => Some(1),
-                    "nw_quality_down" => Some(2),
-                    "nw_quality_up" => Some(3),
-                    "nw_back" => Some(4),
+                    "nw_seed_random" => Some(2),
+                    "nw_quality_down" => Some(3),
+                    "nw_quality_up" => Some(4),
+                    "nw_back" => Some(5),
                     _ => None,
                 };
                 if let Some(i) = idx {
@@ -1974,6 +2162,108 @@ pub fn ink_px(canvas: &[u8], cw: u32, rect: Rect) -> u64 {
 /// Counts semi-transparent pixels (proof an alpha-blended UI layer exists).
 pub fn blended_px(canvas: &[u8]) -> u64 {
     canvas.chunks_exact(4).filter(|p| p[3] > 0 && p[3] < 255).count() as u64
+}
+
+/// The WT-001 metadata sidecar exactly per `seed_preview_outputs.schema.json`
+/// (the JSON lives with the presentation layer; pc3d_world stays pure).
+pub fn seed_preview_json(
+    p: &pc3d_world::seed_preview::SeedPreview,
+    screenshot_path: &str,
+    layout_path: &str,
+) -> serde_json::Value {
+    serde_json::json!({
+        "seed_text": p.seed_text,
+        "resolved_seed": p.resolved_seed.to_string(),
+        "seed_source": p.seed_source,
+        "world_type": p.world_type.name(),
+        "preview_size": [p.width, p.height],
+        "window_regions": pc3d_world::seed_preview::WINDOW_HALF * 2,
+        "spawn": {
+            "x": p.spawn.x_m,
+            "y": p.spawn.y_m,
+            "z": p.spawn.z_m,
+            "safe": p.spawn.safe,
+            "reason": p.spawn.reason,
+        },
+        "biome_counts": p.biome_counts.iter().map(|b| serde_json::json!({
+            "biome": b.biome.name(),
+            "regions": b.regions,
+            "percent": (b.percent * 10.0).round() / 10.0,
+        })).collect::<Vec<_>>(),
+        "feature_hints": p.feature_hints.iter().map(|h| serde_json::json!({
+            "kind": h.kind,
+            "distance_m": h.distance_m,
+            "confidence": h.confidence,
+            "placeholder": h.placeholder,
+        })).collect::<Vec<_>>(),
+        "valid": p.valid,
+        "warnings": p.warnings,
+        "screenshot_path": screenshot_path,
+        "layout_path": layout_path,
+    })
+}
+
+/// Truncates a label until it fits `max_w` pixels at `scale` (the bitmap
+/// font is fixed-advance, so dropping trailing chars is exact). Row
+/// labels must never run under interactive elements.
+fn fit_to_width(label: &str, scale: u32, max_w: u32) -> String {
+    let mut s = label.to_string();
+    while !s.is_empty() && font::text_size(&s, scale).0 > max_w {
+        s.pop();
+    }
+    s
+}
+
+/// Fullscreen-quad coverage law (the samurai-cut bug class, second
+/// species): a UI quad drawn with 4 vertices on a TriangleList pipeline
+/// renders as ONE triangle — everything below-right of the screen
+/// diagonal shows raw world while the CPU canvas (and every canvas-side
+/// ink check) stays whole. Wherever the canvas carries opaque ink
+/// (alpha >= 250, eroded 1px so edge bytes never participate), the
+/// PRESENTED frame must reproduce that color EXACTLY: alpha-over with
+/// a=255 ignores the world behind it, so a mismatch means a missing or
+/// displaced quad triangle, a sampling break, or a composite regression.
+/// Returns (matched, probed) per rect.
+pub fn quad_coverage_per_rect(
+    canvas: &[u8],
+    presented: &[u8],
+    w: u32,
+    h: u32,
+    rects: &[Rect],
+) -> Vec<(Rect, usize, usize)> {
+    let w = w as usize;
+    let h = h as usize;
+    let mut out = Vec::new();
+    for r in rects {
+        let x0 = (r.x.max(1)) as usize;
+        let y0 = (r.y.max(1)) as usize;
+        let x1 = (r.right().min(w as i32 - 1)).max(1) as usize;
+        let y1 = (r.bottom().min(h as i32 - 1)).max(1) as usize;
+        let mut matched = 0usize;
+        let mut probed = 0usize;
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let opaque = |xx: usize, yy: usize| canvas[(yy * w + xx) * 4 + 3] >= 250;
+                if opaque(x, y)
+                    && opaque(x - 1, y)
+                    && opaque(x + 1, y)
+                    && opaque(x, y - 1)
+                    && opaque(x, y + 1)
+                {
+                    probed += 1;
+                    let i = (y * w + x) * 4;
+                    if presented[i] == canvas[i]
+                        && presented[i + 1] == canvas[i + 1]
+                        && presented[i + 2] == canvas[i + 2]
+                    {
+                        matched += 1;
+                    }
+                }
+            }
+        }
+        out.push((*r, matched, probed));
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -2151,6 +2441,43 @@ mod tests {
                 mode * 100.0
             );
         }
+    }
+
+    #[test]
+    fn quad_coverage_law_detects_a_missing_triangle() {
+        // The one-triangle UI quad: opaque ink below-right of the screen
+        // diagonal shows the world instead of the canvas. The law must
+        // score a whole composite at 100% and a cut one far below.
+        let (w, h) = (64u32, 48u32);
+        let mut canvas = vec![0u8; (w * h * 4) as usize];
+        let rect = Rect::new(20, 12, 36, 28);
+        for y in rect.y..rect.bottom() {
+            for x in rect.x..rect.right() {
+                let i = ((y as u32 * w + x as u32) * 4) as usize;
+                canvas[i..i + 4].copy_from_slice(&[200, 30, 30, 255]);
+            }
+        }
+        // Whole composite: the canvas shown verbatim (world elsewhere).
+        let whole = canvas.clone();
+        let cov = quad_coverage_per_rect(&canvas, &whole, w, h, &[rect]);
+        assert_eq!(cov[0].2, 34 * 26, "erosion must leave the fill interior");
+        assert_eq!(cov[0].1, cov[0].2, "whole composite must match 1:1");
+        // Cut composite: one-triangle quad — everything below-right of
+        // the top-right -> bottom-left diagonal shows the "world".
+        let mut cut = canvas.clone();
+        for y in 0..h as usize {
+            let edge = (w as usize - 1) - y * (w as usize - 1) / (h as usize - 1);
+            for x in edge..w as usize {
+                let i = (y * w as usize + x) * 4;
+                cut[i..i + 3].copy_from_slice(&[5, 50, 9]);
+            }
+        }
+        let cov = quad_coverage_per_rect(&canvas, &cut, w, h, &[rect]);
+        let frac = cov[0].1 as f32 / cov[0].2 as f32;
+        assert!(
+            frac < 0.5,
+            "a one-triangle composite must fail the law (fraction {frac:.2})"
+        );
     }
 
     #[test]
@@ -2695,13 +3022,60 @@ pub fn verify_ui_captures(
                 return Err(format!("{scene}: element {id} has no ink"));
             }
         }
+        // 3b. Fullscreen-quad coverage law: the PRESENTED frame must show
+        //     the canvas's opaque ink exactly. The UI quad was once drawn
+        //     as a single TriangleList triangle — every menu was sliced
+        //     along the screen diagonal while all canvas-side checks and
+        //     the row-shear law stayed green. This closes that blind spot.
+        let required_rects: Vec<Rect> = exp
+            .required_elements
+            .iter()
+            .filter_map(|id| rect_of(id))
+            .collect();
+        let coverage = quad_coverage_per_rect(
+            canvas,
+            &cap.rgba,
+            cap.report.width,
+            cap.report.height,
+            &required_rects,
+        );
+        let probed: usize = coverage.iter().map(|(_, _, p)| p).sum();
+        let matched: usize = coverage.iter().map(|(_, m, _)| m).sum();
+        if probed < 150 {
+            return Err(format!(
+                "{scene}: quad-coverage law probed only {probed} opaque px (need >= 150) — expectations too weak"
+            ));
+        }
+        let quad_frac = matched as f32 / probed as f32;
+        if quad_frac < 0.95 {
+            let worst = coverage
+                .iter()
+                .filter(|(_, _, p)| *p >= 10)
+                .min_by(|a, b| {
+                    (a.1 as f32 / a.2 as f32)
+                        .partial_cmp(&(b.1 as f32 / b.2 as f32))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+            let evidence = match worst {
+                Some((r, m, p)) => format!(
+                    "worst rect {:?} shows {}/{} probed px",
+                    (r.x, r.y, r.w, r.h),
+                    m, p
+                ),
+                None => String::new(),
+            };
+            return Err(format!(
+                "{scene}: presented frame shows only {:.1}% of the canvas's opaque UI ink — a UI quad triangle is missing or the composite regressed. {evidence}",
+                quad_frac * 100.0
+            ));
+        }
         for kind in exp.forbidden_kinds {
             if elements.iter().any(|e| e["kind"] == *kind) {
                 return Err(format!("{scene}: forbidden element kind {kind} present"));
             }
         }
         lines.push(format!(
-            "  {scene}: {} distinct colors, {} ui elements, {} blended px, no row shear — OK",
+            "  {scene}: {} distinct colors, {} ui elements, {} blended px, no row shear, quad coverage {matched}/{probed} — OK",
             cap.report.distinct_colors,
             elements.len(),
             blended_px(canvas)

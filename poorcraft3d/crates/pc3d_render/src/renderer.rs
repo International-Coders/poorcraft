@@ -759,6 +759,7 @@ impl Renderer {
             &pipelines.layout_hud,
             &globals_buf,
             &hud.texture,
+            ui_view_format(format),
         );
         Self {
             ctx,
@@ -837,7 +838,10 @@ impl Renderer {
             &shadow_dummy,
         );
         let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
-        hud.line = default_hud_line(&camera);
+        // Offscreen proof captures render the WORLD, not the dev debug
+        // line: a default-on line here quietly covers probe points (and
+        // before the samurai-cut fix it only covered HALF its quad, so
+        // probes were calibrated around a torn quad). Empty = no draw.
         let texture = create_target(&ctx.device, width, height, format);
         let depth = Some(create_depth(&ctx.device, width, height));
         let bg_hud = create_hud_bind_group(
@@ -845,6 +849,7 @@ impl Renderer {
             &pipelines.layout_hud,
             &globals_buf,
             &hud.texture,
+            ui_view_format(format),
         );
         Self {
             ctx,
@@ -1543,20 +1548,28 @@ impl Renderer {
                         &self.pipelines.layout_hud,
                         &self.globals_buf,
                         &texture,
+                        ui_view_format(self.format),
                     );
                     let vertex_buffer = self.ctx.device.create_buffer(&wgpu::BufferDescriptor {
                         label: Some("pc3d ui layer quad"),
-                        size: 4 * 16,
+                        size: 6 * 16,
                         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                         mapped_at_creation: false,
                     });
                     // Fullscreen quad, uv origin top-left (v grows downward
-                    // exactly like the canvas rows).
-                    let quad: [[f32; 4]; 4] = [
+                    // exactly like the canvas rows). SIX vertices: the
+                    // pipelines are TriangleList, so 4 vertices drew ONE
+                    // triangle and everything below-right of the screen
+                    // diagonal (top-right corner -> bottom-left corner)
+                    // showed raw world — the owner's "samurai cut" across
+                    // every menu, button, and text field.
+                    let quad: [[f32; 4]; 6] = [
                         [-1.0, 1.0, 0.0, 0.0],
                         [1.0, 1.0, 1.0, 0.0],
                         [-1.0, -1.0, 0.0, 1.0],
+                        [1.0, 1.0, 1.0, 0.0],
                         [1.0, -1.0, 1.0, 1.0],
+                        [-1.0, -1.0, 0.0, 1.0],
                     ];
                     self.ctx.queue.write_buffer(
                         &vertex_buffer,
@@ -1752,6 +1765,7 @@ impl Renderer {
                 &self.pipelines.layout_hud,
                 &self.globals_buf,
                 &self.hud.texture,
+                ui_view_format(self.format),
             );
         }
         self.ctx.queue.write_texture(
@@ -1774,11 +1788,15 @@ impl Renderer {
             },
         );
         let (x0, y1, x1, y0) = hud_quad_ndc(tw, th, w, h, self.hud.anchor);
-        let quad: [[f32; 4]; 4] = [
+        // Six vertices = two triangles (see set_ui_layer: TriangleList
+        // discards the 4th vertex, cutting the quad along its diagonal).
+        let quad: [[f32; 4]; 6] = [
             [x0, y1, 0.0, 0.0],
             [x1, y1, 1.0, 0.0],
             [x0, y0, 0.0, 1.0],
+            [x1, y1, 1.0, 0.0],
             [x1, y0, 1.0, 1.0],
+            [x0, y0, 0.0, 1.0],
         ];
         self.ctx
             .queue
@@ -2138,7 +2156,7 @@ impl Renderer {
             pass.set_pipeline(&self.pipelines.hud);
             pass.set_bind_group(0, &self.bg_hud, &[]);
             pass.set_vertex_buffer(0, self.hud.vertex_buffer.slice(..));
-            pass.draw(0..4, 0..1);
+            pass.draw(0..6, 0..1);
         }
         // 4. The owner-facing UI layer (GLM UI rework): one fullscreen
         // alpha-blended quad over everything — panels, bars, hotbar, menus.
@@ -2146,7 +2164,7 @@ impl Renderer {
             pass.set_pipeline(&self.pipelines.ui);
             pass.set_bind_group(0, &ui.bind_group, &[]);
             pass.set_vertex_buffer(0, ui.vertex_buffer.slice(..));
-            pass.draw(0..4, 0..1);
+            pass.draw(0..6, 0..1);
         }
     }
 }
@@ -2465,7 +2483,7 @@ fn create_hud(device: &wgpu::Device, _layout: &wgpu::BindGroupLayout) -> HudReso
     let texture = create_hud_texture(device, tw, th);
     let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("pc3d hud quad"),
-        size: 4 * 16,
+        size: 6 * 16,
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
@@ -2491,7 +2509,9 @@ fn create_hud_texture(device: &wgpu::Device, w: u32, h: u32) -> wgpu::Texture {
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
+        // The bind group reinterprets the view as sRGB on sRGB targets
+        // (ui_view_format); the base texture must permit that view.
+        view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
     })
 }
 
@@ -2500,6 +2520,7 @@ fn create_hud_bind_group(
     layout: &wgpu::BindGroupLayout,
     globals_buf: &wgpu::Buffer,
     texture: &wgpu::Texture,
+    view_format: wgpu::TextureFormat,
 ) -> wgpu::BindGroup {
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("pc3d hud sampler"),
@@ -2522,11 +2543,29 @@ fn create_hud_bind_group(
             wgpu::BindGroupEntry {
                 binding: 2,
                 resource: wgpu::BindingResource::TextureView(
-                    &texture.create_view(&Default::default()),
+                    // The view picks the color space: an sRGB target needs
+                    // an sRGB view so the canvas's sRGB bytes decode on
+                    // sample and re-encode on store — byte-exact on screen.
+                    &texture.create_view(&wgpu::TextureViewDescriptor {
+                        format: Some(view_format),
+                        ..Default::default()
+                    }),
                 ),
             },
         ],
     })
+}
+
+/// The UI/HUD canvas is authored as sRGB bytes; the view must linearize
+/// them exactly when the render target is sRGB (both real surfaces are —
+/// gpu.rs deliberately prefers sRGB). On a linear target the plain view
+/// is already byte-exact.
+fn ui_view_format(target: wgpu::TextureFormat) -> wgpu::TextureFormat {
+    if target.is_srgb() {
+        wgpu::TextureFormat::Rgba8UnormSrgb
+    } else {
+        wgpu::TextureFormat::Rgba8Unorm
+    }
 }
 
 /// Top-left pixel-anchored HUD quad in NDC.
@@ -2736,6 +2775,47 @@ mod tests {
         // Zero-sized resize must clamp, not poison the target.
         r.resize(0, 0);
         assert_eq!(r.size(), (1, 1));
+    }
+
+    #[test]
+    fn ui_layer_quad_covers_the_entire_target() {
+        // THE SAMURAI-CUT LAW: the UI layer quad drawn as ONE TriangleList
+        // triangle left everything below-right of the screen diagonal
+        // showing raw world — every menu, button, and text field was
+        // sliced while canvas-side checks stayed green. An opaque
+        // fullscreen canvas must survive the composite EXACTLY at all
+        // four corners and the right/bottom edges: the sRGB view decodes
+        // the canvas bytes on sample and the sRGB target re-encodes them
+        // on store, so alpha-over with a=255 is byte-identical — any
+        // other color is a missing triangle or a gamma break.
+        let mut r = Renderer::offscreen(W, H);
+        r.set_pose(pose_a());
+        let (cw, ch) = r.size();
+        let color = [12u8, 34, 56, 255];
+        let mut canvas = Vec::with_capacity((cw * ch * 4) as usize);
+        for _ in 0..cw * ch {
+            canvas.extend_from_slice(&color);
+        }
+        r.set_ui_layer(Some((canvas, cw, ch)));
+        let path = std::env::temp_dir().join("pc3d_3d_ui_quad_cover.png");
+        let (_report, rgba) = r.capture_png(&path, &probes_for_pose(pose_a(), ASPECT));
+        let pts = [
+            (0u32, 0u32),
+            (cw - 1, 0),
+            (0, ch - 1),
+            (cw - 1, ch - 1), // the four corners — bottom-right was the cut
+            (cw - 1, ch / 2),
+            (cw / 2, ch - 1),
+            (cw / 2, ch / 2),
+        ];
+        for (x, y) in pts {
+            let i = ((y * cw + x) * 4) as usize;
+            assert_eq!(
+                &rgba[i..i + 3],
+                &color[..3],
+                "UI layer does not cover ({x},{y}) with the exact canvas color — a quad triangle is missing or gamma double-applied"
+            );
+        }
     }
 
     // -----------------------------------------------------------------
