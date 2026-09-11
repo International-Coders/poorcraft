@@ -1,7 +1,7 @@
 {
   "build_hash": "dev",
   "camera": "scripted_route_camera",
-  "command": "--observe route_title_mouse",
+  "command": "--observe route_gpu_markers",
   "gpu_markers": {
     "reason": "pass markers pending WT-007 slice 1",
     "value": null
@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 30.700000762939453,
-    "frames": 79,
-    "p50_ms": 36.75,
-    "p95_ms": 43.75
+    "avg_fps": 31.200000762939453,
+    "frames": 60,
+    "p50_ms": 35.7599983215332,
+    "p95_ms": 40.900001525878906
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1789136125",
+  "timestamp_utc": "1789136155",
   "ui": {},
   "verdict": "exported",
   "version": 1,

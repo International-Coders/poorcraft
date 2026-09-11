@@ -3568,3 +3568,18 @@ The simulation-only roadmap was declared complete; the visual reset
 - Found + fixed by the proofs: the ui_script owner_menu gate (silent
   no-op scripts) and the offscreen readback's late-pass draw drop
   (documented; the windowed path is the visual law's evidence).
+
+## Loop 426 — WT-007 slice 1: GPU pass markers + audit
+- The renderer pushes the contract's `pc3d.*` debug-group tree every
+  frame (frame/prepare + nine pass groups incl. an honest empty
+  machines slot) and counts live top-level draw calls; the readback
+  copy carries its own marker.
+- `gpu_marker_audit()`: the ten gpu_marker_contract fields — adapter
+  backend/name, marker completeness, the timestamp policy (support
+  probed, not-enabled reason, CPU p50 as evidence), draw calls,
+  triangles.
+- The observatory's `route_gpu_markers` flips UNAVAILABLE → PASS (12
+  markers, 9 draw calls, Metal), audit bundled; `make p3d-observe` now
+  5/5 available routes PASS + 3 honest gameplay-slice unavailabilities.
+- Deferred: enabling timestamp queries, per-module draw counting,
+  vendor capture cookbooks (docs today, markers were the prerequisite).

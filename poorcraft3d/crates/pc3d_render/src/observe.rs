@@ -43,8 +43,8 @@ pub fn routes() -> &'static [RouteSpec] {
         },
         RouteSpec {
             id: "route_gpu_markers",
-            available: false,
-            reason: "GPU pass markers pending — WT-007 slice 1",
+            available: true,
+            reason: "",
         },
     ]
 }

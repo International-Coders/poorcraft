@@ -1,0 +1,45 @@
+{
+  "adapter_name": "Intel(R) UHD Graphics 630",
+  "api_backend": "Metal",
+  "build_hash": "dev",
+  "cpu_frame_ms": 36.08000183105469,
+  "draw_calls": 9,
+  "gpu_frame_ms_or_reason": {
+    "reason": "adapter does not expose TIMESTAMP_QUERY; CPU timing is the evidence",
+    "value": null
+  },
+  "markers_present": true,
+  "markers_recorded": [
+    "pc3d.frame",
+    "pc3d.frame.prepare",
+    "pc3d.pass.sky_atmosphere",
+    "pc3d.pass.terrain",
+    "pc3d.pass.npcs",
+    "pc3d.pass.machines",
+    "pc3d.pass.assets",
+    "pc3d.pass.wireframe_overlay",
+    "pc3d.pass.assets",
+    "pc3d.pass.water",
+    "pc3d.pass.ui",
+    "pc3d.pass.screenshot_readback"
+  ],
+  "markers_required": [
+    "pc3d.frame",
+    "pc3d.frame.prepare",
+    "pc3d.pass.terrain",
+    "pc3d.pass.sky_atmosphere",
+    "pc3d.pass.water",
+    "pc3d.pass.assets",
+    "pc3d.pass.npcs",
+    "pc3d.pass.machines",
+    "pc3d.pass.wireframe_overlay",
+    "pc3d.pass.ui",
+    "pc3d.pass.screenshot_readback"
+  ],
+  "material_buckets": {
+    "note": "asset triangle sum is exact; streamer bucket counts live in their own counters"
+  },
+  "timestamp_support": false,
+  "triangles": 4890,
+  "version": 1
+}

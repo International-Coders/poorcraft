@@ -241,6 +241,8 @@ pub struct WindowReport {
     pub final_stream_counters: Option<crate::streaming::StreamCounters>,
     /// The final UI state (owner runs) — the inspector's ui_state answer.
     pub final_ui_state: Option<serde_json::Value>,
+    /// WT-007 slice 1: the GPU marker audit of the final frame.
+    pub gpu_marker_audit: Option<serde_json::Value>,
 }
 
 impl WindowReport {
@@ -571,6 +573,10 @@ impl App {
                 scale_factor: s.window.scale_factor(),
                 final_stream_counters: s.renderer.stream_counters(),
                 final_ui_state: s.owner_menu.then(|| s.ui.to_json()),
+                gpu_marker_audit: Some(
+                    s.renderer
+                        .gpu_marker_audit(percentile(&s.frame_ms, 50)),
+                ),
             },
             None => WindowReport {
                 frames: 0,
@@ -581,6 +587,7 @@ impl App {
                 scale_factor: 1.0,
                 final_stream_counters: None,
                 final_ui_state: None,
+                gpu_marker_audit: None,
             },
         }
     }

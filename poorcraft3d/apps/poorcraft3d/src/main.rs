@@ -4613,6 +4613,12 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(60, format!("{dir}/beauty_assets.png"))
                     .ui_dump(format!("{dir}/beauty_assets.layout.json")));
             }
+            "route_gpu_markers" => {
+                // One windowed world frame with the owner UI live: the
+                // audit rides the report (every pass group + real draws).
+                shots.push(Shot::new(60, format!("{dir}/beauty_markers.png"))
+                    .ui_dump(format!("{dir}/beauty_markers.layout.json")));
+            }
             _ => unreachable!("availability checked above"),
         }
         let cfg = pc3d_render::WindowConfig {
@@ -4665,6 +4671,28 @@ fn run_observe(route_id: &str, out_root: &str) {
             &command,
             "scripted_route_camera",
         );
+        // WT-007 slice 1: the gpu-markers route ships the audit in-bundle.
+        let mut gpu_marker_path = String::new();
+        if spec.id == "route_gpu_markers" {
+            if let Some(audit) = &report.gpu_marker_audit {
+                if audit["markers_present"] != serde_json::json!(true) {
+                    eprintln!("[FAIL] observe {}: markers incomplete", spec.id);
+                    any_fail = true;
+                }
+                gpu_marker_path = "gpu_marker_audit.json".into();
+                std::fs::write(
+                    format!("{dir}/{gpu_marker_path}"),
+                    serde_json::to_string_pretty(audit).unwrap(),
+                )
+                .unwrap();
+                println!(
+                    "GPU MARKERS: {} markers, {} draw calls, backend {}",
+                    audit["markers_recorded"].as_array().map(|m| m.len()).unwrap_or(0),
+                    audit["draw_calls"],
+                    audit["api_backend"]
+                );
+            }
+        }
         std::fs::write(format!("{dir}/runtime_state.json"), serde_json::to_string_pretty(&state).unwrap()).unwrap();
         let perf = state["perf"].clone();
         std::fs::write(format!("{dir}/perf.json"), serde_json::to_string_pretty(&perf).unwrap()).unwrap();
@@ -4700,6 +4728,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             "perf.json",
             "verdict.json",
         );
+        bundle["gpu_marker_path"] = serde_json::json!(gpu_marker_path);
         pc3d_render::observe::stamp_digest(&mut bundle);
         std::fs::write(format!("{dir}/bundle.json"), serde_json::to_string_pretty(&bundle).unwrap()).unwrap();
         println!(

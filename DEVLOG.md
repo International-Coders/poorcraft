@@ -6637,3 +6637,47 @@ glm_world_tools_pack_is_parseable_and_complete` passed 1/1; full
 passed 33/33. No fresh runtime/DMG was produced for this pass because it
 is a docs/contracts/code-guard handoff pack rather than a playable
 runtime change.
+
+## 2026-09-11 — WT-007 slice 1: the GPU marker matrix + route_gpu_markers PASS
+
+WHAT: the renderer now carries the contract's vendor-neutral marker tree
+(pc3d.frame / pc3d.frame.prepare / pc3d.pass.{sky_atmosphere, terrain,
+water, assets, npcs, machines, wireframe_overlay, ui,
+screenshot_readback}) as real wgpu debug groups, counts live top-level
+draw calls, and exports the gpu_marker_contract audit — flipping the
+observatory's route_gpu_markers from UNAVAILABLE to PASS.
+
+HOW:
+- renderer.rs encode_frame: encoder/pass debug groups around every
+  section (the prepare group wraps the sun-shadow pass and closes
+  before the main pass so passes are siblings; assets group covers GLB
+  assets + the flora/crowd/settlement instanced continuation; machines
+  is an honest EMPTY slot — a sim-side system with no GPU pass yet, the
+  marker exists so captures stay comparable); capture_png wraps the
+  readback copy. marker_log + draw_calls reset per frame and fill as
+  groups/draws execute; gpu_marker_audit() emits the ten contract
+  fields (adapter backend+name, markers_present vs the required list,
+  the timestamp policy — support probed, honestly reported as
+  supported-but-not-enabled or unsupported with the reason, CPU p50 as
+  the evidence — draw calls, asset triangle sum, bucket note).
+- app.rs: WindowReport carries the final frame's audit; run_observe's
+  route_gpu_markers writes gpu_marker_audit.json into the bundle (and
+  fails the route if markers are incomplete) with the bundle's
+  gpu_marker_path stamped.
+
+EVIDENCE: --observe route_gpu_markers PASS — 12 markers recorded, 9
+real draw calls, backend Metal, p50 ~36 ms (the windowed showcase
+frame); make p3d-observe: 5/5 available routes PASS + 3 honest
+UNAVAILABLE (house_entry/npc_talk/forge_use — the gameplay slices);
+unit law marker_tree_covers_the_contract_after_a_capture (all 11
+required names present after one offscreen capture + every audit
+field); full suites re-run green.
+
+HONESTLY DEFERRED: timestamp queries are probed but not enabled (the
+device requests no extra features — enabling them is a future tier
+with the write-then-read plumbing); draw-call counting covers
+top-level sites (per-patch draws inside streamer modules stay in their
+own counters, noted in the audit); triangles report the asset sum
+exactly (streamer/crowd sums live in their counters); the AMD/NVIDIA
+capture cookbooks (WT-007's vendor slices) are docs today — the marker
+tree is the prerequisite they needed and it now exists.

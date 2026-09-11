@@ -676,6 +676,10 @@ pub struct Renderer {
     overlay_dirty: bool,
     /// The scene debug mode: Normal / Wireframe / AnchorOverlay.
     scene_debug: SceneDebugMode,
+    /// WT-007 slice 1: the debug groups pushed this frame (the marker
+    /// tree audit reads this) + the top-level draw-call count.
+    marker_log: Vec<&'static str>,
+    draw_calls: u32,
     start: std::time::Instant,
     /// Frozen water time for deterministic proofs (None = wall clock).
     water_time_override: Option<f32>,
@@ -960,6 +964,8 @@ impl Renderer {
             overlay_gpu: None,
             overlay_dirty: true,
             scene_debug: SceneDebugMode::Normal,
+            marker_log: Vec::new(),
+            draw_calls: 0,
             start: std::time::Instant::now(),
             water_time_override: None,
             detail_flag: 0.0,
@@ -1057,6 +1063,8 @@ impl Renderer {
             overlay_gpu: None,
             overlay_dirty: true,
             scene_debug: SceneDebugMode::Normal,
+            marker_log: Vec::new(),
+            draw_calls: 0,
             start: std::time::Instant::now(),
             water_time_override: None,
             detail_flag: 0.0,
@@ -1291,6 +1299,88 @@ impl Renderer {
     /// The overlay data recorded so far (proof sidecars).
     pub fn asset_anchor_data(&self) -> &[AssetAnchors] {
         &self.asset_anchors
+    }
+
+    /// WT-007 slice 1: push a contract marker (debug group + audit log).
+    fn mark(&mut self, pass: &mut wgpu::RenderPass, name: &'static str) {
+        pass.push_debug_group(name);
+        self.marker_log.push(name);
+    }
+
+    fn unmark(&self, pass: &mut wgpu::RenderPass) {
+        pass.pop_debug_group();
+    }
+
+    /// The marker tree recorded this frame (the gpu-marker audit input).
+    pub fn marker_tree(&self) -> &[&'static str] {
+        &self.marker_log
+    }
+
+    /// The top-level draw-call count for this frame (per-patch draws
+    /// inside streamer modules are counted by their own counters).
+    pub fn frame_draw_calls(&self) -> u32 {
+        self.draw_calls
+    }
+
+    /// The adapter identity for the audit (backend + name).
+    pub fn adapter_identity(&self) -> (String, String) {
+        let info = self.ctx.adapter.get_info();
+        (format!("{:?}", info.backend), info.name)
+    }
+
+    /// Whether this device supports GPU timestamp queries (requested
+    /// features are empty, so queries are not ENABLED even when
+    /// supported — the audit reports support + the honest reason).
+    pub fn timestamp_query_supported(&self) -> bool {
+        self.ctx
+            .adapter
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY)
+    }
+
+    /// WT-007 slice 1: the gpu_marker_contract audit — the required
+    /// marker names, adapter identity, timestamp policy, CPU frame
+    /// timing, and the top-level draw-call count from the LAST frame.
+    pub fn gpu_marker_audit(&self, cpu_p50_ms: f32) -> serde_json::Value {
+        const REQUIRED: &[&str] = &[
+            "pc3d.frame",
+            "pc3d.frame.prepare",
+            "pc3d.pass.terrain",
+            "pc3d.pass.sky_atmosphere",
+            "pc3d.pass.water",
+            "pc3d.pass.assets",
+            "pc3d.pass.npcs",
+            "pc3d.pass.machines",
+            "pc3d.pass.wireframe_overlay",
+            "pc3d.pass.ui",
+            "pc3d.pass.screenshot_readback",
+        ];
+        let (backend, adapter) = self.adapter_identity();
+        let ts_supported = self.timestamp_query_supported();
+        let markers_ok = REQUIRED
+            .iter()
+            .all(|m| self.marker_log.iter().any(|x| x == m));
+        serde_json::json!({
+            "version": 1,
+            "build_hash": crate::ui::build_stamp(),
+            "api_backend": backend,
+            "adapter_name": adapter,
+            "markers_present": markers_ok,
+            "markers_recorded": self.marker_log,
+            "markers_required": REQUIRED,
+            "timestamp_support": ts_supported,
+            "gpu_frame_ms_or_reason": if ts_supported {
+                serde_json::json!({"value": null, "reason": "timestamps supported but not enabled (device requests no extra features); CPU timing is the evidence"})
+            } else {
+                serde_json::json!({"value": null, "reason": "adapter does not expose TIMESTAMP_QUERY; CPU timing is the evidence"})
+            },
+            "cpu_frame_ms": (cpu_p50_ms * 100.0).round() / 100.0,
+            "draw_calls": self.draw_calls,
+            "triangles": self.assets.iter().map(|(_, t)| t).sum::<usize>(),
+            "material_buckets": {
+                "note": "asset triangle sum is exact; streamer bucket counts live in their own counters",
+            },
+        })
     }
 
     /// The Deck Low lever: gate the rig's pose updates to N Hz (the
@@ -1868,6 +1958,8 @@ impl Renderer {
 
     /// Uploads camera + HUD state for this frame.
     fn prepare_frame(&mut self) {
+        self.marker_log.clear();
+        self.draw_calls = 0;
         let (w, h) = self.size();
         let aspect = self.aspect();
         let cam = &self.camera;
@@ -2128,6 +2220,8 @@ impl Renderer {
             };
             let view = output.texture.create_view(&Default::default());
             self.encode_frame(&mut encoder, &view);
+            encoder.push_debug_group("pc3d.pass.screenshot_readback");
+            self.marker_log.push("pc3d.pass.screenshot_readback");
             encoder.copy_texture_to_buffer(
                 output.texture.as_image_copy(),
                 wgpu::ImageCopyBuffer {
@@ -2149,6 +2243,8 @@ impl Renderer {
             let tex = self.offscreen.take().expect("renderer has no target");
             let view = tex.create_view(&Default::default());
             self.encode_frame(&mut encoder, &view);
+            encoder.push_debug_group("pc3d.pass.screenshot_readback");
+            self.marker_log.push("pc3d.pass.screenshot_readback");
             encoder.copy_texture_to_buffer(
                 tex.as_image_copy(),
                 wgpu::ImageCopyBuffer {
@@ -2181,6 +2277,10 @@ impl Renderer {
     /// The single draw path shared by the window, the live-window screenshot,
     /// and the offscreen proof target.
     fn encode_frame(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+        // WT-007 slice 1: the frame's marker tree — vendor captures
+        // (AMD RGP / NVIDIA Nsight) correlate work by these names.
+        encoder.push_debug_group("pc3d.frame");
+        self.marker_log.push("pc3d.frame");
         // 0. Sun shadow pass (NWR-006): depth-only from the light's ortho
         // box (env.light_view_proj, written in prepare_frame). The whole
         // opaque world draws; the streamers cull with the LIGHT matrix.
@@ -2204,6 +2304,8 @@ impl Renderer {
                 atm.shadow_res > 0,
             )
         };
+        encoder.push_debug_group("pc3d.frame.prepare");
+        self.marker_log.push("pc3d.frame.prepare");
         if self.atmosphere.shadow_res > 0 {
             let mut spass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("pc3d sun shadow pass"),
@@ -2269,6 +2371,8 @@ impl Renderer {
                 f.draw_shadow(&mut spass, &self.pipelines.flora, &self.bg_light);
             }
         }
+        // The prepare group closes before the main pass: sibling passes.
+        encoder.pop_debug_group();
         let depth_view = self
             .depth
             .as_ref()
@@ -2301,9 +2405,13 @@ impl Renderer {
             occlusion_query_set: None,
         });
         // 1. Sky: world-ray gradient + sun (no depth interaction).
+        self.mark(&mut pass, "pc3d.pass.sky_atmosphere");
         pass.set_pipeline(&self.pipelines.sky);
         pass.set_bind_group(0, &self.bg_globals, &[]);
         pass.draw(0..3, 0..1);
+        self.draw_calls += 1;
+        self.unmark(&mut pass);
+        self.mark(&mut pass, "pc3d.pass.terrain");
         // 2. Depth-tested, sunlit world geometry from P3D coordinates.
         // The mesh pipeline binds once; the placeholder scene draws only
         // when present (hidden construction runs have empty buffers, and
@@ -2339,46 +2447,65 @@ impl Renderer {
         if let Some(c) = &self.city {
             c.draw(&mut pass);
         }
+        self.unmark(&mut pass);
         // 2b3. NPCs + inspect anchor boxes.
+        self.mark(&mut pass, "pc3d.pass.npcs");
         if let Some(n) = &self.npcs {
             n.draw(&mut pass);
+            self.draw_calls += 1;
         }
+        // WT-007: machines are a SIM-side system (no GPU pass yet) — the
+        // marker slot exists so captures and audits stay comparable.
+        self.mark(&mut pass, "pc3d.pass.machines");
+        self.unmark(&mut pass);
         // 2b4. GLB assets (NWR-002).
+        self.mark(&mut pass, "pc3d.pass.assets");
         for (a, _) in &self.assets {
             a.draw(&mut pass);
+            self.draw_calls += 1;
         }
         // 2b4a. WT-002/003 slice 3: debug wireframe / anchor overlay —
         // the world is dimmed via params3.y, the lines draw sun-aligned
         // bright through the same lit path on LineList.
+        self.mark(&mut pass, "pc3d.pass.wireframe_overlay");
         if self.scene_debug != SceneDebugMode::Normal {
             if self.scene_debug == SceneDebugMode::Wireframe {
                 if let Some(w) = &self.wire_gpu {
                     pass.set_pipeline(&self.pipelines.wire);
                     w.draw(&mut pass);
+                    self.draw_calls += 1;
                 }
             } else if let Some(o) = &self.overlay_gpu {
                 pass.set_pipeline(&self.pipelines.wire);
                 o.draw(&mut pass);
+                self.draw_calls += 1;
             }
         }
-        // 2b4b. Streamed wilderness (NWR-007): bounded placement update,
-        // bucket upload, then ONE draw per (kind, LOD) + grass cards.
+        self.unmark(&mut pass);
+        self.unmark(&mut pass);
+        // 2b4b..2b4d: instanced world content (flora, crowd, settlement
+        // kit) — the asset-instances pass continuation.
+        self.mark(&mut pass, "pc3d.pass.assets");
         if let (Some(f), Some(g)) = (self.flora.as_mut(), self.flora_gen.clone()) {
             let vp = self.camera.pose.position;
             f.update(&g, [vp[0], vp[2]]);
             f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
             f.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
+            self.draw_calls += 1;
         }
         // 2b4d. The NPC crowd (NWR-009): rigged boxes per part color.
         if let Some(crowd) = self.crowd.as_mut() {
             crowd.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
+            self.draw_calls += 1;
         }
         // 2b4c. The settlement kit (NWR-008): instanced modules + the
         // D-033 anchor markers.
         if let Some(st) = self.settlement.as_mut() {
             st.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
             st.draw_anchors(&mut pass, &self.pipelines.mesh, &self.bg_globals);
+            self.draw_calls += 2;
         }
+        self.unmark(&mut pass);
         // 2b5. Alpha-cutout foliage (NWR-006): mask-tested, depth-writing,
         // opaque blend — order-independent and Deck-cheap.
         if let Some((m, bg_mask)) = &self.cutout {
@@ -2389,19 +2516,22 @@ impl Renderer {
         }
         // 2c. Transparent river water LAST among world geometry: depth-read
         // only, alpha blend — banks show through, terrain occludes.
+        self.mark(&mut pass, "pc3d.pass.water");
         if let Some(w) = &self.water {
             pass.set_pipeline(&self.pipelines.water);
             pass.set_bind_group(0, &self.bg_globals, &[]);
             w.draw(&mut pass);
+            self.draw_calls += 1;
         }
-        // 3. HUD debug line (alpha blend, no depth). Skipped entirely when
-        // the line is blank — owner runs draw their HUD through the UI
-        // layer and must never show stray debug text.
+        self.unmark(&mut pass);
+        // 3. HUD debug line + 4. the owner UI layer — one marker group.
+        self.mark(&mut pass, "pc3d.pass.ui");
         if !self.hud.line.trim().is_empty() {
             pass.set_pipeline(&self.pipelines.hud);
             pass.set_bind_group(0, &self.bg_hud, &[]);
             pass.set_vertex_buffer(0, self.hud.vertex_buffer.slice(..));
             pass.draw(0..6, 0..1);
+            self.draw_calls += 1;
         }
         // 4. The owner-facing UI layer (GLM UI rework): one fullscreen
         // alpha-blended quad over everything — panels, bars, hotbar, menus.
@@ -2410,7 +2540,12 @@ impl Renderer {
             pass.set_bind_group(0, &ui.bind_group, &[]);
             pass.set_vertex_buffer(0, ui.vertex_buffer.slice(..));
             pass.draw(0..6, 0..1);
+            self.draw_calls += 1;
         }
+        self.unmark(&mut pass);
+        drop(pass);
+        // Close the marker tree's root group.
+        encoder.pop_debug_group();
     }
 }
 
@@ -2984,6 +3119,50 @@ mod tests {
             edges.iter().any(|v| v.color == [1.0, 0.55, 0.15]),
             "ember axis markers required"
         );
+    }
+
+    #[test]
+    fn marker_tree_covers_the_contract_after_a_capture() {
+        // WT-007 slice 1: one encoded frame must push every required
+        // pc3d.* debug group (the vendor-capture correlation tree), and
+        // the audit must carry every gpu_marker_contract field.
+        let mut r = Renderer::offscreen(W, H);
+        r.set_pose(pose_a());
+        let probes = probes_for_pose(pose_a(), ASPECT);
+        let path = std::env::temp_dir().join("pc3d_marker_proof.png");
+        let _ = r.capture_png(&path, &probes);
+        for required in [
+            "pc3d.frame",
+            "pc3d.frame.prepare",
+            "pc3d.pass.terrain",
+            "pc3d.pass.sky_atmosphere",
+            "pc3d.pass.water",
+            "pc3d.pass.assets",
+            "pc3d.pass.npcs",
+            "pc3d.pass.machines",
+            "pc3d.pass.wireframe_overlay",
+            "pc3d.pass.ui",
+            "pc3d.pass.screenshot_readback",
+        ] {
+            assert!(
+                r.marker_tree().contains(&required),
+                "marker {required} missing from {:?}",
+                r.marker_tree()
+            );
+        }
+        let audit = r.gpu_marker_audit(6.0);
+        for field in [
+            "build_hash", "api_backend", "adapter_name", "markers_present",
+            "timestamp_support", "cpu_frame_ms", "gpu_frame_ms_or_reason",
+            "draw_calls", "triangles", "material_buckets",
+        ] {
+            assert!(audit.get(field).is_some(), "audit field {field} missing");
+        }
+        assert_eq!(audit["markers_present"], serde_json::json!(true));
+        // The fresh offscreen renderer's world may be empty (only the sky
+        // draw is unconditional) — the law is that counting is LIVE,
+        // and the windowed audit route below carries the real totals.
+        assert!(audit["draw_calls"].as_u64().unwrap() >= 1);
     }
 
     #[test]

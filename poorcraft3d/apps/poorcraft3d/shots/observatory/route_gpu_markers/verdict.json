@@ -1,5 +1,6 @@
 {
-  "reason": "GPU pass markers pending — WT-007 slice 1",
+  "captures": 1,
+  "frames": 61,
   "route_id": "route_gpu_markers",
-  "verdict": "unavailable"
+  "verdict": "pass"
 }
