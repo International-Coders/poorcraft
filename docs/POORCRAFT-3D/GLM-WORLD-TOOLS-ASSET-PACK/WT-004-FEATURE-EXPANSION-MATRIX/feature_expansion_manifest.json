@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "task_id": "WT-004",
+  "name": "Feature Expansion Matrix",
+  "purpose": "Turn broad POORCRAFT 3D feature brainstorming into machine-readable Z-code work with proof gates.",
+  "required_contracts": [
+    "feature_backlog_matrix.json",
+    "worldgen_system_contract.json",
+    "npc_faction_system_contract.json",
+    "industry_magic_progression_contract.json",
+    "ui_hud_feature_contract.json",
+    "survival_combat_contract.json",
+    "quest_story_contract.json",
+    "multiplayer_steam_contract.json",
+    "modding_tools_contract.json",
+    "proof_gate_matrix.json"
+  ],
+  "must_preserve": [
+    "features need player stories",
+    "features need runtime behavior",
+    "features need observatory evidence",
+    "broad systems must be sliced",
+    "not proven means not done"
+  ]
+}

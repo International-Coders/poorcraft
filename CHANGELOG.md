@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-09-11 — WT-004 feature expansion matrix
+
+The GLM world/tools pack now has a fourth implementation-ready subpack:
+
+- `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-004-FEATURE-EXPANSION-MATRIX/`
+  converts broad feature brainstorming into proofable Z-code slices across
+  worldgen, seed preview, NPCs, factions, settlements, industry, magic,
+  survival, combat, exploration, UI/HUD, accessibility, mods, multiplayer,
+  Steam, tools, and validation gates.
+- The subpack adds feature rules, slice ordering, acceptance criteria, failure
+  modes, and proof-gate requirements so future breadth does not become a
+  wishlist with no runtime behavior.
+- Eleven JSON contracts cover the feature expansion manifest, backlog matrix,
+  worldgen, NPC/factions, industry/magic, UI/HUD, survival/combat,
+  quest/story, multiplayer/Steam, modding/tools, and proof gates. `pc3d_assets`
+  parses them through the world/tools guard and preserves the law that broad
+  features must be sliced into proofable gameplay.
+
 ## 2026-09-11 — WT-003 game observatory MCP lab
 
 The GLM world/tools pack now has a third implementation-ready subpack:

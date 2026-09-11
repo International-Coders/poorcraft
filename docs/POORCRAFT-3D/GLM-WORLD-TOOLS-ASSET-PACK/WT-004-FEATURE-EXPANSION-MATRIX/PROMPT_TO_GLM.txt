@@ -1,0 +1,22 @@
+Implement WT-004: POORCRAFT 3D feature expansion matrix.
+
+Read every file in:
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-004-FEATURE-EXPANSION-MATRIX
+
+Use this pack to choose and implement future features. Do not implement broad
+features as vibes. Each feature needs:
+
+1. player story;
+2. data model;
+3. runtime behavior;
+4. UI/HUD/menu surface;
+5. asset needs;
+6. observatory exports;
+7. screenshot/wireframe proof when visual;
+8. tests;
+9. failure states;
+10. honest deferrals.
+
+Start with WT-001/WT-002/WT-003 if they are not in code yet. Then use this
+matrix to pick the next feature with the highest owner value and smallest
+proofable slice.

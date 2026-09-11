@@ -38,6 +38,11 @@ Use `WT-003-GAME-OBSERVATORY-MCP-LAB/` before claiming runtime success. It
 forces local MCP-style tools, input replay, screenshots, wireframes, overlays,
 asset dumps, runtime state JSON, GPU markers, and regression verdicts.
 
+Use `WT-004-FEATURE-EXPANSION-MATRIX/` to pick future gameplay breadth. It
+breaks worldgen, NPCs, factions, settlements, industry, magic, survival,
+combat, exploration, UI/HUD, mods, multiplayer, Steam, tools, and proof gates
+into vertical slices.
+
 ## Folder Map
 
 - `00-OWNER-DEMANDS.md` — plain owner intent.
@@ -62,6 +67,8 @@ asset dumps, runtime state JSON, GPU markers, and regression verdicts.
 - `WT-003-GAME-OBSERVATORY-MCP-LAB/` — implementation-ready observability task
   for MCP-style inspection, screenshots, wireframes, state exports, input
   replay, GPU markers, and regression comparison.
+- `WT-004-FEATURE-EXPANSION-MATRIX/` — implementation-ready feature matrix for
+  broad gameplay systems, vertical slices, and proof gates.
 
 ## Machine Contracts
 
@@ -76,6 +83,7 @@ asset dumps, runtime state JSON, GPU markers, and regression verdicts.
 - `semantic_asset_tags.schema.json`
 - `tooling_backlog.json`
 - `WT-003-GAME-OBSERVATORY-MCP-LAB/observatory_manifest.json`
+- `WT-004-FEATURE-EXPANSION-MATRIX/feature_expansion_manifest.json`
 
 ## Relationship To The Existing Packs
 

@@ -74,6 +74,13 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       wireframes, overlays, mesh/material dumps, input replay, GPU markers,
       regression evidence bundles, ten JSON contracts, and a code guard proving
       the subpack files parse and exist (loop 418)
+- [x] POORCRAFT 3D WT-004 feature expansion matrix: concrete
+      implementation-ready subfolder under GLM-WORLD-TOOLS-ASSET-PACK for
+      converting broad owner brainstorming into proofable slices across
+      worldgen, NPCs, factions, settlements, industry, magic, survival, combat,
+      exploration, UI/HUD, mods, multiplayer, Steam, tools, eleven JSON
+      contracts, and a code guard proving the subpack files parse and exist
+      (loop 419)
 
 ## ui-world-craft pack (loop 328)
 

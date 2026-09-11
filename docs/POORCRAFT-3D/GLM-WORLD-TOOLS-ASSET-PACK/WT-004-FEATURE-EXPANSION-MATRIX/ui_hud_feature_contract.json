@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "screens": ["title", "new_world", "load_world", "settings", "pause", "inventory", "map", "crafting", "dialogue"],
+  "hud_elements": ["crosshair", "prompt", "health", "stamina", "food", "hotbar", "warnings", "minimap"],
+  "accessibility": ["rebinding", "ui_scale", "contrast", "toggle_hold", "reduced_motion", "colorblind_markers", "localization_ready"],
+  "proofs": ["mouse_click_route", "escape_route", "layout_json", "1501x801_no_clip", "ui_text_source"]
+}

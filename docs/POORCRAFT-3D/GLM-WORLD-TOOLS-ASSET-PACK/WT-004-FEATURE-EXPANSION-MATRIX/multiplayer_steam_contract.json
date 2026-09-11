@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "multiplayer_features": ["shared_seed", "authoritative_edits", "inventory_sync", "combat_sync", "npc_sync", "chat", "disconnect_recovery"],
+  "steam_features": ["visible_build_hash", "dedicated_server", "appid_policy", "logs", "crash_reports", "controller_later", "offline_fallback"],
+  "proofs": ["two_client_edit", "server_seed_metadata", "join_leave_route", "steam_offline_fallback"]
+}

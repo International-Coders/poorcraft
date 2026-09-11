@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "required_features": [
+    "seed_input",
+    "random_seed",
+    "map_preview",
+    "spawn_safety",
+    "biome_summary",
+    "resource_hints",
+    "nearby_structures",
+    "terrain_route_proof",
+    "world_history"
+  ],
+  "proofs": ["same_seed_stability", "different_seed_variety", "preview_world_agreement", "spawn_route_screenshot"]
+}

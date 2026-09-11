@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "industry_features": ["forge", "kiln", "sawmill", "water_wheel", "boiler", "generator", "battery", "switchboard", "automation"],
+  "magic_features": ["mana", "runes", "altar", "crystals", "ritual", "ward", "corruption", "teleport_anchor"],
+  "research_features": ["discovery", "experiment", "npc_teacher", "book", "unlock", "failure_state"],
+  "proofs": ["machine_io_test", "power_network_test", "magic_effect_test", "research_unlock_test"]
+}

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "families": [
+    {"id": "worldgen", "priority": 1, "first_slice": "seed_preview_agrees_with_world"},
+    {"id": "ui_hud", "priority": 2, "first_slice": "clickable_start_pause_settings"},
+    {"id": "semantic_assets", "priority": 3, "first_slice": "house_npc_forge_chest_resource"},
+    {"id": "observatory", "priority": 4, "first_slice": "screenshot_state_wireframe_bundle"},
+    {"id": "npc_factions", "priority": 5, "first_slice": "talk_work_trade_guard"},
+    {"id": "industry_magic", "priority": 6, "first_slice": "forge_chain_and_rune_alternative"},
+    {"id": "survival_combat", "priority": 7, "first_slice": "gather_craft_fight_heal"},
+    {"id": "quests_story", "priority": 8, "first_slice": "settlement_request_board"},
+    {"id": "mods_multiplayer_steam", "priority": 9, "first_slice": "validated_mod_and_two_client_edit"}
+  ]
+}

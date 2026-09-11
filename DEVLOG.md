@@ -6117,6 +6117,39 @@ glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
+## 2026-09-11 — WT-004 feature expansion matrix
+
+WHAT: Added
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-004-FEATURE-EXPANSION-MATRIX,
+a fourth concrete implementation handoff for the owner request to brainstorm
+all the major gameplay, tooling, UI, world, NPC, faction, modding,
+multiplayer, and proof systems not explicitly named yet. The pack turns broad
+ambition into feature families, first slices, data contracts, player stories,
+asset needs, observatory needs, and proof gates.
+
+HOW: Created Markdown files for the GLM prompt, feature brief,
+worldgen/seed features, NPC/faction/settlement features, industry/magic/tech
+progression, survival/combat/exploration, UI/HUD/accessibility,
+mods/multiplayer/Steam, tools/proof gates, Z-code slices, acceptance
+checklist, and failure modes. Added JSON contracts for feature expansion
+manifest, feature backlog matrix, worldgen system, NPC/faction system,
+industry/magic progression, UI/HUD features, survival/combat, quest/story,
+multiplayer/Steam, modding/tools, and proof gates. Linked WT-004 from the
+parent GLM world/tools README and main POORCRAFT 3D README, updated
+zcode_world_tools_task_queue.json, expanded world_tools_manifest.json, and
+extended the pc3d_assets guard to parse the eleven WT-004 JSON contracts while
+asserting the new law that broad features must be sliced into proofable
+gameplay. Existing dirty pc3d_render/ui-shot files were present before this
+pass and were left untouched.
+
+EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
+validates with python3 -m json.tool. cargo test --manifest-path
+poorcraft3d/Cargo.toml -p pc3d_assets
+glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
+--manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
+needed.
+
 ## 2026-09-11 — WT-003 game observatory MCP lab
 
 WHAT: Added

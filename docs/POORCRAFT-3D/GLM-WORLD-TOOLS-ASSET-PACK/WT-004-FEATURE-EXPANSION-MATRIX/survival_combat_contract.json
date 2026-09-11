@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "survival": ["health", "stamina", "food", "temperature", "sleep", "injury", "shelter", "weather"],
+  "combat": ["melee", "bow", "magic", "shield", "armor", "dodge", "knockback", "loot", "xp"],
+  "exploration": ["caves", "ruins", "dungeons", "roads", "boats", "mounts", "climb", "secrets"],
+  "proofs": ["gather_craft_fight_heal_route", "combat_log_matches_state", "dungeon_route", "reward_inventory_export"]
+}

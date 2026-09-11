@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "mod_content": ["blocks", "items", "recipes", "npc_roles", "structures", "quests", "biomes", "ui_strings", "asset_packs"],
+  "validation_laws": ["item_needs_icon", "block_needs_material", "npc_needs_interaction", "structure_needs_bounds_collision_nav", "recipe_needs_inputs_outputs"],
+  "tools": ["mod_validate", "mod_inspect", "mod_conflict_report", "mod_sample_pack"],
+  "proofs": ["bad_mod_rejected", "sample_mod_loaded", "conflict_report_written"]
+}

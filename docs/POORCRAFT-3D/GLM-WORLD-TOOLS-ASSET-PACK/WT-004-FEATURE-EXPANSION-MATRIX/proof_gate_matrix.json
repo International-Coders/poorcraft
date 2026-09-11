@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "gates": [
+    {"id": "seed_preview", "requires": ["png", "metadata_json", "same_seed_test", "different_seed_test"]},
+    {"id": "ui_layout", "requires": ["screenshots", "layout_json", "mouse_route", "escape_route"]},
+    {"id": "semantic_asset", "requires": ["affordance_json", "wireframe_png", "anchor_overlay_png", "playtest_route"]},
+    {"id": "observatory", "requires": ["state_json", "evidence_bundle", "verdict_json"]},
+    {"id": "performance", "requires": ["markers", "p50_p95", "scene_seed", "before_after"]},
+    {"id": "multiplayer", "requires": ["two_client_test", "server_log", "state_agreement"]}
+  ],
+  "not_proven_verdict": "not_done"
+}

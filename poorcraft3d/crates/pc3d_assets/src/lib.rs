@@ -646,6 +646,7 @@ mod tests {
             "screenshots and wireframes are required evidence",
             "asset factory outputs must be gameplay-semantic",
             "GLM must inspect real game evidence before claiming success",
+            "broad features must be sliced into proofable gameplay",
         ] {
             assert!(
                 preserved.iter().any(|value| value
@@ -700,6 +701,17 @@ mod tests {
             "WT-003-GAME-OBSERVATORY-MCP-LAB/gpu_marker_contract.json",
             "WT-003-GAME-OBSERVATORY-MCP-LAB/regression_gate_contract.json",
             "WT-003-GAME-OBSERVATORY-MCP-LAB/evidence_bundle.schema.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/feature_expansion_manifest.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/feature_backlog_matrix.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/worldgen_system_contract.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/npc_faction_system_contract.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/industry_magic_progression_contract.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/ui_hud_feature_contract.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/survival_combat_contract.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/quest_story_contract.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/multiplayer_steam_contract.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/modding_tools_contract.json",
+            "WT-004-FEATURE-EXPANSION-MATRIX/proof_gate_matrix.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

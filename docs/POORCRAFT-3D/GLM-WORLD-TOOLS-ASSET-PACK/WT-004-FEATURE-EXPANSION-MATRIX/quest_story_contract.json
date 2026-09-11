@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "quest_types": ["request", "delivery", "build", "rescue", "hunt", "research", "diplomacy", "exploration", "defense"],
+  "story_state": ["world_history", "faction_memory", "npc_memory", "chronicle", "rumor_board", "map_discovery"],
+  "required_fields": ["id", "giver", "objective", "state", "reward", "failure", "chronicle_event"],
+  "proofs": ["quest_accept_route", "objective_progress_test", "completion_reward_test", "chronicle_export"]
+}

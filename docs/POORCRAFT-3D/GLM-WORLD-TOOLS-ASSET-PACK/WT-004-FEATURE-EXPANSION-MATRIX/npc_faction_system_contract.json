@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "npc_required_fields": ["id", "name", "role", "faction", "home", "schedule", "talk_state", "current_need", "relationship"],
+  "settlement_required_fields": ["id", "population", "resources", "jobs", "buildings", "requests", "safety", "morale"],
+  "faction_required_fields": ["id", "name", "banner", "leader", "relations", "claims", "laws", "army"],
+  "proofs": ["talk_route", "work_route", "trade_route", "guard_reaction", "map_ownership_marker"]
+}

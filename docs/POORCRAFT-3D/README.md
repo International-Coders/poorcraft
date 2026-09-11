@@ -96,6 +96,10 @@ only when its implementation, tests, runtime behavior, and evidence agree.
   handoff for local MCP-style inspection tools, runtime state exports,
   screenshot/wireframe/overlay captures, input replay, asset dumps, GPU
   markers, and regression evidence bundles.
+- `GLM-WORLD-TOOLS-ASSET-PACK/WT-004-FEATURE-EXPANSION-MATRIX/` — concrete
+  handoff for broad feature brainstorming converted into proofable slices
+  across worldgen, NPCs, factions, industry, magic, survival, UI, mods,
+  multiplayer, Steam, tools, and gates.
 
 ## What this project is
 
