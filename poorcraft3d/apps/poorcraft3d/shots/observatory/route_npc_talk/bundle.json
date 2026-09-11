@@ -1,0 +1,25 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_npc_talk-dev",
+  "commands": [
+    "--observe route_npc_talk"
+  ],
+  "diff_paths": [],
+  "digest": "37a601d3893236f5",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "",
+  "quality": "mid",
+  "route_id": "route_npc_talk",
+  "runtime_state_path": "",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    1280,
+    720
+  ],
+  "wireframes": []
+}

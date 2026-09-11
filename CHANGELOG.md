@@ -3517,3 +3517,22 @@ The simulation-only roadmap was declared complete; the visual reset
 - Deferred to their queue entries: beauty/wireframe/anchor-overlay
   captures (WT-003), the semantic playtest route (talk/forge slices),
   GPU pass markers (WT-007).
+
+## Loop 424 — WT-003 implemented: the game observatory (slices 1/2/5-partial/7)
+- `pc3d_assets::observatory`: the WT-003 contracts (input routes,
+  evidence bundle schema, MCP tools) embed and parse; a law test keeps
+  the runtime's route table and bundle fields in contract agreement.
+- `pc3d_render::observe`: route table (4 available, 4 honestly
+  unavailable WITH reasons), the 20-field runtime state export
+  (null-with-reason per the schema), the 18-field evidence bundle with
+  a content-bound FNV digest, and the comparator — pass / fail /
+  inconclusive with named checks (paths exist per-bundle, screenshots
+  nonblank, seed mismatches are inconclusive, not failures).
+- `--observe <route|all>` (per-route re-exec honoring winit's
+  one-loop law) and `--compare-evidence <A> <B>`; `make p3d-observe`.
+- Evidence: 4/4 available routes PASS with real captures (p50 ~6.4 ms),
+  4 UNAVAILABLE bundles with reasons, comparator PASS between two
+  independent real runs, tests green across the suite.
+- Deferred: wireframe/anchor-overlay captures (slice 3, with WT-002
+  slice 3), gameplay routes flip on when the talk/forge/entry slices
+  land, GPU markers (WT-007).

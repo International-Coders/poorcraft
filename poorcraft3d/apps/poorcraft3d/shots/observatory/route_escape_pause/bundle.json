@@ -1,0 +1,27 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_escape_pause-dev",
+  "commands": [
+    "--observe route_escape_pause"
+  ],
+  "diff_paths": [],
+  "digest": "01c32b06808dd089",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_escape_pause",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [
+    "beauty_pause.png"
+  ],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

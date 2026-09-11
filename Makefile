@@ -131,6 +131,12 @@ p3d-asset-sidecars: ## WT-002: semantic starter-batch inspection sidecars (windo
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-sidecar all poorcraft3d/apps/poorcraft3d/shots || exit 1; \
 	echo "P3D ASSET SIDECARS OK"
 
+p3d-observe: ## WT-003: the observatory — all routes as evidence bundles (PNG+state+perf+verdict; honest unavailability where interactions don't exist yet): make p3d-observe
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/observatory
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe all poorcraft3d/apps/poorcraft3d/shots/observatory || exit 1; \
+	echo "P3D OBSERVATORY OK"
+
 p3d-assets-window: ## NWR-002: windowed asset-factory proof (tree/rock/house): make p3d-assets-window [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-assets $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \

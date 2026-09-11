@@ -1,0 +1,121 @@
+{
+  "anchors": [
+    {
+      "id": "door_front",
+      "in_glb": true,
+      "kind": "door",
+      "position_m": [
+        0.44999998807907104,
+        0.0,
+        -2.5
+      ],
+      "radius_m": 1.0,
+      "requires_clearance": true,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "enter"
+    },
+    {
+      "id": "road_front",
+      "in_glb": true,
+      "kind": "nav_entry",
+      "position_m": [
+        0.44999998807907104,
+        0.0,
+        -5.0
+      ],
+      "radius_m": 1.5,
+      "requires_clearance": true,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "path_to_door"
+    },
+    {
+      "id": "interior",
+      "in_glb": true,
+      "kind": "interior",
+      "position_m": [
+        0.44999998807907104,
+        0.0,
+        0.4000000059604645
+      ],
+      "radius_m": 1.5,
+      "requires_clearance": false,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "indoor_spawn"
+    },
+    {
+      "id": "roof_smoke",
+      "in_glb": true,
+      "kind": "fx",
+      "position_m": [
+        1.7000000476837158,
+        4.900000095367432,
+        0.550000011920929
+      ],
+      "radius_m": 0.4000000059604645,
+      "requires_clearance": false,
+      "rotation_y_deg": 0.0,
+      "runtime_action": "chimney_smoke"
+    }
+  ],
+  "asset_id": "starter_house",
+  "bounds": [
+    null,
+    null,
+    null
+  ],
+  "build_hash": "dev",
+  "category": "building",
+  "collision": "solid_box",
+  "command": "--observe route_asset_inspect",
+  "declared_materials": [
+    "fieldstone",
+    "timber",
+    "thatch"
+  ],
+  "failures": [],
+  "gameplay": [
+    {
+      "key": "enter",
+      "value": "door_front"
+    },
+    {
+      "key": "interior_spawn",
+      "value": "interior"
+    }
+  ],
+  "lods": [
+    {
+      "name": "lod0",
+      "triangles": 38
+    },
+    {
+      "name": "lod1",
+      "triangles": 34
+    },
+    {
+      "name": "lod2",
+      "triangles": 14
+    }
+  ],
+  "materials": [
+    "#848277",
+    "#6b4f33",
+    "#3d2b1c",
+    "#8c6d3d"
+  ],
+  "nav": "door_front",
+  "notes": [],
+  "proof_paths": [
+    "play_assets_windowed",
+    "asset_sidecar"
+  ],
+  "provenance": "Glb(\"module.house_croft\")",
+  "scene": "windowless",
+  "seed": "",
+  "triangles": 38,
+  "version": 1,
+  "viewport": [
+    0,
+    0
+  ]
+}

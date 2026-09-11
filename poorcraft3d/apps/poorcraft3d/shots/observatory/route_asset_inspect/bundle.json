@@ -1,0 +1,35 @@
+{
+  "asset_dumps": [
+    "inspection_starter_house.json",
+    "inspection_talkable_villager.json",
+    "inspection_working_forge.json",
+    "inspection_openable_chest.json",
+    "inspection_harvestable_ore_node.json",
+    "inspection_map_marker_set.json",
+    "inspection_hud_icon_set.json"
+  ],
+  "build_hash": "dev",
+  "bundle_id": "route_asset_inspect-dev",
+  "commands": [
+    "--observe route_asset_inspect"
+  ],
+  "diff_paths": [],
+  "digest": "cd856d5d42443671",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_asset_inspect",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [
+    "beauty_assets.png"
+  ],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

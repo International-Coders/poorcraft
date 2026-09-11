@@ -1,0 +1,163 @@
+{
+  "elements": [
+    {
+      "button_state": "",
+      "id": "title_logo",
+      "kind": "logo",
+      "rect": [
+        211,
+        80,
+        378,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "title_sub",
+      "kind": "text",
+      "rect": [
+        197,
+        138,
+        406,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "title_panel",
+      "kind": "panel",
+      "rect": [
+        260,
+        210,
+        280,
+        266
+      ]
+    },
+    {
+      "button_state": "focused",
+      "id": "btn_play",
+      "kind": "button",
+      "rect": [
+        276,
+        246,
+        249,
+        34
+      ]
+    },
+    {
+      "button_state": "hover",
+      "id": "btn_new_world",
+      "kind": "button",
+      "rect": [
+        276,
+        289,
+        249,
+        34
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "btn_load_world",
+      "kind": "button",
+      "rect": [
+        276,
+        332,
+        249,
+        34
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "btn_settings",
+      "kind": "button",
+      "rect": [
+        276,
+        375,
+        249,
+        34
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "btn_quit",
+      "kind": "button",
+      "rect": [
+        276,
+        418,
+        249,
+        34
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "footer_left",
+      "kind": "text",
+      "rect": [
+        18,
+        475,
+        155,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "footer_right",
+      "kind": "text",
+      "rect": [
+        531,
+        475,
+        251,
+        7
+      ]
+    }
+  ],
+  "scale": 0.7774086594581604,
+  "screen": "title",
+  "size": [
+    800,
+    500
+  ],
+  "ui_state": {
+    "debug_overlay": false,
+    "focus": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": "btn_new_world",
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "xp": 0.0
+    },
+    "modal": null,
+    "pointer_grabbed": false,
+    "screen": "title",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-09-11 12:07",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-09-11 12:07",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "toasts": []
+  }
+}

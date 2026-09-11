@@ -3829,6 +3829,28 @@ fn main() {
                 }
             }
         }
+        Some("--observe") => {
+            // WT-003: the observatory — one route run = one evidence
+            // bundle directory (beauty PNG + layout + runtime state +
+            // perf + verdict, stamped with build hash/seed/viewport/
+            // scene/command). Unavailable routes get an honest bundle.
+            let route_id: String = args.get(2).cloned().unwrap_or_else(|| "all".into());
+            let out_root: String = args
+                .get(3)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/observatory", env!("CARGO_MANIFEST_DIR")));
+            run_observe(&route_id, &out_root);
+        }
+        Some("--compare-evidence") => {
+            // WT-003 slice 7: pass/fail/inconclusive between two bundles.
+            let a = args.get(2).expect("usage: --compare-evidence <dirA> <dirB>");
+            let b = args.get(3).expect("usage: --compare-evidence <dirA> <dirB>");
+            let v = pc3d_render::observe::compare_bundles(std::path::Path::new(a), std::path::Path::new(b));
+            println!("{}", serde_json::to_string_pretty(&v).unwrap());
+            if v["verdict"] == "fail" {
+                std::process::exit(1);
+            }
+        }
         Some("--asset-sidecar") => {
             // WT-002 slice 2: windowless inspection sidecars for the
             // semantic starter batch (bounds/LODs/materials/anchors/
@@ -4208,6 +4230,245 @@ fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
 /// WT-001: the New World seed-preview screenshot battery — deterministic
 /// UI states (empty / typed / rerolled / random / deck / warning), each
 /// with a layout dump, a metadata sidecar, and pixel checks.
+/// WT-003: an honest-unavailability bundle (a real verdict, not a skip).
+fn write_unavailable_bundle(route_id: &str, reason: &str, out_root: &str) {
+    let dir = format!("{out_root}/{route_id}");
+    std::fs::create_dir_all(&dir).expect("mkdir route dir");
+    let verdict = serde_json::json!({
+        "route_id": route_id,
+        "verdict": "unavailable",
+        "reason": reason,
+    });
+    std::fs::write(
+        format!("{dir}/verdict.json"),
+        serde_json::to_string_pretty(&verdict).unwrap(),
+    )
+    .unwrap();
+    let mut bundle = pc3d_render::observe::bundle_json(
+        route_id,
+        "showcase_seed_3_rebuild",
+        "3",
+        (1280, 720),
+        "mid",
+        &[format!("--observe {route_id}")],
+        "",
+        &[],
+        &[],
+        "",
+        "verdict.json",
+    );
+    pc3d_render::observe::stamp_digest(&mut bundle);
+    std::fs::write(
+        format!("{dir}/bundle.json"),
+        serde_json::to_string_pretty(&bundle).unwrap(),
+    )
+    .unwrap();
+    println!("OBSERVE {route_id} -> UNAVAILABLE ({reason})");
+}
+
+/// WT-003: run one observatory route and write its evidence bundle.
+fn run_observe(route_id: &str, out_root: &str) {
+    use pc3d_render::ui::{self, Screen, UiAction};
+    use pc3d_render::Shot;
+
+    let specs = pc3d_render::observe::routes();
+    let wanted: Vec<&pc3d_render::observe::RouteSpec> = if route_id == "all" {
+        specs.iter().collect()
+    } else {
+        specs
+            .iter()
+            .filter(|r| r.id == route_id)
+            .collect()
+    };
+    if wanted.is_empty() {
+        eprintln!("[FAIL] unknown route {route_id} (see --observe all)");
+        std::process::exit(2);
+    }
+    let save_root = ui_test_save_root();
+    let (seed, scene) = pc3d_render::slice::find_showcase(3);
+    let scene = std::rc::Rc::new(scene);
+    let mut any_fail = false;
+
+    // winit allows ONE event loop per process (the deck-bench lesson):
+    // `--observe all` re-executes itself once per AVAILABLE route.
+    if route_id == "all" {
+        for spec in specs.iter().filter(|r| r.available) {
+            let bin = std::env::current_exe().expect("current exe");
+            let status = std::process::Command::new(bin)
+                .arg("--observe")
+                .arg(spec.id)
+                .arg(out_root)
+                .status()
+                .expect("re-exec observer");
+            if !status.success() {
+                any_fail = true;
+            }
+        }
+        // Unavailable routes get their honest bundles in-process (no
+        // window needed).
+        for spec in specs.iter().filter(|r| !r.available) {
+            write_unavailable_bundle(spec.id, spec.reason, out_root);
+        }
+        if any_fail {
+            std::process::exit(1);
+        }
+        println!("OBSERVATORY OK (all routes)");
+        return;
+    }
+
+    for spec in wanted {
+        let dir = format!("{out_root}/{}", spec.id);
+        std::fs::create_dir_all(&dir).expect("mkdir route dir");
+        let command = format!("--observe {}", spec.id);
+        if !spec.available {
+            write_unavailable_bundle(spec.id, spec.reason, out_root);
+            continue;
+        }
+
+        // Route scripts (input_route_contract step kinds mapped onto the
+        // harness's ui_script).
+        let mut ui_script: Vec<(u64, pc3d_render::UiStep)> = Vec::new();
+        let mut shots: Vec<Shot> = Vec::new();
+        match spec.id {
+            "route_title_mouse" => {
+                ui_script.push((12, Box::new(|ui, _r, _ctx| {
+                    ui.hover = Some("btn_new_world".into()); // mouse_move step
+                })));
+                shots.push(Shot::new(45, format!("{dir}/beauty_title.png"))
+                    .ui_dump(format!("{dir}/beauty_title.layout.json")));
+                shots.push(Shot::new(80, format!("{dir}/beauty_hover.png"))
+                    .ui_dump(format!("{dir}/beauty_hover.layout.json")));
+            }
+            "route_new_world_seed" => {
+                ui_script.push((12, Box::new(|ui, _r, _ctx| {
+                    ui.screen = Screen::NewWorld;
+                    ui.form.seed_digits = "4242".into();
+                    ui.seed_preview_stale = true;
+                })));
+                shots.push(Shot::new(70, format!("{dir}/beauty_new_world.png"))
+                    .ui_dump(format!("{dir}/beauty_new_world.layout.json")));
+            }
+            "route_escape_pause" => {
+                ui_script.push((12, Box::new(|_ui, _r, ctx| {
+                    ctx.actions.push(UiAction::StartPlaying);
+                })));
+                ui_script.push((45, Box::new(|ui, _r, _ctx| {
+                    let _ = ui::on_key(ui, pc3d_render::ui::Key::Escape);
+                })));
+                shots.push(Shot::new(90, format!("{dir}/beauty_pause.png"))
+                    .ui_dump(format!("{dir}/beauty_pause.layout.json")));
+            }
+            "route_asset_inspect" => {
+                shots.push(Shot::new(60, format!("{dir}/beauty_assets.png"))
+                    .ui_dump(format!("{dir}/beauty_assets.layout.json")));
+            }
+            _ => unreachable!("availability checked above"),
+        }
+        let cfg = pc3d_render::WindowConfig {
+            title: format!("POORCRAFT 3D — observatory {}", spec.id),
+            logical_size: (1280.0, 720.0),
+            size_is_physical: true,
+            max_frames: Some(240),
+            probe_set: pc3d_render::ProbeSet::SkyOnly,
+            shots,
+            slice_setup: Some(pc3d_render::app::SliceSetup {
+                seed,
+                rebuild: true,
+                scene: scene.clone(),
+                save_root: save_root.clone(),
+                world_name: "observatory".into(),
+            }),
+            owner_menu: true,
+            save_root_override: Some(save_root.clone()),
+            ui_script,
+            ..Default::default()
+        };
+        let report = match pc3d_render::run_windowed(cfg) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("[FAIL] observe {}: {e}", spec.id);
+                any_fail = true;
+                continue;
+            }
+        };
+        let last = report.captures.last();
+        // Asset dumps for the inspect route (WT-002 sidecars, in-bundle).
+        let mut asset_dumps: Vec<String> = Vec::new();
+        if spec.id == "route_asset_inspect" {
+            for (id, v) in pc3d_render::inspect::starter_batch_sidecars(&command) {
+                let p = format!("{dir}/inspection_{id}.json");
+                std::fs::write(&p, serde_json::to_string_pretty(&v).unwrap()).unwrap();
+                if !pc3d_render::inspect::sidecar_passes(&v) {
+                    eprintln!("[FAIL] observe {}: inspection {id} failed", spec.id);
+                    any_fail = true;
+                }
+                asset_dumps.push(format!("inspection_{id}.json"));
+            }
+        }
+        // Runtime state + perf + verdict + bundle.
+        let state = pc3d_render::observe::runtime_state_json(
+            &report,
+            last,
+            "showcase_seed_3_rebuild",
+            "3",
+            &command,
+            "scripted_route_camera",
+        );
+        std::fs::write(format!("{dir}/runtime_state.json"), serde_json::to_string_pretty(&state).unwrap()).unwrap();
+        let perf = state["perf"].clone();
+        std::fs::write(format!("{dir}/perf.json"), serde_json::to_string_pretty(&perf).unwrap()).unwrap();
+        let n_shots = report.captures.len();
+        let verdict = serde_json::json!({
+            "route_id": spec.id,
+            "verdict": if any_fail { "fail" } else { "pass" },
+            "captures": n_shots,
+            "frames": report.frames,
+        });
+        std::fs::write(format!("{dir}/verdict.json"), serde_json::to_string_pretty(&verdict).unwrap()).unwrap();
+        let screens: Vec<String> = report
+            .captures
+            .iter()
+            .map(|c| {
+                c.path
+                    .file_name()
+                    .and_then(|f| f.to_str())
+                    .unwrap_or("?")
+                    .to_string()
+            })
+            .collect();
+        let mut bundle = pc3d_render::observe::bundle_json(
+            spec.id,
+            "showcase_seed_3_rebuild",
+            "3",
+            report.final_physical,
+            "mid",
+            &[command.clone()],
+            "runtime_state.json",
+            &screens,
+            &asset_dumps,
+            "perf.json",
+            "verdict.json",
+        );
+        pc3d_render::observe::stamp_digest(&mut bundle);
+        std::fs::write(format!("{dir}/bundle.json"), serde_json::to_string_pretty(&bundle).unwrap()).unwrap();
+        println!(
+            "OBSERVE {} -> PASS ({} captures, {} frames, p50 {} ms) -> {dir}/bundle.json",
+            spec.id,
+            n_shots,
+            report.frames,
+            perf["p50_ms"]
+        );
+        if n_shots == 0 {
+            eprintln!("[FAIL] observe {}: no captures", spec.id);
+            any_fail = true;
+        }
+    }
+    if any_fail {
+        std::process::exit(1);
+    }
+    println!("OBSERVATORY OK");
+}
+
 fn run_ui_seed_preview_shots(out_dir: &str) {
     use pc3d_render::ui::{self, Key, Screen, UiAction};
     use pc3d_render::Shot;

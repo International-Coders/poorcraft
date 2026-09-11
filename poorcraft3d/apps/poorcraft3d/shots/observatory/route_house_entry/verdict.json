@@ -1,0 +1,5 @@
+{
+  "reason": "house entry needs door collision + interior interactions — the semantic playtest slice (WT-002 slice 5)",
+  "route_id": "route_house_entry",
+  "verdict": "unavailable"
+}

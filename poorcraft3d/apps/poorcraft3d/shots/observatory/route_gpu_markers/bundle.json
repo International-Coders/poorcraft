@@ -1,0 +1,25 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_gpu_markers-dev",
+  "commands": [
+    "--observe route_gpu_markers"
+  ],
+  "diff_paths": [],
+  "digest": "3a36a8af8f1cb679",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "",
+  "quality": "mid",
+  "route_id": "route_gpu_markers",
+  "runtime_state_path": "",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    1280,
+    720
+  ],
+  "wireframes": []
+}

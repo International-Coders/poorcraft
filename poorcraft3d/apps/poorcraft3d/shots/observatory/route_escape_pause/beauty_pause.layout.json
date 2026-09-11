@@ -1,0 +1,130 @@
+{
+  "elements": [
+    {
+      "button_state": "",
+      "id": "pause_panel",
+      "kind": "panel",
+      "rect": [
+        259,
+        94,
+        282,
+        311
+      ]
+    },
+    {
+      "button_state": "focused",
+      "id": "pause_resume",
+      "kind": "button",
+      "rect": [
+        275,
+        130,
+        250,
+        34
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "pause_save",
+      "kind": "button",
+      "rect": [
+        275,
+        173,
+        250,
+        34
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "pause_load",
+      "kind": "button",
+      "rect": [
+        275,
+        216,
+        250,
+        34
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "pause_settings",
+      "kind": "button",
+      "rect": [
+        275,
+        259,
+        250,
+        34
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "pause_quit_title",
+      "kind": "button",
+      "rect": [
+        275,
+        302,
+        250,
+        34
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "pause_quit_desktop",
+      "kind": "button",
+      "rect": [
+        275,
+        345,
+        250,
+        34
+      ]
+    }
+  ],
+  "scale": 0.782608687877655,
+  "screen": "pause",
+  "size": [
+    800,
+    500
+  ],
+  "ui_state": {
+    "debug_overlay": false,
+    "focus": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "xp": 0.0
+    },
+    "modal": null,
+    "pointer_grabbed": false,
+    "screen": "pause",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-09-11 12:07",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-09-11 12:07",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "toasts": []
+  }
+}

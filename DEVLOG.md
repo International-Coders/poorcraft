@@ -6488,3 +6488,58 @@ talk/forge interactions are gameplay slices, queued as their own WT
 entries); slice 6 GPU pass markers (WT-007 territory). The sidecar's
 scene/seed/viewport honestly say windowless until the capture slice
 fills them.
+
+## 2026-09-11 — WT-003 in code: the game observatory (slices 1, 2, 5-partial, 7)
+
+WHAT (the third implement-in-code task): the evidence layer — every
+proof route now produces a stamped evidence bundle directory (beauty
+PNG + layout + runtime state + perf + verdict + bundle manifest), the
+comparator renders pass/fail/inconclusive verdicts between bundles, and
+routes the game cannot honestly run yet carry UNAVAILABLE verdicts with
+named reasons instead of silent skips.
+
+HOW:
+- pc3d_assets::observatory (NEW): the three WT-003 contracts embedded
+  and parsed (input routes, evidence bundle schema, MCP tool contract)
+  with a law test that the contract's eight required routes and the 18
+  bundle fields stay in agreement with the runtime.
+- pc3d_render::observe (NEW): the route table (4 available today:
+  title_mouse, new_world_seed, escape_pause, asset_inspect; 4 honestly
+  unavailable: house_entry -> WT-002 slice 5, npc_talk -> the talk
+  slice, forge_use -> the forge slice, gpu_markers -> WT-007 slice 1,
+  each with a >20-char reason); runtime_state_json per the 20-field
+  runtime_state_export schema (player/UI/world/visible assets/
+  interactions/perf; npcs/machines/gpu_markers as null-with-reason per
+  the schema's null_requires_reason law); bundle_json per the 18-field
+  evidence schema with an FNV content digest (stamp_digest — changing
+  any field changes the digest, proven by test); compare_bundles (the
+  slice-7 comparator: bundles readable, same route, every non-empty
+  path exists RELATIVE TO ITS OWN BUNDLE DIR, screenshots decode and
+  carry >= 8 distinct sampled colors, seed agreement with
+  differing-seed => inconclusive not fail).
+- apps: --observe <route|all> (winit's one-event-loop-per-process law
+  honored by re-executing per route — the deck-bench lesson; the
+  available routes drive REAL reducer paths: hover on the title,
+  NewWorld seed typing through the WT-001 preview, StartPlaying ->
+  Escape pause) and --compare-evidence <A> <B>; make p3d-observe.
+
+EVIDENCE: make p3d-observe / --observe all: 4/4 available routes PASS
+with real windowed captures (title_mouse 2 captures p50 6.4 ms,
+new_world_seed 1, escape_pause 1, asset_inspect 1 + the 7 WT-002
+inspection sidecars written INTO the bundle) and 4 honest UNAVAILABLE
+bundles with reasons; --compare-evidence between TWO INDEPENDENT real
+runs of route_title_mouse: verdict PASS with all 7 checks green;
+observe unit tests 3/3 (route table honesty, bundle field completeness
++ digest content-binding, comparator pass/blank-fail/seed-inconclusive
+on constructed bundles); observatory contracts test 1/1. Full suites
+re-run (below).
+
+HONESTLY DEFERRED (the remaining WT-003 slices, queued): slice 3
+wireframe + anchor-overlay captures (renderer mode work — next with
+WT-002 slice 3); slice 5's gameplay routes (house entry / NPC talk /
+forge use — they need the interaction slices to exist first; their
+bundles are already structured to flip from UNAVAILABLE to PASS);
+slice 6 GPU pass markers (WT-007 slice 1 — the runtime state honestly
+carries null-with-reason until then). The beauty captures use the
+windowed readback path (the same presented-frame path the quad-coverage
+law verifies byte-exact); timestamp is unix-seconds (no chrono dep).
