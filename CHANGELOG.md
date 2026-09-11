@@ -3672,3 +3672,14 @@ The simulation-only roadmap was declared complete; the visual reset
   laws green; suites green.
 - Deferred: seed-independent picks (deliberate), shared collision
   envelope per kind, no generated far-LODs.
+
+## Loop 434 — The quest journal
+- J opens the QUEST JOURNAL: the settlement's quests from the proven
+  authority — per row the title with state + progress, the giver by
+  name and role, the kind, the reward. Rows computed once per world
+  (plan_quests at the spawn region, cached); journal state rides the
+  runtime export; E/J close.
+- The playtest route gains the journal: "journal 4 quests" in the
+  chain line, 9 captures, deterministic x2 + comparator PASS.
+- Deferred: accept/claim interactions, giver map markers, live
+  progression states.

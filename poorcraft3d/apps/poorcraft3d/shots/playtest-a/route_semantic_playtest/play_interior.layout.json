@@ -194,6 +194,8 @@
       "xp": 0.0
     },
     "interact": null,
+    "journal": null,
+    "journal_open": false,
     "modal": null,
     "ore_harvested": 0,
     "pointer_grabbed": true,
@@ -208,12 +210,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 19:59",
+        "modified": "2026-09-11 22:07",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 19:59",
+        "modified": "2026-09-11 22:07",
         "name": "beta-shot",
         "seed": 7
       }

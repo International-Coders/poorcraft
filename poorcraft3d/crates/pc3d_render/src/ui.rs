@@ -300,6 +300,17 @@ fn state_col_1() -> [u8; 3] {
     [143, 111, 212]
 }
 
+/// One journal row (synced from pc3d_world::quest's authority).
+#[derive(Clone, Debug, PartialEq)]
+pub struct QuestRow {
+    pub title: String,
+    pub giver: String,
+    pub kind: &'static str,
+    pub state: &'static str,
+    pub progress: String,
+    pub reward: u32,
+}
+
 /// The forge panel's live view (synced from the pure Forge authority).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForgeView {
@@ -408,6 +419,8 @@ pub struct UiState {
     pub forge_bars_taken: u64,
     /// The generic interact panel (chest / map marker): title + lines.
     pub interact: Option<(String, Vec<String>)>,
+    /// The quest journal (J): one row per quest from the authority.
+    pub journal: Option<Vec<QuestRow>>,
     /// The player stock lines (the chest/harvest panel view).
     pub stock_lines: Vec<String>,
     /// Ore harvested + bars obtained (the route's proof).
@@ -438,6 +451,7 @@ impl Default for UiState {
             forge: None,
             forge_bars_taken: 0,
             interact: None,
+            journal: None,
             stock_lines: Vec::new(),
             ore_harvested: 0,
         }
@@ -494,6 +508,14 @@ impl UiState {
             "ore_harvested": self.ore_harvested,
             "stock": self.stock_lines,
             "interact": self.interact.as_ref().map(|(t, _)| t.clone()),
+            "journal_open": self.journal.is_some(),
+            "journal": self.journal.as_ref().map(|rows| {
+                rows.iter().map(|r| serde_json::json!({
+                    "title": r.title, "giver": r.giver, "kind": r.kind,
+                    "state": r.state, "progress": r.progress,
+                    "reward": r.reward,
+                })).collect::<Vec<_>>()
+            }),
         })
     }
 
@@ -503,6 +525,7 @@ impl UiState {
             || self.dialog.is_some()
             || self.forge.is_some()
             || self.interact.is_some()
+            || self.journal.is_some()
     }
 
     pub fn toast(&mut self, text: impl Into<String>) {
@@ -1191,6 +1214,49 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     2,
                 );
             }
+            // The quest journal (J): the settlement's quests from the
+            // authority — title, giver, state, progress, reward.
+            if let Some(rows) = &state.journal {
+                let panel_w = 640;
+                let panel_h = (92 + rows.len().min(6) as i32 * 30 + 34).min(hi - 80);
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = centered_y(hi, ph);
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("journal_panel", panel, Some("QUEST JOURNAL"));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut jy = panel.y + ctx.px(PANEL_PAD) + ctx.px(24);
+                let max_w = (pw - PANEL_PAD * 2) as u32;
+                if rows.is_empty() {
+                    ctx.text("journal_empty", "NO QUESTS IN THIS REGION", lx, jy, 2);
+                }
+                for (i, q) in rows.iter().take(6).enumerate() {
+                    let head = match q.state {
+                        "CLAIMED" => format!("{} · DONE", q.title),
+                        "COMPLETE" => format!("{} · READY TO CLAIM", q.title),
+                        "ACTIVE" => format!("{} · {}", q.title, q.progress),
+                        _ => format!("{} · OFFERED", q.title),
+                    };
+                    let head = fit_to_width(&head, 2 * ctx.k, max_w);
+                    ctx.text(&format!("journal_row_{i}"), &head, lx, jy, 2);
+                    let sub = format!(
+                        "from {} · {} · reward {}",
+                        q.giver, q.kind, q.reward
+                    );
+                    let sub = fit_to_width(&sub, 1 * ctx.k, max_w);
+                    ctx.text(&format!("journal_sub_{i}"), &sub, lx, jy + ctx.px(15), 1);
+                    jy += ctx.px(30);
+                }
+                let hint = "J CLOSE";
+                let (hw, _) = font::text_size(hint, 2);
+                ctx.text(
+                    "journal_hint",
+                    hint,
+                    panel.right() - ctx.px(PANEL_PAD) - hw as i32,
+                    panel.bottom() - ctx.px(24),
+                    2,
+                );
+            }
             // The generic interact panel (chest loot / map marker).
             if let Some((title, lines)) = &state.interact {
                 let panel_w = 560;
@@ -1790,6 +1856,9 @@ pub enum UiAction {
     /// The chest/marker slice: open the chest (loot) or read the
     /// marker — the app resolves which.
     OpenInteract,
+    /// The quest journal: J toggles (the app stamps the rows from the
+    /// quest authority).
+    ToggleJournal,
     /// The harvest slice: swing at the ore node.
     HarvestOre,
     /// Proof hook (inspector): raw mouse deltas applied to the live
@@ -1841,6 +1910,20 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                 state.forge = None;
                 acts.push(UiAction::Repaint);
             }
+            Key::Escape if state.journal.is_some() => {
+                state.journal = None;
+                acts.push(UiAction::Repaint);
+            }
+            Key::Char('j') => {
+                // J toggles the quest journal (opens only if the app
+                // has quest rows loaded — it stamps them at spawn).
+                if state.journal.is_some() {
+                    state.journal = None;
+                } else {
+                    acts.push(UiAction::ToggleJournal);
+                }
+                acts.push(UiAction::Repaint);
+            }
             Key::Char('e') => {
                 if let Some(d) = state.dialog.take() {
                     let _ = d;
@@ -1848,6 +1931,8 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                     // E closes the forge panel too.
                 } else if state.interact.take().is_some() {
                     // E closes the interact panel.
+                } else if state.journal.take().is_some() {
+                    // E closes the journal too.
                 } else {
                     acts.push(UiAction::TryTalk);
                 }
@@ -2902,6 +2987,46 @@ mod tests {
             ink_px(&canvas, 1280, r1).max(1),
             ink_px(&canvas2, 1280, r2).max(1),
             "blocked vs ready state must read differently"
+        );
+    }
+
+    #[test]
+    fn quest_journal_panel_lays_out_inks_and_j_toggles() {
+        let mut s = state(Screen::Gameplay);
+        s.journal = Some(vec![
+            QuestRow {
+                title: "Farmer visit".into(),
+                giver: "Bram Stonehand (the farmer)".into(),
+                kind: "visit",
+                state: "OFFERED",
+                progress: "0/1".into(),
+                reward: 12,
+            },
+            QuestRow {
+                title: "Builder deliver".into(),
+                giver: "Maren Oldford (the builder)".into(),
+                kind: "deliver",
+                state: "ACTIVE".into(),
+                progress: "2/6".into(),
+                reward: 30,
+            },
+        ]);
+        assert!(s.blocks_gameplay(), "the journal owns the frame");
+        let list = build(&s, 1280, 720);
+        for id in ["journal_panel", "journal_row_0", "journal_sub_0", "journal_hint"] {
+            assert!(list.by_id(id).is_some(), "journal element {id} missing");
+        }
+        let canvas = paint(&list);
+        let r = list.by_id("journal_row_0").unwrap().rect;
+        assert!(ink_px(&canvas, 1280, r) > 0, "journal rows must paint");
+        // J closes; J again asks the app to open (ToggleJournal).
+        let _ = on_key(&mut s, Key::Char('j'));
+        assert!(s.journal.is_none(), "J closes the journal");
+        assert!(!s.blocks_gameplay());
+        let acts = on_key(&mut s, Key::Char('j'));
+        assert!(
+            acts.iter().any(|a| matches!(a, UiAction::ToggleJournal)),
+            "J with it closed must ask the app for rows"
         );
     }
 

@@ -4884,6 +4884,13 @@ fn run_observe(route_id: &str, out_root: &str) {
                         ctx.actions.push(UiAction::ForgeTake);
                     }),
                 ));
+                // The quest journal (J) opens after the bar is taken.
+                ui_script.push((
+                    640,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::ToggleJournal);
+                    }),
+                ));
                 shots.push(Shot::new(60, format!("{dir}/play_door_outside.png"))
                     .ui_dump(format!("{dir}/play_door_outside.layout.json")));
                 shots.push(Shot::new(100, format!("{dir}/play_interior.png"))
@@ -4900,8 +4907,12 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/play_forge.layout.json")));
                 shots.push(Shot::new(660, format!("{dir}/play_taken.png"))
                     .ui_dump(format!("{dir}/play_taken.layout.json")));
+                shots.push(Shot::new(680, format!("{dir}/play_journal.png"))
+                    .ui_dump(format!("{dir}/play_journal.layout.json")));
                 shots.push(Shot::new(660, format!("{dir}/play_taken.png"))
                     .ui_dump(format!("{dir}/play_taken.layout.json")));
+                shots.push(Shot::new(680, format!("{dir}/play_journal.png"))
+                    .ui_dump(format!("{dir}/play_journal.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
@@ -5172,10 +5183,31 @@ fn run_observe(route_id: &str, out_root: &str) {
             let has_bar = stock
                 .iter()
                 .any(|l| l.as_str().map(|s| s.contains("IRON_BAR")).unwrap_or(false));
+            let journal_shown = panel_shown("play_journal", "journal_panel");
+            let journal_rows = report
+                .captures
+                .iter()
+                .find(|c| {
+                    c.path.file_stem().and_then(|s| s.to_str()) == Some("play_journal")
+                })
+                .and_then(|c| c.ui_layout.as_ref())
+                .and_then(|l| l["elements"].as_array())
+                .map(|els| {
+                    els.iter()
+                        .filter(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with("journal_row_"))
+                                .unwrap_or(false)
+                        })
+                        .count()
+                })
+                .unwrap_or(0);
             let ok = has("play_door_outside")
                 && has("play_interior")
                 && has("play_talk")
                 && has("play_forge")
+                && has("play_journal")
                 && has("play_taken")
                 && has("play_chest")
                 && has("play_harvest")
@@ -5184,11 +5216,13 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && bars > 0
                 && panel_shown("play_chest", "interact_panel")
                 && panel_shown("play_marker", "interact_panel")
+                && journal_shown
+                && journal_rows >= 3
                 && ore > 0
                 && has_bar;
             if ok {
                 println!(
-                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, IRON BAR in stock",
+                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, journal {journal_rows} quests, IRON BAR in stock",
                     dialog_shown.as_deref().unwrap_or("villager")
                 );
             } else {

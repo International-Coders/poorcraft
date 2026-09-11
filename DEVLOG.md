@@ -6987,3 +6987,38 @@ kind only — deliberate: variants are cosmetic and stay stable for a
 given world position across builds); no per-variant collision
 (rock variants use the kind's existing collision envelope); variant
 LODs follow the GLB's own lod0/lod1 (no generated far-LOD).
+
+## 2026-09-11 — The quest journal: the proven quest authority gets its UI
+
+WHAT: J opens the QUEST JOURNAL — the settlement's quests from the
+proven pc3d_world::quest authority (the 108-test sweep's system),
+presented: per row the title with its live state (OFFERED / ACTIVE
+with progress / READY TO CLAIM / DONE), the giver by NAME and role
+(the dialog authority's own villager_name), the kind, and the reward.
+E or J closes; the journal owns the frame like every panel.
+
+HOW: ui.rs gained QuestRow + the QUEST JOURNAL panel (title/sub rows
+fit to width, up to six, J CLOSE hint) + the J key (toggles; asks the
+app for rows via UiAction::ToggleJournal) + journal state in the
+runtime export; app.rs computes the rows ONCE per world from
+plan_quests(gen, plan, spawn-region) — cached on the SliceHost — and
+maps each Quest to its row (villager_name(giver_cell) + role string,
+kind.name(), state string, progress/goal, reward); KeyJ mapped.
+
+EVIDENCE: the UI law (journal elements + ink + J closes/reopens +
+blocks gameplay); the playtest route extended — mid-walk the journal
+opens after the bar is taken: "journal 4 quests" joins the chain line
+(house entered, Maren talked, 1 bar forged, 4 ore harvested,
+chest+marker read, IRON BAR in stock) — 9 captures; make p3d-playtest
+x2 IDENTICAL + comparator PASS; suites green.
+
+BUG THE PROOF CAUGHT: the journal step initially landed BEFORE the
+forge steps in the script vec — steps fire at exact frames consumed
+in order, so the forge block silently never fired (0 bars, panels
+gone); re-ordered ascending and the whole chain returned.
+
+HONESTLY DEFERRED: the journal is read-only (accept/claim interactions
+need quest-event plumbing from gameplay — the authority's advance()
+is proven, the wiring is a follow-up); no giver map markers yet (the
+journal names them; world markers follow the anchor-overlay pattern);
+quest states are as planned at spawn (no live progression yet).

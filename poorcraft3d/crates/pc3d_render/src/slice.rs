@@ -254,6 +254,7 @@ pub fn assemble(
         inventory: pc3d_world::items::Inventory::new(12),
         ore_remaining: 6,
         chest_opened: false,
+        quest_rows: None,
     }
 }
 
@@ -779,6 +780,7 @@ pub fn assemble_rebuild(
         inventory: pc3d_world::items::Inventory::new(12),
         ore_remaining: 6,
         chest_opened: false,
+        quest_rows: None,
     };
     host.host.borrow_mut().run_ticks(0);
     host

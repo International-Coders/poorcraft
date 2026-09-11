@@ -233,6 +233,116 @@
     },
     {
       "button_state": "",
+      "id": "journal_panel",
+      "kind": "panel",
+      "rect": [
+        80,
+        127,
+        640,
+        246
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_0",
+      "kind": "text",
+      "rect": [
+        100,
+        171,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_0",
+      "kind": "text",
+      "rect": [
+        100,
+        186,
+        311,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_1",
+      "kind": "text",
+      "rect": [
+        100,
+        201,
+        346,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_1",
+      "kind": "text",
+      "rect": [
+        100,
+        216,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_2",
+      "kind": "text",
+      "rect": [
+        100,
+        231,
+        358,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_2",
+      "kind": "text",
+      "rect": [
+        100,
+        246,
+        341,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_3",
+      "kind": "text",
+      "rect": [
+        100,
+        261,
+        370,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_3",
+      "kind": "text",
+      "rect": [
+        100,
+        276,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_hint",
+      "kind": "text",
+      "rect": [
+        618,
+        349,
+        82,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "interact_panel",
       "kind": "panel",
       "rect": [
@@ -382,6 +492,41 @@
       "xp": 0.0
     },
     "interact": "MAP MARKER",
+    "journal": [
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "greet",
+        "progress": "0/4",
+        "reward": 31,
+        "state": "OFFERED",
+        "title": "THE FARMER'S greet"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
+        "kind": "build",
+        "progress": "0/11",
+        "reward": 27,
+        "state": "OFFERED",
+        "title": "THE BUILDER'S build"
+      },
+      {
+        "giver": "Dunstan Fernbrook (the guard)",
+        "kind": "excavate",
+        "progress": "0/8",
+        "reward": 39,
+        "state": "OFFERED",
+        "title": "THE GUARD'S excavate"
+      },
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "excavate",
+        "progress": "0/8",
+        "reward": 35,
+        "state": "OFFERED",
+        "title": "THE FARMER'S excavate"
+      }
+    ],
+    "journal_open": true,
     "modal": null,
     "ore_harvested": 4,
     "pointer_grabbed": true,
@@ -396,12 +541,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 20:00",
+        "modified": "2026-09-11 22:07",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 20:00",
+        "modified": "2026-09-11 22:07",
         "name": "beta-shot",
         "seed": 7
       }
@@ -414,7 +559,7 @@
     ],
     "toasts": [
       {
-        "age_s": 0.609886884689331,
+        "age_s": 1.5103960037231445,
         "text": "FORGED 1 BARS"
       }
     ]

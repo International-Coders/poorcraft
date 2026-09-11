@@ -6,7 +6,7 @@
     "--observe route_semantic_playtest"
   ],
   "diff_paths": [],
-  "digest": "609df60b2a054838",
+  "digest": "708c50ae1e7e100d",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
@@ -22,7 +22,8 @@
     "play_harvest.png",
     "play_marker.png",
     "play_forge.png",
-    "play_taken.png"
+    "play_taken.png",
+    "play_journal.png"
   ],
   "seed": "3",
   "verdict_path": "verdict.json",

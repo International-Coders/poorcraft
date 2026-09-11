@@ -137,6 +137,9 @@ pub struct SliceHost {
     pub ore_remaining: u8,
     /// Whether the chest has been looted.
     pub chest_opened: bool,
+    /// The quest journal rows for the spawn region (computed once from
+    /// the pc3d_world::quest authority).
+    pub quest_rows: Option<Vec<crate::ui::QuestRow>>,
     /// Frame counter for the forge's work tick.
     pub forge_tick_frame: u64,
 }
@@ -146,6 +149,25 @@ pub struct SliceHost {
 /// 6 m ahead — both through `HostCommand` + one tick, never by client-side
 /// mutation. The renderer then syncs read-only from `host.construction`.
 pub struct InteractiveHost(pub std::rc::Rc<std::cell::RefCell<pc3d_world::host::SoloHost>>);
+
+fn giver_role_str(r: pc3d_world::npc::Role) -> &'static str {
+    match r {
+        pc3d_world::npc::Role::Farmer => "farmer",
+        pc3d_world::npc::Role::Fisher => "fisher",
+        pc3d_world::npc::Role::Builder => "builder",
+        pc3d_world::npc::Role::Guard => "guard",
+    }
+}
+
+fn quest_state_str(st: pc3d_world::quest::QuestState) -> &'static str {
+    use pc3d_world::quest::QuestState;
+    match st {
+        QuestState::Offered => "OFFERED",
+        QuestState::Active => "ACTIVE",
+        QuestState::Complete => "COMPLETE",
+        QuestState::Claimed => "CLAIMED",
+    }
+}
 
 /// The plaza world position (XZ) when a settlement slice is mounted.
 pub fn plaza_xz(plaza: &pc3d_world::coords::CellCoord) -> [f32; 2] {
@@ -795,6 +817,57 @@ impl App {
                     let _ = gen;
                     if let Some(slice) = self.cfg.slice_host.as_mut() {
                         slice.player.pos = [*x, ground + 0.1, *z];
+                    }
+                }
+                UiAction::ToggleJournal => {
+                    // The quest journal: rows from the pure authority
+                    // (plan_quests for the spawn region), cached on
+                    // the slice host after first computation.
+                    let rows: Option<Vec<crate::ui::QuestRow>> = self
+                        .cfg
+                        .slice_host
+                        .as_mut()
+                        .map(|slice| {
+                            if slice.quest_rows.is_none() {
+                                let region = pc3d_world::coords::RegionCoord {
+                                    x: (slice.player.pos[0] as i64 / 256) as i32,
+                                    z: (slice.player.pos[2] as i64 / 256) as i32,
+                                };
+                                slice.quest_rows = Some(
+                                    pc3d_world::quest::plan_quests(
+                                        &slice.scene.gen,
+                                        &slice.scene.plan,
+                                        region,
+                                    )
+                                    .into_iter()
+                                    .map(|q| crate::ui::QuestRow {
+                                        title: q.title.clone(),
+                                        giver: format!(
+                                            "{} (the {})",
+                                            pc3d_world::dialog::villager_name(q.giver_cell),
+                                            giver_role_str(q.giver_role)
+                                        ),
+                                        kind: q.kind.name(),
+                                        state: quest_state_str(q.state),
+                                        progress: format!(
+                                            "{}/{}",
+                                            q.progress,
+                                            q.kind.goal()
+                                        ),
+                                        reward: q.reward,
+                                    })
+                                    .collect(),
+                                );
+                            }
+                            slice.quest_rows.clone().unwrap_or_default()
+                        });
+                    if let (Some(rows), Some(s)) = (rows, self.state.as_mut()) {
+                        s.ui.journal = if s.ui.journal.is_some() {
+                            None
+                        } else {
+                            Some(rows)
+                        };
+                        s.ui_dirty = true;
                     }
                 }
                 UiAction::HarvestOre => {
@@ -2122,6 +2195,7 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         KeyCode::F3 => Key::F3,
         KeyCode::KeyQ => Key::KeyQ,
         KeyCode::KeyE => Key::Char('e'),
+        KeyCode::KeyJ => Key::Char('j'),
         KeyCode::Digit1 | KeyCode::Numpad1 => Key::Digit(1),
         KeyCode::Digit2 | KeyCode::Numpad2 => Key::Digit(2),
         KeyCode::Digit3 | KeyCode::Numpad3 => Key::Digit(3),
