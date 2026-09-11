@@ -1,0 +1,59 @@
+{
+  "anchors": [
+    {
+      "id": "door_front",
+      "position_m": [
+        0.44999998807907104,
+        0.0,
+        -2.5
+      ]
+    },
+    {
+      "id": "road_front",
+      "position_m": [
+        0.44999998807907104,
+        0.0,
+        -5.0
+      ]
+    },
+    {
+      "id": "interior",
+      "position_m": [
+        0.44999998807907104,
+        0.0,
+        0.4000000059604645
+      ]
+    },
+    {
+      "id": "roof_smoke",
+      "position_m": [
+        1.7000000476837158,
+        4.900000095367432,
+        0.550000011920929
+      ]
+    },
+    {
+      "id": "build_base",
+      "position_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "asset_id": "starter_house",
+  "bounds_max_m": [
+    3.049999952316284,
+    4.900000095367432,
+    2.8499999046325684
+  ],
+  "bounds_min_m": [
+    -3.049999952316284,
+    0.0,
+    -2.8499999046325684
+  ],
+  "build_hash": "dev",
+  "glb": "module/house_croft.glb",
+  "mode": "anchor_overlay",
+  "screenshot": "overlay.png"
+}

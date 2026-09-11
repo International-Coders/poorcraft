@@ -1,0 +1,8 @@
+{
+  "asset_id": "starter_house",
+  "build_hash": "dev",
+  "glb": "module/house_croft.glb",
+  "mode": "wireframe",
+  "screenshot": "wireframe.png",
+  "unique_edges": 114
+}

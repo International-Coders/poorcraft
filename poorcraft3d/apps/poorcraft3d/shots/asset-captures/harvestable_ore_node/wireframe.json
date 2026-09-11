@@ -1,0 +1,8 @@
+{
+  "asset_id": "harvestable_ore_node",
+  "build_hash": "dev",
+  "glb": "prop/ore_node.glb",
+  "mode": "wireframe",
+  "screenshot": "wireframe.png",
+  "unique_edges": 438
+}

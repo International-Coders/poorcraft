@@ -3829,6 +3829,60 @@ fn main() {
                 }
             }
         }
+        Some("--asset-capture") => {
+            // WT-002/003 slice 3: beauty + wireframe + anchor-overlay
+            // windowed captures for the GLB-backed starter assets, with
+            // pixel checks + sidecars. Re-execs per asset (winit law).
+            let which: String = args.get(2).cloned().unwrap_or_else(|| "all".into());
+            let out_root: String = args
+                .get(3)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/asset-captures", env!("CARGO_MANIFEST_DIR")));
+            let glb_backed = [
+                ("starter_house", "module/house_croft.glb"),
+                ("openable_chest", "prop/chest.glb"),
+                ("harvestable_ore_node", "prop/ore_node.glb"),
+                ("map_marker_set", "module/banner_sign.glb"),
+            ];
+            let selected: Vec<_> = if which == "all" {
+                glb_backed.to_vec()
+            } else {
+                glb_backed
+                    .iter()
+                    .filter(|(id, _)| *id == which)
+                    .copied()
+                    .collect()
+            };
+            if selected.is_empty() {
+                eprintln!("[FAIL] unknown asset {which}");
+                std::process::exit(2);
+            }
+            let single = which != "all";
+            let mut any_fail = false;
+            for (id, glb) in selected {
+                if !single {
+                    let bin = std::env::current_exe().expect("current exe");
+                    let status = std::process::Command::new(bin)
+                        .arg("--asset-capture")
+                        .arg(id)
+                        .arg(&out_root)
+                        .status()
+                        .expect("re-exec capture");
+                    if !status.success() {
+                        any_fail = true;
+                    }
+                    continue;
+                }
+                if let Err(e) = run_asset_capture(id, glb, &out_root) {
+                    eprintln!("[FAIL] asset-capture {id}: {e}");
+                    any_fail = true;
+                }
+            }
+            if any_fail {
+                std::process::exit(1);
+            }
+            println!("ASSET CAPTURES OK");
+        }
         Some("--observe") => {
             // WT-003: the observatory — one route run = one evidence
             // bundle directory (beauty PNG + layout + runtime state +
@@ -4264,6 +4318,203 @@ fn write_unavailable_bundle(route_id: &str, reason: &str, out_root: &str) {
     )
     .unwrap();
     println!("OBSERVE {route_id} -> UNAVAILABLE ({reason})");
+}
+
+/// WT-002/003 slice 3: one asset, three windowed captures (beauty /
+/// wireframe / anchor overlay) with pixel checks + sidecars.
+fn run_asset_capture(id: &str, glb_rel: &str, out_root: &str) -> Result<(), String> {
+    use pc3d_render::Shot;
+
+    let dir = format!("{out_root}/{id}");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let glb_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../assets/compiled")
+        .join(glb_rel);
+    let asset = pc3d_render::glb::load_asset_file(&glb_path)
+        .map_err(|e| format!("glb {glb_rel}: {e}"))?;
+
+    // Frame the camera on the asset from its lod0 bounds.
+    let lod = asset.lods.first().ok_or("no lods")?;
+    let mut mn = [f32::MAX; 3];
+    let mut mx = [f32::MIN; 3];
+    for v in &lod.vertices {
+        for i in 0..3 {
+            mn[i] = mn[i].min(v.pos[i]);
+            mx[i] = mx[i].max(v.pos[i]);
+        }
+    }
+    let ext = (mx[0] - mn[0]).max(mx[1] - mn[1]).max(mx[2] - mn[2]).max(0.5);
+    let center = [(mn[0] + mx[0]) / 2.0, (mn[1] + mx[1]) / 2.0, (mn[2] + mx[2]) / 2.0];
+    let eye = [center[0] + ext * 1.7, center[1] + ext * 0.9, center[2] + ext * 2.0];
+    let d = [
+        center[0] - eye[0],
+        center[1] - eye[1],
+        center[2] - eye[2],
+    ];
+    let yaw = (-d[0]).atan2(-d[2]);
+    let pitch = (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin();
+    let pose = pc3d_render::CameraPose::new(eye, yaw, pitch);
+
+    let sockets = asset.sockets.clone();
+    let edge_count = {
+        let lod = asset.lods.first().ok_or("no lods")?;
+        pc3d_render::renderer::extract_wire_edges(
+            &lod.vertices,
+            &lod.indices,
+            [1.0, 0.82, 0.35],
+        )
+        .len()
+            / 2
+    };
+    let glb_for_script = std::rc::Rc::new((asset, pose));
+    let g1 = glb_for_script.clone();
+    let g2 = glb_for_script.clone();
+    let ui_script: Vec<(u64, pc3d_render::UiStep)> = vec![
+        (
+            10,
+            Box::new(move |ui, r, _ctx| {
+                let _ = ui;
+                r.set_pose(g1.1);
+                r.load_asset(&g1.0, "lod0", [0.0, 0.0, 0.0]);
+            }),
+        ),
+        (
+            100,
+            Box::new(move |ui, r, _ctx| {
+                let _ = ui;
+                let _ = &g2;
+                r.set_scene_debug(pc3d_render::renderer::SceneDebugMode::Wireframe);
+            }),
+        ),
+        (
+            180,
+            Box::new(|ui, r, _ctx| {
+                let _ = ui;
+                r.set_scene_debug(pc3d_render::renderer::SceneDebugMode::AnchorOverlay);
+            }),
+        ),
+    ];
+    let shot = |frame: u64, name: &str| -> Shot {
+        Shot::new(frame, format!("{dir}/{name}.png"))
+    };
+    let cfg = pc3d_render::WindowConfig {
+        title: format!("POORCRAFT 3D — asset capture {id}"),
+        logical_size: (1280.0, 720.0),
+        size_is_physical: true,
+        max_frames: Some(300),
+        probe_set: pc3d_render::ProbeSet::SkyOnly,
+        shots: vec![
+            shot(60, "beauty"),
+            shot(140, "wireframe"),
+            shot(220, "overlay"),
+        ],
+        owner_menu: true,
+        ui_script,
+        ..Default::default()
+    };
+    let report = pc3d_render::run_windowed(cfg).map_err(|e| e.to_string())?;
+    let by_name = |n: &str| {
+        report
+            .captures
+            .iter()
+            .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(n))
+            .unwrap_or_else(|| panic!("capture {n} missing"))
+    };
+    // Pixel checks (the presented-frame path; values are sRGB-encoded).
+    // Pixel checks on the CENTER REGION only (the framed asset) — the
+    // sky/sun disk and the bottom HUD band cannot fake a pass, and each
+    // debug capture must genuinely DIFFER from the beauty capture there.
+    let (fw, fh) = (report.final_physical.0 as usize, report.final_physical.1 as usize);
+    let center = |rgba: &[u8]| -> Vec<[u8; 4]> {
+        let (x0, x1) = (fw / 5, fw * 4 / 5);
+        let (y0, y1) = (fh / 5, fh * 4 / 5);
+        (y0..y1)
+            .flat_map(|y| (x0..x1).map(move |x| (y, x)))
+            .filter_map(|(y, x)| {
+                let i = (y * fw + x) * 4;
+                rgba.get(i..i + 4).and_then(|s| s.try_into().ok())
+            })
+            .collect()
+    };
+    let mut checks: Vec<(&str, bool, String)> = Vec::new();
+    let beauty = by_name("beauty");
+    let distinct = beauty.report.distinct_colors;
+    checks.push(("beauty_nonblank", distinct >= 30, format!("{distinct} colors")));
+    let cb = center(&beauty.rgba);
+    let count = |px: &[[u8; 4]], pred: fn(&[u8; 4]) -> bool| px.iter().filter(|p| pred(p)).count();
+    let wire = by_name("wireframe");
+    let cw = center(&wire.rgba);
+    let diff_frac = {
+        let same = cb
+            .iter()
+            .zip(cw.iter())
+            .filter(|(a, b)| a[..3] == b[..3])
+            .count();
+        1.0 - same as f32 / cb.len().max(1) as f32
+    };
+    let line_px = count(&cw, |p| p[0] > 225 && p[1] > 225);
+    checks.push((
+        "wireframe_edges_visible",
+        diff_frac > 0.02 && line_px > 120,
+        format!("{line_px} center bright px, diff {}%", diff_frac * 100.0),
+    ));
+    let overlay = by_name("overlay");
+    let co = center(&overlay.rgba);
+    let diff_frac_o = {
+        let same = cb
+            .iter()
+            .zip(co.iter())
+            .filter(|(a, b)| a[..3] == b[..3])
+            .count();
+        1.0 - same as f32 / cb.len().max(1) as f32
+    };
+    let marker_px = count(&co, |p| p[0] > 245 && p[1] > 150 && p[2] < 200);
+    checks.push((
+        "anchors_visible",
+        diff_frac_o > 0.02 && marker_px > 8,
+        format!("{marker_px} ember-ish px, diff {}%", diff_frac_o * 100.0),
+    ));
+    // Sidecars.
+    std::fs::write(
+        format!("{dir}/wireframe.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "asset_id": id, "glb": glb_rel, "build_hash": pc3d_render::ui::build_stamp(),
+            "mode": "wireframe", "unique_edges": edge_count,
+            "screenshot": "wireframe.png",
+        }))
+        .unwrap(),
+    )
+    .map_err(|e| e.to_string())?;
+    let socket_labels: Vec<serde_json::Value> = sockets
+        .iter()
+        .map(|(n, p)| serde_json::json!({"id": n, "position_m": [p[0], p[1], p[2]]}))
+        .collect();
+    std::fs::write(
+        format!("{dir}/overlay.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "asset_id": id, "glb": glb_rel, "build_hash": pc3d_render::ui::build_stamp(),
+            "mode": "anchor_overlay",
+            "bounds_min_m": mn, "bounds_max_m": mx,
+            "anchors": socket_labels,
+            "screenshot": "overlay.png",
+        }))
+        .unwrap(),
+    )
+    .map_err(|e| e.to_string())?;
+    let mut row_fail = None;
+    for (n, ok, detail) in &checks {
+        println!("  {id}/{n}: {} ({detail})", if *ok { "PASS" } else { "FAIL" });
+        if !ok && row_fail.is_none() {
+            row_fail = Some(format!("check {n} failed ({detail})"));
+        }
+    }
+    match row_fail {
+        Some(e) => Err(e),
+        None => {
+            println!("ASSET CAPTURE {id} OK -> {dir}");
+            Ok(())
+        }
+    }
 }
 
 /// WT-003: run one observatory route and write its evidence bundle.

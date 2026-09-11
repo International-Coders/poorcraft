@@ -196,6 +196,17 @@ fn fs_mesh(in: MeshOut) -> @location(0) vec4f {
     if env.params3.x > 0.5 {
         return vec4f(height_ramp(in.world.y), 1.0);
     }
+    // Scene debug dim (WT-002/003 slice 3): the world fades to 12% so
+    // the bright wireframe edges / anchor markers own the frame. The
+    // debug LINES are exempt — they are sun-aligned by construction
+    // (dot > 0.9999), so they fall through to the lit path at full
+    // brightness while every world surface dims.
+    if env.params3.y > 0.5 {
+        let is_debug_line = dot(normalize(in.normal), globals.sun_dir.xyz) > 0.9999;
+        if (!is_debug_line) {
+            return vec4f(in.color * 0.05, 1.0);
+        }
+    }
     let n = normalize(in.normal);
     var sun = max(dot(n, globals.sun_dir.xyz), 0.0);
     // Sun shadows (NWR-006): normal-offset the lookup, keep a soft 35%
@@ -295,6 +306,17 @@ fn fs_cutout(in: CutoutOut) -> @location(0) vec4f {
     if m < 0.5 { discard; }
     if env.params3.x > 0.5 {
         return vec4f(height_ramp(in.world.y), 1.0);
+    }
+    // Scene debug dim (WT-002/003 slice 3): the world fades to 12% so
+    // the bright wireframe edges / anchor markers own the frame. The
+    // debug LINES are exempt — they are sun-aligned by construction
+    // (dot > 0.9999), so they fall through to the lit path at full
+    // brightness while every world surface dims.
+    if env.params3.y > 0.5 {
+        let is_debug_line = dot(normalize(in.normal), globals.sun_dir.xyz) > 0.9999;
+        if (!is_debug_line) {
+            return vec4f(in.color * 0.05, 1.0);
+        }
     }
     let n = normalize(in.normal);
     var sun = max(dot(n, globals.sun_dir.xyz), 0.0);

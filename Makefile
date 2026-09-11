@@ -137,6 +137,12 @@ p3d-observe: ## WT-003: the observatory — all routes as evidence bundles (PNG+
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe all poorcraft3d/apps/poorcraft3d/shots/observatory || exit 1; \
 	echo "P3D OBSERVATORY OK"
 
+p3d-asset-captures: ## WT-002/003 slice 3: beauty+wireframe+anchor-overlay windowed captures per GLB starter asset (pixel checks + sidecars): make p3d-asset-captures
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/asset-captures
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-capture all poorcraft3d/apps/poorcraft3d/shots/asset-captures || exit 1; \
+	echo "P3D ASSET CAPTURES OK"
+
 p3d-assets-window: ## NWR-002: windowed asset-factory proof (tree/rock/house): make p3d-assets-window [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-assets $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \

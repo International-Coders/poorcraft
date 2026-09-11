@@ -59,6 +59,9 @@ pub struct FloraPipelines {
 struct Pipelines {
     sky: wgpu::RenderPipeline,
     mesh: wgpu::RenderPipeline,
+    /// WT-002/003 slice 3: the same lit vertex path on LineList —
+    /// wireframe edges + anchor overlays.
+    wire: wgpu::RenderPipeline,
     hud: wgpu::RenderPipeline,
     /// The full-RGBA UI layer (GLM UI rework): passthrough fragment over
     /// the hud vertex layout, alpha-blended, drawn after the HUD line.
@@ -479,9 +482,57 @@ impl Pipelines {
                 "fs_mesh",
                 std::slice::from_ref(&VERTEX_LAYOUT),
                 Some(wgpu::Face::Back),
-                Some(depth24),
+                Some(depth24.clone()),
                 None,
             ),
+            wire: {
+                // The mesh path on LineList (debug edges/overlays): lines
+                // have no winding, so no culling; unlit-bright comes from
+                // sun-aligned normals at build time.
+                let mut d = wgpu::RenderPipelineDescriptor {
+                    label: Some("pc3d wire pipeline"),
+                    layout: Some(&pl_globals),
+                    vertex: wgpu::VertexState {
+                        module: &module,
+                        entry_point: Some("vs_mesh"),
+                        buffers: std::slice::from_ref(&VERTEX_LAYOUT),
+                        compilation_options: Default::default(),
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &module,
+                        entry_point: Some("fs_mesh"),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: target_format,
+                            blend: None,
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                        compilation_options: Default::default(),
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::LineList,
+                        cull_mode: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        ..Default::default()
+                    },
+                    // X-ray inspection depth: lines rasterize depth in
+                    // ulps-different steps than the triangles they lie
+                    // on, so LessEqual makes 1px edges lose z-fights and
+                    // vanish. Always + no write = the see-through
+                    // wireframe the inspector wants (all edges visible
+                    // over the dimmed world).
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth24Plus,
+                        depth_write_enabled: false,
+                        depth_compare: wgpu::CompareFunction::Always,
+                        stencil: Default::default(),
+                        bias: Default::default(),
+                    }),
+                    multisample: Default::default(),
+                    multiview: None,
+                    cache: None,
+                };
+                device.create_render_pipeline(&d)
+            },
             hud: make(
                 "pc3d hud pipeline",
                 &pl_hud,
@@ -612,6 +663,19 @@ pub struct Renderer {
     npcs: Option<GpuMesh>,
     /// Placed GLB assets (NWR-002): (mesh, triangles) for the record.
     assets: Vec<(GpuMesh, usize)>,
+    /// WT-002/003 slice 3: per-asset anchors + bounds for the overlay.
+    asset_anchors: Vec<AssetAnchors>,
+    /// CPU-side deduped wire edges of every loaded asset (rebuilt to GPU
+    /// lazily when a debug mode first draws).
+    wire_edges: Vec<crate::scene::SceneVertex>,
+    wire_dirty: bool,
+    /// The GPU edge buffer (rebuilt when wire_dirty).
+    wire_gpu: Option<GpuMesh>,
+    /// The GPU anchor/bounds overlay buffer (rebuilt when dirty).
+    overlay_gpu: Option<GpuMesh>,
+    overlay_dirty: bool,
+    /// The scene debug mode: Normal / Wireframe / AnchorOverlay.
+    scene_debug: SceneDebugMode,
     start: std::time::Instant,
     /// Frozen water time for deterministic proofs (None = wall clock).
     water_time_override: Option<f32>,
@@ -655,6 +719,94 @@ pub struct Renderer {
 }
 
 /// A plain vertex/index buffer pair (u16 or u32 indices).
+/// WT-002/003 slice 3: the scene debug capture modes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SceneDebugMode {
+    Normal,
+    /// Deduped mesh edges as bright lines over a dimmed world.
+    Wireframe,
+    /// Anchor axis crosses + bounds wire boxes over a dimmed world.
+    AnchorOverlay,
+}
+
+/// One loaded asset's overlay data: world placement, named sockets,
+/// and the lod0 bounds (min/max already translated by placement).
+#[derive(Clone, Debug)]
+pub struct AssetAnchors {
+    pub glb_id: String,
+    pub placement: [f32; 3],
+    pub sockets: Vec<(String, [f32; 3])>,
+    pub bounds_min: [f32; 3],
+    pub bounds_max: [f32; 3],
+}
+
+/// Extracts the UNIQUE edges of an indexed mesh (each edge once, as a
+/// LineList vertex pair). Wireframe lines get sun-aligned normals so
+/// the lit path draws them at full, deterministic brightness.
+pub fn extract_wire_edges(
+    verts: &[crate::scene::SceneVertex],
+    idx: &[u32],
+    color: [f32; 3],
+) -> Vec<crate::scene::SceneVertex> {
+    let sun = crate::scene::SUN_DIR;
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = Vec::new();
+    for t in idx.chunks_exact(3) {
+        for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            let key = (a.min(b), a.max(b));
+            if !seen.insert(key) {
+                continue;
+            }
+            for vi in [key.0, key.1] {
+                let v = verts[vi as usize];
+                out.push(crate::scene::SceneVertex {
+                    pos: v.pos,
+                    normal: sun,
+                    color,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Builds the anchor overlay: per socket a 3-axis cross (X ember, Y
+/// green, Z blue) and per asset a white bounds wire box (12 edges).
+pub fn build_overlay_edges(anchors: &[AssetAnchors]) -> Vec<crate::scene::SceneVertex> {
+    let sun = crate::scene::SUN_DIR;
+    let mut out = Vec::new();
+    let mut line = |from: [f32; 3], to: [f32; 3], c: [f32; 3], out: &mut Vec<crate::scene::SceneVertex>| {
+        for p in [from, to] {
+            out.push(crate::scene::SceneVertex { pos: p, normal: sun, color: c });
+        }
+    };
+    const ARM: f32 = 0.22;
+    for a in anchors {
+        for (_, s) in &a.sockets {
+            let p = [a.placement[0] + s[0], a.placement[1] + s[1], a.placement[2] + s[2]];
+            line([p[0] - ARM, p[1], p[2]], [p[0] + ARM, p[1], p[2]], [1.0, 0.55, 0.15], &mut out);
+            line([p[0], p[1] - ARM, p[2]], [p[0], p[1] + ARM, p[2]], [0.35, 1.0, 0.45], &mut out);
+            line([p[0], p[1], p[2] - ARM], [p[0], p[1], p[2] + ARM], [0.35, 0.65, 1.0], &mut out);
+        }
+        // Bounds box: 12 edges.
+        let (mn, mx) = (a.bounds_min, a.bounds_max);
+        let corners: [[f32; 3]; 8] = [
+            [mn[0], mn[1], mn[2]], [mx[0], mn[1], mn[2]],
+            [mx[0], mx[1], mn[2]], [mn[0], mx[1], mn[2]],
+            [mn[0], mn[1], mx[2]], [mx[0], mn[1], mx[2]],
+            [mx[0], mx[1], mx[2]], [mn[0], mx[1], mx[2]],
+        ];
+        for (i, j) in [
+            (0, 1), (1, 2), (2, 3), (3, 0),
+            (4, 5), (5, 6), (6, 7), (7, 4),
+            (0, 4), (1, 5), (2, 6), (3, 7),
+        ] {
+            line(corners[i], corners[j], [0.92, 0.94, 0.98], &mut out);
+        }
+    }
+    out
+}
+
 struct GpuMesh {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
@@ -801,6 +953,13 @@ impl Renderer {
             city: None,
             npcs: None,
             assets: Vec::new(),
+            asset_anchors: Vec::new(),
+            wire_edges: Vec::new(),
+            wire_dirty: false,
+            wire_gpu: None,
+            overlay_gpu: None,
+            overlay_dirty: true,
+            scene_debug: SceneDebugMode::Normal,
             start: std::time::Instant::now(),
             water_time_override: None,
             detail_flag: 0.0,
@@ -891,6 +1050,13 @@ impl Renderer {
             city: None,
             npcs: None,
             assets: Vec::new(),
+            asset_anchors: Vec::new(),
+            wire_edges: Vec::new(),
+            wire_dirty: false,
+            wire_gpu: None,
+            overlay_gpu: None,
+            overlay_dirty: true,
+            scene_debug: SceneDebugMode::Normal,
             start: std::time::Instant::now(),
             water_time_override: None,
             detail_flag: 0.0,
@@ -1115,6 +1281,18 @@ impl Renderer {
         self.height_debug = on;
     }
 
+    /// WT-002/003 slice 3: the scene debug capture mode — Wireframe
+    /// draws the assets' deduped edges over a dimmed world; AnchorOverlay
+    /// draws socket axis-crosses + bounds boxes.
+    pub fn set_scene_debug(&mut self, mode: SceneDebugMode) {
+        self.scene_debug = mode;
+    }
+
+    /// The overlay data recorded so far (proof sidecars).
+    pub fn asset_anchor_data(&self) -> &[AssetAnchors] {
+        &self.asset_anchors
+    }
+
     /// The Deck Low lever: gate the rig's pose updates to N Hz (the
     /// rig still moves — at bench-stable steps; deterministic under
     /// frozen time because the step is QUANTIZED).
@@ -1304,6 +1482,29 @@ impl Renderer {
         let verts: Vec<crate::scene::SceneVertex> = baked.vertices;
         let idx: Vec<u32> = baked.indices;
         let tris = idx.len() / 3;
+        // WT-002/003 slice 3: retain the overlay data (sockets + bounds)
+        // and accumulate wire edges for the debug captures.
+        let mut mn = [f32::MAX; 3];
+        let mut mx = [f32::MIN; 3];
+        for v in &verts {
+            for i in 0..3 {
+                mn[i] = mn[i].min(v.pos[i]);
+                mx[i] = mx[i].max(v.pos[i]);
+            }
+        }
+        // The GLB carries no self-id; callers know it (the semantic
+        // registry maps ids), so the record is positional.
+        self.asset_anchors.push(AssetAnchors {
+            glb_id: format!("glb-{}", self.assets.len()),
+            placement,
+            sockets: asset.sockets.clone(),
+            bounds_min: mn,
+            bounds_max: mx,
+        });
+        self.wire_edges
+            .extend(extract_wire_edges(&verts, &idx, [1.0, 0.82, 0.35]));
+        self.wire_dirty = true;
+        self.overlay_dirty = true;
         let mesh = GpuMesh::from_mesh_u32(&self.ctx.device, &verts, &idx);
         self.assets.push((mesh, tris));
         tris
@@ -1736,11 +1937,41 @@ impl Renderer {
                 atm.detail_scale,
                 atm.shadow_res as f32,
             ],
-            params3: [if self.height_debug { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
+            params3: [
+                if self.height_debug { 1.0 } else { 0.0 },
+                if self.scene_debug != SceneDebugMode::Normal { 1.0 } else { 0.0 },
+                0.0,
+                0.0,
+            ],
         };
         self.ctx
             .queue
             .write_buffer(&self.env_buf, 0, bytemuck::bytes_of(&env));
+
+        // WT-002/003 slice 3: debug line buffers rebuild OUTSIDE any
+        // encoder (buffers born mid-pass-recording proved unreliable on
+        // this backend — the draws executed but rasterized nothing).
+        if self.scene_debug != SceneDebugMode::Normal {
+            if self.wire_dirty {
+                let idx: Vec<u32> = (0..self.wire_edges.len() as u32).collect();
+                self.wire_gpu = if self.wire_edges.is_empty() {
+                    None
+                } else {
+                    Some(GpuMesh::from_mesh_u32(&self.ctx.device, &self.wire_edges, &idx))
+                };
+                self.wire_dirty = false;
+            }
+            if self.overlay_dirty {
+                let edges = build_overlay_edges(&self.asset_anchors);
+                let idx: Vec<u32> = (0..edges.len() as u32).collect();
+                self.overlay_gpu = if edges.is_empty() {
+                    None
+                } else {
+                    Some(GpuMesh::from_mesh_u32(&self.ctx.device, &edges, &idx))
+                };
+                self.overlay_dirty = false;
+            }
+        }
 
         // The crowd's pose rebuild per frame (NWR-009): time follows the
         // shared clock (frozen when water time is frozen — deterministic
@@ -2115,6 +2346,20 @@ impl Renderer {
         // 2b4. GLB assets (NWR-002).
         for (a, _) in &self.assets {
             a.draw(&mut pass);
+        }
+        // 2b4a. WT-002/003 slice 3: debug wireframe / anchor overlay —
+        // the world is dimmed via params3.y, the lines draw sun-aligned
+        // bright through the same lit path on LineList.
+        if self.scene_debug != SceneDebugMode::Normal {
+            if self.scene_debug == SceneDebugMode::Wireframe {
+                if let Some(w) = &self.wire_gpu {
+                    pass.set_pipeline(&self.pipelines.wire);
+                    w.draw(&mut pass);
+                }
+            } else if let Some(o) = &self.overlay_gpu {
+                pass.set_pipeline(&self.pipelines.wire);
+                o.draw(&mut pass);
+            }
         }
         // 2b4b. Streamed wilderness (NWR-007): bounded placement update,
         // bucket upload, then ONE draw per (kind, LOD) + grass cards.
@@ -2681,6 +2926,115 @@ mod tests {
     const W: u32 = 384;
     const H: u32 = 288;
     const ASPECT: f32 = 384.0 / 288.0;
+
+    /// A hand-built indexed unit cube (8 SHARED vertices, 12 triangles):
+    /// the ground truth for edge dedup.
+    fn unit_cube() -> (Vec<crate::scene::SceneVertex>, Vec<u32>) {
+        let p: [[f32; 3]; 8] = [
+            [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 1.0], [0.0, 1.0, 1.0],
+        ];
+        let verts = p
+            .iter()
+            .map(|v| crate::scene::SceneVertex { pos: *v, normal: [0.0, 1.0, 0.0], color: [1.0, 1.0, 1.0] })
+            .collect();
+        let idx: Vec<u32> = vec![
+            0, 1, 2, 0, 2, 3, // -Z
+            4, 6, 5, 4, 7, 6, // +Z
+            0, 4, 5, 0, 5, 1, // -Y
+            2, 6, 7, 2, 7, 3, // +Y
+            0, 3, 7, 0, 7, 4, // -X
+            1, 5, 6, 1, 6, 2, // +X
+        ];
+        (verts, idx)
+    }
+
+    #[test]
+    fn wire_edge_extraction_dedupes_shared_edges() {
+        // A triangulated cube has 18 unique edges: 12 cube edges (each
+        // shared by 2 of the 12 triangles) + 6 face diagonals (shared by
+        // the 2 triangles of their face) — deduped from 36 instances.
+        let (verts, idx) = unit_cube();
+        let edges = extract_wire_edges(&verts, &idx, [1.0, 0.8, 0.3]);
+        assert_eq!(edges.len(), 36, "18 edges = 36 line vertices");
+        // Every line vertex faces the sun (the brightness law).
+        for v in &edges {
+            assert_eq!(v.normal, crate::scene::SUN_DIR);
+        }
+    }
+
+    #[test]
+    fn overlay_builder_draws_crosses_and_bounds_boxes() {
+        let anchors = [AssetAnchors {
+            glb_id: "test".into(),
+            placement: [0.0, 0.0, 0.0],
+            sockets: vec![
+                ("door".into(), [1.0, 0.0, 0.0]),
+                ("interior".into(), [0.0, 0.5, 0.0]),
+            ],
+            bounds_min: [-1.0, 0.0, -1.0],
+            bounds_max: [1.0, 2.0, 1.0],
+        }];
+        let edges = build_overlay_edges(&anchors);
+        // 2 sockets x 3 axes x 2 verts + 12 box edges x 2 verts.
+        assert_eq!(edges.len(), 12 + 24, "crosses + bounds box");
+        // The ember X-axis color must be present (the marker law the
+        // capture pixel-checks look for).
+        assert!(
+            edges.iter().any(|v| v.color == [1.0, 0.55, 0.15]),
+            "ember axis markers required"
+        );
+    }
+
+    #[test]
+    fn scene_debug_modes_dim_the_world_and_stage_the_overlay_data() {
+        // The offscreen laws: loading an asset retains its edge + anchor
+        // data (the builders' inputs), and the debug flag measurably
+        // changes the presented frame (the world dims through params3.y).
+        // The VISUAL line/marker law is proven by the WINDOWED
+        // --asset-capture arm (the offscreen readback proved unreliable
+        // for late-pass draws on this backend: even a hardcoded
+        // fullscreen draw after the asset pass painted nothing).
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/compiled/module/house_croft.glb");
+        let asset = crate::glb::load_asset_file(&path).expect("house croft glb");
+        let mut r = Renderer::offscreen(W, H);
+        r.set_pose(CameraPose::new([9.0, 6.0, 11.0], -2.4, -0.35));
+        r.load_asset(&asset, "lod0", [0.0, 0.0, 0.0]);
+
+        // Data laws: the wire edges exist, are sun-aligned, and the
+        // overlay builder yields crosses + bounds from the anchors.
+        assert!(!r.wire_edges.is_empty(), "load must retain wire edges");
+        assert!(r
+            .wire_edges
+            .iter()
+            .all(|v| v.normal == crate::scene::SUN_DIR));
+        assert_eq!(r.asset_anchors.len(), 1);
+        assert!(r.asset_anchors[0].sockets.len() >= 4, "house sockets");
+        let overlay = build_overlay_edges(&r.asset_anchors);
+        assert!(
+            overlay.len() >= 12 + 24,
+            "crosses + bounds box vertices ({})",
+            overlay.len()
+        );
+
+        // Frame law: debug mode dims the world (params3.y reaches the
+        // shader through the offscreen path — the sRGB-encoded dim is
+        // byte-visible as a large dark region).
+        let probes: &[crate::scene::Probe] = &[];
+        let out = std::env::temp_dir().join("pc3d_wire_proof");
+        std::fs::create_dir_all(&out).unwrap();
+        let (_rn, rgba_normal) = r.capture_png(&out.join("normal.png"), probes);
+        r.set_scene_debug(SceneDebugMode::Wireframe);
+        let (_rw, rgba_wire) = r.capture_png(&out.join("wire.png"), probes);
+        let d = pixel_difference_fraction(&rgba_normal, &rgba_wire);
+        assert!(d > 0.02, "debug mode must change the frame ({d})");
+        let dark = rgba_wire
+            .chunks_exact(4)
+            .filter(|p| p[0] < 100 && p[1] < 100 && p[2] < 100)
+            .count();
+        assert!(dark > 2000, "the dimmed world must darken ({dark} px)");
+    }
 
     fn capture_at(path: &Path, pose: CameraPose) -> (PixelReport, Vec<u8>) {
         let mut r = Renderer::offscreen(W, H);

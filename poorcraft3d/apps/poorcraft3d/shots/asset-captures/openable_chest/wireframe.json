@@ -1,0 +1,8 @@
+{
+  "asset_id": "openable_chest",
+  "build_hash": "dev",
+  "glb": "prop/chest.glb",
+  "mode": "wireframe",
+  "screenshot": "wireframe.png",
+  "unique_edges": 300
+}

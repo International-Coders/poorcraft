@@ -1,0 +1,35 @@
+{
+  "anchors": [
+    {
+      "id": "harvest",
+      "position_m": [
+        0.0,
+        0.5,
+        -0.8500000238418579
+      ]
+    },
+    {
+      "id": "base",
+      "position_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "asset_id": "harvestable_ore_node",
+  "bounds_max_m": [
+    0.8517205715179443,
+    1.100000023841858,
+    0.5549119710922241
+  ],
+  "bounds_min_m": [
+    -0.7821695804595947,
+    -0.021491318941116333,
+    -0.6858093738555908
+  ],
+  "build_hash": "dev",
+  "glb": "prop/ore_node.glb",
+  "mode": "anchor_overlay",
+  "screenshot": "overlay.png"
+}

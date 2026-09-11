@@ -1,0 +1,51 @@
+{
+  "anchors": [
+    {
+      "id": "open",
+      "position_m": [
+        0.0,
+        0.4000000059604645,
+        -0.75
+      ]
+    },
+    {
+      "id": "lid",
+      "position_m": [
+        0.0,
+        0.6200000047683716,
+        0.2800000011920929
+      ]
+    },
+    {
+      "id": "inventory",
+      "position_m": [
+        0.0,
+        0.3199999928474426,
+        0.0
+      ]
+    },
+    {
+      "id": "base",
+      "position_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "asset_id": "openable_chest",
+  "bounds_max_m": [
+    0.5299999713897705,
+    0.9099999666213989,
+    0.3199999928474426
+  ],
+  "bounds_min_m": [
+    -0.5299999713897705,
+    -0.009999990463256836,
+    -0.3279999792575836
+  ],
+  "build_hash": "dev",
+  "glb": "prop/chest.glb",
+  "mode": "anchor_overlay",
+  "screenshot": "overlay.png"
+}

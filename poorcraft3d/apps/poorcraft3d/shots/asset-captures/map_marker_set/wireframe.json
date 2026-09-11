@@ -1,0 +1,8 @@
+{
+  "asset_id": "map_marker_set",
+  "build_hash": "dev",
+  "glb": "module/banner_sign.glb",
+  "mode": "wireframe",
+  "screenshot": "wireframe.png",
+  "unique_edges": 81
+}
