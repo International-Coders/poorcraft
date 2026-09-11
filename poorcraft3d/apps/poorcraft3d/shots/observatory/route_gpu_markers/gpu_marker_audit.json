@@ -2,7 +2,7 @@
   "adapter_name": "Intel(R) UHD Graphics 630",
   "api_backend": "Metal",
   "build_hash": "dev",
-  "cpu_frame_ms": 37.97999954223633,
+  "cpu_frame_ms": 49.52000045776367,
   "draw_calls": 9,
   "gpu_frame_ms_or_reason": {
     "reason": "adapter does not expose TIMESTAMP_QUERY; CPU timing is the evidence",

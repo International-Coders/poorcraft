@@ -127,6 +127,11 @@ pub struct SliceHost {
     pub world_name: String,
     pub inspect: bool,
     pub last_message: String,
+    /// The forge slice: the plaza forge (created on first use), ticking
+    /// with gameplay while it exists.
+    pub forge: Option<pc3d_world::forge::Forge>,
+    /// Frame counter for the forge's work tick.
+    pub forge_tick_frame: u64,
 }
 
 /// A shared handle to the authoritative host for interactive construction:
@@ -134,6 +139,31 @@ pub struct SliceHost {
 /// 6 m ahead — both through `HostCommand` + one tick, never by client-side
 /// mutation. The renderer then syncs read-only from `host.construction`.
 pub struct InteractiveHost(pub std::rc::Rc<std::cell::RefCell<pc3d_world::host::SoloHost>>);
+
+/// The plaza world position (XZ) when a settlement slice is mounted.
+pub fn plaza_xz(plaza: &pc3d_world::coords::CellCoord) -> [f32; 2] {
+    [plaza.x as f32, plaza.z as f32]
+}
+
+/// The live forge panel view from the pure authority.
+pub fn forge_view_of(f: &pc3d_world::forge::Forge) -> crate::ui::ForgeView {
+    use pc3d_world::forge::ForgeState;
+    let (label, blocked) = match f.state() {
+        ForgeState::Cold => ("COLD".to_string(), false),
+        ForgeState::Heating => ("HEATING".to_string(), false),
+        ForgeState::Ready => ("READY".to_string(), false),
+        ForgeState::Blocked(r) => (format!("BLOCKED: {r}"), true),
+    };
+    crate::ui::ForgeView {
+        state_label: label,
+        blocked,
+        fuel_frac: (f.fuel_milli as f32 / 3000.0).clamp(0.0, 1.0),
+        heat_frac: (f.heat_milli as f32 / (pc3d_world::forge::HEAT_PER_BAR * 4) as f32)
+            .clamp(0.0, 1.0),
+        ore: f.ore,
+        bars: f.bars,
+    }
+}
 
 pub struct WindowConfig {
     pub title: String,
@@ -450,6 +480,7 @@ impl WindowState {
         }
     }
 
+
     /// Refresh the save-slot browser rows from the effective saves3d root.
     fn refresh_slots(&mut self) {
         let Some(root) = self.save_root.clone() else {
@@ -592,6 +623,32 @@ impl App {
         }
     }
 
+    /// The plaza forge zone: within 3.5 m of the settlement plaza the
+    /// forge stands ready (the workshop heart of the town).
+    fn forge_zone_distance(&self) -> Option<f32> {
+        let slice = self.cfg.slice_host.as_ref()?;
+        let plaza = slice.scene.plan.plaza;
+        let c = [plaza.x as f32, plaza.y as f32, plaza.z as f32];
+        let state = self.state.as_ref()?;
+        let p = state.renderer.pose().position;
+        let d = ((p[0] - c[0]).powi(2) + (p[1] - c[1]).powi(2) + (p[2] - c[2]).powi(2))
+            .sqrt();
+        (d <= 3.5).then_some(d)
+    }
+
+    /// Sync the live forge authority into the UI panel view.
+    fn sync_forge_view(&mut self) {
+        let view = self
+            .cfg
+            .slice_host
+            .as_ref()
+            .and_then(|slice| slice.forge.as_ref().map(forge_view_of));
+        if let Some(state) = self.state.as_mut() {
+            state.ui.forge = view;
+            state.ui_dirty = true;
+        }
+    }
+
     /// Execute UI actions through the same path real input takes. Needs the
     /// event loop for the (explicit) quit-to-desktop choice. Each arm holds
     /// the state borrow only as long as it needs — helpers re-borrow self.
@@ -599,16 +656,90 @@ impl App {
         for act in actions {
             match act {
                 UiAction::TryTalk => {
-                    // The NPC talk slice: resolve the nearest LIVE brain
-                    // in talk range and open the dialog with its line.
-                    if let Some(s) = self.state.as_mut() {
-                        if let Some((_, _, i)) = s.renderer.nearest_talk_target() {
-                            if let Some(line) = s.renderer.talk_with_index(i) {
-                                s.ui.dialog = Some(line);
-                                s.ui_dirty = true;
-                            }
+                    // E interacts: the FORGE zone wins when it is nearer
+                    // than the nearest villager; else the NPC talk.
+                    let npc = self
+                        .state
+                        .as_ref()
+                        .and_then(|s| s.renderer.nearest_talk_target().map(|(_, d, _)| d));
+                    let forge_d = self.forge_zone_distance();
+                    let use_forge = match (npc, forge_d) {
+                        (Some(nd), Some(fd)) => fd <= nd,
+                        (None, Some(_)) => true,
+                        _ => false,
+                    };
+                    if use_forge {
+                        if let Some(slice) = self.cfg.slice_host.as_mut() {
+                            let _ = slice.forge.get_or_insert_with(Default::default);
+                        }
+                        self.sync_forge_view();
+                    } else {
+                        let line = self.state.as_ref().and_then(|s| {
+                            s.renderer
+                                .nearest_talk_target()
+                                .and_then(|(_, _, i)| s.renderer.talk_with_index(i))
+                        });
+                        if let (Some(line), Some(s)) = (line, self.state.as_mut()) {
+                            s.ui.dialog = Some(line);
+                            s.ui_dirty = true;
                         }
                     }
+                }
+                UiAction::ForgeLoadFuel => {
+                    let ok = self
+                        .cfg
+                        .slice_host
+                        .as_mut()
+                        .map(|slice| {
+                            slice
+                                .forge
+                                .get_or_insert_with(Default::default)
+                                .load_fuel(1000, 600)
+                        })
+                        .unwrap_or(false);
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.toast(if ok {
+                            "FUEL LOADED"
+                        } else {
+                            "FORGE REFUSES: WATER THE FIREBOX"
+                        });
+                        s.ui_dirty = true;
+                    }
+                    self.sync_forge_view();
+                }
+                UiAction::ForgeLoadOre => {
+                    let ok = self
+                        .cfg
+                        .slice_host
+                        .as_mut()
+                        .map(|slice| {
+                            slice.forge.get_or_insert_with(Default::default).load_ore(2)
+                        })
+                        .unwrap_or(false);
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.toast(if ok { "ORE LOADED (2)" } else { "ORE SLOTS FULL" });
+                        s.ui_dirty = true;
+                    }
+                    self.sync_forge_view();
+                }
+                UiAction::ForgeTake => {
+                    let bars = self
+                        .cfg
+                        .slice_host
+                        .as_mut()
+                        .and_then(|slice| slice.forge.as_mut())
+                        .map(pc3d_world::forge::Forge::take_bars)
+                        .unwrap_or(0);
+                    if let Some(s) = self.state.as_mut() {
+                        if bars > 0 {
+                            s.ui.toast(format!("FORGED {} BARS", bars));
+                            s.ui.forge_bars_taken += bars as u64;
+                        } else {
+                            s.ui.toast("NOTHING TO TAKE YET");
+                        }
+                        s.ui_dirty = true;
+                    }
+                    self.sync_forge_view();
                 }
                 UiAction::StartPlaying => {
                     if let Some(s) = self.state.as_mut() {
@@ -1566,22 +1697,47 @@ impl App {
                 slice.player.walk(&gen, fwd, strafe, dt);
             }
             state.renderer.set_pose(slice.player.pose());
-            // The NPC talk slice, live: while no dialog is open, the
-            // prompt names the villager in talk range (E to speak).
-            if state.owner_menu && state.ui.dialog.is_none() && !state.ui.blocks_gameplay() {
-                match state.renderer.nearest_talk_target() {
-                    Some((name, _, _)) => {
-                        state.ui.hud.prompt =
-                            format!("E TALK {name} · F BUILD · R REMOVE · ESC PAUSE");
+            // The forge work tick (inside the slice's own scope): the
+            // plaza forge smelts while it exists (every 20 frames) —
+            // INCLUDING while its own panel is open (a menu freezes the
+            // PLAYER, not the fire); the open panel view syncs in place.
+            let forge_working = gameplay_active || state.ui.forge.is_some();
+            if forge_working {
+                slice.forge_tick_frame += 1;
+                if slice.forge_tick_frame % 20 == 0 && slice.forge.is_some() {
+                    let f = slice.forge.as_mut().expect("just checked");
+                    f.tick();
+                    if state.ui.forge.is_some() {
+                        state.ui.forge = Some(forge_view_of(f));
                         state.ui_dirty = true;
                     }
-                    None => {
-                        let base = "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT";
-                        if state.ui.hud.prompt != base {
-                            state.ui.hud.prompt = base.into();
-                            state.ui_dirty = true;
-                        }
+                }
+            }
+            // The interact prompt: the forge zone (plaza) vs the nearest
+            // villager — whichever is closer owns E.
+            if state.owner_menu
+                && state.ui.dialog.is_none()
+                && !state.ui.blocks_gameplay()
+            {
+                let npc = state.renderer.nearest_talk_target().map(|(n, d, _)| (n, d));
+                let pz = plaza_xz(&slice.scene.plan.plaza);
+                let p = slice.player.pos;
+                let fd = ((p[0] - pz[0]).powi(2) + (p[2] - pz[1]).powi(2)).sqrt();
+                let forge_near = fd <= 3.5;
+                let base = "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT";
+                let want = match (&npc, forge_near) {
+                    (Some((_n, nd)), true) if fd <= *nd => {
+                        "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE".to_string()
                     }
+                    (Some((name, _)), _) => {
+                        format!("E TALK {name} · F BUILD · R REMOVE · ESC PAUSE")
+                    }
+                    (None, true) => "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE".to_string(),
+                    (None, false) => base.to_string(),
+                };
+                if state.ui.hud.prompt != want {
+                    state.ui.hud.prompt = want;
+                    state.ui_dirty = true;
                 }
             }
             let built: usize = slice

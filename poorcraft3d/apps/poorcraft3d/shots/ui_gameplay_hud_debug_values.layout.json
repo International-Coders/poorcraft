@@ -187,6 +187,8 @@
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
+    "forge": null,
+    "forge_bars_taken": 0,
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
@@ -199,7 +201,7 @@
       "health": 0.44999998807907104,
       "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.3768402338027954,
+      "stamina": 0.4377356767654419,
       "xp": 0.5
     },
     "modal": null,
@@ -215,19 +217,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 15:19",
+        "modified": "2026-09-11 16:36",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 15:19",
+        "modified": "2026-09-11 16:36",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "toasts": [
       {
-        "age_s": 0.548858642578125,
+        "age_s": 0.9838262796401978,
         "text": "SAVED 'REBUILD'"
       }
     ]

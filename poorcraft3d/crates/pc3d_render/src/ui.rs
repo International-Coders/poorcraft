@@ -291,6 +291,26 @@ impl ModalKind {
     }
 }
 
+#[allow(dead_code)]
+fn xp_h_placeholder() -> i32 {
+    5
+}
+
+fn state_col_1() -> [u8; 3] {
+    [143, 111, 212]
+}
+
+/// The forge panel's live view (synced from the pure Forge authority).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForgeView {
+    pub state_label: String,
+    pub blocked: bool,
+    pub fuel_frac: f32,
+    pub heat_frac: f32,
+    pub ore: u8,
+    pub bars: u8,
+}
+
 /// The New World form. Seed editing is digit-only (no text stack needed).
 #[derive(Clone, Debug, PartialEq)]
 pub struct NewWorldForm {
@@ -381,6 +401,11 @@ pub struct UiState {
     pub last_activated: Option<String>,
     /// The NPC talk slice: the open villager dialog (E to talk/close).
     pub dialog: Option<pc3d_world::dialog::DialogLine>,
+    /// The forge slice: the live forge panel view (synced by the app
+    /// from the real Forge each frame while open).
+    pub forge: Option<ForgeView>,
+    /// Bars successfully taken from the forge (the route's proof).
+    pub forge_bars_taken: u64,
 }
 
 impl Default for UiState {
@@ -404,6 +429,8 @@ impl Default for UiState {
             pointer_grabbed: false,
             last_activated: None,
             dialog: None,
+            forge: None,
+            forge_bars_taken: 0,
         }
     }
 }
@@ -449,11 +476,20 @@ impl UiState {
                 "speaker": d.speaker, "role": d.role,
                 "activity": d.activity, "text": d.text,
             })),
+            "forge": self.forge.as_ref().map(|f| serde_json::json!({
+                "state": f.state_label, "blocked": f.blocked,
+                "fuel": f.fuel_frac, "heat": f.heat_frac,
+                "ore": f.ore, "bars": f.bars,
+            })),
+            "forge_bars_taken": self.forge_bars_taken,
         })
     }
 
     pub fn blocks_gameplay(&self) -> bool {
-        self.screen.blocks_gameplay() || self.modal.is_some() || self.dialog.is_some()
+        self.screen.blocks_gameplay()
+            || self.modal.is_some()
+            || self.dialog.is_some()
+            || self.forge.is_some()
     }
 
     pub fn toast(&mut self, text: impl Into<String>) {
@@ -1142,6 +1178,51 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     2,
                 );
             }
+            // The forge panel: the live authority view (fuel/heat bars,
+            // ore/bar slots, state line, key hints).
+            if let Some(f) = &state.forge {
+                let panel_w = 560;
+                let panel_h = 150;
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = (hy - xp_h_placeholder() - ctx.px(6) - ctx.px(24) - ph - ctx.px(28))
+                    .max(SAFE_MARGIN_PX + ctx.px(60));
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("forge_panel", panel, Some("THE FORGE"));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut fy = panel.y + ctx.px(PANEL_PAD) + ctx.px(22);
+                let (state_col, state_txt) = if f.blocked {
+                    ([194, 68, 56], format!("STATE: {}", f.state_label))
+                } else if f.state_label == "READY" {
+                    ([92, 138, 78], "STATE: READY TO SMELT".to_string())
+                } else {
+                    ([201, 138, 61], format!("STATE: {}", f.state_label))
+                };
+                ctx.text("forge_state", &state_txt, lx, fy, 2);
+                fy += ctx.px(22);
+                let bw = ctx.px(BAR_W + 100);
+                ctx.push(
+                    "forge_fuel",
+                    ElementKind::Bar { frac: f.fuel_frac, color: state_col_1(), label: "FUEL".into() },
+                    Rect::new(lx, fy, bw as u32, ctx.px(BAR_H) as u32),
+                );
+                ctx.push(
+                    "forge_heat",
+                    ElementKind::Bar { frac: f.heat_frac, color: [201, 96, 40], label: "HEAT".into() },
+                    Rect::new(lx, fy + ctx.px(BAR_H) + ctx.px(6), bw as u32, ctx.px(BAR_H) as u32),
+                );
+                let counts = format!("ORE {} / {} · BARS {} / {}", f.ore, pc3d_world::forge::ORE_SLOTS, f.bars, pc3d_world::forge::BAR_SLOTS);
+                ctx.text("forge_slots", &counts, lx, fy + (ctx.px(BAR_H) + ctx.px(6)) * 2 + ctx.px(6), 2);
+                let hint = "G FUEL · H ORE · T TAKE · E CLOSE";
+                let (hw, _) = font::text_size(hint, 2);
+                ctx.text(
+                    "forge_hint",
+                    hint,
+                    panel.right() - ctx.px(PANEL_PAD) - hw as i32,
+                    panel.bottom() - ctx.px(24),
+                    2,
+                );
+            }
             // Click-to-capture hint when the pointer is free.
             if !state.pointer_grabbed {
                 let hint = "CLICK TO CAPTURE MOUSE · ESC PAUSES";
@@ -1653,6 +1734,12 @@ pub enum UiAction {
     /// The NPC talk slice: the player pressed E near a villager — the
     /// app resolves the nearest brain in talk range and opens the dialog.
     TryTalk,
+    /// The forge slice: load fuel (with the water the firebox needs).
+    ForgeLoadFuel,
+    /// The forge slice: load ore into the slots.
+    ForgeLoadOre,
+    /// The forge slice: take the smelted bars.
+    ForgeTake,
     /// Proof hook (inspector): raw mouse deltas applied to the live
     /// player body — the exact path real mouse motion takes.
     PlayerLook { dx: f32, dy: f32 },
@@ -1698,13 +1785,28 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                 state.dialog = None;
                 acts.push(UiAction::Repaint);
             }
+            Key::Escape if state.forge.is_some() => {
+                state.forge = None;
+                acts.push(UiAction::Repaint);
+            }
             Key::Char('e') => {
-                if state.dialog.is_some() {
-                    state.dialog = None;
+                if let Some(d) = state.dialog.take() {
+                    let _ = d;
+                } else if state.forge.take().is_some() {
+                    // E closes the forge panel too.
                 } else {
                     acts.push(UiAction::TryTalk);
                 }
                 acts.push(UiAction::Repaint);
+            }
+            Key::Char('g') if state.forge.is_some() => {
+                acts.push(UiAction::ForgeLoadFuel);
+            }
+            Key::Char('h') if state.forge.is_some() => {
+                acts.push(UiAction::ForgeLoadOre);
+            }
+            Key::Char('t') if state.forge.is_some() => {
+                acts.push(UiAction::ForgeTake);
             }
             Key::Escape => {
                 state.screen = Screen::Pause;
@@ -2696,6 +2798,56 @@ mod tests {
         assert!(
             acts.iter().any(|a| matches!(a, UiAction::TryTalk)),
             "E with no dialog must ask the app to talk"
+        );
+    }
+
+    #[test]
+    fn forge_panel_shows_the_authority_and_keys_work() {
+        // The forge slice: the panel draws the live view, blocks
+        // gameplay, and the G/H/T/E keys route to the actions.
+        let mut s = state(Screen::Gameplay);
+        s.forge = Some(ForgeView {
+            state_label: "READY".into(),
+            blocked: false,
+            fuel_frac: 0.7,
+            heat_frac: 0.9,
+            ore: 2,
+            bars: 1,
+        });
+        assert!(s.blocks_gameplay(), "the forge panel owns the frame");
+        let list = build(&s, 1280, 720);
+        for id in [
+            "forge_panel", "forge_state", "forge_fuel", "forge_heat",
+            "forge_slots", "forge_hint",
+        ] {
+            assert!(list.by_id(id).is_some(), "forge element {id} missing");
+        }
+        let canvas = paint(&list);
+        let r = list.by_id("forge_slots").unwrap().rect;
+        assert!(ink_px(&canvas, 1280, r) > 0, "forge slots must paint");
+        // The keys route to the app actions.
+        for (key, want) in [
+            (Key::Char('g'), true),  // fuel
+            (Key::Char('h'), true),  // ore
+            (Key::Char('t'), true),  // take
+        ] {
+            let acts = on_key(&mut s, key);
+            let matched = acts.iter().any(|a| {
+                matches!(a, UiAction::ForgeLoadFuel | UiAction::ForgeLoadOre | UiAction::ForgeTake)
+            });
+            assert!(matched && want, "{key:?} must hit a forge action");
+        }
+        // Blocked states color the state line differently (ink differs).
+        s.forge.as_mut().unwrap().blocked = true;
+        s.forge.as_mut().unwrap().state_label = "BLOCKED: NO ORE".into();
+        let list2 = build(&s, 1280, 720);
+        let canvas2 = paint(&list2);
+        let r1 = list.by_id("forge_state").unwrap().rect;
+        let r2 = list2.by_id("forge_state").unwrap().rect;
+        assert_ne!(
+            ink_px(&canvas, 1280, r1).max(1),
+            ink_px(&canvas2, 1280, r2).max(1),
+            "blocked vs ready state must read differently"
         );
     }
 

@@ -38,8 +38,8 @@ pub fn routes() -> &'static [RouteSpec] {
         },
         RouteSpec {
             id: "route_forge_use",
-            available: false,
-            reason: "forge interaction UI does not exist yet — the forge gameplay slice",
+            available: true,
+            reason: "",
         },
         RouteSpec {
             id: "route_gpu_markers",

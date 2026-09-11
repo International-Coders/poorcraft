@@ -6732,3 +6732,58 @@ conversation tree is a gameplay slice of its own); talking does not
 pause the crowd schedule; no voice/portrait (text panel is the
 expression); house_entry and forge_use remain the two honest
 unavailable routes.
+
+## 2026-09-11 — The forge use slice: fuel + ore -> heat -> bars, live
+
+WHAT: the plaza forge works — a pure smelting authority (fuel + the
+water the firebox needs -> work heat -> metal bars, with named blocked
+states), a THE FORGE panel (state line, fuel/heat bars, ore/bar slots,
+G/H/T/E keys), E-interact priority at the plaza, and observatory
+route_forge_use flipped UNAVAILABLE -> PASS with the full loop proven:
+1 bar smelted and taken.
+
+HOW:
+- pc3d_world::forge (NEW, pure): Forge { fuel, water, heat, ore, bars,
+  lifetime counters } with load_fuel (refuses a dry firebox),
+  load_ore (physical slots), charge_from_steam (the journey-proven
+  boiler chain can feed it), tick (fuel->heat, heat+ore->bars,
+  radiation cap), take_bars, and state() — Cold / Heating / Ready /
+  Blocked with NAMED reasons ("no fuel", "no ore", "output full").
+  4 laws: the full loop smelts (3 ore -> 3 bars, fuel burned), the
+  blocked states are named and honest, slots are physical, ticks are
+  deterministic and conservative.
+- ui.rs: ForgeView synced from the authority + THE FORGE panel on
+  Gameplay (state line colored by verdict, FUEL/HEAT bars, ore/bar
+  slot counts, G FUEL · H ORE · T TAKE · E CLOSE); the panel BLOCKS
+  gameplay; the runtime state carries the live view + bars taken.
+- app.rs: the plaza is the forge zone (the settlement plan's own
+  plaza, 3.5 m); E-interact picks the forge when it is nearer than the
+  nearest villager; the forge WORKS while its panel is open (a menu
+  freezes the player, not the fire — the first run smelted nothing
+  because blocks_gameplay froze the tick); the panel view syncs in
+  place each work tick; toasts narrate loads/takes; bars-taken counts
+  for the route proof.
+- The route: enter the world -> E at the plaza (the zone-priority
+  path) -> G + H (fuel + ore) -> work ticks smelt -> T takes ->
+  two captures (panel open; post-take) + the assertion: panel elements
+  AND bars taken > 0.
+
+EVIDENCE: route_forge_use PASS — "FORGE USE: 1 bars smelted and
+taken" (panel + heat bar in the capture, p50 ~34-51 ms); make
+p3d-observe: 7/7 available routes PASS + house_entry the last honest
+UNAVAILABLE; ui-shots 13/13 regression; forge laws 4/4 + UI law 1/1
+(elements, ink, keys, blocked-vs-ready inks differ); full suites
+re-run green.
+
+BUGS THE PROOFS CAUGHT: the forge tick originally gated on
+gameplay_active — which its own panel's blocks_gameplay froze (the
+first route run smelted 0 bars with the panel open); the generic
+240-frame route cap fired before the take step (raised; routes exit on
+their own after the last shot).
+
+HONESTLY DEFERRED: no forge MODEL in the world yet (the interaction
+zone is the plaza; the working_forge semantic row declares the anchors
+— a GLB + placement is an asset-slice follow-up); fuel/ore inventory
+sourcing is granted loads in the panel interaction (no mining economy
+in the slice yet); bars have no downstream use (the crafting economy
+follows); house_entry is the final honest unavailable route.

@@ -28,6 +28,7 @@ pub mod entities;
 pub mod faction;
 pub mod flora;
 pub mod flow;
+pub mod forge;
 pub mod garrison;
 pub mod gen;
 pub mod host;

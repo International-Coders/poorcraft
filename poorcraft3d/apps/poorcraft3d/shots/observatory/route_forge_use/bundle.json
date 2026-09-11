@@ -6,20 +6,23 @@
     "--observe route_forge_use"
   ],
   "diff_paths": [],
-  "digest": "8f5526abcd34e1b4",
+  "digest": "9fb64c11b821104f",
   "gpu_marker_path": "",
   "overlays": [],
-  "perf_path": "",
+  "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_forge_use",
-  "runtime_state_path": "",
+  "runtime_state_path": "runtime_state.json",
   "scene": "showcase_seed_3_rebuild",
-  "screenshots": [],
+  "screenshots": [
+    "beauty_forge_panel.png",
+    "beauty_forge_taken.png"
+  ],
   "seed": "3",
   "verdict_path": "verdict.json",
   "viewport": [
-    1280,
-    720
+    800,
+    500
   ],
   "wireframes": []
 }

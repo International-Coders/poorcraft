@@ -4613,6 +4613,42 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(60, format!("{dir}/beauty_assets.png"))
                     .ui_dump(format!("{dir}/beauty_assets.layout.json")));
             }
+            "route_forge_use" => {
+                // The forge slice, end to end: enter the world, stand at
+                // the plaza forge, E (opens THE FORGE through the zone
+                // priority), load fuel + ore, let the work ticks smelt,
+                // take the bars — the full input->heat->output loop.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                ui_script.push((
+                    40,
+                    Box::new(|_ui, _r, ctx| {
+                        // E at the plaza: the forge zone owns it.
+                        ctx.actions.push(UiAction::TryTalk);
+                    }),
+                ));
+                ui_script.push((
+                    70,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::ForgeLoadFuel);
+                        ctx.actions.push(UiAction::ForgeLoadOre);
+                    }),
+                ));
+                ui_script.push((
+                    240,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::ForgeTake);
+                    }),
+                ));
+                shots.push(Shot::new(100, format!("{dir}/beauty_forge_panel.png"))
+                    .ui_dump(format!("{dir}/beauty_forge_panel.layout.json")));
+                shots.push(Shot::new(280, format!("{dir}/beauty_forge_taken.png"))
+                    .ui_dump(format!("{dir}/beauty_forge_taken.layout.json")));
+            }
             "route_gpu_markers" => {
                 // One windowed world frame with the owner UI live: the
                 // audit rides the report (every pass group + real draws).
@@ -4654,7 +4690,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             title: format!("POORCRAFT 3D — observatory {}", spec.id),
             logical_size: (1280.0, 720.0),
             size_is_physical: true,
-            max_frames: Some(240),
+            max_frames: Some(420),
             probe_set: pc3d_render::ProbeSet::SkyOnly,
             shots,
             slice_setup: Some(pc3d_render::app::SliceSetup {
@@ -4725,6 +4761,33 @@ fn run_observe(route_id: &str, out_root: &str) {
                     eprintln!("[FAIL] observe {}: dialog not shown", spec.id);
                     any_fail = true;
                 }
+            }
+        }
+        // The forge route: the panel must show AND bars must be taken.
+        if spec.id == "route_forge_use" {
+            let elements_ok = report
+                .captures
+                .first()
+                .and_then(|c| c.ui_layout.as_ref())
+                .and_then(|l| l["elements"].as_array())
+                .map(|els| {
+                    els.iter().any(|e| e["id"] == "forge_panel")
+                        && els.iter().any(|e| e["id"] == "forge_heat")
+                })
+                .unwrap_or(false);
+            let bars = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["forge_bars_taken"].as_u64())
+                .unwrap_or(0);
+            if elements_ok && bars > 0 {
+                println!("FORGE USE: {bars} bars smelted and taken");
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: panel shown {elements_ok}, bars taken {bars}",
+                    spec.id
+                );
+                any_fail = true;
             }
         }
         // WT-007 slice 1: the gpu-markers route ships the audit in-bundle.

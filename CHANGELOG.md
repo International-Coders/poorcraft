@@ -3596,3 +3596,17 @@ The simulation-only roadmap was declared complete; the visual reset
   6/6 available routes + 2 honest unavailabilities (house entry, forge).
 - Evidence: route capture with all five dialog elements, ui-shots 13/13
   regression, dialog laws green, full suites green.
+
+## Loop 428 — The forge use slice
+- `pc3d_world::forge` (pure): fuel + water -> heat -> bars with named
+  blocked states, physical slots, steam charging from the boiler
+  chain; 4 authority laws.
+- The THE FORGE panel (state/fuel/heat/slots, G/H/T/E keys, blocks
+  gameplay, works while open — a menu freezes the player, not the
+  fire), plaza E-interact priority, toasts, bars-taken counter.
+- Observatory `route_forge_use` UNAVAILABLE -> PASS with the full
+  loop proven end to end ("1 bars smelted and taken"); `make
+  p3d-observe` now 7/7 available routes; only house entry remains
+  honestly unavailable.
+- Evidence: route captures + assertion, ui-shots 13/13, forge laws
+  4/4 + 1/1, full suites green.

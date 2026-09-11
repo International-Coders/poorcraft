@@ -275,6 +275,8 @@
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
+    "forge": null,
+    "forge_bars_taken": 0,
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
@@ -303,12 +305,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 15:18",
+        "modified": "2026-09-11 16:35",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 15:18",
+        "modified": "2026-09-11 16:35",
         "name": "beta-shot",
         "seed": 7
       }

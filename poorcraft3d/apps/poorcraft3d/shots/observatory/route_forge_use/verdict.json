@@ -1,5 +1,6 @@
 {
-  "reason": "forge interaction UI does not exist yet — the forge gameplay slice",
+  "captures": 2,
+  "frames": 281,
   "route_id": "route_forge_use",
-  "verdict": "unavailable"
+  "verdict": "pass"
 }

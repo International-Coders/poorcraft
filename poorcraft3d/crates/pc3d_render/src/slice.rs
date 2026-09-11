@@ -249,6 +249,8 @@ pub fn assemble(
         world_name: world_name.into(),
         inspect: false,
         last_message: "WALK WITH WASD - CLICK TO LOOK".into(),
+        forge: None,
+        forge_tick_frame: 0,
     }
 }
 
@@ -742,6 +744,8 @@ pub fn assemble_rebuild(
         inspect: false,
         last_message: "REBUILD SLICE - WASD WALKS THE SURFACE - F BUILDS ON INSPECTED GROUND"
             .into(),
+        forge: None,
+        forge_tick_frame: 0,
     };
     host.host.borrow_mut().run_ticks(0);
     host
