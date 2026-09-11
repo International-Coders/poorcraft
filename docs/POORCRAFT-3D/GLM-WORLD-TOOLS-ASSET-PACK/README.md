@@ -34,6 +34,10 @@ assets" into a gameplay-semantic asset factory with doors, interiors, NPC talk
 states, forge actions, screenshot/wireframe/anchor exports, playtest routes,
 and AMD/NVIDIA-informed capture gates.
 
+Use `WT-003-GAME-OBSERVATORY-MCP-LAB/` before claiming runtime success. It
+forces local MCP-style tools, input replay, screenshots, wireframes, overlays,
+asset dumps, runtime state JSON, GPU markers, and regression verdicts.
+
 ## Folder Map
 
 - `00-OWNER-DEMANDS.md` — plain owner intent.
@@ -55,6 +59,9 @@ and AMD/NVIDIA-informed capture gates.
   start-menu seed preview harness.
 - `WT-002-SEMANTIC-ASSET-FACTORY-LAB/` — implementation-ready second task for
   high-volume playable assets, inspection tools, and GPU capture discipline.
+- `WT-003-GAME-OBSERVATORY-MCP-LAB/` — implementation-ready observability task
+  for MCP-style inspection, screenshots, wireframes, state exports, input
+  replay, GPU markers, and regression comparison.
 
 ## Machine Contracts
 
@@ -68,6 +75,7 @@ and AMD/NVIDIA-informed capture gates.
 - `screenshot_wiremesh_capture_contract.json`
 - `semantic_asset_tags.schema.json`
 - `tooling_backlog.json`
+- `WT-003-GAME-OBSERVATORY-MCP-LAB/observatory_manifest.json`
 
 ## Relationship To The Existing Packs
 

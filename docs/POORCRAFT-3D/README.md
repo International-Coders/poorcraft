@@ -92,6 +92,10 @@ only when its implementation, tests, runtime behavior, and evidence agree.
   handoff for high-volume gameplay-semantic asset generation, inspection
   exports, wireframe/anchor screenshots, playtest routes, and GPU capture
   rules.
+- `GLM-WORLD-TOOLS-ASSET-PACK/WT-003-GAME-OBSERVATORY-MCP-LAB/` — concrete
+  handoff for local MCP-style inspection tools, runtime state exports,
+  screenshot/wireframe/overlay captures, input replay, asset dumps, GPU
+  markers, and regression evidence bundles.
 
 ## What this project is
 

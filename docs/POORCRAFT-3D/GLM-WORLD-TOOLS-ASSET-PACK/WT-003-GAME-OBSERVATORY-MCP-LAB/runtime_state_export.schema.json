@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "required_fields": [
+    "version",
+    "build_hash",
+    "command",
+    "timestamp_utc",
+    "scene",
+    "seed",
+    "viewport",
+    "quality",
+    "camera",
+    "player",
+    "ui",
+    "world",
+    "visible_assets",
+    "interactions",
+    "npcs",
+    "machines",
+    "perf",
+    "gpu_markers",
+    "proof_paths",
+    "verdict"
+  ],
+  "null_requires_reason": true
+}

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "required_markers": [
+    "frame",
+    "terrain",
+    "sky_atmosphere",
+    "water",
+    "asset_instances",
+    "npcs",
+    "machines",
+    "wireframe_overlays",
+    "ui",
+    "screenshot_readback"
+  ],
+  "required_fields": [
+    "build_hash",
+    "api_backend",
+    "adapter_name",
+    "markers_present",
+    "timestamp_support",
+    "cpu_frame_ms",
+    "gpu_frame_ms_or_reason",
+    "draw_calls",
+    "triangles",
+    "material_buckets"
+  ]
+}

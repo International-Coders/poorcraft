@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-09-11 — WT-003 game observatory MCP lab
+
+The GLM world/tools pack now has a third implementation-ready subpack:
+
+- `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-003-GAME-OBSERVATORY-MCP-LAB/`
+  defines local MCP-style tools and CLI-equivalent contracts so GLM can inspect
+  the real game instead of guessing from code or stale screenshots.
+- The subpack covers runtime state exports, screenshot/wireframe/overlay
+  captures, input replay routes, mesh/material dumps, GPU markers/timestamps,
+  regression comparisons, evidence bundles, and local-only safety limits.
+- Ten JSON contracts cover tool surfaces, runtime state, screenshot scenes,
+  wireframe overlays, asset dumps, input routes, GPU markers, regression gates,
+  and evidence bundle schemas. `pc3d_assets` parses them through the
+  world/tools guard and preserves the law that GLM must inspect real game
+  evidence before claiming success.
+
 ## 2026-09-11 — WT-002 semantic asset factory lab
 
 The GLM world/tools pack now has a second implementation-ready subpack:

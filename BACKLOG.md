@@ -68,6 +68,12 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       semantic playtest routes, AMD/NVIDIA-informed capture gates, nine JSON
       contracts, and a code guard proving the subpack files parse and exist
       (loop 417)
+- [x] POORCRAFT 3D WT-003 game observatory MCP lab: concrete
+      implementation-ready subfolder under GLM-WORLD-TOOLS-ASSET-PACK for
+      local MCP-style inspection, runtime state exports, screenshots,
+      wireframes, overlays, mesh/material dumps, input replay, GPU markers,
+      regression evidence bundles, ten JSON contracts, and a code guard proving
+      the subpack files parse and exist (loop 418)
 
 ## ui-world-craft pack (loop 328)
 

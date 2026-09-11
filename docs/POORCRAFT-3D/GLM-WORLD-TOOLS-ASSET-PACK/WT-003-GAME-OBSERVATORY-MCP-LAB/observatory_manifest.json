@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "task_id": "WT-003",
+  "name": "Game Observatory MCP Lab",
+  "purpose": "Force GLM to inspect POORCRAFT 3D with screenshots, wireframes, runtime state, asset dumps, input replay, GPU markers, and regression verdicts.",
+  "required_contracts": [
+    "mcp_tool_contract.json",
+    "runtime_state_export.schema.json",
+    "screenshot_scene_matrix.json",
+    "wireframe_overlay_contract.json",
+    "asset_dump_contract.json",
+    "input_route_contract.json",
+    "gpu_marker_contract.json",
+    "regression_gate_contract.json",
+    "evidence_bundle.schema.json"
+  ],
+  "must_preserve": [
+    "screenshots require JSON state",
+    "wireframes must come from mesh data",
+    "routes must use real input",
+    "gpu claims require pass markers",
+    "inconclusive is not green"
+  ]
+}

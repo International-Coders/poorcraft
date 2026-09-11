@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "step_kinds": ["key", "mouse_move", "mouse_click", "wait", "assert", "capture", "inspect"],
+  "required_routes": [
+    "route_title_mouse",
+    "route_new_world_seed",
+    "route_escape_pause",
+    "route_house_entry",
+    "route_npc_talk",
+    "route_forge_use",
+    "route_asset_inspect",
+    "route_gpu_markers"
+  ],
+  "route_required_fields": ["id", "seed", "viewport", "steps", "expected_final_state", "outputs"]
+}

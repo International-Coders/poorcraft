@@ -6117,6 +6117,39 @@ glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
+## 2026-09-11 — WT-003 game observatory MCP lab
+
+WHAT: Added
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-003-GAME-OBSERVATORY-MCP-LAB,
+a third concrete implementation handoff for the owner request that GLM must
+take screenshots, wireframes, and real game info before claiming work is done.
+The pack defines local MCP-style/CLI-equivalent tools for screenshot capture,
+wireframe capture, overlays, runtime state JSON, mesh/material dumps, input
+replay, GPU marker audits, regression comparisons, and evidence bundles.
+
+HOW: Created Markdown files for the GLM prompt, observatory brief, MCP tool
+spec, runtime state exports, screenshot/wireframe/overlay modes, input replay
+routes, mesh/material dumps, GPU markers/timestamps/captures, comparison and
+regression gates, local-only security/scope, implementation slices, acceptance
+checklist, and failure modes. Added JSON contracts for observatory manifest,
+MCP tools, runtime state export schema, screenshot scene matrix, wireframe
+overlay contract, asset dump contract, input route contract, GPU marker
+contract, regression gate contract, and evidence bundle schema. Linked WT-003
+from the parent GLM world/tools README and main POORCRAFT 3D README, updated
+zcode_world_tools_task_queue.json, expanded world_tools_manifest.json, and
+extended the pc3d_assets guard to parse the ten WT-003 JSON contracts while
+asserting the new law that GLM must inspect real game evidence before claiming
+success. Existing dirty pc3d_render/ui-shot files were present before this pass
+and were left untouched.
+
+EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
+validates with python3 -m json.tool. cargo test --manifest-path
+poorcraft3d/Cargo.toml -p pc3d_assets
+glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
+--manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
+needed.
+
 ## 2026-09-11 — WT-002 semantic asset factory lab
 
 WHAT: Added

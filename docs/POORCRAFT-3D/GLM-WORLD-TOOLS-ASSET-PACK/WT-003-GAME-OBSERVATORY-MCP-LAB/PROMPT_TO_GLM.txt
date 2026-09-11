@@ -1,0 +1,21 @@
+Implement WT-003: the POORCRAFT 3D game observatory and MCP-style inspection
+lab.
+
+Read every file in:
+docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/WT-003-GAME-OBSERVATORY-MCP-LAB
+
+Build a local-only observability layer that lets GLM inspect the game from
+outside and prove claims with files. Required:
+
+1. Add or extend commands/MCP-style tools for screenshot capture, wireframe
+   capture, scene state, asset state, mesh/material dumps, player/NPC state,
+   UI layout, input replay, and performance metrics.
+2. Every capture writes PNG plus JSON sidecars with build hash, command, seed,
+   viewport, camera, scene, visible assets, UI state, interaction state, GPU
+   markers, and test verdict.
+3. Add deterministic routes for title screen, New World seed preview, house
+   door entry, NPC talk, forge use, asset inspection, and GPU marker audit.
+4. Use wgpu debug groups/markers/timestamps where supported so AMD RGP and
+   NVIDIA Nsight captures have named passes.
+5. Do not claim done until saved evidence proves the game state, screenshot,
+   wireframe, and exported JSON agree.

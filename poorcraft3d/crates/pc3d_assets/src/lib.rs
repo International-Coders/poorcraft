@@ -645,6 +645,7 @@ mod tests {
             "gpu vendor work starts with markers and data",
             "screenshots and wireframes are required evidence",
             "asset factory outputs must be gameplay-semantic",
+            "GLM must inspect real game evidence before claiming success",
         ] {
             assert!(
                 preserved.iter().any(|value| value
@@ -689,6 +690,16 @@ mod tests {
             "WT-002-SEMANTIC-ASSET-FACTORY-LAB/tool_commands_manifest.json",
             "WT-002-SEMANTIC-ASSET-FACTORY-LAB/playtest_evidence_matrix.json",
             "WT-002-SEMANTIC-ASSET-FACTORY-LAB/asset_iteration_budgets.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/observatory_manifest.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/mcp_tool_contract.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/runtime_state_export.schema.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/screenshot_scene_matrix.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/wireframe_overlay_contract.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/asset_dump_contract.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/input_route_contract.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/gpu_marker_contract.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/regression_gate_contract.json",
+            "WT-003-GAME-OBSERVATORY-MCP-LAB/evidence_bundle.schema.json",
         ] {
             let json = std::fs::read_to_string(root.join(rel)).expect("pack json readable");
             let parsed: serde_json::Value =

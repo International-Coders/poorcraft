@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "scenes": [
+    {"id": "title_mouse", "viewports": [[1280, 720], [1501, 801]], "modes": ["beauty", "ui_only"]},
+    {"id": "new_world_seed_preview", "viewports": [[1280, 720], [1501, 801]], "modes": ["beauty", "ui_only", "comparison"]},
+    {"id": "semantic_factory_001", "viewports": [[1280, 720], [1501, 801]], "modes": ["beauty", "wireframe", "bounds", "anchors", "materials", "perf"]},
+    {"id": "gpu_marker_audit", "viewports": [[1280, 720]], "modes": ["beauty", "perf"]}
+  ],
+  "pixel_checks": [
+    "nonblank",
+    "ui_not_clipped",
+    "wireframe_edges_visible",
+    "anchors_labeled",
+    "bounds_visible",
+    "sidecar_matches_viewport"
+  ]
+}

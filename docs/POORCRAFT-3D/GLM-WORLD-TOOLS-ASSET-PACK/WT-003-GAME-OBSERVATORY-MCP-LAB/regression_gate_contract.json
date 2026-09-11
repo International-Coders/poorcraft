@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "verdicts": ["pass", "fail", "inconclusive", "skipped_with_reason"],
+  "gates": [
+    "same_seed_same_build",
+    "same_seed_new_build",
+    "different_seed",
+    "before_after_fix",
+    "vendor_before_after"
+  ],
+  "required_outputs": ["manifest_json", "runtime_json", "screenshots", "metrics_json", "verdict_json"],
+  "inconclusive_is_green": false
+}

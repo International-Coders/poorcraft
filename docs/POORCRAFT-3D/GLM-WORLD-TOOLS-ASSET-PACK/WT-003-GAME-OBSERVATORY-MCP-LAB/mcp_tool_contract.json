@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "tools": [
+    {"name": "pc3d.capture_screenshot", "writes": ["png", "state_json"], "mutates_world": false},
+    {"name": "pc3d.capture_wireframe", "writes": ["png", "wireframe_json"], "mutates_world": false},
+    {"name": "pc3d.capture_overlay", "writes": ["png", "overlay_json"], "mutates_world": false},
+    {"name": "pc3d.inspect_scene", "writes": ["scene_json"], "mutates_world": false},
+    {"name": "pc3d.inspect_asset", "writes": ["asset_json"], "mutates_world": false},
+    {"name": "pc3d.inspect_ui", "writes": ["layout_json"], "mutates_world": false},
+    {"name": "pc3d.replay_input_route", "writes": ["route_json", "screenshots"], "mutates_world": "temp_world_only"},
+    {"name": "pc3d.compare_evidence", "writes": ["verdict_json", "diff_png"], "mutates_world": false},
+    {"name": "pc3d.audit_gpu_markers", "writes": ["marker_json"], "mutates_world": false}
+  ],
+  "common_required_args": ["scene", "seed", "viewport", "outdir"]
+}

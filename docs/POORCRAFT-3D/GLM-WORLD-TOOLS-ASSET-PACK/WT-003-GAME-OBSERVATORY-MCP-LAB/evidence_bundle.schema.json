@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "required_fields": [
+    "bundle_id",
+    "build_hash",
+    "route_id",
+    "scene",
+    "seed",
+    "viewport",
+    "quality",
+    "commands",
+    "runtime_state_path",
+    "screenshots",
+    "wireframes",
+    "overlays",
+    "asset_dumps",
+    "perf_path",
+    "gpu_marker_path",
+    "diff_paths",
+    "verdict_path",
+    "digest"
+  ],
+  "all_paths_must_exist": true
+}

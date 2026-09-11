@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "required_fields": [
+    "asset_id",
+    "source_path",
+    "generated_by",
+    "vertex_count",
+    "triangle_count",
+    "submeshes",
+    "bounds",
+    "lods",
+    "wireframe_edge_count",
+    "collision_shapes",
+    "nav_shapes",
+    "anchors",
+    "material_slots"
+  ],
+  "rejections": [
+    "non_finite_bounds",
+    "missing_material_id",
+    "missing_required_anchor",
+    "lod_anchor_mismatch",
+    "triangle_budget_exceeded"
+  ]
+}
