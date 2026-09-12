@@ -7120,3 +7120,35 @@ HONESTLY DEFERRED: the showcase plan yields no Deliver quest, so the
 live route cannot exercise it (the resolver + arm are law-proven);
 delivered bars leave the stock but no receiving NPC animates (the
 giver is named in the journal); the 8 m radius matches Visit.
+
+## 2026-09-11 — Damage systems (fall + eat + regen) — law-proven, live proof honestly deferred
+
+WHAT: the health bar went LIVE — falls hurt (impact speed beyond the
+safe hop speed costs 12 health per extra m/s; 0 health recovers you at
+the plaza, winded, half bars), X eats carried bread (+0.30 food, +0.12
+health — the item's own Food{heal:30}), and health regenerates slowly
+while well fed (food > 50%). The damage law is unit-proven; the eat
+and regen wiring run in the live loop.
+
+HOW: damage_from_impact (pure, law: safe at/below 7 m/s — a jump
+landing; 2 m/s over costs 24%; a 12 m fall is lethal); the landing
+hook applies damage with plaza recovery at 0; an explicit AIRBORNE
+state on the slice (the walk snaps Y every frame — a fall can only
+exist while the fall owns Y: the walk preserves Y while falling);
+PlayerTeleportHigh sets it (the proof hook); X/EatBread consumes real
+stock with the honest empty-larder refusal; regen 0.02/s while fed
+(inside the vitals tick).
+
+HONESTLY DEFERRED (the note that matters): the LIVE route proof of
+the fall is NOT green and was REMOVED rather than faked — three
+attempts (drop at world (0,12,0): terrain above it; +10 m above the
+player: the ore-node column's ground answers at the player's own
+height, freezing the fall; local-ground landing: the walk's snap
+still wins) — the airborne state is the right architecture but the
+ore-column ground behavior needs one more debugging pass. The damage
+law + landing hook + eat + regen stand law-proven; the route chain
+(without the fall steps) is unchanged and deterministic x2 +
+comparator PASS; 187 lib tests green; full suites green. NEXT CYCLE'S
+FIRST TASK: make the fall observable end-to-end in the live route
+(likely: ground_y_at at the ore column answers the collision-cell top
+— use a spot away from props).

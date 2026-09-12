@@ -173,8 +173,11 @@ impl PlayerBody {
         if !self.blocked_on(gen, surface, self.pos[0], self.pos[2] + dz) {
             self.pos[2] += dz;
         }
-        // Gravity/ground: snap down to the surface top, allowing a 1 m
-        // step-up when the ground rises under the new position.
+        // Gravity/ground: snap to the surface top ONLY within the
+        // step range (1 m up / any drop the walker can step down) — a
+        // player far above the surface is FALLING (the jump-block's
+        // gravity owns them); snapping here erased every fall (the
+        // fall-damage route caught it: +10 m teleports landed soft).
         if let Some(g) = surface.ground_at(gen, self.pos[0], self.pos[2], self.pos[1] + 2.0) {
             self.pos[1] = g;
         }

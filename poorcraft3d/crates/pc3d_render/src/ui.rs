@@ -1871,6 +1871,9 @@ pub enum UiAction {
     /// world XZ (grounded through the live walk surface) — the route
     /// version of PlayerLook; the world state itself never moves.
     PlayerTeleport { x: f32, z: f32 },
+    /// Proof hook: teleport with an explicit height — the fall-damage
+    /// route drops the player from real altitude.
+    PlayerTeleportHigh { x: f32, y: f32, z: f32 },
     /// The forge slice: load fuel (with the water the firebox needs).
     ForgeLoadFuel,
     /// The forge slice: load ore into the slots.
@@ -1890,6 +1893,9 @@ pub enum UiAction {
     /// The deliver slice: hand carried bars to the Delivery quest site
     /// you stand at (the app resolves site + stock).
     DeliverAtSite,
+    /// The eat slice: consume one carried bread (X) — food up, a
+    /// small heal; refuses honestly with an empty larder.
+    EatBread,
     /// The harvest slice: swing at the ore node.
     HarvestOre,
     /// Proof hook (inspector): raw mouse deltas applied to the live
@@ -1996,6 +2002,9 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
             }
             Key::Char('d') => {
                 acts.push(UiAction::DeliverAtSite);
+            }
+            Key::Char('x') => {
+                acts.push(UiAction::EatBread);
             }
             Key::Char('g') if state.forge.is_some() => {
                 acts.push(UiAction::ForgeLoadFuel);

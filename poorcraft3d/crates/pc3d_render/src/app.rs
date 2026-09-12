@@ -148,6 +148,8 @@ pub struct SliceHost {
     pub credits: i64,
     /// Frame counter for the forge's work tick.
     pub forge_tick_frame: u64,
+    /// Explicit airborne state: the walk must not snap Y while true.
+    pub falling: bool,
 }
 
 /// A shared handle to the authoritative host for interactive construction:
@@ -183,6 +185,14 @@ fn sync_journal_rows_into(
     if ui.journal.is_some() {
         ui.journal = rows;
     }
+}
+
+/// Fall damage (pure): impact speed beyond the safe hop speed hurts —
+/// 0 below ~7 m/s (a jump landing is safe), then 12 health per extra
+/// m/s. A 12 m fall (~15.3 m/s) costs ~100 health: lethal.
+pub fn damage_from_impact(vy_at_land: f32) -> f32 {
+    let impact = vy_at_land.abs();
+    ((impact - 7.0).max(0.0) * 12.0) / 100.0
 }
 
 /// The deliver resolver (pure): for every ACTIVE Deliver quest whose
@@ -289,6 +299,18 @@ mod deliver_tests {
             progress,
             reward: 5,
         }
+    }
+
+    #[test]
+    fn fall_damage_law_safe_below_seven_mps() {
+        use super::damage_from_impact;
+        assert_eq!(damage_from_impact(0.0), 0.0, "standing");
+        assert_eq!(damage_from_impact(-4.6), 0.0, "a jump landing is safe");
+        assert_eq!(damage_from_impact(-7.0), 0.0, "the safe boundary");
+        let d = damage_from_impact(-15.3); // ~12 m fall
+        assert!(d >= 0.99, "a 12 m fall is lethal ({d})");
+        let d = damage_from_impact(-9.0);
+        assert!((d - 0.24).abs() < 0.01, "2 m/s over costs 24% ({d})");
     }
 
     #[test]
@@ -1016,6 +1038,13 @@ impl App {
                         }
                     }
                 }
+                UiAction::PlayerTeleportHigh { x, y, z } => {
+                    if let Some(slice) = self.cfg.slice_host.as_mut() {
+                        slice.player.pos = [*x, *y, *z];
+                        slice.jump_vy = 0.0;
+                        slice.falling = true;
+                    }
+                }
                 UiAction::PlayerTeleport { x, z } => {
                     // Proof hook: move the PLAYER (the camera follows
                     // through the normal per-frame path).
@@ -1092,6 +1121,42 @@ impl App {
                             s.ui.wallet = slice.credits;
                         }
                         s.ui_dirty = true;
+                    }
+                }
+                UiAction::EatBread => {
+                    // X eats: one bread from the stock — the item's
+                    // Food{heal:30} maps to +0.30 food, +0.12 health.
+                    let ate = self
+                        .cfg
+                        .slice_host
+                        .as_mut()
+                        .map(|slice| {
+                            if slice.inventory.count(pc3d_world::items::ItemId(20)) > 0 {
+                                slice.inventory.remove(pc3d_world::items::ItemId(20), 1);
+                                true
+                            } else {
+                                false
+                            }
+                        })
+                        .unwrap_or(false);
+                    if let Some(s) = self.state.as_mut() {
+                        if ate {
+                            s.ui.hud.food = (s.ui.hud.food + 0.30).min(1.0);
+                            s.ui.hud.health = (s.ui.hud.health + 0.12).min(1.0);
+                            s.ui.toast("ATE BREAD");
+                        } else {
+                            s.ui.toast("NO BREAD — OPEN THE CHEST");
+                        }
+                        s.ui_dirty = true;
+                    }
+                    let stock = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::sync_stock_lines_of(slice))
+                        .unwrap_or_default();
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.stock_lines = stock;
                     }
                 }
                 UiAction::DeliverAtSite => {
@@ -2347,9 +2412,13 @@ impl App {
                 // The NWR-011 walk: on the STREAMED SURFACE at the
                 // sprint-aware speed, plus the schedule ticking the
                 // crowd's authoritative brains.
+                let y_before = slice.player.pos[1];
                 state
                     .renderer
                     .walk_player_surface_speed(&gen, &mut slice.player, fwd, strafe, dt, speed);
+                if slice.falling {
+                    slice.player.pos[1] = y_before; // the fall owns Y
+                }
                 // JUMP (the controls spec's Space): a real minimal hop —
                 // vertical velocity + gravity, clamped to the ground.
                 if gameplay_active {
@@ -2358,18 +2427,53 @@ impl App {
                         slice.jump_vy = 4.6;
                     }
                     slice.jump_held = state.keys.contains(&KeyCode::Space);
-                    if slice.jump_vy > 0.0 || slice.player.pos[1] > slice.ground_y + 0.01 {
+                    // THE FALL (an explicit airborne state — the walk
+                    // snaps Y every frame, so a fall can only exist
+                    // while we tell it not to): gravity integrates,
+                    // landing applies damage from the impact speed.
+                    let g_here = state.renderer.ground_y_at(
+                        &gen,
+                        slice.player.pos[0],
+                        slice.player.pos[2],
+                    );
+                    if slice.falling {
                         slice.jump_vy -= 9.8 * dt;
-                        slice.player.pos[1] = (slice.player.pos[1] + slice.jump_vy * dt).max(slice.ground_y);
-                        if slice.player.pos[1] <= slice.ground_y {
-                            slice.player.pos[1] = slice.ground_y;
+                        slice.player.pos[1] += slice.jump_vy * dt;
+                        if slice.player.pos[1] <= g_here {
+                            slice.player.pos[1] = g_here;
+                            let dmg = damage_from_impact(slice.jump_vy);
+                            slice.falling = false;
                             slice.jump_vy = 0.0;
+                            if dmg > 0.0 {
+                                state.ui.hud.health =
+                                    (state.ui.hud.health - dmg).max(0.0);
+                                if state.ui.hud.health <= 0.0 {
+                                    let plaza = slice.scene.plan.plaza;
+                                    slice.player.pos = [
+                                        plaza.x as f32 + 0.5,
+                                        slice.player.pos[1],
+                                        plaza.z as f32 + 0.5,
+                                    ];
+                                    state.ui.hud.health = 0.5;
+                                    state.ui.hud.food = (state.ui.hud.food * 0.5).max(0.3);
+                                    state.ui.toast("YOU FELL — RECOVERED AT THE PLAZA");
+                                } else {
+                                    state.ui.toast(format!(
+                                        "FELL — HEALTH {}%",
+                                        (state.ui.hud.health * 100.0) as u8
+                                    ));
+                                }
+                                state.ui_dirty = true;
+                            }
                         }
+                    } else if gameplay_active
+                        && state.keys.contains(&KeyCode::Space)
+                        && !slice.jump_held
+                    {
+                        slice.jump_vy = 4.6;
                     }
-                    if slice.jump_vy <= 0.0 {
-                        // Standing on ground: remember it for the next hop.
-                        slice.ground_y = slice.player.pos[1];
-                    }
+                    slice.jump_held = state.keys.contains(&KeyCode::Space);
+                    slice.ground_y = slice.player.pos[1];
                 }
                 if gameplay_active {
                     state.renderer.crowd_tick(0.35, 1);
@@ -2551,12 +2655,20 @@ impl App {
                 // is free; sprinting (Shift while moving) drains it at
                 // 0.22/s; rest regenerates at 0.14/s; hitting empty
                 // locks sprint out until 25% recovery (no flicker).
-                // Food drains slowly with travel; health stays full
-                // until damage systems exist (honest placeholder).
+                // Food drains slowly with travel; HEALTH regenerates
+                // slowly while well fed (food > 50%) — the damage
+                // system is fall impact (see the landing hook).
                 let hud = &mut state.ui.hud;
-                let before = (hud.stamina * 100.0) as i32 * 100 + (hud.food * 100.0) as i32;
+                let before = (hud.stamina * 100.0) as i32 * 100
+                    + (hud.food * 100.0) as i32
+                    + (hud.health * 100.0) as i32;
                 hud.tick_vitals(sprinting, moving, dt);
-                let after = (hud.stamina * 100.0) as i32 * 100 + (hud.food * 100.0) as i32;
+                if hud.food > 0.5 && hud.health < 1.0 {
+                    hud.health = (hud.health + 0.02 * dt).min(1.0);
+                }
+                let after = (hud.stamina * 100.0) as i32 * 100
+                    + (hud.food * 100.0) as i32
+                    + (hud.health * 100.0) as i32;
                 if before != after {
                     state.ui_dirty = true;
                 }
@@ -2676,6 +2788,7 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         KeyCode::KeyE => Key::Char('e'),
         KeyCode::KeyJ => Key::Char('j'),
         KeyCode::KeyD => Key::Char('d'),
+        KeyCode::KeyX => Key::Char('x'),
         KeyCode::Digit1 | KeyCode::Numpad1 => Key::Digit(1),
         KeyCode::Digit2 | KeyCode::Numpad2 => Key::Digit(2),
         KeyCode::Digit3 | KeyCode::Numpad3 => Key::Digit(3),

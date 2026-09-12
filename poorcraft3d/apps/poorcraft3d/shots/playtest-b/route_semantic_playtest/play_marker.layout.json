@@ -325,12 +325,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-12 01:11",
+        "modified": "2026-09-12 02:33",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-12 01:11",
+        "modified": "2026-09-12 02:33",
         "name": "beta-shot",
         "seed": 7
       }
@@ -340,7 +340,12 @@
       "WOOD_PICK x1",
       "BREAD x2"
     ],
-    "toasts": [],
+    "toasts": [
+      {
+        "age_s": 2.7525131702423096,
+        "text": "HARVESTED 2 IRON ORE"
+      }
+    ],
     "wallet": 0
   }
 }

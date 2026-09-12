@@ -3715,3 +3715,15 @@ The simulation-only roadmap was declared complete; the visual reset
 - Evidence: the resolver law; playtest x2 deterministic + comparator
   PASS unchanged (the showcase plan yields no Deliver quest — noted
   honestly); 186 lib tests; full suites green.
+
+## Loop 438 — Damage systems (fall + eat + regen)
+- Falls hurt (impact > 7 m/s: 12 health/m/s; lethal falls recover you
+  at the plaza, winded); X eats carried bread (real stock, honest
+  refusal); health regenerates while well fed. An explicit airborne
+  state lets the fall own Y against the walk's snap;
+  PlayerTeleportHigh is the proof hook.
+- Evidence: the damage law (unit); 187 lib tests; playtest x2
+  deterministic + comparator PASS. The live fall ROUTE proof is
+  honestly deferred (removed, not faked) — the ore-column ground
+  answers at the player's height, freezing the drop; next cycle's
+  first task.
