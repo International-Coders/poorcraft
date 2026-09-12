@@ -6,7 +6,7 @@
 # name): a stale mounted DMG must never be mistakable for a fresh one.
 P3D_GIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
-.PHONY: help build test run smoke vistest perf package runtimes push night-plan-check seedlab sounds
+.PHONY: help build test run smoke vistest perf package runtimes push night-plan-check idle-upgrade-check seedlab sounds
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -72,6 +72,9 @@ push: ## Commit-and-push helper: pushes current branch to the GitHub remote
 
 night-plan-check: ## Validate the ZCode nightly alpha-to-beta goal pack
 	cargo run -p xtask -- night-plan-check
+
+idle-upgrade-check: ## Validate the ZCode perpetual upgrade prompt, canon bible, and machine contract
+	cargo run -p xtask -- idle-upgrade-check
 
 seedlab: ## 64-seed diversity report -> target/seedlab_report.json (N05)
 	cargo run --release -p xtask -- seedlab

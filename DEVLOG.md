@@ -7152,3 +7152,45 @@ comparator PASS; 187 lib tests green; full suites green. NEXT CYCLE'S
 FIRST TASK: make the fall observable end-to-end in the live route
 (likely: ground_y_at at the ore column answers the collision-cell top
 — use a spot away from props).
+
+## 2026-09-12 — Perpetual ZCode idle-upgrade prompt + canon guard (loop 439)
+
+WHAT: Created a reusable ZCode idle-time upgrade pack that is deliberately
+perpetual at the project level while remaining bounded and shippable per idle
+invocation. It includes the paste-ready task prompt, a consolidated 977-line
+LOREFORGE canon bible, a decision framework for performance/library/crate/
+portability changes, and a machine-readable autonomous-upgrade contract. Added
+an executable guard so future edits cannot silently remove the core lore or
+proof obligations.
+
+HOW: Read the current state/backlog/changelog, the POORCRAFT 3D design series,
+the existing GLM/ZCode runbooks, the canonical world/cosmology/faction/NPC/
+dialogue sources, lore TOML, and relevant prior project-task summaries. The
+prompt now requires one valuable proofable job, measured dependency decisions,
+portable architecture rather than unverified console claims, explicit lore
+impact review, bookkeeping, focused staging, commit/push discipline, and a
+durable next task so later idle runs continue. Added `xtask/src/idle_upgrade.rs`,
+wired `idle-upgrade-check` into `xtask/src/main.rs`, documented it in the root
+Makefile, and linked the pack from the POORCRAFT 3D index. Files belonging to
+concurrent/in-progress render, world, asset-generation, and generated-asset
+work were not edited or staged.
+
+EVIDENCE: `target/debug/xtask idle-upgrade-check` PASS — 4 Markdown documents,
+77,870 bytes, 5 local links, 8 canon locks, 9 proof gates. `jq empty` passed for
+the JSON contract. `cargo test -p xtask idle_upgrade -- --nocapture` passed 2/2.
+`cargo build --workspace` passed. Full `cargo test --workspace` first reached
+the three UDP tests under the restricted sandbox and received expected socket
+`PermissionDenied`; rerunning with local socket permission passed those tests
+and the entire workspace, including the 11/11 render proof suite and the
+47/47 worldgen suite (`wizard_towers_generate_in_gated_biomes` completed in
+985.28s). `git diff --check` passed for the job files.
+
+LORE IMPACT: No new canon was invented. Existing sources were consolidated and
+their ambiguity preserved. The Ruin remains unresolved; Anima remains the
+world's substrate; the six factions and four eras remain fixed; player identity
+remains unassigned. Any future contradiction requires an explicit owner-approved
+canon migration, not a quiet rewrite.
+
+SHIPPING: This is a pure tooling/documentation guard job, so the dev-loop's
+tooling exception applies and desktop runtimes were not rebuilt. The live fall
+route proof remains the first gameplay task next cycle.

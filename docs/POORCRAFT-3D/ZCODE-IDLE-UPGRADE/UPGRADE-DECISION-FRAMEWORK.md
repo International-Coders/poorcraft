@@ -68,7 +68,8 @@ Measure the bottleneck that the job claims to improve:
 - binary/package size and feature contribution;
 - battery/thermal behavior on Steam Deck or comparable low-power hardware.
 
-After the change, repeat the same measurement. Reject a speedup that breaks
+After the change, repeat the same measurement as a before-and-after comparison.
+Reject a speedup that breaks
 determinism, save correctness, visual readability, input behavior, simulation
 authority, lore, or supported platforms. If results are noise-sized, do not
 claim a win.
@@ -172,4 +173,3 @@ performance, portability, correctness, accessibility, system depth, content
 coherence, and maintenance. Ship the highest-value proven gap. If no safe,
 valuable change can be justified, report that honestly; never generate filler
 commits to simulate motion.
-

@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-09-12 — Perpetual ZCode idle-upgrade and lore-canon pack
+
+- Added `docs/POORCRAFT-3D/ZCODE-IDLE-UPGRADE/`, centered on a paste-ready
+  idle-time task that completes one evidence-backed upgrade per invocation,
+  preserves a durable next task, and never treats the game's design or
+  development as terminally complete.
+- Consolidated the existing game documents and prior direction into a
+  977-line canon bible. It locks Valdenmoor, Era IV Year 1, Anima, the
+  deliberately unresolved Ruin, the four eras, the six factions, named places,
+  player freedom, NPC personhood, faction consequence, water-led industry,
+  first-person war, visual grammar, and an explicit owner-only canon migration
+  process.
+- Added a measured upgrade decision framework for performance work, third-party
+  Rust dependencies, new internal crates, platform seams, and honest
+  console-readiness claims, plus `autonomous_upgrade_contract.json` for
+  machine-readable enforcement.
+- Added `xtask idle-upgrade-check`, two Rust guardrail tests, and the matching
+  `make idle-upgrade-check` target. Evidence: 4 Markdown documents / 77,870
+  bytes, 5 local links, 8 canon locks, 9 proof gates; focused tests 2/2; root
+  `cargo build --workspace` and full `cargo test --workspace` green (including
+  UDP and the 985.28-second exhaustive world-generation test).
+
 ## 2026-09-11 — WT-008 data extraction plugin lab
 
 The GLM world/tools pack now has an eighth implementation-ready subpack:

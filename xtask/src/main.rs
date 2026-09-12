@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 mod gen;
+mod idle_upgrade;
 mod night_plan;
 mod truth;
 
@@ -144,6 +145,25 @@ fn main() {
                 ),
                 Err(e) => {
                     eprintln!("[FAIL] nightly beta plan: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        "idle-upgrade-check" => {
+            let root = args.get(2).map(PathBuf::from).unwrap_or_else(|| {
+                PathBuf::from("docs/POORCRAFT-3D/ZCODE-IDLE-UPGRADE")
+            });
+            match idle_upgrade::validate(&root) {
+                Ok(stats) => println!(
+                    "[ok] idle upgrade pack: {} Markdown documents, {} bytes, {} local links, {} canon locks, {} proof gates",
+                    stats.markdown_documents,
+                    stats.bytes,
+                    stats.links_checked,
+                    stats.canon_locks,
+                    stats.proof_gates
+                ),
+                Err(e) => {
+                    eprintln!("[FAIL] idle upgrade pack: {e}");
                     std::process::exit(1);
                 }
             }
@@ -346,6 +366,7 @@ fn main() {
             println!("  cargo xtask gen-ctm <block>         write a block's CTM strip to assets/ctm/");
             println!("  cargo xtask gen-all-textures        all CTM strips + faction skins (skips existing)");
             println!("  cargo xtask night-plan-check [dir]  validate the ZCode nightly beta goal pack");
+            println!("  cargo xtask idle-upgrade-check [dir] validate the ZCode perpetual upgrade + lore pack");
             println!("  cargo xtask seedlab                 64-seed diversity report -> target/seedlab_report.json");
         }
     }

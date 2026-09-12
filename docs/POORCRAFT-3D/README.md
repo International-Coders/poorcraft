@@ -113,6 +113,10 @@ only when its implementation, tests, runtime behavior, and evidence agree.
 - `GLM-WORLD-TOOLS-ASSET-PACK/WT-008-DATA-EXTRACTION-PLUGIN-LAB/` — concrete
   handoff for local mods/plugins/exporters, telemetry files, sample validation
   packs, MCP-style endpoints, and safe extraction of runtime proof data.
+- `ZCODE-IDLE-UPGRADE/` — paste-ready perpetual ZCode idle-time task prompt,
+  consolidated LOREFORGE canon bible, upgrade/dependency/portability decision
+  framework, and a machine-readable contract guarded by
+  `make idle-upgrade-check`.
 
 ## What this project is
 

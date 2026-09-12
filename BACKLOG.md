@@ -11,6 +11,13 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] ZCode perpetual idle-upgrade pack (2026-09-12): a paste-ready prompt
+      that repeatedly ships one bounded improvement without declaring the game
+      designed, a 977-line consolidated LOREFORGE canon bible, measured
+      performance/dependency/new-crate/portability gates, a machine-readable
+      contract, and `make idle-upgrade-check` + Rust guardrails proving the
+      pack remains complete and lore-locked (loop 439).
+
 - [x] The samurai cut (2026-09-11): the owner-facing UI layer and HUD quads
       drew as ONE TriangleList triangle — the bottom-right half of every
       menu/button/text field showed raw world along the screen diagonal.
