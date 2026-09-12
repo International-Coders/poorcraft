@@ -7093,3 +7093,30 @@ deliver interaction at a Build quest's site — the pattern exists);
 the wallet spends nothing yet (the market/trade slice follows); build
 events carry the placement cell — quest sites are plan cells, so only
 builds AT the site count (the authority's site-match is exact).
+
+## 2026-09-11 — The Deliver-at-site interaction: every quest kind now wires
+
+WHAT: D delivers carried iron bars to an ACTIVE Delivery quest's site
+you stand at — the last quest kind gets its live wiring. The prompt
+names it when ready ("D DELIVER BARS · …"), bars leave the stock, the
+authority's Delivered event advances the quest, a toast narrates.
+
+HOW: resolve_deliver (pure, unit-lawed) — for each ACTIVE Deliver
+quest whose site is within 8 m, deliver up to the REMAINING NEED from
+carried stock (order-stable across quests; stock splits); the D key
+(UiAction::DeliverAtSite) runs it, removes the bars from the real
+inventory, submits the events, toasts DELIVERED N BARS (or the honest
+refusal "NOTHING TO DELIVER HERE (BARS OR SITE?)"); the per-frame
+prompt shows D DELIVER when at an active site with bars in stock.
+
+EVIDENCE: the resolver law (site-radius need/stock splitting, not-
+active and empty-stock refusals); the playtest chain unchanged and
+deterministic x2 + comparator PASS (the showcase plan yields no
+Deliver quest — greet/build/excavate/excavate — so the interaction is
+law-proven, not route-proven; a world whose plan yields one gets it
+for free); 186 lib tests green; full suites green.
+
+HONESTLY DEFERRED: the showcase plan yields no Deliver quest, so the
+live route cannot exercise it (the resolver + arm are law-proven);
+delivered bars leave the stock but no receiving NPC animates (the
+giver is named in the journal); the 8 m radius matches Visit.

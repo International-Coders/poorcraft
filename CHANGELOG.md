@@ -3706,3 +3706,12 @@ The simulation-only roadmap was declared complete; the visual reset
   consumed strictly in order — third occurrence of the class).
 - Deferred: Deliver events (needs a deliver-at-site interaction),
   wallet spending (market/trade slice).
+
+## Loop 437 — Deliver-at-site
+- D delivers carried iron bars to an active Delivery quest's site
+  within 8 m: pure resolver (need/stock/site, order-stable), bars
+  leave the real inventory, the authority's event advances the quest,
+  prompt + toasts narrate; honest refusal when nothing applies.
+- Evidence: the resolver law; playtest x2 deterministic + comparator
+  PASS unchanged (the showcase plan yields no Deliver quest — noted
+  honestly); 186 lib tests; full suites green.

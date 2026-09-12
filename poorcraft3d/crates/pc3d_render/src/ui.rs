@@ -1887,6 +1887,9 @@ pub enum UiAction {
     QuestAccept(u32),
     /// The quest journal: claim the focused COMPLETE quest's reward.
     QuestClaim(u32),
+    /// The deliver slice: hand carried bars to the Delivery quest site
+    /// you stand at (the app resolves site + stock).
+    DeliverAtSite,
     /// The harvest slice: swing at the ore node.
     HarvestOre,
     /// Proof hook (inspector): raw mouse deltas applied to the live
@@ -1990,6 +1993,9 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
                     acts.push(UiAction::TryTalk);
                 }
                 acts.push(UiAction::Repaint);
+            }
+            Key::Char('d') => {
+                acts.push(UiAction::DeliverAtSite);
             }
             Key::Char('g') if state.forge.is_some() => {
                 acts.push(UiAction::ForgeLoadFuel);

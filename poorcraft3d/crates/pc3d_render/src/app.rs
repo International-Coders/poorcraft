@@ -185,6 +185,42 @@ fn sync_journal_rows_into(
     }
 }
 
+/// The deliver resolver (pure): for every ACTIVE Deliver quest whose
+/// site the player stands within `radius` of, deliver up to the quest's
+/// remaining need from the carried stock. Returns (event, taken) pairs.
+pub fn resolve_deliver(
+    quests: &[pc3d_world::quest::Quest],
+    player: [f32; 2],
+    stock_bars: u32,
+    radius: f32,
+) -> Vec<(pc3d_world::quest::QuestEvent, u32)> {
+    let mut out = Vec::new();
+    let mut stock = stock_bars;
+    for q in quests {
+        if q.state != pc3d_world::quest::QuestState::Active {
+            continue;
+        }
+        let pc3d_world::quest::QuestKind::Deliver { site, blocks } = q.kind else {
+            continue;
+        };
+        let need = blocks.saturating_sub(q.progress);
+        if need == 0 || stock == 0 {
+            continue;
+        }
+        let d = (player[0] - site.x as f32).hypot(player[1] - site.z as f32);
+        if d > radius {
+            continue;
+        }
+        let take = (need as u32).min(stock) as u8;
+        stock -= take as u32;
+        out.push((
+            pc3d_world::quest::QuestEvent::Delivered { site, blocks: take },
+            take as u32,
+        ));
+    }
+    out
+}
+
 fn giver_role_str(r: pc3d_world::npc::Role) -> &'static str {
     match r {
         pc3d_world::npc::Role::Farmer => "farmer",
@@ -226,6 +262,60 @@ pub fn forge_view_of(f: &pc3d_world::forge::Forge) -> crate::ui::ForgeView {
             .clamp(0.0, 1.0),
         ore: f.ore,
         bars: f.bars,
+    }
+}
+
+#[cfg(test)]
+mod deliver_tests {
+    use super::resolve_deliver;
+    use pc3d_world::coords::CellCoord;
+    use pc3d_world::quest::{Quest, QuestKind, QuestState};
+
+    fn deliver_quest(site: (i32, i32), blocks: u8, progress: u8, active: bool) -> Quest {
+        Quest {
+            id: 1,
+            title: "t".into(),
+            giver_role: pc3d_world::npc::Role::Builder,
+            giver_cell: CellCoord { x: 0, y: 0, z: 0 },
+            kind: QuestKind::Deliver {
+                site: CellCoord { x: site.0, y: 0, z: site.1 },
+                blocks,
+            },
+            state: if active {
+                QuestState::Active
+            } else {
+                QuestState::Offered
+            },
+            progress,
+            reward: 5,
+        }
+    }
+
+    #[test]
+    fn deliver_resolves_site_stock_and_need() {
+        let site = (100, 100);
+        // At the site with stock: delivers up to the need.
+        let qs = vec![deliver_quest(site, 4, 1, true)];
+        let out = resolve_deliver(&qs, [100.5, 100.5], 9, 8.0);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].1, 3, "the remaining need only");
+        // Far away: nothing.
+        assert!(resolve_deliver(&qs, [130.0, 100.0], 9, 8.0).is_empty());
+        // No stock: nothing.
+        assert!(resolve_deliver(&qs, [100.5, 100.5], 0, 8.0).is_empty());
+        // Not active: nothing.
+        let qs = vec![deliver_quest(site, 4, 0, false)];
+        assert!(resolve_deliver(&qs, [100.5, 100.5], 9, 8.0).is_empty());
+        // Stock splits across two site quests (nearest need first —
+        // the resolver is order-stable by quest order).
+        let qs = vec![
+            deliver_quest(site, 4, 0, true),
+            deliver_quest((104, 100), 4, 0, true),
+        ];
+        let out = resolve_deliver(&qs, [102.0, 100.0], 5, 8.0);
+        let total: u32 = out.iter().map(|(_, t)| t).sum();
+        assert_eq!(total, 5, "all stock delivered");
+        assert_eq!(out.len(), 2, "split across both sites in range");
     }
 }
 
@@ -1003,6 +1093,61 @@ impl App {
                         }
                         s.ui_dirty = true;
                     }
+                }
+                UiAction::DeliverAtSite => {
+                    // Deliver: hand carried iron bars to the Delivery
+                    // site you stand at (the pure resolver decides).
+                    let (events, stock_after) = {
+                        let Some(slice) = self.cfg.slice_host.as_ref() else {
+                            return;
+                        };
+                        let stock = slice
+                            .inventory
+                            .count(pc3d_world::items::ItemId(7));
+                        let player = self
+                            .state
+                            .as_ref()
+                            .map(|s| {
+                                let p = s.renderer.pose().position;
+                                [p[0], p[2]]
+                            })
+                            .unwrap_or([0.0, 0.0]);
+                        let events = resolve_deliver(
+                            slice.quests.as_deref().unwrap_or(&[]),
+                            player,
+                            stock,
+                            8.0,
+                        );
+                        let taken: u32 = events.iter().map(|(_, t)| *t).sum();
+                        (events, stock - taken)
+                    };
+                    let delivered: u32 = events.iter().map(|(_, t)| *t).sum();
+                    if delivered > 0 {
+                        if let Some(slice) = self.cfg.slice_host.as_mut() {
+                            slice.inventory.remove(
+                                pc3d_world::items::ItemId(7),
+                                delivered,
+                            );
+                        }
+                        for (ev, _) in events {
+                            let _ = self.submit_quest_event(ev);
+                        }
+                        if let Some(s) = self.state.as_mut() {
+                            s.ui.toast(format!("DELIVERED {delivered} BARS"));
+                            let stock = self
+                                .cfg
+                                .slice_host
+                                .as_ref()
+                                .map(|slice| Self::sync_stock_lines_of(slice))
+                                .unwrap_or_default();
+                            s.ui.stock_lines = stock;
+                            s.ui_dirty = true;
+                        }
+                    } else if let Some(s) = self.state.as_mut() {
+                        s.ui.toast("NOTHING TO DELIVER HERE (BARS OR SITE?)");
+                        s.ui_dirty = true;
+                    }
+                    let _ = stock_after;
                 }
                 UiAction::QuestAccept(id) => {
                     let changed = self
@@ -2261,15 +2406,39 @@ impl App {
                 let fd = ((p[0] - pz[0]).powi(2) + (p[2] - pz[1]).powi(2)).sqrt();
                 let forge_near = fd <= 3.5;
                 let base = "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT";
-                let want = match (&npc, forge_near) {
-                    (Some((_n, nd)), true) if fd <= *nd => {
+                // The deliver prompt: standing at an ACTIVE Deliver
+                // quest's site with bars in stock.
+                let deliver_ready = slice
+                    .quests
+                    .as_ref()
+                    .map(|qs| {
+                        qs.iter().any(|q| {
+                            if q.state != pc3d_world::quest::QuestState::Active {
+                                return false;
+                            }
+                            let pc3d_world::quest::QuestKind::Deliver { site, .. } = q.kind
+                            else {
+                                return false;
+                            };
+                            let d = (slice.player.pos[0] - site.x as f32)
+                                .hypot(slice.player.pos[2] - site.z as f32);
+                            d <= 8.0
+                                && slice.inventory.count(pc3d_world::items::ItemId(7)) > 0
+                        })
+                    })
+                    .unwrap_or(false);
+                let want = match (&npc, forge_near, deliver_ready) {
+                    (_, _, true) => {
+                        "D DELIVER BARS · F BUILD · R REMOVE · ESC PAUSE".to_string()
+                    }
+                    (Some((_n, nd)), true, _) if fd <= *nd => {
                         "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE".to_string()
                     }
-                    (Some((name, _)), _) => {
+                    (Some((name, _)), _, _) => {
                         format!("E TALK {name} · F BUILD · R REMOVE · ESC PAUSE")
                     }
-                    (None, true) => "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE".to_string(),
-                    (None, false) => base.to_string(),
+                    (None, true, _) => "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE".to_string(),
+                    (None, false, _) => base.to_string(),
                 };
                 if state.ui.hud.prompt != want {
                     state.ui.hud.prompt = want;
@@ -2506,6 +2675,7 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         KeyCode::KeyQ => Key::KeyQ,
         KeyCode::KeyE => Key::Char('e'),
         KeyCode::KeyJ => Key::Char('j'),
+        KeyCode::KeyD => Key::Char('d'),
         KeyCode::Digit1 | KeyCode::Numpad1 => Key::Digit(1),
         KeyCode::Digit2 | KeyCode::Numpad2 => Key::Digit(2),
         KeyCode::Digit3 | KeyCode::Numpad3 => Key::Digit(3),
