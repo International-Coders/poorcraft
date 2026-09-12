@@ -1,0 +1,22 @@
+{
+  "biomes": [
+    {
+      "biome": "forest",
+      "mean_elevation_m": 61.099998474121094,
+      "mean_slope_pct": 1.0,
+      "regions": 337,
+      "roughness_pct": 0.4000000059604645
+    },
+    {
+      "biome": "highlands",
+      "mean_elevation_m": 83.30000305175781,
+      "mean_slope_pct": 1.100000023841858,
+      "regions": 239,
+      "roughness_pct": 0.5
+    }
+  ],
+  "build_hash": "dev",
+  "seed": 4242,
+  "version": 1,
+  "window_regions": 24
+}

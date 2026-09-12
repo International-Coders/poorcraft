@@ -65,6 +65,7 @@ pub mod soak;
 pub mod stream;
 pub mod survival;
 pub mod terrain;
+pub mod terrain_report;
 pub mod valve_computing;
 pub mod war;
 

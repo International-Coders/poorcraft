@@ -7194,3 +7194,57 @@ canon migration, not a quiet rewrite.
 SHIPPING: This is a pure tooling/documentation guard job, so the dev-loop's
 tooling exception applies and desktop runtimes were not rebuilt. The live fall
 route proof remains the first gameplay task next cycle.
+
+## 2026-09-12 — The thousand-asset expansion + the terrain analysis tool
+
+WHAT (owner goal: better terrain tools + 1000 new assets verified to
+beta/release standards): the variant batch grew from 300 to 1300 GLBs
+— EXACTLY 1000 NEW across 21 new original families — every one
+generated deterministically under budget with two LODs, all guardrails
+green; and a new TERRAIN ANALYSIS TOOL reads the worldgen authority
+into a per-biome census with slope and roughness plus relief-shaded
+and slope-heat map PNGs.
+
+HOW:
+- assetgen: 21 new parameterized generators (deadtree, fern, flower,
+  mushroom, crystal, ice_shard, reed, stump, root, grass_tuft,
+  thornbush, arch_rock, column, cairn, snag, vine, bramble, moss_rock,
+  obsidian, glowcap, puddle_stone, pebble — every shape from the
+  existing blob/limb/box primitives in the established original
+  palette language, new color constants added) + 1000 new spec
+  entries; the existing 300 regenerate byte-identically (the standing
+  law); budgets enforced per generation and printed.
+- Guardrails: capability_inventory.json rebuilt from disk (1324 GLB
+  files — the inventory-is-truth law); variant_batch.json regenerated
+  by the tool itself (schema v2, 1300 rows); the consumer law now
+  asserts the pack lists >= 1300, EVERY id exists on disk, and every
+  second id LOADS with two non-empty LODs (650 stride-loaded in
+  0.32 s — a deterministic stride; loading all 1300 in debug triples
+  suite time for the same law, the release gate covers the full set).
+- Terrain tool: pc3d_world::terrain_report (PURE — per-biome census,
+  mean elevation, mean steepest-neighbor slope in percent, roughness
+  as slope stddev, sampled over a configurable region window; the
+  JSON sidecar is built by the app, pc3d_world stays serde-free);
+  --terrain-analyze <seed> / make p3d-terrain-analyze writes the JSON
+  sidecar + a hillshaded hypsometric relief PNG (light from NW) + a
+  slope-heat PNG (green flat -> red steep).
+
+EVIDENCE: make p3d-assetgen — "variant batch: 1300 assets ... assetgen
+OK (deterministic, budgets respected)"; 1300 variant GLBs on disk
+(1000 new); consumer law: "1300/1300 present, 650 stride-loaded with
+2 LODs each"; inventory guardrail green (1324 files exactly);
+pc3d_assets 36/36; terrain report laws 3/3 (determinism + full census
+coverage; biome census agrees with the generator; slopes/elevations
+physical — mountains steeper than plains on seed 7, coast straddles
+sea level by design); the tool run on seed 4242: forest 337 regions /
+61.1 m / 1.0%, highlands 239 / 83.3 m / 1.1% + relief PNG (448
+distinct colors) + slope PNG; full p3d suite exit 0; root suite exit 0.
+
+HONESTLY DEFERRED: the new families are validated + loadable but not
+yet INSTANCED in the wild (the WT-009 per-slot picker currently draws
+the first 8 families' batches; wiring the new families into the flora
+streamer's kind table is the natural follow-up); the slope metric is
+region-center based (256 m neighbor spacing — macro relief; a
+sub-region detail-slope view would sample the surface function
+densely); the terrain tool is windowless (windowed overlay captures
+can ride the observatory later).

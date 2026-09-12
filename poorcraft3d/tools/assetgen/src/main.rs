@@ -314,6 +314,28 @@ const BIRCH_BARK: [f32; 3] = [0.74, 0.72, 0.66];
 const IRON_BAND: [f32; 3] = [0.22, 0.23, 0.26];
 const ORE_CRYSTAL: [f32; 3] = [0.82, 0.52, 0.22];
 const ORE_CRYSTAL_LIGHT: [f32; 3] = [0.92, 0.68, 0.34];
+
+// WT-009 expansion palettes (original POORCRAFT flora expression).
+const DEADWOOD: [f32; 3] = [0.42, 0.36, 0.30];
+const DEADWOOD_DARK: [f32; 3] = [0.32, 0.27, 0.22];
+const FERN_LEAF: [f32; 3] = [0.22, 0.42, 0.24];
+const FERN_LIGHT: [f32; 3] = [0.32, 0.52, 0.30];
+const BLOOM_RED: [f32; 3] = [0.82, 0.30, 0.28];
+const BLOOM_GOLD: [f32; 3] = [0.90, 0.72, 0.28];
+const BLOOM_VIOLET: [f32; 3] = [0.62, 0.40, 0.72];
+const CAP_RED: [f32; 3] = [0.75, 0.26, 0.22];
+const CAP_TAN: [f32; 3] = [0.66, 0.52, 0.38];
+const STEM_PALE: [f32; 3] = [0.82, 0.78, 0.70];
+const QUARTZ: [f32; 3] = [0.78, 0.82, 0.88];
+const QUARTZ_WARM: [f32; 3] = [0.88, 0.74, 0.56];
+const ICE_BLUE: [f32; 3] = [0.66, 0.82, 0.92];
+const REED_GREEN: [f32; 3] = [0.38, 0.50, 0.30];
+const STONE_RING: [f32; 3] = [0.58, 0.52, 0.44];
+const THORN_DARK: [f32; 3] = [0.28, 0.30, 0.22];
+const OBSIDIAN: [f32; 3] = [0.16, 0.14, 0.20];
+const GLOW_CYAN: [f32; 3] = [0.45, 0.85, 0.80];
+const PEBBLE_GRAY: [f32; 3] = [0.55, 0.55, 0.52];
+
 const BIRCH_BARK_DARK: [f32; 3] = [0.55, 0.53, 0.48];
 const BIRCH_LEAF: [f32; 3] = [0.36, 0.47, 0.22];
 const BROAD_LEAF: [f32; 3] = [0.24, 0.42, 0.20];
@@ -1813,6 +1835,346 @@ fn variant_log(len: f32, r: f32, fungi: usize, seed: u32) -> Vec<(&'static str, 
 }
 
 /// The variant table: (kind, count) — deterministic parameter sweeps.
+
+// ---------------------------------------------------------------------------
+// WT-009 expansion: twenty new parameterized families (1000 new GLBs).
+// ---------------------------------------------------------------------------
+
+/// Dead tree: bare gnarled trunk + branch spikes.
+fn gen_deadtree(h: f32, lean: f32, branches: usize, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, 0.0, 0.0, 0.0, lean * h * 0.4, h, lean * h * 0.2, h * 0.06, h * 0.025, 6, DEADWOOD);
+    for i in 0..branches {
+        let a = i as f32 / branches as f32 * std::f32::consts::TAU;
+        let y = h * (0.45 + (i % 3) as f32 * 0.18);
+        limb(&mut lod0, a.cos() * h * 0.03, y, a.sin() * h * 0.03,
+             a.cos() * h * 0.28, y + h * 0.16, a.sin() * h * 0.28, h * 0.03, h * 0.008, 4, DEADWOOD_DARK);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, lean * h * 0.4, h, lean * h * 0.2, h * 0.06, h * 0.025, 4, DEADWOOD);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Fern: arched fronds from a crown.
+fn gen_fern(fronds: usize, arc: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..fronds.max(3) {
+        let a = i as f32 / fronds as f32 * std::f32::consts::TAU + (seed % 7) as f32 * 0.1;
+        let tilt = 0.35 + (i % 3) as f32 * 0.15;
+        let tipx = a.cos() * arc;
+        let tipz = a.sin() * arc;
+        let tipy = arc * (1.0 - tilt);
+        limb(&mut lod0, 0.0, 0.08, 0.0, tipx * 0.4, tipy * 0.75, tipz * 0.4, 0.035, 0.012, 4,
+             if i % 2 == 0 { FERN_LEAF } else { FERN_LIGHT });
+        limb(&mut lod0, tipx * 0.4, tipy * 0.75, tipz * 0.4, tipx, tipy, tipz, 0.012, 0.006, 3, FERN_LEAF);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.1, 0.0, 0.0, arc * 0.8, 0.0, 0.05, 0.01, 4, FERN_LEAF);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Flower: stems + blooming heads (three-bloom palette by seed).
+fn gen_flower(stems: usize, height: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let palette = [BLOOM_RED, BLOOM_GOLD, BLOOM_VIOLET];
+    let col = palette[seed as usize % palette.len()];
+    let mut lod0 = Mesh::default();
+    for i in 0..stems.max(2) {
+        let a = i as f32 * 2.4;
+        let x = a.cos() * 0.06 * (i + 1) as f32;
+        let z = a.sin() * 0.06 * (i + 1) as f32;
+        let h = height * (0.8 + (i % 3) as f32 * 0.15);
+        limb(&mut lod0, 0.0, 0.0, 0.0, x, h, z, 0.018, 0.012, 4, FERN_LEAF);
+        blob(&mut lod0, x, h + 0.05, z, 0.06, 0.05, 0.06, seed + i as u32, col);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.0, height, 0.0, 0.02, 0.012, 3, FERN_LEAF);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Mushroom cluster: pale stems + colored caps.
+fn gen_mushroom(count: usize, cap_r: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let cap = if seed % 2 == 0 { CAP_RED } else { CAP_TAN };
+    let mut lod0 = Mesh::default();
+    for i in 0..count.max(2) {
+        let a = i as f32 * 2.1;
+        let x = a.cos() * 0.1 * count as f32 * 0.4;
+        let z = a.sin() * 0.1 * count as f32 * 0.4;
+        let h = 0.18 + (i % 3) as f32 * 0.08;
+        let r = cap_r * (0.7 + (i % 2) as f32 * 0.3);
+        limb(&mut lod0, x, 0.0, z, x, h, z, r * 0.35, r * 0.3, 5, STEM_PALE);
+        blob(&mut lod0, x, h + r * 0.25, z, r, r * 0.45, r, seed + i as u32, cap);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.0, 0.24, 0.0, cap_r * 0.3, cap_r * 0.28, 4, STEM_PALE);
+    blob(&mut lod1, 0.0, 0.3, 0.0, cap_r, cap_r * 0.4, cap_r, seed, cap);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Crystal cluster: shard spikes from a base (two palettes).
+fn gen_crystal(shards: usize, h: f32, warm: bool, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let col = if warm { QUARTZ_WARM } else { QUARTZ };
+    let mut lod0 = Mesh::default();
+    blob(&mut lod0, 0.0, 0.08, 0.0, 0.3, 0.1, 0.3, seed, GRANITE_DARK);
+    for i in 0..shards.max(3) {
+        let a = i as f32 / shards as f32 * std::f32::consts::TAU;
+        let r = 0.08 + (i % 3) as f32 * 0.06;
+        let hh = h * (0.6 + (i % 4) as f32 * 0.18);
+        let leanx = a.cos() * hh * 0.22;
+        let leanz = a.sin() * hh * 0.22;
+        limb(&mut lod0, a.cos() * r * 0.5, 0.12, a.sin() * r * 0.5,
+             a.cos() * r * 0.5 + leanx, hh, a.sin() * r * 0.5 + leanz, 0.09, 0.015, 5, col);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.1, 0.0, 0.0, h, 0.0, 0.09, 0.02, 4, col);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Ice shards: icy spikes on a frost base.
+fn gen_ice(shards: usize, h: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    blob(&mut lod0, 0.0, 0.05, 0.0, 0.34, 0.08, 0.34, seed, ICE_BLUE);
+    for i in 0..shards.max(3) {
+        let a = i as f32 / shards as f32 * std::f32::consts::TAU + 0.3;
+        let hh = h * (0.5 + (i % 3) as f32 * 0.25);
+        limb(&mut lod0, a.cos() * 0.12, 0.06, a.sin() * 0.12,
+             a.cos() * 0.3, hh, a.sin() * 0.3, 0.07, 0.01, 4, ICE_BLUE);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.05, 0.0, 0.05, h, 0.05, 0.07, 0.012, 4, ICE_BLUE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Reeds: tall thin blades around a waterside clump.
+fn gen_reed(blades: usize, height: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..blades.max(4) {
+        let a = i as f32 / blades as f32 * std::f32::consts::TAU;
+        let r = 0.05 + (i % 3) as f32 * 0.04;
+        let h = height * (0.75 + (i % 4) as f32 * 0.12);
+        limb(&mut lod0, a.cos() * r, 0.0, a.sin() * r,
+             a.cos() * (r + 0.1), h, a.sin() * (r + 0.1), 0.02, 0.008, 3,
+             if i % 2 == 0 { REED_GREEN } else { FERN_LIGHT });
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.04, height * 0.9, 0.04, 0.025, 0.01, 3, REED_GREEN);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Stump: cut trunk with ring top + root flares.
+fn gen_stump(r: f32, h: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, 0.0, 0.0, 0.0, 0.0, h, 0.0, r, r * 0.92, 7, BARK);
+    for i in 0..5 {
+        let a = i as f32 / 5.0 * std::f32::consts::TAU;
+        limb(&mut lod0, a.cos() * r * 0.6, 0.02, a.sin() * r * 0.6,
+             a.cos() * r * 1.7, 0.06, a.sin() * r * 1.7, r * 0.3, r * 0.1, 4, BARK_DARK);
+    }
+    blob(&mut lod0, 0.0, h + 0.02, 0.0, r * 0.92, 0.03, r * 0.92, seed, STONE_RING);
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.0, h, 0.0, r, r * 0.92, 5, BARK);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Exposed roots: tendrils crawling from a point.
+fn gen_root(tendrils: usize, len: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    blob(&mut lod0, 0.0, 0.08, 0.0, 0.16, 0.1, 0.16, seed, BARK_DARK);
+    for i in 0..tendrils.max(3) {
+        let a = i as f32 / tendrils as f32 * std::f32::consts::TAU + 0.2;
+        limb(&mut lod0, 0.0, 0.06, 0.0,
+             a.cos() * len, 0.04 + (i % 2) as f32 * 0.06, a.sin() * len, 0.05, 0.012, 4, BARK);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.05, 0.0, len * 0.8, 0.05, 0.0, 0.05, 0.015, 4, BARK);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Grass tuft (tall): blade fan.
+fn gen_tuft(blades: usize, height: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..blades.max(4) {
+        let a = i as f32 / blades as f32 * std::f32::consts::TAU;
+        limb(&mut lod0, 0.0, 0.0, 0.0,
+             a.cos() * 0.14, height * (0.7 + (i % 3) as f32 * 0.15), a.sin() * 0.14,
+             0.015, 0.005, 3, if i % 2 == 0 { LEAF } else { FERN_LIGHT });
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.05, height * 0.85, 0.05, 0.02, 0.008, 3, LEAF);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Thornbush: dark tangle with thorn spikes.
+fn gen_thornbush(n: usize, spread: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..n.max(3) {
+        let a = i as f32 / n as f32 * std::f32::consts::TAU;
+        let x = a.cos() * spread * 0.5;
+        let z = a.sin() * spread * 0.5;
+        limb(&mut lod0, 0.0, 0.1, 0.0, x, 0.3 + (i % 2) as f32 * 0.2, z, 0.04, 0.015, 4, THORN_DARK);
+        limb(&mut lod0, x, 0.3, z, x * 1.5, 0.55 + (i % 3) as f32 * 0.1, z * 1.4, 0.012, 0.004, 3, THORN_DARK);
+    }
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, 0.3, 0.0, spread * 0.55, 0.3, spread * 0.55, seed, THORN_DARK);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Arch rock: two pillars + spanning cap.
+fn gen_arch(h: f32, span: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, -span / 2.0, 0.0, 0.0, -span / 2.0, h, 0.0, 0.22, 0.16, 5, GRANITE);
+    limb(&mut lod0, span / 2.0, 0.0, 0.0, span / 2.0, h, 0.0, 0.22, 0.16, 5, GRANITE_DARK);
+    limb(&mut lod0, -span / 2.0, h, 0.0, span / 2.0, h + 0.18, 0.0, 0.2, 0.2, 5, GRANITE);
+    blob(&mut lod0, 0.0, h + 0.3, 0.0, span * 0.3, 0.12, 0.25, seed, MOSS);
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, -span / 2.0, 0.0, 0.0, -span / 2.0, h, 0.0, 0.22, 0.16, 4, GRANITE);
+    limb(&mut lod1, span / 2.0, 0.0, 0.0, span / 2.0, h, 0.0, 0.22, 0.16, 4, GRANITE);
+    limb(&mut lod1, -span / 2.0, h, 0.0, span / 2.0, h + 0.18, 0.0, 0.2, 0.2, 4, GRANITE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Ruin column: fluted shaft + broken top.
+fn gen_column(h: f32, r: f32, broken: bool, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, 0.0, 0.08, 0.0, r * 1.5, 0.08, r * 1.5, STONE_RING);
+    let top = if broken { h * (0.7 + (seed % 3) as f32 * 0.1) } else { h };
+    limb(&mut lod0, 0.0, 0.16, 0.0, 0.0, top, 0.0, r, r * 0.9, 7, FIELDSTONE);
+    if !broken {
+        box_at(&mut lod0, 0.0, top + 0.07, 0.0, r * 1.4, 0.07, r * 1.4, STONE_RING);
+    } else {
+        blob(&mut lod0, 0.0, top, 0.0, r * 0.9, r * 0.35, r * 0.9, seed, FIELDSTONE);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.1, 0.0, 0.0, top, 0.0, r, r * 0.9, 5, FIELDSTONE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Cairn: stacked stones.
+fn gen_cairn(stones: usize, r: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..stones.max(3) {
+        let rr = r * (1.0 - i as f32 * 0.14);
+        let y = 0.12 + i as f32 * r * 0.55;
+        blob(&mut lod0, (i % 2) as f32 * r * 0.15, y, (i % 3) as f32 * r * 0.1,
+             rr, rr * 0.4, rr * 0.85, seed + i as u32,
+             if i % 2 == 0 { GRANITE } else { GRANITE_DARK });
+    }
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, 0.3, 0.0, r, r * 0.8, r * 0.85, seed, GRANITE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Snag: standing dead trunk, broken top.
+fn gen_snag(h: f32, lean: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    limb(&mut lod0, 0.0, 0.0, 0.0, lean * h * 0.5, h, lean * h * 0.3, h * 0.05, h * 0.02, 6, DEADWOOD);
+    limb(&mut lod0, lean * h * 0.2, h * 0.5, 0.0, lean * h * 0.2 + h * 0.2, h * 0.75, h * 0.15, h * 0.02, 0.008, 4, DEADWOOD_DARK);
+    blob(&mut lod0, 0.0, h * 0.25, 0.1, h * 0.05, h * 0.04, h * 0.05, seed, MOSS);
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, lean * h * 0.5, h, lean * h * 0.3, h * 0.05, h * 0.02, 4, DEADWOOD);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Hanging vine: strand + leaves.
+fn gen_vine(len: f32, leaves: usize, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    box_at(&mut lod0, 0.0, 0.0, 0.0, 0.35, 0.05, 0.12, BARK_DARK);
+    for seg in 0..4usize {
+        let y0 = -(seg as f32) * len / 4.0;
+        let sway = ((seed + seg as u32) % 5) as f32 * 0.05;
+        limb(&mut lod0, sway, y0, 0.0, sway * 1.5, y0 - len / 4.0, 0.0, 0.02, 0.015, 3, LEAF);
+    }
+    for i in 0..leaves.max(3) {
+        let y = -len * (0.2 + i as f32 * 0.25);
+        blob(&mut lod0, 0.1, y, 0.05, 0.06, 0.04, 0.06, seed + i as u32, LEAF_LIGHT);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.05, -len, 0.0, 0.02, 0.015, 3, LEAF);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Bramble: ground tangle.
+fn gen_bramble(n: usize, spread: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..n.max(3) {
+        let a = i as f32 / n as f32 * std::f32::consts::TAU;
+        let x0 = a.cos() * spread * 0.3;
+        let z0 = a.sin() * spread * 0.3;
+        limb(&mut lod0, x0, 0.05, z0, x0 * 2.0, 0.18 + (i % 2) as f32 * 0.1, z0 * 2.0, 0.025, 0.01, 3, THORN_DARK);
+        blob(&mut lod0, x0 * 1.6, 0.16, z0 * 1.6, 0.07, 0.05, 0.07, seed + i as u32, LEAF);
+    }
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, 0.1, 0.0, spread * 0.5, 0.1, spread * 0.5, seed, THORN_DARK);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Mossy boulder.
+fn gen_moss_rock(s: f32, mossy: usize, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    blob(&mut lod0, 0.0, s * 0.55, 0.0, s, s * 0.7, s * 0.9, seed, GRANITE);
+    for i in 0..mossy.max(2) {
+        let a = i as f32 / mossy as f32 * std::f32::consts::TAU;
+        blob(&mut lod0, a.cos() * s * 0.5, s * (0.4 + (i % 2) as f32 * 0.3), a.sin() * s * 0.5,
+             s * 0.35, s * 0.18, s * 0.3, seed + 40 + i as u32, MOSS);
+    }
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, s * 0.55, 0.0, s, s * 0.7, s * 0.9, seed, GRANITE);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Obsidian shard cluster.
+fn gen_obsidian(shards: usize, h: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..shards.max(2) {
+        let a = i as f32 / shards as f32 * std::f32::consts::TAU;
+        let hh = h * (0.6 + (i % 3) as f32 * 0.2);
+        limb(&mut lod0, a.cos() * 0.08, 0.0, a.sin() * 0.08,
+             a.cos() * 0.2, hh, a.sin() * 0.2, 0.08, 0.01, 4, OBSIDIAN);
+    }
+    blob(&mut lod0, 0.0, 0.06, 0.0, 0.25, 0.06, 0.25, seed, GRANITE_DARK);
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.04, h, 0.04, 0.08, 0.012, 4, OBSIDIAN);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Glowcap: luminous mushrooms (quartz-stemmed).
+fn gen_glowcap(count: usize, h: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..count.max(2) {
+        let x = (i as f32 - count as f32 / 2.0) * 0.14;
+        let hh = h * (0.7 + (i % 2) as f32 * 0.3);
+        limb(&mut lod0, x, 0.0, 0.0, x, hh, 0.0, 0.025, 0.02, 4, STEM_PALE);
+        blob(&mut lod0, x, hh + 0.04, 0.0, 0.09, 0.04, 0.09, seed + i as u32, GLOW_CYAN);
+    }
+    let mut lod1 = Mesh::default();
+    limb(&mut lod1, 0.0, 0.0, 0.0, 0.0, h, 0.0, 0.03, 0.02, 3, STEM_PALE);
+    blob(&mut lod1, 0.0, h + 0.04, 0.0, 0.09, 0.04, 0.09, seed, GLOW_CYAN);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Puddle stone: flat wet-looking stone with a rim.
+fn gen_puddle_stone(r: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    blob(&mut lod0, 0.0, 0.06, 0.0, r, 0.07, r * 0.8, seed, PEBBLE_GRAY);
+    blob(&mut lod0, 0.0, 0.13, 0.0, r * 0.6, 0.03, r * 0.5, seed + 1, ICE_BLUE);
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, 0.07, 0.0, r, 0.08, r * 0.8, seed, PEBBLE_GRAY);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
+/// Pebble cluster.
+fn gen_pebble(n: usize, r: f32, seed: u32) -> Vec<(&'static str, Mesh)> {
+    let mut lod0 = Mesh::default();
+    for i in 0..n.max(3) {
+        let a = i as f32 / n as f32 * std::f32::consts::TAU;
+        blob(&mut lod0, a.cos() * r * 1.4, 0.05 + (i % 2) as f32 * 0.03, a.sin() * r * 1.4,
+             r * (0.6 + (i % 3) as f32 * 0.2), r * 0.4, r * 0.7, seed + i as u32,
+             if i % 2 == 0 { PEBBLE_GRAY } else { GRANITE });
+    }
+    let mut lod1 = Mesh::default();
+    blob(&mut lod1, 0.0, 0.06, 0.0, r * 1.3, r * 0.5, r * 1.3, seed, PEBBLE_GRAY);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
 fn variant_specs() -> Vec<(String, Box<dyn Fn() -> Vec<(&'static str, Mesh)>>)> {
     let mut out: Vec<(String, Box<dyn Fn() -> Vec<(&'static str, Mesh)>>)> = Vec::new();
     for i in 0..40usize {
@@ -1870,6 +2232,143 @@ fn variant_specs() -> Vec<(String, Box<dyn Fn() -> Vec<(&'static str, Mesh)>>)> 
         let fungi = 2 + i % 3;
         let seed = 1900 + i as u32;
         out.push((format!("flora.log_v{i:02}"), Box::new(move || variant_log(len, r, fungi, seed))));
+    }
+    // ------------------------------------------------------------------
+    // WT-009 EXPANSION: 1000 NEW variants across 21 families.
+    // ------------------------------------------------------------------
+    for i in 0..50usize {
+        let h = 3.2 + (i % 6) as f32 * 0.5;
+        let lean = ((i % 5) as f32 - 2.0) * 0.1;
+        let branches = 3 + i % 4;
+        let seed = 3000 + i as u32;
+        out.push((format!("flora.deadtree_v{i:02}"), Box::new(move || gen_deadtree(h, lean, branches, seed))));
+    }
+    for i in 0..50usize {
+        let fronds = 5 + i % 4;
+        let arc = 0.5 + (i % 5) as f32 * 0.12;
+        let seed = 3100 + i as u32;
+        out.push((format!("flora.fern_v{i:02}"), Box::new(move || gen_fern(fronds, arc, seed))));
+    }
+    for i in 0..50usize {
+        let stems = 2 + i % 4;
+        let height = 0.3 + (i % 5) as f32 * 0.1;
+        let seed = 3200 + i as u32;
+        out.push((format!("flora.flower_v{i:02}"), Box::new(move || gen_flower(stems, height, seed))));
+    }
+    for i in 0..50usize {
+        let count = 2 + i % 4;
+        let cap_r = 0.12 + (i % 4) as f32 * 0.05;
+        let seed = 3300 + i as u32;
+        out.push((format!("flora.mushroom_v{i:02}"), Box::new(move || gen_mushroom(count, cap_r, seed))));
+    }
+    for i in 0..50usize {
+        let shards = 4 + i % 4;
+        let h = 0.8 + (i % 5) as f32 * 0.25;
+        let warm = i % 2 == 0;
+        let seed = 3400 + i as u32;
+        out.push((format!("flora.crystal_v{i:02}"), Box::new(move || gen_crystal(shards, h, warm, seed))));
+    }
+    for i in 0..40usize {
+        let shards = 3 + i % 3;
+        let h = 0.7 + (i % 4) as f32 * 0.3;
+        let seed = 3500 + i as u32;
+        out.push((format!("flora.ice_shard_v{i:02}"), Box::new(move || gen_ice(shards, h, seed))));
+    }
+    for i in 0..50usize {
+        let blades = 5 + i % 4;
+        let height = 0.9 + (i % 5) as f32 * 0.2;
+        let seed = 3600 + i as u32;
+        out.push((format!("flora.reed_v{i:02}"), Box::new(move || gen_reed(blades, height, seed))));
+    }
+    for i in 0..40usize {
+        let r = 0.22 + (i % 4) as f32 * 0.06;
+        let h = 0.3 + (i % 3) as f32 * 0.12;
+        let seed = 3700 + i as u32;
+        out.push((format!("flora.stump_v{i:02}"), Box::new(move || gen_stump(r, h, seed))));
+    }
+    for i in 0..40usize {
+        let tendrils = 3 + i % 3;
+        let len = 0.5 + (i % 5) as f32 * 0.15;
+        let seed = 3800 + i as u32;
+        out.push((format!("flora.root_v{i:02}"), Box::new(move || gen_root(tendrils, len, seed))));
+    }
+    for i in 0..40usize {
+        let blades = 5 + i % 4;
+        let height = 0.5 + (i % 4) as f32 * 0.15;
+        let seed = 3900 + i as u32;
+        out.push((format!("flora.grass_tuft_v{i:02}"), Box::new(move || gen_tuft(blades, height, seed))));
+    }
+    for i in 0..50usize {
+        let n = 3 + i % 3;
+        let spread = 0.6 + (i % 5) as f32 * 0.12;
+        let seed = 4000 + i as u32;
+        out.push((format!("flora.thornbush_v{i:02}"), Box::new(move || gen_thornbush(n, spread, seed))));
+    }
+    for i in 0..40usize {
+        let h = 1.6 + (i % 4) as f32 * 0.4;
+        let span = 1.4 + (i % 3) as f32 * 0.4;
+        let seed = 4100 + i as u32;
+        out.push((format!("flora.arch_rock_v{i:02}"), Box::new(move || gen_arch(h, span, seed))));
+    }
+    for i in 0..40usize {
+        let h = 1.5 + (i % 5) as f32 * 0.35;
+        let r = 0.16 + (i % 3) as f32 * 0.04;
+        let broken = i % 2 == 0;
+        let seed = 4200 + i as u32;
+        out.push((format!("flora.column_v{i:02}"), Box::new(move || gen_column(h, r, broken, seed))));
+    }
+    for i in 0..50usize {
+        let stones = 4 + i % 3;
+        let r = 0.28 + (i % 4) as f32 * 0.06;
+        let seed = 4300 + i as u32;
+        out.push((format!("flora.cairn_v{i:02}"), Box::new(move || gen_cairn(stones, r, seed))));
+    }
+    for i in 0..40usize {
+        let h = 2.4 + (i % 5) as f32 * 0.5;
+        let lean = ((i % 4) as f32 - 1.5) * 0.08;
+        let seed = 4400 + i as u32;
+        out.push((format!("flora.snag_v{i:02}"), Box::new(move || gen_snag(h, lean, seed))));
+    }
+    for i in 0..40usize {
+        let len = 0.8 + (i % 5) as f32 * 0.25;
+        let leaves = 3 + i % 3;
+        let seed = 4500 + i as u32;
+        out.push((format!("flora.vine_v{i:02}"), Box::new(move || gen_vine(len, leaves, seed))));
+    }
+    for i in 0..50usize {
+        let n = 3 + i % 4;
+        let spread = 0.5 + (i % 4) as f32 * 0.14;
+        let seed = 4600 + i as u32;
+        out.push((format!("flora.bramble_v{i:02}"), Box::new(move || gen_bramble(n, spread, seed))));
+    }
+    for i in 0..50usize {
+        let s = 0.35 + (i % 5) as f32 * 0.1;
+        let mossy = 2 + i % 3;
+        let seed = 4700 + i as u32;
+        out.push((format!("flora.moss_rock_v{i:02}"), Box::new(move || gen_moss_rock(s, mossy, seed))));
+    }
+    for i in 0..40usize {
+        let shards = 2 + i % 3;
+        let h = 0.7 + (i % 4) as f32 * 0.25;
+        let seed = 4800 + i as u32;
+        out.push((format!("flora.obsidian_v{i:02}"), Box::new(move || gen_obsidian(shards, h, seed))));
+    }
+    for i in 0..40usize {
+        let count = 2 + i % 3;
+        let h = 0.25 + (i % 3) as f32 * 0.1;
+        let seed = 4900 + i as u32;
+        out.push((format!("flora.glowcap_v{i:02}"), Box::new(move || gen_glowcap(count, h, seed))));
+    }
+    for i in 0..50usize {
+        let r = 0.3 + (i % 4) as f32 * 0.08;
+        let seed = 5000 + i as u32;
+        out.push((format!("flora.puddle_stone_v{i:02}"), Box::new(move || gen_puddle_stone(r, seed))));
+    }
+    for i in 0..50usize {
+        let n = 4 + i % 4;
+        let r = 0.12 + (i % 3) as f32 * 0.04;
+        let seed = 5100 + i as u32;
+        out.push((format!("flora.pebble_v{i:02}"), Box::new(move || gen_pebble(n, r, seed))));
     }
     out
 }

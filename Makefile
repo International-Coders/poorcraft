@@ -160,6 +160,11 @@ p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine win
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --export-data poorcraft3d/apps/poorcraft3d/shots/export || exit 1; \
 	echo "P3D EXPORT DATA OK (local-only)"
 
+p3d-terrain-analyze: ## Terrain analysis tool: per-biome census (slope/roughness) + relief + slope PNGs: make p3d-terrain-analyze [SEED=4242]
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --terrain-analyze $(SEED) poorcraft3d/apps/poorcraft3d/shots/terrain || exit 1; \
+	echo "P3D TERRAIN ANALYZE OK"
+
 p3d-assets-window: ## NWR-002: windowed asset-factory proof (tree/rock/house): make p3d-assets-window [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-assets $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \

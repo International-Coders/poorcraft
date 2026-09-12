@@ -3884,6 +3884,117 @@ fn main() {
             }
             println!("ASSET CAPTURES OK");
         }
+        Some("--terrain-analyze") => {
+            // The terrain analysis tool: per-biome census with slope +
+            // roughness from the pure authority, a relief-shaded map
+            // PNG (light from NW), a slope-heat PNG, and the JSON
+            // sidecar — windowless, one seed in, evidence out.
+            let seed: u64 = args
+                .get(2)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(4242);
+            let out_dir: String = args
+                .get(3)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/terrain", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir terrain dir");
+            let gen = pc3d_world::gen::WorldGen::new(seed);
+            let report = pc3d_world::terrain_report::terrain_report(&gen, 12);
+            // JSON sidecar.
+            let mut rows = Vec::new();
+            for (name, regions, mean_h, mean_s, rough) in report.rows() {
+                rows.push(serde_json::json!({
+                    "biome": name, "regions": regions,
+                    "mean_elevation_m": mean_h,
+                    "mean_slope_pct": mean_s,
+                    "roughness_pct": rough,
+                }));
+            }
+            let sidecar = serde_json::json!({
+                "version": 1,
+                "seed": seed,
+                "window_regions": report.side,
+                "biomes": rows,
+                "build_hash": pc3d_render::ui::build_stamp(),
+            });
+            std::fs::write(
+                format!("{out_dir}/terrain_analysis_{seed}.json"),
+                serde_json::to_string_pretty(&sidecar).unwrap(),
+            )
+            .unwrap();
+            // Relief map: hillshade from NW + hypsometric tint.
+            let side = report.side;
+            let hmin = report.heights_m.iter().cloned().fold(f32::MAX, f32::min);
+            let hmax = report.heights_m.iter().cloned().fold(f32::MIN, f32::max);
+            let scale = 4u32; // px per region
+            let mut relief = vec![0u8; side * scale as usize * side * scale as usize * 3];
+            let at = |gx: usize, gy: usize| -> f32 {
+                *report
+                    .heights_m
+                    .get(gy.min(side - 1) * side + gx.min(side - 1))
+                    .unwrap_or(&0.0)
+            };
+            for py in 0..side * scale as usize {
+                for px in 0..side * scale as usize {
+                    let gx = px / scale as usize;
+                    let gy = py / scale as usize;
+                    let h = at(gx, gy);
+                    let dx = at(gx + 1, gy) - at(gx.saturating_sub(1), gy);
+                    let dz = at(gx, gy + 1) - at(gx, gy.saturating_sub(1));
+                    let shade = 1.0 + (dx - dz).clamp(-6.0, 6.0) * 0.08;
+                    let t = ((h - hmin) / (hmax - hmin).max(1.0)).clamp(0.0, 1.0);
+                    let (r, g, b) = if h < 0.0 {
+                        (40.0, 90.0, 150.0f32)
+                    } else {
+                        (60.0 + t * 180.0, 110.0 + t * 110.0, 70.0 + t * 150.0)
+                    };
+                    let i = (py * side * scale as usize + px) * 3;
+                    relief[i] = (r * shade).clamp(0.0, 255.0) as u8;
+                    relief[i + 1] = (g * shade).clamp(0.0, 255.0) as u8;
+                    relief[i + 2] = (b * shade).clamp(0.0, 255.0) as u8;
+                }
+            }
+            image::save_buffer(
+                format!("{out_dir}/terrain_relief_{seed}.png"),
+                &relief,
+                (side * scale as usize) as u32,
+                (side * scale as usize) as u32,
+                image::ColorType::Rgb8,
+            )
+            .unwrap();
+            // Slope heat: green flat -> red steep.
+            let mut heat = vec![0u8; relief.len()];
+            for py in 0..side * scale as usize {
+                for px in 0..side * scale as usize {
+                    let gx = px / scale as usize;
+                    let gy = py / scale as usize;
+                    let dx = at(gx + 1, gy) - at(gx.saturating_sub(1), gy);
+                    let dz = at(gx, gy + 1) - at(gx, gy.saturating_sub(1));
+                    let slope = (dx.hypot(dz) / 512.0) * 100.0; // pct
+                    let t = (slope / 60.0).clamp(0.0, 1.0);
+                    let i = (py * side * scale as usize + px) * 3;
+                    heat[i] = (40.0 + t * 215.0) as u8;
+                    heat[i + 1] = (180.0 - t * 160.0) as u8;
+                    heat[i + 2] = (70.0 - t * 40.0).max(0.0) as u8;
+                }
+            }
+            image::save_buffer(
+                format!("{out_dir}/terrain_slope_{seed}.png"),
+                &heat,
+                (side * scale as usize) as u32,
+                (side * scale as usize) as u32,
+                image::ColorType::Rgb8,
+            )
+            .unwrap();
+            for (name, regions, mean_h, mean_s, rough) in report.rows() {
+                println!(
+                    "TERRAIN {name}: {regions} regions · mean {mean_h:.1} m · slope {mean_s:.1}% · rough {rough:.1}%"
+                );
+            }
+            println!(
+                "TERRAIN ANALYZE OK -> {out_dir}/terrain_analysis_{seed}.json + relief + slope PNGs"
+            );
+        }
         Some("--export-data") => {
             // WT-008: the local data-extraction surface. Windowless rows
             // (worldgen_sample, npc, machine) export straight from the

@@ -3749,3 +3749,17 @@ The simulation-only roadmap was declared complete; the visual reset
   honestly deferred (removed, not faked) — the ore-column ground
   answers at the player's height, freezing the drop; next cycle's
   first task.
+
+## Loop 439 — The 1000-asset expansion + terrain analysis tool
+- 1000 NEW variant GLBs (300 -> 1300) across 21 original families —
+  deterministic, budget-checked, two LODs each; inventory rebuilt
+  (1324 files, truthful); consumer law: 1300/1300 on disk, 650
+  stride-loaded with 2 LODs.
+- `pc3d_world::terrain_report` (pure): per-biome census with mean
+  elevation, slope %, roughness; 3 laws (determinism+census,
+  generator agreement, physical values). `--terrain-analyze` /
+  `make p3d-terrain-analyze`: JSON sidecar + hillshaded relief PNG +
+  slope-heat PNG from the worldgen authority.
+- Evidence: assetgen 1300 OK, guardrails green, suites exit 0.
+- Deferred: the new families not yet instanced in the wild (streamer
+  wiring follows); region-center slope metric (macro relief).
