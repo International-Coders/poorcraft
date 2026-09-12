@@ -255,6 +255,7 @@ pub fn assemble(
         ore_remaining: 6,
         chest_opened: false,
         quest_rows: None,
+        quests: None,
     }
 }
 
@@ -781,6 +782,7 @@ pub fn assemble_rebuild(
         ore_remaining: 6,
         chest_opened: false,
         quest_rows: None,
+        quests: None,
     };
     host.host.borrow_mut().run_ticks(0);
     host

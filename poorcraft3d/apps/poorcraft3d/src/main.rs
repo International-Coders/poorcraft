@@ -4884,11 +4884,29 @@ fn run_observe(route_id: &str, out_root: &str) {
                         ctx.actions.push(UiAction::ForgeTake);
                     }),
                 ));
-                // The quest journal (J) opens after the bar is taken.
+                // The quest journal (J) opens after the bar is taken;
+                // Up/Down + Enter accepts the focused OFFERED quest,
+                // J closes, then the journal reopens to show it ACTIVE.
                 ui_script.push((
                     640,
                     Box::new(|_ui, _r, ctx| {
                         ctx.actions.push(UiAction::ToggleJournal);
+                    }),
+                ));
+                ui_script.push((
+                    660,
+                    Box::new(|ui, _r, ctx| {
+                        // Accept the FOCUSED row (a real journal
+                        // interaction: focus carries the quest id).
+                        if let Some(row) = ui
+                            .journal
+                            .as_ref()
+                            .and_then(|rows| rows.get(ui.journal_focus.min(rows.len() - 1)))
+                        {
+                            if row.state == "OFFERED" {
+                                ctx.actions.push(UiAction::QuestAccept(row.id));
+                            }
+                        }
                     }),
                 ));
                 shots.push(Shot::new(60, format!("{dir}/play_door_outside.png"))
@@ -5184,6 +5202,16 @@ fn run_observe(route_id: &str, out_root: &str) {
                 .iter()
                 .any(|l| l.as_str().map(|s| s.contains("IRON_BAR")).unwrap_or(false));
             let journal_shown = panel_shown("play_journal", "journal_panel");
+            let active_quests = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["journal"].as_array().cloned())
+                .map(|rows| {
+                    rows.iter()
+                        .filter(|r| r["state"] == "ACTIVE")
+                        .count()
+                })
+                .unwrap_or(0);
             let journal_rows = report
                 .captures
                 .iter()
@@ -5218,11 +5246,12 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && panel_shown("play_marker", "interact_panel")
                 && journal_shown
                 && journal_rows >= 3
+                && active_quests >= 1
                 && ore > 0
                 && has_bar;
             if ok {
                 println!(
-                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, journal {journal_rows} quests, IRON BAR in stock",
+                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, journal {journal_rows} quests ({active_quests} active), IRON BAR in stock",
                     dialog_shown.as_deref().unwrap_or("villager")
                 );
             } else {

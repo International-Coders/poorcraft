@@ -1405,6 +1405,12 @@ impl Renderer {
         Some(crate::npcs::npc_world_pos(gen, &cast.get(i)?.brain))
     }
 
+    /// The cast member at `i`'s home cell (the greet event's identity).
+    pub fn cast_home(&self, i: usize) -> Option<pc3d_world::coords::CellCoord> {
+        let cast = self.crowd_cast.as_ref()?.borrow();
+        cast.get(i).map(|c| c.brain.home)
+    }
+
     /// Speaks with the cast member at `i` — the dialog authority's line
     /// for their LIVE brain.
     pub fn talk_with_index(&self, i: usize) -> Option<pc3d_world::dialog::DialogLine> {

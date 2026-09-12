@@ -325,12 +325,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 22:07",
+        "modified": "2026-09-11 23:12",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 22:07",
+        "modified": "2026-09-11 23:12",
         "name": "beta-shot",
         "seed": 7
       }
@@ -342,7 +342,7 @@
     ],
     "toasts": [
       {
-        "age_s": 2.9115946292877197,
+        "age_s": 2.9092187881469727,
         "text": "HARVESTED 2 IRON ORE"
       }
     ]

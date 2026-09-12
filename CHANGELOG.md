@@ -3683,3 +3683,14 @@ The simulation-only roadmap was declared complete; the visual reset
   chain line, 9 captures, deterministic x2 + comparator PASS.
 - Deferred: accept/claim interactions, giver map markers, live
   progression states.
+
+## Loop 435 — Quest accept/claim + live progress
+- The journal is live: Up/Down focus, Enter accepts an OFFERED quest
+  or claims a COMPLETE one's reward; greeting the villager you spoke
+  with advances Greet quests, proximity advances Visit quests; the
+  panel re-syncs and toasts.
+- Evidence: navigation law (claim/accept/inert-ACTIVE), the playtest
+  accepts the focused quest ("journal 4 quests (1 active)"), x2
+  deterministic + comparator PASS; suites green.
+- Deferred: Deliver/Build/Excavate event emission, an economy wallet
+  for claim payouts.

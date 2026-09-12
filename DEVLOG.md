@@ -7022,3 +7022,36 @@ need quest-event plumbing from gameplay — the authority's advance()
 is proven, the wiring is a follow-up); no giver map markers yet (the
 journal names them; world markers follow the anchor-overlay pattern);
 quest states are as planned at spawn (no live progression yet).
+
+## 2026-09-11 — Quest accept/claim + live progress wiring
+
+WHAT: the quest journal became LIVE — Up/Down focus rows, Enter ACCEPTS
+an offered quest or CLAIMS a complete one's reward (toast narrates),
+and gameplay drives progress through the authority: greeting THE
+villager you spoke with advances active Greet quests (the event
+carries the talked NPC's own home cell), standing near a Visit target
+advances active Visit quests; the journal re-syncs and toasts on
+progress.
+
+HOW: ui.rs — journal_focus + Up/Down/Enter arms (Enter on OFFERED ->
+QuestAccept(id), COMPLETE -> QuestClaim(id), ACTIVE -> nothing) + the
+focused row's head shows the offered action ("> ... ENTER TO
+ACCEPT/CLAIM"); app.rs — the LIVE quest list lives on the SliceHost
+(accept/claim mutate through Quest::accept()/claim(), the proven
+authority); sync_journal_rows re-derives the panel from the list; the
+greet event uses renderer.cast_home(i) (the identity is honest — the
+NPC you actually talked to, not a placeholder); Visit events fire
+per-frame on <=8 m proximity to a target; both toast "QUEST PROGRESS".
+
+EVIDENCE: the navigation law (Down to COMPLETE -> claim; Up to OFFERED
+-> accept; ACTIVE -> nothing — the first draft of the test itself
+mis-counted its own arrows and the probe caught the law working
+correctly); the playtest route accepts the focused quest live: "journal
+4 quests (1 active)" joins the chain line — 9 captures, x2 IDENTICAL +
+comparator PASS; suites green.
+
+HONESTLY DEFERRED: Deliver/Build/Excavate events are wired in the
+authority but not yet emitted by gameplay (the build path submits
+HostCommands, not quest events — the plumbing is the same pattern);
+claim pays credits to a toast only (no economy wallet yet); Visit
+proximity is 8 m at ground level.

@@ -68,11 +68,22 @@
     },
     {
       "button_state": "",
+      "id": "toast_QUEST ACCEPTED",
+      "kind": "toast",
+      "rect": [
+        307,
+        375,
+        186,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "toast_FORGED 1 BARS",
       "kind": "toast",
       "rect": [
         313,
-        375,
+        353,
         174,
         16
       ]
@@ -249,7 +260,7 @@
       "rect": [
         100,
         171,
-        334,
+        310,
         14
       ]
     },
@@ -335,9 +346,9 @@
       "id": "journal_hint",
       "kind": "text",
       "rect": [
-        618,
+        162,
         349,
-        82,
+        538,
         14
       ]
     },
@@ -498,7 +509,7 @@
         "kind": "greet",
         "progress": "0/4",
         "reward": 31,
-        "state": "OFFERED",
+        "state": "ACTIVE",
         "title": "THE FARMER'S greet"
       },
       {
@@ -541,12 +552,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 22:07",
+        "modified": "2026-09-11 23:12",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 22:07",
+        "modified": "2026-09-11 23:12",
         "name": "beta-shot",
         "seed": 7
       }
@@ -559,8 +570,12 @@
     ],
     "toasts": [
       {
-        "age_s": 1.5126748085021973,
+        "age_s": 1.4668328762054443,
         "text": "FORGED 1 BARS"
+      },
+      {
+        "age_s": 0.035822462290525436,
+        "text": "QUEST ACCEPTED"
       }
     ]
   }

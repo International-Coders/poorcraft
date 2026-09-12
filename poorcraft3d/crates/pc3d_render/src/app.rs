@@ -137,9 +137,12 @@ pub struct SliceHost {
     pub ore_remaining: u8,
     /// Whether the chest has been looted.
     pub chest_opened: bool,
-    /// The quest journal rows for the spawn region (computed once from
-    /// the pc3d_world::quest authority).
+    /// The quest journal rows for the spawn region (derived from the
+    /// live list on every sync).
     pub quest_rows: Option<Vec<crate::ui::QuestRow>>,
+    /// The LIVE quest list (the authority's own Quest values; accept/
+    /// claim/event wiring mutate through it).
+    pub quests: Option<Vec<pc3d_world::quest::Quest>>,
     /// Frame counter for the forge's work tick.
     pub forge_tick_frame: u64,
 }
@@ -680,6 +683,49 @@ impl App {
         lines
     }
 
+    /// Frame-scope wrapper: sync rows (and note a toast) when quests
+    /// progressed outside the action path.
+    fn sync_journal_rows_public(&mut self) {
+        self.sync_journal_rows();
+        if let Some(s) = self.state.as_mut() {
+            s.ui.toast("QUEST PROGRESS");
+            s.ui_dirty = true;
+        }
+    }
+
+    /// Re-derive the journal rows from the LIVE quest list (after
+    /// accept/claim/events) — the panel stays open and current.
+    fn sync_journal_rows(&mut self) {
+        let rows = self.cfg.slice_host.as_mut().map(|slice| {
+            let qs = slice.quests.clone();
+            let derived = qs.as_ref().map(|qs| {
+                qs.iter()
+                    .map(|q| crate::ui::QuestRow {
+                        id: q.id,
+                        title: q.title.clone(),
+                        giver: format!(
+                            "{} (the {})",
+                            pc3d_world::dialog::villager_name(q.giver_cell),
+                            giver_role_str(q.giver_role)
+                        ),
+                        kind: q.kind.name(),
+                        state: quest_state_str(q.state),
+                        progress: format!("{}/{}", q.progress, q.kind.goal()),
+                        reward: q.reward,
+                    })
+                    .collect()
+            });
+            slice.quest_rows = derived.clone();
+            derived.unwrap_or_default()
+        });
+        if let (Some(rows), Some(s)) = (rows, self.state.as_mut()) {
+            if s.ui.journal.is_some() {
+                s.ui.journal = Some(rows);
+                s.ui_dirty = true;
+            }
+        }
+    }
+
     /// Sync the live forge authority into the UI panel view.
     fn sync_forge_view(&mut self) {
         let view = self
@@ -788,12 +834,37 @@ impl App {
                         }
                         self.sync_forge_view();
                     } else {
-                        let line = self.state.as_ref().and_then(|s| {
-                            s.renderer
-                                .nearest_talk_target()
-                                .and_then(|(_, _, i)| s.renderer.talk_with_index(i))
-                        });
-                        if let (Some(line), Some(s)) = (line, self.state.as_mut()) {
+                        let (talked, greeted) = self.state.as_ref().and_then(|s| {
+                            s.renderer.nearest_talk_target().map(|(_, _, i)| {
+                                (
+                                    s.renderer.talk_with_index(i),
+                                    s.renderer.cast_home(i),
+                                )
+                            })
+                        }).unwrap_or((None, None));
+                        // Quest wiring: greeting THE villager you spoke
+                        // with (their home cell is the event's identity)
+                        // advances active Greet quests — the authority
+                        // decides what counts.
+                        if let Some(npc) = greeted {
+                            if let Some(slice) = self.cfg.slice_host.as_mut() {
+                                if let Some(qs) = slice.quests.as_mut() {
+                                    for q in qs.iter_mut() {
+                                        if q.state == pc3d_world::quest::QuestState::Active {
+                                            let ev = pc3d_world::quest::QuestEvent::Greeted { npc };
+                                            let before = q.progress;
+                                            *q = q.advance(&ev);
+                                            if q.progress != before {
+                                                if let Some(s) = self.state.as_mut() {
+                                                    s.ui.toast("QUEST PROGRESS");
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if let (Some(line), Some(s)) = (talked, self.state.as_mut()) {
                             s.ui.dialog = Some(line);
                             s.ui_dirty = true;
                         }
@@ -823,24 +894,29 @@ impl App {
                     // The quest journal: rows from the pure authority
                     // (plan_quests for the spawn region), cached on
                     // the slice host after first computation.
+                    // Compute the LIVE quest list once, then derive the
+                    // rows (and keep both: rows for the panel, the list
+                    // for accept/claim/event wiring).
                     let rows: Option<Vec<crate::ui::QuestRow>> = self
                         .cfg
                         .slice_host
                         .as_mut()
                         .map(|slice| {
-                            if slice.quest_rows.is_none() {
+                            if slice.quests.is_none() {
                                 let region = pc3d_world::coords::RegionCoord {
                                     x: (slice.player.pos[0] as i64 / 256) as i32,
                                     z: (slice.player.pos[2] as i64 / 256) as i32,
                                 };
-                                slice.quest_rows = Some(
-                                    pc3d_world::quest::plan_quests(
-                                        &slice.scene.gen,
-                                        &slice.scene.plan,
-                                        region,
-                                    )
-                                    .into_iter()
+                                slice.quests = Some(pc3d_world::quest::plan_quests(
+                                    &slice.scene.gen,
+                                    &slice.scene.plan,
+                                    region,
+                                ));
+                            }
+                            slice.quest_rows = slice.quests.as_ref().map(|qs| {
+                                qs.iter()
                                     .map(|q| crate::ui::QuestRow {
+                                        id: q.id,
                                         title: q.title.clone(),
                                         giver: format!(
                                             "{} (the {})",
@@ -856,9 +932,8 @@ impl App {
                                         ),
                                         reward: q.reward,
                                     })
-                                    .collect(),
-                                );
-                            }
+                                    .collect()
+                            });
                             slice.quest_rows.clone().unwrap_or_default()
                         });
                     if let (Some(rows), Some(s)) = (rows, self.state.as_mut()) {
@@ -869,6 +944,62 @@ impl App {
                         };
                         s.ui_dirty = true;
                     }
+                }
+                UiAction::QuestAccept(id) => {
+                    let changed = self
+                        .cfg
+                        .slice_host
+                        .as_mut()
+                        .map(|slice| {
+                            let mut hit = false;
+                            if let Some(qs) = slice.quests.as_mut() {
+                                for q in qs.iter_mut() {
+                                    if q.id == *id && q.state == pc3d_world::quest::QuestState::Offered {
+                                        *q = q.accept();
+                                        hit = true;
+                                    }
+                                }
+                            }
+                            hit
+                        })
+                        .unwrap_or(false);
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.toast(if changed {
+                            "QUEST ACCEPTED"
+                        } else {
+                            "NOTHING TO ACCEPT"
+                        });
+                        s.ui_dirty = true;
+                    }
+                    self.sync_journal_rows();
+                }
+                UiAction::QuestClaim(id) => {
+                    let (claimed, reward) = self
+                        .cfg
+                        .slice_host
+                        .as_mut()
+                        .map(|slice| {
+                            let mut reward = 0u32;
+                            if let Some(qs) = slice.quests.as_mut() {
+                                for q in qs.iter_mut() {
+                                    if q.id == *id && q.state == pc3d_world::quest::QuestState::Complete {
+                                        reward = q.reward;
+                                        *q = q.claim();
+                                    }
+                                }
+                            }
+                            (reward > 0, reward)
+                        })
+                        .unwrap_or((false, 0));
+                    if let Some(s) = self.state.as_mut() {
+                        if claimed {
+                            s.ui.toast(format!("REWARD CLAIMED: {reward} CREDITS"));
+                        } else {
+                            s.ui.toast("NOTHING TO CLAIM");
+                        }
+                        s.ui_dirty = true;
+                    }
+                    self.sync_journal_rows();
                 }
                 UiAction::HarvestOre => {
                     // The resource row: a swing at the ore node — needs
@@ -1885,7 +2016,7 @@ impl App {
         if !self.run_ui_script(event_loop) {
             return;
         }
-        let Some(state) = self.state.as_mut() else {
+        let Some(mut state) = self.state.as_mut() else {
             return;
         };
 
@@ -2061,6 +2192,69 @@ impl App {
                 state.renderer.set_hud_line(&state.hud_line());
             }
             moving = false;
+        }
+
+        // Quest wiring: standing near a Visit target advances active
+        // Visit quests (the authority decides; ~8 m counts as arrived).
+        // Runs after the state borrow ends (the events need cfg + the
+        // player pose, the updates need cfg alone).
+        {
+            drop(state);
+            let events: Vec<pc3d_world::quest::QuestEvent> = {
+                let player_pos = self
+                    .state
+                    .as_ref()
+                    .map(|s| s.renderer.pose().position);
+                match (self.cfg.slice_host.as_ref(), player_pos) {
+                    (Some(slice), Some(p)) => slice
+                        .quests
+                        .as_ref()
+                        .map(|qs| {
+                            qs.iter()
+                                .filter(|q| {
+                                    q.state == pc3d_world::quest::QuestState::Active
+                                })
+                                .filter_map(|q| match q.kind {
+                                    pc3d_world::quest::QuestKind::Visit { target } => {
+                                        let d = (p[0] - target.x as f32)
+                                            .hypot(p[2] - target.z as f32);
+                                        (d <= 8.0).then_some(
+                                            pc3d_world::quest::QuestEvent::Visited {
+                                                cell: target,
+                                            },
+                                        )
+                                    }
+                                    _ => None,
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    _ => Vec::new(),
+                }
+            };
+            let mut progressed = false;
+            if !events.is_empty() {
+                if let Some(slice) = self.cfg.slice_host.as_mut() {
+                    if let Some(qs) = slice.quests.as_mut() {
+                        for q in qs.iter_mut() {
+                            if q.state != pc3d_world::quest::QuestState::Active {
+                                continue;
+                            }
+                            for ev in &events {
+                                let before = q.progress;
+                                *q = q.advance(ev);
+                                if q.progress != before {
+                                    progressed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if progressed {
+                self.sync_journal_rows_public();
+            }
+            state = self.state.as_mut().expect("state lives");
         }
 
         // Owner UI live state: vitals drift with movement, toasts fade,

@@ -303,6 +303,7 @@ fn state_col_1() -> [u8; 3] {
 /// One journal row (synced from pc3d_world::quest's authority).
 #[derive(Clone, Debug, PartialEq)]
 pub struct QuestRow {
+    pub id: u32,
     pub title: String,
     pub giver: String,
     pub kind: &'static str,
@@ -421,6 +422,8 @@ pub struct UiState {
     pub interact: Option<(String, Vec<String>)>,
     /// The quest journal (J): one row per quest from the authority.
     pub journal: Option<Vec<QuestRow>>,
+    /// The journal's focused row (Up/Down; Enter accepts/claims).
+    pub journal_focus: usize,
     /// The player stock lines (the chest/harvest panel view).
     pub stock_lines: Vec<String>,
     /// Ore harvested + bars obtained (the route's proof).
@@ -452,6 +455,7 @@ impl Default for UiState {
             forge_bars_taken: 0,
             interact: None,
             journal: None,
+            journal_focus: 0,
             stock_lines: Vec::new(),
             ore_harvested: 0,
         }
@@ -1231,11 +1235,21 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     ctx.text("journal_empty", "NO QUESTS IN THIS REGION", lx, jy, 2);
                 }
                 for (i, q) in rows.iter().take(6).enumerate() {
+                    let focused = i == state.journal_focus;
                     let head = match q.state {
                         "CLAIMED" => format!("{} · DONE", q.title),
                         "COMPLETE" => format!("{} · READY TO CLAIM", q.title),
                         "ACTIVE" => format!("{} · {}", q.title, q.progress),
                         _ => format!("{} · OFFERED", q.title),
+                    };
+                    let head = if focused {
+                        match q.state {
+                            "OFFERED" => format!("> {} · ENTER TO ACCEPT", q.title),
+                            "COMPLETE" => format!("> {} · ENTER TO CLAIM", q.title),
+                            other_state => format!("> {head}"),
+                        }
+                    } else {
+                        head
                     };
                     let head = fit_to_width(&head, 2 * ctx.k, max_w);
                     ctx.text(&format!("journal_row_{i}"), &head, lx, jy, 2);
@@ -1247,11 +1261,12 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     ctx.text(&format!("journal_sub_{i}"), &sub, lx, jy + ctx.px(15), 1);
                     jy += ctx.px(30);
                 }
-                let hint = "J CLOSE";
-                let (hw, _) = font::text_size(hint, 2);
+                let hint = "UP/DOWN SELECT · ENTER ACCEPT/CLAIM · J CLOSE";
+                let hint = fit_to_width(hint, 2 * ctx.k, max_w);
+                let (hw, _) = font::text_size(&hint, 2);
                 ctx.text(
                     "journal_hint",
-                    hint,
+                    &hint,
                     panel.right() - ctx.px(PANEL_PAD) - hw as i32,
                     panel.bottom() - ctx.px(24),
                     2,
@@ -1859,6 +1874,10 @@ pub enum UiAction {
     /// The quest journal: J toggles (the app stamps the rows from the
     /// quest authority).
     ToggleJournal,
+    /// The quest journal: accept the focused OFFERED quest.
+    QuestAccept(u32),
+    /// The quest journal: claim the focused COMPLETE quest's reward.
+    QuestClaim(u32),
     /// The harvest slice: swing at the ore node.
     HarvestOre,
     /// Proof hook (inspector): raw mouse deltas applied to the live
@@ -1913,6 +1932,31 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
             Key::Escape if state.journal.is_some() => {
                 state.journal = None;
                 acts.push(UiAction::Repaint);
+            }
+            Key::Up if state.journal.is_some() => {
+                let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
+                if n > 0 {
+                    state.journal_focus = (state.journal_focus + n - 1) % n;
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Down if state.journal.is_some() => {
+                let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
+                if n > 0 {
+                    state.journal_focus = (state.journal_focus + 1) % n;
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Enter if state.journal.is_some() => {
+                if let Some(rows) = &state.journal {
+                    if let Some(row) = rows.get(state.journal_focus) {
+                        match row.state {
+                            "OFFERED" => acts.push(UiAction::QuestAccept(row.id)),
+                            "COMPLETE" => acts.push(UiAction::QuestClaim(row.id)),
+                            _ => {}
+                        }
+                    }
+                }
             }
             Key::Char('j') => {
                 // J toggles the quest journal (opens only if the app
@@ -2995,6 +3039,7 @@ mod tests {
         let mut s = state(Screen::Gameplay);
         s.journal = Some(vec![
             QuestRow {
+                id: 1,
                 title: "Farmer visit".into(),
                 giver: "Bram Stonehand (the farmer)".into(),
                 kind: "visit",
@@ -3003,6 +3048,7 @@ mod tests {
                 reward: 12,
             },
             QuestRow {
+                id: 2,
                 title: "Builder deliver".into(),
                 giver: "Maren Oldford (the builder)".into(),
                 kind: "deliver",
@@ -3027,6 +3073,44 @@ mod tests {
         assert!(
             acts.iter().any(|a| matches!(a, UiAction::ToggleJournal)),
             "J with it closed must ask the app for rows"
+        );
+    }
+
+    #[test]
+    fn journal_navigation_and_accept_claim_keys() {
+        let mut s = state(Screen::Gameplay);
+        s.journal = Some(vec![
+            QuestRow { id: 7, title: "Farmer visit".into(), giver: "A".into(),
+                kind: "visit", state: "OFFERED", progress: "0/1".into(), reward: 5 },
+            QuestRow { id: 8, title: "Builder deliver".into(), giver: "B".into(),
+                kind: "deliver", state: "COMPLETE", progress: "6/6".into(), reward: 9 },
+            QuestRow { id: 9, title: "Guard greet".into(), giver: "C".into(),
+                kind: "greet", state: "ACTIVE", progress: "1/3".into(), reward: 4 },
+        ]);
+        // Down once: focus the COMPLETE row (index 1); Enter claims.
+        let _ = on_key(&mut s, Key::Down);
+        assert_eq!(s.journal_focus, 1);
+        let acts = on_key(&mut s, Key::Enter);
+        assert!(
+            acts.iter().any(|a| matches!(a, UiAction::QuestClaim(8))),
+            "Enter on a COMPLETE row claims it: {acts:?}"
+        );
+        // Up to the OFFERED row; Enter accepts.
+        let _ = on_key(&mut s, Key::Up);
+        assert_eq!(s.journal_focus, 0);
+        let acts = on_key(&mut s, Key::Enter);
+        assert!(
+            acts.iter().any(|a| matches!(a, UiAction::QuestAccept(7))),
+            "Enter on an OFFERED row accepts it"
+        );
+        // Enter on an ACTIVE row does nothing.
+        let _ = on_key(&mut s, Key::Down);
+        let _ = on_key(&mut s, Key::Down);
+        assert_eq!(s.journal_focus, 2);
+        let acts = on_key(&mut s, Key::Enter);
+        assert!(
+            !acts.iter().any(|a| matches!(a, UiAction::QuestAccept(_) | UiAction::QuestClaim(_))),
+            "Enter on an ACTIVE row must not fire"
         );
     }
 
