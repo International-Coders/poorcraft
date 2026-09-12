@@ -314,12 +314,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 23:12",
+        "modified": "2026-09-12 00:19",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 23:12",
+        "modified": "2026-09-12 00:19",
         "name": "beta-shot",
         "seed": 7
       }
@@ -328,6 +328,7 @@
       "WOOD_PICK x1",
       "BREAD x2"
     ],
-    "toasts": []
+    "toasts": [],
+    "wallet": 0
   }
 }

@@ -428,6 +428,8 @@ pub struct UiState {
     pub stock_lines: Vec<String>,
     /// Ore harvested + bars obtained (the route's proof).
     pub ore_harvested: u64,
+    /// The player's credit wallet (claim payouts).
+    pub wallet: i64,
 }
 
 impl Default for UiState {
@@ -458,6 +460,7 @@ impl Default for UiState {
             journal_focus: 0,
             stock_lines: Vec::new(),
             ore_harvested: 0,
+            wallet: 0,
         }
     }
 }
@@ -510,6 +513,7 @@ impl UiState {
             })),
             "forge_bars_taken": self.forge_bars_taken,
             "ore_harvested": self.ore_harvested,
+            "wallet": self.wallet,
             "stock": self.stock_lines,
             "interact": self.interact.as_ref().map(|(t, _)| t.clone()),
             "journal_open": self.journal.is_some(),
@@ -1228,6 +1232,11 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 let py = centered_y(hi, ph);
                 let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
                 ctx.panel("journal_panel", panel, Some("QUEST JOURNAL"));
+                {
+                    let wl = format!("WALLET {} CREDITS", state.wallet);
+                    let (tw, _) = font::text_size(&wl, 2);
+                    ctx.text("journal_wallet", &wl, panel.right() - ctx.px(PANEL_PAD) - tw as i32, panel.y + ctx.px(PANEL_PAD) + ctx.px(24), 2);
+                }
                 let lx = panel.x + ctx.px(PANEL_PAD);
                 let mut jy = panel.y + ctx.px(PANEL_PAD) + ctx.px(24);
                 let max_w = (pw - PANEL_PAD * 2) as u32;
@@ -1941,7 +1950,7 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                 acts.push(UiAction::Repaint);
             }
             Key::Down if state.journal.is_some() => {
-                let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
+let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
                 if n > 0 {
                     state.journal_focus = (state.journal_focus + 1) % n;
                 }

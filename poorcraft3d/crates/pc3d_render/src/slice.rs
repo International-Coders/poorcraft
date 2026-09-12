@@ -256,6 +256,7 @@ pub fn assemble(
         chest_opened: false,
         quest_rows: None,
         quests: None,
+        credits: 0,
     }
 }
 
@@ -783,6 +784,7 @@ pub fn assemble_rebuild(
         chest_opened: false,
         quest_rows: None,
         quests: None,
+        credits: 0,
     };
     host.host.borrow_mut().run_ticks(0);
     host

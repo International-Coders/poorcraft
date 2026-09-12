@@ -68,23 +68,23 @@
     },
     {
       "button_state": "",
-      "id": "toast_ORE LOADED (2)",
+      "id": "toast_HARVESTED 2 IRON ORE",
       "kind": "toast",
       "rect": [
-        307,
+        271,
         375,
-        186,
+        258,
         16
       ]
     },
     {
       "button_state": "",
-      "id": "toast_FUEL LOADED",
+      "id": "toast_QUEST PROGRESS",
       "kind": "toast",
       "rect": [
-        325,
+        307,
         353,
-        150,
+        186,
         16
       ]
     },
@@ -244,6 +244,127 @@
     },
     {
       "button_state": "",
+      "id": "journal_panel",
+      "kind": "panel",
+      "rect": [
+        80,
+        127,
+        640,
+        246
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_wallet",
+      "kind": "text",
+      "rect": [
+        510,
+        171,
+        190,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_0",
+      "kind": "text",
+      "rect": [
+        100,
+        171,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_0",
+      "kind": "text",
+      "rect": [
+        100,
+        186,
+        311,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_1",
+      "kind": "text",
+      "rect": [
+        100,
+        201,
+        346,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_1",
+      "kind": "text",
+      "rect": [
+        100,
+        216,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_2",
+      "kind": "text",
+      "rect": [
+        100,
+        231,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_2",
+      "kind": "text",
+      "rect": [
+        100,
+        246,
+        341,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_3",
+      "kind": "text",
+      "rect": [
+        100,
+        261,
+        370,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_3",
+      "kind": "text",
+      "rect": [
+        100,
+        276,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_hint",
+      "kind": "text",
+      "rect": [
+        162,
+        349,
+        538,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "interact_panel",
       "kind": "panel",
       "rect": [
@@ -369,14 +490,14 @@
     },
     "focus": 0,
     "forge": {
-      "bars": 0,
+      "bars": 1,
       "blocked": false,
-      "fuel": 0.3166666626930237,
-      "heat": 0.0416666679084301,
-      "ore": 2,
+      "fuel": 0.06666667014360428,
+      "heat": 0.1666666716337204,
+      "ore": 0,
       "state": "HEATING"
     },
-    "forge_bars_taken": 0,
+    "forge_bars_taken": 1,
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
@@ -393,10 +514,43 @@
       "xp": 0.0
     },
     "interact": "MAP MARKER",
-    "journal": null,
-    "journal_open": false,
+    "journal": [
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "greet",
+        "progress": "0/4",
+        "reward": 31,
+        "state": "OFFERED",
+        "title": "THE FARMER'S greet"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
+        "kind": "build",
+        "progress": "0/11",
+        "reward": 27,
+        "state": "OFFERED",
+        "title": "THE BUILDER'S build"
+      },
+      {
+        "giver": "Dunstan Fernbrook (the guard)",
+        "kind": "excavate",
+        "progress": "2/8",
+        "reward": 39,
+        "state": "ACTIVE",
+        "title": "THE GUARD'S excavate"
+      },
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "excavate",
+        "progress": "0/8",
+        "reward": 35,
+        "state": "OFFERED",
+        "title": "THE FARMER'S excavate"
+      }
+    ],
+    "journal_open": true,
     "modal": null,
-    "ore_harvested": 4,
+    "ore_harvested": 6,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -420,18 +574,19 @@
       }
     ],
     "stock": [
-      "IRON_ORE x2",
+      "IRON_ORE x4",
+      "IRON_BAR x1",
       "WOOD_PICK x1",
       "BREAD x2"
     ],
     "toasts": [
       {
-        "age_s": 0.8258739709854126,
-        "text": "FUEL LOADED"
+        "age_s": 2.3202950954437256,
+        "text": "QUEST PROGRESS"
       },
       {
-        "age_s": 0.8258739709854126,
-        "text": "ORE LOADED (2)"
+        "age_s": 2.3202950954437256,
+        "text": "HARVESTED 2 IRON ORE"
       }
     ],
     "wallet": 0

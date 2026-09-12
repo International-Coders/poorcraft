@@ -255,12 +255,23 @@
     },
     {
       "button_state": "",
+      "id": "journal_wallet",
+      "kind": "text",
+      "rect": [
+        510,
+        171,
+        190,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "journal_row_0",
       "kind": "text",
       "rect": [
         100,
         171,
-        310,
+        334,
         14
       ]
     },
@@ -304,7 +315,7 @@
       "rect": [
         100,
         231,
-        358,
+        334,
         14
       ]
     },
@@ -509,7 +520,7 @@
         "kind": "greet",
         "progress": "0/4",
         "reward": 31,
-        "state": "ACTIVE",
+        "state": "OFFERED",
         "title": "THE FARMER'S greet"
       },
       {
@@ -525,7 +536,7 @@
         "kind": "excavate",
         "progress": "0/8",
         "reward": 39,
-        "state": "OFFERED",
+        "state": "ACTIVE",
         "title": "THE GUARD'S excavate"
       },
       {
@@ -552,12 +563,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 23:13",
+        "modified": "2026-09-12 00:20",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 23:13",
+        "modified": "2026-09-12 00:20",
         "name": "beta-shot",
         "seed": 7
       }
@@ -570,13 +581,14 @@
     ],
     "toasts": [
       {
-        "age_s": 1.4682868719100952,
+        "age_s": 1.5458813905715942,
         "text": "FORGED 1 BARS"
       },
       {
-        "age_s": 0.036101166158914566,
+        "age_s": 0.03658189997076988,
         "text": "QUEST ACCEPTED"
       }
-    ]
+    ],
+    "wallet": 0
   }
 }

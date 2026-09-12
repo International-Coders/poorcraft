@@ -270,17 +270,18 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 23:13",
+        "modified": "2026-09-12 00:20",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 23:13",
+        "modified": "2026-09-12 00:20",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": []
+    "toasts": [],
+    "wallet": 0
   }
 }

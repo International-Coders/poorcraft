@@ -7055,3 +7055,41 @@ authority but not yet emitted by gameplay (the build path submits
 HostCommands, not quest events — the plumbing is the same pattern);
 claim pays credits to a toast only (no economy wallet yet); Visit
 proximity is 8 m at ground level.
+
+## 2026-09-11 — Build/excavate quest emission + the credit wallet
+
+WHAT: the remaining quest event kinds are wired — building (F)
+advances active Build quests AT THAT SITE (the authority's own
+site-match), removing (R) and ore harvest emit Excavated — and claims
+now PAY a credit wallet shown in the journal header and the runtime
+export.
+
+HOW: the F/R handler submits Built{site, 1} / Excavated{1} past the
+host mutation through the slice host it already holds (disjoint
+cfg/state borrows — a shared free fn sync_journal_rows_into re-syncs
+the open journal in place); HarvestOre emits Excavated{yielded} on
+success; the wallet (i64 on SliceHost) pays on claim (the reward comes
+from the authority), shows in the journal header (WALLET N CREDITS),
+and rides the runtime export.
+
+EVIDENCE: the playtest chain now accepts THE EXCAVATE quest (Down
+twice to focus row 2 — deterministic given the plan's own quest
+order), harvests once more, and the journal shows it ACTIVE at 2/8
+live: "journal 4 quests (1 active, progress live)" with 6 ore
+harvested — 10 captures, x2 IDENTICAL + comparator PASS; suites green.
+
+TWO BUGS THIS CYCLE'S PROOFS CAUGHT (both mine, both the same CLASS —
+the third occurrence): ui_script steps fire at exact frames consumed
+STRICTLY in vec order — a 650 step placed after the 660 step in the
+source never runs (probed: the accept saw focus=0 and the Down arm
+never fired). Reordered. Then the 680 close-toggle fired BEFORE the
+680 capture (the shot saw a closed journal — the first FAIL line
+printed all-true subchecks because the message omits them). The close
+moved to 695. The route-assert fail message now also deserves the
+full subcheck list — noted for the next pass over that arm.
+
+HONESTLY DEFERRED: Deliver events (delivering BARS to a site needs a
+deliver interaction at a Build quest's site — the pattern exists);
+the wallet spends nothing yet (the market/trade slice follows); build
+events carry the placement cell — quest sites are plan cells, so only
+builds AT the site count (the authority's site-match is exact).

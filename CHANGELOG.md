@@ -3694,3 +3694,15 @@ The simulation-only roadmap was declared complete; the visual reset
   deterministic + comparator PASS; suites green.
 - Deferred: Deliver/Build/Excavate event emission, an economy wallet
   for claim payouts.
+
+## Loop 436 — Build/excavate emission + the credit wallet
+- F builds advance active Build quests at the exact site; R removes
+  and ore harvests emit Excavated; claims pay a credit wallet (shown
+  in the journal header, exported in the runtime state).
+- The playtest accepts THE EXCAVATE quest and its journal shows 2/8
+  live — "journal 4 quests (1 active, progress live)" — x2
+  deterministic + comparator PASS.
+- Two script-ordering bugs caught by the proofs (exact-frame steps
+  consumed strictly in order — third occurrence of the class).
+- Deferred: Deliver events (needs a deliver-at-site interaction),
+  wallet spending (market/trade slice).

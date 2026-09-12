@@ -143,6 +143,9 @@ pub struct SliceHost {
     /// The LIVE quest list (the authority's own Quest values; accept/
     /// claim/event wiring mutate through it).
     pub quests: Option<Vec<pc3d_world::quest::Quest>>,
+    /// The player's credit wallet (claim payouts; economy trade uses
+    /// i64 balances — this is the player-side counter).
+    pub credits: i64,
     /// Frame counter for the forge's work tick.
     pub forge_tick_frame: u64,
 }
@@ -152,6 +155,35 @@ pub struct SliceHost {
 /// 6 m ahead — both through `HostCommand` + one tick, never by client-side
 /// mutation. The renderer then syncs read-only from `host.construction`.
 pub struct InteractiveHost(pub std::rc::Rc<std::cell::RefCell<pc3d_world::host::SoloHost>>);
+
+/// Derive journal rows from the live quest list into the UI (shared by
+/// the action path and the build/excavate site, which holds disjoint
+/// cfg/state borrows).
+fn sync_journal_rows_into(
+    quests: Option<&Vec<pc3d_world::quest::Quest>>,
+    ui: &mut crate::ui::UiState,
+) {
+    let rows = quests.map(|qs| {
+        qs.iter()
+            .map(|q| crate::ui::QuestRow {
+                id: q.id,
+                title: q.title.clone(),
+                giver: format!(
+                    "{} (the {})",
+                    pc3d_world::dialog::villager_name(q.giver_cell),
+                    giver_role_str(q.giver_role)
+                ),
+                kind: q.kind.name(),
+                state: quest_state_str(q.state),
+                progress: format!("{}/{}", q.progress, q.kind.goal()),
+                reward: q.reward,
+            })
+            .collect()
+    });
+    if ui.journal.is_some() {
+        ui.journal = rows;
+    }
+}
 
 fn giver_role_str(r: pc3d_world::npc::Role) -> &'static str {
     match r {
@@ -683,6 +715,30 @@ impl App {
         lines
     }
 
+    /// Submit a quest event to every ACTIVE quest (the authority
+    /// decides what counts). Returns whether anything progressed.
+    fn submit_quest_event(&mut self, ev: pc3d_world::quest::QuestEvent) -> bool {
+        let mut progressed = false;
+        if let Some(slice) = self.cfg.slice_host.as_mut() {
+            if let Some(qs) = slice.quests.as_mut() {
+                for q in qs.iter_mut() {
+                    if q.state != pc3d_world::quest::QuestState::Active {
+                        continue;
+                    }
+                    let before = q.progress;
+                    *q = q.advance(&ev);
+                    if q.progress != before {
+                        progressed = true;
+                    }
+                }
+            }
+        }
+        if progressed {
+            self.sync_journal_rows();
+        }
+        progressed
+    }
+
     /// Frame-scope wrapper: sync rows (and note a toast) when quests
     /// progressed outside the action path.
     fn sync_journal_rows_public(&mut self) {
@@ -942,6 +998,9 @@ impl App {
                         } else {
                             Some(rows)
                         };
+                        if let Some(slice) = self.cfg.slice_host.as_ref() {
+                            s.ui.wallet = slice.credits;
+                        }
                         s.ui_dirty = true;
                     }
                 }
@@ -974,7 +1033,7 @@ impl App {
                     self.sync_journal_rows();
                 }
                 UiAction::QuestClaim(id) => {
-                    let (claimed, reward) = self
+                    let (claimed, reward, credits) = self
                         .cfg
                         .slice_host
                         .as_mut()
@@ -988,12 +1047,19 @@ impl App {
                                     }
                                 }
                             }
-                            (reward > 0, reward)
+                            if reward > 0 {
+                                slice.credits += reward as i64;
+                            }
+                            (reward > 0, reward, slice.credits)
                         })
-                        .unwrap_or((false, 0));
+                        .unwrap_or((false, 0, 0));
+                    let _ = credits;
                     if let Some(s) = self.state.as_mut() {
                         if claimed {
-                            s.ui.toast(format!("REWARD CLAIMED: {reward} CREDITS"));
+                            s.ui.wallet = credits;
+                            s.ui.toast(format!(
+                                "REWARD CLAIMED: {reward} CREDITS (WALLET {credits})"
+                            ));
                         } else {
                             s.ui.toast("NOTHING TO CLAIM");
                         }
@@ -1002,6 +1068,8 @@ impl App {
                     self.sync_journal_rows();
                 }
                 UiAction::HarvestOre => {
+                    // (Quest wiring happens on success below: a swing
+                    // that yields ore is excavation progress.)
                     // The resource row: a swing at the ore node — needs
                     // a PICK (the chest's loot; bare hands yield nothing,
                     // the journey's own gate law).
@@ -1047,6 +1115,17 @@ impl App {
                         .as_ref()
                         .map(|slice| Self::sync_stock_lines_of(slice))
                         .unwrap_or_default();
+                    if yielded > 0 {
+                        let ev = pc3d_world::quest::QuestEvent::Excavated {
+                            cells: yielded,
+                        };
+                        let progressed = self.submit_quest_event(ev);
+                        if progressed {
+                            if let Some(s) = self.state.as_mut() {
+                                s.ui.toast("QUEST PROGRESS");
+                            }
+                        }
+                    }
                     if let Some(s) = self.state.as_mut() {
                         match yielded {
                             0 if !has_pick => s.ui.toast("NEED A PICK — OPEN THE CHEST"),
@@ -1762,8 +1841,21 @@ impl App {
                         pc3d_world::gen::CellMaterial::Sand
                     };
                     let target = slice.player.ray_target(&gen, 8.0);
+                    // Quest wiring: building at a cell advances active
+                    // Build quests AT THAT SITE; removing a block is
+                    // excavation — the authority decides what counts.
+                    // Filled per-target, submitted past the host submit.
+                    let mut quest_ev: Option<pc3d_world::quest::QuestEvent> = None;
                     if let Some((hit, air)) = target {
                         let cell = if code == KeyCode::KeyF { air } else { hit };
+                        quest_ev = Some(if code == KeyCode::KeyF {
+                            pc3d_world::quest::QuestEvent::Built {
+                                site: cell,
+                                blocks: 1,
+                            }
+                        } else {
+                            pc3d_world::quest::QuestEvent::Excavated { cells: 1 }
+                        });
                         let mut h = slice.host.borrow_mut();
                         if code == KeyCode::KeyF && slice.rebuild {
                             // NWR-011: construction on an INSPECTED
@@ -1825,6 +1917,30 @@ impl App {
                         slice.last_message = "NO TARGET IN REACH".into();
                         if state.owner_menu {
                             state.ui.toast("NO TARGET IN REACH");
+                            state.ui_dirty = true;
+                        }
+                    }
+                    // Quest wiring (build/excavate): submit through the
+                    // slice host directly (the arm already holds the
+                    // disjoint cfg/state borrows); the open journal
+                    // re-syncs in place.
+                    if let Some(ev) = quest_ev.take() {
+                        let mut progressed = false;
+                        if let Some(qs) = slice.quests.as_mut() {
+                            for q in qs.iter_mut() {
+                                if q.state != pc3d_world::quest::QuestState::Active {
+                                    continue;
+                                }
+                                let before = q.progress;
+                                *q = q.advance(&ev);
+                                if q.progress != before {
+                                    progressed = true;
+                                }
+                            }
+                        }
+                        if progressed {
+                            state.ui.toast("QUEST PROGRESS");
+                            sync_journal_rows_into(slice.quests.as_ref(), &mut state.ui);
                             state.ui_dirty = true;
                         }
                     }

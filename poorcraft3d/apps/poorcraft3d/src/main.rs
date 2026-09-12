@@ -4894,6 +4894,16 @@ fn run_observe(route_id: &str, out_root: &str) {
                     }),
                 ));
                 ui_script.push((
+                    650,
+                    Box::new(|ui, _r, _ctx| {
+                        // Down twice: focus the excavate row (the
+                        // script vec must stay frame-ordered — the
+                        // drain loop only checks the NEXT step).
+                        let _ = pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Down);
+                        let _ = pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Down);
+                    }),
+                ));
+                ui_script.push((
                     660,
                     Box::new(|ui, _r, ctx| {
                         // Accept the FOCUSED row (a real journal
@@ -4907,6 +4917,36 @@ fn run_observe(route_id: &str, out_root: &str) {
                                 ctx.actions.push(UiAction::QuestAccept(row.id));
                             }
                         }
+                    }),
+                ));
+                // Focus + accept the EXCAVATE quest (row 2 in the
+                // showcase plan), close, harvest once (an Excavated
+                // event), reopen: progress shows.
+                ui_script.push((
+                    695,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::ToggleJournal); // close (post-capture)
+                    }),
+                ));
+                ui_script.push((
+                    700,
+                    Box::new(|ui, r, ctx| {
+                        if let Some(p) = r.plaza_interactable_pos(1) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                        let _ = ui;
+                    }),
+                ));
+                ui_script.push((
+                    720,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::HarvestOre);
+                    }),
+                ));
+                ui_script.push((
+                    740,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::ToggleJournal);
                     }),
                 ));
                 shots.push(Shot::new(60, format!("{dir}/play_door_outside.png"))
@@ -4927,10 +4967,14 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/play_taken.layout.json")));
                 shots.push(Shot::new(680, format!("{dir}/play_journal.png"))
                     .ui_dump(format!("{dir}/play_journal.layout.json")));
+                shots.push(Shot::new(780, format!("{dir}/play_journal_progress.png"))
+                    .ui_dump(format!("{dir}/play_journal_progress.layout.json")));
                 shots.push(Shot::new(660, format!("{dir}/play_taken.png"))
                     .ui_dump(format!("{dir}/play_taken.layout.json")));
                 shots.push(Shot::new(680, format!("{dir}/play_journal.png"))
                     .ui_dump(format!("{dir}/play_journal.layout.json")));
+                shots.push(Shot::new(780, format!("{dir}/play_journal_progress.png"))
+                    .ui_dump(format!("{dir}/play_journal_progress.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
@@ -5056,7 +5100,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             logical_size: (1280.0, 720.0),
             size_is_physical: true,
             max_frames: if spec.id == "route_semantic_playtest" {
-                Some(760)
+                Some(820)
             } else {
                 Some(420)
             },
@@ -5212,6 +5256,21 @@ fn run_observe(route_id: &str, out_root: &str) {
                         .count()
                 })
                 .unwrap_or(0);
+            let progressed_quest = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["journal"].as_array().cloned())
+                .map(|rows| {
+                    rows.iter().any(|r| {
+                        r["state"] == "ACTIVE"
+                            && r["progress"]
+                                .as_str()
+                                .and_then(|p| p.split('/').next().and_then(|n| n.parse::<u32>().ok()))
+                                .map(|n| n >= 1)
+                                .unwrap_or(false)
+                    })
+                })
+                .unwrap_or(false);
             let journal_rows = report
                 .captures
                 .iter()
@@ -5247,11 +5306,12 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && journal_shown
                 && journal_rows >= 3
                 && active_quests >= 1
+                && progressed_quest
                 && ore > 0
                 && has_bar;
             if ok {
                 println!(
-                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, journal {journal_rows} quests ({active_quests} active), IRON BAR in stock",
+                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, journal {journal_rows} quests ({active_quests} active, progress live), IRON BAR in stock",
                     dialog_shown.as_deref().unwrap_or("villager")
                 );
             } else {
