@@ -79,17 +79,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_FORGED 1 BARS",
-      "kind": "toast",
-      "rect": [
-        313,
-        353,
-        174,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -563,12 +552,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-12 02:33",
+        "modified": "2026-09-12 03:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-12 02:33",
+        "modified": "2026-09-12 03:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -581,11 +570,7 @@
     ],
     "toasts": [
       {
-        "age_s": 2.1528165340423584,
-        "text": "FORGED 1 BARS"
-      },
-      {
-        "age_s": 0.76587975025177,
+        "age_s": 1.3120607137680054,
         "text": "QUEST ACCEPTED"
       }
     ],

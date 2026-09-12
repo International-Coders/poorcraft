@@ -1265,6 +1265,15 @@ impl Renderer {
     /// The walk-surface ground height at a world XZ (the streamed
     /// surface when attached, else the generator authority) — the
     /// teleport hook's grounding.
+    /// Proof-hook ground: the renderer's own mounted generator (the
+    /// showcase crowd's) answers, so script closures need no gen.
+    pub fn ground_y_at_pub(&self, x: f32, z: f32) -> f32 {
+        match self.crowd_gen.as_ref() {
+            Some(gen) => self.ground_y_at(gen, x, z),
+            None => 0.0,
+        }
+    }
+
     pub fn ground_y_at(&self, gen: &pc3d_world::gen::WorldGen, x: f32, z: f32) -> f32 {
         use crate::player::CollisionSurface as _;
         if let Some(ss) = self.surface_stream.as_ref() {

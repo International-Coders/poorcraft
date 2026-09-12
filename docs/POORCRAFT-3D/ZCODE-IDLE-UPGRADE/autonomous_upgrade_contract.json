@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "project": "LOREFORGE / POORCRAFT 3D",
+  "task_title": "LOREFORGE Perpetual Upgrade Loop",
+  "entry_point": "ZCODE-IDLE-TASK-PROMPT.md",
+  "canon": "LOREFORGE-CANON-BIBLE.md",
+  "decision_framework": "UPGRADE-DECISION-FRAMEWORK.md",
+  "required_documents": [
+    "README.md",
+    "ZCODE-IDLE-TASK-PROMPT.md",
+    "LOREFORGE-CANON-BIBLE.md",
+    "UPGRADE-DECISION-FRAMEWORK.md"
+  ],
+  "source_precedence": [
+    "AGENTS.md",
+    "current_code_tests_and_runtime_evidence",
+    "STATE_BACKLOG_CHANGELOG_DEVLOG_AUDIT",
+    "LOREFORGE_CANON_BIBLE",
+    "accepted_decision_register",
+    "subsystem_contracts",
+    "old_or_speculative_plans"
+  ],
+  "canon_locks": {
+    "realm": "Valdenmoor",
+    "player_start": "Era IV, Year 1 — the Age of Reckoning",
+    "magic": "Anima is a material energetic property that redirects natural forces",
+    "ruin": "The cause of the Ruin remains deliberately ambiguous in public canon",
+    "player_identity": "The player has no fixed origin, race, allegiance, or destiny",
+    "factions": [
+      "accord",
+      "ironborn",
+      "ember_covenant",
+      "free_holds",
+      "ashen_order",
+      "nameless"
+    ],
+    "eras": [
+      "Age of First Flame",
+      "Age of Ruin",
+      "Age of Rebuild",
+      "Age of Reckoning"
+    ],
+    "named_places": [
+      "Ashenmoor",
+      "The Great Smelter",
+      "The Ember Sanctum",
+      "The Ashen Archive",
+      "The Free Holds",
+      "The Sundering Scar",
+      "The Nameless Warrens"
+    ]
+  },
+  "loop": [
+    "orient",
+    "reconcile_dirty_work",
+    "pick_one_shippable_job",
+    "plan",
+    "implement_code_and_tests",
+    "verify_and_inspect",
+    "measure",
+    "lore_and_portability_review",
+    "bookkeep",
+    "build_runtimes_when_required",
+    "commit_intended_files",
+    "push",
+    "record_next_task"
+  ],
+  "proof_gates": [
+    "targeted_tests",
+    "workspace_build",
+    "workspace_tests",
+    "visual_proof_and_pixel_analysis_when_visual",
+    "real_window_or_semantic_route_when_player_facing",
+    "smoke",
+    "before_after_benchmark_when_performance_claimed",
+    "save_reload_or_multiplayer_proof_when_authority_changes",
+    "artifact_disk_check_when_runtimes_change"
+  ],
+  "required_job_report": [
+    "player_visible_outcome",
+    "files_and_approach",
+    "test_and_proof_evidence",
+    "performance_before_after_or_not_applicable",
+    "lore_impact",
+    "portability_impact",
+    "artifact_paths_or_not_applicable",
+    "commit_and_push_status",
+    "honest_deferrals",
+    "next_task"
+  ],
+  "forbidden": [
+    "declare_the_game_permanently_finished",
+    "docs_only_progress_commit",
+    "dependency_churn_without_evidence",
+    "speculative_rewrite_without_profile_or_contract",
+    "copied_names_lore_assets_layouts_ui_audio_code_or_progression",
+    "silent_canon_change",
+    "fake_screenshot_or_uninspected_visual_claim",
+    "touch_unrelated_dirty_files",
+    "overwrite_player_saves",
+    "force_push",
+    "public_inspector_listener_or_external_data_upload",
+    "claim_console_support_without_authorized_hardware_toolchain_and_proof"
+  ]
+}

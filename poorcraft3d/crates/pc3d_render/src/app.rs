@@ -150,6 +150,9 @@ pub struct SliceHost {
     pub forge_tick_frame: u64,
     /// Explicit airborne state: the walk must not snap Y while true.
     pub falling: bool,
+    /// The landing ground captured at drop time (per-frame ground
+    /// answers answer PROP TOPS mid-fall — the fall freezes on them).
+    pub fall_ground_y: f32,
 }
 
 /// A shared handle to the authoritative host for interactive construction:
@@ -1039,10 +1042,16 @@ impl App {
                     }
                 }
                 UiAction::PlayerTeleportHigh { x, y, z } => {
+                    let g = self.state.as_ref().map(|s| {
+                        s.renderer.ground_y_at_pub(*x, *z)
+                    });
                     if let Some(slice) = self.cfg.slice_host.as_mut() {
                         slice.player.pos = [*x, *y, *z];
                         slice.jump_vy = 0.0;
                         slice.falling = true;
+                        // The landing target: the ground AT DROP TIME —
+                        // prop tops that appear mid-fall do not catch.
+                        slice.fall_ground_y = g.unwrap_or(*y - 10.0);
                     }
                 }
                 UiAction::PlayerTeleport { x, z } => {
@@ -2436,11 +2445,12 @@ impl App {
                         slice.player.pos[0],
                         slice.player.pos[2],
                     );
+                    let _ = g_here;
                     if slice.falling {
                         slice.jump_vy -= 9.8 * dt;
                         slice.player.pos[1] += slice.jump_vy * dt;
-                        if slice.player.pos[1] <= g_here {
-                            slice.player.pos[1] = g_here;
+                        if slice.player.pos[1] <= slice.fall_ground_y {
+                            slice.player.pos[1] = slice.fall_ground_y;
                             let dmg = damage_from_impact(slice.jump_vy);
                             slice.falling = false;
                             slice.jump_vy = 0.0;

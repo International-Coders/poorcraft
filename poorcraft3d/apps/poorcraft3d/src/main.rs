@@ -4969,12 +4969,6 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/play_journal.layout.json")));
                 shots.push(Shot::new(780, format!("{dir}/play_journal_progress.png"))
                     .ui_dump(format!("{dir}/play_journal_progress.layout.json")));
-                shots.push(Shot::new(660, format!("{dir}/play_taken.png"))
-                    .ui_dump(format!("{dir}/play_taken.layout.json")));
-                shots.push(Shot::new(680, format!("{dir}/play_journal.png"))
-                    .ui_dump(format!("{dir}/play_journal.layout.json")));
-                shots.push(Shot::new(780, format!("{dir}/play_journal_progress.png"))
-                    .ui_dump(format!("{dir}/play_journal_progress.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
