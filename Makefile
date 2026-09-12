@@ -9,7 +9,7 @@ P3D_GIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 .PHONY: help build test run smoke vistest perf package runtimes push night-plan-check idle-upgrade-check seedlab sounds
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 build: ## Debug build of the whole workspace
 	cargo build --workspace
@@ -112,9 +112,9 @@ p3d-atlas: ## Render a POORCRAFT 3D seed atlas PNG: make p3d-atlas SEED=1
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --atlas $(if $(SEED),$(SEED),1)
 
-p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p3d-assets [PATH=]
+p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p3d-assets [MANIFEST=]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
-	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(PATH),$(PATH),) || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(MANIFEST),$(MANIFEST),) || exit 1; \
 	echo "P3D ASSETS OK"
 
 p3d-slice: ## Windowed VERTICAL SLICE showcase (city+cave+build captures): make p3d-slice [OUTDIR=shots] [SEED=3]
@@ -226,7 +226,7 @@ p3d-settlement: ## NWR-008: settlement kit proof (overview/street, socket kit, b
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-settlement $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D SETTLEMENT OK"
 
-p3d-wilderness: ## NWR-007: instanced wilderness proof (control/vista/landmark/low-tier): make p3d-wilderness [OUTDIR=shots]
+p3d-wilderness: ## NWR-007: instanced wilderness proof (control/vista/landmark/undergrowth/low-tier): make p3d-wilderness [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-wilderness $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D WILDERNESS OK"
 

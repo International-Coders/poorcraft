@@ -7248,3 +7248,74 @@ region-center based (256 m neighbor spacing — macro relief; a
 sub-region detail-slope view would sample the surface function
 densely); the terrain tool is windowless (windowed overlay captures
 can ride the observatory later).
+
+## 2026-09-12 — The thousand-asset families go wild (loop 440)
+
+WHAT (the loop-439 deferral closed): 20 of the 22 new asset families
+now GROW IN THE WORLD — forest floors carry the undergrowth layer
+(ferns, blooms, mushrooms, glowcaps, deadtrees, snags, stumps, roots,
+moss rocks, brambles, thornbushes), wetlands grow reeds and bog snags,
+plains bloom flowers over pebbles and puddle stones, coasts collect
+drift roots and pebbles, and the heights carry the ruin-and-resonance
+layer (columns, cairns, arch rocks, crystals, obsidian) with ice
+shards on the snowpeaks. 920 previously catalog-only GLBs now draw in
+the played game (the slice attaches the same streamer).
+
+HOW: PlantKind grew from 9 to 29 kinds with an `is_tree()` class
+(deadtrees/snags keep the tree subgrid + slope refusal), a walkability
+contract (upright masses block; ground flora steps over; the rock arch
+stays passable through its opening), per-kind wind weights, and
+densities chosen so the standing character laws hold (rocks still
+dominate mountains). The renderer's kind table now iterates
+PlantKind::ALL (the world's own list — no drift possible), maps each
+new family to its _v00 variant as the canonical base (the expansion
+has no hand-authored canonical GLBs), and FloraStats gained
+kinds_drawn. THE PERF LAW THIS CYCLE'S BENCH ENFORCED: variants are a
+NEAR-FIELD detail — beyond the lod0 range (40 m) every instance draws
+its kind's canonical base, collapsing the (kind, lod, variant) bucket
+space that 29 families had fragmented into 240 one-handful draws (deck
+p50 DOUBLED to 50 ms at mid before the rule; the rule returns the walk
+to HALF the pre-change baseline).
+
+EVIDENCE: p3d suite 637 green (189 pc3d_render incl. the new laws:
+kind-tag uniqueness, every drawn kind's base LOADS with 2 LODs through
+the real table, variant diversity across new families, the GPU
+wilderness law now asserts kinds_drawn >= 12; 258 pc3d_world incl. the
+EXPANSION CENSUS LAW — every biome-table family actually grows over
+sampled regions of every found land biome on seed 2024);
+make p3d-wilderness PASS with 5 captures — the new UNDERGROWTH capture
+SEARCHES for a slot growing an expansion family and frames it at
+walking height (AI-verified: the framed thornbush legible, grass and
+birches intact; the 28 m vista only resolves ~2 px per small plant —
+216-2765 changed px before/after, honest numbers); DECK BENCH before
+-> after: low 11.22 -> 6.79 ms p50, mid 23.44 -> 12.36, high 24.12 ->
+12.62 (MORE instances 399 -> 601 in FEWER buckets 111 -> 57; report +
+CSVs refreshed); make p3d-playtest x2 IDENTICAL digests + comparator
+PASS, chain line unchanged; p3d-smoke OK; make p3d-assets PASS after
+fixing a Makefile bug found en route (the `PATH=` parameter shadowed
+the environment PATH and always failed in a normal shell — renamed to
+MANIFEST=; `make help` also never listed digit-named targets — regex
+fixed, all 61 targets now documented); root cargo test --workspace
+green; idle-upgrade-check PASS.
+
+LORE IMPACT: no canon data touched. World expression only — crystals/
+obsidian express Anima in stone (canon: stone resonance and heat),
+ruin columns/cairns/arches express the seeded old world, reeds/snags
+make wetlands read as wetlands; all families are this repo's own
+procedural originals. No save/dialogue/faction migration (flora is
+derived from seed+slot every run).
+
+HONESTLY DEFERRED: `vine` needs an anchor concept (its mesh hangs
+DOWNWARD from y=0 — ground placement would bury it; it wants canopy/
+beam attach points, a different placement question); `grass_tuft` GLBs
+stay catalog+consumer-law-covered only (the wind-animated card field
+is the deliberate Deck-cheap grass path — wiring GLB tufts as a close
+layer would duplicate it); the undergrowth framing search finds the
+NEAREST expansion slot which on this scene's plains is a thornbush
+(ferns/mushrooms frame better in a forest scene — the slice/journey
+routes walk forests); per-kind draw budgets (a kind cap) were not
+needed after the near-field rule — revisit if a future family
+expansion regresses the bench. The stale play_eat/play_fall captures
+committed by loop 438 were removed by this cycle's playtest re-run
+(the route emits 10 captures; eat/fall PNGs no longer correspond to
+any running proof).

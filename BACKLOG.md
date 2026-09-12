@@ -11,6 +11,19 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The thousand-asset families go wild (2026-09-12, loop 440): 20 of
+      the 22 new GLB families (920 assets) grow biome-appropriately in
+      the played world — forest undergrowth, wetland reeds, ruin heights
+      (columns/cairns/arches/crystals/obsidian), snowpeak ice — via a
+      29-kind PlantKind authority with census/loader/tag/GPU laws and a
+      new UNDERGROWTH wilderness capture; the deck bench enforced a
+      near-field variant rule en route (variants beyond lod0's 40 m draw
+      the canonical base) that halved the walk's frame time vs the
+      pre-change baseline (mid p50 23.44 → 12.36 ms) while drawing more
+      instances in fewer buckets. Deferred honestly: vine needs an
+      anchor concept (hangs downward), grass_tuft GLBs duplicate the
+      deliberate card field.
+
 - [x] ZCode perpetual idle-upgrade pack (2026-09-12): a paste-ready prompt
       that repeatedly ships one bounded improvement without declaring the game
       designed, a 977-line consolidated LOREFORGE canon bible, measured

@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## 2026-09-12 — The thousand-asset families go wild (loop 440)
+
+- Closed loop 439's deferral: 20 of the 22 new asset families (920
+  GLBs) now grow in the played world, biome-appropriately — forest
+  undergrowth (ferns, blooms, fungi, glowcaps, deadfall, roots, moss
+  rocks, brambles), wetland reeds and bog snags, blooming plains,
+  pebbled coasts, the ruin-and-resonance heights (columns, cairns,
+  arches, crystals, obsidian) and snowpeak ice shards.
+- `PlantKind` 9 → 29 kinds with a shared `is_tree()` class (dead trees
+  keep the spacing/slope gates), a walkability contract, per-kind wind,
+  and biome tables that preserve every standing character law; the
+  renderer's kind loop now iterates `PlantKind::ALL` so world and
+  picture cannot drift, and each family's canonical base is its `_v00`
+  variant.
+- New laws: the expansion census (every table family actually grows in
+  sampled regions of every found land biome), kind-tag uniqueness, a
+  startup contract loading every drawn kind's base through the real
+  mapping, and a GPU `kinds_drawn >= 12` law.
+- Perf law the deck bench enforced mid-cycle: variants are a near-field
+  (lod0, 40 m) detail — 29 families had fragmented the draw into 240
+  one-handful buckets (deck p50 doubled to 50 ms); the rule returns the
+  walk to HALF the pre-change baseline (low 11.22→6.79, mid
+  23.44→12.36, high 24.12→12.62 ms p50, 399→601 instances in 111→57
+  buckets). `make p3d-wilderness` gained an UNDERGROWTH capture that
+  searches for and frames an expansion family at walking height.
+- Makefile hygiene found en route: `p3d-assets`' `PATH=` parameter
+  shadowed the environment PATH (always failed in a normal shell;
+  renamed `MANIFEST=`), and `make help` never listed digit-named
+  targets (regex fixed; all 61 targets documented).
+- Evidence: p3d suite 637 green; wilderness proof PASS (5 captures,
+  undergrowth AI-verified); playtest ×2 identical + comparator PASS
+  (chain unchanged); smoke + asset gates OK; root workspace suite
+  green. Deferred honestly: `vine` (hangs downward — needs an anchor
+  concept), `grass_tuft` GLBs (the card field is the deliberate cheap
+  path).
+
 ## 2026-09-12 — Perpetual ZCode idle-upgrade and lore-canon pack
 
 - Added `docs/POORCRAFT-3D/ZCODE-IDLE-UPGRADE/`, centered on a paste-ready

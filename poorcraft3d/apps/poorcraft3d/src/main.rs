@@ -3367,7 +3367,9 @@ fn main() {
             // + wind-animated grass + the biome landmark, all placed by
             // the pure authority, under the Mid atmosphere. Captures:
             // the empty-terrain CONTROL, the same view WITH wilderness,
-            // the landmark close-up, and the Deck-low tier.
+            // the landmark close-up, the UNDERGROWTH close-up (the
+            // thousand-asset families at walking height), and the
+            // Deck-low tier.
             let out_dir = args
                 .get(2)
                 .cloned()
@@ -3473,6 +3475,74 @@ fn main() {
                 }
                 None => (None, None),
             };
+            // The UNDERGROWTH pose: SEARCH a slot near the center that
+            // actually grows one of the thousand-asset families and
+            // frame IT at walking height — the 28 m vista cannot
+            // resolve a 0.3 m flower, this can. Falls back to the
+            // generic ground glance when the biome offers none nearby.
+            let is_expansion = |k: PlantKind| {
+                !matches!(
+                    k,
+                    PlantKind::TreePine
+                        | PlantKind::TreeBroadleaf
+                        | PlantKind::TreeBirch
+                        | PlantKind::RockBoulder
+                        | PlantKind::RockSpire
+                        | PlantKind::RockSlab
+                        | PlantKind::Shrub
+                        | PlantKind::Grass
+                        | PlantKind::Log
+                )
+            };
+            let mut ug_target = None;
+            'ug: for dr in 0..14i32 {
+                for dx in -dr..=dr {
+                    for dz in -dr..=dr {
+                        if dx.abs() != dr && dz.abs() != dr {
+                            continue;
+                        }
+                        let wx = center[0] + dx as f32 * 4.0;
+                        let wz = center[1] + dz as f32 * 4.0;
+                        let slot = SlotCoord {
+                            x: (wx / 4.0) as i32,
+                            z: (wz / 4.0) as i32,
+                        };
+                        if let Some(p) = flora::plant_at(&gen, slot) {
+                            if is_expansion(p.kind) {
+                                ug_target = Some((slot.center_m(), p.kind));
+                                break 'ug;
+                            }
+                        }
+                    }
+                }
+            }
+            let ug_pose = match ug_target {
+                Some(([tx, tz], kind)) => {
+                    let ty = ground(tx, tz);
+                    let eye = [tx + 3.2, ty + 1.4, tz + 3.2];
+                    let d = [tx - eye[0], ty + 0.35 - eye[1], tz - eye[2]];
+                    println!("UNDERGROWTH: framing {} at ({tx:.0},{tz:.0})", kind.name());
+                    pc3d_render::CameraPose::new(
+                        eye,
+                        (-d[0]).atan2(-d[2]),
+                        (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                    )
+                }
+                None => {
+                    println!("UNDERGROWTH: no expansion family near center; generic ground glance");
+                    let eye = [center[0] + 1.5, gy + 1.45, center[1] + 3.5];
+                    let d = [
+                        center[0] - 6.0 - eye[0],
+                        gy + 0.3 - eye[1],
+                        center[1] - 6.0 - eye[2],
+                    ];
+                    pc3d_render::CameraPose::new(
+                        eye,
+                        (-d[0]).atan2(-d[2]),
+                        (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                    )
+                }
+            };
             println!(
                 "WILDERNESS: vegetated center ({:.0},{:.0}), landmark {:?}",
                 center[0], center[1], lm_pos
@@ -3485,22 +3555,27 @@ fn main() {
             let g_low = gen.clone();
             let stats_note = |s: &FloraStats, tag: &str| {
                 println!(
-                    "WILDERNESS {tag}: added {} evicted {} cached {} scanned {} buckets {} instances {} VARIANT BUCKETS {}",
+                    "WILDERNESS {tag}: added {} evicted {} cached {} scanned {} buckets {} instances {} VARIANT BUCKETS {} KINDS {}",
                     s.added, s.evicted, s.cached, s.scanned, s.draw_buckets,
-                    s.instances_drawn, s.variant_buckets
+                    s.instances_drawn, s.variant_buckets, s.kinds_drawn
                 );
             };
             let cfg = pc3d_render::WindowConfig {
                 title: "POORCRAFT 3D — wilderness".into(),
-                max_frames: Some(210),
+                max_frames: Some(215),
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
-                camera_script: vec![(0, pose), (95, lm_pose.unwrap_or(pose))],
+                camera_script: vec![
+                    (0, pose),
+                    (95, lm_pose.unwrap_or(pose)),
+                    (150, ug_pose),
+                ],
                 shots: vec![
                     Shot::new(25, format!("{out_dir}/windowed_wild_control.png")),
                     Shot::new(80, format!("{out_dir}/windowed_wild_vista.png")),
                     Shot::new(140, format!("{out_dir}/windowed_wild_landmark.png")),
-                    Shot::new(190, format!("{out_dir}/windowed_wild_lowtier.png")),
+                    Shot::new(165, format!("{out_dir}/windowed_wild_undergrowth.png")),
+                    Shot::new(200, format!("{out_dir}/windowed_wild_lowtier.png")),
                 ],
                 frame_hooks: vec![
                     (
@@ -3542,7 +3617,7 @@ fn main() {
                         }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
                     ),
                     (
-                        160,
+                        175,
                         Box::new(move |r: &mut pc3d_render::Renderer| {
                             // The Deck LOW tier: shrunk ring + no far grass.
                             r.set_flora_config(FloraConfig::low());
@@ -3555,8 +3630,8 @@ fn main() {
             match pc3d_render::run_windowed(cfg) {
                 Ok(report) => {
                     print_window_report(&report);
-                    if report.captures.len() != 4 {
-                        eprintln!("[FAIL] expected 4 captures, got {}", report.captures.len());
+                    if report.captures.len() != 5 {
+                        eprintln!("[FAIL] expected 5 captures, got {}", report.captures.len());
                         std::process::exit(1);
                     }
                     for cap in &report.captures {
@@ -3579,7 +3654,7 @@ fn main() {
                     }
                     println!("WILDERNESS VISIBLE: diff {diff:.2}%");
                     println!(
-                        "WINDOWED WILDERNESS PROOF PASS -> control/vista/landmark/lowtier in {out_dir}"
+                        "WINDOWED WILDERNESS PROOF PASS -> control/vista/landmark/undergrowth/lowtier in {out_dir}"
                     );
                 }
                 Err(e) => {

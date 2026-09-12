@@ -36,6 +36,26 @@ pub fn variant_kind_tag(kind: PlantKind) -> u64 {
         PlantKind::Shrub => 7,
         PlantKind::Log => 8,
         PlantKind::Grass => 9,
+        PlantKind::Fern => 10,
+        PlantKind::Flower => 11,
+        PlantKind::Mushroom => 12,
+        PlantKind::Glowcap => 13,
+        PlantKind::Reed => 14,
+        PlantKind::Stump => 15,
+        PlantKind::Root => 16,
+        PlantKind::Bramble => 17,
+        PlantKind::Thornbush => 18,
+        PlantKind::Pebble => 19,
+        PlantKind::PuddleStone => 20,
+        PlantKind::MossRock => 21,
+        PlantKind::DeadTree => 22,
+        PlantKind::Snag => 23,
+        PlantKind::RockColumn => 24,
+        PlantKind::Cairn => 25,
+        PlantKind::ArchRock => 26,
+        PlantKind::Crystal => 27,
+        PlantKind::Obsidian => 28,
+        PlantKind::IceShard => 29,
     }
 }
 
@@ -128,6 +148,9 @@ pub struct FloraStats {
     /// WT-009: distinct variant buckets in the last draw (the wild
     /// draws the 300-variant batch, not nine meshes).
     pub variant_buckets: usize,
+    /// Distinct KINDS in the last draw — the expansion proof stat (a
+    /// forest vista draws trees AND undergrowth, not just the old 8).
+    pub kinds_drawn: usize,
 }
 
 struct KindGpu {
@@ -227,10 +250,33 @@ fn asset_base(kind: PlantKind) -> &'static str {
         PlantKind::Shrub => "shrub",
         PlantKind::Log => "log",
         PlantKind::Grass => "shrub",
+        PlantKind::Fern => "fern",
+        PlantKind::Flower => "flower",
+        PlantKind::Mushroom => "mushroom",
+        PlantKind::Glowcap => "glowcap",
+        PlantKind::Reed => "reed",
+        PlantKind::Stump => "stump",
+        PlantKind::Root => "root",
+        PlantKind::Bramble => "bramble",
+        PlantKind::Thornbush => "thornbush",
+        PlantKind::Pebble => "pebble",
+        PlantKind::PuddleStone => "puddle_stone",
+        PlantKind::MossRock => "moss_rock",
+        PlantKind::DeadTree => "deadtree",
+        PlantKind::Snag => "snag",
+        PlantKind::RockColumn => "column",
+        PlantKind::Cairn => "cairn",
+        PlantKind::ArchRock => "arch_rock",
+        PlantKind::Crystal => "crystal",
+        PlantKind::Obsidian => "obsidian",
+        PlantKind::IceShard => "ice_shard",
     }
 }
 
 fn asset_rel(kind: PlantKind) -> &'static str {
+    // The original eight have hand-authored canonical GLBs; the
+    // expansion families exist ONLY as variant batches, so their
+    // canonical base IS their first variant (_v00).
     match kind {
         PlantKind::TreePine => "flora/tree_pine.glb",
         PlantKind::TreeBroadleaf => "flora/tree_broadleaf.glb",
@@ -241,6 +287,26 @@ fn asset_rel(kind: PlantKind) -> &'static str {
         PlantKind::Shrub => "flora/shrub.glb",
         PlantKind::Log => "flora/log_fallen.glb",
         PlantKind::Grass => "flora/shrub.glb", // placeholder path; grass draws cards
+        PlantKind::Fern => "flora/fern_v00.glb",
+        PlantKind::Flower => "flora/flower_v00.glb",
+        PlantKind::Mushroom => "flora/mushroom_v00.glb",
+        PlantKind::Glowcap => "flora/glowcap_v00.glb",
+        PlantKind::Reed => "flora/reed_v00.glb",
+        PlantKind::Stump => "flora/stump_v00.glb",
+        PlantKind::Root => "flora/root_v00.glb",
+        PlantKind::Bramble => "flora/bramble_v00.glb",
+        PlantKind::Thornbush => "flora/thornbush_v00.glb",
+        PlantKind::Pebble => "flora/pebble_v00.glb",
+        PlantKind::PuddleStone => "flora/puddle_stone_v00.glb",
+        PlantKind::MossRock => "flora/moss_rock_v00.glb",
+        PlantKind::DeadTree => "flora/deadtree_v00.glb",
+        PlantKind::Snag => "flora/snag_v00.glb",
+        PlantKind::RockColumn => "flora/column_v00.glb",
+        PlantKind::Cairn => "flora/cairn_v00.glb",
+        PlantKind::ArchRock => "flora/arch_rock_v00.glb",
+        PlantKind::Crystal => "flora/crystal_v00.glb",
+        PlantKind::Obsidian => "flora/obsidian_v00.glb",
+        PlantKind::IceShard => "flora/ice_shard_v00.glb",
     }
 }
 
@@ -251,16 +317,14 @@ impl FloraStreamer {
         let root =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/compiled");
         let mut kinds = BTreeMap::new();
-        for kind in [
-            PlantKind::TreePine,
-            PlantKind::TreeBroadleaf,
-            PlantKind::TreeBirch,
-            PlantKind::RockBoulder,
-            PlantKind::RockSpire,
-            PlantKind::RockSlab,
-            PlantKind::Shrub,
-            PlantKind::Log,
-        ] {
+        // Every drawn kind loads through the SAME table (PlantKind::ALL,
+        // the world's own list — grass draws cards instead). The
+        // thousand-asset families ride this loop unchanged: their
+        // canonical base is their _v00 variant (see asset_rel).
+        for kind in PlantKind::ALL {
+            if kind == PlantKind::Grass {
+                continue;
+            }
             let path = root.join(asset_rel(kind));
             let asset = crate::glb::load_asset_file(&path)
                 .unwrap_or_else(|e| panic!("wilderness asset {}: {e}", path.display()));
@@ -486,7 +550,16 @@ impl FloraStreamer {
             } else {
                 2
             };
-            rows.entry((*kind, lod, *variant)).or_default().push(*inst);
+            // Variants are a NEAR-FIELD detail: beyond the lod0 range
+            // (40 m) every instance of a kind draws the canonical base
+            // mesh. The (kind, lod, variant) key over 29 families would
+            // otherwise fragment the draw into one bucket per handful
+            // of instances — the deck bench caught exactly that (240
+            // buckets for 561 instances, frame p50 doubled). At 40 m a
+            // 0.5 m plant is ~5 px; variant diversity below that
+            // threshold, a stable silhouette above it.
+            let variant = if d < 40.0 { *variant } else { 0 };
+            rows.entry((*kind, lod, variant)).or_default().push(*inst);
         }
         let mut buckets = BTreeMap::new();
         for (key, list) in rows {
@@ -639,10 +712,12 @@ impl FloraStreamer {
         pass.set_pipeline(&pipelines.inst);
         pass.set_bind_group(0, bg_globals, &[]);
         let mut variant_buckets = 0usize;
+        let mut kinds = std::collections::BTreeSet::new();
         for (key, b) in &self.buckets {
             let Some(k) = self.kinds.get(&key.0) else {
                 continue;
             };
+            kinds.insert(key.0);
             // WT-009: the slot hash picked a variant — its meshes when
             // loaded, else the canonical base.
             let lods = if key.2 == 0 {
@@ -677,6 +752,7 @@ impl FloraStreamer {
         self.stats.instances_drawn = drawn;
         self.stats.draw_buckets = buckets;
         self.stats.variant_buckets = variant_buckets;
+        self.stats.kinds_drawn = kinds.len();
     }
 
     /// The sun-shadow draw: solid kinds only (grass casts nothing).
@@ -717,27 +793,73 @@ impl FloraStreamer {
 mod variant_batch_tests {
     use crate::flora::variant_of;
     use pc3d_world::flora::PlantKind;
+
+    /// Kind tags must never collide or drift: the variant pick hashes
+    /// them, so a duplicated tag would make two families echo one
+    /// another's variants across builds.
+    #[test]
+    fn kind_tags_are_unique_across_all_kinds() {
+        let mut seen = std::collections::BTreeSet::new();
+        for kind in PlantKind::ALL {
+            assert!(seen.insert(crate::flora::variant_kind_tag(kind)),
+                "{kind:?}'s tag collides with an earlier kind");
+        }
+        assert_eq!(seen.len(), PlantKind::ALL.len());
+    }
+
+    /// THE STARTUP CONTRACT: every kind the streamer will draw maps to
+    /// a base GLB that EXISTS and LOADS with two real LODs (FloraStreamer
+    /// panics on a missing base — this law catches a mapping typo before
+    /// the first window ever opens). It checks the REAL asset_rel table
+    /// the streamer reads, not a copy. Grass draws cards and is exempt.
+    #[test]
+    fn every_drawn_kind_maps_to_a_loadable_base() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/compiled");
+        let mut loaded = 0usize;
+        for kind in PlantKind::ALL {
+            if kind == PlantKind::Grass {
+                continue;
+            }
+            let rel = super::asset_rel(kind);
+            let path = root.join(rel);
+            assert!(path.is_file(), "{kind:?} base {rel} missing on disk");
+            let asset = crate::glb::load_asset_file(&path)
+                .unwrap_or_else(|e| panic!("{kind:?} base {rel} loads: {e}"));
+            assert!(
+                asset.lods.len() >= 2,
+                "{kind:?} base {rel} has two LODs (has {})",
+                asset.lods.len()
+            );
+            assert!(
+                asset.lods[0].triangles() > 0 && asset.lods[1].triangles() > 0,
+                "{kind:?} base {rel} LODs non-empty"
+            );
+            loaded += 1;
+        }
+        println!("drawn-kind bases load: {loaded} kinds x 2 LODs");
+    }
+
     /// WT-009: the slot-hash pick is deterministic and DIVERSE — a
     /// walk of slots hits many variants per kind (the wild draws the
-    /// 300-batch, not one mesh).
+    /// 1300-batch, not one mesh).
     #[test]
     fn variant_pick_is_deterministic_and_diverse() {
         use pc3d_world::flora::SlotCoord;
         let slot = SlotCoord { x: 12, z: -7 };
-        for kind in [
-            PlantKind::TreePine,
-            PlantKind::TreeBroadleaf,
-            PlantKind::TreeBirch,
-            PlantKind::RockBoulder,
-            PlantKind::RockSpire,
-            PlantKind::RockSlab,
-            PlantKind::Shrub,
-            PlantKind::Log,
-        ] {
+        for kind in PlantKind::ALL {
             assert_eq!(variant_of(kind, slot, 40), variant_of(kind, slot, 40));
         }
         // Diversity: 400 slots -> >= 12 distinct picks per kind.
-        for kind in [PlantKind::TreePine, PlantKind::RockBoulder, PlantKind::Log] {
+        for kind in [
+            PlantKind::TreePine,
+            PlantKind::RockBoulder,
+            PlantKind::Log,
+            PlantKind::Fern,
+            PlantKind::Mushroom,
+            PlantKind::Crystal,
+            PlantKind::Pebble,
+        ] {
             let mut seen = std::collections::BTreeSet::new();
             for x in 0..20i32 {
                 for z in 0..20i32 {
@@ -756,6 +878,12 @@ mod variant_batch_tests {
         let b = variant_of(PlantKind::RockBoulder, slot, 40);
         let c = variant_of(PlantKind::Log, slot, 40);
         assert!(a != b || b != c, "kinds must not alias the same pick");
+        // And the expansion kinds never echo the originals either.
+        let d = variant_of(PlantKind::Fern, slot, 40);
+        assert!(
+            [a, b, c].iter().any(|v| *v != d),
+            "an expansion kind must not alias every original's pick"
+        );
     }
 
     /// THE VARIANT CONSUMER LAW: every one of the 300 generated variant
@@ -1043,6 +1171,13 @@ mod tests {
             "a populated ring draws"
         );
         assert!(r.flora_stats().draw_buckets >= 2, "LOD buckets split");
+        // The expansion law: a vegetated vista draws MANY families —
+        // trees and undergrowth, not just the original eight.
+        assert!(
+            r.flora_stats().kinds_drawn >= 12,
+            "the wild draws many kinds ({:?})",
+            r.flora_stats()
+        );
 
         // Wind: two frozen times differ (grass sways).
         r.set_water_time(Some(2.5));

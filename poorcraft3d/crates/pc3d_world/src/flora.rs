@@ -15,6 +15,10 @@ pub const SLOT_M: i64 = 4;
 
 /// One wilderness kind. The renderer maps each to an instanced GLB
 /// (trees/rocks/log/landmark) or a cutout card field (grass).
+///
+/// The thousand-asset expansion families (loop 439's 1000-GLB batch)
+/// land here as kinds: each names the GLB family on disk that the
+/// streamer instances (`flora.<family>_vNN.glb`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PlantKind {
     /// Conical evergreen (montane).
@@ -35,22 +39,136 @@ pub enum PlantKind {
     Grass,
     /// Fallen log.
     Log,
+    // --- thousand-asset expansion families (in the wild since this table
+    // --- learned them; every one draws its own GLB variant batch) ---
+    /// Arched fronds (forest floor).
+    Fern,
+    /// Blooming stems (meadow accents).
+    Flower,
+    /// Pale-stemmed mushroom cluster (damp shade).
+    Mushroom,
+    /// Luminous mushroom (Anima-touched shade).
+    Glowcap,
+    /// Tall waterside blades.
+    Reed,
+    /// Cut trunk with root flares (forestry trace).
+    Stump,
+    /// Exposed root tendrils.
+    Root,
+    /// Ground thorn tangle.
+    Bramble,
+    /// Dark thorny bush.
+    Thornbush,
+    /// Pebble scatter.
+    Pebble,
+    /// Flat wet-rimmed stone.
+    PuddleStone,
+    /// Moss-covered boulder.
+    MossRock,
+    /// Bare gnarled standing trunk.
+    DeadTree,
+    /// Standing dead trunk, broken top.
+    Snag,
+    /// Ruin column (old-world fragment).
+    RockColumn,
+    /// Stacked trail stones.
+    Cairn,
+    /// Natural rock arch (the opening is the point).
+    ArchRock,
+    /// Quartz shard cluster (stone-resonant Anima).
+    Crystal,
+    /// Black volcanic shard cluster.
+    Obsidian,
+    /// Ice spike cluster.
+    IceShard,
 }
 
 impl PlantKind {
-    /// Solid for movement: trunks, rocks, logs. Grass and shrubs are
-    /// walkable (the simple-collision contract: what blocks is what
-    /// looks unpassable at chest height).
-    pub fn blocks_movement(self) -> bool {
-        !matches!(self, PlantKind::Shrub | PlantKind::Grass)
+    /// Every kind, one place — the renderer's kind table and the laws
+    /// iterate THIS so world and picture can never drift apart.
+    pub const ALL: [PlantKind; 29] = [
+        PlantKind::TreePine,
+        PlantKind::TreeBroadleaf,
+        PlantKind::TreeBirch,
+        PlantKind::RockBoulder,
+        PlantKind::RockSpire,
+        PlantKind::RockSlab,
+        PlantKind::Shrub,
+        PlantKind::Grass,
+        PlantKind::Log,
+        PlantKind::Fern,
+        PlantKind::Flower,
+        PlantKind::Mushroom,
+        PlantKind::Glowcap,
+        PlantKind::Reed,
+        PlantKind::Stump,
+        PlantKind::Root,
+        PlantKind::Bramble,
+        PlantKind::Thornbush,
+        PlantKind::Pebble,
+        PlantKind::PuddleStone,
+        PlantKind::MossRock,
+        PlantKind::DeadTree,
+        PlantKind::Snag,
+        PlantKind::RockColumn,
+        PlantKind::Cairn,
+        PlantKind::ArchRock,
+        PlantKind::Crystal,
+        PlantKind::Obsidian,
+        PlantKind::IceShard,
+    ];
+
+    /// Tree-class kinds reserve the even-diagonal subgrid and refuse
+    /// steep ground — anything trunk-sized, living or dead.
+    pub fn is_tree(self) -> bool {
+        matches!(
+            self,
+            PlantKind::TreePine
+                | PlantKind::TreeBroadleaf
+                | PlantKind::TreeBirch
+                | PlantKind::DeadTree
+                | PlantKind::Snag
+        )
     }
 
-    /// Sways in the wind (cards and airy crowns).
+    /// Solid for movement: trunks, rocks, logs, and the upright
+    /// expansion masses (columns, cairns, crystals, shards). Ground
+    /// flora (ferns, blooms, reeds, roots, stumps you step over,
+    /// brambles you push through) is walkable — the simple-collision
+    /// contract: what blocks is what looks unpassable at chest height.
+    /// The rock ARCH is walkable because its opening is its purpose
+    /// (a trunk column would seal the very thing an arch offers).
+    pub fn blocks_movement(self) -> bool {
+        !matches!(
+            self,
+            PlantKind::Shrub
+                | PlantKind::Grass
+                | PlantKind::Fern
+                | PlantKind::Flower
+                | PlantKind::Mushroom
+                | PlantKind::Glowcap
+                | PlantKind::Reed
+                | PlantKind::Stump
+                | PlantKind::Root
+                | PlantKind::Bramble
+                | PlantKind::Thornbush
+                | PlantKind::Pebble
+                | PlantKind::PuddleStone
+                | PlantKind::ArchRock
+        )
+    }
+
+    /// Sways in the wind (cards and airy growth; rigid wood and stone
+    /// stand still).
     pub fn wind(self) -> f32 {
         match self {
             PlantKind::Grass => 1.0,
+            PlantKind::Reed => 0.6,
+            PlantKind::Flower => 0.45,
             PlantKind::Shrub => 0.35,
+            PlantKind::Fern => 0.3,
             PlantKind::TreeBirch => 0.15,
+            PlantKind::Bramble | PlantKind::Thornbush => 0.1,
             _ => 0.0,
         }
     }
@@ -66,6 +184,26 @@ impl PlantKind {
             PlantKind::Shrub => "flora.shrub",
             PlantKind::Grass => "flora.grass_tuft",
             PlantKind::Log => "flora.log_fallen",
+            PlantKind::Fern => "flora.fern",
+            PlantKind::Flower => "flora.flower",
+            PlantKind::Mushroom => "flora.mushroom",
+            PlantKind::Glowcap => "flora.glowcap",
+            PlantKind::Reed => "flora.reed",
+            PlantKind::Stump => "flora.stump",
+            PlantKind::Root => "flora.root",
+            PlantKind::Bramble => "flora.bramble",
+            PlantKind::Thornbush => "flora.thornbush",
+            PlantKind::Pebble => "flora.pebble",
+            PlantKind::PuddleStone => "flora.puddle_stone",
+            PlantKind::MossRock => "flora.moss_rock",
+            PlantKind::DeadTree => "flora.deadtree",
+            PlantKind::Snag => "flora.snag",
+            PlantKind::RockColumn => "flora.column",
+            PlantKind::Cairn => "flora.cairn",
+            PlantKind::ArchRock => "flora.arch_rock",
+            PlantKind::Crystal => "flora.crystal",
+            PlantKind::Obsidian => "flora.obsidian",
+            PlantKind::IceShard => "flora.ice_shard",
         }
     }
 }
@@ -100,6 +238,11 @@ fn unit(seed: u64, words: [u64; 3]) -> f32 {
 /// gameplay-facing wilderness character — Forest thick with trees,
 /// Plains open grassland, heights rocky — and every number here is what
 /// the placement tests assert against.
+///
+/// The expansion families ride the same tables: forest floors get the
+/// undergrowth layer (ferns, blooms, fungi, glowcaps, deadfall, roots),
+/// wetlands get reeds and bog snags, heights get the ruin-and-resonance
+/// layer (columns, cairns, arches, crystals, obsidian), snowpeaks ice.
 fn biome_table(b: Biome) -> &'static [(PlantKind, f32)] {
     match b {
         Biome::Ocean => &[],
@@ -108,27 +251,52 @@ fn biome_table(b: Biome) -> &'static [(PlantKind, f32)] {
             (PlantKind::Shrub, 0.02),
             (PlantKind::Log, 0.02),
             (PlantKind::RockBoulder, 0.01),
+            (PlantKind::Reed, 0.012),
+            (PlantKind::Pebble, 0.02),
+            (PlantKind::PuddleStone, 0.008),
+            (PlantKind::Root, 0.004),
         ],
         Biome::Plains => &[
             (PlantKind::Grass, 0.30),
             (PlantKind::Shrub, 0.05),
             (PlantKind::TreeBirch, 0.02),
             (PlantKind::RockBoulder, 0.01),
+            (PlantKind::Flower, 0.02),
+            (PlantKind::Pebble, 0.012),
+            (PlantKind::PuddleStone, 0.004),
+            (PlantKind::Thornbush, 0.004),
         ],
         Biome::Forest => &[
             (PlantKind::TreeBroadleaf, 0.10),
             (PlantKind::TreePine, 0.06),
             (PlantKind::TreeBirch, 0.05),
-            (PlantKind::Shrub, 0.10),
-            (PlantKind::Grass, 0.22),
+            (PlantKind::Shrub, 0.07),
+            (PlantKind::Grass, 0.16),
             (PlantKind::Log, 0.012),
-            (PlantKind::RockBoulder, 0.01),
+            (PlantKind::RockBoulder, 0.008),
+            (PlantKind::Fern, 0.04),
+            (PlantKind::Flower, 0.025),
+            (PlantKind::Mushroom, 0.02),
+            (PlantKind::Glowcap, 0.006),
+            (PlantKind::DeadTree, 0.010),
+            (PlantKind::Snag, 0.006),
+            (PlantKind::Stump, 0.008),
+            (PlantKind::Root, 0.010),
+            (PlantKind::MossRock, 0.010),
+            (PlantKind::Bramble, 0.006),
+            (PlantKind::Thornbush, 0.004),
         ],
         Biome::Wetland => &[
             (PlantKind::Grass, 0.12),
             (PlantKind::Shrub, 0.04),
             (PlantKind::Log, 0.02),
             (PlantKind::TreeBirch, 0.02),
+            (PlantKind::Reed, 0.08),
+            (PlantKind::Fern, 0.02),
+            (PlantKind::Mushroom, 0.008),
+            (PlantKind::Snag, 0.008),
+            (PlantKind::MossRock, 0.008),
+            (PlantKind::PuddleStone, 0.006),
         ],
         Biome::Highlands => &[
             (PlantKind::TreePine, 0.06),
@@ -136,16 +304,36 @@ fn biome_table(b: Biome) -> &'static [(PlantKind, f32)] {
             (PlantKind::RockBoulder, 0.05),
             (PlantKind::RockSpire, 0.02),
             (PlantKind::Shrub, 0.03),
+            (PlantKind::Fern, 0.012),
+            (PlantKind::MossRock, 0.015),
+            (PlantKind::Cairn, 0.004),
+            (PlantKind::RockColumn, 0.003),
+            (PlantKind::Pebble, 0.01),
+            (PlantKind::Bramble, 0.006),
+            (PlantKind::Thornbush, 0.004),
+            (PlantKind::ArchRock, 0.002),
         ],
         Biome::Mountains => &[
             (PlantKind::RockBoulder, 0.07),
             (PlantKind::RockSpire, 0.03),
             (PlantKind::RockSlab, 0.02),
             (PlantKind::TreePine, 0.012),
+            (PlantKind::RockColumn, 0.005),
+            (PlantKind::Cairn, 0.004),
+            (PlantKind::ArchRock, 0.004),
+            (PlantKind::Crystal, 0.003),
+            (PlantKind::Obsidian, 0.002),
+            (PlantKind::MossRock, 0.006),
+            (PlantKind::Pebble, 0.008),
         ],
         Biome::SnowPeaks => &[
             (PlantKind::RockBoulder, 0.03),
             (PlantKind::RockSpire, 0.012),
+            (PlantKind::IceShard, 0.012),
+            (PlantKind::Crystal, 0.002),
+            (PlantKind::Cairn, 0.002),
+            (PlantKind::Pebble, 0.004),
+            (PlantKind::ArchRock, 0.0015),
         ],
     }
 }
@@ -209,12 +397,9 @@ pub fn plant_at(gen: &WorldGen, slot: SlotCoord) -> Option<Plant> {
     for (kind, p) in table {
         acc += p;
         if r < acc {
-            let is_tree = matches!(
-                kind,
-                PlantKind::TreePine | PlantKind::TreeBroadleaf | PlantKind::TreeBirch
-            );
-            if is_tree {
-                // Even-diagonal subgrid: trees at least 8 m apart.
+            if kind.is_tree() {
+                // Even-diagonal subgrid: tree-sized trunks (living or
+                // dead) at least 8 m apart.
                 if (slot.x + slot.z).rem_euclid(2) != 0 {
                     return None;
                 }
@@ -312,14 +497,11 @@ mod tests {
     fn trees_keep_their_spacing_subgrid() {
         let g = WorldGen::new(4242);
         for (slot, p) in scan(&g, -60, -60, 60, 60) {
-            if matches!(
-                p.kind,
-                PlantKind::TreePine | PlantKind::TreeBroadleaf | PlantKind::TreeBirch
-            ) {
+            if p.kind.is_tree() {
                 assert_eq!(
                     (slot.x + slot.z).rem_euclid(2),
                     0,
-                    "trees only on the even diagonal (>= 8 m apart)"
+                    "tree-sized trunks (living or dead) only on the even diagonal (>= 8 m apart)"
                 );
             }
         }
@@ -396,9 +578,108 @@ mod tests {
         assert!(PlantKind::Log.blocks_movement());
         assert!(!PlantKind::Grass.blocks_movement());
         assert!(!PlantKind::Shrub.blocks_movement());
+        // The expansion classes: upright masses block, ground flora
+        // doesn't, and the arch stays passable through its opening.
+        assert!(PlantKind::DeadTree.blocks_movement());
+        assert!(PlantKind::RockColumn.blocks_movement());
+        assert!(PlantKind::Crystal.blocks_movement());
+        assert!(PlantKind::IceShard.blocks_movement());
+        assert!(!PlantKind::Fern.blocks_movement());
+        assert!(!PlantKind::Reed.blocks_movement());
+        assert!(!PlantKind::Stump.blocks_movement());
+        assert!(!PlantKind::Pebble.blocks_movement());
+        assert!(!PlantKind::ArchRock.blocks_movement());
         // Wind: grass most, rocks none.
         assert!(PlantKind::Grass.wind() > PlantKind::Shrub.wind());
         assert_eq!(PlantKind::RockBoulder.wind(), 0.0);
+        assert_eq!(PlantKind::RockColumn.wind(), 0.0);
+        assert!(PlantKind::Reed.wind() > PlantKind::Fern.wind());
+    }
+
+    /// THE EXPANSION CENSUS LAW: every family named in a biome table is
+    /// LIVE — over a whole sampled region of its biome it actually
+    /// grows. A table entry that never fires is a dead catalog row (the
+    /// "unconsumed asset" failure mode this wiring exists to close).
+    #[test]
+    fn expansion_families_grow_in_their_biomes() {
+        let g = WorldGen::new(2024);
+        // Search outward for one region of every land biome (the same
+        // ring scan the gen.rs character law uses).
+        let mut by: std::collections::BTreeMap<Biome, RegionCoord> = Default::default();
+        'find: for ring in 0..200i32 {
+            for dx in -ring..=ring {
+                for dz in -ring..=ring {
+                    if dx.abs() != ring && dz.abs() != ring {
+                        continue;
+                    }
+                    let reg = RegionCoord { x: dx, z: dz };
+                    by.entry(g.biome(reg)).or_insert(reg);
+                    if by.len() >= 7 {
+                        break 'find;
+                    }
+                }
+            }
+        }
+        assert!(by.contains_key(&Biome::Forest), "a Forest region exists");
+        assert!(by.contains_key(&Biome::Plains), "a Plains region exists");
+        // Sample each found biome's region fully; count kinds.
+        let mut seen: std::collections::BTreeMap<PlantKind, usize> = Default::default();
+        let mut sampled: Vec<Biome> = Vec::new();
+        for (b, reg) in &by {
+            if matches!(b, Biome::Ocean) {
+                continue;
+            }
+            sampled.push(*b);
+            for dx in 0..64i32 {
+                for dz in 0..64i32 {
+                    let slot = SlotCoord {
+                        x: reg.x * 64 + dx,
+                        z: reg.z * 64 + dz,
+                    };
+                    if let Some(p) = plant_at(&g, slot) {
+                        *seen.entry(p.kind).or_default() += 1;
+                    }
+                }
+            }
+        }
+        println!("census over {sampled:?}: {seen:?}");
+        // Every entry of every SAMPLED biome's table fired at least once
+        // in the census — a table row that never fires is a dead catalog
+        // entry (the "unconsumed asset" failure mode this wiring closes).
+        for b in &sampled {
+            for (kind, _) in biome_table(*b) {
+                assert!(
+                    seen.get(kind).is_some_and(|n| *n > 0),
+                    "{kind:?} is named in {b:?}'s table but never grew in the census"
+                );
+            }
+        }
+        // Character accents, the world-logic point of the expansion:
+        // reeds belong to wet ground, ice to the peaks, resonance
+        // (crystal) to the heights, undergrowth to the forest.
+        if sampled.contains(&Biome::Wetland) {
+            assert!(seen.contains_key(&PlantKind::Reed), "wetlands grow reeds");
+        }
+        if sampled.contains(&Biome::SnowPeaks) {
+            assert!(
+                seen.contains_key(&PlantKind::IceShard),
+                "snowpeaks grow ice shards"
+            );
+        }
+        if sampled.contains(&Biome::Mountains) {
+            assert!(
+                seen.contains_key(&PlantKind::Crystal),
+                "mountains grow crystals"
+            );
+        }
+        for k in [
+            PlantKind::Fern,
+            PlantKind::Flower,
+            PlantKind::Mushroom,
+            PlantKind::DeadTree,
+        ] {
+            assert!(seen.contains_key(&k), "forest undergrowth lives ({k:?})");
+        }
     }
 
     #[test]
