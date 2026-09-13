@@ -68,28 +68,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_HARVESTED 2 IRON ORE",
-      "kind": "toast",
-      "rect": [
-        271,
-        375,
-        258,
-        16
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "toast_QUEST PROGRESS",
-      "kind": "toast",
-      "rect": [
-        307,
-        353,
-        186,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -563,12 +541,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 19:14",
+        "modified": "2026-09-13 21:59",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 19:14",
+        "modified": "2026-09-13 21:59",
         "name": "beta-shot",
         "seed": 7
       }
