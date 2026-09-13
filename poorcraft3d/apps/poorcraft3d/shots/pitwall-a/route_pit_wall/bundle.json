@@ -1,0 +1,30 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_pit_wall-dev",
+  "commands": [
+    "--observe route_pit_wall"
+  ],
+  "diff_paths": [],
+  "digest": "df857d26a4e19494",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_pit_wall",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [
+    "pit_in.png",
+    "pit_wall.png",
+    "pit_step.png",
+    "pit_final.png"
+  ],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

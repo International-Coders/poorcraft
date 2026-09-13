@@ -1,8 +1,9 @@
 //! The walking player body (R3DV-011): first-person movement with terrain
 //! collision — read-only `final_solid` queries, the same authority the
 //! mesher and future combat use. Gravity snaps the feet to the ground
-//! column; horizontal moves are blocked by solid cells at body height;
-//! nothing here can mutate the world.
+//! column; horizontal moves are blocked by solid cells at body height AND
+//! by THE RISE LAW (a rise the surface doesn't allow as a step or a
+//! walkable ramp refuses the move); nothing here can mutate the world.
 
 use crate::camera::{fwd_of, CameraPose};
 use pc3d_world::coords::CellCoord;
@@ -25,6 +26,26 @@ pub const SUPPORT_GAP_M: f32 = 1.05;
 /// vanishes (a ledge walked off, a floor dug out), the fall begins.
 pub fn is_unsupported(feet_y: f32, ground_y: f32) -> bool {
     feet_y - ground_y > SUPPORT_GAP_M
+}
+
+/// THE RISE LAW (pure): a walk may raise the feet only onto a surface
+/// that is itself walkable — a discrete STEP within one step height
+/// (`SUPPORT_GAP_M`, the up twin of the down law) or a RAMP within the
+/// nav's own walkability contract (`crate::surface::MAX_WALK_SLOPE`,
+/// scaled by the distance actually moved this frame, so the verdict is
+/// the same at any refresh rate). `slope` is the surface's rise ALONG
+/// THE MOVE over a 1 m baseline (the mesh's own node spacing), SIGNED:
+/// a descent ahead is not a wall (the down law owns descents), a rise
+/// steeper than the walkable contract is. An unanswerable slope
+/// refuses.
+pub fn rise_accepted(rise: f32, slope: Option<f32>, move_m: f32) -> bool {
+    let Some(slope) = slope else {
+        return false;
+    };
+    if slope > crate::surface::MAX_WALK_SLOPE {
+        return false;
+    }
+    rise <= SUPPORT_GAP_M || rise <= crate::surface::MAX_WALK_SLOPE * move_m + 1e-4
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -179,11 +200,22 @@ impl PlayerBody {
             dx *= k;
             dz *= k;
         }
-        // Axis-separated: x then z.
-        if !self.blocked_on(gen, surface, self.pos[0] + dx, self.pos[2]) {
+        // Axis-separated: x then z. Each axis is stopped by a solid
+        // cell (walls) AND by THE RISE LAW: the streamed surface's
+        // cell_solid answers false everywhere ("slopes gate walkability
+        // through ground_at stepping"), so the ground answer is the
+        // streamed path's only wall — and the old snap accepted ANY
+        // rise (`pos[1] - g <= SUPPORT_GAP_M` is trivially true when g
+        // is above the feet), making every cliff and dug wall a free
+        // elevator.
+        if !self.blocked_on(gen, surface, self.pos[0] + dx, self.pos[2])
+            && !self.rise_refused_on(gen, surface, self.pos[0] + dx, self.pos[2], dx, 0.0)
+        {
             self.pos[0] += dx;
         }
-        if !self.blocked_on(gen, surface, self.pos[0], self.pos[2] + dz) {
+        if !self.blocked_on(gen, surface, self.pos[0], self.pos[2] + dz)
+            && !self.rise_refused_on(gen, surface, self.pos[0], self.pos[2] + dz, 0.0, dz)
+        {
             self.pos[2] += dz;
         }
         // Gravity/ground: snap to the surface top ONLY within one step
@@ -199,6 +231,48 @@ impl PlayerBody {
                 self.pos[1] = g;
             }
         }
+    }
+
+    /// THE RISE LAW, sampled (pure read): true when the axis move into
+    /// (x, z) would raise the feet onto a surface the walk may not
+    /// climb. The slope is the ground answer's rise ALONG THE MOVE over
+    /// a 1 m baseline (the mesh's own node spacing), SIGNED — a descent
+    /// ahead is never a wall (the down law owns descents; a body may
+    /// always walk AWAY from a rise), only a rise steeper than the
+    /// walkable contract is. A missing answer refuses the rise (the
+    /// snap cannot verify walkability); a rise at or below the feet
+    /// belongs to the down law, not this one.
+    fn rise_refused_on(
+        &self,
+        gen: &WorldGen,
+        surface: &dyn CollisionSurface,
+        x: f32,
+        z: f32,
+        axis_dx: f32,
+        axis_dz: f32,
+    ) -> bool {
+        let Some(g) = surface.ground_at(gen, x, z, self.pos[1] + 2.0) else {
+            return false; // no answer here: the snap ignores it too
+        };
+        let rise = g - self.pos[1];
+        if rise <= 0.0 {
+            return false; // descending or flat: THE STEP LAW owns it
+        }
+        let len = (axis_dx * axis_dx + axis_dz * axis_dz).sqrt();
+        if len <= 0.0 {
+            return false; // no move, nothing to refuse
+        }
+        let (ux, uz) = (axis_dx / len, axis_dz / len);
+        let slope = match (
+            surface.ground_at(gen, x - ux * 0.5, z - uz * 0.5, self.pos[1] + 2.0),
+            surface.ground_at(gen, x + ux * 0.5, z + uz * 0.5, self.pos[1] + 2.0),
+        ) {
+            // Signed rise along the move, over exactly 1 m: ahead is
+            // FURTHER ALONG the move than behind.
+            (Some(behind), Some(ahead)) => ahead - behind,
+            _ => f32::INFINITY, // unverifiable: refuse
+        };
+        !rise_accepted(rise, Some(slope), len)
     }
 
     /// blocked() against an explicit surface.
@@ -497,6 +571,292 @@ mod look_tests {
         assert!(
             is_unsupported(lemming.pos[1], 7.5),
             "the ledge gap commits the fall"
+        );
+    }
+}
+
+#[cfg(test)]
+mod rise_law_tests {
+    use super::*;
+
+    /// A cell-constant surface: named cells answer their height, all
+    /// other ground is 0. The streamed surface ramps within the border
+    /// cell (bilinear); the LAW reads the same border algebra either
+    /// way — the ±0.5 m slope baseline spans the border in both shapes.
+    struct Cells {
+        heights: Vec<((i32, i32), f32)>,
+    }
+    impl Cells {
+        fn h(&self, x: f32, z: f32) -> f32 {
+            let key = (x.floor() as i32, z.floor() as i32);
+            self.heights
+                .iter()
+                .find(|(k, _)| *k == key)
+                .map(|(_, h)| *h)
+                .unwrap_or(0.0)
+        }
+    }
+    impl crate::player::CollisionSurface for Cells {
+        fn ground_at(
+            &self,
+            _g: &pc3d_world::gen::WorldGen,
+            x: f32,
+            z: f32,
+            _y: f32,
+        ) -> Option<f32> {
+            Some(self.h(x, z))
+        }
+        fn cell_solid(
+            &self,
+            _g: &pc3d_world::gen::WorldGen,
+            _x: i32,
+            _y: i32,
+            _z: i32,
+        ) -> bool {
+            false // the streamed surface's exact shape: no walls but the rise law
+        }
+    }
+
+    /// W with yaw 0 walks -z (hf = [-sin yaw, -cos yaw]); every body in
+    /// these laws faces -z.
+    const PIT_FLOOR: f32 = -5.0;
+
+    /// THE UP-STEP LAW (the up twin of the down law): a 0.5 m step is
+    /// WALKED (the body crosses and its feet hold the top); a 5 m wall
+    /// REFUSES the move — the body stays on its own side at its own
+    /// height, where the old snap teleported it to the top.
+    #[test]
+    fn a_step_up_is_walked_and_a_wall_refuses_the_move() {
+        let gen = pc3d_world::gen::WorldGen::new(22);
+        // A STEP up (the cell toward -z): walked and held.
+        let mut walker = PlayerBody { pos: [0.5, 0.0, 0.5], yaw: 0.0, pitch: 0.0 };
+        for _ in 0..20 {
+            walker.walk_on_speed(
+                &gen,
+                &Cells { heights: vec![((0, -1), 0.5)] },
+                1.0,
+                0.0,
+                1.0 / 60.0,
+                WALK_SPEED,
+            );
+        }
+        assert!(
+            walker.pos[2] < 0.0 && walker.pos[2] > -1.0,
+            "the walk carried the body onto the step cell (z {:.2})",
+            walker.pos[2]
+        );
+        assert!(
+            (walker.pos[1] - 0.5).abs() < 0.01,
+            "a step up is walked ({:.2})",
+            walker.pos[1]
+        );
+        // A WALL: the move is refused — the body never crosses into the
+        // wall cell and its feet never lift (the old snap landed it on
+        // top).
+        let wall = Cells { heights: vec![((0, -1), 5.0)] };
+        let mut climber = PlayerBody { pos: [0.5, 0.0, 0.5], yaw: 0.0, pitch: 0.0 };
+        for _ in 0..120 {
+            climber.walk_on_speed(&gen, &wall, 1.0, 0.0, 1.0 / 60.0, WALK_SPEED);
+        }
+        assert!(
+            climber.pos[2] >= -0.05 && climber.pos[2] <= 0.55,
+            "the wall stopped the walk (z {:.2})",
+            climber.pos[2]
+        );
+        assert!(
+            climber.pos[1].abs() < 0.01,
+            "the feet stayed at the base ({:.2} — the old snap lifted them)",
+            climber.pos[1]
+        );
+        assert!(
+            !is_unsupported(climber.pos[1], wall.h(climber.pos[0], climber.pos[2])),
+            "standing at a wall is supported (no spurious walk-off)"
+        );
+    }
+
+    /// THE RISE VERDICT IS GEOMETRY, NOT THE FRAME: a walkable ramp is
+    /// climbed to the same top at 30/60/120 fps, and a cliff face
+    /// refuses at all three — the old snap's acceptance grew with the
+    /// frame step, so steep ground changed character with the refresh
+    /// rate.
+    #[test]
+    fn the_rise_verdict_is_the_slope_not_the_frame() {
+        let gen = pc3d_world::gen::WorldGen::new(22);
+        // A 1.2 m/m ramp rising toward -z (0 m at z=0, 9.6 m at z=-8) —
+        // inside MAX_WALK_SLOPE: climbable at every refresh rate.
+        struct Ramp;
+        impl crate::player::CollisionSurface for Ramp {
+            fn ground_at(
+                &self,
+                _g: &pc3d_world::gen::WorldGen,
+                _x: f32,
+                z: f32,
+                _y: f32,
+            ) -> Option<f32> {
+                Some(1.2 * (-z).clamp(0.0, 8.0))
+            }
+            fn cell_solid(
+                &self,
+                _g: &pc3d_world::gen::WorldGen,
+                _x: i32,
+                _y: i32,
+                _z: i32,
+            ) -> bool {
+                false
+            }
+        }
+        for fps in [30.0f32, 60.0, 120.0] {
+            let dt = 1.0 / fps;
+            let mut body = PlayerBody { pos: [0.5, 0.0, 0.5], yaw: 0.0, pitch: 0.0 };
+            for _ in 0..(9.0 / (WALK_SPEED * dt)) as usize {
+                body.walk_on_speed(&gen, &Ramp, 1.0, 0.0, dt, WALK_SPEED);
+            }
+            assert!(
+                body.pos[1] > 9.0,
+                "the ramp is climbed at {fps} fps (feet {:.2})",
+                body.pos[1]
+            );
+        }
+        // A 5 m/m face (the dug pit's ramp slope): refused at every rate.
+        struct Face;
+        impl crate::player::CollisionSurface for Face {
+            fn ground_at(
+                &self,
+                _g: &pc3d_world::gen::WorldGen,
+                _x: f32,
+                z: f32,
+                _y: f32,
+            ) -> Option<f32> {
+                Some(if z < -1.0 { 5.0 * (-z - 1.0).min(1.0) } else { 0.0 })
+            }
+            fn cell_solid(
+                &self,
+                _g: &pc3d_world::gen::WorldGen,
+                _x: i32,
+                _y: i32,
+                _z: i32,
+            ) -> bool {
+                false
+            }
+        }
+        for fps in [30.0f32, 60.0, 120.0] {
+            let dt = 1.0 / fps;
+            let mut body = PlayerBody { pos: [0.5, 0.0, 0.5], yaw: 0.0, pitch: 0.0 };
+            for _ in 0..120 {
+                body.walk_on_speed(&gen, &Face, 1.0, 0.0, dt, WALK_SPEED);
+            }
+            assert!(
+                body.pos[2] < 0.0 && body.pos[2] >= -1.55,
+                "the walk approached the face at {fps} fps and was held (z {:.2})",
+                body.pos[2]
+            );
+            assert!(
+                body.pos[1].abs() < 0.05,
+                "the face refuses at {fps} fps (feet {:.2} — the old snap climbed it)",
+                body.pos[1]
+            );
+        }
+    }
+
+    /// THE DUG PIT HOLDS THE BODY UNTIL THE STEP (the route's shape at
+    /// unit level): in a one-cell pit five meters down, walking into
+    /// the wall holds the body inside; the ONE cell dug to 4.5 m — a
+    /// 0.5 m step — admits the walk, and the body stands on the step,
+    /// still held by the wall beyond it. Dig down, and only steps or
+    /// ramps bring you out.
+    #[test]
+    fn the_dug_pit_holds_the_body_until_the_step() {
+        let gen = pc3d_world::gen::WorldGen::new(22);
+        // Pit cell (0,0) at -5; the step cell (0,-1) at -4.5. The rim
+        // (everything else) is 0.
+        let pit = Cells {
+            heights: vec![((0, 0), PIT_FLOOR), ((0, -1), PIT_FLOOR + 0.5)],
+        };
+        let mut body = PlayerBody { pos: [0.5, PIT_FLOOR, 0.5], yaw: 0.0, pitch: 0.0 };
+        // Face +z (yaw = PI) and hold W: the pit wall refuses.
+        body.yaw = std::f32::consts::PI;
+        for _ in 0..120 {
+            body.walk_on_speed(&gen, &pit, 1.0, 0.0, 1.0 / 60.0, WALK_SPEED);
+        }
+        assert!(
+            body.pos[2] > 0.8 && body.pos[2] <= 1.05,
+            "the body walked to the pit wall and was held (z {:.2})",
+            body.pos[2]
+        );
+        assert!(
+            (body.pos[1] - PIT_FLOOR).abs() < 0.01,
+            "the feet stayed on the pit floor ({:.2})",
+            body.pos[1]
+        );
+        // Face -z (yaw = 0): the 0.5 m step admits the body.
+        body.yaw = 0.0;
+        for _ in 0..60 {
+            body.walk_on_speed(&gen, &pit, 1.0, 0.0, 1.0 / 60.0, WALK_SPEED);
+        }
+        assert!(
+            body.pos[2] < -0.9,
+            "the walk carried the body onto the step cell (z {:.2})",
+            body.pos[2]
+        );
+        assert!(
+            (body.pos[1] - PIT_FLOOR - 0.5).abs() < 0.01,
+            "the feet hold the step ({:.2})",
+            body.pos[1]
+        );
+        // Keep walking -z: the step cell's own outer wall refuses.
+        for _ in 0..120 {
+            body.walk_on_speed(&gen, &pit, 1.0, 0.0, 1.0 / 60.0, WALK_SPEED);
+        }
+        assert!(
+            body.pos[2] >= -1.55,
+            "the outer wall held the body (z {:.2} — escaped the pit)",
+            body.pos[2]
+        );
+        assert!(
+            (body.pos[1] - PIT_FLOOR - 0.5).abs() < 0.01,
+            "still on the step, not the rim ({:.2})",
+            body.pos[1]
+        );
+    }
+
+    /// THE PROBE'S LAW (a live-route staging bug, promoted): a body
+    /// pressed against a wall may always walk AWAY from it — the slope
+    /// verdict is the rise ALONG THE MOVE, signed, so the steep ramp
+    /// BEHIND the body never refuses a step across flat ground in
+    /// front. (The first draft measured |ahead - behind|: the wall
+    /// behind poisoned the baseline and the body stood glued to the
+    /// wall it had just been refused by — and the stuck state unlocked
+    /// only when frame-rate jitter reshuffled the samples.)
+    #[test]
+    fn the_body_walks_away_from_a_wall_it_was_refused_by() {
+        let gen = pc3d_world::gen::WorldGen::new(22);
+        // The pit shape: a flat floor cell, a rising wall cell toward
+        // -z (5 m/m ramp in the neighbor). The body stands with its
+        // back to the -z wall, on the flat floor.
+        let pit = Cells {
+            heights: vec![((0, 0), PIT_FLOOR), ((0, -1), 0.0)],
+        };
+        let mut body = PlayerBody { pos: [0.5, PIT_FLOOR, 0.5], yaw: 0.0, pitch: 0.0 };
+        // Walk -z into the wall: refused at the border.
+        for _ in 0..60 {
+            body.walk_on_speed(&gen, &pit, 1.0, 0.0, 1.0 / 60.0, WALK_SPEED);
+        }
+        assert!(body.pos[2] >= -0.05, "the wall held (z {:.2})", body.pos[2]);
+        // Turn around (+z) and walk away: NOT refused by the wall
+        // behind — the body crosses its own cell toward +z.
+        body.yaw = std::f32::consts::PI;
+        for _ in 0..20 {
+            body.walk_on_speed(&gen, &pit, 1.0, 0.0, 1.0 / 60.0, WALK_SPEED);
+        }
+        assert!(
+            body.pos[2] > 0.8,
+            "the body walked away from the wall (z {:.2} — glued by the baseline)",
+            body.pos[2]
+        );
+        assert!(
+            (body.pos[1] - PIT_FLOOR).abs() < 0.01,
+            "the feet stayed on the flat floor ({:.2})",
+            body.pos[1]
         );
     }
 }

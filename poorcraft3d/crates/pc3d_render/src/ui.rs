@@ -1901,6 +1901,10 @@ pub enum UiAction {
     /// Proof hook (inspector): raw mouse deltas applied to the live
     /// player body — the exact path real mouse motion takes.
     PlayerLook { dx: f32, dy: f32 },
+    /// Proof hook: set the live player body's ABSOLUTE facing (radians)
+    /// — the look-pitch hook the climb/pit routes frame with, the
+    /// counterpart of PlayerTeleport for the body's orientation.
+    PlayerFace { yaw: f32, pitch: f32 },
     /// Proof hook (the dig): lower/raise the streamed surface under a
     /// world cell through the live delta layer, remeshed the same frame
     /// — the walk-off route digs the floor out from under the standing

@@ -1,5 +1,82 @@
 # CHANGELOG
 
+## 2026-09-13 — The wall holds: the up-step half of the walk law (loop 449)
+
+- Closed STATE's next_task item (1): 446's step law fixed the DOWN
+  half (drops deeper than one step belong to the fall), but the UP
+  half was still open — the walk's ground snap condition
+  `pos[1] - g <= SUPPORT_GAP_M` is trivially true whenever the ground
+  answer is ABOVE the feet, and the streamed surface's
+  `CollisionSurface` answers `cell_solid = false` everywhere ("slopes
+  gate walkability through ground_at stepping"), so the snap was the
+  streamed path's ONLY wall. Every cliff face and dug wall was a free
+  elevator: fall into the pit, take the wound, then walk straight out.
+- THE RISE LAW (pure, `pc3d_render::player`): an axis move whose
+  target ground sits above the feet is refused unless the surface
+  there is itself walkable — a discrete STEP within SUPPORT_GAP_M
+  (1.05 m, the up twin of the down law) or a RAMP within the nav's
+  own walkability contract (`surface::MAX_WALK_SLOPE` = 1.6 m/m),
+  scaled by the distance moved this frame so ramp climbing is
+  fps-independent. The surface slope is the SIGNED rise along the
+  move over a 1 m baseline (the mesh's own node spacing): geometry,
+  not the per-frame rise, so the verdict is identical at 30/60/120
+  fps; a descent ahead is never a wall (the down law owns descents).
+- EN-ROUTE BUG, caught by the live route's own records and promoted
+  to a unit law: the first draft measured |ahead − behind|, so the
+  steep ramp BEHIND a body (the wall it had just been refused by)
+  poisoned the baseline and refused walking AWAY across flat ground —
+  the route's W-hold sat motionless for 60 frames, then lurched when
+  frame-rate jitter reshuffled the ±0.5 m samples. The key_script /
+  pose records pinned it; the signed slope fixed it;
+  `the_body_walks_away_from_a_wall_it_was_refused_by` pins it
+  forever.
+- New proof hook `UiAction::PlayerFace { yaw, pitch }`: the body's
+  ABSOLUTE facing through the same exec_actions path as
+  PlayerTeleport (also serves the carried look-pitch route-framing
+  deferral).
+- Route proof: `make p3d-pitwall` (`route_pit_wall`): the walk-off's
+  own flat dig cell is dug 5 m under the standing body (it falls —
+  the walk-off law's sequence); the cell TWO toward −z is dug 4.5 m,
+  so the cell BETWEEN becomes a gentle ramp (a one-cell-away dig
+  ACCUMULATES on the shared border nodes and tilts the pit deeper —
+  the first staging attempt made the body fall TWICE; 
+  `find_dig_spot_pair` validates the strip so the step is a step).
+  The body holds W into the pit's 5 m wall — REFUSED at the base
+  (feet stay 49.49) — then faces the step (pitch down), walks the
+  ramp onto the step cell, and is held again by the step cell's own
+  outer wall (feet 49.87 = the live step floor; z 130.05, the border
+  at 130). Health 100% → 76% from the fall; FELL toast; x2 identical
+  + comparator PASS; the four captures INSPECTED.
+- Evidence: p3d workspace 667 green / 0 failed (pc3d_render 213 =
+  209 + 4 rise laws); `make p3d-walkoff` PASS x2 + comparator
+  UNCHANGED (same dig cell — the shared `find_dig_spot` refactor kept
+  the pick byte-equal — same fall 56.19 → 51.19, 67%);
+  `make p3d-playtest` x2 + comparator PASS with bundle digest
+  UNCHANGED (05c46411869a857c — the plaza walk never meets a rise;
+  the law engages only where bodies meet walls); `make p3d-climb` x2
+  unchanged (same strand (65,20), landed unharmed); `make p3d-steer`
+  x2 unchanged (drift 1.53/1.55 m, ortho 0.00 — a falling body's air
+  steering now also stops at wall faces instead of clipping into
+  them); p3d-smoke OK (digest dd019eca900f5a61 unchanged);
+  p3d-assets OK; idle-upgrade-check PASS.
+- PERF: no claim, honestly. The law adds at most three `ground_at`
+  samples (HashMap lookup + bilinear) per moving axis per frame —
+  allocation-free, microseconds against 12 ms frames. The host is
+  still contended (a foreign 98.6% CPU process; 15-min load 8.2), so
+  no bench attempt was recorded per the 445–448 precedent; the
+  quiet-host re-read stays queued (now by four loops).
+- LORE: none touched — body traversal physics only. Labor in
+  Valdenmoor has consequence: the pit you dig is a pit until you dig
+  steps or ramps out; cliff faces of the overgrown wilds are walls to
+  route around. No migration (pure in-memory walk predicate).
+- Deferred honestly: the player-facing DIG VERB (next_task item 2 —
+  now pairs with BOTH 447's geodes and this law); the staged-yield
+  crowd route (main.rs is now uncontended); Space jump-off from a
+  hang (unit-lawed only); the lethal plaza-recovery branch route; the
+  bench contention guard; route-harness contention-hardened capture
+  windows; is_water_layer/CTM-strip audit; guardian chronicle
+  re-fire.
+
 ## 2026-09-13 — The crowd yields: NPC-vs-NPC avoidance (loop 448)
 
 - Closed the last NWR-009 sim-domain deferral ("NPC-vs-NPC

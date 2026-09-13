@@ -2182,6 +2182,15 @@ impl App {
                         slice.player.apply_look(*dx, *dy, sens, invert);
                     }
                 }
+                UiAction::PlayerFace { yaw, pitch } => {
+                    // Proof hook: the body's ABSOLUTE facing (radians) —
+                    // the frame loop's set_pose(player.pose()) keeps it
+                    // the same way it keeps PlayerLook's deltas.
+                    if let Some(slice) = self.cfg.slice_host.as_mut() {
+                        slice.player.yaw = *yaw;
+                        slice.player.pitch = *pitch;
+                    }
+                }
                 UiAction::Repaint => {
                     if let Some(s) = self.state.as_mut() {
                         s.ui_dirty = true;

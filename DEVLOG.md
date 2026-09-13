@@ -8069,3 +8069,90 @@ law is unit-lawed + render-lawed; a staged head-on route lives in
 main.rs, which loop 446 occupied when this job started — queued in
 STATE.md next_task); the quiet-host deck-bench re-read (queued by
 446/447/448) + the bench contention guard.
+
+## 2026-09-13 — The wall holds: the up-step half of the walk law (loop 449)
+
+### What
+- Closed STATE next_task item (1): the streamed walk's ground snap
+  accepted ANY rise, so cliffs and dug walls were free elevators (fall
+  in, walk out). The rise law refuses a move whose target ground is
+  above the feet unless the surface there is a step (<= 1.05 m) or a
+  walkable ramp (<= MAX_WALK_SLOPE, signed, 1 m baseline along the
+  move — geometry, not the frame). Plus the PlayerFace proof hook and
+  the new pit-wall route.
+
+### Why
+- `walk_on_speed`'s snap condition `pos[1] - g <= SUPPORT_GAP_M` is
+  trivially true for rises, and the streamed `CollisionSurface`
+  answers `cell_solid = false` everywhere — the snap was the streamed
+  path's only wall. 446 fixed the down half; this closes the up half.
+
+### How
+- pc3d_render/src/player.rs: `rise_accepted` (pure) +
+  `PlayerBody::rise_refused_on` (±0.5 m samples along the move axis,
+  signed slope; unanswerable refuses); wired per-axis in
+  `walk_on_speed` next to the wall blocking; 4 new laws incl. the
+  probe's walk-away-from-a-wall regression.
+- pc3d_render/src/ui.rs + app.rs: `UiAction::PlayerFace {yaw, pitch}`
+  (absolute body facing through exec_actions).
+- apps/poorcraft3d/src/main.rs: `dig_spot_ok` / `find_dig_spot`
+  (shared, byte-equal picks for walkoff) / `find_dig_spot_pair` (pit +
+  two-cells-away step with strip validation — a one-cell-away dig
+  accumulates on shared border nodes and tilts the pit deeper; the
+  first staging attempt made the body fall twice); `route_pit_wall`
+  (fall in -> refused at the 5 m wall -> ramp + 0.5 m step admitted ->
+  held at the step's outer wall) + its verdict.
+- pc3d_render/src/observe.rs: route registered. Makefile: `p3d-pitwall`
+  (x2 + comparator). EN-ROUTE LAW FIX: the first draft's |ahead−behind|
+  baseline let the ramp BEHIND a body glue it to the wall (the route's
+  W-hold sat motionless 60 frames, then lurched on fps jitter) — the
+  signed slope fixed it and the probe's law pins it.
+
+### Verification evidence
+- p3d workspace 667 green / 0 failed (pc3d_render 213 = 209 + 4 rise
+  laws).
+- make p3d-pitwall PASS x2 + comparator PASS: feet 49.49 (pit floor)
+  -> 49.49 (held at the 5 m wall) -> 49.87 (the live step floor, z
+  130.05 held by the step cell's outer wall); health 100% -> 76%; FELL
+  toast; captures INSPECTED (in-pit wounded + toasts; held at the
+  wall; on the step; final stable).
+- make p3d-walkoff PASS x2 + comparator: UNCHANGED (same dig cell
+  391.5,132.5 — the shared spot finder kept the pick byte-equal; same
+  fall 56.19 -> 51.19, landed 67%).
+- make p3d-playtest PASS x2 + comparator: bundle digest UNCHANGED
+  05c46411869a857c (the plaza walk never meets a rise).
+- make p3d-climb PASS x2 (strand (65,20), landed unharmed 100%);
+  make p3d-steer PASS x2 (drift 1.53/1.55 m, ortho 0.00).
+- p3d-smoke OK (digest dd019eca900f5a61 unchanged); p3d-assets OK;
+  idle-upgrade-check PASS.
+- PERF: no claim, honestly — at most three ground_at samples per
+  moving axis per frame (HashMap + bilinear, allocation-free,
+  microseconds against 12 ms frames); host contended (a foreign
+  98.6% CPU process, 15-min load 8.2), no bench recorded per the
+  445-448 precedent; the quiet-host re-read stays queued (four loops).
+
+### Files
+- poorcraft3d/crates/pc3d_render/src/player.rs (the law + 4 laws),
+  poorcraft3d/crates/pc3d_render/src/ui.rs + app.rs (PlayerFace),
+  poorcraft3d/crates/pc3d_render/src/observe.rs (route registry),
+  poorcraft3d/apps/poorcraft3d/src/main.rs (spot finders + route +
+  verdict), Makefile (p3d-pitwall), the pitwall-a/b bundles, the
+  refreshed climb/playtest/walkoff/steer bundles (digests unchanged),
+  STATE/BACKLOG/CHANGELOG/DEVLOG.
+
+LORE IMPACT: canon touched: none — body traversal physics only; no
+faction, place, event, term, NPC, item, or spell data. Locked facts
+preserved: all. World expression: labor in Valdenmoor has consequence
+— the pit you dig is a pit until you dig steps or ramps out; cliff
+faces of the overgrown wilds are walls to route around, not free
+elevators; the fall economy of 441/444/446 becomes coherent.
+Migration: none (pure in-memory walk predicate; no persisted field,
+save format, dialogue, or proof schema changed).
+
+HONESTLY DEFERRED: the player-facing dig verb (next_task item 2 — now
+pairs with 447's geodes AND this law); the staged-yield crowd route
+(main.rs now uncontended); Space jump-off from a hang (unit-lawed
+only); the lethal plaza-recovery branch route; the quiet-host
+deck-bench re-read (queued by 446/447/448/449) + the bench contention
+guard; route-harness contention-hardened capture windows;
+is_water_layer/CTM-strip audit; guardian chronicle re-fire.

@@ -4953,6 +4953,134 @@ fn run_asset_capture(id: &str, glb_rel: &str, out_root: &str) -> Result<(), Stri
     }
 }
 
+/// The dig-spot acceptance for one candidate cell: flat (±0.25 m) over
+/// the cell AND its ring (the rim ramps stay outside the fall column),
+/// no vine strand within the grip's ±2-slot scan, no tree trunk in the
+/// cell itself (a trunk IN the pit would be a lie; a distant one is
+/// scenery).
+fn dig_spot_ok(gen: &pc3d_world::gen::WorldGen, sx: f32, sz: f32) -> bool {
+    use pc3d_world::flora::{self, PlantKind, SlotCoord};
+    let ground_at = |x: f32, z: f32| -> f32 {
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    let g = ground_at(sx, sz);
+    let mut ok = (0..5).all(|i| {
+        (0..5).all(|j| {
+            (ground_at(sx - 1.5 + i as f32 * 0.75, sz - 1.5 + j as f32 * 0.75) - g).abs() <= 0.25
+        })
+    });
+    if ok {
+        let ssx = (sx / 4.0).floor() as i32;
+        let ssz = (sz / 4.0).floor() as i32;
+        for dx in -2..=2i32 {
+            for dz in -2..=2i32 {
+                if let Some(p) = flora::plant_at(gen, SlotCoord { x: ssx + dx, z: ssz + dz }) {
+                    let same_slot = dx == 0 && dz == 0;
+                    let tree = matches!(
+                        p.kind,
+                        PlantKind::TreePine | PlantKind::TreeBroadleaf | PlantKind::TreeBirch
+                    );
+                    if p.kind == PlantKind::Vine || (same_slot && tree) {
+                        ok = false;
+                    }
+                }
+            }
+        }
+    }
+    ok
+}
+
+/// The flat, flora-free dig cell near the plaza the walk-off route
+/// stands on.
+fn find_dig_spot(gen: &pc3d_world::gen::WorldGen, plaza_x: f32, plaza_z: f32) -> Option<[f32; 3]> {
+    let ground_at = |x: f32, z: f32| -> f32 {
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    for ring_m in [8.0f32, 12.0, 16.0, 20.0, 24.0, 28.0] {
+        for k in 0..24 {
+            let a = k as f32 / 24.0 * std::f32::consts::TAU;
+            let cx = plaza_x + ring_m * a.cos();
+            let cz = plaza_z + ring_m * a.sin();
+            let cell = pc3d_world::coords::CellCoord {
+                x: cx as i32,
+                y: 0,
+                z: cz as i32,
+            };
+            let sx = cell.x as f32 + 0.5; // cell center: 0.5 m of rim clearance
+            let sz = cell.z as f32 + 0.5;
+            if dig_spot_ok(gen, sx, sz) {
+                return Some([sx, ground_at(sx, sz), sz]);
+            }
+        }
+    }
+    None
+}
+
+/// THE PIT WALL's spot: the walk-off's dig cell PLUS a validated step
+/// cell two cells toward -z. (One cell away is wrong by geometry: the
+/// two digs would share border nodes and the deltas ACCUMULATE — the
+/// pit floor tilts deeper under the body and it falls twice. Two cells
+/// away, the between cell becomes a gentle ramp into the step, and the
+/// pit's own nodes are untouched by the second dig.) The strip between
+/// must be gentle (±0.5 m of the pit's ground) so the step is a step,
+/// and no trunk may stand in the step cell.
+fn find_dig_spot_pair(
+    gen: &pc3d_world::gen::WorldGen,
+    plaza_x: f32,
+    plaza_z: f32,
+) -> Option<[f32; 3]> {
+    use pc3d_world::flora::{self, PlantKind, SlotCoord};
+    let ground_at = |x: f32, z: f32| -> f32 {
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    for ring_m in [8.0f32, 12.0, 16.0, 20.0, 24.0, 28.0] {
+        for k in 0..24 {
+            let a = k as f32 / 24.0 * std::f32::consts::TAU;
+            let cx = plaza_x + ring_m * a.cos();
+            let cz = plaza_z + ring_m * a.sin();
+            let cell = pc3d_world::coords::CellCoord {
+                x: cx as i32,
+                y: 0,
+                z: cz as i32,
+            };
+            let sx = cell.x as f32 + 0.5;
+            let sz = cell.z as f32 + 0.5;
+            if !dig_spot_ok(gen, sx, sz) {
+                continue;
+            }
+            let g = ground_at(sx, sz);
+            // The walk strip toward -z: the ramp cell and the step
+            // cell stay within half a meter of the pit's ground.
+            let strip_ok = [1.0f32, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5]
+                .iter()
+                .all(|d| (ground_at(sx, sz - d) - g).abs() <= 0.5)
+                && [-0.5f32, 0.5].iter().all(|dx| {
+                    (ground_at(sx + dx, sz - 2.0) - g).abs() <= 0.5
+                });
+            if !strip_ok {
+                continue;
+            }
+            // No trunk in the step cell's own slot.
+            let step_cz = sz.floor() as i32 - 2;
+            let ssx = (sx / 4.0).floor() as i32;
+            let ssz = ((step_cz as f32) / 4.0).floor() as i32;
+            let trunk = flora::plant_at(gen, SlotCoord { x: ssx, z: ssz })
+                .map(|p| {
+                    matches!(
+                        p.kind,
+                        PlantKind::TreePine | PlantKind::TreeBroadleaf | PlantKind::TreeBirch
+                    )
+                })
+                .unwrap_or(false);
+            if trunk {
+                continue;
+            }
+            return Some([sx, g, sz]);
+        }
+    }
+    None
+}
+
 /// WT-003: run one observatory route and write its evidence bundle.
 fn run_observe(route_id: &str, out_root: &str) {
     use pc3d_render::ui::{self, Screen, UiAction};
@@ -5030,6 +5158,12 @@ fn run_observe(route_id: &str, out_root: &str) {
         // after the run.
         let walkoff_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 12]));
         let walkoff_spot = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
+        // route_pit_wall recordings: poses (approach / in-pit /
+        // held-at-wall / on-the-step / final), health before/after,
+        // the LIVE pre-dig ground answer at the body + the LIVE step
+        // floor, and the pit + step cell centers — the verdict reads
+        // them after the run.
+        let pitwall_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 24]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -5549,72 +5683,14 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // law refuses the snap, the walk-off commit flips the
                 // fall, and the arc lands a real wound straight down —
                 // no keys, no teleports after the grounded start.
-                use pc3d_world::flora::{self, PlantKind, SlotCoord};
                 let gen = &scene.gen;
-                let ground_at = |x: f32, z: f32| -> f32 {
-                    gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32
-                        / 1000.0
-                };
                 let plaza = scene.plan.plaza;
-                let mut spot = None;
-                'spot: for ring_m in [8.0f32, 12.0, 16.0, 20.0, 24.0, 28.0] {
-                    for k in 0..24 {
-                        let a = k as f32 / 24.0 * std::f32::consts::TAU;
-                        let cx = plaza.x as f32 + 0.5 + ring_m * a.cos();
-                        let cz = plaza.z as f32 + 0.5 + ring_m * a.sin();
-                        let cell = pc3d_world::coords::CellCoord {
-                            x: cx as i32,
-                            y: 0,
-                            z: cz as i32,
-                        };
-                        let sx = cell.x as f32 + 0.5; // cell center: 0.5 m of rim clearance
-                        let sz = cell.z as f32 + 0.5;
-                        let g = ground_at(sx, sz);
-                        // Flat over the pit cell + its ring (the rim
-                        // ramps stay outside the fall column).
-                        let mut ok = (0..5).all(|i| {
-                            (0..5).all(|j| {
-                                (ground_at(sx - 1.5 + i as f32 * 0.75, sz - 1.5 + j as f32 * 0.75)
-                                    - g)
-                                    .abs()
-                                    <= 0.25
-                            })
-                        });
-                        // No strand may catch this fall: VINE refused in
-                        // the grip's whole ±2-slot scan. Trees refused
-                        // only in the pit's own slot (a trunk IN the pit
-                        // would be a lie; a distant one is scenery).
-                        if ok {
-                            let ssx = (sx / 4.0).floor() as i32;
-                            let ssz = (sz / 4.0).floor() as i32;
-                            for dx in -2..=2i32 {
-                                for dz in -2..=2i32 {
-                                    if let Some(p) =
-                                        flora::plant_at(gen, SlotCoord { x: ssx + dx, z: ssz + dz })
-                                    {
-                                        let same_slot = dx == 0 && dz == 0;
-                                        let tree = matches!(
-                                            p.kind,
-                                            PlantKind::TreePine
-                                                | PlantKind::TreeBroadleaf
-                                                | PlantKind::TreeBirch
-                                        );
-                                        if p.kind == PlantKind::Vine || (same_slot && tree) {
-                                            ok = false;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if ok {
-                            spot = Some([sx, g, sz]);
-                            break 'spot;
-                        }
-                    }
-                }
-                let [sx, sg, sz] = spot.unwrap_or_else(|| {
-                    panic!("route_walk_off: no flat flora-free dig cell near the plaza on seed {seed}")
-                });
+                let [sx, sg, sz] = find_dig_spot(gen, plaza.x as f32 + 0.5, plaza.z as f32 + 0.5)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "route_walk_off: no flat flora-free dig cell near the plaza on seed {seed}"
+                        )
+                    });
                 walkoff_spot.set([sx, sz]);
                 println!(
                     "WALK OFF: dig cell ({sx:.1},{sg:.2},{sz:.1}) -> floor {:.2}",
@@ -5694,6 +5770,190 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/walk_air.layout.json")));
                 shots.push(Shot::new(190, format!("{dir}/walk_landed.png"))
                     .ui_dump(format!("{dir}/walk_landed.layout.json")));
+            }
+            "route_pit_wall" => {
+                // THE WALL HOLDS, LIVE (loop 449): the up-step half of
+                // the step law, on the same dug ground the walk-off
+                // falls into. The pit is dug 5 m under the standing
+                // body (it falls — the walk-off law's own sequence);
+                // the cell TWO toward -z is then dug 4.5 m — the cell
+                // BETWEEN becomes a gentle ramp, so the walk leaves the
+                // pit by a real step, not a shared-node trench (the
+                // cell edits shift the cell's four corner nodes; a
+                // second dig one cell away would ACCUMULATE on the
+                // shared nodes and tilt the pit deeper — the body
+                // falls twice, the first staging attempt proved it).
+                // The body holds W into the pit's own 5 m wall:
+                // REFUSED at the base (the old snap lifted the body
+                // out — the pit was a free elevator). It then faces
+                // the step: the ramp+step admit the walk, and the step
+                // cell's own outer wall refuses again. Dig down, and
+                // only steps or ramps bring you out.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                let [sx, sg, sz] =
+                    find_dig_spot_pair(gen, plaza.x as f32 + 0.5, plaza.z as f32 + 0.5)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "route_pit_wall: no flat flora-free dig cell with a step strip near the plaza on seed {seed}"
+                            )
+                        });
+                let step_cx = sx.floor() as i32;
+                let step_cz = sz.floor() as i32 - 2; // TWO toward -z: ramp cell between
+                let (step_x, step_z) = (step_cx as f32 + 0.5, step_cz as f32 + 0.5);
+                println!(
+                    "PIT WALL: pit ({sx:.1},{sg:.2},{sz:.1}) -> floor {:.2}; step cell ({step_x:.1},{step_z:.1}) -> {:.2}",
+                    sg - 5.0,
+                    sg - 4.5
+                );
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // Grounded teleport onto the cell center; the streamed
+                // near ring settles while the body stands.
+                ui_script.push((
+                    30,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                    }),
+                ));
+                // Approach record: standing, pre-dig — the LIVE ground
+                // answer the verdict anchors every band to.
+                let approach = pitwall_cells.clone();
+                ui_script.push((
+                    70,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = approach.get();
+                        v[0] = pose.position[0];
+                        v[1] = pose.position[1];
+                        v[2] = pose.position[2];
+                        v[12] = ui.hud.health;
+                        v[14] = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                        v[16] = sx;
+                        v[17] = sz;
+                        v[18] = step_x;
+                        v[19] = step_z;
+                        approach.set(v);
+                    }),
+                ));
+                // THE PIT at 90 (60 frames of streaming settle): the
+                // body falls straight down, no keys — the walk-off law.
+                let (px, pz) = (sx, sz);
+                ui_script.push((
+                    90,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::EditSurface {
+                            x: px,
+                            z: pz,
+                            meters: -5.0,
+                        });
+                    }),
+                ));
+                // THE STEP at 160 (the body has landed): the neighbor
+                // cell drops to 4.5 m — a 0.5 m step above the floor.
+                let (sx2, sz2) = (step_x, step_z);
+                ui_script.push((
+                    160,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::EditSurface {
+                            x: sx2,
+                            z: sz2,
+                            meters: -4.5,
+                        });
+                    }),
+                ));
+                // Face +z (the pit's own wall) for the refusal beat.
+                ui_script.push((
+                    165,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace {
+                            yaw: std::f32::consts::PI,
+                            pitch: 0.0,
+                        });
+                    }),
+                ));
+                // W into the 5 m wall: held at the base.
+                key_script.push((180, 250, vec![pc3d_render::KeyCode::KeyW]));
+                // In-pit record + the LIVE step floor (already dug at
+                // 160 — the answer the step beat's band anchors to).
+                let inpit = pitwall_cells.clone();
+                ui_script.push((
+                    170,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = inpit.get();
+                        v[3] = pose.position[0];
+                        v[4] = pose.position[1];
+                        v[5] = pose.position[2];
+                        v[15] = r.ground_y_at_pub(step_x, step_z);
+                        inpit.set(v);
+                    }),
+                ));
+                // Held-at-wall record.
+                let held = pitwall_cells.clone();
+                ui_script.push((
+                    235,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = held.get();
+                        v[6] = pose.position[0];
+                        v[7] = pose.position[1];
+                        v[8] = pose.position[2];
+                        held.set(v);
+                    }),
+                ));
+                // Face -z (the step cell) and walk onto it; the outer
+                // wall of the step cell refuses again. The pitch tilts
+                // down so the step beat frames show the STEP under the
+                // body, not the flat wall ahead.
+                ui_script.push((
+                    250,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -0.6 });
+                    }),
+                ));
+                key_script.push((258, 330, vec![pc3d_render::KeyCode::KeyW]));
+                // On-the-step record (held at the step cell's outer
+                // wall by now).
+                let onstep = pitwall_cells.clone();
+                ui_script.push((
+                    320,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = onstep.get();
+                        v[9] = pose.position[0];
+                        v[10] = pose.position[1];
+                        v[11] = pose.position[2];
+                        v[23] = pose.yaw;
+                        onstep.set(v);
+                    }),
+                ));
+                // Final record: nothing drifted after W released.
+                let final_cells = pitwall_cells.clone();
+                ui_script.push((
+                    340,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = final_cells.get();
+                        v[20] = pose.position[0];
+                        v[21] = pose.position[1];
+                        v[22] = pose.position[2];
+                        v[13] = ui.hud.health;
+                        final_cells.set(v);
+                    }),
+                ));
+                shots.push(Shot::new(170, format!("{dir}/pit_in.png"))
+                    .ui_dump(format!("{dir}/pit_in.layout.json")));
+                shots.push(Shot::new(235, format!("{dir}/pit_wall.png"))
+                    .ui_dump(format!("{dir}/pit_wall.layout.json")));
+                shots.push(Shot::new(320, format!("{dir}/pit_step.png"))
+                    .ui_dump(format!("{dir}/pit_step.layout.json")));
+                shots.push(Shot::new(340, format!("{dir}/pit_final.png"))
+                    .ui_dump(format!("{dir}/pit_final.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
@@ -6306,6 +6566,108 @@ fn run_observe(route_id: &str, out_root: &str) {
                     spec.id,
                     report.captures.len(),
                     v[1], v[4], v[7],
+                );
+                any_fail = true;
+            }
+        }
+        // THE PIT WALL: the body fell into the dug pit (the walk-off
+        // law), W into the 5 m wall was REFUSED at the base, the 0.5 m
+        // step admitted the walk, the step cell's own outer wall
+        // refused again, and the body stands there still DOWN IN THE
+        // PIT — feet at the step height, never at the rim (the old
+        // snap's free elevator).
+        if spec.id == "route_pit_wall" {
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let has = |name: &str| capture_by(name).is_some();
+            let differ = |a: &str, b: &str, bar: f32| {
+                match (capture_by(a), capture_by(b)) {
+                    (Some(a), Some(b)) => {
+                        pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > bar
+                    }
+                    _ => false,
+                }
+            };
+            let element_in = |name: &str, prefix: &str| {
+                capture_by(name)
+                    .and_then(|c| c.ui_layout.as_ref())
+                    .and_then(|l| l["elements"].as_array())
+                    .map(|els| {
+                        els.iter().any(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with(prefix))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            };
+            let v = pitwall_cells.get();
+            let eye = pc3d_render::player::EYE_ABOVE_FEET;
+            let ground = v[14]; // the LIVE pre-dig answer at the body
+            let step_floor = v[15]; // the LIVE answer at the step cell (post-dig)
+            let (sx, sz) = (v[16], v[17]);
+            let approach_ok = (v[1] - eye - ground).abs() <= 0.2
+                && (v[0] - sx).abs() <= 0.2
+                && (v[2] - sz).abs() <= 0.2;
+            let in_pit = (v[4] - eye - (ground - 5.0)).abs() <= 0.3
+                && (v[3] - sx).abs() <= 0.3
+                && (v[5] - sz).abs() <= 0.3;
+            // Held at the 5 m wall: walked toward +z, stopped at the
+            // border, feet on the pit floor — NOT lifted to the rim.
+            let held_wall = v[8] > sz + 0.3
+                && v[8] <= sz + 0.65
+                && (v[7] - eye - (ground - 5.0)).abs() <= 0.35
+                && v[7] < ground - 3.0;
+            // On the step: crossed the ramp into the step cell (two
+            // cells from the pit's center), feet at the step floor,
+            // held at its own outer wall — still DOWN in the pit.
+            let on_step = v[11] < sz - 1.45
+                && v[11] > sz - 2.55
+                && (v[9] - sx).abs() <= 0.4
+                && (v[10] - eye - step_floor).abs() <= 0.25
+                && v[10] - eye < ground - 3.0;
+            // Nothing drifted after W released.
+            let stable = (v[20] - v[9]).abs() <= 0.05
+                && (v[21] - v[10]).abs() <= 0.05
+                && (v[22] - v[11]).abs() <= 0.05;
+            let wounded = v[13] > 0.5 && v[13] < 0.8 && (v[12] - v[13]) > 0.2;
+            let fell_toast = element_in("pit_in", "toast_FELL");
+            let wall_differs = differ("pit_in", "pit_wall", 0.005);
+            let step_differs = differ("pit_wall", "pit_step", 0.005);
+            let ok = has("pit_in")
+                && has("pit_wall")
+                && has("pit_step")
+                && approach_ok
+                && in_pit
+                && held_wall
+                && on_step
+                && stable
+                && wounded
+                && fell_toast
+                && wall_differs
+                && step_differs;
+            if ok {
+                println!(
+                    "PIT WALL: the pit held ({:.2} -> held {:.2} at the wall, then the step at {:.2}); health {:.0}% -> {:.0}%",
+                    v[4] - eye,
+                    v[7] - eye,
+                    v[10] - eye,
+                    v[12] * 100.0,
+                    v[13] * 100.0
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / approach {approach_ok} / in_pit {in_pit} / held_wall {held_wall} / on_step {on_step} / stable {stable} / wounded {wounded} / toast {fell_toast} / wall_differ {wall_differs} / step_differ {step_differs} (ground {ground} step {step_floor} eyes {:.2}->{:.2}->{:.2}->{:.2} z {:.2}->{:.2}->{:.2}->{:.2} yaw@320 {:.3})",
+                    spec.id,
+                    report.captures.len(),
+                    v[1], v[4], v[7], v[10],
+                    v[2], v[5], v[8], v[11],
+                    v[23],
                 );
                 any_fail = true;
             }

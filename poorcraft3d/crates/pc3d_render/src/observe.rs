@@ -66,6 +66,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_pit_wall",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

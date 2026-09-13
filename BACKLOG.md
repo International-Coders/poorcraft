@@ -11,6 +11,48 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The wall holds: the up-step half of the walk law (2026-09-13,
+      loop 449, POORCRAFT 3D): the streamed surface's ground snap
+      accepted ANY rise (`pos[1] - g <= SUPPORT_GAP_M` is trivially
+      true when g is above the feet) and the streamed path's
+      `cell_solid` answers false everywhere, so every cliff face and
+      dug wall was a free elevator — fall into a pit, walk straight
+      out. THE RISE LAW (pure, `player::rise_accepted` +
+      `rise_refused_on`): an axis move whose target ground sits above
+      the feet is refused unless the surface there is itself walkable
+      — a discrete step within SUPPORT_GAP_M (the up twin of the down
+      law) or a ramp within the nav's own MAX_WALK_SLOPE, measured as
+      a SIGNED rise along the move over a 1 m baseline (the mesh's
+      node spacing) — geometry, not the frame, so the verdict is the
+      same at 30/60/120 fps; a descent ahead is never a wall.
+      EN-ROUTE BUG caught by the live route and promoted to a law:
+      the first draft's |ahead-behind| baseline let the ramp BEHIND a
+      body glue it to the wall it had just been refused by (and fps
+      jitter unstuck it — the route's W-hold sat motionless 60 frames
+      then lurched); fixed signed + pinned by
+      the_body_walks_away_from_a_wall_it_was_refused_by. New proof
+      hook UiAction::PlayerFace {yaw, pitch} (the body's absolute
+      facing; also serves the carried look-pitch deferral). Route
+      proof: `make p3d-pitwall` (route_pit_wall: the walk-off's dig
+      cell dug 5 m — the body falls — the cell TWO toward -z dug
+      4.5 m so the between cell is a gentle ramp [a one-cell-away dig
+      ACCUMULATES on shared border nodes and tilts the pit deeper —
+      the first staging attempt fell twice, hence
+      find_dig_spot_pair's strip validation]; W into the 5 m wall is
+      REFUSED at the base; the ramp+step admit the walk; the step
+      cell's own outer wall refuses again; feet 49.49 -> 49.49 ->
+      49.87, health 100% -> 76%, FELL toast) x2 identical +
+      comparator PASS, captures inspected. Evidence: p3d 667 green
+      (pc3d_render 213); walkoff x2 UNCHANGED (same cell, same fall);
+      playtest x2 digest UNCHANGED 05c46411869a857c; climb x2 and
+      steer x2 unchanged; smoke OK (dd019eca900f5a61); assets OK.
+      PERF: no claim — at most three ground samples per moving axis
+      per frame, allocation-free; host still contended (no bench
+      recorded; the quiet-host re-read is queued by four loops).
+      Deferred honestly: the player-facing dig verb (now pairs with
+      this law: a dug pit HOLDS, so stairs/ramps out are a real
+      skill); the staged-yield crowd route (main.rs now free).
+
 - [x] The crowd yields: NPC-vs-NPC avoidance (2026-09-13, loop 448,
       POORCRAFT 3D): the last NWR-009 sim-domain deferral closed.
       `pc3d_world::npc::step_crowd` is the pure crowd law: no body

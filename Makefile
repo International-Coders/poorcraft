@@ -178,6 +178,14 @@ p3d-walkoff: ## The walk-off route (the floor dug out under the standing body: s
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/walkoff-a/route_walk_off poorcraft3d/apps/poorcraft3d/shots/walkoff-b/route_walk_off || exit 1; \
 	echo "P3D WALK OFF OK (chained + deterministic)"
 
+p3d-pitwall: ## The pit wall route (dug 5 m pit: the body falls in, the wall refuses the walk-out, a 0.5 m step admits, the outer wall refuses again — the up-step law) run TWICE + comparator: make p3d-pitwall
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/pitwall-a poorcraft3d/apps/poorcraft3d/shots/pitwall-b
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_pit_wall poorcraft3d/apps/poorcraft3d/shots/pitwall-a || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_pit_wall poorcraft3d/apps/poorcraft3d/shots/pitwall-b || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/pitwall-a/route_pit_wall poorcraft3d/apps/poorcraft3d/shots/pitwall-b/route_pit_wall || exit 1; \
+	echo "P3D PIT WALL OK (chained + deterministic)"
+
 p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/export
