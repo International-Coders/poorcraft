@@ -209,7 +209,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.6718183159828186,
+      "health": 0.6705402731895447,
       "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -232,12 +232,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 13:02",
+        "modified": "2026-09-13 19:13",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 13:02",
+        "modified": "2026-09-13 19:13",
         "name": "beta-shot",
         "seed": 7
       }
@@ -245,11 +245,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.4930460453033447,
+        "age_s": 2.48970627784729,
         "text": "THE GROUND GIVES WAY"
       },
       {
-        "age_s": 1.3709008693695068,
+        "age_s": 1.3070061206817627,
         "text": "FELL — HEALTH 64%"
       }
     ],

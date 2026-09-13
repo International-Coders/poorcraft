@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 43.20000076293945,
+    "avg_fps": 44.900001525878906,
     "frames": 377,
-    "p50_ms": 23.260000228881836,
-    "p95_ms": 26.850000381469727
+    "p50_ms": 22.360000610351562,
+    "p95_ms": 25.1200008392334
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1789304630",
+  "timestamp_utc": "1789326910",
   "ui": {},
   "verdict": "exported",
   "version": 1,

@@ -197,8 +197,8 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.994391143321991,
-      "health": 0.3829458951950073,
+      "food": 0.9940118789672852,
+      "health": 0.38755878806114197,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -221,12 +221,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 13:04",
+        "modified": "2026-09-13 19:15",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 13:04",
+        "modified": "2026-09-13 19:15",
         "name": "beta-shot",
         "seed": 7
       }
@@ -234,7 +234,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.159940242767334,
+        "age_s": 2.5617852210998535,
         "text": "FELL — HEALTH 33%"
       }
     ],

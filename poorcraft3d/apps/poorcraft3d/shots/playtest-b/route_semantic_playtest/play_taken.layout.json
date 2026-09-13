@@ -563,12 +563,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 14:46",
+        "modified": "2026-09-13 19:14",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 14:46",
+        "modified": "2026-09-13 19:14",
         "name": "beta-shot",
         "seed": 7
       }
@@ -581,11 +581,11 @@
     ],
     "toasts": [
       {
-        "age_s": 1.309738039970398,
+        "age_s": 1.107672929763794,
         "text": "FORGED 1 BARS"
       },
       {
-        "age_s": 0.028342463076114655,
+        "age_s": 0.026567494496703148,
         "text": "QUEST ACCEPTED"
       }
     ],
