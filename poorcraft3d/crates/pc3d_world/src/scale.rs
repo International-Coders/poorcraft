@@ -24,6 +24,12 @@ pub struct ScaleRow {
     /// Average host-tick cost in microseconds (wall clock — the one
     /// number here that is measured, not derived).
     pub avg_tick_micros: u64,
+    /// Best (uncontended) tick cost in microseconds — the scaling
+    /// evidence. The suite's own parallel tests steal cores and inflate
+    /// a mean-of-5; the minimum tick is the standard robust estimator
+    /// for the row's ALGORITHMIC cost (the full suite caught the mean
+    /// tripping the linear budget under load).
+    pub min_tick_micros: u64,
     /// Interest snapshots built per tick (== player count).
     pub snapshots_per_tick: usize,
     /// Snapshot map-entries shipped per tick across all players.
@@ -61,6 +67,7 @@ pub fn measure_scale(seed: u64, players: usize, ticks: u64) -> ScaleRow {
     let mut total_entries: usize = 0;
     let mut max_entries: usize = 0;
     let mut micros: u128 = 0;
+    let mut min_micros: u128 = u128::MAX;
 
     for t in 0..ticks {
         let t0 = std::time::Instant::now();
@@ -79,12 +86,15 @@ pub fn measure_scale(seed: u64, players: usize, ticks: u64) -> ScaleRow {
             }
             let _ = channels[i].send(frame);
         }
-        micros += t0.elapsed().as_micros();
+        let tick = t0.elapsed().as_micros();
+        micros += tick;
+        min_micros = min_micros.min(tick);
     }
 
     ScaleRow {
         players,
         avg_tick_micros: (micros / ticks.max(1) as u128) as u64,
+        min_tick_micros: (min_micros.min(u128::from(u64::MAX))) as u64,
         snapshots_per_tick: players,
         bytes_per_tick: total_entries * 8 / ticks.max(1) as usize,
         max_entries_per_player: max_entries,
@@ -127,28 +137,35 @@ mod tests {
     }
 
     /// D-029, measured: total tick cost grows at most linearly in N
-    /// (generous 4× slack over perfect scaling for wall-clock noise),
-    /// and 128 players sustain under an explicit per-tick budget. The
-    /// rows are printed so the claim travels with its evidence.
+    /// (generous 4× slack over perfect scaling — judged on the BEST
+    /// tick per row, the uncontended cost: the suite's own parallel
+    /// tests steal cores and once inflated the mean past the budget),
+    /// and 128 players sustain under an explicit per-tick budget on the
+    /// MEAN (the honest loaded number). The rows are printed so the
+    /// claim travels with its evidence.
     #[test]
     fn p3d806_total_cost_grows_linearly_and_128_sustains() {
         let rows = scale_proof(4242, &[4, 16, 32, 64, 128]);
         for row in &rows {
             println!(
-                "scale {:>3} players: tick {:>4} µs, bytes/tick {:>3}, max/player {}",
-                row.players, row.avg_tick_micros, row.bytes_per_tick, row.max_entries_per_player
+                "scale {:>3} players: tick {:>4} µs (best {:>4}), bytes/tick {:>3}, max/player {}",
+                row.players,
+                row.avg_tick_micros,
+                row.min_tick_micros,
+                row.bytes_per_tick,
+                row.max_entries_per_player
             );
         }
-        let base = rows[0].avg_tick_micros.max(1);
+        let base = rows[0].min_tick_micros.max(1);
         let perfect = rows[rows.len() - 1].players as f64 / rows[0].players as f64;
-        let worst = rows[rows.len() - 1].avg_tick_micros as f64;
+        let worst = rows[rows.len() - 1].min_tick_micros as f64;
         assert!(
             worst <= base as f64 * perfect * 4.0,
             "128-player tick cost {worst} µs exceeded linear budget {} µs",
             base as f64 * perfect * 4.0
         );
         // The explicit D-029 budget: the 128-player host tick stays
-        // under 20 ms (one 60 Hz frame).
+        // under 20 ms (one 60 Hz frame) — on the mean, not the best.
         assert!(
             rows[rows.len() - 1].avg_tick_micros < 20_000,
             "128 players: {} µs per tick breaks the frame budget",

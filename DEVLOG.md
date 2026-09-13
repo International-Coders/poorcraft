@@ -7400,3 +7400,89 @@ the recovery constants are unchanged from 438); mid-air steering is
 unchanged (the walk still applies input XZ during the arc — untested as a
 law); the jump has no route proof of its own (the unit arc law plus the
 shared integration the drop proves live cover it).
+
+## 2026-09-13 — loop 442 — The vine anchor concept (last catalog-only family grows in the wild)
+
+WHAT: closed loop 440's deferral. The vine family (40 GLBs: strand +
+leaf blobs hanging DOWNWARD from y=0) now grows in the world, hanging
+from living canopies. The deferral said it needed "an anchor concept" —
+that concept is now law in the authority.
+
+HOW (files touched):
+- crates/pc3d_world/src/flora.rs — PlantKind::Vine (ALL 29 -> 30;
+  walkable, wind 0.35, name flora.vine); table_pick split out of
+  plant_at (hash + density table + tree gates, NO anchor check — the
+  recursion-free half); plant_at = table_pick + the anchor gate
+  (living_anchor_slot scans the 8 neighbors in a FIXED order via
+  table_pick, accepting only TreeBroadleaf/TreePine — dense canopies;
+  birch's airy crown and dead wood refuse); vine_anchor() returns
+  (attach_xy, top_y_absolute): 0.5-0.7 m lateral of the ANCHOR trunk
+  (biased toward the vine slot, clamped to the reach law), top at the
+  anchor's OWN ground + hang_m(anchor kind) — pine 1.5 (inside the
+  skirt cone for every variant: h 4.2-7.5, tier radii >= 0.6 at that
+  height), broadleaf 2.9 (crown underside across trunk 2.1-3.5).
+  Vine rows: Forest 0.010, Highlands 0.004. New laws:
+  vines_need_a_living_canopy_anchor (region-searched; 34 grown / 13
+  anchorless picks refused; reach < 0.75; hang exact; deterministic)
+  and hang_laws_follow_the_canopy_shape.
+- crates/pc3d_render/src/flora.rs — tag 30, asset_base "vine",
+  asset_rel flora/vine_v00.glb (the ALL-driven load law covers it);
+  the update() instance builder gives Vine the ANCHOR position
+  (flora::vine_anchor) instead of slot-center/ground. Vine added to
+  the variant-diversity law list.
+- crates/pc3d_render/shaders/scene.wgsl — the sway weight in
+  instance_world became clamp(abs(p.y)/2) so a hanging mesh's TIP
+  sways while its anchored top holds (upward meshes: abs is a no-op —
+  byte-identical behavior, the existing wind/grass laws still green).
+- crates/pc3d_world/src/scale.rs — the p3d-806 linear-scaling law now
+  judges min_tick_micros (best-of-k, the uncontended standard); the
+  20 ms sustain budget stays on the mean. The full suite caught the
+  mean tripping the budget once under parallel load (isolated runs
+  passed at 113 µs vs 928 µs budget) — a measurement-robustness bug,
+  fixed, not re-rolled.
+- apps/poorcraft3d/src/main.rs (--play-wilderness) — the 6th CANOPY
+  capture: Vine excluded from the ground-level undergrowth search; a
+  region-first search (the landmark_at shape; the SmoothHills scene
+  patch is PLAINS — probed: 466 of 625 surrounding regions Plains,
+  open country grows no vines BY DESIGN) finds a real vine slot;
+  a 3x3 SurfaceRegion is meshed around the vine's own ground, swapped
+  in at frame 176 for the close-up at 185, restored at 200 before the
+  Deck-low shot (camera returns to the undergrowth pose at 205).
+  Capture count gate 5 -> 6; Makefile help line updated.
+- Makefile — p3d-wilderness help line: control/vista/landmark/
+  undergrowth/canopy/low-tier.
+
+VERIFICATION EVIDENCE:
+- make p3d-wilderness PASS (6 captures); CANOPY print: "framing
+  flora.vine at slot (-3381,-2380) attach (-13522,73.2,-9521)".
+  Captures INSPECTED: canopy (green strand hanging from the pine's
+  branch under the skirt, second strand past the trunk — legible at
+  walking height), vista (Plains character intact), undergrowth
+  (thornbush framed as in 440), lowtier (unchanged composition).
+- GPU vine law: presence diff 0.1542, tip sway 0.00061 (two frozen
+  times, grass excluded — the vine is the only mover in frame).
+- Deck bench (seed 3, same walk, Apple host iGPU): low 6.89 / mid
+  12.16 / high 12.44 ms p50 vs 440's 6.79/12.36/12.62 — noise-sized;
+  flora 601 -> 605 instances; DECK-BENCH-REPORT.md refreshed.
+- pc3d_world flora census: expansion_families_grow_in_their_biomes
+  green with the new table rows (census covers Forest + Highlands).
+- Full p3d workspace suite green (pc3d_render 195, pc3d_world 262
+  incl. the hardened scale laws); p3d-smoke OK; p3d-assets OK;
+  playtest x2 identical + comparator PASS (chain unchanged); root
+  cargo test --workspace green; make idle-upgrade-check PASS.
+
+LORE IMPACT: no canon data touched. Flora visuals only — the overgrown
+wilds of the Age of Reckoning read richer; no faction/place/event/NPC/
+item touched; wilderness character laws preserved (rocks still dominate
+the heights; vine gated to living canopy so it can never carpet open
+ground). No migration: flora is pure per-(seed, slot) derivation, never
+persisted; same policy as every prior flora addition.
+
+PERF: the vine adds <= 8 cheap hash lookups only when a slot's hash
+picks vine (~1% of slots); deck bench unchanged within noise (numbers
+above, measured before/after on the same bench).
+
+HONESTLY DEFERRED: grass_tuft GLBs stay catalog-covered (the wind card
+field is the deliberate Deck-cheap path); the CANOPY capture frames one
+specimen (a wider two-vine drape framing is a polish pass); vine
+climbing (grip an anchor as a traversal verb) is future work.

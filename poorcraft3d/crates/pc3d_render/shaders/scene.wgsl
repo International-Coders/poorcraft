@@ -354,11 +354,13 @@ fn instance_world(v_pos: vec3f, i_pos_scale: vec4f, i_params: vec4f) -> vec3f {
         i_pos_scale.z - p.x * s + p.z * c,
     );
     // Wind: sway grows with height; the phase varies per plant.
+    // |y| weights HANGING growth too — a vine's anchored top holds
+    // still while its free tip swings (upward meshes are unchanged).
     let wind = i_params.y;
     if wind > 0.001 {
         let t = globals.tan_aspect.z;
         let ph = t * 1.6 + dot(i_pos_scale.xz, vec2f(0.9, 1.3));
-        let h = clamp(p.y / 2.0, 0.0, 1.0);
+        let h = clamp(abs(p.y) / 2.0, 0.0, 1.0);
         let sway = sin(ph) * wind * 0.12 * h * h;
         world.x += sway;
         world.z += 0.6 * sway;

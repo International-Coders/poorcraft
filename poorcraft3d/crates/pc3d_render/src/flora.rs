@@ -56,6 +56,7 @@ pub fn variant_kind_tag(kind: PlantKind) -> u64 {
         PlantKind::Crystal => 27,
         PlantKind::Obsidian => 28,
         PlantKind::IceShard => 29,
+        PlantKind::Vine => 30,
     }
 }
 
@@ -270,6 +271,7 @@ fn asset_base(kind: PlantKind) -> &'static str {
         PlantKind::Crystal => "crystal",
         PlantKind::Obsidian => "obsidian",
         PlantKind::IceShard => "ice_shard",
+        PlantKind::Vine => "vine",
     }
 }
 
@@ -307,6 +309,7 @@ fn asset_rel(kind: PlantKind) -> &'static str {
         PlantKind::Crystal => "flora/crystal_v00.glb",
         PlantKind::Obsidian => "flora/obsidian_v00.glb",
         PlantKind::IceShard => "flora/ice_shard_v00.glb",
+        PlantKind::Vine => "flora/vine_v00.glb",
     }
 }
 
@@ -440,11 +443,6 @@ impl FloraStreamer {
                         }
                         let [cxm, czm] = slot.center_m();
                         let j = flora::jitter(gen, slot);
-                        let x = cxm + j[0];
-                        let z = czm + j[1];
-                        let y = gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64)
-                            as f32
-                            / 1000.0;
                         let rot = j[2] * 6.28;
                         // WT-009: which variant this slot grows — the
                         // pure slot-hash pick over the kind's batch.
@@ -454,11 +452,29 @@ impl FloraStreamer {
                             .map(|k| k.variant_count)
                             .unwrap_or(0);
                         let variant = variant_of(plant.kind, slot, count);
+                        // THE VINE PIVOT: a vine's mesh hangs DOWNWARD
+                        // from y=0, so its instance sits at the ANCHOR
+                        // point (beside the anchor trunk, at canopy
+                        // height) — every other kind stands on the
+                        // ground at its own slot center.
+                        let (pos, wind) = if plant.kind == PlantKind::Vine {
+                            let ([ax, az], top_y) = flora::vine_anchor(gen, slot)?;
+                            ([ax, top_y, az], plant.kind.wind())
+                        } else {
+                            let x = cxm + j[0];
+                            let z = czm + j[1];
+                            let y = gen.effective_surface_mm(
+                                (x * 1000.0) as i64,
+                                (z * 1000.0) as i64,
+                            ) as f32
+                                / 1000.0;
+                            ([x, y, z], plant.kind.wind())
+                        };
                         Some((
                             plant.kind,
                             Instance {
-                                pos_scale: [x, y, z, j[2]],
-                                params: [rot, plant.kind.wind(), 1.0, 0.0],
+                                pos_scale: [pos[0], pos[1], pos[2], j[2]],
+                                params: [rot, wind, 1.0, 0.0],
                             },
                             variant,
                         ))
@@ -859,6 +875,7 @@ mod variant_batch_tests {
             PlantKind::Mushroom,
             PlantKind::Crystal,
             PlantKind::Pebble,
+            PlantKind::Vine,
         ] {
             let mut seen = std::collections::BTreeSet::new();
             for x in 0..20i32 {
@@ -1189,5 +1206,127 @@ mod tests {
 
     fn ctrl_capture(r: &mut crate::renderer::Renderer) -> (crate::scene::PixelReport, Vec<u8>) {
         r.capture_png(&std::env::temp_dir().join("pc3d_wild_tmp.png"), &[])
+    }
+
+    /// THE VINE LAW (GPU): a real vine slot renders its strand at the
+    /// ANCHOR point (beside the anchor trunk at canopy height, not
+    /// dropped on the slot-center ground), and the hang SWAYS at its
+    /// tip between two frozen times — the abs() sway-weight law — with
+    /// grass excluded so the vine is the only mover in frame.
+    #[test]
+    fn the_vine_hangs_at_its_anchor_and_sways() {
+        let gen_rc = std::rc::Rc::new(WorldGen::new(4242));
+        let gen = &*gen_rc;
+        // Search a real vine slot (player-height laws live in pc3d_world).
+        let mut target = None;
+        'find: for ring in 0..80i32 {
+            for dx in -ring..=ring {
+                for dz in -ring..=ring {
+                    if dx.abs() != ring && dz.abs() != ring {
+                        continue;
+                    }
+                    let slot = SlotCoord { x: dx * 3, z: dz * 3 };
+                    if flora::plant_at(gen, slot).map(|p| p.kind) == Some(PlantKind::Vine) {
+                        target = Some(slot);
+                        break 'find;
+                    }
+                }
+            }
+        }
+        let slot = target.expect("a vine grows on this seed");
+        let ([ax, az], top_y) = flora::vine_anchor(gen, slot).expect("attach geometry");
+        let ground = |x: f32, z: f32| {
+            gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+        };
+        // Eye on the OUTER side (away from the trunk), walking height,
+        // looking up at the attach plate.
+        let [tcx, tcz] = {
+            let a = flora::vine_anchor(gen, slot).unwrap().0;
+            // The anchor trunk is the nearest living canopy — recover
+            // its slot from the anchor law's neighborhood scan.
+            let s = SlotCoord {
+                x: (a[0] / 4.0) as i32,
+                z: (a[1] / 4.0) as i32,
+            };
+            let mut best = s;
+            let mut bestd = f32::MAX;
+            for dx in -1..=1i32 {
+                for dz in -1..=1i32 {
+                    let n = SlotCoord { x: s.x + dx, z: s.z + dz };
+                    if let Some(p) = flora::plant_at(gen, n) {
+                        if matches!(p.kind, PlantKind::TreePine | PlantKind::TreeBroadleaf) {
+                            let [cx, cz] = n.center_m();
+                            let d = (cx - a[0]).hypot(cz - a[1]);
+                            if d < bestd {
+                                bestd = d;
+                                best = n;
+                            }
+                        }
+                    }
+                }
+            }
+            best.center_m()
+        };
+        let dx = ax - tcx;
+        let dz = az - tcz;
+        let len = (dx * dx + dz * dz).sqrt().max(1e-4);
+        let eye = [ax + dx / len * 2.4, top_y - 0.9, az + dz / len * 2.4];
+        let aim = [ax, top_y - 0.8, az];
+        let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];
+        let pose = crate::camera::CameraPose::new(
+            eye,
+            (-d[0]).atan2(-d[2]),
+            (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+        );
+        println!(
+            "VINE LAW: slot ({},{}) attach ({ax:.1},{top_y:.2},{az:.1}), ground {:.2}",
+            slot.x,
+            slot.z,
+            ground(ax, az)
+        );
+        assert!(top_y > ground(ax, az) + 0.8, "the strand hangs in the air");
+
+        let region = crate::surface::SurfaceRegion::new(
+            WorldGen::new(4242),
+            pc3d_world::coords::PatchCoord {
+                x: (ax as i32).div_euclid(16),
+                y: 1,
+                z: (az as i32).div_euclid(16),
+            },
+        );
+        let (verts, idx, _) = region.mesh_region();
+
+        // Control: same pose, no flora.
+        let mut ctrl = crate::renderer::Renderer::offscreen(384, 288);
+        ctrl.set_placeholder_scene(false);
+        ctrl.load_surface(&verts, &idx);
+        ctrl.set_pose(pose);
+        ctrl.set_atmosphere_tier(crate::atmosphere::AtmosphereTier::Mid);
+        let (_, no_flora) = ctrl_capture(&mut ctrl);
+
+        let mut r = crate::renderer::Renderer::offscreen(384, 288);
+        r.set_placeholder_scene(false);
+        r.load_surface(&verts, &idx);
+        r.set_pose(pose);
+        r.set_atmosphere_tier(crate::atmosphere::AtmosphereTier::Mid);
+        r.set_flora_config(FloraConfig {
+            grass_radius_m: 0.0,
+            ..Default::default()
+        });
+        r.attach_flora(gen_rc.clone());
+        r.set_water_time(Some(0.5));
+        let (_, at_rest) = ctrl_capture(&mut r);
+
+        // Presence: the frame changed where the vine hangs.
+        let diff = crate::scene::pixel_difference_fraction(&no_flora, &at_rest);
+        println!("vine presence diff {diff:.4}");
+        assert!(diff > 0.001, "the hanging strand is visible ({diff})");
+
+        // Sway: another frozen time moves the tip (no grass in frame).
+        r.set_water_time(Some(2.5));
+        let (_, swaying) = ctrl_capture(&mut r);
+        let sway = crate::scene::pixel_difference_fraction(&at_rest, &swaying);
+        println!("vine tip sway diff {sway:.5}");
+        assert!(sway > 0.0002, "the vine's tip sways ({sway})");
     }
 }

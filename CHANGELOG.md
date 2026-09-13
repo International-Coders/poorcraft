@@ -1,5 +1,53 @@
 # CHANGELOG
 
+## 2026-09-13 — The vine anchor concept: the last catalog-only family grows in the wild (loop 442)
+
+- Closed loop 440's deferral: the 40 vine GLBs that loaded but never
+  grew now hang from living canopies. The mesh hangs DOWNWARD from
+  y=0, so the slot grid gained the missing concept — an ANCHOR: a
+  vine exists only where a fixed-order 8-neighborhood scan finds a
+  living broadleaf or pine (dense canopies anchor; the birch's airy
+  crown and dead wood carry nothing). Open Plains grows no vines by
+  design; vines joined the Forest (0.010) and Highlands (0.004)
+  density tables.
+- `vine_anchor` answers the attach point: 0.5-0.7 m lateral of the
+  ANCHOR trunk (biased toward the vine slot, inside every family's
+  canopy reach) at the anchor's OWN ground plus the family hang law —
+  pine 1.5 m inside the skirt cone, broadleaf 2.9 m at the crown
+  underside — chosen from the canonical AND variant sweep geometries
+  (pine h 4.2-7.5, broadleaf trunk 2.1-3.5) so no drawn variant
+  floats. The renderer places the vine instance at that point (every
+  other kind stands on the slot-center ground); `plant_at` split into
+  a recursion-free `table_pick` + the anchor gate so a vine scan can
+  never trigger a vine scan.
+- Wind: scene.wgsl's sway weight is now |mesh y| — a hanging strand's
+  TIP swings under its fixed anchor while every upward mesh is
+  byte-identical. Vine wind 0.35.
+- Laws: `vines_need_a_living_canopy_anchor` (34 grown, 13 anchorless
+  picks refused in one Forest region; attach hugs the trunk, the hang
+  law exact, deterministic), `hang_laws_follow_the_canopy_shape`, and
+  the GPU `the_vine_hangs_at_its_anchor_and_sways` (presence diff
+  0.154, tip sway 0.00061 with grass excluded from frame). The kind
+  tag/variant-diversity/load laws cover the 30th family through the
+  existing ALL-driven tables.
+- Proof: `make p3d-wilderness` PASS with a 6th CANOPY capture — the
+  pose TRAVELS (region-first search, the landmark_at shape; the
+  SmoothHills scene is Plains, which grows no vines BY DESIGN), meshes
+  the vine's own ground, swaps it in for the close-up and restores the
+  vista for the low-tier shot. AI-inspected: the strand hangs from the
+  pine's branch and is legible at walking height.
+- Perf: deck bench low 6.89 / mid 12.16 / high 12.44 ms p50 vs loop
+  440's 6.79/12.36/12.62 — noise-sized; flora 601→605 instances on the
+  walk; the near-field variant rule holds. Report refreshed.
+- En-route fix: the p3d-806 scale proof's linear-scaling judgment
+  tripped once under the suite's own parallel load (a mean-of-5
+  wall-clock). The linear law now judges best-of-k tick cost (the
+  uncontended standard); the 20 ms sustain budget stays on the mean.
+- Deferred honestly: grass_tuft GLBs stay catalog-covered by the
+  deliberate Deck-cheap card field; the CANOPY capture frames one
+  specimen (a wider drape framing is a polish pass); vine climbing is
+  a traversal verb, not shipped here.
+
 ## 2026-09-13 — The live fall proof: gravity is the world, not the menu (loop 441)
 
 - Closed the standing 438 deferral: the semantic playtest drops the

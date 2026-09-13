@@ -3368,7 +3368,8 @@ fn main() {
             // the pure authority, under the Mid atmosphere. Captures:
             // the empty-terrain CONTROL, the same view WITH wilderness,
             // the landmark close-up, the UNDERGROWTH close-up (the
-            // thousand-asset families at walking height), and the
+            // thousand-asset families at walking height), the CANOPY
+            // close-up (a vine hanging at its living anchor), and the
             // Deck-low tier.
             let out_dir = args
                 .get(2)
@@ -3492,6 +3493,7 @@ fn main() {
                         | PlantKind::Shrub
                         | PlantKind::Grass
                         | PlantKind::Log
+                        | PlantKind::Vine // hangs at its anchor — the CANOPY pose frames it
                 )
             };
             let mut ug_target = None;
@@ -3543,6 +3545,92 @@ fn main() {
                     )
                 }
             };
+            // The CANOPY pose: SEARCH THE SEED for a slot that actually
+            // grows a VINE and frame the hanging strand from walking
+            // height — the vista cannot resolve a 0.1 m strand, this
+            // can. The scene's own patch is Plains (open country grows
+            // no vines BY DESIGN), so the pose TRAVELS: region-first
+            // (the same search shape landmark_at uses), then a slot
+            // scan inside the first vine country found; a small surface
+            // is meshed around the vine and swapped in for the capture,
+            // then restored for the low-tier shot.
+            let center_slot = SlotCoord {
+                x: (center[0] / 4.0) as i32,
+                z: (center[1] / 4.0) as i32,
+            };
+            let base_region = pc3d_world::coords::RegionCoord {
+                x: (center_slot.x as i64 * flora::SLOT_M * 1000)
+                    .div_euclid(pc3d_world::scales::REGION_MM) as i32,
+                z: (center_slot.z as i64 * flora::SLOT_M * 1000)
+                    .div_euclid(pc3d_world::scales::REGION_MM) as i32,
+            };
+            let mut vine_target = None;
+            'region: for ring in 0..64i32 {
+                for dx in -ring..=ring {
+                    for dz in -ring..=ring {
+                        if dx.abs() != ring && dz.abs() != ring {
+                            continue;
+                        }
+                        let reg = pc3d_world::coords::RegionCoord {
+                            x: base_region.x + dx,
+                            z: base_region.z + dz,
+                        };
+                        let b = gen.biome(reg);
+                        if !matches!(b, pc3d_world::gen::Biome::Forest | pc3d_world::gen::Biome::Highlands) {
+                            continue;
+                        }
+                        for sx in 0..64i32 {
+                            for sz in 0..64i32 {
+                                let slot = SlotCoord {
+                                    x: reg.x * 64 + sx,
+                                    z: reg.z * 64 + sz,
+                                };
+                                if flora::plant_at(&gen, slot).map(|p| p.kind)
+                                    == Some(PlantKind::Vine)
+                                {
+                                    vine_target = Some(slot);
+                                    break 'region;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            let vine_surface = vine_target
+                .and_then(|s| flora::vine_anchor(&gen, s).map(|a| (s, a)))
+                .map(|(slot, ([ax, az], top_y))| {
+                    println!(
+                        "CANOPY: framing {} at slot ({},{}) attach ({ax:.0},{top_y:.1},{az:.0})",
+                        PlantKind::Vine.name(),
+                        slot.x,
+                        slot.z
+                    );
+                    let region = SurfaceRegion::new(
+                        pc3d_world::gen::WorldGen::new(seed),
+                        pc3d_world::coords::PatchCoord {
+                            x: (ax / 16.0).floor() as i32,
+                            y: 1,
+                            z: (az / 16.0).floor() as i32,
+                        },
+                    );
+                    let (v, i, _) = region.mesh_region();
+                    (v, i, [ax, top_y, az])
+                });
+            let canopy_pose = match &vine_surface {
+                Some((_, _, [ax, top_y, az])) => {
+                    let eye = [*ax + 1.4, *top_y - 0.9, *az + 1.8];
+                    let d = [*ax - eye[0], *top_y - 0.7 - eye[1], *az - eye[2]];
+                    pc3d_render::CameraPose::new(
+                        eye,
+                        (-d[0]).atan2(-d[2]),
+                        (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
+                    )
+                }
+                None => {
+                    println!("CANOPY: no vine found on this seed; keeping the undergrowth glance");
+                    ug_pose
+                }
+            };
             println!(
                 "WILDERNESS: vegetated center ({:.0},{:.0}), landmark {:?}",
                 center[0], center[1], lm_pos
@@ -3553,6 +3641,10 @@ fn main() {
             let g_hook = gen.clone();
             let g_lm = gen.clone();
             let g_low = gen.clone();
+            let v_canopy = vine_surface
+                .as_ref()
+                .map(|(v, i, _)| (v.clone(), i.clone()));
+            let v_restore = (verts.clone(), idx.clone());
             let stats_note = |s: &FloraStats, tag: &str| {
                 println!(
                     "WILDERNESS {tag}: added {} evicted {} cached {} scanned {} buckets {} instances {} VARIANT BUCKETS {} KINDS {}",
@@ -3562,20 +3654,23 @@ fn main() {
             };
             let cfg = pc3d_render::WindowConfig {
                 title: "POORCRAFT 3D — wilderness".into(),
-                max_frames: Some(215),
+                max_frames: Some(240),
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
                 camera_script: vec![
                     (0, pose),
                     (95, lm_pose.unwrap_or(pose)),
                     (150, ug_pose),
+                    (178, canopy_pose),
+                    (205, ug_pose), // back for the low-tier shot
                 ],
                 shots: vec![
                     Shot::new(25, format!("{out_dir}/windowed_wild_control.png")),
                     Shot::new(80, format!("{out_dir}/windowed_wild_vista.png")),
                     Shot::new(140, format!("{out_dir}/windowed_wild_landmark.png")),
                     Shot::new(165, format!("{out_dir}/windowed_wild_undergrowth.png")),
-                    Shot::new(200, format!("{out_dir}/windowed_wild_lowtier.png")),
+                    Shot::new(185, format!("{out_dir}/windowed_wild_canopy.png")),
+                    Shot::new(225, format!("{out_dir}/windowed_wild_lowtier.png")),
                 ],
                 frame_hooks: vec![
                     (
@@ -3617,9 +3712,22 @@ fn main() {
                         }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
                     ),
                     (
-                        175,
+                        176,
                         Box::new(move |r: &mut pc3d_render::Renderer| {
-                            // The Deck LOW tier: shrunk ring + no far grass.
+                            // The CANOPY pose travels: mesh the vine's
+                            // own ground in (when a vine was found).
+                            if let Some((v, i)) = &v_canopy {
+                                r.load_surface(v, i);
+                            }
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        200,
+                        Box::new(move |r: &mut pc3d_render::Renderer| {
+                            // Restore the vista world, THEN the Deck LOW
+                            // tier: shrunk ring + no far grass.
+                            let (v, i) = &v_restore;
+                            r.load_surface(v, i);
                             r.set_flora_config(FloraConfig::low());
                             let _ = &g_low;
                         }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
@@ -3630,8 +3738,8 @@ fn main() {
             match pc3d_render::run_windowed(cfg) {
                 Ok(report) => {
                     print_window_report(&report);
-                    if report.captures.len() != 5 {
-                        eprintln!("[FAIL] expected 5 captures, got {}", report.captures.len());
+                    if report.captures.len() != 6 {
+                        eprintln!("[FAIL] expected 6 captures, got {}", report.captures.len());
                         std::process::exit(1);
                     }
                     for cap in &report.captures {
@@ -3652,9 +3760,20 @@ fn main() {
                         eprintln!("[FAIL] the wilderness must appear ({diff})");
                         std::process::exit(1);
                     }
+                    // The CANOPY capture must differ from the vista pose
+                    // (the camera moved to the vine) and the proof names
+                    // the vine when one was framed near the center.
+                    let canopy_moved = pc3d_render::scene::pixel_difference_fraction(
+                        &report.captures[4].rgba,
+                        &report.captures[1].rgba,
+                    );
+                    if canopy_moved < 0.02 {
+                        eprintln!("[FAIL] the canopy pose never arrived ({canopy_moved})");
+                        std::process::exit(1);
+                    }
                     println!("WILDERNESS VISIBLE: diff {diff:.2}%");
                     println!(
-                        "WINDOWED WILDERNESS PROOF PASS -> control/vista/landmark/undergrowth/lowtier in {out_dir}"
+                        "WINDOWED WILDERNESS PROOF PASS -> control/vista/landmark/undergrowth/canopy/lowtier in {out_dir}"
                     );
                 }
                 Err(e) => {

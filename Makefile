@@ -226,7 +226,7 @@ p3d-settlement: ## NWR-008: settlement kit proof (overview/street, socket kit, b
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-settlement $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D SETTLEMENT OK"
 
-p3d-wilderness: ## NWR-007: instanced wilderness proof (control/vista/landmark/undergrowth/low-tier): make p3d-wilderness [OUTDIR=shots]
+p3d-wilderness: ## NWR-007: instanced wilderness proof (control/vista/landmark/undergrowth/canopy/low-tier): make p3d-wilderness [OUTDIR=shots]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-wilderness $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D WILDERNESS OK"
 

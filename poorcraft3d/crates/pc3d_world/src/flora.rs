@@ -81,12 +81,15 @@ pub enum PlantKind {
     Obsidian,
     /// Ice spike cluster.
     IceShard,
+    /// Hanging vine — grows only under a living canopy anchor (its
+    /// mesh hangs DOWNWARD from y=0; see `vine_anchor`).
+    Vine,
 }
 
 impl PlantKind {
     /// Every kind, one place — the renderer's kind table and the laws
     /// iterate THIS so world and picture can never drift apart.
-    pub const ALL: [PlantKind; 29] = [
+    pub const ALL: [PlantKind; 30] = [
         PlantKind::TreePine,
         PlantKind::TreeBroadleaf,
         PlantKind::TreeBirch,
@@ -116,6 +119,7 @@ impl PlantKind {
         PlantKind::Crystal,
         PlantKind::Obsidian,
         PlantKind::IceShard,
+        PlantKind::Vine,
     ];
 
     /// Tree-class kinds reserve the even-diagonal subgrid and refuse
@@ -155,11 +159,13 @@ impl PlantKind {
                 | PlantKind::Pebble
                 | PlantKind::PuddleStone
                 | PlantKind::ArchRock
+                | PlantKind::Vine
         )
     }
 
     /// Sways in the wind (cards and airy growth; rigid wood and stone
-    /// stand still).
+    /// stand still). The vine's TIP sways — the shader weights the sway
+    /// by |mesh y| so a hanging strand swings under its fixed anchor.
     pub fn wind(self) -> f32 {
         match self {
             PlantKind::Grass => 1.0,
@@ -168,6 +174,7 @@ impl PlantKind {
             PlantKind::Shrub => 0.35,
             PlantKind::Fern => 0.3,
             PlantKind::TreeBirch => 0.15,
+            PlantKind::Vine => 0.35,
             PlantKind::Bramble | PlantKind::Thornbush => 0.1,
             _ => 0.0,
         }
@@ -204,6 +211,7 @@ impl PlantKind {
             PlantKind::Crystal => "flora.crystal",
             PlantKind::Obsidian => "flora.obsidian",
             PlantKind::IceShard => "flora.ice_shard",
+            PlantKind::Vine => "flora.vine",
         }
     }
 }
@@ -285,6 +293,7 @@ fn biome_table(b: Biome) -> &'static [(PlantKind, f32)] {
             (PlantKind::MossRock, 0.010),
             (PlantKind::Bramble, 0.006),
             (PlantKind::Thornbush, 0.004),
+            (PlantKind::Vine, 0.010),
         ],
         Biome::Wetland => &[
             (PlantKind::Grass, 0.12),
@@ -312,6 +321,7 @@ fn biome_table(b: Biome) -> &'static [(PlantKind, f32)] {
             (PlantKind::Bramble, 0.006),
             (PlantKind::Thornbush, 0.004),
             (PlantKind::ArchRock, 0.002),
+            (PlantKind::Vine, 0.004),
         ],
         Biome::Mountains => &[
             (PlantKind::RockBoulder, 0.07),
@@ -382,11 +392,12 @@ fn slope_x(gen: &WorldGen, slot: SlotCoord) -> f32 {
     (b - a) / 1000.0 / SLOT_M as f32
 }
 
-/// The plant at a 4 m slot, if any. Deterministic in (seed, slot):
-/// hash gates by the biome density table; trees additionally reserve
-/// the even-diagonal subgrid (8 m minimum spacing); trees and the
-/// landmark refuse steep ground (rocks do not).
-pub fn plant_at(gen: &WorldGen, slot: SlotCoord) -> Option<Plant> {
+/// The pure table pick: hash gate over the biome density table plus
+/// the tree spacing/slope gates — WITHOUT the vine anchor gate. This
+/// is the recursion-free inner half of `plant_at` (the anchor gate
+/// queries THIS for neighbor slots, so a vine can never trigger a
+/// vine scan of a vine scan).
+fn table_pick(gen: &WorldGen, slot: SlotCoord) -> Option<Plant> {
     let biome = gen.biome(region_of(gen, slot));
     let table = biome_table(biome);
     if table.is_empty() {
@@ -416,6 +427,97 @@ pub fn plant_at(gen: &WorldGen, slot: SlotCoord) -> Option<Plant> {
         }
     }
     None
+}
+
+/// A vine anchors on DENSE LIVING canopy only: broadleaf (crown blobs
+/// 2-4.5 m up, reach ~1.5 m) and pine (skirt cone from ~0.7 m, radius
+/// 0.7-1.4 m). The birch's airy crown and the dead wood carry nothing.
+fn anchors_vine(kind: PlantKind) -> bool {
+    matches!(kind, PlantKind::TreeBroadleaf | PlantKind::TreePine)
+}
+
+/// The vine anchor: the first living canopy in a FIXED 8-neighborhood
+/// scan of the vine's slot (deterministic order — the same anchor for
+/// every caller, forever).
+fn living_anchor_slot(gen: &WorldGen, slot: SlotCoord) -> Option<(SlotCoord, PlantKind)> {
+    const ORDER: [(i32, i32); 8] = [
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1),
+        (1, 1),
+        (1, -1),
+        (-1, 1),
+        (-1, -1),
+    ];
+    for (dx, dz) in ORDER {
+        let n = SlotCoord {
+            x: slot.x + dx,
+            z: slot.z + dz,
+        };
+        if let Some(p) = table_pick(gen, n) {
+            if anchors_vine(p.kind) {
+                return Some((n, p.kind));
+            }
+        }
+    }
+    None
+}
+
+/// The hang laws: where a vine's attach plate sits, per anchor family,
+/// chosen from the canonical AND variant sweep geometries so every
+/// drawn variant reads attached. Pine: 1.5 m puts the plate inside the
+/// skirt cone for every variant (h 4.2..7.5, tier radii >= 0.6 m at
+/// that height; lateral <= 0.6 m stays inside). Broadleaf: 2.9 m sits
+/// at the crown underside across the sweep (blobs 2.0..3.4 m up,
+/// reach >= 1.0 m).
+fn hang_m(anchor: PlantKind) -> f32 {
+    match anchor {
+        PlantKind::TreePine => 1.5,
+        _ => 2.9,
+    }
+}
+
+/// The vine's attach point in world meters for a vine slot: (x, z)
+/// lateral of the ANCHOR trunk (0.5 m + hash jitter <= 0.1 — inside
+/// every anchor family's canopy reach) and the absolute top y (the
+/// anchor's OWN ground + the hang law — the canopy is over the
+/// anchor's ground, not the vine slot's). Deterministic in (seed,
+/// slot). None where the slot grows no vine.
+pub fn vine_anchor(gen: &WorldGen, slot: SlotCoord) -> Option<([f32; 2], f32)> {
+    match table_pick(gen, slot) {
+        Some(p) if p.kind == PlantKind::Vine => {}
+        _ => return None,
+    }
+    let (anchor_slot, anchor_kind) = living_anchor_slot(gen, slot)?;
+    let [ax, az] = anchor_slot.center_m();
+    let [vx, vz] = slot.center_m();
+    // Lateral of the trunk, biased TOWARD the vine slot (the canopy
+    // edge that side), clamped to the reach law.
+    let dx = vx - ax;
+    let dz = vz - az;
+    let len = (dx * dx + dz * dz).sqrt().max(1e-4);
+    let j = unit(gen.hash_seed(), [slot.x as u64, slot.z as u64, 0x7C]) * 0.2;
+    let out = 0.5 + j;
+    let x = ax + dx / len * out;
+    let z = az + dz / len * out;
+    let gy =
+        gen.effective_surface_mm((ax * 1000.0) as i64, (az * 1000.0) as i64) as f32 / 1000.0;
+    Some(([x, z], gy + hang_m(anchor_kind)))
+}
+
+/// The plant at a 4 m slot, if any. Deterministic in (seed, slot):
+/// hash gates by the biome density table; trees additionally reserve
+/// the even-diagonal subgrid (8 m minimum spacing); trees and the
+/// landmark refuse steep ground (rocks do not). A VINE additionally
+/// demands a living canopy anchor beside it — the anchor concept: no
+/// canopy, no vine, whatever the hash says.
+pub fn plant_at(gen: &WorldGen, slot: SlotCoord) -> Option<Plant> {
+    let pick = table_pick(gen, slot)?;
+    if pick.kind == PlantKind::Vine && living_anchor_slot(gen, slot).is_none() {
+        return None;
+    }
+    Some(pick)
 }
 
 /// Deterministic render-side jitter for a slot: (dx, dz within +-0.8 m,
@@ -589,6 +691,10 @@ mod tests {
         assert!(!PlantKind::Stump.blocks_movement());
         assert!(!PlantKind::Pebble.blocks_movement());
         assert!(!PlantKind::ArchRock.blocks_movement());
+        // The vine hangs overhead: passable at chest height, and it
+        // sways at its tip.
+        assert!(!PlantKind::Vine.blocks_movement());
+        assert!(PlantKind::Vine.wind() > 0.0);
         // Wind: grass most, rocks none.
         assert!(PlantKind::Grass.wind() > PlantKind::Shrub.wind());
         assert_eq!(PlantKind::RockBoulder.wind(), 0.0);
@@ -680,6 +786,104 @@ mod tests {
         ] {
             assert!(seen.contains_key(&k), "forest undergrowth lives ({k:?})");
         }
+    }
+
+    /// THE VINE ANCHOR LAWS: a vine only exists where a living canopy
+    /// stands beside it; anchorless vine picks are refused; the attach
+    /// geometry hugs the anchor trunk at its canopy underside and is
+    /// deterministic. Scans a real vine biome (searched, not assumed —
+    /// a seed's origin can be open ground).
+    #[test]
+    fn vines_need_a_living_canopy_anchor() {
+        let g = WorldGen::new(2024);
+        // Outward ring search for one Forest region (vine country) —
+        // the same search the census law uses.
+        let mut forest = None;
+        'find: for ring in 0..200i32 {
+            for dx in -ring..=ring {
+                for dz in -ring..=ring {
+                    if dx.abs() != ring && dz.abs() != ring {
+                        continue;
+                    }
+                    let reg = RegionCoord { x: dx, z: dz };
+                    if g.biome(reg) == Biome::Forest {
+                        forest = Some(reg);
+                        break 'find;
+                    }
+                }
+            }
+        }
+        let forest = forest.expect("a Forest region exists");
+        let mut vines = 0usize;
+        let mut anchorless = 0usize;
+        for x in forest.x * 64..forest.x * 64 + 64 {
+            for z in forest.z * 64..forest.z * 64 + 64 {
+                let slot = SlotCoord { x, z };
+                let picked_vine = table_pick(&g, slot).map(|p| p.kind) == Some(PlantKind::Vine);
+                match plant_at(&g, slot) {
+                    Some(p) if p.kind == PlantKind::Vine => {
+                        vines += 1;
+                        // The anchor is a living canopy in the 8-ring.
+                        let anchor = living_anchor_slot(&g, slot)
+                            .expect("a grown vine has a living anchor");
+                        assert!(
+                            anchors_vine(anchor.1),
+                            "anchors are living canopy ({:?})",
+                            anchor.1
+                        );
+                        let ([ax, az], top_y) = vine_anchor(&g, slot)
+                            .expect("a grown vine has attach geometry");
+                        // Attach hugs the anchor trunk; top sits at the
+                        // anchor's ground + the family hang law.
+                        let [tcx, tcz] = anchor.0.center_m();
+                        let reach = ((ax - tcx).powi(2) + (az - tcz).powi(2)).sqrt();
+                        assert!(
+                            reach < 0.75,
+                            "the vine attaches within canopy reach ({reach})"
+                        );
+                        let agy =
+                            g.effective_surface_mm((tcx * 1000.0) as i64, (tcz * 1000.0) as i64)
+                                as f32
+                                / 1000.0;
+                        let hang = top_y - agy;
+                        let want = hang_m(anchor.1);
+                        assert!(
+                            (hang - want).abs() < 1e-4,
+                            "hang law {hang} == {want} for {:?}",
+                            anchor.1
+                        );
+                        assert!(hang > 1.0, "the vine hangs above head height");
+                    }
+                    _ => {
+                        if picked_vine {
+                            // The hash said vine but no canopy stands
+                            // beside it: the anchor gate refuses.
+                            anchorless += 1;
+                            assert!(plant_at(&g, slot).is_none());
+                            assert!(vine_anchor(&g, slot).is_none());
+                        }
+                    }
+                }
+            }
+        }
+        println!("vines: {vines} grown, {anchorless} anchorless picks refused");
+        assert!(vines > 8, "the forest canopy carries vines ({vines})");
+        assert!(anchorless > 0, "the gate actually refuses anchorless picks");
+        // Determinism: the same slot answers the same geometry twice.
+        let slot = (forest.x * 64..forest.x * 64 + 64)
+            .flat_map(|x| {
+                (forest.z * 64..forest.z * 64 + 64).map(move |z| SlotCoord { x, z })
+            })
+            .find(|s| plant_at(&g, *s).map(|p| p.kind) == Some(PlantKind::Vine))
+            .expect("a vine exists");
+        assert_eq!(vine_anchor(&g, slot), vine_anchor(&g, slot), "deterministic");
+    }
+
+    /// Denser-canopy families hang their vines higher: the broadleaf
+    /// crown underside is above the pine skirt cone.
+    #[test]
+    fn hang_laws_follow_the_canopy_shape() {
+        assert!(hang_m(PlantKind::TreeBroadleaf) > hang_m(PlantKind::TreePine));
     }
 
     #[test]

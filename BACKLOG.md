@@ -11,6 +11,33 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The vine anchor concept: the last catalog-only family grows in
+      the wild (2026-09-13, loop 442): the vine's mesh hangs downward
+      from y=0, so the authority gained the missing concept — a vine
+      exists only where a fixed-order 8-neighborhood scan finds a
+      LIVING canopy anchor (broadleaf/pine; airy birch and dead wood
+      carry nothing), and vine_anchor() answers the attach point:
+      0.5-0.7 m lateral of the anchor trunk at the anchor's own ground
+      plus per-family hang laws (pine 1.5 m inside the skirt cone,
+      broadleaf 2.9 m at the crown underside — valid across the
+      canonical AND variant sweeps). Vines joined Forest (0.010) and
+      Highlands (0.004); Plains grows none by design. The renderer
+      draws the vine at its anchor, and the wind sway now weights
+      |mesh y| so the TIP swings under the fixed anchor (upward meshes
+      byte-identical). Laws: the anchor gate (34 grown / 13 anchorless
+      refused in one Forest region), the hang-law shape, and a GPU
+      law (presence 0.154, tip sway at two frozen times). The
+      wilderness proof gained a traveling CANOPY capture that searched
+      the seed, meshed the vine's own ground, and framed the hanging
+      strand (AI-inspected). Deck bench: low 6.89 / mid 12.16 /
+      high 12.44 ms p50 vs 440's 6.79/12.36/12.62 — noise-sized.
+      En-route: the p3d-806 scale law's linear judgment hardened to
+      best-of-k tick cost after the full suite caught the mean
+      tripping under parallel load (the 20 ms sustain budget stays on
+      the mean). Deferred honestly: grass_tuft GLBs stay covered by
+      the deliberate Deck-cheap card field; the CANOPY capture frames
+      one specimen (a wider drape framing is a polish pass).
+
 - [x] The live fall proof: gravity is the world, not the menu
       (2026-09-13, loop 441): the playtest drops the player 8 m onto
       the plaza with the quest journal OPEN and ends wounded
