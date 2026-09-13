@@ -7319,3 +7319,84 @@ expansion regresses the bench. The stale play_eat/play_fall captures
 committed by loop 438 were removed by this cycle's playtest re-run
 (the route emits 10 captures; eat/fall PNGs no longer correspond to
 any running proof).
+
+## 2026-09-13 — loop 441 — THE LIVE FALL PROOF: gravity is the world, not the menu
+
+WHAT: The standing 438 deferral is CLOSED — the semantic playtest now drops
+the player 8 m onto the plaza WITH THE QUEST JOURNAL OPEN and the run ends
+wounded: 'fell 8 m over the open journal (health 33%)' joined the chain
+line, x2 identical bundles + comparator PASS. The investigation also found
+WHY the fall never executed — two real bugs, fixed as physics law.
+
+ROOT CAUSE (the 438/439 '+1.7 m freeze' explained):
+1. The airborne integration lived INSIDE `if gameplay_active` — any open
+   panel (journal/forge/dialog/interact/modal) sets blocks_gameplay() and
+   froze the arc mid-air (falling=true suspends the walk's Y snap, so the
+   body hung at the drop height; the camera reads feet+1.7 m =
+   EYE_ABOVE_FEET — the observed '+1.7 m, zero gravity').
+2. Space was DEAD for real players: jump_vy = 4.6 was granted only when NOT
+   falling and gravity only ran when falling — and the walk's ground snap
+   (the streamed surface answers its height unconditionally) kept everyone
+   glued. The jump could never leave the ground.
+
+HOW (pc3d_render/src/app.rs, slice.rs):
+- integrate_air_arc (pure, unit-lawed): gravity on the FIXED 1/60 s step
+  (substeps = round(dt/FIXED_DT) clamped 1..8 — the same input produces the
+  same arc at any refresh rate; a stalled frame cannot tunnel), landing on
+  the PER-FRAME ground answer of the current column (no stale at-drop-time
+  capture; a drop that starts under terrain self-heals to the surface).
+  SliceHost::integrate_air binds the column and clears `falling`.
+- The arc runs OUTSIDE the gameplay gate: a panel freezes the player's
+  INPUT, never a fall they are already in. Jump start = one Space branch
+  (gameplay-gated like every key) committing the SAME airborne state a drop
+  uses; the duplicate second grant is gone; fall_ground_y removed (slice.rs
+  inits too). Landing damage/toast/plaza-recovery unchanged.
+- The OBSERVE line now reports PASS/FAIL from any_fail (it printed PASS
+  unconditionally even when a route's assertions failed; the exit code was
+  already honest).
+
+LAWS (pc3d_render 189 -> 192): jump_arc_leaves_the_ground_and_lands_safe
+(a 4.6 m/s hop clears ~1 m and lands SAFE per the impact law);
+drop_lands_on_the_current_ground_not_a_stale_answer (a 16 m ledge drop
+lands at the CURRENT answer with the free-fall impact; under-terrain drops
+self-heal); the_arc_is_the_same_fall_at_any_refresh_rate (60 vs 120 fps
+frames, same impact within 0.35 m/s).
+
+THE ROUTE (apps/poorcraft3d/src/main.rs): frame 810 PlayerTeleportHigh
+8 m above the plaza banner column (ground_y_at_pub answers), journal STILL
+open from 740; 840 play_fall_air.png (full health, airborne, panels up);
+the arc lands ~frame 887 on the fixed step (robust across 30..144 fps);
+900 journal closes; 920 play_fall_landed.png (health bar cut to ~1/3, toast
+'FELL — HEALTH 33%', ground level); 960 journal reopens; 985 play_final.png
+keeps the run alive past the reopen so the FINAL ui state carries the live
+quest rows (the run ends at last-capture+1 — found live: the first green-
+except-one run failed with the journal closed at end while every printed
+subcheck was true). Assertions: air+landed exist, air-vs-landed pixel
+difference > 0.03, a toast_FELL* element on the landed dump, final health
+in (0.05, 0.45) — excluding both the dead arc (1.0) and the plaza recovery
+(0.5). max_frames 820 -> 1000.
+
+EVIDENCE: make p3d-playtest x2 — identical chain lines ending 'fell 8 m
+over the open journal (health 33%)' (0.331 both — the fixed step makes the
+wound deterministic), byte-identical bundle.json (diff clean) + comparator
+PASS; captures inspected (air: full bar/journal up/airborne view; landed:
+bar ~1/3 + toast readable + ground level; final: damage persists, journal
+rows live); p3d workspace 640 green (192 render incl. the new laws);
+p3d-smoke OK; p3d-assets OK; root cargo test --workspace green;
+idle-upgrade-check PASS.
+
+LORE IMPACT: no canon data touched. Body physics only — the damaged body
+and the toast copy follow the established HUD voice; the plaza recovery
+remains the winded-at-the-plaza survival baseline. No save/dialogue/faction
+migration (SliceHost is in-memory runtime state).
+
+PERF: no benchmark claim — integrate_air adds <=8 bounded float substeps
+per frame only while airborne; playtest p50 22.2-22.5 ms, in line with
+loop 440's route.
+
+HONESTLY DEFERRED: the lethal landing's plaza-recovery branch stays
+live-code without a route proof (the non-lethal wound is the proven path;
+the recovery constants are unchanged from 438); mid-air steering is
+unchanged (the walk still applies input XZ during the arc — untested as a
+law); the jump has no route proof of its own (the unit arc law plus the
+shared integration the drop proves live cover it).

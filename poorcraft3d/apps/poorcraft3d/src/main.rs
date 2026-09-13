@@ -5135,6 +5135,39 @@ fn run_observe(route_id: &str, out_root: &str) {
                         ctx.actions.push(UiAction::ToggleJournal);
                     }),
                 ));
+                // THE LIVE FALL (the standing deferral, now proven): the
+                // player steps off an 8 m drop above the plaza banner
+                // WITH THE JOURNAL STILL OPEN — gravity is the world,
+                // not the menu, so the arc integrates and lands while
+                // the panel is up. The fixed-step arc lands ~77 frames
+                // in at any refresh rate; the journal closes after.
+                ui_script.push((
+                    810,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(p) = r.plaza_interactable_pos(2) {
+                            let g = r.ground_y_at_pub(p[0], p[2]);
+                            ctx.actions.push(UiAction::PlayerTeleportHigh {
+                                x: p[0],
+                                y: g + 8.0,
+                                z: p[2],
+                            });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    900,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::ToggleJournal); // close
+                    }),
+                ));
+                ui_script.push((
+                    960,
+                    Box::new(|_ui, _r, ctx| {
+                        // Reopen: the run's final state must carry the
+                        // live quest rows (the route asserts them).
+                        ctx.actions.push(UiAction::ToggleJournal);
+                    }),
+                ));
                 shots.push(Shot::new(60, format!("{dir}/play_door_outside.png"))
                     .ui_dump(format!("{dir}/play_door_outside.layout.json")));
                 shots.push(Shot::new(100, format!("{dir}/play_interior.png"))
@@ -5155,6 +5188,15 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/play_journal.layout.json")));
                 shots.push(Shot::new(780, format!("{dir}/play_journal_progress.png"))
                     .ui_dump(format!("{dir}/play_journal_progress.layout.json")));
+                shots.push(Shot::new(840, format!("{dir}/play_fall_air.png"))
+                    .ui_dump(format!("{dir}/play_fall_air.layout.json")));
+                shots.push(Shot::new(920, format!("{dir}/play_fall_landed.png"))
+                    .ui_dump(format!("{dir}/play_fall_landed.layout.json")));
+                // Run-end state capture: the journal is reopened at 960
+                // so the FINAL ui export carries the live quest rows the
+                // route asserts — this shot keeps the run alive past it.
+                shots.push(Shot::new(985, format!("{dir}/play_final.png"))
+                    .ui_dump(format!("{dir}/play_final.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
@@ -5280,7 +5322,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             logical_size: (1280.0, 720.0),
             size_is_physical: true,
             max_frames: if spec.id == "route_semantic_playtest" {
-                Some(820)
+                Some(1000)
             } else {
                 Some(420)
             },
@@ -5470,6 +5512,51 @@ fn run_observe(route_id: &str, out_root: &str) {
                         .count()
                 })
                 .unwrap_or(0);
+            // THE LIVE FALL: the drop fired with the journal still open,
+            // so the arc integrating at all proves gravity survives the
+            // panel. Air vs landed must be different PLACES, the landed
+            // dump must carry the fall toast, and the health the run
+            // ends with must be a real wound (the lethal path would show
+            // the plaza recovery's 0.5; a dead arc would show 1.0).
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let fall_frames_differ = match (
+                capture_by("play_fall_air"),
+                capture_by("play_fall_landed"),
+            ) {
+                (Some(a), Some(b)) => {
+                    pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > 0.03
+                }
+                _ => false,
+            };
+            let fall_toast = capture_by("play_fall_landed")
+                .and_then(|c| c.ui_layout.as_ref())
+                .and_then(|l| l["elements"].as_array())
+                .map(|els| {
+                    els.iter()
+                        .any(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with("toast_FELL"))
+                                .unwrap_or(false)
+                        })
+                })
+                .unwrap_or(false);
+            let health = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["hud"]["health"].as_f64())
+                .unwrap_or(1.0);
+            let fell = has("play_fall_air")
+                && has("play_fall_landed")
+                && fall_frames_differ
+                && fall_toast
+                && health > 0.05
+                && health < 0.45;
             let ok = has("play_door_outside")
                 && has("play_interior")
                 && has("play_talk")
@@ -5488,18 +5575,22 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && active_quests >= 1
                 && progressed_quest
                 && ore > 0
-                && has_bar;
+                && has_bar
+                && fell;
             if ok {
                 println!(
-                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, journal {journal_rows} quests ({active_quests} active, progress live), IRON BAR in stock",
-                    dialog_shown.as_deref().unwrap_or("villager")
+                    "SEMANTIC PLAYTEST: house entered (frames differ), {} talked, {bars} bar(s) forged, {ore} ore harvested, chest+marker read, journal {journal_rows} quests ({active_quests} active, progress live), IRON BAR in stock, fell 8 m over the open journal (health {}%)",
+                    dialog_shown.as_deref().unwrap_or("villager"),
+                    (health * 100.0).round() as u32
                 );
             } else {
                 eprintln!(
-                    "[FAIL] observe {}: captures {} / dialog {} / inside {inside_vs_outside} / bars {bars}",
+                    "[FAIL] observe {}: captures {} / dialog {} / inside {inside_vs_outside} / bars {bars} / fell {fell} (air {} landed {} differ {fall_frames_differ} toast {fall_toast} health {health})",
                     spec.id,
                     report.captures.len(),
-                    dialog_shown.is_some()
+                    dialog_shown.is_some(),
+                    has("play_fall_air"),
+                    has("play_fall_landed"),
                 );
                 any_fail = true;
             }
@@ -5610,8 +5701,9 @@ fn run_observe(route_id: &str, out_root: &str) {
         pc3d_render::observe::stamp_digest(&mut bundle);
         std::fs::write(format!("{dir}/bundle.json"), serde_json::to_string_pretty(&bundle).unwrap()).unwrap();
         println!(
-            "OBSERVE {} -> PASS ({} captures, {} frames, p50 {} ms) -> {dir}/bundle.json",
+            "OBSERVE {} -> {} ({} captures, {} frames, p50 {} ms) -> {dir}/bundle.json",
             spec.id,
+            if any_fail { "FAIL" } else { "PASS" },
             n_shots,
             report.frames,
             perf["p50_ms"]

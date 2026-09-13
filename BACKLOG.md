@@ -11,6 +11,23 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The live fall proof: gravity is the world, not the menu
+      (2026-09-13, loop 441): the playtest drops the player 8 m onto
+      the plaza with the quest journal OPEN and ends wounded
+      ('fell 8 m over the open journal (health 33%)', x2 identical +
+      comparator PASS). The standing 438 deferral's root cause was two
+      real bugs: the airborne arc was gated behind gameplay_active
+      (any open panel froze a fall mid-air — the '+1.7 m zero-gravity'
+      freeze), and Space jump was dead code (gravity only ran while
+      falling while the walk's snap held everyone down). Fixed by a
+      pure fixed-step (1/60 s) integrate_air_arc landing on the
+      per-frame ground answer, running OUTSIDE the gameplay gate, with
+      one Space branch committing the same airborne state; 3 new unit
+      laws (jump lands safe, current-ground landing, refresh
+      independence); the OBSERVE line now reports the real verdict.
+      Deferred honestly: the lethal plaza-recovery branch has no route
+      proof; mid-air steering is untested as a law.
+
 - [x] The thousand-asset families go wild (2026-09-12, loop 440): 20 of
       the 22 new GLB families (920 assets) grow biome-appropriately in
       the played world — forest undergrowth, wetland reeds, ruin heights

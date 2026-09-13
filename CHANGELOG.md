@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## 2026-09-13 — The live fall proof: gravity is the world, not the menu (loop 441)
+
+- Closed the standing 438 deferral: the semantic playtest drops the
+  player 8 m onto the plaza with the quest journal still open and the
+  run ends wounded — `fell 8 m over the open journal (health 33%)`
+  joined the chain line, x2 identical bundles + comparator PASS.
+- The investigation found why the fall never executed — two real
+  bugs, not test flakiness: (1) the airborne integration lived
+  inside `if gameplay_active`, so any open panel froze the arc
+  mid-air (the camera reads feet+1.7 m = EYE_ABOVE_FEET — the
+  "+1.7 m, zero gravity" freeze in the 438/439 notes); (2) Space was
+  dead for real players — jump velocity was granted only when not
+  falling and gravity only ran when falling, while the walk's ground
+  snap kept everyone glued.
+- The fix: `integrate_air_arc` (pure, unit-lawed) integrates gravity
+  on the FIXED 1/60 s step (substeps scale with the frame's real dt,
+  clamped 1..8 — the same arc at any refresh rate) and lands on the
+  PER-FRAME ground answer of the current column (no stale
+  at-drop-time capture; under-terrain drops self-heal). The arc runs
+  OUTSIDE the gameplay gate — a panel freezes input, never a fall
+  already in progress. One Space branch commits the same airborne
+  state a drop uses; the duplicate grant and `fall_ground_y` are
+  gone. The OBSERVE line now reports PASS/FAIL from the real verdict
+  flag (it printed PASS unconditionally).
+- Three new laws (pc3d_render 189 → 192): the jump arc leaves the
+  ground and lands safe; a drop lands on the CURRENT ground with the
+  free-fall impact; the arc is the same fall at 60 and 120 fps.
+- Route evidence: air capture (full health, panels up, airborne),
+  landed capture (health bar ~1/3, `FELL — HEALTH 33%` toast, ground
+  level), final capture (damage persists, journal rows live);
+  assertions exclude both the dead arc (1.0) and the plaza recovery
+  (0.5). p3d workspace 640 green; smoke, assets, root suite,
+  idle-upgrade-check all green.
+- Deferred honestly: the lethal plaza-recovery branch has no route
+  proof; mid-air steering is unchanged and untested as a law; the
+  jump is proven by the unit arc law and the shared live integration,
+  not its own route.
+
 ## 2026-09-12 — The thousand-asset families go wild (loop 440)
 
 - Closed loop 439's deferral: 20 of the 22 new asset families (920

@@ -68,23 +68,12 @@
     },
     {
       "button_state": "",
-      "id": "toast_ORE LOADED (2)",
+      "id": "toast_FELL — HEALTH 33%",
       "kind": "toast",
       "rect": [
-        307,
+        289,
         375,
-        186,
-        16
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "toast_FUEL LOADED",
-      "kind": "toast",
-      "rect": [
-        325,
-        353,
-        150,
+        222,
         16
       ]
     },
@@ -304,7 +293,7 @@
       "rect": [
         140,
         261,
-        166,
+        262,
         14
       ]
     },
@@ -369,14 +358,14 @@
     },
     "focus": 0,
     "forge": {
-      "bars": 0,
-      "blocked": false,
-      "fuel": 0.3166666626930237,
-      "heat": 0.0416666679084301,
-      "ore": 2,
-      "state": "HEATING"
+      "bars": 1,
+      "blocked": true,
+      "fuel": 0.0,
+      "heat": 0.3333333432674408,
+      "ore": 0,
+      "state": "BLOCKED: no ore"
     },
-    "forge_bars_taken": 0,
+    "forge_bars_taken": 1,
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
@@ -386,7 +375,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 1.0,
+      "health": 0.33080101013183594,
       "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -396,7 +385,7 @@
     "journal": null,
     "journal_open": false,
     "modal": null,
-    "ore_harvested": 4,
+    "ore_harvested": 6,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -420,18 +409,15 @@
       }
     ],
     "stock": [
-      "IRON_ORE x2",
+      "IRON_ORE x4",
+      "IRON_BAR x1",
       "WOOD_PICK x1",
       "BREAD x2"
     ],
     "toasts": [
       {
-        "age_s": 0.552285373210907,
-        "text": "FUEL LOADED"
-      },
-      {
-        "age_s": 0.552285373210907,
-        "text": "ORE LOADED (2)"
+        "age_s": 1.5957478284835815,
+        "text": "FELL — HEALTH 33%"
       }
     ],
     "wallet": 0

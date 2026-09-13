@@ -148,11 +148,66 @@ pub struct SliceHost {
     pub credits: i64,
     /// Frame counter for the forge's work tick.
     pub forge_tick_frame: u64,
-    /// Explicit airborne state: the walk must not snap Y while true.
+    /// Explicit airborne state: the walk must not snap Y while true,
+    /// and the arc integrates whether or not a panel blocks input —
+    /// gravity is the world, not the menu.
     pub falling: bool,
-    /// The landing ground captured at drop time (per-frame ground
-    /// answers answer PROP TOPS mid-fall — the fall freezes on them).
-    pub fall_ground_y: f32,
+}
+
+impl SliceHost {
+    /// One frame of the airborne arc for this body (see
+    /// `integrate_air_arc` — the laws live on the pure core). The column
+    /// is fixed for the call (the arc owns only Y), so the ground answer
+    /// binds the player's current X/Z once.
+    pub fn integrate_air(
+        &mut self,
+        dt: f32,
+        ground_at: impl Fn(f32, f32) -> f32,
+    ) -> Option<f32> {
+        let (px, pz) = (self.player.pos[0], self.player.pos[2]);
+        let landed = integrate_air_arc(
+            &mut self.player.pos[1],
+            &mut self.jump_vy,
+            dt,
+            || ground_at(px, pz),
+        );
+        if landed.is_some() {
+            self.falling = false;
+        }
+        landed
+    }
+}
+
+/// The AIRBORNE ARC (pure — the laws live here): gravity integrates on
+/// the FIXED 1/60 s step (the same input produces the same arc at any
+/// refresh rate; substeps scale with the frame's real dt, clamped to a
+/// bounded band so a stalled frame cannot tunnel), landing on the
+/// ground answer of the CURRENT column — a stale at-drop-time answer
+/// cannot catch the body. On landing, y snaps to the ground, vy zeroes,
+/// and the impact velocity returns so the caller applies damage.
+pub fn integrate_air_arc(
+    y: &mut f32,
+    vy: &mut f32,
+    dt: f32,
+    ground: impl Fn() -> f32,
+) -> Option<f32> {
+    const FIXED_DT: f32 = 1.0 / 60.0;
+    const G: f32 = 9.8;
+    let substeps = ((dt / FIXED_DT).round() as u32).clamp(1, 8);
+    for _ in 0..substeps {
+        *vy -= G * FIXED_DT;
+        *y += *vy * FIXED_DT;
+        if *vy <= 0.0 {
+            let g = ground();
+            if *y <= g {
+                *y = g;
+                let impact = *vy;
+                *vy = 0.0;
+                return Some(impact);
+            }
+        }
+    }
+    None
 }
 
 /// A shared handle to the authoritative host for interactive construction:
@@ -314,6 +369,90 @@ mod deliver_tests {
         assert!(d >= 0.99, "a 12 m fall is lethal ({d})");
         let d = damage_from_impact(-9.0);
         assert!((d - 0.24).abs() < 0.01, "2 m/s over costs 24% ({d})");
+    }
+
+    /// THE JUMP ARC: a Space hop leaves the ground, rises, comes back,
+    /// and lands SAFE (the impact law forgives a jump landing).
+    #[test]
+    fn jump_arc_leaves_the_ground_and_lands_safe() {
+        use super::{damage_from_impact, integrate_air_arc};
+        let (mut y, mut vy) = (10.0_f32, 4.6_f32); // the Space frame commits
+        let ground = || 10.0_f32;
+        let mut peak = y;
+        let impact = loop {
+            if let Some(imp) = integrate_air_arc(&mut y, &mut vy, 1.0 / 60.0, ground) {
+                break imp;
+            }
+            peak = peak.max(y);
+            assert!(y >= 9.99, "the arc stays above the ground while airborne");
+        };
+        assert!(
+            (impact + 4.6).abs() < 0.6,
+            "the landing speed mirrors the jump speed ({impact})"
+        );
+        assert_eq!(damage_from_impact(impact), 0.0, "a jump landing is safe");
+        assert!(
+            peak > 10.9 && peak < 11.3,
+            "a 4.6 m/s hop clears about one meter ({peak})"
+        );
+        assert_eq!(y, 10.0, "landed back on the ground");
+    }
+
+    /// THE DROP LANDS ON THE CURRENT GROUND: a body falling over a
+    /// ledge lands at the ledge's ground answer, not a stale one — and
+    /// a drop that starts UNDER the terrain self-heals to the surface.
+    #[test]
+    fn drop_lands_on_the_current_ground_not_a_stale_answer() {
+        use super::{damage_from_impact, integrate_air_arc};
+        // A 16 m drop to a ledge: the landing uses the CURRENT answer.
+        let (mut y, mut vy) = (20.0_f32, 0.0_f32);
+        let ground = || 4.0_f32;
+        let impact = loop {
+            if let Some(imp) = integrate_air_arc(&mut y, &mut vy, 1.0 / 60.0, ground) {
+                break imp;
+            }
+        };
+        assert_eq!(y, 4.0, "landed at the current ground");
+        let expected = -(2.0_f32 * 9.8 * 16.0).sqrt(); // free-fall 16 m
+        assert!(
+            (impact - expected).abs() < 0.4,
+            "impact matches the fallen height ({impact} vs {expected})"
+        );
+        // Dropped under the terrain: the first descending substep lands.
+        let (mut y, mut vy) = (1.0_f32, 0.0_f32);
+        let ground = || 9.0_f32;
+        let impact = integrate_air_arc(&mut y, &mut vy, 1.0 / 60.0, ground)
+            .expect("an under-terrain drop lands at once");
+        assert_eq!(y, 9.0, "self-healed to the surface");
+        assert_eq!(damage_from_impact(impact), 0.0, "an instant landing cannot hurt");
+    }
+
+    /// THE ARC IS REFRESH-INDEPENDENT (portability law: simulation
+    /// independent of display refresh): the same drop integrated at
+    /// 60 fps frames lands with the same impact as at 120 fps frames.
+    #[test]
+    fn the_arc_is_the_same_fall_at_any_refresh_rate() {
+        use super::integrate_air_arc;
+        let run = |frame_dt: f32| -> (f32, f32) {
+            let (mut y, mut vy) = (20.0_f32, 0.0_f32);
+            let ground = || 3.0_f32;
+            for _ in 0..4000 {
+                if let Some(impact) =
+                    integrate_air_arc(&mut y, &mut vy, frame_dt, ground)
+                {
+                    return (y, impact);
+                }
+            }
+            panic!("the arc never landed at dt {frame_dt}");
+        };
+        let (y60, i60) = run(1.0 / 60.0);
+        let (y120, i120) = run(1.0 / 120.0);
+        assert_eq!(y60, 3.0);
+        assert_eq!(y120, 3.0);
+        assert!(
+            (i60 - i120).abs() < 0.35,
+            "the same drop, the same impact ({i60} vs {i120})"
+        );
     }
 
     #[test]
@@ -1042,16 +1181,13 @@ impl App {
                     }
                 }
                 UiAction::PlayerTeleportHigh { x, y, z } => {
-                    let g = self.state.as_ref().map(|s| {
-                        s.renderer.ground_y_at_pub(*x, *z)
-                    });
                     if let Some(slice) = self.cfg.slice_host.as_mut() {
                         slice.player.pos = [*x, *y, *z];
                         slice.jump_vy = 0.0;
                         slice.falling = true;
-                        // The landing target: the ground AT DROP TIME —
-                        // prop tops that appear mid-fall do not catch.
-                        slice.fall_ground_y = g.unwrap_or(*y - 10.0);
+                        // The landing ground is answered PER FRAME under
+                        // the player (integrate_air) — no at-drop-time
+                        // capture to go stale.
                     }
                 }
                 UiAction::PlayerTeleport { x, z } => {
@@ -2428,63 +2564,56 @@ impl App {
                 if slice.falling {
                     slice.player.pos[1] = y_before; // the fall owns Y
                 }
-                // JUMP (the controls spec's Space): a real minimal hop —
-                // vertical velocity + gravity, clamped to the ground.
-                if gameplay_active {
-                    let grounded = slice.jump_vy <= 0.0;
-                    if state.keys.contains(&KeyCode::Space) && grounded && !slice.jump_held {
-                        slice.jump_vy = 4.6;
-                    }
-                    slice.jump_held = state.keys.contains(&KeyCode::Space);
-                    // THE FALL (an explicit airborne state — the walk
-                    // snaps Y every frame, so a fall can only exist
-                    // while we tell it not to): gravity integrates,
-                    // landing applies damage from the impact speed.
-                    let g_here = state.renderer.ground_y_at(
-                        &gen,
-                        slice.player.pos[0],
-                        slice.player.pos[2],
-                    );
-                    let _ = g_here;
-                    if slice.falling {
-                        slice.jump_vy -= 9.8 * dt;
-                        slice.player.pos[1] += slice.jump_vy * dt;
-                        if slice.player.pos[1] <= slice.fall_ground_y {
-                            slice.player.pos[1] = slice.fall_ground_y;
-                            let dmg = damage_from_impact(slice.jump_vy);
-                            slice.falling = false;
-                            slice.jump_vy = 0.0;
-                            if dmg > 0.0 {
-                                state.ui.hud.health =
-                                    (state.ui.hud.health - dmg).max(0.0);
-                                if state.ui.hud.health <= 0.0 {
-                                    let plaza = slice.scene.plan.plaza;
-                                    slice.player.pos = [
-                                        plaza.x as f32 + 0.5,
-                                        slice.player.pos[1],
-                                        plaza.z as f32 + 0.5,
-                                    ];
-                                    state.ui.hud.health = 0.5;
-                                    state.ui.hud.food = (state.ui.hud.food * 0.5).max(0.3);
-                                    state.ui.toast("YOU FELL — RECOVERED AT THE PLAZA");
-                                } else {
-                                    state.ui.toast(format!(
-                                        "FELL — HEALTH {}%",
-                                        (state.ui.hud.health * 100.0) as u8
-                                    ));
-                                }
-                                state.ui_dirty = true;
-                            }
-                        }
-                    } else if gameplay_active
-                        && state.keys.contains(&KeyCode::Space)
-                        && !slice.jump_held
-                    {
-                        slice.jump_vy = 4.6;
-                    }
-                    slice.jump_held = state.keys.contains(&KeyCode::Space);
-                    slice.ground_y = slice.player.pos[1];
+                // JUMP START (the controls spec's Space — an input, so
+                // it waits for gameplay like every key): committing to
+                // the arc flips the SAME airborne state a drop uses.
+                if gameplay_active
+                    && state.keys.contains(&KeyCode::Space)
+                    && !slice.jump_held
+                    && !slice.falling
+                {
+                    slice.falling = true;
+                    slice.jump_vy = 4.6;
                 }
+                slice.jump_held = gameplay_active && state.keys.contains(&KeyCode::Space);
+                // THE AIRBORNE ARC — GRAVITY IS THE WORLD, NOT THE MENU:
+                // a panel freezes the player's INPUT, never a fall they
+                // are already in, so the arc runs OUTSIDE the gameplay
+                // gate (the playtest drops the player with the journal
+                // open — this line is the law it proves). It integrates
+                // on the fixed 1/60 s step and lands on the ground
+                // answer of the CURRENT column; landing applies damage
+                // from the impact speed.
+                if slice.falling {
+                    let impact_vy = slice.integrate_air(dt, |x, z| {
+                        state.renderer.ground_y_at(&gen, x, z)
+                    });
+                    if let Some(impact_vy) = impact_vy {
+                        let dmg = damage_from_impact(impact_vy);
+                        if dmg > 0.0 {
+                            state.ui.hud.health =
+                                (state.ui.hud.health - dmg).max(0.0);
+                            if state.ui.hud.health <= 0.0 {
+                                let plaza = slice.scene.plan.plaza;
+                                slice.player.pos = [
+                                    plaza.x as f32 + 0.5,
+                                    slice.player.pos[1],
+                                    plaza.z as f32 + 0.5,
+                                ];
+                                state.ui.hud.health = 0.5;
+                                state.ui.hud.food = (state.ui.hud.food * 0.5).max(0.3);
+                                state.ui.toast("YOU FELL — RECOVERED AT THE PLAZA");
+                            } else {
+                                state.ui.toast(format!(
+                                    "FELL — HEALTH {}%",
+                                    (state.ui.hud.health * 100.0) as u8
+                                ));
+                            }
+                            state.ui_dirty = true;
+                        }
+                    }
+                }
+                slice.ground_y = slice.player.pos[1];
                 if gameplay_active {
                     state.renderer.crowd_tick(0.35, 1);
                 }
