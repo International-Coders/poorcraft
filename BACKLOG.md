@@ -11,6 +11,33 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The crowd yields: NPC-vs-NPC avoidance (2026-09-13, loop 448,
+      POORCRAFT 3D): the last NWR-009 sim-domain deferral closed.
+      `pc3d_world::npc::step_crowd` is the pure crowd law: no body
+      enters a cell another body stands on or has claimed this tick;
+      a blocked walker yields — one sidestep around the blocker
+      (perpendicular, then back, first free walkable in-patch cell) or
+      stands waiting keeping path and leg; cast order is the only
+      tie-break; `step` split into plan + advance_leg with lone
+      behavior byte-equal (lawed); the sidestep re-paths as Idle so a
+      yield cell can never read as an arrival. `npcs::advance` (the
+      one call site every harness and the live slice uses) delegates
+      to it. Laws x5 (crossing never shares a cell over 400 ticks +
+      declared-site arrivals; head-on yields, arrives, replays
+      bit-identically; the sealed crowd holds the walker; lone
+      trajectory == brain.step; the render-facing advance enforces
+      the law). Evidence: p3d 663 green on the combined tree
+      (446+447+448); p3d-people PASS (motion 1.03%, captures
+      inspected); p3d-playtest x2 + comparator PASS with digest
+      UNCHANGED 05c46411869a857c; smoke/assets OK (digests
+      unchanged). PERF UNAVAILABLE honestly: two deck-bench attempts
+      discarded under measured concurrent load (mid>high inversion;
+      446/447/448 all discarded benches today); report + PNGs
+      restored to HEAD (445's clean record stands); the quiet-host
+      re-read stays queued. Deferred honestly: no windowed ROUTE
+      frames two NPCs yielding (needs main.rs, contended by 446's
+      in-flight work when this job started).
+
 - [x] The geode wakes: the Old Powers' keepers take their anchors
       (2026-09-13, loop 447, root loreforge workspace): the audit's
       spawn-or-cut item resolved by SPAWNING — GeodeGuardian and

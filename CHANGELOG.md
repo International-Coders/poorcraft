@@ -1,5 +1,68 @@
 # CHANGELOG
 
+## 2026-09-13 — The crowd yields: NPC-vs-NPC avoidance (loop 448)
+
+- Closed the last NWR-009 sim-domain deferral ("NPC-vs-NPC
+  avoidance — sim's domain"). Until now `npcs::advance` stepped every
+  brain blind to the others: two walkers on crossing routes occupied
+  the same cell, ghosting through each other in the settlement the
+  game asks you to believe is a working place.
+- THE LAW (`pc3d_world::npc::step_crowd`, pure): each tick, the held
+  set is every body's current cell and the reserved set is the cells
+  already claimed this tick; brains plan then move in cast order —
+  a walker whose next cell is held or reserved YIELDS: it sidesteps
+  one cell around the blocker (perpendicular to the step, then back,
+  first free walkable in-patch cell), or stands waiting with path and
+  leg intact. Cast order is the only tie-break; the sets are never
+  iterated, so the law is deterministic. A vacated cell opens to the
+  crowd next tick. `nav.local_of` became pub for the in-patch
+  walkability read.
+- `NpcBrain::step` split into `plan` + `advance_leg(phase)` with
+  `step` exactly plan+advance — lone behavior byte-equal (pinned by
+  law). The sidestep relocates the body and re-paths next tick as
+  Idle, so a yield cell can never read as an arrival: a Working site
+  is only ever the DECLARED site.
+- Wiring: `npcs::advance` — the one call site every harness, windowed
+  proof, and the live slice steps crowds through — now delegates to
+  `step_crowd`. renderer.rs and app.rs untouched.
+- Laws: crossing walkers never share a cell on any of 400 ticks and
+  both land their declared sites; head-on walkers yield, both arrive,
+  and the scenario replays bit-identically; a walker sealed in by
+  bodies on all three sidestep cells stands waiting 50 ticks with the
+  same cell, path, and leg; a lone brain through `step_crowd` traces
+  `brain.step`'s trajectory tick-for-tick; and through the
+  render-facing `advance`, a staged head-on pair never shares a cell
+  and both arrive (the wiring cannot silently drop the law).
+- Evidence: p3d workspace 663 green ON THE COMBINED TREE (loop 446's
+  committed step law + loop 447's committed root job + this law;
+  pc3d_render 209, pc3d_world 264); `make p3d-people` PASS (12 NPCs,
+  7 draws, stride frames differ 1.03% — motion survives the law;
+  captures inspected: rigs at distinct cells); `make p3d-playtest` x2
+  + comparator PASS with digest UNCHANGED (05c46411869a857c) and the
+  chain line identical ("fell 8 m over the open journal (health
+  33%)") — the law engages only when bodies actually meet, and the
+  playtest's routes never do; p3d-smoke OK (digest dd019eca900f5a61
+  unchanged); p3d-assets OK.
+- PERF: UNAVAILABLE, honestly. Two deck-bench attempts today read
+  9.81/17.41/16.14 then 20.60/36.70/32.56 ms p50 vs 445's clean
+  6.85/12.30/12.56 — both under measured concurrent load, both
+  marked by a mid>high tier inversion (impossible for a µs-scale sim
+  change), both DISCARDED per the standing precedent (446 and 447
+  likewise discarded every bench attempt today — the shared host
+  never went quiet). DECK-BENCH-REPORT.md + the three deck PNGs were
+  RESTORED to HEAD: 445's clean record stands untouched. Analytical
+  bound: two ~92-entry set builds + per-brain lookups per crowd tick
+  — microseconds against 12 ms frames. The quiet-host re-read stays
+  queued (now by three loops).
+- LORE: none touched — unnamed settlement brains; the yield is local
+  perception (a body yields to the body in front of it), never
+  omniscient pathing. No migration (in-memory sim; the sidestep
+  reuses Intent::Idle; no persisted field changed).
+- Deferred honestly: no windowed ROUTE frames two NPCs yielding (the
+  law is unit-lawed + render-lawed; a staged head-on route needs
+  main.rs, which loop 446's in-flight work occupied when this job
+  started); the bench contention guard.
+
 ## 2026-09-13 — The geode wakes: the Old Powers' keepers take their anchors (loop 447)
 
 - Resolved the audit's longest-standing dead-data item by SPAWNING it:

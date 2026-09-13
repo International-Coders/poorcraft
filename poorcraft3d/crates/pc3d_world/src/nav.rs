@@ -72,7 +72,9 @@ impl NavPatch {
         self.height(lx, lz).is_some()
     }
 
-    fn local_of(&self, cell: CellCoord) -> Option<(usize, usize)> {
+    /// Local (column) coords of a world cell inside this patch, or None
+    /// when the cell lies outside it.
+    pub fn local_of(&self, cell: CellCoord) -> Option<(usize, usize)> {
         let o = self.coord.origin();
         let lx = cell.x - o.x.div_euclid(1000) as i32;
         let lz = cell.z - o.z.div_euclid(1000) as i32;

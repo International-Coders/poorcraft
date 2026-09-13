@@ -7981,3 +7981,91 @@ route-harness contention-hardened capture windows (observed on 446's
 route); the guardian does not pathfind out of flooded pockets (no
 fluid-aware nav) — crawlers spawn only on dry ledges by law.
 
+
+## 2026-09-13 — Loop 448: the crowd yields (NPC-vs-NPC avoidance, POORCRAFT 3D)
+
+### What was done
+- Closed the last NWR-009 sim-domain deferral: "NPC-vs-NPC avoidance
+  (sim's domain)". Until this loop, `npcs::advance` stepped every
+  brain blind to the rest of the cast — two walkers on crossing
+  routes occupied the same cell and ghosted through each other in
+  the middle of the settlement.
+- THE LAW (`pc3d_world::npc::step_crowd`, pure, deterministic): per
+  tick, `held` = every body's current cell, `reserved` = cells
+  claimed this tick; brains plan then move in CAST ORDER; a walker
+  whose next cell is held or reserved YIELDS — one sidestep around
+  the blocker (perpendicular to the step, then back; first free,
+  walkable, in-patch cell via the now-public `nav.local_of`), else
+  stands WAITING with path and leg intact. Vacated cells open to the
+  crowd NEXT tick. The sets are never iterated (no hash-order leak).
+- `NpcBrain::step` split into `plan(nav, day_fraction)` +
+  `advance_leg(phase)`; `step` is exactly plan+advance, so lone
+  behavior is unchanged (pinned by the trajectory law). The sidestep
+  (`sidestep_to`) relocates the body and re-paths next tick as Idle —
+  a yield cell can NEVER read as an arrival (a Working site is only
+  ever the declared site; lawed).
+- WIRING: `npcs::advance` in pc3d_render — the ONE call site every
+  windowed proof, the deck bench, and the live slice step crowds
+  through — now delegates to `step_crowd`. renderer.rs / app.rs
+  untouched (both were contended by loop 446's in-flight work when
+  this job started; the whole job was scoped to clean files).
+
+### How
+- pc3d_world/src/npc.rs: plan/advance_leg split, next_cell(),
+  sidestep_to(), step_crowd() + sidestep_cell(); 4 new laws.
+- pc3d_world/src/nav.rs: local_of made pub (pure coordinate read).
+- pc3d_render/src/npcs.rs: advance delegates to step_crowd; 1 new
+  cast-level law (the render-facing entry point enforces the law).
+
+### Verification evidence
+- p3d workspace 663 green / 0 failed ON THE COMBINED TREE (loop
+  446's committed step law + loop 447's committed root job + this
+  law): pc3d_render 209 (208 + the cast law), pc3d_world 264 (260 +
+  4 crowd laws).
+- make p3d-people PASS: 12 NPCs -> 12 part instances in 3 buckets,
+  7 draws; windowed run 151 frames p50 15.25 ms; PEOPLE MOTION
+  stride frames differ 1.03% — motion survives the law. Captures
+  INSPECTED: plaza/stride (settlement + crowd cluster), guard
+  close-up (articulated rigs at DISTINCT cells), anchors.
+- make p3d-playtest PASS x2 + comparator PASS: chain line IDENTICAL
+  ("...IRON BAR in stock, fell 8 m over the open journal (health
+  33%)"); bundle digest UNCHANGED: 05c46411869a857c (computed from
+  the refreshed bundle) — the law engages only when bodies actually
+  meet, and the playtest's routes never do.
+- p3d-smoke OK (digest dd019eca900f5a61 unchanged); p3d-assets OK;
+  idle-upgrade-check PASS.
+- PERF, honestly UNAVAILABLE: two deck-bench attempts read 9.81/
+  17.41/16.14 then 20.60/36.70/32.56 ms p50 vs 445's clean 6.85/
+  12.30/12.56 — both under measured concurrent load, both showing a
+  mid>high tier INVERSION (impossible for a µs-scale sim change —
+  the environment, not the code), both DISCARDED per the precedent
+  (446 discarded two attempts, 447 discarded make perf; three loops,
+  zero clean benches today on this shared host). DECK-BENCH-REPORT.md
+  + windowed_deck_{low,mid,high}.png RESTORED to HEAD — 445's clean
+  record stands untouched; nothing contended was committed.
+  Analytical bound: two ~92-entry set builds + per-brain lookups per
+  crowd tick — microseconds against 12 ms frames.
+
+### Files
+- poorcraft3d/crates/pc3d_world/src/npc.rs (the law + the split +
+  laws), poorcraft3d/crates/pc3d_world/src/nav.rs (local_of pub),
+  poorcraft3d/crates/pc3d_render/src/npcs.rs (wiring + cast law),
+  the four windowed_people_*.png captures, STATE/BACKLOG/CHANGELOG/
+  DEVLOG. No Makefile change (no new target needed — every proof ran
+  through existing targets).
+
+LORE IMPACT: canon touched: none — unnamed settlement brains; no
+faction, place, event, term, NPC, item, or spell data. Locked facts
+preserved: all. World expression: Valdenmoor's settlements are
+working places with people; bodies that hold their ground and step
+aside read as presence — and the yield stays LOCAL (a body yields to
+the body in front of it), honoring the no-omniscient-perception law.
+Migration: none (in-memory per-tick sim; sidestep reuses
+Intent::Idle; no persisted field, save format, dialogue, or proof
+schema changed).
+
+HONESTLY DEFERRED: no windowed ROUTE frames two NPCs yielding (the
+law is unit-lawed + render-lawed; a staged head-on route lives in
+main.rs, which loop 446 occupied when this job started — queued in
+STATE.md next_task); the quiet-host deck-bench re-read (queued by
+446/447/448) + the bench contention guard.

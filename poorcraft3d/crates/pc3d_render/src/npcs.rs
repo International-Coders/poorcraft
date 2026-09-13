@@ -124,14 +124,14 @@ pub fn cast_for(plan: &SettlementPlan, info: &crate::city::CityInfo) -> Vec<NpcC
     ]
 }
 
-/// Steps every brain `ticks` times at `day_fraction` (the deterministic
-/// schedule drives who walks, works, or rests).
+/// Steps the cast's AUTHORITATIVE brains through the world's crowd law:
+/// the schedule still drives who walks, works, or rests, and no body may
+/// enter a cell another body stands on or has claimed this tick — a
+/// blocked walker yields (sidesteps around the blocker or waits keeping
+/// its route). Deterministic in cast order.
 pub fn advance(cast: &mut [NpcCast], nav: &NavPatch, day_fraction: f32, ticks: usize) {
-    for c in cast {
-        for _ in 0..ticks {
-            c.brain.step(nav, day_fraction);
-        }
-    }
+    let mut brains: Vec<&mut NpcBrain> = cast.iter_mut().map(|c| &mut c.brain).collect();
+    pc3d_world::npc::step_crowd(&mut brains, nav, day_fraction, ticks);
 }
 
 fn push_box(
@@ -645,6 +645,54 @@ mod tests {
             .collect();
         println!("npcs after +400 ticks: positions {after:?} intents {intents:?}");
         let _ = before;
+    }
+
+    /// THE CROWD LAW through the render-facing entry point: two cast
+    /// members whose routes cross never share a cell on any tick, and
+    /// both still land their real work sites (the wiring cannot silently
+    /// drop the world's yield law).
+    #[test]
+    fn the_crowd_yields_through_advance() {
+        let (_gen, plan, nav, info) = scene();
+        let mut cast = cast_for(&plan, &info);
+        assert!(cast.len() >= 2, "the showcase cast has walkers");
+        // Stage a head-on crossing on one row of the nav patch (the
+        // proof-cast staging shape: hand intents through the same
+        // Walking the sim plans).
+        let o = nav.coord.origin();
+        let cell = |dx: i32, dz: i32| pc3d_world::coords::CellCoord {
+            x: o.x.div_euclid(1000) as i32 + dx,
+            y: 0,
+            z: o.z.div_euclid(1000) as i32 + dz,
+        };
+        let mk = |c: &mut NpcCast, from: pc3d_world::coords::CellCoord,
+                  site: pc3d_world::coords::CellCoord| {
+            let path = nav.path(from, site).expect("row routes exist");
+            c.brain.work_site = site;
+            c.brain.pos = from;
+            c.brain.intent = pc3d_world::npc::Intent::Walking { path, leg: 1 };
+        };
+        // The first routable middle row (deterministic probe — settlement
+        // ground varies by plan, the plaza center always walks).
+        let row = (4..=11)
+            .find(|&lz| nav.path(cell(2, lz), cell(12, lz)).is_some())
+            .expect("the plaza has a routable row");
+        mk(&mut cast[0], cell(2, row), cell(12, row));
+        mk(&mut cast[1], cell(9, row), cell(1, row));
+        for tick in 0..300 {
+            advance(&mut cast, &nav, 0.5, 1);
+            assert_ne!(
+                (cast[0].brain.pos.x, cast[0].brain.pos.z),
+                (cast[1].brain.pos.x, cast[1].brain.pos.z),
+                "tick {tick}: rendered bodies share a cell"
+            );
+        }
+        let arrived = |b: &NpcBrain| {
+            matches!(b.intent, pc3d_world::npc::Intent::Working { site }
+                if (site.x, site.z) == (b.work_site.x, b.work_site.z))
+        };
+        assert!(arrived(&cast[0].brain), "eastbound walker arrived");
+        assert!(arrived(&cast[1].brain), "westbound walker arrived");
     }
 
     #[test]
