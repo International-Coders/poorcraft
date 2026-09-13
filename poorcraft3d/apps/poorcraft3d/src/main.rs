@@ -5081,6 +5081,63 @@ fn find_dig_spot_pair(
     None
 }
 
+/// THE DIG VERB's spot: the walk-off's flat flora-free cell, gated to a
+/// surface the route can actually take BARE-HANDED (Grass/Soil/Sand/
+/// Snow — never Rock: the route presses G with no pick staged) and to a
+/// gentle strip toward -z so the terrace step down/up is the only
+/// elevation change the walk meets.
+fn find_dig_spot_barehand(
+    gen: &pc3d_world::gen::WorldGen,
+    plaza_x: f32,
+    plaza_z: f32,
+) -> Option<[f32; 3]> {
+    use pc3d_world::gen::CellMaterial;
+    let ground_at = |x: f32, z: f32| -> f32 {
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    for ring_m in [8.0f32, 12.0, 16.0, 20.0, 24.0, 28.0] {
+        for k in 0..24 {
+            let a = k as f32 / 24.0 * std::f32::consts::TAU;
+            let cx = plaza_x + ring_m * a.cos();
+            let cz = plaza_z + ring_m * a.sin();
+            let cell = pc3d_world::coords::CellCoord {
+                x: cx as i32,
+                y: 0,
+                z: cz as i32,
+            };
+            let sx = cell.x as f32 + 0.5;
+            let sz = cell.z as f32 + 0.5;
+            if !dig_spot_ok(gen, sx, sz) {
+                continue;
+            }
+            let g = ground_at(sx, sz);
+            let region = pc3d_world::coords::RegionCoord {
+                x: cell.x.div_euclid(256),
+                z: cell.z.div_euclid(256),
+            };
+            let material = pc3d_world::gen::cell_material(
+                gen.biome(region),
+                (g.floor() as i64) * 1000,
+                (g * 1000.0) as i64,
+            );
+            if !matches!(
+                material,
+                CellMaterial::Grass | CellMaterial::Soil | CellMaterial::Sand | CellMaterial::Snow
+            ) {
+                continue;
+            }
+            let strip_ok = [1.0f32, 1.5, 2.0, 2.5, 3.0, 3.5]
+                .iter()
+                .all(|d| (ground_at(sx, sz - d) - g).abs() <= 0.5);
+            if !strip_ok {
+                continue;
+            }
+            return Some([sx, g, sz]);
+        }
+    }
+    None
+}
+
 /// WT-003: run one observatory route and write its evidence bundle.
 fn run_observe(route_id: &str, out_root: &str) {
     use pc3d_render::ui::{self, Screen, UiAction};
@@ -5164,6 +5221,11 @@ fn run_observe(route_id: &str, out_root: &str) {
         // floor, and the pit + step cell centers — the verdict reads
         // them after the run.
         let pitwall_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 24]));
+        // route_dig recordings: approach pose/health/live ground, the
+        // aim's target cell + its pre/control ground, post-dig grounds,
+        // on-terrace pose/health + live ground at the body, back pose/
+        // health + live ground at the body.
+        let dig_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 24]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -5737,10 +5799,15 @@ fn run_observe(route_id: &str, out_root: &str) {
                         });
                     }),
                 ));
-                // Mid-fall record (~30 frames into the ~61-frame fall).
+                // Mid-fall record (contention-hardened window: the
+                // arc's rendered-frame span varies with the host's frame
+                // pace — frame 112 catches the body 1-3 m down at every
+                // pace observed on this host, well clear of both the
+                // edge and the floor; the pose band below stays the
+                // physical claim).
                 let mid = walkoff_cells.clone();
                 ui_script.push((
-                    120,
+                    112,
                     Box::new(move |_ui, r, _ctx| {
                         let pose = r.pose();
                         let mut v = mid.get();
@@ -5766,7 +5833,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ));
                 shots.push(Shot::new(70, format!("{dir}/walk_edge.png"))
                     .ui_dump(format!("{dir}/walk_edge.layout.json")));
-                shots.push(Shot::new(120, format!("{dir}/walk_air.png"))
+                shots.push(Shot::new(112, format!("{dir}/walk_air.png"))
                     .ui_dump(format!("{dir}/walk_air.layout.json")));
                 shots.push(Shot::new(190, format!("{dir}/walk_landed.png"))
                     .ui_dump(format!("{dir}/walk_landed.layout.json")));
@@ -5954,6 +6021,155 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/pit_step.layout.json")));
                 shots.push(Shot::new(340, format!("{dir}/pit_final.png"))
                     .ui_dump(format!("{dir}/pit_final.layout.json")));
+            }
+            "route_dig" => {
+                // THE DIG IS IN YOUR HANDS (loop 450): the player-facing
+                // dig verb on the live surface-edit path. The body stands
+                // on a flat bare-hand-diggable cell near the plaza and
+                // presses G once through the REAL UI reducer (ui::on_key
+                // — the same fn the window event loop drives), aimed
+                // STEEP so the dig takes the body's OWN column (the
+                // underfoot law): the targeted cell drops one walkable
+                // meter — sampled at the body's own standing point, so
+                // the verdict needs no kernel-blur band — the take is
+                // credited, and the toast names it. The walk's step law
+                // snaps the body down the one meter UNWOUNDED (a 5 m dig
+                // would wound — the walk-off route holds that half).
+                // The body then walks one step back UP onto the rim —
+                // the same meter the wall law refuses at twice the
+                // depth (the pit-wall route holds that half; this route
+                // walks the shallow half, unhurt, both ways).
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                let [sx, sg, sz] = find_dig_spot_barehand(
+                    gen,
+                    plaza.x as f32 + 0.5,
+                    plaza.z as f32 + 0.5,
+                )
+                .unwrap_or_else(|| {
+                    panic!(
+                        "route_dig: no flat bare-hand diggable cell near the plaza on seed {seed}"
+                    )
+                });
+                println!("DIG: spot ({sx:.1},{sg:.2},{sz:.1})");
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                ui_script.push((
+                    30,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                    }),
+                ));
+                // The deterministic aim: STEEP down — the underfoot law
+                // gives the body's own column.
+                ui_script.push((
+                    60,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                // Approach + THE AIM record: the route resolves the
+                // expected target with the SAME pure fn the verb uses,
+                // over the SAME live ground answer — the verdict
+                // anchors every band to these numbers.
+                let aim = dig_cells.clone();
+                ui_script.push((
+                    70,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let fwd = pc3d_render::camera::fwd_of(pose.yaw, pose.pitch);
+                        let ground = |x: f32, z: f32| r.ground_y_at_pub(x, z);
+                        let mut v = aim.get();
+                        v[0] = pose.position[0];
+                        v[1] = pose.position[1];
+                        v[2] = pose.position[2];
+                        v[3] = ui.hud.health;
+                        v[4] = ground(pose.position[0], pose.position[2]);
+                        if let Some((tx, tz)) = pc3d_render::player::dig_target(
+                            &ground,
+                            pose.position,
+                            fwd,
+                            pc3d_render::player::DIG_REACH_M,
+                        ) {
+                            v[5] = tx as f32;
+                            v[6] = tz as f32;
+                            v[7] = ground(tx as f32 + 0.5, tz as f32 + 0.5);
+                            // Control column: 3 beyond the target.
+                            v[8] = ground(tx as f32 + 0.5, tz as f32 - 2.5);
+                            v[19] = 1.0;
+                        }
+                        aim.set(v);
+                    }),
+                ));
+                // THE PRESS (the real UI input path — no staging edit).
+                ui_script.push((
+                    95,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('g'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Post-dig ground record: the body's own column drops
+                // exactly one step (same sample point as pre-dig); the
+                // control column is untouched.
+                let post = dig_cells.clone();
+                ui_script.push((
+                    130,
+                    Box::new(move |ui, r, _ctx| {
+                        let v0 = post.get();
+                        let (tx, tz) = (v0[5] as i32, v0[6] as i32);
+                        let mut v = v0;
+                        v[9] = r.ground_y_at_pub(tx as f32 + 0.5, tz as f32 + 0.5);
+                        v[10] = r.ground_y_at_pub(tx as f32 + 0.5, tz as f32 - 2.5);
+                        let pose = r.pose();
+                        v[11] = pose.position[0];
+                        v[12] = pose.position[1];
+                        v[13] = pose.position[2];
+                        v[14] = ui.hud.health;
+                        v[20] = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                        post.set(v);
+                    }),
+                ));
+                // Turn +z and walk one step back up onto the rim. Eighteen
+                // frames clear the border at every observed frame rate
+                // (0.07-0.13 m per frame), and everything beyond is rim —
+                // overshoot cannot fail the beat.
+                ui_script.push((
+                    150,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace {
+                            yaw: std::f32::consts::PI,
+                            pitch: -0.15,
+                        });
+                    }),
+                ));
+                key_script.push((155, 173, vec![pc3d_render::KeyCode::KeyW]));
+                let back = dig_cells.clone();
+                ui_script.push((
+                    185,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = back.get();
+                        v[15] = pose.position[0];
+                        v[16] = pose.position[1];
+                        v[17] = pose.position[2];
+                        v[18] = ui.hud.health;
+                        v[21] = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                        back.set(v);
+                    }),
+                ));
+                shots.push(Shot::new(85, format!("{dir}/dig_before.png"))
+                    .ui_dump(format!("{dir}/dig_before.layout.json")));
+                shots.push(Shot::new(105, format!("{dir}/dig_after.png"))
+                    .ui_dump(format!("{dir}/dig_after.layout.json")));
+                shots.push(Shot::new(130, format!("{dir}/on_terrace.png"))
+                    .ui_dump(format!("{dir}/on_terrace.layout.json")));
+                shots.push(Shot::new(185, format!("{dir}/terrace_back.png"))
+                    .ui_dump(format!("{dir}/terrace_back.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
@@ -6672,6 +6888,102 @@ fn run_observe(route_id: &str, out_root: &str) {
                 any_fail = true;
             }
         }
+        // THE DIG VERB: one real G press dug the aimed column exactly
+        // one walkable step (control untouched), the take is on screen,
+        // and the terrace was WALKED — down onto the dug cell and back
+        // up onto the rim, unhurt.
+        if spec.id == "route_dig" {
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let has = |name: &str| capture_by(name).is_some();
+            let differ = |a: &str, b: &str, bar: f32| {
+                match (capture_by(a), capture_by(b)) {
+                    (Some(a), Some(b)) => {
+                        pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > bar
+                    }
+                    _ => false,
+                }
+            };
+            let element_in = |name: &str, prefix: &str| {
+                capture_by(name)
+                    .and_then(|c| c.ui_layout.as_ref())
+                    .and_then(|l| l["elements"].as_array())
+                    .map(|els| {
+                        els.iter().any(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with(prefix))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            };
+            let v = dig_cells.get();
+            let eye = pc3d_render::player::EYE_ABOVE_FEET;
+            let approached = v[19] > 0.5 && (v[1] - eye - v[4]).abs() <= 0.2;
+            let target_dug = (v[9] - (v[7] - 1.0)).abs() <= 0.15;
+            let control_untouched = (v[10] - v[8]).abs() <= 0.05;
+            // On the terrace: the body STANDS (feet glued to the live
+            // ground answer — no fall, the one-meter snap of the step
+            // law), on the dug floor's own answer (same sample point —
+            // no kernel blur at the dug cell's center), one step below
+            // the pre-dig ground, inside the dug column's z band.
+            let tz = v[6];
+            let on_terrace = (v[12] - eye - v[20]).abs() <= 0.05
+                && (v[20] - v[9]).abs() <= 0.15
+                && v[20] <= v[7] - 0.6
+                && v[20] >= v[7] - 1.35
+                && v[13] >= tz
+                && v[13] < tz + 1.0
+                && (v[11] - v[0]).abs() <= 0.5;
+            // Back on the rim: standing again, feet at the approach
+            // ground, clear of the dug cell (body radius included).
+            let back_on_rim = (v[16] - eye - v[21]).abs() <= 0.05
+                && (v[16] - eye - v[4]).abs() <= 0.25
+                && v[17] >= tz + 1.45;
+            // The terrace is SAFE: one-meter steps never wounded the
+            // body (the pit routes' falls did).
+            let unhurt = v[14] > 0.99
+                && v[18] > 0.99
+                && (v[3] - v[14]).abs() <= 0.02
+                && (v[14] - v[18]).abs() <= 0.02;
+            let dug_toast = element_in("dig_after", "toast_DUG");
+            let prompt_carries_dig = element_in("dig_before", "prompt");
+            let ground_differs = differ("dig_before", "dig_after", 0.005);
+            let walk_differs = differ("on_terrace", "terrace_back", 0.005);
+            let ok = has("dig_before")
+                && has("dig_after")
+                && has("on_terrace")
+                && has("terrace_back")
+                && approached
+                && target_dug
+                && control_untouched
+                && on_terrace
+                && back_on_rim
+                && unhurt
+                && dug_toast
+                && prompt_carries_dig
+                && ground_differs
+                && walk_differs;
+            if ok {
+                println!(
+                    "DIG VERB: G dug ({:.0},{:.0}) {:.2} -> {:.2}; terrace walked {:.2} -> back {:.2}; health {:.0}% -> {:.0}%",
+                    v[5], v[6], v[7], v[9], v[12] - eye, v[16] - eye, v[3] * 100.0, v[18] * 100.0
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / approached {approached} / target_dug {target_dug} / control {control_untouched} / on_terrace {on_terrace} / back {back_on_rim} / unhurt {unhurt} / toast {dug_toast} / prompt {prompt_carries_dig} / ground_differ {ground_differs} / walk_differ {walk_differs} (ground {:.2}->{:.2} control {:.2}->{:.2} eyes {:.2}->{:.2} z {:.2}->{:.2} x {:.2} live_ground {:.2}/{:.2} pitch {:.2})",
+                    spec.id,
+                    report.captures.len(),
+                    v[7], v[9], v[8], v[10], v[12] - eye, v[16] - eye, v[13], v[17], v[11], v[20], v[21], v[22],
+                );
+                any_fail = true;
+            }
+        }
         // The house-entry route: outside-the-door and interior captures
         // must exist and differ substantially (a different PLACE, not a
         // nudge). The collision walk law is the unit test.
@@ -7146,7 +7458,7 @@ fn run_ui_shots(out_dir: &str) {
                 ui.hud.food = 0.70;
                 ui.hud.xp = 0.50;
                 ui.hud.selected = 3;
-                ui.hud.prompt = "F BUILD ROCK · R REMOVE · B SAVE · L LOAD · I INSPECT".into();
+                ui.hud.prompt = "F BUILD ROCK · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT".into();
                 ui.toast("SAVED 'REBUILD'");
             }),
         ),

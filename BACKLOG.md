@@ -11,6 +11,46 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The dig is in your hands: the player-facing dig verb (2026-09-13,
+      loop 450, POORCRAFT 3D): closed STATE's next_task item (1) — G
+      digs the ground under the crosshair through 446's live
+      EditSurface path. THE TARGET (pure, `player::dig_target`): the
+      look ray marches the SAME live ground answer the walk stands on
+      and the picture draws (streamed delta layer included) — first
+      column met within the build verb's 8 m reach; dug terraces move
+      the aim past them, walls take the dig at the face, a steep gaze
+      digs underfoot (the walk-off trick is now a legal verb). THE
+      TAKE: `harvest_yields` (the existing tested drop table) gains
+      its player-facing consumer — soil/sand/snow bare-handed, stone
+      needs a pick, grass yields soil+wood; new `Inventory::can_fit`
+      answers BEFORE the edit (a take that can't be carried never
+      breaks ground); a taking dig is Excavated quest progress. THE
+      INPUT: the real UI path — `ui_key` KeyG -> `ui::on_key` ->
+      `UiAction::DigAtCrosshair` (the forge keeps G while open;
+      panels own the frame); refusals are honest toasts
+      ("NEED A PICK FOR STONE" / "PACK FULL - THE GROUND HOLDS" /
+      "NO GROUND IN REACH"), takes toast their names ("DUG
+      SOIL+WOOD"). HUD prompt + Settings keymap gained G DIG. Route
+      proof: `make p3d-dig` (route_dig: the body G-digs its own cell
+      aimed steep — exactly 1.00 m down at the standing point,
+      control untouched, the step law snaps it down UNWOUNDED, one
+      step walks back up) x2 identical + comparator PASS, captures
+      inspected. EN-ROUTE (prior-proof fix, the carried
+      contention-window deferral): route_walk_off's frame-120
+      mid-air window predated this week's ~22.5 ms windowed pace and
+      caught the body 0.19 m above the floor twice — re-timed to
+      frame 112 (mid 53.62 = 2.57 m down; the physical band is
+      unchanged). Evidence: p3d 675 green (pc3d_render 220,
+      pc3d_world 265); walkoff x2 PASS + comparator; playtest x2
+      digest UNCHANGED 05c46411869a857c; climb/steer x2 unchanged;
+      smoke OK (dd019eca900f5a61); assets OK. PERF: no claim — the
+      dig works ON PRESS only (one <=80-sample march + edit + remesh,
+      allocation-free); host shared, no bench per the 445-449
+      precedent. Deferred honestly: multiplayer routing of terrain
+      edits; an inventory readout to SEE the take as a number; geode
+      pairing (447's keepers are root-workspace lore — p3d gets its
+      own Old-Powers expression later).
+
 - [x] The wall holds: the up-step half of the walk law (2026-09-13,
       loop 449, POORCRAFT 3D): the streamed surface's ground snap
       accepted ANY rise (`pos[1] - g <= SUPPORT_GAP_M` is trivially

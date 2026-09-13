@@ -1655,6 +1655,109 @@ impl App {
                         s.ui_dirty = true;
                     }
                 }
+                UiAction::DigAtCrosshair => {
+                    // THE DIG VERB (G): the crosshair's live ground
+                    // target — the same streamed answer the walk stands
+                    // on and the picture draws — then the gated take
+                    // (pick tier, pack room) decided BEFORE the ground
+                    // breaks, the one-step edit through the same live
+                    // surface path, and the yield credited to the
+                    // inventory.
+                    let looked = {
+                        let slice = self.cfg.slice_host.as_ref();
+                        let state = self.state.as_ref();
+                        match (slice, state) {
+                            (Some(slice), Some(s)) => {
+                                let pose = s.renderer.pose();
+                                let fwd = crate::camera::fwd_of(pose.yaw, pose.pitch);
+                                let ground =
+                                    |x: f32, z: f32| s.renderer.ground_y_at_pub(x, z);
+                                crate::player::dig_target(
+                                    &ground,
+                                    pose.position,
+                                    fwd,
+                                    crate::player::DIG_REACH_M,
+                                )
+                                .map(|(x, z)| {
+                                    let g = ground(x as f32 + 0.5, z as f32 + 0.5);
+                                    let region = pc3d_world::coords::RegionCoord {
+                                        x: x.div_euclid(256),
+                                        z: z.div_euclid(256),
+                                    };
+                                    let surface_mm = (g * 1000.0) as i64;
+                                    let wy_mm = (g.floor() as i64) * 1000;
+                                    let material = pc3d_world::gen::cell_material(
+                                        slice.scene.gen.biome(region),
+                                        wy_mm,
+                                        surface_mm,
+                                    );
+                                    let tier = best_pick_tier(&slice.inventory);
+                                    let outcome = dig_outcome(material, tier);
+                                    let carried = match &outcome {
+                                        DigOutcome::NeedPick => false,
+                                        DigOutcome::Take(ys) => ys
+                                            .iter()
+                                            .all(|(id, n)| slice.inventory.can_fit(*id, *n)),
+                                    };
+                                    (x, z, g, outcome, carried)
+                                })
+                            }
+                            _ => None,
+                        }
+                    };
+                    let toast = match looked {
+                        None => "NO GROUND IN REACH".to_string(),
+                        Some((_, _, _, DigOutcome::NeedPick, _)) => {
+                            "NEED A PICK FOR STONE".to_string()
+                        }
+                        Some((_, _, _, _, false)) => {
+                            "PACK FULL - THE GROUND HOLDS".to_string()
+                        }
+                        Some((x, z, _, DigOutcome::Take(yields), true)) => {
+                            let names = yields
+                                .iter()
+                                .map(|(id, _)| {
+                                    pc3d_world::items::item_name(*id).to_uppercase()
+                                })
+                                .collect::<Vec<_>>()
+                                .join("+");
+                            let ok = self
+                                .state
+                                .as_mut()
+                                .map(|s| {
+                                    s.renderer.surface_edit(
+                                        pc3d_world::coords::CellCoord { x, y: 0, z },
+                                        -crate::player::DIG_DEPTH_M,
+                                    )
+                                })
+                                .unwrap_or(false);
+                            if ok {
+                                if let Some(slice) = self.cfg.slice_host.as_mut() {
+                                    for (id, n) in &yields {
+                                        slice.inventory.add(*id, *n);
+                                    }
+                                    // A dig that takes is excavation
+                                    // progress (the authority decides
+                                    // what counts — same as the
+                                    // harvest and removal verbs).
+                                    let total: u8 = yields.iter().map(|(_, n)| *n as u8).sum();
+                                    let _ = self.submit_quest_event(
+                                        pc3d_world::quest::QuestEvent::Excavated {
+                                            cells: total,
+                                        },
+                                    );
+                                }
+                                format!("DUG {names}")
+                            } else {
+                                "NO GROUND TO EDIT".to_string()
+                            }
+                        }
+                    };
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.toast(toast);
+                        s.ui_dirty = true;
+                    }
+                }
                 UiAction::ToggleJournal => {
                     // The quest journal: rows from the pure authority
                     // (plan_quests for the spawn region), cached on
@@ -2392,7 +2495,7 @@ impl ApplicationHandler for App {
             state.renderer.set_hud_line("");
             state.ui.session_live = self.cfg.slice_setup.is_some() || self.cfg.slice_host.is_some();
             if state.ui.session_live {
-                state.ui.hud.prompt = "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT".into();
+                state.ui.hud.prompt = "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT".into();
                 // The talk prompt: name the villager in range, live.
                 if state.ui.dialog.is_none() {
                     if let Some((name, _, _)) = state.renderer.nearest_talk_target() {
@@ -3200,7 +3303,7 @@ impl App {
                 let p = slice.player.pos;
                 let fd = ((p[0] - pz[0]).powi(2) + (p[2] - pz[1]).powi(2)).sqrt();
                 let forge_near = fd <= 3.5;
-                let base = "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT";
+                let base = "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT";
                 // The deliver prompt: standing at an ACTIVE Deliver
                 // quest's site with bars in stock.
                 let deliver_ready = slice
@@ -3465,6 +3568,39 @@ impl App {
 
 }
 
+/// THE DIG OUTCOME (pure): what one press of the dig verb takes from a
+/// column of `material` with the best pick tier in the pack — decided
+/// BEFORE the ground breaks, so a refusal never edits the surface.
+#[derive(Debug, PartialEq)]
+pub enum DigOutcome {
+    /// No take: bare hands on stone (the only reachable refusal for a
+    /// column that has ground).
+    NeedPick,
+    Take(Vec<(pc3d_world::items::ItemId, u32)>),
+}
+
+pub fn dig_outcome(
+    material: pc3d_world::gen::CellMaterial,
+    tool_tier: Option<u8>,
+) -> DigOutcome {
+    match pc3d_world::items::harvest_yields(material, tool_tier) {
+        ys if ys.is_empty() => DigOutcome::NeedPick,
+        ys => DigOutcome::Take(ys),
+    }
+}
+
+/// The best pick tier carried (iron 2 > stone/wood 1); bare hands None.
+fn best_pick_tier(inventory: &pc3d_world::items::Inventory) -> Option<u8> {
+    use pc3d_world::items::ItemId;
+    if inventory.count(ItemId(11)) > 0 {
+        Some(2)
+    } else if inventory.count(ItemId(10)) > 0 || inventory.count(ItemId(12)) > 0 {
+        Some(1)
+    } else {
+        None
+    }
+}
+
 /// Map winit keycodes onto the UI's abstract key set (None: not a UI key).
 fn ui_key(code: KeyCode) -> Option<Key> {
     Some(match code {
@@ -3480,6 +3616,7 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         KeyCode::KeyJ => Key::Char('j'),
         KeyCode::KeyD => Key::Char('d'),
         KeyCode::KeyX => Key::Char('x'),
+        KeyCode::KeyG => Key::Char('g'),
         KeyCode::Digit1 | KeyCode::Numpad1 => Key::Digit(1),
         KeyCode::Digit2 | KeyCode::Numpad2 => Key::Digit(2),
         KeyCode::Digit3 | KeyCode::Numpad3 => Key::Digit(3),
@@ -3574,6 +3711,66 @@ mod tests {
         s.screen = Screen::Gameplay;
         s.modal = Some(ModalKind::QuitToDesktop);
         assert!(s.blocks_gameplay());
+    }
+
+    #[test]
+    fn the_dig_gates_its_take_before_the_ground_breaks() {
+        use pc3d_world::gen::CellMaterial as CM;
+        use pc3d_world::items::ItemId;
+        // Bare hands on soil: the take is soil.
+        assert_eq!(
+            dig_outcome(CM::Soil, None),
+            DigOutcome::Take(vec![(ItemId(5), 1)]),
+        );
+        // Grass: soil AND wood (the surface's own bounty).
+        assert_eq!(
+            dig_outcome(CM::Grass, None),
+            DigOutcome::Take(vec![(ItemId(5), 1), (ItemId(1), 1)]),
+        );
+        // Bare hands on rock: refused — the pick toast, no edit.
+        assert_eq!(dig_outcome(CM::Rock, None), DigOutcome::NeedPick);
+        // Any pick takes stone.
+        assert_eq!(
+            dig_outcome(CM::Rock, Some(1)),
+            DigOutcome::Take(vec![(ItemId(2), 1)]),
+        );
+    }
+
+    #[test]
+    fn the_dig_key_reaches_the_ui_through_the_real_input_map() {
+        // The window event loop maps KeyG first (ui_key); the pure UI
+        // then fires the verb while no panel owns the frame.
+        assert_eq!(ui_key(KeyCode::KeyG), Some(Key::Char('g')));
+        let mut s = UiState::default();
+        s.screen = Screen::Gameplay;
+        let acts = ui::on_key(&mut s, Key::Char('g'));
+        assert!(
+            acts.contains(&UiAction::DigAtCrosshair),
+            "G in open gameplay must fire the dig verb: {acts:?}"
+        );
+        // The forge panel owns G while it is open (fuel loading wins).
+        s.forge = Some(crate::ui::ForgeView {
+            state_label: "IDLE".into(),
+            blocked: false,
+            fuel_frac: 0.0,
+            heat_frac: 0.0,
+            ore: 0,
+            bars: 0,
+        });
+        let acts = ui::on_key(&mut s, Key::Char('g'));
+        assert!(
+            !acts.contains(&UiAction::DigAtCrosshair)
+                && acts.contains(&UiAction::ForgeLoadFuel),
+            "the open forge keeps G: {acts:?}"
+        );
+        // And a world edit is never made behind a journal.
+        s.forge = None;
+        s.journal = Some(Vec::new());
+        let acts = ui::on_key(&mut s, Key::Char('g'));
+        assert!(
+            !acts.contains(&UiAction::DigAtCrosshair),
+            "panels own the frame — no dig behind them: {acts:?}"
+        );
     }
 
     #[test]

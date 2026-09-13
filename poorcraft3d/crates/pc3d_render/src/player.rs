@@ -48,6 +48,40 @@ pub fn rise_accepted(rise: f32, slope: Option<f32>, move_m: f32) -> bool {
     rise <= SUPPORT_GAP_M || rise <= crate::surface::MAX_WALK_SLOPE * move_m + 1e-4
 }
 
+/// One press of the dig verb lowers the targeted column's ground this
+/// far — exactly one walking step (the rise law admits <= 1.05 m), so a
+/// single dig is a terrace a body can step down into AND back out of;
+/// deeper shafts are dug by repeated presses and then HOLD the body
+/// (the wall law) until terraces carry the climber out.
+pub const DIG_DEPTH_M: f32 = 1.0;
+/// The dig reaches as far as the build verb's placement ray.
+pub const DIG_REACH_M: f32 = 8.0;
+
+/// THE DIG TARGET (pure): march the look ray and answer the first
+/// column whose LIVE ground the ray enters, within reach. The ground
+/// closure is the same streamed answer the walk stands on and the
+/// picture draws (delta layer included), so the verb can never target
+/// ground the player cannot see or stand on — re-aiming at a dug
+/// terrace flies over it to the next surface. A level gaze across flat
+/// ground digs nothing; a wall ahead takes the dig at its face.
+pub fn dig_target(
+    ground: &dyn Fn(f32, f32) -> f32,
+    eye: [f32; 3],
+    fwd: [f32; 3],
+    reach_m: f32,
+) -> Option<(i32, i32)> {
+    const STEP: f32 = 0.1;
+    let mut t = STEP;
+    while t <= reach_m {
+        let p = [eye[0] + fwd[0] * t, eye[1] + fwd[1] * t, eye[2] + fwd[2] * t];
+        if p[1] <= ground(p[0], p[2]) + 0.05 {
+            return Some((p[0].floor() as i32, p[2].floor() as i32));
+        }
+        t += STEP;
+    }
+    None
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlayerBody {
     /// Feet position (meters).
@@ -858,5 +892,75 @@ mod rise_law_tests {
             "the feet stayed on the flat floor ({:.2})",
             body.pos[1]
         );
+    }
+}
+
+/// THE DIG TARGET laws (pure — a synthetic ground closure, no world).
+#[cfg(test)]
+mod dig_target_tests {
+    use super::*;
+
+    const EYE: [f32; 3] = [0.5, 1.7, 0.5];
+
+    #[test]
+    fn the_look_ray_digs_the_first_column_it_meets() {
+        // Flat ground: a down-forward gaze (pitch -0.6, facing -z)
+        // meets the surface ~3 m out — inside column (0, -2), NOT at
+        // max reach, NOT underfoot.
+        let flat = |_: f32, _: f32| 0.0f32;
+        let fwd = fwd_of(0.0, -0.6);
+        let (tx, tz) = dig_target(&flat, EYE, fwd, DIG_REACH_M).expect("flat ground in reach");
+        assert_eq!((tx, tz), (0, -2), "the first met column takes the dig");
+    }
+
+    #[test]
+    fn a_dug_terrace_moves_the_target_past_it() {
+        // The terrace at (0,-2) sits 1 m lower: the SAME aim flies over
+        // it and meets the live surface beyond — the verb targets what
+        // the picture now draws, never the original skin.
+        let trenched = |x: f32, z: f32| {
+            if x.floor() == 0.0 && z.floor() == -2.0 {
+                -1.0
+            } else {
+                0.0
+            }
+        };
+        let fwd = fwd_of(0.0, -0.6);
+        let (tx, tz) = dig_target(&trenched, EYE, fwd, DIG_REACH_M).expect("ground beyond the terrace");
+        assert_eq!(
+            (tx, tz),
+            (0, -3),
+            "the ray flew over the dug terrace to the next surface"
+        );
+    }
+
+    #[test]
+    fn a_wall_takes_the_dig_at_its_face() {
+        // A 2 m wall toward -z: a near-level gaze hits the wall's FACE
+        // column (-1), not a cell beyond it and not the ground below.
+        let wall = |_: f32, z: f32| if z < 0.0 { 2.0 } else { 0.0 };
+        let fwd = fwd_of(0.0, -0.2);
+        let (tx, tz) = dig_target(&wall, EYE, fwd, DIG_REACH_M).expect("the wall is in reach");
+        assert_eq!((tx, tz), (0, -1), "the wall's face column takes the dig");
+    }
+
+    #[test]
+    fn a_level_gaze_across_flat_ground_digs_nothing() {
+        let flat = |_: f32, _: f32| 0.0f32;
+        assert!(
+            dig_target(&flat, EYE, fwd_of(0.0, 0.0), DIG_REACH_M).is_none(),
+            "nothing in reach to dig"
+        );
+    }
+
+    #[test]
+    fn a_steep_gaze_digs_underfoot() {
+        // Nearly straight down: the eye's own column — the walk-off
+        // trick is a legal player verb now (the walk-off law owns the
+        // fall it causes).
+        let flat = |_: f32, _: f32| 0.0f32;
+        let (tx, tz) = dig_target(&flat, EYE, fwd_of(0.0, -1.5), DIG_REACH_M)
+            .expect("the ground underfoot is in reach");
+        assert_eq!((tx, tz), (0, 0), "the body digs its own column");
     }
 }

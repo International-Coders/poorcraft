@@ -8156,3 +8156,112 @@ only); the lethal plaza-recovery branch route; the quiet-host
 deck-bench re-read (queued by 446/447/448/449) + the bench contention
 guard; route-harness contention-hardened capture windows;
 is_water_layer/CTM-strip audit; guardian chronicle re-fire.
+
+## 2026-09-13 — The dig is in your hands: the player-facing dig verb (loop 450)
+
+### What
+- Closed STATE next_task item (1): the DIG VERB. G digs the ground
+  under the crosshair one walkable meter through the live
+  surface-edit path; the take is gated (pick tier, pack room) BEFORE
+  the ground breaks, credited to the real inventory, and named by a
+  toast. One press = a terrace (step down, step back up); deeper
+  shafts hold the body (449's law) until the player digs their way
+  out. Plus: the walk-off route's mid-air window hardened to this
+  week's frame pace (the carried 447 deferral).
+
+### Why
+- The dig has been route-stage-only since 446 (UiAction::EditSurface
+  with hand-picked cells); `harvest_yields` (P3D-501) sat as a tested
+  drop table with no player-facing consumer. The wall/step/fall laws
+  of 441-449 made digging physically meaningful — the verb makes it
+  a player skill.
+
+### How
+- pc3d_world/src/items.rs: `Inventory::can_fit` (room across stack
+  tops + empty slots; answers before any edit) + law.
+- pc3d_render/src/player.rs: pure `dig_target` (the look ray marched
+  against a live ground closure; first column met within
+  DIG_REACH_M = 8.0) + `DIG_DEPTH_M = 1.0` (exactly one step) + 5
+  laws (first column met; dug terrace moves the aim; wall takes it
+  at the face; level gaze digs nothing; steep gaze digs underfoot).
+- pc3d_render/src/app.rs: `dig_outcome` (pure take/refusal) +
+  `best_pick_tier`; the `UiAction::DigAtCrosshair` exec handler
+  (target -> live-surface material -> outcome -> can_fit -> edit ->
+  credit -> Excavated quest event -> toast); `ui_key` maps KeyG;
+  prompt strings carry G DIG; 2 laws (the take gates; the key
+  reaches the UI through the real input map, forge and panels own G
+  behind their states).
+- pc3d_render/src/ui.rs: the `DigAtCrosshair` action; the on_key G
+  arm (disjoint guards vs the forge arm; refused behind
+  dialog/journal/interact); KEYMAP "DIG: G" row.
+- apps/poorcraft3d/src/main.rs: `find_dig_spot_barehand` (flat,
+  flora-free, surface material Grass/Soil/Sand/Snow, gentle strip);
+  `route_dig` (teleport, steep aim, the G press through ui::on_key,
+  post-dig/standing/back records, 4 captures) + its verdict;
+  route_walk_off's mid-air record + walk_air shot re-timed
+  120 -> 112 (contention-hardened window; bands unchanged).
+- pc3d_render/src/observe.rs: route_dig registered. Makefile:
+  `p3d-dig` (x2 + comparator). EN-ROUTE: the first route design
+  (walk onto a neighbor-cell terrace) was discarded after
+  instrumentation showed the variable aim put the hit cell at a
+  column border and the walk overshot it — the shipped route digs
+  UNDERFOOT (the steep-gaze law: the target is the body's own
+  column, sampled at the standing point, no kernel-blur band) and
+  climbs out with a fixed 18-frame walk that clears the border at
+  every observed frame rate.
+
+### Verification evidence
+- p3d workspace 675 green / 0 failed (pc3d_render 220 = 213 + 7;
+  pc3d_world 265 = 264 + 1).
+- make p3d-dig PASS x2 + comparator PASS: G dug (391,132) 54.49 ->
+  53.49 (exactly 1.00 m), control untouched, body snapped down
+  UNWOUNDED (health 100% -> 100%), walked back up to 54.37; captures
+  INSPECTED (G DIG in the prompt; DUG SOIL+WOOD toast; standing in
+  the dug hole; back on the rim facing the wilds).
+- make p3d-walkoff PASS x2 + comparator: mid-air 53.62 (2.57 m down,
+  inside the unchanged physical band), landed 51.19 wounded 68%,
+  FELL toast; the hardened window fixed the deterministic
+  landed_differ failure (0.19 m above the floor at frame 120).
+- make p3d-playtest x2 + comparator PASS, bundle digest UNCHANGED
+  05c46411869a857c; make p3d-climb PASS x2 (strand (65,20), landed
+  unharmed); make p3d-steer PASS x2 (drift 1.60 m, ortho 0.00);
+  p3d-smoke OK (digest dd019eca900f5a61 unchanged); p3d-assets OK;
+  idle-upgrade-check PASS.
+- PERF: no claim, honestly — the dig works ON PRESS only (one
+  <=80-sample march + edit + remesh, allocation-free, microseconds
+  against 22 ms frames); the per-frame path is untouched; shared
+  host (windowed p50 ~22.5 ms this week), no bench per the 445-449
+  precedent; the quiet-host re-read stays queued.
+
+### Files
+- poorcraft3d/crates/pc3d_world/src/items.rs (can_fit + law),
+  poorcraft3d/crates/pc3d_render/src/player.rs (dig_target + 5
+  laws), poorcraft3d/crates/pc3d_render/src/app.rs (outcome +
+  handler + KeyG + prompts + 2 laws), poorcraft3d/crates/pc3d_render/
+  src/ui.rs (action + G arm + KEYMAP), poorcraft3d/crates/pc3d_render/
+  src/observe.rs (route registered), poorcraft3d/apps/poorcraft3d/
+  src/main.rs (finder + route + verdict + walkoff window), Makefile
+  (p3d-dig), the dig-a/b bundles, the refreshed climb/playtest/
+  walkoff/steer bundles (chains/digests unchanged except walkoff's
+  re-timed air frame), STATE/BACKLOG/CHANGELOG/DEVLOG.
+
+LORE IMPACT: canon touched: none — a labor/traversal verb on the
+streamed surface; the take is the existing generic material catalog;
+no faction, place, event, term, NPC, item, or spell data changed; no
+player identity assigned. Locked facts preserved: all. World
+expression: labor in Valdenmoor has consequence — the pit you dig is
+a pit until you dig steps out; the earth you take is the same
+material economy the build verb draws from; dig-and-return is now a
+player skill the fall/wall laws make real. Migration: none (the
+surface delta layer already persists from 446; inventory crediting
+matches the existing harvest slice's in-memory pattern).
+
+HONESTLY DEFERRED: multiplayer routing of terrain edits (the verb is
+live-local like EditSurface); an inventory readout to SEE the take
+as a number (the toast names it; can_fit/add/outcome are unit-lawed;
+next_task item 2); geode pairing (447's keepers are root-workspace
+lore — p3d gains its own Old-Powers expression in future work);
+Space jump-off from a hang; the lethal plaza-recovery branch route;
+the staged-yield crowd route; the quiet-host deck-bench re-read +
+the bench contention guard; is_water_layer/CTM-strip audit;
+guardian chronicle re-fire.

@@ -68,17 +68,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_THE GROUND GIVES WAY",
-      "kind": "toast",
-      "rect": [
-        271,
-        375,
-        258,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -221,23 +210,18 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 21:58",
+        "modified": "2026-09-13 21:53",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 21:58",
+        "modified": "2026-09-13 21:53",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [
-      {
-        "age_s": 0.614197850227356,
-        "text": "THE GROUND GIVES WAY"
-      }
-    ],
+    "toasts": [],
     "wallet": 0
   }
 }

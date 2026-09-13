@@ -1,5 +1,85 @@
 # CHANGELOG
 
+## 2026-09-13 — The dig is in your hands: the player-facing dig verb (loop 450)
+
+- Closed STATE's next_task item (1): the DIG VERB on 446's live
+  EditSurface path. Press G and the ground under the crosshair
+  lowers one walkable meter; the take is gated BEFORE the ground
+  breaks and credited to the real inventory; the toast names it.
+- THE TARGET (pure, `pc3d_render::player::dig_target`): the look ray
+  marches against the SAME live ground answer the walk stands on and
+  the picture draws (streamed delta layer included), answering the
+  first column whose ground the ray enters within the build verb's
+  8 m reach. A dug terrace moves the aim past it (the ray reads the
+  live surface, never the original skin), a wall takes the dig at
+  its face, a level gaze digs nothing, a steep gaze digs the body's
+  OWN column — the walk-off trick is now a legal player verb, and
+  the step law owns the 1 m snap-down it causes.
+- THE TAKE (pc3d_world::items): `harvest_yields` — the tested drop
+  table that has been waiting for a consumer — now feeds the dig:
+  soil/sand/snow bare-handed, stone needs a pick (the best carried
+  tier gates it), grass yields soil+wood. New `Inventory::can_fit`
+  answers before the edit: a take that can't be carried never breaks
+  ground. A taking dig is Excavated quest progress (same as the
+  harvest and removal verbs).
+- THE INPUT: the real UI path — `ui_key` maps KeyCode::KeyG, and
+  `ui::on_key`'s gameplay arm fires `UiAction::DigAtCrosshair` (the
+  forge panel keeps G for fuel while open; dialog/journal/interact
+  panels own the frame — no world edit behind one). The exec handler
+  resolves target -> material (cell_material of the LIVE surface —
+  dig deep and the exposed floor asks for a pick) -> outcome -> pack
+  room, then edits, credits, and toasts: "DUG SOIL+WOOD" or the
+  honest refusal ("NO GROUND IN REACH" / "NEED A PICK FOR STONE" /
+  "PACK FULL - THE GROUND HOLDS"). The HUD prompt and the Settings
+  keymap carry G DIG.
+- Route proof: `make p3d-dig` (`route_dig`): a flat bare-hand-
+  diggable cell near the plaza (`find_dig_spot_barehand` gates the
+  surface material to Grass/Soil/Sand/Snow and the strip to
+  gentle); the body presses G once aimed STEEP — its OWN cell drops
+  exactly 1.00 m (54.49 -> 53.49 sampled at the standing point, no
+  kernel-blur band needed), the control column is untouched, the
+  body snaps down UNWOUNDED (100% -> 100%) and walks one step back
+  up onto the rim; x2 identical + comparator PASS; the four
+  captures INSPECTED (G DIG prompt; DUG SOIL+WOOD toast; standing
+  in the dug hole full-health; back on the rim facing the wilds).
+- EN-ROUTE (prior-proof fix, the carried contention-window
+  deferral): route_walk_off's frame-120 mid-air window was
+  calibrated for a ~61-rendered-frame fall; at this week's ~22.5 ms
+  windowed pace the fall completes in ~34 frames and the window
+  caught the body 0.19 m above the floor (landed_differ false,
+  twice, deterministically). Re-timed to frame 112: mid 53.62 =
+  2.57 m down, inside the old physical band at every observed pace;
+  the band, captures, and claims are unchanged — only the window
+  moved.
+- Evidence: p3d workspace 675 green / 0 failed (pc3d_render 220 =
+  213 + 7 dig laws; pc3d_world 265 = 264 + 1 can_fit law);
+  `make p3d-walkoff` PASS x2 + comparator (hardened window);
+  `make p3d-playtest` x2 + comparator PASS, bundle digest UNCHANGED
+  05c46411869a857c; `make p3d-climb` x2 PASS (landed unharmed);
+  `make p3d-steer` x2 PASS (drift 1.60 m, ortho 0.00); p3d-smoke OK
+  (digest dd019eca900f5a61 unchanged); p3d-assets OK;
+  idle-upgrade-check PASS.
+- PERF: no claim, honestly — the dig adds work only ON PRESS (one
+  <=80-sample march + one surface edit + remesh of the touched
+  patches, allocation-free, microseconds against 22 ms frames); the
+  per-frame walk/stream path is untouched; the host is shared
+  (windowed routes p50 ~22.5 ms, the local norm this week), so no
+  bench per the 445-449 precedent.
+- LORE: canon touched: none — a labor/traversal verb on the streamed
+  surface; the take is the existing generic material catalog; no
+  faction, place, event, term, NPC, or spell data; no identity
+  assigned. World expression: labor in Valdenmoor has consequence —
+  the pit you dig is a pit until you dig steps out, and the earth
+  you take is the same material economy the build verb draws from.
+  Migration: none (the surface delta layer already persists from
+  446; inventory crediting matches the existing harvest slice's
+  in-memory pattern).
+- Deferred honestly: multiplayer routing of terrain edits (the verb
+  is live-local like EditSurface); an inventory readout to SEE the
+  take as a number (the toast names it; can_fit/add/outcome are
+  unit-lawed); geode pairing (447's keepers are root-workspace lore
+  — p3d gains its own Old-Powers expression in future work).
+
 ## 2026-09-13 — The wall holds: the up-step half of the walk law (loop 449)
 
 - Closed STATE's next_task item (1): 446's step law fixed the DOWN

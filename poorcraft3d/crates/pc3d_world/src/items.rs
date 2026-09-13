@@ -130,6 +130,26 @@ impl Inventory {
             .map(|s| s.count)
             .sum()
     }
+
+    /// Whether `count` of `item` would fit WITHOUT displacing anything
+    /// (stack tops first, then empty slots). The dig verb asks BEFORE it
+    /// breaks ground: a take that can't be carried never edits the world.
+    pub fn can_fit(&self, item: ItemId, count: u32) -> bool {
+        let mut room = 0u32;
+        for slot in &self.slots {
+            match slot {
+                Some(s) if s.item == item && s.count < self.stack_max => {
+                    room += self.stack_max - s.count;
+                }
+                None => room += self.stack_max,
+                _ => {}
+            }
+            if room >= count {
+                return true;
+            }
+        }
+        room >= count
+    }
 }
 
 /// A tool in use: durability decrements per use, breaks at 0.
@@ -255,5 +275,26 @@ mod tests {
         }
         assert!(inv.count(ItemId(5)) > 0);
         assert!(inv.count(WOOD) > 0);
+    }
+
+    /// THE DIG VERB's gate: can_fit answers BEFORE the world is edited —
+    /// a take that can't be carried never breaks ground.
+    #[test]
+    fn p3d501_can_fit_answers_before_the_edit() {
+        const SOIL: ItemId = ItemId(5);
+        let mut inv = Inventory::new(2);
+        assert!(inv.can_fit(SOIL, 1), "an empty pack takes a dig's yield");
+        inv.add(SOIL, 64);
+        inv.add(STONE, 64);
+        // The pack is full of soil+stone: one more soil has no room —
+        // the soil stacks are full and the other slot holds stone.
+        assert!(!inv.can_fit(SOIL, 1));
+        // Drain a partial stack: the freed room answers exactly.
+        inv.remove(SOIL, 1);
+        assert!(inv.can_fit(SOIL, 1));
+        assert!(!inv.can_fit(SOIL, 2));
+        // A fresh slot counts whole for a DIFFERENT item, never the
+        // stone stack's room.
+        assert!(!inv.can_fit(STONE, 1));
     }
 }

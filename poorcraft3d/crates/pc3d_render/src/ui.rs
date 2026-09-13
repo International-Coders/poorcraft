@@ -369,6 +369,7 @@ pub const KEYMAP: &[KeyBinding] = &[
     KeyBinding { action: "HOTBAR", key: "1-9 / WHEEL" },
     KeyBinding { action: "BUILD", key: "F" },
     KeyBinding { action: "REMOVE", key: "R" },
+    KeyBinding { action: "DIG", key: "G" },
     KeyBinding { action: "SAVE", key: "B" },
     KeyBinding { action: "LOAD", key: "L" },
     KeyBinding { action: "INSPECT", key: "I" },
@@ -1910,6 +1911,11 @@ pub enum UiAction {
     /// — the walk-off route digs the floor out from under the standing
     /// body (the walk-off law's second trigger: "a floor dug out").
     EditSurface { x: f32, z: f32, meters: f32 },
+    /// THE DIG VERB (G): the player pressed dig — the app resolves the
+    /// crosshair's live ground target, gates the take (pick tier, pack
+    /// room), lowers the column one walkable step through the same
+    /// surface edit, and credits the yield to the inventory.
+    DigAtCrosshair,
     Repaint,
 }
 
@@ -2014,6 +2020,18 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
             }
             Key::Char('x') => {
                 acts.push(UiAction::EatBread);
+            }
+            Key::Char('g')
+                if state.forge.is_none()
+                    && state.dialog.is_none()
+                    && state.journal.is_none()
+                    && state.interact.is_none() =>
+            {
+                // THE DIG VERB (the forge arm above owns G while the
+                // forge panel is open; panels own the frame — a world
+                // edit is never made behind one).
+                acts.push(UiAction::DigAtCrosshair);
+                acts.push(UiAction::Repaint);
             }
             Key::Char('g') if state.forge.is_some() => {
                 acts.push(UiAction::ForgeLoadFuel);
