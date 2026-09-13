@@ -68,12 +68,23 @@
     },
     {
       "button_state": "",
-      "id": "toast_GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO",
+      "id": "toast_FELL — HEALTH 64%",
       "kind": "toast",
       "rect": [
-        79,
+        289,
         375,
-        642,
+        222,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "toast_THE GROUND GIVES WAY",
+      "kind": "toast",
+      "rect": [
+        271,
+        353,
+        258,
         16
       ]
     },
@@ -198,7 +209,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 1.0,
+      "health": 0.6724222302436829,
       "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -221,12 +232,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 13:03",
+        "modified": "2026-09-13 13:01",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 13:03",
+        "modified": "2026-09-13 13:01",
         "name": "beta-shot",
         "seed": 7
       }
@@ -234,8 +245,12 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.1520047187805176,
-        "text": "GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO"
+        "age_s": 2.540483236312866,
+        "text": "THE GROUND GIVES WAY"
+      },
+      {
+        "age_s": 1.4011037349700928,
+        "text": "FELL — HEALTH 64%"
       }
     ],
     "wallet": 0

@@ -197,7 +197,7 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9957552552223206,
+      "food": 0.9956853985786438,
       "health": 1.0,
       "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
@@ -221,12 +221,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 10:36",
+        "modified": "2026-09-13 13:03",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 10:36",
+        "modified": "2026-09-13 13:03",
         "name": "beta-shot",
         "seed": 7
       }
@@ -234,7 +234,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.896653890609741,
+        "age_s": 2.9495761394500732,
         "text": "GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO"
       }
     ],

@@ -11,6 +11,29 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The walk-off lives: the step law + the dug-floor route
+      (2026-09-13, loop 446): proof-discovered bug — the loop-444
+      walk-off commit was DEAD on the live streamed path (the walk's
+      unbounded Y-snap swallowed every drop the surface answered, so
+      walked-off bodies landed soft and damage-free; probe-reproduced,
+      then fixed). THE STEP LAW: the walk holds within one step
+      (1.05 m); deeper drops are refused to the walk-off commit + arc,
+      now SHARED by both walk paths. The dig is live
+      (`UiAction::EditSurface` → `surface_edit` + `remesh_now`: delta
+      edit + same-frame remesh — the player-dig-verb foundation).
+      Route proof: `make p3d-walkoff` — the floor dug out under the
+      standing body (natural ledges ramp to walkable slopes at 1 m
+      node interpolation, BY CONTRACT; the law's "a floor dug out"
+      trigger is the honest live one), feet 54.49 → 49.49 EXACT,
+      100% → 67-68% wounded, FELL toast, x2 + comparator PASS,
+      captures inspected. Playtest/climb/steer/smoke/wilderness/
+      assets regressions green; p3d 658 (pc3d_render 208); root
+      workspace green. Deferred honestly: the UP-step half of the
+      streamed walk still snaps any rise (cliffs climbable — pre-
+      existing, needs its own wall/step law + route); the player-facing
+      dig verb (key/bindings/targeting) is future work on top of the
+      live edit path.
+
 - [x] The bench tells the truth: p3d-deck-bench argv fix + report
       refresh (2026-09-13, loop 445): the target's unquoted empty
       `$(SEED)` shifted the binary's argv, so every default run

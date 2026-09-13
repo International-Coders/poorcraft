@@ -1,5 +1,65 @@
 # CHANGELOG
 
+## 2026-09-13 — The walk-off lives: the step law + the dug-floor route (loop 446)
+
+- **Proof-discovered bug, fixed:** the loop-444 walk-off commit was
+  dead code on the live streamed-surface path. The walk's Y-snap in
+  `walk_on_speed` bound to ANY ground answer, and the streamed
+  surface's `ground_at` answers the true height everywhere (it
+  ignores `from_y`) — so the frame a body crossed a ledge edge it
+  was teleported to the bottom INSTANTLY, damage-free; the commit's
+  `is_unsupported` never saw a gap. A unit probe on a
+  streamer-shaped ledge reproduced it exactly (y snapped 10.0 → 7.5
+  in one frame).
+- **THE STEP LAW** (player.rs, where the walk lives): the snap holds
+  the body only within one step — `feet − ground ≤ SUPPORT_GAP_M`
+  (1.05 m); deeper, the walk REFUSES and the gap stands for the
+  slice's commit, which flips the same airborne arc a jump uses.
+  `SUPPORT_GAP_M` + `is_unsupported` moved to player.rs (re-exported
+  from app.rs); the slice's airborne machinery (commit, hang, jump,
+  arc) was HOISTED out of the rebuild-only branch, so the law now
+  holds on BOTH walk paths (streamed rebuild + legacy authority).
+  New unit law: `the_walk_holds_a_step_and_refuses_a_ledged_drop`
+  (0.5 m step walked; 2.5 m ledge refused + `is_unsupported` true).
+- **The honest finding about natural ledges:** the streamed surface
+  interpolates at 1 m nodes, so even the gen's vertical 4 m terrace
+  faces ramp into ≤ 4 m/m slopes — walked down at 6.7 cm per frame
+  under the walkability contract. No WALKED natural edge can make
+  the per-frame gap; the law's own second trigger can: "a floor dug
+  out". The route therefore digs.
+- **The dig, live:** `UiAction::EditSurface` →
+  `Renderer::surface_edit` → `SurfaceStreamer::edit` +
+  `remesh_now` — the delta layer edits the streamed surface and
+  every touched patch is remeshed immediately, so collision AND the
+  drawn ground answer the edit in the same frame (the foundation of
+  a player dig verb; the delta layer already persists with the
+  slice save).
+- **`route_walk_off`** (`make p3d-walkoff`): the body stands over a
+  flat, vine-free cell near the showcase plaza (deterministic
+  ring-first search; vines refused in the grip's whole ±2-slot
+  scan). The dig lowers the cell 5 m; the step law refuses, the
+  commit fires, and the arc lands the body straight down — no keys,
+  no teleports after the grounded start. Measured: feet 54.49 →
+  49.49 (the dug floor EXACTLY), health 100% → 67-68% (the impact
+  law's ~35% for 5 m, minus regen), the FELL toast in the landed
+  capture. PASS x2 + comparator PASS; the three captures are
+  inspected (standing full-health / mid-fall on the dug wall with
+  "THE GROUND GIVES WAY" / landed at ~2/3 health with "FELL —
+  HEALTH 64%").
+- Regression: playtest x2 chain UNCHANGED (ends "fell 8 m over the
+  open journal (health 33%)"; the house-door walk survives the step
+  law); vine climb PASS x2 (same strand (65,20), health 100%);
+  air steer PASS x2 (drift 1.49-1.55 m, ortho 0.00); p3d-smoke OK
+  (digest dd019eca900f5a61 unchanged); p3d-wilderness PASS;
+  p3d-assets OK; p3d workspace 658 green (pc3d_render 208 — +1 for
+  the step law); root workspace green (479 on the combined tree —
+  see the honesty note in STATE). Deck bench: see DECK-BENCH-
+  REPORT.md (refreshed only if an uncontended window allowed it).
+- LORE: no canon data touched — body traversal physics only; the
+  falls of the Age of Reckoning answer the hand (444) and the
+  ground (446). No migration (in-memory runtime state + the
+  surface delta layer that already saved).
+
 ## 2026-09-13 — The bench tells the truth: make p3d-deck-bench argv fix + report refresh (loop 445)
 
 - `make p3d-deck-bench` without an explicit `SEED=` silently

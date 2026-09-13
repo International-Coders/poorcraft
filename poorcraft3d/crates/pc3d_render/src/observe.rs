@@ -61,6 +61,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_walk_off",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

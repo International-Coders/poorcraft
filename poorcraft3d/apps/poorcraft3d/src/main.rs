@@ -5024,6 +5024,12 @@ fn run_observe(route_id: &str, out_root: &str) {
         let steer_free_mid = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 4]));
         let steer_held_mid = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 4]));
         let steer_health = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
+        // route_walk_off recordings: poses (x,y,z) before the dig /
+        // mid-fall / landed, health before/after, the LIVE pre-dig
+        // ground answer, and the dig spot XZ — the verdict reads them
+        // after the run.
+        let walkoff_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 12]));
+        let walkoff_spot = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -5529,6 +5535,165 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/steer_held_air.layout.json")));
                 shots.push(Shot::new(320, format!("{dir}/steer_held_landed.png"))
                     .ui_dump(format!("{dir}/steer_held_landed.layout.json")));
+            }
+            "route_walk_off" => {
+                // THE WALK-OFF, LIVE (loop 444's deferral, closed the
+                // honest way): the streamed surface answers ledges
+                // through 1 m node interpolation — natural cliffs ramp
+                // into walkable slopes BY CONTRACT, so no walked edge
+                // can make the per-frame gap the commit reads. The
+                // law's own second trigger can: "a floor dug out". The
+                // body STANDS over a flat, flora-free cell near the
+                // plaza; the dig lowers that cell 5 m (collision AND
+                // the drawn ground remeshed the same frame); the step
+                // law refuses the snap, the walk-off commit flips the
+                // fall, and the arc lands a real wound straight down —
+                // no keys, no teleports after the grounded start.
+                use pc3d_world::flora::{self, PlantKind, SlotCoord};
+                let gen = &scene.gen;
+                let ground_at = |x: f32, z: f32| -> f32 {
+                    gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32
+                        / 1000.0
+                };
+                let plaza = scene.plan.plaza;
+                let mut spot = None;
+                'spot: for ring_m in [8.0f32, 12.0, 16.0, 20.0, 24.0, 28.0] {
+                    for k in 0..24 {
+                        let a = k as f32 / 24.0 * std::f32::consts::TAU;
+                        let cx = plaza.x as f32 + 0.5 + ring_m * a.cos();
+                        let cz = plaza.z as f32 + 0.5 + ring_m * a.sin();
+                        let cell = pc3d_world::coords::CellCoord {
+                            x: cx as i32,
+                            y: 0,
+                            z: cz as i32,
+                        };
+                        let sx = cell.x as f32 + 0.5; // cell center: 0.5 m of rim clearance
+                        let sz = cell.z as f32 + 0.5;
+                        let g = ground_at(sx, sz);
+                        // Flat over the pit cell + its ring (the rim
+                        // ramps stay outside the fall column).
+                        let mut ok = (0..5).all(|i| {
+                            (0..5).all(|j| {
+                                (ground_at(sx - 1.5 + i as f32 * 0.75, sz - 1.5 + j as f32 * 0.75)
+                                    - g)
+                                    .abs()
+                                    <= 0.25
+                            })
+                        });
+                        // No strand may catch this fall: VINE refused in
+                        // the grip's whole ±2-slot scan. Trees refused
+                        // only in the pit's own slot (a trunk IN the pit
+                        // would be a lie; a distant one is scenery).
+                        if ok {
+                            let ssx = (sx / 4.0).floor() as i32;
+                            let ssz = (sz / 4.0).floor() as i32;
+                            for dx in -2..=2i32 {
+                                for dz in -2..=2i32 {
+                                    if let Some(p) =
+                                        flora::plant_at(gen, SlotCoord { x: ssx + dx, z: ssz + dz })
+                                    {
+                                        let same_slot = dx == 0 && dz == 0;
+                                        let tree = matches!(
+                                            p.kind,
+                                            PlantKind::TreePine
+                                                | PlantKind::TreeBroadleaf
+                                                | PlantKind::TreeBirch
+                                        );
+                                        if p.kind == PlantKind::Vine || (same_slot && tree) {
+                                            ok = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if ok {
+                            spot = Some([sx, g, sz]);
+                            break 'spot;
+                        }
+                    }
+                }
+                let [sx, sg, sz] = spot.unwrap_or_else(|| {
+                    panic!("route_walk_off: no flat flora-free dig cell near the plaza on seed {seed}")
+                });
+                walkoff_spot.set([sx, sz]);
+                println!(
+                    "WALK OFF: dig cell ({sx:.1},{sg:.2},{sz:.1}) -> floor {:.2}",
+                    sg - 5.0
+                );
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // Grounded teleport onto the cell center; the streamed
+                // near ring settles while the body stands.
+                ui_script.push((
+                    30,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                    }),
+                ));
+                // Approach record: standing, pre-dig — the LIVE ground
+                // answer the verdict anchors every band to.
+                let approach = walkoff_cells.clone();
+                ui_script.push((
+                    70,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = approach.get();
+                        v[0] = pose.position[0];
+                        v[1] = pose.position[1];
+                        v[2] = pose.position[2];
+                        v[9] = ui.hud.health;
+                        v[11] = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                        approach.set(v);
+                    }),
+                ));
+                // THE DIG at 90 (60 frames of streaming settle).
+                ui_script.push((
+                    90,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::EditSurface {
+                            x: sx,
+                            z: sz,
+                            meters: -5.0,
+                        });
+                    }),
+                ));
+                // Mid-fall record (~30 frames into the ~61-frame fall).
+                let mid = walkoff_cells.clone();
+                ui_script.push((
+                    120,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = mid.get();
+                        v[3] = pose.position[0];
+                        v[4] = pose.position[1];
+                        v[5] = pose.position[2];
+                        mid.set(v);
+                    }),
+                ));
+                // Landed record + health after the wound.
+                let landed = walkoff_cells.clone();
+                ui_script.push((
+                    190,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = landed.get();
+                        v[6] = pose.position[0];
+                        v[7] = pose.position[1];
+                        v[8] = pose.position[2];
+                        v[10] = ui.hud.health;
+                        landed.set(v);
+                    }),
+                ));
+                shots.push(Shot::new(70, format!("{dir}/walk_edge.png"))
+                    .ui_dump(format!("{dir}/walk_edge.layout.json")));
+                shots.push(Shot::new(120, format!("{dir}/walk_air.png"))
+                    .ui_dump(format!("{dir}/walk_air.layout.json")));
+                shots.push(Shot::new(190, format!("{dir}/walk_landed.png"))
+                    .ui_dump(format!("{dir}/walk_landed.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
@@ -6057,6 +6222,90 @@ fn run_observe(route_id: &str, out_root: &str) {
                     "[FAIL] observe {}: captures {} / line_hold {line_hold} / along {along:.2} / ortho {ortho:.2} / air_differ {free_air_vs_held_air} / landed_differ {landed_vs_landed} / health {h1} -> {h2}",
                     spec.id,
                     report.captures.len(),
+                );
+                any_fail = true;
+            }
+        }
+        // THE WALK-OFF: the dug floor committed the fall — the body
+        // left the ground straight DOWN (no keys, no teleport), the
+        // arc landed a real wound into the cell, and the FELL toast
+        // says so (a plaza recovery would clamp at exactly 0.5 with
+        // its own toast, which these bands exclude).
+        if spec.id == "route_walk_off" {
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let has = |name: &str| capture_by(name).is_some();
+            let differ = |a: &str, b: &str, bar: f32| {
+                match (capture_by(a), capture_by(b)) {
+                    (Some(a), Some(b)) => {
+                        pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > bar
+                    }
+                    _ => false,
+                }
+            };
+            let element_in = |name: &str, prefix: &str| {
+                capture_by(name)
+                    .and_then(|c| c.ui_layout.as_ref())
+                    .and_then(|l| l["elements"].as_array())
+                    .map(|els| {
+                        els.iter().any(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with(prefix))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            };
+            let v = walkoff_cells.get();
+            let spot = walkoff_spot.get();
+            let (sx, sz) = (spot[0], spot[1]);
+            let ground = v[11]; // the LIVE pre-dig answer at the body
+            // The route camera rides the body's pose — its position is
+            // the EYE (feet + EYE_ABOVE_FEET); every band below is on
+            // the FEET.
+            let eye = pc3d_render::player::EYE_ABOVE_FEET;
+            let approach_ok = (v[1] - eye - ground).abs() <= 0.05
+                && (v[0] - sx).abs() <= 0.2
+                && (v[2] - sz).abs() <= 0.2;
+            let mid_air = v[4] - eye < ground - 0.6
+                && v[4] - eye > ground - 4.6
+                && (v[3] - sx).abs() < 0.3
+                && (v[5] - sz).abs() < 0.3;
+            let landed_ok = (v[7] - eye - (ground - 5.0)).abs() <= 0.25
+                && (v[6] - sx).abs() <= 0.3
+                && (v[8] - sz).abs() <= 0.3;
+            let wounded = v[10] > 0.5 && v[10] < 0.8 && (v[9] - v[10]) > 0.25;
+            let fell_toast = element_in("walk_landed", "toast_FELL");
+            let air_differs = differ("walk_edge", "walk_air", 0.005);
+            let landed_differs = differ("walk_air", "walk_landed", 0.02);
+            let ok = has("walk_edge")
+                && has("walk_air")
+                && has("walk_landed")
+                && approach_ok
+                && mid_air
+                && landed_ok
+                && wounded
+                && fell_toast
+                && air_differs
+                && landed_differs;
+            if ok {
+                println!(
+                    "WALK OFF: the floor gave way, the body fell {:.2} -> {:.2} (mid {:.2}) and landed wounded {:.0}% -> {:.0}%",
+                    v[1], v[7], v[4],
+                    v[9] * 100.0,
+                    v[10] * 100.0
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / approach {approach_ok} / mid_air {mid_air} / landed {landed_ok} / wounded {wounded} / toast {fell_toast} / air_differ {air_differs} / landed_differ {landed_differs} (ground {ground} poses {:.2}->{:.2}->{:.2})",
+                    spec.id,
+                    report.captures.len(),
+                    v[1], v[4], v[7],
                 );
                 any_fail = true;
             }

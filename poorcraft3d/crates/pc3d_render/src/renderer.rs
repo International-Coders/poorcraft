@@ -1293,6 +1293,23 @@ impl Renderer {
         gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
     }
 
+    /// THE DIG EDIT (live): lowers/raises the streamed surface under a
+    /// world cell through the delta layer, remeshing every touched
+    /// patch immediately — collision AND the drawn ground answer the
+    /// edit in the same frame (the walk-off commit reads the same
+    /// truth the picture shows). Answers false where no surface
+    /// stream is attached.
+    pub fn surface_edit(&mut self, cell: pc3d_world::coords::CellCoord, meters: f32) -> bool {
+        let Some(ss) = self.surface_stream.as_mut() else {
+            return false;
+        };
+        let dirty = ss.edit(cell, meters);
+        for coord in dirty {
+            ss.remesh_now(&self.ctx.device, coord);
+        }
+        true
+    }
+
     /// Attaches the NPC crowd (NWR-009): the rig draws from the
     /// authoritative brains; poses rebuild per frame from (intent, t).
     pub fn attach_crowd(

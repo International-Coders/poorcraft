@@ -170,6 +170,14 @@ p3d-steer: ## The air steer route (same 5 m drop twice: the free fall holds its 
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/steer-a/route_air_steer poorcraft3d/apps/poorcraft3d/shots/steer-b/route_air_steer || exit 1; \
 	echo "P3D AIR STEER OK (chained + deterministic)"
 
+p3d-walkoff: ## The walk-off route (the floor dug out under the standing body: step law refuses, commit flips the fall, arc lands the wound) run TWICE + comparator: make p3d-walkoff
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/walkoff-a poorcraft3d/apps/poorcraft3d/shots/walkoff-b
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_walk_off poorcraft3d/apps/poorcraft3d/shots/walkoff-a || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_walk_off poorcraft3d/apps/poorcraft3d/shots/walkoff-b || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/walkoff-a/route_walk_off poorcraft3d/apps/poorcraft3d/shots/walkoff-b/route_walk_off || exit 1; \
+	echo "P3D WALK OFF OK (chained + deterministic)"
+
 p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/export

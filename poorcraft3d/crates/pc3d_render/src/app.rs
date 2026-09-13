@@ -335,10 +335,6 @@ pub fn damage_from_impact(vy_at_land: f32) -> f32 {
 /// catch, never enough to erase the drop.
 pub const AIR_STEER_FRACTION: f32 = 0.45;
 
-/// A support gap beyond one walking step: when the ground answer sits
-/// this far below the feet, no surface holds the body.
-pub const SUPPORT_GAP_M: f32 = 1.05;
-
 /// THE AIR STEER (pure): the lateral speed a body's movement input
 /// carries — the full walk (or sprint, Shift) on the ground; in the
 /// air, the fixed steer fraction regardless of sprint.
@@ -352,12 +348,9 @@ pub fn lateral_speed(falling: bool, sprinting: bool) -> f32 {
     }
 }
 
-/// THE WALK-OFF LAW (pure): the body is unsupported when the ground
-/// answer sits more than one step below the feet — the frame support
-/// vanishes (a ledge walked off, a floor dug out), the fall begins.
-pub fn is_unsupported(feet_y: f32, ground_y: f32) -> bool {
-    feet_y - ground_y > SUPPORT_GAP_M
-}
+// The step law lives with the walk (player.rs); re-exported here where
+// the slice's walk-off commit and the arc consume it.
+pub use crate::player::{is_unsupported, SUPPORT_GAP_M};
 
 /// The deliver resolver (pure): for every ACTIVE Deliver quest whose
 /// site the player stands within `radius` of, deliver up to the quest's
@@ -1632,6 +1625,34 @@ impl App {
                     let _ = gen;
                     if let Some(slice) = self.cfg.slice_host.as_mut() {
                         slice.player.pos = [*x, ground + 0.1, *z];
+                    }
+                }
+                UiAction::EditSurface { x, z, meters } => {
+                    // THE DIG: lower/raise the streamed surface under a
+                    // world cell (the walk-off route's "floor dug out").
+                    // The edit is LIVE — collision and the drawn ground
+                    // answer it in the same frame.
+                    let ok = self
+                        .state
+                        .as_mut()
+                        .map(|s| {
+                            s.renderer.surface_edit(
+                                pc3d_world::coords::CellCoord {
+                                    x: *x as i32,
+                                    y: 0,
+                                    z: *z as i32,
+                                },
+                                *meters,
+                            )
+                        })
+                        .unwrap_or(false);
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.toast(if ok {
+                            "THE GROUND GIVES WAY"
+                        } else {
+                            "NO GROUND TO EDIT"
+                        });
+                        s.ui_dirty = true;
                     }
                 }
                 UiAction::ToggleJournal => {
@@ -2993,144 +3014,154 @@ impl App {
             } else {
                 crate::player::WALK_SPEED
             };
+            // The walk dispatch: the streamed surface (rebuild) or the
+            // authority ground (legacy slices). ONE shared airborne
+            // machinery follows — the walk-off commit, the hang, the
+            // jump, and the arc are the law on BOTH paths.
+            let y_before = slice.player.pos[1];
+            let (x_before, z_before) = (slice.player.pos[0], slice.player.pos[2]);
             if slice.rebuild {
-                // The NWR-011 walk: on the STREAMED SURFACE at the
-                // sprint-aware speed, plus the schedule ticking the
-                // crowd's authoritative brains.
-                let y_before = slice.player.pos[1];
-                let (x_before, z_before) = (slice.player.pos[0], slice.player.pos[2]);
                 state
                     .renderer
                     .walk_player_surface_speed(&gen, &mut slice.player, fwd, strafe, dt, speed);
-                if slice.falling || slice.hang.is_some() {
-                    slice.player.pos[1] = y_before; // the fall owns Y
-                }
-                // THE WALK-OFF COMMIT: the frame no surface holds the
-                // body (a ledge walked off, a floor dug out), the fall
-                // begins — the old walk kept hover-gliding at full
-                // speed over any drop deeper than its step window,
-                // gravity never engaged. The ground answer is the SAME
-                // one the arc lands on, so the commit and the landing
-                // can never disagree.
-                if !slice.falling && slice.hang.is_none() {
-                    let (px, pz) = (slice.player.pos[0], slice.player.pos[2]);
-                    let ground = state.renderer.ground_y_at(&gen, px, pz);
-                    if is_unsupported(slice.player.pos[1], ground) {
-                        slice.falling = true;
-                        slice.jump_vy = 0.0;
-                    }
-                }
-                if let Some(hang) = slice.hang {
-                    // THE STRAND OWNS THE BODY: pinned to the grip line
-                    // (the walk's XZ is undone), Y under climb control.
-                    slice.player.pos[0] = x_before;
-                    slice.player.pos[2] = z_before;
-                    let climb = if gameplay_active {
-                        (key(KeyCode::KeyW) - key(KeyCode::KeyS)).clamp(-1.0, 1.0)
-                    } else {
-                        0.0
-                    };
-                    let mut y = slice.player.pos[1];
-                    let released = crate::app::step_hang(&hang, &mut y, climb, dt);
-                    slice.player.pos[1] = y;
-                    if released {
-                        // Past the tip: the arc resumes from there, and
-                        // the ONLY drop that counts is the one left.
-                        slice.hang = None;
-                        slice.falling = true;
-                        slice.jump_vy = 0.0;
-                    }
-                }
-                // JUMP START (the controls spec's Space — an input, so
-                // it waits for gameplay like every key): committing to
-                // the arc flips the SAME airborne state a drop uses —
-                // and from a hang, Space is the hop OFF the strand.
-                if gameplay_active
-                    && state.keys.contains(&KeyCode::Space)
-                    && !slice.jump_held
-                    && !slice.falling
-                {
-                    slice.hang = None; // let go (no-op from the ground)
+            } else {
+                slice.player.walk_on_speed(
+                    &gen,
+                    &crate::player::AuthorityGround,
+                    fwd,
+                    strafe,
+                    dt,
+                    speed,
+                );
+            }
+            if slice.falling || slice.hang.is_some() {
+                slice.player.pos[1] = y_before; // the fall owns Y
+            }
+            // THE WALK-OFF COMMIT: the frame no surface holds the
+            // body (a ledge walked off, a floor dug out), the fall
+            // begins — the old walk kept hover-gliding at full
+            // speed over any drop deeper than its step window,
+            // gravity never engaged. The ground answer is the SAME
+            // one the arc lands on, so the commit and the landing
+            // can never disagree. (The walk's own snap refuses a
+            // drop past one step — THE STEP LAW — which is what
+            // leaves this gap for the commit to read.)
+            if !slice.falling && slice.hang.is_none() {
+                let (px, pz) = (slice.player.pos[0], slice.player.pos[2]);
+                let ground = state.renderer.ground_y_at(&gen, px, pz);
+                if is_unsupported(slice.player.pos[1], ground) {
                     slice.falling = true;
-                    slice.jump_vy = 4.6;
+                    slice.jump_vy = 0.0;
                 }
-                slice.jump_held = gameplay_active && state.keys.contains(&KeyCode::Space);
-                // THE AIRBORNE ARC — GRAVITY IS THE WORLD, NOT THE MENU:
-                // a panel freezes the player's INPUT, never a fall they
-                // are already in, so the arc runs OUTSIDE the gameplay
-                // gate (the playtest drops the player with the journal
-                // open — this line is the law it proves). It integrates
-                // on the fixed 1/60 s step and lands on the ground
-                // answer of the CURRENT column; landing applies damage
-                // from the impact speed.
-                if slice.falling {
-                    let prev_y = slice.player.pos[1];
-                    let impact_vy = slice.integrate_air(dt, |x, z| {
-                        state.renderer.ground_y_at(&gen, x, z)
-                    });
-                    match impact_vy {
-                        Some(impact_vy) => {
-                            let dmg = damage_from_impact(impact_vy);
-                            if dmg > 0.0 {
-                                state.ui.hud.health =
-                                    (state.ui.hud.health - dmg).max(0.0);
-                                if state.ui.hud.health <= 0.0 {
-                                    let plaza = slice.scene.plan.plaza;
-                                    slice.player.pos = [
-                                        plaza.x as f32 + 0.5,
-                                        slice.player.pos[1],
-                                        plaza.z as f32 + 0.5,
-                                    ];
-                                    state.ui.hud.health = 0.5;
-                                    state.ui.hud.food = (state.ui.hud.food * 0.5).max(0.3);
-                                    state.ui.toast("YOU FELL — RECOVERED AT THE PLAZA");
-                                } else {
-                                    state.ui.toast(format!(
-                                        "FELL — HEALTH {}%",
-                                        (state.ui.hud.health * 100.0) as u8
-                                    ));
-                                }
+            }
+            if let Some(hang) = slice.hang {
+                // THE STRAND OWNS THE BODY: pinned to the grip line
+                // (the walk's XZ is undone), Y under climb control.
+                slice.player.pos[0] = x_before;
+                slice.player.pos[2] = z_before;
+                let climb = if gameplay_active {
+                    (key(KeyCode::KeyW) - key(KeyCode::KeyS)).clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                };
+                let mut y = slice.player.pos[1];
+                let released = crate::app::step_hang(&hang, &mut y, climb, dt);
+                slice.player.pos[1] = y;
+                if released {
+                    // Past the tip: the arc resumes from there, and
+                    // the ONLY drop that counts is the one left.
+                    slice.hang = None;
+                    slice.falling = true;
+                    slice.jump_vy = 0.0;
+                }
+            }
+            // JUMP START (the controls spec's Space — an input, so
+            // it waits for gameplay like every key): committing to
+            // the arc flips the SAME airborne state a drop uses —
+            // and from a hang, Space is the hop OFF the strand.
+            if gameplay_active
+                && state.keys.contains(&KeyCode::Space)
+                && !slice.jump_held
+                && !slice.falling
+            {
+                slice.hang = None; // let go (no-op from the ground)
+                slice.falling = true;
+                slice.jump_vy = 4.6;
+            }
+            slice.jump_held = gameplay_active && state.keys.contains(&KeyCode::Space);
+            // THE AIRBORNE ARC — GRAVITY IS THE WORLD, NOT THE MENU:
+            // a panel freezes the player's INPUT, never a fall they
+            // are already in, so the arc runs OUTSIDE the gameplay
+            // gate (the playtest drops the player with the journal
+            // open — this line is the law it proves). It integrates
+            // on the fixed 1/60 s step and lands on the ground
+            // answer of the CURRENT column; landing applies damage
+            // from the impact speed.
+            if slice.falling {
+                let prev_y = slice.player.pos[1];
+                let impact_vy = slice.integrate_air(dt, |x, z| {
+                    state.renderer.ground_y_at(&gen, x, z)
+                });
+                match impact_vy {
+                    Some(impact_vy) => {
+                        let dmg = damage_from_impact(impact_vy);
+                        if dmg > 0.0 {
+                            state.ui.hud.health =
+                                (state.ui.hud.health - dmg).max(0.0);
+                            if state.ui.hud.health <= 0.0 {
+                                let plaza = slice.scene.plan.plaza;
+                                slice.player.pos = [
+                                    plaza.x as f32 + 0.5,
+                                    slice.player.pos[1],
+                                    plaza.z as f32 + 0.5,
+                                ];
+                                state.ui.hud.health = 0.5;
+                                state.ui.hud.food = (state.ui.hud.food * 0.5).max(0.3);
+                                state.ui.toast("YOU FELL — RECOVERED AT THE PLAZA");
+                            } else {
+                                state.ui.toast(format!(
+                                    "FELL — HEALTH {}%",
+                                    (state.ui.hud.health * 100.0) as u8
+                                ));
+                            }
+                            state.ui_dirty = true;
+                        }
+                    }
+                    None => {
+                        // THE GRAB: a descending body passing a
+                        // drawn strand catches it — the fall's
+                        // velocity zeroes and the strand owns the
+                        // body until the tip or Space releases it.
+                        if slice.hang.is_none() && slice.jump_vy <= 0.0 {
+                            let grip = state
+                                .renderer
+                                .vine_grip_near_pub(slice.player.pos[0], slice.player.pos[2]);
+                            if let Some(hang) = grip.and_then(|g| {
+                                crate::app::try_grab_vine(
+                                    &g,
+                                    prev_y,
+                                    &slice.player.pos,
+                                    slice.jump_vy,
+                                )
+                            }) {
+                                slice.player.pos[1] = slice
+                                    .player
+                                    .pos[1]
+                                    .clamp(hang.tip_y, hang.top_y);
+                                slice.hang = Some(hang);
+                                slice.falling = false;
+                                slice.jump_vy = 0.0;
+                                state.ui
+                                    .toast("GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO");
                                 state.ui_dirty = true;
                             }
                         }
-                        None => {
-                            // THE GRAB: a descending body passing a
-                            // drawn strand catches it — the fall's
-                            // velocity zeroes and the strand owns the
-                            // body until the tip or Space releases it.
-                            if slice.hang.is_none() && slice.jump_vy <= 0.0 {
-                                let grip = state
-                                    .renderer
-                                    .vine_grip_near_pub(slice.player.pos[0], slice.player.pos[2]);
-                                if let Some(hang) = grip.and_then(|g| {
-                                    crate::app::try_grab_vine(
-                                        &g,
-                                        prev_y,
-                                        &slice.player.pos,
-                                        slice.jump_vy,
-                                    )
-                                }) {
-                                    slice.player.pos[1] = slice
-                                        .player
-                                        .pos[1]
-                                        .clamp(hang.tip_y, hang.top_y);
-                                    slice.hang = Some(hang);
-                                    slice.falling = false;
-                                    slice.jump_vy = 0.0;
-                                    state.ui
-                                        .toast("GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO");
-                                    state.ui_dirty = true;
-                                }
-                            }
-                        }
                     }
                 }
-                slice.ground_y = slice.player.pos[1];
-                if gameplay_active {
-                    state.renderer.crowd_tick(0.35, 1);
-                }
-            } else {
-                slice.player.walk(&gen, fwd, strafe, dt);
+            }
+            slice.ground_y = slice.player.pos[1];
+            if slice.rebuild && gameplay_active {
+                state.renderer.crowd_tick(0.35, 1);
             }
             state.renderer.set_pose(slice.player.pose());
             // The forge work tick (inside the slice's own scope): the

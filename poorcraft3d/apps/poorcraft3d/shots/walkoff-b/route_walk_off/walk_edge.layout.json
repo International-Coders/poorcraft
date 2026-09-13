@@ -68,17 +68,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO",
-      "kind": "toast",
-      "rect": [
-        79,
-        375,
-        642,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -221,23 +210,18 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 13:03",
+        "modified": "2026-09-13 13:02",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 13:03",
+        "modified": "2026-09-13 13:02",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [
-      {
-        "age_s": 2.1520047187805176,
-        "text": "GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO"
-      }
-    ],
+    "toasts": [],
     "wallet": 0
   }
 }

@@ -14,6 +14,19 @@ pub const WALK_SPEED: f32 = 4.0;
 /// Sprint speed (Shift while moving, stamina permitting).
 pub const SPRINT_SPEED: f32 = 6.6;
 
+/// A support gap beyond one walking step: when the ground answer sits
+/// this far below the feet, no surface holds the body — the walk's snap
+/// refuses it (THE STEP LAW) and the slice's walk-off commit (this
+/// predicate against the surface truth) begins the fall.
+pub const SUPPORT_GAP_M: f32 = 1.05;
+
+/// THE WALK-OFF LAW (pure): the body is unsupported when the ground
+/// answer sits more than one step below the feet — the frame support
+/// vanishes (a ledge walked off, a floor dug out), the fall begins.
+pub fn is_unsupported(feet_y: f32, ground_y: f32) -> bool {
+    feet_y - ground_y > SUPPORT_GAP_M
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlayerBody {
     /// Feet position (meters).
@@ -173,13 +186,18 @@ impl PlayerBody {
         if !self.blocked_on(gen, surface, self.pos[0], self.pos[2] + dz) {
             self.pos[2] += dz;
         }
-        // Gravity/ground: snap to the surface top ONLY within the
-        // step range (1 m up / any drop the walker can step down) — a
-        // player far above the surface is FALLING (the jump-block's
-        // gravity owns them); snapping here erased every fall (the
-        // fall-damage route caught it: +10 m teleports landed soft).
+        // Gravity/ground: snap to the surface top ONLY within one step
+        // of the feet (1 m up / SUPPORT_GAP_M down — THE STEP LAW). A
+        // deeper drop belongs to the FALL: refusing the snap leaves the
+        // gap the slice's walk-off commit reads (is_unsupported against
+        // the same surface truth the arc lands on), so a walked-off body
+        // falls and takes the impact law's damage. The unbounded snap
+        // used to swallow every drop the streamed surface answered —
+        // walk-offs landed soft and the commit was dead code there.
         if let Some(g) = surface.ground_at(gen, self.pos[0], self.pos[2], self.pos[1] + 2.0) {
-            self.pos[1] = g;
+            if self.pos[1] - g <= SUPPORT_GAP_M {
+                self.pos[1] = g;
+            }
         }
     }
 
@@ -398,6 +416,87 @@ mod look_tests {
             "the sprinter outruns the walker ({:.1} vs {:.1})",
             sprinter.pos[2],
             walker.pos[2]
+        );
+    }
+
+    /// THE STEP LAW (the walk-off's ground half): the walk holds a
+    /// step down (0.5 m snaps) and REFUSES a ledge (2.5 m — y stays,
+    /// and the gap is_unsupported reads is left standing for the
+    /// slice's walk-off commit). The stub answers the true surface
+    /// IGNORING from_y — the SurfaceStreamer's exact shape, where the
+    /// old unbounded snap swallowed every walked-off drop soft.
+    #[test]
+    fn the_walk_holds_a_step_and_refuses_a_ledged_drop() {
+        struct StreamedLedge {
+            edge_z: f32,
+            top: f32,
+            bottom: f32,
+        }
+        impl crate::player::CollisionSurface for StreamedLedge {
+            fn ground_at(
+                &self,
+                _g: &pc3d_world::gen::WorldGen,
+                _x: f32,
+                z: f32,
+                _y: f32,
+            ) -> Option<f32> {
+                Some(if z > self.edge_z { self.top } else { self.bottom })
+            }
+            fn cell_solid(&self, _g: &pc3d_world::gen::WorldGen, _x: i32, _y: i32, _z: i32) -> bool {
+                false
+            }
+        }
+        let gen = pc3d_world::gen::WorldGen::new(22);
+        // A STEP down: walked and held (the body follows the surface).
+        let mut walker = PlayerBody { pos: [0.5, 10.0, 0.5], yaw: 0.0, pitch: 0.0 };
+        for _ in 0..40 {
+            walker.walk_on_speed(
+                &gen,
+                &StreamedLedge { edge_z: 2.0, top: 10.0, bottom: 9.5 },
+                1.0,
+                0.0,
+                1.0 / 60.0,
+                WALK_SPEED,
+            );
+        }
+        assert!(
+            walker.pos[2] < 2.0,
+            "the walk carried the body past the step (z {:.2})",
+            walker.pos[2]
+        );
+        assert!(
+            (walker.pos[1] - 9.5).abs() < 0.01,
+            "a step down is walked ({:.2})",
+            walker.pos[1]
+        );
+        // A LEDGE: the drop is refused — the feet stay, and the gap the
+        // commit reads (the SAME surface truth the arc lands on) says
+        // unsupported. The fall, the impact, and the damage belong to
+        // the slice's shared airborne machinery, never to the walk.
+        let mut lemming = PlayerBody { pos: [0.5, 10.0, 0.5], yaw: 0.0, pitch: 0.0 };
+        for _ in 0..40 {
+            lemming.walk_on_speed(
+                &gen,
+                &StreamedLedge { edge_z: 2.0, top: 10.0, bottom: 7.5 },
+                1.0,
+                0.0,
+                1.0 / 60.0,
+                WALK_SPEED,
+            );
+        }
+        assert!(
+            lemming.pos[2] < 2.0,
+            "the walk carried the body past the edge (z {:.2})",
+            lemming.pos[2]
+        );
+        assert!(
+            (lemming.pos[1] - 10.0).abs() < 0.01,
+            "a ledged drop is NOT walked ({:.2} — the old snap landed it soft)",
+            lemming.pos[1]
+        );
+        assert!(
+            is_unsupported(lemming.pos[1], 7.5),
+            "the ledge gap commits the fall"
         );
     }
 }

@@ -7721,3 +7721,121 @@ HONESTLY DEFERRED: contention guard for bench targets; the loop-444
 follow-ups (walk-off live route, Space-from-hang route, look-pitch
 script hook, lethal plaza-recovery route) carry forward unchanged in
 STATE.md; THE OWNER PLAY PASS of the stamped DMG remains THE gate.
+
+## 2026-09-13 — Loop 446: the walk-off lives (the step law + the dug-floor route)
+
+### What was done
+- Closed loop 444's standing deferral (the walk-off commit had no
+  live route) and found a REAL bug doing it: the walk-off commit was
+  DEAD CODE on the live streamed-surface path. The walk's Y-snap in
+  `walk_on_speed` accepted ANY ground answer, and the streamed
+  surface's `ground_at` answers the true height everywhere (ignores
+  `from_y`) — the frame a body crossed a ledge edge, the snap
+  teleported it to the bottom instantly, damage-free; the commit's
+  `is_unsupported` never saw a gap. Empirically pinned first with a
+  unit probe on a streamer-shaped ledge stub (ground answer ignoring
+  from_y): y snapped 10.0 -> 7.5 in one walked frame (test FAILED on
+  purpose before the fix, PASSED after).
+- THE STEP LAW (fix): `walk_on_speed` snaps only within one step —
+  `feet - ground <= SUPPORT_GAP_M` (1.05 m); deeper, the walk
+  refuses and the gap stands for the slice's walk-off commit, which
+  flips the SAME airborne arc a jump uses. `SUPPORT_GAP_M` +
+  `is_unsupported` moved to player.rs (app.rs re-exports; the walk
+  owns the step constant). The slice frame's airborne machinery
+  (commit, hang, jump, arc) was HOISTED out of the rebuild-only
+  branch — the law now holds on BOTH walk paths (streamed rebuild
+  and legacy authority); crowd_tick stays rebuild-gated. New unit
+  law `the_walk_holds_a_step_and_refuses_a_ledged_drop` (0.5 m step
+  walked and held; 2.5 m ledge refused, gap commits).
+- THE HONEST FINDING about natural ledges: the streamed surface
+  interpolates at 1 m nodes, so even the gen's vertical 4 m terrace
+  faces (cliff-masked bands) ramp into <= 4 m/m slopes — walked down
+  at 6.7 cm/frame under the walkability contract. No WALKED natural
+  edge can produce the per-frame gap. The walk-off law's own second
+  trigger can: "a floor dug out". The route digs.
+- THE DIG, LIVE: `UiAction::EditSurface { x, z, meters }` ->
+  `Renderer::surface_edit` -> `SurfaceStreamer::edit` (delta layer,
+  already persisted with the slice save) + NEW
+  `SurfaceStreamer::remesh_now` — every touched patch is remeshed
+  immediately, so collision AND the drawn ground answer the edit in
+  the same frame (a stale mesh would picture a floor the body no
+  longer stands on). This is the foundation of a player dig verb;
+  multiplayer routing of terrain edits through a host stays future
+  work (the construction path's HostCommand precedent).
+- route_walk_off (observe.rs route table + main.rs arm + verdict +
+  `make p3d-walkoff`): the body is teleported GROUNDED onto a flat
+  cell center near the showcase plaza (deterministic ring-first
+  search: 5x5 samples within +-0.25 m; VINE refused across the
+  grip's whole +-2-slot scan; trees refused in the pit's own slot);
+  60 frames of streaming settle; the dig lowers the cell 5 m at
+  frame 90; the step law refuses, the commit fires (~frame 91), the
+  arc lands the body straight down (no keys, no teleports after the
+  start). Records: poses (x,y,z) at approach/mid-fall/landed +
+  health before/after + the LIVE pre-dig ground answer; shots
+  walk_edge/walk_air/walk_landed. Verdict bands are on the FEET
+  (the route camera pose reports the EYE — EYE_ABOVE_FEET 1.7; the
+  first run's FAIL was exactly this verdict bug, fixed).
+
+### How
+- Files: poorcraft3d/crates/pc3d_render/src/player.rs (step law +
+  const move + test), app.rs (re-export + shared airborne machinery
+  + EditSurface handler), ui.rs (UiAction::EditSurface), renderer.rs
+  (surface_edit), surface_stream.rs (remesh_now), observe.rs (route
+  spec), apps/poorcraft3d/src/main.rs (route arm + verdict),
+  Makefile (p3d-walkoff), STATE/BACKLOG/CHANGELOG/DEVLOG.
+
+### Verification evidence
+- make p3d-walkoff PASS x2 + comparator PASS. Measured: dig cell
+  (391.5, 132.5); feet 54.49 -> 49.49 — the dug floor (ground -
+  5.0) EXACTLY; health 100% -> 67-68% (the impact law's ~35% for a
+  5 m drop, minus regen); FELL toast in the landed capture. The two
+  runs' mid-fall frames differ slightly (frame-timing jitter inside
+  the 4 m-wide band) — the law quantities (drop, landing, wound)
+  are identical.
+- Captures INSPECTED: walk_edge (standing on open ground, bars
+  full), walk_air (mid-fall inside the pit, the dug wall in frame,
+  "THE GROUND GIVES WAY" toast), walk_landed (at the pit floor,
+  "FELL — HEALTH 64%", bar ~2/3).
+- Regression: make p3d-playtest PASS x2, chain UNCHANGED (ends
+  "fell 8 m over the open journal (health 33%)" — the house-door
+  walk survives the step law); make p3d-climb PASS x2 (same strand
+  (65,20), health 100%); make p3d-steer PASS x2 (drift 1.49-1.55 m
+  along the strafe, ortho 0.00, health 67% -> 38%); p3d-smoke OK
+  (digest dd019eca900f5a61 UNCHANGED); p3d-wilderness PASS (6
+  captures); p3d-assets OK.
+- Suites: p3d workspace 658 green (pc3d_render 208 — +1 step law);
+  root cargo test --workspace green (479 — measured on the COMBINED
+  tree, see honesty note).
+
+LORE IMPACT: canon touched: none — body traversal physics only.
+Canon preserved: all locks. World expression: the falls of the Age
+of Reckoning answer the hand (444: the air steers) and the ground
+(446: the floor gives way); the dig edit stays a terrain-shaped
+delta, never a canon object. Migration: none (in-memory runtime
+state + the surface delta layer that already saved).
+
+PERF: no performance claim this loop. The walk adds one
+comparison per grounded frame; the deck bench attaches NO slice
+(verified in 444), so the change has no bench cost path. [BENCH
+LINE FILLED AFTER THE RUN — see final STATE entry.]
+
+HONESTY NOTES: (1) a concurrent session was active on this repo
+through this loop (their root lf_* + p3d npc/nav edits, geode
+guardian shots, and their own suite runs — load 10-40); my suite
+totals (p3d 658, root 479) were measured on the COMBINED tree with
+their UNSTAGED work present and green; I staged ONLY my job's
+files. (2) The first bench attempt of this loop ran under their
+load and was DISCARDED, not reported. (3) The root suite count
+moved 476 -> 479 with their in-flight root work present — not a
+claim about their job.
+
+HONESTLY DEFERRED: the UP-step half of the streamed walk still
+snaps any rise (walking up cliffs is possible on the surface path —
+pre-existing, unobserved because the showcase is flat; needs its
+own wall/step law + route); the player-facing dig verb (key,
+bindings, targeting, drop tables) is future work on top of the now-
+live edit path; Space jump-off from a hang is still unit-lawed
+only; the look-pitch script hook is still open; the lethal
+plaza-recovery branch still has no route proof; a contention guard
+for bench targets remains unbuilt. THE OWNER PLAY PASS of the
+stamped DMG remains THE gate.

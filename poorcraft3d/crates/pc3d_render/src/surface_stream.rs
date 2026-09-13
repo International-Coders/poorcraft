@@ -203,6 +203,58 @@ impl SurfaceStreamer {
         p
     }
 
+    /// Immediately remeshes one LOADED patch from the generator + deltas
+    /// (the live edit path: the drawn surface must answer the edit in
+    /// the same frame the collision does — a stale mesh would picture a
+    /// floor the body no longer stands on). Answers false for unloaded
+    /// patches: their delta rides `patch_with_deltas` when they load.
+    pub fn remesh_now(&mut self, device: &wgpu::Device, coord: PatchCoord) -> bool {
+        use wgpu::util::DeviceExt;
+        let Some(slot) = self.loaded.get(&coord) else {
+            return false;
+        };
+        let lod = slot.lod;
+        let (verts, idx) = self.mesh_patch(coord, lod);
+        let bytes = verts.len() * VERTEX_BYTES + idx.len() * 4;
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("surface verts (edit)"),
+            contents: bytemuck::cast_slice(&verts),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("surface idx (edit)"),
+            contents: bytemuck::cast_slice(&idx),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let o = coord.origin();
+        let to_m = |mm: i64| mm as f32 / 1000.0;
+        let mut min_y = f32::MAX;
+        let mut max_y = f32::MIN;
+        for v in &verts {
+            min_y = min_y.min(v.pos[1]);
+            max_y = max_y.max(v.pos[1]);
+        }
+        self.loaded.insert(
+            coord,
+            Slot {
+                lod,
+                vertex_buffer,
+                index_buffer,
+                index_count: idx.len() as u32,
+                bytes,
+                aabb_min: [to_m(o.x), min_y, to_m(o.z)],
+                aabb_max: [to_m(o.x) + PATCH_M, max_y + 0.1, to_m(o.z) + PATCH_M],
+                version: self
+                    .deltas
+                    .get(&coord)
+                    .map(|d| 1 + d.len() as u64)
+                    .unwrap_or(1),
+            },
+        );
+        self.counters.remeshed += 1;
+        true
+    }
+
     /// A small SurfaceRegion centered on `coord` (for edit semantics).
     fn region_around(&self, center: PatchCoord, ring: i32) -> crate::surface::SurfaceRegion {
         let mut region = crate::surface::SurfaceRegion::empty(&self.gen, center, ring);

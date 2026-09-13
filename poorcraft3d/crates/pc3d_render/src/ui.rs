@@ -1901,6 +1901,11 @@ pub enum UiAction {
     /// Proof hook (inspector): raw mouse deltas applied to the live
     /// player body — the exact path real mouse motion takes.
     PlayerLook { dx: f32, dy: f32 },
+    /// Proof hook (the dig): lower/raise the streamed surface under a
+    /// world cell through the live delta layer, remeshed the same frame
+    /// — the walk-off route digs the floor out from under the standing
+    /// body (the walk-off law's second trigger: "a floor dug out").
+    EditSurface { x: f32, z: f32, meters: f32 },
     Repaint,
 }
 
