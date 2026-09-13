@@ -152,6 +152,10 @@ pub struct SliceHost {
     /// and the arc integrates whether or not a panel blocks input —
     /// gravity is the world, not the menu.
     pub falling: bool,
+    /// The gripped strand, when the body hangs on a vine: the strand
+    /// owns the body (XZ pinned to the grip point, Y under climb
+    /// control) until the tip releases it or Space jumps off.
+    pub hang: Option<VineHang>,
 }
 
 impl SliceHost {
@@ -208,6 +212,77 @@ pub fn integrate_air_arc(
         }
     }
     None
+}
+
+/// THE VINE HANG (pure — the laws live here): the body caught a drawn
+/// strand. `xz` is the grip line the body is pinned to, `top_y` the
+/// attach, `tip_y` the strand's lowest drawn point (the climb's floor).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VineHang {
+    pub xz: [f32; 2],
+    pub top_y: f32,
+    pub tip_y: f32,
+}
+
+/// Lateral reach of a hand: how close a falling body must pass to catch
+/// the strand.
+pub const GRAB_RADIUS_M: f32 = 0.55;
+/// Climb speed along the strand while W/S are held (m/s).
+pub const CLIMB_SPEED_MPS: f32 = 1.8;
+
+/// THE GRAB LAW (pure): a DESCENDING body catches the strand when its
+/// line is within hand reach and the body's path meets the strand's
+/// span this frame — either the feet are already inside the span, or
+/// the frame crossed it (a fast drop must not tunnel through the mesh
+/// it visibly passes through). A grounded or rising body never grabs:
+/// strolling under the canopy is free; the vine catches a FALL. The
+/// caller clamps the body's y into the answered span.
+pub fn try_grab_vine(
+    grip: &crate::flora::VineGrip,
+    prev_y: f32,
+    pos: &[f32; 3],
+    vy: f32,
+) -> Option<VineHang> {
+    if vy > 0.0 {
+        return None; // only a fall is catchable
+    }
+    let d = (pos[0] - grip.xz[0]).hypot(pos[2] - grip.xz[1]);
+    if d > GRAB_RADIUS_M {
+        return None; // out of hand reach
+    }
+    let inside = pos[1] >= grip.tip_y - 0.3 && pos[1] <= grip.top_y;
+    let crossed = prev_y > grip.top_y && pos[1] < grip.top_y && pos[1] >= grip.tip_y - 0.6;
+    if !inside && !crossed {
+        return None;
+    }
+    Some(VineHang {
+        xz: grip.xz,
+        top_y: grip.top_y,
+        tip_y: grip.tip_y,
+    })
+}
+
+/// THE CLIMB (pure, the same FIXED 1/60 s step as the arc): `climb`
+/// +1 climbs toward the attach, -1 toward the tip, 0 holds. The body
+/// clamps at the attach (the strand's top) and RELEASES past the tip
+/// (answered true — the caller re-enters the airborne arc from the
+/// tip; vy restarts at zero, so the remaining drop is the only drop
+/// that counts). The same inputs climb the same amount at any refresh
+/// rate.
+pub fn step_hang(hang: &VineHang, y: &mut f32, climb: f32, dt: f32) -> bool {
+    const FIXED_DT: f32 = 1.0 / 60.0;
+    let substeps = ((dt / FIXED_DT).round() as u32).clamp(1, 8);
+    for _ in 0..substeps {
+        *y += climb * CLIMB_SPEED_MPS * FIXED_DT;
+        if *y > hang.top_y {
+            *y = hang.top_y; // the attach holds the body
+        }
+        if *y < hang.tip_y {
+            *y = hang.tip_y;
+            return true; // past the tip: let go
+        }
+    }
+    false
 }
 
 /// A shared handle to the authoritative host for interactive construction:
@@ -330,6 +405,162 @@ pub fn forge_view_of(f: &pc3d_world::forge::Forge) -> crate::ui::ForgeView {
             .clamp(0.0, 1.0),
         ore: f.ore,
         bars: f.bars,
+    }
+}
+
+#[cfg(test)]
+mod vine_tests {
+    use super::{damage_from_impact, integrate_air_arc, step_hang, try_grab_vine, VineHang};
+    use crate::flora::VineGrip;
+
+    /// A broadleaf-hang strand: attach 2.9 m up, tip ~0.65 m (a mid
+    /// variant at mid jitter).
+    fn grip() -> VineGrip {
+        VineGrip {
+            xz: [10.0, 10.0],
+            top_y: 12.9,
+            tip_y: 10.65,
+        }
+    }
+
+    #[test]
+    fn the_grab_arrests_a_fall() {
+        let g = grip();
+        let pos = [10.2, 12.0, 10.1];
+        let hang = try_grab_vine(&g, 12.4, &pos, -3.0).expect("a falling body in the span grabs");
+        assert_eq!(hang.xz, g.xz, "the body hangs on the strand's line");
+        assert_eq!(hang.top_y, g.top_y);
+        assert_eq!(hang.tip_y, g.tip_y);
+    }
+
+    #[test]
+    fn the_grab_refuses_the_rising_the_distant_and_the_outside() {
+        let g = grip();
+        let pos = [10.2, 12.0, 10.1];
+        assert!(
+            try_grab_vine(&g, 12.4, &pos, 1.0).is_none(),
+            "a rising body cannot grab"
+        );
+        let far = [14.6, 12.0, 10.1];
+        assert!(
+            try_grab_vine(&g, 12.4, &far, -3.0).is_none(),
+            "out of hand reach: no grab"
+        );
+        let above = [10.0, 15.0, 10.0];
+        assert!(
+            try_grab_vine(&g, 15.4, &above, -3.0).is_none(),
+            "still above the attach: no grab"
+        );
+        let below = [10.0, 9.0, 10.0];
+        assert!(
+            try_grab_vine(&g, 9.4, &below, -3.0).is_none(),
+            "already past the strand: no grab"
+        );
+    }
+
+    #[test]
+    fn a_fast_drop_cannot_tunnel_through_the_strand() {
+        let g = grip();
+        // One 30 fps frame at ~14 m/s moves ~0.47 m: the body jumps
+        // from above the attach to inside the span — the crossing
+        // catch is what grabs it.
+        let pos = [10.1, 12.5, 10.0];
+        assert!(
+            try_grab_vine(&g, 12.98, &pos, -14.0).is_some(),
+            "the frame crossed the attach: caught"
+        );
+    }
+
+    #[test]
+    fn strolling_under_a_vine_never_grabs() {
+        let g = grip();
+        // A grounded body walks under the strand at its own y (the
+        // ground is below the tip): not inside the span, not falling.
+        let grounded = [10.2, 9.2, 10.1];
+        assert!(try_grab_vine(&g, 9.2, &grounded, 0.0).is_none());
+    }
+
+    #[test]
+    fn the_climb_clamps_at_the_attach_and_releases_past_the_tip() {
+        let hang = VineHang { xz: [0.0; 2], top_y: 12.0, tip_y: 10.0 };
+        let mut y = 11.5_f32;
+        // Climb up: clamps at the attach and holds (never above it).
+        for _ in 0..120 {
+            assert!(!step_hang(&hang, &mut y, 1.0, 1.0 / 60.0));
+        }
+        assert_eq!(y, hang.top_y, "the attach holds the body");
+        // Climb down: releases exactly at the tip.
+        let mut released = false;
+        for _ in 0..240 {
+            if step_hang(&hang, &mut y, -1.0, 1.0 / 60.0) {
+                released = true;
+                break;
+            }
+        }
+        assert!(released, "descending past the tip lets go");
+        assert_eq!(y, hang.tip_y, "the release happens at the tip");
+    }
+
+    #[test]
+    fn the_climb_lands_the_same_release_at_any_refresh_rate() {
+        let hang = VineHang { xz: [0.0; 2], top_y: 12.0, tip_y: 10.0 };
+        let run = |frame_dt: f32| -> f32 {
+            let mut y = 11.5_f32;
+            for _ in 0..4000 {
+                if step_hang(&hang, &mut y, -1.0, frame_dt) {
+                    return y;
+                }
+            }
+            panic!("the climb never released at dt {frame_dt}");
+        };
+        assert_eq!(run(1.0 / 60.0), run(1.0 / 120.0), "same release height");
+    }
+
+    #[test]
+    fn the_catch_saves_the_body() {
+        let g = VineGrip { xz: [0.0, 0.0], top_y: 2.9, tip_y: 0.65 };
+        let ground = || 0.0_f32;
+        // UNCAUGHT: a 12 m drop lands at ~15.3 m/s — lethal.
+        let (mut y, mut vy) = (12.0_f32, 0.0_f32);
+        let impact = loop {
+            if let Some(i) = integrate_air_arc(&mut y, &mut vy, 1.0 / 60.0, ground) {
+                break i;
+            }
+        };
+        assert!(damage_from_impact(impact) >= 0.99, "uncaught is lethal");
+        // CAUGHT: the same drop grabs the strand, the hang zeroes the
+        // fall, letting go at the tip leaves a drop the body walks
+        // away from.
+        let (mut y, mut vy) = (12.0_f32, 0.0_f32);
+        let mut hang = None;
+        loop {
+            let prev_y = y;
+            if let Some(i) = integrate_air_arc(&mut y, &mut vy, 1.0 / 60.0, ground) {
+                // Landed uncaught — the law failed to catch.
+                panic!("the body hit the ground at {i} m/s without a grab");
+            }
+            if hang.is_none() {
+                if let Some(h) = try_grab_vine(&g, prev_y, &[0.0, y, 0.0], vy) {
+                    y = y.clamp(h.tip_y, h.top_y);
+                    hang = Some(h);
+                }
+            }
+            if let Some(h) = hang {
+                if step_hang(&h, &mut y, -1.0, 1.0 / 60.0) {
+                    // Released at the tip: the remaining drop.
+                    let (mut fy, mut fvy) = (y, 0.0_f32);
+                    let rest = loop {
+                        if let Some(i) =
+                            integrate_air_arc(&mut fy, &mut fvy, 1.0 / 60.0, ground)
+                        {
+                            break i;
+                        }
+                    };
+                    assert_eq!(damage_from_impact(rest), 0.0, "the release is safe");
+                    return;
+                }
+            }
+        }
     }
 }
 
@@ -500,6 +731,11 @@ pub struct WindowConfig {
     pub frame_hooks: Vec<(u64, FrameHook)>,
     /// Scripted UI state steps (screenshot harness / inspector runs).
     pub ui_script: Vec<(u64, UiStep)>,
+    /// Scripted GAMEPLAY KEYS (route proofs press real keys through the
+    /// real input path): (first_frame, release_frame, codes) — the codes
+    /// are held on every frame in [first, release). Sorted by frame,
+    /// like the shots.
+    pub key_script: Vec<(u64, u64, Vec<KeyCode>)>,
     /// Probe selection for scheduled captures.
     pub probe_set: ProbeSet,
     /// Interactive construction (F place / R remove through the host).
@@ -536,6 +772,7 @@ impl Default for WindowConfig {
             camera_script: Vec::new(),
             frame_hooks: Vec::new(),
             ui_script: Vec::new(),
+            key_script: Vec::new(),
             probe_set: ProbeSet::Scene,
             interactive_host: None,
             slice_host: None,
@@ -905,6 +1142,7 @@ struct App {
     next_hook: usize,
     next_ui_step: usize,
     next_resize: usize,
+    next_key_script: usize,
     next_shot: usize,
     last_frame: Option<Instant>,
     state: Option<WindowState>,
@@ -2519,6 +2757,23 @@ impl App {
             }
         }
 
+        // Scripted GAMEPLAY KEYS (route proofs): held on every frame in
+        // [first, release), through the same `keys` set real input writes.
+        if self.next_key_script < self.cfg.key_script.len() {
+            let (first, release, codes) = &self.cfg.key_script[self.next_key_script];
+            if state.frame_no == *first {
+                for c in codes {
+                    state.keys.insert(*c);
+                }
+            }
+            if state.frame_no >= *release.max(&(*first + 1)) {
+                for c in codes {
+                    state.keys.remove(c);
+                }
+                self.next_key_script += 1;
+            }
+        }
+
         // The live slice: per-frame WALKING on colliding terrain, the
         // camera locked to the player, streaming continues.
         let gameplay_active = state.gameplay_active();
@@ -2558,20 +2813,44 @@ impl App {
                 // sprint-aware speed, plus the schedule ticking the
                 // crowd's authoritative brains.
                 let y_before = slice.player.pos[1];
+                let (x_before, z_before) = (slice.player.pos[0], slice.player.pos[2]);
                 state
                     .renderer
                     .walk_player_surface_speed(&gen, &mut slice.player, fwd, strafe, dt, speed);
-                if slice.falling {
+                if slice.falling || slice.hang.is_some() {
                     slice.player.pos[1] = y_before; // the fall owns Y
+                }
+                if let Some(hang) = slice.hang {
+                    // THE STRAND OWNS THE BODY: pinned to the grip line
+                    // (the walk's XZ is undone), Y under climb control.
+                    slice.player.pos[0] = x_before;
+                    slice.player.pos[2] = z_before;
+                    let climb = if gameplay_active {
+                        (key(KeyCode::KeyW) - key(KeyCode::KeyS)).clamp(-1.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                    let mut y = slice.player.pos[1];
+                    let released = crate::app::step_hang(&hang, &mut y, climb, dt);
+                    slice.player.pos[1] = y;
+                    if released {
+                        // Past the tip: the arc resumes from there, and
+                        // the ONLY drop that counts is the one left.
+                        slice.hang = None;
+                        slice.falling = true;
+                        slice.jump_vy = 0.0;
+                    }
                 }
                 // JUMP START (the controls spec's Space — an input, so
                 // it waits for gameplay like every key): committing to
-                // the arc flips the SAME airborne state a drop uses.
+                // the arc flips the SAME airborne state a drop uses —
+                // and from a hang, Space is the hop OFF the strand.
                 if gameplay_active
                     && state.keys.contains(&KeyCode::Space)
                     && !slice.jump_held
                     && !slice.falling
                 {
+                    slice.hang = None; // let go (no-op from the ground)
                     slice.falling = true;
                     slice.jump_vy = 4.6;
                 }
@@ -2585,31 +2864,64 @@ impl App {
                 // answer of the CURRENT column; landing applies damage
                 // from the impact speed.
                 if slice.falling {
+                    let prev_y = slice.player.pos[1];
                     let impact_vy = slice.integrate_air(dt, |x, z| {
                         state.renderer.ground_y_at(&gen, x, z)
                     });
-                    if let Some(impact_vy) = impact_vy {
-                        let dmg = damage_from_impact(impact_vy);
-                        if dmg > 0.0 {
-                            state.ui.hud.health =
-                                (state.ui.hud.health - dmg).max(0.0);
-                            if state.ui.hud.health <= 0.0 {
-                                let plaza = slice.scene.plan.plaza;
-                                slice.player.pos = [
-                                    plaza.x as f32 + 0.5,
-                                    slice.player.pos[1],
-                                    plaza.z as f32 + 0.5,
-                                ];
-                                state.ui.hud.health = 0.5;
-                                state.ui.hud.food = (state.ui.hud.food * 0.5).max(0.3);
-                                state.ui.toast("YOU FELL — RECOVERED AT THE PLAZA");
-                            } else {
-                                state.ui.toast(format!(
-                                    "FELL — HEALTH {}%",
-                                    (state.ui.hud.health * 100.0) as u8
-                                ));
+                    match impact_vy {
+                        Some(impact_vy) => {
+                            let dmg = damage_from_impact(impact_vy);
+                            if dmg > 0.0 {
+                                state.ui.hud.health =
+                                    (state.ui.hud.health - dmg).max(0.0);
+                                if state.ui.hud.health <= 0.0 {
+                                    let plaza = slice.scene.plan.plaza;
+                                    slice.player.pos = [
+                                        plaza.x as f32 + 0.5,
+                                        slice.player.pos[1],
+                                        plaza.z as f32 + 0.5,
+                                    ];
+                                    state.ui.hud.health = 0.5;
+                                    state.ui.hud.food = (state.ui.hud.food * 0.5).max(0.3);
+                                    state.ui.toast("YOU FELL — RECOVERED AT THE PLAZA");
+                                } else {
+                                    state.ui.toast(format!(
+                                        "FELL — HEALTH {}%",
+                                        (state.ui.hud.health * 100.0) as u8
+                                    ));
+                                }
+                                state.ui_dirty = true;
                             }
-                            state.ui_dirty = true;
+                        }
+                        None => {
+                            // THE GRAB: a descending body passing a
+                            // drawn strand catches it — the fall's
+                            // velocity zeroes and the strand owns the
+                            // body until the tip or Space releases it.
+                            if slice.hang.is_none() && slice.jump_vy <= 0.0 {
+                                let grip = state
+                                    .renderer
+                                    .vine_grip_near_pub(slice.player.pos[0], slice.player.pos[2]);
+                                if let Some(hang) = grip.and_then(|g| {
+                                    crate::app::try_grab_vine(
+                                        &g,
+                                        prev_y,
+                                        &slice.player.pos,
+                                        slice.jump_vy,
+                                    )
+                                }) {
+                                    slice.player.pos[1] = slice
+                                        .player
+                                        .pos[1]
+                                        .clamp(hang.tip_y, hang.top_y);
+                                    slice.hang = Some(hang);
+                                    slice.falling = false;
+                                    slice.jump_vy = 0.0;
+                                    state.ui
+                                        .toast("GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO");
+                                    state.ui_dirty = true;
+                                }
+                            }
                         }
                     }
                 }
@@ -2965,6 +3277,7 @@ pub fn run_windowed(cfg: WindowConfig) -> Result<WindowReport, String> {
         next_hook: 0,
         next_ui_step: 0,
         next_resize: 0,
+        next_key_script: 0,
         next_shot: 0,
         last_frame: None,
         state: None,

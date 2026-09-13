@@ -1,5 +1,55 @@
 # CHANGELOG
 
+## 2026-09-13 — The vine grip: the hanging strand becomes a traversal verb (loop 443)
+
+- Closed 442's natural follow-up: the vine was placement+render only;
+  now a falling body that passes a drawn strand within hand reach
+  CATCHES it. The grab law is pure and strict: only a DESCENDING body
+  grabs (strolling under the canopy is free), lateral hand reach
+  0.55 m, and the body must be inside the strand's span OR have
+  crossed the attach this frame — a fast drop cannot tunnel through
+  the mesh it visibly passes through. The hang zeroes the fall, so
+  the only drop that counts afterward is the one below the grip.
+- The strand truth is the DRAWN mesh: every loaded mesh records its
+  lowest vertex (min_y per kind+variant, canonical included) and
+  `vine_grip_near` answers the nearest strand's anchor line, attach,
+  and drawn tip (extent x jitter scale) from a ±2-slot scan — the
+  grip can never disagree with the picture. `step_hang` climbs on the
+  same FIXED 1/60 s step as the fall arc: W toward the attach (clamps,
+  never above), S toward the tip (releases past it — the arc resumes,
+  vy from zero), the same release height at any refresh rate. While
+  hanging, the strand owns the body (walk XZ undone); Space lets go
+  with the SAME 4.6 m/s hop a ground jump commits; the grab runs
+  OUTSIDE the gameplay gate like the arc it interrupts.
+- Route framework: `WindowConfig.key_script` injects real gameplay
+  keys through the real input path for [first, release) frames — the
+  route's W/S ride exactly what a player's keys ride.
+- Laws (pc3d_render 193 -> 201): grab arrests / refuses
+  (rising, distant, above, below), the crossing anti-tunnel catch,
+  stroll-under never grabs, climb clamps at the attach and releases
+  exactly at the tip, same release at 60 and 120 fps, and the
+  composition law `the_catch_saves_the_body` (an uncaught 12 m drop
+  lands at ~15.3 m/s = lethal; the same drop caught and released at
+  the tip lands at ~3.6 m/s = free) plus `the_grip_is_the_drawn_strand`
+  (the grip hangs from the attach, <= 0.75 m lateral, a real
+  0.3-2.6 m span, deterministic).
+- Proof: `make p3d-climb` — route_vine_climb searches the showcase
+  seed region-first (the plaza is Plains, which grows no vines BY
+  DESIGN), drops the player 12 m above a real strand (uncaught =
+  lethal), captures air/grip/climb/landed, and asserts the grip toast,
+  pixel-separated frames, and final health >= 95%. PASS x2 identical
+  (strand at slot (65,20), anchor 258.6/55.9/82.0) + comparator PASS;
+  captures AI-inspected. En-route: playtest x2 digests UNCHANGED
+  (05c46411869a857c — no vines at the Plains plaza, the live fall is
+  untouched); wilderness CANOPY unchanged; p3d-smoke/assets OK; deck
+  bench mid 12.30-12.38 ms p50 vs 442's 12.16 — noise-sized; p3d 651
+  green; root workspace 476 green; idle-upgrade-check PASS.
+- Deferred honestly: the climb route's canopy-interior frames are
+  honest but busy (the eye sits inside the pine's skirt; a look-pitch
+  script hook would frame the strand itself); Space jump-off is
+  unit-lawed only; mid-air steering is now routable (key_script
+  exists) but still untested as a law.
+
 ## 2026-09-13 — The vine anchor concept: the last catalog-only family grows in the wild (loop 442)
 
 - Closed loop 440's deferral: the 40 vine GLBs that loaded but never

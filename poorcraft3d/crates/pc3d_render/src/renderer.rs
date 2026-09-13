@@ -1274,6 +1274,15 @@ impl Renderer {
         }
     }
 
+    /// Proof-hook grip: the drawn vine strand near a world XZ, if any
+    /// (the mounted generator + the loaded flora meshes answer, so the
+    /// script closures and the frame step read the same strand truth).
+    pub fn vine_grip_near_pub(&self, x: f32, z: f32) -> Option<crate::flora::VineGrip> {
+        let gen = self.crowd_gen.as_ref().or(self.flora_gen.as_ref())?;
+        let streamer = self.flora.as_ref()?;
+        crate::flora::vine_grip_near(streamer, gen, x, z)
+    }
+
     pub fn ground_y_at(&self, gen: &pc3d_world::gen::WorldGen, x: f32, z: f32) -> f32 {
         use crate::player::CollisionSurface as _;
         if let Some(ss) = self.surface_stream.as_ref() {

@@ -51,6 +51,8 @@ pub use app::{
     run_windowed, CaptureOutcome, InteractiveHost, ProbeSet, Shot, SliceHost, SliceSetup,
     UiFrameCtx, UiStep, WindowConfig, WindowReport,
 };
+/// Gameplay keys for route scripts — the same codes real input writes.
+pub use winit::keyboard::KeyCode;
 pub use camera::CameraPose;
 pub use city::{city_scene, mesh_city, CityInfo, NavAnchor};
 pub use construction::{material_albedo, mesh_patch, UpdateStats};

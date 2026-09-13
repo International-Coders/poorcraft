@@ -7486,3 +7486,81 @@ HONESTLY DEFERRED: grass_tuft GLBs stay catalog-covered (the wind card
 field is the deliberate Deck-cheap path); the CANOPY capture frames one
 specimen (a wider two-vine drape framing is a polish pass); vine
 climbing (grip an anchor as a traversal verb) is future work.
+
+## 2026-09-13 — Loop 443: the vine grip (the hanging strand becomes a traversal verb)
+
+### What was done
+- The vine was placement+render only after 442; a falling body now
+  CATCHES a drawn strand within hand reach. The strand owns the hung
+  body (XZ pinned, Y under climb control on the fixed 1/60 s step);
+  W climbs to the attach (clamps), S descends past the tip (releases
+  into the arc, vy from zero — only the drop below the strand counts);
+  Space lets go with the same 4.6 m/s hop a ground jump commits; the
+  grab runs OUTSIDE the gameplay gate like the arc it interrupts.
+- Files: pc3d_render/src/flora.rs (per-mesh min_y at load — canonical
+  AND variants —, VineGrip, vine_grip_near ±2-slot scan reading the
+  DRAWN strand extent x jitter), renderer.rs (Renderer::
+  vine_grip_near_pub proof hook, the ground_y_at_pub shape),
+  app.rs (VineHang/GRAB_RADIUS_M/CLIMB_SPEED_MPS, try_grab_vine,
+  step_hang, SliceHost.hang, the frame-step wiring, WindowConfig::
+  key_script (first, release, codes) with the App cursor injecting
+  through the real `keys` set, lib.rs KeyCode re-export),
+  apps/poorcraft3d/src/main.rs (route_vine_climb: region-first vine
+  search over the showcase gen, 12 m drop above the anchor, air/grip/
+  climb/landed captures + toast/pixel/health assertions), Makefile
+  (p3d-climb target + help line).
+- Route design note: the route climbs W then descends S with a 2.4 m
+  budget against a <= 2.25 m max strand, so the release happens at the
+  tip for EVERY possible variant and every possible landing is inside
+  the damage law's free band (jump-off from the attach could cost up
+  to ~6 health for a broadleaf — S-release is the deterministic safe
+  chain; Space stays unit-lawed, the 441 jump precedent).
+
+### How
+- Pure laws first (try_grab_vine / step_hang + 7 tests), then the
+  strand-truth query + min_y at load, then the frame wiring, then the
+  route; `cargo build -p pc3d_render` green between layers.
+- make p3d-climb (new): release build, route run twice into
+  shots/climb-a|b, --compare-evidence, OK line.
+
+### Verification evidence
+- Laws: pc3d_render 193 -> 201 (the_grab_arrests_a_fall,
+  the_grab_refuses_the_rising_the_distant_and_the_outside,
+  a_fast_drop_cannot_tunnel_through_the_strand,
+  strolling_under_a_vine_never_grabs,
+  the_climb_clamps_at_the_attach_and_releases_past_the_tip,
+  the_climb_lands_the_same_release_at_any_refresh_rate,
+  the_catch_saves_the_body, the_grip_is_the_drawn_strand) — all green.
+- make p3d-climb PASS x2 identical (strand slot (65,20), anchor
+  258.6,55.92,82.0; health 100% at end) + comparator PASS.
+- Captures INSPECTED: air (forest from above, mid-fall), grip (canopy
+  interior, full GRIPPED A VINE toast), climb (shifted, toast fading),
+  landed (forest floor, ground level, full health).
+- make p3d-playtest PASS — digests UNCHANGED (05c46411869a857c x2):
+  the Plains plaza grows no vines, the live fall is untouched.
+- make p3d-wilderness PASS (6 captures, CANOPY unchanged); p3d-smoke
+  OK (digest dd019eca900f5a61 unchanged); p3d-assets OK.
+- Deck bench: mid p50 12.30-12.38 ms vs 442's 12.16 — noise-sized
+  (the grip query answers None while grounded; the walk never falls);
+  DECK-BENCH-REPORT.md + bench PNGs refreshed.
+- Full p3d workspace green (651); root cargo test --workspace green
+  (345); make idle-upgrade-check PASS.
+
+LORE IMPACT: no canon data touched — body traversal physics only; the
+overgrown wilds of the Age of Reckoning become physically traversable
+(a strand under living canopy catches a falling body — world logic,
+not a generic mechanic skin); vines stay living-canopy-anchored (the
+442 gate stands); no migration (flora is pure per-(seed, slot)
+derivation; the slice hang state is in-memory runtime).
+
+PERF: no added per-frame cost while grounded (the grab query runs
+only inside a fall); deck bench numbers above, same bench, same seed,
+same host.
+
+HONESTLY DEFERRED: the climb route's canopy-interior frames are honest
+but busy (the eye sits inside the pine's skirt at the attach — a
+look-pitch script hook would frame the strand itself mid-climb); Space
+jump-off is unit-lawed only (shared arc integration); mid-air steering
+is now routable (key_script exists) but still untested as a law; the
+lethal plaza-recovery branch still has no route proof; THE OWNER PLAY
+PASS of the stamped DMG remains THE standing gate.

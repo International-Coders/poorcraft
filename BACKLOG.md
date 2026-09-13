@@ -11,6 +11,26 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The vine grip: the hanging strand becomes a traversal verb
+      (2026-09-13, loop 443): a falling body that passes a drawn vine
+      strand within hand reach CATCHES it — the grab law refuses
+      rising, distant, and out-of-span bodies, and a fast drop cannot
+      tunnel through the strand (the crossing catch). The hang zeroes
+      the fall; the strand owns the body (XZ pinned, Y under climb);
+      W climbs to the attach and clamps, S descends and releases past
+      the tip so only the drop below the strand counts. The strand
+      truth is the DRAWN mesh (per-variant lowest vertex x jitter —
+      the grip can never disagree with the picture). Route proof:
+      `make p3d-climb` (route_vine_climb: a 12 m lethal drop caught at
+      a real strand, climb, tip release, land unharmed) x2 identical +
+      comparator PASS, captures AI-inspected; playtest digests
+      UNCHANGED; deck bench noise-sized. En-route: the route framework
+      gained key_script (real gameplay keys injected through the real
+      input path — the capability mid-air-steering proofs were
+      missing). Deferred honestly: canopy-interior climb frames need a
+      look-pitch hook to frame the strand itself; Space jump-off is
+      unit-lawed only; mid-air steering still untested as a law.
+
 - [x] The vine anchor concept: the last catalog-only family grows in
       the wild (2026-09-13, loop 442): the vine's mesh hangs downward
       from y=0, so the authority gained the missing concept — a vine

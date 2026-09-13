@@ -164,6 +164,11 @@ struct KindGpu {
     variants: BTreeMap<u16, Vec<(wgpu::Buffer, wgpu::Buffer, u32)>>,
     /// How many variants exist for this kind on disk (0 = none).
     variant_count: u16,
+    /// The lowest mesh vertex per DRAWN mesh (0 = the canonical base,
+    /// else the variant index) — the strand-truth the grip reads: a
+    /// hanging vine's reach is what was actually drawn, never a
+    /// constant the world guessed.
+    min_y: BTreeMap<u16, f32>,
 }
 
 /// The per-(kind, lod) instance bucket, uploaded when dirty.
@@ -238,6 +243,64 @@ pub fn variant_of(kind: PlantKind, slot: SlotCoord, count: u16) -> u16 {
         h = h.wrapping_mul(0x100000001b3);
     }
     (h % count as u64) as u16
+}
+
+/// A hanging strand's grip volume, in world meters — the DRAWN truth:
+/// the anchor line (`xz`), the attach height (`top_y`) and the strand's
+/// lowest drawn point (`tip_y`, mesh extent x jitter scale). The world
+/// authority answers where a vine hangs; this adds the only thing the
+/// world cannot know — how far down the drawn mesh actually reaches.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VineGrip {
+    pub xz: [f32; 2],
+    pub top_y: f32,
+    pub tip_y: f32,
+}
+
+/// The drawn strand near a world point, if any: scans the point's slot
+/// neighborhood for vine slots (the anchor stands up to one slot away
+/// from the strand), and answers the grip of the nearest one. None away
+/// from vine country. The strand's reach comes from the loaded meshes
+/// (canonical until the slot's variant loads near-field) — the grip can
+/// never disagree with what is on screen.
+pub fn vine_grip_near(
+    streamer: &FloraStreamer,
+    gen: &WorldGen,
+    x: f32,
+    z: f32,
+) -> Option<VineGrip> {
+    const SCAN_SLOTS: i32 = 2;
+    let cx = (x / flora::SLOT_M as f32).floor() as i32;
+    let cz = (z / flora::SLOT_M as f32).floor() as i32;
+    let mut best: Option<(f32, VineGrip)> = None;
+    for dx in -SCAN_SLOTS..=SCAN_SLOTS {
+        for dz in -SCAN_SLOTS..=SCAN_SLOTS {
+            let slot = SlotCoord { x: cx + dx, z: cz + dz };
+            if flora::plant_at(gen, slot).map(|p| p.kind) != Some(PlantKind::Vine) {
+                continue;
+            }
+            let ([ax, az], top_y) = flora::vine_anchor(gen, slot)?;
+            // The drawn reach: this slot's variant if loaded, else the
+            // canonical base (every family's canonical IS its _v00).
+            let count = streamer.kinds.get(&PlantKind::Vine)?.variant_count;
+            let v = variant_of(PlantKind::Vine, slot, count);
+            let reach = {
+                let k = streamer.kinds.get(&PlantKind::Vine)?;
+                let mine = k.min_y.get(&v).copied();
+                mine.or_else(|| k.min_y.get(&0).copied())?
+            };
+            if reach >= 0.0 {
+                continue; // not a downward mesh (cannot happen for vine)
+            }
+            let scale = flora::jitter(gen, slot)[2];
+            let tip_y = top_y + reach * scale;
+            let d = (ax - x).hypot(az - z);
+            if best.map(|(bd, _)| d < bd).unwrap_or(true) {
+                best = Some((d, VineGrip { xz: [ax, az], top_y, tip_y }));
+            }
+        }
+    }
+    best.map(|(_, g)| g)
 }
 
 fn asset_base(kind: PlantKind) -> &'static str {
@@ -333,6 +396,7 @@ impl FloraStreamer {
                 .unwrap_or_else(|e| panic!("wilderness asset {}: {e}", path.display()));
             let mut lods = Vec::new();
             let mut height = 1.0f32;
+            let mut min_y = 0.0f32;
             for lod in &asset.lods {
                 let vb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("flora vertices"),
@@ -345,6 +409,7 @@ impl FloraStreamer {
                     usage: wgpu::BufferUsages::INDEX,
                 });
                 height = height.max(lod.vertices.iter().map(|v| v.pos[1]).fold(0.0, f32::max));
+                min_y = min_y.min(lod.vertices.iter().map(|v| v.pos[1]).fold(0.0, f32::min));
                 lods.push((vb, ib, lod.indices.len() as u32));
             }
             // WT-009: count this kind's variants on disk (the 300
@@ -365,6 +430,7 @@ impl FloraStreamer {
                     variant_count,
                     lods,
                     _height: height,
+                    min_y: BTreeMap::from([(0u16, min_y)]),
                 },
             );
         }
@@ -524,6 +590,7 @@ impl FloraStreamer {
         };
         use wgpu::util::DeviceExt;
         let mut lods = Vec::new();
+        let mut min_y = 0.0f32;
         for lod in &asset.lods {
             let vb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("flora variant vertices"),
@@ -535,8 +602,10 @@ impl FloraStreamer {
                 contents: bytemuck::cast_slice(&lod.indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
+            min_y = min_y.min(lod.vertices.iter().map(|v| v.pos[1]).fold(0.0, f32::min));
             lods.push((vb, ib, lod.indices.len() as u32));
         }
+        k.min_y.insert(v, min_y);
         k.variants.insert(v, lods);
     }
 
@@ -1328,5 +1397,63 @@ mod tests {
         let sway = crate::scene::pixel_difference_fraction(&at_rest, &swaying);
         println!("vine tip sway diff {sway:.5}");
         assert!(sway > 0.0002, "the vine's tip sways ({sway})");
+    }
+
+    /// THE GRIP LAW: the strand a falling body can catch is the DRAWN
+    /// strand — the grip query answers the anchor line and a tip that
+    /// sits below the attach by a real strand length (a variant mesh's
+    /// true extent, never a constant), deterministically.
+    #[test]
+    fn the_grip_is_the_drawn_strand() {
+        let gen_rc = std::rc::Rc::new(WorldGen::new(4242));
+        let gen = &*gen_rc;
+        let mut target = None;
+        'find: for ring in 0..80i32 {
+            for dx in -ring..=ring {
+                for dz in -ring..=ring {
+                    if dx.abs() != ring && dz.abs() != ring {
+                        continue;
+                    }
+                    let slot = SlotCoord { x: dx * 3, z: dz * 3 };
+                    if flora::plant_at(gen, slot).map(|p| p.kind) == Some(PlantKind::Vine) {
+                        target = Some(slot);
+                        break 'find;
+                    }
+                }
+            }
+        }
+        let slot = target.expect("a vine grows on this seed");
+        let ([ax, az], top_y) = flora::vine_anchor(gen, slot).expect("attach geometry");
+
+        let mut r = crate::renderer::Renderer::offscreen(320, 240);
+        r.set_placeholder_scene(false);
+        r.set_flora_config(FloraConfig {
+            grass_radius_m: 0.0,
+            ..Default::default()
+        });
+        r.attach_flora(gen_rc.clone());
+        r.set_pose(crate::camera::CameraPose::new(
+            [ax + 2.5, top_y - 0.8, az + 2.5],
+            0.0,
+            -0.4,
+        ));
+        // One streamed frame loads the near-field meshes the grip reads.
+        let _ = ctrl_capture(&mut r);
+
+        let grip = r
+            .vine_grip_near_pub(ax, az)
+            .expect("the drawn strand answers a grip at its own anchor");
+        assert_eq!(grip.top_y, top_y, "the grip hangs from the attach");
+        let lateral = (grip.xz[0] - ax).hypot(grip.xz[1] - az);
+        assert!(lateral <= 0.75, "the grip sits at the anchor ({lateral})");
+        let span = grip.top_y - grip.tip_y;
+        assert!(span > 0.3, "a real strand reaches below the attach ({span})");
+        assert!(
+            span <= 2.6,
+            "the reach stays inside the family's drawn range ({span})"
+        );
+        let again = r.vine_grip_near_pub(ax, az).expect("deterministic");
+        assert_eq!(grip, again, "the same strand answers twice");
+        println!("GRIP LAW: strand span {span:.2} m at ({ax:.1},{az:.1})");
     }
 }

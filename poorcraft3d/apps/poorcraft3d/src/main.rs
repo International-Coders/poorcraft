@@ -5015,6 +5015,7 @@ fn run_observe(route_id: &str, out_root: &str) {
         // Route scripts (input_route_contract step kinds mapped onto the
         // harness's ui_script).
         let mut ui_script: Vec<(u64, pc3d_render::UiStep)> = Vec::new();
+        let mut key_script: Vec<(u64, u64, Vec<pc3d_render::KeyCode>)> = Vec::new();
         let mut shots: Vec<Shot> = Vec::new();
         match spec.id {
             "route_title_mouse" => {
@@ -5317,6 +5318,115 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(985, format!("{dir}/play_final.png"))
                     .ui_dump(format!("{dir}/play_final.layout.json")));
             }
+            "route_vine_climb" => {
+                // THE VINE GRIP (loop 443): a drop onto a real strand —
+                // the body CATCHES it mid-fall (the grab toast), climbs
+                // to the attach, descends PAST the tip (the release
+                // that makes every landing safe), and walks away
+                // unharmed. The vine is SEARCHED at route-build time
+                // (region-first, the CANOPY capture's shape — the
+                // showcase plaza is Plains, which grows no vines BY
+                // DESIGN), and the route teleports the player 12 m
+                // above the strand's own anchor: uncaught, that drop
+                // is lethal; caught, the hang zeroes the fall and the
+                // only drop that counts is the one below the tip.
+                use pc3d_world::flora::{self, PlantKind, SlotCoord};
+                let gen = &scene.gen;
+                let center = scene.plan.plaza;
+                let center_slot = SlotCoord {
+                    x: (center.x as f32 / 4.0) as i32,
+                    z: (center.z as f32 / 4.0) as i32,
+                };
+                let base_region = pc3d_world::coords::RegionCoord {
+                    x: (center_slot.x as i64 * flora::SLOT_M * 1000)
+                        .div_euclid(pc3d_world::scales::REGION_MM) as i32,
+                    z: (center_slot.z as i64 * flora::SLOT_M * 1000)
+                        .div_euclid(pc3d_world::scales::REGION_MM) as i32,
+                };
+                let mut vine_target = None;
+                'region: for ring in 0..64i32 {
+                    for dx in -ring..=ring {
+                        for dz in -ring..=ring {
+                            if dx.abs() != ring && dz.abs() != ring {
+                                continue;
+                            }
+                            let reg = pc3d_world::coords::RegionCoord {
+                                x: base_region.x + dx,
+                                z: base_region.z + dz,
+                            };
+                            let b = gen.biome(reg);
+                            if !matches!(
+                                b,
+                                pc3d_world::gen::Biome::Forest
+                                    | pc3d_world::gen::Biome::Highlands
+                            ) {
+                                continue;
+                            }
+                            for sx in 0..64i32 {
+                                for sz in 0..64i32 {
+                                    let slot = SlotCoord {
+                                        x: reg.x * 64 + sx,
+                                        z: reg.z * 64 + sz,
+                                    };
+                                    if flora::plant_at(gen, slot).map(|p| p.kind)
+                                        == Some(PlantKind::Vine)
+                                    {
+                                        vine_target = Some(slot);
+                                        break 'region;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                let (vine_slot, vine) = vine_target
+                    .and_then(|s| flora::vine_anchor(gen, s).map(|a| (s, a)))
+                    .unwrap_or_else(|| panic!("route_vine_climb: no vine grows on seed {seed}"));
+                let ([ax, az], top_y) = vine;
+                let ground_at_anchor = gen
+                    .effective_surface_mm((ax * 1000.0) as i64, (az * 1000.0) as i64)
+                    as f32
+                    / 1000.0;
+                println!(
+                    "VINE CLIMB: strand at slot ({},{}) anchor ({ax:.1},{top_y:.2},{az:.1}) ground {ground_at_anchor:.2}",
+                    vine_slot.x, vine_slot.z
+                );
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // The drop: 12 m above the anchor's ground, straight
+                // onto the strand line (uncaught = lethal).
+                ui_script.push((
+                    30,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleportHigh {
+                            x: ax,
+                            y: ground_at_anchor + 12.0,
+                            z: az,
+                        });
+                    }),
+                ));
+                // Climb UP toward the attach (~1.8 m budget), then
+                // descend LONG enough to pass ANY tip (2.4 m budget
+                // against a <= 2.25 m max strand) — the tip release
+                // leaves a drop the damage law calls free.
+                let climb_keys = vec![
+                    (180u64, 240u64, vec![pc3d_render::KeyCode::KeyW]),
+                    (250, 330, vec![pc3d_render::KeyCode::KeyS]),
+                ];
+                shots.push(Shot::new(80, format!("{dir}/play_vine_air.png"))
+                    .ui_dump(format!("{dir}/play_vine_air.layout.json")));
+                shots.push(Shot::new(170, format!("{dir}/play_vine_grip.png"))
+                    .ui_dump(format!("{dir}/play_vine_grip.layout.json")));
+                shots.push(Shot::new(220, format!("{dir}/play_vine_climb.png"))
+                    .ui_dump(format!("{dir}/play_vine_climb.layout.json")));
+                shots.push(Shot::new(380, format!("{dir}/play_vine_landed.png"))
+                    .ui_dump(format!("{dir}/play_vine_landed.layout.json")));
+                key_script = climb_keys;
+            }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
                 // own DoorEntry record (door column open, ring solid,
@@ -5457,6 +5567,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             owner_menu: true,
             save_root_override: Some(save_root.clone()),
             ui_script,
+            key_script,
             ..Default::default()
         };
         let report = match pc3d_render::run_windowed(cfg) {
@@ -5710,6 +5821,73 @@ fn run_observe(route_id: &str, out_root: &str) {
                     dialog_shown.is_some(),
                     has("play_fall_air"),
                     has("play_fall_landed"),
+                );
+                any_fail = true;
+            }
+        }
+        // THE VINE GRIP: the drop was CAUGHT (the grip capture carries
+        // the grab toast), the climb moved the body along the strand,
+        // and the run ends UNHARMED — an uncaught 12 m drop would end
+        // plaza-recovered at 0.5, a failed grab leaves no grip toast,
+        // and a strand that hurt on release would show a wound.
+        if spec.id == "route_vine_climb" {
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let has = |name: &str| capture_by(name).is_some();
+            let element_in = |name: &str, prefix: &str| {
+                capture_by(name)
+                    .and_then(|c| c.ui_layout.as_ref())
+                    .and_then(|l| l["elements"].as_array())
+                    .map(|els| {
+                        els.iter().any(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with(prefix))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            };
+            let differ = |a: &str, b: &str, bar: f32| {
+                match (capture_by(a), capture_by(b)) {
+                    (Some(a), Some(b)) => {
+                        pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > bar
+                    }
+                    _ => false,
+                }
+            };
+            let grip_toast = element_in("play_vine_grip", "toast_GRIPPED");
+            let fell_vs_grip = differ("play_vine_air", "play_vine_grip", 0.02);
+            let grip_vs_climb = differ("play_vine_grip", "play_vine_climb", 0.002);
+            let landed_vs_grip = differ("play_vine_landed", "play_vine_grip", 0.02);
+            let health = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["hud"]["health"].as_f64())
+                .unwrap_or(0.0);
+            let ok = has("play_vine_air")
+                && has("play_vine_grip")
+                && has("play_vine_climb")
+                && has("play_vine_landed")
+                && grip_toast
+                && fell_vs_grip
+                && grip_vs_climb
+                && landed_vs_grip
+                && health >= 0.95;
+            if ok {
+                println!(
+                    "VINE CLIMB: the fall was gripped (toast), the climb moved the body, landed unharmed (health {}%)",
+                    (health * 100.0).round() as u32
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / grip_toast {grip_toast} / fell_vs_grip {fell_vs_grip} / grip_vs_climb {grip_vs_climb} / landed_vs_grip {landed_vs_grip} / health {health}",
+                    spec.id,
+                    report.captures.len(),
                 );
                 any_fail = true;
             }

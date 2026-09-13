@@ -154,6 +154,14 @@ p3d-playtest: ## WT-002 slice 5 capstone: the semantic playtest (house->talk->fo
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/playtest-a/route_semantic_playtest poorcraft3d/apps/poorcraft3d/shots/playtest-b/route_semantic_playtest || exit 1; \
 	echo "P3D SEMANTIC PLAYTEST OK (chained + deterministic)"
 
+p3d-climb: ## The vine grip route (12 m drop caught by a strand, climb, tip release, land unharmed) run TWICE + comparator: make p3d-climb
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/climb-a poorcraft3d/apps/poorcraft3d/shots/climb-b
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_vine_climb poorcraft3d/apps/poorcraft3d/shots/climb-a || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_vine_climb poorcraft3d/apps/poorcraft3d/shots/climb-b || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/climb-a/route_vine_climb poorcraft3d/apps/poorcraft3d/shots/climb-b/route_vine_climb || exit 1; \
+	echo "P3D VINE CLIMB OK (chained + deterministic)"
+
 p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/export

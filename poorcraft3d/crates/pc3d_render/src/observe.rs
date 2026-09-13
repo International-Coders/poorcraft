@@ -51,6 +51,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_vine_climb",
+            available: true,
+            reason: "",
+        },
     ]
 }
 
