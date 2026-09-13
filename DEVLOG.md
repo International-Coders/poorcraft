@@ -7650,3 +7650,74 @@ still unit-lawed only (the 441/443 precedent); the look-pitch script
 hook for the climb framing is still open; the lethal plaza-recovery
 branch still has no route proof; THE OWNER PLAY PASS of the stamped
 DMG remains THE standing gate.
+
+## 2026-09-13 — Loop 445: the bench honesty fix (p3d-deck-bench argv + report refresh)
+
+### What was done
+- Orientation found loop 444's air-steer work in the tree uncommitted;
+  while this loop was independently verifying it, a concurrent session
+  completed and pushed that job (f879fc3 job + b3a5f23 runtime DMG;
+  github/main = b3a5f23). This loop's verification AGREED and is part
+  of the evidence record: fresh `make p3d-steer` PASS x2 + comparator
+  PASS (measured on this loop's run: drift 1.56 m along the strafe,
+  ortho 0.00 m, health 68% -> 39%; all four captures inspected);
+  p3d workspace 657 green (pc3d_render 207); root cargo test
+  --workspace 476 green; p3d-smoke OK (digest dd019eca900f5a61
+  unchanged); p3d-assets OK.
+- THE BUG (found while gathering 445's own perf evidence): the
+  p3d-deck-bench Makefile target expanded `$(SEED)` empty and
+  UNQUOTED, so a default `make p3d-deck-bench` dropped the argument
+  and the binary's argv shifted by one: out_dir consumed the tier
+  name (creating stray ./low ./mid ./high ./report capture dirs in
+  the repo root — loop 444 committed their windowed_deck_mid.png
+  debris) and the tier selector hit the `_ => mid` arm — all three
+  "tier" runs were mid runs writing deck_bench_mid.csv, and the
+  "report" invocation ran a FOURTH mid bench instead of deck_report
+  (no "DECK BENCH REPORT ->" line, no Low-not-slower law, no report
+  write).
+- THE RECORD, corrected honestly: DECK-BENCH-REPORT.md was last
+  written by loop 442 (git log: no commit between 440 and 444 touched
+  the report or shots/windowed_deck_*.png). Loop 443's "DECK-BENCH-
+  REPORT.md + bench PNGs refreshed" claim did not hold on disk; 443's
+  and 444's quoted bench rows were mislabeled mid-tier numbers (444's
+  contended low tier was documented as such at the time — that part
+  stands). No conclusion changes: the corrected per-tier numbers land
+  in the same noise band those loops claimed.
+- THE FIX: the target now defaults the seed (`$(if $(SEED),$(SEED),3)`
+  — the p3d-soak/p3d-journey pattern); the four debris directories
+  are removed; a clean, uncontended run refreshed DECK-BENCH-REPORT.md
+  and the three per-tier captures.
+
+### How
+- Makefile: one line (both bench invocations take the defaulted seed).
+- `make p3d-deck-bench` (fixed): low 6.85 / mid 12.30 / high 12.56 ms
+  p50 (p95 8.10 / 14.85 / 14.06; meshed 176/402/603; GPU
+  5140/18886/27587 KB; flora 605; crowd 92) vs 442's 6.89/12.16/12.44
+  — noise-sized; the Low-not-slower contract law held; report + CSVs
+  + shots/windowed_deck_{low,mid,high}.png refreshed (inspected).
+- Files: Makefile, docs/POORCRAFT-VALHEIM-STYLE-REBUILD/
+  DECK-BENCH-REPORT.md, the three refreshed bench PNGs, the four
+  debris deletions, STATE/BACKLOG/CHANGELOG/DEVLOG.
+
+### Verification evidence
+- No Rust code changed: p3d workspace 657 green and root workspace
+  476 green stand on the same binary (both ran this loop).
+- make p3d-steer PASS x2 + comparator PASS (444 verification, above).
+- p3d-smoke OK (digest dd019eca900f5a61 unchanged); p3d-assets OK.
+- make idle-upgrade-check PASS (re-run after the Makefile edit).
+- HONESTY NOTES: this loop's FIRST bench attempt ran while a
+  concurrent root workspace test held the CPU (mid p50 21-65 ms) —
+  DISCARDED and re-run clean, not reported as data. A per-invocation
+  contention guard for bench targets remains unbuilt (deferred).
+
+LORE IMPACT: canon touched: none — tooling/proof integrity only.
+Locked facts preserved: all. World expression: none (no gameplay
+pixel changed). Migration: none.
+
+PERF: the correction IS the perf claim — per-tier numbers above,
+same bench walk, seed 3, same host, uncontended.
+
+HONESTLY DEFERRED: contention guard for bench targets; the loop-444
+follow-ups (walk-off live route, Space-from-hang route, look-pitch
+script hook, lethal plaza-recovery route) carry forward unchanged in
+STATE.md; THE OWNER PLAY PASS of the stamped DMG remains THE gate.

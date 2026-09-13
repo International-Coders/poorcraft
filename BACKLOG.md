@@ -11,6 +11,21 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The bench tells the truth: p3d-deck-bench argv fix + report
+      refresh (2026-09-13, loop 445): the target's unquoted empty
+      `$(SEED)` shifted the binary's argv, so every default run
+      benchmarked the MID tier three times (the tier name became the
+      output dir — stray `low/`/`mid/`/`high/`/`report/` debris dirs,
+      committed in 444), and the "report" invocation ran a fourth mid
+      bench instead of assembling DECK-BENCH-REPORT.md. The report was
+      last written in 442; 443's "report + bench PNGs refreshed" claim
+      did not hold on disk. Fixed (defaulted seed, debris removed,
+      clean uncontended run): low 6.85 / mid 12.30 / high 12.56 ms p50
+      vs 442's 6.89/12.16/12.44 — noise-sized, no conclusion changes.
+      En-route: independent verification of the concurrent session's
+      loop-444 air steer (fresh p3d-steer x2 + comparator PASS, drift
+      1.56 m / ortho 0.00 m, captures inspected). No Rust code changed.
+
 - [x] The air steer: the fall answers the hand (2026-09-13,
       loop 444): a falling body keeps lateral control — a fixed
       0.45 fraction of the walk speed (1.8 m/s), sprint never

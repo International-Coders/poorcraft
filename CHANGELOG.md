@@ -1,5 +1,40 @@
 # CHANGELOG
 
+## 2026-09-13 — The bench tells the truth: make p3d-deck-bench argv fix + report refresh (loop 445)
+
+- `make p3d-deck-bench` without an explicit `SEED=` silently
+  benchmarked the WRONG tier: the target expanded `$(SEED)` empty and
+  unquoted, the shell dropped the argument, and the binary's argv
+  shifted by one — out_dir consumed the tier name (`low`/`mid`/
+  `high`/`report` became stray capture directories in the repo root,
+  committed as debris in loop 444) and the tier selector fell to the
+  `_ => mid` arm, so EVERY "tier" run was a mid run writing the same
+  `deck_bench_mid.csv`, and the `report` invocation ran a fourth mid
+  bench instead of assembling the documented report.
+- Consequences, stated honestly: DECK-BENCH-REPORT.md was last
+  written by loop 442 (443's "DECK-BENCH-REPORT.md + bench PNGs
+  refreshed" claim did not hold on disk — verified: 441-444 touched
+  neither the report nor `shots/windowed_deck_*.png`, last refreshed
+  in 440); 443/444's quoted bench rows were mid-tier numbers from
+  mislabeled runs (444's low-tier reading was also CPU-contended by a
+  concurrent process and documented as such at the time). No
+  conclusion changes: the corrected per-tier numbers land in the same
+  noise band the loops claimed.
+- Fixed: the target now defaults the seed (`$(if $(SEED),$(SEED),3)`
+  — the p3d-soak/p3d-journey pattern); the stray `low/`, `mid/`,
+  `high/`, `report/` debris directories are removed; a clean,
+  uncontended run refreshed DECK-BENCH-REPORT.md and the three
+  per-tier captures: low 6.85 / mid 12.30 / high 12.56 ms p50 (p95
+  8.10/14.85/14.06) vs 442's 6.89/12.16/12.44 — noise-sized; the
+  Low-not-slower contract law held.
+- No Rust code changed; the p3d test suite (657) and root workspace
+  (476) stand green on the same binary. En-route: this loop's
+  orientation overlapped a concurrent session finishing loop 444
+  (committed + pushed mid-verification as f879fc3/b3a5f23); this
+  loop's independent verification of that work agreed (fresh
+  `make p3d-steer` PASS x2 + comparator, drift 1.56 m along the
+  strafe / 0.00 m across, health 68% -> 39%, captures inspected).
+
 ## 2026-09-13 — The air steer: the fall answers the hand (loop 444)
 
 - Closed the standing 441/443 deferral ("mid-air steering is now
