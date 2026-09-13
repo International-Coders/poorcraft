@@ -11,6 +11,27 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The air steer: the fall answers the hand (2026-09-13,
+      loop 444): a falling body keeps lateral control — a fixed
+      0.45 fraction of the walk speed (1.8 m/s), sprint never
+      applies mid-air, the same drift at any refresh rate. The
+      walk-off hole closed in the same path: a body whose support
+      vanishes (ledge, dug floor) now commits the fall instead of
+      hover-gliding at full walk speed. Route proof:
+      `make p3d-steer` (the same 5 m drop twice — the free fall
+      holds its line exactly, A held drifts it 1.50 m along the
+      strafe axis and 0.00 m across it, both drops land the same
+      wound) x2 identical + comparator PASS, captures
+      AI-inspected. Composition law: steering into a strand
+      catches what the free fall misses. En-route: playtest
+      digests UNCHANGED; vine climb unchanged; deck bench
+      noise-sized (the bench attaches no slice — the walk change
+      has no bench cost path; the low tier read contended by a
+      concurrent foreign process, documented). Deferred honestly:
+      the walk-off commit has no dedicated live route yet (needs
+      a deterministic > 1 m ledge); Space jump-off from a hang is
+      still unit-lawed only.
+
 - [x] The vine grip: the hanging strand becomes a traversal verb
       (2026-09-13, loop 443): a falling body that passes a drawn vine
       strand within hand reach CATCHES it — the grab law refuses

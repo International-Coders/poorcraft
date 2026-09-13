@@ -5017,6 +5017,13 @@ fn run_observe(route_id: &str, out_root: &str) {
         let mut ui_script: Vec<(u64, pc3d_render::UiStep)> = Vec::new();
         let mut key_script: Vec<(u64, u64, Vec<pc3d_render::KeyCode>)> = Vec::new();
         let mut shots: Vec<Shot> = Vec::new();
+        // route_air_steer recordings: the slice locks the camera to the
+        // player, so a pose IS the body (position + yaw) — captured by
+        // ui_script steps into cells the verdict reads after the run.
+        let steer_drop_xz = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
+        let steer_free_mid = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 4]));
+        let steer_held_mid = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 4]));
+        let steer_health = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -5426,6 +5433,102 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(380, format!("{dir}/play_vine_landed.png"))
                     .ui_dump(format!("{dir}/play_vine_landed.layout.json")));
                 key_script = climb_keys;
+            }
+            "route_air_steer" => {
+                // THE AIR STEER (loop 444): a fall answers the hand.
+                // The same 5 m drop twice over the plaza banner: the
+                // FREE fall holds its line exactly (no input, no
+                // wander — the record proves it mid-fall), the STEERED
+                // fall (A held through the drop via the real key path)
+                // drifts a bounded fraction of a walk-second ALONG the
+                // strafe axis and nowhere else, and both drops land a
+                // real wound (steering never changes the fall). The
+                // plaza is Plains, which grows no vines BY DESIGN —
+                // no strand can catch either drop.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // THE FREE DROP: 5 m above the banner's ground.
+                let drop_xz = steer_drop_xz.clone();
+                ui_script.push((
+                    30,
+                    Box::new(move |_ui, r, ctx| {
+                        if let Some(p) = r.plaza_interactable_pos(2) {
+                            let g = r.ground_y_at_pub(p[0], p[2]);
+                            drop_xz.set([p[0], p[2]]);
+                            ctx.actions.push(UiAction::PlayerTeleportHigh {
+                                x: p[0],
+                                y: g + 5.0,
+                                z: p[2],
+                            });
+                        }
+                    }),
+                ));
+                // Mid-fall (frame ~35 of the ~61-frame fall at 60 fps)
+                // the free body's line is recorded — it must be EXACT.
+                let free_mid = steer_free_mid.clone();
+                ui_script.push((
+                    65,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        free_mid.set([pose.position[0], pose.position[1], pose.position[2], pose.yaw]);
+                    }),
+                ));
+                // Landed + wounded once (the FELL toast proves the
+                // damage); health recorded after the regen window.
+                let free_vitals = steer_health.clone();
+                ui_script.push((
+                    150,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut h = free_vitals.get();
+                        h[0] = ui.hud.health;
+                        free_vitals.set(h);
+                    }),
+                ));
+                // THE STEERED DROP: the same XZ, the same 5 m, A held
+                // from the teleport through the fall (released just
+                // before the 60 fps landing so no ground walk pollutes
+                // the drift).
+                let held_xz = steer_drop_xz.clone();
+                ui_script.push((
+                    180,
+                    Box::new(move |_ui, r, ctx| {
+                        let [x, z] = held_xz.get();
+                        let g = r.ground_y_at_pub(x, z);
+                        ctx.actions.push(UiAction::PlayerTeleportHigh { x, y: g + 5.0, z });
+                    }),
+                ));
+                let held_mid = steer_held_mid.clone();
+                ui_script.push((
+                    215,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        held_mid.set([pose.position[0], pose.position[1], pose.position[2], pose.yaw]);
+                    }),
+                ));
+                let held_vitals = steer_health.clone();
+                ui_script.push((
+                    // Before the LAST capture (the run ends at the last
+                    // shot) — the second wound is already landed here.
+                    315,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut h = held_vitals.get();
+                        h[1] = ui.hud.health;
+                        held_vitals.set(h);
+                    }),
+                ));
+                key_script = vec![(180, 240, vec![pc3d_render::KeyCode::KeyA])];
+                shots.push(Shot::new(65, format!("{dir}/steer_free_air.png"))
+                    .ui_dump(format!("{dir}/steer_free_air.layout.json")));
+                shots.push(Shot::new(140, format!("{dir}/steer_free_landed.png"))
+                    .ui_dump(format!("{dir}/steer_free_landed.layout.json")));
+                shots.push(Shot::new(215, format!("{dir}/steer_held_air.png"))
+                    .ui_dump(format!("{dir}/steer_held_air.layout.json")));
+                shots.push(Shot::new(320, format!("{dir}/steer_held_landed.png"))
+                    .ui_dump(format!("{dir}/steer_held_landed.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
@@ -5886,6 +5989,72 @@ fn run_observe(route_id: &str, out_root: &str) {
             } else {
                 eprintln!(
                     "[FAIL] observe {}: captures {} / grip_toast {grip_toast} / fell_vs_grip {fell_vs_grip} / grip_vs_climb {grip_vs_climb} / landed_vs_grip {landed_vs_grip} / health {health}",
+                    spec.id,
+                    report.captures.len(),
+                );
+                any_fail = true;
+            }
+        }
+        // THE AIR STEER: the free fall held its line exactly, the held
+        // fall drifted ALONG the strafe axis (bounded — the fall is a
+        // commitment, not a glide), the drift is visible mid-air, and
+        // both drops landed a real wound (steering never changes the
+        // fall law; a plaza recovery would clamp health at exactly 0.5
+        // with its own toast, which these bands exclude).
+        if spec.id == "route_air_steer" {
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let has = |name: &str| capture_by(name).is_some();
+            let differ = |a: &str, b: &str, bar: f32| {
+                match (capture_by(a), capture_by(b)) {
+                    (Some(a), Some(b)) => {
+                        pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > bar
+                    }
+                    _ => false,
+                }
+            };
+            let drop = steer_drop_xz.get();
+            let free = steer_free_mid.get();
+            let held = steer_held_mid.get();
+            let [h1, h2] = steer_health.get();
+            // The strafe axis at the recorded yaw: A walks along
+            // -right = [cos(yaw+pi), -sin(yaw+pi)]; its perpendicular
+            // must carry (almost) nothing.
+            let (c, s) = (free[3].cos(), free[3].sin());
+            let (dx, dz) = (held[0] - drop[0], held[2] - drop[1]);
+            let along = -dx * c + dz * s;
+            let ortho = (dx * s + dz * c).abs();
+            let line_hold =
+                ((free[0] - drop[0]).powi(2) + (free[2] - drop[1]).powi(2)).sqrt() < 0.05;
+            let free_air_vs_held_air = differ("steer_free_air", "steer_held_air", 0.005);
+            let landed_vs_landed = differ("steer_free_landed", "steer_held_landed", 0.02);
+            let wounded_once = h1 > 0.5 && h1 <= 0.85;
+            let wounded_twice = h2 < h1 - 0.15 && h2 > 0.1;
+            let drifted = along >= 0.35 && along <= 2.6;
+            let ok = has("steer_free_air")
+                && has("steer_free_landed")
+                && has("steer_held_air")
+                && has("steer_held_landed")
+                && line_hold
+                && drifted
+                && ortho < 0.5
+                && free_air_vs_held_air
+                && landed_vs_landed
+                && wounded_once
+                && wounded_twice;
+            if ok {
+                println!(
+                    "AIR STEER: the free fall held its line, the held fall drifted {along:.2} m along the strafe (ortho {ortho:.2} m); health {:.0}% -> {:.0}%",
+                    h1 * 100.0,
+                    h2 * 100.0
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / line_hold {line_hold} / along {along:.2} / ortho {ortho:.2} / air_differ {free_air_vs_held_air} / landed_differ {landed_vs_landed} / health {h1} -> {h2}",
                     spec.id,
                     report.captures.len(),
                 );

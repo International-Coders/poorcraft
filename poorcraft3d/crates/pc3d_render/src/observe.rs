@@ -56,6 +56,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_air_steer",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

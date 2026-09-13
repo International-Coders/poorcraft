@@ -162,6 +162,14 @@ p3d-climb: ## The vine grip route (12 m drop caught by a strand, climb, tip rele
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/climb-a/route_vine_climb poorcraft3d/apps/poorcraft3d/shots/climb-b/route_vine_climb || exit 1; \
 	echo "P3D VINE CLIMB OK (chained + deterministic)"
 
+p3d-steer: ## The air steer route (same 5 m drop twice: the free fall holds its line, A held drifts it a bounded strafe fraction) run TWICE + comparator: make p3d-steer
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/steer-a poorcraft3d/apps/poorcraft3d/shots/steer-b
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_air_steer poorcraft3d/apps/poorcraft3d/shots/steer-a || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_air_steer poorcraft3d/apps/poorcraft3d/shots/steer-b || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/steer-a/route_air_steer poorcraft3d/apps/poorcraft3d/shots/steer-b/route_air_steer || exit 1; \
+	echo "P3D AIR STEER OK (chained + deterministic)"
+
 p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/export

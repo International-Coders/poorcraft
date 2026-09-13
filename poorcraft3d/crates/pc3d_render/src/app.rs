@@ -328,6 +328,37 @@ pub fn damage_from_impact(vy_at_land: f32) -> f32 {
     ((impact - 7.0).max(0.0) * 12.0) / 100.0
 }
 
+/// Lateral authority the AIR keeps: a falling body steers at this
+/// fraction of the walk speed, and sprint never applies mid-air — the
+/// fall is a commitment, not a glide. Sized so the vine grip's 12 m
+/// lethal drop can drift at most ~2.8 m: enough to line up a strand
+/// catch, never enough to erase the drop.
+pub const AIR_STEER_FRACTION: f32 = 0.45;
+
+/// A support gap beyond one walking step: when the ground answer sits
+/// this far below the feet, no surface holds the body.
+pub const SUPPORT_GAP_M: f32 = 1.05;
+
+/// THE AIR STEER (pure): the lateral speed a body's movement input
+/// carries — the full walk (or sprint, Shift) on the ground; in the
+/// air, the fixed steer fraction regardless of sprint.
+pub fn lateral_speed(falling: bool, sprinting: bool) -> f32 {
+    if falling {
+        crate::player::WALK_SPEED * AIR_STEER_FRACTION
+    } else if sprinting {
+        crate::player::SPRINT_SPEED
+    } else {
+        crate::player::WALK_SPEED
+    }
+}
+
+/// THE WALK-OFF LAW (pure): the body is unsupported when the ground
+/// answer sits more than one step below the feet — the frame support
+/// vanishes (a ledge walked off, a floor dug out), the fall begins.
+pub fn is_unsupported(feet_y: f32, ground_y: f32) -> bool {
+    feet_y - ground_y > SUPPORT_GAP_M
+}
+
 /// The deliver resolver (pure): for every ACTIVE Deliver quest whose
 /// site the player stands within `radius` of, deliver up to the quest's
 /// remaining need from the carried stock. Returns (event, taken) pairs.
@@ -561,6 +592,161 @@ mod vine_tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod air_steer_tests {
+    use super::{integrate_air_arc, is_unsupported, lateral_speed, try_grab_vine, AIR_STEER_FRACTION, SUPPORT_GAP_M};
+    use crate::flora::VineGrip;
+    use crate::player::{CollisionSurface, PlayerBody, SPRINT_SPEED, WALK_SPEED};
+    use pc3d_world::gen::WorldGen;
+
+    /// A flat slab 10 m up: pure lateral-law terrain (no walls, no
+    /// slope) so only the speed selector can move the bodies.
+    struct Flat;
+    impl CollisionSurface for Flat {
+        fn ground_at(
+            &self,
+            _g: &WorldGen,
+            _x: f32,
+            _z: f32,
+            _y: f32,
+        ) -> Option<f32> {
+            Some(10.0)
+        }
+        fn cell_solid(&self, _g: &WorldGen, _x: i32, _y: i32, _z: i32) -> bool {
+            false
+        }
+    }
+
+    fn body_at(x: f32) -> PlayerBody {
+        PlayerBody { pos: [x, 10.0, 50.0], yaw: 0.0, pitch: 0.0 }
+    }
+
+    #[test]
+    fn the_air_steer_law_selects_the_speeds() {
+        assert_eq!(lateral_speed(false, false), WALK_SPEED, "the ground walk");
+        assert_eq!(lateral_speed(false, true), SPRINT_SPEED, "the ground sprint");
+        assert_eq!(
+            lateral_speed(true, true),
+            WALK_SPEED * AIR_STEER_FRACTION,
+            "sprint never applies mid-air"
+        );
+        assert_eq!(
+            lateral_speed(true, false),
+            WALK_SPEED * AIR_STEER_FRACTION,
+            "the fall keeps a fixed fraction of the walk"
+        );
+        assert!(
+            lateral_speed(true, true) < lateral_speed(false, false),
+            "the air is weaker than a plain walk"
+        );
+    }
+
+    #[test]
+    fn a_falling_body_drifts_and_a_still_one_holds_its_line() {
+        let gen = WorldGen::new(7);
+        let steer = lateral_speed(true, false);
+        // Strafe left (the A key) mid-fall: the body drifts -x.
+        let mut drifter = body_at(0.0);
+        for _ in 0..60 {
+            drifter.walk_on_speed(&gen, &Flat, 0.0, -1.0, 1.0 / 60.0, steer);
+        }
+        let drift = (drifter.pos[0] - 0.0).abs();
+        assert!(
+            (drift - steer).abs() < 0.05,
+            "one second of steer carries one steer-speed of drift ({drift} vs {steer})"
+        );
+        // No input: the line holds exactly.
+        let mut held = body_at(0.0);
+        for _ in 0..60 {
+            held.walk_on_speed(&gen, &Flat, 0.0, 0.0, 1.0 / 60.0, steer);
+        }
+        assert_eq!(held.pos[0], 0.0, "an unsteered fall does not wander");
+        assert_eq!(held.pos[2], 50.0);
+    }
+
+    #[test]
+    fn the_steer_is_weaker_than_the_ground_walk() {
+        let gen = WorldGen::new(7);
+        let mut air = body_at(0.0);
+        let mut ground = body_at(0.0);
+        for _ in 0..60 {
+            air.walk_on_speed(&gen, &Flat, 1.0, 0.0, 1.0 / 60.0, lateral_speed(true, false));
+            ground.walk_on_speed(&gen, &Flat, 1.0, 0.0, 1.0 / 60.0, lateral_speed(false, false));
+        }
+        let d_air = (air.pos[2] - 50.0).abs();
+        let d_ground = (ground.pos[2] - 50.0).abs();
+        let ratio = d_air / d_ground;
+        assert!(
+            (ratio - AIR_STEER_FRACTION).abs() < 0.01,
+            "the air drift is the walk scaled by the steer fraction ({ratio})"
+        );
+    }
+
+    #[test]
+    fn the_steer_is_the_same_drift_at_any_refresh_rate() {
+        let gen = WorldGen::new(7);
+        let run = |frames: u32, frame_dt: f32| -> f32 {
+            let mut b = body_at(0.0);
+            for _ in 0..frames {
+                b.walk_on_speed(&gen, &Flat, 0.0, -1.0, frame_dt, lateral_speed(true, false));
+            }
+            b.pos[0].abs()
+        };
+        let at_60 = run(60, 1.0 / 60.0);
+        let at_30 = run(30, 1.0 / 30.0);
+        let at_120 = run(120, 1.0 / 120.0);
+        assert!(
+            (at_60 - at_30).abs() < 1e-3 && (at_60 - at_120).abs() < 1e-3,
+            "one second steers the same drift at any refresh ({at_60} / {at_30} / {at_120})"
+        );
+    }
+
+    #[test]
+    fn steering_into_the_strand_catches_what_the_free_fall_misses() {
+        // The vine strand of the grip tests, a body dropped 1.5 m to
+        // its side from 15 m (ground at 10): the free fall passes out
+        // of hand reach and lands; the steered fall carries the hand
+        // to the line right as the span opens and catches.
+        let g = VineGrip { xz: [10.0, 10.0], top_y: 12.9, tip_y: 10.65 };
+        let ground = || 10.0_f32;
+        let fall = |steer_x: bool| -> Option<()> {
+            let (mut x, mut y, mut vy) = (11.5_f32, 15.0_f32, 0.0_f32);
+            let steer = lateral_speed(true, false);
+            loop {
+                let prev_y = y;
+                if integrate_air_arc(&mut y, &mut vy, 1.0 / 60.0, ground).is_some() {
+                    return None; // landed uncaught
+                }
+                if steer_x {
+                    x -= steer / 60.0;
+                }
+                if try_grab_vine(&g, prev_y, &[x, y, 10.0], vy).is_some() {
+                    return Some(());
+                }
+                if y < g.tip_y - 0.6 {
+                    return None; // past the strand, never reached
+                }
+            }
+        };
+        assert!(fall(false).is_none(), "the free fall stays out of reach");
+        assert!(fall(true).is_some(), "the steered fall carries the hand to the strand");
+    }
+
+    #[test]
+    fn the_walk_off_commits_past_one_step_and_not_before() {
+        assert!(
+            is_unsupported(10.0 + SUPPORT_GAP_M + 0.01, 10.0),
+            "a ledge deeper than one step: unsupported"
+        );
+        assert!(
+            !is_unsupported(10.0 + SUPPORT_GAP_M - 0.01, 10.0),
+            "within the step window: still held"
+        );
+        assert!(!is_unsupported(10.0, 10.0), "standing on the ground");
+        assert!(!is_unsupported(9.0, 10.0), "below the ground answer is not a fall");
     }
 }
 
@@ -2797,14 +2983,13 @@ impl App {
             // only while stamina holds — exhausted bodies must recover
             // to 25% before sprinting again (no flicker at empty).
             let shift = gameplay_active && state.keys.contains(&KeyCode::ShiftLeft);
-            let wants_sprint = shift && moving && !state.ui.hud.exhausted;
+            // Sprint is a GROUND gait: a falling body steers, it does
+            // not sprint (the air steer law) — no stamina burn mid-air.
+            let wants_sprint =
+                shift && moving && !state.ui.hud.exhausted && !slice.falling;
             sprinting = wants_sprint && state.ui.hud.stamina > 0.0;
             let speed = if slice.rebuild {
-                if sprinting {
-                    crate::player::SPRINT_SPEED
-                } else {
-                    crate::player::WALK_SPEED
-                }
+                lateral_speed(slice.falling, sprinting)
             } else {
                 crate::player::WALK_SPEED
             };
@@ -2819,6 +3004,21 @@ impl App {
                     .walk_player_surface_speed(&gen, &mut slice.player, fwd, strafe, dt, speed);
                 if slice.falling || slice.hang.is_some() {
                     slice.player.pos[1] = y_before; // the fall owns Y
+                }
+                // THE WALK-OFF COMMIT: the frame no surface holds the
+                // body (a ledge walked off, a floor dug out), the fall
+                // begins — the old walk kept hover-gliding at full
+                // speed over any drop deeper than its step window,
+                // gravity never engaged. The ground answer is the SAME
+                // one the arc lands on, so the commit and the landing
+                // can never disagree.
+                if !slice.falling && slice.hang.is_none() {
+                    let (px, pz) = (slice.player.pos[0], slice.player.pos[2]);
+                    let ground = state.renderer.ground_y_at(&gen, px, pz);
+                    if is_unsupported(slice.player.pos[1], ground) {
+                        slice.falling = true;
+                        slice.jump_vy = 0.0;
+                    }
                 }
                 if let Some(hang) = slice.hang {
                     // THE STRAND OWNS THE BODY: pinned to the grip line

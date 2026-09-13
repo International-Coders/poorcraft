@@ -1,5 +1,60 @@
 # CHANGELOG
 
+## 2026-09-13 — The air steer: the fall answers the hand (loop 444)
+
+- Closed the standing 441/443 deferral ("mid-air steering is now
+  routable but still untested as a law"). A falling body keeps
+  lateral control: `lateral_speed` is the pure speed selector —
+  the full walk (or sprint) on the ground, `WALK_SPEED *
+  AIR_STEER_FRACTION` (0.45 → 1.8 m/s) in the air regardless of
+  sprint. The fall is a commitment, not a glide: the vine grip's
+  12 m lethal drop can drift at most ~2.8 m — enough to line up a
+  strand catch, never enough to erase the drop.
+- Real bug found en route and fixed in the same path: a body that
+  WALKED off a ledge never entered the arc — the walk's ground
+  window missed, Y never snapped, gravity never engaged, and the
+  body hover-glided at full walk speed over any drop deeper than a
+  step. The new walk-off commit (`is_unsupported`, gap > 1.05 m)
+  flips the SAME airborne state a jump uses, with vy 0, reading the
+  SAME `ground_y_at` answer the arc lands on; hanging bodies are
+  excluded (the strand owns them). Sprint no longer engages
+  mid-air, so falls no longer burn stamina either.
+- Laws (pc3d_render 201 -> 207): the selector matrix; a falling
+  body drifts one steer-speed per second while an unsteered fall
+  holds its line exactly; the air drift is the walk scaled by the
+  fraction (measured ratio 0.45 ± 0.01); the same drift at 30/60/
+  120 fps; steering into the strand catches what the free fall
+  misses (composition with the grab law); the walk-off commits
+  past one step and not before.
+- Proof: `make p3d-steer` — route_air_steer drops the player twice
+  from 5 m over the plaza banner (Plains grows no vines BY DESIGN).
+  The free fall's mid-air pose (recorded through the camera, which
+  the slice locks to the body) equals the drop XZ to < 0.05 m; the
+  steered fall (A held via key_script, released before the 60 fps
+  landing so no ground walk pollutes the drift) moved 1.50 m along
+  the strafe axis, 0.00 m across it; both drops landed real wounds
+  (health 68% -> 38% — two 5 m impacts; the bands exclude a plaza
+  recovery's exact 0.5). PASS x2 identical + comparator PASS; the
+  four captures are pixel-separated and inspected (the birch trunk
+  entering the held mid-air frame IS the drift).
+- Regression: playtest x2 digests UNCHANGED (05c46411869a857c);
+  vine climb PASS x2 unchanged (same strand, health 100% — the
+  tip-release fall steers nothing without keys); p3d-smoke OK
+  (digest unchanged); p3d-wilderness PASS; p3d-assets OK. Deck
+  bench mid 12.39 / high 12.36 ms p50 vs 443's 12.30-12.38 —
+  noise; the bench attaches no slice (verified in its config), so
+  the walk change has no bench cost path; the low tier read
+  contended (a concurrent 100%-CPU test process from another
+  session) and is not comparable this pass. p3d workspace green
+  (pc3d_render 207); root workspace green (476); idle-upgrade-
+  check PASS.
+- Deferred honestly: the walk-off commit is live-wired + unit-lawed
+  but has no dedicated route (needs a deterministic > 1 m ledge;
+  the plaza is flat by design); Space jump-off from a hang is still
+  unit-lawed only; the look-pitch script hook for the climb framing
+  is still open; the lethal plaza-recovery branch still has no
+  route proof.
+
 ## 2026-09-13 — The vine grip: the hanging strand becomes a traversal verb (loop 443)
 
 - Closed 442's natural follow-up: the vine was placement+render only;

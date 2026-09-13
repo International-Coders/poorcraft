@@ -7564,3 +7564,89 @@ jump-off is unit-lawed only (shared arc integration); mid-air steering
 is now routable (key_script exists) but still untested as a law; the
 lethal plaza-recovery branch still has no route proof; THE OWNER PLAY
 PASS of the stamped DMG remains THE standing gate.
+
+## 2026-09-13 — Loop 444: the air steer (the fall answers the hand)
+
+### What was done
+- Closed the standing 441/443 deferral ("mid-air steering is now
+  routable but still untested as a law"): a falling body keeps
+  lateral control at a FIXED fraction of the walk (0.45 -> 1.8 m/s);
+  sprint never applies mid-air (and no longer burns stamina there).
+- Found + fixed a real bug in the same path: a body that WALKED off
+  a ledge never entered the fall arc (the walk's ground window
+  missed, gravity never engaged — the body hover-glided at full walk
+  speed over any drop deeper than a step). The walk-off commit now
+  flips the SAME airborne state a jump uses, reading the SAME
+  ground_y_at answer the arc lands on; hanging bodies are excluded.
+- Files: pc3d_render/src/app.rs (AIR_STEER_FRACTION, SUPPORT_GAP_M,
+  lateral_speed, is_unsupported; the frame block's speed selector +
+  sprint gate + walk-off commit; 6 new law tests),
+  apps/poorcraft3d/src/main.rs (route_air_steer: two 5 m drops over
+  the plaza banner, mid-fall poses recorded through the camera via
+  Rc<Cell>, health records, drift/line-hold/wound assertions),
+  pc3d_render/src/observe.rs (RouteSpec entry), Makefile (p3d-steer
+  target + help line).
+
+### How
+- Pure laws first (lateral_speed / is_unsupported + 6 tests), then
+  the frame wiring (three small edits to the slice walk block), then
+  the route; `cargo build -p pc3d_render` green between layers.
+- Route design: the free drop's mid-air pose must equal the drop XZ
+  exactly (no input, no wander); the steered drop holds A from the
+  teleport until just before the 60 fps landing (released before
+  landing so no ground walk pollutes the drift); drift is projected
+  on the recorded yaw's strafe axis with its perpendicular bounded.
+  A first trial caught the run ending at the LAST CAPTURE (321
+  frames) — the frame-330 health record moved to 315.
+
+### Verification evidence
+- Laws: pc3d_render 201 -> 207 (the_air_steer_law_selects_the_speeds,
+  a_falling_body_drifts_and_a_still_one_holds_its_line,
+  the_steer_is_weaker_than_the_ground_walk,
+  the_steer_is_the_same_drift_at_any_refresh_rate,
+  steering_into_the_strand_catches_what_the_free_fall_misses,
+  the_walk_off_commits_past_one_step_and_not_before) — all green.
+- make p3d-steer PASS x2 identical + comparator PASS ("the free fall
+  held its line, the held fall drifted 1.50 m along the strafe
+  (ortho 0.00 m); health 68% -> 38%").
+- Captures INSPECTED: steer_free_air (mid-fall over the settlement
+  approach), steer_free_landed (at the marker, 'FELL — HEALTH 64%',
+  bar ~2/3), steer_held_air (mid-fall DISPLACED — the birch trunk
+  enters the frame), steer_held_landed (grounded beside that birch,
+  'FELL — HEALTH 34%', bar ~1/3).
+- make p3d-playtest PASS — digests UNCHANGED (05c46411869a857c x2):
+  the no-input chain never touches the new code paths.
+- make p3d-climb PASS x2 (same strand (65,20), health 100% — the
+  tip-release fall steers nothing without keys); p3d-smoke OK
+  (digest dd019eca900f5a61 unchanged); p3d-wilderness PASS (6
+  captures); p3d-assets OK.
+- Deck bench: mid 12.39 / high 12.36 ms p50 vs 443's 12.30-12.38 —
+  noise-sized; the bench attaches NO slice (verified in its config:
+  camera_script + frame_hooks only), so the walk change has no bench
+  cost path. The low tier read 12.17 vs 442's 6.89 — CONTENDED (a
+  concurrent 100%-CPU lf_worldgen test process from another session,
+  load 3.4-6.1; low is the CPU-bound tier) — not comparable, not
+  hidden. A quiet-host low re-read is cheap future work.
+- Full p3d workspace green (pc3d_render 207; workspace exit 0); root
+  cargo test --workspace green (476); make idle-upgrade-check PASS.
+
+LORE IMPACT: no canon data touched — body traversal physics only;
+the falls of the Age of Reckoning answer the hand (overgrown canopies
+and cliffs become deliberate traversal, not scripted set pieces);
+vines stay living-canopy-anchored (442) and the grip stays the drawn
+strand (443). No migration (in-memory runtime state, pure per-frame
+physics).
+
+PERF: the added cost is one bounded ground query per GROUNDED frame
+inside the slice walk (the same query the walk and the arc already
+make) and none anywhere else; bench numbers above, same bench, same
+seed, same host — noise where comparable, contention documented where
+not.
+
+HONESTLY DEFERRED: the walk-off commit is live-wired + unit-lawed but
+has no dedicated route (it needs a deterministic > 1 m ledge to walk
+off — the plaza is flat by design); Space jump-off from a hang is
+still unit-lawed only (the 441/443 precedent); the look-pitch script
+hook for the climb framing is still open; the lethal plaza-recovery
+branch still has no route proof; THE OWNER PLAY PASS of the stamped
+DMG remains THE standing gate.
