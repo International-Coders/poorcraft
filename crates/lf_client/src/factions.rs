@@ -53,6 +53,8 @@ pub fn mob_kind_id(kind: lf_game::mobs::MobType) -> &'static str {
         MobType::Wolf => "wolf",
         MobType::Dog => "dog",
         MobType::Bear => "bear",
+        MobType::GeodeGuardian => "geode_guardian",
+        MobType::CinderCrawler => "cinder_crawler",
     }
 }
 

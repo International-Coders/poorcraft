@@ -1,7 +1,7 @@
 use image::{Rgba, RgbaImage};
 
 /// Canonical texture atlas layer order. Block ids map onto these indices.
-pub const TEXTURE_NAMES: [&str; 212] = [
+pub const TEXTURE_NAMES: [&str; 215] = [
     "stone", "grass", "dirt", "sand", "mycelium", "snow",
     "log", "leaves", "coal_ore", "iron_ore", "water", "torch_item", "crafting_table",
     "furnace", "chest", "planks", "glass",
@@ -109,6 +109,10 @@ pub const TEXTURE_NAMES: [&str; 212] = [
     "kingdom_brick", "banner_kingdom", "throne", "villager_monarch",
     // loop 348 colored lighting: material-specific portable lights and hearth.
     "ember_torch", "lumen_torch", "fireplace",
+    // loop 446 the geode wakes: the Anima-crystal lining of the deep
+    // hollows (Old Powers) and the two creatures that keep the deep —
+    // the geode guardian and the cinder crawler.
+    "anima_crystal", "mob_geode_guardian", "mob_cinder_crawler",
 ];
 
 /// king-quest B: block ids 121..=138 map to their named layers, in this
@@ -150,12 +154,15 @@ pub const WAYPOINT_LAYERS: [u32; 6] = [48, 49, 50, 51, 52, 53];
 
 /// Atlas layers of the biome-identity grasses (Step 16).
 pub const JUNGLE_GRASS_LAYER: u32 = 54;
-/// ui-world-craft D3/E3 decoration + lava layers.
-pub const TALL_GRASS_LAYER: u32 = 160;
-pub const DRY_GRASS_LAYER: u32 = 161;
-pub const CACTUS_LAYER: u32 = 162;
-pub const DEAD_SHRUB_LAYER: u32 = 163;
-pub const LAVA_LAYER: u32 = 164;
+/// ui-world-craft D3/E3 decoration + lava layers. These were hand-counted
+/// consts (160..=164) and DRIFTED when later loops appended skins — lava
+/// silently rendered tall-grass art and the plains tufts drew a wolf skin
+/// (found by the loop-446 geode proof). Name-derived fns cannot drift.
+pub fn tall_grass_layer() -> u32 { layer_of("tall_grass") }
+pub fn dry_grass_layer() -> u32 { layer_of("dry_grass") }
+pub fn cactus_layer() -> u32 { layer_of("cactus") }
+pub fn dead_shrub_layer() -> u32 { layer_of("dead_shrub") }
+pub fn lava_layer() -> u32 { layer_of("lava") }
 pub const SAVANNA_GRASS_LAYER: u32 = 55;
 pub const FLOWER_LAYER: u32 = 56;
 pub const WATER_WHEEL_LAYER: u32 = 57;
@@ -266,6 +273,9 @@ pub fn mob_chicken_layer() -> u32 { layer_of("mob_chicken") }
 pub fn mob_wolf_layer() -> u32 { layer_of("mob_wolf") }
 pub fn mob_dog_layer() -> u32 { layer_of("mob_dog") }
 pub fn mob_bear_layer() -> u32 { layer_of("mob_bear") }
+/// loop 446 the geode wakes: skins of the deep's keepers.
+pub fn mob_geode_guardian_layer() -> u32 { layer_of("mob_geode_guardian") }
+pub fn mob_cinder_crawler_layer() -> u32 { layer_of("mob_cinder_crawler") }
 pub const MOB_WOOLBEAST_LAYER: u32 = 145;
 pub const MOB_GLITCHLING_LAYER: u32 = 146;
 pub const MOB_STALKER_LAYER: u32 = 147;
@@ -364,11 +374,11 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         id @ 121..=138 => biome_block_layer(id),
         // ui-world-craft: lava + surface decoration (explicit — id+18 would
         // collide with the villager skin layers)
-        106 => TALL_GRASS_LAYER,
-        107 => DRY_GRASS_LAYER,
-        108 => CACTUS_LAYER,
-        109 => DEAD_SHRUB_LAYER,
-        110 => LAVA_LAYER,
+        106 => tall_grass_layer(),
+        107 => dry_grass_layer(),
+        108 => cactus_layer(),
+        109 => dead_shrub_layer(),
+        110 => lava_layer(),
         // loop 330: horizontal logs reuse their species' bark layer (the
         // ring-end faces are routed per-face in texture_index_for_face)
         111 | 112 => 6,  // log bark
@@ -389,6 +399,7 @@ pub fn texture_index_for_block(block_id: u32) -> u32 {
         lf_voxel::registry::block::EMBER_TORCH => layer_of("ember_torch"),
         lf_voxel::registry::block::LUMEN_TORCH => layer_of("lumen_torch"),
         lf_voxel::registry::block::FIREPLACE => layer_of("fireplace"),
+        lf_voxel::registry::block::ANIMA_CRYSTAL => layer_of("anima_crystal"),
         _ => 0,
     }
 }
@@ -1126,6 +1137,30 @@ pub fn generate_block_texture(name: &str) -> RgbaImage {
                     } else {
                         let v = 132 + ((x * 5 + y * 7) % 17);
                         Rgba([ch(v + 6), ch(v + 2), ch(v), 255])
+                    }
+                }
+                "anima_crystal" => {
+                    // Old Powers: Anima crystallized in stone. Dark deep
+                    // stone crust with angular violet facets and a cyan
+                    // glint — the same violet family as the mana bar so
+                    // concentrated Anima reads as one material.
+                    let facet_a = ((x as i32 * 3 + y as i32 * 5) % 23) < 9;
+                    let facet_b = ((x as i32 * 7 - y as i32 * 2 + 11) % 19) < 6;
+                    let edge = x == 0 || x == 15 || y == 0 || y == 15;
+                    if edge {
+                        let v = 38 + ((x * 7 + y * 3) % 10);
+                        Rgba([ch(v), ch(v), ch(v + 4), 255])
+                    } else if facet_b {
+                        // bright core facet with a white glint
+                        let glint = (x + y) % 7 == 0;
+                        Rgba(if glint { [222, 214, 255, 255] } else { [146, 112, 232, 255] })
+                    } else if facet_a {
+                        Rgba([112, 82, 196, 255])
+                    } else {
+                        // host stone with faint violet veining
+                        let vein = ((x as i32 * 5 + y as i32 * 9) % 31) < 3;
+                        let v = 46 + ((x * 3 + y * 11) % 12);
+                        Rgba(if vein { [86, 64, 148, 255] } else { [ch(v), ch(v), ch(v + 6), 255] })
                     }
                 }
                 "lantern" => {
@@ -2497,6 +2532,37 @@ fn mob_pixel(x: u32, y: u32, name: &str) -> Rgba<u8> {
             if y == 12 && (5..=10).contains(&x) { Rgba([96, 66, 46, 255]) }
             else { Rgba([ch(92 + (pixel_hash(x, y, "bear") % 22)), ch(66 + (pixel_hash(x, y, "bear") % 16)), ch(46 + (pixel_hash(x, y, "bear") % 10)), 255]) }
         }
+        "mob_geode_guardian" => {
+            // the hollow's keeper: pale stone plating with violet crystal
+            // growths and cyan seam-light (the construct IS crystallized
+            // Anima around stone — never flesh)
+            let plate_edge = x % 6 == 0 || y % 6 == 0;
+            let growth = pixel_hash(x, y, "guardian") % 11 < 3;
+            if growth {
+                let glint = (x + y) % 6 == 0;
+                Rgba(if glint { [214, 206, 255, 255] } else { [138, 104, 224, 255] })
+            } else if plate_edge {
+                Rgba([74, 72, 84, 255])
+            } else {
+                let v = 96 + ((x * 3 + y * 7) % 14);
+                Rgba([ch(v), ch(v), ch(v + 8), 255])
+            }
+        }
+        "mob_cinder_crawler" => {
+            // the deep heat's brood: charred carapace cracked open with
+            // ember light, cooling to ash at the edges
+            let crack = pixel_hash(x, y, "cinder") % 9 < 2;
+            let hot = crack && y > 4;
+            if hot {
+                let core = (x + y) % 4 == 0;
+                Rgba(if core { [255, 196, 96, 255] } else { [226, 88, 26, 255] })
+            } else if crack {
+                Rgba([64, 30, 16, 255])
+            } else {
+                let v = 34 + ((x * 7 + y * 5) % 14);
+                Rgba([ch(v + 12), ch(v), ch(v - 6), 255])
+            }
+        }
         "mob_boar" => {
             if y == 12 && (6..=9).contains(&x) {
                 Rgba([182, 134, 104, 255]) // snout
@@ -3694,7 +3760,9 @@ pub fn generate_item_texture(item_id: &str) -> Option<RgbaImage> {
             'l' => Rgba([120, 124, 138, 255]), _ => Rgba([0, 0, 0, 0]),
         }),
         "anima_crystal" => paint_sprite(SULFUR_ART, |c| match c {
-            'y' => Rgba([214, 128, 44, 255]), 'Y' => Rgba([248, 192, 96, 255]),
+            // concentrated Anima reads violet, the mana family — the item
+            // and the geode's crystal blocks are one material
+            'y' => Rgba([112, 82, 196, 255]), 'Y' => Rgba([168, 138, 244, 255]),
             _ => Rgba([0, 0, 0, 0]),
         }),
         // loop 345: the kingdom compass — brass case, parchment dial, and
@@ -4173,6 +4241,31 @@ mod tests {
         assert_eq!(name(lf_voxel::registry::block::EMBER_TORCH), "ember_torch");
         assert_eq!(name(lf_voxel::registry::block::LUMEN_TORCH), "lumen_torch");
         assert_eq!(name(lf_voxel::registry::block::FIREPLACE), "fireplace");
+    }
+
+    /// loop 446 regression: the hand-counted surface-decoration layer
+    /// consts drifted when skins were appended (lava silently rendered
+    /// tall-grass art; the plains tufts drew a wolf skin). Each decoration
+    /// block must answer its OWN named art layer.
+    #[test]
+    fn lava_and_surface_decorations_render_their_own_art() {
+        use lf_voxel::registry::block;
+        let cases = [
+            (block::TALL_GRASS, "tall_grass"),
+            (block::DRY_GRASS, "dry_grass"),
+            (block::CACTUS, "cactus"),
+            (block::DEAD_SHRUB, "dead_shrub"),
+            (block::LAVA, "lava"),
+        ];
+        for (id, art) in cases {
+            assert_eq!(
+                texture_index_for_block(id),
+                layer_of(art),
+                "block {} must render its own '{}' art",
+                id,
+                art
+            );
+        }
     }
 
     #[test]

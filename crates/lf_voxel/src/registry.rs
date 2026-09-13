@@ -23,7 +23,7 @@ pub struct ModBlockDef {
 pub const MOD_BLOCK_BASE: u32 = 200;
 
 /// Highest contiguous vanilla block id (machine/ore ids included).
-pub const MAX_VANILLA_BLOCK: u32 = 144;
+pub const MAX_VANILLA_BLOCK: u32 = 145;
 
 /// True when `id` is a placeable block: air, a vanilla id, or a block
 /// registered by a loaded mod. The server uses this to validate SetBlock.
@@ -246,6 +246,9 @@ pub mod block {
     pub const LUMEN_TORCH: u32 = 143;
     /// Stone-and-timber hearth with a coal fire: broad warm light.
     pub const FIREPLACE: u32 = 144;
+    /// Old Powers: Anima crystallized in stone — the glowing lining of
+    /// deep geodes and the world source of the anima_crystal item.
+    pub const ANIMA_CRYSTAL: u32 = 145;
 
     pub fn name(id: u32) -> &'static str {
         if let Some(def) = crate::registry::mod_block(id) {
@@ -331,6 +334,7 @@ pub mod block {
             EMBER_TORCH => "Ember Torch",
             LUMEN_TORCH => "Lumen Torch",
             FIREPLACE => "Fireplace",
+            ANIMA_CRYSTAL => "Anima Crystal",
 
             BIRCH_LEAVES => "Birch Leaves",
             SPRUCE_LEAVES => "Spruce Leaves",

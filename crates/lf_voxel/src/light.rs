@@ -31,6 +31,9 @@ pub fn emission_rgb(block_id: u32) -> [u8; 3] {
         registry::block::EMBER_GLOWSTONE => [8, 5, 2],
         // ui-world-craft D3: lava lakes light the deep caves
         registry::block::LAVA => [12, 5, 2],
+        // Old Powers: Anima crystallized in stone — a cool violet-blue
+        // glow, the deep's own light (the geode lining)
+        registry::block::ANIMA_CRYSTAL => [8, 5, 14],
         registry::block::LANTERN_HANGING => [15, 13, 9],
         _ => [0; 3],
     }

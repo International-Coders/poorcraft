@@ -7839,3 +7839,145 @@ only; the look-pitch script hook is still open; the lethal
 plaza-recovery branch still has no route proof; a contention guard
 for bench targets remains unbuilt. THE OWNER PLAY PASS of the
 stamped DMG remains THE gate.
+
+---
+
+## 2026-09-13 — loop 447 — The geode wakes: the Old Powers' keepers take their anchors
+
+### What
+The audit's spawn-or-cut item (M12, "GeodeGuardian + CinderCrawler are
+dead data — zero references outside lf_npc's own tests, and their lore
+names biomes that don't exist") is resolved by spawning them for real,
+in the ROOT loreforge workspace. Valdenmoor's deep now has its own
+places and keepers: rare sealed geodes lined with Anima crystal, each
+guarded by a territorial construct; the lava pockets under y13 host the
+crawlers' brood. The canon locks held: a Geode Guardian is "Anima
+crystallized in stone... a natural defensive construct... not evil" —
+so it wakes only when an intruder enters its hollow (detect 6) or mines
+its crystals (provoke_guardians), never rolls on the surface, and never
+hunts beyond its parish. Cinder Crawlers make the deep lava a real
+hazard and shed coal. Mined crystals and guardian kills yield the
+EXISTING anima_crystal item — the Covenant channeler wage recipe
+(ember_glowstone + coal) gains a world source it never had.
+
+### How
+- lf_voxel: ANIMA_CRYSTAL = 145 (name, solid/opaque by default,
+  MAX_VANILLA_BLOCK 145); light.rs emission [8,5,14].
+- lf_worldgen: pure `geode_cell(dx,dy,dz,r,...)` geometry (hollow /
+  crystal lining ~55% of the wall band / shell repair) +
+  `Generator::geode_in_chunk` (hash2 roll, 1/113, center 5..=10 local,
+  y 14..=31, r 3..=4, fully in-chunk) + `stamp_geode` called from
+  generate_chunk after oil, before water. Tests:
+  geodes_are_rare_deterministic_and_deep (3 seeds, 24x24 chunks),
+  geode_pockets_are_sealed_and_crystal_lined (BFS from the center must
+  find exactly the hollow; >= 12 crystals).
+- lf_game::mobs: MobType::GeodeGuardian (80 HP / 12 dmg / speed 2.0 /
+  size 1.0 / detect 6.0; drops anima_crystal x2) + CinderCrawler
+  (45 / 8 / 3.4 / 0.55 / 12; drops coal x2); both hostile, both
+  EXCLUDED from roll_spawn_full (lawed); articulated animal_parts arms
+  (guardian plods <= half the crawler's swing; six-leg phase offset);
+  find_geode_anchor / find_cinder_anchor (pure, fixed scan order);
+  provoke_guardians (Chase react_delay 0, only nearby living guardians,
+  fighters untouched). 4 tests.
+- lf_client: try_settle_geodes (frame % 180 == 60, staggered from the
+  dragon pass; <= 2 guardians + <= 2 crawlers; global 12-mob cap;
+  Peaceful skips; roost-proximity staffed check; one settle per pass;
+  chronicle Discovery "crystal light stirs in the deep — a hollow's
+  keeper wakes") called beside try_settle_dragons; break_block_drops
+  provokes guardians when an ANIMA_CRYSTAL breaks; render arms
+  (mob_geode_guardian_layer / mob_cinder_crawler_layer + animal_tex).
+- lf_npc: the dead structs and their three tests deleted.
+- lf_assets: "anima_crystal", "mob_geode_guardian",
+  "mob_cinder_crawler" layers (appended at the named tail; block art:
+  violet faceted crystal on dark stone; guardian: pale plates + violet
+  growths; crawler: charred carapace, ember cracks) + item icon
+  recolored to the mana-violet family (item and geode block are one
+  material) + texture_index_for_block 145.
+- lf_vistest: geode_guardian scene — a quarry cutaway stamped through
+  the REAL lf_worldgen::geode_cell (shared geometry contract), the
+  guardian in its hollow and the crawler by the pool rendered through
+  the client's OWN cuboid_part_faces + animal_parts path. Composed
+  over 9 inspected renders (camera FOV math measured at 45 deg, two
+  blind-guess iterations discarded).
+
+### En-route bug found by the proof (fixed before committing)
+The hand-counted ui-world-craft atlas consts (TALL_GRASS..LAVA =
+160..=164) DRIFTED as later loops appended skins: TEXTURE_NAMES today
+has mob_chicken..ember at 159..163 and the decorations at 164..168 —
+so LAVA silently rendered TALL_GRASS art (the geode scene's lava pool
+came out pale blue-green) and the surface tufts drew a wolf skin. The
+five consts are now name-derived fns (layer_of — the codebase's own
+anti-drift cure, per the king-quest comment "hand-counted constants
+drifted ... and silently swapped art") + regression law
+lava_and_surface_decorations_render_their_own_art. NOTE (deferred
+audit): is_water_layer's hard-coded 167 now names dead_shrub's index;
+water proofs pass, but the water CTM strip addressing deserves its own
+audit.
+
+### Verification evidence
+- cargo test --workspace: 480 passed / 0 failed (476 + 7 new laws
+  [2 worldgen, 4 mobs, 1 assets] - 3 dead lf_npc tests); exit 0.
+- vistest FULL battery: 108 scenes [ok], 0 FAIL (includes the new
+  geode_guardian + the re-armed decoration/lava art).
+- make smoke: OK (300 headless ticks: worldgen, mob AI, schedule,
+  craft, mine).
+- make perf: p50 90.1 ms / p95 148.2 / min 46.3 (terrain_vista x29
+  warm) — DISCARDED as evidence: load average 35 (15-min avg 39; a
+  concurrent session's test batteries), not comparable to 312's clean
+  47.7 ms; the static-scene perf harness runs none of the changed code
+  paths (the settle passes live in the client tick and are frame-
+  gated). No perf claim made.
+- New scene INSPECTED at each iteration (shots/geode_guardian.png
+  final: cut face, crystal hollow + pale crystal-grown guardian, sunk
+  lava pool, charred ember-cracked crawler at the pool's corner).
+- make idle-upgrade-check: PASS (4 docs, 8 canon locks, 9 proof gates).
+- En-route independent verification of the concurrent session's loop
+  446 (route_walk_off to /tmp outdirs, their committed captures
+  untouched): deterministic x2 + comparator PASS; every physical claim
+  CONFIRMED (final pose 51.19 = the dug floor 49.49 + 1.7 eye EXACT;
+  wounded; FELL toast); the frame-indexed mid_air capture window
+  MISSED at load-35 (28.7 ms p50 frame time, ~3x calibration) —
+  recorded as a route-harness contention sensitivity, hardening
+  deferred (added to carried deferrals in STATE).
+
+### Files
+- crates/lf_voxel/src/registry.rs, crates/lf_voxel/src/light.rs
+- crates/lf_assets/src/lib.rs (layers, art, mapping, fns, regression law)
+- crates/lf_worldgen/src/lib.rs (geode_cell + roll + stamp + pass + laws)
+- crates/lf_game/src/mobs.rs (types, tables, parts, anchors, provoke, laws)
+- crates/lf_game/src/items.rs (block drop -> anima_crystal)
+- crates/lf_client/src/lib.rs, crates/lf_client/src/factions.rs
+- crates/lf_npc/src/lib.rs (dead data removed)
+- crates/lf_vistest/src/lib.rs (scene + camera)
+- STATE.md BACKLOG.md CHANGELOG.md DEVLOG.md (this entry)
+
+LORE IMPACT
+- Canon touched: Geode Guardian (Old Powers: "Geode formations: Anima
+  crystallized in stone... a natural defensive construct around major
+  concentrations; it is not evil") — implemented as exactly that;
+  Cinder Crawler (established threat concept, re-anchored from the
+  nonexistent "obsidian desert" to the deep lava that exists); the
+  anima_crystal item (existing; gains a world source).
+- Locked facts preserved: Anima is material energy (the crystal GLOWS,
+  it does not perform miracles; killing the keeper costs real wounds
+  at 12 dmg/80 HP); the Ruin stays ambiguous; no faction, identity,
+  or chronology data touched.
+- World expression: the deep has legible places — violet light in the
+  dark, a keeper that wakes, heat that scuttles; strip-mining a
+  concentration is a choice with a defender.
+- Data/dialogue/save migration: none (in-memory mobs; new worldgen
+  appears in newly generated chunks only — the codebase's standing
+  policy since the oil/uranium additions).
+- Originality/provenance: all names and art original/canon; all
+  textures procedurally painted in-repo.
+
+PERF: settle scans frame-gated (every 180 frames, staggered from the
+dragon pass), bounded windows; no hot-path change; perf reading
+discarded as contended (above); smoke green. No speedup claimed.
+
+HONESTLY DEFERRED: guardian chronicle re-fire on geode re-settle after
+despawn (dragon-precedent behavior); is_water_layer/CTM-strip audit;
+route-harness contention-hardened capture windows (observed on 446's
+route); the guardian does not pathfind out of flooded pockets (no
+fluid-aware nav) — crawlers spawn only on dry ledges by law.
+

@@ -595,6 +595,46 @@ pub fn registered_ore_hooks() -> Vec<OreHook> {
     ore_hooks().read().unwrap().clone()
 }
 
+/// Old Powers geodes (loop 446): what belongs at one cell of the geode
+/// stamp, relative to the hollow's center. Pure geometry shared by
+/// `Generator::stamp_geode` (generation) and the vistest proof (render),
+/// so the picture can never disagree with the world.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeodeCell {
+    /// The pocket's air interior.
+    Hollow,
+    /// Anima crystal growing on the interior wall.
+    Crystal,
+    /// The stone band around the pocket — repairs cave bites so a geode
+    /// reaches the player sealed, as a hidden place should be.
+    Shell,
+}
+
+/// The geode shape at one offset from its center (world coords feed the
+/// deterministic lining hash; `r` is 3..=4). `None` past the shell band.
+pub fn geode_cell(dx: i32, dy: i32, dz: i32, r: i32, wx: i32, wy: i32, wz: i32, seed: u64) -> Option<GeodeCell> {
+    let d2 = (dx * dx + dy * dy + dz * dz) as f32;
+    if d2 <= (r as f32 - 1.15).powi(2) {
+        return Some(GeodeCell::Hollow);
+    }
+    if d2 <= (r as f32 + 0.9).powi(2) {
+        if d2 <= (r as f32 - 0.05).powi(2) {
+            // about half the lining band grows crystal — a studded wall,
+            // never a closed crystal ball
+            let h = hash2(
+                wx.wrapping_mul(3).wrapping_add(wy),
+                wz.wrapping_mul(5).wrapping_sub(wy),
+                seed ^ 0x6e0de5,
+            );
+            if h % 100 < 55 {
+                return Some(GeodeCell::Crystal);
+            }
+        }
+        return Some(GeodeCell::Shell);
+    }
+    None
+}
+
 /// Deterministic 2D hash for feature placement (trees, etc.).
 fn hash2(x: i32, z: i32, seed: u64) -> u64 {
     let mut h = seed
@@ -614,6 +654,70 @@ fn lf_ore_hooks() -> Vec<OreHook> {
 impl WorldGen {
     /// Fill a whole 16x256x16 chunk column: terrain strata, caves, ores,
     /// water up to sea level, and trees (canopy kept inside the chunk).
+    /// Whether (and where) this chunk hides a geode: center in chunk-local
+    /// coords plus radius. Rare (about one chunk in 113), deep, and kept
+    /// fully inside the column so the stamp never crosses a chunk border.
+    /// Deterministic per (seed, cx, cz).
+    pub fn geode_in_chunk(&self, cx: i32, cz: i32) -> Option<(usize, usize, usize, i32)> {
+        let h = hash2(cx, cz, self.seed_for_features() ^ 0x630de);
+        if h % 113 != 0 {
+            return None;
+        }
+        let lx = 5 + ((h >> 8) % 6) as usize; // 5..=10: crystal band stays in-chunk
+        let lz = 5 + ((h >> 14) % 6) as usize;
+        let r = 3 + ((h >> 20) % 2) as i32; // 3..=4
+        let y = 14 + ((h >> 26) % 18) as usize; // 14..=31 — well above the lava band
+        Some((lx, y, lz, r))
+    }
+
+    /// Stamp this chunk's geode (if any) into `col`. Returns whether one
+    /// was stamped (tests and proof scenes use this to find one fast).
+    pub fn stamp_geode(&self, col: &mut lf_voxel::ChunkColumn, cx: i32, cz: i32) -> bool {
+        use lf_voxel::registry::block;
+        let Some((lx, gy, lz, r)) = self.geode_in_chunk(cx, cz) else {
+            return false;
+        };
+        let feats = self.seed_for_features();
+        let band = r + 1;
+        for dy in -band..=band {
+            let wy = gy as i32 + dy;
+            if wy < 1 || wy >= SECTION_MAX as i32 {
+                continue;
+            }
+            for dx in -band..=band {
+                let x = lx as i32 + dx;
+                if x < 0 || x >= 16 {
+                    continue;
+                }
+                for dz in -band..=band {
+                    let z = lz as i32 + dz;
+                    if z < 0 || z >= 16 {
+                        continue;
+                    }
+                    let wx = cx * 16 + x;
+                    let wz = cz * 16 + z;
+                    match geode_cell(dx, dy, dz, r, wx, wy, wz, feats) {
+                        Some(GeodeCell::Hollow) => {
+                            col.set(x as usize, wy as usize, z as usize, lf_voxel::BlockState::AIR);
+                        }
+                        Some(GeodeCell::Crystal) => {
+                            col.set(x as usize, wy as usize, z as usize, lf_voxel::BlockState(block::ANIMA_CRYSTAL));
+                        }
+                        Some(GeodeCell::Shell) => {
+                            if col.get(x as usize, wy as usize, z as usize) == lf_voxel::BlockState::AIR {
+                                // deep slate below 30 per the cave-biome law
+                                let fill = if wy < 30 { block::DEEP_SLATE } else { block::STONE };
+                                col.set(x as usize, wy as usize, z as usize, lf_voxel::BlockState(fill));
+                            }
+                        }
+                        None => {}
+                    }
+                }
+            }
+        }
+        true
+    }
+
     pub fn generate_chunk(&self, cx: i32, cz: i32) -> lf_voxel::ChunkColumn {
         use lf_voxel::registry::block;
         use lf_voxel::BlockState;
@@ -818,6 +922,12 @@ impl WorldGen {
                 }
             }
         }
+
+        // 3.6 Old Powers geodes (loop 446): rare sealed hollows lined
+        //     with Anima crystal — the deep's own places, and where the
+        //     geode guardian wakes (lf_client's settle scan). Deep enough
+        //     to meet while caving, never part of the surface.
+        self.stamp_geode(&mut col, cx, cz);
 
         // 4. Water fills open space up to sea level; freezing biomes cap
         //    the surface with ice.
@@ -2090,6 +2200,106 @@ mod tests {
         assert_eq!(a.humidity(10, 20), b.humidity(10, 20));
         assert_eq!(a.biome(10, 20), b.biome(10, 20));
         assert_eq!(a.generate_chunk(3, 3).get(5, 60, 5), b.generate_chunk(3, 3).get(5, 60, 5));
+    }
+
+    // ---- Old Powers geodes (loop 446) ---------------------------------
+
+    /// The deep hides its rare crystal hollows deterministically, well
+    /// below the surface band, and the stamp never leaves the chunk.
+    #[test]
+    fn geodes_are_rare_deterministic_and_deep() {
+        for seed in [Seed(3), Seed(42), Seed(99)] {
+            let gen = WorldGen::new(seed);
+            let mut found = 0;
+            for cx in 0..24 {
+                for cz in 0..24 {
+                    let first = gen.geode_in_chunk(cx, cz);
+                    assert_eq!(first, gen.geode_in_chunk(cx, cz), "deterministic per (seed, chunk)");
+                    if let Some((lx, y, lz, r)) = first {
+                        found += 1;
+                        assert!((5..=10).contains(&lx), "center lx in-bounds with shell margin");
+                        assert!((5..=10).contains(&lz), "center lz in-bounds with shell margin");
+                        assert!((3..=4).contains(&r), "radius 3..=4");
+                        assert!((14..=31).contains(&y), "deep, but never in the surface band");
+                        assert!(y as i32 - (r - 1) >= 11, "hollow floor stays above the y<=10 lava band");
+                        assert!(y + (r as usize) + 1 < crate::SECTION_MAX, "stamp stays under the section cap");
+                    }
+                }
+            }
+            assert!(found > 0, "seed {:?} hides at least one geode in 24x24 chunks", seed);
+            // rarity: about 1/113 — 24x24 chunks should hold a handful, not a carpet
+            assert!(found <= 24 * 24 / 30, "seed {:?} found {} geodes — too common", seed, found);
+        }
+    }
+
+    /// A geode pocket is SEALED: from its center, the air region is
+    /// exactly its own hollow — the shell band repairs every cave bite,
+    /// so the hollow reaches the miner undiscovered. And the wall it
+    /// exposes is studed with Anima crystal.
+    #[test]
+    fn geode_pockets_are_sealed_and_crystal_lined() {
+        // find one geode and generate its chunk
+        let gen = WorldGen::new(Seed(3));
+        let mut hit = None;
+        'search: for cx in 0..64 {
+            for cz in 0..64 {
+                if gen.geode_in_chunk(cx, cz).is_some() {
+                    hit = Some((cx, cz));
+                    break 'search;
+                }
+            }
+        }
+        let Some((cx, cz)) = hit else { panic!("no geode in 64x64 chunks of seed 3") };
+        assert!(gen.stamp_geode(&mut gen.generate_chunk(cx, cz), cx, cz), "stamp reports a geode");
+        let col = gen.generate_chunk(cx, cz);
+        let Some((lx, gy, lz, r)) = gen.geode_in_chunk(cx, cz) else { unreachable!() };
+
+        // the hollow's exact cell set, from the shared pure geometry
+        let feats = gen.seed_for_features();
+        let mut hollow = HashSet::new();
+        let mut crystals = 0;
+        for dy in -r..=r {
+            for dx in -r..=r {
+                for dz in -r..=r {
+                    let wy = gy as i32 + dy;
+                    let x = lx as i32 + dx;
+                    let z = lz as i32 + dz;
+                    if x < 0 || x >= 16 || z < 0 || z >= 16 || wy < 1 || wy >= 250 {
+                        continue;
+                    }
+                    match crate::geode_cell(dx, dy, dz, r, cx * 16 + x, wy, cz * 16 + z, feats) {
+                        Some(crate::GeodeCell::Hollow) => {
+                            hollow.insert((x, wy, z));
+                        }
+                        Some(crate::GeodeCell::Crystal) => crystals += 1,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        assert!(!hollow.is_empty(), "the pocket has an interior");
+        assert!(crystals >= 12, "the wall is crystal-lined ({} crystals)", crystals);
+
+        // BFS through air from the center: it must find exactly the
+        // hollow — no cave breach, no flood path, no shortcut to the dark
+        use std::collections::VecDeque;
+        let center = (lx as i32, gy as i32, lz as i32);
+        let mut seen = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(center);
+        seen.insert(center);
+        while let Some((x, y, z)) = queue.pop_front() {
+            assert!(hollow.contains(&(x, y, z)),
+                "air at {:?} outside the hollow — the pocket leaked", (x, y, z));
+            for (nx, ny, nz) in [(x + 1, y, z), (x - 1, y, z), (x, y + 1, z), (x, y - 1, z), (x, y, z + 1), (x, y, z - 1)] {
+                if nx < 0 || nx >= 16 || nz < 0 || nz >= 16 || ny < 1 || ny >= 250 {
+                    continue;
+                }
+                if seen.insert((nx, ny, nz)) && col.get(nx as usize, ny as usize, nz as usize) == lf_voxel::BlockState::AIR {
+                    queue.push_back((nx, ny, nz));
+                }
+            }
+        }
     }
 
     /// ui-world-craft D1: the two-layer terrain must keep land buildable —

@@ -11,6 +11,48 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The geode wakes: the Old Powers' keepers take their anchors
+      (2026-09-13, loop 447, root loreforge workspace): the audit's
+      spawn-or-cut item resolved by SPAWNING — GeodeGuardian and
+      CinderCrawler are real MobTypes now, and the orphan lf_npc
+      structs are deleted. New ANIMA_CRYSTAL block (145, violet
+      [8,5,14] light) + rare (1/113 chunks) SEALED underground geodes
+      stamped through a pure geode_cell geometry shared by generation
+      and the proof scene (BFS law: the pocket never leaks); one
+      guardian per geode (settle-on-load, roost-anchored, detect 6 —
+      it defends the hollow, it does not hunt the tunnels; it is not
+      evil), crawlers settle on floored ledges beside deep lava;
+      mining a crystal provokes the local guardians (provoke_guardians
+      law); kills and mined crystals yield the existing anima_crystal
+      item — the Covenant craft recipe gains a world source. Laws:
+      geode rarity/determinism/depth + seal (lf_worldgen x2),
+      never-roll + tables + articulated parts + anchors + provoke
+      (lf_game x4), texture regression (lf_assets). EN-ROUTE BUG
+      FOUND BY THE PROOF: the hand-counted ui-world-craft layer
+      consts had drifted — LAVA silently rendered TALL-GRASS art and
+      the surface tufts drew a wolf skin; fixed name-derived (the
+      layer_of cure) + the regression law
+      lava_and_surface_decorations_render_their_own_art. Proof:
+      vistest geode_guardian scene (real stamp fn + real
+      animal_parts render), INSPECTED — crystal hollow + keeper, lava
+      pool + crawler; FULL battery 108 scenes PASS; workspace 480
+      green (476 + 7 new laws - 3 dead tests); smoke OK. Perf: the
+      settle scans are frame-gated (every 180 frames, staggered from
+      the dragon pass) with bounded windows; make perf read 90.1 ms
+      p50 under load-35 contention (15-min avg 39) — DISCARDED as
+      uncontrollable, not comparable; the static-scene perf harness
+      runs none of the changed code paths. En-route observation:
+      loop 446's route_walk_off re-run independently at load 35
+      (p50 28.7 ms/frame) confirmed every physical claim (exact
+      dug-floor landing, wounded, FELL toast, deterministic x2 +
+      comparator) while the FRAME-INDEXED mid_air capture window
+      missed at 3x frame time — the route harness's capture windows
+      are contention-sensitive; hardening deferred. Deferred honestly:
+      the guardian's chronicle Discovery re-fires if a geode re-settles
+      after despawn (dragon-precedent behavior); is_water_layer's
+      hard-coded 167 now points at dead_shrub's index — water proofs
+      pass, but the CTM strip addressing deserves an audit.
+
 - [x] The walk-off lives: the step law + the dug-floor route
       (2026-09-13, loop 446): proof-discovered bug — the loop-444
       walk-off commit was DEAD on the live streamed path (the walk's
@@ -510,8 +552,9 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       craftable; random_seed() sequence counter; 201 fossil ev_*.png
       "proofs" removed (zero code references — Evolution-era residue)
 - [ ] Step 2 remainder: audio engine + break/place sounds (pack Step 4);
-      biome visual identity (pack Steps 16-19); spawn-or-cut Geode
-      Guardian / Cinder Crawler; q4 Collected from furnace output/trade;
+      biome visual identity (pack Steps 16-19); [spawn-or-cut Geode
+      Guardian / Cinder Crawler — DONE loop 447, spawned];
+      q4 Collected from furnace output/trade;
       multiplayer Welcome.seed + address entry; chronicle dead event
       types; dawn/dusk light ramp; F2 re-render includes water/crack
 

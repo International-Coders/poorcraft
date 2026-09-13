@@ -1,5 +1,63 @@
 # CHANGELOG
 
+## 2026-09-13 — The geode wakes: the Old Powers' keepers take their anchors (loop 447)
+
+- Resolved the audit's longest-standing dead-data item by SPAWNING it:
+  `GeodeGuardian` and `CinderCrawler` are real `MobType`s in
+  `lf_game::mobs` (the authority every other creature lives in), and
+  the orphan `lf_npc` structs — whose doc comments referenced biomes
+  that do not exist — are deleted.
+- New block `ANIMA_CRYSTAL` (id 145, emits violet light [8,5,14]) and
+  a new worldgen feature: rare (about 1 chunk in 113) underground
+  geodes — sealed crystal-lined pockets stamped through a PURE
+  `geode_cell` geometry shared by `generate_chunk` and the proof
+  scene, so the picture can never disagree with the world. Laws: rare,
+  deterministic, deep (never the surface band, never the lava floor),
+  and a BFS seal law (from the pocket's center, the air region is
+  exactly its own hollow — no cave breach, no flood path).
+- The creatures take their anchors from the world, the way dragons
+  settle roosts: one guardian per geode (roost-anchored to its
+  crystal, standing in the hollow), crawlers on floored ledges beside
+  deep lava (y 6..=12). Both NEVER roll with the night. The guardian
+  is canonically "not evil": detect 6 — it defends its hollow, it does
+  not hunt the tunnels — and `provoke_guardians` wakes only the nearby
+  keepers when one of THEIR crystals is mined. Guardian kills drop
+  anima_crystal (2); crawler kills drop coal; mined crystals drop the
+  existing anima_crystal item — the Covenant channeler wage recipe now
+  has a world source.
+- Both keepers are articulated (animal_parts: the guardian a heavy
+  crystal-grown quadruped that plods; the crawler a six-legged scuttle)
+  with their own procedural skins, rendered through the client's
+  standard articulated path.
+- EN-ROUTE BUG, found by the scene proof and fixed before committing:
+  the hand-counted ui-world-craft atlas consts (TALL_GRASS..LAVA
+  160..=164) had DRIFTED as skins were appended — lava silently
+  rendered tall-grass art and the surface tufts drew a wolf skin.
+  The five consts are now name-derived fns (`layer_of`, the codebase's
+  own anti-drift cure) + regression law
+  `lava_and_surface_decorations_render_their_own_art`.
+- Proof: vistest scene `geode_guardian` — a quarry cutaway stamped by
+  the REAL geode fn, the guardian standing in its crystal hollow, the
+  lava pool sunk in the floor, the crawler scuttling beside it;
+  composed over 9 inspected renders, then the FULL battery: 108
+  scenes PASS. Root workspace 480 green (476 + 7 new laws - 3 dead
+  lf_npc tests); smoke OK.
+- PERF: settle scans are frame-gated (every 180 frames, staggered
+  from the dragon pass) with bounded scan windows. `make perf` read
+  90.1 ms p50 under load-35 contention (15-min average 39 — a
+  concurrent session's batteries) — DISCARDED as uncontrollable, not
+  comparable to 312's clean 47.7 ms; the perf harness (static scene
+  renderer) executes none of the changed code paths (settle passes
+  live in the client tick).
+- En-route observation recorded honestly: loop 446's route_walk_off,
+  re-run independently at load 35 (28.7 ms p50 frame time), confirmed
+  every physical claim (exact dug-floor landing 51.19 eye = 49.49 feet
+  + 1.7, wounded, FELL toast; deterministic x2 + comparator PASS) but
+  missed the frame-indexed mid_air capture window at 3x frame time —
+  the route harness's frame-indexed windows are contention-sensitive;
+  hardening deferred (added to carried deferrals).
+
+
 ## 2026-09-13 — The walk-off lives: the step law + the dug-floor route (loop 446)
 
 - **Proof-discovered bug, fixed:** the loop-444 walk-off commit was

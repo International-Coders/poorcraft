@@ -661,6 +661,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "geode_guardian",
+            desc: "Old Powers (loop 446): a cutaway Anima geode with its keeper inside and a cinder crawler beside the deep lava",
+            default_seed: 12345,
+            time_of_day: 0.55,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "paths_screen",
             desc: "Paths & specialization (P37): four standings with tiers, focus bars, respec note",
             default_seed: 12345,
@@ -1795,6 +1807,64 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         }
     }
 
+    // geode_guardian (loop 446): the world's OWN geode geometry (the
+    // shared pure `geode_cell` fn the generator stamps with), cut open
+    // like a quarry face so the crystal hollow and its keeper are
+    // legible, plus a deep-lava ledge with the crawler's brood.
+    if spec.name == "geode_guardian" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        let gy = h - 13; // the hollow's center row
+        // the geode: same shape law as generate_chunk's stamp
+        let (gcx, gcy, gcz, gr) = (0i32, gy, 0i32, 4i32);
+        for dy in -(gr + 1)..=(gr + 1) {
+            for dx in -(gr + 1)..=(gr + 1) {
+                for dz in -(gr + 1)..=(gr + 1) {
+                    let (x, y, z) = (gcx + dx, gcy + dy, gcz + dz);
+                    match lf_worldgen::geode_cell(dx, dy, dz, gr, x, y, z, 12345) {
+                        Some(lf_worldgen::GeodeCell::Hollow) => {
+                            world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                        }
+                        Some(lf_worldgen::GeodeCell::Crystal) => {
+                            world.set_block(x, y, z, lf_voxel::BlockState(block::ANIMA_CRYSTAL));
+                        }
+                        Some(lf_worldgen::GeodeCell::Shell) => {
+                            // keep the host rock solid so the cut reads as stone
+                            world.set_block(x, y, z, lf_voxel::BlockState(if y < 30 { block::DEEP_SLATE } else { block::STONE }));
+                        }
+                        None => {}
+                    }
+                }
+            }
+        }
+        // the quarry cut: everything toward +z is removed below the
+        // surface so the hollow opens to the sky (and the lens)
+        for x in -9..17 {
+            for z in 2..26 {
+                for y in gy - 7..h + 1 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+            }
+        }
+        // a clean quarry floor, then the deep-lava pool sunk into it and
+        // the ledge its brood scuttles on
+        for x in -9..17 {
+            for z in 2..26 {
+                world.set_block(x, gy - 4, z, lf_voxel::BlockState(block::DEEP_SLATE));
+            }
+        }
+        // the pool against the cut face, east of the hollow
+        for x in 5..10 {
+            for z in -2..5 {
+                world.set_block(x, gy - 3, z, lf_voxel::BlockState(block::LAVA));
+            }
+        }
+        // a crystal outcrop by the pool — the brood gathers where the
+        // warm stone meets the cold
+        world.set_block(10, gy - 4, 0, lf_voxel::BlockState(block::ANIMA_CRYSTAL));
+        world.set_block(10, gy - 3, 0, lf_voxel::BlockState(block::ANIMA_CRYSTAL));
+    }
+
     // modern_wing (P35): "one wing wired for electricity" — a two-storey
     // wing: conduits relay a distant generator's field to the upper
     // floor machines, an elevator shaft climbs the side, a climate unit
@@ -2908,6 +2978,50 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         }
     }
 
+    // geode_guardian (loop 446): the two keepers rendered through the
+    // SAME articulation the client uses — animal_parts layout + the
+    // engine's cuboid_part_faces primitive.
+    if spec.name == "geode_guardian" {
+        let h = world.surface_height(0, 0) as f32;
+        let gy = h - 13.0;
+        let keepers: [(lf_game::mobs::MobType, Vec3, f32, u32); 2] = [
+            // the guardian stands on the hollow's crystal floor
+            (lf_game::mobs::MobType::GeodeGuardian,
+                Vec3::new(0.5, gy - 2.0, 0.5), 2.4,
+                lf_assets::mob_geode_guardian_layer()),
+            // the crawler scuttles on the ledge beside the lava
+            (lf_game::mobs::MobType::CinderCrawler,
+                Vec3::new(5.5, gy - 3.0, 6.5), 2.9,
+                lf_assets::mob_cinder_crawler_layer()),
+        ];
+        for (kind, feet, yaw, tex) in keepers {
+            for part in lf_game::mobs::animal_parts(kind, 1.0, 1.0, 0.0) {
+                let faces = lf_engine::scene::cuboid_part_faces(
+                    feet, yaw,
+                    Vec3::from_array(part.center),
+                    Vec3::from_array(part.half),
+                    part.pitch,
+                    Vec3::from_array(part.pivot),
+                );
+                for (corners, _normal) in faces {
+                    let base = vertices.len() as u32;
+                    for (corner, uv) in corners.iter().zip([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]) {
+                        vertices.push(GpuVertex {
+                            position: *corner,
+                            normal: [0.0, 1.0, 0.0],
+                            tex_coord: uv,
+                            tex_index: tex,
+                            ao: 1.0,
+                            light: 0xF0,
+                            sway: 0.0,
+                        });
+                    }
+                    indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+                }
+            }
+        }
+    }
+
     // oil_chain: dark flare smoke rising from the refinery columns (P31)
     if spec.name == "oil_chain" {
         let h = world.surface_height(0, 0) as f32;
@@ -3226,6 +3340,13 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
     } else if spec.name == "dragon_flight" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-6.0, h + 10.0, 9.0), Vec3::new(0.8, h + 6.0, 0.0))
+    } else if spec.name == "geode_guardian" {
+        // below the surface lip: the cut face, the crystal hollow with
+        // its keeper, and the lava pool with the crawler's brood
+        let h = gen.surface_top(0, 0) as f32;
+                // face-on elevation: the cut face with the hollow and its keeper
+        // above, the lava pool and the crawler's brood below
+        (Vec3::new(1.0, h - 11.5, 22.0), Vec3::new(0.5, h - 13.5, 0.0))
     } else if spec.name == "modern_wing" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-6.0, h + 9.0, 10.0), Vec3::new(0.5, h + 3.0, -1.0))

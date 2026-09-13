@@ -340,6 +340,9 @@ pub fn block_drop(block_id: u32) -> Option<String> {
         block::REFINERY => Some("refinery".into()),
         block::COMBUSTION_GENERATOR => Some("combustion_generator".into()),
         block::DRAGON_EGG => Some("dragon_scale".into()),
+        // the geode lining IS the item — the world source of the
+        // Covenant's concentrated-Anima crystal
+        block::ANIMA_CRYSTAL => Some("anima_crystal".into()),
         block::BELT => Some("belt".into()),
         block::CONDUIT => Some("conduit".into()),
         block::ELEVATOR => Some("elevator".into()),

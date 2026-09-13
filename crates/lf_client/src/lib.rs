@@ -4215,6 +4215,12 @@ impl GameState {
         if let Some(item) = lf_game::items::block_drop(block_id) {
             self.spawn_drop(&item, 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
         }
+        // Old Powers: breaking the concentration wakes its keeper — the
+        // hollow's guardians drop into the chase at once
+        if block_id == registry::block::ANIMA_CRYSTAL {
+            let center = Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.5, pos.z as f32 + 0.5);
+            lf_game::mobs::provoke_guardians(&mut self.mobs, center, 10.0);
+        }
         // rare apple bonus from leaves
         if block_id == registry::block::LEAVES && pseudo_random(self.frame) % 20 == 0 {
             self.spawn_drop("apple", 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
@@ -4818,6 +4824,80 @@ impl GameState {
                 "wings circle the peaks — a dragon guards its clutch".into(),
             );
             return;
+        }
+    }
+
+    /// Old Powers (loop 446): the deep keeps its own creatures. Each
+    /// geode settles ONE guardian when its chunk loads near the player;
+    /// the lava pockets below y 13 host the crawlers' brood. The same
+    /// settle law as the dragon roosts: the anchor is a real world cell,
+    /// one creature per anchor (roost proximity), the global mob cap
+    /// holds, and Peaceful stays peaceful.
+    fn try_settle_geodes(&mut self) {
+        if self.frame % 180 != 60 || self.mobs.len() >= 12 {
+            return; // staggered from the dragon pass (frame % 180 == 0)
+        }
+        if self.difficulty == slots::Difficulty::Peaceful {
+            return; // both keepers are hostile (C1)
+        }
+        let player = self.player.position;
+        let guardians = self.mobs.iter()
+            .filter(|m| m.mob_type == lf_game::mobs::MobType::GeodeGuardian).count();
+        let crawlers = self.mobs.iter()
+            .filter(|m| m.mob_type == lf_game::mobs::MobType::CinderCrawler).count();
+        for ((cx, cz), col) in self.world.chunks.iter() {
+            let center = (*cx as f32 * 16.0 + 8.0, *cz as f32 * 16.0 + 8.0);
+            let dist = ((center.0 - player.x).powi(2) + (center.1 - player.z).powi(2)).sqrt();
+            if dist > 70.0 {
+                continue;
+            }
+            // the guardian: anchored to the geode's crystal, standing in
+            // the hollow above it
+            if guardians < 2 {
+                if let Some((ax, ay, az)) = lf_game::mobs::find_geode_anchor(col, *cx, *cz) {
+                    let kind = lf_game::mobs::MobType::GeodeGuardian;
+                    let staffed = self.mobs.iter().any(|m| {
+                        m.mob_type == kind
+                            && m.roost.map(|r| (r[0] as i32 - ax).abs() < 16 && (r[2] as i32 - az).abs() < 16).unwrap_or(false)
+                    });
+                    if !staffed {
+                        let mut g = lf_game::mobs::MobEntity::spawn(
+                            self.next_mob_id,
+                            kind,
+                            Vec3::new(ax as f32 + 0.5, ay as f32 + 1.0, az as f32 + 0.5),
+                        );
+                        g.roost = Some([ax as f32 + 0.5, ay as f32, az as f32 + 0.5]);
+                        self.next_mob_id += 1;
+                        self.mobs.push(g);
+                        self.chronicle_event(
+                            EventType::Discovery,
+                            "crystal light stirs in the deep — a hollow's keeper wakes".into(),
+                        );
+                        return; // one settle per pass, like the dragons
+                    }
+                }
+            }
+            // the crawlers: a floored ledge beside the deep lava
+            if crawlers < 2 {
+                if let Some((ax, ay, az)) = lf_game::mobs::find_cinder_anchor(col, *cx, *cz) {
+                    let kind = lf_game::mobs::MobType::CinderCrawler;
+                    let staffed = self.mobs.iter().any(|m| {
+                        m.mob_type == kind
+                            && m.roost.map(|r| (r[0] as i32 - ax).abs() < 8 && (r[2] as i32 - az).abs() < 8).unwrap_or(false)
+                    });
+                    if !staffed {
+                        let mut c = lf_game::mobs::MobEntity::spawn(
+                            self.next_mob_id,
+                            kind,
+                            Vec3::new(ax as f32 + 0.5, ay as f32 + 0.1, az as f32 + 0.5),
+                        );
+                        c.roost = Some([ax as f32 + 0.5, ay as f32, az as f32 + 0.5]);
+                        self.next_mob_id += 1;
+                        self.mobs.push(c);
+                        return;
+                    }
+                }
+            }
         }
     }
 
@@ -5494,6 +5574,7 @@ impl GameState {
 
         self.try_spawn_villagers();
         self.try_settle_dragons();
+        self.try_settle_geodes();
 
         // Freshly generated chunks from the worker.
         let mut budget = 4;
@@ -6030,6 +6111,9 @@ impl GameState {
                 MobType::Boar => lf_assets::MOB_BOAR_LAYER,
                 MobType::Woolbeast => lf_assets::MOB_WOOLBEAST_LAYER,
                 MobType::NamelessRaider => lf_assets::VILLAGER_NAMELESS_LAYER,
+                // Old Powers keepers render their own skins (loop 446)
+                MobType::GeodeGuardian => lf_assets::mob_geode_guardian_layer(),
+                MobType::CinderCrawler => lf_assets::mob_cinder_crawler_layer(),
                 common => {
                     let (base, tints) = match common {
                         MobType::Glitchling => (lf_assets::MOB_GLITCHLING_LAYER, lf_assets::MOB_GLITCHLING_TINTS),
@@ -6055,6 +6139,8 @@ impl GameState {
                 MobType::Bear => Some(lf_assets::mob_bear_layer()),
                 MobType::Boar => Some(lf_assets::MOB_BOAR_LAYER),
                 MobType::Woolbeast => Some(lf_assets::MOB_WOOLBEAST_LAYER),
+                MobType::GeodeGuardian => Some(lf_assets::mob_geode_guardian_layer()),
+                MobType::CinderCrawler => Some(lf_assets::mob_cinder_crawler_layer()),
                 _ => None,
             };
             // hurt flash: mostly-on flicker while the damage tint lives

@@ -26,12 +26,21 @@ pub enum MobType {
     Wolf,
     Dog,
     Bear,
+    /// Old Powers (loop 446): a natural defensive construct of
+    /// crystallized Anima around a deep geode. It is not evil — it wakes
+    /// only when an intruder enters its hollow or mines its crystals,
+    /// and it never rolls on the surface (settled from the geode scan).
+    GeodeGuardian,
+    /// The deep heat's brood (loop 446): scuttles beside the lava
+    /// pockets below y 13. Settled from the lava scan, never rolled.
+    CinderCrawler,
 }
 
 impl MobType {
     pub fn is_hostile(self) -> bool {
         matches!(self, MobType::Glitchling | MobType::Stalker | MobType::Crawler | MobType::NullKnight
-            | MobType::NamelessRaider | MobType::Wolf | MobType::Bear)
+            | MobType::NamelessRaider | MobType::Wolf | MobType::Bear
+            | MobType::GeodeGuardian | MobType::CinderCrawler)
     }
 
     /// Boss-tier mobs own their AI elsewhere (the dragon flies via
@@ -67,6 +76,11 @@ impl MobType {
             Wolf => MobStats { max_health: 14.0, damage: 3.0, speed: 3.4, size: 0.45, detect: 14.0 },
             Dog => MobStats { max_health: 10.0, damage: 0.0, speed: 2.2, size: 0.45, detect: 0.0 },
             Bear => MobStats { max_health: 40.0, damage: 8.0, speed: 2.6, size: 0.9, detect: 10.0 },
+            // the guardian is heavy and nearsighted: it defends its
+            // hollow, it does not hunt the parish (detect 6 = the pocket,
+            // not the tunnels beyond)
+            GeodeGuardian => MobStats { max_health: 80.0, damage: 12.0, speed: 2.0, size: 1.0, detect: 6.0 },
+            CinderCrawler => MobStats { max_health: 45.0, damage: 8.0, speed: 3.4, size: 0.55, detect: 12.0 },
         }
     }
 
@@ -85,6 +99,8 @@ impl MobType {
             Wolf => [0.58, 0.58, 0.6],
             Dog => [0.62, 0.46, 0.3],
             Bear => [0.36, 0.26, 0.18],
+            GeodeGuardian => [0.55, 0.44, 0.88],
+            CinderCrawler => [0.42, 0.2, 0.1],
         }
     }
 
@@ -105,6 +121,11 @@ impl MobType {
             Wolf => &[("mutton", 1)],
             Dog => &[],
             Bear => &[("porkchop", 3)],
+            // the guardian's body is condensed Anima: mining the
+            // concentration peacefully is cheaper, killing it is a choice
+            GeodeGuardian => &[("anima_crystal", 2)],
+            // a creature of the burning deep sheds combustible carbon
+            CinderCrawler => &[("coal", 2)],
         }
     }
 }
@@ -1032,6 +1053,66 @@ pub fn animal_parts(kind: MobType, phase: f32, amp: f32, hurt: f32) -> Vec<Anima
             leg(&mut parts, 0.18, 0.26, -0.24, 0.06, 0.26, 0.5, std::f32::consts::PI);
             leg(&mut parts, -0.18, 0.26, 0.24, 0.06, 0.26, 0.5, std::f32::consts::PI);
         }
+        GeodeGuardian => {
+            // the hollow's keeper: a heavy stone construct grown over with
+            // the crystal it guards — a broad body, a low browed head, and
+            // four thick columns that shift their weight slowly
+            parts.push(AnimalPart {
+                center: [0.0, (0.62 + bob) * squash, 0.0],
+                half: [0.34, 0.28, 0.4],
+                pitch: 0.0,
+                pivot: [0.0, 0.62, 0.0],
+            });
+            // crystal growths ride the back, swaying with the step
+            let sway = (phase).sin() * 0.08 * amp;
+            parts.push(AnimalPart {
+                center: [0.12, 0.98 * squash, -0.06],
+                half: [0.08, 0.1, 0.08],
+                pitch: sway,
+                pivot: [0.12, 0.9, -0.06],
+            });
+            parts.push(AnimalPart {
+                center: [-0.1, 0.95 * squash, 0.12],
+                half: [0.06, 0.12, 0.06],
+                pitch: -sway,
+                pivot: [-0.1, 0.9, 0.12],
+            });
+            // low browed head — it does not look up at anyone
+            let neck = [0.0, 0.68, 0.38];
+            parts.push(AnimalPart {
+                center: [0.0, 0.66 * squash, 0.5],
+                half: [0.17, 0.15, 0.16],
+                pitch: (phase).sin() * 0.06 * amp,
+                pivot: neck,
+            });
+            let heavy = 0.42; // the stride barely leaves the ground
+            leg(&mut parts, 0.22, 0.34, 0.26, 0.09, 0.34, heavy, 0.0);
+            leg(&mut parts, -0.22, 0.34, -0.26, 0.09, 0.34, heavy, 0.0);
+            leg(&mut parts, 0.22, 0.34, -0.26, 0.09, 0.34, heavy, std::f32::consts::PI);
+            leg(&mut parts, -0.22, 0.34, 0.26, 0.09, 0.34, heavy, std::f32::consts::PI);
+        }
+        CinderCrawler => {
+            // the deep heat's brood: a low charred carapace hugging the
+            // stone, six quick legs, a hot head held low and forward
+            parts.push(AnimalPart {
+                center: [0.0, (0.16 + bob * 0.6) * squash, 0.0],
+                half: [0.2, 0.1, 0.26],
+                pitch: 0.0,
+                pivot: [0.0, 0.16, 0.0],
+            });
+            let neck = [0.0, 0.18, 0.24];
+            parts.push(AnimalPart {
+                center: [0.0, 0.15 * squash, 0.32],
+                half: [0.1, 0.08, 0.1],
+                pitch: (phase).sin() * 0.14 * amp,
+                pivot: neck,
+            });
+            // three legs per side, offset a third of a cycle each —
+            // the scuttle
+            for (i, (sx, sz)) in [(0.13, 0.16), (-0.13, 0.16), (0.15, 0.0), (-0.15, 0.0), (0.13, -0.16), (-0.13, -0.16)].iter().enumerate() {
+                leg(&mut parts, *sx, 0.14, *sz, 0.035, 0.14, 0.9, i as f32 * std::f32::consts::PI / 3.0);
+            }
+        }
         _ => parts.push(AnimalPart {
             center: [0.0, 0.0, 0.0],
             half: [0.0, 0.0, 0.0],
@@ -1098,6 +1179,89 @@ pub fn roll_spawn_full(rand: u64, is_day: bool, cold_biome: bool, nameless_biome
             70..=71 => Some(NullKnight), // rare boss
             _ => None,
         }
+    }
+}
+
+// ---- Old Powers settle + provoke (loop 446) ---------------------------
+//
+// GeodeGuardian and CinderCrawler never roll: they take their anchors
+// from the WORLD — the crystal hollows and the deep lava pockets — the
+// same way dragons settle their roosts. The client runs these scans on
+// loaded chunks near the player; the helpers here are pure and lawed.
+
+/// The first Anima-crystal cell of a chunk's geode, scanning a bounded
+/// central window in a fixed order (the guardian's spawn anchor).
+pub fn find_geode_anchor(
+    col: &lf_voxel::ChunkColumn, cx: i32, cz: i32,
+) -> Option<(i32, i32, i32)> {
+    use lf_voxel::registry::block;
+    for lx in 2..14usize {
+        for lz in 2..14usize {
+            for y in 6..52usize {
+                if col.get(lx, y, lz).id() == block::ANIMA_CRYSTAL {
+                    return Some((cx * 16 + lx as i32, y as i32, cz * 16 + lz as i32));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// A crawlable ledge beside this chunk's deep lava: a lava cell (y
+/// 6..=12) whose above is air and which touches a floored air cell (the
+/// crawler's spawn anchor). Fixed scan order.
+pub fn find_cinder_anchor(
+    col: &lf_voxel::ChunkColumn, cx: i32, cz: i32,
+) -> Option<(i32, i32, i32)> {
+    use lf_voxel::registry::block;
+    for lx in 1..15usize {
+        for lz in 1..15usize {
+            for y in 6..=12usize {
+                if col.get(lx, y, lz).id() != block::LAVA {
+                    continue;
+                }
+                if col.get(lx, y + 1, lz).id() != block::AIR {
+                    continue;
+                }
+                // a solid floor one step to the side, under air —
+                // somewhere to stand that is not the lava itself
+                for (nx, nz) in [(lx + 1, lz), (lx - 1, lz), (lx, lz + 1), (lx, lz - 1)] {
+                    if col.get(nx, y, nz).id() == block::AIR
+                        && col.get(nx, y - 1, nz).id() != block::AIR
+                        && col.get(nx, y - 1, nz).id() != block::LAVA
+                    {
+                        return Some((cx * 16 + nx as i32, y as i32, cz * 16 + nz as i32));
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Mining the concentration wakes its keeper: every geode guardian
+/// within `radius` of the broken crystal drops into the chase (the
+/// react_delay is zero — it was already watching). Nothing else stirs.
+pub fn provoke_guardians(mobs: &mut [MobEntity], pos: Vec3, radius: f32) {
+    for mob in mobs.iter_mut() {
+        if mob.mob_type != MobType::GeodeGuardian || mob.death_t.is_some() {
+            continue;
+        }
+        if mob.position.distance(pos) > radius {
+            continue;
+        }
+        if matches!(
+            mob.behaviour,
+            MobBehaviourState::Chase { .. } | MobBehaviourState::Attack { .. }
+        ) {
+            continue; // already fighting
+        }
+        mob.behaviour = MobBehaviourState::Chase {
+            aggro_timer: 0.0,
+            react_delay: 0.0,
+            unseen_for: 0.0,
+        };
+        mob.combat_time = 0.0;
     }
 }
 
@@ -1579,5 +1743,114 @@ mod tests {
         assert_eq!(effective_aggro_radius(18.0, 75), 4.5);
         assert_eq!(effective_aggro_radius(18.0, -100), 36.0);
         assert_eq!(effective_aggro_radius(18.0, 0), 18.0);
+    }
+
+    // ---- Old Powers: geode guardian + cinder crawler (loop 446) -------
+
+    /// The deep's two creatures never roll with the night — they take
+    /// their anchors from the world — and their tables carry real items.
+    #[test]
+    fn old_powers_mobs_never_roll_and_carry_real_drops() {
+        let rolled: Vec<MobType> = (0..2000u64)
+            .filter_map(|r| roll_spawn_full(r, false, false, false))
+            .collect();
+        assert!(!rolled.contains(&MobType::GeodeGuardian), "the guardian is a settle, not a roll");
+        assert!(!rolled.contains(&MobType::CinderCrawler), "the crawler is a settle, not a roll");
+        // hostile construct + hostile brood
+        assert!(MobType::GeodeGuardian.is_hostile());
+        assert!(MobType::CinderCrawler.is_hostile());
+        let g = MobType::GeodeGuardian.stats();
+        assert_eq!(g.max_health, 80.0);
+        assert_eq!(g.detect, 6.0, "the guardian defends its hollow, it does not hunt the tunnels");
+        assert_eq!(MobType::CinderCrawler.stats().max_health, 45.0);
+        // drops are real catalog items (anima_crystal: the Covenant's wage)
+        assert_eq!(MobType::GeodeGuardian.drops(), &[("anima_crystal", 2)]);
+        assert_eq!(MobType::CinderCrawler.drops(), &[("coal", 2)]);
+    }
+
+    /// Both new creatures are articulated — the guardian a heavy
+    /// quadruped with crystal growths, the crawler a six-legged scuttle.
+    #[test]
+    fn old_powers_parts_are_articulated() {
+        let guard = animal_parts(MobType::GeodeGuardian, 1.0, 1.0, 0.0);
+        let crawl = animal_parts(MobType::CinderCrawler, 1.0, 1.0, 0.0);
+        assert!(guard.len() >= 8, "body + growths + head + four legs, got {}", guard.len());
+        assert!(crawl.len() >= 8, "body + head + six legs, got {}", crawl.len());
+        // the guardian's stride barely leaves the ground: at any phase its
+        // swing stays under the crawler's scuttle (0.9) — and under half a
+        // radian, the heavy plod
+        let leg_swing = guard.iter().map(|p| p.pitch.abs()).fold(0.0f32, f32::max);
+        assert!(leg_swing < 0.5, "a heavy construct plods (max swing {})", leg_swing);
+        let crawl_swing = crawl.iter().map(|p| p.pitch.abs()).fold(0.0f32, f32::max);
+        assert!(leg_swing < crawl_swing, "the plod ({}) trails the scuttle ({})", leg_swing, crawl_swing);
+        // the crawler's legs scuttle fast: opposite-phase pairs exist
+        let pitches: Vec<f32> = crawl.iter().map(|p| p.pitch).collect();
+        assert!(pitches.iter().any(|p| *p > 0.05) && pitches.iter().any(|p| *p < -0.05),
+            "legs offset in phase, pitches {:?}", pitches);
+    }
+
+    /// Anchors come from the world: the crystal cell for the guardian,
+    /// a floored ledge beside deep lava for the crawler — and None
+    /// where the world has no such place.
+    #[test]
+    fn anchors_come_from_crystal_and_deep_lava() {
+        use lf_voxel::registry::block;
+        let mut col = lf_voxel::ChunkColumn::empty();
+        for lx in 0..16usize {
+            for lz in 0..16usize {
+                col.set(lx, 5, lz, BlockState::STONE);
+            }
+        }
+        assert_eq!(find_geode_anchor(&col, 7, 9), None, "no crystal, no guardian");
+        assert_eq!(find_cinder_anchor(&col, 7, 9), None, "no lava, no crawler");
+
+        // a crystal pocket: the anchor is that cell, in world coords
+        col.set(6, 20, 11, BlockState(block::ANIMA_CRYSTAL));
+        assert_eq!(find_geode_anchor(&col, 7, 9), Some((7 * 16 + 6, 20, 9 * 16 + 11)));
+
+        // a deep lava pool with a floored ledge beside it
+        col.set(8, 9, 4, BlockState(block::LAVA));
+        col.set(9, 9, 4, BlockState::AIR);
+        col.set(9, 8, 4, BlockState::STONE);
+        assert_eq!(find_cinder_anchor(&col, 7, 9), Some((7 * 16 + 9, 9, 9 * 16 + 4)));
+
+        // lava capped by stone (no air above) anchors nothing — and a
+        // ledge over open air with no floor anchors nothing either
+        let mut col2 = lf_voxel::ChunkColumn::empty();
+        col2.set(8, 9, 4, BlockState(block::LAVA));
+        col2.set(8, 10, 4, BlockState::STONE);
+        assert_eq!(find_cinder_anchor(&col2, 0, 0), None);
+        let mut col3 = lf_voxel::ChunkColumn::empty();
+        col3.set(8, 9, 4, BlockState(block::LAVA));
+        col3.set(9, 9, 4, BlockState::AIR); // air beside, but a void below
+        assert_eq!(find_cinder_anchor(&col3, 0, 0), None);
+    }
+
+    /// Mining the concentration wakes only its keeper — nearby guardians
+    /// drop into the chase at once; distant ones and other mobs sleep.
+    #[test]
+    fn provoking_the_crystal_wakes_its_guardian() {
+        let mut mobs = vec![
+            MobEntity::spawn(1, MobType::GeodeGuardian, Vec3::new(10.0, 1.0, 10.0)),
+            MobEntity::spawn(2, MobType::GeodeGuardian, Vec3::new(50.0, 1.0, 50.0)),
+            MobEntity::spawn(3, MobType::CinderCrawler, Vec3::new(11.0, 1.0, 10.0)),
+            MobEntity::spawn(4, MobType::Glitchling, Vec3::new(10.5, 1.0, 10.5)),
+        ];
+        mobs[3].behaviour = MobBehaviourState::Chase { aggro_timer: 1.0, react_delay: 0.0, unseen_for: 0.0 };
+        provoke_guardians(&mut mobs, Vec3::new(10.0, 1.0, 10.0), 8.0);
+        assert!(matches!(mobs[0].behaviour, MobBehaviourState::Chase { react_delay: 0.0, .. }),
+            "the near guardian wakes instantly");
+        assert!(matches!(mobs[1].behaviour, MobBehaviourState::Wander { .. }),
+            "the far guardian sleeps");
+        assert!(matches!(mobs[2].behaviour, MobBehaviourState::Wander { .. }),
+            "the crawler is not the crystal's keeper");
+        assert!(matches!(mobs[3].behaviour, MobBehaviourState::Chase { aggro_timer: 1.0, .. }),
+            "an already-fighting mob is untouched");
+        // a dying guardian does not rise
+        mobs[0].death_t = Some(0.1);
+        mobs[0].behaviour = MobBehaviourState::Wander { timer: 0.0, next_pos: None };
+        provoke_guardians(&mut mobs, Vec3::new(10.0, 1.0, 10.0), 8.0);
+        assert!(matches!(mobs[0].behaviour, MobBehaviourState::Wander { .. }),
+            "a toppled keeper stays down");
     }
 }
