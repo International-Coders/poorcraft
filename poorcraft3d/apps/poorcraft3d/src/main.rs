@@ -5236,7 +5236,7 @@ fn run_observe(route_id: &str, out_root: &str) {
         // poll's on-ground streak + the landing-latch flag, and the
         // FELL toast latched at that latch — the verdict reads them
         // after the run.
-        let walkoff_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 20]));
+        let walkoff_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 24]));
         let walkoff_spot = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
         // route_pit_wall recordings: poses (approach / in-pit /
         // held-at-wall / on-the-step / final), health before/after,
@@ -5962,9 +5962,13 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // the latch, where no regen can outrun the wound.
                 for f in 92..=189u64 {
                     let poll = walkoff_cells.clone();
+                    let air_path = format!("{dir}/walk_air.png");
+                    let air_dump = format!("{dir}/walk_air.layout.json");
+                    let landed_path = format!("{dir}/walk_landed.png");
+                    let landed_dump = format!("{dir}/walk_landed.layout.json");
                     ui_script.push((
                         f,
-                        Box::new(move |ui, r, _ctx| {
+                        Box::new(move |ui, r, ctx| {
                             let pose = r.pose();
                             let feet = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
                             let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
@@ -5981,21 +5985,52 @@ fn run_observe(route_id: &str, out_root: &str) {
                                     .iter()
                                     .any(|t| t.text.starts_with("FELL"))
                                     as i32 as f32;
+                                v[20] = ctx.frame as f32;
+                                // THE CAPTURE AT THE LATCH (the latch
+                                // cure, capture side): the landed beat
+                                // and its fresh toast schedule the next
+                                // frame's picture themselves — no fixed
+                                // frame for a contended pace to outrun.
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: landed_path.clone(),
+                                        ui_dump: Some(landed_dump.clone()),
+                                    });
                             } else if v[12] == 0.0 && (v[4] == 0.0 || feet < v[4]) {
                                 v[3] = pose.position[0];
                                 v[4] = pose.position[1];
                                 v[5] = pose.position[2];
+                                // THE AIR BEAT, LATCH-SCHEDULED: the
+                                // first poll genuinely airborne over a
+                                // meter below the rim records itself and
+                                // requests the NEXT frame's picture —
+                                // mid-fall at every pace (the old fixed
+                                // frame 112 read the landed pose at
+                                // contended paces).
+                                let rim_feet = v[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                                if v[15] == 0.0 && feet < rim_feet - 1.0 {
+                                    v[15] = 1.0;
+                                    v[16] = pose.position[0];
+                                    v[17] = pose.position[1];
+                                    v[18] = pose.position[2];
+                                    v[19] = ctx.frame as f32;
+                                    ctx.actions
+                                        .push(UiAction::CaptureAtNextFrame {
+                                            path: air_path.clone(),
+                                            ui_dump: Some(air_dump.clone()),
+                                        });
+                                }
                             }
                             poll.set(v);
                         }),
                     ));
                 }
+                // The pre-dig rim is the one deterministic beat the
+                // schedule still owns; walk_air and walk_landed are
+                // LATCH-SCHEDULED from the polls above (the run's exit
+                // is end_frame's, not the static list's drain).
                 shots.push(Shot::new(70, format!("{dir}/walk_edge.png"))
                     .ui_dump(format!("{dir}/walk_edge.layout.json")));
-                shots.push(Shot::new(112, format!("{dir}/walk_air.png"))
-                    .ui_dump(format!("{dir}/walk_air.layout.json")));
-                shots.push(Shot::new(190, format!("{dir}/walk_landed.png"))
-                    .ui_dump(format!("{dir}/walk_landed.layout.json")));
             }
             "route_pit_wall" => {
                 // THE WALL HOLDS, LIVE (loop 449): the up-step half of
@@ -7017,6 +7052,15 @@ fn run_observe(route_id: &str, out_root: &str) {
             } else {
                 Some(420)
             },
+            end_frame: if spec.id == "route_walk_off" {
+                // The walk-off's air and landed captures are scheduled
+                // by its own polls at run time (the latch cure, capture
+                // side): the static list drains at frame 70, so the
+                // horizon owns the exit.
+                Some(240)
+            } else {
+                None
+            },
             probe_set: pc3d_render::ProbeSet::SkyOnly,
             shots,
             slice_setup: Some(pc3d_render::app::SliceSetup {
@@ -7498,10 +7542,22 @@ fn run_observe(route_id: &str, out_root: &str) {
             let fell_toast = v[13] >= 1.0 && v[14] > 0.0;
             let air_differs = differ("walk_edge", "walk_air", 0.005);
             // The captures prove PLACES (rim vs pit bottom), which
-            // every pace separates — the AIR BEAT is proven by the
-            // latched poll, not by a fixed-frame capture (at contended
-            // paces walk_air lands on the landed beat; its difference
-            // from walk_landed is advisory, like the climb sway bar).
+            // every pace separates — and since the latch cure's
+            // capture side, the AIR BEAT is in the picture too: the
+            // poll recorded its request (the first truly airborne
+            // frame, over a meter below the rim), so the verdict
+            // demands the request pose hang strictly between the rim
+            // band and the floor, BEFORE the latch, on the spot — a
+            // capture that lands on the landed beat fails here even
+            // though its pixels still differ from the rim. The
+            // air-vs-landed PIXEL difference stays advisory (foliage
+            // sway aliases pixel comparisons across paces).
+            let air_beat = v[15] >= 1.0
+                && (v[17] - eye) < ground - 0.6
+                && (v[17] - eye) > ground - 5.0 + 0.2
+                && (v[16] - sx).abs() < 0.3
+                && (v[18] - sz).abs() < 0.3
+                && v[19] < v[20];
             let landed_differs = differ("walk_edge", "walk_landed", 0.02);
             let air_vs_landed = differ("walk_air", "walk_landed", 0.02);
             let ok = has("walk_edge")
@@ -7512,22 +7568,23 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && landed_ok
                 && wounded
                 && fell_toast
+                && air_beat
                 && air_differs
                 && landed_differs;
             if ok {
                 println!(
-                    "WALK OFF: the floor gave way, the body fell {:.2} -> {:.2} (deepest air {:.2}) and landed wounded {:.0}% -> {:.0}% (toast {})",
-                    v[1], v[7], v[4],
+                    "WALK OFF: the floor gave way, the body fell {:.2} -> {:.2} (deepest air {:.2}, air beat latched at frame {} for frame {}) and landed wounded {:.0}% -> {:.0}% (toast {})",
+                    v[1], v[7], v[4], v[19], v[19] + 1.0,
                     v[9] * 100.0,
                     v[10] * 100.0,
                     v[14] > 0.0,
                 );
             } else {
                 eprintln!(
-                    "[FAIL] observe {}: captures {} / approach {approach_ok} / mid_air {mid_air} / landed {landed_ok} / wounded {wounded} / toast {fell_toast} / air_differ {air_differs} / landed_differ {landed_differs} (air-vs-landed advisory {air_vs_landed}) (ground {ground} poses {:.2}->{:.2}->{:.2} latch {})",
+                    "[FAIL] observe {}: captures {} / approach {approach_ok} / mid_air {mid_air} / landed {landed_ok} / wounded {wounded} / toast {fell_toast} / air_beat {air_beat} / air_differ {air_differs} / landed_differ {landed_differs} (air-vs-landed advisory {air_vs_landed}) (ground {ground} poses {:.2}->{:.2}->{:.2} latch {} req {},{})",
                     spec.id,
                     report.captures.len(),
-                    v[1], v[4], v[7], v[13],
+                    v[1], v[4], v[7], v[13], v[19], v[20],
                 );
                 any_fail = true;
             }

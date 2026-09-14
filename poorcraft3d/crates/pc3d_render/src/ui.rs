@@ -1912,6 +1912,17 @@ pub enum UiAction {
     EatBread,
     /// The harvest slice: swing at the ore node.
     HarvestOre,
+    /// Proof hook (the latch cure, capture side): request the app to
+    /// capture the NEXT presented frame to `path` (the optional
+    /// ui_dump JSON rides along, like a scheduled Shot). Routes fire
+    /// it from LATCHED per-frame records — the landing latch, the
+    /// grip, the first true airborne poll — so beat captures schedule
+    /// themselves from the live beat instead of a pre-fixed frame
+    /// index that contended paces outrun. The queue law: the request
+    /// must be fired while the run is still alive — a run whose
+    /// captures are dynamic sets `end_frame` so the window outlives
+    /// its static shot list.
+    CaptureAtNextFrame { path: String, ui_dump: Option<String> },
     /// Proof hook (inspector): raw mouse deltas applied to the live
     /// player body — the exact path real mouse motion takes.
     PlayerLook { dx: f32, dy: f32 },

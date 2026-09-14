@@ -64,6 +64,21 @@ impl Shot {
     }
 }
 
+/// THE LATCH CURE'S INSERTION LAW (pure): a dynamic capture requested
+/// at `requested_at` fires the NEXT presented frame — unless a shot
+/// already owns it. Two shots can never share a frame: the shot block
+/// fires one per frame and frame_no only advances, so the second would
+/// silently never fire (and a never-consumed last shot never ends the
+/// run). Walks forward to the first free frame; the caller inserts the
+/// shot sorted so the schedule stays ascending.
+pub fn next_free_shot_frame(shots: &[Shot], requested_at: u64) -> u64 {
+    let mut f = requested_at + 1;
+    while shots.iter().any(|s| s.frame == f) {
+        f += 1;
+    }
+    f
+}
+
 /// A callback run once at a scheduled frame, before that frame's capture or
 /// render — the hook host-driven proof runs use to submit world edits
 /// through their own host and sync the renderer from its read-only state.
@@ -1067,6 +1082,12 @@ pub struct WindowConfig {
     pub max_frames: Option<u64>,
     /// Scheduled captures (sorted by frame); the run ends after the last.
     pub shots: Vec<Shot>,
+    /// The run's exit horizon, frame-exact like max_frames. Set it for
+    /// runs whose captures are requested at run time from latched
+    /// records (UiAction::CaptureAtNextFrame): the static shot list may
+    /// drain long before the last dynamic capture fires, so the drain
+    /// must not end the run — the horizon owns the exit instead.
+    pub end_frame: Option<u64>,
     /// Camera poses applied at given frames (automated proof runs).
     pub camera_script: Vec<(u64, CameraPose)>,
     /// One-shot callbacks at given frames (host edits + renderer sync).
@@ -1110,6 +1131,7 @@ impl Default for WindowConfig {
             logical_size: (1280.0, 720.0),
             size_is_physical: false,
             max_frames: None,
+            end_frame: None,
             shots: Vec::new(),
             camera_script: Vec::new(),
             frame_hooks: Vec::new(),
@@ -1817,6 +1839,25 @@ impl App {
                         });
                         s.ui_dirty = true;
                     }
+                }
+                UiAction::CaptureAtNextFrame { path, ui_dump } => {
+                    // THE LATCH CURE, CAPTURE SIDE: the route latched a
+                    // beat (the landing, the grip, true air) and asks
+                    // for the NEXT presented frame's picture. The shot
+                    // joins the sorted schedule and produces the same
+                    // CaptureOutcome a static shot does. The queue law:
+                    // the request only lands while the run is alive —
+                    // a dynamic-capture run sets end_frame so the
+                    // static list may drain without ending it.
+                    let requested_at = self.state.as_ref().map(|s| s.frame_no);
+                    let Some(requested_at) = requested_at else { return };
+                    let frame = next_free_shot_frame(&self.cfg.shots, requested_at);
+                    let mut shot = Shot::new(frame, path.clone());
+                    if let Some(dump) = ui_dump {
+                        shot = shot.ui_dump(dump.clone());
+                    }
+                    let pos = self.cfg.shots.partition_point(|s| s.frame <= frame);
+                    self.cfg.shots.insert(pos, shot);
                 }
                 UiAction::DigAtCrosshair => {
                     // THE DIG VERB (G): the crosshair's live ground
@@ -3728,7 +3769,10 @@ impl App {
                 });
                 self.next_shot += 1;
                 state.frame_no += 1;
-                if self.next_shot >= self.cfg.shots.len() {
+                // The static list draining ends the run — unless the
+                // run's captures are scheduled dynamically and
+                // `end_frame` owns the horizon instead.
+                if self.next_shot >= self.cfg.shots.len() && self.cfg.end_frame.is_none() {
                     state.done = true;
                 }
                 if state.done {
@@ -3754,7 +3798,9 @@ impl App {
         state.frame_ms.push(t0.elapsed().as_secs_f32() * 1000.0);
         state.frame_no += 1;
 
-        if self.cfg.max_frames == Some(state.frame_no) {
+        if self.cfg.max_frames == Some(state.frame_no)
+            || self.cfg.end_frame == Some(state.frame_no)
+        {
             state.done = true;
         }
         if state.done {
@@ -3836,6 +3882,18 @@ pub fn run_windowed(cfg: WindowConfig) -> Result<WindowReport, String> {
             return Err("max_frames must exceed the last shot frame".into());
         }
     }
+    // A dynamic-capture run's horizon must outlive every static shot —
+    // one scheduled at or past it would silently never fire (the run
+    // ends first) — and must not promise an exit the frame cap
+    // preempts.
+    if let Some(end) = cfg.end_frame {
+        if cfg.max_frames.is_some_and(|m| m < end) {
+            return Err("max_frames must not precede end_frame".into());
+        }
+        if cfg.shots.last().is_some_and(|last| last.frame >= end) {
+            return Err("end_frame must exceed every static shot frame".into());
+        }
+    }
     // Schedule the live resize halfway to the first capture so a screenshot
     // run always proves surface resize recovery before it captures.
     let resize_plan = match (cfg.shots.first(), cfg.resize_to) {
@@ -3864,6 +3922,30 @@ pub fn run_windowed(cfg: WindowConfig) -> Result<WindowReport, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_dynamic_capture_takes_the_next_free_frame_sorted_into_the_schedule() {
+        let mut shots = vec![Shot::new(70, "a.png"), Shot::new(190, "c.png")];
+        let f = next_free_shot_frame(&shots, 99);
+        assert_eq!(f, 100);
+        let pos = shots.partition_point(|s| s.frame <= f);
+        shots.insert(pos, Shot::new(f, "b.png"));
+        assert_eq!(
+            shots.iter().map(|s| s.frame).collect::<Vec<_>>(),
+            vec![70, 100, 190]
+        );
+    }
+
+    #[test]
+    fn a_dynamic_capture_never_shares_a_frame_with_a_scheduled_shot() {
+        // Frame 101 is already owned: the request at 100 walks forward —
+        // a shared frame would silently never fire (the block fires one
+        // shot per frame and frame_no only advances).
+        let shots = vec![Shot::new(70, "a.png"), Shot::new(101, "b.png")];
+        assert_eq!(next_free_shot_frame(&shots, 100), 102);
+        // An empty schedule takes requested_at + 1 directly.
+        assert_eq!(next_free_shot_frame(&[], 40), 41);
+    }
 
     #[test]
     fn escape_pauses_instead_of_exiting() {

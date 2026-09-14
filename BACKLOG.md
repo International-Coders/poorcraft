@@ -11,6 +11,37 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The captures read the latch: walk_air and walk_landed schedule
+      themselves from the fall's own polls (2026-09-14, loop 456,
+      POORCRAFT 3D): closed STATE's next_task item (1) — the CAPTURE
+      side of the latch cure. UiAction::CaptureAtNextFrame joins the
+      proof-hook family: a route poll that LATCHED a beat asks for
+      the NEXT presented frame's picture and the app inserts it into
+      the sorted shot list (pure insertion law next_free_shot_frame +
+      2 unit tests: fires requested_at+1, walking past any owned
+      frame — two shots can never share a frame, the second would
+      silently never fire). WindowConfig::end_frame owns the exit for
+      dynamic-capture runs (the static list may drain early; runs
+      without it keep the old drain law; validation errors up front
+      if the horizon misorders). THE WALK-OFF REWIRED: walk_air@112
+      and walk_landed@190 are gone; the polls fire walk_landed AT the
+      landing latch (wounded bar + fresh FELL toast in pixels at
+      every pace) and walk_air at the FIRST poll truly airborne over
+      a meter below the rim (recorded flag+pose+frame; verdict gains
+      the air-beat assertion — request pose strictly between the rim
+      band and the floor, before the latch). Evidence: p3d 686 green
+      (pc3d_render 229); walkoff PASS x2 + comparator at p50 25.5/
+      27.4 ms — the runs latched the air beat at frames 104 and 102
+      (the capture follows the beat, not the calendar) with identical
+      physical claims (fell 56.19 -> 51.19, deepest air 51.38, 100%
+      -> 65%, toast true); six captures INSPECTED (air = full bar +
+      dig toast, landed = 64% bar + FELL over the pit wall, edge =
+      the rim; layout JSONs carry the same story); dig/recovery x2 +
+      comparators; people PASS; gates ALL 10; smoke digest unchanged
+      (dd019eca900f5a61); idle-upgrade-check PASS. Deferred honestly:
+      the remaining routes' capture conversions (playtest toast,
+      climb grip, hangoff landings — verdicts already read latches).
+
 - [x] The verdicts read the latch: walk-off and playtest proofs made
       pace-proof (2026-09-14, loop 455, POORCRAFT 3D): landed the
       verdict-side half of 454's next_task item (1). The two routes

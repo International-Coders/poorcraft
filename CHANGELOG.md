@@ -1,5 +1,54 @@
 # CHANGELOG
 
+## 2026-09-14 — The captures read the latch: walk_air and walk_landed schedule themselves from the fall's own polls (loop 456)
+
+- Closed STATE's next_task item (1): the CAPTURE side of the latch
+  cure. `UiAction::CaptureAtNextFrame { path, ui_dump }` joins the
+  proof-hook family — a route poll that LATCHED a beat (the landing,
+  the grip, true air) asks for the NEXT presented frame's picture,
+  and the app inserts it into the sorted shot list, producing the
+  same CaptureOutcome a static Shot does, at a frame no contended
+  pace can outrun. The insertion law is pure (`next_free_shot_frame`,
+  2 unit tests): the capture fires requested_at+1, walking forward
+  past any frame a scheduled shot already owns — two shots can never
+  share a frame (the second would silently never fire, and a
+  never-consumed last shot never ends the run).
+- THE HORIZON: `WindowConfig::end_frame` owns the exit for
+  dynamic-capture runs — the static list may drain long before the
+  last capture fires, so the drain no longer ends such a run
+  (validation: the horizon must exceed every static shot and not
+  precede max_frames, honest errors up front). Runs without
+  end_frame keep the old drain law byte-for-byte.
+- THE WALK-OFF REWIRED: the fixed walk_air@112 and walk_landed@190
+  shots are gone; the pre-dig rim stays static at 70. The polls now
+  fire walk_landed AT the landing latch (pose + wounded health + the
+  FELL toast latched — the toast is fresh in pixels at every pace)
+  and walk_air at the FIRST poll genuinely airborne over a meter
+  below the rim (request flag + pose + frame recorded; recordings
+  widened 20 -> 24). The verdict gained the AIR-BEAT assertion: the
+  request pose must hang strictly between the rim's 0.6 m band and
+  floor+0.2, on the spot, BEFORE the latch — a capture that lands on
+  the landed beat fails even though its pixels still differ from the
+  rim. The air-vs-landed PIXEL difference stays advisory (sway
+  aliasing).
+- PROOF: p3d workspace 686 green / 0 failed (pc3d_render 227 -> 229,
+  the two insertion laws). make p3d-walkoff PASS x2 + comparator at
+  p50 25.5 / 27.4 ms — the two runs latched the air beat at frames
+  104 and 102 (the capture follows the beat, not the calendar) with
+  identical physical claims: "fell 56.19 -> 51.19 (deepest air
+  51.38) and landed wounded 100% -> 65% (toast true)". Captures
+  INSPECTED x6: walk_air = full health bar + PACK EMPTY + the dig
+  toast (unwounded, pre-landing); walk_landed = the ~64% wounded bar
+  + "FELL — HEALTH 64%" over the pit wall; walk_edge = the rim
+  vista. The layout JSONs carry the same story on disk (landed: both
+  toasts + health 0.647; air: dig toast only + health 1.0).
+- REGRESSION: p3d-dig PASS x2 + comparator; p3d-recovery PASS x2 +
+  comparator (p50 26-27 ms); p3d-people PASS (windowed p50 16.5 ms);
+  p3d-visual-gates ALL 10 PASS; p3d-smoke OK (digest
+  dd019eca900f5a61 UNCHANGED); idle-upgrade-check PASS. Deferred:
+  the remaining routes' capture conversions (playtest toast, climb
+  grip, hangoff landings — their verdicts already read latches).
+
 ## 2026-09-14 — The verdicts read the latch: walk-off and playtest proofs made pace-proof (loop 455)
 
 - Landed the verdict-side half of 454's next_task item (1): the two

@@ -79,22 +79,11 @@
     },
     {
       "button_state": "",
-      "id": "toast_FELL — HEALTH 64%",
-      "kind": "toast",
-      "rect": [
-        289,
-        375,
-        222,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "toast_THE GROUND GIVES WAY",
       "kind": "toast",
       "rect": [
         271,
-        353,
+        375,
         258,
         16
       ]
@@ -220,7 +209,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.6627465486526489,
+      "health": 1.0,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -244,12 +233,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 15:50",
+        "modified": "2026-09-14 18:43",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 15:50",
+        "modified": "2026-09-14 18:43",
         "name": "beta-shot",
         "seed": 7
       }
@@ -257,12 +246,8 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.8820785284042358,
+        "age_s": 0.5232108235359192,
         "text": "THE GROUND GIVES WAY"
-      },
-      {
-        "age_s": 0.9173187613487244,
-        "text": "FELL — HEALTH 64%"
       }
     ],
     "wallet": 0

@@ -8820,3 +8820,100 @@ records (STATE next_task item 1); the quiet-host deck-bench re-read +
 the bench contention guard; is_water_layer/CTM-strip audit; guardian
 chronicle re-fire; multiplayer routing of terrain edits; geode
 pairing; the walk-snap query-bound observation.
+
+## 2026-09-14 — The captures read the latch (loop 456, POORCRAFT 3D)
+
+WHAT: closed STATE's next_task item (1) — the CAPTURE side of the
+latch cure. Route captures can now schedule themselves from latched
+per-frame records instead of pre-fixed frame indices, and the
+walk-off's two pace-sensitive captures are the first converted.
+
+HOW:
+- poorcraft3d/crates/pc3d_render/src/ui.rs — UiAction::
+  CaptureAtNextFrame { path, ui_dump } joins the proof-hook family
+  (the EditSurface/PlayerFace class): the queue law is written on
+  the variant — the request must be fired while the run is alive,
+  and a dynamic-capture run sets end_frame.
+- poorcraft3d/crates/pc3d_render/src/app.rs — (a) the pure insertion
+  law next_free_shot_frame: a dynamic capture fires requested_at+1,
+  walking forward past any frame a scheduled shot already owns (two
+  shots can never share a frame: the block fires one per frame and
+  frame_no only advances, so the second would silently never fire,
+  and a never-consumed last shot never ends the run); the exec arm
+  inserts the Shot sorted (partition_point), producing the same
+  CaptureOutcome a static shot does. (b) WindowConfig::end_frame —
+  the frame-exact exit horizon for dynamic-capture runs: the static
+  list may drain long before the last capture fires, so the drain
+  no longer ends such a run (runs without end_frame keep the old
+  drain law byte-for-byte; the max_frames arm now shares the
+  frame-exact check). (c) run_windowed validation: end_frame must
+  exceed every static shot and not precede max_frames — honest
+  errors up front. (d) 2 unit laws: sorted-insert into a live
+  schedule; never-share-a-frame (101 owned -> the request at 100
+  walks to 102; empty schedule takes +1 directly).
+- poorcraft3d/apps/poorcraft3d/src/main.rs — route_walk_off only.
+  The fixed walk_air@112 and walk_landed@190 shots are gone; the
+  pre-dig rim stays static at 70 (the one deterministic beat). The
+  polls (92..=189) now fire the captures: walk_landed AT the landing
+  latch (pose + health + the FELL toast latched — v[20] records the
+  latch frame), walk_air at the FIRST poll genuinely airborne over a
+  meter below the rim (flag + pose + frame in v[15..19]; recordings
+  widened 20 -> 24; the FnMut closures clone their path strings at
+  use — the first build caught the move). The route runner sets
+  end_frame Some(240) for the walk-off only. The verdict gained the
+  AIR-BEAT assertion: the request pose must hang strictly between
+  the rim's 0.6 m band and floor+0.2, on the spot, BEFORE the latch
+  (v[19] < v[20]) — a capture that lands on the landed beat fails
+  even though its pixels still differ from the rim; the air-vs-landed
+  PIXEL difference stays advisory (sway aliasing, unchanged).
+- Docs: STATE.md (loop 456), CHANGELOG.md, BACKLOG.md, this entry.
+  Makefile unchanged (no new or changed targets).
+
+VERIFICATION:
+- p3d workspace 686 green / 0 failed (14 suites; pc3d_render
+  227 -> 229: the two insertion laws).
+- make p3d-walkoff PASS x2 + comparator at p50 25.5 / 27.4 ms:
+  "the body fell 56.19 -> 51.19 (deepest air 51.38, air beat latched
+  at frame 104 for frame 105 / 102 for 103) and landed wounded
+  100% -> 65% (toast true)". THE CURE IS IN THE NUMBERS: the two
+  runs latched the air beat at DIFFERENT frames — the capture
+  follows the beat, not the calendar — with identical physical
+  claims.
+- Captures INSPECTED x6 (a and b): walk_air = full health bar +
+  PACK EMPTY + THE GROUND GIVES WAY (unwounded, pre-landing, the
+  ground filling more of the frame than the rim's vista); walk_landed
+  = the ~64% wounded bar + "FELL — HEALTH 64%" (em-dash intact) over
+  the pit wall; walk_edge = the rim vista, full bars, no toasts.
+  The layout JSONs carry the same story on disk: landed = both
+  toasts + health 0.647; air = the dig toast only + health 1.0.
+- REGRESSION on this loop's builds: make p3d-dig PASS x2 +
+  comparator; make p3d-recovery PASS x2 + comparator (p50 26-27 ms,
+  5 captures); make p3d-people PASS (windowed 151 frames, p50
+  16.5 ms); p3d-visual-gates ALL 10 PASS; p3d-smoke OK (digest
+  dd019eca900f5a61 UNCHANGED); idle-upgrade-check PASS. Root
+  LOREFORGE workspace untouched by this loop (455 verified 480
+  green at this tree's crates). The six windowed_wild_*.png dirties
+  remain deliberately NOT staged (an earlier session's
+  p3d-wilderness run).
+
+PERF: no claim, honestly — one Option-compare and a sorted Vec
+insert per capture REQUEST (twice per walk-off run), zero cost on
+any live path; the host was shared all session (route p50s 16-27
+ms), no bench per the 445-455 precedent; the quiet-host re-read
+stays queued (eleven loops).
+
+LORE IMPACT: canon touched: none — proof-harness capture scheduling
+over existing routes; no faction, place, event, term, NPC, item, or
+spell data; no identity assigned. Locked facts preserved: all.
+World expression: unchanged — the same fall economy, now framed AT
+its beats at every host pace. Migration: none (route recordings +
+proof scheduling; no persisted field, save format, or proof schema
+change).
+
+HONESTLY DEFERRED: the remaining routes' capture conversions — the
+semantic playtest's play_fall_landed (its FELL-toast latch exists in
+a poll window; capture AT it), the climb's grip beat, the hang-off's
+two landings (STATE next_task item 1); the quiet-host deck-bench
+re-read + the bench contention guard; is_water_layer/CTM-strip
+audit; guardian chronicle re-fire; multiplayer routing of terrain
+edits; geode pairing; the walk-snap query-bound observation.
