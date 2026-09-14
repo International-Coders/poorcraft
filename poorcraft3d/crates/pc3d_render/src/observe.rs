@@ -76,6 +76,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_crowd_yield",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

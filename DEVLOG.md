@@ -8265,3 +8265,114 @@ Space jump-off from a hang; the lethal plaza-recovery branch route;
 the staged-yield crowd route; the quiet-host deck-bench re-read +
 the bench contention guard; is_water_layer/CTM-strip audit;
 guardian chronicle re-fire.
+
+## 2026-09-13 — The crowd yields in the window: the staged-yield crowd route (loop 451)
+
+### What
+Closed STATE's next_task item (1): the staged-yield CROWD ROUTE — the
+448 crowd law (no body enters a cell another body stands on or has
+claimed this tick; a blocked walker sidesteps or waits keeping its
+route) was unit-lawed and render-lawed, but no WINDOWED route framed
+two NPCs yielding. `route_crowd_yield` (make p3d-crowd) frames it in
+the live slice: two settlement bodies walk one open row head-on through
+the slice's own crowd_tick, one walks through, the other sidesteps
+around it, nobody shares a cell on any of the 70 audited frames, and
+both arrive at their declared sites.
+
+### How
+- pc3d_render/src/renderer.rs: route-proof hook `crowd_stage_head_on_
+  near(cx, cz)` — rewrites two cast members into head-on walkers on one
+  fully walkable row (real nav paths, Work-phase intents the schedule
+  keeps), parks the rest at their homes (Working). Row admission: BOTH
+  nav paths STRAIGHT along the row (every row cell walkable ⇒ the
+  straight path IS the nav path, so an off-row body cell later is yield
+  evidence, never a detour); the row + ±1 sidestep band touches no
+  settlement collision cell (the nav is terrain-only — the first staged
+  row at the plaza's own z walked through the house band; the patch map
+  read `##.##.##..##....` at z 129); the parked home clear of the band;
+  rows tried nearest-center-first INSIDE the nav-patch interior (the
+  plaza sits on a patch corner — every plaza-relative ±span crossed the
+  border and answered None; the scan window is clamped in-patch).
+  Readers `crowd_cell(i)` / `crowd_work_site(i)` expose the
+  authoritative brain to routes.
+- pc3d_render/src/npcs.rs: law `the_staged_head_on_pair_yields_through_
+  the_live_law` — the hook's pair through the render-facing advance
+  (npcs::advance) over 200 ticks: never a shared cell, both arrive at
+  their DECLARED sites, the parked member never moves, and a body
+  provably leaves the row (the yield).
+- pc3d_render/src/observe.rs: route_crowd_yield registered (available).
+- apps/poorcraft3d/src/main.rs: route_crowd_yield — StartPlaying; the
+  stage at frame 40 centered on the open band southeast of the plaza
+  (stages (387,132)–(395,132), parked home (380,127)); the vantage at
+  frame 41 (5 m south of the row's middle, facing north — both row
+  ends inside the ~71% half-width); the per-frame audit (frames
+  43..=112): two cell reads per frame, no-shared-cell + off-row-yield
+  flags, read failures poison; the arrival read at 120 (crowd_work_site
+  both ways + the parked cell unchanged); captures crowd_staged (42),
+  crowd_yield (43 — tick 4 ends with A holding the mid cell and B
+  standing the sidestep beside it), crowd_pass (47), crowd_arrived
+  (130). Verdict: staged + audited(>=60 frames, no read failure) +
+  no_overlap + yield_seen + both_arrived + parked_still + frames_differ
+  (staged vs yield and staged vs arrived pixel bars). PRIOR-PROOF FIX
+  (the people harness, same family as 450's walkoff re-timing): the
+  motion check compared frames 30↔50 whose stride phases follow the
+  WALL CLOCK — at ~22.5 ms frames the phases aliased below the 0.002
+  bar (0.0016 FAIL then 0.0020 PASS on identical code; 448 read 0.0103).
+  Frame hooks now freeze the pose clock (set_water_time — already
+  honored by prepare_frame) at 0.0 and 0.45 s before the compared
+  captures: 0.0065 / 0.0063 across runs, 3x the bar,
+  scheduling-independent. Makefile: p3d-crowd (x2 + comparator).
+- EN-ROUTE (discarded attempts, fixed before committing): the first
+  staged row crossed building footprints (nav-blind) — the
+  collision-band refusal; the first captures framed spawn (vantage
+  teleported AFTER the shot frames — captures moved behind it); the
+  row-end vantage had a kit stall in the lens — the south-of-row
+  composition; the 4 m vantage cut the row ends at the frame edge —
+  5 m puts both ends inside ~71% half-width.
+
+### Verification evidence
+- p3d workspace 676 green / 0 failed (pc3d_render 221 = 220 + 1;
+  pc3d_world 265 unchanged).
+- make p3d-crowd PASS x2 + comparator PASS: row (387,132)–(395,132);
+  70 frames audited; overlap false; yield true; arrived true/true;
+  parked (380,127) held; release p50 22.4/22.4/23.0/23.1 ms across the
+  four runs; captures INSPECTED in debug and release (closing pair;
+  two bodies adjacent mid-row — the sidestep; the pair separated on
+  opposite sides; both at their declared ends).
+- make p3d-playtest x2 + comparator PASS, bundle digest UNCHANGED
+  05c46411869a857c; make p3d-people PASS x2 (12 NPCs, 3 buckets,
+  7 draws, 92 instances; frozen-stride motion 0.65% / 0.63%);
+  p3d-smoke OK (digest dd019eca900f5a61 unchanged); p3d-assets OK;
+  idle-upgrade-check PASS.
+- PERF: no claim, honestly — the route adds work only while it runs
+  (a bounded staging scan of nav A* calls; two cell reads per audited
+  frame); the live walk/stream/crowd paths are untouched; host shared
+  (windowed p50 ~22-26 ms, the local norm), no bench per the 445-450
+  precedent; the quiet-host re-read stays queued (six loops).
+
+### Files
+- poorcraft3d/crates/pc3d_render/src/renderer.rs (stage hook + 2
+  readers), poorcraft3d/crates/pc3d_render/src/npcs.rs (1 law),
+  poorcraft3d/crates/pc3d_render/src/observe.rs (route registered),
+  poorcraft3d/apps/poorcraft3d/src/main.rs (route + verdict + the
+  people harness's frozen-stride hooks), Makefile (p3d-crowd), the
+  crowd-a/b bundles, the refreshed people + playtest bundles (chains/
+  digests unchanged), STATE/BACKLOG/CHANGELOG/DEVLOG.
+
+LORE IMPACT: canon touched: none — a proof route over the existing
+crowd law on unnamed settlement bodies; no faction, place, event,
+term, NPC, item, or spell data; no identity assigned. Locked facts
+preserved: all — the yield is LOCAL perception (a body yields to the
+body in front of it), never omniscient pathing, per the personhood
+law. World expression: people in Valdenmoor share the ground — the
+windowed game now shows a body step aside for another instead of
+ghosting through; the settlement reads as lived-in, not populated by
+overlapping ghosts. Migration: none (in-memory staging inside one
+route run; no persisted field, save format, or proof schema change).
+
+HONESTLY DEFERRED: the inventory echo of the dig verb (next_task
+item 1); the lethal plaza-recovery branch route (next_task item 2);
+Space jump-off from a hang; the quiet-host deck-bench re-read + the
+bench contention guard; is_water_layer/CTM-strip audit; guardian
+chronicle re-fire; multiplayer routing of terrain edits; geode
+pairing (447's keepers are root-workspace lore).

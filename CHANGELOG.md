@@ -1,5 +1,62 @@
 # CHANGELOG
 
+## 2026-09-13 — The crowd yields in the window: the staged-yield crowd route (loop 451)
+
+- Closed STATE's next_task item (1): the 448 crowd law was unit-lawed
+  and render-lawed, but no windowed ROUTE framed two NPCs yielding.
+  `route_crowd_yield` (make p3d-crowd) frames it in the live slice.
+- THE STAGE (renderer.rs): route-proof hook `crowd_stage_head_on_near`
+  rewrites two cast members into head-on walkers on ONE fully walkable
+  row near a requested center (real nav paths the Work-phase schedule
+  keeps) and parks the rest at their homes. A row is admitted only when
+  BOTH nav paths are STRAIGHT along it (so an off-row body cell later
+  is yield evidence, never a nav detour), the row plus its ±1 sidestep
+  band touches no settlement collision cell (the nav is terrain-only —
+  the first staged row walked through the house band), and the parked
+  home sits clear of the band; rows are tried nearest the center first
+  inside the nav-patch interior (the plaza sits on a patch corner —
+  every plaza-relative span crossed the border and answered None).
+  New readers `crowd_cell` / `crowd_work_site` expose the authoritative
+  brain to routes.
+- THE ROUTE: the live slice's own `crowd_tick(0.35, 1)` runs the real
+  law every frame — cast 0 walks through, cast 1 is refused at gap 2
+  and sidesteps, re-paths around, and both arrive Working at their
+  DECLARED sites. A per-frame audit (frames 43..=112, 70 recorded)
+  ORs the flags: no shared cell on any audited frame, the off-row
+  yield seen, read failures poison the run. The body watches from 5 m
+  south of the row's middle; captures: crowd_staged (closing),
+  crowd_yield (the sidestep — two bodies adjacent mid-row),
+  crowd_pass (separated), crowd_arrived (both at their ends). PASS x2
+  identical + comparator PASS; the four captures INSPECTED in debug
+  AND release runs.
+- PRIOR-PROOF FIX (the people harness): p3d-people's motion check
+  compared frames whose stride phases follow the WALL CLOCK — at this
+  week's ~22.5 ms frame pace the phases aliased and the metric read
+  0.0016 (FAIL) then 0.0020 (PASS, 0.3 over the bar) on IDENTICAL
+  code, vs 448's 0.0103. The harness now freezes the pose clock at two
+  KNOWN phases before the compared captures: 0.0065 / 0.0063 across
+  runs — 3x the bar and scheduling-independent.
+- Evidence: p3d workspace 676 green / 0 failed (pc3d_render 221 = 220
+  + 1 staged-yield law; pc3d_world 265 unchanged); make p3d-playtest
+  x2 + comparator PASS, bundle digest UNCHANGED 05c46411869a857c;
+  make p3d-people PASS x2 (12 NPCs, 7 draws, 92 instances); p3d-smoke
+  OK (digest dd019eca900f5a61 unchanged); p3d-assets OK;
+  idle-upgrade-check PASS.
+- PERF: no claim, honestly — the route adds work only while it runs
+  (a bounded staging scan; two cell reads per audited frame); the live
+  walk/stream/crowd paths are untouched; host shared (windowed p50
+  ~22-26 ms), no bench per the 445-450 precedent.
+- LORE: canon touched: none — a proof route over the existing crowd
+  law on unnamed settlement bodies; the yield is LOCAL perception (a
+  body yields to the body in front of it), never omniscient pathing,
+  per the personhood law. Migration: none (in-memory staging inside
+  one route run).
+- Deferred honestly: the inventory echo of the dig verb (next_task
+  item 1); the lethal plaza-recovery branch route; Space jump-off from
+  a hang; the quiet-host deck-bench re-read + the bench contention
+  guard; is_water_layer/CTM-strip audit; guardian chronicle re-fire;
+  multiplayer routing of terrain edits; geode pairing.
+
 ## 2026-09-13 — The dig is in your hands: the player-facing dig verb (loop 450)
 
 - Closed STATE's next_task item (1): the DIG VERB on 446's live

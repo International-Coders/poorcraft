@@ -194,6 +194,14 @@ p3d-dig: ## The dig verb route (one real G press through the UI input path: the 
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/dig-a/route_dig poorcraft3d/apps/poorcraft3d/shots/dig-b/route_dig || exit 1; \
 	echo "P3D DIG OK (chained + deterministic)"
 
+p3d-crowd: ## The staged-yield crowd route (two NPCs walk one row head-on through the live crowd law: one sidesteps around the other, nobody shares a cell, both arrive at their declared sites) run TWICE + comparator: make p3d-crowd
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/crowd-a poorcraft3d/apps/poorcraft3d/shots/crowd-b
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_crowd_yield poorcraft3d/apps/poorcraft3d/shots/crowd-a || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_crowd_yield poorcraft3d/apps/poorcraft3d/shots/crowd-b || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/crowd-a/route_crowd_yield poorcraft3d/apps/poorcraft3d/shots/crowd-b/route_crowd_yield || exit 1; \
+	echo "P3D CROWD YIELD OK (chained + deterministic)"
+
 p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/export

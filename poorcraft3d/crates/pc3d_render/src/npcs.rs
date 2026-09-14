@@ -1320,6 +1320,84 @@ mod rig_tests {
         );
     }
 
+    /// THE STAGED YIELD (the route hook's law): `crowd_stage_head_on_
+    /// near` rewrites two cast members into head-on walkers on one row
+    /// and parks the rest — stepped through the RENDER-FACING advance
+    /// (the live slice's own path), the pair never shares a cell, both
+    /// arrive at their DECLARED sites, the parked member never moves,
+    /// and one body provably left the row (the yield sidestep).
+    #[test]
+    fn the_staged_head_on_pair_yields_through_the_live_law() {
+        let (gen, _center, layout, plan) =
+            crate::city::city_scene(3, pc3d_world::coords::RegionCoord { x: 0, z: 0 });
+        let gen = std::rc::Rc::new(gen);
+        let (_, _, info) = crate::city::mesh_city(&gen, &layout, &plan);
+        let nav = NavPatch::from_gen(
+            &gen,
+            pc3d_world::coords::PatchCoord {
+                x: plan.plaza.x.div_euclid(16),
+                y: 0,
+                z: plan.plaza.z.div_euclid(16),
+            },
+        );
+        let mut r = crate::renderer::Renderer::offscreen(64, 48);
+        r.set_placeholder_scene(false);
+        r.attach_crowd(gen, cast_for(&plan, &info), nav);
+        let plaza = plan.plaza;
+        let Some([ax, az, bx, bz, px, pz]) = r.crowd_stage_head_on_near(plaza.x, plaza.z) else {
+            panic!("no head-on row near the plaza on the showcase scene");
+        };
+        // The staging contract: one row, A west of B, the parked home
+        // clear of the row band.
+        assert_eq!(az, bz, "one row");
+        assert!(bx > ax, "A is the west walker");
+        let staged = |i: usize, x: i32, z: i32| {
+            let c = r.crowd_cell(i).expect("staged cell readable");
+            assert_eq!((c[0], c[2]), (x, z), "cast {i} not staged at its end");
+        };
+        staged(0, ax, az);
+        staged(1, bx, bz);
+        assert!(
+            r.crowd_cell(2).is_some_and(|c| (c[0], c[2]) != (ax, az) && (c[0], c[2]) != (bx, bz)),
+            "the parked member stands clear of the row ends"
+        );
+        // The live law: per tick, never a shared cell; the yield shows
+        // as an off-row body cell (straight-row staging makes that
+        // unambiguous — a detour cannot masquerade as a sidestep).
+        let mut yield_seen = false;
+        for _ in 0..200 {
+            r.crowd_tick(0.35, 1);
+            let (Some(a), Some(b)) = (r.crowd_cell(0), r.crowd_cell(1)) else {
+                panic!("cast cells readable");
+            };
+            assert_ne!(
+                (a[0], a[2]),
+                (b[0], b[2]),
+                "the staged pair shared a cell"
+            );
+            let row_z = az;
+            for (c, site_x) in [(a, bx), (b, ax)] {
+                let at_site = (c[0], c[2]) == (site_x, row_z);
+                if !at_site && c[2] != row_z {
+                    yield_seen = true;
+                }
+            }
+        }
+        assert!(yield_seen, "no body ever left the row — no yield seen");
+        assert_eq!(
+            r.crowd_work_site(0),
+            Some([bx, bz]),
+            "the west walker arrived at the east end"
+        );
+        assert_eq!(
+            r.crowd_work_site(1),
+            Some([ax, az]),
+            "the east walker arrived at the west end"
+        );
+        let parked = r.crowd_cell(2).expect("parked cell readable");
+        assert_eq!((parked[0], parked[2]), (px, pz), "the parked member moved");
+    }
+
     /// GPU: the crowd RENDERS (control diff), the walk animation moves
     /// between two frozen times, and a far crowd draws impostors.
     #[test]
@@ -1447,3 +1525,5 @@ mod rig_tests {
         r.capture_png(&std::env::temp_dir().join("pc3d_crowd_tmp.png"), &[])
     }
 }
+
+

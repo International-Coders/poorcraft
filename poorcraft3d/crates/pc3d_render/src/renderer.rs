@@ -1368,6 +1368,125 @@ impl Renderer {
         }
     }
 
+    /// THE STAGED YIELD (route-proof hook): rewrites two cast members
+    /// into head-on walkers on ONE fully walkable row near (cx, cz) —
+    /// real nav paths the Work-phase schedule keeps — and parks every
+    /// other member at its home (Working) so the staged pair is the
+    /// whole moving cast. Answers (A x/z, B x/z, parked-home x/z) or
+    /// None when no row near the center admits two STRAIGHT nav paths:
+    /// with every row cell walkable the straight path IS the nav path,
+    /// so an off-row body cell later is yield evidence, never a detour.
+    pub fn crowd_stage_head_on_near(&mut self, cx: i32, cz: i32) -> Option<[i32; 6]> {
+        let cast = self.crowd_cast.clone()?;
+        let nav = self.crowd_nav.clone()?;
+        let mut cast = cast.borrow_mut();
+        if cast.len() < 3 {
+            return None;
+        }
+        let straight = |p: &[pc3d_world::coords::CellCoord], z: i32, x0: i32, x1: i32| {
+            p.len() == (x1 - x0).unsigned_abs() as usize + 1
+                && p.iter().all(|c| c.z == z)
+                && p.first().is_some_and(|c| c.x == x0)
+                && p.last().is_some_and(|c| c.x == x1)
+        };
+        // Rows live INSIDE the crowd nav's patch (a plaza can sit on a
+        // patch corner, so the window is clamped in-patch) and are tried
+        // nearest the requested center first — a stable, deterministic
+        // order.
+        let o = nav.coord.origin();
+        let (px0, pz0) = (o.x.div_euclid(1000) as i32, o.z.div_euclid(1000) as i32);
+        let axis = pc3d_world::scales::PATCH_CELL_AXIS as i32;
+        for half in [4i32, 5, 3] {
+            let (x_lo, x_hi) = (
+                (px0 + 1).max(cx - 6),
+                (px0 + axis - 1 - 2 * half).min(cx + 6),
+            );
+            let (z_lo, z_hi) = ((pz0 + 1).max(cz - 4), (pz0 + axis - 2).min(cz + 4));
+            let mut zs: Vec<i32> = (z_lo..=z_hi).collect();
+            zs.sort_by_key(|z| (z - cz).abs());
+            let mut xs: Vec<i32> = (x_lo..=x_hi).collect();
+            xs.sort_by_key(|ax| (ax + half - cx).abs());
+            for z in zs {
+                for ax in xs.clone() {
+                    let bx = ax + 2 * half;
+                    let (a, b) = (
+                        pc3d_world::coords::CellCoord { x: ax, y: 0, z },
+                        pc3d_world::coords::CellCoord { x: bx, y: 0, z },
+                    );
+                    let (Some(pa), Some(pb)) = (nav.path(a, b), nav.path(b, a)) else {
+                        continue;
+                    };
+                    if !straight(&pa, z, ax, bx) || !straight(&pb, z, bx, ax) {
+                        continue;
+                    }
+                    // The nav is terrain-only, so the settlement's own
+                    // collision cells refuse the band too: no staged
+                    // body may walk through (or sidestep into) a wall —
+                    // the row plus its ±1 sidestep band stay clear.
+                    if let Some(cells) = self.settlement_cells.as_ref() {
+                        let band_blocked = (ax..=bx).any(|x| {
+                            cells.contains(&(x, z))
+                                || cells.contains(&(x, z - 1))
+                                || cells.contains(&(x, z + 1))
+                        });
+                        if band_blocked {
+                            continue;
+                        }
+                    }
+                    // The parked member's home must sit clear of the row
+                    // band (the yield sidestep may claim ±1 cells).
+                    let home = cast[2].brain.home;
+                    if home.z.abs_diff(z) <= 1 && home.x >= ax && home.x <= bx {
+                        continue;
+                    }
+                    cast[0].brain.pos = pa[0];
+                    cast[0].brain.home = pa[0];
+                    cast[0].brain.work_site = *pa.last().expect("non-empty path");
+                    cast[0].brain.intent = pc3d_world::npc::Intent::Walking {
+                        path: pa,
+                        leg: 1,
+                    };
+                    cast[1].brain.pos = pb[0];
+                    cast[1].brain.home = pb[0];
+                    cast[1].brain.work_site = *pb.last().expect("non-empty path");
+                    cast[1].brain.intent = pc3d_world::npc::Intent::Walking {
+                        path: pb,
+                        leg: 1,
+                    };
+                    for c in cast.iter_mut().skip(2) {
+                        c.brain.pos = c.brain.home;
+                        c.brain.work_site = c.brain.home;
+                        c.brain.intent = pc3d_world::npc::Intent::Working {
+                            site: c.brain.home,
+                        };
+                    }
+                    return Some([ax, z, bx, z, home.x, home.z]);
+                }
+            }
+        }
+        None
+    }
+
+    /// The sim cell (x, y, z) of cast member `i` — a route-proof read
+    /// of the authoritative brain (the law the walk renders).
+    pub fn crowd_cell(&self, i: usize) -> Option<[i32; 3]> {
+        let cast = self.crowd_cast.as_ref()?.borrow();
+        let b = &cast.get(i)?.brain;
+        Some([b.pos.x, b.pos.y, b.pos.z])
+    }
+
+    /// The cast member at `i`'s declared work site while Working (x, z)
+    /// — arrival is an x/z fact at the DECLARED site, never a stranger
+    /// cell (the crowd law's own arrival rule, route-readable).
+    pub fn crowd_work_site(&self, i: usize) -> Option<[i32; 2]> {
+        let cast = self.crowd_cast.as_ref()?.borrow();
+        let b = &cast.get(i)?.brain;
+        match b.intent {
+            pc3d_world::npc::Intent::Working { site } => Some([site.x, site.z]),
+            _ => None,
+        }
+    }
+
     /// Ticks the crowd's AUTHORITATIVE brains (the schedule drives who
     /// walks/works/sleeps; the renderer only poses what the sim says).
     pub fn crowd_tick(&mut self, day_fraction: f32, ticks: usize) {

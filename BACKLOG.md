@@ -11,6 +11,47 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The crowd yields in the window: the staged-yield crowd route
+      (2026-09-13, loop 451, POORCRAFT 3D): closed STATE's next_task
+      item (1) — the 448 crowd law was unit-lawed + render-lawed but
+      no windowed route framed two NPCs yielding. THE STAGE
+      (`crowd_stage_head_on_near` + readers `crowd_cell`/
+      `crowd_work_site` in pc3d_render): two cast members rewritten
+      into head-on walkers on ONE fully walkable row near a requested
+      center (real nav paths the Work-phase schedule keeps), the rest
+      parked at their homes; a row is admitted only when BOTH nav
+      paths are STRAIGHT along it, the row + ±1 sidestep band touches
+      no settlement collision cell (the nav is terrain-only — the
+      first staged row walked through the house band), and the parked
+      home sits clear; rows tried nearest-center-first inside the
+      nav-patch interior (the plaza sits on a patch corner — every
+      plaza-relative span crossed the border). THE ROUTE
+      (make p3d-crowd, route_crowd_yield): the live slice's own
+      crowd_tick runs the real law every frame — one walks through,
+      the other is refused at gap 2 and sidesteps, both arrive Working
+      at their DECLARED sites; a per-frame audit (70 frames) ORs the
+      flags: no shared cell, the off-row yield seen, read failures
+      poison the run; captures staged/yield/pass/arrived INSPECTED
+      (debug + release runs). PASS x2 identical + comparator PASS.
+      EN-ROUTE: capture frames re-timed behind the vantage teleport;
+      the row-end vantage swapped for south-of-row at 5 m (a kit stall
+      filled the lens). PRIOR-PROOF FIX: p3d-people's motion check
+      aliased wall-clock stride phases below its bar at this week's
+      frame pace (0.0016 FAIL then 0.0020 PASS on identical code vs
+      448's 0.0103) — the harness now freezes the pose clock at two
+      KNOWN phases: 0.0065/0.0063, 3x the bar, scheduling-independent.
+      Evidence: p3d 676 green (pc3d_render 221, pc3d_world 265);
+      playtest x2 digest UNCHANGED 05c46411869a857c; people x2 PASS
+      (12 NPCs, 7 draws, 92 instances); smoke OK (dd019eca900f5a61);
+      assets OK; idle-upgrade-check PASS. PERF: no claim — the route
+      adds work only while it runs; host shared, no bench per the
+      445-450 precedent. Deferred honestly: the inventory echo of the
+      dig verb (next_task item 1); the lethal plaza-recovery branch
+      route; Space jump-off from a hang; the quiet-host deck-bench
+      re-read + the bench contention guard; is_water_layer/CTM-strip
+      audit; guardian chronicle re-fire; multiplayer routing of
+      terrain edits; geode pairing.
+
 - [x] The dig is in your hands: the player-facing dig verb (2026-09-13,
       loop 450, POORCRAFT 3D): closed STATE's next_task item (1) — G
       digs the ground under the crosshair through 446's live

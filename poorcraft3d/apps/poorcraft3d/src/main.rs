@@ -3148,10 +3148,31 @@ fn main() {
                         }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
                     ),
                     (
+                        28,
+                        Box::new(|r: &mut pc3d_render::Renderer| {
+                            // THE FROZEN STRIDE (prior-proof hardening,
+                            // loop 451): the pose clock follows the wall
+                            // clock, so the compared frames' pixel
+                            // difference aliased below the motion bar at
+                            // this week's frame pace (0.0016 then 0.0020
+                            // on identical code, vs 448's 0.0103). Freeze
+                            // the clock at two KNOWN phases — the compared
+                            // frames then differ by the rig's pose, not by
+                            // scheduling luck.
+                            r.set_water_time(Some(0.0));
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
                         45,
                         Box::new(move |r: &mut pc3d_render::Renderer| {
                             let (draws, instances) = r.crowd_stats();
                             println!("PEOPLE GPU: {draws} draws, {instances} part instances");
+                        }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
+                    ),
+                    (
+                        48,
+                        Box::new(|r: &mut pc3d_render::Renderer| {
+                            r.set_water_time(Some(0.45));
                         }) as Box<dyn FnMut(&mut pc3d_render::Renderer)>,
                     ),
                 ],
@@ -5226,6 +5247,11 @@ fn run_observe(route_id: &str, out_root: &str) {
         // on-terrace pose/health + live ground at the body, back pose/
         // health + live ground at the body.
         let dig_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 24]));
+        // route_crowd_yield recordings: the staged row ends + parked
+        // home, the per-frame audit flags (overlap / off-row yield /
+        // frames audited / read failures), the arrival + parked-end
+        // reads, and the staged marker.
+        let crowd_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 16]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -6171,6 +6197,146 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(185, format!("{dir}/terrace_back.png"))
                     .ui_dump(format!("{dir}/terrace_back.layout.json")));
             }
+            "route_crowd_yield" => {
+                // THE CROWD YIELDS IN THE WINDOW (loop 451): the 448
+                // law is unit-lawed and render-lawed; this route FRAMES
+                // it. The staging hook rewrites two cast members into
+                // head-on walkers on one fully walkable row near the
+                // plaza (straight nav paths both ways, so an off-row
+                // body cell is yield evidence, never a detour) and
+                // parks the third at its home. The LIVE slice's own
+                // crowd_tick then runs the real law every frame: one
+                // body walks through, the other sidesteps around it
+                // and both arrive at their DECLARED sites — nobody
+                // shares a cell on any audited frame.
+                let plaza = scene.plan.plaza;
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // THE STAGE (frame 40): head-on pair + parked third.
+                // The center sits in the open band southeast of the
+                // plaza (the plaza's own z row is the settlement's
+                // building band); the hook refuses any row whose band
+                // touches a settlement collision cell.
+                let staged = crowd_cells.clone();
+                ui_script.push((
+                    40,
+                    Box::new(move |_ui, r, _ctx| {
+                        match r.crowd_stage_head_on_near(plaza.x + 7, plaza.z + 4) {
+                            Some([ax, az, bx, bz, px, pz]) => {
+                                let mut v = staged.get();
+                                v[0] = ax as f32;
+                                v[1] = az as f32;
+                                v[2] = bx as f32;
+                                v[3] = bz as f32;
+                                v[4] = px as f32;
+                                v[5] = pz as f32;
+                                v[14] = 1.0;
+                                staged.set(v);
+                                println!(
+                                    "CROWD: staged head-on ({ax},{az}) <-> ({bx},{bz}); parked home ({px},{pz})"
+                                );
+                            }
+                            None => panic!(
+                                "route_crowd_yield: no walkable head-on row near the plaza on seed {seed}"
+                            ),
+                        }
+                    }),
+                ));
+                // THE VANTAGE (frame 41): the body stands 5 m south of
+                // the row's middle, facing north (-z) — both row ENDS
+                // inside the frame's ~71% half-width, the walkers large
+                // in frame by the yield tick.
+                let vantage = crowd_cells.clone();
+                ui_script.push((
+                    41,
+                    Box::new(move |_ui, _r, ctx| {
+                        let v = vantage.get();
+                        if v[14] > 0.5 {
+                            ctx.actions.push(UiAction::PlayerTeleport {
+                                x: (v[0] + v[2]) / 2.0 + 0.5,
+                                z: v[1] + 5.0,
+                            });
+                            ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -0.2 });
+                        }
+                    }),
+                ));
+                // THE AUDIT (every frame 43..=112): the two staged
+                // bodies never share a cell, and an off-row body cell
+                // en route is the yield — on straight-row staging that
+                // can only be the sidestep, never a nav detour.
+                for f in 43..=112 {
+                    let rec = crowd_cells.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |_ui, r, _ctx| {
+                            let mut v = rec.get();
+                            if v[14] < 0.5 || v[9] > 0.5 {
+                                rec.set(v);
+                                return;
+                            }
+                            let (Some(ca), Some(cb)) = (r.crowd_cell(0), r.crowd_cell(1))
+                            else {
+                                v[9] = 1.0;
+                                rec.set(v);
+                                return;
+                            };
+                            v[8] += 1.0;
+                            if (ca[0], ca[2]) == (cb[0], cb[2]) {
+                                v[6] = 1.0;
+                            }
+                            let row_z = v[1] as i32;
+                            for (c, site_x) in
+                                [(ca, v[2] as i32), (cb, v[0] as i32)]
+                            {
+                                let at_site = (c[0], c[2]) == (site_x, row_z);
+                                if !at_site && c[2] != row_z {
+                                    v[7] = 1.0;
+                                }
+                            }
+                            rec.set(v);
+                        }),
+                    ));
+                }
+                // THE ARRIVAL (frame 120): Working at the DECLARED sites,
+                // and the parked member exactly where the stage left it.
+                let arrived = crowd_cells.clone();
+                ui_script.push((
+                    120,
+                    Box::new(move |_ui, r, _ctx| {
+                        let mut v = arrived.get();
+                        if v[14] > 0.5 {
+                            v[10] = (r.crowd_work_site(0)
+                                == Some([v[2] as i32, v[3] as i32]))
+                                as u8 as f32;
+                            v[11] = (r.crowd_work_site(1)
+                                == Some([v[0] as i32, v[1] as i32]))
+                                as u8 as f32;
+                            match r.crowd_cell(2) {
+                                Some(p) => {
+                                    v[12] = p[0] as f32;
+                                    v[13] = p[2] as f32;
+                                }
+                                None => v[9] = 1.0,
+                            }
+                        }
+                        arrived.set(v);
+                    }),
+                ));
+                shots.push(Shot::new(42, format!("{dir}/crowd_staged.png"))
+                    .ui_dump(format!("{dir}/crowd_staged.layout.json")));
+                // Tick 4 ends this frame: A holds the mid cell, B stands
+                // the sidestep beside it — the yield, in the picture.
+                shots.push(Shot::new(43, format!("{dir}/crowd_yield.png"))
+                    .ui_dump(format!("{dir}/crowd_yield.layout.json")));
+                shots.push(Shot::new(47, format!("{dir}/crowd_pass.png"))
+                    .ui_dump(format!("{dir}/crowd_pass.layout.json")));
+                shots.push(Shot::new(130, format!("{dir}/crowd_arrived.png"))
+                    .ui_dump(format!("{dir}/crowd_arrived.layout.json")));
+            }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
                 // own DoorEntry record (door column open, ring solid,
@@ -6980,6 +7146,64 @@ fn run_observe(route_id: &str, out_root: &str) {
                     spec.id,
                     report.captures.len(),
                     v[7], v[9], v[8], v[10], v[12] - eye, v[16] - eye, v[13], v[17], v[11], v[20], v[21], v[22],
+                );
+                any_fail = true;
+            }
+        }
+        // THE CROWD YIELD route: the staged head-on pair through the
+        // LIVE slice's own crowd tick — staging on one straight row,
+        // zero shared cells across the audited frames, a real
+        // sidestep, both arrivals at the DECLARED sites, the parked
+        // member unmoved, and the picture proving two bodies moved.
+        if spec.id == "route_crowd_yield" {
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let has = |name: &str| capture_by(name).is_some();
+            let differ = |a: &str, b: &str, bar: f32| {
+                match (capture_by(a), capture_by(b)) {
+                    (Some(a), Some(b)) => {
+                        pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > bar
+                    }
+                    _ => false,
+                }
+            };
+            let v = crowd_cells.get();
+            let staged = v[14] > 0.5 && v[1] == v[3] && v[0] != v[2];
+            let audited = v[8] >= 60.0 && v[9] < 0.5;
+            let no_overlap = v[6] < 0.5;
+            let yield_seen = v[7] > 0.5;
+            let both_arrived = v[10] > 0.5 && v[11] > 0.5;
+            let parked_still = v[12] == v[4] && v[13] == v[5];
+            let frames_differ =
+                differ("crowd_staged", "crowd_arrived", 0.001)
+                    && differ("crowd_staged", "crowd_yield", 0.001);
+            let ok = has("crowd_staged")
+                && has("crowd_yield")
+                && has("crowd_pass")
+                && has("crowd_arrived")
+                && staged
+                && audited
+                && no_overlap
+                && yield_seen
+                && both_arrived
+                && parked_still
+                && frames_differ;
+            if ok {
+                println!(
+                    "CROWD YIELD: row ({:.0},{:.0}) <-> ({:.0},{:.0}); {} frames audited, overlap {} / yield {} / arrived {}/{}; parked ({:.0},{:.0}) held",
+                    v[0], v[1], v[2], v[3], v[8] as u32, !no_overlap, yield_seen,
+                    v[10] > 0.5, v[11] > 0.5, v[12], v[13]
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / staged {staged} / audited {audited} / no_overlap {no_overlap} / yield {yield_seen} / arrived {both_arrived} / parked {parked_still} / frames_differ {frames_differ} (row {:.0},{:.0}<->{:.0},{:.0} audited {} flags o{}/y{}/a{:.0},{:.0} parked {:.0},{:.0} vs {:.0},{:.0})",
+                    spec.id,
+                    report.captures.len(),
+                    v[0], v[1], v[2], v[3], v[8], v[6], v[7], v[10], v[11], v[12], v[13], v[4], v[5],
                 );
                 any_fail = true;
             }
