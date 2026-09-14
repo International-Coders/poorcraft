@@ -244,6 +244,127 @@
     },
     {
       "button_state": "",
+      "id": "journal_panel",
+      "kind": "panel",
+      "rect": [
+        80,
+        127,
+        640,
+        246
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_wallet",
+      "kind": "text",
+      "rect": [
+        510,
+        171,
+        190,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_0",
+      "kind": "text",
+      "rect": [
+        100,
+        171,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_0",
+      "kind": "text",
+      "rect": [
+        100,
+        186,
+        311,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_1",
+      "kind": "text",
+      "rect": [
+        100,
+        201,
+        346,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_1",
+      "kind": "text",
+      "rect": [
+        100,
+        216,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_2",
+      "kind": "text",
+      "rect": [
+        100,
+        231,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_2",
+      "kind": "text",
+      "rect": [
+        100,
+        246,
+        341,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_3",
+      "kind": "text",
+      "rect": [
+        100,
+        261,
+        370,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_3",
+      "kind": "text",
+      "rect": [
+        100,
+        276,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_hint",
+      "kind": "text",
+      "rect": [
+        162,
+        349,
+        538,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "interact_panel",
       "kind": "panel",
       "rect": [
@@ -394,8 +515,41 @@
       "xp": 0.0
     },
     "interact": "MAP MARKER",
-    "journal": null,
-    "journal_open": false,
+    "journal": [
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "greet",
+        "progress": "0/4",
+        "reward": 31,
+        "state": "OFFERED",
+        "title": "THE FARMER'S greet"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
+        "kind": "build",
+        "progress": "0/11",
+        "reward": 27,
+        "state": "OFFERED",
+        "title": "THE BUILDER'S build"
+      },
+      {
+        "giver": "Dunstan Fernbrook (the guard)",
+        "kind": "excavate",
+        "progress": "2/8",
+        "reward": 39,
+        "state": "ACTIVE",
+        "title": "THE GUARD'S excavate"
+      },
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "excavate",
+        "progress": "0/8",
+        "reward": 35,
+        "state": "OFFERED",
+        "title": "THE FARMER'S excavate"
+      }
+    ],
+    "journal_open": true,
     "modal": null,
     "ore_harvested": 6,
     "pointer_grabbed": true,
@@ -410,12 +564,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 16:02",
+        "modified": "2026-09-14 21:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 16:02",
+        "modified": "2026-09-14 21:25",
         "name": "beta-shot",
         "seed": 7
       }
@@ -428,7 +582,7 @@
     ],
     "toasts": [
       {
-        "age_s": 2.6470673084259033,
+        "age_s": 0.08578364551067352,
         "text": "FELL — HEALTH 33%"
       }
     ],

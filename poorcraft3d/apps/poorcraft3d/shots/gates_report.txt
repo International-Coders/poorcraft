@@ -1,17 +1,17 @@
-POORCRAFT 3D VISUAL GATES — Mon Sep 14 15:46:56 -03 2026
+POORCRAFT 3D VISUAL GATES — Mon Sep 14 18:30:46 -03 2026
 
 === GATE: windowed-3d-axes ===
-windowed run: 41 frames · frame p50 9.81 ms · p95 10.70 ms · avg 117.5 fps
+windowed run: 41 frames · frame p50 0.61 ms · p95 1.89 ms · avg 1167.8 fps
 RESIZE OK: surface followed 800x500 logical -> 800x500 physical (scale 1.00, 2 events)
 PARALLAX OK: 19.9% of pixels differ between pose A and pose B
 WINDOWED 3D SHOT PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_3d.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_3d_poseb.png (800x500, 253 distinct colors)
 GATE PASS: windowed-3d-axes
 
 === GATE: terrain-scenes ===
-windowed run: 111 frames · frame p50 9.87 ms · p95 10.53 ms · avg 113.0 fps
-TERRAIN hills: 27 patches, 31472 verts, 15736 tris, 250 ms mesh
-TERRAIN cliff: 27 patches, 14340 verts, 7170 tris, 190 ms mesh
-TERRAIN cave: 27 patches, 39020 verts, 19510 tris, 213 ms mesh
+windowed run: 111 frames · frame p50 0.60 ms · p95 1.82 ms · avg 1285.3 fps
+TERRAIN hills: 27 patches, 31472 verts, 15736 tris, 187 ms mesh
+TERRAIN cliff: 27 patches, 14340 verts, 7170 tris, 167 ms mesh
+TERRAIN cave: 27 patches, 39020 verts, 19510 tris, 223 ms mesh
 TERRAIN hills PROBES PASS (3 checks, 21 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_terrain_hills.png
 TERRAIN cliff PROBES PASS (3 checks, 21 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_terrain_cliff.png
 TERRAIN cave PROBES PASS (2 checks, 6 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_terrain_cave.png
@@ -19,8 +19,8 @@ WINDOWED TERRAIN PROOF PASS (800x500)
 GATE PASS: terrain-scenes
 
 === GATE: stream-walk ===
-windowed run: 351 frames · frame p50 1.05 ms · p95 1.38 ms · avg 937.4 fps
-STREAM: loaded 346 (full 97 / mid 249), meshed 1053 in 7608 ms total, gpu 24540 KB of 24576 KB budget
+windowed run: 351 frames · frame p50 0.90 ms · p95 1.05 ms · avg 1115.9 fps
+STREAM: loaded 346 (full 97 / mid 249), meshed 1053 in 6930 ms total, gpu 24540 KB of 24576 KB budget
 STREAM bounds: max mesh/frame 3 (cap 3), max uploads/frame 3 (cap 6), deferred held 962, queue rejected 1851
 STREAM culling: 29754 draws, 75272 frustum-culled patches
 STREAM waypoint 1 PROBE PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_stream_walk1.png
@@ -30,17 +30,17 @@ WINDOWED STREAM WALK PASS (800x500)
 GATE PASS: stream-walk
 
 === GATE: river-water ===
-windowed run: 56 frames · frame p50 9.83 ms · p95 10.65 ms · avg 112.8 fps
-WATER before: 281 sections, 281 added, 0 remeshed, 45818 verts, 53502 us
-WATER after_dam: 281 sections, 1 added, 5 remeshed, 996 verts, 1914 us
-DAM EDIT OK: 5/281 sections remeshed, image changed 1.97%
+windowed run: 56 frames · frame p50 1.11 ms · p95 2.30 ms · avg 668.3 fps
+WATER before: 281 sections, 281 added, 0 remeshed, 45818 verts, 32656 us
+WATER after_dam: 281 sections, 1 added, 5 remeshed, 996 verts, 1434 us
+DAM EDIT OK: 5/281 sections remeshed, image changed 1.99%
 WINDOWED WATER PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_water_before.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_water_after.png
 GATE PASS: river-water
 
 === GATE: castle-city ===
 CITY: 2498 verts / 1242 tris across 13 kinds; 144 collision cells, 4 nav anchors
-TERRAIN under city: 1008 patches in 7378 ms
-windowed run: 56 frames · frame p50 9.83 ms · p95 16.93 ms · avg 105.8 fps
+TERRAIN under city: 1008 patches in 7279 ms
+windowed run: 56 frames · frame p50 1.36 ms · p95 2.11 ms · avg 696.4 fps
 GATE OK: opening/pillar delta 0.38
 WINDOWED CITY PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_city.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_city_gate.png
 GATE PASS: castle-city
@@ -49,7 +49,7 @@ GATE PASS: castle-city
 NPC resident pos CellCoord { x: 386, y: 0, z: 127 } intent Working { site: CellCoord { x: 386, y: 0, z: 127 } }
 NPC worker   pos CellCoord { x: 380, y: 0, z: 127 } intent Idle
 NPC guard    pos CellCoord { x: 380, y: 0, z: 127 } intent Idle
-windowed run: 86 frames · frame p50 9.80 ms · p95 11.19 ms · avg 113.2 fps
+windowed run: 86 frames · frame p50 0.99 ms · p95 1.95 ms · avg 872.5 fps
 NPC 0 close-up: torso point occupied (sky-delta 0.49)
 NPC 1 close-up: torso point occupied (sky-delta 0.75)
 NPC 2 close-up: torso point occupied (sky-delta 0.75)
@@ -57,38 +57,38 @@ WINDOWED NPC PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcr
 GATE PASS: npc-cast
 
 === GATE: quality-tiers ===
-windowed run: 116 frames · frame p50 1.61 ms · p95 2.86 ms · avg 533.8 fps
+windowed run: 116 frames · frame p50 1.28 ms · p95 1.88 ms · avg 709.8 fps
 QUALITY low: loaded 42 patches (full 42 / far 0) gpu 3926 KB meshed 42
 QUALITY mid: loaded 80 patches (full 80 / far 0) gpu 6807 KB meshed 80
 QUALITY high: loaded 102 patches gpu 8467 KB
-WINDOWED QUALITY PROOF PASS -> low/mid/high PNGs in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots (frames p50 1.61 ms p95 2.86 ms)
+WINDOWED QUALITY PROOF PASS -> low/mid/high PNGs in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots (frames p50 1.28 ms p95 1.88 ms)
 GATE PASS: quality-tiers
 
 === GATE: vertical-slice ===
-SLICE: showcase seed 22 found in 2.0s (gate CellCoord { x: -1, y: 51, z: 3 }, cave CellCoord { x: 129, y: 21, z: 137 }, river edge ((0, 2), (-1, 1)))
-windowed run: 86 frames · frame p50 9.86 ms · p95 10.48 ms · avg 110.6 fps
+SLICE: showcase seed 22 found in 1.9s (gate CellCoord { x: -1, y: 51, z: 3 }, cave CellCoord { x: 129, y: 21, z: 137 }, river edge ((0, 2), (-1, 1)))
+windowed run: 86 frames · frame p50 0.79 ms · p95 1.80 ms · avg 1021.6 fps
 WINDOWED SLICE PROOF PASS -> showcase + cave + built in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 GATE PASS: vertical-slice
 
 === GATE: ui-states ===
-UI SHOTS: showcase seed 22 (test save root /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T/p3d-ui-shots-37344)
-windowed run: 481 frames · frame p50 26.38 ms · p95 31.43 ms · avg 37.3 fps
+UI SHOTS: showcase seed 22 (test save root /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T/p3d-ui-shots-47081)
+windowed run: 481 frames · frame p50 21.42 ms · p95 24.51 ms · avg 46.5 fps
 UI SCENE CHECKS PASS:
-  ui_title_1280x720: 5824 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4723/4723 — OK
-  ui_title_focus: 5938 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 482/482 — OK
+  ui_title_1280x720: 5814 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4723/4723 — OK
+  ui_title_focus: 5912 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 482/482 — OK
   focus distinctness: btn_play 2092 px, btn_new_world 2092 px differ — OK
-  ui_new_world: 4054 distinct colors, 25 ui elements, 299884 blended px, no row shear, quad coverage 945/945 — OK
-  ui_load_world: 5134 distinct colors, 10 ui elements, 146350 blended px, no row shear, quad coverage 632/632 — OK
-  ui_settings: 5309 distinct colors, 39 ui elements, 331151 blended px, no row shear, quad coverage 320/320 — OK
-  ui_gameplay_hud_default: 6220 distinct colors, 16 ui elements, 24535 blended px, no row shear, quad coverage 2350/2350 — OK
-  ui_gameplay_hud_debug_values: 6399 distinct colors, 17 ui elements, 28386 blended px, no row shear, quad coverage 1190/1190 — OK
+  ui_new_world: 4049 distinct colors, 25 ui elements, 299884 blended px, no row shear, quad coverage 945/945 — OK
+  ui_load_world: 5153 distinct colors, 10 ui elements, 146350 blended px, no row shear, quad coverage 632/632 — OK
+  ui_settings: 5319 distinct colors, 39 ui elements, 331151 blended px, no row shear, quad coverage 320/320 — OK
+  ui_gameplay_hud_default: 6250 distinct colors, 16 ui elements, 24535 blended px, no row shear, quad coverage 2350/2350 — OK
+  ui_gameplay_hud_debug_values: 6368 distinct colors, 17 ui elements, 28394 blended px, no row shear, quad coverage 1190/1190 — OK
   health bar fill fraction 0.38 (target 0.45) — OK
-  ui_pause: 5897 distinct colors, 7 ui elements, 116594 blended px, no row shear, quad coverage 1886/1886 — OK
-  ui_modal_confirm: 4438 distinct colors, 6 ui elements, 901566 blended px, no row shear, quad coverage 592/592 — OK
-  ui_debug_inspector: 6359 distinct colors, 17 ui elements, 31821 blended px, no row shear, quad coverage 227/227 — OK
-  ui_title_deck: 6329 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 3628/3628 — OK
-  ui_gameplay_hud_1501x801: 7097 distinct colors, 16 ui elements, 25010 blended px, no row shear, quad coverage 1176/1176 — OK
-  ui_title_1501x801: 6797 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4416/4416 — OK
+  ui_pause: 5890 distinct colors, 7 ui elements, 116594 blended px, no row shear, quad coverage 1886/1886 — OK
+  ui_modal_confirm: 4441 distinct colors, 6 ui elements, 901566 blended px, no row shear, quad coverage 592/592 — OK
+  ui_debug_inspector: 6380 distinct colors, 17 ui elements, 31843 blended px, no row shear, quad coverage 229/229 — OK
+  ui_title_deck: 6346 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 3628/3628 — OK
+  ui_gameplay_hud_1501x801: 7060 distinct colors, 16 ui elements, 25050 blended px, no row shear, quad coverage 1176/1176 — OK
+  ui_title_1501x801: 6820 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4416/4416 — OK
 UI SHOTS PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots (13 captures + layout dumps, incl. unaligned 1501x801 + row-shear law)
 GATE PASS: ui-states
 

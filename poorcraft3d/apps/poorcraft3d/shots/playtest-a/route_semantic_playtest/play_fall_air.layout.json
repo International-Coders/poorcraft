@@ -79,6 +79,28 @@
     },
     {
       "button_state": "",
+      "id": "toast_HARVESTED 2 IRON ORE",
+      "kind": "toast",
+      "rect": [
+        271,
+        375,
+        258,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "toast_QUEST PROGRESS",
+      "kind": "toast",
+      "rect": [
+        307,
+        353,
+        186,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -481,8 +503,8 @@
     "forge": {
       "bars": 1,
       "blocked": true,
-      "fuel": 0.01666666753590107,
-      "heat": 0.2916666567325592,
+      "fuel": 0.03333333507180214,
+      "heat": 0.25,
       "ore": 0,
       "state": "BLOCKED: no ore"
     },
@@ -553,12 +575,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 16:02",
+        "modified": "2026-09-14 21:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 16:02",
+        "modified": "2026-09-14 21:25",
         "name": "beta-shot",
         "seed": 7
       }
@@ -569,7 +591,16 @@
       "WOOD_PICK x1",
       "BREAD x2"
     ],
-    "toasts": [],
+    "toasts": [
+      {
+        "age_s": 2.6357600688934326,
+        "text": "QUEST PROGRESS"
+      },
+      {
+        "age_s": 2.6357600688934326,
+        "text": "HARVESTED 2 IRON ORE"
+      }
+    ],
     "wallet": 0
   }
 }

@@ -11,6 +11,41 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] Every beat capture reads the latch: climb, hang-off, playtest
+      (2026-09-14, loop 457, POORCRAFT 3D): closed STATE's next_task
+      item (1) — the remaining routes adopted 456's capture-side latch
+      cure (app main.rs only; p3d count unchanged 686). The climb's
+      GRIPPED latch poll frames play_vine_grip (fixed @170 gone — the
+      toast is IN the pixels at the catch beat); the hang-off's poll
+      fires hop_fall at the AIR BEAT (first poll genuinely airborne
+      below the tip; request pose+ground+frame recorded, latch frame
+      newly recorded, leg-1 cells 12 -> 18) and hop_landed AT the
+      landing latch, leg 2 fires tip_landed AT its latch (leg-2
+      teleport 350 -> 356 so an edge latch can't race the lift;
+      end_frame Some(700) owns the exit past the 430 drain); the
+      playtest's poll frames play_fall_air at the first
+      genuinely-airborne poll (the +8 m teleport makes it the window's
+      opening) and play_fall_landed AT the FELL-toast latch. Both
+      verdicts gained the AIR-BEAT assertion (request pose on the spot,
+      request frame before the latch); the hang-off's
+      fall/rise-vs-landed pixel pairs moved to the advisory sway bar
+      (at contended paces the hop compresses — 454's own evidence),
+      the playtest's air-vs-landed stays HARD and is now genuinely
+      place-vs-place. Evidence: climb PASS x2 + comparator (p50
+      22.6 ms; GRIPPED toast legible AT the latch); hangoff PASS x2 +
+      comparator (p50 24.5-24.7 ms; air beat latched frame 234->235,
+      pose 54.74 = 0.10 below the tip, 1.56 over the ground; hop rose
+      1.04, grounded 100% -> 81% = the law's number; tip release safe
+      1.02 m); playtest PASS x2 + comparator (p50 23.9 ms; fell 8 m
+      over the open journal, health 33%); six captures INSPECTED +
+      layout JSONs verified both runs; walkoff/dig/recovery x2 +
+      comparators (walkoff air beat 110->111 / 108->109 — different
+      frames, the capture follows the beat); people PASS (0.64%);
+      gates ALL 10; smoke digest unchanged (dd019eca900f5a61);
+      idle-upgrade-check PASS. Deferred honestly: the remaining fixed
+      captures in these routes are deterministic beats or run-end
+      keepers, left fixed on purpose.
+
 - [x] The captures read the latch: walk_air and walk_landed schedule
       themselves from the fall's own polls (2026-09-14, loop 456,
       POORCRAFT 3D): closed STATE's next_task item (1) — the CAPTURE

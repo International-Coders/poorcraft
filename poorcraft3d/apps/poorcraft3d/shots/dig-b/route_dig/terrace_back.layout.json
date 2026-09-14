@@ -79,6 +79,17 @@
     },
     {
       "button_state": "",
+      "id": "toast_DUG SOIL+WOOD",
+      "kind": "toast",
+      "rect": [
+        313,
+        375,
+        174,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -197,7 +208,7 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9977885484695435,
+      "food": 0.9981301426887512,
       "health": 1.0,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
@@ -222,18 +233,23 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 18:46",
+        "modified": "2026-09-14 21:29",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 18:46",
+        "modified": "2026-09-14 21:29",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [],
+    "toasts": [
+      {
+        "age_s": 2.3175573348999023,
+        "text": "DUG SOIL+WOOD"
+      }
+    ],
     "wallet": 0
   }
 }

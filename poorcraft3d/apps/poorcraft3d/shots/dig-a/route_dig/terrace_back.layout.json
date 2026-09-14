@@ -208,7 +208,7 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9978055953979492,
+      "food": 0.9981281757354736,
       "health": 1.0,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
@@ -233,12 +233,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 18:46",
+        "modified": "2026-09-14 21:29",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 18:46",
+        "modified": "2026-09-14 21:29",
         "name": "beta-shot",
         "seed": 7
       }
@@ -246,7 +246,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.801889657974243,
+        "age_s": 2.357532024383545,
         "text": "DUG SOIL+WOOD"
       }
     ],

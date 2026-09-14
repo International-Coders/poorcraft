@@ -1,5 +1,60 @@
 # CHANGELOG
 
+## 2026-09-14 — Every beat capture reads the latch: climb, hang-off, and playtest captures schedule themselves (loop 457)
+
+- Closed STATE's next_task item (1): the remaining routes adopted the
+  capture-side latch cure 456 shipped (`CaptureAtNextFrame` +
+  `end_frame`). App `main.rs` only — no lib change; the p3d count stays
+  686.
+- THE CLIMB: the GRIPPED-toast latch poll (32..=165) now requests
+  `play_vine_grip` itself; the fixed @170 shot is gone — the grip and
+  its toast are in the pixels at every pace, and the capture moved to
+  the catch beat (the fixed frame was a late-hang beat).
+- THE HANG-OFF: fixed hop_fall@226 and hop_landed@300 are gone. Leg 1's
+  poll fires hop_fall at the AIR BEAT (first poll genuinely airborne
+  below the tip: feet < tip − 0.05 and feet − ground > 0.2; request
+  pose/ground/frame recorded, latch frame newly recorded; leg-1
+  recordings widened 12 → 18) and hop_landed AT the landing latch
+  (fresh FELL toast). Leg 2's poll fires tip_landed AT its latch. Leg
+  2's teleport moved 350 → 356 so a window-edge latch (capture at N+1,
+  after N+1's own script steps) can never race the body's lift.
+  `end_frame Some(700)` owns the exit (the static list drains at 430
+  while leg 2 can latch as late as 638). The verdict gained the
+  AIR-BEAT assertion (request pose strictly below the tip and over
+  ground + 0.2, request frame before the latch frame) and moved
+  hop_fall-vs-hop_landed and hop_rise-vs-hop_landed to the advisory
+  sway bar — at contended paces the hop compresses and all three
+  captures can land on the landed beat (the same evidence class 454
+  recorded); the hard pixel gates are the place-vs-place pairs
+  (hang-vs-rise 0.002, hang-vs-fall 0.005, tip_hang-vs-tip_landed
+  0.02); every physical claim reads latched records.
+- THE PLAYTEST: fixed play_fall_air@840 and play_fall_landed@920 are
+  gone. The fall's poll (812..=899, pushed before the frame-900 entry
+  per the queue-order law) frames play_fall_air at the FIRST
+  genuinely-airborne poll (the teleport is +8 m — the window's opening
+  at every pace) and play_fall_landed AT the FELL-toast latch. The
+  verdict gained the air-beat assertion and keeps air-vs-landed > 0.03
+  HARD — now a genuine place-vs-place pair at every pace.
+- PROOF: p3d-climb PASS x2 + comparator (p50 22.6 ms; play_vine_grip =
+  GRIPPED A VINE fully legible AT the latch); p3d-hangoff PASS x2 +
+  comparator (p50 24.5-24.7 ms: "air beat latched at frame 234 for 235
+  (pose 54.74, ground 53.18)", hop rose 1.04 m, fell past the strand,
+  grounded 100% → 81% (law 81%), tip release safe 1.02 m); p3d-playtest
+  PASS x2 + comparator (p50 23.9 ms: "fell 8 m over the open journal
+  (health 33%)"). Captures INSPECTED x6; layout JSONs verified on disk
+  both runs (hangoff landed 0.806 + toast_FELL, air 1.000; playtest
+  landed 0.331 + toast_FELL, air 1.000; climb grip carries
+  toast_GRIPPED).
+- REGRESSION: p3d-walkoff PASS x2 + comparator (p50 21.0-21.2 ms; the
+  air beat latched at frames 110 and 108 — DIFFERENT frames again, the
+  capture follows the beat); p3d-dig and p3d-recovery PASS x2 +
+  comparators; p3d-people PASS (motion 0.64%); p3d-visual-gates ALL 10
+  PASS; p3d-smoke OK (digest dd019eca900f5a61 UNCHANGED); p3d
+  workspace 686 green / 0 failed; idle-upgrade-check PASS. Deferred:
+  the remaining fixed captures in these routes are deterministic beats
+  (stable phases the schedule can own) or run-end keepers, left fixed
+  on purpose; the quiet-host deck-bench re-read (twelve loops queued).
+
 ## 2026-09-14 — The captures read the latch: walk_air and walk_landed schedule themselves from the fall's own polls (loop 456)
 
 - Closed STATE's next_task item (1): the CAPTURE side of the latch

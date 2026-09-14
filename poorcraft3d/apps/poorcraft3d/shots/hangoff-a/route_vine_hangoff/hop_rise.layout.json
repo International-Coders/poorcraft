@@ -79,17 +79,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_FELL — HEALTH 80%",
-      "kind": "toast",
-      "rect": [
-        289,
-        375,
-        222,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -209,7 +198,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.8083995580673218,
+      "health": 1.0,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -233,23 +222,18 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 15:23",
+        "modified": "2026-09-14 21:24",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 15:23",
+        "modified": "2026-09-14 21:24",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [
-      {
-        "age_s": 0.20000000298023224,
-        "text": "FELL — HEALTH 80%"
-      }
-    ],
+    "toasts": [],
     "wallet": 0
   }
 }

@@ -5267,10 +5267,15 @@ fn run_observe(route_id: &str, out_root: &str) {
         // LEG 1 (Space hop-off) per-frame poll: peak y, window-min y,
         // the grounded landing (pose + LIVE ground + health, latched on
         // two consecutive on-ground polls), health before, the peak's
-        // frame, and the latch state; LEG 2 (S past the tip) the same
-        // latch plus the second hang pose and its health before.
+        // frame, and the latch state; the AIR BEAT (first poll genuinely
+        // airborne below the tip) records flag + pose/ground/request
+        // frame in [12..16] and the landing latch's own frame in [17] —
+        // the air beat's capture and the landed capture are
+        // LATCH-SCHEDULED from these records. LEG 2 (S past the tip) the
+        // same latch plus the second hang pose and its health before
+        // (its tip_landed capture is latch-scheduled too).
         let hangoff_strand = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 6]));
-        let hangoff_leg1 = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 12]));
+        let hangoff_leg1 = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 18]));
         let hangoff_leg2 = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 12]));
         // route_vine_climb recordings: the fall's window-min height (the
         // pace-proof fall record), the hang height at the span, and the
@@ -5278,10 +5283,14 @@ fn run_observe(route_id: &str, out_root: &str) {
         // GROUNDED (the tip release now falls free of its own strand; a
         // body pinned at the tip is the pre-release-law bug).
         let climb_final = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 10]));
-        // route_semantic_playtest: the live fall's FELL toast latched in
-        // a windowed poll (812..=899) — at contended paces the fixed
-        // play_fall_landed capture can outlive the 3 s toast.
-        let playtest_fell_toast = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
+        // route_semantic_playtest recordings: the live fall's beats —
+        // [0] the FELL-toast latch, [1] the air-beat flag with the
+        // request pose/ground/frame in [2..6], [7] the toast's latch
+        // frame. Both fall captures are LATCH-SCHEDULED: the first
+        // genuinely-airborne poll frames play_fall_air, the toast latch
+        // frames play_fall_landed — no fixed frame for a contended pace
+        // to outrun (the 3 s toast can die before one).
+        let playtest_fall = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 8]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -5539,22 +5548,68 @@ fn run_observe(route_id: &str, out_root: &str) {
                         }
                     }),
                 ));
-                // THE FALL IS RECORDED, NOT FRAMED: the toast fires at
-                // the impact frame, which wanders with the host's pace
-                // (8 m spans ~13 rendered frames at 98 ms but ~64 at
-                // 20 ms) — a fixed capture can outlive the 3 s toast.
-                // The poll latches any FELL toast across the window.
-                // Pushed BEFORE the frame-900 entry: the script queue
-                // fires strictly in push order, so polls pushed after
-                // a later-frame entry would sit blocked behind it.
+                // THE FALL IS RECORDED AND FRAMED AT ITS BEATS: the toast
+                // fires at the impact frame, which wanders with the host's
+                // pace (8 m spans ~13 rendered frames at 98 ms but ~64 at
+                // 20 ms) — a fixed capture can outlive the 3 s toast. The
+                // poll latches the toast and LATCH-SCHEDULES the landed
+                // picture AT it, and the FIRST genuinely-airborne poll
+                // (the teleport is +8 m, so the window's opening at every
+                // pace) frames the true air beat the same way. Pushed
+                // BEFORE the frame-900 entry: the script queue fires
+                // strictly in push order, so polls pushed after a
+                // later-frame entry would sit blocked behind it.
                 for f in 812..=899u64 {
-                    let latch = playtest_fell_toast.clone();
+                    let fall = playtest_fall.clone();
+                    let air_path = format!("{dir}/play_fall_air.png");
+                    let air_dump = format!("{dir}/play_fall_air.layout.json");
+                    let landed_path = format!("{dir}/play_fall_landed.png");
+                    let landed_dump = format!("{dir}/play_fall_landed.layout.json");
                     ui_script.push((
                         f,
-                        Box::new(move |ui, _r, _ctx| {
-                            if ui.toasts.iter().any(|t| t.text.starts_with("FELL")) {
-                                latch.set(1.0);
+                        Box::new(move |ui, r, ctx| {
+                            let pose = r.pose();
+                            let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                            let mut v = fall.get();
+                            if v[1] == 0.0
+                                && pose.position[1]
+                                    - pc3d_render::player::EYE_ABOVE_FEET
+                                    - g
+                                    > 0.5
+                            {
+                                v[1] = 1.0;
+                                v[2] = pose.position[0];
+                                v[3] = pose.position[1];
+                                v[4] = pose.position[2];
+                                v[5] = ctx.frame as f32;
+                                v[6] = g;
+                                // THE AIR BEAT, LATCH-SCHEDULED: the true
+                                // mid-air beat schedules its own picture —
+                                // meters above the plaza at every pace.
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: air_path.clone(),
+                                        ui_dump: Some(air_dump.clone()),
+                                    });
                             }
+                            if v[0] == 0.0
+                                && ui
+                                    .toasts
+                                    .iter()
+                                    .any(|t| t.text.starts_with("FELL"))
+                            {
+                                v[0] = 1.0;
+                                v[7] = ctx.frame as f32;
+                                // THE CAPTURE AT THE TOAST LATCH: the
+                                // landed body and its fresh toast schedule
+                                // the next frame's picture themselves.
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: landed_path.clone(),
+                                        ui_dump: Some(landed_dump.clone()),
+                                    });
+                            }
+                            fall.set(v);
                         }),
                     ));
                 }
@@ -5592,10 +5647,9 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/play_journal.layout.json")));
                 shots.push(Shot::new(780, format!("{dir}/play_journal_progress.png"))
                     .ui_dump(format!("{dir}/play_journal_progress.layout.json")));
-                shots.push(Shot::new(840, format!("{dir}/play_fall_air.png"))
-                    .ui_dump(format!("{dir}/play_fall_air.layout.json")));
-                shots.push(Shot::new(920, format!("{dir}/play_fall_landed.png"))
-                    .ui_dump(format!("{dir}/play_fall_landed.layout.json")));
+                // play_fall_air and play_fall_landed are LATCH-SCHEDULED
+                // from the fall's own polls above; play_final keeps the
+                // run alive past the journey's end.
                 // Run-end state capture: the journal is reopened at 960
                 // so the FINAL ui export carries the live quest rows the
                 // route asserts — this shot keeps the run alive past it.
@@ -5709,9 +5763,12 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // 12 m drop MUST dip meters below the teleport), the
                 // GRIPPED toast seen (latched — it can expire before
                 // any fixed capture at contended paces), and at 172 the
-                // hang height + the strand's live span. The captures
-                // stay as the visual record. (Pushed in FRAME ORDER —
-                // the script queue fires strictly in push order.)
+                // hang height + the strand's live span. THE GRIP BEAT,
+                // LATCH-SCHEDULED: the poll that latches the toast asks
+                // for the NEXT frame's picture — the grip is IN the
+                // pixels at every pace (the fixed frame 170 predated
+                // the cure). (Pushed in FRAME ORDER — the script queue
+                // fires strictly in push order.)
                 let climb_consts = climb_final.clone();
                 ui_script.push((
                     31,
@@ -5724,9 +5781,11 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ));
                 for f in 32..=165u64 {
                     let climb_fall = climb_final.clone();
+                    let grip_path = format!("{dir}/play_vine_grip.png");
+                    let grip_dump = format!("{dir}/play_vine_grip.layout.json");
                     ui_script.push((
                         f,
-                        Box::new(move |ui, r, _ctx| {
+                        Box::new(move |ui, r, ctx| {
                             let pose = r.pose();
                             let feet = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
                             let mut c = climb_fall.get();
@@ -5740,6 +5799,14 @@ fn run_observe(route_id: &str, out_root: &str) {
                                     .any(|t| t.text.starts_with("GRIPPED"))
                             {
                                 c[8] = 1.0;
+                                // THE CAPTURE AT THE LATCH: the grip beat
+                                // schedules its own picture — the toast
+                                // is fresh one frame later at every pace.
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: grip_path.clone(),
+                                        ui_dump: Some(grip_dump.clone()),
+                                    });
                             }
                             let _ = r;
                             climb_fall.set(c);
@@ -5776,8 +5843,8 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ));
                 shots.push(Shot::new(80, format!("{dir}/play_vine_air.png"))
                     .ui_dump(format!("{dir}/play_vine_air.layout.json")));
-                shots.push(Shot::new(170, format!("{dir}/play_vine_grip.png"))
-                    .ui_dump(format!("{dir}/play_vine_grip.layout.json")));
+                // play_vine_grip is LATCH-SCHEDULED from the GRIPPED poll
+                // above (the grip beat frames its own picture).
                 shots.push(Shot::new(220, format!("{dir}/play_vine_climb.png"))
                     .ui_dump(format!("{dir}/play_vine_climb.layout.json")));
                 shots.push(Shot::new(380, format!("{dir}/play_vine_landed.png"))
@@ -6807,18 +6874,29 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // The per-frame poll (205..=349, ending BEFORE leg 2's
                 // teleport below — ui_script steps fire strictly in push
                 // order, so every frame here stays ordered): peak rise,
-                // window-min fall, and the LATCHED landing — two
-                // consecutive polls on the LIVE ground answer record the
-                // landing pose + health once, at whatever frame the body
-                // grounds.
+                // window-min fall, the AIR BEAT, and the LATCHED landing
+                // — two consecutive polls on the LIVE ground answer
+                // record the landing pose + health once, at whatever
+                // frame the body grounds. BOTH beats schedule their own
+                // pictures (the latch cure, capture side): the first
+                // poll genuinely airborne below the tip frames hop_fall
+                // (the fixed 226 was calibrated to the observed pace
+                // band), the landing latch frames hop_landed with its
+                // fresh FELL toast.
                 for f in 205..=349u64 {
                     let leg1 = hangoff_leg1.clone();
+                    let strand = hangoff_strand.clone();
+                    let fall_path = format!("{dir}/hop_fall.png");
+                    let fall_dump = format!("{dir}/hop_fall.layout.json");
+                    let landed_path = format!("{dir}/hop_landed.png");
+                    let landed_dump = format!("{dir}/hop_landed.layout.json");
                     ui_script.push((
                         f,
-                        Box::new(move |ui, r, _ctx| {
+                        Box::new(move |ui, r, ctx| {
                             let pose = r.pose();
                             let feet = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
                             let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                            let tip = strand.get()[4];
                             let mut v = leg1.get();
                             if feet > v[0] {
                                 v[0] = feet;
@@ -6826,6 +6904,23 @@ fn run_observe(route_id: &str, out_root: &str) {
                             }
                             if v[1] == 0.0 || feet < v[1] {
                                 v[1] = feet;
+                            }
+                            // THE AIR BEAT, LATCH-SCHEDULED: the first
+                            // poll genuinely airborne below the tip —
+                            // the hop falling PAST its own strand —
+                            // records itself and requests the NEXT
+                            // frame's picture, at every pace.
+                            if v[12] == 0.0 && feet < tip - 0.05 && feet - g > 0.2 {
+                                v[12] = 1.0;
+                                v[13] = pose.position[0];
+                                v[14] = feet;
+                                v[15] = g;
+                                v[16] = ctx.frame as f32;
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: fall_path.clone(),
+                                        ui_dump: Some(fall_dump.clone()),
+                                    });
                             }
                             v[10] = if (feet - g).abs() < 0.05 { v[10] + 1.0 } else { 0.0 };
                             if v[10] >= 2.0 && v[11] == 0.0 {
@@ -6845,15 +6940,30 @@ fn run_observe(route_id: &str, out_root: &str) {
                                     .any(|t| t.text.starts_with("FELL"))
                                     as i32 as f32;
                                 v[11] = 1.0;
+                                v[17] = ctx.frame as f32;
+                                // THE CAPTURE AT THE LATCH: the landed
+                                // beat and its fresh toast schedule the
+                                // next frame's picture themselves — no
+                                // fixed frame for a contended pace to
+                                // outrun.
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: landed_path.clone(),
+                                        ui_dump: Some(landed_dump.clone()),
+                                    });
                             }
                             leg1.set(v);
                         }),
                     ));
                 }
                 // LEG 2: the same strand again, descended PAST THE TIP
-                // (pushed after leg 1's polls — frame order holds).
+                // (pushed after leg 1's polls — frame order holds; the
+                // teleport sits 6 frames past leg 1's window so a latch
+                // at the window's last frame still captures BEFORE the
+                // body is lifted — the frame-N request fires at N+1,
+                // after N+1's own script steps).
                 ui_script.push((
-                    350,
+                    356,
                     Box::new(move |_ui, _r, ctx| {
                         ctx.actions.push(UiAction::PlayerTeleportHigh {
                             x: ax,
@@ -6878,9 +6988,11 @@ fn run_observe(route_id: &str, out_root: &str) {
                 key_script.push((480, 590, vec![pc3d_render::KeyCode::KeyS]));
                 for f in 485..=638u64 {
                     let leg2 = hangoff_leg2.clone();
+                    let landed_path = format!("{dir}/tip_landed.png");
+                    let landed_dump = format!("{dir}/tip_landed.layout.json");
                     ui_script.push((
                         f,
-                        Box::new(move |ui, r, _ctx| {
+                        Box::new(move |ui, r, ctx| {
                             let pose = r.pose();
                             let feet = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
                             let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
@@ -6896,6 +7008,15 @@ fn run_observe(route_id: &str, out_root: &str) {
                                 v[7] = g;
                                 v[9] = ui.hud.health;
                                 v[11] = 1.0;
+                                // THE CAPTURE AT THE LATCH: the safe
+                                // landing schedules its own picture —
+                                // grounded at the law's place at every
+                                // pace (the fixed 640 predated the cure).
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: landed_path.clone(),
+                                        ui_dump: Some(landed_dump.clone()),
+                                    });
                             }
                             leg2.set(v);
                         }),
@@ -6907,17 +7028,12 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .ui_dump(format!("{dir}/hang_grip.layout.json")));
                 shots.push(Shot::new(214, format!("{dir}/hop_rise.png"))
                     .ui_dump(format!("{dir}/hop_rise.layout.json")));
-                // 226 sits inside the falling window (0.52-0.88 s after
-                // the press) across the whole observed 20-34 ms pace
-                // band; 250 was a post-landing frame at slow paces.
-                shots.push(Shot::new(226, format!("{dir}/hop_fall.png"))
-                    .ui_dump(format!("{dir}/hop_fall.layout.json")));
-                shots.push(Shot::new(300, format!("{dir}/hop_landed.png"))
-                    .ui_dump(format!("{dir}/hop_landed.layout.json")));
+                // hop_fall, hop_landed, and tip_landed are
+                // LATCH-SCHEDULED from the polls above (the air beat and
+                // the two landings frame their own pictures; the run's
+                // exit is end_frame's, not the static list's drain).
                 shots.push(Shot::new(430, format!("{dir}/tip_hang.png"))
                     .ui_dump(format!("{dir}/tip_hang.layout.json")));
-                shots.push(Shot::new(640, format!("{dir}/tip_landed.png"))
-                    .ui_dump(format!("{dir}/tip_landed.layout.json")));
             }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
@@ -7058,6 +7174,13 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // side): the static list drains at frame 70, so the
                 // horizon owns the exit.
                 Some(240)
+            } else if spec.id == "route_vine_hangoff" {
+                // The hang-off's fall and two landing captures are
+                // latch-scheduled too: its static list drains at 430
+                // (tip_hang) while leg 2's polls can latch as late as
+                // 638 — the capture fires by 639, so the horizon sits
+                // well past both.
+                Some(700)
             } else {
                 None
             },
@@ -7269,7 +7392,17 @@ fn run_observe(route_id: &str, out_root: &str) {
                 }
                 _ => false,
             };
-            let fall_toast = playtest_fell_toast.get() > 0.0
+            // THE AIR BEAT, asserted from the RECORDS: the request pose
+            // hangs over a meter above the live ground, on the spot,
+            // BEFORE the toast's latch frame — an air capture that lands
+            // on the landed beat fails even though its pixels may still
+            // differ from the landed frame.
+            let fb = playtest_fall.get();
+            let air_beat = fb[1] > 0.0
+                && fb[3] - fb[6] > 1.0
+                && fb[7] > 0.0
+                && fb[5] < fb[7];
+            let fall_toast = fb[0] > 0.0
                 || capture_by("play_fall_landed")
                     .and_then(|c| c.ui_layout.as_ref())
                     .and_then(|l| l["elements"].as_array())
@@ -7292,6 +7425,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && has("play_fall_landed")
                 && fall_frames_differ
                 && fall_toast
+                && air_beat
                 && health > 0.05
                 && health < 0.45;
             let ok = has("play_door_outside")
@@ -7322,12 +7456,13 @@ fn run_observe(route_id: &str, out_root: &str) {
                 );
             } else {
                 eprintln!(
-                    "[FAIL] observe {}: captures {} / dialog {} / inside {inside_vs_outside} / bars {bars} / fell {fell} (air {} landed {} differ {fall_frames_differ} toast {fall_toast} health {health})",
+                    "[FAIL] observe {}: captures {} / dialog {} / inside {inside_vs_outside} / bars {bars} / fell {fell} (air {} landed {} differ {fall_frames_differ} toast {fall_toast} air_beat {air_beat} req_frame {} latch_frame {} health {health})",
                     spec.id,
                     report.captures.len(),
                     dialog_shown.is_some(),
                     has("play_fall_air"),
                     has("play_fall_landed"),
+                    fb[5], fb[7],
                 );
                 any_fail = true;
             }
@@ -8026,6 +8161,16 @@ fn run_observe(route_id: &str, out_root: &str) {
             // and the landed capture carries it as pixels at the
             // typical paces.
             let fell_toast = v1[11] >= 1.0 && v1[9] > 0.0;
+            // THE AIR BEAT, asserted from the RECORDS: the request pose
+            // hangs strictly below the tip and over the ground, on the
+            // spot, BEFORE the landing latch — a hop_fall capture that
+            // lands on the landed beat fails even though its pixels may
+            // still differ from the hang.
+            let air_beat = v1[12] >= 1.0
+                && v1[14] < tip - 0.05
+                && v1[14] - v1[15] > 0.2
+                && v1[17] > 0.0
+                && v1[16] < v1[17];
             // The leg-2 catch clamps INTO the span — anywhere in it at
             // contended paces, where one frame crosses half the strand.
             let hang2_ok =
@@ -8050,10 +8195,19 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && v2[9] <= 1.001;
             let grip_toast = element_in("hang_grip", "toast_GRIPPED")
                 || element_in("grip_early", "toast_GRIPPED");
+            // THE PLACE-VS-PLACE PIXEL GATES: the hang vs the mid-hop
+            // rise, the hang vs the falling body, leg 2's hang vs its
+            // safe landing. hop_fall-vs-hop_landed and
+            // hop_rise-vs-hop_landed are ADVISORY (the sway bar): at
+            // contended paces the hop compresses into a handful of
+            // frames and all three captures can land on the landed beat
+            // — the AIR BEAT (asserted above from the request records)
+            // and the latched landing carry those claims, like the
+            // walk-off's air-vs-landed bar.
+            let sway_bar = differ("hop_fall", "hop_landed", 0.02)
+                && differ("hop_rise", "hop_landed", 0.02);
             let differs = differ("hang_grip", "hop_rise", 0.002)
                 && differ("hang_grip", "hop_fall", 0.005)
-                && differ("hop_rise", "hop_landed", 0.02)
-                && differ("hop_fall", "hop_landed", 0.02)
                 && differ("tip_hang", "tip_landed", 0.02);
             let ok = has("grip_early")
                 && has("hang_grip")
@@ -8069,6 +8223,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && grounded1
                 && wound_ok
                 && fell_toast
+                && air_beat
                 && hang2_ok
                 && fell_past2
                 && grounded2
@@ -8076,16 +8231,18 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && differs;
             if ok {
                 println!(
-                    "HANG OFF: hang at {:.2} (top {:.2} tip {:.2}); hop rose {:.2} m, fell past the strand (min {:.2}), grounded at ({:.2},{:.2}) feet {:.2} (ground {:.2}); health {:.0}% -> {:.0}% (law {:.0}%); tip release fell free (min {:.2}) and landed safe {:.2} m from the strand (health {:.2} -> {:.2})",
-                    hang_feet, top, tip, rise, v1[1], v1[2], v1[4], v1[3], v1[5],
+                    "HANG OFF: hang at {:.2} (top {:.2} tip {:.2}); hop rose {:.2} m, fell past the strand (min {:.2}), air beat latched at frame {} for {} (pose {:.2}, ground {:.2}), grounded at ({:.2},{:.2}) feet {:.2} (ground {:.2}); health {:.0}% -> {:.0}% (law {:.0}%); tip release fell free (min {:.2}) and landed safe {:.2} m from the strand (health {:.2} -> {:.2})",
+                    hang_feet, top, tip, rise, v1[1], v1[16], v1[16] + 1.0, v1[14], v1[15],
+                    v1[2], v1[4], v1[3], v1[5],
                     v1[6] * 100.0, v1[7] * 100.0, (v1[6] - expected) * 100.0,
                     v2[3], drift2, v2[8], v2[9],
                 );
             } else {
                 eprintln!(
-                    "[FAIL] observe {}: captures {} / grip_toast {grip_toast} / hang {hang_ok} / rose {rose} ({rise:.2}) / fell_past {fell_past} / grounded1 {grounded1} / wound {wound_ok} (expected {expected:.3}) / fell_toast {fell_toast} / hang2 {hang2_ok} / fell_past2 {fell_past2} / grounded2 {grounded2} / safe2 {safe2} / differs {differs} (strand {:.1},{:.1} top {top:.2} tip {tip:.2} hang {:.2}; L1 peak {:.2} min {:.2} landed {:.2}@({:.2},{:.2}) ground {:.2} hp {:.2}->{:.2} latch {} peak_f {}; L2 hang {:.2} min {:.2} landed {:.2}@({:.2},{:.2}) ground {:.2} hp {:.2}->{:.2} drift {drift2:.2} latch {})",
+                    "[FAIL] observe {}: captures {} / grip_toast {grip_toast} / hang {hang_ok} / rose {rose} ({rise:.2}) / fell_past {fell_past} / grounded1 {grounded1} / wound {wound_ok} (expected {expected:.3}) / fell_toast {fell_toast} / air_beat {air_beat} (req pose {:.2} ground {:.2} frame {} latch {}) / hang2 {hang2_ok} / fell_past2 {fell_past2} / grounded2 {grounded2} / safe2 {safe2} / differs {differs} (sway bar advisory {sway_bar}) (strand {:.1},{:.1} top {top:.2} tip {tip:.2} hang {:.2}; L1 peak {:.2} min {:.2} landed {:.2}@({:.2},{:.2}) ground {:.2} hp {:.2}->{:.2} latch {} peak_f {}; L2 hang {:.2} min {:.2} landed {:.2}@({:.2},{:.2}) ground {:.2} hp {:.2}->{:.2} drift {drift2:.2} latch {})",
                     spec.id,
                     report.captures.len(),
+                    v1[14], v1[15], v1[16], v1[17],
                     ax_, az_, s[1] - eye,
                     v1[0], v1[1], v1[3], v1[2], v1[4], v1[5], v1[6], v1[7], v1[11], v1[8],
                     v2[1] - eye, v2[3], v2[5], v2[4], v2[6], v2[7], v2[8], v2[9], v2[11],

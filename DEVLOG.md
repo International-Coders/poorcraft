@@ -8917,3 +8917,126 @@ two landings (STATE next_task item 1); the quiet-host deck-bench
 re-read + the bench contention guard; is_water_layer/CTM-strip
 audit; guardian chronicle re-fire; multiplayer routing of terrain
 edits; geode pairing; the walk-snap query-bound observation.
+
+## 2026-09-14 — Loop 457: every beat capture reads the latch (climb, hang-off, playtest)
+
+WHAT:
+- Closed STATE's next_task item (1): the remaining routes adopted the
+  capture-side latch cure loop 456 shipped (UiAction::CaptureAtNextFrame
+  + WindowConfig::end_frame). App main.rs ONLY — no lib code changed,
+  no new unit laws needed (the insertion law and horizon validation
+  are 456's, untouched); the p3d workspace count stays 686.
+- THE CLIMB (route_vine_climb): the GRIPPED-toast latch poll
+  (32..=165) now requests play_vine_grip itself; the fixed @170 shot
+  is gone. The capture moved ~55-70 frames earlier — the CATCH beat
+  with its toast fresh, not a late-hang beat the pace could outrun.
+- THE HANG-OFF (route_vine_hangoff): the fixed hop_fall@226 and
+  hop_landed@300 are gone. Leg 1's poll (205..=349) fires hop_fall at
+  the AIR BEAT — the first poll genuinely airborne below the tip
+  (feet < tip - 0.05 AND feet - ground > 0.2; flag + pose/ground/
+  request-frame recorded in cells 12..16, the landing latch frame
+  newly recorded in 17; leg-1 recordings widened 12 -> 18) — and
+  hop_landed AT the landing latch (fresh FELL toast). Leg 2's poll
+  (485..=638) fires tip_landed AT its own latch. Leg 2's teleport
+  moved 350 -> 356: a capture requested at the window's last frame
+  fires at N+1, AFTER N+1's own script steps (the frame loop runs
+  ui_script before the shot block) — the 6-frame gap makes the race
+  impossible. end_frame Some(700) owns the exit (the static list
+  drains at tip_hang@430 while leg 2 can latch as late as 638;
+  validation: 700 > every static shot, <= max_frames 1000).
+- THE VERDICTS: the hang-off gained the AIR-BEAT assertion (the
+  request pose must hang strictly below the tip and over ground+0.2,
+  on the spot, BEFORE the landing latch — v1[16] < v1[17]) and moved
+  hop_fall-vs-hop_landed and hop_rise-vs-hop_landed to the advisory
+  sway bar: at contended paces the hop compresses into a handful of
+  frames and all three captures can land on the landed beat (the same
+  evidence class 454 recorded — frames 214/226 were post-landing at
+  108-142 ms). The hard pixel gates are the place-vs-place pairs that
+  never alias (hang-vs-rise 0.002, hang-vs-fall 0.005,
+  tip_hang-vs-tip_landed 0.02); every physical claim reads latched
+  records, unchanged. The playtest gained the same air-beat assertion
+  (request over a meter up, request frame before the toast's latch)
+  and KEEPS air-vs-landed > 0.03 HARD — both captures are now
+  latch-scheduled, so the pair is genuinely place-vs-place at every
+  pace instead of one aliasing could close.
+
+HOW:
+- Files touched: poorcraft3d/apps/poorcraft3d/src/main.rs (three
+  routes' polls + shot lists + two verdicts + the end_frame arm +
+  recording declarations); STATE.md, BACKLOG.md, CHANGELOG.md, this
+  entry. Makefile unchanged (no new or changed targets).
+- Approach: follow the 456 walk-off pattern exactly — the FnMut poll
+  closures clone their path strings at use; requests are pushed as
+  UiAction::CaptureAtNextFrame from the latching poll; the pure
+  insertion law places the shot at requested_at+1, never sharing a
+  frame.
+
+VERIFICATION:
+- make p3d-climb PASS x2 + comparator, p50 22.6 ms: "the fall was
+  gripped (toast), the drop reached 55.91 (from 65.18) and hung in
+  the span (55.91 in [tip 54.84, attach 55.92]), the climb moved the
+  body, landed unharmed and GROUNDED (feet 52.84 on 52.84, health
+  100%)". play_vine_grip INSPECTED (a+b): the GRIPPED A VINE toast
+  fully legible AT the latch, full bars, canopy-interior grip view;
+  the layout JSONs carry toast_GRIPPED on disk.
+- make p3d-hangoff PASS x2 + comparator, p50 24.5/24.7 ms: "air beat
+  latched at frame 234 for 235 (pose 54.74, ground 53.18)" — 0.10 m
+  below the tip, 1.56 m over the ground; "hop rose 1.04 m, fell past
+  the strand (min 53.18), grounded at (258.64,82.00) feet 53.18
+  (ground 53.18); health 100% -> 81% (law 81%); tip release fell free
+  (min 52.83) and landed safe 1.02 m from the strand (health 0.93 ->
+  0.96)". Captures INSPECTED (a+b): hop_fall = full health bar +
+  PACK EMPTY + no toast (genuinely pre-landing); hop_landed = the
+  ~80% wounded bar + "FELL — HEALTH 80%" (em-dash intact) over the
+  strand line; tip_landed = grounded by the strand's trunk at ~96%,
+  no FELL toast (the safe landing). Layout JSONs on disk: landed
+  health 0.806 + toast_FELL, air 1.000 + no toasts, tip_landed
+  0.959-0.960 (run b still carries the leg-2 GRIPPED toast alive).
+- make p3d-playtest PASS x2 + comparator, p50 23.9 ms: "fell 8 m over
+  the open journal (health 33%)". Captures INSPECTED (a+b):
+  play_fall_air = quest journal + forge panels open, full bar, the
+  plaza seen from 8 m; play_fall_landed = the same panels + the ~33%
+  wounded bar + "FELL — HEALTH 33%" fresh behind the panel row.
+  Layout JSONs on disk: landed 0.331 + toast_FELL, air 1.000.
+- REGRESSION on this loop's builds: make p3d-walkoff PASS x2 +
+  comparator (p50 21.0/21.2 ms; the air beat latched at frames
+  110->111 and 108->109 — DIFFERENT frames again, the capture follows
+  the beat, with identical physical claims); make p3d-dig PASS x2 +
+  comparator (p50 20.5/20.6 ms); make p3d-recovery PASS x2 +
+  comparator (p50 21.4/21.8 ms); make p3d-people PASS (frozen-stride
+  motion 0.64%); p3d-visual-gates ALL 10 PASS (the windowed battery
+  re-rendered on this job's build rides the commit, as in 456; the
+  six windowed_wild_*.png dirties remain deliberately NOT staged —
+  an earlier session's p3d-wilderness run); p3d-smoke OK (digest
+  dd019eca900f5a61 UNCHANGED); p3d workspace 686 green / 0 failed
+  (14 suites); idle-upgrade-check PASS. Root LOREFORGE workspace
+  untouched by this loop (456 verified 480 green at this tree's
+  crates).
+
+PERF: no claim, honestly — the conversions move WHEN a capture fires,
+not how much work a frame does (one extra Rc clone + two format!
+strings per poll-armed closure at route-build time); the live walk/
+stream/crowd paths are untouched; host quiet this session (route p50s
+20-25 ms), no bench per the 445-456 precedent; the quiet-host
+deck-bench re-read stays queued (twelve loops).
+
+LORE IMPACT: canon touched: none — proof-harness capture scheduling
+over existing routes; no faction, place, event, term, NPC, item, or
+spell data; no identity assigned. Locked facts preserved: all. World
+expression: unchanged — the same fall and grip economy, now framed AT
+its beats at every host pace. Migration: none (route recordings +
+capture scheduling; no persisted field, save format, or proof schema
+change).
+
+HONESTLY DEFERRED: the latch-scheduled capture family is complete —
+walkoff (456), climb/hangoff/playtest (457). The remaining fixed
+captures in these routes (hop_rise@214, hang_grip@170, tip_hang@430,
+play_vine_air@80, play_vine_landed@380, play_final@985 and the rest)
+are DETERMINISTIC beats (stable phases the schedule can own) or
+run-end keepers, left fixed on purpose — converting them would be
+churn, not cure. Carried: the quiet-host deck-bench re-read (queued
+twelve loops; next_task item 1 if the host is quiet) + the bench
+contention guard; the walk-snap query-bound observation
+(surface.rs ground_at discards _from_y on the streamed path);
+is_water_layer/CTM-strip audit; guardian chronicle re-fire;
+multiplayer routing of terrain edits; geode pairing.

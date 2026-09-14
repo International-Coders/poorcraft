@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 38.70000076293945,
+    "avg_fps": 47.400001525878906,
     "frames": 237,
-    "p50_ms": 25.530000686645508,
-    "p95_ms": 28.950000762939453
+    "p50_ms": 21.020000457763672,
+    "p95_ms": 23.299999237060547
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1789411431",
+  "timestamp_utc": "1789421332",
   "ui": {
     "debug_overlay": false,
     "dialog": null,
@@ -48,7 +48,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.6468473672866821,
+      "health": 0.6459879875183105,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -72,12 +72,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 18:43",
+        "modified": "2026-09-14 21:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 18:43",
+        "modified": "2026-09-14 21:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -85,11 +85,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.047922968864441,
+        "age_s": 1.1632486581802368,
         "text": "THE GROUND GIVES WAY"
       },
       {
-        "age_s": 0.12235633283853531,
+        "age_s": 0.07938753068447113,
         "text": "FELL — HEALTH 64%"
       }
     ],
