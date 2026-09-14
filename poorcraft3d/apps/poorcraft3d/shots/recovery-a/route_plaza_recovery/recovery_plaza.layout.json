@@ -79,17 +79,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_YOU FELL — RECOVERED AT THE PLAZA",
-      "kind": "toast",
-      "rect": [
-        193,
-        375,
-        414,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -233,23 +222,18 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 09:40",
+        "modified": "2026-09-14 16:03",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 09:40",
+        "modified": "2026-09-14 16:03",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [
-      {
-        "age_s": 1.9639256000518799,
-        "text": "YOU FELL — RECOVERED AT THE PLAZA"
-      }
-    ],
+    "toasts": [],
     "wallet": 0
   }
 }

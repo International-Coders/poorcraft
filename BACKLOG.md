@@ -11,6 +11,29 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The verdicts read the latch: walk-off and playtest proofs made
+      pace-proof (2026-09-14, loop 455, POORCRAFT 3D): landed the
+      verdict-side half of 454's next_task item (1). The two routes
+      whose frame-CALIBRATED verdicts broke twice under the day's
+      foreign-load spike now prove the same claims from latched
+      per-frame polls — walkoff: one poll (92..=189) records the
+      DEEPEST AIRBORNE pose (grounded clamps never enter the min) and
+      LATCHES the landing on two consecutive on-ground polls vs the
+      LIVE ground answer (pose + health + FELL toast AT the latch —
+      the regen race gone; the mid-air band now "meters of air, then
+      the latch"; the pixel gate place-vs-place, air-vs-landed
+      advisory); playtest: the FELL toast latches in a poll window
+      pushed BEFORE the frame-900 entry (the script queue fires
+      strictly in push order — the first run failed on exactly that
+      and the law is now written where it bites). No lib code changed
+      (app main.rs only; p3d count unchanged 684). Evidence: walkoff
+      PASS x2 + comparator at p50 73 ms (the 54-59 ms paces broke the
+      committed verdict today), playtest PASS x2 + comparator at
+      69 ms; dig/recovery x2 + comparators; people; gates ALL 10;
+      smoke digest unchanged; captures inspected. Deferred honestly:
+      the CAPTURE side (Capture::at_next_frame — next_task item 1);
+      the carried 454 list.
+
 - [x] Space lets go: the strand release is real (2026-09-14, loop 454,
       POORCRAFT 3D): closed STATE's next_task item (1) — and the route
       found a real bug first: BOTH release paths silently re-gripped.

@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## 2026-09-14 — The verdicts read the latch: walk-off and playtest proofs made pace-proof (loop 455)
+
+- Landed the verdict-side half of 454's next_task item (1): the two
+  routes whose frame-CALIBRATED verdicts broke twice under the day's
+  foreign-load spike now prove the same claims from latched per-frame
+  polls. No lib code changed — app `main.rs` route scheduling only;
+  the p3d workspace count is unchanged (684).
+- THE WALK-OFF: one per-frame poll (92..=189) records the DEEPEST
+  AIRBORNE pose (grounded clamps never enter the min) and LATCHES the
+  landing on two consecutive on-ground polls against the LIVE ground
+  answer — pose + health + the FELL toast AT the latch. That kills
+  the regen race (the old frame-190 health read was 10.6 s past the
+  impact at 56 ms — the fed body had healed past its own band), and
+  the mid-air band becomes "meters of air, then the latch" (the
+  deepest-air record hugs the floor by construction; the old
+  ground-4.6 lower edge calibrated the fixed mid-fall frame and
+  wrongly failed a genuine airborne sample by 0.03 m). The pixel gate
+  is place-vs-place (rim vs pit bottom, every pace); air-vs-landed is
+  advisory like the climb sway bar.
+- THE PLAYTEST: the live fall's FELL toast latches in a poll window —
+  and the first run failed honestly on the script queue's own law:
+  polls pushed after the frame-900 entry sit blocked (the queue fires
+  strictly in push order) until the toast was long dead. The polls
+  now push before it; the law is written where it bites.
+- PROOF: p3d-walkoff PASS x2 + comparator at p50 73 ms (the 54-59 ms
+  paces broke the committed verdict earlier today) — "fell 56.19 ->
+  51.19 (deepest air 51.54/51.38), landed wounded 100% -> 65% (toast
+  true)"; p3d-playtest PASS x2 + comparator at p50 69 ms — "fell 8 m
+  over the open journal (health 33%)". Captures inspected (walk_landed
+  carries both toasts + the wounded bar; play_fall_landed the forge,
+  pack line, 33% bar). dig/recovery x2 + comparators, people, gates
+  ALL 10, smoke (digest unchanged), 684 tests, idle-upgrade-check —
+  all green. Deferred: the CAPTURE side (Capture::at_next_frame).
+
 ## 2026-09-14 — Space lets go: the strand release is real (loop 454)
 
 - Closed STATE's next_task item (1): the Space jump-off from a hang had

@@ -233,12 +233,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 09:40",
+        "modified": "2026-09-14 16:03",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 09:40",
+        "modified": "2026-09-14 16:03",
         "name": "beta-shot",
         "seed": 7
       }
@@ -246,7 +246,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.7997816801071167,
+        "age_s": 1.0077658891677856,
         "text": "THE GROUND GIVES WAY"
       }
     ],

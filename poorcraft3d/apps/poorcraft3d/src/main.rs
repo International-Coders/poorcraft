@@ -5231,10 +5231,12 @@ fn run_observe(route_id: &str, out_root: &str) {
         let steer_held_mid = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 4]));
         let steer_health = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
         // route_walk_off recordings: poses (x,y,z) before the dig /
-        // mid-fall / landed, health before/after, the LIVE pre-dig
-        // ground answer, and the dig spot XZ — the verdict reads them
+        // deepest-airborne / landed, health before + AT the landing
+        // latch, the LIVE pre-dig ground answer, the dig spot XZ, the
+        // poll's on-ground streak + the landing-latch flag, and the
+        // FELL toast latched at that latch — the verdict reads them
         // after the run.
-        let walkoff_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 12]));
+        let walkoff_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 20]));
         let walkoff_spot = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
         // route_pit_wall recordings: poses (approach / in-pit /
         // held-at-wall / on-the-step / final), health before/after,
@@ -5276,6 +5278,10 @@ fn run_observe(route_id: &str, out_root: &str) {
         // GROUNDED (the tip release now falls free of its own strand; a
         // body pinned at the tip is the pre-release-law bug).
         let climb_final = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 10]));
+        // route_semantic_playtest: the live fall's FELL toast latched in
+        // a windowed poll (812..=899) — at contended paces the fixed
+        // play_fall_landed capture can outlive the 3 s toast.
+        let playtest_fell_toast = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -5533,6 +5539,25 @@ fn run_observe(route_id: &str, out_root: &str) {
                         }
                     }),
                 ));
+                // THE FALL IS RECORDED, NOT FRAMED: the toast fires at
+                // the impact frame, which wanders with the host's pace
+                // (8 m spans ~13 rendered frames at 98 ms but ~64 at
+                // 20 ms) — a fixed capture can outlive the 3 s toast.
+                // The poll latches any FELL toast across the window.
+                // Pushed BEFORE the frame-900 entry: the script queue
+                // fires strictly in push order, so polls pushed after
+                // a later-frame entry would sit blocked behind it.
+                for f in 812..=899u64 {
+                    let latch = playtest_fell_toast.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, _r, _ctx| {
+                            if ui.toasts.iter().any(|t| t.text.starts_with("FELL")) {
+                                latch.set(1.0);
+                            }
+                        }),
+                    ));
+                }
                 ui_script.push((
                     900,
                     Box::new(|_ui, _r, ctx| {
@@ -5922,38 +5947,49 @@ fn run_observe(route_id: &str, out_root: &str) {
                         });
                     }),
                 ));
-                // Mid-fall record (contention-hardened window: the
-                // arc's rendered-frame span varies with the host's frame
-                // pace — frame 112 catches the body 1-3 m down at every
-                // pace observed on this host, well clear of both the
-                // edge and the floor; the pose band below stays the
-                // physical claim).
-                let mid = walkoff_cells.clone();
-                ui_script.push((
-                    112,
-                    Box::new(move |_ui, r, _ctx| {
-                        let pose = r.pose();
-                        let mut v = mid.get();
-                        v[3] = pose.position[0];
-                        v[4] = pose.position[1];
-                        v[5] = pose.position[2];
-                        mid.set(v);
-                    }),
-                ));
-                // Landed record + health after the wound.
-                let landed = walkoff_cells.clone();
-                ui_script.push((
-                    190,
-                    Box::new(move |ui, r, _ctx| {
-                        let pose = r.pose();
-                        let mut v = landed.get();
-                        v[6] = pose.position[0];
-                        v[7] = pose.position[1];
-                        v[8] = pose.position[2];
-                        v[10] = ui.hud.health;
-                        landed.set(v);
-                    }),
-                ));
+                // THE FALL IS RECORDED, NOT FRAMED (the climb/hang-off
+                // pattern): frames are wall-clock at the host's mercy —
+                // the 5 m fall spans ~60 frames at a 20 ms pace but ~8
+                // at 130 ms, so no fixed frame catches the air beat at
+                // every pace (at 56 ms frame 112 read the LANDED pose;
+                // at that pace frame 190 was also 10.6 s past the
+                // impact, where the fed body's regen had visibly
+                // outrun the wound). A per-frame poll from 92 records
+                // the DEEPEST AIRBORNE pose (streak == 0: the grounded
+                // clamp never enters the min) and LATCHES the landing
+                // on two consecutive on-ground polls against the LIVE
+                // ground answer — pose + health + the FELL toast at
+                // the latch, where no regen can outrun the wound.
+                for f in 92..=189u64 {
+                    let poll = walkoff_cells.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, r, _ctx| {
+                            let pose = r.pose();
+                            let feet = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                            let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                            let mut v = poll.get();
+                            v[12] = if (feet - g).abs() < 0.05 { v[12] + 1.0 } else { 0.0 };
+                            if v[12] >= 2.0 && v[13] == 0.0 {
+                                v[6] = pose.position[0];
+                                v[7] = pose.position[1];
+                                v[8] = pose.position[2];
+                                v[10] = ui.hud.health;
+                                v[13] = 1.0;
+                                v[14] = ui
+                                    .toasts
+                                    .iter()
+                                    .any(|t| t.text.starts_with("FELL"))
+                                    as i32 as f32;
+                            } else if v[12] == 0.0 && (v[4] == 0.0 || feet < v[4]) {
+                                v[3] = pose.position[0];
+                                v[4] = pose.position[1];
+                                v[5] = pose.position[2];
+                            }
+                            poll.set(v);
+                        }),
+                    ));
+                }
                 shots.push(Shot::new(70, format!("{dir}/walk_edge.png"))
                     .ui_dump(format!("{dir}/walk_edge.layout.json")));
                 shots.push(Shot::new(112, format!("{dir}/walk_air.png"))
@@ -7189,19 +7225,20 @@ fn run_observe(route_id: &str, out_root: &str) {
                 }
                 _ => false,
             };
-            let fall_toast = capture_by("play_fall_landed")
-                .and_then(|c| c.ui_layout.as_ref())
-                .and_then(|l| l["elements"].as_array())
-                .map(|els| {
-                    els.iter()
-                        .any(|e| {
-                            e["id"]
-                                .as_str()
-                                .map(|i| i.starts_with("toast_FELL"))
-                                .unwrap_or(false)
-                        })
-                })
-                .unwrap_or(false);
+            let fall_toast = playtest_fell_toast.get() > 0.0
+                || capture_by("play_fall_landed")
+                    .and_then(|c| c.ui_layout.as_ref())
+                    .and_then(|l| l["elements"].as_array())
+                    .map(|els| {
+                        els.iter()
+                            .any(|e| {
+                                e["id"]
+                                    .as_str()
+                                    .map(|i| i.starts_with("toast_FELL"))
+                                    .unwrap_or(false)
+                            })
+                    })
+                    .unwrap_or(false);
             let health = report
                 .final_ui_state
                 .as_ref()
@@ -7426,42 +7463,47 @@ fn run_observe(route_id: &str, out_root: &str) {
                     _ => false,
                 }
             };
-            let element_in = |name: &str, prefix: &str| {
-                capture_by(name)
-                    .and_then(|c| c.ui_layout.as_ref())
-                    .and_then(|l| l["elements"].as_array())
-                    .map(|els| {
-                        els.iter().any(|e| {
-                            e["id"]
-                                .as_str()
-                                .map(|i| i.starts_with(prefix))
-                                .unwrap_or(false)
-                        })
-                    })
-                    .unwrap_or(false)
-            };
             let v = walkoff_cells.get();
             let spot = walkoff_spot.get();
             let (sx, sz) = (spot[0], spot[1]);
             let ground = v[11]; // the LIVE pre-dig answer at the body
             // The route camera rides the body's pose — its position is
             // the EYE (feet + EYE_ABOVE_FEET); every band below is on
-            // the FEET.
+            // the FEET. The mid record is the DEEPEST AIRBORNE poll
+            // and the landed record latches AT the impact (the
+            // climb/hang-off pattern) — no fixed frame, no regen race.
             let eye = pc3d_render::player::EYE_ABOVE_FEET;
             let approach_ok = (v[1] - eye - ground).abs() <= 0.05
                 && (v[0] - sx).abs() <= 0.2
                 && (v[2] - sz).abs() <= 0.2;
-            let mid_air = v[4] - eye < ground - 0.6
-                && v[4] - eye > ground - 4.6
+            // Meters of AIR, then the latch: the deepest AIRBORNE poll
+            // (grounded clamps never enter the min) must sit below the
+            // rim's 0.6 m snap band, on the spot, with the landing
+            // latched after it — a floor-teleport without an arc would
+            // leave the min at the rim and fail. The old lower edge
+            // (ground - 4.6) calibrated the FIXED mid-fall frame; a
+            // deepest-airborne min legitimately hugs the floor.
+            let mid_air = v[13] >= 1.0
+                && v[4] - eye < ground - 0.6
                 && (v[3] - sx).abs() < 0.3
                 && (v[5] - sz).abs() < 0.3;
-            let landed_ok = (v[7] - eye - (ground - 5.0)).abs() <= 0.25
+            let landed_ok = v[13] >= 1.0
+                && (v[7] - eye - (ground - 5.0)).abs() <= 0.25
                 && (v[6] - sx).abs() <= 0.3
                 && (v[8] - sz).abs() <= 0.3;
             let wounded = v[10] > 0.5 && v[10] < 0.8 && (v[9] - v[10]) > 0.25;
-            let fell_toast = element_in("walk_landed", "toast_FELL");
+            // The FELL toast is proven AT THE LATCH (the frame it
+            // fired) — pace-proof; a fixed-frame capture can outlive
+            // the 3 s toast at contended paces.
+            let fell_toast = v[13] >= 1.0 && v[14] > 0.0;
             let air_differs = differ("walk_edge", "walk_air", 0.005);
-            let landed_differs = differ("walk_air", "walk_landed", 0.02);
+            // The captures prove PLACES (rim vs pit bottom), which
+            // every pace separates — the AIR BEAT is proven by the
+            // latched poll, not by a fixed-frame capture (at contended
+            // paces walk_air lands on the landed beat; its difference
+            // from walk_landed is advisory, like the climb sway bar).
+            let landed_differs = differ("walk_edge", "walk_landed", 0.02);
+            let air_vs_landed = differ("walk_air", "walk_landed", 0.02);
             let ok = has("walk_edge")
                 && has("walk_air")
                 && has("walk_landed")
@@ -7474,17 +7516,18 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && landed_differs;
             if ok {
                 println!(
-                    "WALK OFF: the floor gave way, the body fell {:.2} -> {:.2} (mid {:.2}) and landed wounded {:.0}% -> {:.0}%",
+                    "WALK OFF: the floor gave way, the body fell {:.2} -> {:.2} (deepest air {:.2}) and landed wounded {:.0}% -> {:.0}% (toast {})",
                     v[1], v[7], v[4],
                     v[9] * 100.0,
-                    v[10] * 100.0
+                    v[10] * 100.0,
+                    v[14] > 0.0,
                 );
             } else {
                 eprintln!(
-                    "[FAIL] observe {}: captures {} / approach {approach_ok} / mid_air {mid_air} / landed {landed_ok} / wounded {wounded} / toast {fell_toast} / air_differ {air_differs} / landed_differ {landed_differs} (ground {ground} poses {:.2}->{:.2}->{:.2})",
+                    "[FAIL] observe {}: captures {} / approach {approach_ok} / mid_air {mid_air} / landed {landed_ok} / wounded {wounded} / toast {fell_toast} / air_differ {air_differs} / landed_differ {landed_differs} (air-vs-landed advisory {air_vs_landed}) (ground {ground} poses {:.2}->{:.2}->{:.2} latch {})",
                     spec.id,
                     report.captures.len(),
-                    v[1], v[4], v[7],
+                    v[1], v[4], v[7], v[13],
                 );
                 any_fail = true;
             }

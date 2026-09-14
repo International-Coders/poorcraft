@@ -8734,3 +8734,89 @@ any pace (next_task item 1). Carried: the quiet-host deck-bench re-read
 chronicle re-fire; multiplayer routing of terrain edits; geode pairing;
 the walk-snap query-bound observation (surface.rs ground_at discards
 _from_y on the streamed path).
+
+## 2026-09-14 — The verdicts read the latch: walk-off and playtest proofs made pace-proof (loop 455)
+
+WHAT: landed the verdict-side half of loop 454's next_task item (1).
+The walk-off and semantic-playtest routes — whose frame-CALIBRATED
+verdicts broke twice on 2026-09-14 under the foreign-load spike (p50
+54-115 ms; walkoff's frame-112 mid-air window read the landed pose,
+the frame-190 health read was 10.6 s past the impact where the fed
+body's regen had healed past its own band, the 3 s FELL toast expired
+before the fixed landed captures) — now prove the same claims from
+latched per-frame polls. Loop 454 landed from a concurrent session
+mid-flight (8efd09c + runtime 9d0a2e7; its runtime commit honestly
+notes this session's in-flight main.rs edits were deliberately not
+staged); this loop's diff is exactly the seven run_observe hunks of
+this rework on top of it — no pc3d_render/lib code changed, so the
+p3d workspace count is unchanged (684 / 0 failed, recounted across 14
+suites).
+
+HOW:
+- poorcraft3d/apps/poorcraft3d/src/main.rs — route scheduling only.
+  WALK-OFF: the recordings cell widened to 20; the fixed frame-112
+  mid record + frame-190 landed record replaced by ONE per-frame poll
+  (92..=189) recording the DEEPEST AIRBORNE pose (on-ground streak
+  == 0: the grounded clamp never enters the min) and LATCHING the
+  landing on two consecutive on-ground polls against the LIVE ground
+  answer — pose + health + the FELL toast AT the latch. The mid-air
+  band became "meters of air, then the latch" (deepest air below the
+  0.6 m snap band, on the spot, landing latched) — the record hugs
+  the floor by construction, so the old ground-4.6 lower edge
+  wrongly failed a genuine airborne sample by 0.03 m. The pixel gate
+  became place-vs-place (walk_edge vs walk_landed 0.02); air-vs-landed
+  is advisory, like the climb sway bar. PLAYTEST: the live fall's FELL
+  toast latches in a poll window (812..=899). The first run FAILED
+  honestly on the script queue's own law — the polls were pushed
+  AFTER the frame-900 journal-close entry and the queue fires
+  STRICTLY IN PUSH ORDER, so they sat blocked until 900 while the
+  toast died; the polls now push before it and the law is written
+  where it bites. The verdict reads the latch OR the capture element.
+- Docs: STATE.md (loop 455), CHANGELOG.md, this entry. BACKLOG needs
+  no change (the deferral lives in STATE's next_task). Makefile
+  unchanged (no new targets).
+
+VERIFICATION:
+- make p3d-walkoff PASS x2 + comparator at p50 73 ms — the pace class
+  that broke the committed verdict twice today (54/56/59 ms): "the
+  body fell 56.19 -> 51.19 (deepest air 51.54 / 51.38), landed
+  wounded 100% -> 65% (toast true)".
+- make p3d-playtest PASS x2 + comparator at p50 69 ms: "fell 8 m over
+  the open journal (health 33%)".
+- Captures INSPECTED: walk_landed (THE GROUND GIVES WAY + FELL —
+  HEALTH 64% over the wounded bar and the pit wall), walk_edge (the
+  pre-dig rim), walk_air (the landed beat — advisory, as labeled),
+  play_fall_landed (forge panel + pack line + 33% bar + the toast
+  behind the panel), hangoff-a/b grip/landed beats and climb-a's grip
+  (canopy-interior grip view — the class the climb route shipped;
+  GRIPPED toast present in the layouts, low-contrast over foliage in
+  pixels, recorded here).
+- Regression on this loop's builds: p3d-dig PASS x2 + comparator (on
+  the walkoff-rework build; dig route code identical in the final
+  build), p3d-recovery PASS x2 + comparator, p3d-people PASS,
+  p3d-visual-gates ALL 10 PASS, p3d-smoke OK (digest dd019eca900f5a61
+  UNCHANGED), p3d workspace 684 green / 0 failed, idle-upgrade-check
+  PASS. Root LOREFORGE workspace untouched by this loop (454 verified
+  480 green at this tree's crates).
+- The six windowed_wild_*.png dirties remain deliberately NOT staged
+  (an earlier session's p3d-wilderness run).
+
+PERF: no claim, honestly — the polls are per-frame cell writes while
+their routes run; the live walk/stream/crowd paths are untouched; the
+host was contended all session (no bench per the 445-454 precedent);
+the quiet-host re-read stays queued (ten loops).
+
+LORE IMPACT: canon touched: none — proof-harness verdict scheduling
+over existing routes; no faction, place, event, term, NPC, item, or
+spell data; no identity assigned. Locked facts preserved: all. World
+expression: unchanged — the same fall economy, now judged at every
+host pace. Migration: none (route recordings + verdict bands only; no
+persisted field, save format, or proof schema change).
+
+HONESTLY DEFERRED: the CAPTURE side of the latch cure —
+Capture::at_next_frame so beat captures (walk_air's mid-fall view)
+and toast-at-capture reads schedule themselves from the latched
+records (STATE next_task item 1); the quiet-host deck-bench re-read +
+the bench contention guard; is_water_layer/CTM-strip audit; guardian
+chronicle re-fire; multiplayer routing of terrain edits; geode
+pairing; the walk-snap query-bound observation.

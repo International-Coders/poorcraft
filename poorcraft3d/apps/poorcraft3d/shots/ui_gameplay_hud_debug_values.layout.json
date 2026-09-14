@@ -209,10 +209,10 @@
     "hover": null,
     "hud": {
       "food": 0.699999988079071,
-      "health": 0.47761571407318115,
+      "health": 0.4607124924659729,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.4933103322982788,
+      "stamina": 0.3749878704547882,
       "stock": "PACK EMPTY",
       "xp": 0.5
     },
@@ -233,12 +233,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 15:20",
+        "modified": "2026-09-14 16:04",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 15:20",
+        "modified": "2026-09-14 16:04",
         "name": "beta-shot",
         "seed": 7
       }
@@ -246,7 +246,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.3807876110076904,
+        "age_s": 0.5356279015541077,
         "text": "SAVED 'REBUILD'"
       }
     ],
