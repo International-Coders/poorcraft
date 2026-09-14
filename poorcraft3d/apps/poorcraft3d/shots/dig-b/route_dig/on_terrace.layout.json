@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        238,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -202,6 +213,7 @@
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK WOOD 1 · SOIL 1",
       "xp": 0.0
     },
     "interact": null,
@@ -221,12 +233,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 21:53",
+        "modified": "2026-09-14 06:37",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 21:53",
+        "modified": "2026-09-14 06:37",
         "name": "beta-shot",
         "seed": 7
       }
@@ -234,7 +246,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.9838727116584778,
+        "age_s": 0.8735044002532959,
         "text": "DUG SOIL+WOOD"
       }
     ],

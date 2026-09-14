@@ -224,6 +224,9 @@ const GLYPHS: &[(char, [u8; 7])] = &[
     ),
     (' ', [0; 7]),
     ('.', [0, 0, 0, 0, 0, 0b01100, 0b01100]),
+    // The middle dot: the pack line's separator ("WOOD 1 · SOIL 1"),
+    // vertically centered — a 2x2 dot.
+    ('·', [0, 0, 0, 0b01100, 0b01100, 0, 0]),
     (',', [0, 0, 0, 0, 0b01100, 0b00100, 0b01000]),
     ('-', [0, 0, 0, 0b01110, 0, 0, 0]),
     ('+', [0, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0]),
@@ -369,6 +372,18 @@ mod tests {
         let (_, w1, h1) = rasterize_line("FPS", 1);
         let (_, w2, h2) = rasterize_line("FPS", 2);
         assert_eq!((w2, h2), (w1 * 2, h1 * 2));
+    }
+
+    /// THE PACK SEPARATOR: the middle dot the pack line and the prompt
+    /// carry must rasterize with INK — it used to fall through to the
+    /// blank fallback and silently render as a gap.
+    #[test]
+    fn the_middle_dot_rasterizes_with_ink() {
+        let (buf, _, _) = rasterize_line("WOOD 1 · SOIL 1", 2);
+        assert!(
+            buf.chunks_exact(4).any(|p| p[0] == 255),
+            "the middle dot must carry ink, not the blank fallback"
+        );
     }
 
     #[test]

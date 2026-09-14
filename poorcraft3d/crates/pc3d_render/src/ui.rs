@@ -186,6 +186,11 @@ pub struct HudValues {
     pub selected: usize,
     /// The contextual action prompt near the crosshair/hotbar.
     pub prompt: String,
+    /// THE PACK ECHO: the carried-stock line the item authority renders
+    /// verbatim ("PACK WOOD 3 · SOIL 1" / "PACK EMPTY"), synced by the
+    /// app from the real inventory. Empty means not synced yet — the
+    /// painter draws nothing.
+    pub stock: String,
     /// Sprint-exhaustion lockout: true once stamina hits 0; sprinting
     /// returns only after stamina recovers to 25% (no empty-flicker).
     pub exhausted: bool,
@@ -235,6 +240,7 @@ impl Default for HudValues {
             ],
             selected: 0,
             prompt: String::new(),
+            stock: String::new(),
         }
     }
 }
@@ -480,6 +486,7 @@ impl UiState {
                 "xp": self.hud.xp,
                 "selected_slot": self.hud.selected,
                 "prompt": self.hud.prompt,
+                "stock": self.hud.stock,
             },
             "toasts": self.toasts.iter().map(|t| serde_json::json!({
                 "text": t.text, "age_s": t.age_s })).collect::<Vec<_>>(),
@@ -1140,6 +1147,12 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 let r = Rect::new(bx, y, ctx.px(BAR_W) as u32, ctx.px(BAR_H) as u32);
                 ctx.push(id, ElementKind::Bar { frac, color, label: label.into() }, r);
                 y += ctx.px(BAR_H) + ctx.px(BAR_GAP);
+            }
+            // THE PACK ECHO under the status bars: what you carry, as a
+            // number — the dig's take, the forge's spend, the eaten
+            // bread. The item authority's own line, verbatim.
+            if !state.hud.stock.is_empty() {
+                ctx.text("hud_stock", &state.hud.stock, bx, y + ctx.px(6), 2);
             }
             // Crosshair at true center.
             let ch = ctx.px(16);
@@ -2791,6 +2804,32 @@ mod tests {
         assert!(toast.bottom() < hotbar0.y, "toasts must never cover the hotbar");
         // And the debug strip must be absent by default.
         assert!(list.by_id("debug_strip").is_none(), "debug text hidden by default");
+    }
+
+    /// THE PACK ECHO's layout law: the carried-stock line rides the
+    /// gameplay HUD under the status bars, inside the safe margins, and
+    /// is absent until the app syncs it (never a stale or fake line).
+    #[test]
+    fn gameplay_hud_carries_the_pack_line_under_the_bars() {
+        let mut s = state(Screen::Gameplay);
+        assert!(
+            build(&s, 1280, 720).by_id("hud_stock").is_none(),
+            "no pack line before the app syncs one"
+        );
+        s.hud.stock = "PACK WOOD 1 · SOIL 1".into();
+        let list = build(&s, 1280, 720);
+        let el = list
+            .by_id("hud_stock")
+            .expect("the synced pack line rides the HUD");
+        let bars_bottom = list.by_id("bar_food").unwrap().rect.bottom();
+        assert!(
+            el.rect.y >= bars_bottom,
+            "the pack line hangs under the status bars, never over them"
+        );
+        assert!(el.rect.x >= SAFE_MARGIN_PX, "inside the left safe margin");
+        // And it never collides with the hotbar band.
+        let hotbar0 = list.by_id("hotbar_0").unwrap().rect;
+        assert!(el.rect.bottom() < hotbar0.y, "the pack line stays clear of the hotbar");
     }
 
     #[test]

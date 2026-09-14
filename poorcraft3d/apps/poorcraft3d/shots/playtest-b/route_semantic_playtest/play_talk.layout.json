@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -251,6 +262,7 @@
       "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK EMPTY",
       "xp": 0.0
     },
     "interact": null,
@@ -270,12 +282,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 01:12",
+        "modified": "2026-09-14 06:38",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 01:12",
+        "modified": "2026-09-14 06:38",
         "name": "beta-shot",
         "seed": 7
       }

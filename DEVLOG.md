@@ -8376,3 +8376,108 @@ Space jump-off from a hang; the quiet-host deck-bench re-read + the
 bench contention guard; is_water_layer/CTM-strip audit; guardian
 chronicle re-fire; multiplayer routing of terrain edits; geode
 pairing (447's keepers are root-workspace lore).
+
+## 2026-09-14 — The pack is legible: the inventory's echo on the HUD (loop 452)
+
+WHAT: Closed STATE's next_task item (1) — the INVENTORY ECHO of the
+dig verb. After one real G press the HUD's carried-stock line under
+the status bars reads "PACK WOOD 1 · SOIL 1"; the number follows the
+whole economy (dig take, forge spend, eaten bread, deliveries) and
+the route law pins the exact before/after strings. The job finished
+an INTERRUPTED session's in-scope start: the worktree held an
+unwired, untested `stock_line` in items.rs (orphaned — no caller, no
+test); it was reconciled, kept as designed, wired, and proven.
+
+HOW:
+- pc3d_world/src/items.rs — kept the interrupted `stock_line`
+  (nonzero kinds in CATALOG order, counts summed across stacks,
+  "PACK EMPTY" fallback); added two unit laws. The catalog-order law
+  caught MY OWN first test assuming insertion order ("PACK SOIL 1 ·
+  WOOD 1" vs the correct "PACK WOOD 1 · SOIL 1") — the function was
+  right, the expectation was fixed.
+- pc3d_render/src/ui.rs — `HudValues.stock: String` (empty = not
+  synced; the painter draws nothing), serialized as
+  ui_state.hud.stock; the Gameplay painter draws the line verbatim
+  as `hud_stock` under the status bars; layout law
+  (gameplay_hud_carries_the_pack_line_under_the_bars) pins under-
+  the-bars, safe margins, clear of the hotbar, absent until synced.
+- pc3d_render/src/app.rs — the sync: on every UI-DIRTY frame the app
+  recomputes stock_line from the REAL slice inventory and updates
+  the HUD when it changed (every mutator marks dirty anyway; an
+  idle HUD pays nothing — no per-idle-frame string). Also fixed the
+  EVIDENCE PATH: captures merge the LIVE ui_state into the in-memory
+  ui_layout (it existed only in the on-disk dump), so verdicts and
+  dump files read ONE structure.
+- pc3d_render/src/font.rs — PROOF-FOUND FIX: the capture inspection
+  showed " · " rendering as a BLANK GAP — "·" was not in the pixel
+  font and unknown chars silently fall back to space (the
+  pre-existing prompt "F BUILD SAND · R REMOVE" had the same hole).
+  Added the middle-dot glyph (a 2x2 dot, original work) + ink law
+  the_middle_dot_rasterizes_with_ink; the pack line AND the prompt
+  row now render their separators.
+- apps/poorcraft3d/src/main.rs — route_dig extended: the arm
+  computes the EXPECTED post-dig pack line from the SAME
+  determinants the verb uses (the spot cell's material through
+  harvest_yields over an empty inventory — the steep aim takes the
+  body's own column, asserted bare-hand-diggable); the verdict reads
+  hud stock from the captures' layouts and asserts
+  "PACK EMPTY" -> the yield's own line, printed in the pass line.
+- Makefile — p3d-dig description carries the pack echo.
+
+VERIFICATION:
+- p3d workspace 680 green / 0 failed (pc3d_render 223 = 221 +
+  pack-line layout law + middle-dot ink law; pc3d_world 267 = 265 +
+  2 stock_line laws).
+- make p3d-dig PASS x2 identical + comparator PASS; verdict line:
+  'pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"'; the four captures
+  INSPECTED (PACK EMPTY; the take + DUG SOIL+WOOD toast over the dug
+  seam; on the terrace; back on the rim, pack persisting; the dot
+  legible at scale 2).
+- make p3d-playtest PASS x2 + comparator PASS; the journey's pack
+  line verified in the layouts (IRON_ORE 4 + WOOD_PICK + BREAD 2 ->
+  IRON_ORE 2 + IRON_BAR 1 after the forge take -> IRON_ORE 4 +
+  IRON_BAR 1 after the re-harvest) and play_taken.png INSPECTED
+  (legible over the open forge/journal panels); bundle digest
+  RE-BASELINED 05c46411869a857c -> 1d37f62c3801ae20 — an HONEST
+  change: the pack line rides every gameplay capture.
+- make p3d-people PASS (12 NPCs, 7 draws, 92 instances, frozen-
+  stride motion 0.64%); p3d-visual-gates ALL 10 PASS (the ui-states
+  gate carries the new hud_stock element inside its safe-margin
+  law); p3d-smoke OK (digest dd019eca900f5a61 UNCHANGED — headless,
+  no HUD); idle-upgrade-check PASS.
+- Runtime: make p3d-dmg -> poorcraft3d/dist3d/poorcraft3d-macos.dmg
+  (stamped BUILD <job commit>).
+
+PERF: no claim, honestly — one small string on UI-dirty frames only,
+one text row, a 12-pixel dot; the per-frame walk/stream/crowd paths
+are untouched; host shared (windowed p50 19.5-23.0 ms across this
+loop's routes), no bench per the 445-451 precedent; the quiet-host
+re-read stays queued (seven loops).
+
+### Files
+- poorcraft3d/crates/pc3d_world/src/items.rs (stock_line + 2 laws),
+  poorcraft3d/crates/pc3d_render/src/ui.rs (HudValues.stock +
+  painter + law + to_json), poorcraft3d/crates/pc3d_render/src/
+  app.rs (dirty-frame sync + capture ui_state merge),
+  poorcraft3d/crates/pc3d_render/src/font.rs (middle-dot glyph +
+  ink law), poorcraft3d/apps/poorcraft3d/src/main.rs (route_dig
+  expected line + verdict), Makefile (p3d-dig), the dig-a/b +
+  playtest-a/b bundles + people/gates evidence, STATE/BACKLOG/
+  CHANGELOG/DEVLOG.
+
+LORE IMPACT: canon touched: none — a read-only echo over the
+existing generic material catalog; no faction, place, event, term,
+NPC, item, or spell data; no identity assigned. Locked facts
+preserved: all — the line names only what the yield/forge economy
+already grants. World expression: labor in Valdenmoor leaves a
+legible trace — what you dig is what you carry, as a number the
+item authority owns; the dig verb's loop is closed with the
+forge/deliver economy the same line serves. Migration: none
+(read-only echo; no persisted field, save format, or proof schema
+change; captured layouts carry one more hud key).
+
+HONESTLY DEFERRED: the lethal plaza-recovery branch route (next_task
+item 1); Space jump-off from a hang; the quiet-host deck-bench
+re-read + the bench contention guard; is_water_layer/CTM-strip
+audit; guardian chronicle re-fire; multiplayer routing of terrain
+edits; geode pairing (447's keepers are root-workspace lore).

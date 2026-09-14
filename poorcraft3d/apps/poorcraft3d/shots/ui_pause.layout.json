@@ -99,13 +99,18 @@
     "hover": null,
     "hud": {
       "food": 0.699999988079071,
-      "health": 0.44999998807907104,
-      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "health": 0.4666445255279541,
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 3,
-      "stamina": 0.4170894920825958,
+      "stamina": 0.41651228070259094,
+      "stock": "PACK EMPTY",
       "xp": 0.5
     },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
     "modal": null,
+    "ore_harvested": 0,
     "pointer_grabbed": true,
     "screen": "pause",
     "session_live": true,
@@ -118,21 +123,23 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-14 06:41",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-14 06:41",
         "name": "beta-shot",
         "seed": 7
       }
     ],
+    "stock": [],
     "toasts": [
       {
-        "age_s": 1.2544430494308472,
+        "age_s": 1.2613681554794312,
         "text": "SAVED 'REBUILD'"
       }
-    ]
+    ],
+    "wallet": 0
   }
 }

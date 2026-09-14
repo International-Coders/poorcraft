@@ -179,6 +179,26 @@ impl ToolState {
     }
 }
 
+/// The carried-stock line: the inventory's echo as ONE stable string —
+/// nonzero kinds in catalog order, "NAME COUNT", prefixed "PACK"; an
+/// empty pack reads "PACK EMPTY". The HUD renders it verbatim, so the
+/// dig's take (and the forge's spend, the eaten bread) is visible as a
+/// number — the same answer routes and the inspector read.
+pub fn stock_line(inv: &Inventory) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for (code, name, _) in ITEMS {
+        let n = inv.count(ItemId(*code));
+        if n > 0 {
+            parts.push(format!("{} {}", name.to_uppercase(), n));
+        }
+    }
+    if parts.is_empty() {
+        "PACK EMPTY".to_string()
+    } else {
+        format!("PACK {}", parts.join(" · "))
+    }
+}
+
 /// Harvest yields for digging a terrain material with a tool tier.
 /// Bare hands (None) gather Soil/Sand/Snow but not Stone; any pick takes
 /// Stone. Wood yields from Soil/Grass surfaces (trees).
@@ -275,6 +295,47 @@ mod tests {
         }
         assert!(inv.count(ItemId(5)) > 0);
         assert!(inv.count(WOOD) > 0);
+    }
+
+    /// THE PACK LINE (the inventory's echo): nonzero kinds in catalog
+    /// order as "NAME COUNT" under the "PACK" prefix, counts summed
+    /// across stacks, an empty pack reading "PACK EMPTY". The HUD
+    /// renders this verbatim — the dig's take visible as a number.
+    #[test]
+    fn p3d501_stock_line_names_nonzero_kinds_in_catalog_order() {
+        const SOIL: ItemId = ItemId(5);
+        let mut inv = Inventory::new(8);
+        assert_eq!(stock_line(&inv), "PACK EMPTY");
+        // Catalog order, not insertion order: wood (code 1) precedes
+        // soil (code 5) even though soil was added first.
+        inv.add(SOIL, 1);
+        assert_eq!(stock_line(&inv), "PACK SOIL 1");
+        inv.add(WOOD, 3);
+        assert_eq!(stock_line(&inv), "PACK WOOD 3 · SOIL 1");
+        inv.add(STONE, 12);
+        assert_eq!(stock_line(&inv), "PACK WOOD 3 · STONE 12 · SOIL 1");
+        // Counts sum ACROSS stacks: two wood slots read as one number.
+        inv.add(WOOD, 2);
+        assert_eq!(stock_line(&inv), "PACK WOOD 5 · STONE 12 · SOIL 1");
+        // Draining a kind to zero removes its words entirely.
+        inv.remove(SOIL, 1);
+        assert_eq!(stock_line(&inv), "PACK WOOD 5 · STONE 12");
+        inv.remove(WOOD, 5);
+        inv.remove(STONE, 12);
+        assert_eq!(stock_line(&inv), "PACK EMPTY");
+    }
+
+    /// The dig's take lands in the pack line: the grass yield (soil +
+    /// wood) through add + stock_line is exactly what the route's HUD
+    /// must show after one G press on a grass cell.
+    #[test]
+    fn p3d501_stock_line_carries_the_dig_take() {
+        use crate::gen::CellMaterial;
+        let mut inv = Inventory::new(12);
+        for (item, count) in harvest_yields(CellMaterial::Grass, None) {
+            assert_eq!(inv.add(item, count), 0);
+        }
+        assert_eq!(stock_line(&inv), "PACK WOOD 1 · SOIL 1");
     }
 
     /// THE DIG VERB's gate: can_fit answers BEFORE the world is edited —

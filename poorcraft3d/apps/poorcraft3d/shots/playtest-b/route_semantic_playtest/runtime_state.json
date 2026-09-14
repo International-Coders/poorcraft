@@ -7,9 +7,9 @@
     "value": null
   },
   "interactions": {
-    "gameplay_input_blocked": false,
-    "pointer_grabbed": false,
-    "tracked_ui_state_events": 0
+    "gameplay_input_blocked": true,
+    "pointer_grabbed": true,
+    "tracked_ui_state_events": 2
   },
   "machines": {
     "reason": "sim machines not mounted in UI routes (see --journey)",
@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 38.400001525878906,
+    "avg_fps": 45.5,
     "frames": 973,
-    "p50_ms": 26.479999542236328,
-    "p95_ms": 32.13999938964844
+    "p50_ms": 22.979999542236328,
+    "p95_ms": 24.729999542236328
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,8 +32,110 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1789348382",
-  "ui": {},
+  "timestamp_utc": "1789367964",
+  "ui": {
+    "debug_overlay": false,
+    "dialog": {
+      "activity": "BUILDING",
+      "role": "BUILDER",
+      "speaker": "Maren Oldford",
+      "text": "We build it once, we build it right."
+    },
+    "focus": 0,
+    "forge": {
+      "bars": 1,
+      "blocked": true,
+      "fuel": 0.0,
+      "heat": 0.3333333432674408,
+      "ore": 0,
+      "state": "BLOCKED: no ore"
+    },
+    "forge_bars_taken": 1,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 0.33080101013183594,
+      "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "stock": "PACK IRON_ORE 4 · IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
+      "xp": 0.0
+    },
+    "interact": "MAP MARKER",
+    "journal": [
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "greet",
+        "progress": "0/4",
+        "reward": 31,
+        "state": "OFFERED",
+        "title": "THE FARMER'S greet"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
+        "kind": "build",
+        "progress": "0/11",
+        "reward": 27,
+        "state": "OFFERED",
+        "title": "THE BUILDER'S build"
+      },
+      {
+        "giver": "Dunstan Fernbrook (the guard)",
+        "kind": "excavate",
+        "progress": "2/8",
+        "reward": 39,
+        "state": "ACTIVE",
+        "title": "THE GUARD'S excavate"
+      },
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "excavate",
+        "progress": "0/8",
+        "reward": 35,
+        "state": "OFFERED",
+        "title": "THE FARMER'S excavate"
+      }
+    ],
+    "journal_open": true,
+    "modal": null,
+    "ore_harvested": 6,
+    "pointer_grabbed": true,
+    "screen": "gameplay",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-09-14 06:38",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-09-14 06:38",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "stock": [
+      "IRON_ORE x4",
+      "IRON_BAR x1",
+      "WOOD_PICK x1",
+      "BREAD x2"
+    ],
+    "toasts": [],
+    "wallet": 0
+  },
   "verdict": "exported",
   "version": 1,
   "viewport": [

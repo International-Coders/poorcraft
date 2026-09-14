@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        622,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -379,6 +390,7 @@
       "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK IRON_ORE 4 · IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
       "xp": 0.0
     },
     "interact": "MAP MARKER",
@@ -398,12 +410,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 01:12",
+        "modified": "2026-09-14 06:38",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 01:12",
+        "modified": "2026-09-14 06:38",
         "name": "beta-shot",
         "seed": 7
       }
@@ -416,7 +428,7 @@
     ],
     "toasts": [
       {
-        "age_s": 2.1802029609680176,
+        "age_s": 1.6143406629562378,
         "text": "FELL — HEALTH 33%"
       }
     ],

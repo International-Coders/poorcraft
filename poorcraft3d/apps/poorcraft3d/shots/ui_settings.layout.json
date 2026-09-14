@@ -5,10 +5,10 @@
       "id": "settings_panel",
       "kind": "panel",
       "rect": [
-        322,
-        72,
-        637,
-        576
+        328,
+        71,
+        624,
+        578
       ]
     },
     {
@@ -16,8 +16,8 @@
       "id": "set_row_0_label",
       "kind": "text",
       "rect": [
-        341,
-        120,
+        346,
+        118,
         202,
         14
       ]
@@ -27,8 +27,8 @@
       "id": "set_row_0_value",
       "kind": "text",
       "rect": [
-        800,
-        120,
+        796,
+        118,
         34,
         14
       ]
@@ -38,9 +38,9 @@
       "id": "set_row_0_dec",
       "kind": "button",
       "rect": [
-        735,
-        113,
-        32,
+        733,
+        111,
+        31,
         28
       ]
     },
@@ -49,9 +49,9 @@
       "id": "set_row_0_inc",
       "kind": "button",
       "rect": [
-        892,
-        113,
-        32,
+        888,
+        111,
+        31,
         28
       ]
     },
@@ -60,8 +60,8 @@
       "id": "set_row_1_label",
       "kind": "text",
       "rect": [
-        341,
-        158,
+        346,
+        155,
         94,
         14
       ]
@@ -71,8 +71,8 @@
       "id": "set_row_1_value",
       "kind": "text",
       "rect": [
-        800,
-        158,
+        796,
+        155,
         34,
         14
       ]
@@ -82,9 +82,9 @@
       "id": "set_row_1_dec",
       "kind": "button",
       "rect": [
-        735,
-        151,
-        32,
+        733,
+        148,
+        31,
         28
       ]
     },
@@ -93,9 +93,9 @@
       "id": "set_row_1_inc",
       "kind": "button",
       "rect": [
-        892,
-        151,
-        32,
+        888,
+        148,
+        31,
         28
       ]
     },
@@ -104,8 +104,8 @@
       "id": "set_row_2_label",
       "kind": "text",
       "rect": [
-        341,
-        196,
+        346,
+        192,
         154,
         14
       ]
@@ -115,8 +115,8 @@
       "id": "set_row_2_value",
       "kind": "text",
       "rect": [
-        800,
-        196,
+        796,
+        192,
         70,
         14
       ]
@@ -126,9 +126,9 @@
       "id": "set_row_2_dec",
       "kind": "button",
       "rect": [
-        735,
-        189,
-        32,
+        733,
+        185,
+        31,
         28
       ]
     },
@@ -137,9 +137,9 @@
       "id": "set_row_2_inc",
       "kind": "button",
       "rect": [
-        892,
-        189,
-        32,
+        888,
+        185,
+        31,
         28
       ]
     },
@@ -148,8 +148,8 @@
       "id": "set_row_3_label",
       "kind": "text",
       "rect": [
-        341,
-        234,
+        346,
+        229,
         94,
         14
       ]
@@ -159,8 +159,8 @@
       "id": "set_row_3_value",
       "kind": "text",
       "rect": [
-        800,
-        234,
+        796,
+        229,
         46,
         14
       ]
@@ -170,9 +170,9 @@
       "id": "set_row_3_dec",
       "kind": "button",
       "rect": [
-        735,
-        227,
-        32,
+        733,
+        222,
+        31,
         28
       ]
     },
@@ -181,9 +181,9 @@
       "id": "set_row_3_inc",
       "kind": "button",
       "rect": [
-        892,
-        227,
-        32,
+        888,
+        222,
+        31,
         28
       ]
     },
@@ -192,8 +192,8 @@
       "id": "set_row_4_label",
       "kind": "text",
       "rect": [
-        341,
-        272,
+        346,
+        266,
         166,
         14
       ]
@@ -203,8 +203,8 @@
       "id": "set_row_4_value",
       "kind": "text",
       "rect": [
-        800,
-        272,
+        796,
+        266,
         34,
         14
       ]
@@ -214,9 +214,9 @@
       "id": "set_row_4_dec",
       "kind": "button",
       "rect": [
-        735,
-        265,
-        32,
+        733,
+        259,
+        31,
         28
       ]
     },
@@ -225,9 +225,9 @@
       "id": "set_row_4_inc",
       "kind": "button",
       "rect": [
-        892,
-        265,
-        32,
+        888,
+        259,
+        31,
         28
       ]
     },
@@ -236,8 +236,8 @@
       "id": "set_controls_title",
       "kind": "text",
       "rect": [
-        341,
-        309,
+        346,
+        302,
         94,
         14
       ]
@@ -247,8 +247,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        341,
-        331,
+        346,
+        324,
         77,
         7
       ]
@@ -259,7 +259,7 @@
       "kind": "text",
       "rect": [
         668,
-        331,
+        324,
         65,
         7
       ]
@@ -269,8 +269,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        341,
-        359,
+        346,
+        352,
         65,
         7
       ]
@@ -281,7 +281,7 @@
       "kind": "text",
       "rect": [
         668,
-        359,
+        352,
         77,
         7
       ]
@@ -291,8 +291,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        341,
-        387,
+        346,
+        380,
         95,
         7
       ]
@@ -303,7 +303,7 @@
       "kind": "text",
       "rect": [
         668,
-        387,
+        380,
         83,
         7
       ]
@@ -313,8 +313,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        341,
-        415,
+        346,
+        408,
         113,
         7
       ]
@@ -325,7 +325,7 @@
       "kind": "text",
       "rect": [
         668,
-        415,
+        408,
         47,
         7
       ]
@@ -335,8 +335,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        341,
-        443,
+        346,
+        436,
         53,
         7
       ]
@@ -347,8 +347,8 @@
       "kind": "text",
       "rect": [
         668,
-        443,
-        41,
+        436,
+        35,
         7
       ]
     },
@@ -357,8 +357,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        341,
-        471,
+        346,
+        464,
         41,
         7
       ]
@@ -369,8 +369,8 @@
       "kind": "text",
       "rect": [
         668,
-        471,
-        59,
+        464,
+        41,
         7
       ]
     },
@@ -379,8 +379,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        341,
-        499,
+        346,
+        492,
         59,
         7
       ]
@@ -391,8 +391,8 @@
       "kind": "text",
       "rect": [
         668,
-        499,
-        41,
+        492,
+        59,
         7
       ]
     },
@@ -401,8 +401,19 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        341,
-        527,
+        346,
+        520,
+        41,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        668,
+        520,
         53,
         7
       ]
@@ -412,14 +423,14 @@
       "id": "set_back",
       "kind": "button",
       "rect": [
-        490,
-        550,
-        300,
-        41
+        493,
+        557,
+        294,
+        40
       ]
     }
   ],
-  "scale": 0.9360544085502625,
+  "scale": 0.9173333048820496,
   "screen": "settings",
   "size": [
     1280,
@@ -441,12 +452,17 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK EMPTY",
       "xp": 0.0
     },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
     "modal": null,
+    "ore_harvested": 0,
     "pointer_grabbed": false,
     "screen": "settings",
     "session_live": true,
@@ -459,16 +475,18 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-14 06:41",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-14 06:41",
         "name": "beta-shot",
         "seed": 7
       }
     ],
-    "toasts": []
+    "stock": [],
+    "toasts": [],
+    "wallet": 0
   }
 }

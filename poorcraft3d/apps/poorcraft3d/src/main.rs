@@ -5245,8 +5245,11 @@ fn run_observe(route_id: &str, out_root: &str) {
         // route_dig recordings: approach pose/health/live ground, the
         // aim's target cell + its pre/control ground, post-dig grounds,
         // on-terrace pose/health + live ground at the body, back pose/
-        // health + live ground at the body.
+        // health + live ground at the body. expected_stock carries the
+        // pack line the HUD must show after the dig (the yield table's
+        // answer for the aimed cell's material over an empty pack).
         let dig_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 24]));
+        let mut expected_stock = String::new();
         // route_crowd_yield recordings: the staged row ends + parked
         // home, the per-frame audit flags (overlap / off-row yield /
         // frames audited / read failures), the arrival + parked-end
@@ -6078,6 +6081,33 @@ fn run_observe(route_id: &str, out_root: &str) {
                     )
                 });
                 println!("DIG: spot ({sx:.1},{sg:.2},{sz:.1})");
+                // THE PACK ECHO's expected line: the slice starts with an
+                // EMPTY pack, and the steep aim takes the body's OWN
+                // column — the spot cell — so the yield table's answer
+                // for THIS cell's material over an empty inventory is
+                // the exact string the HUD must show after the press.
+                {
+                    use pc3d_world::gen::CellMaterial;
+                    let region = pc3d_world::coords::RegionCoord {
+                        x: (sx as i32).div_euclid(256),
+                        z: (sz as i32).div_euclid(256),
+                    };
+                    let material = pc3d_world::gen::cell_material(
+                        gen.biome(region),
+                        (sg.floor() as i64) * 1000,
+                        (sg * 1000.0) as i64,
+                    );
+                    let mut pack = pc3d_world::items::Inventory::new(12);
+                    for (id, n) in pc3d_world::items::harvest_yields(material, None) {
+                        pack.add(id, n);
+                    }
+                    expected_stock = pc3d_world::items::stock_line(&pack);
+                    assert!(
+                        !matches!(material, CellMaterial::Rock | CellMaterial::Air | CellMaterial::Water),
+                        "route_dig: the spot must be bare-hand diggable, got {material:?}"
+                    );
+                    println!("DIG: pack echo expects \"{expected_stock}\"");
+                }
                 ui_script.push((
                     12,
                     Box::new(|_ui, _r, ctx| {
@@ -7121,6 +7151,20 @@ fn run_observe(route_id: &str, out_root: &str) {
             let prompt_carries_dig = element_in("dig_before", "prompt");
             let ground_differs = differ("dig_before", "dig_after", 0.005);
             let walk_differs = differ("on_terrace", "terrace_back", 0.005);
+            // THE PACK ECHO: the HUD's carried-stock line — the layout
+            // dump's ui_state carries the verbatim string the item
+            // authority rendered. Empty pack before, the yield table's
+            // own answer after.
+            let hud_stock = |name: &str| -> String {
+                capture_by(name)
+                    .and_then(|c| c.ui_layout.as_ref())
+                    .and_then(|l| l["ui_state"]["hud"]["stock"].as_str())
+                    .unwrap_or("")
+                    .to_string()
+            };
+            let pack_before = hud_stock("dig_before") == "PACK EMPTY";
+            let pack_after =
+                !expected_stock.is_empty() && hud_stock("dig_after") == expected_stock;
             let ok = has("dig_before")
                 && has("dig_after")
                 && has("on_terrace")
@@ -7134,17 +7178,21 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && dug_toast
                 && prompt_carries_dig
                 && ground_differs
-                && walk_differs;
+                && walk_differs
+                && pack_before
+                && pack_after;
             if ok {
                 println!(
-                    "DIG VERB: G dug ({:.0},{:.0}) {:.2} -> {:.2}; terrace walked {:.2} -> back {:.2}; health {:.0}% -> {:.0}%",
-                    v[5], v[6], v[7], v[9], v[12] - eye, v[16] - eye, v[3] * 100.0, v[18] * 100.0
+                    "DIG VERB: G dug ({:.0},{:.0}) {:.2} -> {:.2}; terrace walked {:.2} -> back {:.2}; health {:.0}% -> {:.0}%; pack \"{}\" -> \"{}\"",
+                    v[5], v[6], v[7], v[9], v[12] - eye, v[16] - eye, v[3] * 100.0, v[18] * 100.0,
+                    hud_stock("dig_before"), hud_stock("dig_after"),
                 );
             } else {
                 eprintln!(
-                    "[FAIL] observe {}: captures {} / approached {approached} / target_dug {target_dug} / control {control_untouched} / on_terrace {on_terrace} / back {back_on_rim} / unhurt {unhurt} / toast {dug_toast} / prompt {prompt_carries_dig} / ground_differ {ground_differs} / walk_differ {walk_differs} (ground {:.2}->{:.2} control {:.2}->{:.2} eyes {:.2}->{:.2} z {:.2}->{:.2} x {:.2} live_ground {:.2}/{:.2} pitch {:.2})",
+                    "[FAIL] observe {}: captures {} / approached {approached} / target_dug {target_dug} / control {control_untouched} / on_terrace {on_terrace} / back {back_on_rim} / unhurt {unhurt} / toast {dug_toast} / prompt {prompt_carries_dig} / ground_differ {ground_differs} / walk_differ {walk_differs} / pack {pack_before}->{pack_after} (hud_stock after \"{}\", expected \"{expected_stock}\"; ground {:.2}->{:.2} control {:.2}->{:.2} eyes {:.2}->{:.2} z {:.2}->{:.2} x {:.2} live_ground {:.2}/{:.2} pitch {:.2})",
                     spec.id,
                     report.captures.len(),
+                    hud_stock("dig_after"),
                     v[7], v[9], v[8], v[10], v[12] - eye, v[16] - eye, v[13], v[17], v[11], v[20], v[21], v[22],
                 );
                 any_fail = true;

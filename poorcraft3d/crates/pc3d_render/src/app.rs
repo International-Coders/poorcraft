@@ -3444,6 +3444,22 @@ impl App {
         // hover follows the pointer. Repaint only when something changed.
         if state.owner_menu {
             state.ui.tick_toasts(dt);
+            // THE PACK ECHO: the HUD's carried-stock line follows the
+            // REAL inventory — every mutator (dig take, forge spend,
+            // eaten bread, delivery) marks the UI dirty, and the sync
+            // rides the dirty frame. One small string per dirty frame;
+            // an idle HUD pays nothing.
+            if state.ui_dirty {
+                let stock = self
+                    .cfg
+                    .slice_host
+                    .as_ref()
+                    .map(|s| pc3d_world::items::stock_line(&s.inventory))
+                    .unwrap_or_default();
+                if state.ui.hud.stock != stock {
+                    state.ui.hud.stock = stock;
+                }
+            }
             if state.ui.screen == Screen::Gameplay && !state.ui.blocks_gameplay() {
                 // THE STAMINA FIX: stamina is a SPRINT resource — walking
                 // is free; sprinting (Shift while moving) drains it at
@@ -3499,7 +3515,7 @@ impl App {
                     }],
                 };
                 let (report, rgba) = state.renderer.capture_png(&shot.path, &probes);
-                let (ui_canvas, ui_layout) = state
+                let (ui_canvas, mut ui_layout) = state
                     .ui_list
                     .as_ref()
                     .map(|list| {
@@ -3512,13 +3528,17 @@ impl App {
                         )
                     })
                     .unwrap_or((None, None));
+                // The captured layout carries the LIVE ui_state (the
+                // same JSON the dump file gets) so verdicts and the
+                // on-disk evidence read ONE structure.
+                if let Some(layout) = ui_layout.as_mut() {
+                    layout["ui_state"] = state.ui.to_json();
+                }
                 if let Some(dump) = &shot.ui_dump {
                     if let Some(layout) = &ui_layout {
-                        let mut v = layout.clone();
-                        v["ui_state"] = state.ui.to_json();
                         let _ = std::fs::write(
                             dump,
-                            serde_json::to_string_pretty(&v).unwrap_or_default(),
+                            serde_json::to_string_pretty(&layout).unwrap_or_default(),
                         );
                     }
                 }

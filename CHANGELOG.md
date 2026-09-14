@@ -1,5 +1,54 @@
 # CHANGELOG
 
+## 2026-09-14 — The pack is legible: the inventory's echo on the HUD (loop 452)
+
+- Closed STATE's next_task item (1): the INVENTORY ECHO of the dig verb,
+  finished from an interrupted session's orphaned start (`items.rs` held
+  an unwired, untested `stock_line` — reconciled, completed, proven).
+- THE LINE (`pc3d_world::items::stock_line`): the inventory's echo as
+  ONE stable string — nonzero kinds in CATALOG order (the unit law
+  caught the first test assuming insertion order), counts summed across
+  stacks, an empty pack reading "PACK EMPTY". Two unit laws —
+  pc3d_world 265 -> 267.
+- THE HUD (`pc3d_render::ui` + app sync): `HudValues.stock` synced by
+  the app from the REAL slice inventory on every UI-dirty frame (an
+  idle HUD pays nothing), painted verbatim under the status bars,
+  serialized to the inspector JSON. Layout law pins it under the bars,
+  inside the safe margins, clear of the hotbar, absent until synced.
+- THE GLYPH, a proof-found fix: the capture inspection showed the
+  " · " separator rendering as a BLANK GAP — "·" was missing from the
+  pixel font and unknown chars silently fall back to space (the
+  pre-existing prompt "F BUILD SAND · R REMOVE" had the same hole).
+  Added the middle-dot glyph + an ink law; the pack line and the
+  prompt row now read with their separators.
+- THE EVIDENCE PATH: captures now merge the LIVE ui_state into the
+  in-memory layout (it existed only in the on-disk dump), so verdicts
+  and dump files read ONE structure.
+- THE ROUTE (make p3d-dig extended): computes the EXPECTED pack line
+  from the same determinants the verb uses (the spot cell's material
+  through harvest_yields over an empty pack) and the verdict asserts
+  the HUD strings: "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1". PASS x2
+  identical + comparator PASS; all four captures INSPECTED.
+- THE WIDER ECONOMY (the playtest's own journey): the pack line reads
+  IRON_ORE 4 + WOOD_PICK + BREAD 2 after the harvest, IRON_ORE 2 +
+  IRON_BAR 1 after the forge take, IRON_ORE 4 + IRON_BAR 1 after the
+  re-harvest; play_taken.png INSPECTED (legible over open panels).
+- Evidence: p3d workspace 680 green / 0 failed (pc3d_render 223,
+  pc3d_world 267); p3d-dig PASS x2 + comparator; p3d-playtest PASS x2
+  + comparator, bundle digest RE-BASELINED 1d37f62c3801ae20 (honest
+  change: the pack line rides every gameplay capture); p3d-people
+  PASS (motion 0.64%); p3d-visual-gates ALL 10 PASS; p3d-smoke OK
+  (digest dd019eca900f5a61 unchanged); idle-upgrade-check PASS.
+- PERF: no claim, honestly — one small string on UI-dirty frames
+  only, one text row, a 12-pixel dot; live walk/stream/crowd paths
+  untouched; host shared (windowed p50 19.5-23.0 ms), no bench per
+  the 445-451 precedent.
+- LORE: canon touched: none — a read-only echo over the existing
+  generic material catalog; no faction, place, event, term, NPC,
+  item, or spell data. World expression: labor in Valdenmoor leaves
+  a legible trace — what you dig is what you carry, as a number the
+  item authority owns. Migration: none.
+
 ## 2026-09-13 — The crowd yields in the window: the staged-yield crowd route (loop 451)
 
 - Closed STATE's next_task item (1): the 448 crowd law was unit-lawed

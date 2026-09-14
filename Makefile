@@ -186,7 +186,7 @@ p3d-pitwall: ## The pit wall route (dug 5 m pit: the body falls in, the wall ref
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/pitwall-a/route_pit_wall poorcraft3d/apps/poorcraft3d/shots/pitwall-b/route_pit_wall || exit 1; \
 	echo "P3D PIT WALL OK (chained + deterministic)"
 
-p3d-dig: ## The dig verb route (one real G press through the UI input path: the aimed column drops one walkable step, the take is credited, the terrace is walked down and back up unhurt) run TWICE + comparator: make p3d-dig
+p3d-dig: ## The dig verb route (one real G press through the UI input path: the aimed column drops one walkable step, the take is credited, the HUD pack line reads PACK EMPTY -> the yield's own line, the terrace is walked down and back up unhurt) run TWICE + comparator: make p3d-dig
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/dig-a poorcraft3d/apps/poorcraft3d/shots/dig-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_dig poorcraft3d/apps/poorcraft3d/shots/dig-a || exit 1; \

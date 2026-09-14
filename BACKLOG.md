@@ -11,6 +11,40 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The pack is legible: the inventory's echo on the HUD
+      (2026-09-14, loop 452, POORCRAFT 3D): closed STATE's next_task
+      item (1) — finished from an interrupted session's orphaned
+      start (items.rs held an unwired, untested stock_line).
+      THE LINE (pc3d_world::items::stock_line): the inventory's
+      echo as ONE stable string — nonzero kinds in CATALOG order,
+      counts summed across stacks, "PACK EMPTY" when empty; two
+      unit laws. THE HUD: HudValues.stock synced from the REAL
+      slice inventory on UI-dirty frames, painted verbatim under
+      the status bars, serialized to the inspector JSON; layout
+      law pins placement and absence-until-synced. THE GLYPH
+      (proof-found): the capture inspection showed " · " as a
+      BLANK GAP — "·" was missing from the pixel font (the
+      pre-existing prompt row had the same hole); added the
+      middle-dot glyph + an ink law. THE ROUTE (make p3d-dig
+      extended): the expected pack line computed from the same
+      determinants the verb uses; the verdict asserts the HUD
+      strings "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"; PASS x2 +
+      comparator; captures INSPECTED. The playtest journey
+      carries the economy: IRON_ORE 4 -> forge take IRON_BAR 1 ->
+      re-harvest, legible over open panels. Evidence: p3d 680
+      green (pc3d_render 223, pc3d_world 267); dig PASS x2 +
+      comparator; playtest PASS x2 + comparator, bundle digest
+      RE-BASELINED 1d37f62c3801ae20 (honest change — the pack
+      line rides every gameplay capture); people PASS (motion
+      0.64%); visual gates ALL 10 PASS; smoke OK (dd019eca900f5a61
+      unchanged); idle-upgrade-check PASS. PERF: no claim — one
+      small string on UI-dirty frames, one text row, a 12-pixel
+      dot. Deferred honestly: the lethal plaza-recovery branch
+      route; Space jump-off from a hang; the quiet-host deck-bench
+      re-read + the bench contention guard; is_water_layer/
+      CTM-strip audit; guardian chronicle re-fire; multiplayer
+      routing of terrain edits; geode pairing.
+
 - [x] The crowd yields in the window: the staged-yield crowd route
       (2026-09-13, loop 451, POORCRAFT 3D): closed STATE's next_task
       item (1) — the 448 crowd law was unit-lawed + render-lawed but
