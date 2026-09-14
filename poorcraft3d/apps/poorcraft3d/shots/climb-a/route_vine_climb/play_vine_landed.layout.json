@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -64,17 +75,6 @@
         397,
         670,
         14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "toast_GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO",
-      "kind": "toast",
-      "rect": [
-        79,
-        375,
-        642,
-        16
       ]
     },
     {
@@ -197,11 +197,12 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9839009642601013,
+      "food": 0.9647802114486694,
       "health": 1.0,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK EMPTY",
       "xp": 0.0
     },
     "interact": null,
@@ -221,23 +222,18 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 21:54",
+        "modified": "2026-09-14 15:26",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 21:54",
+        "modified": "2026-09-14 15:26",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [
-      {
-        "age_s": 1.5965211391448975,
-        "text": "GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO"
-      }
-    ],
+    "toasts": [],
     "wallet": 0
   }
 }

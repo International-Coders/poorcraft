@@ -11,6 +11,48 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] Space lets go: the strand release is real (2026-09-14, loop 454,
+      POORCRAFT 3D): closed STATE's next_task item (1) — and the route
+      found a real bug first: BOTH release paths silently re-gripped.
+      The pre-law windowed probe pinned it (the Space hop rose 1.04 m
+      and fell back into the crossing catch, window-min never below the
+      strand; the S tip release was re-caught inside the band below the
+      tip and the body stayed pinned AT the tip, health 1.00, never
+      grounding — the strand was a one-way trap under its own "SPACE
+      LETS GO" toast; the old unit suite modeled no post-release grab
+      check). THE LAW (pc3d_render::app): SliceHost.released_from + the
+      pure strand_can_catch gate at the arc's grab — strand-scoped
+      (another strand still catches), spent on landing, spent by a new
+      grab; the grab law's tunnel tests untouched. 3 new unit laws;
+      pc3d_render 224 -> 227. THE ROUTE (make p3d-hangoff): two legs on
+      the climb's own strand — the Space hop-off (rises ~1 m, falls
+      PAST its own strand, lands grounded at the strand's line with the
+      impact law's EXACT wound) and the S tip release (falls free,
+      lands safe, health never drops); landings latch on two
+      consecutive on-ground polls vs the LIVE ground answer, the FELL
+      toast latches AT the landing — pace-proof. THE CLIMB ROUTE'S
+      VERDICT NOW ASSERTS GROUNDEDNESS (the pre-law body was pinned at
+      the tip; the old claim passed unchecked) and proves the fall by
+      latched records instead of the sway-aliased pixel bar. Evidence:
+      p3d 684 green / 0 failed; root 480 green; hangoff PASS x2 +
+      comparator (PASS at 20/30/48/80-108 ms across the day's host
+      states); climb PASS x2 + comparator (79-88 ms); dig PASS x2 +
+      comparator; people PASS (0.64%); gates ALL 10; smoke OK (digest
+      dd019eca900f5a61 unchanged); playtest digest reproduced UNCHANGED
+      05c46411869a857c pre-spike. The foreign-load spike (15-min load
+      94; windowed p50 54-142 ms) broke the frame-CALIBRATED walkoff/
+      playtest re-runs (the documented 447/449 sensitivity, third
+      occurrence) — their code is untouched by this job; their bundles
+      ride from loop 453 and the digest pins non-perturbation. PERF: no
+      claim — one Option compare per falling frame; host contended, no
+      bench per the 445-453 precedent. Deferred honestly: the windowed
+      harness's frame-scheduled captures stay pace-sensitive (latch-
+      scheduled captures are the systemic cure — next_task item 1); the
+      quiet-host deck-bench re-read + the bench contention guard;
+      is_water_layer/CTM-strip audit; guardian chronicle re-fire;
+      multiplayer routing of terrain edits; geode pairing; the walk-
+      snap query-bound observation.
+
 - [x] The plaza recovery, live: the lethal fall's windowed route
       (2026-09-14, loop 453, POORCRAFT 3D): closed STATE's next_task
       item (1) — the fall law's 0.5-health plaza recovery branch had

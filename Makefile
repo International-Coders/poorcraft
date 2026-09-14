@@ -210,6 +210,14 @@ p3d-recovery: ## The plaza-recovery route (a 14 m pit empties the body's health:
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/recovery-a/route_plaza_recovery poorcraft3d/apps/poorcraft3d/shots/recovery-b/route_plaza_recovery || exit 1; \
 	echo "P3D PLAZA RECOVERY OK (chained + deterministic)"
 
+p3d-hangoff: ## The hang-off route (drop onto a real strand, caught: SPACE hops OFF and the body falls PAST its own strand to the law's exact wound; S past the tip falls free and lands safe — the release law) run TWICE + comparator: make p3d-hangoff
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/hangoff-a poorcraft3d/apps/poorcraft3d/shots/hangoff-b
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_vine_hangoff poorcraft3d/apps/poorcraft3d/shots/hangoff-a || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_vine_hangoff poorcraft3d/apps/poorcraft3d/shots/hangoff-b || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/hangoff-a/route_vine_hangoff poorcraft3d/apps/poorcraft3d/shots/hangoff-b/route_vine_hangoff || exit 1; \
+	echo "P3D HANG OFF OK (chained + deterministic)"
+
 p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/export

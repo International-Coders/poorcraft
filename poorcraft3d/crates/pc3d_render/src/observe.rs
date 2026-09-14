@@ -86,6 +86,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_vine_hangoff",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

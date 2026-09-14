@@ -5260,6 +5260,22 @@ fn run_observe(route_id: &str, out_root: &str) {
         // pose/health/food + the LIVE plaza-ground answer, and the
         // final pose/health — the verdict reads them after the run.
         let recovery_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 22]));
+        // route_vine_hangoff recordings: the strand's own grip truth
+        // (anchor XZ + attach/tip + anchor ground) and the hang pose;
+        // LEG 1 (Space hop-off) per-frame poll: peak y, window-min y,
+        // the grounded landing (pose + LIVE ground + health, latched on
+        // two consecutive on-ground polls), health before, the peak's
+        // frame, and the latch state; LEG 2 (S past the tip) the same
+        // latch plus the second hang pose and its health before.
+        let hangoff_strand = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 6]));
+        let hangoff_leg1 = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 12]));
+        let hangoff_leg2 = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 12]));
+        // route_vine_climb recordings: the fall's window-min height (the
+        // pace-proof fall record), the hang height at the span, and the
+        // FINAL pose + the LIVE ground answer at it — the run must end
+        // GROUNDED (the tip release now falls free of its own strand; a
+        // body pinned at the tip is the pre-release-law bug).
+        let climb_final = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 10]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -5660,6 +5676,79 @@ fn run_observe(route_id: &str, out_root: &str) {
                     (180u64, 240u64, vec![pc3d_render::KeyCode::KeyW]),
                     (250, 330, vec![pc3d_render::KeyCode::KeyS]),
                 ];
+                // THE FALL RECORD (pace-proof): frames are wall-clock at
+                // the host's mercy — the whole 12 m fall spans frames
+                // 30..110 at ~20 ms but 30..50 at ~100 ms, so nothing
+                // frame-indexed can carry the claim. A per-frame poll
+                // from frame 32 records: the body's lowest height (the
+                // 12 m drop MUST dip meters below the teleport), the
+                // GRIPPED toast seen (latched — it can expire before
+                // any fixed capture at contended paces), and at 172 the
+                // hang height + the strand's live span. The captures
+                // stay as the visual record. (Pushed in FRAME ORDER —
+                // the script queue fires strictly in push order.)
+                let climb_consts = climb_final.clone();
+                ui_script.push((
+                    31,
+                    Box::new(move |_ui, _r, _ctx| {
+                        let mut c = climb_consts.get();
+                        c[6] = top_y; // the strand's attach height
+                        c[7] = ground_at_anchor + 12.0; // the drop's start
+                        climb_consts.set(c);
+                    }),
+                ));
+                for f in 32..=165u64 {
+                    let climb_fall = climb_final.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, r, _ctx| {
+                            let pose = r.pose();
+                            let feet = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                            let mut c = climb_fall.get();
+                            if c[0] == 0.0 || feet < c[0] {
+                                c[0] = feet;
+                            }
+                            if c[8] == 0.0
+                                && ui
+                                    .toasts
+                                    .iter()
+                                    .any(|t| t.text.starts_with("GRIPPED"))
+                            {
+                                c[8] = 1.0;
+                            }
+                            let _ = r;
+                            climb_fall.set(c);
+                        }),
+                    ));
+                }
+                let climb_hang = climb_final.clone();
+                ui_script.push((
+                    172,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut c = climb_hang.get();
+                        c[1] = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                        if let Some(g) =
+                            r.vine_grip_near_pub(pose.position[0], pose.position[2])
+                        {
+                            c[9] = g.tip_y;
+                        }
+                        climb_hang.set(c);
+                    }),
+                ));
+                let climb_final_rec = climb_final.clone();
+                ui_script.push((
+                    370,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut c = climb_final_rec.get();
+                        c[2] = pose.position[0];
+                        c[3] = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                        c[4] = pose.position[2];
+                        c[5] = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                        climb_final_rec.set(c);
+                    }),
+                ));
                 shots.push(Shot::new(80, format!("{dir}/play_vine_air.png"))
                     .ui_dump(format!("{dir}/play_vine_air.layout.json")));
                 shots.push(Shot::new(170, format!("{dir}/play_vine_grip.png"))
@@ -6519,6 +6608,246 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(340, format!("{dir}/recovery_final.png"))
                     .ui_dump(format!("{dir}/recovery_final.layout.json")));
             }
+            "route_vine_hangoff" => {
+                // THE HANG-OFF (the deferral the climb route could not
+                // frame): the body drops onto the REAL strand (the
+                // climb route's own region search — the plaza is Plains,
+                // which grows no vines BY DESIGN), hangs, and lets go
+                // with SPACE — the hop OFF the strand. LEG 1 presses
+                // Space once and releases the keys: the hop RISES (the
+                // 4.6 m/s commitment), the body falls PAST its own
+                // strand, and the fall law lands the exact wound the
+                // recorded heights name. LEG 2 drops again and descends
+                // PAST THE TIP with S: the release at the tip must also
+                // fall free and land SAFE (health unchanged). Both legs
+                // latch their landing on two consecutive on-ground polls
+                // against the LIVE ground answer, so the verdict reads
+                // the body's own physics at every observed frame pace.
+                use pc3d_world::flora::{self, PlantKind, SlotCoord};
+                let gen = &scene.gen;
+                let center = scene.plan.plaza;
+                let center_slot = SlotCoord {
+                    x: (center.x as f32 / 4.0) as i32,
+                    z: (center.z as f32 / 4.0) as i32,
+                };
+                let base_region = pc3d_world::coords::RegionCoord {
+                    x: (center_slot.x as i64 * flora::SLOT_M * 1000)
+                        .div_euclid(pc3d_world::scales::REGION_MM) as i32,
+                    z: (center_slot.z as i64 * flora::SLOT_M * 1000)
+                        .div_euclid(pc3d_world::scales::REGION_MM) as i32,
+                };
+                let mut vine_target = None;
+                'region: for ring in 0..64i32 {
+                    for dx in -ring..=ring {
+                        for dz in -ring..=ring {
+                            if dx.abs() != ring && dz.abs() != ring {
+                                continue;
+                            }
+                            let reg = pc3d_world::coords::RegionCoord {
+                                x: base_region.x + dx,
+                                z: base_region.z + dz,
+                            };
+                            let b = gen.biome(reg);
+                            if !matches!(
+                                b,
+                                pc3d_world::gen::Biome::Forest
+                                    | pc3d_world::gen::Biome::Highlands
+                            ) {
+                                continue;
+                            }
+                            for sx in 0..64i32 {
+                                for sz in 0..64i32 {
+                                    let slot = SlotCoord {
+                                        x: reg.x * 64 + sx,
+                                        z: reg.z * 64 + sz,
+                                    };
+                                    if flora::plant_at(gen, slot).map(|p| p.kind)
+                                        == Some(PlantKind::Vine)
+                                    {
+                                        vine_target = Some(slot);
+                                        break 'region;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                let (vine_slot, vine) = vine_target
+                    .and_then(|s| flora::vine_anchor(gen, s).map(|a| (s, a)))
+                    .unwrap_or_else(|| {
+                        panic!("route_vine_hangoff: no vine grows on seed {seed}")
+                    });
+                let ([ax, az], top_y) = vine;
+                let ground_at_anchor = gen
+                    .effective_surface_mm((ax * 1000.0) as i64, (az * 1000.0) as i64)
+                    as f32
+                    / 1000.0;
+                println!(
+                    "VINE HANGOFF: strand at slot ({},{}) anchor ({ax:.1},{top_y:.2},{az:.1}) ground {ground_at_anchor:.2}",
+                    vine_slot.x, vine_slot.z
+                );
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // LEG 1: the 12 m drop onto the strand line (uncaught =
+                // lethal; caught, the body hangs at the attach).
+                ui_script.push((
+                    30,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleportHigh {
+                            x: ax,
+                            y: ground_at_anchor + 12.0,
+                            z: az,
+                        });
+                    }),
+                ));
+                // The hang record: pose (the attach), the strand's LIVE
+                // drawn truth (anchor + span) read at the body, and the
+                // health the wound will be measured against.
+                let strand = hangoff_strand.clone();
+                let leg1 = hangoff_leg1.clone();
+                ui_script.push((
+                    195,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut s = strand.get();
+                        s[0] = pose.position[0];
+                        s[1] = pose.position[1];
+                        s[2] = pose.position[2];
+                        if let Some(g) =
+                            r.vine_grip_near_pub(pose.position[0], pose.position[2])
+                        {
+                            s[3] = g.top_y;
+                            s[4] = g.tip_y;
+                        }
+                        strand.set(s);
+                        let mut v = leg1.get();
+                        v[6] = ui.hud.health;
+                        leg1.set(v);
+                    }),
+                ));
+                // THE HOP: Space held three frames — the jump branch
+                // fires on the first (jump_held latches), the strand
+                // must NOT own the body again.
+                key_script = vec![(200, 203, vec![pc3d_render::KeyCode::Space])];
+                // The per-frame poll (205..=349, ending BEFORE leg 2's
+                // teleport below — ui_script steps fire strictly in push
+                // order, so every frame here stays ordered): peak rise,
+                // window-min fall, and the LATCHED landing — two
+                // consecutive polls on the LIVE ground answer record the
+                // landing pose + health once, at whatever frame the body
+                // grounds.
+                for f in 205..=349u64 {
+                    let leg1 = hangoff_leg1.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, r, _ctx| {
+                            let pose = r.pose();
+                            let feet = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                            let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                            let mut v = leg1.get();
+                            if feet > v[0] {
+                                v[0] = feet;
+                                v[8] = f as f32;
+                            }
+                            if v[1] == 0.0 || feet < v[1] {
+                                v[1] = feet;
+                            }
+                            v[10] = if (feet - g).abs() < 0.05 { v[10] + 1.0 } else { 0.0 };
+                            if v[10] >= 2.0 && v[11] == 0.0 {
+                                v[2] = pose.position[0];
+                                v[3] = feet;
+                                v[4] = pose.position[2];
+                                v[5] = g;
+                                v[7] = ui.hud.health;
+                                // The FELL toast fired with the wound in
+                                // the same frame — alive at the latch at
+                                // every pace (a fixed-frame capture can
+                                // outlive the 3 s toast at contended
+                                // paces; this cannot).
+                                v[9] = ui
+                                    .toasts
+                                    .iter()
+                                    .any(|t| t.text.starts_with("FELL"))
+                                    as i32 as f32;
+                                v[11] = 1.0;
+                            }
+                            leg1.set(v);
+                        }),
+                    ));
+                }
+                // LEG 2: the same strand again, descended PAST THE TIP
+                // (pushed after leg 1's polls — frame order holds).
+                ui_script.push((
+                    350,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleportHigh {
+                            x: ax,
+                            y: ground_at_anchor + 12.0,
+                            z: az,
+                        });
+                    }),
+                ));
+                let leg2 = hangoff_leg2.clone();
+                ui_script.push((
+                    460,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = leg2.get();
+                        v[0] = pose.position[0];
+                        v[1] = pose.position[1];
+                        v[2] = pose.position[2];
+                        v[8] = ui.hud.health;
+                        leg2.set(v);
+                    }),
+                ));
+                key_script.push((480, 590, vec![pc3d_render::KeyCode::KeyS]));
+                for f in 485..=638u64 {
+                    let leg2 = hangoff_leg2.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, r, _ctx| {
+                            let pose = r.pose();
+                            let feet = pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                            let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                            let mut v = leg2.get();
+                            if v[3] == 0.0 || feet < v[3] {
+                                v[3] = feet;
+                            }
+                            v[10] = if (feet - g).abs() < 0.05 { v[10] + 1.0 } else { 0.0 };
+                            if v[10] >= 2.0 && v[11] == 0.0 {
+                                v[4] = pose.position[0];
+                                v[5] = feet;
+                                v[6] = pose.position[2];
+                                v[7] = g;
+                                v[9] = ui.hud.health;
+                                v[11] = 1.0;
+                            }
+                            leg2.set(v);
+                        }),
+                    ));
+                }
+                shots.push(Shot::new(128, format!("{dir}/grip_early.png"))
+                    .ui_dump(format!("{dir}/grip_early.layout.json")));
+                shots.push(Shot::new(170, format!("{dir}/hang_grip.png"))
+                    .ui_dump(format!("{dir}/hang_grip.layout.json")));
+                shots.push(Shot::new(214, format!("{dir}/hop_rise.png"))
+                    .ui_dump(format!("{dir}/hop_rise.layout.json")));
+                // 226 sits inside the falling window (0.52-0.88 s after
+                // the press) across the whole observed 20-34 ms pace
+                // band; 250 was a post-landing frame at slow paces.
+                shots.push(Shot::new(226, format!("{dir}/hop_fall.png"))
+                    .ui_dump(format!("{dir}/hop_fall.layout.json")));
+                shots.push(Shot::new(300, format!("{dir}/hop_landed.png"))
+                    .ui_dump(format!("{dir}/hop_landed.layout.json")));
+                shots.push(Shot::new(430, format!("{dir}/tip_hang.png"))
+                    .ui_dump(format!("{dir}/tip_hang.layout.json")));
+                shots.push(Shot::new(640, format!("{dir}/tip_landed.png"))
+                    .ui_dump(format!("{dir}/tip_landed.layout.json")));
+            }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
                 // own DoorEntry record (door column open, ring solid,
@@ -6642,7 +6971,12 @@ fn run_observe(route_id: &str, out_root: &str) {
             title: format!("POORCRAFT 3D — observatory {}", spec.id),
             logical_size: (1280.0, 720.0),
             size_is_physical: true,
-            max_frames: if spec.id == "route_semantic_playtest" {
+            max_frames: if matches!(
+                spec.id,
+                "route_semantic_playtest" | "route_vine_hangoff"
+            ) {
+                // The playtest's journey and the hang-off's two legs both
+                // outlive the default 420-frame route cap.
                 Some(1000)
             } else {
                 Some(420)
@@ -6952,7 +7286,10 @@ fn run_observe(route_id: &str, out_root: &str) {
                     _ => false,
                 }
             };
-            let grip_toast = element_in("play_vine_grip", "toast_GRIPPED");
+            let cf = climb_final.get();
+            // The toast, latched during the poll — or still visible in
+            // the grip capture at typical paces.
+            let grip_toast = cf[8] > 0.0 || element_in("play_vine_grip", "toast_GRIPPED");
             let fell_vs_grip = differ("play_vine_air", "play_vine_grip", 0.02);
             let grip_vs_climb = differ("play_vine_grip", "play_vine_climb", 0.002);
             let landed_vs_grip = differ("play_vine_landed", "play_vine_grip", 0.02);
@@ -6961,25 +7298,43 @@ fn run_observe(route_id: &str, out_root: &str) {
                 .as_ref()
                 .and_then(|s| s["hud"]["health"].as_f64())
                 .unwrap_or(0.0);
+            // THE FALL IS RECORDED, NOT FRAMED: cf[0] is the body's
+            // lowest height in the drop window — meters below the
+            // teleport start — and the hang clamps INTO the strand's own
+            // span (the crossing catch can clamp anywhere in it at
+            // contended paces, where a frame crosses half the span).
+            // (The old frame-vs-frame pixel bar answered sway aliasing,
+            // not the fall, at contended paces.) THE RUN ENDS GROUNDED:
+            // the tip release falls free of its own strand (THE RELEASE
+            // LAW) — a final pose pinned at the strand's tip was the
+            // pre-law re-grab bug.
+            let fall_recorded = cf[0] > 0.0 && cf[0] < cf[7] - 3.0;
+            let hang_recorded =
+                cf[9] > 0.0 && cf[1] >= cf[9] - 0.6 && cf[1] <= cf[6] + 0.1;
+            let grounded = cf[5] > 0.0 && (cf[3] - cf[5]).abs() <= 0.05;
             let ok = has("play_vine_air")
                 && has("play_vine_grip")
                 && has("play_vine_climb")
                 && has("play_vine_landed")
                 && grip_toast
-                && fell_vs_grip
+                && fall_recorded
+                && hang_recorded
                 && grip_vs_climb
                 && landed_vs_grip
+                && grounded
                 && health >= 0.95;
             if ok {
                 println!(
-                    "VINE CLIMB: the fall was gripped (toast), the climb moved the body, landed unharmed (health {}%)",
+                    "VINE CLIMB: the fall was gripped (toast), the drop reached {:.2} (from {:.2}) and hung in the span ({:.2} in [tip {:.2}, attach {:.2}]), the climb moved the body, landed unharmed and GROUNDED (feet {:.2} on {:.2}, health {}%)",
+                    cf[0], cf[7], cf[1], cf[9], cf[6], cf[3], cf[5],
                     (health * 100.0).round() as u32
                 );
             } else {
                 eprintln!(
-                    "[FAIL] observe {}: captures {} / grip_toast {grip_toast} / fell_vs_grip {fell_vs_grip} / grip_vs_climb {grip_vs_climb} / landed_vs_grip {landed_vs_grip} / health {health}",
+                    "[FAIL] observe {}: captures {} / grip_toast {grip_toast} / fall_recorded {fall_recorded} (min {:.2} from {:.2}) / hang_recorded {hang_recorded} ({:.2} in [tip {:.2}, attach {:.2}]) / grip_vs_climb {grip_vs_climb} / landed_vs_grip {landed_vs_grip} / grounded {grounded} (feet {:.2} ground {:.2}) / health {health} / (sway bar air-vs-grip {fell_vs_grip}, advisory)",
                     spec.id,
                     report.captures.len(),
+                    cf[0], cf[7], cf[1], cf[9], cf[6], cf[3], cf[5],
                 );
                 any_fail = true;
             }
@@ -7497,6 +7852,143 @@ fn run_observe(route_id: &str, out_root: &str) {
                     v[1] - eye, (v[4] - eye), (v[12] - eye), (v[19] - eye),
                     v[0], v[2], v[11], v[13], v[18], v[20],
                     v[9], v[14], v[21], v[10], v[15],
+                );
+                any_fail = true;
+            }
+        }
+        // THE HANG-OFF: the strand must NOT own a body that let go. LEG 1
+        // (Space): the hop RISES above the attach, the body falls PAST
+        // its own strand's reach (window-min below the tip), lands
+        // GROUNDED at the strand's line, and pays EXACTLY the wound the
+        // recorded heights name through the impact law — a re-grabbed
+        // body would stay pinned at the strand (min ≈ the attach, health
+        // full). LEG 2 (S past the tip): the release falls free, lands
+        // SAFE (health unchanged). Both landings latch on two
+        // consecutive on-ground polls against the LIVE ground answer.
+        if spec.id == "route_vine_hangoff" {
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let has = |name: &str| capture_by(name).is_some();
+            let differ = |a: &str, b: &str, bar: f32| {
+                match (capture_by(a), capture_by(b)) {
+                    (Some(a), Some(b)) => {
+                        pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > bar
+                    }
+                    _ => false,
+                }
+            };
+            let element_in = |name: &str, prefix: &str| {
+                capture_by(name)
+                    .and_then(|c| c.ui_layout.as_ref())
+                    .and_then(|l| l["elements"].as_array())
+                    .map(|els| {
+                        els.iter().any(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with(prefix))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            };
+            let s = hangoff_strand.get();
+            let v1 = hangoff_leg1.get();
+            let v2 = hangoff_leg2.get();
+            let eye = pc3d_render::player::EYE_ABOVE_FEET;
+            let (ax_, az_, top, tip) = (s[0], s[2], s[3], s[4]);
+            let hang_feet = s[1] - eye;
+            // The crossing catch clamps within the catch frame's own
+            // substeps of the attach — up to ~0.7 m at contended paces
+            // (three 1/60 substeps of a ~14 m/s fall).
+            let hang_ok = (hang_feet - top).abs() <= 0.8 && top > tip;
+            let rise = v1[0] - hang_feet;
+            let rose = rise >= 0.7 && rise <= 1.5;
+            let fell_past = v1[11] >= 1.0 && v1[1] < tip - 0.2;
+            let grounded1 = v1[11] >= 1.0
+                && (v1[3] - v1[5]).abs() <= 0.05
+                && ((v1[2] - ax_).powi(2) + (v1[4] - az_).powi(2)).sqrt() <= 0.35;
+            // The impact law's wound for the recorded peak height: the
+            // arc integrates on the fixed 1/60 s step, so the discrete
+            // impact speed can differ from the continuous sqrt by up to
+            // one substep of dv (0.163 m/s -> 0.02 health) — the band
+            // absorbs the discretization, the unit laws pin the shape.
+            let expected = pc3d_render::app::damage_from_impact(
+                -(2.0_f32 * 9.8_f32 * (v1[0] - v1[5]).max(0.0)).sqrt(),
+            );
+            let wound_ok = v1[11] >= 1.0
+                && v1[7] < v1[6]
+                && (v1[6] - v1[7] - expected).abs() <= 0.025;
+            // The toast is proven AT THE LATCH (v1[9]) — pace-proof —
+            // and the landed capture carries it as pixels at the
+            // typical paces.
+            let fell_toast = v1[11] >= 1.0 && v1[9] > 0.0;
+            // The leg-2 catch clamps INTO the span — anywhere in it at
+            // contended paces, where one frame crosses half the strand.
+            let hang2_ok =
+                v2[1] > 0.0 && v2[1] - eye >= tip - 0.6 && v2[1] - eye <= top + 0.1;
+            let fell_past2 = v2[11] >= 1.0 && v2[3] < tip - 0.2;
+            // The S key stays held through the release, so the falling
+            // body AIR-STEERS away from the strand (the 444 law — the
+            // release hands the body to the arc with its lateral
+            // control): the landing is bounded near the strand, not
+            // pinned to it. The release itself is proven by the
+            // window-min BELOW the strand's reach (the pre-law bug
+            // pinned the body AT the tip, never below it).
+            let drift2 = ((v2[4] - ax_).powi(2) + (v2[6] - az_).powi(2)).sqrt();
+            let grounded2 = v2[11] >= 1.0
+                && (v2[5] - v2[7]).abs() <= 0.05
+                && drift2 <= 2.0;
+            // SAFE: the release costs nothing — health never DROPS
+            // within the leg (a fed body regenerates, so it may RISE;
+            // a wound would show as a drop).
+            let safe2 = v2[11] >= 1.0
+                && v2[9] >= v2[8] - 0.001
+                && v2[9] <= 1.001;
+            let grip_toast = element_in("hang_grip", "toast_GRIPPED")
+                || element_in("grip_early", "toast_GRIPPED");
+            let differs = differ("hang_grip", "hop_rise", 0.002)
+                && differ("hang_grip", "hop_fall", 0.005)
+                && differ("hop_rise", "hop_landed", 0.02)
+                && differ("hop_fall", "hop_landed", 0.02)
+                && differ("tip_hang", "tip_landed", 0.02);
+            let ok = has("grip_early")
+                && has("hang_grip")
+                && has("hop_rise")
+                && has("hop_fall")
+                && has("hop_landed")
+                && has("tip_hang")
+                && has("tip_landed")
+                && grip_toast
+                && hang_ok
+                && rose
+                && fell_past
+                && grounded1
+                && wound_ok
+                && fell_toast
+                && hang2_ok
+                && fell_past2
+                && grounded2
+                && safe2
+                && differs;
+            if ok {
+                println!(
+                    "HANG OFF: hang at {:.2} (top {:.2} tip {:.2}); hop rose {:.2} m, fell past the strand (min {:.2}), grounded at ({:.2},{:.2}) feet {:.2} (ground {:.2}); health {:.0}% -> {:.0}% (law {:.0}%); tip release fell free (min {:.2}) and landed safe {:.2} m from the strand (health {:.2} -> {:.2})",
+                    hang_feet, top, tip, rise, v1[1], v1[2], v1[4], v1[3], v1[5],
+                    v1[6] * 100.0, v1[7] * 100.0, (v1[6] - expected) * 100.0,
+                    v2[3], drift2, v2[8], v2[9],
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / grip_toast {grip_toast} / hang {hang_ok} / rose {rose} ({rise:.2}) / fell_past {fell_past} / grounded1 {grounded1} / wound {wound_ok} (expected {expected:.3}) / fell_toast {fell_toast} / hang2 {hang2_ok} / fell_past2 {fell_past2} / grounded2 {grounded2} / safe2 {safe2} / differs {differs} (strand {:.1},{:.1} top {top:.2} tip {tip:.2} hang {:.2}; L1 peak {:.2} min {:.2} landed {:.2}@({:.2},{:.2}) ground {:.2} hp {:.2}->{:.2} latch {} peak_f {}; L2 hang {:.2} min {:.2} landed {:.2}@({:.2},{:.2}) ground {:.2} hp {:.2}->{:.2} drift {drift2:.2} latch {})",
+                    spec.id,
+                    report.captures.len(),
+                    ax_, az_, s[1] - eye,
+                    v1[0], v1[1], v1[3], v1[2], v1[4], v1[5], v1[6], v1[7], v1[11], v1[8],
+                    v2[1] - eye, v2[3], v2[5], v2[4], v2[6], v2[7], v2[8], v2[9], v2[11],
                 );
                 any_fail = true;
             }

@@ -8591,3 +8591,146 @@ either way); the quiet-host deck-bench re-read + the bench contention
 guard; is_water_layer/CTM-strip audit; guardian chronicle re-fire;
 multiplayer routing of terrain edits; geode pairing (447's keepers
 are root-workspace lore).
+## 2026-09-14 — Space lets go: the strand release is real (loop 454)
+
+### WHAT
+Closed STATE's next_task item (1): the Space jump-off from a hang got
+its windowed route — and the route found a real bug first, so the job
+became law + route. BOTH strand release paths silently re-gripped: the
+"SPACE LETS GO" toast fired, the hop rose, the body fell straight back
+into the strand's crossing catch; and the S tip release was re-caught
+inside the grab band just below the tip. The strand was a one-way trap.
+The pre-law windowed probe pinned it on UNCHANGED code (the loop-453
+pattern): the hop-off run's window-min never went below the strand
+(55.86 vs tip 54.84, ground 53.18; the landing latch never fired in 245
+polls) and the tip-release run ended with the body pinned AT the tip
+(54.84), health 1.00. The shipped climb route had passed for 11 loops
+because its verdict never checked groundedness. The old unit suite
+could not see the bug: `the_catch_saves_the_body` modeled no
+post-release grab check.
+
+### HOW
+- THE LAW (poorcraft3d/crates/pc3d_render/src/app.rs):
+  `SliceHost.released_from: Option<[f32; 2]>` records the strand a body
+  let go of (set at the Space hop-off branch and the step_hang tip
+  release); the arc's grab check filters the nearest-strand answer
+  through the new pure gate `strand_can_catch(grip_xz, released_from)`
+  — strand-scoped (a DIFFERENT strand in hand reach still catches),
+  spent on landing (cleared in SliceHost::integrate_air), spent by a
+  new grab. The grab law's own tests are untouched: a strand a body
+  never held still catches any fast drop (the crossing catch exists).
+- 3 new unit laws (same tests module): the_space_hop_off_falls_free_of_
+  the_strand_it_left (the full slice-level composition: catch at the
+  attach from above, hop, rise ~1 m band, NO re-catch despite the
+  inside band and the crossing, lands the height law's exact wound);
+  the_tip_release_falls_free_of_its_own_strand (the old re-catch pinned
+  as forbidden — try_grab_vine ALONE answers Some one frame below the
+  tip; the gate forbids it; the release lands safe; landing spends the
+  guard); a_release_is_strand_scoped_and_spent_on_landing.
+- THE ROUTE (apps/poorcraft3d/src/main.rs route_vine_hangoff +
+  crates/pc3d_render/src/observe.rs RouteSpec, Makefile p3d-hangoff):
+  two legs on the climb route's own region-searched strand. LEG 1: 12 m
+  drop onto the line (caught), Space held 3 frames through the real key
+  path; per-frame polls (205..=349) track the peak rise, the window-min
+  fall, and LATCH the landing on two consecutive on-ground polls vs the
+  LIVE ground answer, recording pose + health + the FELL toast presence
+  AT the latch. LEG 2: teleport again, S past the tip (480..=590),
+  polls latch the grounding; SAFE = health never drops within the leg
+  (fed-body regen may only heal — observed 0.95->0.99 mid-leg). The
+  wound band checks health-before/after against damage_from_impact of
+  the RECORDED peak (±0.025 absorbing the fixed-step discretization).
+  The route's ui_script steps are pushed in STRICT frame order — the
+  queue fires in push order and a step whose frame passed never fires
+  (two en-route stalls found and fixed this loop).
+- THE CLIMB ROUTE (route_vine_climb) now tells the truth: its verdict
+  asserts GROUNDEDNESS (final feet vs the LIVE ground answer — the
+  pre-law body pinned AT the tip) and proves the fall/catch by latched
+  records (the drop's lowest height meters below the teleport start,
+  the hang inside the strand's own [tip-0.6, attach] span read from the
+  LIVE grip, the GRIPPED toast latched during the poll) instead of the
+  fell_vs_grip frame-vs-frame pixel bar, which measured sway aliasing
+  (the same pair differed >0.02 at 22 ms, ~0 at 80-100 ms). The bar
+  stays as an advisory print; the captures stay as the visual record.
+- Route-harness change: WindowConfig max_frames 1000 for the hangoff's
+  two legs (the playtest's existing exception widened via matches!).
+
+### VERIFICATION
+- p3d workspace 684 green / 0 failed (pc3d_render 227 = 224 + 3;
+  pc3d_world 267 unchanged); root workspace 480 green.
+- make p3d-hangoff PASS x2 + comparator — and the route held at EVERY
+  host state today: PASS runs at p50 20.0, 29.6-33.5, 48.0, 80.5-108.4,
+  and 105-142 ms (the physics bands ride the fixed-step arc and the
+  latches; the hang/catch clamp bands are span-relative because at
+  ~100 ms one frame crosses half the strand and the crossing catch can
+  clamp anywhere in it). Verdict line (85 ms run): "hang at 55.46
+  (top 55.92 tip 54.84); hop rose 1.03 m, fell past the strand (min
+  53.18), grounded at (258.64,82.00) feet 53.18 (ground 53.18); health
+  100% -> 87% (law 87%); tip release fell free (min 52.83) and landed
+  safe 1.29 m from the strand (health 1.00 -> 1.00)".
+- make p3d-climb PASS x2 + comparator (79-88 ms): "the drop reached
+  55.23 (from 65.18) and hung in the span (55.23 in [tip 54.84, attach
+  55.92]) ... landed unharmed and GROUNDED (feet 52.99 on 52.99)".
+- Captures INSPECTED across the pre-law probe runs and the green runs
+  at two paces: hang_grip (hanging at the attach under the canopy, full
+  bars; the GRIPPED toast in the layout, faded at slow paces —
+  grip_early carries it legibly), hop_rise (the world ~1 m lower,
+  canopy from above), hop_fall/hop_landed (grounded, FELL — HEALTH 80%
+  toast legible with its em-dash, the health bar visibly wounded),
+  tip_hang (re-caught at the strand, GRIPPED toast legible, health
+  regenerating), tip_landed (grounded safe, health full, food visibly
+  drained), climb play_vine_landed (grounded AT the strand's tree, the
+  vine visibly hanging down the trunk, health full).
+- make p3d-dig PASS x2 + comparator (20.0 ms, pre-spike binary state);
+  make p3d-people PASS (12 NPCs, 7 draws, 92 instances, frozen-stride
+  motion 0.64%); p3d-visual-gates ALL 10 PASS; p3d-smoke OK (digest
+  dd019eca900f5a61 UNCHANGED); idle-upgrade-check PASS.
+- THE FOREIGN-LOAD SPIKE (honest): outside processes loaded the host to
+  a 94 15-minute average mid-session (windowed p50 54-142 ms). The
+  frame-CALIBRATED walkoff and playtest chains broke on re-run
+  (walkoff at 54 ms: the fall completed before its frame-112 window,
+  the FELL toast expired past 3 s, fed-body regen healed the wound past
+  its band; playtest run A failed its capture bands) — the documented
+  447/449 capture-window sensitivity, THIRD occurrence. Those two
+  routes' code is untouched by this job (the release law's gate is a
+  no-op where no vine grows — and the playtest's fall is over the
+  Plains plaza, which grows none BY DESIGN); their bundles ride from
+  loop 453 (git checkout HEAD of their shot dirs) and the playtest
+  bundle digest reproduced UNCHANGED 05c46411869a857c on this job's
+  dev-stamped builds in the pre-spike re-run, pinning non-perturbation.
+  The dig chain re-ran green x2 + comparator at 20.0 ms on the final
+  code pre-spike and its fresh bundles ride the commit.
+
+### Files
+- poorcraft3d/crates/pc3d_render/src/app.rs (released_from +
+  strand_can_catch + the grab-site gate + 3 laws),
+  poorcraft3d/crates/pc3d_render/src/slice.rs (field init x2),
+  poorcraft3d/crates/pc3d_render/src/observe.rs (RouteSpec),
+  poorcraft3d/apps/poorcraft3d/src/main.rs (route_vine_hangoff arm +
+  verdict; climb arm records + verdict hardening; max_frames),
+  Makefile (p3d-hangoff), the hangoff-a/b + climb-a/b + dig-a/b +
+  people/gates evidence bundles, STATE/BACKLOG/CHANGELOG/DEVLOG.
+
+PERF: no claim, honestly — the gate is one Option<[f32;2]> compare per
+falling frame; the routes add work only while they run; the live
+walk/stream/crowd paths are untouched; the host was contended all
+session (15-min load up to 94), no bench per the 445-453 precedent; the
+quiet-host re-read stays queued (nine loops).
+
+LORE IMPACT: canon touched: none — a traversal law over the existing
+vine strand; no faction, place, event, term, NPC, item, or spell data;
+no identity assigned. Locked facts preserved: all. World expression: in
+Valdenmoor a hand that lets go is free — the strand catches a FALL,
+never holds a body that released itself, and the fall economy of
+441/444/446 remains the only judge of every drop. Migration: none
+(in-memory slice state + route records; no persisted field, save
+format, or proof schema change).
+
+HONESTLY DEFERRED: the windowed harness's frame-scheduled captures stay
+pace-sensitive — latch-scheduled captures (a UiAction the routes fire
+when the physics reaches the moment) are the systemic cure; the
+walkoff/playtest chains should be re-timed onto it and re-run green at
+any pace (next_task item 1). Carried: the quiet-host deck-bench re-read
++ the bench contention guard; is_water_layer/CTM-strip audit; guardian
+chronicle re-fire; multiplayer routing of terrain edits; geode pairing;
+the walk-snap query-bound observation (surface.rs ground_at discards
+_from_y on the streamed path).

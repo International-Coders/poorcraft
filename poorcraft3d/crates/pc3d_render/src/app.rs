@@ -156,6 +156,10 @@ pub struct SliceHost {
     /// owns the body (XZ pinned to the grip point, Y under climb
     /// control) until the tip releases it or Space jumps off.
     pub hang: Option<VineHang>,
+    /// The strand the body last let go of (Space hop-off or tip
+    /// release): THE RELEASE LAW refuses it until the body lands or a
+    /// different strand catches — letting go must mean letting go.
+    pub released_from: Option<[f32; 2]>,
 }
 
 impl SliceHost {
@@ -177,6 +181,8 @@ impl SliceHost {
         );
         if landed.is_some() {
             self.falling = false;
+            // A grounded body can grab again: the release is spent.
+            self.released_from = None;
         }
         landed
     }
@@ -229,6 +235,21 @@ pub struct VineHang {
 pub const GRAB_RADIUS_M: f32 = 0.55;
 /// Climb speed along the strand while W/S are held (m/s).
 pub const CLIMB_SPEED_MPS: f32 = 1.8;
+
+/// THE RELEASE LAW (pure): a strand cannot re-catch a body that let go
+/// of THAT strand — the hop-off (Space) and the tip release are real
+/// releases, not a re-grip one frame later (the pre-law runtime pinned
+/// a released body back at the strand: the hop rose and fell straight
+/// into the crossing catch; the tip release was re-caught inside the
+/// band below the tip). The guard is strand-scoped — a DIFFERENT
+/// strand in hand reach still catches — and dies on landing, so a
+/// fresh fall off the same strand is catchable again.
+pub fn strand_can_catch(grip_xz: [f32; 2], released_from: Option<[f32; 2]>) -> bool {
+    match released_from {
+        Some(released) => released != grip_xz,
+        None => true,
+    }
+}
 
 /// THE GRAB LAW (pure): a DESCENDING body catches the strand when its
 /// line is within hand reach and the body's path meets the strand's
@@ -434,7 +455,10 @@ pub fn forge_view_of(f: &pc3d_world::forge::Forge) -> crate::ui::ForgeView {
 
 #[cfg(test)]
 mod vine_tests {
-    use super::{damage_from_impact, integrate_air_arc, step_hang, try_grab_vine, VineHang};
+    use super::{
+        damage_from_impact, integrate_air_arc, step_hang, strand_can_catch, try_grab_vine,
+        VineHang,
+    };
     use crate::flora::VineGrip;
 
     /// A broadleaf-hang strand: attach 2.9 m up, tip ~0.65 m (a mid
@@ -585,6 +609,145 @@ mod vine_tests {
                 }
             }
         }
+    }
+
+    /// The slice-level post-release frame, exactly as the windowed
+    /// input path runs it: integrate the arc; when it has not landed,
+    /// offer the body to the gate + the grab law. A re-catch by the
+    /// released strand fails the law loudly.
+    fn post_release_frame(
+        g: &VineGrip,
+        y: &mut f32,
+        vy: &mut f32,
+        released_from: &mut Option<[f32; 2]>,
+        ground: impl Fn() -> f32,
+    ) -> Option<f32> {
+        let prev_y = *y;
+        if let Some(impact) = integrate_air_arc(y, vy, 1.0 / 60.0, ground) {
+            *released_from = None; // grounded: the release is spent
+            return Some(impact);
+        }
+        let pos = [g.xz[0], *y, g.xz[1]];
+        if strand_can_catch(g.xz, *released_from) {
+            assert!(
+                try_grab_vine(g, prev_y, &pos, *vy).is_none(),
+                "the released strand re-caught the body"
+            );
+        }
+        None
+    }
+
+    #[test]
+    fn the_space_hop_off_falls_free_of_the_strand_it_left() {
+        let g = grip(); // top 12.9, tip 10.65 over ground 0.0
+        let ground = || 0.0_f32;
+        // The catch: a drop from ABOVE the attach (the route's own
+        // staging — 12 m of height) grabs at the attach via the
+        // crossing catch and clamps the body to the span's top.
+        let (mut y, mut vy) = (14.0_f32, 0.0_f32);
+        loop {
+            let prev_y = y;
+            if integrate_air_arc(&mut y, &mut vy, 1.0 / 60.0, ground).is_some() {
+                panic!("the drop landed without a grab");
+            }
+            if let Some(h) = try_grab_vine(&g, prev_y, &[g.xz[0], y, g.xz[1]], vy) {
+                y = y.clamp(h.tip_y, h.top_y);
+                // The crossing catch clamps INTO the span: the catch
+                // frame lands within one fixed substep of the attach.
+                assert!(
+                    (g.top_y - y).abs() <= 0.25,
+                    "the crossing catch clamps at the attach (y {y})"
+                );
+                break;
+            }
+        }
+        // THE HOP: Space commits 4.6 m/s up and records the strand it
+        // left — the body must rise, fall PAST the strand, and land the
+        // exact wound the heights name.
+        let mut vy = 4.6_f32;
+        let mut released_from = Some(g.xz);
+        let mut peak = y;
+        let impact = loop {
+            if let Some(i) =
+                post_release_frame(&g, &mut y, &mut vy, &mut released_from, ground)
+            {
+                break i;
+            }
+            peak = peak.max(y);
+        };
+        let rise = peak - g.top_y;
+        assert!(
+            (0.9..=1.3).contains(&rise),
+            "the hop rises about one meter ({rise})"
+        );
+        let expected = damage_from_impact(-((2.0 * 9.8 * peak).sqrt()));
+        assert!(
+            (damage_from_impact(impact) - expected).abs() <= 0.025,
+            "the landing pays the height law's wound ({impact} vs peak {peak})"
+        );
+        assert!(
+            damage_from_impact(impact) > 0.0,
+            "a hop off a 2.9 m strand is a real fall, not a safe hop"
+        );
+    }
+
+    #[test]
+    fn the_tip_release_falls_free_of_its_own_strand() {
+        // A near-ground strand (the real hang law's shape: attach 2.9 m
+        // up, tip 0.65 m) so the release's remaining drop is the safe
+        // one a climber actually gets.
+        let g = VineGrip { xz: [0.0, 0.0], top_y: 2.9, tip_y: 0.65 };
+        let ground = || 0.0_f32;
+        let mut released_from = None;
+        // The OLD behavior, pinned as the thing the gate must forbid:
+        // one frame below the tip is inside the grab law's band —
+        // without the release the strand re-caught the released body
+        // there (the live probe pinned a body AT the tip).
+        let below_tip = g.tip_y - 0.01;
+        assert!(try_grab_vine(&g, g.tip_y, &[g.xz[0], below_tip, g.xz[1]], -0.16).is_some());
+        assert!(!strand_can_catch(g.xz, Some(g.xz)));
+        // The release: descend past the tip (step_hang answers true and
+        // resets y to the tip), then the arc with the gate — no
+        // re-catch, and the drop below the tip is safe.
+        let mut y = g.top_y;
+        loop {
+            if step_hang(
+                &VineHang { xz: g.xz, top_y: g.top_y, tip_y: g.tip_y },
+                &mut y,
+                -1.0,
+                1.0 / 60.0,
+            ) {
+                break;
+            }
+        }
+        assert_eq!(y, g.tip_y, "the release happens at the tip");
+        let mut vy = 0.0_f32;
+        released_from = Some(g.xz);
+        let impact = loop {
+            if let Some(i) =
+                post_release_frame(&g, &mut y, &mut vy, &mut released_from, ground)
+            {
+                break i;
+            }
+        };
+        assert_eq!(damage_from_impact(impact), 0.0, "the tip release is safe");
+        assert_eq!(released_from, None, "landing spends the release");
+    }
+
+    #[test]
+    fn a_release_is_strand_scoped_and_spent_on_landing() {
+        let a = grip();
+        let b = VineGrip { xz: [3.0, 3.0], top_y: 9.0, tip_y: 7.5 };
+        // The strand the body left is refused; a DIFFERENT strand in
+        // reach still catches.
+        assert!(!strand_can_catch(a.xz, Some(a.xz)));
+        assert!(strand_can_catch(b.xz, Some(a.xz)));
+        assert!(strand_can_catch(a.xz, None), "no release: everything catches");
+        // A different strand's catch spends the old release (the new
+        // strand owns the body; releasing IT records the new strand).
+        let h = try_grab_vine(&b, 8.5, &[b.xz[0], 8.4, b.xz[1]], -2.0)
+            .expect("a different strand in reach must still catch");
+        assert!(h.top_y == b.top_y, "the new strand owns the body");
     }
 }
 
@@ -3181,10 +3344,13 @@ impl App {
                 slice.player.pos[1] = y;
                 if released {
                     // Past the tip: the arc resumes from there, and
-                    // the ONLY drop that counts is the one left.
+                    // the ONLY drop that counts is the one left. The
+                    // release is real: this strand cannot re-catch
+                    // the body (THE RELEASE LAW).
                     slice.hang = None;
                     slice.falling = true;
                     slice.jump_vy = 0.0;
+                    slice.released_from = Some(hang.xz);
                 }
             }
             // JUMP START (the controls spec's Space — an input, so
@@ -3196,6 +3362,9 @@ impl App {
                 && !slice.jump_held
                 && !slice.falling
             {
+                // From a hang the strand is left for real: record it so
+                // THE RELEASE LAW refuses its own re-catch mid-fall.
+                slice.released_from = slice.hang.map(|h| h.xz);
                 slice.hang = None; // let go (no-op from the ground)
                 slice.falling = true;
                 slice.jump_vy = 4.6;
@@ -3247,7 +3416,13 @@ impl App {
                         if slice.hang.is_none() && slice.jump_vy <= 0.0 {
                             let grip = state
                                 .renderer
-                                .vine_grip_near_pub(slice.player.pos[0], slice.player.pos[2]);
+                                .vine_grip_near_pub(slice.player.pos[0], slice.player.pos[2])
+                                // THE RELEASE LAW: the strand the body
+                                // let go of cannot re-catch it; any
+                                // other strand in reach still can.
+                                .filter(|g| {
+                                    strand_can_catch(g.xz, slice.released_from)
+                                });
                             if let Some(hang) = grip.and_then(|g| {
                                 crate::app::try_grab_vine(
                                     &g,
@@ -3256,6 +3431,7 @@ impl App {
                                     slice.jump_vy,
                                 )
                             }) {
+                                slice.released_from = None; // a new strand owns the body
                                 slice.player.pos[1] = slice
                                     .player
                                     .pos[1]

@@ -1,5 +1,79 @@
 # CHANGELOG
 
+## 2026-09-14 — Space lets go: the strand release is real (loop 454)
+
+- Closed STATE's next_task item (1): the Space jump-off from a hang had
+  unit-lawed pieces but no windowed route — and the route the loop wrote
+  found a REAL BUG before shipping anything: both release paths silently
+  re-gripped. The pre-law windowed probe pinned the evidence: the Space
+  hop rose 1.04 m, fell straight back into the strand's crossing catch
+  (window-min 55.86, tip 54.84, ground 53.18 — never past the strand,
+  landing latch never fired in 245 polls), and the S tip release was
+  re-caught INSIDE the grab band below the tip (the body pinned AT the
+  tip 54.84, health 1.00, never grounding). The strand was a one-way
+  trap: "SPACE LETS GO" fired a toast and the strand caught the body
+  anyway. The old unit suite could not see it — `the_catch_saves_the_
+  body` modeled no post-release grab check.
+- THE RELEASE LAW (pc3d_render::app): `SliceHost.released_from` records
+  the strand a body let go of (Space hop-off or tip release) and the
+  arc's grab check refuses THAT strand through the pure gate
+  `strand_can_catch` — strand-scoped (a DIFFERENT strand in hand reach
+  still catches), spent on landing, spent by a new grab. The grab law's
+  own tests are untouched (a fast drop still cannot tunnel through a
+  strand it never held). 3 new unit laws — the Space hop-off composition
+  (rise ~1 m, falls past its own strand, pays the height law's exact
+  wound), the tip release (falls free of the band that used to re-catch
+  it, safe; the old re-catch pinned as the forbidden behavior), and
+  strand-scoping/spent-on-landing. pc3d_render 224 -> 227; p3d
+  workspace 681 -> 684 green / 0 failed; root workspace 480 green.
+- THE ROUTE (route_vine_hangoff, make p3d-hangoff): two legs on the
+  climb route's own searched strand. LEG 1 drops 12 m onto the line
+  (caught), presses Space ONCE through the real key path: the hop RISES
+  (peak = hang + 1.04), the body falls PAST its own strand (window-min
+  = the ground below the tip), lands GROUNDED at the strand's line, and
+  pays EXACTLY the wound the recorded heights name through the impact
+  law (health 100% -> 81-91% vs the law's 81-91% at every pace). LEG 2
+  drops again and descends PAST THE TIP with S: the release falls free
+  and lands SAFE (health never drops; a fed body's regen may only
+  heal). All landings latch on two consecutive on-ground polls against
+  the LIVE ground answer, and the FELL toast is latched AT the landing —
+  pace-proof by design.
+- THE CLIMB ROUTE TELLS THE TRUTH NOW: its verdict asserts GROUNDEDNESS
+  (the pre-law run ended with the body pinned at the tip — the old
+  "landed unharmed" claim passed without checking) and proves the
+  fall/catch by latched records (lowest height of the drop, the hang
+  inside the strand's own span, the GRIPPED toast latched) instead of
+  the frame-vs-frame pixel bar that measured sway aliasing, not the
+  fall, at contended paces. The captures stay as the visual record.
+- Evidence: p3d-hangoff PASS x2 + comparator (the release law's own
+  route — PASS at 20, 30, 48, and 80-108 ms p50 across the day's host
+  states); p3d-climb PASS x2 + comparator (79-88 ms, grounded, span
+  records); p3d-dig PASS x2 + comparator (20.0 ms); p3d-people PASS
+  (motion 0.64%); p3d-visual-gates ALL 10 PASS; p3d-smoke OK (digest
+  dd019eca900f5a61 UNCHANGED); idle-upgrade-check PASS; the playtest
+  bundle digest reproduced UNCHANGED 05c46411869a857c on this job's
+  dev-stamped builds (pre-spike run). THE FOREIGN-LOAD SPIKE, honestly:
+  mid-session the host loaded to a 94 15-minute average (outside
+  processes; windowed p50 54-142 ms) — the frame-CALIBRATED walkoff and
+  playtest chains broke on re-run (walkoff at 54 ms: the fall completed
+  before its frame-112 window, the FELL toast expired, regen healed the
+  wound — the documented 447/449 capture-window sensitivity, third
+  occurrence). Those two routes' code is untouched by this job; their
+  bundles ride from loop 453 (git HEAD, same route code) and the
+  playtest digest identity above pins the non-perturbation.
+- PERF: no claim, honestly — the gate is one Option<[f32;2]> compare
+  per falling frame; the routes add work only while they run; the live
+  walk/stream/crowd paths are untouched; the host was contended all
+  session, no bench per the 445-453 precedent; the quiet-host re-read
+  stays queued (nine loops).
+- LORE: canon touched: none — a traversal law over the existing vine
+  strand; no faction, place, event, term, NPC, item, or spell data; no
+  identity assigned. World expression: in Valdenmoor a hand that lets
+  go is free — the strand catches a FALL, never holds a body that
+  released itself, and the fall economy of 441/444/446 remains the only
+  judge of every drop. Migration: none (in-memory slice state + route
+  records; no persisted field, save format, or proof schema change).
+
 ## 2026-09-14 — The plaza recovery, live: the lethal fall's windowed route (loop 453)
 
 - Closed STATE's next_task item (1): the fall law's lethal branch —
