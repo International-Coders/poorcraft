@@ -8481,3 +8481,113 @@ item 1); Space jump-off from a hang; the quiet-host deck-bench
 re-read + the bench contention guard; is_water_layer/CTM-strip
 audit; guardian chronicle re-fire; multiplayer routing of terrain
 edits; geode pairing (447's keepers are root-workspace lore).
+
+## 2026-09-14 — The plaza recovery, live: the lethal fall's windowed route (loop 453)
+
+WHAT:
+- Closed STATE's next_task item (1): the fall law's lethal branch — a
+  wound that empties health wakes the body at the plaza, health
+  EXACTLY 0.5, food halved, under "YOU FELL — RECOVERED AT THE
+  PLAZA" — was unit-lawed but had no windowed route.
+- THE PLAZA RECOVERY, LIVE: route_plaza_recovery (make p3d-recovery)
+  stages the walk-off's own flat, flora-free, vine-free cell near the
+  plaza, digs it -14 m in one edit under the standing body, and the
+  live arc lands ~16.5 m/s — the impact law's ~1.15 health exceeds
+  the body's whole 1.0, so the recovery branch fires in the window.
+- PROOF-FOUND, TWO HONEST TURNS:
+  1. The runtime DISPROVED my static prediction. Orientation said the
+     recovery's keep-Y teleport would plant the body 14 m UNDER the
+     plaza (the streamed ground query bounded at feet+2 answering
+     nothing that deep; is_unsupported false when the ground is above
+     the feet). The first route run against UNCHANGED code PASSED:
+     the walk's per-frame ground snap (pos[1] - g <= SUPPORT_GAP_M is
+     trivially true for any rise — the same predicate 449 fixed for
+     axis MOVES) lifts the body onto the plaza in one frame. The
+     branch is correct in practice; NO recovery code changed — the
+     route now laws the outcome. Recorded: surface.rs ground_at takes
+     _from_y and DISCARDS it on the streamed path; if that bound is
+     ever enforced, make the recovery's placement explicit first.
+  2. The em-dash was missing from the pixel font. The wake-up capture
+     showed "YOU FELL — RECOVERED AT THE PLAZA" rendering with the
+     dash as a BLANK GAP (the pre-existing "FELL — HEALTH x%" toast
+     had the same hole — same class as 452's middle dot). Added the
+     em-dash glyph (a full-width bar, original) + the ink law
+     the_em_dash_rasterizes_with_ink (also pins it distinct from the
+     hyphen). Both fall toasts now read with their dash.
+
+HOW:
+- poorcraft3d/crates/pc3d_render/src/observe.rs — route_plaza_recovery
+  RouteSpec (available, 16 routes).
+- poorcraft3d/apps/poorcraft3d/src/main.rs — the route arm (spot
+  finder, StartPlaying 12, grounded teleport 30, approach record 70,
+  the -14 m EditSurface 90, mid-fall records 122/152, recovered record
+  250 with the LIVE plaza-ground read, final record 340; captures
+  recovery_rim 70 / recovery_air 122 / recovery_plaza_early 200 /
+  recovery_plaza 250 / recovery_final 340) + the verdict block (rim
+  band, two-chance mid-air band, recovered XZ/feet/health/food bands,
+  final stability, recovery-toast present + plain-FELL absent, three
+  pixel-differ pairs).
+- poorcraft3d/crates/pc3d_render/src/font.rs — the em-dash glyph +
+  the_em_dash_rasterizes_with_ink (pc3d_render 223 -> 224).
+- Makefile — p3d-recovery (release build, run x2, comparator).
+
+VERIFICATION:
+- p3d workspace 681 green / 0 failed (pc3d_render 224, pc3d_world
+  267).
+- make p3d-recovery PASS x2 identical + comparator PASS; verdict line:
+  "fell 54.49 -> pit floor 40.49; woke at the plaza (384.5,128.5)
+  feet 55.19 (plaza ground 55.19); health 100% -> 50% EXACT, food
+  1.00 -> 0.50"; p50 ~20.8 ms per run; all five captures INSPECTED
+  (rim at full bars; the shaft mid-fall with THE GROUND GIVES WAY;
+  the wake-up with half bars + the inked-dash toast; the fading
+  repeat; final stable at half health by the plaza forge).
+- make p3d-walkoff PASS x2 + comparator (56.19 -> 51.19, 67%;
+  walk_landed INSPECTED — "FELL — HEALTH 64%" now reads with its
+  dash).
+- make p3d-dig PASS x2 + comparator (54.49 -> 53.49; pack
+  "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"; unhurt).
+- make p3d-playtest PASS x2 + comparator; bundle digest
+  05c46411869a857c on this loop's dev-stamped builds — recorded
+  honestly: the digest covers the bundle JSON (including the
+  compile-time PC3D_BUILD stamp), NOT capture pixels, so loop 452's
+  "RE-BASELINED 1d37f62c3801ae20" was a PC3D_BUILD-stamped rebuild's
+  value, not a pixel change; play_fall_landed INSPECTED ("FELL —
+  HEALTH 33%" with its dash over the open forge + the pack line).
+- make p3d-people PASS (12 NPCs, 7 draws, 92 instances, frozen-stride
+  motion 0.66%); p3d-visual-gates ALL 10 PASS; p3d-smoke OK (digest
+  dd019eca900f5a61 UNCHANGED — headless, no font path);
+  idle-upgrade-check PASS.
+- Runtime: make p3d-dmg -> poorcraft3d/dist3d/poorcraft3d-macos.dmg
+  (stamped BUILD <job commit>).
+
+PERF: no claim, honestly — the route adds work only while it runs (a
+bounded staging scan, one -14 m edit, five captures); the live
+walk/stream/crowd paths are untouched (the em-dash is one more
+35-pixel glyph in an already-dirty-frame raster); host shared (route
+p50 20.0-23.4 ms), no bench per the 445-452 precedent; the
+quiet-host re-read stays queued (eight loops).
+
+### Files
+- poorcraft3d/crates/pc3d_render/src/observe.rs (the route spec),
+  poorcraft3d/apps/poorcraft3d/src/main.rs (route arm + verdict),
+  poorcraft3d/crates/pc3d_render/src/font.rs (em-dash glyph + ink
+  law), Makefile (p3d-recovery), the recovery-a/b + dig/walkoff/
+  playtest/people/gates evidence bundles, STATE/BACKLOG/CHANGELOG/
+  DEVLOG.
+
+LORE IMPACT: canon touched: none — a consequence branch of the
+existing fall law over the unnamed settlement's plaza anchor; no
+faction, place, event, term, NPC, item, or spell data; no identity
+assigned. Locked facts preserved: all. World expression: lethal
+falls in Valdenmoor do not end the journey — the body wakes at the
+settlement's heart, wounded (health 0.5) and hungry (food halved),
+and the toast says so legibly. Migration: none (in-memory route +
+one glyph; no persisted field, save format, or proof schema change).
+
+HONESTLY DEFERRED: Space jump-off from a hang (next_task item 1);
+the walk-snap query-bound observation (surface.rs discards _from_y;
+the recovery's one-frame lift rides it — the route pins the outcome
+either way); the quiet-host deck-bench re-read + the bench contention
+guard; is_water_layer/CTM-strip audit; guardian chronicle re-fire;
+multiplayer routing of terrain edits; geode pairing (447's keepers
+are root-workspace lore).

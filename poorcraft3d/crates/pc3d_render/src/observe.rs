@@ -81,6 +81,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_plaza_recovery",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

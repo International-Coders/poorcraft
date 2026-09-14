@@ -227,6 +227,7 @@ const GLYPHS: &[(char, [u8; 7])] = &[
     // The middle dot: the pack line's separator ("WOOD 1 · SOIL 1"),
     // vertically centered — a 2x2 dot.
     ('·', [0, 0, 0, 0b01100, 0b01100, 0, 0]),
+    ('—', [0, 0, 0, 0b11111, 0, 0, 0]),
     (',', [0, 0, 0, 0, 0b01100, 0b00100, 0b01000]),
     ('-', [0, 0, 0, 0b01110, 0, 0, 0]),
     ('+', [0, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0]),
@@ -383,6 +384,27 @@ mod tests {
         assert!(
             buf.chunks_exact(4).any(|p| p[0] == 255),
             "the middle dot must carry ink, not the blank fallback"
+        );
+    }
+
+    /// THE FALL TOASTS' DASH: both fall toasts ("FELL — HEALTH x%",
+    /// "YOU FELL — RECOVERED AT THE PLAZA") carry the em-dash; it used
+    /// to fall through to the blank fallback and silently render as a
+    /// gap (the recovery route's capture inspection caught it — same
+    /// class as the middle dot).
+    #[test]
+    fn the_em_dash_rasterizes_with_ink() {
+        let (buf, _, _) = rasterize_line("YOU FELL — RECOVERED", 2);
+        assert!(
+            buf.chunks_exact(4).any(|p| p[0] == 255),
+            "the em-dash must carry ink, not the blank fallback"
+        );
+        // Distinct from the hyphen: the em-dash is the font's one
+        // full-width bar.
+        let (dash, _, _) = rasterize_line("-", 2);
+        assert_ne!(
+            buf, dash,
+            "the em-dash must not rasterize as the hyphen"
         );
     }
 

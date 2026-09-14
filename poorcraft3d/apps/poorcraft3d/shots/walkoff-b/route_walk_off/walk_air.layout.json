@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -202,6 +213,7 @@
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK EMPTY",
       "xp": 0.0
     },
     "interact": null,
@@ -221,12 +233,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 21:58",
+        "modified": "2026-09-14 09:49",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 21:58",
+        "modified": "2026-09-14 09:49",
         "name": "beta-shot",
         "seed": 7
       }
@@ -234,7 +246,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.6227487921714783,
+        "age_s": 0.5576984882354736,
         "text": "THE GROUND GIVES WAY"
       }
     ],

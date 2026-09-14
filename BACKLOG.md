@@ -11,6 +11,39 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The plaza recovery, live: the lethal fall's windowed route
+      (2026-09-14, loop 453, POORCRAFT 3D): closed STATE's next_task
+      item (1) — the fall law's 0.5-health plaza recovery branch had
+      unit laws but no windowed route. THE ROUTE (make p3d-recovery,
+      route_plaza_recovery): the walk-off's own spot finder stages a
+      flat, flora-free, vine-free cell near the plaza; one -14 m edit
+      pits it under the standing body; the arc lands ~16.5 m/s and the
+      impact law costs ~1.15 health — more than the body carries — so
+      the recovery fires. Verdict: rim on the LIVE pre-dig ground at
+      full bars; mid-fall between floor and rim; recovered XZ at the
+      plaza center, feet ON the LIVE plaza-ground answer, health
+      EXACTLY 0.5, food exactly halved; still there later (no second
+      fall, no regen at 0.5 food); the recovery toast present, the
+      plain FELL toast absent; five captures all differing. THE
+      PREDICTION THE RUNTIME DISPROVED (honest): statics said the
+      keep-Y teleport would plant the body under the plaza — the first
+      run against UNCHANGED code PASSED (the walk's any-rise ground
+      snap lifts the body in one frame); no pose change shipped; the
+      route laws the outcome; surface.rs ground_at discards its
+      _from_y bound (recorded). THE GLYPH (proof-found): the em-dash
+      in both fall toasts rendered as a blank gap — glyph added + ink
+      law (distinct from the hyphen); pc3d_render 223 -> 224.
+      Evidence: p3d 681 green; recovery PASS x2 + comparator + all
+      five captures INSPECTED; walkoff/dig/playtest PASS x2 +
+      comparators; people PASS (motion 0.66%); gates ALL 10 PASS;
+      smoke OK (digest unchanged); idle-upgrade-check PASS. PERF: no
+      claim — route-only work; live paths untouched; host shared, no
+      bench per the 445-452 precedent. Deferred honestly: Space
+      jump-off from a hang; the walk-snap query-bound observation;
+      the quiet-host deck-bench re-read + the bench contention guard;
+      is_water_layer/CTM-strip audit; guardian chronicle re-fire;
+      multiplayer routing of terrain edits; geode pairing.
+
 - [x] The pack is legible: the inventory's echo on the HUD
       (2026-09-14, loop 452, POORCRAFT 3D): closed STATE's next_task
       item (1) — finished from an interrupted session's orphaned

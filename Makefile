@@ -202,6 +202,14 @@ p3d-crowd: ## The staged-yield crowd route (two NPCs walk one row head-on throug
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/crowd-a/route_crowd_yield poorcraft3d/apps/poorcraft3d/shots/crowd-b/route_crowd_yield || exit 1; \
 	echo "P3D CROWD YIELD OK (chained + deterministic)"
 
+p3d-recovery: ## The plaza-recovery route (a 14 m pit empties the body's health: the lethal fall wakes it at the plaza's heart ON the plaza ground, health EXACTLY 0.5, food halved, under its own toast) run TWICE + comparator: make p3d-recovery
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	rm -rf poorcraft3d/apps/poorcraft3d/shots/recovery-a poorcraft3d/apps/poorcraft3d/shots/recovery-b
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_plaza_recovery poorcraft3d/apps/poorcraft3d/shots/recovery-a || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_plaza_recovery poorcraft3d/apps/poorcraft3d/shots/recovery-b || exit 1; \
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --compare-evidence poorcraft3d/apps/poorcraft3d/shots/recovery-a/route_plaza_recovery poorcraft3d/apps/poorcraft3d/shots/recovery-b/route_plaza_recovery || exit 1; \
+	echo "P3D PLAZA RECOVERY OK (chained + deterministic)"
+
 p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/export

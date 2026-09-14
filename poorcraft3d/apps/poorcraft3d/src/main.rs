@@ -5255,6 +5255,11 @@ fn run_observe(route_id: &str, out_root: &str) {
         // frames audited / read failures), the arrival + parked-end
         // reads, and the staged marker.
         let crowd_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 16]));
+        // route_plaza_recovery recordings: rim pose/health/food + the
+        // LIVE pre-dig ground answer, two mid-fall poses, the recovered
+        // pose/health/food + the LIVE plaza-ground answer, and the
+        // final pose/health — the verdict reads them after the run.
+        let recovery_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 22]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -6367,6 +6372,153 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(130, format!("{dir}/crowd_arrived.png"))
                     .ui_dump(format!("{dir}/crowd_arrived.layout.json")));
             }
+            "route_plaza_recovery" => {
+                // THE PLAZA RECOVERY, LIVE (the fall law's lethal
+                // branch, never before framed in the window): a 14 m
+                // pit dug under the standing body — the arc lands at
+                // ~16.5 m/s and the impact law costs ~1.15 health,
+                // MORE than the body carries — so the wound empties
+                // health and the recovery fires: the body wakes at the
+                // plaza's heart, health clamped at EXACTLY 0.5, food
+                // halved, under its own toast. The walk-off's own spot
+                // finder stages it (flat, flora-free, vine-free with
+                // margin — a strand catch would erase the drop). No
+                // keys, no teleports after the grounded start.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                let [sx, sg, sz] = find_dig_spot(gen, plaza.x as f32 + 0.5, plaza.z as f32 + 0.5)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "route_plaza_recovery: no flat flora-free dig cell near the plaza on seed {seed}"
+                        )
+                    });
+                println!(
+                    "PLAZA RECOVERY: pit cell ({sx:.1},{sg:.2},{sz:.1}) -> floor {:.2}; plaza at ({}, {})",
+                    sg - 14.0,
+                    plaza.x,
+                    plaza.z
+                );
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // Grounded teleport onto the cell center; the streamed
+                // near ring settles while the body stands.
+                ui_script.push((
+                    30,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                    }),
+                ));
+                // Approach record: standing at the rim, unwounded —
+                // the LIVE pre-dig ground answer anchors every band.
+                let approach = recovery_cells.clone();
+                ui_script.push((
+                    70,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = approach.get();
+                        v[0] = pose.position[0];
+                        v[1] = pose.position[1];
+                        v[2] = pose.position[2];
+                        v[9] = ui.hud.health;
+                        v[10] = ui.hud.food;
+                        v[16] = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                        approach.set(v);
+                    }),
+                ));
+                // THE PIT at 90 (60 frames of streaming settle): one
+                // -14 m edit — the step law refuses the snap, the
+                // walk-off commit flips the fall, the arc lands lethal.
+                ui_script.push((
+                    90,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::EditSurface {
+                            x: sx,
+                            z: sz,
+                            meters: -14.0,
+                        });
+                    }),
+                ));
+                // Mid-fall records (two chances — the rendered-frame
+                // span of a ~1.7 s fall varies with the host's pace):
+                // either catching the body between rim and floor
+                // proves the air beat.
+                let mid1 = recovery_cells.clone();
+                ui_script.push((
+                    122,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = mid1.get();
+                        v[3] = pose.position[0];
+                        v[4] = pose.position[1];
+                        v[5] = pose.position[2];
+                        mid1.set(v);
+                    }),
+                ));
+                let mid2 = recovery_cells.clone();
+                ui_script.push((
+                    152,
+                    Box::new(move |_ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = mid2.get();
+                        v[6] = pose.position[0];
+                        v[7] = pose.position[1];
+                        v[8] = pose.position[2];
+                        mid2.set(v);
+                    }),
+                ));
+                // Recovered record (frame 250 — past the slowest
+                // observed landing): pose, health, food, and the LIVE
+                // plaza-ground answer the wake-up band anchors to.
+                let recovered = recovery_cells.clone();
+                let (plx, plz) = (plaza.x, plaza.z);
+                ui_script.push((
+                    250,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = recovered.get();
+                        v[11] = pose.position[0];
+                        v[12] = pose.position[1];
+                        v[13] = pose.position[2];
+                        v[14] = ui.hud.health;
+                        v[15] = ui.hud.food;
+                        v[17] = r.ground_y_at_pub(plx as f32 + 0.5, plz as f32 + 0.5);
+                        recovered.set(v);
+                    }),
+                ));
+                // Final record: the body STANDS on the plaza — no
+                // second fall, no regen (0.5 food is not "well fed"),
+                // the numbers hold.
+                let final_rec = recovery_cells.clone();
+                ui_script.push((
+                    340,
+                    Box::new(move |ui, r, _ctx| {
+                        let pose = r.pose();
+                        let mut v = final_rec.get();
+                        v[18] = pose.position[0];
+                        v[19] = pose.position[1];
+                        v[20] = pose.position[2];
+                        v[21] = ui.hud.health;
+                        final_rec.set(v);
+                    }),
+                ));
+                shots.push(Shot::new(70, format!("{dir}/recovery_rim.png"))
+                    .ui_dump(format!("{dir}/recovery_rim.layout.json")));
+                shots.push(Shot::new(122, format!("{dir}/recovery_air.png"))
+                    .ui_dump(format!("{dir}/recovery_air.layout.json")));
+                // THE WAKE-UP: toast + half bars over the plaza — two
+                // frames so the 3 s toast outlives the early one at
+                // every observed pace.
+                shots.push(Shot::new(200, format!("{dir}/recovery_plaza_early.png"))
+                    .ui_dump(format!("{dir}/recovery_plaza_early.layout.json")));
+                shots.push(Shot::new(250, format!("{dir}/recovery_plaza.png"))
+                    .ui_dump(format!("{dir}/recovery_plaza.layout.json")));
+                shots.push(Shot::new(340, format!("{dir}/recovery_final.png"))
+                    .ui_dump(format!("{dir}/recovery_final.layout.json")));
+            }
             "route_house_entry" => {
                 // WT-002 slice 5: the enterable house — from the kit's
                 // own DoorEntry record (door column open, ring solid,
@@ -7252,6 +7404,99 @@ fn run_observe(route_id: &str, out_root: &str) {
                     spec.id,
                     report.captures.len(),
                     v[0], v[1], v[2], v[3], v[8], v[6], v[7], v[10], v[11], v[12], v[13], v[4], v[5],
+                );
+                any_fail = true;
+            }
+        }
+        // THE PLAZA RECOVERY: the 14 m pit emptied the body's health,
+        // the recovery branch woke it at the plaza's heart — XZ at the
+        // plaza center, feet ON the plaza's own ground answer, health
+        // clamped at EXACTLY 0.5, food halved, its own toast (never
+        // the plain FELL one) — and the body STANDS there after (no
+        // second fall; 0.5 food is not "well fed", no regen drift).
+        if spec.id == "route_plaza_recovery" {
+            let capture_by = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let has = |name: &str| capture_by(name).is_some();
+            let differ = |a: &str, b: &str, bar: f32| {
+                match (capture_by(a), capture_by(b)) {
+                    (Some(a), Some(b)) => {
+                        pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba) > bar
+                    }
+                    _ => false,
+                }
+            };
+            let element_in = |name: &str, prefix: &str| {
+                capture_by(name)
+                    .and_then(|c| c.ui_layout.as_ref())
+                    .and_then(|l| l["elements"].as_array())
+                    .map(|els| {
+                        els.iter().any(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with(prefix))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            };
+            let v = recovery_cells.get();
+            let eye = pc3d_render::player::EYE_ABOVE_FEET;
+            let ground = v[16]; // the LIVE pre-dig answer at the rim
+            let floor = ground - 14.0;
+            let plaza_ground = v[17]; // the LIVE answer at the plaza center
+            let (pcx, pcz) = (scene.plan.plaza.x as f32 + 0.5, scene.plan.plaza.z as f32 + 0.5);
+            let rim_ok = (v[1] - eye - ground).abs() <= 0.05
+                && v[9] > 0.99
+                && v[10] > 0.99;
+            let mid_air = [v[4], v[7]]
+                .iter()
+                .any(|y| *y - eye > floor + 0.3 && *y - eye < ground - 0.4);
+            let recovered_ok = (v[11] - pcx).abs() <= 0.3
+                && (v[13] - pcz).abs() <= 0.3
+                && (v[12] - eye - plaza_ground).abs() <= 0.25
+                && (v[14] - 0.5).abs() <= 0.001
+                && (v[15] - (v[10] * 0.5).max(0.3)).abs() <= 0.001;
+            let final_ok = (v[18] - pcx).abs() <= 0.5
+                && (v[20] - pcz).abs() <= 0.5
+                && (v[19] - eye - plaza_ground).abs() <= 0.3
+                && (v[21] - 0.5).abs() <= 0.001;
+            let recovery_toast = element_in("recovery_plaza_early", "toast_YOU")
+                || element_in("recovery_plaza", "toast_YOU");
+            let no_plain_fell = !element_in("recovery_plaza_early", "toast_FELL")
+                && !element_in("recovery_plaza", "toast_FELL");
+            let air_differs = differ("recovery_rim", "recovery_air", 0.005);
+            let plaza_differs = differ("recovery_air", "recovery_plaza", 0.02);
+            let ok = has("recovery_rim")
+                && has("recovery_air")
+                && has("recovery_plaza")
+                && has("recovery_final")
+                && rim_ok
+                && mid_air
+                && recovered_ok
+                && final_ok
+                && recovery_toast
+                && no_plain_fell
+                && air_differs
+                && plaza_differs;
+            if ok {
+                println!(
+                    "PLAZA RECOVERY: fell {:.2} -> pit floor {:.2}; woke at the plaza ({:.1},{:.1}) feet {:.2} (plaza ground {:.2}); health {:.0}% -> {:.0}% EXACT, food {:.2} -> {:.2}",
+                    v[1] - eye, floor, v[11], v[13], v[12] - eye, plaza_ground,
+                    v[9] * 100.0, v[14] * 100.0, v[10], v[15],
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: captures {} / rim {rim_ok} / mid_air {mid_air} / recovered {recovered_ok} / final {final_ok} / toast {recovery_toast} / no_plain_fell {no_plain_fell} / air_differ {air_differs} / plaza_differ {plaza_differs} (ground {ground:.2} floor {floor:.2} plaza_ground {plaza_ground:.2} eyes {:.2}->{:.2}->{:.2}->{:.2} xz {:.1},{:.1} -> {:.1},{:.1} -> {:.1},{:.1} health {:.2}->{:.2}->{:.2} food {:.2}->{:.2})",
+                    spec.id,
+                    report.captures.len(),
+                    v[1] - eye, (v[4] - eye), (v[12] - eye), (v[19] - eye),
+                    v[0], v[2], v[11], v[13], v[18], v[20],
+                    v[9], v[14], v[21], v[10], v[15],
                 );
                 any_fail = true;
             }

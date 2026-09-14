@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -209,10 +220,11 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.6831732392311096,
+      "health": 0.668701708316803,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK EMPTY",
       "xp": 0.0
     },
     "interact": null,
@@ -232,12 +244,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-13 21:58",
+        "modified": "2026-09-14 09:49",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-13 21:58",
+        "modified": "2026-09-14 09:49",
         "name": "beta-shot",
         "seed": 7
       }
@@ -245,11 +257,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.7494442462921143,
+        "age_s": 2.458725690841675,
         "text": "THE GROUND GIVES WAY"
       },
       {
-        "age_s": 1.9386444091796875,
+        "age_s": 1.2150853872299194,
         "text": "FELL — HEALTH 64%"
       }
     ],

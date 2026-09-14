@@ -1,0 +1,31 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_plaza_recovery-dev",
+  "commands": [
+    "--observe route_plaza_recovery"
+  ],
+  "diff_paths": [],
+  "digest": "6a0d2f3f9772d1ac",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_plaza_recovery",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [
+    "recovery_rim.png",
+    "recovery_air.png",
+    "recovery_plaza_early.png",
+    "recovery_plaza.png",
+    "recovery_final.png"
+  ],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

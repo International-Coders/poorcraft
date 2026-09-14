@@ -1,5 +1,52 @@
 # CHANGELOG
 
+## 2026-09-14 — The plaza recovery, live: the lethal fall's windowed route (loop 453)
+
+- Closed STATE's next_task item (1): the fall law's lethal branch —
+  health emptied -> wake at the plaza, health 0.5, food halved, its own
+  toast — had unit laws but no windowed route. `route_plaza_recovery`
+  (make p3d-recovery) frames it.
+- THE ROUTE: the walk-off's spot finder (flat, flora-free, vine-free)
+  stages a cell near the plaza; one -14 m edit pits it under the
+  standing body; the arc lands ~16.5 m/s and the impact law costs
+  ~1.15 health — more than the body carries. Verdict bands: rim
+  standing on the LIVE pre-dig ground at full bars; a mid-fall pose
+  between floor and rim (two record chances); recovered XZ at the
+  plaza center, feet ON the LIVE plaza-ground answer, health EXACTLY
+  0.5, food exactly halved; a later record pins the body still there
+  (no second fall, no regen at 0.5 food); the recovery toast present,
+  the plain FELL toast absent; five captures all differing.
+- THE PREDICTION THE RUNTIME DISPROVED (honest): statics said the
+  recovery "keeps the pit-floor Y" and would plant the body under the
+  plaza. The first run against UNCHANGED code PASSED — the walk's
+  per-frame ground snap (trivially true for any rise, the predicate
+  449 fixed for axis moves) lifts the body in one frame. No pose
+  change shipped; the route laws the outcome. Recorded: surface.rs
+  ground_at discards its _from_y bound on the streamed path.
+- THE GLYPH, proof-found: the wake-up capture showed the em-dash in
+  "YOU FELL — RECOVERED AT THE PLAZA" rendering as a blank gap — the
+  glyph was missing from the pixel font ("FELL — HEALTH x%" had the
+  same hole). Added the em-dash glyph + an ink law (distinct from the
+  hyphen) — pc3d_render 223 -> 224; both fall toasts read with their
+  dash.
+- Evidence: p3d workspace 681 green / 0 failed; p3d-recovery PASS x2
+  identical + comparator ("woke at the plaza (384.5,128.5) feet 55.19
+  (plaza ground 55.19); health 100% -> 50% EXACT, food 1.00 -> 0.50");
+  all five captures INSPECTED. Walk-off, dig, playtest PASS x2 +
+  comparators each; playtest bundle digest 05c46411869a857c on
+  dev-stamped builds (the digest covers the bundle JSON incl. the
+  compile-time PC3D_BUILD stamp, not capture pixels); people PASS
+  (motion 0.66%); visual gates ALL 10 PASS; smoke OK (dd019eca900f5a61
+  unchanged); idle-upgrade-check PASS.
+- PERF: no claim, honestly — the route adds work only while it runs;
+  the live walk/stream/crowd paths are untouched; host shared (route
+  p50 20.0-23.4 ms), no bench per the 445-452 precedent.
+- LORE: canon touched: none — a consequence branch of the existing
+  fall law over the unnamed settlement's plaza anchor. World
+  expression: lethal falls in Valdenmoor do not end the journey — the
+  body wakes at the settlement's heart, wounded and hungry, and the
+  toast says so legibly. Migration: none.
+
 ## 2026-09-14 — The pack is legible: the inventory's echo on the HUD (loop 452)
 
 - Closed STATE's next_task item (1): the INVENTORY ECHO of the dig verb,
