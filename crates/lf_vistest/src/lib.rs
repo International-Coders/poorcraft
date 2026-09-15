@@ -673,6 +673,18 @@ pub fn scenes() -> Vec<SceneSpec> {
             target: Vec3::ZERO,
         },
         SceneSpec {
+            name: "geode_twins",
+            desc: "Old Powers (loop 463): the geode twin law — two mirror hollows through the realm's heart, each crystal-lined and kept",
+            default_seed: 12345,
+            time_of_day: 0.55,
+            first_person: false,
+            torches: false,
+            machines: false,
+            raytraced: false,
+            eye: Vec3::ZERO,
+            target: Vec3::ZERO,
+        },
+        SceneSpec {
             name: "paths_screen",
             desc: "Paths & specialization (P37): four standings with tiers, focus bars, respec note",
             default_seed: 12345,
@@ -1865,6 +1877,85 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         world.set_block(10, gy - 3, 0, lf_voxel::BlockState(block::ANIMA_CRYSTAL));
     }
 
+    // geode_twins (loop 463): THE GEODE TWIN LAW staged in stone — a
+    // dug gallery in a solid host box, two mirror hollows opening off its
+    // back wall (one pocket either side of the realm's heart), each
+    // crystal-lined and each with its keeper. The x/z geometry is a real
+    // pair's own answer (geode_twins_stage); the row is staged shallow
+    // like the sibling quarry, shared by both pockets because the mirror
+    // keeps y. A shaft of daylight falls into the gallery so the stone
+    // reads while the hollows glow their own violet.
+    if spec.name == "geode_twins" {
+        use lf_voxel::registry::block;
+        let h = world.surface_height(0, 0);
+        let stage = geode_twins_stage(h);
+        let gy = stage.gy;
+        let feats = 12345u64; // the proof lining seed, as the sibling scene
+        let rmax = [stage.a.2, stage.b.2].into_iter().max().unwrap();
+        let gz0 = [stage.a.1, stage.b.1].into_iter().max().unwrap();
+        // 1. the host box: solid stone around everything the lens can see
+        for x in -32..=32 {
+            for z in -14..=36 {
+                for y in gy - rmax - 6..=gy + 9 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(
+                        if y < 30 { block::DEEP_SLATE } else { block::STONE }));
+                }
+            }
+        }
+        // 2. stamp both pockets into the host with the shared pure geometry
+        for (px, pz, cr) in [stage.a, stage.b] {
+            for dy in -(cr + 1)..=(cr + 1) {
+                for dx in -(cr + 1)..=(cr + 1) {
+                    for dz in -(cr + 1)..=(cr + 1) {
+                        let (x, yy, z) = (px + dx, gy + dy, pz + dz);
+                        match lf_worldgen::geode_cell(dx, dy, dz, cr, x, yy, z, feats) {
+                            Some(lf_worldgen::GeodeCell::Hollow) => {
+                                world.set_block(x, yy, z, lf_voxel::BlockState(block::AIR));
+                            }
+                            Some(lf_worldgen::GeodeCell::Crystal) => {
+                                world.set_block(x, yy, z, lf_voxel::BlockState(block::ANIMA_CRYSTAL));
+                            }
+                            Some(lf_worldgen::GeodeCell::Shell) => {
+                                world.set_block(x, yy, z, lf_voxel::BlockState(
+                                    if yy < 30 { block::DEEP_SLATE } else { block::STONE }));
+                            }
+                            None => {}
+                        }
+                    }
+                }
+            }
+        }
+        // 3. each pocket opens its front half onto the gallery
+        for (px, pz, cr) in [stage.a, stage.b] {
+            for x in px - cr - 2..=px + cr + 2 {
+                for z in pz..=gz0 + 16 {
+                    for y in gy - cr - 3..=gy + 5 {
+                        world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                    }
+                    world.set_block(x, gy - cr - 3, z, lf_voxel::BlockState(block::DEEP_SLATE));
+                }
+            }
+        }
+        // 4. the gallery hall in front of both mouths (the pillar between
+        // them stays stone), floored clean
+        for x in -31..=31 {
+            for z in gz0 + 1..=34 {
+                for y in gy - rmax - 3..=gy + 4 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+                world.set_block(x, gy - rmax - 3, z, lf_voxel::BlockState(block::DEEP_SLATE));
+            }
+        }
+        // 5. a shaft of daylight through the gallery roof
+        for x in -4..=4 {
+            for z in gz0 + 2..=30 {
+                for y in gy + 5..=gy + 9 {
+                    world.set_block(x, y, z, lf_voxel::BlockState(block::AIR));
+                }
+            }
+        }
+    }
+
     // modern_wing (P35): "one wing wired for electricity" — a two-storey
     // wing: conduits relay a distant generator's field to the upper
     // floor machines, an elevator shaft climbs the side, a climate unit
@@ -3022,6 +3113,41 @@ pub fn build_scene_mesh_centered(spec: &SceneSpec, seed: u64, center: (i32, i32)
         }
     }
 
+    // geode_twins (loop 463): one keeper per hollow — every hollow is
+    // kept, the representative's and the twin's alike.
+    if spec.name == "geode_twins" {
+        let h = world.surface_height(0, 0);
+        let stage = geode_twins_stage(h);
+        let gy = stage.gy as f32;
+        for (px, pz, cr) in [stage.a, stage.b] {
+            let feet = Vec3::new(px as f32 + 0.5, gy - cr as f32 + 2.0, pz as f32 + 0.5);
+            for part in lf_game::mobs::animal_parts(lf_game::mobs::MobType::GeodeGuardian, 1.0, 1.0, 0.0) {
+                let faces = lf_engine::scene::cuboid_part_faces(
+                    feet, 2.4,
+                    Vec3::from_array(part.center),
+                    Vec3::from_array(part.half),
+                    part.pitch,
+                    Vec3::from_array(part.pivot),
+                );
+                for (corners, _normal) in faces {
+                    let base = vertices.len() as u32;
+                    for (corner, uv) in corners.iter().zip([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]) {
+                        vertices.push(GpuVertex {
+                            position: *corner,
+                            normal: [0.0, 1.0, 0.0],
+                            tex_coord: uv,
+                            tex_index: lf_assets::mob_geode_guardian_layer(),
+                            ao: 1.0,
+                            light: 0xF0,
+                            sway: 0.0,
+                        });
+                    }
+                    indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+                }
+            }
+        }
+    }
+
     // oil_chain: dark flare smoke rising from the refinery columns (P31)
     if spec.name == "oil_chain" {
         let h = world.surface_height(0, 0) as f32;
@@ -3347,6 +3473,13 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
                 // face-on elevation: the cut face with the hollow and its keeper
         // above, the lava pool and the crawler's brood below
         (Vec3::new(1.0, h - 11.5, 22.0), Vec3::new(0.5, h - 13.5, 0.0))
+    } else if spec.name == "geode_twins" {
+        // inside the gallery: both twin mouths in the back wall, their
+        // keepers, and the daylight shaft above
+        let h = gen.surface_top(0, 0) as f32;
+        let stage = geode_twins_stage(h as i32);
+        let gy = stage.gy as f32;
+        (Vec3::new(0.0, gy + 1.0, 33.0), Vec3::new(0.0, gy - 2.0, 0.0))
     } else if spec.name == "modern_wing" {
         let h = gen.surface_top(0, 0) as f32;
         (Vec3::new(-6.0, h + 9.0, 10.0), Vec3::new(0.5, h + 3.0, -1.0))
@@ -3796,6 +3929,45 @@ fn painted_of(sig: [usize; 6]) -> usize {
     sig.iter().sum()
 }
 
+/// geode_twins staging (loop 463): the REAL pair this scene renders — a
+/// deterministic seed search for a representative roll near the realm's
+/// heart, both pockets' scene-space centers (the pair midpoint at the
+/// origin), the shared staged row, and both radii. The x/z mirror is the
+/// pair law's own answer; only the depth row is staged (both pockets
+/// share it because the mirror keeps y).
+struct GeodeTwinsStage {
+    seed: u64,
+    /// scene-space centers (px, pz) and radii
+    a: (i32, i32, i32),
+    b: (i32, i32, i32),
+    gy: i32,
+}
+
+fn geode_twins_stage(surface_h: i32) -> GeodeTwinsStage {
+    for s in 1..=2000u64 {
+        let g = lf_worldgen::WorldGen::new(lf_worldgen::Seed(s));
+        for (rx, rz) in [(0i32, 0i32), (0, -1)] {
+            let Some((lx, y, lz, r)) = g.geode_in_chunk(rx, rz) else { continue };
+            let (tx, tz) = lf_worldgen::geode_twin_chunk(rx, rz);
+            let (mlx, my, mlz, mr) = g.geode_in_chunk(tx, tz)
+                .expect("the twin law: a roll answers both halves");
+            assert_eq!(my, y, "the mirror keeps the depth");
+            let ax = rx * 16 + lx as i32;
+            let az = rz * 16 + lz as i32;
+            let bx = tx * 16 + mlx as i32;
+            let bz = tz * 16 + mlz as i32;
+            let (ox, oz) = ((ax + bx) / 2, (az + bz) / 2);
+            return GeodeTwinsStage {
+                seed: s,
+                a: (ax - ox, az - oz, r),
+                b: (bx - ox, bz - oz, mr),
+                gy: (surface_h - 13).min(60),
+            };
+        }
+    }
+    panic!("no near-heart geode pair in seeds 1..=2000 — the deep went empty");
+}
+
 fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
     let needs_check = matches!(scene,
         "menu_preview" | "new_world_screen" | "multiplayer_screen" | "crafting_workbench"
@@ -3810,7 +3982,8 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "seed_atlas_8" | "spawn_quality_8" | "seed_same_control"
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
         | "sun_visibility" | "material_gallery" | "colored_light_room"
-        | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud");
+        | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud"
+        | "geode_twins");
     if !needs_check {
         return Ok(());
     }
@@ -3868,6 +4041,26 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         assert!(wood > 100, "material_gallery: plank/dirt samples missing ({wood})");
         assert!(iron > 35, "material_gallery: iron veins missing ({iron})");
         assert!(cavity > 35, "material_gallery: dark grooves/coal cavities missing ({cavity})");
+    }
+    if scene == "geode_twins" {
+        // THE GEODE TWIN LAW, in pixels: BOTH halves of the gallery hold
+        // the Anima-crystal violet family — a mirror pair, not one hollow
+        // and an empty echo. Violet = blue-dominant over green with red
+        // riding close (the crystal's facet art, same family as the mana
+        // bar).
+        let mut left_violet = 0usize;
+        let mut right_violet = 0usize;
+        for y in (0..h).step_by(2) {
+            for x in (0..w).step_by(2) {
+                let [r, g, b] = px(x, y);
+                let violet = b > g + 25 && b > 90 && r > g;
+                if violet {
+                    if x < w / 2 { left_violet += 1; } else { right_violet += 1; }
+                }
+            }
+        }
+        assert!(left_violet > 40, "geode_twins: the representative's crystals are missing from the left half ({left_violet})");
+        assert!(right_violet > 40, "geode_twins: the twin's crystals are missing from the right half ({right_violet})");
     }
     if scene == "colored_light_room" {
         let mut warm = 0usize;

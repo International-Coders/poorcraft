@@ -9482,3 +9482,112 @@ BLOCK, not an optimistic item take — the next authority tier);
 a windowed two-client route (the GPU-side end of the wire laws);
 hardcoded connect name "smith" (audit note). Written to
 STATE.next_task in that order.
+
+## 2026-09-15 — The geode twin law + the feature seed law (loop 463)
+
+WHAT:
+- Closed STATE's next_task item (1): geode pairing (447's keeper).
+  THE TWIN LAW (lf_worldgen): hollows roll as mirror PAIRS —
+  `geode_twin_chunk` (point reflection through the x=z=-0.5 corner
+  plane at the realm's heart), `geode_pair_representative`
+  (involutive; one half rolls for both), `geode_in_chunk` answers
+  BOTH halves (twin at mirrored local center 15-lx/15-lz, same
+  depth, same radius), `geode_twin_center` (the twin's world
+  position as the twin chunk itself answers it). Rarity per PAIR
+  (one in ~113) — hollow density per chunk unchanged.
+- THE RESONANCE (lf_client): the first Anima-crystal take from a
+  hollow records a chronicle Discovery naming the twin's compass
+  bearing and distance ("the crystal sings across the dark — a twin
+  hollow waits to the {compass}, {n} paces off").
+  `map::geode_twin_line` rides the game's own `compass_facing`
+  convention (8-wind unit law: south = -z, east = -x; distance
+  rounded to tens, never zero). Dedupe: once per hollow per session
+  (`chronicled_geodes`, cleared in `restart_streamer` — the
+  world-regeneration chokepoint new/load/join-identity all pass
+  through).
+- THE PROOF-DISCOVERED BUG (ground rule 3: fixed before committing):
+  the `geode_twins` vistest scene demanded a real pair near the
+  realm's heart; 2000 seeds produced NONE. Probe: `seed_for_features`
+  sampled gradient noise at (0.0, 0.0) — 0 for EVERY seed — so the
+  feature key was constant since P2 and ALL feature placement
+  (trees, ground cover, structures, citadels, oil, geodes) was
+  seed-independent; every world laid its forests and ruins at the
+  same coordinates, hidden under terrain-noise variance. THE FIX:
+  probes moved off the lattice ((0.5,13.7)/(91.3,0.5)); the
+  feature-seed law pins distinct keys/geode maps/tree maps across
+  seeds + one-seed replay. The accord-bastion structure law
+  rewritten consciously multi-seed (ruins verified generating on
+  seeds 31/4242/5 first — the law's meaning "structures are findable
+  in seeded worlds" is preserved, the single-seed lottery ticket is
+  not).
+- GENERATOR_VERSION 7 -> 8 (the identity mechanism's named
+  contract: unedited chunks regenerate on revisit; edited persist).
+- NEW PROOF SCENE `geode_twins` (geode_twins_stage helper): a real
+  near-heart pair from a deterministic seed search, both pockets
+  stamped by the shared `geode_cell` geometry, opened onto a dug
+  gallery in a solid host box with a daylight shaft, one keeper in
+  each hollow; pixel gate = crystal violet in BOTH halves; first
+  staging attempt (two open-pit monoliths, sky between, keepers
+  unreadable) REJECTED on inspection and rebuilt as the gallery.
+
+### Files
+- crates/lf_worldgen/src/lib.rs (twin fns + pair law + probe fix +
+  GENERATOR_VERSION + 3 laws + the multi-seed structure law)
+- crates/lf_client/src/lib.rs (chronicled_geodes + the break hook +
+  chronicle_geode_twin + restart_streamer clear)
+- crates/lf_client/src/map.rs (geode_twin_line + the compass law)
+- crates/lf_vistest/src/lib.rs (geode_twins spec + staging + keepers
+  + camera + violet pixel gate)
+- STATE.md BACKLOG.md CHANGELOG.md DEVLOG.md (this entry)
+
+VERIFICATION:
+- cargo test --workspace: 485 green / 0 failed (35 suites) +
+  cargo test -p xtask 12 green = 497 (= 493 + 4 new laws; lf_worldgen
+  49 -> 52, lf_client 97 -> 98).
+- FULL vistest battery: 109 scenes [ok] / 0 FAIL, exit-0 enforced
+  (108 + geode_twins); geode_twins violet gate left 2340 / right
+  9718; the render INSPECTED (two crystal-lined mirror hollows, a
+  keeper in each, violet glow on stone); river_valley +
+  kingdom_citadel re-renders INSPECTED.
+- make smoke OK (headless logic + GUI liveness).
+- Runtimes fresh on disk 11:34: dist/loreforge-macos.dmg 8.8 MB UDZO
+  (hdiutil verify VALID), dist/loreforge-linux-x86_64.tar.gz 8.4 MB,
+  dist/loreforge.app binary 20 MB, dist/loreforge-server. Windows
+  exe honestly skipped (mingw absent).
+
+PERF: not applicable — the pair law is two integer compares per
+chunk roll at generation time; the twin query is press-gated (one
+WorldGen::new + two hashes per crystal take); seed_for_features
+samples the same two noise points it always did, now off-lattice;
+zero per-frame work.
+
+LORE IMPACT
+- Canon touched: the twin law extends the established Old Powers
+  geodes (loops 446/447) within canon; one new chronicle Discovery
+  line (the Discovery precedent). "The realm's heart" is engineering
+  language — never asserted in game text.
+- Locked facts preserved: Anima is a material energetic property —
+  the twins' link is resonance and a bearing, not a miracle; the
+  Covenant's anima_crystal world source unchanged; the chronicle is
+  the player-authored history; no faction, place, event, term, NPC,
+  item, or spell data changed; no identity assigned.
+- World expression: the deep reads as one connected resonance — a
+  miner who takes a crystal hears where its twin waits, and the twin
+  is there. And every world's forests, ruins, and hollows are its
+  OWN: the seed finally shapes the Old Powers' works and the
+  surface's woods alike.
+- Migration: GENERATOR_VERSION bump only (the genver contract). No
+  save format, no data schema, no proof schema change; smoke chain
+  unchanged.
+
+HONESTLY DEFERRED: the twin dedupe is session-scoped (a reload
+re-sings a hollow — the chronicle event persists, the dedupe does
+not; persisting it is next_task item 2's option); the Discovery
+fires on the mining client only (chronicle authority is
+client-local, the same as drops — server chronicle rides the
+server-authority tier); no in-world twin compass yet (a held
+anima_crystal that points — next_task item 2's option); the carried
+list — a windowed two-client route or server-side inventory
+authority (462's unblocked multiplayer follow-ups); hardcoded
+connect name "smith" (audit note). Written to STATE.next_task in
+that order.

@@ -36,7 +36,7 @@ pub const SEA_LEVEL: i32 = 62;
 /// regenerated after a revisit may differ from their first visit (edited
 /// chunks are persisted and never regenerated). Pre-P25 worlds have no
 /// stamp and read as `None`.
-pub const GENERATOR_VERSION: u32 = 7; // v7 (N07): biome identity pass — three distinct ocean floors (Ocean dirt, WarmOcean sand, DeepOcean stone) + confetti ceiling (Jungle/Lavender/Sunflower ground cover 0.35). v6: citadel siting rebuilt (dense footprint validation, region-border margin, spawn clearance, hillside carving, no courtyard trees) + loop-347 plant solidity. v5: kingdoms — region-placed citadels + locomotion-era NPC settling
+pub const GENERATOR_VERSION: u32 = 8; // v8 (loop 463): the geode twin law — hollows roll as mirror PAIRS through the realm's heart, so previously-hollowless twin-side chunks may now hold a geode. v7 (N07): biome identity pass — three distinct ocean floors (Ocean dirt, WarmOcean sand, DeepOcean stone) + confetti ceiling (Jungle/Lavender/Sunflower ground cover 0.35). v6: citadel siting rebuilt (dense footprint validation, region-border margin, spawn clearance, hillside carving, no courtyard trees) + loop-347 plant solidity. v5: kingdoms — region-placed citadels + locomotion-era NPC settling
 
 /// Stamp `genver.dat` in a world directory with the generator version.
 pub fn save_generator_version(dir: &std::path::Path, version: u32) -> std::io::Result<()> {
@@ -635,6 +635,29 @@ pub fn geode_cell(dx: i32, dy: i32, dz: i32, r: i32, wx: i32, wy: i32, wz: i32, 
     None
 }
 
+/// THE GEODE TWIN LAW (loop 463): the mirror partner of a chunk — the
+/// point reflection through the corner plane at the realm's heart
+/// (x = z = -0.5), the seam between chunk 0 and chunk -1. Involutive:
+/// `geode_twin_chunk(geode_twin_chunk(c)) == c`. A hollow's twin lies in
+/// this chunk at the mirrored local center (15 - lx, 15 - lz), same
+/// depth, same radius — the pair faces itself across the realm's heart.
+pub fn geode_twin_chunk(cx: i32, cz: i32) -> (i32, i32) {
+    (-cx - 1, -cz - 1)
+}
+
+/// Which half of a mirror pair rolls for both (THE GEODE TWIN LAW): the
+/// lexicographically larger of the chunk and its twin. Involutive, and
+/// exactly one of {chunk, twin} — a pair rolls once, placing both
+/// hollows; hollow density per chunk is unchanged (one pair in ~113).
+pub fn geode_pair_representative(cx: i32, cz: i32) -> (i32, i32) {
+    let twin = geode_twin_chunk(cx, cz);
+    if (cx, cz) >= twin {
+        (cx, cz)
+    } else {
+        twin
+    }
+}
+
 /// Deterministic 2D hash for feature placement (trees, etc.).
 fn hash2(x: i32, z: i32, seed: u64) -> u64 {
     let mut h = seed
@@ -654,12 +677,20 @@ fn lf_ore_hooks() -> Vec<OreHook> {
 impl WorldGen {
     /// Fill a whole 16x256x16 chunk column: terrain strata, caves, ores,
     /// water up to sea level, and trees (canopy kept inside the chunk).
-    /// Whether (and where) this chunk hides a geode: center in chunk-local
-    /// coords plus radius. Rare (about one chunk in 113), deep, and kept
-    /// fully inside the column so the stamp never crosses a chunk border.
-    /// Deterministic per (seed, cx, cz).
+    /// THE GEODE TWIN LAW (loop 463): the Old Powers hollows are mirror
+    /// PAIRS. `geode_twin_chunk` is the point reflection of a chunk
+    /// through the corner plane at the realm's heart (x=z=-0.5, the seam
+    /// between chunk 0 and chunk -1); `geode_pair_representative` picks —
+    /// involutively — the one half of each mirror pair that rolls, so a
+    /// roll places TWO hollows: one here, its exact mirror in the twin
+    /// chunk (local center mirrored 15-lx / 15-lz, same depth, same
+    /// radius). Every hollow's twin is real, findable, and mutually
+    /// linked: the line between them passes through the realm's heart.
+    /// Rarity is per PAIR (about one pair in 113), so the hollow density
+    /// per chunk is unchanged. Deterministic per (seed, cx, cz).
     pub fn geode_in_chunk(&self, cx: i32, cz: i32) -> Option<(usize, usize, usize, i32)> {
-        let h = hash2(cx, cz, self.seed_for_features() ^ 0x630de);
+        let (rx, rz) = geode_pair_representative(cx, cz);
+        let h = hash2(rx, rz, self.seed_for_features() ^ 0x630de);
         if h % 113 != 0 {
             return None;
         }
@@ -667,7 +698,23 @@ impl WorldGen {
         let lz = 5 + ((h >> 14) % 6) as usize;
         let r = 3 + ((h >> 20) % 2) as i32; // 3..=4
         let y = 14 + ((h >> 26) % 18) as usize; // 14..=31 — well above the lava band
-        Some((lx, y, lz, r))
+        if rx == cx && rz == cz {
+            Some((lx, y, lz, r))
+        } else {
+            // the twin half: the representative's hollow, point-reflected
+            Some((15 - lx, y, 15 - lz, r))
+        }
+    }
+
+    /// The world position of THIS chunk's hollow's twin: the mirror
+    /// center in `geode_twin_chunk`, as the twin chunk itself answers it.
+    /// `None` when this chunk holds no hollow. The client's resonance
+    /// Discovery (first crystal take) reads the bearing from here.
+    pub fn geode_twin_center(&self, cx: i32, cz: i32) -> Option<(i32, i32, i32)> {
+        self.geode_in_chunk(cx, cz)?;
+        let (tx, tz) = geode_twin_chunk(cx, cz);
+        let (lx, y, lz, _) = self.geode_in_chunk(tx, tz)?;
+        Some((tx * 16 + lx as i32, y as i32, tz * 16 + lz as i32))
     }
 
     /// Stamp this chunk's geode (if any) into `col`. Returns whether one
@@ -2168,9 +2215,15 @@ impl WorldGen {
 
     fn seed_for_features(&self) -> u64 {
         // Feature placement must depend on the world seed; the noise objects
-        // don't expose it, so derive from any seeded output.
-        let a = self.noise_base.get_noise_2d(0.0, 0.0).to_bits() as u64;
-        let b = self.noise_temp.get_noise_2d(0.0, 0.0).to_bits() as u64;
+        // don't expose it, so derive from seeded noise output. THE FEATURE
+        // SEED LAW (loop 463): the probe points must sit OFF the gradient
+        // lattice — gradient noise at an exact lattice point (e.g. the
+        // origin) is 0 for EVERY seed, and from P2 until this law the
+        // origin probe made every feature hash (trees, structures, ore
+        // decor, geodes, citadels) seed-INDEPENDENT: every world laid its
+        // forests and ruins at the same coordinates.
+        let a = self.noise_base.get_noise_2d(0.5, 13.7).to_bits() as u64;
+        let b = self.noise_temp.get_noise_2d(91.3, 0.5).to_bits() as u64;
         a.wrapping_mul(31).wrapping_add(b)
     }
 }
@@ -2206,6 +2259,8 @@ mod tests {
 
     /// The deep hides its rare crystal hollows deterministically, well
     /// below the surface band, and the stamp never leaves the chunk.
+    /// (The window 0..24 is all pair-representatives, so these rolls are
+    /// the pair law's own half — each also stamps a mirror twin.)
     #[test]
     fn geodes_are_rare_deterministic_and_deep() {
         for seed in [Seed(3), Seed(42), Seed(99)] {
@@ -2301,6 +2356,175 @@ mod tests {
             }
         }
     }
+
+    /// Test-local seal check: BFS through air from the hollow's center in
+    /// the STAMPED column must never leave the pure-geometry hollow set.
+    fn assert_pocket_sealed(
+        gen: &WorldGen,
+        cx: i32,
+        cz: i32,
+        what: &str,
+    ) {
+        let mut col = gen.generate_chunk(cx, cz);
+        assert!(gen.stamp_geode(&mut col, cx, cz), "{}: stamp reports a geode", what);
+        let Some((lx, gy, lz, r)) = gen.geode_in_chunk(cx, cz) else { unreachable!() };
+        let feats = gen.seed_for_features();
+        let mut hollow = HashSet::new();
+        for dy in -r..=r {
+            for dx in -r..=r {
+                for dz in -r..=r {
+                    let wy = gy as i32 + dy;
+                    let x = lx as i32 + dx;
+                    let z = lz as i32 + dz;
+                    if x < 0 || x >= 16 || z < 0 || z >= 16 || wy < 1 || wy >= 250 {
+                        continue;
+                    }
+                    if crate::geode_cell(dx, dy, dz, r, cx * 16 + x, wy, cz * 16 + z, feats)
+                        == Some(crate::GeodeCell::Hollow)
+                    {
+                        hollow.insert((x, wy, z));
+                    }
+                }
+            }
+        }
+        assert!(!hollow.is_empty(), "{}: the pocket has an interior", what);
+        use std::collections::VecDeque;
+        let mut seen = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back((lx as i32, gy as i32, lz as i32));
+        seen.insert((lx as i32, gy as i32, lz as i32));
+        while let Some((x, y, z)) = queue.pop_front() {
+            assert!(hollow.contains(&(x, y, z)),
+                "{}: air at {:?} outside the hollow — the pocket leaked", what, (x, y, z));
+            for (nx, ny, nz) in [(x + 1, y, z), (x - 1, y, z), (x, y + 1, z), (x, y - 1, z), (x, y, z + 1), (x, y, z - 1)] {
+                if nx < 0 || nx >= 16 || nz < 0 || nz >= 16 || ny < 1 || ny >= 250 {
+                    continue;
+                }
+                if seen.insert((nx, ny, nz)) && col.get(nx as usize, ny as usize, nz as usize) == lf_voxel::BlockState::AIR {
+                    queue.push_back((nx, ny, nz));
+                }
+            }
+        }
+    }
+
+    /// THE FEATURE SEED LAW (loop 463): feature placement reads the
+    /// WORLD seed. seed_for_features derives its key from seeded noise
+    /// output, and the derivation must stay off the gradient lattice —
+    /// the P2-era origin probe sampled a point where gradient noise is 0
+    /// for every seed, making every feature hash (trees, structures,
+    /// geodes, citadels) seed-independent. Pinned here: distinct seeds
+    /// answer distinct feature keys, distinct geode maps, and distinct
+    /// tree maps, while one seed replays itself exactly.
+    #[test]
+    fn feature_placement_depends_on_the_world_seed() {
+        let keys: Vec<u64> = [1u64, 2, 3, 42, 99].iter().map(|s| {
+            WorldGen::new(Seed(*s)).seed_for_features()
+        }).collect();
+        let distinct = keys.iter().collect::<HashSet<_>>().len();
+        assert!(distinct >= 4, "feature keys across 5 seeds: {keys:?} — the probe degenerated again");
+
+        // the geode map is a seed property, not a constant of the realm
+        let map = |s: u64| -> Vec<(i32, i32)> {
+            let g = WorldGen::new(Seed(s));
+            let mut v = Vec::new();
+            for cx in -16..16 { for cz in -16..16 {
+                if g.geode_in_chunk(cx, cz).is_some() { v.push((cx, cz)); }
+            }}
+            v
+        };
+        assert_ne!(map(3), map(42), "geode rolls are seed-independent — the feature seed degenerated");
+        assert_eq!(map(3), map(3), "one seed replays itself exactly");
+
+        // trees, too: the same stretch of land hosts different forests
+        // per seed (all log cells across an 8x8-chunk stretch)
+        let forest = |s: u64| -> Vec<(u32, u32, u32, u32)> {
+            let g = WorldGen::new(Seed(s));
+            let mut v = Vec::new();
+            for cx in 0..8 { for cz in 0..8 {
+                let col = g.generate_chunk(cx, cz);
+                for x in 0..16usize { for z in 0..16usize { for y in 0..250usize {
+                    if col.get(x, y, z).id() == lf_voxel::registry::block::LOG {
+                        v.push((cx as u32, x as u32, y as u32, z as u32));
+                    }
+                }}}
+            }}
+            v
+        };
+        let f3 = forest(3);
+        assert!(!f3.is_empty(), "the probe stretch has no forests at all");
+        assert_ne!(f3, forest(42), "tree placement is seed-independent — the feature seed degenerated");
+    }
+
+    /// THE GEODE TWIN LAW (loop 463): hollows come in mirror pairs. Over
+    /// a wide sweep around the realm's heart: the twin map is involutive;
+    /// every hollow's twin answers Some with the EXACT mirrored center
+    /// (15-lx, same depth, 15-lz, same radius) and obeys the same
+    /// in-chunk band laws; `geode_twin_center` reads the twin's world
+    /// position as the twin chunk itself answers it; and the sweep finds
+    /// at least one full pair (rare, but the deep is never empty).
+    #[test]
+    fn geodes_roll_as_mirror_pairs_through_the_realms_heart() {
+        let gen = WorldGen::new(Seed(3));
+        let mut found = 0usize;
+        for cx in -32..=32 {
+            for cz in -32..=32 {
+                // the representative map is involutive and pair-consistent
+                let rep = crate::geode_pair_representative(cx, cz);
+                let twin = crate::geode_twin_chunk(cx, cz);
+                assert_eq!(crate::geode_pair_representative(rep.0, rep.1), rep,
+                    "representative is its own representative");
+                assert_eq!(crate::geode_pair_representative(twin.0, twin.1), rep,
+                    "a pair shares one representative");
+                assert_eq!(crate::geode_twin_chunk(twin.0, twin.1), (cx, cz),
+                    "the twin map is involutive");
+                let Some((lx, y, lz, r)) = gen.geode_in_chunk(cx, cz) else {
+                    continue;
+                };
+                found += 1;
+                // mirrored centers obey the SAME in-chunk band laws
+                assert!((5..=10).contains(&lx) && (5..=10).contains(&lz), "center in-bounds");
+                assert!((3..=4).contains(&r) && (14..=31).contains(&y), "deep, radius 3..=4");
+                let (tx, tz) = crate::geode_twin_chunk(cx, cz);
+                let t = gen.geode_in_chunk(tx, tz)
+                    .unwrap_or_else(|| panic!("hollow at {:?} has no twin", (cx, cz)));
+                assert_eq!(t, (15 - lx, y, 15 - lz, r),
+                    "twin is the exact mirror (same depth, same radius)");
+                // the world position the client reads for the resonance
+                assert_eq!(gen.geode_twin_center(cx, cz),
+                    Some((tx * 16 + t.0 as i32, t.1 as i32, tz * 16 + t.2 as i32)),
+                    "twin center is the twin chunk's own answer");
+                assert_eq!(gen.geode_twin_center(tx, tz),
+                    Some((cx * 16 + lx as i32, y as i32, cz * 16 + lz as i32)),
+                    "the twin's twin center is this hollow — mutual");
+            }
+        }
+        assert!(found >= 2, "a 65x65 sweep around the heart holds at least one full pair (found {})", found);
+    }
+
+    /// THE GEODE TWIN LAW, stamped: the twin hollow is as sealed and
+    /// crystal-lined as its representative — a hidden place should a
+    /// hidden place's mirror be. Both halves of one real pair are
+    /// generated, stamped, and BFS-checked from their own centers.
+    #[test]
+    fn the_twin_hollow_is_sealed_and_lined_like_its_twin() {
+        let gen = WorldGen::new(Seed(3));
+        // find one representative roll near the heart (both halves near)
+        let mut hit = None;
+        'search: for cx in 0..64 {
+            for cz in 0..64 {
+                if gen.geode_in_chunk(cx, cz).is_some() {
+                    hit = Some((cx, cz));
+                    break 'search;
+                }
+            }
+        }
+        let Some((cx, cz)) = hit else { panic!("no geode in 64x64 chunks of seed 3") };
+        let (tx, tz) = crate::geode_twin_chunk(cx, cz);
+        assert_pocket_sealed(&gen, cx, cz, "the representative");
+        assert_pocket_sealed(&gen, tx, tz, "the twin");
+    }
+
+
 
     /// ui-world-craft D1: the two-layer terrain must keep land buildable —
     /// across 5 seeds the flat fraction (within ±6 of sea level) must
@@ -3081,65 +3305,80 @@ mod tests {
     /// king-quest: the Accord Bastion (walled city) generates rarely in
     /// the accord meadowlands, and the new frontier biomes carry their
     /// own towers and ruins. Terrain `prepare` may refuse candidate
-    /// sites, so each scan walks candidates until the structure is FOUND.
+    /// sites (and since the feature-seed law the candidate lottery is a
+    /// seed property), so each structure is proven across a small fixed
+    /// seed list: SOME seeded world must host it within the 320x320
+    /// scan, with its content asserted in the pixels of the chunk.
     #[test]
     fn accord_bastion_and_frontier_structures_generate() {
         use lf_voxel::registry::block;
-        let gen = WorldGen::new(Seed(777));
-        let feats = gen.seed_for_features();
-        let matches_at = |cx: i32, cz: i32, biomes: &[Biome], modulus: u64| -> bool {
-            let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
-            biomes.contains(&b) && hash2(cx, cz, feats ^ 0x5bd1e995) % modulus == 0
-        };
         // the bastion: banner over a stone keep, inside stone walls
         let mut city = false;
-        'city: for cx in -160..160i32 {
-            for cz in -160..160i32 {
-                if !matches_at(cx, cz, &[Biome::Meadow, Biome::SunflowerPlains], 331) { continue; }
-                let col = gen.generate_chunk(cx, cz);
-                for y in 60..200 {
-                    if col.get(7, y, 7).id() == block::BANNER_ACCORD {
-                        let mut stone = 0;
-                        for ly in y.saturating_sub(6)..(y + 4).min(255) {
-                            for lx in 0..16 { for lz in 0..16 {
-                                if col.get(lx, ly as usize, lz).id() == block::STONE { stone += 1; }
-                            }}
+        'seeds_city: for seed in [777u64, 31, 4242] {
+            let gen = WorldGen::new(Seed(seed));
+            let feats = gen.seed_for_features();
+            'city: for cx in -160..160i32 {
+                for cz in -160..160i32 {
+                    let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                    if !(b == Biome::Meadow || b == Biome::SunflowerPlains) { continue; }
+                    if hash2(cx, cz, feats ^ 0x5bd1e995) % 331 != 0 { continue; }
+                    let col = gen.generate_chunk(cx, cz);
+                    for y in 60..200 {
+                        if col.get(7, y, 7).id() == block::BANNER_ACCORD {
+                            let mut stone = 0;
+                            for ly in y.saturating_sub(6)..(y + 4).min(255) {
+                                for lx in 0..16 { for lz in 0..16 {
+                                    if col.get(lx, ly as usize, lz).id() == block::STONE { stone += 1; }
+                                }}
+                            }
+                            assert!(stone > 150, "bastion keep+walls missing (stone={})", stone);
+                            city = true;
+                            break 'seeds_city;
                         }
-                        assert!(stone > 150, "bastion keep+walls missing (stone={})", stone);
-                        city = true;
-                        break 'city;
                     }
                 }
             }
         }
-        assert!(city, "no Accord Bastion in the 320x320 scan");
+        assert!(city, "no Accord Bastion in the 320x320 scans");
         // frontier wooden tower: log frame in the new forest biomes
         let mut tower = false;
-        'tower: for cx in -160..160i32 {
-            for cz in -160..160i32 {
-                if !matches_at(cx, cz, &[Biome::RedwoodForest, Biome::PineBarrens,
-                    Biome::FoggyFjord, Biome::MapleForest, Biome::WillowWetlands], 43) { continue; }
-                let col = gen.generate_chunk(cx, cz);
-                let logs = (0..16).map(|lx| (0..16).map(move |lz| (lx, lz)))
-                    .flatten()
-                    .filter(|(lx, lz)| (40..200).any(|y| col.get(*lx, y, *lz).id() == block::LOG))
-                    .count();
-                if logs >= 8 { tower = true; break 'tower; }
+        'seeds_tower: for seed in [777u64, 31, 4242] {
+            let gen = WorldGen::new(Seed(seed));
+            let feats = gen.seed_for_features();
+            'tower: for cx in -160..160i32 {
+                for cz in -160..160i32 {
+                    let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                    if !(b == Biome::RedwoodForest || b == Biome::PineBarrens
+                        || b == Biome::FoggyFjord || b == Biome::MapleForest || b == Biome::WillowWetlands) { continue; }
+                    if hash2(cx, cz, feats ^ 0x5bd1e995) % 43 != 0 { continue; }
+                    let col = gen.generate_chunk(cx, cz);
+                    let logs = (0..16).map(|lx| (0..16).map(move |lz| (lx, lz)))
+                        .flatten()
+                        .filter(|(lx, lz)| (40..200).any(|y| col.get(*lx, y, *lz).id() == block::LOG))
+                        .count();
+                    if logs >= 8 { tower = true; break 'seeds_tower; }
+                }
             }
         }
-        assert!(tower, "no frontier watchtower in the 320x320 scan");
+        assert!(tower, "no frontier watchtower in the 320x320 scans");
         // desert ruin: torch-marked remnant walls in the new desert biomes
         let mut ruin = false;
-        'ruin: for cx in -160..160i32 {
-            for cz in -160..160i32 {
-                if !matches_at(cx, cz, &[Biome::Oasis, Biome::PaintedDunes], 47) { continue; }
-                let col = gen.generate_chunk(cx, cz);
-                let torch = (0..16).any(|lx| (0..16).any(|lz|
-                    (40..200).any(|y| col.get(lx, y, lz).id() == block::TORCH)));
-                if torch { ruin = true; break 'ruin; }
+        'seeds_ruin: for seed in [777u64, 31, 4242] {
+            let gen = WorldGen::new(Seed(seed));
+            let feats = gen.seed_for_features();
+            'ruin: for cx in -160..160i32 {
+                for cz in -160..160i32 {
+                    let b = gen.biome(cx * 16 + 8, cz * 16 + 8);
+                    if !(b == Biome::Oasis || b == Biome::PaintedDunes) { continue; }
+                    if hash2(cx, cz, feats ^ 0x5bd1e995) % 47 != 0 { continue; }
+                    let col = gen.generate_chunk(cx, cz);
+                    let torch = (0..16).any(|lx| (0..16).any(|lz|
+                        (40..200).any(|y| col.get(lx, y, lz).id() == block::TORCH)));
+                    if torch { ruin = true; break 'seeds_ruin; }
+                }
             }
         }
-        assert!(ruin, "no desert ruin in the 320x320 scan");
+        assert!(ruin, "no desert ruin in the 320x320 scans");
     }
 
     #[test]

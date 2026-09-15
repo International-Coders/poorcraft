@@ -1,5 +1,95 @@
 # CHANGELOG
 
+## 2026-09-15 — The geode twin law + the feature seed law (loop 463)
+
+- Closed STATE's next_task item (1) — "geode pairing", carried since
+  loop 447 ("geodes are the Covenant's anima_crystal world source;
+  pairing = a discoverable narrative/geometric link worth a proof").
+- THE TWIN LAW (lf_worldgen): the Old Powers hollows are mirror PAIRS.
+  `geode_twin_chunk` is the point reflection of a chunk through the
+  corner plane at the realm's heart (x = z = -0.5); the pair rolls ONCE
+  (`geode_pair_representative`, involutive) and answers BOTH halves —
+  the twin at the mirrored local center (15-lx, 15-lz), same depth,
+  same radius. Every hollow's twin is real, mutual, and computable;
+  `geode_twin_center` reads the twin's world position as the twin
+  chunk itself answers it. Rarity is per PAIR (one in ~113), so the
+  hollow density per chunk is unchanged. 3 new worldgen laws: the twin
+  sweep (involutivity + exact mirror + band laws + world-position
+  round trip over -32..=32), the twin hollow sealed and crystal-lined
+  like its twin (both halves stamped + BFS), and the feature-seed law
+  below.
+- THE RESONANCE (lf_client): the first Anima-crystal take from a
+  hollow records a chronicle Discovery — "the crystal sings across the
+  dark — a twin hollow waits to the {compass}, {n} paces off". The
+  bearing rides the game's own `compass_facing` convention
+  (map::geode_twin_line; 8-wind unit law incl. south = -z, east = -x);
+  the dedupe is once per hollow per session (`chronicled_geodes`,
+  cleared at the `restart_streamer` chokepoint — new world, load, and
+  the join-identity law all reset it). The twin's own first take sings
+  the bearing back.
+- THE PROOF-DISCOVERED BUG, fixed before committing: the new
+  `geode_twins` vistest scene demanded a real pair near the realm's
+  heart and none existed in 2000 seeds — because
+  `seed_for_features()` sampled gradient noise at (0.0, 0.0), where
+  the value is 0 for EVERY seed. The feature key had been constant
+  since P2: every feature hash (trees, ground cover, structures,
+  citadels, oil, geodes) was seed-INDEPENDENT — every world laid its
+  forests and ruins at the same coordinates, hidden under
+  terrain-noise variance. THE FIX: the probes moved off the gradient
+  lattice ((0.5, 13.7) / (91.3, 0.5)); the feature-seed law pins
+  distinct keys, distinct geode maps, and distinct tree maps across
+  seeds with one-seed replay. The accord-bastion structure law was
+  rewritten consciously multi-seed (the candidate lottery is now a
+  seed property; ruins verified generating on seeds 31/4242/5 before
+  the rewrite).
+- GENERATOR_VERSION 7 -> 8: unedited chunks regenerate with the new
+  generator on revisit (the identity mechanism's named contract);
+  edited chunks are persisted and never regenerated.
+- NEW PROOF SCENE: `geode_twins` — a REAL near-heart pair from a
+  deterministic seed search, both pockets stamped by the shared pure
+  geometry and opened onto a dug gallery, one keeper in each; the
+  pixel gate requires the crystal violet in BOTH halves (left 2340 /
+  right 9718) and the render was INSPECTED: two crystal-lined mirror
+  hollows, keepers visible, violet glow on the gallery stone.
+- REGRESSION: root cargo test --workspace 485 green / 0 failed
+  (35 suites) + cargo test -p xtask 12 green = 497 total (= loop
+  462's 493 + the 4 new laws: lf_worldgen 49 -> 52, lf_client
+  97 -> 98); make smoke OK (headless logic + GUI liveness); the FULL
+  vistest battery 109 scenes [ok] / 0 FAIL exit-0 (108 + geode_twins;
+  river_valley + kingdom_citadel re-renders INSPECTED — features
+  moved per seed, the scenes read true); runtimes refreshed (dist/
+  dmg 8.8 MB UDZO verified + linux tarball 8.4 MB + .app binary 20 MB
+  + server, fresh on disk 11:34); Windows exe honestly skipped (mingw
+  absent); POORCRAFT 3D untouched; the six windowed_wild_*.png
+  dirties remain deliberately NOT staged (an earlier session's
+  p3d-wilderness run).
+- PERF: not applicable — the pair law is two integer compares per
+  chunk roll at generation time; the twin query is press-gated (one
+  WorldGen::new + two hashes per crystal take); seed_for_features
+  samples the same two noise points it always did, now off-lattice;
+  zero per-frame work.
+- LORE: canon touched: the twin law extends the established Old
+  Powers geodes (446/447) within canon; one new chronicle Discovery
+  line (the Discovery precedent); "the realm's heart" is engineering
+  language, never asserted in game text. Canon preserved: Anima as
+  material resonance (the twins' link is resonance and bearing, not
+  miracle); the Covenant's anima_crystal world source unchanged; the
+  chronicle as the player-authored history. World expression: the
+  deep reads as one connected resonance — a miner who takes a crystal
+  hears where its twin waits; and every world's forests, ruins, and
+  hollows are its OWN (the seed finally shapes the Old Powers' works
+  and the surface's woods alike). Migration: GENERATOR_VERSION bump
+  only (no save schema, no proof schema change).
+- HONESTLY DEFERRED: the twin dedupe is session-scoped (a reload
+  re-sings a hollow — the chronicle event persists, the dedupe does
+  not); the Discovery fires on the mining client only (chronicle
+  authority is client-local, the same as drops — server chronicle
+  rides the server-authority tier); no in-world twin compass yet (a
+  held anima_crystal that points — future depth); the carried list —
+  a windowed two-client route or server-side inventory authority
+  (462's unblocked multiplayer follow-ups); hardcoded connect name
+  "smith" (audit note).
+
 ## 2026-09-15 — The replay-window law: multiplayer terrain-edit routing made lossless (loop 462)
 
 - Closed STATE's next_task item (1) — "multiplayer routing of terrain

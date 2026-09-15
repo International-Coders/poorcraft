@@ -1144,6 +1144,12 @@ struct GameState {
     pub world_identity: lf_worldgen::identity::WorldIdentity,
     /// N04: settlements already announced this session (banner fires once).
     settlement_seen: std::collections::HashSet<String>,
+    /// Loop 463: hollows whose twin resonance has been chronicled this
+    /// session (the first crystal take from a hollow names its twin).
+    /// Session-scoped by law — the chronicle event itself persists with
+    /// the world, the dedupe does not. Cleared with the world (the
+    /// streamer restart is the world-regeneration chokepoint).
+    chronicled_geodes: std::collections::HashSet<(i32, i32)>,
     /// N04: hostiles near the player with line of sight (throttled scan).
     threat_count: u8,
     /// Last slot-thumbnail capture (throttled; Step 14).
@@ -1688,6 +1694,7 @@ impl GameState {
             world_identity: lf_worldgen::identity::WorldIdentity::new(
                 0, lf_worldgen::WorldType::Normal, 0),
             settlement_seen: std::collections::HashSet::new(),
+            chronicled_geodes: std::collections::HashSet::new(),
             threat_count: 0,
             prev_ui_open: UiOpen::Title,
             recipe_book: workbench::RecipeBook::default(),
@@ -1787,6 +1794,9 @@ impl GameState {
     fn restart_streamer(&mut self, seed: u64, skip: HashSet<(i32, i32)>) {
         self.streamer.shutdown();
         self.streamer = Streamer::spawn(seed, skip, self.settings.view_distance);
+        // a new world's hollows have never sung (the twin dedupe is
+        // world-scoped session state, like the world it belongs to)
+        self.chronicled_geodes.clear();
     }
 
     /// Switch to a brand-new save slot with a fresh random seed.
@@ -4298,11 +4308,36 @@ impl GameState {
         if block_id == registry::block::ANIMA_CRYSTAL {
             let center = Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.5, pos.z as f32 + 0.5);
             lf_game::mobs::provoke_guardians(&mut self.mobs, center, 10.0);
+            // THE GEODE TWIN LAW: the first take from a hollow hears the
+            // twin — the chronicle records where its mirror waits
+            self.chronicle_geode_twin(pos);
         }
         // rare apple bonus from leaves
         if block_id == registry::block::LEAVES && pseudo_random(self.frame) % 20 == 0 {
             self.spawn_drop("apple", 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
         }
+    }
+
+    /// THE GEODE TWIN LAW, discoverable (loop 463): the first Anima
+    /// crystal take from a hollow records a chronicle Discovery naming
+    /// where its twin hollow waits — a real, deterministically paired
+    /// mirror (lf_worldgen::geode_twin_chunk). Once per hollow per
+    /// session; the twin's own first take sings the bearing back.
+    fn chronicle_geode_twin(&mut self, pos: glam::IVec3) {
+        let (cx, cz) = (pos.x >> 4, pos.z >> 4);
+        if self.chronicled_geodes.contains(&(cx, cz)) {
+            return; // this hollow has already sung
+        }
+        let Some((tx, _ty, tz)) = lf_worldgen::WorldGen::new(Seed(self.world_seed))
+            .geode_twin_center(cx, cz)
+        else {
+            return; // a crystal outside a rolled hollow stirs nothing
+        };
+        self.chronicled_geodes.insert((cx, cz));
+        let dx = tx as f32 + 0.5 - (pos.x as f32 + 0.5);
+        let dz = tz as f32 + 0.5 - (pos.z as f32 + 0.5);
+        let line = crate::map::geode_twin_line(dx, dz);
+        self.chronicle_event(EventType::Discovery, line);
     }
 
     fn spawn_drop(&mut self, item: &str, count: u8, pos: Vec3) {

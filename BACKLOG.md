@@ -11,6 +11,37 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The geode twin law + the feature seed law (2026-09-15, loop
+      463, root workspace): closed STATE's next_task item (1) —
+      "geode pairing", carried since loop 447. THE TWIN LAW: geodes
+      roll as mirror PAIRS through the realm's heart
+      (geode_twin_chunk = point reflection through the x=z=-0.5
+      corner plane; geode_pair_representative is involutive; a roll
+      answers BOTH halves — the twin at the mirrored center 15-lx/
+      15-lz, same depth, same radius; rarity is per pair, density
+      unchanged; geode_twin_center reads the twin's world position
+      as the twin chunk itself answers it). THE RESONANCE: the
+      first Anima-crystal take from a hollow records a chronicle
+      Discovery naming the twin's compass bearing and distance
+      (map::geode_twin_line rides the game's own compass_facing
+      convention; deduped once per hollow per session, cleared at
+      the restart_streamer chokepoint). THE PROOF-DISCOVERED BUG
+      (fixed before committing): the geode_twins vistest scene
+      exposed seed_for_features() sampling gradient noise at the
+      origin — 0 for EVERY seed — so since P2 every feature hash
+      (trees, structures, geodes, citadels) was seed-independent;
+      fixed off-lattice + the feature-seed law (distinct keys/geode
+      maps/tree maps across seeds, one-seed replay); accord-bastion
+      structure law consciously rewritten multi-seed.
+      GENERATOR_VERSION 7 -> 8. Evidence: geode_twins scene (real
+      near-heart pair, violet gate both halves) INSPECTED; battery
+      109 [ok] / 0 FAIL; workspace 485 + xtask 12 = 497 green;
+      smoke OK; runtimes fresh. Deferred honestly: the twin dedupe
+      is session-scoped; the Discovery is client-local (chronicle
+      server authority rides the server-authority tier); no in-world
+      twin compass yet; a windowed two-client route or server-side
+      inventory authority.
+
 - [x] The replay-window law: multiplayer terrain-edit routing made
       lossless (2026-09-15, loop 462, root workspace): closed STATE's
       next_task item (1) — "route player edits through the

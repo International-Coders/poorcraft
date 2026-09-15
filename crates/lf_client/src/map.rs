@@ -799,6 +799,26 @@ pub fn compass_facing(yaw: f32) -> &'static str {
     }
 }
 
+/// THE TWIN'S BEARING LINE (loop 463): the chronicle Discovery fired on
+/// the first Anima-crystal take from a hollow, naming its twin's compass
+/// bearing and distance in paces. The bearing rides the game's own
+/// `compass_facing` convention (yaw 0 looks -z, called S), so the words
+/// on the page can never disagree with the compass the player reads.
+pub fn geode_twin_line(dx: f32, dz: f32) -> String {
+    let dir = match compass_facing(dx.atan2(-dz)) {
+        "N" => "north",
+        "NE" => "north-east",
+        "E" => "east",
+        "SE" => "south-east",
+        "S" => "south",
+        "SW" => "south-west",
+        "W" => "west",
+        _ => "north-west",
+    };
+    let paces = ((dx.hypot(dz)) as u64 / 10 * 10).max(10);
+    format!("the crystal sings across the dark — a twin hollow waits to the {dir}, {paces} paces off")
+}
+
 /// A seed-derived top-down thumbnail (ui-world-craft C2): a grid of
 /// WorldGen-approximated map tiles rendered top-down, RGBA8, row-major.
 /// Pure generation — no GPU, no live world — so the Load World screen can
@@ -835,6 +855,30 @@ mod tests {
             let c = biome_color(b);
             assert_ne!(c, Color32::default(), "{} uncolored", b.name());
         }
+    }
+
+    /// THE TWIN'S BEARING LINE: the words ride the game's own compass
+    /// convention (yaw 0 looks -z and is called S, +z is north, +x west,
+    /// -x east) and the distance reads in rounded paces.
+    #[test]
+    fn the_twin_line_names_the_compass_and_the_paces() {
+        // due north of the hollow: +z
+        assert!(geode_twin_line(0.0, 640.0).contains("to the north,"),
+            "got {:?}", geode_twin_line(0.0, 640.0));
+        // due east: -x (yaw +90° looks +x and the compass calls it W, so
+        // -x must read east)
+        assert!(geode_twin_line(-640.0, 0.0).contains("to the east,"));
+        // due south: -z; due west: +x
+        assert!(geode_twin_line(0.0, -640.0).contains("to the south,"));
+        assert!(geode_twin_line(640.0, 0.0).contains("to the west,"));
+        // diagonals name the intercardinal winds
+        assert!(geode_twin_line(-640.0, 640.0).contains("north-east,"));
+        assert!(geode_twin_line(640.0, 640.0).contains("north-west,"));
+        // the paces read rounded to tens, never zero
+        let line = geode_twin_line(0.0, 1234.0);
+        assert!(line.contains("1230 paces off"), "got {:?}", line);
+        let near = geode_twin_line(3.0, 4.0);
+        assert!(near.contains("10 paces off"), "got {:?}", near);
     }
 
     #[test]
