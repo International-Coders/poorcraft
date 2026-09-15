@@ -1,5 +1,78 @@
 # CHANGELOG
 
+## 2026-09-15 — The query-bound law: the ground query's origin contract made explicit (loop 459)
+
+- Closed STATE's next_task item (1) — the walk-snap query-bound
+  observation carried since loop 445: `CollisionSurface::ground_at`
+  takes `from_y` and the streamed paths DISCARD it (the recovery's
+  one-frame teleport lift rides that discard through a bare
+  `f32::MAX / 4.0` literal). The contract is now written law, pinned
+  by tests, BEFORE anyone enforces a streamed bound and has to
+  reconcile it with the authority path.
+- THE LAW (pc3d_render::player): the trait doc states THE QUERY-BOUND
+  LAW — on the authority path `from_y` is the search window
+  (AuthorityGround walks three solid cells down from it; the pure
+  window `in_authority_query_window(from_y, ground_y)` names the band
+  `(from_y - 3, floor(from_y) + 1]`); on the streamed paths it bounds
+  nothing BY CONTRACT — a streamed mesh holds one height per column
+  and has no interior to search, so the answer is the column's
+  PLACEMENT, origin-independent: it may sit above the origin (the rise
+  law judges climbs from live answers) or any depth below (the snap's
+  step band and the walk-off law judge descents). A future streamed
+  bound must adopt and change this law consciously, never silently.
+- THE NAMED CONSTANTS: `UNBOUNDED_QUERY_Y` replaces the three bare
+  `f32::MAX / 4.0` literals (renderer.rs ground_y_at's streamed probe,
+  settlement.rs + npcs.rs anchor windows) with the honest doc — the
+  unbounded probe is a STREAMED-path idiom; the authority window under
+  a near-f32-max origin holds only sky and REFUSES it (pinned by law,
+  so nobody ever "fixes" the renderer's authority fallback by routing
+  the probe through the windowed query expecting an answer).
+  `QUERY_REACH_M` names the walk's own origin (`feet + 2.0` at the
+  snap and the rise law's three sample sites — the literal the walk
+  always passed).
+- 3 new unit laws (pc3d_render 233 -> 236; p3d 690 -> 693): the
+  streamed placement answers every query origin on the real region
+  surface (placement == mesh height at four origins incl. the
+  unbounded probe); the authority window binds on real columns (the
+  answer inside the band at every origin, the deep query never
+  answers the surface, the unbounded probe refuses) + the pure
+  window's hand cases; the live streamer's collision answers every
+  origin identically once the full ring loads and refuses outside it
+  at every origin.
+- NO BEHAVIOR CHANGE, honestly claimed and re-proven: constants and
+  docs over the same values; every arithmetic literal is the number it
+  always was. The routes that ride the answer re-ran green: make
+  p3d-recovery PASS x2 + comparator (p50 26.1/26.8 ms; the one-frame
+  lift lands the body at the rim, the fall empties health, the wake-up
+  sits at EXACTLY 0.5 — health bar pixel-measured 0.975 at the rim vs
+  0.471 at final, byte-identical across runs) and make p3d-walkoff
+  PASS x2 + comparator (p50 25.7/25.7 ms; air beat unwounded over the
+  pit, landed wounded with the fresh FELL — HEALTH 64% toast). All
+  refreshed captures INSPECTED.
+- REGRESSION: p3d workspace 693 green / 0 failed (14 suites);
+  p3d-smoke OK (digest dd019eca900f5a61 UNCHANGED — headless, no
+  query-bound path); idle-upgrade-check PASS; visual gates NOT run —
+  nothing visual changed (the 445/458 bench-only precedent; the route
+  captures are the visual evidence and were inspected); root LOREFORGE
+  workspace untouched (456 verified 480 green at this tree's crates);
+  the six windowed_wild_*.png dirties remain deliberately NOT staged
+  (an earlier session's p3d-wilderness run).
+- PERF: not applicable — pure functions and named constants; zero new
+  work on any live path (two const loads replace two literals).
+- LORE: canon touched: none — a collision-query contract law over the
+  existing walk/streamed-surface physics; no faction, place, event,
+  term, NPC, item, or spell data; no identity assigned. World
+  expression: unchanged — the same ground answers every body in
+  Valdenmoor; the law only makes the streamed placement explicit so
+  future bound enforcement cannot silently move a placed body.
+  Migration: none (pure law + renames + tests; no persisted field, no
+  save format, no proof schema change; smoke chain unchanged).
+  Deferred honestly: next in line is the is_water_layer/CTM-strip
+  audit (447's note: the hard-coded 167 now points at dead_shrub's
+  index — water proofs pass but the strip addressing deserves an
+  audit); carried: guardian chronicle re-fire; multiplayer routing of
+  terrain edits; geode pairing.
+
 ## 2026-09-14 — The bench guards its host: contention probe + the quiet-host re-read (loop 458)
 
 - Closed STATE's next_task item (1) — the twelve-loops-queued

@@ -9146,3 +9146,68 @@ ever enforced; next_task item 1); the is_water_layer/CTM-strip audit
 (447's note: the hard-coded 167 now points at dead_shrub's index);
 guardian chronicle re-fire; multiplayer routing of terrain edits;
 geode pairing (447's keepers are root-workspace lore).
+
+## 2026-09-15 — The query-bound law: the ground query's origin contract made explicit (loop 459)
+
+WHAT:
+- Closed STATE's next_task item (1) — the walk-snap query-bound
+  observation carried since loop 445: CollisionSurface::ground_at
+  takes from_y and the streamed paths DISCARD it (the recovery's
+  one-frame teleport lift rides that discard through a bare
+  f32::MAX / 4.0 literal). The contract is now written law pinned by
+  tests BEFORE anyone enforces a streamed bound.
+
+HOW:
+- Files touched: poorcraft3d/crates/pc3d_render/src/player.rs (THE
+  QUERY-BOUND LAW in the trait doc; the pure in_authority_query_window
+  predicate; UNBOUNDED_QUERY_Y + QUERY_REACH_M constants; the walk's
+  five feet+2.0 sites renamed; 2 new laws); surface.rs + surface_stream.rs
+  (THE STREAMED PLACEMENT LAW docs at both impls; 1 new streamer law);
+  renderer.rs / settlement.rs / npcs.rs (the three bare literals ->
+  UNBOUNDED_QUERY_Y); STATE.md, BACKLOG.md, CHANGELOG.md, this entry.
+  Makefile unchanged (no new or changed targets).
+- Approach: name what the code already does — the authority window and
+  the streamed placement were both real behavior; only the contract and
+  the probe idiom were implicit. Every renamed constant holds the value
+  its literal always held; zero arithmetic changed.
+
+VERIFICATION:
+- p3d workspace 693 green / 0 failed (14 suites; pc3d_render 233 ->
+  236: the placement/window/streamer laws).
+- make p3d-recovery PASS x2 + comparator (p50 26.1/26.8 ms; the
+  one-frame lift lands the body at the rim, the 14 m fall empties
+  health, the wake-up sits at EXACTLY 0.5 — health bar pixel-measured
+  0.975 at the rim vs 0.471 at final, byte-identical across a/b).
+- make p3d-walkoff PASS x2 + comparator (p50 25.7/25.7 ms; unwounded
+  air beat over the pit, landed with the fresh FELL — HEALTH 64%
+  toast, em-dash intact).
+- All refreshed captures INSPECTED (rim/air/plaza_early/plaza/final,
+  edge/air/landed).
+- make p3d-smoke OK — digest dd019eca900f5a61 UNCHANGED (headless, no
+  query-bound path).
+- make idle-upgrade-check PASS.
+- Visual gates NOT run, honestly: nothing visual changed (the 445/458
+  bench-only precedent); the route captures are the visual evidence
+  and were inspected + pixel-analyzed.
+- Root LOREFORGE workspace untouched by this loop (456 verified 480
+  green at this tree's crates).
+
+PERF: not applicable — pure functions and named constants; zero new
+work on any live path (two const loads replace two literals at the
+probe sites; the walk's queries are byte-identical arithmetic).
+
+LORE IMPACT: canon touched: none — a collision-query contract law over
+the existing walk/streamed-surface physics; no faction, place, event,
+term, NPC, item, or spell data; no identity assigned. Locked facts
+preserved: all. World expression: unchanged — the same ground answers
+every body in Valdenmoor; the law only makes the streamed placement
+explicit so future bound enforcement cannot silently move a placed
+body. Migration: none (pure law + renames + tests; no persisted field,
+no save format, no proof schema change — smoke chain unchanged).
+
+HONESTLY DEFERRED: next in line is the is_water_layer/CTM-strip audit
+(447's note: the hard-coded 167 now points at dead_shrub's index —
+water proofs pass but the strip addressing deserves an audit; the same
+name-the-contract cure applies). Carried: guardian chronicle re-fire;
+multiplayer routing of terrain edits; geode pairing (447's keepers are
+root-workspace lore).

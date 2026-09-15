@@ -11,6 +11,35 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The query-bound law: the ground query's origin contract made
+      explicit (2026-09-15, loop 459, POORCRAFT 3D): closed STATE's
+      next_task item (1) — the walk-snap query-bound observation
+      carried since 445. CollisionSurface::ground_at's from_y is now
+      THE QUERY-BOUND LAW in the trait doc: on the authority path the
+      three-cell search window (pure predicate
+      in_authority_query_window: answers in (from_y - 3,
+      floor(from_y) + 1]); on the streamed paths bounds nothing BY
+      CONTRACT — the answer is the column's PLACEMENT,
+      origin-independent; a future streamed bound must adopt and
+      change the law consciously. UNBOUNDED_QUERY_Y names the
+      f32::MAX/4.0 probe (STREAMED-path idiom: the authority window
+      under it holds only sky and refuses — pinned by law);
+      QUERY_REACH_M names the walk's feet+2.0 origin. 3 new unit
+      laws: region-surface placement answers every origin (==
+      mesh height, incl. the unbounded probe); the authority window
+      binds on real columns + refuses the unbounded probe + hand
+      cases; the live streamer answers every origin in the loaded
+      full ring, refuses outside it at every origin. NO behavior
+      change: recovery PASS x2 + comparator (p50 26.1/26.8 ms; wake-up
+      EXACTLY 0.5 — bar pixel-measured 0.975 rim vs 0.471 final,
+      byte-identical a/b); walkoff PASS x2 + comparator (p50
+      25.7/25.7 ms); captures INSPECTED. Evidence: p3d 693 green
+      (pc3d_render 236); smoke digest unchanged (dd019eca900f5a61);
+      idle-upgrade-check PASS; visual gates not run (nothing visual
+      changed). Deferred honestly: the is_water_layer/CTM-strip audit
+      is next in line; carried: guardian chronicle re-fire,
+      multiplayer routing of terrain edits, geode pairing.
+
 - [x] The bench guards its host: contention probe + the quiet-host
       re-read (2026-09-14, loop 458, POORCRAFT 3D): closed STATE's
       next_task item (1) — the deck-bench re-read queued since loop
