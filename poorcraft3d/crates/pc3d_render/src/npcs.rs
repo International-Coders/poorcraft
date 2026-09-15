@@ -1123,9 +1123,16 @@ impl<S: crate::player::CollisionSurface> crate::player::CollisionSurface for Cro
         if !self.cells.contains(&(x, z)) {
             return false;
         }
+        // The unbounded probe: the streamed placement answers any
+        // origin (THE STREAMED PLACEMENT LAW).
         let ground = self
             .inner
-            .ground_at(gen, x as f32 + 0.5, z as f32 + 0.5, f32::MAX / 4.0)
+            .ground_at(
+                gen,
+                x as f32 + 0.5,
+                z as f32 + 0.5,
+                crate::player::UNBOUNDED_QUERY_Y,
+            )
             .unwrap_or(0.0);
         let wy = y as f32;
         wy >= ground - 0.5 && wy <= ground + 1.8

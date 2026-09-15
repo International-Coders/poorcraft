@@ -28,6 +28,35 @@ pub fn is_unsupported(feet_y: f32, ground_y: f32) -> bool {
     feet_y - ground_y > SUPPORT_GAP_M
 }
 
+/// THE WALK'S QUERY REACH: the walk asks the ground from two meters
+/// above the feet — high enough that a legal step (<= SUPPORT_GAP_M up)
+/// or a ramp's sampled far side stays inside one query, never so high
+/// that a cliff's top qualifies as this body's floor. The literal the
+/// walk always passed, named so the query-bound laws read whole.
+pub const QUERY_REACH_M: f32 = 2.0;
+
+/// THE UNBOUNDED QUERY ORIGIN: the proof/teleport/anchor probes ask for
+/// the ground with no depth in mind. Under THE STREAMED PLACEMENT LAW
+/// (see `CollisionSurface::ground_at`) the streamed surfaces answer it;
+/// the authority path CANNOT — its three-cell window under a
+/// near-f32-max origin holds only sky, so it refuses (pinned by law).
+/// An unbounded probe is therefore a STREAMED-path idiom, and the
+/// renderer's authority fallback answers columns directly instead of
+/// through the windowed query. The literal the call sites always
+/// passed, named so the convention is searchable.
+pub const UNBOUNDED_QUERY_Y: f32 = f32::MAX / 4.0;
+
+/// THE AUTHORITY QUERY WINDOW (pure): AuthorityGround walks at most
+/// three solid cells down from the query origin, so its answer can only
+/// lie inside `(from_y - 3, floor(from_y) + 1]` — deeper ground belongs
+/// to the fall, higher ground to the rise law, and neither can be
+/// snapped to from a single authority query. The bound `from_y` carries
+/// on the authority path, now explicit BEFORE anyone enforces a bound
+/// on the streamed path and has to reconcile the two.
+pub fn in_authority_query_window(from_y: f32, ground_y: f32) -> bool {
+    ground_y > from_y - 3.0 && ground_y <= from_y.floor() + 1.0
+}
+
 /// THE RISE LAW (pure): a walk may raise the feet only onto a surface
 /// that is itself walkable — a discrete STEP within one step height
 /// (`SUPPORT_GAP_M`, the up twin of the down law) or a RAMP within the
@@ -95,7 +124,19 @@ pub struct PlayerBody {
 /// streamed surface's own heights so edits and foundations are felt under
 /// the player's feet.
 pub trait CollisionSurface {
-    /// Ground height under (x, z) or None if unsupported here.
+    /// Ground height under (x, z) or None if unsupported here. `from_y`
+    /// is the QUERY ORIGIN, and its meaning splits by path — THE
+    /// QUERY-BOUND LAW: on the authority path it is the search window
+    /// (AuthorityGround walks three solid cells down from it; the pure
+    /// window is `in_authority_query_window`); on the streamed paths it
+    /// bounds nothing BY CONTRACT — a streamed mesh holds one height per
+    /// column and has no interior to search, so the answer is the
+    /// column's PLACEMENT, independent of the origin: it may sit above
+    /// the origin (the rise law judges climbs from live answers) or any
+    /// depth below (the snap's step band and the walk-off law judge
+    /// descents), and the unbounded probe `UNBOUNDED_QUERY_Y` answers
+    /// like any other origin. A future streamed bound must adopt and
+    /// change this law consciously, never silently.
     fn ground_at(&self, gen: &WorldGen, x: f32, z: f32, from_y: f32) -> Option<f32>;
     /// Solidity of a full cell (walls).
     fn cell_solid(&self, gen: &WorldGen, x: i32, y: i32, z: i32) -> bool;
@@ -157,11 +198,11 @@ impl PlayerBody {
     }
 
     /// The ground height under a column: the top of the highest solid cell
-    /// at or below `from_y + 2` (lets the player step up 1 m slopes).
+    /// at or below the query reach (lets the player step up 1 m slopes).
     fn ground_at(&self, gen: &WorldGen, x: f32, z: f32) -> f32 {
         let cx = x.floor() as i32;
         let cz = z.floor() as i32;
-        let mut y = (self.pos[1] + 2.0).floor() as i32;
+        let mut y = (self.pos[1] + QUERY_REACH_M).floor() as i32;
         while y > (self.pos[1] - 3.0).floor() as i32 {
             if solid_at(gen, cx, y, cz) {
                 return (y + 1) as f32;
@@ -260,7 +301,7 @@ impl PlayerBody {
         // falls and takes the impact law's damage. The unbounded snap
         // used to swallow every drop the streamed surface answered —
         // walk-offs landed soft and the commit was dead code there.
-        if let Some(g) = surface.ground_at(gen, self.pos[0], self.pos[2], self.pos[1] + 2.0) {
+        if let Some(g) = surface.ground_at(gen, self.pos[0], self.pos[2], self.pos[1] + QUERY_REACH_M) {
             if self.pos[1] - g <= SUPPORT_GAP_M {
                 self.pos[1] = g;
             }
@@ -285,7 +326,7 @@ impl PlayerBody {
         axis_dx: f32,
         axis_dz: f32,
     ) -> bool {
-        let Some(g) = surface.ground_at(gen, x, z, self.pos[1] + 2.0) else {
+        let Some(g) = surface.ground_at(gen, x, z, self.pos[1] + QUERY_REACH_M) else {
             return false; // no answer here: the snap ignores it too
         };
         let rise = g - self.pos[1];
@@ -298,8 +339,8 @@ impl PlayerBody {
         }
         let (ux, uz) = (axis_dx / len, axis_dz / len);
         let slope = match (
-            surface.ground_at(gen, x - ux * 0.5, z - uz * 0.5, self.pos[1] + 2.0),
-            surface.ground_at(gen, x + ux * 0.5, z + uz * 0.5, self.pos[1] + 2.0),
+            surface.ground_at(gen, x - ux * 0.5, z - uz * 0.5, self.pos[1] + QUERY_REACH_M),
+            surface.ground_at(gen, x + ux * 0.5, z + uz * 0.5, self.pos[1] + QUERY_REACH_M),
         ) {
             // Signed rise along the move, over exactly 1 m: ahead is
             // FURTHER ALONG the move than behind.
@@ -962,5 +1003,111 @@ mod dig_target_tests {
         let (tx, tz) = dig_target(&flat, EYE, fwd_of(0.0, -1.5), DIG_REACH_M)
             .expect("the ground underfoot is in reach");
         assert_eq!((tx, tz), (0, 0), "the body digs its own column");
+    }
+
+    #[test]
+    fn the_streamed_placement_answers_every_query_origin() {
+        // THE STREAMED PLACEMENT LAW on the real region surface: the
+        // answer is the column's mesh placement, independent of the
+        // query origin — the teleport/anchor unbounded probes read the
+        // same ground a walk reads, and a future streamed bound has to
+        // change THIS law consciously, never silently.
+        let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+        let region = crate::surface::SurfaceRegion::new(WorldGen::new(seed), coord);
+        let c = coord;
+        let ox = c.x as f32 * crate::surface::PATCH_M;
+        let oz = c.z as f32 * crate::surface::PATCH_M;
+        let mut checked = 0usize;
+        for k in 0..16u32 {
+            let x = ox + (k % 4) as f32 * 3.0 + 0.5;
+            let z = oz + (k / 4) as f32 * 3.0 + 0.5;
+            let placement = region.height_at(x, z);
+            for from_y in [0.0f32, placement + 40.0, placement - 40.0, UNBOUNDED_QUERY_Y] {
+                let g = region
+                    .ground_at(&region.gen, x, z, from_y)
+                    .expect("the region answers its own cells");
+                assert_eq!(
+                    g, placement,
+                    "origin {from_y} moved the placement at ({x},{z})"
+                );
+            }
+            checked += 1;
+        }
+        assert!(checked >= 16, "sampled the region grid");
+    }
+
+    #[test]
+    fn the_authority_window_binds_and_refuses_the_unbounded_probe() {
+        // THE AUTHORITY QUERY WINDOW on real columns: every answer lies
+        // inside the three-cell window under its origin, whatever the
+        // origin — and the unbounded probe answers None there (its
+        // window holds only sky), which is exactly why the teleport/
+        // anchor probes must stay a STREAMED-path idiom.
+        let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+        let gen = WorldGen::new(seed);
+        let o = coord.origin();
+        let cx = o.x.div_euclid(1000) as i32 + 8;
+        let cz = o.z.div_euclid(1000) as i32 + 8;
+        let authority = AuthorityGround;
+        // Open columns with their surface tops (the walker test's scan).
+        let mut columns = Vec::new();
+        'scan: for dx in 0..8i32 {
+            for dz in 0..8i32 {
+                let (x, z) = (cx + dx, cz + dz);
+                let mut y = 40;
+                while y > 0 && !solid_at(&gen, x, y, z) {
+                    y -= 1;
+                }
+                if solid_at(&gen, x, y, z)
+                    && !solid_at(&gen, x, y + 1, z)
+                    && !solid_at(&gen, x, y + 2, z)
+                {
+                    columns.push([x as f32 + 0.5, (y + 1) as f32, z as f32 + 0.5]);
+                    if columns.len() >= 8 {
+                        break 'scan;
+                    }
+                }
+            }
+        }
+        assert!(columns.len() >= 4, "found open ground");
+        for col in &columns {
+            let (x, surface, z) = (col[0], col[1], col[2]);
+            // Asked from one step above the surface, the window answers
+            // exactly the surface and it sits inside the window.
+            let g = authority
+                .ground_at(&gen, x, z, surface + 1.0)
+                .expect("an open smooth-hills column");
+            assert_eq!(g, surface, "the window answers the surface top");
+            assert!(
+                in_authority_query_window(surface + 1.0, g),
+                "answer {g} escaped the window of {}",
+                surface + 1.0
+            );
+            // The same column asked from far below: the window binds
+            // there too (a deeper cell or None — never the surface).
+            match authority.ground_at(&gen, x, z, surface - 50.0) {
+                Some(deep) => {
+                    assert!(
+                        in_authority_query_window(surface - 50.0, deep) && deep < surface,
+                        "deep query answered outside its window: {deep}"
+                    );
+                }
+                None => {}
+            }
+            // The unbounded probe REFUSES on the authority path.
+            assert!(
+                authority
+                    .ground_at(&gen, x, z, UNBOUNDED_QUERY_Y)
+                    .is_none(),
+                "the authority window answered an unbounded probe"
+            );
+        }
+        // The pure window's hand cases: the boundary band belongs to
+        // the fall (exactly 3 m below is OUT), the origin's own floor
+        // cell top is IN.
+        assert!(!in_authority_query_window(100.0, 50.0));
+        assert!(!in_authority_query_window(100.0, 97.0));
+        assert!(in_authority_query_window(100.0, 98.5));
+        assert!(in_authority_query_window(100.0, 101.0));
     }
 }

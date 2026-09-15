@@ -476,6 +476,9 @@ pub fn decode_delta(
 }
 
 impl crate::player::CollisionSurface for SurfaceRegion {
+    /// THE STREAMED PLACEMENT LAW (see the trait doc): the region mesh
+    /// IS the ground — `_from_y` bounds nothing here; the answer is the
+    /// column's placement, origin-independent.
     fn ground_at(&self, gen: &WorldGen, x: f32, z: f32, _from_y: f32) -> Option<f32> {
         let key = ((x / PATCH_M).floor() as i32, (z / PATCH_M).floor() as i32);
         self.try_patch(key).map(|p| p.height_at(gen, x, z))

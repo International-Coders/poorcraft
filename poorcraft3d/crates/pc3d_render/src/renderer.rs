@@ -1284,9 +1284,9 @@ impl Renderer {
     }
 
     pub fn ground_y_at(&self, gen: &pc3d_world::gen::WorldGen, x: f32, z: f32) -> f32 {
-        use crate::player::CollisionSurface as _;
+        use crate::player::{CollisionSurface as _, UNBOUNDED_QUERY_Y};
         if let Some(ss) = self.surface_stream.as_ref() {
-            if let Some(g) = ss.ground_at(gen, x, z, f32::MAX / 4.0) {
+            if let Some(g) = ss.ground_at(gen, x, z, UNBOUNDED_QUERY_Y) {
                 return g;
             }
         }

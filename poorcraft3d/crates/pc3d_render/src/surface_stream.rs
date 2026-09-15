@@ -720,6 +720,58 @@ mod tests {
     }
 
     #[test]
+    fn the_streamed_collision_answers_every_query_origin() {
+        // THE STREAMED PLACEMENT LAW on the live streamer: after the
+        // full ring loads, the collision answer is origin-independent —
+        // the teleport/anchor unbounded probes (UNBOUNDED_QUERY_Y) read
+        // the same ground a feet+reach walk query reads, and outside
+        // the ring every origin refuses alike.
+        let mut r = crate::renderer::Renderer::offscreen(320, 200);
+        let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
+        let gen = std::rc::Rc::new(WorldGen::new(seed));
+        let mut s = SurfaceStreamer::new(gen.clone(), &[Tier::Full], coord.y);
+        s.set_budgets(2, usize::MAX);
+        let pose = crate::camera::CameraPose::new(
+            [
+                coord.x as f32 * PATCH_M + 8.0,
+                60.0,
+                coord.z as f32 * PATCH_M + 8.0,
+            ],
+            0.0,
+            0.0,
+        );
+        let c = walk_to_completion(&mut r, &mut s, pose);
+        assert!(c.loaded_full > 0, "the full ring loaded");
+        let wx = coord.x as f32 * PATCH_M + 8.0;
+        let wz = coord.z as f32 * PATCH_M + 8.0;
+        let placement = s
+            .surface_height(wx, wz)
+            .expect("collision in the full ring");
+        use crate::player::CollisionSurface as _;
+        for from_y in [
+            0.0f32,
+            placement + 40.0,
+            placement - 40.0,
+            crate::player::UNBOUNDED_QUERY_Y,
+        ] {
+            let g = s
+                .ground_at(&gen, wx, wz, from_y)
+                .expect("the loaded ring answers");
+            assert_eq!(
+                g, placement,
+                "origin {from_y} moved the streamed placement"
+            );
+        }
+        // Outside the ring, every origin refuses alike.
+        for from_y in [0.0f32, crate::player::UNBOUNDED_QUERY_Y] {
+            assert!(
+                s.ground_at(&gen, 90_000.0, 90_000.0, from_y).is_none(),
+                "outside the ring the answer refuses at origin {from_y}"
+            );
+        }
+    }
+
+    #[test]
     fn teleport_and_budget_hold() {
         let mut r = crate::renderer::Renderer::offscreen(320, 200);
         let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
@@ -908,6 +960,10 @@ mod gpu_tests {
 
 /// The streamed surface AS a collision surface (NWR-011 live walk):
 /// ground from the loaded full ring (refuses outside), no walls.
+/// THE STREAMED PLACEMENT LAW (see the trait doc): `_from_y` bounds
+/// nothing here — the answer is the loaded column's placement,
+/// origin-independent; the teleport/anchor unbounded probes
+/// (`UNBOUNDED_QUERY_Y`) ride exactly this.
 impl crate::player::CollisionSurface for SurfaceStreamer {
     fn ground_at(&self, _gen: &WorldGen, x: f32, z: f32, _from_y: f32) -> Option<f32> {
         self.surface_height(x, z)
