@@ -11,6 +11,33 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The bench guards its host: contention probe + the quiet-host
+      re-read (2026-09-14, loop 458, POORCRAFT 3D): closed STATE's
+      next_task item (1) — the deck-bench re-read queued since loop
+      446 — plus 445's own deferred bench contention guard. THE GUARD
+      (pc3d_render::deck): cpu_probe_ns, a fixed 400k-step
+      deterministic float workload (~2.7 ms/reading, calibrated), read
+      at each tier run's start and end; readings ride the sidecar CSV
+      and the report's new "host CPU probe" bullet; the pure
+      probes_within_band law (slowest <= fastest x 1.4, zero never
+      quiet) is asserted BEFORE the report is written — a contended
+      run writes no report. 4 new unit laws; pc3d_render 229 -> 233.
+      THE RE-READ: low 7.18 / mid 12.92 / high 13.06 ms p50 on a quiet
+      host (probes 0.7% spread; every work counter byte-identical to
+      445's record) vs 442/445's 6.85-6.89/12.16-12.30/12.44-12.56 —
+      a uniform +4-6% that the A/B DECIDES: the loop-445 binary on
+      this host today reads 7.21/12.88/13.02, so the shift is
+      host-state drift, not code cost; 446-457 cost nothing measurable
+      on the bench walk. Tier captures re-rendered + INSPECTED (same
+      vista, leaner dressing per tier). Evidence: p3d 690 green
+      (pc3d_render 233); smoke digest unchanged (dd019eca900f5a61);
+      people PASS (0.66%); idle-upgrade-check PASS; visual gates not
+      run (nothing visual changed — the 445 bench-only precedent).
+      Deferred honestly: the contention guard is DONE; carried: the
+      walk-snap query-bound law, the is_water_layer/CTM-strip audit,
+      guardian chronicle re-fire, multiplayer routing of terrain
+      edits, geode pairing.
+
 - [x] Every beat capture reads the latch: climb, hang-off, playtest
       (2026-09-14, loop 457, POORCRAFT 3D): closed STATE's next_task
       item (1) — the remaining routes adopted 456's capture-side latch

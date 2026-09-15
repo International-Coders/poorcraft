@@ -2898,8 +2898,13 @@ fn main() {
                     ],
                     ..Default::default()
                 };
+                // The contention guard brackets the measured run: the
+                // same fixed workload at start and end — inflated
+                // readings mean a foreign process took the CPU.
+                let probe_start = pc3d_render::deck::cpu_probe_ns(pc3d_render::deck::PROBE_ITERS);
                 let report =
                     pc3d_render::run_windowed(cfg).unwrap_or_else(|e| panic!("bench {name}: {e}"));
+                let probe_end = pc3d_render::deck::cpu_probe_ns(pc3d_render::deck::PROBE_ITERS);
                 let cap = &report.captures[0];
                 assert!(
                     cap.report.passes_with(3),
@@ -2940,16 +2945,18 @@ fn main() {
                     settlement_tris: st,
                     crowd_draws: cd,
                     crowd_instances: ci,
+                    probe_start_ns: probe_start,
+                    probe_end_ns: probe_end,
                 });
             }
             let r = rows.remove(0);
             let sidecar = format!("{}/deck_bench_{}.csv", std::env::temp_dir().display(), name);
             let mut csv = String::new();
             csv.push_str(&format!(
-                "tier,frames,p50,p95,p99,worst,fps,meshed,gpu_kb,drawn,culled,flora_inst,flora_buckets,setl_draws,setl_tris,crowd_draws,crowd_inst\n"
+                "tier,frames,p50,p95,p99,worst,fps,meshed,gpu_kb,drawn,culled,flora_inst,flora_buckets,setl_draws,setl_tris,crowd_draws,crowd_inst,probe_start_ns,probe_end_ns\n"
             ));
             csv.push_str(&format!(
-                "{},{},{:.3},{:.3},{:.3},{:.3},{:.1},{},{},{},{},{},{},{},{},{},{}\n",
+                "{},{},{:.3},{:.3},{:.3},{:.3},{:.1},{},{},{},{},{},{},{},{},{},{},{},{}\n",
                 r.tier,
                 r.frames,
                 r.p50_ms,
@@ -2966,13 +2973,16 @@ fn main() {
                 r.settlement_draws,
                 r.settlement_tris,
                 r.crowd_draws,
-                r.crowd_instances
+                r.crowd_instances,
+                r.probe_start_ns,
+                r.probe_end_ns
             ));
             std::fs::write(&sidecar, csv).expect("write sidecar");
             println!(
-                "DECK {}: p50 {:.2} ms p95 {:.2} p99 {:.2} worst {:.2} ({:.0} fps), meshed {} gpu {} KB flora {} setl {} tris crowd {} inst -> {}",
+                "DECK {}: p50 {:.2} ms p95 {:.2} p99 {:.2} worst {:.2} ({:.0} fps), meshed {} gpu {} KB flora {} setl {} tris crowd {} inst, probe {} -> {} ns -> {}",
                 r.tier, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps, r.meshed,
-                r.gpu_kb, r.flora_instances, r.settlement_tris, r.crowd_instances, sidecar
+                r.gpu_kb, r.flora_instances, r.settlement_tris, r.crowd_instances,
+                r.probe_start_ns, r.probe_end_ns, sidecar
             );
             println!("DECK BENCH TIER PASS -> capture in {out_dir}");
         }
@@ -4594,8 +4604,28 @@ fn deck_report(out_dir: &str) {
             settlement_tris: f[13] as usize,
             crowd_draws: f[14] as usize,
             crowd_instances: f[15] as usize,
+            probe_start_ns: f[16] as u64,
+            probe_end_ns: f[17] as u64,
         });
     }
+    // The contention guard: a run whose probe readings left the band
+    // measured a host that changed speed mid-run — its frame numbers
+    // are not comparable, so no report is written. Re-run when quiet.
+    let probes: Vec<u64> = rows
+        .iter()
+        .flat_map(|r| [r.probe_start_ns, r.probe_end_ns])
+        .collect();
+    assert!(
+        pc3d_render::deck::probes_within_band(&probes),
+        "host contention detected: CPU probe spread {:?} exceeds the x{:.1} band — the frame numbers are contaminated, re-run on a quiet host",
+        probes,
+        pc3d_render::deck::PROBE_CONTENTION_BAND
+    );
+    println!(
+        "DECK host CPU probe ns (start/end): {:?} — within the x{:.1} band",
+        probes,
+        pc3d_render::deck::PROBE_CONTENTION_BAND
+    );
     let md = pc3d_render::deck::report_md(
         "Apple host iGPU (documented evidence machine; the contract targets Steam Deck)",
         "800x500",
@@ -4616,8 +4646,9 @@ fn deck_report(out_dir: &str) {
     println!("DECK BENCH REPORT -> {}", dst.display());
     for r in &rows {
         println!(
-            "DECK {}: p50 {:.2} ms p95 {:.2} p99 {:.2} worst {:.2} ({:.0} fps)",
-            r.tier, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps
+            "DECK {}: p50 {:.2} ms p95 {:.2} p99 {:.2} worst {:.2} ({:.0} fps) probes {}/{}",
+            r.tier, r.p50_ms, r.p95_ms, r.p99_ms, r.worst_ms, r.avg_fps,
+            r.probe_start_ns, r.probe_end_ns
         );
     }
     println!("DECK BENCH PASS -> report + per-tier captures in {out_dir}");

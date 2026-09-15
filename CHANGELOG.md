@@ -1,5 +1,66 @@
 # CHANGELOG
 
+## 2026-09-14 — The bench guards its host: contention probe + the quiet-host re-read (loop 458)
+
+- Closed STATE's next_task item (1) — the twelve-loops-queued
+  (446..457) quiet-host deck-bench re-read — and landed its carried
+  companion, the bench contention guard (445's own deferred item).
+- THE GUARD (pc3d_render::deck): `cpu_probe_ns` — a fixed 400k-step
+  deterministic float workload (~2.7 ms per reading on the evidence
+  host, calibrated from the release binary: 100k steps read 0.67 ms
+  with a 1.2% start/end spread; 4x averages out scheduler transients)
+  — the pure-std, portable "was the host quiet" signal. Each tier run
+  brackets `run_windowed` with start/end probes; the readings ride the
+  CSV sidecar (two new columns) and the report carries a "host CPU
+  probe" bullet; `probes_within_band` is the pure law (slowest <=
+  fastest x 1.4; a zero/missing reading never counts as quiet) and
+  `deck_report` asserts it BEFORE writing the report — a contended run
+  writes no report and exits with the readings printed. Contamination
+  is a first-class failure, not a bookkeeping note (the exact failure
+  mode of 445's discarded first attempt).
+- 4 new unit laws (pc3d_render 229 -> 233; p3d 686 -> 690): zero work
+  reads as no time; 4x the work reads at least 2x the time
+  (frequency-scaling robust); the band holds a quiet spread and fails
+  a 3x mid-run slowdown; the report carries the probe bullet.
+- THE RE-READ: make p3d-deck-bench PASS on a quiet host (1-min load
+  3.3-4.1 through the run; probes 2.68M ns with a 0.7% spread, band
+  x1.4 held): low 7.18 / mid 12.92 / high 13.06 ms p50 (p95
+  8.58/14.26/14.09; meshed 176/402/603; GPU 5140/18886/27587 KB;
+  flora 605; setl 1048 tris; crowd 92 — every work counter
+  byte-identical to 445's record). vs 442/445's
+  6.85-6.89/12.16-12.30/12.44-12.56: a uniform +4-6%.
+- THE A/B THAT DECIDES THE SHIFT: the loop-445 binary itself (scratch
+  worktree at f932c32, fresh release build) run on THIS host TODAY
+  reads 7.21/12.88/13.02 — the new build's numbers within noise (and
+  it did so at a busier moment, 1-min load ~13: further evidence the
+  bench tolerates this load class). The +4-6% is host-state drift —
+  today's baseline, not code cost; loops 446-457 cost nothing
+  measurable on the bench walk. Tier ordering and Low-not-slower held
+  (low p95 8.58 <= high p95 14.09 x 1.25).
+- CAPTURES: windowed_deck_low/mid/high.png re-rendered and INSPECTED —
+  the same vista (POS 408.0/110.2/104.0 in every strip), lean at low
+  (FPS 135, clean foreground), mid adds the near-field settlement
+  geometry (FPS 77), high draws the fuller roof field (FPS 74): same
+  world, leaner dressing, legible in pixels. The refreshed report on
+  disk carries the new date + the probe bullet.
+- REGRESSION: p3d workspace 690 green / 0 failed (pc3d_render 233);
+  p3d-smoke OK (digest dd019eca900f5a61 UNCHANGED — headless, no bench
+  path); p3d-people PASS (motion 0.66%, windowed p50 12.70 ms; its
+  four refreshed captures ride the commit, plaza/stride INSPECTED);
+  idle-upgrade-check PASS. Visual gates NOT run — nothing visual
+  changed (the 445 precedent for bench-only loops); the deck captures
+  are the visual evidence. Root LOREFORGE workspace untouched (456
+  verified 480 green at this tree's crates).
+- PERF: this IS the perf job. Baseline = 442/445's record; after =
+  today's chain, same seed/scene/profile/host; the A/B pins the delta
+  to the host, not the code. No optimization claimed, none needed.
+- Deferred honestly: the contention guard is DONE. Carried: the
+  walk-snap query-bound observation (surface.rs ground_at discards
+  _from_y on the streamed path; write the pure law before the bound is
+  ever enforced); the is_water_layer/CTM-strip audit; guardian
+  chronicle re-fire; multiplayer routing of terrain edits; geode
+  pairing.
+
 ## 2026-09-14 — Every beat capture reads the latch: climb, hang-off, and playtest captures schedule themselves (loop 457)
 
 - Closed STATE's next_task item (1): the remaining routes adopted the

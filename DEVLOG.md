@@ -9040,3 +9040,109 @@ contention guard; the walk-snap query-bound observation
 (surface.rs ground_at discards _from_y on the streamed path);
 is_water_layer/CTM-strip audit; guardian chronicle re-fire;
 multiplayer routing of terrain edits; geode pairing.
+
+## 2026-09-14 — loop 458 — The bench guards its host: contention probe + the quiet-host deck-bench re-read
+
+WHAT:
+- Closed STATE's next_task item (1): the quiet-host deck-bench re-read,
+  queued twelve loops (446..457) because every attempt landed on a
+  contended host — plus its carried companion, the bench contention
+  guard (445's own deferred line: "a contention guard for bench
+  targets stays deferred").
+- THE GUARD (pc3d_render::deck): cpu_probe_ns — a fixed 400k-step
+  deterministic float workload, ~2.7 ms per reading on the evidence
+  host (calibrated from the release binary: 100k steps read 0.67 ms
+  with a 1.2% start/end spread; 4x averages out scheduler transients).
+  Pure std, portable, no new dependencies. Each tier run brackets
+  run_windowed with a start and an end probe; the readings ride the
+  CSV sidecar (two new columns) and the report carries a "host CPU
+  probe ns (start/end per tier, band x1.4)" bullet. probes_within_band
+  is the pure law — slowest <= fastest x 1.4, and a zero/missing
+  reading never counts as quiet — asserted by deck_report BEFORE the
+  report is written: a contended run writes no report and exits with
+  the readings printed. Contamination is a first-class failure, not a
+  prose note (the exact failure mode of 445's discarded first
+  attempt).
+- 4 new unit laws (pc3d_render 229 -> 233; p3d 686 -> 690): zero work
+  reads as no time; 4x the work reads at least 2x the time
+  (frequency-scaling robust); the band holds a quiet spread and fails
+  a 3x mid-run slowdown; the report carries the probe bullet.
+- THE RE-READ: make p3d-deck-bench PASS on a quiet host (1-min load
+  3.3-4.1 through the run): low 7.18 / mid 12.92 / high 13.06 ms p50,
+  probes 2680844/2681735/2688407/2669715/2678374/2677253 ns — a 0.7%
+  spread, far inside the x1.4 band. Work counters byte-identical to
+  445's record (meshed 176/402/603; GPU 5140/18886/27587 KB; flora
+  605; setl 1048 tris; crowd 92). vs 442/445's
+  6.85-6.89/12.16-12.30/12.44-12.56: a uniform +4-6%.
+- THE A/B THAT DECIDES THE SHIFT: the loop-445 binary itself (scratch
+  worktree at f932c32, fresh release build, removed after) run on THIS
+  host TODAY reads low 7.21 / mid 12.88 / high 13.02 — the new build's
+  numbers within noise. It did so at a busier moment (1-min load ~13
+  from the worktree build's tail): further evidence the bench
+  tolerates this load class and the shift is not run noise. VERDICT:
+  the +4-6% is host-state drift — today's baseline, not code cost;
+  loops 446-457 cost nothing measurable on the bench walk (the bench
+  attaches none of the changed walk/route paths; the crowd is the only
+  bench-visible subsystem touched since 445, and mid-vs-high reads
+  identical). Tier ordering and the Low-not-slower law held (low p95
+  8.58 <= high p95 14.09 x 1.25).
+- CAPTURES: windowed_deck_low/mid/high.png re-rendered and INSPECTED —
+  the same vista (POS 408.0/110.2/104.0 in every debug strip), lean at
+  low (FPS 135, clean foreground), mid adds the near-field settlement
+  geometry (FPS 77), high draws the fuller roof field (FPS 74): same
+  world, leaner dressing, legible in pixels. DECK-BENCH-REPORT.md on
+  disk carries the new date and the probe bullet.
+
+HOW:
+- Files touched: poorcraft3d/crates/pc3d_render/src/deck.rs (probe +
+  band law + BenchRow probe fields + report bullet + 4 laws);
+  poorcraft3d/apps/poorcraft3d/src/main.rs (tier-arm probe bracketing
+  + CSV columns + deck_report band assert + stdout); the refreshed
+  report + deck/people captures; STATE.md, BACKLOG.md, CHANGELOG.md,
+  this entry. Makefile unchanged (no new or changed targets;
+  p3d-deck-bench documented as before).
+- Approach: measure first, then set the law from measurement — the
+  probe scale and the x1.4 band both come from release-binary
+  calibration (quiet spread 0.2-1.2% across four runs; the measured
+  contention class inflated frame times 3-7x at load 94, loops
+  446-448). The A/B worktree ran the old binary before cleanup so the
+  drift attribution is controlled, not inferred.
+
+VERIFICATION:
+- p3d workspace 690 green / 0 failed (14 suites; pc3d_render 233).
+- make p3d-deck-bench PASS (three tiers + report; the band law held).
+- make p3d-smoke OK — digest dd019eca900f5a61 UNCHANGED (headless, no
+  bench path).
+- make p3d-people PASS (motion 0.66%, windowed p50 12.70 ms; its four
+  refreshed captures ride the commit, plaza/stride INSPECTED).
+- make idle-upgrade-check PASS.
+- Visual gates NOT run, honestly: nothing visual changed (the 445
+  precedent for bench-only loops); the three deck captures are the
+  visual evidence and were inspected.
+- Root LOREFORGE workspace untouched by this loop (456 verified 480
+  green at this tree's crates).
+
+PERF: this IS the perf job. Baseline = 442/445's record; after =
+today's chain (same seed 3, same scene, same release profile, same
+host). The uniform +4-6% was decomposed by the A/B and pinned to the
+host, not the code. No optimization claimed, none needed; the bench's
+own added cost is six ~2.7 ms probes per full chain (~16 ms), zero on
+any live path.
+
+LORE IMPACT: canon touched: none — measurement infrastructure over the
+existing benchmark walk; no faction, place, event, term, NPC, item, or
+spell data; no identity assigned. Locked facts preserved: all. World
+expression: unchanged — the Deck contract's numbers now carry their
+own honesty seal, which is exactly the kind of trust a Valdenmoor
+settlement ledger would want. Migration: none (bench sidecar/report
+schema gained two columns and one bullet; no save format, no gameplay
+data, no proof-bundle digest affected — smoke chain unchanged).
+
+HONESTLY DEFERRED: the bench contention guard is DONE this loop.
+Carried: the walk-snap query-bound observation (surface.rs ground_at
+takes _from_y and DISCARDS it on the streamed path — write the pure
+law that makes the streamed placement explicit BEFORE the bound is
+ever enforced; next_task item 1); the is_water_layer/CTM-strip audit
+(447's note: the hard-coded 167 now points at dead_shrub's index);
+guardian chronicle re-fire; multiplayer routing of terrain edits;
+geode pairing (447's keepers are root-workspace lore).

@@ -211,6 +211,53 @@ pub struct BenchRow {
     pub settlement_tris: usize,
     pub crowd_draws: usize,
     pub crowd_instances: usize,
+    /// The contention guard: the fixed workload's wall time (ns) read
+    /// at the tier run's start and end. 0 = not recorded.
+    pub probe_start_ns: u64,
+    pub probe_end_ns: u64,
+}
+
+/// The contention guard's fixed workload size: ~2.5-3 ms of
+/// deterministic float math per reading on the evidence host
+/// (calibrated 2026-09-14 from the release binary: 100k iters read
+/// 0.67 ms with a 1.2% start/end spread; 4x averages out scheduler
+/// transients better), cheap next to a tier run.
+pub const PROBE_ITERS: u32 = 400_000;
+
+/// How much slower the probe may read between the fastest and slowest
+/// of a run's start/end readings before the run is declared
+/// contended. Calibrated: the quiet host's observed probe spread is a
+/// few percent, while the measured contention class (loops 446-448's
+/// load-94 foreign load) inflated frame times 3-7x — the band sits an
+/// order of magnitude above the noise and well below the contamination.
+pub const PROBE_CONTENTION_BAND: f32 = 1.4;
+
+/// Wall time of `iters` steps of fixed deterministic float math — the
+/// bench's honest "was the host quiet" signal. Pure std, portable:
+/// the same work measured at a tier run's start and end; inflated
+/// readings mean a foreign process took the CPU while the tier ran.
+pub fn cpu_probe_ns(iters: u32) -> u64 {
+    let start = std::time::Instant::now();
+    let mut acc = 1.0f32;
+    for i in 0..iters {
+        acc = acc * 1.000_000_1 + (i as f32).sin() * 1e-9;
+        std::hint::black_box(&acc);
+    }
+    std::hint::black_box(acc);
+    start.elapsed().as_nanos() as u64
+}
+
+/// The band law: a run's probe readings must sit within
+/// [`PROBE_CONTENTION_BAND`] of their fastest member, or the host
+/// changed speed mid-run and the frame numbers are not comparable. A
+/// zero reading (not recorded) is never a quiet reading.
+pub fn probes_within_band(probes: &[u64]) -> bool {
+    if probes.is_empty() {
+        return true;
+    }
+    let fastest = *probes.iter().min().unwrap() as f32;
+    let slowest = *probes.iter().max().unwrap() as f32;
+    fastest > 0.0 && slowest <= fastest * PROBE_CONTENTION_BAND
 }
 
 /// Renders the documented report markdown.
@@ -220,7 +267,15 @@ pub fn report_md(hw: &str, res: &str, rows: &[BenchRow], contract: &[ContractRow
     out.push_str(&format!("- date: {}\n", chrono_local_now()));
     out.push_str(&format!("- host hardware: {hw} (documented; Deck numbers are the contract's target, this host is the evidence machine)\n"));
     out.push_str(&format!("- window: {res}\n"));
-    out.push_str(&format!("- runs: {}\n\n", rows.len()));
+    out.push_str(&format!("- runs: {}\n", rows.len()));
+    let probe_list = rows
+        .iter()
+        .map(|r| format!("{} {}/{}", r.tier, r.probe_start_ns, r.probe_end_ns))
+        .collect::<Vec<_>>()
+        .join(", ");
+    out.push_str(&format!(
+        "- host CPU probe ns (start/end per tier, band x{PROBE_CONTENTION_BAND}): {probe_list}\n\n",
+    ));
     out.push_str("## The quality contract\n\n");
     out.push_str("| lever | low | mid | high |\n|---|---|---|---|\n");
     for r in contract {
@@ -340,5 +395,58 @@ mod tests {
         assert!(md.contains("# POORCRAFT 3D — Steam Deck quality report"));
         assert!(md.contains("| low | 200 |"));
         assert!(md.contains("crowd pose rate"));
+    }
+
+    #[test]
+    fn probe_reads_zero_work_as_instant() {
+        assert!(
+            cpu_probe_ns(0) < 1_000_000,
+            "no work must read as no time (got {} ns)",
+            cpu_probe_ns(0)
+        );
+    }
+
+    #[test]
+    fn probe_scales_with_the_work_it_measures() {
+        let one = cpu_probe_ns(PROBE_ITERS);
+        let four = cpu_probe_ns(PROBE_ITERS * 4);
+        assert!(
+            four >= one * 2,
+            "4x the iterations must read at least 2x the time even under frequency scaling (one {one} ns, four {four} ns)"
+        );
+    }
+
+    #[test]
+    fn probe_band_rejects_a_contended_run() {
+        // The measured quiet host sits within a few percent; the
+        // load-94 contention class inflated frame times 3-7x. The
+        // band must hold the former and fail the latter.
+        let quiet = [2_500_000u64, 2_540_000, 2_480_000, 2_560_000, 2_520_000, 2_510_000];
+        assert!(probes_within_band(&quiet), "a quiet host passes the band");
+        let contended = [2_500_000u64, 2_540_000, 2_480_000, 8_100_000, 2_520_000, 2_510_000];
+        assert!(
+            !probes_within_band(&contended),
+            "a 3x mid-run slowdown is contention and must fail"
+        );
+        assert!(
+            !probes_within_band(&[0]),
+            "a missing reading is not a quiet reading"
+        );
+    }
+
+    #[test]
+    fn report_md_carries_the_contention_guard() {
+        let row = BenchRow {
+            tier: "low",
+            frames: 200,
+            p50_ms: 5.0,
+            p95_ms: 9.0,
+            probe_start_ns: 2_500_000,
+            probe_end_ns: 2_600_000,
+            ..Default::default()
+        };
+        let md = report_md("test host", "800x500", &[row], &contract());
+        assert!(md.contains("host CPU probe ns (start/end per tier, band x1.4)"));
+        assert!(md.contains("low 2500000/2600000"));
     }
 }
