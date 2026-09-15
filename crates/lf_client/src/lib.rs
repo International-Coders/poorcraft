@@ -612,6 +612,11 @@ pub struct ClientSave {
     /// anyway because old saves have progress).
     #[serde(default)]
     pub onboarding: Option<onboarding::Onboarding>,
+    /// loop 464: the hollows whose twin-song the chronicle has already
+    /// recorded (chunk keys). The song is remembered with the world, so
+    /// a reload does not re-sing a hollow the player has heard.
+    #[serde(default)]
+    pub chronicled_geodes: Vec<(i32, i32)>,
 }
 
 /// One discovered kingdom (loop 345): display name + throne position.
@@ -677,6 +682,7 @@ impl From<LegacyClientSave> for ClientSave {
             craft_queue: Vec::new(),
             kingdoms: Vec::new(),
             onboarding: None,
+            chronicled_geodes: Vec::new(),
         }
     }
 }
@@ -1320,6 +1326,12 @@ struct GameState {
     pub kingdom_compass_state: Option<(String, f32, i32)>,
     /// Compass cache age in frames.
     kingdom_compass_age: u32,
+    /// loop 464: the held Anima crystal's resonance reading —
+    /// (bearing rad, paces, is_twin) in the game's bearing convention,
+    /// refreshed at the compass cadence (every 20 held frames).
+    pub resonance_state: Option<(f32, i32, bool)>,
+    /// Resonance cache age in frames.
+    resonance_age: u32,
     /// Absolute in-game day count (wages at sunrise).
     pub day_index: u64,
     /// Previous day-fraction (sunrise edge detection).
@@ -1656,6 +1668,8 @@ impl GameState {
             kingdoms: lore_extras.kingdoms,
             kingdom_compass_state: None,
             kingdom_compass_age: 1000, // first held frame queries immediately
+            resonance_state: None,
+            resonance_age: 1000, // first held frame queries immediately
             day_index: lore_extras.day_index,
             prev_day_fraction: start_day_fraction,
             companion_cooldowns: vec![0.0; lore_extras.companions.len()],
@@ -2060,6 +2074,12 @@ impl GameState {
         worker_skip.extend(saved_set);
         worker_skip.extend(self.world.chunks.keys().copied());
         self.restart_streamer(seed, worker_skip);
+        // THE SONG IS REMEMBERED (loop 464): the chokepoint cleared the
+        // session set (a load is a new session); the slot's own sung set
+        // rides on top, so a reload never re-sings a hollow the player
+        // has heard. Join-identity and new worlds stay cleared — their
+        // seeds (and thus their hollow layouts) differ.
+        self.chronicled_geodes = lore.chronicled_geodes;
         // fix: black-square artifact — the Live RT pathtracer kept the
         // previous world's voxel clip (`upload_voxels` early-returns on an
         // unchanged center) and the egui handle kept the previous world's
@@ -2152,6 +2172,13 @@ impl GameState {
             craft_queue: self.craft_queue.clone(),
             kingdoms: self.kingdoms.clone(),
             onboarding: Some(self.onboarding.clone()),
+            // sorted so the saved bytes are deterministic for a session
+            chronicled_geodes: {
+                let mut v: Vec<(i32, i32)> =
+                    self.chronicled_geodes.iter().copied().collect();
+                v.sort();
+                v
+            },
         };
         // JSON (self-describing) so future field additions with
         // serde(default) load old bytes — bincode EOFs on them instead.
@@ -2833,6 +2860,19 @@ impl GameState {
                 self.kingdom_compass_age = 0;
             } else {
                 self.kingdom_compass_age = self.kingdom_compass_age.saturating_add(1);
+            }
+            // the resonance dial: the compass cadence — the scan is
+            // bounded (RESONANCE_SCAN_CHUNKS rings, one hash each) but
+            // WorldGen::new is not, so it refreshes at most every 20
+            // frames while the crystal is held
+            let crystal_held = self.inventory.slots[self.hotbar_index].as_ref()
+                .map(|s| s.item_id == "anima_crystal")
+                .unwrap_or(false);
+            if crystal_held && self.resonance_age >= 20 {
+                self.resonance_state = self.resonance_readout();
+                self.resonance_age = 0;
+            } else {
+                self.resonance_age = self.resonance_age.saturating_add(1);
             }
         }
         // GMod-style prop carry: hold RMB while aiming at an item prop to
@@ -4338,6 +4378,20 @@ impl GameState {
         let dz = tz as f32 + 0.5 - (pos.z as f32 + 0.5);
         let line = crate::map::geode_twin_line(dx, dz);
         self.chronicle_event(EventType::Discovery, line);
+    }
+
+    /// THE RESONANCE COMPASS (loop 464): the held crystal's live
+    /// reading — the twin of the hollow you stand in, else the nearest
+    /// hollow the bounded scan hears — as (bearing, paces, is_twin) in
+    /// the game's own bearing convention (map::bearing_to, the law the
+    /// dial painters and the chronicle line share).
+    fn resonance_readout(&self) -> Option<(f32, i32, bool)> {
+        let p = self.player.position;
+        let gen = WorldGen::new(Seed(self.world_seed));
+        let t = gen.resonance_target(p.x as i32, p.z as i32)?;
+        let dx = t.x as f32 + 0.5 - p.x;
+        let dz = t.z as f32 + 0.5 - p.z;
+        Some((crate::map::bearing_to(dx, dz), crate::map::paces_of(dx, dz), t.is_twin))
     }
 
     fn spawn_drop(&mut self, item: &str, count: u8, pos: Vec3) {
@@ -6633,6 +6687,10 @@ pub struct LoreExtras {
     pub kingdoms: Vec<KingdomRecord>,
     /// N01: first-minute tutorial state (default = fresh tutorial).
     pub onboarding: onboarding::Onboarding,
+    /// loop 464: the hollows whose twin-song the chronicle recorded —
+    /// restored with the slot, after the restart_streamer chokepoint
+    /// resets the session set.
+    pub chronicled_geodes: std::collections::HashSet<(i32, i32)>,
 }
 
 fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
@@ -6706,6 +6764,7 @@ fn load_client_save(dir: &Path, lore_reg: &lf_lore::LoreRegistry)
             lore.recipe_book = save.recipe_book.unwrap_or_default();
             lore.craft_queue = save.craft_queue;
             lore.onboarding = save.onboarding.unwrap_or_default();
+            lore.chronicled_geodes = save.chronicled_geodes.iter().copied().collect();
             return (inventory, stats, lf_game::TimeOfDay::new(save.time_ticks), entities, mobs, villagers, kills, quest_log, chronicle, research, settings, world_type, waypoints, spellbook, runed, paths, lore);
         }
     }
@@ -7297,6 +7356,31 @@ mod tests {
             .replace("craft_queue", "legacy_ignored");
         let old: ClientSave = serde_json::from_str(&old_json).unwrap();
         assert!(old.craft_queue.is_empty());
+    }
+
+    /// loop 464: the twin-song dedupe persists through the JSON extras
+    /// path — the song is history, not session state — and an old save
+    /// without the field starts silent (the restart_streamer chokepoint
+    /// still resets it for new worlds and join-identity).
+    #[test]
+    fn the_twin_song_is_remembered_through_the_save() {
+        let sung: std::collections::HashSet<(i32, i32)> =
+            [(3, -7), (-1, 0), (0, 0)].into_iter().collect();
+        let save = ClientSave {
+            chronicled_geodes: sung.iter().copied().collect(),
+            ..Default::default()
+        };
+        let loaded: ClientSave =
+            serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        let round: std::collections::HashSet<(i32, i32)> =
+            loaded.chronicled_geodes.iter().copied().collect();
+        assert_eq!(round, sung, "the sung set survives the JSON extras path");
+        // an old save without the field defaults to an empty set
+        let old_json = serde_json::to_string(&ClientSave::default())
+            .unwrap()
+            .replace("chronicled_geodes", "legacy_ignored");
+        let old: ClientSave = serde_json::from_str(&old_json).unwrap();
+        assert!(old.chronicled_geodes.is_empty());
     }
 
     /// N01: the tutorial state persists through the JSON extras path, and

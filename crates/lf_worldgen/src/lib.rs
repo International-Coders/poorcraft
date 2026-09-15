@@ -658,6 +658,22 @@ pub fn geode_pair_representative(cx: i32, cz: i32) -> (i32, i32) {
     }
 }
 
+/// THE RESONANCE COMPASS (loop 464): the held-crystal reading — a world
+/// position to point at, and whether it is the twin of the hollow the
+/// listener stands in (`is_twin`) or merely the nearest hollow.
+pub struct ResonanceTarget {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub is_twin: bool,
+}
+
+/// The held-crystal scan's bound in chunks (256 blocks): the nearest
+/// rolled hollow sits ~sqrt(113/pi) ≈ 6 chunks away on average, so the
+/// scan is cheap and the silent case is rare — and honest: a crystal
+/// senses the deep near it, it is not an oracle for the whole realm.
+pub const RESONANCE_SCAN_CHUNKS: i32 = 16;
+
 /// Deterministic 2D hash for feature placement (trees, etc.).
 fn hash2(x: i32, z: i32, seed: u64) -> u64 {
     let mut h = seed
@@ -715,6 +731,48 @@ impl WorldGen {
         let (tx, tz) = geode_twin_chunk(cx, cz);
         let (lx, y, lz, _) = self.geode_in_chunk(tx, tz)?;
         Some((tx * 16 + lx as i32, y as i32, tz * 16 + lz as i32))
+    }
+
+    /// THE RESONANCE COMPASS (loop 464): what a held Anima crystal sings.
+    /// The deep's resonance is loudest nearest. Standing in a rolled
+    /// hollow's chunk, the crystal hears THAT hollow and answers its
+    /// twin's world position (`is_twin` — the in-world echo of the
+    /// first-take Discovery line). Anywhere else, a bounded ring scan
+    /// answers the NEAREST rolled hollow's center. `None` — the deep is
+    /// silent — when nothing rolls within `RESONANCE_SCAN_CHUNKS` of the
+    /// player chunk. Deterministic per (seed, position); ties resolve by
+    /// the scan's fixed ring order, so the answer is stable.
+    pub fn resonance_target(&self, wx: i32, wz: i32) -> Option<ResonanceTarget> {
+        if let Some((tx, ty, tz)) = self.geode_twin_center(wx >> 4, wz >> 4) {
+            return Some(ResonanceTarget { x: tx, y: ty, z: tz, is_twin: true });
+        }
+        self.resonance_target_within(wx, wz, RESONANCE_SCAN_CHUNKS)
+    }
+
+    /// The bounded ring scan itself (laws exercise smaller radii
+    /// directly): Chebyshev rings 1..=radius around the player chunk,
+    /// first rolled chunk in scan order wins.
+    pub fn resonance_target_within(&self, wx: i32, wz: i32, radius_chunks: i32) -> Option<ResonanceTarget> {
+        let (pcx, pcz) = (wx >> 4, wz >> 4);
+        for r in 1..=radius_chunks {
+            for dz in -r..=r {
+                for dx in -r..=r {
+                    if dx.abs().max(dz.abs()) != r {
+                        continue; // the ring, not the square
+                    }
+                    let (cx, cz) = (pcx + dx, pcz + dz);
+                    if let Some((lx, y, lz, _)) = self.geode_in_chunk(cx, cz) {
+                        return Some(ResonanceTarget {
+                            x: cx * 16 + lx as i32,
+                            y: y as i32,
+                            z: cz * 16 + lz as i32,
+                            is_twin: false,
+                        });
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Stamp this chunk's geode (if any) into `col`. Returns whether one
@@ -2522,6 +2580,83 @@ mod tests {
         let (tx, tz) = crate::geode_twin_chunk(cx, cz);
         assert_pocket_sealed(&gen, cx, cz, "the representative");
         assert_pocket_sealed(&gen, tx, tz, "the twin");
+    }
+
+    /// THE RESONANCE COMPASS (loop 464), own-hollow law: standing in a
+    /// rolled hollow's chunk, the held crystal answers that hollow's
+    /// TWIN — the same promise the first-take Discovery sang — and
+    /// never a scan result, however near another hollow may roll.
+    #[test]
+    fn the_held_crystal_hears_its_own_hollows_twin_first() {
+        let gen = WorldGen::new(Seed(3));
+        let mut hit = None;
+        'search: for cx in 0..64 {
+            for cz in 0..64 {
+                if gen.geode_in_chunk(cx, cz).is_some() {
+                    hit = Some((cx, cz));
+                    break 'search;
+                }
+            }
+        }
+        let Some((cx, cz)) = hit else { panic!("no geode in 64x64 chunks of seed 3") };
+        // stand inside the hollow's chunk (over its center)
+        let (lx, y, lz, _) = gen.geode_in_chunk(cx, cz).unwrap();
+        let wx = cx * 16 + lx as i32;
+        let wz = cz * 16 + lz as i32;
+        let t = gen.resonance_target(wx, wz)
+            .unwrap_or_else(|| panic!("standing in a hollow, the crystal must sing"));
+        assert!(t.is_twin, "the own-hollow reading is the twin, not a scan hit");
+        assert_eq!((t.x, t.y, t.z), gen.geode_twin_center(cx, cz).unwrap(),
+            "the twin reading is exactly geode_twin_center's answer");
+    }
+
+    /// THE RESONANCE COMPASS, scan law: outside a hollow's chunk the
+    /// bounded scan answers the TRUE nearest rolled hollow (order-free
+    /// brute force over the same window), the bound is real (a smaller
+    /// radius stays silent), and the reading replays deterministically.
+    #[test]
+    fn the_resonance_scan_answers_the_nearest_hollow_within_its_bound() {
+        let gen = WorldGen::new(Seed(3));
+        // a listener spot in a chunk with no roll, far enough out that
+        // the nearest hollow is at Chebyshev distance >= 2
+        let mut spot: Option<(i32, i32, i32)> = None; // (wx, wz, min_dist)
+        'search: for pcx in 40..80 {
+            for pcz in 40..80 {
+                if gen.geode_in_chunk(pcx, pcz).is_some() {
+                    continue;
+                }
+                let mut min_dist = i32::MAX;
+                for dx in -16..=16 {
+                    for dz in -16..=16 {
+                        if gen.geode_in_chunk(pcx + dx, pcz + dz).is_some() {
+                            min_dist = min_dist.min(dx.abs().max(dz.abs()));
+                        }
+                    }
+                }
+                if min_dist >= 2 {
+                    spot = Some((pcx * 16 + 8, pcz * 16 + 8, min_dist));
+                    break 'search;
+                }
+            }
+        }
+        let Some((wx, wz, min_dist)) = spot else {
+            panic!("no quiet spot within 40..80^2 chunks of seed 3");
+        };
+        // the scan answers the brute-force nearest
+        let t = gen.resonance_target(wx, wz).expect("a hollow inside the 16-chunk bound");
+        let (tcx, tcz) = ((t.x >> 4), (t.z >> 4));
+        let dist = (tcx - (wx >> 4)).abs().max(tcz - (wz >> 4));
+        assert_eq!(dist, min_dist, "the scan answers the nearest rolled chunk");
+        assert!(gen.geode_in_chunk(tcx, tcz).is_some(), "the answer is a real hollow");
+        assert!(!t.is_twin, "a scan answer is a hollow, not a twin reading");
+        // the bound is real: one step tighter stays silent
+        assert!(gen.resonance_target_within(wx, wz, min_dist - 1).is_none(),
+            "the scan must not answer beyond its radius");
+        assert!(gen.resonance_target_within(wx, wz, min_dist).is_some(),
+            "the scan answers at exactly the nearest ring");
+        // determinism: the same seed and position replay the same answer
+        let again = gen.resonance_target(wx, wz).unwrap();
+        assert_eq!((again.x, again.y, again.z, again.is_twin), (t.x, t.y, t.z, t.is_twin));
     }
 
 

@@ -799,13 +799,22 @@ pub fn compass_facing(yaw: f32) -> &'static str {
     }
 }
 
-/// THE TWIN'S BEARING LINE (loop 463): the chronicle Discovery fired on
-/// the first Anima-crystal take from a hollow, naming its twin's compass
-/// bearing and distance in paces. The bearing rides the game's own
-/// `compass_facing` convention (yaw 0 looks -z, called S), so the words
-/// on the page can never disagree with the compass the player reads.
-pub fn geode_twin_line(dx: f32, dz: f32) -> String {
-    let dir = match compass_facing(dx.atan2(-dz)) {
+/// THE BEARING LAW (loop 464): every held dial shares ONE bearing
+/// function — the game's own convention, the same `compass_facing`
+/// reads (yaw 0 looks -z and is called S, +z is north, +x is west).
+/// A needle drawn by the compass painters (`rel = bearing - yaw`,
+/// up = dead ahead) points truly iff the bearing comes from here.
+/// The kingdom compass's old `dx.atan2(dz)` mirrored the needle across
+/// the player's east-west line and FAILS the bearing law below.
+pub fn bearing_to(dx: f32, dz: f32) -> f32 {
+    dx.atan2(-dz)
+}
+
+/// The compass word for a bearing, spelled out the way the chronicle
+/// and the dial labels read (the twin-line and resonance lines share
+/// this single mapping, so page and dial can never disagree).
+fn wind_word(bearing: f32) -> &'static str {
+    match compass_facing(bearing) {
         "N" => "north",
         "NE" => "north-east",
         "E" => "east",
@@ -814,9 +823,36 @@ pub fn geode_twin_line(dx: f32, dz: f32) -> String {
         "SW" => "south-west",
         "W" => "west",
         _ => "north-west",
-    };
-    let paces = ((dx.hypot(dz)) as u64 / 10 * 10).max(10);
+    }
+}
+
+/// Distance in paces, rounded to tens, never zero (the twin-line law).
+pub fn paces_of(dx: f32, dz: f32) -> i32 {
+    ((dx.hypot(dz)) as i64 / 10 * 10).max(10) as i32
+}
+
+/// THE TWIN'S BEARING LINE (loop 463): the chronicle Discovery fired on
+/// the first Anima-crystal take from a hollow, naming its twin's compass
+/// bearing and distance in paces. The bearing rides the game's own
+/// `compass_facing` convention (yaw 0 looks -z, called S), so the words
+/// on the page can never disagree with the compass the player reads.
+pub fn geode_twin_line(dx: f32, dz: f32) -> String {
+    let dir = wind_word(bearing_to(dx, dz));
+    let paces = paces_of(dx, dz);
     format!("the crystal sings across the dark — a twin hollow waits to the {dir}, {paces} paces off")
+}
+
+/// THE RESONANCE DIAL LABEL (loop 464): what the held Anima crystal
+/// sings under the crosshair. The twin of the hollow you stand in
+/// (`is_twin`) or the nearest hollow the deep offers — the same wind
+/// words the chronicle line reads, from the same bearing law.
+pub fn resonance_label(bearing: f32, paces: i32, is_twin: bool) -> String {
+    let dir = wind_word(bearing);
+    if is_twin {
+        format!("its twin sings · {dir}, {paces} paces")
+    } else {
+        format!("a hollow hums · {dir}, {paces} paces")
+    }
 }
 
 /// A seed-derived top-down thumbnail (ui-world-craft C2): a grid of
@@ -879,6 +915,49 @@ mod tests {
         assert!(line.contains("1230 paces off"), "got {:?}", line);
         let near = geode_twin_line(3.0, 4.0);
         assert!(near.contains("10 paces off"), "got {:?}", near);
+    }
+
+    /// THE BEARING LAW (loop 464): the one bearing function names each
+    /// target's wind exactly as `compass_facing` reads — the convention
+    /// the twin line, the resonance dial, and the kingdom compass all
+    /// share. The old kingdom `dx.atan2(dz)` mirrored the needle across
+    /// the east-west line and FAILS this law.
+    #[test]
+    fn the_bearing_law_names_the_same_wind_the_compass_does() {
+        // (dx, dz, the wind the player reads): +z north, -x east,
+        // +x west, -z south — the game's own mapping
+        let winds = [
+            (0.0, 640.0, "N"), (-640.0, 640.0, "NE"), (-640.0, 0.0, "E"),
+            (-640.0, -640.0, "SE"), (0.0, -640.0, "S"), (640.0, -640.0, "SW"),
+            (640.0, 0.0, "W"), (640.0, 640.0, "NW"),
+        ];
+        for (dx, dz, word) in winds {
+            let b = bearing_to(dx, dz);
+            assert_eq!(compass_facing(b), word,
+                "target ({dx},{dz}) must read {word}, got {}", compass_facing(b));
+        }
+        // and the painter relation holds: a player FACING the target
+        // (yaw == bearing) reads the needle dead ahead (rel == 0) —
+        // i.e. the bearing is the yaw that would look at it
+        for (dx, dz, word) in winds {
+            let b = bearing_to(dx, dz);
+            let look = (b.sin(), -b.cos());
+            let dot = look.0 * dx + look.1 * dz;
+            assert!(dot > 0.0, "yaw = bearing must LOOK at ({dx},{dz}), word {word}");
+        }
+    }
+
+    /// THE RESONANCE DIAL LABEL (loop 464): the held crystal sings the
+    /// same winds the chronicle line reads — the twin wording inside a
+    /// hollow, the nearest-hollow wording outside, paces in tens.
+    #[test]
+    fn the_resonance_label_rides_the_same_compass() {
+        let twin = resonance_label(bearing_to(0.0, 640.0), 640, true);
+        assert!(twin.contains("its twin sings") && twin.contains("north")
+            && twin.contains("640 paces"), "got {:?}", twin);
+        let near = resonance_label(bearing_to(-96.0, 0.0), 90, false);
+        assert!(near.contains("a hollow hums") && near.contains("east")
+            && near.contains("90 paces"), "got {:?}", near);
     }
 
     #[test]

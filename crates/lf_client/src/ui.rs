@@ -549,11 +549,44 @@ pub fn paint_kingdom_compass(
     needle_bearing: Option<f32>,
     label: &str,
 ) {
-    let gold = egui::Color32::from_rgb(240, 200, 110);
-    let needle_red = egui::Color32::from_rgb(220, 70, 60);
-    // case: dark dial with a gold rim
+    paint_compass_dial(painter, c, r, yaw, needle_bearing, label,
+        egui::Color32::from_rgb(240, 200, 110), egui::Color32::from_rgb(220, 70, 60));
+}
+
+/// loop 464: the held Anima crystal's resonance dial — the same
+/// player-relative rose, rimmed violet with a pale violet needle, so a
+/// player can tell the crystal's song from the kingdom's gold at a
+/// glance. Public for the vistest proof (proof pixels = in-game pixels).
+pub fn paint_resonance_dial(
+    painter: &egui::Painter,
+    c: egui::Pos2,
+    r: f32,
+    yaw: f32,
+    needle_bearing: Option<f32>,
+    label: &str,
+) {
+    paint_compass_dial(painter, c, r, yaw, needle_bearing, label,
+        egui::Color32::from_rgb(168, 120, 220), egui::Color32::from_rgb(205, 150, 255));
+}
+
+/// THE COMPASS DIAL GEOMETRY (loop 464): one rose for every held dial —
+/// dark case, colored rim, cardinal ticks rotated so the player's facing
+/// is up, and the needle swung to `needle_bearing` (THE BEARING LAW,
+/// map::bearing_to: rel = bearing - yaw, up = dead ahead). A resting
+/// needle (None) hangs dimmed.
+fn paint_compass_dial(
+    painter: &egui::Painter,
+    c: egui::Pos2,
+    r: f32,
+    yaw: f32,
+    needle_bearing: Option<f32>,
+    label: &str,
+    rim: egui::Color32,
+    needle_col: egui::Color32,
+) {
+    // case: dark dial with a colored rim
     painter.circle_filled(c, r, Theme::PANEL);
-    painter.circle_stroke(c, r, egui::Stroke::new(2.0, gold));
+    painter.circle_stroke(c, r, egui::Stroke::new(2.0, rim));
     // cardinal ticks rotated so the player's facing is up
     use std::f32::consts::{FRAC_PI_2, PI};
     for ang in [0.0, FRAC_PI_2, PI, -FRAC_PI_2] {
@@ -571,19 +604,19 @@ pub fn paint_kingdom_compass(
             let dir = egui::Vec2::new(rel.sin(), -rel.cos());
             painter.line_segment(
                 [c - dir * (r * 0.55), c + dir * (r * 0.72)],
-                egui::Stroke::new(3.0, needle_red),
+                egui::Stroke::new(3.0, needle_col),
             );
-            painter.circle_filled(c + dir * (r * 0.72), 2.5, needle_red);
+            painter.circle_filled(c + dir * (r * 0.72), 2.5, needle_col);
         }
         None => {
-            // no kingdom in reach: the needle rests, dimmed
+            // no song in reach: the needle rests, dimmed
             painter.line_segment(
                 [c - egui::Vec2::new(0.0, r * 0.5), c + egui::Vec2::new(0.0, r * 0.7)],
                 egui::Stroke::new(3.0, Theme::TEXT_DISABLED),
             );
         }
     }
-    painter.circle_filled(c, 3.0, gold);
+    painter.circle_filled(c, 3.0, rim);
     painter.text(
         c + egui::Vec2::new(0.0, r + 13.0),
         egui::Align2::CENTER_CENTER,
@@ -1160,28 +1193,37 @@ impl GameState {
                 self.draw_build_hud(ctx);
             }
         }
-        // loop 345: the kingdom compass, held — a dial under the crosshair
-        // whose needle swings toward the nearest kingdom
+        // loop 345/464: the held dials, one held slot at a time, both
+        // under the crosshair — the kingdom compass (gold, nearest
+        // kingdom) and the Anima crystal's resonance dial (violet, the
+        // Old Powers hollow or its twin)
         if self.stats.health > 0.0 && matches!(self.ui_open, UiOpen::None | UiOpen::Chat) {
-            let compass_held = self.inventory.slots[self.hotbar_index].as_ref()
-                .map(|s| s.item_id == "kingdom_compass")
-                .unwrap_or(false);
-            if compass_held {
-                let screen = ctx.screen_rect();
-                let c = egui::Pos2::new(screen.center().x, screen.top() + 92.0);
-                let (bearing, label) = match &self.kingdom_compass_state {
-                    Some((name, bearing, meters)) =>
-                        (Some(*bearing), format!("{} · {}m", name, meters)),
-                    None => (None, "no kingdom in reach".to_string()),
-                };
-                paint_kingdom_compass(
-                    &ctx.debug_painter(),
-                    c,
-                    30.0,
-                    self.player.yaw,
-                    bearing,
-                    &label,
-                );
+            let screen = ctx.screen_rect();
+            let c = egui::Pos2::new(screen.center().x, screen.top() + 92.0);
+            let held_id = self.inventory.slots[self.hotbar_index].as_ref()
+                .map(|s| s.item_id.as_str());
+            match held_id {
+                Some("kingdom_compass") => {
+                    let (bearing, label) = match &self.kingdom_compass_state {
+                        Some((name, bearing, meters)) =>
+                            (Some(*bearing), format!("{} · {}m", name, meters)),
+                        None => (None, "no kingdom in reach".to_string()),
+                    };
+                    paint_kingdom_compass(
+                        &ctx.debug_painter(), c, 30.0, self.player.yaw, bearing, &label,
+                    );
+                }
+                Some("anima_crystal") => {
+                    let (bearing, label) = match self.resonance_state {
+                        Some((bearing, paces, is_twin)) =>
+                            (Some(bearing), crate::map::resonance_label(bearing, paces, is_twin)),
+                        None => (None, "the deep is silent".to_string()),
+                    };
+                    paint_resonance_dial(
+                        &ctx.debug_painter(), c, 30.0, self.player.yaw, bearing, &label,
+                    );
+                }
+                _ => {}
             }
         }
         // N01: first-minute tutorial card + pinned starter objective

@@ -891,6 +891,9 @@ pub fn scenes() -> Vec<SceneSpec> {
         SceneSpec { name: "kingdom_compass_hud", desc: "loop 345: the held kingdom compass — gold-rimmed dial, red needle swung toward the realm, name + distance label",
             default_seed: 12345, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
             eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
+        SceneSpec { name: "resonance_compass_hud", desc: "loop 464: the held Anima crystal's resonance dial — violet rim, pale violet needle swung to the REAL WorldGen reading (the nearest Old Powers hollow), its dial label",
+            default_seed: 3, time_of_day: 0.5, first_person: false, torches: false, machines: false, raytraced: false,
+            eye: Vec3::new(-26.0, 0.0, 42.0), target: Vec3::new(8.0, 0.0, 8.0) },
     ]
 }
 
@@ -3716,6 +3719,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             || spec.name == "menus_centered_wide"
             || spec.name == "journal" || spec.name == "asset_catalog"
             || spec.name == "kingdom_compass_hud"
+            || spec.name == "resonance_compass_hud"
             || spec.name == "hud_onboarding" || spec.name == "hud_small_onboarding"
             || spec.name == "hud_contextual" || spec.name == "hud_contextual_small"
             || spec.name == "hud_danger" || spec.name == "hud_reputation"
@@ -3734,7 +3738,7 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             | "village_trading" | "tech_tree" | "settings_preview" | "crafting_ui"
             | "map_screen" | "console_preview" | "lore_book" | "spellbook"
             | "paths_screen" | "trade_p2p" | "companion_commands"
-            | "kingdom_compass_hud" | "hud_onboarding" | "hud_small_onboarding"
+            | "kingdom_compass_hud" | "resonance_compass_hud" | "hud_onboarding" | "hud_small_onboarding"
             | "hud_contextual" | "hud_contextual_small" | "hud_danger" | "hud_reputation");
         let draw = |ctx: &egui::Context| {
             if draws_hud_backdrop {
@@ -3775,6 +3779,9 @@ pub fn run_scene(name: &str, seed_override: Option<u64>, out_path: &Path) -> Res
             }
             if spec.name == "kingdom_compass_hud" {
                 draw_kingdom_compass_preview(ctx);
+            }
+            if spec.name == "resonance_compass_hud" {
+                draw_resonance_compass_preview(ctx);
             }
             if spec.name == "hud_onboarding" || spec.name == "hud_small_onboarding" {
                 draw_onboarding_preview(ctx);
@@ -3983,6 +3990,7 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         | "connected_textures_grass_3x3" | "mob_ai_visible" | "npc_schedule_time"
         | "sun_visibility" | "material_gallery" | "colored_light_room"
         | "kingdom_citadel" | "npc_walkers" | "kingdom_compass_hud"
+        | "resonance_compass_hud"
         | "geode_twins");
     if !needs_check {
         return Ok(());
@@ -4128,6 +4136,55 @@ fn verify_scene_pixels(out_path: &Path, scene: &str) -> Result<(), String> {
         // needle swung right of the dial center (bearing = yaw + 0.9)
         let right = count_in(cx, y0, x1, y1, [220, 70, 60], 45);
         assert!(right > 8, "kingdom_compass_hud: needle must point up-RIGHT ({right} px)");
+    }
+    if scene == "resonance_compass_hud" {
+        // The violet dial sits at screen center, top + 92: dark case,
+        // violet rim, pale violet needle swung to the REAL WorldGen
+        // reading (seed 3, the stand-point off the rolled hollow).
+        let cx = w / 2;
+        let x0 = cx.saturating_sub(80);
+        let x1 = (cx + 80).min(w);
+        let y0 = 20;
+        let y1 = 170.min(h);
+        let case = count_in(x0, y0, x1, y1, [51, 42, 28], 14);
+        assert!(case > 150, "resonance_compass_hud: dial case missing ({case} px)");
+        let rim = count_in(x0, y0, x1, y1, [168, 120, 220], 45);
+        assert!(rim > 60, "resonance_compass_hud: violet rim missing ({rim} px)");
+        let needle = count_in(x0, y0, x1, y1, [205, 150, 255], 45);
+        assert!(needle > 20, "resonance_compass_hud: violet needle missing ({needle} px)");
+        // THE BEARING LAW in pixels: the needle crosses the dial center
+        // along its bearing, so the needle-colored pixels' centroid must
+        // sit on the bearing's side of the dial center along the
+        // bearing's dominant axis (a near-vertical needle straddles the
+        // vertical centerline — the axis, not a fixed side, is the claim)
+        let (bearing, _) = resonance_proof_reading();
+        let (cy, rad) = (92usize, 34usize);
+        let (mut sx, mut n) = (0i64, 0u64);
+        for y in (cy - rad)..=(cy + rad) {
+            for x in (x0)..(x1) {
+                // the rim center dot straddles the centerline; exclude its
+                // neighborhood so the centroid is the NEEDLE's alone
+                if (x as i64 - cx as i64).abs() <= 4 && (y as i64 - cy as i64).abs() <= 4 {
+                    continue;
+                }
+                let p = px(x, y);
+                if p.iter().zip([205, 150, 255]).all(|(c, t)| (c - t).abs() <= 45) {
+                    sx += x as i64 - cx as i64;
+                    n += 1;
+                }
+            }
+        }
+        assert!(n > 20, "resonance_compass_hud: needle pixels missing ({n})");
+        let offset = sx as f64 / n as f64;
+        if bearing.sin().abs() >= bearing.cos().abs() {
+            let expect = bearing.sin().signum() as f64;
+            assert!(offset * expect > 1.0,
+                "resonance_compass_hud: needle centroid must sit {expect} along x (got {offset:.2})");
+        } else {
+            // near-vertical needle: the x-centroid must hug the centerline
+            assert!(offset.abs() < 6.0,
+                "resonance_compass_hud: near-vertical needle must hug the centerline (got {offset:.2})");
+        }
     }
     // ai-npc-assets Section A: gameplay frames must not contain a large
     // pure-black rectangle in the view (the black-square artifact class).
@@ -5612,6 +5669,46 @@ fn draw_kingdom_compass_preview(ctx: &egui::Context) {
         &p, c, 30.0, 0.6, Some(0.6 + 0.9),
         "Kingdom of Elderfall · 240m",
     );
+}
+
+/// loop 464: the resonance proof's REAL reading — seed 3, a stand-point
+/// two chunks off a genuinely rolled hollow, the real
+/// `WorldGen::resonance_target` answer, and the real dial label. The
+/// scene paints what the game computes; nothing here is staged.
+fn resonance_proof_reading() -> (f32, String) {
+    let gen = WorldGen::new(Seed(3));
+    let mut hit = None;
+    'search: for cx in 0..64 {
+        for cz in 0..64 {
+            if gen.geode_in_chunk(cx, cz).is_some() {
+                hit = Some((cx, cz));
+                break 'search;
+            }
+        }
+    }
+    let (cx, cz) = hit.expect("seed 3 rolls a hollow within 64x64 chunks");
+    // stand 2.5 chunks off the hollow's center — outside its chunk, so
+    // the reading is the scan's nearest-hollow answer, not the twin
+    let px = (cx * 16 + 8 + 40) as f32 + 0.5;
+    let pz = (cz * 16 + 8) as f32 + 0.5;
+    let t = gen.resonance_target(px as i32, pz as i32)
+        .expect("the rolled hollow is inside the scan bound");
+    assert!(!t.is_twin, "the proof stand-point is outside the hollow's chunk");
+    let dx = t.x as f32 + 0.5 - px;
+    let dz = t.z as f32 + 0.5 - pz;
+    let bearing = lf_client::map::bearing_to(dx, dz);
+    let label = lf_client::map::resonance_label(bearing, lf_client::map::paces_of(dx, dz), t.is_twin);
+    (bearing, label)
+}
+
+/// loop 464: the held Anima crystal's resonance dial, drawn by the REAL
+/// client painter from the REAL WorldGen reading (see above).
+fn draw_resonance_compass_preview(ctx: &egui::Context) {
+    let screen = ctx.screen_rect();
+    let c = egui::Pos2::new(screen.center().x, screen.top() + 92.0);
+    let (bearing, label) = resonance_proof_reading();
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("resonance")));
+    lf_client::ui::paint_resonance_dial(&p, c, 30.0, 0.0, Some(bearing), &label);
 }
 
 /// N01: the first-minute tutorial card + pinned starter objective, drawn

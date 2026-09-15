@@ -1,5 +1,87 @@
 # CHANGELOG
 
+## 2026-09-15 — The resonance compass + the remembered song + the bearing law (loop 464)
+
+- Closed STATE's next_task item (2) — the resonance depth pass ("a held
+  anima_crystal that points at its twin, and/or persisting the twin
+  dedupe with the save"). Both halves shipped, plus one proof-found
+  bug fixed.
+- THE HELD CRYSTAL (lf_worldgen + lf_client): holding an Anima crystal
+  raises a violet resonance dial under the crosshair — the compass
+  rose geometry the kingdom compass uses, rimmed violet with a pale
+  violet needle, refreshed at the compass cadence (at most every 20
+  held frames). `WorldGen::resonance_target` answers what the crystal
+  sings: the deep's resonance is loudest nearest — standing in a
+  rolled hollow's chunk, the crystal hears THAT hollow and answers its
+  TWIN (`is_twin`, pinned by law to equal `geode_twin_center`, the
+  same promise the first-take Discovery sang); anywhere else a bounded
+  Chebyshev ring scan (`RESONANCE_SCAN_CHUNKS` = 16, one hash per
+  chunk, stable ring-order ties) answers the NEAREST rolled hollow's
+  center; `None` reads "the deep is silent" — a crystal senses the
+  deep near it, it is not a realm oracle. The label rides
+  `map::resonance_label`: "its twin sings · north-east, 640 paces" /
+  "a hollow hums · east, 30 paces".
+- THE BEARING LAW (loop's proof-found bug, fixed before committing):
+  every held dial now shares ONE bearing function,
+  `map::bearing_to(dx, dz) = dx.atan2(-dz)` — the game's own
+  convention the `compass_facing` words read (yaw 0 looks -z, called
+  S). The kingdom compass's old `dx.atan2(dz)` MIRRORED the needle
+  across the player's east-west line since loop 345 — a kingdom dead
+  ahead read as behind. The 8-wind law + the painter-relation law fail
+  on the old code; `kingdom_compass_readout` delegates to
+  `bearing_to`, so the two dials can never disagree.
+- THE SONG IS REMEMBERED: the twin-song dedupe persists with the save
+  (`ClientSave.chronicled_geodes`, serde-default, saved sorted) —
+  `load_world` restores it AFTER the `restart_streamer` chokepoint
+  cleared the session set, so the chokepoint semantics survive (new
+  worlds and join-identity still reset it; their seeds differ). A
+  reload never re-sings a hollow the player has heard.
+- NEW PROOF SCENE: `resonance_compass_hud` — the REAL painter over the
+  REAL WorldGen reading (seed 3, a stand-point 2.5 chunks off a
+  genuinely rolled hollow; nothing staged). Pixel gates: violet rim +
+  needle presence, and the bearing law in pixels — the needle pixels'
+  centroid must sit on the reading's bearing side along its dominant
+  axis (the first staging's fixed left/right split FAILED on a
+  near-vertical needle and was rebuilt: gate-found, gate-fixed).
+  INSPECTED: violet dial top-center, needle on the reading's side,
+  label legible. `kingdom_compass_hud` re-render INSPECTED
+  pixel-faithful after the dial refactor (`paint_compass_dial` is the
+  one geometry source; the gold/red gates unchanged).
+- REGRESSION: root cargo test --workspace 490 green / 0 failed
+  (35 suites) + cargo test -p xtask 12 green = 502 total (= loop
+  463's 497 + the 5 new laws: lf_worldgen 52 -> 54 — the own-hollow
+  twin law, the scan law (order-free brute-force nearest + a real
+  bound + replay); lf_client 98 -> 101 — the bearing law, the
+  resonance-label law, the twin-song persistence law); make smoke OK;
+  the FULL vistest battery 110 scenes [ok] / 0 FAIL, exit-0 (109 +
+  resonance_compass_hud); runtimes refreshed (dist/ dmg + linux
+  tarball + .app binary + server); Windows exe honestly skipped (mingw
+  absent); POORCRAFT 3D untouched.
+- PERF: not applicable — the dial refresh is cadence-gated (one
+  WorldGen::new + at most 33x33 one-hash ring probes every 20 held
+  frames, ~3/s); the persistence is one small sorted Vec per save;
+  zero per-frame work when nothing is held.
+- LORE: canon touched: the twin law extends the established Old Powers
+  geodes (446/447/463) within canon — sensing is expressly allowed
+  ("Anima can be sensed widely"), the dial is a resonance bearing, not
+  a miracle; no faction, place, event, term, NPC, item, or spell data
+  changed; the dial labels reuse the Discovery's voice, no new canon
+  text. Canon preserved: Anima as a material energetic property;
+  non-omniscience (bounded scan, honest silence); the chronicle as the
+  player-authored history (the song is history, not a re-firing log).
+- Migration: one serde-default ClientSave field (old JSON extras load;
+  the legacy bincode path fills empty) — no save format break, no
+  block/item change, GENERATOR_VERSION unchanged (`resonance_target`
+  only READS the roll; generation output identical).
+- Deferred honestly: the crystal does not remember WHICH hollow a
+  stack came from (per-stack origin needs an ItemStack metadata
+  migration — the reading is the nearest hollow / own-chunk twin
+  instead, honest and metadata-free); the dedupe restore is load-path
+  only by design (join-identity resets — a server's hollow layout
+  differs); no in-world visual marker AT the twin site yet; the
+  carried list — a windowed two-client route or server-side inventory
+  authority (462's unblocked multiplayer follow-ups, now next_task 1).
+
 ## 2026-09-15 — The geode twin law + the feature seed law (loop 463)
 
 - Closed STATE's next_task item (1) — "geode pairing", carried since

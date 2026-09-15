@@ -525,15 +525,19 @@ impl GameState {
     }
 
     /// The kingdom-compass readout: nearest kingdom's name, bearing
-    /// (radians, atan2(dx, dz)), and distance in meters. Deterministic
-    /// from the seed, so it works from spawn before any discovery.
+    /// (radians, the game's own convention via map::bearing_to — the
+    /// bearing law: it is the yaw that would look at the target), and
+    /// distance in meters. Deterministic from the seed, so it works from
+    /// spawn before any discovery. (The old `dx.atan2(dz)` mirrored the
+    /// needle across the player's east-west line — the bearing law
+    /// caught it, loop 464.)
     pub fn kingdom_compass_readout(&self) -> Option<(String, f32, i32)> {
         let p = self.player.position;
         let (site, d2) = self.map.worldgen().nearest_kingdom(p.x as i32, p.z as i32)?;
         let [kx, kz] = site.center();
         let dx = kx as f32 + 0.5 - p.x;
         let dz = kz as f32 + 0.5 - p.z;
-        Some((format!("Kingdom of {}", site.name), dx.atan2(dz), (d2 as f32).sqrt() as i32))
+        Some((format!("Kingdom of {}", site.name), crate::map::bearing_to(dx, dz), (d2 as f32).sqrt() as i32))
     }
 
     /// Spawn a faction villager from the roster (unique names per world,

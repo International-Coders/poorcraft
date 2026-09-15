@@ -11,6 +11,34 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The resonance compass + the remembered song + the bearing law
+      (2026-09-15, loop 464, root workspace): closed STATE's next_task
+      item (2) — the resonance depth pass. THE HELD CRYSTAL: holding
+      an anima_crystal raises a violet resonance dial under the
+      crosshair; WorldGen::resonance_target answers the twin of the
+      hollow you stand in (== geode_twin_center, the Discovery's
+      promise, pinned by law) or, elsewhere, the NEAREST rolled hollow
+      via a bounded 16-chunk ring scan (None = "the deep is silent" —
+      a sensor, not an oracle); label via map::resonance_label, readout
+      at the compass cadence. THE BEARING LAW (proof-found bug fixed):
+      the kingdom compass needle had been MIRRORED across the player's
+      east-west line since loop 345 (dx.atan2(dz) vs the yaw-0-looks-z
+      convention) — map::bearing_to is now the one bearing source for
+      both dials, pinned by the 8-wind + painter-relation laws that
+      fail on the old code. THE SONG IS REMEMBERED: the twin-song
+      dedupe persists in ClientSave (serde-default, saved sorted),
+      restored after the restart_streamer chokepoint (new worlds and
+      join-identity still reset it). Evidence: resonance_compass_hud
+      scene (real painter over a real WorldGen reading; the first
+      staging's fixed left/right needle gate FAILED on a near-vertical
+      needle and was rebuilt as a dominant-axis centroid gate) INSPECTED;
+      kingdom_compass_hud re-render INSPECTED pixel-faithful; battery
+      110 [ok] / 0 FAIL exit-0; workspace 490 + xtask 12 = 502 green;
+      smoke OK; runtimes fresh. Deferred honestly: per-stack crystal
+      origin (needs ItemStack metadata migration); no marker AT the
+      twin site; a windowed two-client route or server-side inventory
+      authority.
+
 - [x] The geode twin law + the feature seed law (2026-09-15, loop
       463, root workspace): closed STATE's next_task item (1) —
       "geode pairing", carried since loop 447. THE TWIN LAW: geodes
