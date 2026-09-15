@@ -1,5 +1,85 @@
 # CHANGELOG
 
+## 2026-09-15 — The pass-routing law: the water channel is art identity, not atlas position (loop 460)
+
+- Closed STATE's next_task item (1) — the is_water_layer/CTM-strip
+  audit carried since loop 447 ("the hard-coded 167 now points at
+  dead_shrub's index — water proofs pass but the strip addressing
+  deserves an audit"). The audit CONCLUDED: the CTM strip addressing
+  itself is sound (UV math, generator placement, the 47-tile table,
+  and the filler slot all agree — now pinned by a law), but the WATER
+  PASS ROUTING had drifted, with two live misroutings on the real
+  mesh path.
+- THE DRIFT: `is_water_layer` (lf_voxel::meshing) classified the
+  water channel by atlas POSITION (`tex == 10 || tex == 167`). 167
+  was water's CTM marker at loop 332, when markers were small ints;
+  the marker scheme's move to the 4096 base happened precisely
+  because real art grew into the low band — today 167 is
+  dead_shrub's atlas layer. Consequences, both on the live
+  `World::mesh_column` path used by the client AND the vistest
+  harness: (a) every exposed water TOP face carried marker 4098 and
+  routed to the OPAQUE pipeline (REPLACE blend, depth-write on) —
+  water surfaces rendered fully opaque, the water art's alpha-170
+  translucency lost on every connected top; (b) every dead-shrub
+  face (167) routed to the WATER pipeline (alpha blend, depth-write
+  off). Existing proofs passed because the water/decoration checks
+  assert presence and hue, not translucency.
+- THE LAW (lf_voxel::meshing): THE PASS-ROUTING LAW — a vertex rides
+  the water pass iff its tex_index is WATER ART: the water base
+  layer (`WATER_BASE_LAYER`, named; mirrors lf_assets'
+  `layer_of("water")`) or a CTM marker whose strip slot is water's
+  (derived from the same mirror table the mesher uses to STAMP the
+  marker, so routing can never disagree with stamping). Atlas
+  position is never identity. `world::WATER_TEX_LAYER` derives from
+  the mesher const (single source). `ctm_marker_for` + `ctm_tile_
+  uvs` are public: lf_assets (which depends on lf_voxel, never the
+  reverse) pins the one-way mirror.
+- 6 NEW LAWS (root 480 -> 486; lf_voxel 49 -> 52, lf_assets 21 ->
+  24): the real 3x3 water mesh routes EVERY vertex — stepped flow
+  sides AND the 36 marker-carrying top verts — to the water pass
+  (this law FAILS on the old predicate); the drift witnesses
+  (165/166/167/168, grass_top, stone) never ride the water pass;
+  marker space routes by strip SLOT (only slot 2; unassigned markers
+  refuse); the whole-atlas sweep — for every named layer,
+  is_water_layer answers true for exactly "water"; every CTM block
+  marker routes iff its art is water; the lf_voxel mirror matches
+  CTM_BLOCKS row-for-row and the water base layer equals the named
+  layer; THE STRIP-ADDRESSING LAW — the mesher's per-tile UV rect
+  lands exactly on the rect generate_ctm_strip_atlas painted for the
+  same (slot, tile), over all 8 blocks x 47 tiles.
+- PLAYER-VISIBLE, measured and inspected: water_flow before/after
+  (fresh same-seed renders): the pool surface region's distinct
+  colors 750 -> 1926 over 11k samples, green-channel variance
+  142 -> 156 — submerged terrain now shows through; before the
+  surface read as hard-edged opaque tiles, after as one connected
+  translucent sheet (INSPECTED at 1.5x zoom). first_person_view and
+  hud_preview changed ~50% of pixels — half the frame is a lake:
+  before a flat opaque slab, after the submerged shoreline reads
+  through the surface (HUD itself unchanged; pairs INSPECTED).
+  transparency_layers: the pool floor is visible through the water
+  behind the glass wall (INSPECTED). plants_cross: the four plants
+  render as before (the shrub's binary-alpha art makes cutout vs
+  blend subtle); the edge water patch turns translucent (INSPECTED).
+- REGRESSION: root cargo test --workspace 486 green / 0 failed; the
+  FULL vistest battery 108 scenes [ok] / 0 FAIL (exit-0 enforced);
+  make smoke OK (headless logic + GUI liveness); idle-upgrade-check
+  PASS. POORCRAFT 3D untouched by this job (its workspace does not
+  depend on the root crates).
+- PERF: not applicable — a mesh-build-time predicate over tex
+  indices (one const compare + one small match vs two literal
+  compares); zero render-frame or simulation cost change; no perf
+  claim.
+- LORE: canon touched: none — render-pass routing over existing
+  water/foliage art; no faction, place, event, term, NPC, item, or
+  spell data; no identity assigned. World expression: water surfaces
+  regain their intended translucency — rivers, lakes, and pools show
+  their beds, and the world reads deeper for it; dead shrubs render
+  as proper cutout foliage. Migration: none (no save format, no data
+  schema, no proof schema change). Deferred honestly: the carried
+  list — guardian chronicle re-fire (447: the Discovery re-fires if
+  a geode re-settles after despawn, dragon precedent); multiplayer
+  routing of terrain edits; geode pairing.
+
 ## 2026-09-15 — The query-bound law: the ground query's origin contract made explicit (loop 459)
 
 - Closed STATE's next_task item (1) — the walk-snap query-bound

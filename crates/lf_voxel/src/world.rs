@@ -213,8 +213,9 @@ impl World {
     }
 }
 
-/// Texture atlas layer used for water faces (see lf_assets).
-pub const WATER_TEX_LAYER: u32 = 10;
+/// Texture atlas layer used for water faces (see lf_assets). Derived
+/// from the mesher's own pass-routing law so the two can never disagree.
+pub const WATER_TEX_LAYER: u32 = meshing::WATER_BASE_LAYER;
 
 /// A column's mesh split by render pass.
 #[derive(Default)]

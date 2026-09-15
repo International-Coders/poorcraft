@@ -4444,4 +4444,88 @@ mod tests {
             }
         }
     }
+
+    /// THE PASS-ROUTING LAW, pinned from the atlas side (lf_voxel cannot
+    /// depend on lf_assets, so the mirror is proven here): across EVERY
+    /// named atlas layer, the mesher's water-pass predicate answers true
+    /// for exactly one art — water. Atlas position is never identity:
+    /// the old hard-coded 167 sat over water's loop-332 CTM marker and
+    /// is dead_shrub's layer today, which routed shrub foliage into the
+    /// blended water pipeline while water's own tops (marker 4098) lost
+    /// their translucency in the opaque pass.
+    #[test]
+    fn the_water_pass_routes_by_art_identity_not_atlas_position() {
+        for (i, name) in TEXTURE_NAMES.iter().enumerate() {
+            assert_eq!(
+                lf_voxel::meshing::is_water_layer(i as u32),
+                *name == "water",
+                "atlas layer {} ({}) routes the water pass by POSITION, not identity \
+                 (the drift witness: 167 is dead_shrub's layer and was water's marker in loop 332)",
+                i,
+                name
+            );
+        }
+        for block in CTM_BLOCKS.iter() {
+            assert_eq!(
+                lf_voxel::meshing::is_water_layer(block.marker),
+                block.art == "water",
+                "CTM marker {} (art '{}') must route the water pass iff its art is water",
+                block.marker,
+                block.art
+            );
+        }
+    }
+
+    /// The lf_voxel CTM mirror matches the strip atlas exactly: every
+    /// CTM_BLOCKS row's face_layer maps to its own marker, and the water
+    /// base layer the mesher routes by is the named "water" layer — the
+    /// two crates' constants are one contract.
+    #[test]
+    fn the_lf_voxel_ctm_mirror_matches_the_strip_table() {
+        for block in CTM_BLOCKS.iter() {
+            assert_eq!(
+                lf_voxel::meshing::ctm_marker_for(block.face_layer),
+                Some(block.marker),
+                "face layer {} must mirror to marker {} (art '{}')",
+                block.face_layer,
+                block.marker,
+                block.art
+            );
+        }
+        assert_eq!(lf_voxel::meshing::ctm_marker_for(layer_of("water")), Some(CTM_MARKER_BASE + 2));
+        assert_eq!(lf_voxel::meshing::WATER_BASE_LAYER, layer_of("water"));
+    }
+
+    /// THE STRIP-ADDRESSING LAW: the rect the mesher's per-tile UVs
+    /// sample is exactly the rect `generate_ctm_strip_atlas` painted for
+    /// the same (strip slot, tile) — 12 tiles per row, 4 rows per block,
+    /// blocks stacked in marker order, over the whole 8-block strip. If one
+    /// formula changes without the other, every connected surface reads
+    /// the wrong tile of a neighbouring block's art.
+    #[test]
+    fn ctm_tile_uvs_sample_exactly_the_rect_the_generator_painted() {
+        let (w, h) = (CTM_STRIP_WIDTH as f32, CTM_STRIP_HEIGHT as f32);
+        for slot in 0..CTM_BLOCKS.len() as u32 {
+            for tile in 0..CTM_TILES {
+                let uvs = lf_voxel::meshing::ctm_tile_uvs(CTM_MARKER_BASE + slot, tile as u8);
+                // the generator's placement, recomputed from first principles
+                let col = (tile % 12) as f32;
+                let row = (slot * 4 + tile / 12) as f32;
+                let expect = [
+                    [col * 16.0, (row + 1.0) * 16.0],     // S-W: u0, v0+dv
+                    [col * 16.0, row * 16.0],             // N-W: u0, v0
+                    [(col + 1.0) * 16.0, row * 16.0],     // N-E
+                    [(col + 1.0) * 16.0, (row + 1.0) * 16.0], // S-E
+                ];
+                for (uv, e) in uvs.iter().zip(expect.iter()) {
+                    let px = [uv[0] * w, uv[1] * h];
+                    assert!((px[0] - e[0]).abs() < 1e-4 && (px[1] - e[1]).abs() < 1e-4,
+                        "tile {} of strip slot {}: uv {:?} -> px {:?} != generator rect {:?}",
+                        tile, slot, uv, px, e);
+                    assert!(px[0] >= 0.0 && px[0] <= w && px[1] >= 0.0 && px[1] <= h,
+                        "tile {} of strip slot {} samples outside the strip atlas", tile, slot);
+                }
+            }
+        }
+    }
 }

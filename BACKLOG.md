@@ -11,6 +11,37 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The pass-routing law: the water channel is art identity, not
+      atlas position (2026-09-15, loop 460, root workspace): closed
+      STATE's next_task item (1) — the is_water_layer/CTM-strip
+      audit carried since 447. The audit concluded: the strip
+      ADDRESSING is sound (UVs, generator placement, 47-tile table,
+      filler slot all agree), but the water-pass ROUTING had
+      drifted — `is_water_layer` still classified by the loop-332
+      literals `10 || 167`, and 167 is dead_shrub's layer today
+      while water's real marker is 4098. Two live misroutings:
+      every water TOP rendered opaque (marker 4098 routed to the
+      REPLACE-blend pipeline; the art's alpha-170 translucency lost
+      on all connected surfaces) and every dead-shrub face rode the
+      blended, depth-write-off water pipeline. THE LAW: a vertex
+      rides the water pass iff its tex is WATER ART — the named
+      WATER_BASE_LAYER or water's own strip slot marker, derived
+      from the same mirror table that stamps it; atlas position is
+      never identity; lf_assets pins the one-way mirror cross-crate.
+      6 new laws (root 480 -> 486): the real water mesh routes all
+      verts (fails on the old predicate); the drift witnesses and
+      grass/stone refuse; marker space routes by slot; the
+      whole-atlas sweep; the mirror pin; the strip-addressing law
+      (UV rect == generator rect over all 376 slot-tile pairs).
+      Evidence: fresh same-seed before/after renders — pool surface
+      distinct colors 750 -> 1926, submerged terrain reads through
+      (INSPECTED incl. 1.5x zoom pairs; first_person_view/hud_
+      preview ~50% pixel change = the lake going translucent, HUD
+      itself unchanged); battery 108 scenes [ok]; workspace 486/0;
+      smoke OK; idle-upgrade-check PASS. Deferred honestly: the
+      carried list — guardian chronicle re-fire; multiplayer
+      routing of terrain edits; geode pairing.
+
 - [x] The query-bound law: the ground query's origin contract made
       explicit (2026-09-15, loop 459, POORCRAFT 3D): closed STATE's
       next_task item (1) — the walk-snap query-bound observation

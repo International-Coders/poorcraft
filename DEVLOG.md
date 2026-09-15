@@ -9211,3 +9211,114 @@ water proofs pass but the strip addressing deserves an audit; the same
 name-the-contract cure applies). Carried: guardian chronicle re-fire;
 multiplayer routing of terrain edits; geode pairing (447's keepers are
 root-workspace lore).
+
+## 2026-09-15 — loop 460 — The pass-routing law: the water channel is art identity, not atlas position
+
+### What
+Closed STATE's next_task item (1) — the is_water_layer/CTM-strip
+audit carried since loop 447 ("the hard-coded 167 now points at
+dead_shrub's index — water proofs pass, but the strip addressing
+deserves an audit"). The audit CONCLUDED, with the same
+name-the-contract cure as 459's query-bound law: the CTM strip
+addressing itself is sound, but the WATER-PASS ROUTING had drifted,
+with two live misroutings on the real mesh path. Players get their
+water back: every river, lake, and pool renders translucent again —
+the submerged bed reads through the surface — and dead shrubs render
+as proper cutout foliage with depth.
+
+### The audit (what was actually wrong)
+- `is_water_layer` (crates/lf_voxel/src/meshing.rs) classified the
+  water render channel by atlas POSITION: `tex == 10 || tex == 167`.
+- 167 was water's CTM marker at loop 332, when the marker scheme was
+  small ints (165..=172, `marker - 165` = strip row block).
+- The marker base later moved to 4096 (`CTM_MARKER_BASE`; water =
+  4098) PRECISELY because real art grew into the low band — today
+  atlas layer 167 is dead_shrub's (`layer_of("dead_shrub") == 167`,
+  verified against TEXTURE_NAMES). The routing literal never moved.
+- Consequence (a): every exposed water TOP face carries marker 4098
+  and routed to the OPAQUE channel (REPLACE blend, depth-write on):
+  water surfaces rendered fully opaque — the water art's alpha-170
+  translucency lost on every connected top, everywhere in the game.
+- Consequence (b): every dead-shrub face (167) routed to the WATER
+  channel (alpha blend, depth-write off).
+- Why the proofs never caught it: the vistest water/decoration
+  checks assert presence and hue (plant pixels > 150, sky-through
+  bands, multi-color census), not translucency. The scenes PASS
+  under either routing.
+- The strip ADDRESSING is fine: UV math, generator placement, the
+  47-tile CTM table, and the filler slot all agree (and are now
+  pinned by law, so a one-sided change fails the build).
+
+### How
+- Files touched: crates/lf_voxel/src/meshing.rs (THE PASS-ROUTING
+  LAW doc + WATER_BASE_LAYER + ctm_marker_for + ctm_tile_uvs made
+  pub + 3 new laws); crates/lf_voxel/src/world.rs
+  (WATER_TEX_LAYER derives from the mesher const — single source);
+  crates/lf_assets/src/lib.rs (3 cross-crate laws: the whole-atlas
+  sweep, the CTM mirror pin, the strip-addressing law).
+- Approach: routing by art IDENTITY — `tex == WATER_BASE_LAYER ||
+  Some(tex) == ctm_marker_for(WATER_BASE_LAYER)` — the same mirror
+  table the mesher uses to STAMP the marker, so routing can never
+  disagree with stamping. lf_voxel cannot depend on lf_assets (the
+  standing one-way dependency), so the mirror is proven from the
+  lf_assets side, which does depend on lf_voxel.
+
+### Verification evidence
+- cargo test --workspace: 486 passed / 0 failed (lf_voxel 49 -> 52,
+  lf_assets 21 -> 24; +6 laws). The water-mesh law FAILS on the old
+  predicate (the 36 top verts carried 4098): a true regression law.
+- FULL vistest battery: 108 scenes [ok] / 0 FAIL (exit-0 enforced
+  by the harness).
+- Before/after, fresh same-seed renders (water_flow, plants_cross,
+  seed 12345), pixel-measured on the pool surface region (11k
+  samples): distinct colors 750 -> 1926, green-channel variance
+  142 -> 156, mean R 29.1 -> 32.6 — submerged terrain reads through.
+- INSPECTED (visual, not just exit codes): water_flow before/after
+  + 1.5x zoom pair (before: hard-edged opaque tiles; after: one
+  connected translucent sheet); first_person_view + hud_preview
+  before/after pairs (the ~50% pixel delta is the lake going
+  translucent — the submerged shoreline reads through; the HUD
+  itself unchanged); transparency_layers (pool floor visible
+  through the water behind the glass wall); plants_cross (plants
+  unchanged where it matters; the edge water patch translucent);
+  river_valley, water_flow committed shots.
+- make smoke: OK (headless logic 300 ticks + 12 s GUI liveness).
+- make idle-upgrade-check: PASS.
+- Runtimes: make runtimes -> dist/loreforge-macos.dmg (8.8 MB,
+  UDZO), dist/loreforge-linux-x86_64.tar.gz (8.4 MB),
+  dist/loreforge.app (binary 04:13 fresh), dist/loreforge-server;
+  Windows exe honestly skipped (mingw absent). dist/ is gitignored
+  (the loop-446 convention: root runtimes refreshed on disk,
+  untracked).
+- POORCRAFT 3D untouched (separate workspace, no root deps). The six
+  windowed_wild_*.png dirties are an earlier session's p3d-wilderness
+  run — read, identified as out of scope, deliberately NOT staged.
+
+### Files
+- crates/lf_voxel/src/meshing.rs, crates/lf_voxel/src/world.rs
+- crates/lf_assets/src/lib.rs
+- shots/vistest_*.png (the refreshed 108-scene battery; 79 carry
+  visible-or-noise diffs — the water-family scenes are the evidence)
+- STATE.md BACKLOG.md CHANGELOG.md DEVLOG.md (this entry)
+
+PERF: not applicable — a mesh-build-time predicate (one const
+compare + one small match vs two literal compares); zero
+render-frame or simulation cost change; no perf claim.
+
+LORE IMPACT
+- Canon touched: none — render-pass routing over existing
+  water/foliage art; no faction, place, event, term, NPC, item, or
+  spell data; no identity assigned.
+- Locked facts preserved: all (the realm, eras, factions, Anima,
+  the Ruin's ambiguity, the chronicle).
+- World expression: water surfaces regain their intended
+  translucency — rivers, lakes, and pools show their beds, and
+  Valdenmoor's waters read deeper for it; nothing new to learn, the
+  world just matches what it always claimed to look like.
+- Migration: none (no save format, no data schema, no proof schema
+  change; smoke chain unchanged).
+
+HONESTLY DEFERRED: the carried list — guardian chronicle re-fire
+(447: the Discovery re-fires if a geode re-settles after despawn,
+dragon precedent); multiplayer routing of terrain edits; geode
+pairing. Written to STATE.next_task in that order.

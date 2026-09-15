@@ -86,7 +86,10 @@ fn lf_assets_ctm(face_layer: u32) -> Option<u32> {
 /// blocks stacked in marker order (matches lf_assets::generate_ctm_strip_
 /// atlas). Texture V runs top-down over the PNG rows (v=0 = first row),
 /// and the corner mapping puts the tile's image top at world north.
-fn ctm_tile_uvs(marker: u32, tile: u8) -> [[f32; 2]; 4] {
+/// Public because lf_assets' strip-addressing law proves this rect lands
+/// exactly on the rect the strip generator painted for the same
+/// (marker, tile) — the two formulas are one contract.
+pub fn ctm_tile_uvs(marker: u32, tile: u8) -> [[f32; 2]; 4] {
     let block = marker - 4096;
     let t = tile as u32;
     let col = (t % 12) as f32;
@@ -539,9 +542,40 @@ pub fn ctm_tile_index(bitmask: u8) -> u8 {
     CTM_TABLE[bitmask as usize]
 }
 
-/// Water faces (base + CTM strip) render in the water pass.
+/// THE PASS-ROUTING LAW. `World::mesh_column` splits every vertex into
+/// two render channels: the OPAQUE pass (cutout art, REPLACE blend,
+/// depth-write on) and the WATER pass (alpha-blended, depth-write off).
+/// A vertex rides the WATER pass iff its `tex_index` is WATER ART —
+/// never because of where it sits in the atlas:
+///
+/// * the water base layer (`WATER_BASE_LAYER`, all six faces and the
+///   stepped flow sides), or
+/// * a CTM marker whose strip slot is WATER's (`ctm_marker_for(WATER_
+///   BASE_LAYER)` — the same mirror table the mesher uses to stamp the
+///   marker, so routing can never disagree with stamping).
+///
+/// Atlas position is not identity: the literal `167` named water's CTM
+/// marker when the marker scheme was small ints (loop 332), and the
+/// marker base's move to 4096 happened precisely because real art grew
+/// into the low band — today 167 is dead_shrub's layer, so the old
+/// literal both stripped water tops of their translucency (marker 4098
+/// routed opaque) and pushed dead-shrub foliage into the blended,
+/// depth-write-off water pipeline. Both misroutings are pinned by law.
 pub fn is_water_layer(tex: u32) -> bool {
-    tex == 10 || tex == 167
+    tex == WATER_BASE_LAYER || Some(tex) == ctm_marker_for(WATER_BASE_LAYER)
+}
+
+/// Atlas layer of the water art (mirrors lf_assets' `layer_of("water")`;
+/// lf_voxel cannot depend on lf_assets — the cross-crate law in lf_assets
+/// pins this mirror against the named atlas).
+pub const WATER_BASE_LAYER: u32 = 10;
+
+/// The public face of the CTM mirror table: the marker a rendered
+/// top-face layer carries when its block has a 47-tile strip, if any.
+/// lf_assets' cross-crate law pins this against `CTM_BLOCKS` so the
+/// one-way mirror can never drift.
+pub fn ctm_marker_for(face_layer: u32) -> Option<u32> {
+    lf_assets_ctm(face_layer)
 }
 
 /// E2: 8-bit top-face neighbour bitmask (same-block connectivity, corner
@@ -963,5 +997,74 @@ mod tests {
             assert_eq!(meshed.vertices.len(), bare.vertices.len() + 16,
                 "{} must add exactly its 4 cross quads, not change the ground mesh", block::name(plant));
         }
+    }
+
+    /// THE PASS-ROUTING LAW, proven on a real mesh: every vertex of a
+    /// 3x3 water field — the stepped flow sides (base layer) AND the
+    /// connected top faces (water's CTM marker) — routes to the water
+    /// pass. Before the law, the tops carried marker 4098 and
+    /// `is_water_layer` (still watching the loop-332 literal 167) sent
+    /// every exposed surface to the opaque pipeline: water rendered
+    /// without its translucency.
+    #[test]
+    fn water_tops_and_sides_all_ride_the_water_pass() {
+        let water = crate::water_with_level(0);
+        let tex_of = &|b: BlockState, _f: Face| {
+            if b.id() == crate::registry::block::WATER { crate::world::WATER_TEX_LAYER } else { 0 }
+        };
+        let light_of = &|_, _, _| 0xF0u32;
+        let mut sec = crate::VoxelSection::new_empty();
+        for x in 7..=9 {
+            for z in 7..=9 {
+                sec.set(x, 8, z, water);
+            }
+        }
+        let mesh = mesh_section(&sec, None, None, None, None, None, None, None, None, None, None, tex_of, light_of);
+        assert!(mesh.vertices.len() > 36, "a 3x3 water field has tops and sides, got {} vertices", mesh.vertices.len());
+        let marker = ctm_marker_for(crate::world::WATER_TEX_LAYER)
+            .expect("water has a CTM strip; its marker must exist");
+        assert_eq!(marker, 4096 + 2, "water's marker is strip slot 2 (mirrors lf_assets CTM_BLOCKS order)");
+        let mut top_marker_verts = 0usize;
+        for v in &mesh.vertices {
+            if v.tex_index == marker {
+                top_marker_verts += 1;
+            }
+            assert!(is_water_layer(v.tex_index),
+                "tex {} rode the water mesh but is_water_layer refuses it — pass routing disagrees with meshing", v.tex_index);
+        }
+        assert!(top_marker_verts >= 36, "9 connected top faces must carry the marker (4 verts each), got {}", top_marker_verts);
+        // and the base art is still classified on its own
+        assert!(is_water_layer(crate::world::WATER_TEX_LAYER));
+    }
+
+    /// The drift witnesses: the loop-332 marker band (165..=172) is real
+    /// atlas art today — 167 is dead_shrub's layer — so none of it may
+    /// route by position, and neither may grass_top (41), whose own CTM
+    /// tops (marker 4096) must stay opaque. Routing is identity, and
+    /// dead shrubs are not water.
+    #[test]
+    fn the_drift_witnesses_never_ride_the_water_pass() {
+        for stale in [165u32, 166, 167, 168] {
+            assert!(!is_water_layer(stale),
+                "{} classified water by position — 167 is dead_shrub's atlas layer today", stale);
+        }
+        assert!(!is_water_layer(41), "grass_top art routes opaque even though grass has a CTM strip");
+        assert!(!is_water_layer(0), "stone never rides the water pass");
+    }
+
+    /// Marker space routes by strip SLOT: of the eight CTM blocks only
+    /// water's slot (2) rides the water pass; unassigned marker space
+    /// refuses everywhere, so a future strip block never inherits water
+    /// routing by landing next to it.
+    #[test]
+    fn marker_space_routes_by_strip_slot_not_proximity() {
+        for slot in 0..8u32 {
+            assert_eq!(is_water_layer(4096 + slot), slot == 2,
+                "marker {} (slot {}) must route water iff it is water's slot", 4096 + slot, slot);
+        }
+        for unassigned in [4096u32 + 8, 4096 + 46, 4096 + 100, 5000] {
+            assert!(!is_water_layer(unassigned), "unassigned marker space must refuse: {}", unassigned);
+        }
+        assert!(!is_water_layer(4095), "markers start AT the base; the last real layer is opaque");
     }
 }
