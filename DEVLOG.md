@@ -9809,3 +9809,72 @@ route (the GPU-side end of the wire laws; GameState owns a real
 window+wgpu surface, so the honest route needs a headless client-driver
 slice of its own — scope that driver first); hardcoded connect name
 "smith" (audit note). Written to STATE.next_task in that order.
+
+## Loop 466 (2026-09-15): The pack is the server's ledger — server-side per-player inventories over real UDP
+
+### What was done
+Closed STATE.next_task item (2): the server now holds a canonical
+per-player inventory ledger over real UDP (protocol v6), and the P37
+trade escrow gates against it. Chosen over the windowed two-client
+route per the priority ladder (authority above missing proof; the 465
+precedent).
+
+- THE WIRE (crates/lf_protocol/src/lib.rs): `PackSync { items:
+  Vec<(String, u32)> }` (aggregated pack claim, u32 counts), the shared
+  cadence constant PACK_SYNC_MIN_INTERVAL (250 ms), PROTOCOL_VERSION
+  5 -> 6.
+- THE SERVER (crates/lf_server/src/lib.rs): `inventories:
+  HashMap<u64, Inventory>` — created at Hello, rebuilt from each
+  PackSync through add_item (oversized claims truncate at the pack's
+  own law), paid by each accepted mine's ItemGrant, dropped at
+  Goodbye; the offer gate (give must be covered by the ledger, refused
+  to the offerer alone); the new pure `escrow` fn (both ledgers must
+  pay: holds + room via removes-first clone trials; both move exactly
+  or neither) wired into TradeAccept; self-trades refused; only the
+  true target may complete an offer.
+- THE CLIENT (crates/lf_client/src/net.rs, lib.rs): PackMirror
+  (bootstrap claim on join, per-frame drift detection against the
+  aggregated sorted snapshot, forced re-claim after ItemGrant /
+  accepted TradeResolved via pack_delta_landed), NetClient::sync_pack
+  as the one sender ticked outside the poll borrow, and the new
+  ServerMessage::Reject hint arm.
+- En-route fixes: two overlapping HashMap get_mut borrows (take and
+  re-insert instead); the u8 wire-count overflow (aggregate counts go
+  u32, the server rebuild batches in u8 chunks).
+
+### Files touched
+- crates/lf_protocol/src/lib.rs (PackSync, v6, cadence const, tests)
+- crates/lf_server/src/lib.rs (ledgers, gate, escrow, 5 tests)
+- crates/lf_client/src/net.rs (PackMirror, sync_pack, 2 tests)
+- crates/lf_client/src/lib.rs (delta arms, Reject arm, source law)
+- mods/README.md (the escrow line now names the v6 gate)
+- STATE.md / BACKLOG.md / CHANGELOG.md / DEVLOG.md
+
+### How it was verified
+- cargo test --workspace: 517 green / 0 failed (xtask's 12 included;
+  = loop 465's 509 + 8 new laws: lf_server 7 -> 12, lf_client
+  104 -> 107, lf_protocol same count).
+- make smoke: OK (headless logic + GUI liveness).
+- FULL vistest battery: 110 scenes [ok] / 0 FAIL, exit-0; every
+  committed scene PNG byte-identical across TWO runs (md5 digest
+  fdcf3096f93694fa396aa7576a04fa7b before == after) — singleplayer
+  render paths pixel-proven unchanged (multiplayer-only change).
+- Runtimes refreshed: dist/loreforge-macos.dmg (hdiutil verify VALID),
+  dist/loreforge-linux-x86_64.tar.gz, dist/loreforge.app, dist/
+  loreforge-server. Windows exe honestly skipped (mingw absent).
+
+### Proof-discovered problems
+- The ungated P37 accept completed PHANTOM offers (no validation) and
+  a SELF-TRADE duplicated items (offer 1, want 1, accept -> +2, nothing
+  paid); a third party could dissolve any standing offer. All closed
+  by the gate + the escrow + the target-only rule, pinned by the new
+  wire laws.
+
+### Honestly deferred
+- The ledger is client-CLAIMED until consumption routes: crafting,
+  smelting, eating, and placing still mutate the client pack; a lying
+  client can mis-claim its pack (the trust boundary the next tier —
+  server-side crafting — removes).
+- PackSync overflow is truncated (the spill is the client's ground
+  items, not held — the gate correctly refuses them).
+- The windowed two-client route (the GPU-side end of the wire laws).

@@ -1,5 +1,80 @@
 # CHANGELOG
 
+## 2026-09-15 — The pack is the server's ledger: server-side per-player inventories over real UDP (loop 466)
+
+- Closed STATE's next_task item (2) — the loop-465 deferral "the server
+  holds no canonical inventories yet (crafting/smelting/trade sourcing
+  stay client-held)". Chosen over the windowed two-client route per the
+  priority ladder: an authority gap ranks above a missing proof (the
+  465 precedent). Reading the code surfaced two LIVE holes in the ungated
+  P37 escrow: a phantom offer COMPLETED (no validation at all — offer
+  what you don't own and both sides gain), and a SELF-TRADE DUPLICATED
+  items (offer 1, want 1, accept → +2, nothing paid). A third party
+  could also dissolve any standing offer by accepting it.
+- THE WIRE (lf_protocol, v6): `PackSync { items: Vec<(String, u32)> }` —
+  the client's claim of its own pack, aggregated (slot layout is
+  presentation, the ledger is contents; u32 counts because a pack holds
+  more than 255 of one item). Sent on join and on drift, cadence-limited
+  (250 ms) and FORCED by every server-side delta (an ItemGrant, an
+  accepted trade) so the ledger is re-claimed WITH the delta inside one
+  round trip — a stale upload can only ever REMOVE server-known deltas,
+  never add phantom items, so the clobber window errs safe.
+  PROTOCOL_VERSION 5 -> 6 (matched binaries; the existing gate rejects
+  mismatched peers).
+- THE SERVER (lf_server): one canonical ledger per player
+  (`HashMap<u64, Inventory>` — the same lf_game 36-slot law), created at
+  Hello, rebuilt from each PackSync through `add_item` (an oversized
+  claim is truncated at the pack's own law, never counted), paid by
+  every accepted mine's ItemGrant (overflow is the block's spill — on
+  the ground, not held), dropped at Goodbye. THE OFFER GATE: an offer
+  whose `give` exceeds the ledger is refused to the offerer alone while
+  the target hears nothing. THE ESCROW (new pure fn): an accept
+  completes only when BOTH ledgers can pay — offerer holds give,
+  accepter holds want, each receipt fits (removes-first trial on
+  clones, so payment frees room) — then both move exactly; ANY failure
+  moves nothing and names the reason to the failing side. Only the true
+  target may complete an offer now; a third party's accept resolves
+  nothing.
+- THE CLIENT (lf_client::net): the PackMirror — the last uploaded
+  claim, drift-detected per frame against the live pack's aggregated
+  sorted snapshot; the ONE sender is `NetClient::sync_pack`, ticked
+  once per frame outside the poll borrow; the ItemGrant and
+  accepted-TradeResolved arms force the re-claim; and the server's
+  `Reject` finally reaches the player as a hint instead of silence.
+- 8 NEW LAWS (root 509 -> 517; lf_server 7 -> 12, lf_client 104 -> 107,
+  lf_protocol same count): the escrow unit law (both ledgers or
+  neither; payment frees the receipt's room); the pack-sync + grant
+  wire law (the mined stone is gate-visible though never uploaded;
+  over-offers refuse; the target never hears a phantom offer); the
+  escrow-moves-both-ledgers wire law (proven through the gate alone:
+  paid-away goods refuse re-offers, received goods admit them); the
+  failed-accept-dissolves-without-moving wire law (the re-offer passes
+  = atomicity); the self-trade + third-party wire law; and three
+  client laws (the bootstrap claim — an empty pack is still claimed;
+  the aggregation law — split stacks merge, sorted, u32; the source
+  law — one sync tick, delta arms force, Reject hints).
+- REGRESSION: cargo test --workspace 517 green / 0 failed (xtask's 12
+  included; = loop 465's 509 + 8); make smoke OK; the FULL vistest
+  battery 110 scenes [ok] / 0 FAIL exit-0, every committed PNG
+  byte-identical across TWO runs (md5 fdcf3096f93694fa396aa7576a04fa7b
+  before == after) — singleplayer render paths pixel-proven unchanged.
+  Runtimes refreshed: dist/loreforge-macos.dmg + linux tarball + .app +
+  server, fresh on disk; Windows exe honestly skipped (mingw absent);
+  POORCRAFT 3D untouched.
+- PERF: one small Vec build+compare per frame while connected (41
+  slots) and one sub-KB PackSync per drift (rate-limited to 4/s, forced
+  only on server deltas); the server adds one `add_item` per grant and
+  two clone-trials per accept; zero singleplayer cost (the mirror only
+  runs when net is Some).
+- LORE: canon touched: none — multiplayer economy plumbing; the ledger
+  gates existing items and drops; no faction, place, event, term, NPC,
+  item, or spell data changed; no new canon text. Canon preserved: the
+  chronicle as the player-authored history; Anima as a material
+  energetic property; no identity assigned. World expression: in shared
+  Valdenmoor the realm's ledger knows what each adventurer carries — a
+  trade offers only what the ledger holds, both packs move together or
+  not at all, and a refusal says why.
+
 ## 2026-09-15 — The yield is the server's to give: server-side dig-yield authority over real UDP (loop 465)
 
 - Closed STATE's next_task item (1)'s higher-severity half — the loop-462

@@ -23,6 +23,18 @@ pub enum ClientMessage {
     TradeAccept { offer_id: u64 },
     /// Cancel/decline a standing offer (either side).
     TradeCancel { offer_id: u64 },
+    /// THE PACK-SYNC LAW (protocol v6): the client's claim of its own
+    /// pack — aggregated (item id, count) pairs, counts as u32 because a
+    /// full pack can hold far more than 255 of one item — sent on join
+    /// and whenever the live pack drifts from the last uploaded
+    /// snapshot. The server rebuilds its per-player canonical LEDGER
+    /// from it; the ledger is what the trade escrow gates against and
+    /// what mined yields pay into. A client-claimed seed is the honest
+    /// bootstrap (the server cannot know prior-session history);
+    /// server-known deltas (grants, escrow moves) are applied by the
+    /// server itself, so an honest client's ledger never overcounts its
+    /// real pack.
+    PackSync { items: Vec<(String, u32)> },
     Goodbye,
 }
 
@@ -59,10 +71,20 @@ pub struct MineClaim {
     pub held: Option<String>,
 }
 
-/// v5: the mine claim (`SetBlock.mine`) + the server-side yield
-/// grant. Server and client ship together; the existing version gate
+/// v6: the pack sync (the server's per-player canonical inventory
+/// ledger). Server and client ship together; the existing version gate
 /// rejects mismatched peers.
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 6;
+
+/// THE PACK-SYNC CADENCE: a drifted pack is uploaded at most this often
+/// (the client's PackMirror enforces it), except after a server-side
+/// delta lands (a grant, an escrow move), which forces the client's
+/// next upload immediately. The stale-upload clobber window (an upload
+/// built before the client saw the delta) is then bounded by one round
+/// trip and self-heals: an upload can only ever REMOVE server-known
+/// deltas from the ledger, never add phantom items, so the window errs
+/// safe — a brief undercount mis-refuses a gate, never mis-admits one.
+pub const PACK_SYNC_MIN_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// One escrowed trade offer on the server (P37). The server holds the
 /// offer and validates the participants; item swaps apply on the peers
@@ -98,12 +120,12 @@ mod trade_tests {
         };
         let back: ServerMessage = bincode::deserialize(&bincode::serialize(&resolved).unwrap()).unwrap();
         assert_eq!(back, resolved);
-        assert_eq!(PROTOCOL_VERSION, 5);
+        assert_eq!(PROTOCOL_VERSION, 6);
     }
 
-    /// v5: the mine claim and the yield grant round-trip.
+    /// v6: the mine claim, the yield grant, and the pack sync round-trip.
     #[test]
-    fn mine_claim_and_item_grant_round_trip() {
+    fn mine_claim_item_grant_and_pack_sync_round_trip() {
         let tool_mine = ClientMessage::SetBlock {
             x: 3, y: 70, z: -4, block: 0,
             mine: Some(MineClaim { held: Some("stone_pickaxe".into()) }),
@@ -131,6 +153,15 @@ mod trade_tests {
             Some(grant),
             "the yield grant survives the wire"
         );
+        let sync = ClientMessage::PackSync {
+            items: vec![("wood".into(), 256), ("stone_pickaxe".into(), 1)],
+        };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&sync)),
+            Some(sync),
+            "the pack claim survives the wire (u32 counts: a pack holds >255 of one item)"
+        );
+        assert_eq!(PROTOCOL_VERSION, 6);
     }
 }
 

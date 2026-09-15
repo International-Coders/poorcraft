@@ -77,8 +77,9 @@ input = "my_pack:raw_amber"
 output = "my_pack:amber_ingot"
 ```
 
-Items are holdable, stackable, tradeable (protocol v4 escrow applies to
-any id), and smeltable in any furnace.
+Items are holdable, stackable, tradeable (protocol v6 escrow: the server's
+canonical ledger gates every offer — an offer of goods the trader does not
+hold is refused), and smeltable in any furnace.
 
 ## Decoration packs
 

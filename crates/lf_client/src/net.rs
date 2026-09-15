@@ -5,7 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use std::net::UdpSocket;
 
 use lf_game::host::EditKind;
-use lf_game::survival::ItemStack;
+use lf_game::survival::{Inventory, ItemStack};
 use lf_protocol::{ClientMessage, MineClaim, ProtocolCodec, ServerMessage, PROTOCOL_VERSION};
 
 /// THE MINE-CLAIM LAW: only a player MINED edit claims its hand on the
@@ -180,6 +180,59 @@ mod tests {
         ItemStack { item_id: id.to_string(), count: 1 }
     }
 
+    /// THE PACK-SYNC LAWS (protocol v6): the mirror bootstraps the join
+    /// (an empty pack is still a claim — the ledger must learn the pack
+    /// is EMPTY, not stay unseeded), uploads only drift, aggregates
+    /// split stacks into one sorted claim, and a server-side delta
+    /// forces the next upload past the cadence.
+    #[test]
+    fn the_mirror_bootstraps_and_only_uploads_drift() {
+        let t0 = std::time::Instant::now();
+        let mut mirror = PackMirror::new();
+        let inv = Inventory::new();
+
+        let first = mirror.sync_message(&inv, t0).expect("the join uploads the bootstrap claim");
+        assert_eq!(first, ClientMessage::PackSync { items: vec![] },
+            "an empty pack is still claimed — the ledger learns the pack is empty");
+        assert!(mirror.sync_message(&inv, t0).is_none(), "no drift, no upload");
+
+        let mut inv = Inventory::new();
+        inv.add_item("wood", 1);
+        assert!(mirror.sync_message(&inv, t0).is_none(),
+            "drift inside the cadence waits — the claim is not spammed");
+        mirror.request_sync();
+        let second = mirror.sync_message(&inv, t0).expect("a forced upload ignores the cadence");
+        assert_eq!(second, ClientMessage::PackSync { items: vec![("wood".into(), 1)] });
+        assert!(mirror.sync_message(&inv, t0).is_none(), "the claim is remembered");
+    }
+
+    #[test]
+    fn the_mirror_aggregates_split_stacks_and_sorts_the_claim() {
+        let t0 = std::time::Instant::now();
+        let mut mirror = PackMirror::new();
+        let mut inv = Inventory::new();
+        inv.add_item("wood", 32);
+        inv.add_item("wood", 32); // a second stack of the same item
+        inv.add_item("stone", 1);
+        inv.add_item("apple", 3);
+        inv.slots[36] = Some(held("iron_helmet")); // worn armor is carried too
+
+        let claim = mirror.sync_message(&inv, t0).expect("the drift uploads");
+        let ClientMessage::PackSync { items } = claim else {
+            panic!("the mirror sends PackSync, got {claim:?}");
+        };
+        assert_eq!(
+            items,
+            vec![
+                ("apple".into(), 3),
+                ("iron_helmet".into(), 1),
+                ("stone".into(), 1),
+                ("wood".into(), 64),
+            ],
+            "split stacks aggregate, the claim is sorted, counts are u32"
+        );
+    }
+
     /// THE MINE-CLAIM LAW: a MINE claims its honest hand — tool id when
     /// one is held, `None` for a bare hand — and every non-mine edit
     /// claims nothing, so only player digs can ever pay.
@@ -208,7 +261,77 @@ pub struct NetClient {
     pub remote_players: HashMap<u64, RemotePlayer>,
     pub chat_log: Vec<String>,
     pub connected: bool,
+    /// THE PACK MIRROR: what we last told the server we carry — the seed
+    /// of the server's canonical ledger for us (protocol v6).
+    pub pack_mirror: PackMirror,
     last_send: std::time::Instant,
+}
+
+/// THE PACK MIRROR (protocol v6): the client's side of the pack-sync
+/// law. The server holds a canonical LEDGER of what each player carries;
+/// this mirror keeps the client's last uploaded claim and detects drift.
+/// Uploads happen on join (the bootstrap — the ledger starts empty) and
+/// whenever the live pack's aggregated contents drift from the last
+/// claim, rate-limited to [`lf_protocol::PACK_SYNC_MIN_INTERVAL`] —
+/// except when a server-side delta (an ItemGrant, an accepted trade)
+/// just landed, which forces the next upload so the server's ledger is
+/// re-claimed WITH the delta inside one round trip (a stale upload can
+/// only ever remove server-known deltas, never add phantom items — the
+/// window errs safe).
+pub struct PackMirror {
+    last_synced: Option<Vec<(String, u32)>>,
+    last_upload: Option<std::time::Instant>,
+    forced: bool,
+}
+
+impl PackMirror {
+    pub fn new() -> Self {
+        Self { last_synced: None, last_upload: None, forced: false }
+    }
+
+    /// THE PACK SNAPSHOT LAW: the claim is the aggregated (item, count)
+    /// of every carried stack, sorted — slot layout is presentation, the
+    /// ledger is contents. Counts aggregate to u32 (a full pack holds
+    /// far more than 255 of one item).
+    pub fn snapshot(inv: &Inventory) -> Vec<(String, u32)> {
+        let mut agg: HashMap<String, u32> = HashMap::new();
+        for stack in inv.slots.iter().flatten() {
+            *agg.entry(stack.item_id.clone()).or_insert(0) += stack.count as u32;
+        }
+        let mut out: Vec<(String, u32)> = agg.into_iter().collect();
+        out.sort();
+        out
+    }
+
+    /// Force the next drift check to upload regardless of the cadence.
+    pub fn request_sync(&mut self) {
+        self.forced = true;
+    }
+
+    /// Compare the live pack against the last claim; answer the message
+    /// to send, if any (and record it). Call every frame while connected.
+    pub fn sync_message(&mut self, inv: &Inventory, now: std::time::Instant) -> Option<ClientMessage> {
+        let snap = Self::snapshot(inv);
+        if self.last_synced.as_ref() == Some(&snap) {
+            self.forced = false;
+            return None;
+        }
+        if !self.forced
+            && self.last_upload.is_some_and(|t| now.duration_since(t) < lf_protocol::PACK_SYNC_MIN_INTERVAL)
+        {
+            return None; // rate-limited; the drift persists and retries
+        }
+        self.last_synced = Some(snap.clone());
+        self.last_upload = Some(now);
+        self.forced = false;
+        Some(ClientMessage::PackSync { items: snap })
+    }
+}
+
+impl Default for PackMirror {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -234,6 +357,7 @@ impl NetClient {
             remote_players: HashMap::new(),
             chat_log: Vec::new(),
             connected: false,
+            pack_mirror: PackMirror::new(),
             last_send: std::time::Instant::now() - std::time::Duration::from_secs(1),
         })
     }
@@ -256,6 +380,19 @@ impl NetClient {
     pub fn send_chat(&self, text: &str) {
         let msg = ProtocolCodec::encode_client(&ClientMessage::Chat { text: text.to_string() });
         let _ = self.socket.send(&msg);
+    }
+
+    /// THE ONE PACK-SYNC SENDER: detects drift against the live pack and
+    /// uploads the claim. Call every frame while a session is connected;
+    /// a no-op before the server has said Welcome.
+    pub fn sync_pack(&mut self, inv: &Inventory) {
+        if !self.connected {
+            return;
+        }
+        if let Some(msg) = self.pack_mirror.sync_message(inv, std::time::Instant::now()) {
+            let encoded = ProtocolCodec::encode_client(&msg);
+            let _ = self.socket.send(&encoded);
+        }
     }
 
     /// Drain incoming server messages (also prunes stale remotes).

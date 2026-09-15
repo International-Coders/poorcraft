@@ -11,6 +11,38 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The pack is the server's ledger: server-side per-player
+      inventories over real UDP (2026-09-15, loop 466, root workspace):
+      closed STATE's next_task item (2) — the 465 deferral "the server
+      holds no canonical inventories yet"; chosen over the windowed
+      two-client route per the priority ladder. Wire v6: PackSync (the
+      client's aggregated pack claim, cadence-limited, forced by every
+      server-side delta — a stale upload only ever removes server-known
+      deltas, so the window errs safe). THE SERVER: one canonical
+      ledger per player, seeded by the claim (oversized claims
+      truncate at the pack's own law), paid by mined-yield grants,
+      dropped at Goodbye; the offer gate refuses goods the ledger does
+      not hold (to the offerer alone); the escrow completes only when
+      BOTH ledgers can pay (holds + room, removes-first trial) and
+      moves both exactly or neither. TWO LIVE HOLES CLOSED: the
+      ungated accept completed phantom offers, and a self-trade
+      duplicated items (offer 1, want 1 → +2); a third party could
+      dissolve any offer by accepting it. THE CLIENT: PackMirror
+      (bootstrap claim, drift detection, one sync tick outside the
+      poll borrow) + the Reject hint arm (the gate is legible).
+      Evidence: 8 new laws (escrow unit law; pack-sync+grant, escrow
+      moves-both, failed-accept-atomicity, self-trade/third-party wire
+      laws over real UDP; mirror bootstrap + aggregation + source
+      laws); workspace 517/0 (xtask 12 included); smoke OK; battery
+      110 scenes exit-0 with PNGs byte-identical across two runs
+      (singleplayer pixel-proven unchanged); runtimes fresh. Deferred
+      honestly: the ledger is client-CLAIMED until consumption routes
+      (crafting/smelting/eating/placing stay client-side — a lying
+      client can mis-claim its pack; the next tier, server-side
+      crafting, makes the ledger server-computed); PackSync overflow
+      is truncated (the spill is the client's ground items); the
+      windowed two-client route.
+
 - [x] The yield is the server's to give: server-side dig-yield
       authority over real UDP (2026-09-15, loop 465, root workspace):
       closed STATE's next_task item (1)'s higher-severity half — the 462

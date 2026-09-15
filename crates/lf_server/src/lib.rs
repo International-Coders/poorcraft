@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+use lf_game::survival::Inventory;
 use lf_protocol::{ClientMessage, ProtocolCodec, ServerMessage, PROTOCOL_VERSION};
 use lf_voxel::{BlockState, World};
 use lf_worldgen::{Seed, WorldGen};
@@ -21,6 +22,61 @@ struct Player {
     addr: SocketAddr,
     pos: [f32; 3],
     yaw: f32,
+}
+
+/// THE ESCROW LAW: a trade completes only when BOTH canonical ledgers can
+/// pay — the offerer holds every `give`, the accepter holds every `want`,
+/// and each receipt fits (simulated removes-first on a clone, so freed
+/// slots count). Success moves both ledgers exactly; ANY failure moves
+/// nothing and names the failing side. The same player cannot trade with
+/// themselves (a one-sided escrow to one ledger is a duplication machine,
+/// not a trade).
+fn escrow(
+    from: &mut Inventory,
+    to: &mut Inventory,
+    give: &[(String, u8)],
+    want: &[(String, u8)],
+) -> Result<(), String> {
+    for (id, n) in give {
+        if from.count_of(id) < *n as u32 {
+            return Err(format!("the offerer no longer holds {}x{}", n, id));
+        }
+    }
+    for (id, n) in want {
+        if to.count_of(id) < *n as u32 {
+            return Err(format!("the accepter no longer holds {}x{}", n, id));
+        }
+    }
+    // Room: simulate the whole swap removes-first on clones — payment
+    // frees slots the receipt may use.
+    let mut trial_from = from.clone();
+    let mut trial_to = to.clone();
+    for (id, n) in give {
+        trial_from.remove_count(id, *n as u32);
+    }
+    for (id, n) in want {
+        trial_to.remove_count(id, *n as u32);
+    }
+    for (id, n) in want {
+        if trial_from.add_item(id, *n) > 0 {
+            return Err(format!("the offerer has no room for {}x{}", n, id));
+        }
+    }
+    for (id, n) in give {
+        if trial_to.add_item(id, *n) > 0 {
+            return Err(format!("the accepter has no room for {}x{}", n, id));
+        }
+    }
+    // Apply exactly what the trials proved.
+    for (id, n) in give {
+        from.remove_count(id, *n as u32);
+        to.add_item(id, *n);
+    }
+    for (id, n) in want {
+        to.remove_count(id, *n as u32);
+        from.add_item(id, *n);
+    }
+    Ok(())
 }
 
 pub struct Server {
@@ -68,6 +124,12 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
     let gen = WorldGen::new(Seed(seed));
     let mut world = World::new();
     let mut players: HashMap<u64, Player> = HashMap::new();
+    // THE CANONICAL LEDGERS: one per player, the server's own copy of
+    // what each adventurer holds. Seeded by PackSync (the client's
+    // honest claim — the server cannot know prior-session history),
+    // fed by every server-known flow (mined-yield grants, escrow
+    // moves), and the ONLY thing the trade gates consult.
+    let mut inventories: HashMap<u64, Inventory> = HashMap::new();
     let mut edits: Vec<(i32, i32, i32, u32)> = Vec::new();
     let mut next_id: u64 = 1;
     let mut offers: HashMap<u64, lf_protocol::TradeOfferRecord> = HashMap::new();
@@ -82,8 +144,8 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
                 Ok((len, src)) => {
                     activity = true;
                     if let Some(msg) = ProtocolCodec::decode_client(&buf[..len]) {
-                        handle_message(&socket, &mut players, &mut world, &gen, &mut edits,
-                            &mut next_id, &mut offers, &mut next_offer_id, src, msg);
+                        handle_message(&socket, &mut players, &mut inventories, &mut world, &gen,
+                            &mut edits, &mut next_id, &mut offers, &mut next_offer_id, src, msg);
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
@@ -110,9 +172,16 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
     }
 }
 
+/// Resolve the sender's player id from its address (`None` = never
+/// said Hello — every stateful message ignores such senders).
+fn id_of(players: &HashMap<u64, Player>, src: SocketAddr) -> Option<u64> {
+    players.iter().find(|(_, p)| p.addr == src).map(|(id, _)| *id)
+}
+
 fn handle_message(
     socket: &UdpSocket,
     players: &mut HashMap<u64, Player>,
+    inventories: &mut HashMap<u64, Inventory>,
     world: &mut World,
     gen: &WorldGen,
     edits: &mut Vec<(i32, i32, i32, u32)>,
@@ -131,11 +200,14 @@ fn handle_message(
                 let _ = socket.send_to(&reply, src);
                 return;
             }
+            // A reconnect from the same address replaces the old session
+            // wholesale — ledger included (the fresh PackSync re-seeds it).
             players.retain(|_, p| p.addr != src);
             let id = *next_id;
             *next_id += 1;
             let roster: Vec<(u64, String)> = players.iter().map(|(pid, p)| (*pid, p.name.clone())).collect();
             players.insert(id, Player { name: name.clone(), addr: src, pos: [0.0, 80.0, 0.0], yaw: 0.0 });
+            inventories.insert(id, Inventory::new());
             let welcome = ProtocolCodec::encode_server(&ServerMessage::Welcome {
                 your_id: id,
                 seed: gen.seed(), // the true world seed (P23)
@@ -204,6 +276,17 @@ fn handle_message(
                             .map(|id| lf_game::survival::ItemStack { item_id: id, count: 1 });
                         if lf_game::mining::tool_satisfies(old, held.as_ref()) {
                             if let Some(item) = lf_game::items::block_drop(old) {
+                                // The yield pays the ledger first: the
+                                // canonical copy of the miner's pack grows by
+                                // the same drop the grant carries. Overflow
+                                // (a full ledger) is the block's spill — on
+                                // the ground, not held — so it is never
+                                // counted here either.
+                                if let Some(miner) = id_of(players, src) {
+                                    if let Some(inv) = inventories.get_mut(&miner) {
+                                        inv.add_item(&item, 1);
+                                    }
+                                }
                                 let grant = ProtocolCodec::encode_server(&ServerMessage::ItemGrant {
                                     items: vec![(item, 1)],
                                 });
@@ -234,17 +317,56 @@ fn handle_message(
             // refused the optimistic apply too, so there is nothing to
             // correct and nothing to broadcast.
         }
+        ClientMessage::PackSync { items } => {
+            // THE PACK-SYNC LAW: the client's claim replaces its ledger
+            // wholesale. Rebuild through add_item so the ledger stays a
+            // physically legal 36-slot pack — a claim larger than the
+            // pack can hold is truncated at the pack's own law, never
+            // counted. Unknown senders are ignored (no Hello, no ledger).
+            if let Some(id) = id_of(players, src) {
+                let mut inv = Inventory::new();
+                for (item, count) in items {
+                    // u32 claims add in u8-sized batches until the pack's
+                    // own law stops them (a full ledger drops the rest —
+                    // an oversized claim is truncated, never counted).
+                    let mut remaining = count;
+                    while remaining > 0 {
+                        let batch = remaining.min(u8::MAX as u32) as u8;
+                        let moved = batch - inv.add_item(&item, batch);
+                        if moved == 0 { break; }
+                        remaining -= moved as u32;
+                    }
+                }
+                inventories.insert(id, inv);
+            }
+        }
         ClientMessage::TradeOffer { to, give, want } => {
             // P37 escrow: register the offer, notify the recipient.
-            let from = match players.values().find(|p| p.addr == src) {
-                Some(p) => p,
-                None => return,
-            };
-            let from_name = from.name.clone();
-            let from_id = players.iter().find(|(_, p)| p.addr == src).map(|(id, _)| *id).unwrap_or(0);
+            // THE OFFER GATE (protocol v6): the offerer's canonical
+            // ledger must hold every offered item — a phantom offer is
+            // refused to the offerer alone and the target hears nothing.
+            let Some(from_id) = id_of(players, src) else { return };
+            let from_name = players.get(&from_id).map(|p| p.name.clone()).unwrap_or_default();
             if players.get(&to).is_none() {
                 let reply = ProtocolCodec::encode_server(&ServerMessage::Reject {
                     reason: "trade target is not online".into(),
+                });
+                let _ = socket.send_to(&reply, src);
+                return;
+            }
+            if from_id == to {
+                let reply = ProtocolCodec::encode_server(&ServerMessage::Reject {
+                    reason: "you cannot trade with yourself".into(),
+                });
+                let _ = socket.send_to(&reply, src);
+                return;
+            }
+            let covers_offer = inventories.get(&from_id).is_some_and(|inv| {
+                give.iter().all(|(id, n)| inv.count_of(id) >= *n as u32)
+            });
+            if !covers_offer {
+                let reply = ProtocolCodec::encode_server(&ServerMessage::Reject {
+                    reason: "your pack does not hold the offered goods".into(),
                 });
                 let _ = socket.send_to(&reply, src);
                 return;
@@ -262,23 +384,72 @@ fn handle_message(
             }
         }
         ClientMessage::TradeAccept { offer_id } => {
-            // Complete the escrow: the accepter receives `give`, the
-            // offerer receives `want` (both peers apply the swap —
-            // authoritative-lite, same policy as blocks).
-            let sender_id = players.iter().find(|(_, p)| p.addr == src).map(|(id, _)| *id).unwrap_or(0);
+            // THE ESCROW IS THE SERVER'S: only the target may complete an
+            // offer (a third party neither completes nor dissolves what is
+            // not theirs), and the swap is validated against BOTH
+            // canonical ledgers by `escrow` before anything moves —
+            // success moves both ledgers exactly; failure moves nothing
+            // and answers the failing side with the reason.
+            let Some(sender_id) = id_of(players, src) else { return };
             let Some(offer) = offers.remove(&offer_id) else { return };
-            let accepted = offer.to == sender_id;
-            let to_accepter = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
-                offer_id, accepted, items: if accepted { offer.give.clone() } else { vec![] },
-            });
-            let to_offerer = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
-                offer_id, accepted, items: if accepted { offer.want.clone() } else { vec![] },
-            });
-            if let Some(t) = players.get(&offer.to) {
-                let _ = socket.send_to(&to_accepter, t.addr);
+            if sender_id != offer.to {
+                offers.insert(offer_id, offer);
+                return;
             }
-            if let Some(f) = players.get(&offer.from) {
-                let _ = socket.send_to(&to_offerer, f.addr);
+            // Take both ledgers out (the offer gate forbids from == to),
+            // run the escrow, and put them back whatever the verdict —
+            // a failed escrow's ledgers return UNMOVED.
+            let from_ledger = inventories.remove(&offer.from);
+            let to_ledger = inventories.remove(&offer.to);
+            let (mut from_inv, mut to_inv) = match (from_ledger, to_ledger) {
+                (Some(f), Some(t)) => (f, t),
+                (f, t) => {
+                    // A party left: the offer dissolves, nothing moves.
+                    if let Some(inv) = f { inventories.insert(offer.from, inv); }
+                    if let Some(inv) = t { inventories.insert(offer.to, inv); }
+                    let gone = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
+                        offer_id, accepted: false, items: vec![],
+                    });
+                    if let Some(t) = players.get(&offer.to) { let _ = socket.send_to(&gone, t.addr); }
+                    if let Some(f) = players.get(&offer.from) { let _ = socket.send_to(&gone, f.addr); }
+                    return;
+                }
+            };
+            let verdict = escrow(&mut from_inv, &mut to_inv, &offer.give, &offer.want);
+            inventories.insert(offer.from, from_inv);
+            inventories.insert(offer.to, to_inv);
+            match verdict {
+                Ok(()) => {
+                    let to_accepter = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
+                        offer_id, accepted: true, items: offer.give.clone(),
+                    });
+                    let to_offerer = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
+                        offer_id, accepted: true, items: offer.want.clone(),
+                    });
+                    if let Some(t) = players.get(&offer.to) {
+                        let _ = socket.send_to(&to_accepter, t.addr);
+                    }
+                    if let Some(f) = players.get(&offer.from) {
+                        let _ = socket.send_to(&to_offerer, f.addr);
+                    }
+                }
+                Err(reason) => {
+                    let to_accepter = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
+                        offer_id, accepted: false, items: vec![],
+                    });
+                    let to_offerer = ProtocolCodec::encode_server(&ServerMessage::TradeResolved {
+                        offer_id, accepted: false, items: vec![],
+                    });
+                    let reject = ProtocolCodec::encode_server(&ServerMessage::Reject { reason });
+                    if let Some(t) = players.get(&offer.to) {
+                        let _ = socket.send_to(&to_accepter, t.addr);
+                        let _ = socket.send_to(&reject, t.addr);
+                    }
+                    if let Some(f) = players.get(&offer.from) {
+                        let _ = socket.send_to(&to_offerer, f.addr);
+                        let _ = socket.send_to(&reject, f.addr);
+                    }
+                }
             }
         }
         ClientMessage::TradeCancel { offer_id } => {
@@ -307,9 +478,10 @@ fn handle_message(
             }
         }
         ClientMessage::Goodbye => {
-            let leaving = players.iter().find(|(_, p)| p.addr == src).map(|(i, _)| *i);
+            let leaving = id_of(players, src);
             if let Some(id) = leaving {
                 players.remove(&id);
+                inventories.remove(&id);
                 let left = ProtocolCodec::encode_server(&ServerMessage::PlayerLeft { id });
                 for p in players.values() {
                     let _ = socket.send_to(&left, p.addr);
@@ -426,12 +598,21 @@ mod tests {
         c2.set_nonblocking(true).unwrap();
         c1.connect(addr).unwrap();
         c2.connect(addr).unwrap();
-        // both hellos
+        // both hellos, then both packs: alice holds 4 iron + 1 coal, bob
+        // holds the dragon scale — THE OFFER GATE (v6) admits only what
+        // the canonical ledgers cover.
         for (sock, name) in [(&c1, "alice"), (&c2, "bob")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
                 name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
+        pump(150);
+        c1.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("iron_ingot".into(), 4), ("coal".into(), 1)],
+        })).unwrap();
+        c2.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("dragon_scale".into(), 1)],
+        })).unwrap();
         pump(150);
         let welcome1 = drain(&c1);
         let alice_id = welcome1.iter().find_map(|m| match m {
@@ -790,6 +971,329 @@ mod tests {
             "a rejected op never pays");
         assert!(!drain(&editor).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
             "a rejected op never pays anyone else either");
+
+        server.stop();
+    }
+
+    /// THE ESCROW LAW, pure: a trade completes only when BOTH ledgers can
+    /// pay — a short hold on either side moves NOTHING — and a successful
+    /// swap moves both ledgers exactly, with payment freeing room the
+    /// receipt may use (removes-first on the trial).
+    #[test]
+    fn the_escrow_moves_both_ledgers_or_neither() {
+        let pack = |items: &[(&str, u8)]| {
+            let mut inv = Inventory::new();
+            for (id, n) in items {
+                inv.add_item(id, *n);
+            }
+            inv
+        };
+        let give = vec![("iron_ingot".to_string(), 4u8)];
+        let want = vec![("dragon_scale".to_string(), 1u8)];
+
+        // The happy swap: both ledgers move exactly.
+        let mut alice = pack(&[("iron_ingot", 4)]);
+        let mut bob = pack(&[("dragon_scale", 1)]);
+        escrow(&mut alice, &mut bob, &give, &want).expect("a covered swap completes");
+        assert_eq!(alice.count_of("iron_ingot"), 0, "the offer paid exactly");
+        assert_eq!(alice.count_of("dragon_scale"), 1, "the offerer received exactly");
+        assert_eq!(bob.count_of("dragon_scale"), 0, "the accepter paid exactly");
+        assert_eq!(bob.count_of("iron_ingot"), 4, "the accepter received exactly");
+
+        // A short hold on EITHER side moves nothing at all.
+        let mut alice = pack(&[("iron_ingot", 3)]);
+        let mut bob = pack(&[("dragon_scale", 1)]);
+        assert!(escrow(&mut alice, &mut bob, &give, &want).is_err(),
+            "three irons cannot pay four");
+        assert_eq!(alice.count_of("iron_ingot"), 3, "the failed escrow left the offerer alone");
+        assert_eq!(bob.count_of("dragon_scale"), 1, "the failed escrow left the accepter alone");
+
+        let mut alice = pack(&[("iron_ingot", 4)]);
+        let mut bob = pack(&[]);
+        assert!(escrow(&mut alice, &mut bob, &give, &want).is_err(),
+            "an accepter who holds no scale cannot complete the swap");
+        assert_eq!(alice.count_of("iron_ingot"), 4, "nothing moved on the failed accept");
+
+        // Payment frees room: a full pack can still RECEIVE if it pays
+        // first (the trial simulates removes before adds). `other` gives
+        // 1 log; `full` pays 64 stone and receives the log.
+        let mut full = pack(&[("stone", 64), ("dirt", 64)]);
+        let mut other = pack(&[("log", 1)]);
+        let give = vec![("log".to_string(), 1u8)];
+        let want = vec![("stone".to_string(), 64u8)];
+        escrow(&mut other, &mut full, &give, &want).expect("paying frees the receipt's room");
+        assert_eq!(full.count_of("log"), 1, "the receipt landed in the freed room");
+        assert_eq!(full.count_of("stone"), 0, "the payment went out");
+    }
+
+    /// THE PACK-SYNC LAW + THE OFFER GATE, over real UDP: the uploaded
+    /// pack seeds the canonical ledger, a MINED yield pays into the same
+    /// ledger (the grant's stone is gate-visible though it was never
+    /// uploaded), and an offer beyond the ledger is refused to the
+    /// offerer alone while the target hears nothing.
+    #[test]
+    fn the_pack_sync_seeds_the_ledger_and_the_gate_counts_mined_grants() {
+        use lf_voxel::registry::block;
+
+        let mut server = Server::start("127.0.0.1:0", 915).expect("start server");
+        let addr = server.local_addr();
+        let alice = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let bob = UdpSocket::bind("127.0.0.1:0").unwrap();
+        alice.set_nonblocking(true).unwrap();
+        bob.set_nonblocking(true).unwrap();
+        alice.connect(addr).unwrap();
+        bob.connect(addr).unwrap();
+        for (sock, name) in [(&alice, "miner"), (&bob, "target")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&alice);
+        let _ = drain(&bob);
+        alice.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("iron_ingot".into(), 2)],
+        })).unwrap();
+        pump(150);
+
+        // Mine a staged stone block with an honest claim: the grant pays.
+        alice.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+            x: 2, y: 200, z: 2, block: block::STONE, mine: None,
+        })).unwrap();
+        alice.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+            x: 2, y: 200, z: 2, block: block::AIR,
+            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }),
+        })).unwrap();
+        let grant = drain_until(&alice, 5000, |m| matches!(m, ServerMessage::ItemGrant { items }
+            if items.first().map(|(id, _)| id.as_str()) == Some("stone")));
+        assert!(grant.is_some(), "the staged stone pays the miner");
+
+        // THE LEDGER COUNTED THE GRANT: an offer of exactly the mined
+        // stone passes the gate though the stone was never uploaded.
+        // (alice joined first: her id is 1, bob's is 2.)
+        let offer = |give: Vec<(String, u8)>| {
+            alice.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+                to: 2, give, want: vec![],
+            })).unwrap();
+            pump(250);
+        };
+        offer(vec![("stone".into(), 1)]);
+        assert!(drain(&bob).iter().any(|m| matches!(m, ServerMessage::TradeOffered { give, .. }
+            if give.first().map(|(id, _)| id.as_str()) == Some("stone"))),
+            "the mined stone is gate-visible: the ledger counted the grant");
+
+        // Beyond the ledger — phantom in either direction — refuses.
+        offer(vec![("stone".into(), 2)]);
+        assert!(drain_until(&alice, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "two stones were never held: the offer is refused");
+        offer(vec![("iron_ingot".into(), 3)]);
+        assert!(drain_until(&alice, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "three irons exceed the uploaded two: refused");
+        pump(300);
+        assert!(!drain(&bob).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "THE OFFER GATE: the target never hears a phantom offer");
+
+        // Exactly what the ledger holds passes.
+        offer(vec![("iron_ingot".into(), 2)]);
+        assert!(drain(&bob).iter().any(|m| matches!(m, ServerMessage::TradeOffered { give, .. }
+            if give.first().map(|(id, _)| id.as_str()) == Some("iron_ingot"))),
+            "the uploaded two irons cover an offer of two");
+
+        server.stop();
+    }
+
+    /// THE ESCROW MOVES BOTH LEDGERS, over real UDP: after a completed
+    /// trade each side's ledger shows the swap — proven through the gate
+    /// alone, with no ledger peeking: the paid-away goods refuse further
+    /// offers, the received goods admit them.
+    #[test]
+    fn the_escrow_moves_both_ledgers_atomically_over_real_udp() {
+        let mut server = Server::start("127.0.0.1:0", 917).expect("start server");
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        a.set_nonblocking(true).unwrap();
+        b.set_nonblocking(true).unwrap();
+        a.connect(addr).unwrap();
+        b.connect(addr).unwrap();
+        for (sock, name) in [(&a, "alice"), (&b, "bob")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("iron_ingot".into(), 4)],
+        })).unwrap();
+        b.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("dragon_scale".into(), 1)],
+        })).unwrap();
+        pump(150);
+
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("iron_ingot".into(), 4)], want: vec![("dragon_scale".into(), 1)],
+        })).unwrap();
+        let offered = drain_until(&b, 5000, |m| matches!(m, ServerMessage::TradeOffered { .. }));
+        let offer_id = match offered {
+            Some(ServerMessage::TradeOffered { offer_id, .. }) => offer_id,
+            other => panic!("bob receives the covered offer, got {other:?}"),
+        };
+        b.send(&ProtocolCodec::encode_client(&ClientMessage::TradeAccept { offer_id })).unwrap();
+        let bob_done = drain_until(&b, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: true, items, .. } if items[0].0 == "iron_ingot"));
+        assert!(bob_done.is_some(), "bob receives the iron over the escrow");
+        let alice_done = drain_until(&a, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: true, items, .. } if items[0].0 == "dragon_scale"));
+        assert!(alice_done.is_some(), "alice receives the scale over the escrow");
+        pump(300);
+
+        // THE LEDGERS MOVED, proven through the gate alone. (Ids 1 and 2
+        // are deterministic — join order.)
+        let offer = |sock: &UdpSocket, to: u64, give: Vec<(String, u8)>| {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+                to, give, want: vec![],
+            })).unwrap();
+            pump(250);
+        };
+        offer(&a, 2, vec![("iron_ingot".into(), 4)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "alice paid her four irons away: the ledger refuses a re-offer");
+        offer(&a, 2, vec![("dragon_scale".into(), 1)]);
+        assert!(drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "the scale alice RECEIVED is hers to offer");
+        offer(&b, 1, vec![("dragon_scale".into(), 1)]);
+        assert!(drain_until(&b, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "bob paid his scale away: the ledger refuses a re-offer");
+        offer(&b, 1, vec![("iron_ingot".into(), 4)]);
+        assert!(drain(&a).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "the irons bob RECEIVED are his to offer");
+        offer(&b, 1, vec![("iron_ingot".into(), 5)]);
+        assert!(drain_until(&b, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the received four irons do not cover five");
+
+        server.stop();
+    }
+
+    /// A FAILED ACCEPT DISSOLVES WITHOUT MOVING ANYTHING, over real UDP:
+    /// an accept whose counterparty cannot pay (bob holds no scale)
+    /// answers BOTH sides with the refused verdict and the reason, and
+    /// the offerer's ledger is untouched — her re-offer of the same goods
+    /// passes, proving the failed escrow deducted nothing.
+    #[test]
+    fn an_accept_that_cannot_pay_dissolves_without_moving_anything() {
+        let mut server = Server::start("127.0.0.1:0", 919).expect("start server");
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        a.set_nonblocking(true).unwrap();
+        b.set_nonblocking(true).unwrap();
+        a.connect(addr).unwrap();
+        b.connect(addr).unwrap();
+        for (sock, name) in [(&a, "alice"), (&b, "bob")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("iron_ingot".into(), 4)],
+        })).unwrap();
+        pump(150); // bob uploads nothing — his ledger is empty
+
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("iron_ingot".into(), 4)], want: vec![("dragon_scale".into(), 1)],
+        })).unwrap();
+        let offered = drain_until(&b, 5000, |m| matches!(m, ServerMessage::TradeOffered { .. }));
+        let offer_id = match offered {
+            Some(ServerMessage::TradeOffered { offer_id, .. }) => offer_id,
+            other => panic!("the offer reaches bob, got {other:?}"),
+        };
+        b.send(&ProtocolCodec::encode_client(&ClientMessage::TradeAccept { offer_id })).unwrap();
+        assert!(drain_until(&b, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: false, items, .. } if items.is_empty())).is_some(),
+            "bob's accept is refused — he holds no scale");
+        assert!(drain_until(&b, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the refusal names its reason to the failing side");
+        assert!(drain_until(&a, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: false, .. })).is_some(),
+            "alice's offer dissolves with it");
+        pump(300);
+
+        // THE ATOMICITY PROOF: the same goods re-offer cleanly — the
+        // failed escrow never deducted alice's ledger.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("iron_ingot".into(), 4)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&b, 5000, |m| matches!(m, ServerMessage::TradeOffered { .. })).is_some(),
+            "the failed accept deducted nothing: the re-offer passes the gate");
+
+        server.stop();
+    }
+
+    /// THE SELF-TRADE HOLE IS CLOSED, over real UDP: an offer to oneself
+    /// is refused outright (a one-sided escrow to one ledger was a
+    /// duplication machine under the ungated v4 accept), and a THIRD
+    /// PARTY cannot complete (nor dissolve) an offer that is not theirs
+    /// — the offer survives for its true target.
+    #[test]
+    fn self_trades_and_third_party_accepts_never_move_a_ledger() {
+        let mut server = Server::start("127.0.0.1:0", 921).expect("start server");
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let c = UdpSocket::bind("127.0.0.1:0").unwrap();
+        for sock in [&a, &b, &c] {
+            sock.set_nonblocking(true).unwrap();
+            sock.connect(addr).unwrap();
+        }
+        for (sock, name) in [(&a, "alice"), (&b, "bob"), (&c, "carol")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(250);
+        let mut ids = [0u64; 3];
+        for (i, sock) in [&a, &b, &c].into_iter().enumerate() {
+            ids[i] = drain(sock).iter().find_map(|m| match m {
+                ServerMessage::Welcome { your_id, .. } => Some(*your_id),
+                _ => None,
+            }).expect("each client has an id");
+        }
+        let (alice_id, bob_id) = (ids[0], ids[1]);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("diamond".into(), 1)],
+        })).unwrap();
+        pump(150);
+
+        // THE SELF-TRADE REFUSAL: the offer to oneself is dead on arrival.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: alice_id, give: vec![("diamond".into(), 1)], want: vec![("diamond".into(), 1)],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "trading with yourself is refused, not escrowed");
+
+        // THE THIRD-PARTY LAW: carol cannot accept bob's offer — the
+        // offer survives untouched for its true target.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: bob_id, give: vec![("diamond".into(), 1)], want: vec![],
+        })).unwrap();
+        let offered = drain_until(&b, 5000, |m| matches!(m, ServerMessage::TradeOffered { .. }));
+        let offer_id = match offered {
+            Some(ServerMessage::TradeOffered { offer_id, .. }) => offer_id,
+            other => panic!("bob receives alice's offer, got {other:?}"),
+        };
+        c.send(&ProtocolCodec::encode_client(&ClientMessage::TradeAccept { offer_id })).unwrap();
+        pump(300);
+        assert!(!drain(&a).iter().any(|m| matches!(m, ServerMessage::TradeResolved { .. })),
+            "a third party's accept resolves nothing for the offerer");
+        assert!(!drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeResolved { .. })),
+            "a third party's accept resolves nothing for the target");
+
+        // The offer still completes for its true target.
+        b.send(&ProtocolCodec::encode_client(&ClientMessage::TradeAccept { offer_id })).unwrap();
+        assert!(drain_until(&b, 5000, |m| matches!(m,
+            ServerMessage::TradeResolved { accepted: true, .. })).is_some(),
+            "the true target still completes the offer");
 
         server.stop();
     }

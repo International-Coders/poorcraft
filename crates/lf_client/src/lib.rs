@@ -2978,6 +2978,10 @@ impl GameState {
                 self.play_sfx(lf_audio::Sfx::BowShoot, 0.8);
             }
         }
+        // A server-side pack delta landed this frame — the mirror must
+        // re-claim the pack WITH the delta inside one round trip (the
+        // stale-upload clobber window errs safe, but why wait).
+        let mut pack_delta_landed = false;
         if let Some(n) = &mut self.net {
             n.send_state(self.player.position.to_array(), self.player.yaw, self.player.pitch);
             for msg in n.poll() {
@@ -3053,6 +3057,7 @@ impl GameState {
                                 self.spawn_drop(&id, leftover, self.player.eye_position());
                             }
                         }
+                        pack_delta_landed = true;
                     }
                     // P37: escrowed trades deliver to the inventory
                     lf_protocol::ServerMessage::TradeResolved { accepted, items, .. } => {
@@ -3064,6 +3069,7 @@ impl GameState {
                                 }
                             }
                             self.push_hint("trade completed");
+                            pack_delta_landed = true;
                         } else {
                             self.push_hint("trade cancelled");
                         }
@@ -3074,9 +3080,25 @@ impl GameState {
                             from_name, give.first().map(|(i, _)| i.clone()).unwrap_or_default(),
                             give.first().map(|(_, n)| *n).unwrap_or(0)));
                     }
+                    // THE GATE IS LEGIBLE (protocol v6): the server's
+                    // refusals — a phantom offer, a failed escrow, an
+                    // offline trade target — reach the player as hints,
+                    // not silence.
+                    lf_protocol::ServerMessage::Reject { reason } => {
+                        self.push_hint(&format!("rejected: {reason}"));
+                    }
                     _ => {}
                 }
             }
+        }
+        // THE PACK MIRROR, ticked OUTSIDE the poll borrow (the message
+        // arms call whole-self methods): re-claim the pack after any
+        // server delta, then upload if the live pack drifted.
+        if let Some(n) = &mut self.net {
+            if pack_delta_landed {
+                n.pack_mirror.request_sync();
+            }
+            n.sync_pack(&self.inventory);
         }
 
         if let Some((_, t)) = &mut self.chronicle_toast {
@@ -7705,6 +7727,57 @@ mod tests {
         assert!(
             arm_region.contains("add_item") && arm_region.contains("spawn_drop"),
             "the server's grant lands in the inventory; overflow spills at the feet"
+        );
+    }
+
+    /// THE PACK-SYNC SOURCE LAW (protocol v6): the pack mirror is ticked
+    /// exactly once per frame outside the poll borrow (the message arms
+    /// call whole-self methods), the grant and the accepted-trade arms
+    /// force the re-claim, and the server's Reject reaches the player as
+    /// a hint — the gate is legible, never silence.
+    #[test]
+    fn the_pack_mirror_ticks_once_and_server_deltas_force_the_reclaim() {
+        let source = include_str!("lib.rs");
+        // The live code only — the tests module's own needles must not count.
+        let live_end = source.find("mod tests {").expect("the tests module must exist");
+        let live = &source[..live_end];
+
+        let mut idx = 0;
+        let mut sites: Vec<usize> = Vec::new();
+        while let Some(pos) = live[idx..].find("n.sync_pack(&self.inventory)") {
+            sites.push(idx + pos);
+            idx = idx + pos + 1;
+        }
+        assert_eq!(
+            sites.len(), 1,
+            "the pack sync must be ticked from exactly one place, found {sites:?}"
+        );
+
+        let grant = source
+            .find("ServerMessage::ItemGrant { items }")
+            .expect("the ItemGrant arm must exist");
+        let grant_region = &source[grant..(grant + 500).min(source.len())];
+        assert!(
+            grant_region.contains("pack_delta_landed = true"),
+            "a mined-yield grant forces the pack re-claim"
+        );
+
+        let resolved = source
+            .find("ServerMessage::TradeResolved { accepted, items, .. }")
+            .expect("the TradeResolved arm must exist");
+        let resolved_region = &source[resolved..(resolved + 700).min(source.len())];
+        assert!(
+            resolved_region.contains("pack_delta_landed = true"),
+            "an accepted trade forces the pack re-claim"
+        );
+
+        let reject = source
+            .find("ServerMessage::Reject { reason }")
+            .expect("the Reject arm must exist");
+        let reject_region = &source[reject..(reject + 300).min(source.len())];
+        assert!(
+            reject_region.contains("push_hint"),
+            "a server rejection reaches the player as a hint, not silence"
         );
     }
 
