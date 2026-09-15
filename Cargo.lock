@@ -1376,6 +1376,7 @@ name = "lf_server"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "lf_game",
  "lf_protocol",
  "lf_voxel",
  "lf_worldgen",

@@ -7,6 +7,10 @@ edition = "2021"
 lf_protocol = { path = "../lf_protocol" }
 lf_voxel = { path = "../lf_voxel" }
 lf_worldgen = { path = "../lf_worldgen" }
+# THE YIELD-GRANT LAW: the harvest gate (mining::tool_satisfies) and the
+# canonical drop table (items::block_drop) are lf_game's — the server
+# enforces the SAME law the client plays, one source.
+lf_game = { path = "../lf_game" }
 serde = { version = "1.0", features = ["derive"] }
 bincode = "1"
 

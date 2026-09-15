@@ -1,5 +1,97 @@
 # CHANGELOG
 
+## 2026-09-15 — The yield is the server's to give: server-side dig-yield authority over real UDP (loop 465)
+
+- Closed STATE's next_task item (1)'s higher-severity half — the loop-462
+  deferral "server-side inventory authority (the corrective echo reverts
+  the BLOCK, not an optimistic item take)". Chosen over the windowed
+  two-client route per the priority ladder: an authority gap ranks above
+  a missing proof. Until now a multiplayer dig paid whatever the client
+  ASSUMED: the block's yield popped locally before the server had said
+  anything, so a rejected op (an unknown mod block), a re-sent packet,
+  or a peer who mined the same block first all paid phantom items.
+- THE WIRE (lf_protocol, v5): `SetBlock` gains `mine: Option<MineClaim>`
+  — `Some` iff the edit is a player MINED dig, carrying the honest held
+  item id (`None` inside = a bare hand, which still claims: a bare-handed
+  dig of a no-tool block pays online exactly as offline); places,
+  machine/fluid/falling/console/server-mirror edits claim nothing. New
+  `ServerMessage::ItemGrant { items }` — the canonical yield, delivered
+  to the editor ALONE. `PROTOCOL_VERSION` 4 -> 5 (server and client ship
+  together; the existing version gate rejects mismatched peers).
+- THE SERVER (lf_server, new lf_game dependency): on an accepted mine the
+  server reads what the block WAS before its canonical world changes,
+  gates the claim through `mining::tool_satisfies`, and pays
+  `items::block_drop` — the SAME harvest law and drop table the client
+  plays, one source (mods included: the server loads mods/ and resolves
+  mod-block drops through the same registry). The grant never rides to
+  peers.
+- THE CLIENT (lf_client): `host_set_block` computes the claim
+  (`net::mine_claim_for`) — and is THE ONE BROADCASTER. `break_block_drops`
+  — the one path every canonical block yield spawns through — now spawns
+  only OFFLINE (`net.is_none()`); online the yield ARRIVES via ItemGrant
+  and lands in the pack with the trade-escrow overflow-spill pattern
+  (nothing vanishes on a full pack). The scaffold column yields through
+  `break_block_drops` (its direct spawn was ungated) — per-cell server
+  grants match singleplayer. Felled-tree cells are THE TIMBER'S, not the
+  hand's (`EditKind::Mine` -> `Falling`): singleplayer never paid felled
+  cells as drops, so online they must claim nothing or the server would
+  grant a log per trunk cell. The leaves-apple bonus is offline flavor
+  (the server owns no RNG yet). The keeper's waking and the twin's song
+  stay unconditional — reactions, not items.
+- EN-ROUTE WIRE WART FIXED: the mine-break path sent its dig a SECOND
+  time after the funnel had already broadcast — every dig went on the
+  wire twice and double-entered the server's edit history (the newcomer
+  replay dug it twice). Removed; the one-broadcaster source law pins it.
+- 7 NEW LAWS (root 490 -> 497 in-workspace + xtask 12 = 509 total;
+  lf_protocol 5 -> 6 tests, lf_server 4 -> 7, lf_client 101 -> 104): the
+  claim/grant round-trip law; THE YIELD-GRANT wire law (a mine pays the
+  canonical yield to the editor alone, a place never pays anyone, the
+  peer never sees a grant); THE HARVEST GATE HOLDS SERVER-SIDE (iron ore:
+  a wooden pick's mine pays nothing, a stone pick pays, a bare hand fails
+  the gate — staged blocks at y=200 so no seed decides the outcome); A
+  DIG PAYS ONCE AND REJECTED OPS NEVER PAY (a re-sent mine into
+  already-air, an unknown-id op answered by the corrective echo only);
+  the mine-claim unit law (only Mine claims; the claim is the honest
+  hand); the one-broadcaster source law; the no-optimistic-take source
+  law (every spawn in break_block_drops behind the offline gate + the
+  scaffold routing + the ItemGrant arm's overflow spill).
+- REGRESSION: cargo test --workspace 509 green / 0 failed + cargo test
+  -p xtask 12 green (included; = loop 464's 502 + 7); make smoke OK; the
+  FULL vistest battery 110 scenes [ok] / 0 FAIL, exit-0, and every
+  committed vistest PNG byte-identical on disk — the singleplayer render
+  paths are pixel-proven unchanged this loop (the 462/461 "visual gates
+  not run" precedent made into evidence). Runtimes refreshed:
+  dist/loreforge-macos.dmg 8.8 MB (hdiutil VALID) + linux tarball 8.4 MB
+  + .app binary 20 MB + server, fresh on disk; Windows exe honestly
+  skipped (mingw absent); POORCRAFT 3D untouched.
+- PERF: a small net WIN on the multiplayer wire — one redundant SetBlock
+  per dig removed (halves mine-edit traffic and the server's edit-history
+  growth); the grant adds one small message per accepted, tool-legal
+  mine; zero singleplayer cost (every new path sits behind
+  `net.is_some()`/`is_none()`).
+- LORE: canon touched: none — multiplayer economy plumbing; the granted
+  items are the existing canonical drops (anima_crystal's Covenant
+  world-source unchanged); no faction, place, event, term, NPC, item, or
+  spell data changed; no new canon text. Canon preserved: the chronicle
+  as the player-authored history (the twin song and the keeper's waking
+  are reactions, not grants); Anima as a material energetic property; no
+  identity assigned. World expression: in shared Valdenmoor a mined vein
+  pays once, to the miner whose swing the realm accepted — the harvest
+  law, not each adventurer's say-so.
+- Migration: PROTOCOL_VERSION bump only (matched client+server binaries;
+  old peers rejected by the existing gate) — no save format, no
+  block/item change, GENERATOR_VERSION unchanged, ClientSave untouched.
+- Deferred honestly: the server does not yet HOLD canonical inventories
+  (crafting/smelting/trade sourcing stay client-held; the grant covers
+  mined yields — server inventory state rides the integrated-server
+  tier); the leaves-apple bonus is offline-only (no server RNG); the
+  timber landing plan's blocked-cell drops and container spills (chest
+  contents) stay client-local — the sim/block-entity sync tier; mob drops
+  client-local (pre-existing); the carried list — the windowed
+  two-client route (the GPU-side end of the wire laws; GameState owns a
+  real window+surface, so the route needs a headless driver slice of its
+  own); hardcoded connect name "smith" (audit note).
+
 ## 2026-09-15 — The resonance compass + the remembered song + the bearing law (loop 464)
 
 - Closed STATE's next_task item (2) — the resonance depth pass ("a held

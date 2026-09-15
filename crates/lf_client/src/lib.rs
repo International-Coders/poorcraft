@@ -2258,7 +2258,11 @@ impl GameState {
         if landed {
             self.remesh_around(x, z);
             if let Some(n) = &self.net {
-                n.send_block(x, y, z, state.id());
+                // THE MINE-CLAIM LAW: only a MINE claims its hand, and the
+                // claim is the honest held item (net::mine_claim_for).
+                let held = self.inventory.slots[self.hotbar_index].as_ref();
+                let mine = net::mine_claim_for(reason, held);
+                n.send_block(x, y, z, state.id(), mine);
             }
         }
         landed
@@ -3037,6 +3041,19 @@ impl GameState {
                     lf_protocol::ServerMessage::BlockUpdate { x, y, z, block } => {
                         self.apply_remote_block_update(x, y, z, block);
                     }
+                    // THE YIELD-GRANT LAW, client side (loop 465): in
+                    // multiplayer the mined block's yield ARRIVES from the
+                    // server — the dig only claimed its hand — so a
+                    // rejected or already-mined dig can never pay a phantom
+                    // item. Overflow spills at the feet (nothing vanishes).
+                    lf_protocol::ServerMessage::ItemGrant { items } => {
+                        for (id, count) in items {
+                            let leftover = self.inventory.add_item(&id, count);
+                            if leftover > 0 {
+                                self.spawn_drop(&id, leftover, self.player.eye_position());
+                            }
+                        }
+                    }
                     // P37: escrowed trades deliver to the inventory
                     lf_protocol::ServerMessage::TradeResolved { accepted, items, .. } => {
                         if accepted {
@@ -3243,12 +3260,15 @@ impl GameState {
                                 }
                             }
                             // P34: breaking a scaffold drops the whole
-                            // connected column above it (bulk-remove)
+                            // connected column above it (bulk-remove) —
+                            // each cell digs and yields through the same
+                            // break path (one gate: offline pops the drop,
+                            // online the server grants per cell)
                             if block_id == registry::block::SCAFFOLD {
                                 let mut y = pos.y + 1;
                                 while self.world.get_block(pos.x, y, pos.z).id() == registry::block::SCAFFOLD {
                                     self.host_set_block(pos.x, y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine);
-                                    self.spawn_drop("scaffold", 1, Vec3::new(pos.x as f32 + 0.5, y as f32 + 0.5, pos.z as f32 + 0.5));
+                                    self.break_block_drops(registry::block::SCAFFOLD, glam::IVec3::new(pos.x, y, pos.z));
                                     y += 1;
                                 }
                                 if y > pos.y + 1 {
@@ -3275,9 +3295,11 @@ impl GameState {
                             self.xp_level = l;
                             self.xp_progress = p;
                             self.xp_flash = 1.0;
-                            if let Some(n) = &self.net {
-                                n.send_block(pos.x, pos.y, pos.z, registry::block::AIR);
-                            }
+                            // (loop 465: the redundant send_block that lived
+                            // here is gone — host_set_block is the one
+                            // broadcast point, and the duplicate put every
+                            // dig on the wire twice and double-entered the
+                            // server's edit history.)
                             // container contents spill out
                             let key = (pos.x, pos.y, pos.z);
                             if let Some(entity) = self.block_entities.remove(&key) {
@@ -4335,13 +4357,23 @@ impl GameState {
     }
 
     fn break_block_drops(&mut self, block_id: u32, pos: glam::IVec3) {
+        // THE YIELD IS THE SERVER'S TO GIVE (loop 465): offline the block's
+        // yield pops here as a drop; in multiplayer the client NEVER
+        // self-grants a mined yield — the wire claim went out with the dig
+        // and the server grants the canonical drop back (ItemGrant), so a
+        // rejected or already-mined dig can never pay a phantom item. The
+        // keeper's waking and the twin's song are reactions, not items:
+        // they stay unconditional.
+        let offline = self.net.is_none();
         let held = self.inventory.slots[self.hotbar_index].clone();
         let harvestable = tool_satisfies(block_id, held.as_ref());
         if !harvestable {
             return; // wrong tool: block breaks but yields nothing
         }
         if let Some(item) = lf_game::items::block_drop(block_id) {
-            self.spawn_drop(&item, 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
+            if offline {
+                self.spawn_drop(&item, 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
+            }
         }
         // Old Powers: breaking the concentration wakes its keeper — the
         // hollow's guardians drop into the chase at once
@@ -4352,8 +4384,10 @@ impl GameState {
             // twin — the chronicle records where its mirror waits
             self.chronicle_geode_twin(pos);
         }
-        // rare apple bonus from leaves
-        if block_id == registry::block::LEAVES && pseudo_random(self.frame) % 20 == 0 {
+        // rare apple bonus from leaves (offline flavor: the roll is the
+        // client's; the server owns no RNG yet, so online leaves pay their
+        // canonical drop only)
+        if block_id == registry::block::LEAVES && offline && pseudo_random(self.frame) % 20 == 0 {
             self.spawn_drop("apple", 1, Vec3::new(pos.x as f32 + 0.5, pos.y as f32 + 0.3, pos.z as f32 + 0.5));
         }
     }
@@ -5517,8 +5551,14 @@ impl GameState {
         let Some(tree) = lf_game::timber::find_tree(&self.world, above) else {
             return;
         };
+        // THE FELLED CELLS ARE THE TIMBER'S, NOT THE HAND'S (loop 465):
+        // the player dug the stump — its mine edit claims the yield — but
+        // every cell above is removed by the felling system (singleplayer
+        // never paid them as drops, so online they must claim nothing or
+        // the server would grant a log per trunk cell). Falling is the
+        // support-removal kind: no claim, same edit authority.
         for cell in tree.trunk.iter().chain(tree.leaves.iter()) {
-            self.host_set_block(cell[0], cell[1], cell[2], BlockState::AIR, lf_game::host::EditKind::Mine);
+            self.host_set_block(cell[0], cell[1], cell[2], BlockState::AIR, lf_game::host::EditKind::Falling);
         }
         self.remesh_around(stump.x, stump.z);
         let look = self.player.look_dir();
@@ -7579,6 +7619,92 @@ mod tests {
             "chunk inserts without a replay-window flush at byte offsets {:?} — \
              call flush_pending_remote_edits(cx, cz) before add_column_batch",
             unflushed
+        );
+    }
+
+    /// THE ONE-BROADCASTER LAW (loop 465): `host_set_block` is the only
+    /// place the client puts a block edit on the wire. The mine-break path
+    /// once sent the dig a SECOND time after the funnel had already
+    /// broadcast it — double wire traffic and a double entry in the
+    /// server's edit history for every dig. If a second site appears, the
+    /// server's canonical history can silently diverge from the funnel's
+    /// claim semantics (only the funnel computes the mine claim).
+    #[test]
+    fn the_host_funnel_is_the_one_block_broadcaster() {
+        let source = include_str!("lib.rs");
+        let tests_start = source.find("#[cfg(test)]").expect("test module must exist");
+        let live = &source[..tests_start];
+        let funnel = live
+            .find("fn host_set_block(")
+            .expect("host_set_block funnel must exist");
+        let mut idx = 0;
+        let mut sites: Vec<usize> = Vec::new();
+        while let Some(pos) = live[idx..].find(".send_block(") {
+            sites.push(idx + pos);
+            idx = idx + pos + 1;
+        }
+        assert_eq!(
+            sites.len(), 1,
+            "block edits must broadcast only through host_set_block, found {sites:?}"
+        );
+        assert!(
+            sites[0] > funnel,
+            "the one send_block site must live in the host_set_block funnel"
+        );
+    }
+
+    /// THE NO-OPTIMISTIC-TAKE LAW (loop 465): the mined block's yield is
+    /// the server's to give. Inside `break_block_drops` — the ONE path
+    /// every canonical block yield spawns through — every drop spawn must
+    /// sit behind the offline gate (`net.is_none()`): online the dig only
+    /// claimed its hand and the server's ItemGrant pays the canonical
+    /// drop, so a rejected or already-mined dig can never pay a phantom
+    /// item. The scaffold column (the other former direct-spawn site) must
+    /// route through break_block_drops, and the server's grant must land
+    /// in the pack through the same overflow-spill pattern the trade
+    /// escrow uses.
+    #[test]
+    fn mined_yields_spawn_only_offline_and_grants_arrive_from_the_server() {
+        let source = include_str!("lib.rs");
+        let start = source
+            .find("fn break_block_drops(")
+            .expect("break_block_drops must exist");
+        let end = start + source[start..].find("\n    fn ").expect("break_block_drops must end");
+        let body = &source[start..end];
+
+        let mut idx = 0;
+        let mut ungated: Vec<usize> = Vec::new();
+        while let Some(pos) = body[idx..].find("self.spawn_drop(") {
+            let at = idx + pos;
+            let prefix = &body[at.saturating_sub(220)..at];
+            if !prefix.contains("offline") {
+                ungated.push(at);
+            }
+            idx = at + 1;
+        }
+        assert!(
+            ungated.is_empty(),
+            "un-gated drop spawns inside break_block_drops at {ungated:?} — \
+             online yields must come from the server's ItemGrant, not this client"
+        );
+
+        let scaffold_at = source
+            .find("breaking a scaffold drops the whole")
+            .expect("the scaffold column must exist");
+        let scaffold_region = &source[scaffold_at..(scaffold_at + 1000).min(source.len())];
+        assert!(
+            scaffold_region.contains("break_block_drops")
+                && !scaffold_region.contains("self.spawn_drop("),
+            "the scaffold column must yield through break_block_drops (the one gated path)"
+        );
+
+        let arm = source
+            .find("ServerMessage::ItemGrant { items }")
+            .expect("the ItemGrant arm must exist");
+        let arm_region = &source[arm..(arm + 500).min(source.len())];
+        assert!(
+            arm_region.contains("add_item") && arm_region.contains("spawn_drop"),
+            "the server's grant lands in the inventory; overflow spills at the feet"
         );
     }
 

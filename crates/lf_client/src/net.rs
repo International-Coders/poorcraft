@@ -4,7 +4,27 @@
 use std::collections::{HashMap, VecDeque};
 use std::net::UdpSocket;
 
-use lf_protocol::{ClientMessage, ProtocolCodec, ServerMessage, PROTOCOL_VERSION};
+use lf_game::host::EditKind;
+use lf_game::survival::ItemStack;
+use lf_protocol::{ClientMessage, MineClaim, ProtocolCodec, ServerMessage, PROTOCOL_VERSION};
+
+/// THE MINE-CLAIM LAW: only a player MINED edit claims its hand on the
+/// wire, and the claim is honest — the held item id, or `None` for a bare
+/// hand (a bare-handed dig of a no-tool block is a legal yield, online
+/// and off). Places and every simulation edit (machine, fluid, falling,
+/// console, server mirror) claim nothing, so the server can never pay a
+/// yield for an edit no player dug. The server evaluates its OWN copy of
+/// the harvest law against the block it actually had before granting
+/// ([`ServerMessage::ItemGrant`]) — the claim is what the server gates,
+/// not a demand.
+pub fn mine_claim_for(reason: EditKind, held: Option<&ItemStack>) -> Option<MineClaim> {
+    match reason {
+        EditKind::Mine => Some(MineClaim {
+            held: held.map(|s| s.item_id.clone()),
+        }),
+        _ => None,
+    }
+}
 
 /// THE REPLAY-WINDOW LAW: remote edits for chunks that have not streamed in
 /// yet buffer here instead of being lost. The server replays its whole edit
@@ -155,6 +175,31 @@ mod tests {
         assert_eq!(RemoteEditBuffer::chunk_of(-16, 15), (-1, 0));
         assert_eq!(RemoteEditBuffer::chunk_of(16, -17), (1, -2));
     }
+
+    fn held(id: &str) -> ItemStack {
+        ItemStack { item_id: id.to_string(), count: 1 }
+    }
+
+    /// THE MINE-CLAIM LAW: a MINE claims its honest hand — tool id when
+    /// one is held, `None` for a bare hand — and every non-mine edit
+    /// claims nothing, so only player digs can ever pay.
+    #[test]
+    fn only_mine_edits_claim_and_the_claim_is_the_honest_hand() {
+        use lf_game::host::EditKind;
+
+        let pick = held("stone_pickaxe");
+        let claim = mine_claim_for(EditKind::Mine, Some(&pick)).expect("a mine claims");
+        assert_eq!(claim.held.as_deref(), Some("stone_pickaxe"), "the claim names the held tool");
+
+        let bare = mine_claim_for(EditKind::Mine, None).expect("a bare hand still claims the mine");
+        assert_eq!(bare.held, None, "a bare-handed claim is honest about the empty hand");
+
+        for reason in [EditKind::Place, EditKind::Machine, EditKind::Fluid,
+                       EditKind::Falling, EditKind::Console, EditKind::Server] {
+            assert!(mine_claim_for(reason, Some(&pick)).is_none(),
+                    "{reason:?} edits claim nothing — only digs can pay");
+        }
+    }
 }
 
 pub struct NetClient {
@@ -203,8 +248,8 @@ impl NetClient {
         let _ = self.socket.send(&msg);
     }
 
-    pub fn send_block(&self, x: i32, y: i32, z: i32, block: u32) {
-        let msg = ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block });
+    pub fn send_block(&self, x: i32, y: i32, z: i32, block: u32, mine: Option<MineClaim>) {
+        let msg = ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block, mine });
         let _ = self.socket.send(&msg);
     }
 

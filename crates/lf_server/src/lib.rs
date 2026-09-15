@@ -160,14 +160,14 @@ fn handle_message(
                 p.yaw = yaw;
             }
         }
-        ClientMessage::SetBlock { x, y, z, block } => {
+        ClientMessage::SetBlock { x, y, z, block, mine } => {
             // THE NO-SELF-ECHO LAW: the editor applied its edit optimistically
             // before sending it, so echoing an ACCEPTED edit back would
             // double-apply (a second host event for one player action plus a
             // redundant relight/remesh of the column). Peers receive the
             // update; the editor only hears from the server again when it
-            // REJECTED the op — the corrective echo below — so the editor's
-            // optimistic world can never diverge from the canonical one.
+            // REJECTED the op — the corrective echo below — or when the op
+            // was a MINE that pays (the ItemGrant, also editor-alone).
             //
             // validate: within height, and a real block (vanilla or a mod
             // block registered from a loaded mods/ dir)
@@ -177,6 +177,9 @@ fn handle_message(
                 if world.chunk(cx, cz).is_none() {
                     world.chunks.insert((cx, cz), gen.generate_chunk(cx, cz));
                 }
+                // THE YIELD-GRANT LAW: what the block was is what the server
+                // had — read BEFORE the canonical world changes.
+                let old = world.get_block(x, y, z).0;
                 world.set_block(x, y, z, BlockState(block));
                 edits.push((x, y, z, block));
                 let upd = ProtocolCodec::encode_server(&ServerMessage::BlockUpdate { x, y, z, block });
@@ -185,6 +188,29 @@ fn handle_message(
                         continue;
                     }
                     let _ = socket.send_to(&upd, p.addr);
+                }
+                // THE YIELD IS THE SERVER'S TO GIVE: only a player MINE
+                // (claimed on the wire, bare hands included) that actually
+                // broke a real block pays, and it pays to the editor ALONE.
+                // The harvest gate and the drop table are lf_game's — the
+                // same law the client plays, one source. A place, a
+                // simulation edit, a dig into already-air (a re-sent packet,
+                // or a peer who mined the same block first), and a rejected
+                // op all grant nothing.
+                if let Some(claim) = mine {
+                    if old != lf_voxel::registry::block::AIR {
+                        let held = claim
+                            .held
+                            .map(|id| lf_game::survival::ItemStack { item_id: id, count: 1 });
+                        if lf_game::mining::tool_satisfies(old, held.as_ref()) {
+                            if let Some(item) = lf_game::items::block_drop(old) {
+                                let grant = ProtocolCodec::encode_server(&ServerMessage::ItemGrant {
+                                    items: vec![(item, 1)],
+                                });
+                                let _ = socket.send_to(&grant, src);
+                            }
+                        }
+                    }
                 }
             } else if (0..256).contains(&y) {
                 // THE CORRECTIVE ECHO: the op was rejected (e.g. a mod block
@@ -373,7 +399,7 @@ mod tests {
         assert!(c2_msgs.iter().any(|m| matches!(m, ServerMessage::Chat { from, text } if from == "alice" && text == "hi bob")),
             "bob receives chat");
 
-        c2.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 5, y: 70, z: -3, block: 1 })).unwrap();
+        c2.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 5, y: 70, z: -3, block: 1, mine: None })).unwrap();
         assert!(drain_until(&c1, 5000, |m| matches!(m,
             ServerMessage::BlockUpdate { x: 5, y: 70, z: -3, block: 1 })).is_some(),
             "alice receives block update");
@@ -505,7 +531,7 @@ mod tests {
         let _ = drain(&observer);
 
         // A mod-block edit is accepted and relayed — to the peer only.
-        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 2, y: 70, z: 2, block: probe_id })).unwrap();
+        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 2, y: 70, z: 2, block: probe_id, mine: None })).unwrap();
         assert!(drain_until(&observer, 5000, |m| matches!(m,
             ServerMessage::BlockUpdate { x: 2, y: 70, z: 2, block } if *block == probe_id)).is_some(),
             "mod block edit is accepted and relayed to the peer");
@@ -517,7 +543,7 @@ mod tests {
         // An unknown-id op is rejected — the editor alone gets the server's
         // true block at that position (never the unknown id), and the peer
         // hears nothing (nothing happened in the shared world).
-        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 3, y: 70, z: 3, block: unknown_id })).unwrap();
+        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 3, y: 70, z: 3, block: unknown_id, mine: None })).unwrap();
         let fix = drain_until(&sender, 5000, |m| matches!(m,
             ServerMessage::BlockUpdate { x: 3, y: 70, z: 3, .. }));
         match fix {
@@ -557,7 +583,7 @@ mod tests {
             (40, 90, -49, 1u32),   // placed in chunk (2, -4)
         ];
         for &(x, y, z, block) in history.iter() {
-            a.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block })).unwrap();
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block, mine: None })).unwrap();
         }
         pump(300);
 
@@ -586,6 +612,184 @@ mod tests {
             }
         }
         assert_eq!(seen, history.len(), "the newcomer's replay covers the full edit history");
+
+        server.stop();
+    }
+
+    /// THE YIELD-GRANT LAW, over real UDP: an accepted MINE pays the
+    /// canonical yield to the EDITOR ALONE — the peer sees the block
+    /// update and never a grant — and a PLACE never pays anyone. The
+    /// staged blocks sit at y=200, far above any terrain, so the law does
+    /// not depend on where the seed put its stone.
+    #[test]
+    fn mined_yields_are_granted_to_the_editor_alone() {
+        use lf_voxel::registry::block;
+
+        let mut server = Server::start("127.0.0.1:0", 909).expect("start server");
+        let addr = server.local_addr();
+        let editor = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let peer = UdpSocket::bind("127.0.0.1:0").unwrap();
+        editor.set_nonblocking(true).unwrap();
+        peer.set_nonblocking(true).unwrap();
+        editor.connect(addr).unwrap();
+        peer.connect(addr).unwrap();
+        for (sock, name) in [(&editor, "miner"), (&peer, "watcher")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&editor);
+        let _ = drain(&peer);
+
+        // A PLACE never grants — not to the placer, not to the peer.
+        editor.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+            x: 2, y: 200, z: 2, block: block::STONE, mine: None,
+        })).unwrap();
+        assert!(drain_until(&peer, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 2, y: 200, z: 2, block } if *block == block::STONE)).is_some(),
+            "the peer sees the placed block");
+        pump(300);
+        assert!(!drain(&editor).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
+            "a place never pays the placer");
+        assert!(!drain(&peer).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
+            "a place never pays the peer");
+
+        // The MINE pays: the canonical stone yield, to the editor alone.
+        editor.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+            x: 2, y: 200, z: 2, block: block::AIR,
+            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }),
+        })).unwrap();
+        let grant = drain_until(&editor, 5000, |m| matches!(m, ServerMessage::ItemGrant { .. }));
+        match grant {
+            Some(ServerMessage::ItemGrant { items }) =>
+                assert_eq!(items, vec![("stone".into(), 1)], "the canonical stone yield"),
+            other => panic!("the editor's mine must pay, got {:?}", other),
+        }
+        assert!(drain_until(&peer, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 2, y: 200, z: 2, block } if *block == block::AIR)).is_some(),
+            "the peer sees the dug block");
+        pump(300);
+        assert!(!drain(&peer).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
+            "THE YIELD-GRANT LAW: the peer never receives a grant");
+
+        server.stop();
+    }
+
+    /// THE HARVEST GATE HOLDS SERVER-SIDE: the wire claim is evaluated by
+    /// the same lf_game law the client plays — iron ore pays only to a
+    /// stone-or-better pick, and a mine claimed with an inadequate tool
+    /// pays nothing (the block still breaks: the update is canonical).
+    #[test]
+    fn the_harvest_gate_holds_server_side() {
+        use lf_voxel::registry::block;
+
+        let mut server = Server::start("127.0.0.1:0", 911).expect("start server");
+        let addr = server.local_addr();
+        let editor = UdpSocket::bind("127.0.0.1:0").unwrap();
+        editor.set_nonblocking(true).unwrap();
+        editor.connect(addr).unwrap();
+        editor.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+            name: "gater".into(), protocol_version: PROTOCOL_VERSION,
+        })).unwrap();
+        pump(150);
+        let _ = drain(&editor);
+
+        // Stage iron ore at a fresh spot above any terrain, then dig it
+        // with the claimed hand; answer whether a grant arrived. (The
+        // editor never sees its own place echoed — THE NO-SELF-ECHO LAW —
+        // and loopback UDP keeps the pair in order, so the server stages
+        // before it digs.)
+        let mine = |sock: &UdpSocket, x: i32, held: Option<&str>| {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+                x, y: 200, z: 9, block: block::IRON_ORE, mine: None,
+            })).unwrap();
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+                x, y: 200, z: 9, block: block::AIR,
+                mine: Some(lf_protocol::MineClaim { held: held.map(|s| s.to_string()) }),
+            })).unwrap();
+            pump(250);
+            drain(sock).into_iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. }))
+        };
+
+        assert!(!mine(&editor, 4, Some("wooden_pickaxe")),
+            "iron ore needs a stone-or-better pick: a wooden pick's mine pays nothing");
+        assert!(mine(&editor, 6, Some("stone_pickaxe")),
+            "a stone pick's iron mine pays");
+        assert!(!mine(&editor, 8, None),
+            "a bare-handed iron mine claims the mine but fails the gate");
+
+        server.stop();
+    }
+
+    /// A DIG PAYS ONCE: a re-sent mine into already-air (a lost-packet
+    /// duplicate, or a peer who mined the same block first) grants nothing,
+    /// and a REJECTED op (unknown block id) never pays — the corrective
+    /// echo still reverts the optimistic editor, and no grant rides with it.
+    #[test]
+    fn a_dig_pays_once_and_rejected_ops_never_pay() {
+        use lf_voxel::registry::block;
+
+        let mut server = Server::start("127.0.0.1:0", 913).expect("start server");
+        let addr = server.local_addr();
+        let editor = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let late = UdpSocket::bind("127.0.0.1:0").unwrap();
+        editor.set_nonblocking(true).unwrap();
+        late.set_nonblocking(true).unwrap();
+        editor.connect(addr).unwrap();
+        late.connect(addr).unwrap();
+        for (sock, name) in [(&editor, "first"), (&late, "second")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&editor);
+        let _ = drain(&late);
+
+        // First miner breaks the staged block: exactly one grant. (No
+        // self-echo wait — the placer never hears its own place; loopback
+        // UDP keeps the staged pair in order.)
+        editor.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+            x: 12, y: 200, z: 12, block: block::DIRT, mine: None,
+        })).unwrap();
+        let mine = ClientMessage::SetBlock {
+            x: 12, y: 200, z: 12, block: block::AIR,
+            mine: Some(lf_protocol::MineClaim { held: None }),
+        };
+        let bytes = ProtocolCodec::encode_client(&mine);
+        editor.send(&bytes).unwrap();
+        assert!(drain_until(&editor, 5000, |m| matches!(m, ServerMessage::ItemGrant { .. })).is_some(),
+            "the first (and only) dig pays");
+        pump(300);
+        let _ = drain(&editor);
+
+        // The same mine again — a duplicate packet, or the second player's
+        // optimistic dig of a block that is already gone: canonical air,
+        // BlockUpdate to peers, but NO second grant to anyone.
+        editor.send(&bytes).unwrap();
+        pump(300);
+        assert!(!drain(&editor).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
+            "a re-sent dig into already-air never pays again");
+        assert!(!drain(&late).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
+            "peers never see grants, duplicate or not");
+
+        // A rejected op (unknown id) never pays: the corrective echo
+        // reverts the editor, and no grant rides with it.
+        let unknown = lf_voxel::registry::MAX_VANILLA_BLOCK + 1;
+        late.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+            x: 14, y: 200, z: 14, block: unknown,
+            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }),
+        })).unwrap();
+        let fix = drain_until(&late, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 14, y: 200, z: 14, .. }));
+        assert!(matches!(fix, Some(ServerMessage::BlockUpdate { block: 0, .. })),
+            "the corrective echo answers the optimistic editor");
+        pump(300);
+        assert!(!drain(&late).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
+            "a rejected op never pays");
+        assert!(!drain(&editor).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
+            "a rejected op never pays anyone else either");
 
         server.stop();
     }

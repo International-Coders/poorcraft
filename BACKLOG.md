@@ -11,6 +11,41 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The yield is the server's to give: server-side dig-yield
+      authority over real UDP (2026-09-15, loop 465, root workspace):
+      closed STATE's next_task item (1)'s higher-severity half — the 462
+      deferral "server-side inventory authority (the corrective echo
+      reverts the BLOCK, not an optimistic item take)"; chosen over the
+      windowed two-client route per the priority ladder (an authority
+      gap above a missing proof). THE WIRE (protocol v5): SetBlock
+      carries `mine: Option<MineClaim>` — Some iff a player MINED dig,
+      with the honest held item id (None = bare hand, still claiming);
+      places and simulation edits claim nothing; new ItemGrant message —
+      the canonical yield, editor alone. THE SERVER gates the claim
+      through mining::tool_satisfies and pays items::block_drop against
+      what the block WAS — the same lf_game law the client plays, one
+      source, mods included. THE CLIENT: the host funnel computes the
+      claim and is the one broadcaster; break_block_drops spawns only
+      offline — online the yield arrives via ItemGrant with the
+      trade-escrow overflow spill; the scaffold column routes through
+      break_block_drops; felled-tree cells claim nothing (EditKind
+      Mine -> Falling — singleplayer never paid them as drops); the
+      apple bonus is offline flavor. EN-ROUTE: the mine-break path's
+      redundant second send_block removed (every dig went on the wire
+      twice + double-entered the server's edit history). Evidence: 3 new
+      real-UDP wire laws (editor-alone grant + place-never-pays;
+      server-side harvest gate incl. bare hand; pays-once +
+      rejected-never-pays) + the claim round-trip + the mine-claim unit
+      law + 2 source laws (one-broadcaster, no-optimistic-take) = 7 new
+      laws; workspace 509/0 + xtask 12; smoke OK; battery 110 scenes
+      exit-0 with every committed PNG byte-identical (singleplayer
+      pixel-proven unchanged); runtimes fresh. Deferred honestly: the
+      server holds no canonical inventories yet (crafting/smelting/trade
+      sourcing stay client-held); apple bonus offline-only (no server
+      RNG); timber blocked-cell drops + container spills client-local
+      (sim/block-entity sync tier); the windowed two-client route (needs
+      a headless GameState driver).
+
 - [x] The resonance compass + the remembered song + the bearing law
       (2026-09-15, loop 464, root workspace): closed STATE's next_task
       item (2) — the resonance depth pass. THE HELD CRYSTAL: holding

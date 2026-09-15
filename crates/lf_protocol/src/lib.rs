@@ -7,7 +7,15 @@ pub enum ClientMessage {
     /// Player state, sent ~20/s.
     Position { pos: [f32; 3], yaw: f32, pitch: f32 },
     /// Request to change a block (validated/applied by the server).
-    SetBlock { x: i32, y: i32, z: i32, block: u32 },
+    /// `mine` is the v5 mine claim: `Some(..)` iff this edit is a player
+    /// MINED dig (places and simulation edits claim nothing), carrying the
+    /// held item id (`None` inside = a bare hand). The server evaluates
+    /// the harvest law against the block it actually had and grants the
+    /// canonical yield back to the editor alone
+    /// ([`ServerMessage::ItemGrant`]) — a rejected or already-mined dig
+    /// never pays, and a bare-handed dig of a no-tool block pays the same
+    /// as it does offline.
+    SetBlock { x: i32, y: i32, z: i32, block: u32, mine: Option<MineClaim> },
     Chat { text: String },
     /// P37 (protocol v4) player trading: offer items to a player.
     TradeOffer { to: u64, give: Vec<(String, u8)>, want: Vec<(String, u8)> },
@@ -35,9 +43,26 @@ pub enum ServerMessage {
     /// Escrow verdict: accepted swaps deliver items to BOTH sides;
     /// cancelled offers free them. `items` is what THIS client receives.
     TradeResolved { offer_id: u64, accepted: bool, items: Vec<(String, u8)> },
+    /// THE YIELD-GRANT LAW (protocol v5): the canonical yield of the
+    /// editor's accepted MINE, delivered to the editor ALONE. The server
+    /// — not the client — is the granter of mined rewards: a rejected op,
+    /// a place, a simulation edit, or an already-air cell never grants.
+    ItemGrant { items: Vec<(String, u8)> },
 }
 
-pub const PROTOCOL_VERSION: u32 = 4;
+/// THE MINE CLAIM (protocol v5): rides a `SetBlock` that is a player
+/// MINED dig. `held` is the item id in the digging hand — `None` = a bare
+/// hand, which still claims the mine (a bare-handed dig of a no-tool
+/// block is a legal yield, online and off).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct MineClaim {
+    pub held: Option<String>,
+}
+
+/// v5: the mine claim (`SetBlock.mine`) + the server-side yield
+/// grant. Server and client ship together; the existing version gate
+/// rejects mismatched peers.
+pub const PROTOCOL_VERSION: u32 = 5;
 
 /// One escrowed trade offer on the server (P37). The server holds the
 /// offer and validates the participants; item swaps apply on the peers
@@ -73,7 +98,39 @@ mod trade_tests {
         };
         let back: ServerMessage = bincode::deserialize(&bincode::serialize(&resolved).unwrap()).unwrap();
         assert_eq!(back, resolved);
-        assert_eq!(PROTOCOL_VERSION, 4);
+        assert_eq!(PROTOCOL_VERSION, 5);
+    }
+
+    /// v5: the mine claim and the yield grant round-trip.
+    #[test]
+    fn mine_claim_and_item_grant_round_trip() {
+        let tool_mine = ClientMessage::SetBlock {
+            x: 3, y: 70, z: -4, block: 0,
+            mine: Some(MineClaim { held: Some("stone_pickaxe".into()) }),
+        };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&tool_mine)),
+            Some(tool_mine),
+            "a tool mine claim survives the wire"
+        );
+        let bare_mine = ClientMessage::SetBlock { x: 3, y: 70, z: -4, block: 0, mine: Some(MineClaim { held: None }) };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&bare_mine)),
+            Some(bare_mine),
+            "a bare-handed mine still claims the mine"
+        );
+        let place = ClientMessage::SetBlock { x: 3, y: 70, z: -4, block: 2, mine: None };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&place)),
+            Some(place),
+            "a place carries no claim"
+        );
+        let grant = ServerMessage::ItemGrant { items: vec![("stone".into(), 1), ("raw_iron".into(), 2)] };
+        assert_eq!(
+            ProtocolCodec::decode_server(&ProtocolCodec::encode_server(&grant)),
+            Some(grant),
+            "the yield grant survives the wire"
+        );
     }
 }
 
@@ -127,7 +184,7 @@ mod tests {
         let msgs = vec![
             ClientMessage::Hello { name: "zari".into(), protocol_version: PROTOCOL_VERSION },
             ClientMessage::Position { pos: [1.0, 65.0, 2.0], yaw: 0.5, pitch: -0.1 },
-            ClientMessage::SetBlock { x: -3, y: 70, z: 12, block: 2 },
+            ClientMessage::SetBlock { x: -3, y: 70, z: 12, block: 2, mine: None },
             ClientMessage::Chat { text: "hello world".into() },
             ClientMessage::Goodbye,
         ];
@@ -147,6 +204,7 @@ mod tests {
             ServerMessage::PlayerJoined { id: 8, name: "maya".into() },
             ServerMessage::PlayerLeft { id: 8 },
             ServerMessage::Reject { reason: "version".into() },
+            ServerMessage::ItemGrant { items: vec![("stone".into(), 1)] },
         ];
         for m in msgs {
             let enc = ProtocolCodec::encode_server(&m);
