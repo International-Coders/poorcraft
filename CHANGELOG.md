@@ -1,5 +1,81 @@
 # CHANGELOG
 
+## 2026-09-15 — The replay-window law: multiplayer terrain-edit routing made lossless (loop 462)
+
+- Closed STATE's next_task item (1) — "multiplayer routing of terrain
+  edits", carried since loop 450. THE AUDIT: the routing skeleton
+  already existed (client host funnel -> SetBlock -> server
+  validate/lazy-generate/edit history -> BlockUpdate broadcast ->
+  client host funnel; newcomer replay on Hello; N05 seed adoption),
+  but with three real defects.
+- (D1) THE LOSSY REPLAY: World::set_block refuses edits for a missing
+  chunk (the host records a reject and moves on), and the server sends
+  the newcomer replay the moment it says Welcome — while the client's
+  streamer is still generating chunks. Every replayed edit outside the
+  already-meshed ring silently vanished; stream_chunks even documented
+  the assumption ("Re-apply nothing: generated columns are pristine").
+  A second client only ever saw edits in chunks it happened to have
+  meshed at join time.
+- (D2) THE OWN-ECHO: the server broadcast every accepted edit to ALL
+  players INCLUDING the editor, whose optimistic apply then ran a
+  second time — a duplicate host event for one player action plus a
+  redundant relight/remesh of the column.
+- (D3) THE SILENT REJECT: a rejected op (unknown block id — e.g. a
+  client mod the server has not registered) left the optimistic editor
+  diverging from the canonical world with no word.
+- THE LAWS. Replay window (lf_client::net::RemoteEditBuffer): remote
+  edits for chunks that have not streamed in buffer per chunk —
+  bounded (16384, FIFO eviction of the oldest chunk's queue whole,
+  eviction counted) — and the streamer flushes a chunk's queue
+  oldest-first in the server's history order the moment the chunk
+  arrives, BEFORE the column meshes (both chunk-insert sites: saved
+  loads and fresh generation). A source law pins flush-at-every-
+  non-test-chunk-insert (it caught the new Welcome ring itself en
+  route). No-self-echo + corrective echo (lf_server): peers receive
+  the update, the editor never hears its own accepted edit again, and
+  a REJECTED op answers the editor ALONE with the server's true block
+  at that position (the same lazy generation the accept path uses), so
+  the optimistic world reverts; y-out-of-range stays silent because
+  the client's own guard refused the optimistic apply too.
+  Join-identity (client Welcome arm): adopting the server seed adopts
+  its TERRAIN — world/meshes/block entities/mobs/drops/map reset, the
+  boot ring regenerates synchronously from the server seed, the
+  streamer restarts clean, the replay window purges (the replay
+  arrives right after Welcome); player session state (inventory,
+  quests, chronicle, position) stays. Before this, a joiner walked a
+  patchwork of the locally-seeded boot ring and server-seeded stream.
+- 5 NEW LAWS (root 488 -> 493; lf_client 93 -> 97, lf_server 3 -> 4):
+  the 3 buffer laws (history-order flush per chunk, oldest-whole
+  eviction + the order invariant, mesher-partition chunk keys incl.
+  negatives); the source law (every chunk insert flushes); the
+  newcomer-history wire law (three edits across three chunks incl.
+  far coords replay to a later joiner over real UDP). The P25
+  registry test was rewritten as the no-self-echo + corrective-echo
+  wire law (the old echo assertion enshrined D2).
+- REGRESSION: root cargo test --workspace 493 green / 0 failed
+  (35 suites); make smoke OK (headless logic + GUI liveness);
+  runtimes refreshed (dist/ dmg 8.8 MB UDZO + linux tarball 8.4 MB +
+  .app binary 20 MB + server, fresh on disk 07:12); Windows exe
+  honestly skipped (mingw absent); visual gates NOT run —
+  singleplayer renders byte-for-byte the same paths (the buffer only
+  engages when net is Some; the flush is one empty-map check per chunk
+  insert; the 458/459/461 precedent), and the multiplayer GPU client
+  has no visual harness — the wire laws + buffer laws + source law are
+  this slice's proof family.
+- PERF: a small net win — one redundant host apply + relight + remesh
+  removed per own accepted edit (the D2 cure); the buffer allocates
+  only for edits that cannot yet apply; the flush amortizes into the
+  chunk's first mesh; no new per-frame work.
+- LORE: canon touched: none — netcode and join-identity
+  infrastructure. World expression: a second adventurer in Valdenmoor
+  sees the digs and placements as they happened, and arrives on the
+  host's land rather than a patchwork of two seeds. Migration: none.
+  Deferred honestly: geode pairing (447's keeper, now next_task 1);
+  server-side inventory authority (the corrective echo reverts the
+  BLOCK, not an optimistic item take); a windowed two-client route
+  (the GPU-side end of the wire laws); hardcoded connect name
+  "smith" (audit note).
+
 ## 2026-09-15 — The keeper's chronicle law: every true waking is a Discovery, staffed roosts never spam (loop 461)
 
 - Closed STATE's next_task item (1) — loop 447's honest deferral:

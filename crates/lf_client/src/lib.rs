@@ -1250,6 +1250,10 @@ struct GameState {
     pub quest_log: QuestLog,
     pub chronicle: Vec<ChronicleEvent>,
     pub net: Option<net::NetClient>,
+    /// THE REPLAY-WINDOW BUFFER: remote edits whose chunk has not streamed
+    /// in yet (see net::RemoteEditBuffer). The streamer flushes a chunk's
+    /// queue when the chunk arrives, before the column is meshed.
+    pub pending_remote_edits: net::RemoteEditBuffer,
     pub chat_input: Option<String>,
     pub chat_log: Vec<String>,
     /// Clear -> rain/snow cycle with random transitions.
@@ -1702,6 +1706,7 @@ impl GameState {
             settings,
             world_type,
             net: None,
+            pending_remote_edits: net::RemoteEditBuffer::new(),
             chat_input: None,
             chat_log: Vec::new(),
             weather_raining: false,
@@ -1907,6 +1912,8 @@ impl GameState {
         self.column_bounds.clear();
         self.dirty.clear();
         self.saved_set.clear();
+        // A fresh world identity invalidates any buffered remote edits.
+        self.pending_remote_edits = net::RemoteEditBuffer::new();
         let mut worker_skip = HashSet::new();
         for cx in -BOOT_RADIUS..=BOOT_RADIUS {
             for cz in -BOOT_RADIUS..=BOOT_RADIUS {
@@ -2223,14 +2230,42 @@ impl GameState {
     /// B03: server-authoritative mirror updates (multiplayer BlockUpdate).
     /// They pass through the host so the event log is the complete edit
     /// history, but are NOT re-broadcast — the server already told every
-    /// peer, and echoing would loop.
+    /// peer, and echoing would loop. THE REPLAY-WINDOW LAW: an edit for a
+    /// chunk that has not streamed in yet cannot apply (the host would
+    /// record a reject and the edit would be lost — the server sends the
+    /// newcomer replay the moment it says Welcome, while the streamer is
+    /// still generating), so it buffers per chunk and the streamer flushes
+    /// it when the chunk arrives.
     fn apply_remote_block_update(&mut self, x: i32, y: i32, z: i32, block: u32) {
+        let (cx, cz) = net::RemoteEditBuffer::chunk_of(x, z);
+        if self.world.chunk(cx, cz).is_none() && (0..256).contains(&y) {
+            self.pending_remote_edits.buffer(x, y, z, block);
+            return;
+        }
         self.host.queue_set_block(
             x, y, z, BlockState(block), lf_game::host::EditKind::Server,
         );
         if self.host.apply_pending(&mut self.world) > 0 {
             self.remesh_around(x, z);
         }
+    }
+
+    /// THE REPLAY-WINDOW FLUSH: the streamer calls this when chunk
+    /// (cx, cz) arrives and BEFORE the column is meshed, so buffered
+    /// remote edits mesh with the chunk in one pass. Edits apply through
+    /// the host in FIFO order (the server's history order) as Server-kind
+    /// events; no remesh here — the caller owns the mesh.
+    fn flush_pending_remote_edits(&mut self, cx: i32, cz: i32) {
+        let edits = self.pending_remote_edits.take_chunk(cx, cz);
+        if edits.is_empty() {
+            return;
+        }
+        for (x, y, z, block) in edits {
+            self.host.queue_set_block(
+                x, y, z, BlockState(block), lf_game::host::EditKind::Server,
+            );
+        }
+        self.host.apply_pending(&mut self.world);
     }
 
     fn update_title(&self) {
@@ -2895,14 +2930,57 @@ impl GameState {
                 match msg {
                     // N05: the multiplayer seed contract — Welcome carries
                     // the server's seed and the client ADOPTS it as its
-                    // world identity before generating further terrain
+                    // world identity before generating further terrain.
+                    // THE JOIN-IDENTITY LAW: adopting the seed adopts the
+                    // TERRAIN. Locally-seeded chunks (the boot ring, all
+                    // columns the old streamer had delivered) must go —
+                    // otherwise the joiner walks a patchwork of two seeds
+                    // and the server's replayed edits land in foreign
+                    // terrain. Player session state (inventory, quests,
+                    // chronicle, position) stays; world-derived collections
+                    // (mobs, drops, block entities, map) follow their world
+                    // out, and the replay-window buffer purges because the
+                    // server's own replay arrives right after Welcome.
                     lf_protocol::ServerMessage::Welcome { seed: server_seed, .. } => {
                         if server_seed != self.world_seed {
                             self.world_seed = server_seed;
                             self.world_identity = lf_worldgen::identity::WorldIdentity::new(
                                 server_seed, self.world_type, self.worldgen_mod_fingerprint());
-                            let skip = self.saved_set.clone();
-                            self.restart_streamer(server_seed, skip);
+                            self.mobs.clear();
+                            self.drops.clear();
+                            self.arrows.clear();
+                            self.mining = None;
+                            self.block_entities.clear();
+                            self.map = map::MapState::new(self.world_type, server_seed);
+                            self.pending_remote_edits = net::RemoteEditBuffer::new();
+                            let gen = WorldGen::with_type(Seed(server_seed), self.world_type);
+                            self.world = World::new();
+                            self.batches.clear();
+                            self.water_batches.clear();
+                            self.cpu_meshes.clear();
+                            self.column_bounds.clear();
+                            self.dirty.clear();
+                            self.saved_set.clear();
+                            for cx in -BOOT_RADIUS..=BOOT_RADIUS {
+                                for cz in -BOOT_RADIUS..=BOOT_RADIUS {
+                                    let col = gen.generate_chunk(cx, cz);
+                                    self.world.chunks.insert((cx, cz), col);
+                                    // The buffer was purged above, so this
+                                    // flush is a no-op — it stands so the
+                                    // insert-implies-flush law holds here too.
+                                    self.flush_pending_remote_edits(cx, cz);
+                                    self.add_column_batch(cx, cz);
+                                }
+                            }
+                            let worker_skip: HashSet<(i32, i32)> =
+                                self.world.chunks.keys().copied().collect();
+                            self.restart_streamer(server_seed, worker_skip);
+                            // fix: black-square artifact — the Live RT
+                            // pathtracer kept the previous world's voxel
+                            // clip and the egui handle its composited image
+                            // (the same cure create_world applies).
+                            self.live_tracer = None;
+                            self.live_rt_texture = None;
                             self.push_hint("adopted the server's world seed");
                         }
                     }
@@ -5578,6 +5656,8 @@ impl GameState {
                 if self.world.chunk(pos.0, pos.1).is_none() && self.saved_set.contains(&pos) {
                     if let Some(col) = self.storage.as_ref().and_then(|s| s.load_chunk(pos.0, pos.1)) {
                         self.world.chunks.insert(pos, col);
+                        // Buffered remote edits (replay window) mesh with the chunk.
+                        self.flush_pending_remote_edits(pos.0, pos.1);
                         self.add_column_batch(pos.0, pos.1);
                         loaded += 1;
                     }
@@ -5594,9 +5674,13 @@ impl GameState {
         while budget > 0 {
             match self.streamer.rx.try_recv() {
                 Ok((pos, col)) => {
-                    // Re-apply nothing: generated columns are pristine; edits
-                    // live only in saved columns.
+                    // Generated columns are pristine — except in multiplayer,
+                    // where the server's newcomer replay may hold edits for
+                    // this chunk (they buffered when they arrived too early
+                    // to apply). Flush before meshing so the chunk arrives
+                    // already carrying the shared world's history.
                     self.world.chunks.insert(pos, col);
+                    self.flush_pending_remote_edits(pos.0, pos.1);
                     self.add_column_batch(pos.0, pos.1);
                     budget -= 1;
                 }
@@ -7340,6 +7424,42 @@ mod tests {
             "direct world edits outside the host funnels at byte offsets {:?} — \
              route them through host_set_block/apply_remote_block_update",
             direct_sites
+        );
+    }
+
+    /// THE REPLAY-WINDOW SOURCE LAW: every chunk that enters the world on
+    /// the live paths (`world.chunks.insert(` before `#[cfg(test)]`) must
+    /// flush the buffered remote-edit queue for that chunk before it is
+    /// meshed (`flush_pending_remote_edits` within the next few lines).
+    /// A new insert site without the flush silently loses the server's
+    /// replayed edits for that chunk — the exact newcomer bug this window
+    /// exists to fix. (The boot/constructor ring at Client::new is exempt:
+    /// nothing can be buffered before any network exists.)
+    #[test]
+    fn every_chunk_insert_flushes_the_replay_window() {
+        let source = include_str!("lib.rs");
+        let tests_start = source.find("#[cfg(test)]").expect("test module must exist");
+        let live = &source[..tests_start];
+        let flush_site = live
+            .find("fn flush_pending_remote_edits(")
+            .expect("the flush funnel must exist");
+
+        let mut idx = 0;
+        let mut unflushed: Vec<usize> = Vec::new();
+        while let Some(pos) = live[idx..].find(".chunks.insert(") {
+            let at = idx + pos;
+            let window = &live[at..(at + 400).min(live.len())];
+            let after_funnel = at > flush_site;
+            if after_funnel && !window.contains("flush_pending_remote_edits") {
+                unflushed.push(at);
+            }
+            idx = at + 1;
+        }
+        assert!(
+            unflushed.is_empty(),
+            "chunk inserts without a replay-window flush at byte offsets {:?} — \
+             call flush_pending_remote_edits(cx, cz) before add_column_batch",
+            unflushed
         );
     }
 

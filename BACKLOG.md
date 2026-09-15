@@ -11,6 +11,40 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The replay-window law: multiplayer terrain-edit routing made
+      lossless (2026-09-15, loop 462, root workspace): closed STATE's
+      next_task item (1) — "route player edits through the
+      authoritative server path ... so a second client sees
+      digs/placements", carried since loop 450. The audit found the
+      skeleton existed with three real defects: (D1) the newcomer
+      replay was lossy — World::set_block refuses edits for a missing
+      chunk, so every replayed edit outside the already-meshed ring
+      silently vanished; (D2) the server echoed the editor's own
+      accepted edit back, double-applying (duplicate host event +
+      redundant relight/remesh per player action); (D3) a rejected op
+      (unknown block id) left the optimistic editor diverging
+      silently. THE LAWS: the replay window (lf_client::net::
+      RemoteEditBuffer — remote edits for unstreamed chunks buffer per
+      chunk, bounded with FIFO oldest-whole eviction, and the streamer
+      flushes a chunk's queue in the server's history order the moment
+      the chunk arrives, before meshing; a source law pins flush at
+      every non-test chunk insert); the no-self-echo + corrective echo
+      (lf_server — peers get updates, the editor never hears its own
+      accepted edit, and a reject answers the editor alone with the
+      server's true block); the join-identity law (a Welcome seed
+      adoption regenerates the boot ring and world-derived state so
+      the joiner lands on the server's terrain, not a two-seed
+      patchwork). 5 new laws (root 488 -> 493; lf_client 93 -> 97,
+      lf_server 3 -> 4) incl. the newcomer-history wire law over real
+      UDP (three edits across three chunks replay to a later joiner).
+      Evidence: workspace 493/0 (35 suites); smoke OK; runtimes fresh
+      on disk; visual gates not run — singleplayer renders the same
+      paths (the 458/459/461 precedent) and the multiplayer GPU client
+      has no visual harness (honest limit). Deferred honestly: geode
+      pairing; server-side inventory authority (the corrective echo
+      reverts the block, not an optimistic item take); a windowed
+      two-client route.
+
 - [x] The keeper's chronicle law: every true waking is a Discovery,
       staffed roosts never spam (2026-09-15, loop 461, root
       workspace): closed STATE's next_task item (1) — 447's deferral

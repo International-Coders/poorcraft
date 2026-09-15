@@ -161,6 +161,14 @@ fn handle_message(
             }
         }
         ClientMessage::SetBlock { x, y, z, block } => {
+            // THE NO-SELF-ECHO LAW: the editor applied its edit optimistically
+            // before sending it, so echoing an ACCEPTED edit back would
+            // double-apply (a second host event for one player action plus a
+            // redundant relight/remesh of the column). Peers receive the
+            // update; the editor only hears from the server again when it
+            // REJECTED the op — the corrective echo below — so the editor's
+            // optimistic world can never diverge from the canonical one.
+            //
             // validate: within height, and a real block (vanilla or a mod
             // block registered from a loaded mods/ dir)
             if (0..256).contains(&y) && lf_voxel::registry::is_known_block(block) {
@@ -173,9 +181,32 @@ fn handle_message(
                 edits.push((x, y, z, block));
                 let upd = ProtocolCodec::encode_server(&ServerMessage::BlockUpdate { x, y, z, block });
                 for p in players.values() {
+                    if p.addr == src {
+                        continue;
+                    }
                     let _ = socket.send_to(&upd, p.addr);
                 }
+            } else if (0..256).contains(&y) {
+                // THE CORRECTIVE ECHO: the op was rejected (e.g. a mod block
+                // the server has not registered), but the optimistic editor
+                // DID apply it locally. Answer with the server's true block
+                // at that position — the same lazy generation the accept
+                // path uses to be able to answer at all — so the editor
+                // reverts to canonical state instead of diverging silently.
+                let (cx, _lx) = (x.div_euclid(16), x.rem_euclid(16));
+                let (cz, _lz) = (z.div_euclid(16), z.rem_euclid(16));
+                if world.chunk(cx, cz).is_none() {
+                    world.chunks.insert((cx, cz), gen.generate_chunk(cx, cz));
+                }
+                let truth = world.get_block(x, y, z).0;
+                let fix = ProtocolCodec::encode_server(&ServerMessage::BlockUpdate {
+                    x, y, z, block: truth,
+                });
+                let _ = socket.send_to(&fix, src);
             }
+            // y outside 0..256: the client's own world.set_block guard
+            // refused the optimistic apply too, so there is nothing to
+            // correct and nothing to broadcast.
         }
         ClientMessage::TradeOffer { to, give, want } => {
             // P37 escrow: register the offer, notify the recipient.
@@ -434,11 +465,16 @@ mod tests {
         server.stop();
     }
 
-    /// Mod blocks (ids >= 100 from a loaded mods/ dir) must be accepted and
-    /// relayed; unknown ids must be silently dropped (P25 regression test for
-    /// the old `block <= 18` cap that rejected all mod blocks).
+    /// P25 regression + THE NO-SELF-ECHO LAW + THE CORRECTIVE ECHO, over
+    /// real UDP: mod blocks (ids >= 100 from a loaded mods/ dir) are
+    /// accepted and relayed to PEERS (the old `block <= 18` cap rejected
+    /// them all); the editor never receives its own accepted edit back
+    /// (it applied optimistically — an echo would double-apply); and a
+    /// REJECTED op (unknown id) answers the editor alone with the server's
+    /// true block at that position so its optimistic world reverts instead
+    /// of diverging silently.
     #[test]
-    fn set_block_validates_against_registry() {
+    fn set_block_no_self_echo_and_corrective_reject() {
         use lf_voxel::registry::{is_known_block, register_mod_block, ModBlockDef};
 
         let probe_id = 9101;
@@ -453,25 +489,103 @@ mod tests {
 
         let mut server = Server::start("127.0.0.1:0", 777).expect("start server");
         let addr = server.local_addr();
-        let c = UdpSocket::bind("127.0.0.1:0").unwrap();
-        c.set_nonblocking(true).unwrap();
-        c.connect(addr).unwrap();
-        c.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "solo".into(), protocol_version: PROTOCOL_VERSION,
+        let sender = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let observer = UdpSocket::bind("127.0.0.1:0").unwrap();
+        sender.set_nonblocking(true).unwrap();
+        observer.set_nonblocking(true).unwrap();
+        sender.connect(addr).unwrap();
+        observer.connect(addr).unwrap();
+        for (sock, name) in [(&sender, "editor"), (&observer, "peer")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&sender);
+        let _ = drain(&observer);
+
+        // A mod-block edit is accepted and relayed — to the peer only.
+        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 2, y: 70, z: 2, block: probe_id })).unwrap();
+        assert!(drain_until(&observer, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 2, y: 70, z: 2, block } if *block == probe_id)).is_some(),
+            "mod block edit is accepted and relayed to the peer");
+        pump(300);
+        assert!(!drain(&sender).iter().any(|m| matches!(m,
+            ServerMessage::BlockUpdate { x: 2, y: 70, z: 2, .. })),
+            "THE NO-SELF-ECHO LAW: the editor receives nothing for its own accepted edit");
+
+        // An unknown-id op is rejected — the editor alone gets the server's
+        // true block at that position (never the unknown id), and the peer
+        // hears nothing (nothing happened in the shared world).
+        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 3, y: 70, z: 3, block: unknown_id })).unwrap();
+        let fix = drain_until(&sender, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 3, y: 70, z: 3, .. }));
+        match fix {
+            Some(ServerMessage::BlockUpdate { block, .. }) =>
+                assert_eq!(block, 0, "the corrective echo carries the server's true (air) block"),
+            other => panic!("expected a corrective echo, got {:?}", other),
+        }
+        pump(300);
+        assert!(!drain(&observer).iter().any(|m| matches!(m,
+            ServerMessage::BlockUpdate { x: 3, y: 70, z: 3, .. })),
+            "a rejected op never touches the peers");
+
+        server.stop();
+    }
+
+    /// THE NEWCOMER REPLAY FAMILY: every edit in the server's canonical
+    /// history is replayed to a client that joins later — including edits
+    /// in chunks the newcomer has not generated yet (the client-side
+    /// replay window buffers those until the chunks stream in).
+    #[test]
+    fn newcomer_receives_the_full_edit_history() {
+        let mut server = Server::start("127.0.0.1:0", 4242).expect("start server");
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        a.set_nonblocking(true).unwrap();
+        a.connect(addr).unwrap();
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+            name: "early".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
         pump(150);
-        let _ = drain(&c);
+        let _ = drain(&a);
 
-        c.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 2, y: 70, z: 2, block: probe_id })).unwrap();
-        assert!(drain_until(&c, 5000, |m| matches!(m,
-            ServerMessage::BlockUpdate { block, .. } if *block == probe_id)).is_some(),
-            "mod block edit is accepted and echoed");
+        // Three digs/placements across three chunks, one far from spawn.
+        let history = [
+            (5, 70, 5, 0u32),      // dug (air) near spawn
+            (-33, 80, 12, 3u32),   // placed in chunk (-3, 0)
+            (40, 90, -49, 1u32),   // placed in chunk (2, -4)
+        ];
+        for &(x, y, z, block) in history.iter() {
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block })).unwrap();
+        }
+        pump(300);
 
-        c.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 3, y: 70, z: 3, block: unknown_id })).unwrap();
-        pump(600);
-        let msgs = drain(&c);
-        assert!(!msgs.iter().any(|m| matches!(m, ServerMessage::BlockUpdate { x: 3, y: 70, z: 3, .. })),
-            "unknown block id is rejected");
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        b.set_nonblocking(true).unwrap();
+        b.connect(addr).unwrap();
+        b.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+            name: "newcomer".into(), protocol_version: PROTOCOL_VERSION,
+        })).unwrap();
+
+        // The newcomer's replay must carry every historical edit.
+        let mut seen = 0usize;
+        let deadline = std::time::Instant::now() + Duration::from_millis(5000);
+        let mut buf = [0u8; 2048];
+        while seen < history.len() && std::time::Instant::now() < deadline {
+            if let Ok(len) = b.recv(&mut buf) {
+                if let Some(m) = ProtocolCodec::decode_server(&buf[..len]) {
+                    if let ServerMessage::BlockUpdate { x, y, z, block } = m {
+                        if history.iter().any(|&(hx, hy, hz, hb)| hx == x && hy == y && hz == z && hb == block) {
+                            seen += 1;
+                        }
+                    }
+                }
+            } else {
+                thread::sleep(Duration::from_millis(5));
+            }
+        }
+        assert_eq!(seen, history.len(), "the newcomer's replay covers the full edit history");
 
         server.stop();
     }

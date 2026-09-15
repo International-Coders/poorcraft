@@ -9392,3 +9392,93 @@ HONESTLY DEFERRED: the carried list — multiplayer routing of terrain
 edits (the client edit path is live; the authoritative server route +
 two-client proof is the next bounded slice); geode pairing. Written
 to STATE.next_task in that order.
+
+## 2026-09-15 — loop 462 — The replay-window law: multiplayer terrain-edit routing made lossless
+
+### What
+Closed STATE's next_task item (1) — "multiplayer routing of terrain
+edits", carried since loop 450 ("route player edits through the
+authoritative server path with validation + newcomer replay so a
+second client sees digs/placements; prove with the two-client local
+integration test family"). The audit found the skeleton existed with
+three real defects, all fixed under named laws.
+
+### How
+- Files touched: crates/lf_client/src/net.rs (RemoteEditBuffer — THE
+  REPLAY-WINDOW + 3 unit laws), crates/lf_client/src/lib.rs (buffered
+  apply_remote_block_update; flush_pending_remote_edits; flush at both
+  stream_chunks chunk-insert sites; the JOIN-IDENTITY reset in the
+  Welcome arm; create_world purge; THE SOURCE LAW), crates/lf_server/
+  src/lib.rs (THE NO-SELF-ECHO + THE CORRECTIVE ECHO; 2 wire laws, 1
+  rewritten).
+- THE DEFECTS: (D1) the newcomer replay was lossy — the server sends
+  its whole edit history right after Welcome while the client's
+  streamer is still generating, and World::set_block refuses edits for
+  a missing chunk, so every replayed edit outside the already-meshed
+  ring silently vanished; (D2) the server echoed the editor's own
+  accepted edit back, double-applying (duplicate host event +
+  redundant relight/remesh per player action); (D3) a rejected op
+  (unknown block id) left the optimistic editor diverging silently.
+- THE LAWS: remote edits for unstreamed chunks buffer per chunk
+  (bounded 16384, FIFO eviction of the oldest chunk queue whole,
+  counted) and flush oldest-first in the server's history order the
+  moment the chunk arrives, before it meshes; the server never echoes
+  an accepted edit to its editor, and a reject answers the editor
+  ALONE with the server's true block (corrective echo); a Welcome seed
+  adoption regenerates the boot ring + world-derived state (mobs,
+  drops, block entities, map, tracer) so the joiner lands on the
+  server's terrain, not a two-seed patchwork. A source law pins
+  flush-at-every-non-test-chunk-insert (it caught the new Welcome ring
+  itself en route — proof-found).
+
+### Verification evidence
+- cargo test --workspace: 493 passed / 0 failed (35 suites; lf_client
+  93 -> 97: 3 buffer laws + 1 source law; lf_server 3 -> 4: the
+  rewritten no-self-echo/corrective-echo wire law + the
+  newcomer-history wire law — three edits across three chunks incl.
+  far coords replay to a later joiner over real UDP).
+- make smoke: OK (headless logic 300 ticks + 12 s GUI liveness).
+- Runtimes: make runtimes -> dist/loreforge-macos.dmg (8.8 MB UDZO),
+  dist/loreforge-linux-x86_64.tar.gz (8.4 MB), dist/loreforge.app
+  (binary 20 MB, 07:12 fresh), dist/loreforge-server; all verified on
+  disk; Windows exe honestly skipped (mingw absent). dist/ is
+  gitignored.
+- Visual gates NOT run, honestly: singleplayer renders byte-for-byte
+  the same paths (the buffer only engages when net is Some; the flush
+  is one empty-map check per chunk insert; the 458/459/461
+  precedent); the multiplayer GPU client has no visual harness — the
+  wire laws + buffer laws + source law are this slice's proof family.
+- POORCRAFT 3D untouched (root-only job). The six windowed_wild_*.png
+  dirties are an earlier session's — deliberately NOT staged.
+
+### Files
+- crates/lf_client/src/net.rs, crates/lf_client/src/lib.rs,
+  crates/lf_server/src/lib.rs
+- STATE.md BACKLOG.md CHANGELOG.md DEVLOG.md (this entry)
+
+PERF: a small net win — one redundant host apply + relight + remesh
+removed per own accepted edit (the D2 cure); the buffer allocates only
+for edits that cannot yet apply; the flush amortizes into the chunk's
+first mesh; no new per-frame work.
+
+LORE IMPACT
+- Canon touched: none — netcode and join-identity infrastructure; no
+  faction, place, event, term, NPC, item, or spell data; no identity
+  assigned.
+- Locked facts preserved: seeded worlds carry old history and the
+  player's actions create the new history — now true across clients
+  (the shared world's edits are history, replayed in order); no
+  faction/naming/identity strings touched.
+- World expression: a second adventurer in Valdenmoor sees the digs
+  and placements as they happened, and arrives on the host's land
+  rather than a patchwork of two seeds — the shared realm reads as
+  one realm.
+- Migration: none (no save format, no data schema, no proof schema
+  change; smoke chain unchanged).
+
+HONESTLY DEFERRED: geode pairing (447's keeper — now next_task 1);
+server-side inventory authority (the corrective echo reverts the
+BLOCK, not an optimistic item take — the next authority tier);
+a windowed two-client route (the GPU-side end of the wire laws);
+hardcoded connect name "smith" (audit note). Written to
+STATE.next_task in that order.

@@ -1,10 +1,161 @@
 //! UDP multiplayer client: connects to a loreforge-server, sends local state,
 //! and surfaces remote players / block edits / chat.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::UdpSocket;
 
 use lf_protocol::{ClientMessage, ProtocolCodec, ServerMessage, PROTOCOL_VERSION};
+
+/// THE REPLAY-WINDOW LAW: remote edits for chunks that have not streamed in
+/// yet buffer here instead of being lost. The server replays its whole edit
+/// history to a newcomer right after Welcome, while the client's streamer is
+/// still generating chunks in the background — and `World::set_block`
+/// refuses edits for a missing chunk (the host records a reject and moves
+/// on). Without this buffer every replayed edit outside the already-meshed
+/// ring silently vanished: the second client never saw the dig it was
+/// standing next to five minutes later. The streamer flushes a chunk's
+/// queue — oldest first, the server's history order — the moment that chunk
+/// arrives, before the column is meshed.
+pub struct RemoteEditBuffer {
+    per_chunk: HashMap<(i32, i32), VecDeque<(i32, i32, i32, u32)>>,
+    /// Chunk keys in first-buffered order; overflow evicts oldest whole.
+    /// Invariant: exactly the keys of `per_chunk`, no empty queues.
+    order: VecDeque<(i32, i32)>,
+    total: usize,
+    cap: usize,
+    /// Edits dropped wholesale when the cap forced an eviction.
+    pub evicted: usize,
+}
+
+/// Total buffered edits across all chunks. A reconnect re-replays the
+/// server's full history, so one connection's replay must fit; past the cap
+/// the oldest chunk's queue is dropped whole (reconnect refetches it).
+pub const MAX_PENDING_REMOTE_EDITS: usize = 16384;
+
+impl RemoteEditBuffer {
+    pub fn new() -> Self {
+        Self::with_cap(MAX_PENDING_REMOTE_EDITS)
+    }
+
+    fn with_cap(cap: usize) -> Self {
+        Self {
+            per_chunk: HashMap::new(),
+            order: VecDeque::new(),
+            total: 0,
+            cap,
+            evicted: 0,
+        }
+    }
+
+    /// Buffer one remote edit for its (not yet loaded) chunk.
+    pub fn buffer(&mut self, x: i32, y: i32, z: i32, block: u32) {
+        let key = Self::chunk_of(x, z);
+        if self.total >= self.cap {
+            // Evict the oldest chunk's whole queue (FIFO by first buffer).
+            if let Some(oldest) = self.order.pop_front() {
+                if let Some(queue) = self.per_chunk.remove(&oldest) {
+                    self.total -= queue.len();
+                    self.evicted += queue.len();
+                }
+            }
+        }
+        let queue = self.per_chunk.entry(key).or_insert_with(|| {
+            self.order.push_back(key);
+            VecDeque::new()
+        });
+        queue.push_back((x, y, z, block));
+        self.total += 1;
+    }
+
+    /// Drain one chunk's buffered edits, oldest first. An empty answer for
+    /// a chunk that was never buffered (or already flushed) is normal.
+    pub fn take_chunk(&mut self, cx: i32, cz: i32) -> Vec<(i32, i32, i32, u32)> {
+        let Some(queue) = self.per_chunk.remove(&(cx, cz)) else {
+            return Vec::new();
+        };
+        self.order.retain(|&k| k != (cx, cz));
+        self.total -= queue.len();
+        queue.into_iter().collect()
+    }
+
+    pub fn total(&self) -> usize {
+        self.total
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.total == 0
+    }
+
+    /// World column -> chunk key (the mesher's own partition).
+    pub fn chunk_of(x: i32, z: i32) -> (i32, i32) {
+        (x.div_euclid(16), z.div_euclid(16))
+    }
+}
+
+impl Default for RemoteEditBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Edits buffer per chunk and flush oldest-first in the server's
+    /// history order; a flushed chunk stays flushed (no ghost keys).
+    #[test]
+    fn buffered_edits_flush_in_history_order() {
+        let mut buf = RemoteEditBuffer::with_cap(64);
+        // Chunk (0,0) gets two edits, chunk (1,0) one, interleaved.
+        buf.buffer(5, 70, 3, 1);
+        buf.buffer(20, 71, 4, 2);
+        buf.buffer(6, 72, 2, 3);
+        assert_eq!(buf.total(), 3);
+        assert!(!buf.is_empty());
+
+        let first = buf.take_chunk(0, 0);
+        assert_eq!(first, vec![(5, 70, 3, 1), (6, 72, 2, 3)], "chunk (0,0) FIFO");
+        assert_eq!(buf.total(), 1, "only chunk (1,0)'s edit remains");
+        assert!(buf.take_chunk(0, 0).is_empty(), "flushed chunk stays flushed");
+        assert_eq!(buf.take_chunk(9, 9), Vec::<(i32, i32, i32, u32)>::new(),
+            "never-buffered chunk drains empty");
+
+        assert_eq!(buf.take_chunk(1, 0), vec![(20, 71, 4, 2)]);
+        assert!(buf.is_empty());
+    }
+
+    /// THE BOUNDED-REPLAY LAW: past the cap the oldest chunk's whole queue
+    /// is evicted (never the newest), the eviction is counted, and the
+    /// order invariant (order == per_chunk keys) survives.
+    #[test]
+    fn overflow_evicts_the_oldest_chunk_whole() {
+        let mut buf = RemoteEditBuffer::with_cap(3);
+        buf.buffer(-1, 70, -1, 1); // chunk (-1,-1): 1 edit
+        buf.buffer(0, 70, 0, 2); // chunk (0,0): 1 edit
+        buf.buffer(0, 71, 0, 3); // chunk (0,0): 2 edits (within cap)
+        assert_eq!(buf.total(), 3);
+        assert_eq!(buf.evicted, 0);
+
+        buf.buffer(16, 70, 16, 4); // chunk (1,1) pushes total to 4 > cap
+        assert_eq!(buf.evicted, 1, "the oldest chunk's queue evicted whole");
+        assert!(buf.take_chunk(-1, -1).is_empty(), "oldest chunk lost to eviction");
+        assert_eq!(buf.take_chunk(0, 0).len(), 2, "newer chunk queue survives");
+        assert_eq!(buf.take_chunk(1, 1), vec![(16, 70, 16, 4)]);
+        assert!(buf.is_empty());
+    }
+
+    /// Chunk keys follow the mesher's own partition (div_euclid), negative
+    /// columns included — a buffered edit must flush into the chunk the
+    /// streamer will actually deliver.
+    #[test]
+    fn chunk_keys_match_the_mesher_partition() {
+        assert_eq!(RemoteEditBuffer::chunk_of(5, 3), (0, 0));
+        assert_eq!(RemoteEditBuffer::chunk_of(-1, -1), (-1, -1));
+        assert_eq!(RemoteEditBuffer::chunk_of(-16, 15), (-1, 0));
+        assert_eq!(RemoteEditBuffer::chunk_of(16, -17), (1, -2));
+    }
+}
 
 pub struct NetClient {
     socket: UdpSocket,
