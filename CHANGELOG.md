@@ -1,5 +1,51 @@
 # CHANGELOG
 
+## 2026-09-15 — The keeper's chronicle law: every true waking is a Discovery, staffed roosts never spam (loop 461)
+
+- Closed STATE's next_task item (1) — loop 447's honest deferral:
+  "the guardian's chronicle Discovery re-fires if a geode re-settles
+  after despawn (dragon-precedent behavior)". The audit: the BEHAVIOR
+  already matched the dragon precedent (each settle of an unstaffed
+  anchor fired the Discovery, so a re-settle after the keeper
+  despawned beyond the 80 m leash or fell in battle re-fired it), but
+  the decision lived inline in three separate client settle sites
+  with duplicated string literals and no law — nothing pinned the
+  re-fire, the staffed no-spam, or the vermin exclusion.
+- THE LAW (lf_game::mobs::settlement_chronicle): settling a keeper
+  into its UNSTAFFED anchor is a chronicle Discovery — EVERY settle,
+  including re-settles (the dragon precedent: each waking is an
+  event in the player's authored history); a staffed roost wakes
+  nobody; the cinder crawler's return is vermin, never chronicled.
+  The client's settle passes (geode guardian, cinder crawler, dragon
+  roost) all delegate, so the chronicle can never disagree with the
+  spawn decision; the two Discovery lines now have a single source.
+- NO BEHAVIOR CHANGE: the same lines fire from the same conditions;
+  the literals moved verbatim into the law.
+- 2 NEW LAWS (root 486 -> 488; lf_game 91 -> 93): every true waking
+  is chronicled AND staffed roosts never spam (the re-fire asserted
+  across consecutive unstaffed decisions); vermin returns (crawler,
+  boar, glitchling, null knight, woolbeast — staffed or not) are
+  never chronicled.
+- REGRESSION: root cargo test --workspace 488 green / 0 failed
+  (35 suites); make smoke OK; runtimes refreshed (dist/ dmg +
+  tarball + .app binary, verified on disk); visual gates NOT run —
+  nothing visual changed (the 458/459 bench-only precedent); the
+  refreshed vistest battery from loop 460 still stands (this job
+  renders nothing).
+- PERF: not applicable — one match on two enums at settle time
+  (frame-gated, at most one settle per pass).
+- LORE: canon touched: the two existing Discovery lines ("crystal
+  light stirs in the deep — a hollow's keeper wakes"; "wings circle
+  the peaks — a dragon guards its clutch") moved VERBATIM into the
+  law — no wording change, no new canon. Canon preserved: the
+  chronicle as the player-authored history; the keepers' nature
+  (guardians defend, crawlers are vermin; only wakings are events).
+  World expression: the saga records every true keeper-waking —
+  return visits to a hollow whose keeper fell read as the waking
+  they are. Migration: none (no save format, no proof schema).
+  Deferred honestly: the carried list — multiplayer routing of
+  terrain edits; geode pairing.
+
 ## 2026-09-15 — The pass-routing law: the water channel is art identity, not atlas position (loop 460)
 
 - Closed STATE's next_task item (1) — the is_water_layer/CTM-strip

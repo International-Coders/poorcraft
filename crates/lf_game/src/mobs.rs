@@ -1265,6 +1265,26 @@ pub fn provoke_guardians(mobs: &mut [MobEntity], pos: Vec3, radius: f32) {
     }
 }
 
+/// THE KEEPER'S CHRONICLE LAW. Settling a keeper into its unstaffed
+/// anchor is a chronicle Discovery — EVERY settle, including a
+/// re-settle after the previous keeper despawned beyond the mob leash
+/// or fell in battle (the dragon precedent: each waking is an event in
+/// the player's authored history). A roost that is already staffed
+/// wakes nobody, and the cinder crawler's return is vermin, never
+/// chronicled. The client's settle passes delegate here, so the
+/// chronicle can never disagree with the spawn decision.
+pub fn settlement_chronicle(kind: MobType, staffed: bool) -> Option<&'static str> {
+    match (kind, staffed) {
+        (MobType::GeodeGuardian, false) => {
+            Some("crystal light stirs in the deep — a hollow's keeper wakes")
+        }
+        (MobType::Dragon, false) => {
+            Some("wings circle the peaks — a dragon guards its clutch")
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1852,5 +1872,40 @@ mod tests {
         provoke_guardians(&mut mobs, Vec3::new(10.0, 1.0, 10.0), 8.0);
         assert!(matches!(mobs[0].behaviour, MobBehaviourState::Wander { .. }),
             "a toppled keeper stays down");
+    }
+
+    /// THE KEEPER'S CHRONICLE LAW: every true waking is a Discovery —
+    /// including a RE-settle after the previous keeper despawned or fell
+    /// (the dragon precedent: each waking is an event, so two consecutive
+    /// unstaffed settles answer the same line twice) — while a staffed
+    /// roost never fires (no spam while the keeper lives).
+    #[test]
+    fn every_true_waking_is_chronicled_and_staffed_roosts_never_spam() {
+        let wake = settlement_chronicle(MobType::GeodeGuardian, false)
+            .expect("an unstaffed hollow's keeper waking is a Discovery");
+        assert_eq!(wake, "crystal light stirs in the deep — a hollow's keeper wakes");
+        let clutch = settlement_chronicle(MobType::Dragon, false)
+            .expect("an unstaffed clutch is a Discovery");
+        assert_eq!(clutch, "wings circle the peaks — a dragon guards its clutch");
+        // the re-fire: the same unstaffed decision after the first keeper
+        // is gone answers again — each waking is its own event
+        assert_eq!(settlement_chronicle(MobType::GeodeGuardian, false), Some(wake));
+        assert_eq!(settlement_chronicle(MobType::Dragon, false), Some(clutch));
+        // the keeper still lives at its roost: no waking, no chronicle spam
+        assert_eq!(settlement_chronicle(MobType::GeodeGuardian, true), None);
+        assert_eq!(settlement_chronicle(MobType::Dragon, true), None);
+    }
+
+    /// Vermin and common fauna are never chronicled for settling — only
+    /// the keepers (the hollow's guardian, the clutch's dragon) wake the
+    /// saga.
+    #[test]
+    fn vermin_returns_are_never_chronicled() {
+        for vermin in [MobType::CinderCrawler, MobType::Boar, MobType::Glitchling,
+                       MobType::NullKnight, MobType::Woolbeast] {
+            assert_eq!(settlement_chronicle(vermin, false), None,
+                "{:?} settling must not reach the chronicle", vermin);
+            assert_eq!(settlement_chronicle(vermin, true), None);
+        }
     }
 }

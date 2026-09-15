@@ -9322,3 +9322,73 @@ HONESTLY DEFERRED: the carried list — guardian chronicle re-fire
 (447: the Discovery re-fires if a geode re-settles after despawn,
 dragon precedent); multiplayer routing of terrain edits; geode
 pairing. Written to STATE.next_task in that order.
+
+## 2026-09-15 — loop 461 — The keeper's chronicle law: every true waking is a Discovery, staffed roosts never spam
+
+### What
+Closed STATE's next_task item (1) — loop 447's honest deferral: "the
+guardian's chronicle Discovery re-fires if a geode re-settles after
+despawn (dragon-precedent behavior)". The audit found the BEHAVIOR
+already matched the dragon precedent — each settle of an unstaffed
+anchor fired the Discovery, so a re-settle after the keeper despawned
+beyond the 80 m mob leash (mobs.retain < 80.0) or fell in battle
+re-fired it — but the decision lived INLINE in three separate client
+settle sites with duplicated string literals and no law. The cure is
+the codebase's own: name the contract, make it the single decision
+point, pin it with laws.
+
+### How
+- Files touched: crates/lf_game/src/mobs.rs (settlement_chronicle —
+  THE KEEPER'S CHRONICLE LAW + 2 laws); crates/lf_client/src/lib.rs
+  (the three settle passes — geode guardian, cinder crawler, dragon
+  roost — delegate to the law; the two inline Discovery literals
+  removed).
+- THE LAW: settling a keeper into its UNSTAFFED anchor is a chronicle
+  Discovery — EVERY settle, including re-settles (the dragon
+  precedent: each waking is an event in the player's authored
+  history); a staffed roost wakes nobody; the cinder crawler's
+  return is vermin, never chronicled. The two Discovery lines moved
+  VERBATIM into the law: "crystal light stirs in the deep — a
+  hollow's keeper wakes" and "wings circle the peaks — a dragon
+  guards its clutch" (single source; grep-verified).
+
+### Verification evidence
+- cargo test --workspace: 488 passed / 0 failed (35 suites; lf_game
+  91 -> 93: the 2 new laws).
+- make smoke: OK (headless logic 300 ticks + 12 s GUI liveness).
+- Runtimes: make runtimes -> dist/loreforge-macos.dmg (8.8 MB UDZO),
+  dist/loreforge-linux-x86_64.tar.gz (8.4 MB), dist/loreforge.app
+  (binary 05:14 fresh), dist/loreforge-server; all verified on disk;
+  Windows exe honestly skipped (mingw absent). dist/ is gitignored.
+- Visual gates NOT run, honestly: nothing visual changed — the same
+  lines fire from the same conditions (the 458/459 bench-only
+  precedent); loop 460's refreshed 108-scene battery still stands.
+- POORCRAFT 3D untouched (root-only job). The six windowed_wild_*.png
+  dirties are an earlier session's — deliberately NOT staged.
+
+### Files
+- crates/lf_game/src/mobs.rs, crates/lf_client/src/lib.rs
+- STATE.md BACKLOG.md CHANGELOG.md DEVLOG.md (this entry)
+
+PERF: not applicable — one match on two enums at settle time
+(frame-gated passes, at most one settle per pass); zero live-path
+cost.
+
+LORE IMPACT
+- Canon touched: the two existing Discovery lines moved verbatim —
+  no wording change, no new canon.
+- Locked facts preserved: the chronicle as the player-authored
+  history (Seeded worlds carry old history; the player's actions
+  create the new history through the chronicle); the keepers' nature
+  (guardians defend the hollow and are not evil; crawlers are deep
+  vermin; only wakings are events).
+- World expression: the saga records every true keeper-waking —
+  returning to a hollow whose keeper fell reads as the waking it is;
+  a living roost never spams the saga.
+- Migration: none (no save format, no data schema, no proof schema
+  change; smoke chain unchanged).
+
+HONESTLY DEFERRED: the carried list — multiplayer routing of terrain
+edits (the client edit path is live; the authoritative server route +
+two-client proof is the next bounded slice); geode pairing. Written
+to STATE.next_task in that order.

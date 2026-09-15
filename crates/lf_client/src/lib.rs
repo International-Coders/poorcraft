@@ -4819,10 +4819,13 @@ impl GameState {
             });
             self.next_mob_id += 1;
             self.mobs.push(dragon);
-            self.chronicle_event(
-                EventType::Discovery,
-                "wings circle the peaks — a dragon guards its clutch".into(),
-            );
+            // THE KEEPER'S CHRONICLE LAW owns the decision — the dragon
+            // precedent and the geode keepers are one law
+            if let Some(line) =
+                lf_game::mobs::settlement_chronicle(lf_game::mobs::MobType::Dragon, staffed)
+            {
+                self.chronicle_event(EventType::Discovery, line.into());
+            }
             return;
         }
     }
@@ -4869,10 +4872,13 @@ impl GameState {
                         g.roost = Some([ax as f32 + 0.5, ay as f32, az as f32 + 0.5]);
                         self.next_mob_id += 1;
                         self.mobs.push(g);
-                        self.chronicle_event(
-                            EventType::Discovery,
-                            "crystal light stirs in the deep — a hollow's keeper wakes".into(),
-                        );
+                        // THE KEEPER'S CHRONICLE LAW owns the decision —
+                        // every settle of an unstaffed hollow is a Discovery
+                        if let Some(line) =
+                            lf_game::mobs::settlement_chronicle(kind, staffed)
+                        {
+                            self.chronicle_event(EventType::Discovery, line.into());
+                        }
                         return; // one settle per pass, like the dragons
                     }
                 }
@@ -4894,6 +4900,13 @@ impl GameState {
                         c.roost = Some([ax as f32 + 0.5, ay as f32, az as f32 + 0.5]);
                         self.next_mob_id += 1;
                         self.mobs.push(c);
+                        // the law answers None for vermin — a crawler's
+                        // return is never chronicled
+                        if let Some(line) =
+                            lf_game::mobs::settlement_chronicle(kind, staffed)
+                        {
+                            self.chronicle_event(EventType::Discovery, line.into());
+                        }
                         return;
                     }
                 }

@@ -11,6 +11,28 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The keeper's chronicle law: every true waking is a Discovery,
+      staffed roosts never spam (2026-09-15, loop 461, root
+      workspace): closed STATE's next_task item (1) — 447's deferral
+      ("the guardian's chronicle Discovery re-fires if a geode
+      re-settles after despawn, dragon-precedent behavior"). The
+      behavior already matched the precedent but lived inline in
+      three client settle sites with duplicated literals and no law.
+      THE LAW (lf_game::mobs::settlement_chronicle): settling a
+      keeper into an UNSTAFFED anchor is a Discovery — every settle
+      incl. re-settles (each waking is an event in the player's
+      authored history); a staffed roost wakes nobody; the crawler's
+      return is vermin, never chronicled. The guardian, crawler, and
+      dragon settle passes all delegate; the two Discovery lines
+      have a single source. NO behavior change (lines moved
+      verbatim). 2 new laws (root 486 -> 488): the re-fire across
+      consecutive unstaffed decisions + the staffed no-spam; vermin
+      (staffed or not) never chronicled. Evidence: workspace 488/0
+      (35 suites); smoke OK; runtimes refreshed on disk; visual
+      gates not run — nothing visual changed (the 458/459
+      precedent). Deferred honestly: multiplayer routing of terrain
+      edits; geode pairing.
+
 - [x] The pass-routing law: the water channel is art identity, not
       atlas position (2026-09-15, loop 460, root workspace): closed
       STATE's next_task item (1) — the is_water_layer/CTM-strip
@@ -39,8 +61,8 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       preview ~50% pixel change = the lake going translucent, HUD
       itself unchanged); battery 108 scenes [ok]; workspace 486/0;
       smoke OK; idle-upgrade-check PASS. Deferred honestly: the
-      carried list — guardian chronicle re-fire; multiplayer
-      routing of terrain edits; geode pairing.
+      carried list — guardian chronicle re-fire (DONE 461);
+      multiplayer routing of terrain edits; geode pairing.
 
 - [x] The query-bound law: the ground query's origin contract made
       explicit (2026-09-15, loop 459, POORCRAFT 3D): closed STATE's
