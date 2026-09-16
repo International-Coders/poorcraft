@@ -4,6 +4,7 @@
 //! or in-process from tests.
 
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -79,6 +80,26 @@ fn escrow(
     Ok(())
 }
 
+/// THE CRAFT REPLAY WINDOW: a client-chosen `req_id` answered recently is
+/// remembered, so a duplicated datagram (or a re-sent request) is refused
+/// with a no-op refusal instead of executing the craft a second time —
+/// the crafting twin of the dig pays-once law. Bounded FIFO over
+/// (player, req) pairs; the refusal moves nothing on either side.
+const CRAFT_REPLAY_WINDOW: usize = 512;
+
+fn craft_replay_seen(seen: &mut VecDeque<(u64, u64)>, seen_set: &mut std::collections::HashSet<(u64, u64)>, player: u64, req_id: u64) -> bool {
+    if !seen_set.insert((player, req_id)) {
+        return true;
+    }
+    seen.push_back((player, req_id));
+    while seen.len() > CRAFT_REPLAY_WINDOW {
+        if let Some(oldest) = seen.pop_front() {
+            seen_set.remove(&oldest);
+        }
+    }
+    false
+}
+
 pub struct Server {
     socket: Arc<UdpSocket>,
     stop: Arc<AtomicBool>,
@@ -134,6 +155,8 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
     let mut next_id: u64 = 1;
     let mut offers: HashMap<u64, lf_protocol::TradeOfferRecord> = HashMap::new();
     let mut next_offer_id: u64 = 1;
+    let mut craft_seen: VecDeque<(u64, u64)> = VecDeque::new();
+    let mut craft_seen_set: std::collections::HashSet<(u64, u64)> = std::collections::HashSet::new();
     let mut last_snapshot = std::time::Instant::now();
     let mut buf = [0u8; 2048];
 
@@ -145,7 +168,8 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
                     activity = true;
                     if let Some(msg) = ProtocolCodec::decode_client(&buf[..len]) {
                         handle_message(&socket, &mut players, &mut inventories, &mut world, &gen,
-                            &mut edits, &mut next_id, &mut offers, &mut next_offer_id, src, msg);
+                            &mut edits, &mut next_id, &mut offers, &mut next_offer_id,
+                            &mut craft_seen, &mut craft_seen_set, src, msg);
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
@@ -188,6 +212,8 @@ fn handle_message(
     next_id: &mut u64,
     offers: &mut HashMap<u64, lf_protocol::TradeOfferRecord>,
     next_offer_id: &mut u64,
+    craft_seen: &mut VecDeque<(u64, u64)>,
+    craft_seen_set: &mut std::collections::HashSet<(u64, u64)>,
     src: SocketAddr,
     msg: ClientMessage,
 ) {
@@ -339,6 +365,62 @@ fn handle_message(
                 }
                 inventories.insert(id, inv);
             }
+        }
+        ClientMessage::CraftRequest { req_id, ingredients, output, output_count, qty } => {
+            // THE CRAFT IS THE SERVER'S TO MAKE (protocol v7): while
+            // connected, a workbench craft is a REQUEST — the canonical
+            // ledger pays and the verdict (granted/refused + reason) goes
+            // to the crafter ALONE. Two gates stand between the request
+            // and the ledger: THE CRAFT-SPEC GATE (a spec the realm's own
+            // recipe book does not name is refused — a connected client
+            // cannot fabricate output from nothing; the same
+            // `crafting::spec_matches_book` the laws test) and the
+            // transactional engine itself (`crafting::execute` — validate,
+            // consume, produce atomically against the LEDGER; a blocked
+            // craft moves nothing and names why). A replayed req_id (a
+            // duplicated datagram) is answered with a no-op refusal, so a
+            // craft pays once. Unknown senders (no Hello, no ledger) are
+            // ignored like every stateful message.
+            let Some(id) = id_of(players, src) else { return };
+            if craft_replay_seen(craft_seen, craft_seen_set, id, req_id) {
+                let replay = ProtocolCodec::encode_server(&ServerMessage::CraftVerdict {
+                    req_id, granted: false, consumed: vec![], output: None,
+                    reason: Some("already answered".into()),
+                });
+                let _ = socket.send_to(&replay, src);
+                return;
+            }
+            let verdict = if !lf_game::crafting::spec_matches_book(&ingredients, &output, output_count) {
+                ServerMessage::CraftVerdict {
+                    req_id, granted: false, consumed: vec![], output: None,
+                    reason: Some("no recipe by that name is in the realm's book".into()),
+                }
+            } else {
+                match inventories.get_mut(&id) {
+                    Some(inv) => match lf_game::crafting::execute(inv, &ingredients, &output, output_count, qty) {
+                        lf_game::crafting::CraftOutcome::Crafted { output, granted } => {
+                            // THE VERDICT IS THE DELTA: exactly what the
+                            // ledger consumed and what it produced (a
+                            // granted craft's consumption is ledger-bounded,
+                            // so the u64 product always fits u32).
+                            let consumed: Vec<(String, u32)> = ingredients.iter()
+                                .map(|(id, n)| (id.clone(), (*n as u64 * qty as u64) as u32))
+                                .collect();
+                            ServerMessage::CraftVerdict {
+                                req_id, granted: true, consumed,
+                                output: Some((output, granted)), reason: None,
+                            }
+                        }
+                        lf_game::crafting::CraftOutcome::Blocked(b) =>
+                            ServerMessage::CraftVerdict {
+                                req_id, granted: false, consumed: vec![], output: None,
+                                reason: Some(b.reason()),
+                            },
+                    },
+                    None => return,
+                }
+            };
+            let _ = socket.send_to(&ProtocolCodec::encode_server(&verdict), src);
         }
         ClientMessage::TradeOffer { to, give, want } => {
             // P37 escrow: register the offer, notify the recipient.
@@ -1294,6 +1376,249 @@ mod tests {
         assert!(drain_until(&b, 5000, |m| matches!(m,
             ServerMessage::TradeResolved { accepted: true, .. })).is_some(),
             "the true target still completes the offer");
+
+        server.stop();
+    }
+
+    /// THE CRAFT IS THE SERVER'S TO MAKE, over real UDP (protocol v7): a
+    /// workbench craft is a request — the canonical ledger pays exactly
+    /// what the recipe names, and the verdict carries the produce. The
+    /// ledger's movement is proven through the trade gate alone: the
+    /// crafted planks are hers to offer, the consumed logs are not.
+    #[test]
+    fn a_granted_craft_moves_the_ledger_exactly() {
+        let mut server = Server::start("127.0.0.1:0", 923).expect("start server");
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        a.set_nonblocking(true).unwrap();
+        b.set_nonblocking(true).unwrap();
+        a.connect(addr).unwrap();
+        b.connect(addr).unwrap();
+        for (sock, name) in [(&a, "smith"), (&b, "target")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&a);
+        let _ = drain(&b);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("log".into(), 2)],
+        })).unwrap();
+        pump(150);
+
+        // Two batches of the real planks spec: 2 logs -> 8 planks.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::CraftRequest {
+            req_id: 1, ingredients: vec![("log".into(), 1)],
+            output: "planks".into(), output_count: 4, qty: 2,
+        })).unwrap();
+        let verdict = drain_until(&a, 5000, |m| matches!(m, ServerMessage::CraftVerdict { req_id: 1, .. }));
+        match verdict {
+            Some(ServerMessage::CraftVerdict { granted: true, consumed, output: Some((out, n)), reason, .. }) => {
+                assert_eq!((out.as_str(), n), ("planks", 8), "the ledger produced exactly output_count x qty");
+                assert_eq!(consumed, vec![("log".to_string(), 2u32)],
+                    "the verdict names exactly what the ledger consumed");
+                assert!(reason.is_none());
+            }
+            other => panic!("the covered craft is granted, got {other:?}"),
+        }
+        assert!(drain_until(&b, 5000, |m| matches!(m, ServerMessage::CraftVerdict { .. })).is_none(),
+            "the verdict goes to the crafter alone");
+
+        // THE LEDGER MOVED, proven through the gate alone: the crafted
+        // planks are hers to offer, the consumed logs are not. (alice's
+        // id is 1, bob's is 2 — join order.)
+        let offer = |give: Vec<(String, u8)>| {
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+                to: 2, give, want: vec![],
+            })).unwrap();
+            pump(250);
+        };
+        offer(vec![("planks".into(), 8)]);
+        assert!(drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "the crafted planks are gate-visible: the ledger counted the produce");
+        offer(vec![("log".into(), 1)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the consumed logs are gone: the ledger paid the craft");
+
+        server.stop();
+    }
+
+    /// A BLOCKED CRAFT MOVES NOTHING, over real UDP: a ledger too short
+    /// for the requested batches is refused with the engine's own reason,
+    /// and the re-offer of the untouched goods proves the atomicity.
+    #[test]
+    fn a_blocked_craft_moves_nothing_and_says_why() {
+        let mut server = Server::start("127.0.0.1:0", 925).expect("start server");
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        a.set_nonblocking(true).unwrap();
+        b.set_nonblocking(true).unwrap();
+        a.connect(addr).unwrap();
+        b.connect(addr).unwrap();
+        for (sock, name) in [(&a, "smith"), (&b, "target")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&a);
+        let _ = drain(&b);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("log".into(), 1)],
+        })).unwrap();
+        pump(150);
+
+        // Two batches need two logs; the ledger holds one.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::CraftRequest {
+            req_id: 2, ingredients: vec![("log".into(), 1)],
+            output: "planks".into(), output_count: 4, qty: 2,
+        })).unwrap();
+        let verdict = drain_until(&a, 5000, |m| matches!(m, ServerMessage::CraftVerdict { .. }));
+        match verdict {
+            Some(ServerMessage::CraftVerdict { granted: false, consumed, output: None, reason: Some(reason), .. }) => {
+                assert!(consumed.is_empty(), "a refusal carries no delta");
+                assert!(reason.contains("log"), "the refusal names the short ingredient: {reason}");
+            }
+            other => panic!("the short craft is refused with its reason, got {other:?}"),
+        }
+
+        // THE ATOMICITY PROOF: the log was never consumed — the gate
+        // still admits an offer of exactly the held one.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("log".into(), 1)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&b, 5000, |m| matches!(m, ServerMessage::TradeOffered { .. })).is_some(),
+            "the blocked craft deducted nothing from the ledger");
+
+        server.stop();
+    }
+
+    /// THE FABRICATION GATE, over real UDP: a spec no recipe names —
+    /// output demanded from nothing, or from ingredients no recipe
+    /// accepts — is refused by the book, and the ledger never gains the
+    /// fabricated goods (proven through the gate: a phantom diamond
+    /// offer refuses).
+    #[test]
+    fn a_fabricated_spec_is_refused_by_the_book() {
+        let mut server = Server::start("127.0.0.1:0", 927).expect("start server");
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        a.set_nonblocking(true).unwrap();
+        b.set_nonblocking(true).unwrap();
+        a.connect(addr).unwrap();
+        b.connect(addr).unwrap();
+        for (sock, name) in [(&a, "forger"), (&b, "target")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&a);
+        let _ = drain(&b);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![],
+        })).unwrap();
+        pump(150);
+
+        // Diamonds from nothing; a diamond from a log; a real output with
+        // a smuggled extra ingredient — none of them is a recipe.
+        let attempts = [
+            (vec![], "diamond", 64u8),
+            (vec![("log".into(), 1)], "diamond", 1),
+            (vec![("coal".into(), 1), ("stick".into(), 1), ("diamond".into(), 1)], "torch", 4),
+        ];
+        for (i, (ingredients, output, count)) in attempts.iter().enumerate() {
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::CraftRequest {
+                req_id: 100 + i as u64, ingredients: ingredients.clone(),
+                output: output.to_string(), output_count: *count, qty: 1,
+            })).unwrap();
+            let verdict = drain_until(&a, 5000, |m| matches!(m, ServerMessage::CraftVerdict { req_id, .. }
+                if *req_id == 100 + i as u64));
+            match verdict {
+                Some(ServerMessage::CraftVerdict { granted: false, output: None, reason: Some(reason), .. }) =>
+                    assert!(reason.contains("book"), "the refusal names the book: {reason}"),
+                other => panic!("fabricated spec {i} is refused, got {other:?}"),
+            }
+        }
+
+        // THE LEDGER NEVER GAINED: a phantom offer of the fabricated
+        // diamonds refuses at the gate.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("diamond".into(), 1)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the fabricated diamonds never entered the ledger");
+        pump(300);
+        assert!(!drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "the target never hears the phantom offer either");
+
+        server.stop();
+    }
+
+    /// A CRAFT PAYS ONCE, over real UDP: the same req_id delivered twice
+    /// (a duplicated datagram, a re-sent packet) executes the craft once —
+    /// the replay is answered with a no-op refusal — and the gate proves
+    /// exactly one batch's worth exists.
+    #[test]
+    fn a_replayed_craft_request_pays_once() {
+        let mut server = Server::start("127.0.0.1:0", 929).expect("start server");
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        a.set_nonblocking(true).unwrap();
+        b.set_nonblocking(true).unwrap();
+        a.connect(addr).unwrap();
+        b.connect(addr).unwrap();
+        for (sock, name) in [(&a, "smith"), (&b, "target")] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&a);
+        let _ = drain(&b);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("log".into(), 4)],
+        })).unwrap();
+        pump(150);
+
+        let request = ClientMessage::CraftRequest {
+            req_id: 7, ingredients: vec![("log".into(), 1)],
+            output: "planks".into(), output_count: 4, qty: 2,
+        };
+        let bytes = ProtocolCodec::encode_client(&request);
+        a.send(&bytes).unwrap();
+        let first = drain_until(&a, 5000, |m| matches!(m,
+            ServerMessage::CraftVerdict { req_id: 7, granted: true, .. }));
+        assert!(first.is_some(), "the first delivery is granted");
+        // the duplicate delivery: answered, but it must not craft again
+        a.send(&bytes).unwrap();
+        let replay = drain_until(&a, 5000, |m| matches!(m,
+            ServerMessage::CraftVerdict { req_id: 7, granted: false, .. }));
+        assert!(replay.is_some(), "the replay is answered");
+        pump(300);
+
+        // Exactly one craft's produce exists: eight planks pass the gate,
+        // nine do not — and only two of the four logs were consumed.
+        let offer = |give: Vec<(String, u8)>| {
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+                to: 2, give, want: vec![],
+            })).unwrap();
+            pump(250);
+        };
+        offer(vec![("planks".into(), 8)]);
+        assert!(drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "one craft's produce is in the ledger");
+        offer(vec![("planks".into(), 9)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the replay never crafted a second time");
+        offer(vec![("log".into(), 3)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "exactly two logs were consumed by the one craft");
 
         server.stop();
     }

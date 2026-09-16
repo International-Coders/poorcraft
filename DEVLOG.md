@@ -9878,3 +9878,81 @@ precedent).
 - PackSync overflow is truncated (the spill is the client's ground
   items, not held — the gate correctly refuses them).
 - The windowed two-client route (the GPU-side end of the wire laws).
+
+## Loop 467 (2026-09-15): The bench asks the realm — server-side crafting over real UDP
+
+### What was done
+Closed STATE.next_task item (2): loop 466's honest deferral "the ledger
+is client-CLAIMED until consumption routes (crafting/smelting/eating/
+placing stay client-side)". Chosen over the windowed two-client route
+per the priority ladder (an authority gap above a missing proof; the
+465/466 precedent). Crafting is the widest consumption surface in the
+played loop, so this tier makes the pack ledger server-COMPUTED for it.
+
+- THE WIRE (crates/lf_protocol/src/lib.rs): CraftRequest { req_id,
+  ingredients, output, output_count, qty } and CraftVerdict { req_id,
+  granted, consumed, output, reason } — the verdict IS the delta (u32
+  counts: a large batch exceeds u8). PROTOCOL_VERSION 6 -> 7.
+- THE SPEC GATE (crates/lf_game/src/crafting.rs): new pure fn
+  spec_matches_book — the request's spec must be a recipe the realm's
+  own book names, its ingredients the pattern's exact aggregated
+  multiset. This is what stops a connected client from asking the
+  server to fabricate output from nothing.
+- THE SERVER (crates/lf_server/src/lib.rs): the CraftRequest arm runs
+  the replay window (bounded 512-entry (player, req_id) FIFO — a
+  duplicated datagram is answered with a no-op refusal, a craft pays
+  once), the spec gate, and lf_game's transactional engine
+  (crafting::execute) against the canonical ledger; the verdict goes
+  to the crafter ALONE.
+- THE CLIENT (crates/lf_client/src/lib.rs, ui.rs, net.rs): while
+  connected both craft paths route online — the workbench click
+  (craft_from_workbench) and the queue tick (craft_queue_tick) send
+  CraftRequest and leave the pack to the verdict (offline the
+  integrated host is the same authority in process); NetClient::
+  request_craft is the sender; the CraftVerdict arm applies the delta
+  exactly (u8-batched adds, overflow spills at the feet, quest Crafted
+  + onboarding + sfx on grant, click refusals hint the reason),
+  completes the queue head only on its own req id AND output (a
+  cancelled head cannot eat the next entry), and releases the
+  one-in-flight wait (a retry is a fresh request — a queued job never
+  double-crafts).
+
+### Files touched
+- crates/lf_protocol/src/lib.rs (CraftRequest/CraftVerdict, v7, tests)
+- crates/lf_game/src/crafting.rs (spec_matches_book + unit law)
+- crates/lf_server/src/lib.rs (replay window, the arm, 4 wire laws)
+- crates/lf_client/src/net.rs (request_craft sender)
+- crates/lf_client/src/lib.rs (fields, queue tick branch, verdict arm,
+  source law)
+- crates/lf_client/src/ui.rs (craft_from_workbench online branch)
+- STATE.md / BACKLOG.md / CHANGELOG.md / DEVLOG.md
+
+### How it was verified
+- cargo test --workspace: 524 green / 0 failed (xtask's 12 included;
+  = loop 466's 517 + 7 new laws: lf_protocol 7 -> 8, lf_game 118 ->
+  119, lf_server 12 -> 16, lf_client 107 -> 108).
+- make smoke: OK (headless logic + GUI liveness).
+- FULL vistest battery: 110 scenes [ok] / 0 FAIL, exit-0; every
+  committed scene PNG byte-identical across TWO runs (md5 digest
+  462b2318ed4c98d9a882266cd81fbd7d before == after) — singleplayer
+  render paths pixel-proven unchanged (multiplayer-only change).
+- Runtimes refreshed: dist/loreforge-macos.dmg (hdiutil verify VALID),
+  dist/loreforge-linux-x86_64.tar.gz, dist/loreforge.app, dist/
+  loreforge-server. Windows exe honestly skipped (mingw absent).
+
+### Proof-discovered problems
+- En-route: the verdict's u32 produce does not fit the pack's u8
+  add_item — the grant lands in u8 batches (the v6 ledger-rebuild
+  idiom) with the overflow spilling at the feet, and the source-law
+  test initially matched its own search literal (fixed with the b03
+  concat! idiom). The verdict arm's queue completion is guarded on the
+  head's own output so a cancelled head cannot eat the next entry.
+
+### Honestly deferred
+- Smelting, eating, and block-placing consumption stay client-side —
+  the remaining consumption tiers of the same shape (a lying client
+  can still mis-claim its pack for those).
+- A lost verdict errs safe: the craft's output never reaches the pack
+  and the next PackSync re-claim trims the ledger (at-most-once, never
+  fabricated).
+- The windowed two-client route (the GPU-side end of the wire laws).

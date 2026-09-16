@@ -1,5 +1,92 @@
 # CHANGELOG
 
+## 2026-09-15 — The bench asks the realm: server-side crafting over real UDP (loop 467)
+
+- Closed STATE's next_task item (2) — loop 466's honest deferral "the
+  ledger is client-CLAIMED until consumption routes: crafting,
+  smelting, eating, and placing still mutate the client pack".
+  Chosen over the windowed two-client route per the priority ladder:
+  an authority gap ranks above a missing proof (the 465/466
+  precedent). Crafting is the widest consumption surface in the
+  played loop, so the ledger is now server-COMPUTED for it.
+- THE WIRE (lf_protocol, v7): `CraftRequest { req_id, ingredients,
+  output, output_count, qty }` — the recipe spec the transactional
+  engine executes plus a client-chosen monotonic id;
+  `CraftVerdict { req_id, granted, consumed, output, reason }` —
+  THE VERDICT IS THE DELTA: exactly what the ledger consumed and
+  what it produced (u32 counts; a large batch exceeds u8), delivered
+  to the crafter ALONE. PROTOCOL_VERSION 6 -> 7 (matched binaries;
+  the existing gate rejects mismatched peers).
+- THE SERVER (lf_server): two gates between request and ledger.
+  THE CRAFT-SPEC GATE — new shared pure fn
+  `lf_game::crafting::spec_matches_book`: only a recipe the realm's
+  own book names may execute, its ingredients the pattern's exact
+  aggregated multiset (what the workbench catalog shows) — so a
+  connected client cannot fabricate output from nothing (diamonds
+  from nothing, a diamond from a log, and a real spec with a
+  smuggled extra ingredient all refuse with a reason). THE
+  TRANSACTIONAL ENGINE — `crafting::execute` against the LEDGER
+  (validate, consume, produce atomically); a blocked craft moves
+  nothing and names the short ingredient or the missing room. THE
+  REPLAY WINDOW — a bounded 512-entry FIFO over (player, req_id):
+  a duplicated datagram is answered with a no-op refusal, so a craft
+  pays once (the dig pays-once law's crafting twin).
+- THE CLIENT (lf_client): while connected, BOTH player-facing craft
+  paths route online — the workbench click (ui.rs
+  `craft_from_workbench`) and the craft queue (lib.rs
+  `craft_queue_tick`) send CraftRequest and leave the local pack to
+  the verdict; offline the integrated host is the same authority in
+  process (byte-equal behavior). The CraftVerdict arm applies the
+  delta exactly (u8-batched `add_item`, overflow spills at the feet,
+  quest Crafted + onboarding + sfx on grant, the reason as a hint on
+  click refusals), completes the queue head ONLY on its own req id
+  and output (a cancelled head cannot eat the next entry), and
+  releases the queue's ONE-IN-FLIGHT wait (a retry is a fresh
+  request — a queued job can never double-craft).
+- 7 NEW LAWS (root 517 -> 524; lf_protocol 7 -> 8, lf_game 118 -> 119,
+  lf_server 12 -> 16, lf_client 107 -> 108): the craft round-trip
+  wire law; the spec-gate unit law; the granted-craft-moves-the-
+  ledger wire law (the verdict carries its exact consumed delta; the
+  gate proves the ledger moved: 8 planks pass, the consumed logs
+  refuse; the target never hears a verdict); the blocked-craft-moves-
+  nothing wire law (the engine's own reason; the re-offer proves the
+  atomicity); the fabrication-gate wire law (three bogus specs refuse
+  by the book; a phantom diamond offer refuses); the pays-once replay
+  wire law (the same req_id twice = one craft's produce); the
+  online-crafts-route-through-the-wire source law.
+- REGRESSION: cargo test --workspace 524 green / 0 failed (xtask's 12
+  included); make smoke OK; FULL vistest battery 110 scenes [ok] /
+  0 FAIL exit-0 with every committed PNG byte-identical across TWO
+  runs (md5 462b2318ed4c98d9a882266cd81fbd7d before == after) —
+  singleplayer render paths pixel-proven unchanged; runtimes
+  refreshed (dist/ dmg + linux tarball + .app + server); Windows exe
+  honestly skipped (mingw absent); POORCRAFT 3D untouched; the six
+  windowed_wild_*.png dirties remain deliberately NOT staged.
+- PERF: not applicable — one small request datagram per craft intent,
+  one small verdict per craft; the server adds one bounded multiset
+  compare plus the engine's own validate/consume/produce per request;
+  zero singleplayer cost (offline branches unchanged).
+- LORE: canon touched: none — multiplayer economy plumbing; the
+  recipe book is the existing one; no faction, place, event, term,
+  NPC, item, or spell data changed; no new canon text (verdict
+  reasons are UI hints). Canon preserved: the chronicle as the
+  player-authored history (quest Crafted events still fire from real
+  verdicts); Anima as a material energetic property; no identity
+  assigned. World expression: in shared Valdenmoor a workbench makes
+  what the realm's book names and the crafter's ledger can pay for —
+  a fabricated recipe is refused by the book, a short pack by the
+  ledger, a replay by the realm's memory, and every refusal says why.
+- Migration: PROTOCOL_VERSION bump only (matched client+server; old
+  peers rejected by the existing gate) — no save format, no
+  block/item change, GENERATOR_VERSION unchanged, ClientSave
+  untouched.
+- Deferred honestly: smelting, eating, and block-placing consumption
+  stay client-side (the remaining consumption tiers of the same
+  shape); a lost verdict errs safe (the craft's output never reaches
+  the pack and the next PackSync trims the ledger — at-most-once,
+  never fabricated); the windowed two-client route; hardcoded connect
+  name "smith" (audit note).
+
 ## 2026-09-15 — The pack is the server's ledger: server-side per-player inventories over real UDP (loop 466)
 
 - Closed STATE's next_task item (2) — the loop-465 deferral "the server

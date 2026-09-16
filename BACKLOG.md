@@ -11,6 +11,40 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The bench asks the realm: server-side crafting over real UDP
+      (2026-09-15, loop 467, root workspace): closed STATE's next_task
+      item (2) — loop 466's deferral "the ledger is client-CLAIMED
+      until consumption routes (crafting/smelting/eating/placing stay
+      client-side)"; chosen over the windowed two-client route per the
+      priority ladder. Wire v7: CraftRequest (recipe spec + client-
+      chosen req id) and CraftVerdict (THE VERDICT IS THE DELTA —
+      exactly what the ledger consumed and produced, u32 counts, to the
+      crafter alone). THE SERVER gates twice: the craft-spec gate
+      (crafting::spec_matches_book — only a recipe the realm's book
+      names executes, so a connected client cannot fabricate output
+      from nothing) and the transactional engine itself
+      (crafting::execute against the LEDGER — blocked crafts move
+      nothing and say why); a replayed req_id (duplicated datagram) is
+      answered with a no-op refusal (bounded 512-entry window) — the
+      crafting twin of the dig pays-once law. THE CLIENT: while
+      connected both craft paths (workbench click, queue tick) send the
+      request and leave the pack to the verdict (offline the integrated
+      host is the same authority, byte-equal behavior); the verdict arm
+      applies the delta exactly (u8-batched adds, overflow spills at
+      the feet), completes the queue head only on its own req id and
+      output, and releases the one-in-flight wait (a retry is a fresh
+      request — a queued job never double-crafts). Evidence: 7 new laws
+      (craft round-trip; the spec-gate unit law; granted-moves-the-
+      ledger, blocked-moves-nothing, fabrication-gate, and pays-once
+      replay wire laws over real UDP; the online-routes-through-the-
+      wire source law); workspace 524/0 (xtask 12 included); smoke OK;
+      battery 110 scenes exit-0 with PNGs byte-identical across two
+      runs (singleplayer pixel-proven unchanged); runtimes fresh.
+      Deferred honestly: smelting/eating/placing consumption stay
+      client-side (the remaining consumption tiers); a lost verdict
+      errs safe (at-most-once, never fabricated); the windowed
+      two-client route.
+
 - [x] The pack is the server's ledger: server-side per-player
       inventories over real UDP (2026-09-15, loop 466, root workspace):
       closed STATE's next_task item (2) — the 465 deferral "the server

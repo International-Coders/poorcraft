@@ -724,6 +724,40 @@ pub fn consume_ingredients(grid: &mut [Option<ItemStack>]) {
     }
 }
 
+/// THE CRAFT-SPEC GATE (protocol v7): a craft request names a spec —
+/// (ingredients, output, output_count) — and only a spec the realm's own
+/// recipe book names may be executed. The request's ingredients are the
+/// recipe pattern's aggregated (item, count) multiset (exactly what the
+/// workbench catalog shows), compared as a sorted multiset so order and
+/// duplicates cannot smuggle a difference through. This is what stops a
+/// connected client from asking the server to fabricate output from
+/// nothing: the ledger pays for crafts, and the book says what a craft
+/// is. Pure, so the server and every law test the same gate.
+pub fn spec_matches_book(ingredients: &[(String, u8)], output: &str, output_count: u8) -> bool {
+    let mut want: Vec<(String, u8)> = Vec::new();
+    for recipe in all_recipes() {
+        if recipe.output != output || recipe.output_count != output_count {
+            continue;
+        }
+        want.clear();
+        for row in &recipe.pattern {
+            for cell in row.iter().flatten() {
+                match want.iter_mut().find(|(id, _)| id == cell) {
+                    Some(e) => e.1 += 1,
+                    None => want.push((cell.to_string(), 1)),
+                }
+            }
+        }
+        want.sort();
+        let mut got: Vec<(String, u8)> = ingredients.to_vec();
+        got.sort();
+        if want == got {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1039,5 +1073,32 @@ mod tests {
         let b = recipes();
         assert!(std::ptr::eq(a.as_ptr(), b.as_ptr()));
         assert!(!a.is_empty());
+    }
+
+    /// THE CRAFT-SPEC GATE: only a spec the book names passes — a real
+    /// recipe (by output, count, and the pattern's exact aggregated
+    /// multiset) is admitted, while fabricated output, wrong counts, and
+    /// smuggled extra ingredients are all refused.
+    #[test]
+    fn the_spec_gate_admits_only_real_recipes() {
+        // the planks recipe (1 log -> 4) is real, in any argument order
+        assert!(spec_matches_book(&[("log".into(), 1)], "planks", 4));
+        // the aggregated multiset of a real multi-ingredient pattern passes
+        let torch = vec![("coal".to_string(), 1u8), ("stick".to_string(), 1u8)];
+        assert!(spec_matches_book(&torch, "torch", 4), "a real two-ingredient spec passes");
+
+        // fabricating output from nothing is refused
+        assert!(!spec_matches_book(&[], "diamond", 64), "no recipe makes diamonds from nothing");
+        assert!(!spec_matches_book(&[("log".into(), 1)], "diamond", 1),
+            "no recipe turns a log into a diamond");
+
+        // wrong counts on a real output are refused
+        assert!(!spec_matches_book(&[("log".into(), 2)], "planks", 4), "two logs is not the planks spec");
+        assert!(!spec_matches_book(&[("log".into(), 1)], "planks", 5), "no recipe yields five planks per log");
+        // a real spec plus a smuggled extra ingredient is refused
+        let smuggled = vec![("coal".to_string(), 1u8), ("stick".to_string(), 1u8), ("diamond".to_string(), 1u8)];
+        assert!(!spec_matches_book(&smuggled, "torch", 4), "an extra paid ingredient cannot buy a different output");
+        // a plausible output the book never named is refused
+        assert!(!spec_matches_book(&[("stone".into(), 1)], "not_a_real_item", 1));
     }
 }

@@ -35,6 +35,26 @@ pub enum ClientMessage {
     /// server itself, so an honest client's ledger never overcounts its
     /// real pack.
     PackSync { items: Vec<(String, u32)> },
+    /// THE CRAFT-REQUEST LAW (protocol v7): while connected, a workbench
+    /// craft is a REQUEST, not a local act — the client names the recipe
+    /// spec (the same (ingredients, output, output_count) tuple the
+    /// transactional engine executes) and how many batches it wants. The
+    /// server gates the spec against its own recipe book (a spec no
+    /// recipe names is refused — output cannot be fabricated from
+    /// nothing), executes `crafting::execute` against the player's
+    /// canonical LEDGER, and answers the crafter ALONE with
+    /// [`ServerMessage::CraftVerdict`]; the local pack moves only when
+    /// the verdict lands. `req_id` is client-chosen and monotonic; the
+    /// server answers a replayed id with a refusal that moves nothing,
+    /// so a duplicated datagram pays once (the dig pays-once law's
+    /// crafting twin).
+    CraftRequest {
+        req_id: u64,
+        ingredients: Vec<(String, u8)>,
+        output: String,
+        output_count: u8,
+        qty: u32,
+    },
     Goodbye,
 }
 
@@ -60,6 +80,25 @@ pub enum ServerMessage {
     /// — not the client — is the granter of mined rewards: a rejected op,
     /// a place, a simulation edit, or an already-air cell never grants.
     ItemGrant { items: Vec<(String, u8)> },
+    /// THE CRAFT-VERDICT LAW (protocol v7): the canonical answer to a
+    /// [`ClientMessage::CraftRequest`], delivered to the crafter ALONE —
+    /// the server, not the client, decides what a bench makes. THE
+    /// VERDICT IS THE DELTA: a grant carries exactly what the ledger
+    /// consumed (`consumed`, per-item totals in u32 — a large batch
+    /// exceeds u8) and exactly what it produced (`output` =
+    /// `output_count × qty`); the client applies both when the verdict
+    /// lands. A refusal carries the reason (a spec the book does not
+    /// name, a short ledger, no room, a replayed id) and moves nothing.
+    /// A lost verdict errs safe: the delta never reaches the pack, and
+    /// the next PackSync re-claim removes the ledger-side remainder — a
+    /// craft can be lost in flight, never fabricated.
+    CraftVerdict {
+        req_id: u64,
+        granted: bool,
+        consumed: Vec<(String, u32)>,
+        output: Option<(String, u32)>,
+        reason: Option<String>,
+    },
 }
 
 /// THE MINE CLAIM (protocol v5): rides a `SetBlock` that is a player
@@ -71,10 +110,10 @@ pub struct MineClaim {
     pub held: Option<String>,
 }
 
-/// v6: the pack sync (the server's per-player canonical inventory
-/// ledger). Server and client ship together; the existing version gate
-/// rejects mismatched peers.
-pub const PROTOCOL_VERSION: u32 = 6;
+/// v7: the craft request/verdict round trip (the server-computed ledger).
+/// Server and client ship together; the existing version gate rejects
+/// mismatched peers.
+pub const PROTOCOL_VERSION: u32 = 7;
 
 /// THE PACK-SYNC CADENCE: a drifted pack is uploaded at most this often
 /// (the client's PackMirror enforces it), except after a server-side
@@ -120,7 +159,47 @@ mod trade_tests {
         };
         let back: ServerMessage = bincode::deserialize(&bincode::serialize(&resolved).unwrap()).unwrap();
         assert_eq!(back, resolved);
-        assert_eq!(PROTOCOL_VERSION, 6);
+        assert_eq!(PROTOCOL_VERSION, 7);
+    }
+
+    /// v7: the craft round trip — the request names the recipe spec and a
+    /// client-chosen req id; the verdict carries exactly what the ledger
+    /// produced (u32: a large batch exceeds u8) or the refusal's reason.
+    #[test]
+    fn craft_request_and_verdict_round_trip() {
+        let request = ClientMessage::CraftRequest {
+            req_id: 42,
+            ingredients: vec![("log".into(), 1)],
+            output: "planks".into(),
+            output_count: 4,
+            qty: 64,
+        };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&request)),
+            Some(request),
+            "the craft request survives the wire"
+        );
+        let granted = ServerMessage::CraftVerdict {
+            req_id: 42, granted: true,
+            consumed: vec![("log".into(), 2)],
+            output: Some(("planks".into(), 256)),
+            reason: None,
+        };
+        assert_eq!(
+            ProtocolCodec::decode_server(&ProtocolCodec::encode_server(&granted)),
+            Some(granted),
+            "a granted verdict carries the ledger's exact delta"
+        );
+        let refused = ServerMessage::CraftVerdict {
+            req_id: 43, granted: false, consumed: vec![],
+            output: None, reason: Some("missing log (need 2, have 1)".into()),
+        };
+        assert_eq!(
+            ProtocolCodec::decode_server(&ProtocolCodec::encode_server(&refused)),
+            Some(refused),
+            "a refusal carries its reason"
+        );
+        assert_eq!(PROTOCOL_VERSION, 7);
     }
 
     /// v6: the mine claim, the yield grant, and the pack sync round-trip.
@@ -161,7 +240,7 @@ mod trade_tests {
             Some(sync),
             "the pack claim survives the wire (u32 counts: a pack holds >255 of one item)"
         );
-        assert_eq!(PROTOCOL_VERSION, 6);
+        assert_eq!(PROTOCOL_VERSION, 7);
     }
 }
 
@@ -217,6 +296,11 @@ mod tests {
             ClientMessage::Position { pos: [1.0, 65.0, 2.0], yaw: 0.5, pitch: -0.1 },
             ClientMessage::SetBlock { x: -3, y: 70, z: 12, block: 2, mine: None },
             ClientMessage::Chat { text: "hello world".into() },
+            ClientMessage::PackSync { items: vec![("wood".into(), 3)] },
+            ClientMessage::CraftRequest {
+                req_id: 1, ingredients: vec![("log".into(), 1)],
+                output: "planks".into(), output_count: 4, qty: 2,
+            },
             ClientMessage::Goodbye,
         ];
         for m in msgs {
@@ -236,6 +320,10 @@ mod tests {
             ServerMessage::PlayerLeft { id: 8 },
             ServerMessage::Reject { reason: "version".into() },
             ServerMessage::ItemGrant { items: vec![("stone".into(), 1)] },
+            ServerMessage::CraftVerdict {
+                req_id: 7, granted: false, consumed: vec![],
+                output: None, reason: Some("short".into()),
+            },
         ];
         for m in msgs {
             let enc = ProtocolCodec::encode_server(&m);

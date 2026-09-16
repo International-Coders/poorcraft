@@ -2411,8 +2411,24 @@ impl GameState {
     /// UI enable-state is only a convenience; this re-verifies against live
     /// inventory every call, so rapid clicks and queue completions share
     /// one safe path.
+    ///
+    /// THE CRAFT REQUEST IS THE VERDICT'S TO GRANT (protocol v7): while a
+    /// session is connected the local pack is not the crafter — the
+    /// request names the recipe, the server's canonical ledger pays, and
+    /// the CraftVerdict moves the pack when it lands (a fabricated spec is
+    /// refused by the book, a short ledger by the engine, a replay by the
+    /// server's seen-window; every refusal says why). Offline the
+    /// integrated host is the same authority in process.
     fn craft_from_workbench(&mut self, ingredients: &[(String, u8)], output: &str,
                             output_count: u8, qty: u32) {
+        if let Some(n) = &self.net {
+            if n.connected {
+                self.next_craft_id += 1;
+                n.request_craft(self.next_craft_id, ingredients.to_vec(),
+                                output.to_string(), output_count, qty);
+                return;
+            }
+        }
         let receipt = self.host.craft_now(
             &mut self.inventory, ingredients.to_vec(), output.to_string(), output_count, qty,
         );

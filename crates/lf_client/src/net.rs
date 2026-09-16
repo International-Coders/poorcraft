@@ -382,6 +382,18 @@ impl NetClient {
         let _ = self.socket.send(&msg);
     }
 
+    /// THE CRAFT REQUEST (protocol v7): while connected, a workbench craft
+    /// is sent, not made — the server's ledger pays and the verdict moves
+    /// the pack. One call per user intent (a click, a queue job); a fresh
+    /// retry is a fresh request.
+    pub fn request_craft(&self, req_id: u64, ingredients: Vec<(String, u8)>,
+                         output: String, output_count: u8, qty: u32) {
+        let msg = ProtocolCodec::encode_client(&ClientMessage::CraftRequest {
+            req_id, ingredients, output, output_count, qty,
+        });
+        let _ = self.socket.send(&msg);
+    }
+
     /// THE ONE PACK-SYNC SENDER: detects drift against the live pack and
     /// uploads the claim. Call every frame while a session is connected;
     /// a no-op before the server has said Welcome.

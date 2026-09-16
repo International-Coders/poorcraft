@@ -1256,6 +1256,15 @@ struct GameState {
     pub wb_station: u8,
     /// "Add to Queue" placeholder queue (output, batch size).
     pub craft_queue: Vec<(String, u32)>,
+    /// THE CRAFT IN FLIGHT (protocol v7): the queue head's outstanding
+    /// CraftRequest id — the tick waits for its verdict instead of
+    /// re-sending the job every beat (a retry is a fresh request, so one
+    /// queued job can never double-craft). Clicks need no tracking: each
+    /// click is one user intent.
+    pub craft_in_flight: Option<u64>,
+    /// Monotonic client-chosen ids for craft requests; the server's
+    /// replay window keys on them, so a duplicated datagram pays once.
+    pub next_craft_id: u64,
     /// Quest log tab: 0 = active quests, 1 = chronicle.
     pub quest_tab: usize,
     pub last_fps: f32,
@@ -1719,6 +1728,8 @@ impl GameState {
             wb_filter: 0,
             wb_station: 0,
             craft_queue: Vec::new(),
+            craft_in_flight: None,
+            next_craft_id: 1,
             quest_tab: 0,
             last_fps: 0.0,
             quest_log,
@@ -3058,6 +3069,68 @@ impl GameState {
                             }
                         }
                         pack_delta_landed = true;
+                    }
+                    // THE CRAFT-VERDICT LAW, client side (protocol v7): the
+                    // verdict IS the delta — consume exactly what the
+                    // ledger consumed, produce exactly what it granted
+                    // (overflow spills at the feet, nothing vanishes). A
+                    // queue request completes (or retries) here; a click's
+                    // refusal says why. A request id that belongs to the
+                    // queue must never hint-spam on retry (the strip shows
+                    // the live reason), matching the offline queue's
+                    // behavior.
+                    lf_protocol::ServerMessage::CraftVerdict { req_id, granted, consumed, output, reason } => {
+                        let from_queue = self.craft_in_flight == Some(req_id);
+                        if from_queue {
+                            self.craft_in_flight = None;
+                        }
+                        if granted {
+                            for (id, count) in consumed {
+                                self.inventory.remove_count(&id, count);
+                            }
+                            if let Some((out_id, granted_n)) = output {
+                                // u32 produce lands in u8 add_item batches
+                                // (the v6 ledger-rebuild idiom); whatever
+                                // the pack cannot hold spills at the feet
+                                // — nothing vanishes.
+                                let mut remaining = granted_n;
+                                while remaining > 0 {
+                                    let batch = remaining.min(u8::MAX as u32) as u8;
+                                    let moved = batch - self.inventory.add_item(&out_id, batch);
+                                    if moved == 0 { break; }
+                                    remaining -= moved as u32;
+                                }
+                                if remaining > 0 {
+                                    // the spill drops in stack-sized batches
+                                    while remaining > 0 {
+                                        let batch = remaining.min(u8::MAX as u32) as u8;
+                                        self.spawn_drop(&out_id, batch, self.player.eye_position());
+                                        remaining -= batch as u32;
+                                    }
+                                }
+                                // one event set per completed craft action —
+                                // same as the offline click
+                                self.quest_event(QuestEvent::Crafted(out_id.clone()));
+                                self.onboarding.observe_crafted();
+                                self.play_sfx(lf_audio::Sfx::CraftDone, 0.7);
+                                if from_queue {
+                                    // complete only the job the verdict is
+                                    // for — a cancelled head must not eat
+                                    // the next entry
+                                    if self.craft_queue.first()
+                                        .is_some_and(|(o, _)| o == &out_id)
+                                    {
+                                        self.craft_queue.remove(0);
+                                    }
+                                    self.push_hint(&format!("queue delivered: {} × {}", granted_n, out_id));
+                                }
+                            }
+                            pack_delta_landed = true;
+                        } else if let Some(reason) = reason {
+                            if !from_queue {
+                                self.push_hint(&format!("craft blocked: {}", reason));
+                            }
+                        }
                     }
                     // P37: escrowed trades deliver to the inventory
                     lf_protocol::ServerMessage::TradeResolved { accepted, items, .. } => {
@@ -4502,6 +4575,22 @@ impl GameState {
             self.push_hint(&format!("queue: recipe for {} is gone — job dropped", output));
             return;
         };
+        // THE CRAFT REQUEST IS THE VERDICT'S TO GRANT (protocol v7): while
+        // connected the queue job is SENT — the server's ledger pays and
+        // the verdict completes the job. One request in flight per job
+        // (the tick waits for its verdict; a retry is a fresh request), so
+        // a queued job can never double-craft.
+        if let Some(n) = &self.net {
+            if n.connected {
+                if self.craft_in_flight.is_none() {
+                    self.next_craft_id += 1;
+                    let id = self.next_craft_id;
+                    n.request_craft(id, ingredients, output.clone(), output_count, qty);
+                    self.craft_in_flight = Some(id);
+                }
+                return;
+            }
+        }
         let receipt = self.host.craft_now(&mut self.inventory, ingredients, output.clone(), output_count, qty);
         if let Some(granted) = receipt.granted {
             self.craft_queue.remove(0);
@@ -7813,5 +7902,38 @@ mod tests {
             0,
             "no direct execute against real client inventory"
         );
+    }
+
+    /// THE CRAFT-REQUEST SOURCE LAW (protocol v7): while connected, BOTH
+    /// player-facing craft paths — the workbench click and the queue tick —
+    /// send a CraftRequest and leave the local pack to the verdict; the
+    /// engine never runs against the real pack client-side. The verdict
+    /// arm applies the delta exactly once per landing (queue jobs complete
+    /// only on their own req id and output).
+    #[test]
+    fn online_crafts_route_through_the_wire_verdict() {
+        let lib = include_str!("lib.rs");
+        let ui = include_str!("ui.rs");
+        // exactly the two craft paths ask the server to make things (the
+        // needle is built with concat! so this law does not match itself)
+        let send = concat!("n.", "request_craft", "(");
+        assert_eq!(
+            (lib.matches(send).count() + ui.matches(send).count()),
+            2,
+            "the workbench click and the queue tick are the two craft senders"
+        );
+        for src in [lib, ui] {
+            assert!(src.contains("if n.connected {"),
+                "every sender guards on a live session — offline crafting stays with the host");
+        }
+        // the verdict arm is the one applier: consume the delta, complete
+        // the queue head only when the verdict names the head's own output
+        let start = lib.find("ServerMessage::CraftVerdict { req_id").expect("the verdict arm exists");
+        let end = lib[start..].find("ServerMessage::TradeOffered").expect("the next arm bounds the region");
+        let arm = &lib[start..start + end];
+        assert!(arm.contains("remove_count(&id, count)"), "the verdict consumes its delta");
+        assert!(arm.contains("add_item(&out_id, batch)"), "the verdict produces its delta in u8 batches");
+        assert!(arm.contains("o == &out_id"), "the queue head completes only on its own output");
+        assert!(arm.contains("craft_in_flight = None"), "the verdict releases the queue's wait");
     }
 }
