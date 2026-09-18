@@ -4806,7 +4806,11 @@ impl GameState {
             self.menu_reveal = 0.0;
         }
         if let Some(addr) = connect {
-            match crate::net::NetClient::connect(&addr, "smith") {
+            // THE JOIN-MODE CLAIM (protocol v8): the joiner's honest game
+            // mode rides Hello — creative joins place ungated, survival
+            // joins pay for every placement.
+            let creative = self.game_mode == crate::slots::GameMode::Creative;
+            match crate::net::NetClient::connect(&addr, "smith", creative) {
                 Ok(n) => {
                     self.net = Some(n);
                     self.chat_log = vec![format!("joining {}...", addr)];

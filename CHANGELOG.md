@@ -1,5 +1,122 @@
 # CHANGELOG
 
+## 2026-09-17 — The placed block is paid for: server-side place-item payment over real UDP (loop 468)
+
+- Closed STATE's next_task item (2)'s wider half — server-side
+  block-PLACE item payment, chosen over smelting by next_task's own
+  rule ("whichever closes the wider trust gap in the played loop
+  first"): smelting fabricates only its own output; a free placement
+  fabricates ANY world content and, through loop 465's server-paid
+  mining, was a full item mint (place ore for free, mine it, collect
+  the server's own grant). A lying client no longer builds for
+  nothing: what an adventurer places, the ledger must pay for.
+- THE WIRE (lf_protocol, v8): `SetBlock` gains
+  `place: Option<PlaceClaim { item }>` — `Some(..)` iff a player ITEM
+  PLACEMENT, naming the item whose consumption paid for the block;
+  `Hello` gains `creative: bool` — the joiner's honest game-mode claim,
+  fixed for the session (a world is created in one mode; the same
+  client-claimed bootstrap tier as PackSync). THE WIDE-STATE FIX (the
+  proof-discovered wart in this exact path): the wire's block field is
+  now the FULL BlockState u32 — placements used to send `state.id()`,
+  stripping the shape nibble, so an online slab arrived a full cube to
+  the server and every peer, and the placer's own chunk reload
+  reverted it; now the shape (and fluid nibbles on sim edits) ride the
+  wire and the server masks ids wherever the law needs ids.
+  PROTOCOL_VERSION 7 -> 8 (matched binaries; the existing gate
+  rejects mismatched peers).
+- THE SERVER (lf_server): two new gates in the SetBlock arm. THE
+  SMUGGLE GUARD — one edit carries one claim: a mine claim plus a
+  place claim on the same datagram is a forged op, refused with the
+  corrective echo and a named reason, and the smuggled mine never pays
+  a grant. THE PLACE-PAYMENT GATE — a SURVIVAL joiner's placement must
+  pass `lf_game::items::placement_pays` (the shared pure law: the item
+  IS the block under any build shape, or a shaped slab/stairs item in
+  its own family including the merged cube, or the block's canonical
+  drop — every door a closed loop under `block_drop`, so paying and
+  mining back never mints) and the LEDGER must hold one, which the
+  gate consumes. ANY refusal moves nothing: no world edit, no
+  broadcast — the editor alone hears the corrective echo (the server's
+  true block) plus a reasoned Reject. A CREATIVE joiner places ungated
+  (creative is infinite by its own law); a claim-free edit remains a
+  simulation edit — fluids, falling blocks, machines, spell effects —
+  accepted ungated as shipped (the client-simmed tier, its residual
+  named and deferred with it).
+- THE CLIENT (lf_client): `net::place_claim_for` — a placement claims
+  only with a paying witness and only in survival; `host_set_block`
+  gains the witness parameter and sends the full state. All FOUR
+  player-facing placement sites name their payment: the shaped
+  slab/stairs site, the symmetry mirror, and the held-block site pay
+  the held item; a blueprint-paste cell pays its own drop (the bill —
+  the same item the paste removes locally). The mirror's online
+  placement consumes one MORE (online every placed block is paid;
+  offline keeps the shipped mirror-free law). The hearthlight spell's
+  light is re-kinded Place -> Machine — a spell effect like its own
+  burnout and the meltdown residue (the scroll was spent at learn
+  time; the light reverts itself), so it claims nothing. The claim is
+  computed in exactly ONE place (the funnel). A refused online
+  placement errs safe: the corrective echo reverts the block and the
+  PackMirror's drift re-claim heals the local consumption — at-most-
+  once, never fabricated.
+- 10 NEW LAWS (root 524 -> 534; lf_game 179 -> 180, lf_server 16 ->
+  23, lf_client 108 -> 110; lf_protocol same count — the v8
+  round-trips fold into the existing wire laws): the placement-payment
+  unit law (three doors; families do not cross; dirt for a stone,
+  stone for iron ore, tools, unknown items, and fluids all refuse);
+  the place-claim unit law (Place + witness + survival only); the
+  paid-placement-moves-the-ledger wire law (two placements consume
+  two of eight stones, proven through the trade gate alone; the
+  editor never hears its own accepted placement); the short-ledger
+  refusal wire law (the echo says air, the reason names the ledger,
+  the peer never sees the block); the mismatched-claim wire law (five
+  uploaded dirts survive a refused stone placement); the smuggle-guard
+  wire law (both claims refuse — no grant, no charge); the creative
+  law (no claim, no ledger, two placements land, mining them back
+  pays the canonical grants); the sim-tier law (a claim-free edit
+  lands ungated — the deferral pinned consciously); the wide-state
+  wire law (a slab-bottom stone arrives the slab nibble, not a cube);
+  the every-placement-names-its-payment source law (one claim site in
+  the funnel; three held-item witnesses + the paste bill; a bare
+  Place refuses to compile under the law).
+- REGRESSION: cargo test --workspace 534 green / 0 failed (xtask's 12
+  included); make smoke OK; FULL vistest battery 110 scenes [ok] /
+  0 FAIL exit-0 across TWO runs with every committed PNG
+  byte-identical (md5 462b2318ed4c98d9a882266cd81fbd7d before ==
+  after) — singleplayer render paths pixel-proven unchanged; the
+  steam feature build repaired and re-verified after the v8 Hello
+  reached its cfg-gated announce probe (`--features steam` lib +
+  examples compile; the feature stays off by default and untested on
+  hardware, as shipped); runtimes refreshed (dist/ dmg 8.8 MB hdiutil
+  VALID + linux tarball 8.4 MB + .app binary 20 MB + server); Windows
+  exe honestly skipped (mingw absent); POORCRAFT 3D untouched; the
+  six windowed_wild_*.png dirties remain deliberately NOT staged.
+- PERF: not applicable — one extra Option<PlaceClaim> field per
+  placement datagram (~16 bytes); the server adds one bounded
+  placement_pays check plus one count_of/remove_count per player
+  placement; zero singleplayer cost (offline branches unchanged).
+- LORE: canon touched: none — multiplayer economy plumbing (the
+  465/466/467 precedent); the placement law reads the existing
+  block/item tables; no faction, place, event, term, NPC, item, or
+  spell data changed; no new canon text (rejection reasons are UI
+  hints). Canon preserved: the chronicle as the player-authored
+  history; Anima as a material energetic property (the hearthlight's
+  spell light is a temporary effect that reverts itself — it creates
+  nothing permanent); no identity assigned. World expression: in
+  shared Valdenmoor what an adventurer builds stands on what the
+  realm's ledger knows they carry — a placement beyond their means is
+  refused, a shape claimed by another family refuses, and every
+  refusal says why.
+- Migration: PROTOCOL_VERSION bump only (matched client+server; old
+  peers rejected by the existing gate) — no save format, no
+  block/item change, GENERATOR_VERSION unchanged, ClientSave
+  untouched.
+- Deferred honestly: the forged sim-claim residual (a modified client
+  sending claim-free ops) is the client-simmed tier's own trust,
+  deferred with that tier (server-side sim verification); smelting
+  and eating stay client-side (the remaining consumption tiers); a
+  lying creative Hello is the PackSync bootstrap tier (full closure =
+  server-side mode authority); the windowed two-client route;
+  hardcoded connect name "smith" (audit note).
+
 ## 2026-09-15 — The bench asks the realm: server-side crafting over real UDP (loop 467)
 
 - Closed STATE's next_task item (2) — loop 466's honest deferral "the

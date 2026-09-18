@@ -19,9 +19,9 @@ fn main() {
             match event {
                 HostEvent::PeerConnected(peer) => println!("PEER   PASS: connected {peer}"),
                 HostEvent::PeerMessage(peer, cm) => match cm {
-                    lf_protocol::ClientMessage::Hello { name, protocol_version } => {
+                    lf_protocol::ClientMessage::Hello { name, protocol_version, creative } => {
                         println!(
-                            "HELLO  PASS: {name} protocol_version={protocol_version}"
+                            "HELLO  PASS: {name} protocol_version={protocol_version} creative={creative}"
                         );
                         assert_eq!(protocol_version, lf_protocol::PROTOCOL_VERSION);
                         host.send_to(peer, &ServerMessage::Welcome {

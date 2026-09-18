@@ -2256,6 +2256,12 @@ impl GameState {
     /// in its event log), and on success gives the edit the standard remesh +
     /// network-broadcast treatment. Returns whether the edit landed — the
     /// same contract the old direct `world.set_block` calls relied on.
+    /// `pay_item` is the PLACE-PAYMENT witness (v8): the item whose
+    /// consumption pays for a player placement — the held item for a hand
+    /// placement, the bill item for a blueprint-paste cell, `None` for
+    /// every non-placement edit. The claim rides the wire only in
+    /// survival (creative never consumes) and only for EditKind::Place;
+    /// the server gates it against the ledger.
     fn host_set_block(
         &mut self,
         x: i32,
@@ -2263,6 +2269,7 @@ impl GameState {
         z: i32,
         state: BlockState,
         reason: lf_game::host::EditKind,
+        pay_item: Option<&str>,
     ) -> bool {
         self.host.queue_set_block(x, y, z, state, reason);
         let landed = self.host.apply_pending(&mut self.world) > 0;
@@ -2273,7 +2280,14 @@ impl GameState {
                 // claim is the honest held item (net::mine_claim_for).
                 let held = self.inventory.slots[self.hotbar_index].as_ref();
                 let mine = net::mine_claim_for(reason, held);
-                n.send_block(x, y, z, state.id(), mine);
+                // THE PLACE-CLAIM LAW: only a player ITEM PLACEMENT claims
+                // its payment (net::place_claim_for) — the paying item,
+                // in survival only.
+                let place = net::place_claim_for(reason, pay_item, self.game_mode.consumes_items());
+                // THE WIDE-STATE WIRE: the FULL BlockState rides (shape
+                // and fluid nibbles in the high bits) — a placed slab
+                // arrives a slab everywhere.
+                n.send_block(x, y, z, state.0, mine, place);
             }
         }
         landed
@@ -3319,7 +3333,7 @@ impl GameState {
                     m.total = total;
                     if m.progress >= m.total {
                         self.mining = None;
-                        if self.host_set_block(pos.x, pos.y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine) {
+                        if self.host_set_block(pos.x, pos.y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine, None) {
                             // loop 330: breaking a trunk fells the whole tree
                             if registry::is_log(block_id) {
                                 self.try_fell_tree(pos);
@@ -3362,7 +3376,7 @@ impl GameState {
                             if block_id == registry::block::SCAFFOLD {
                                 let mut y = pos.y + 1;
                                 while self.world.get_block(pos.x, y, pos.z).id() == registry::block::SCAFFOLD {
-                                    self.host_set_block(pos.x, y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine);
+                                    self.host_set_block(pos.x, y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine, None);
                                     self.break_block_drops(registry::block::SCAFFOLD, glam::IVec3::new(pos.x, y, pos.z));
                                     y += 1;
                                 }
@@ -3375,7 +3389,7 @@ impl GameState {
                                 let mx = (2.0 * px - pos.x as f32).round() as i32;
                                 let mirrored = self.world.get_block(mx, pos.y, pos.z);
                                 if mirrored.id() == block_id {
-                                    self.host_set_block(mx, pos.y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine);
+                                    self.host_set_block(mx, pos.y, pos.z, BlockState::AIR, lf_game::host::EditKind::Mine, None);
                                     self.break_block_drops(block_id, glam::IVec3::new(mx, pos.y, pos.z));
                                     self.after_edit(mx, pos.y, pos.z);
                                 }
@@ -3831,7 +3845,8 @@ impl GameState {
                                     }
                                     let mut remesh = false;
                                     for ((x, y, z), b) in targets {
-                                        if self.host_set_block(x, y, z, b, lf_game::host::EditKind::Place) {
+                                        let bill = lf_game::items::block_drop(b.id());
+                                        if self.host_set_block(x, y, z, b, lf_game::host::EditKind::Place, bill.as_deref()) {
                                             remesh = true;
                                         }
                                     }
@@ -3867,15 +3882,22 @@ impl GameState {
                             let place = if merge.is_some() { pos } else { pos + normal };
                             if merge.is_some() || !self.block_intersects_player(place) {
                                 let final_state = merge.unwrap_or(shaped);
-                                if self.host_set_block(place.x, place.y, place.z, final_state, lf_game::host::EditKind::Place) {
+                                if self.host_set_block(place.x, place.y, place.z, final_state, lf_game::host::EditKind::Place, Some(&stack.item_id)) {
                                     self.after_edit(place.x, place.y, place.z);
                                     self.play_block_sound(final_state.id(), lf_audio::Action::Place);
                                     self.consume_selected(1);
-                                    // symmetry mirrors the placement
+                                    // symmetry mirrors the placement; ONLINE the
+                                    // realm's ledger pays for the mirror too (every
+                                    // placed block is paid), so the mirror consumes
+                                    // one more when connected (offline keeps the
+                                    // shipped mirror-free law)
                                     if let Some(px) = self.symmetry_plane {
                                         let mx = (2.0 * px - place.x as f32).round() as i32;
                                         if self.world.get_block(mx, place.y, place.z) == BlockState::AIR {
-                                            self.host_set_block(mx, place.y, place.z, final_state, lf_game::host::EditKind::Place);
+                                            if self.host_set_block(mx, place.y, place.z, final_state, lf_game::host::EditKind::Place, Some(&stack.item_id))
+                                                && self.net.is_some() {
+                                                self.consume_selected(1);
+                                            }
                                         }
                                     }
                                 }
@@ -3919,7 +3941,7 @@ impl GameState {
                                     }
                                 }
                                 if !self.block_intersects_player(place) {
-                                    if self.host_set_block(place.x, place.y, place.z, final_state, lf_game::host::EditKind::Place) {
+                                    if self.host_set_block(place.x, place.y, place.z, final_state, lf_game::host::EditKind::Place, Some(&stack.item_id)) {
                                         // lore-and-visuals: quest Place events
                                         // (targets use the item-id form)
                                         let placed_item = stack.item_id.clone();
@@ -4186,7 +4208,11 @@ impl GameState {
                     self.player.position.z as i32,
                 ));
                 if self.world.get_block(target.x, target.y, target.z) == BlockState::AIR {
-                    self.host_set_block(target.x, target.y, target.z, BlockState(registry::block::LUMEN_BLOCK), lf_game::host::EditKind::Place);
+                    // a spell effect claims nothing: the scroll was spent at learn
+                    // time, and the light burns out on its own (the
+                    // Machine-kind twin below) — the same re-action tier
+                    // as the meltdown residue, never an item placement
+                    self.host_set_block(target.x, target.y, target.z, BlockState(registry::block::LUMEN_BLOCK), lf_game::host::EditKind::Machine, None);
                     self.hearth_lights.insert((target.x, target.y, target.z), 90.0);
                 }
             }
@@ -4281,7 +4307,7 @@ impl GameState {
         for pos in expired {
             self.hearth_lights.remove(&pos);
             if self.world.get_block(pos.0, pos.1, pos.2).id() == registry::block::LUMEN_BLOCK {
-                self.host_set_block(pos.0, pos.1, pos.2, BlockState::AIR, lf_game::host::EditKind::Machine);
+                self.host_set_block(pos.0, pos.1, pos.2, BlockState::AIR, lf_game::host::EditKind::Machine, None);
             }
         }
     }
@@ -4313,7 +4339,7 @@ impl GameState {
                     } else {
                         BlockState::AIR
                     };
-                    if self.host_set_block(x, y, z, block, lf_game::host::EditKind::Machine) {
+                    if self.host_set_block(x, y, z, block, lf_game::host::EditKind::Machine, None) {
                         edits.push((x, z));
                     }
                 }
@@ -5546,7 +5572,7 @@ impl GameState {
         // loop 331: ground plants pop when their support breaks
         let above = self.world.get_block(x, y + 1, z).id();
         if registry::is_plant(above) && !registry::is_banner(above) {
-            self.host_set_block(x, y + 1, z, BlockState::AIR, lf_game::host::EditKind::Falling);
+            self.host_set_block(x, y + 1, z, BlockState::AIR, lf_game::host::EditKind::Falling, None);
         }
     }
 
@@ -5574,7 +5600,7 @@ impl GameState {
         if !registry::has_gravity(above.id()) || self.world.is_solid(x, y, z) {
             return;
         }
-        if self.host_set_block(x, y + 1, z, BlockState::AIR, lf_game::host::EditKind::Falling) {
+        if self.host_set_block(x, y + 1, z, BlockState::AIR, lf_game::host::EditKind::Falling, None) {
             let seed = ((x as u64) << 32) ^ ((y as u64) << 8) ^ (z as u64);
             self.falling_blocks.push(FallingBlock {
                 position: Vec3::new(x as f32 + 0.5, y as f32 + 1.5, z as f32 + 0.5),
@@ -5669,7 +5695,7 @@ impl GameState {
         // the server would grant a log per trunk cell). Falling is the
         // support-removal kind: no claim, same edit authority.
         for cell in tree.trunk.iter().chain(tree.leaves.iter()) {
-            self.host_set_block(cell[0], cell[1], cell[2], BlockState::AIR, lf_game::host::EditKind::Falling);
+            self.host_set_block(cell[0], cell[1], cell[2], BlockState::AIR, lf_game::host::EditKind::Falling, None);
         }
         self.remesh_around(stump.x, stump.z);
         let look = self.player.look_dir();
@@ -5726,7 +5752,7 @@ impl GameState {
     /// network-broadcast treatment as a player edit. B03: delegates to the
     /// authoritative host (system-edited blocks are Machine edits).
     fn apply_sim_edit(&mut self, x: i32, y: i32, z: i32, state: BlockState) {
-        self.host_set_block(x, y, z, state, lf_game::host::EditKind::Machine);
+        self.host_set_block(x, y, z, state, lf_game::host::EditKind::Machine, None);
     }
 
     /// Run a bounded slice of the water simulation. Cell edits are applied
@@ -7762,6 +7788,45 @@ mod tests {
             sites[0] > funnel,
             "the one send_block site must live in the host_set_block funnel"
         );
+    }
+
+    /// THE PLACE-PAYMENT SOURCE LAW (loop 468): every player placement
+    /// broadcast through the funnel names its paying item — the held
+    /// item for a hand placement (the shaped, mirrored, and block-item
+    /// sites) or the cell's own drop for a blueprint-paste cell — and no
+    /// Place-kind edit rides without a witness. The claim itself is
+    /// computed in exactly one place (the funnel, via
+    /// `net::place_claim_for`), which is where the survival-only gate
+    /// lives. The hearthlight's spell light is a Machine-kind effect
+    /// (its own burnout's twin), never an item placement.
+    #[test]
+    fn every_placement_broadcast_names_its_paying_item() {
+        let source = include_str!("lib.rs");
+        let tests_start = source.find("#[cfg(test)]").expect("test module must exist");
+        let live = &source[..tests_start];
+
+        // the claim is computed in exactly one place: the funnel.
+        let mut idx = 0;
+        let mut claim_sites: Vec<usize> = Vec::new();
+        while let Some(pos) = live[idx..].find("net::place_claim_for(") {
+            claim_sites.push(idx + pos);
+            idx = idx + pos + 1;
+        }
+        let funnel = live.find("fn host_set_block(").expect("the funnel must exist");
+        assert_eq!(claim_sites.len(), 1, "the place claim is computed only in the funnel");
+        assert!(claim_sites[0] > funnel, "the claim site must live in host_set_block");
+
+        // every Place-kind broadcast carries a witness (three held-item
+        // sites + the paste bill); a bare Place refuses to compile here.
+        let held_witnesses = live.matches("EditKind::Place, Some(&stack.item_id)").count();
+        assert_eq!(held_witnesses, 3,
+            "the shaped, mirrored, and block-item placements pay the held item");
+        assert_eq!(live.matches("EditKind::Place, bill.as_deref()").count(), 1,
+            "a blueprint-paste cell pays its own drop (the bill item)");
+        assert_eq!(live.matches("EditKind::Place)").count(), 0,
+            "no Place-kind edit may broadcast without its paying witness");
+        assert_eq!(live.matches("EditKind::Place, None").count(), 0,
+            "a Place-kind edit is never claim-free — spell effects are Machine kind");
     }
 
     /// THE NO-OPTIMISTIC-TAKE LAW (loop 465): the mined block's yield is

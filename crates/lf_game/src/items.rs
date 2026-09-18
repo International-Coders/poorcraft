@@ -468,6 +468,50 @@ mod tests {
         assert_eq!(slab_merge(slab, slab), Some(stone));
     }
 
+    /// THE PLACE-PAYMENT LAW: an item pays for the blocks it can place,
+    /// every admission a closed loop under block_drop; anything else —
+    /// a wrong item, an unknown item, a fluid — refuses.
+    #[test]
+    fn placement_payment_gates_by_the_item_and_the_drop() {
+        use lf_voxel::{registry::block, Shape};
+        let stone = lf_voxel::BlockState(block::STONE);
+        let stone_slab = stone.with_shape(Shape::SlabBottom);
+        let stone_stairs = stone.with_shape(Shape::StairNorth);
+
+        // door 1: the item IS the block, any build shape of it.
+        assert!(placement_pays("stone", stone), "a stone pays for a stone");
+        assert!(placement_pays("stone", stone_slab), "the held block pays for its own slab shape");
+        assert!(placement_pays("stone", stone_stairs), "the held block pays for its own stairs shape");
+        assert!(placement_pays("log", lf_voxel::BlockState(block::LOG)));
+        assert!(placement_pays("torch", lf_voxel::BlockState(block::TORCH)));
+
+        // door 2: a shaped item pays inside its family, merge included.
+        assert!(placement_pays("stone_slab", stone_slab), "a slab item pays for its slab");
+        assert!(placement_pays("stone_slab", stone), "a slab item pays for the merged cube");
+        assert!(placement_pays("stone_stairs", stone_stairs));
+        assert!(placement_pays("planks_slab", lf_voxel::BlockState(block::PLANKS).with_shape(Shape::SlabBottom)));
+        // ...but never outside its family: a slab of planks is not a slab of stone.
+        assert!(!placement_pays("planks_slab", stone_slab), "the families do not cross");
+
+        // door 3: the canonical drop pays — the blueprint-paste bill.
+        assert!(placement_pays("dirt", lf_voxel::BlockState(block::GRASS)),
+            "grass drops dirt, so dirt pays for a grass cell");
+        assert!(placement_pays("cherry_log", lf_voxel::BlockState(block::CHERRY_LOG)),
+            "a species log item pays for its own block");
+        assert!(placement_pays("log", lf_voxel::BlockState(block::PALM_LOG)),
+            "family fallback: the king-quest logs drop a plain log, so a plain log pays");
+
+        // THE REFUSALS: nothing places for free or by smuggling.
+        assert!(!placement_pays("dirt", stone), "dirt does not pay for a stone");
+        assert!(!placement_pays("stone", lf_voxel::BlockState(block::IRON_ORE)),
+            "paying stone for iron ore is refused — the place-then-mine mint dies here");
+        assert!(!placement_pays("wooden_pickaxe", stone), "a tool is not a block");
+        assert!(!placement_pays("no_such_item", stone), "an unknown item refuses");
+        assert!(!placement_pays("stone", lf_voxel::BlockState(block::AIR)), "air is not placed");
+        assert!(!placement_pays("stone", lf_voxel::BlockState(block::WATER)),
+            "fluids refuse every door (their drop is None; buckets pour as sim edits)");
+    }
+
     use super::shaped_placement;
     use lf_voxel::Shape;
 
@@ -640,6 +684,43 @@ pub fn slab_merge(existing: lf_voxel::BlockState, incoming: lf_voxel::BlockState
         Some(lf_voxel::BlockState(existing.id()))
     } else {
         None
+    }
+}
+
+/// THE PLACE-PAYMENT LAW (protocol v8): can this item pay for placing
+/// this block? Three doors, every one a closed loop under the mining law
+/// ([`block_drop`]) — paying the item and later mining the block back
+/// never mints anything:
+/// 1. the item IS the block (`ItemKind::Block(b)`, `b == placed.id()`) —
+///    any build shape of it qualifies, the building HUD's slab/stairs
+///    variants place the same id;
+/// 2. the item is a shaped block item (slab/stairs) whose family base is
+///    the placed id — including the merged full cube (one slab item
+///    finishes a pair into a cube, the shipped offline merge law);
+/// 3. the item is the block's canonical drop — how a blueprint paste
+///    pays: the bill names each cell's drop, so a cherry-log cell is
+///    paid by a plain "log". Still a closed loop: the drop of the placed
+///    block IS the paid item.
+/// Everything else refuses — pay dirt for a stone and the gate refuses;
+/// nothing in the book places a block for free. Fluids refuse every
+/// door (their drops are None — buckets pour them as simulation edits).
+pub fn placement_pays(item_id: &str, placed: lf_voxel::BlockState) -> bool {
+    if block_drop(placed.id()).as_deref() == Some(item_id) {
+        return true;
+    }
+    match item_def(item_id).map(|d| d.kind) {
+        Some(ItemKind::Block(b)) => b == placed.id(),
+        _ => shaped_base(item_id) == Some(placed.id()),
+    }
+}
+
+/// The family base block id of a shaped block item ([`shaped_placement`]).
+fn shaped_base(item_id: &str) -> Option<u32> {
+    use lf_voxel::registry::block;
+    match item_id {
+        "stone_slab" | "stone_stairs" => Some(block::STONE),
+        "planks_slab" => Some(block::PLANKS),
+        _ => None,
     }
 }
 

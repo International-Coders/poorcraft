@@ -11,6 +11,39 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The placed block is paid for: server-side place-item payment
+      over real UDP (2026-09-17, loop 468, root workspace): closed
+      STATE's next_task item (2)'s wider half — chosen over smelting
+      by next_task's own rule: a free placement fabricates ANY world
+      content and, through loop 465's server-paid mining, was a full
+      item mint. Wire v8: PlaceClaim (the paying item) on SetBlock +
+      creative on Hello + the FULL BlockState rides the wire (the
+      proof-discovered wart: an online slab arrived a full cube and
+      the placer's own chunk reload reverted it — fixed and lawed).
+      THE SERVER: the smuggle guard (mine+place on one edit refuses)
+      and the place-payment gate (placement_pays — the shared pure
+      law, every door a closed loop under block_drop — plus the
+      ledger holds one, consumed); refusals move nothing and answer
+      the editor alone (echo + reasoned Reject); creative joins place
+      ungated; claim-free edits stay the client-simmed tier as
+      shipped. THE CLIENT: place_claim_for (Place + witness +
+      survival only) computed in one funnel; all four placement sites
+      name their payment (held item x3, the paste bill per cell);
+      the mirror consumes one more online (offline keeps the
+      mirror-free law); the hearthlight spell light re-kinded
+      Machine (a spell effect claims nothing). Evidence: 10 new laws
+      (the placement-payment + place-claim unit laws; the
+      paid-moves-the-ledger, short-ledger-refusal, mismatched-claim,
+      smuggle-guard, creative, sim-tier, and wide-state wire laws
+      over real UDP; the every-placement-names-its-payment source
+      law); workspace 534/0 (xtask 12 included); smoke OK; battery
+      110 scenes exit-0 twice with PNGs byte-identical (singleplayer
+      pixel-proven unchanged); steam feature build repaired and
+      re-verified; runtimes fresh. Deferred honestly: the forged
+      sim-claim residual (the client-simmed tier's trust); smelting
+      and eating; a lying creative Hello (the bootstrap tier); the
+      windowed two-client route.
+
 - [x] The bench asks the realm: server-side crafting over real UDP
       (2026-09-15, loop 467, root workspace): closed STATE's next_task
       item (2) — loop 466's deferral "the ledger is client-CLAIMED

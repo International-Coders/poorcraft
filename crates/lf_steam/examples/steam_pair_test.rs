@@ -18,7 +18,7 @@ fn main() {
     // client -> host: protocol-v4 Hello
     let hello = ProtocolCodec::encode_client(&ClientMessage::Hello {
         name: "pair-probe".into(),
-        protocol_version: PROTOCOL_VERSION,
+        protocol_version: PROTOCOL_VERSION, creative: false,
     });
     assert!(host_end.receive_raw(16).is_empty(), "nothing queued before send");
     assert!(client_end.send_raw(&hello, true), "client send failed");
@@ -29,7 +29,7 @@ fn main() {
     for _ in 0..50 {
         for data in host_end.receive_raw(16) {
             match ProtocolCodec::decode_client(&data) {
-                Some(ClientMessage::Hello { name, protocol_version }) => {
+                Some(ClientMessage::Hello { name, protocol_version, .. }) => {
                     println!(
                         "HELLO  PASS: {} protocol_version={}", name, protocol_version
                     );

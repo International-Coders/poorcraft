@@ -34,7 +34,7 @@ fn main() {
                     println!("CONN   PASS: P2P session up");
                     net.send(&ClientMessage::Hello {
                         name: "probe-client".into(),
-                        protocol_version: PROTOCOL_VERSION,
+                        protocol_version: PROTOCOL_VERSION, creative: false,
                     });
                     hello_sent = true;
                     println!("HELLO  SENT (protocol v{})", PROTOCOL_VERSION);

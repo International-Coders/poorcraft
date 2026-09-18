@@ -23,6 +23,13 @@ struct Player {
     addr: SocketAddr,
     pos: [f32; 3],
     yaw: f32,
+    /// THE JOIN-MODE LAW (protocol v8): the joiner's claimed game mode,
+    /// fixed for the session (a world is created in one mode). A CREATIVE
+    /// joiner's placements are ungated — creative is infinite by its own
+    /// law — while a SURVIVAL joiner pays for every placement at the
+    /// place-payment gate. A client claim of prior-session state (the
+    /// PackSync bootstrap tier), not a server-verified fact.
+    creative: bool,
 }
 
 /// THE ESCROW LAW: a trade completes only when BOTH canonical ledgers can
@@ -218,7 +225,7 @@ fn handle_message(
     msg: ClientMessage,
 ) {
     match msg {
-        ClientMessage::Hello { name, protocol_version } => {
+        ClientMessage::Hello { name, protocol_version, creative } => {
             if protocol_version != PROTOCOL_VERSION {
                 let reply = ProtocolCodec::encode_server(&ServerMessage::Reject {
                     reason: format!("version mismatch: server {}", PROTOCOL_VERSION),
@@ -232,7 +239,7 @@ fn handle_message(
             let id = *next_id;
             *next_id += 1;
             let roster: Vec<(u64, String)> = players.iter().map(|(pid, p)| (*pid, p.name.clone())).collect();
-            players.insert(id, Player { name: name.clone(), addr: src, pos: [0.0, 80.0, 0.0], yaw: 0.0 });
+            players.insert(id, Player { name: name.clone(), addr: src, pos: [0.0, 80.0, 0.0], yaw: 0.0, creative });
             inventories.insert(id, Inventory::new());
             let welcome = ProtocolCodec::encode_server(&ServerMessage::Welcome {
                 your_id: id,
@@ -258,7 +265,15 @@ fn handle_message(
                 p.yaw = yaw;
             }
         }
-        ClientMessage::SetBlock { x, y, z, block, mine } => {
+        ClientMessage::SetBlock { x, y, z, block, mine, place } => {
+            // THE WIDE-STATE WIRE (v8): the u32 is a full BlockState — the
+            // shape/fluid nibbles ride the high bits, so a placed slab
+            // arrives a slab (it used to arrive a full cube and the peers
+            // plus the editor's own chunk reload disagreed). Every law
+            // below reads the id via BlockState::id().
+            let state = BlockState(block);
+            let block_id = state.id();
+            let creative = players.values().find(|p| p.addr == src).map(|p| p.creative);
             // THE NO-SELF-ECHO LAW: the editor applied its edit optimistically
             // before sending it, so echoing an ACCEPTED edit back would
             // double-apply (a second host event for one player action plus a
@@ -269,16 +284,69 @@ fn handle_message(
             //
             // validate: within height, and a real block (vanilla or a mod
             // block registered from a loaded mods/ dir)
-            if (0..256).contains(&y) && lf_voxel::registry::is_known_block(block) {
+            if (0..256).contains(&y) && lf_voxel::registry::is_known_block(block_id) {
                 let (cx, _lx) = (x.div_euclid(16), x.rem_euclid(16));
                 let (cz, _lz) = (z.div_euclid(16), z.rem_euclid(16));
                 if world.chunk(cx, cz).is_none() {
                     world.chunks.insert((cx, cz), gen.generate_chunk(cx, cz));
                 }
+                // THE SMUGGLE GUARD: one edit carries one claim. A mine
+                // claim on a place (or a place claim on a mine) is a
+                // forged op — refused with the corrective echo, nothing
+                // applied, nothing broadcast.
+                if mine.is_some() && place.is_some() {
+                    let truth = world.get_block(x, y, z).0;
+                    let fix = ProtocolCodec::encode_server(&ServerMessage::BlockUpdate { x, y, z, block: truth });
+                    let _ = socket.send_to(&fix, src);
+                    let reject = ProtocolCodec::encode_server(&ServerMessage::Reject {
+                        reason: "an edit cannot both mine and place".into(),
+                    });
+                    let _ = socket.send_to(&reject, src);
+                    return;
+                }
+                // THE PLACE-PAYMENT GATE (v8): a SURVIVAL joiner's
+                // placement pays the ledger. The claimed item must be
+                // able to place this block (lf_game::items::
+                // placement_pays — the shared law; every admission is a
+                // closed loop under the mining law, so paying and mining
+                // back never mints) and the ledger must hold one, which
+                // the gate consumes. ANY refusal moves nothing: no world
+                // edit, no broadcast — the editor alone hears the
+                // corrective echo plus a reasoned Reject. A CREATIVE
+                // joiner's placements are ungated (creative is infinite
+                // by its own law). A claim-free edit is a simulation
+                // edit (fluids, falling, machines, spell effects) — the
+                // client-simmed tier, accepted ungated as shipped; its
+                // forged-claim residual is that tier's trust, deferred
+                // with it.
+                let mut refused: Option<String> = None;
+                if let Some(claim) = &place {
+                    if creative != Some(true) {
+                        let item = claim.item.as_str();
+                        if !lf_game::items::placement_pays(item, state) {
+                            refused = Some(format!("{} cannot place that block", item));
+                        } else {
+                            match id_of(players, src).and_then(|id| inventories.get_mut(&id)) {
+                                Some(inv) if inv.count_of(item) >= 1 => {
+                                    inv.remove_count(item, 1);
+                                }
+                                _ => refused = Some(format!("the ledger holds no {}", item)),
+                            }
+                        }
+                    }
+                }
+                if let Some(reason) = refused {
+                    let truth = world.get_block(x, y, z).0;
+                    let fix = ProtocolCodec::encode_server(&ServerMessage::BlockUpdate { x, y, z, block: truth });
+                    let _ = socket.send_to(&fix, src);
+                    let reject = ProtocolCodec::encode_server(&ServerMessage::Reject { reason });
+                    let _ = socket.send_to(&reject, src);
+                    return;
+                }
                 // THE YIELD-GRANT LAW: what the block was is what the server
                 // had — read BEFORE the canonical world changes.
                 let old = world.get_block(x, y, z).0;
-                world.set_block(x, y, z, BlockState(block));
+                world.set_block(x, y, z, state);
                 edits.push((x, y, z, block));
                 let upd = ProtocolCodec::encode_server(&ServerMessage::BlockUpdate { x, y, z, block });
                 for p in players.values() {
@@ -296,12 +364,13 @@ fn handle_message(
                 // or a peer who mined the same block first), and a rejected
                 // op all grant nothing.
                 if let Some(claim) = mine {
-                    if old != lf_voxel::registry::block::AIR {
+                    let old_id = BlockState(old).id();
+                    if old_id != lf_voxel::registry::block::AIR {
                         let held = claim
                             .held
                             .map(|id| lf_game::survival::ItemStack { item_id: id, count: 1 });
-                        if lf_game::mining::tool_satisfies(old, held.as_ref()) {
-                            if let Some(item) = lf_game::items::block_drop(old) {
+                        if lf_game::mining::tool_satisfies(old_id, held.as_ref()) {
+                            if let Some(item) = lf_game::items::block_drop(old_id) {
                                 // The yield pays the ledger first: the
                                 // canonical copy of the miner's pack grows by
                                 // the same drop the grant carries. Overflow
@@ -634,11 +703,11 @@ mod tests {
         c2.connect(addr).unwrap();
 
         c1.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "alice".into(), protocol_version: PROTOCOL_VERSION,
+            name: "alice".into(), protocol_version: PROTOCOL_VERSION, creative: false,
         })).unwrap();
         pump(150);
         c2.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "bob".into(), protocol_version: PROTOCOL_VERSION,
+            name: "bob".into(), protocol_version: PROTOCOL_VERSION, creative: false,
         })).unwrap();
         pump(150);
 
@@ -653,7 +722,7 @@ mod tests {
         assert!(c2_msgs.iter().any(|m| matches!(m, ServerMessage::Chat { from, text } if from == "alice" && text == "hi bob")),
             "bob receives chat");
 
-        c2.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 5, y: 70, z: -3, block: 1, mine: None })).unwrap();
+        c2.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 5, y: 70, z: -3, block: 1, mine: None, place: None })).unwrap();
         assert!(drain_until(&c1, 5000, |m| matches!(m,
             ServerMessage::BlockUpdate { x: 5, y: 70, z: -3, block: 1 })).is_some(),
             "alice receives block update");
@@ -685,7 +754,7 @@ mod tests {
         // the canonical ledgers cover.
         for (sock, name) in [(&c1, "alice"), (&c2, "bob")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -786,7 +855,7 @@ mod tests {
         observer.connect(addr).unwrap();
         for (sock, name) in [(&sender, "editor"), (&observer, "peer")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -794,7 +863,7 @@ mod tests {
         let _ = drain(&observer);
 
         // A mod-block edit is accepted and relayed — to the peer only.
-        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 2, y: 70, z: 2, block: probe_id, mine: None })).unwrap();
+        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 2, y: 70, z: 2, block: probe_id, mine: None, place: None })).unwrap();
         assert!(drain_until(&observer, 5000, |m| matches!(m,
             ServerMessage::BlockUpdate { x: 2, y: 70, z: 2, block } if *block == probe_id)).is_some(),
             "mod block edit is accepted and relayed to the peer");
@@ -806,7 +875,7 @@ mod tests {
         // An unknown-id op is rejected — the editor alone gets the server's
         // true block at that position (never the unknown id), and the peer
         // hears nothing (nothing happened in the shared world).
-        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 3, y: 70, z: 3, block: unknown_id, mine: None })).unwrap();
+        sender.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x: 3, y: 70, z: 3, block: unknown_id, mine: None, place: None })).unwrap();
         let fix = drain_until(&sender, 5000, |m| matches!(m,
             ServerMessage::BlockUpdate { x: 3, y: 70, z: 3, .. }));
         match fix {
@@ -834,7 +903,7 @@ mod tests {
         a.set_nonblocking(true).unwrap();
         a.connect(addr).unwrap();
         a.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "early".into(), protocol_version: PROTOCOL_VERSION,
+            name: "early".into(), protocol_version: PROTOCOL_VERSION, creative: false,
         })).unwrap();
         pump(150);
         let _ = drain(&a);
@@ -846,7 +915,7 @@ mod tests {
             (40, 90, -49, 1u32),   // placed in chunk (2, -4)
         ];
         for &(x, y, z, block) in history.iter() {
-            a.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block, mine: None })).unwrap();
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block, mine: None, place: None })).unwrap();
         }
         pump(300);
 
@@ -854,7 +923,7 @@ mod tests {
         b.set_nonblocking(true).unwrap();
         b.connect(addr).unwrap();
         b.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "newcomer".into(), protocol_version: PROTOCOL_VERSION,
+            name: "newcomer".into(), protocol_version: PROTOCOL_VERSION, creative: false,
         })).unwrap();
 
         // The newcomer's replay must carry every historical edit.
@@ -898,7 +967,7 @@ mod tests {
         peer.connect(addr).unwrap();
         for (sock, name) in [(&editor, "miner"), (&peer, "watcher")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -907,7 +976,7 @@ mod tests {
 
         // A PLACE never grants — not to the placer, not to the peer.
         editor.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
-            x: 2, y: 200, z: 2, block: block::STONE, mine: None,
+            x: 2, y: 200, z: 2, block: block::STONE, mine: None, place: None,
         })).unwrap();
         assert!(drain_until(&peer, 5000, |m| matches!(m,
             ServerMessage::BlockUpdate { x: 2, y: 200, z: 2, block } if *block == block::STONE)).is_some(),
@@ -921,7 +990,7 @@ mod tests {
         // The MINE pays: the canonical stone yield, to the editor alone.
         editor.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
             x: 2, y: 200, z: 2, block: block::AIR,
-            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }),
+            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }), place: None,
         })).unwrap();
         let grant = drain_until(&editor, 5000, |m| matches!(m, ServerMessage::ItemGrant { .. }));
         match grant {
@@ -953,7 +1022,7 @@ mod tests {
         editor.set_nonblocking(true).unwrap();
         editor.connect(addr).unwrap();
         editor.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "gater".into(), protocol_version: PROTOCOL_VERSION,
+            name: "gater".into(), protocol_version: PROTOCOL_VERSION, creative: false,
         })).unwrap();
         pump(150);
         let _ = drain(&editor);
@@ -965,11 +1034,11 @@ mod tests {
         // before it digs.)
         let mine = |sock: &UdpSocket, x: i32, held: Option<&str>| {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
-                x, y: 200, z: 9, block: block::IRON_ORE, mine: None,
+                x, y: 200, z: 9, block: block::IRON_ORE, mine: None, place: None,
             })).unwrap();
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
                 x, y: 200, z: 9, block: block::AIR,
-                mine: Some(lf_protocol::MineClaim { held: held.map(|s| s.to_string()) }),
+                mine: Some(lf_protocol::MineClaim { held: held.map(|s| s.to_string()) }), place: None,
             })).unwrap();
             pump(250);
             drain(sock).into_iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. }))
@@ -1003,7 +1072,7 @@ mod tests {
         late.connect(addr).unwrap();
         for (sock, name) in [(&editor, "first"), (&late, "second")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -1014,11 +1083,11 @@ mod tests {
         // self-echo wait — the placer never hears its own place; loopback
         // UDP keeps the staged pair in order.)
         editor.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
-            x: 12, y: 200, z: 12, block: block::DIRT, mine: None,
+            x: 12, y: 200, z: 12, block: block::DIRT, mine: None, place: None,
         })).unwrap();
         let mine = ClientMessage::SetBlock {
             x: 12, y: 200, z: 12, block: block::AIR,
-            mine: Some(lf_protocol::MineClaim { held: None }),
+            mine: Some(lf_protocol::MineClaim { held: None }), place: None,
         };
         let bytes = ProtocolCodec::encode_client(&mine);
         editor.send(&bytes).unwrap();
@@ -1042,7 +1111,7 @@ mod tests {
         let unknown = lf_voxel::registry::MAX_VANILLA_BLOCK + 1;
         late.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
             x: 14, y: 200, z: 14, block: unknown,
-            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }),
+            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }), place: None,
         })).unwrap();
         let fix = drain_until(&late, 5000, |m| matches!(m,
             ServerMessage::BlockUpdate { x: 14, y: 200, z: 14, .. }));
@@ -1127,7 +1196,7 @@ mod tests {
         bob.connect(addr).unwrap();
         for (sock, name) in [(&alice, "miner"), (&bob, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -1140,11 +1209,11 @@ mod tests {
 
         // Mine a staged stone block with an honest claim: the grant pays.
         alice.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
-            x: 2, y: 200, z: 2, block: block::STONE, mine: None,
+            x: 2, y: 200, z: 2, block: block::STONE, mine: None, place: None,
         })).unwrap();
         alice.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
             x: 2, y: 200, z: 2, block: block::AIR,
-            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }),
+            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }), place: None,
         })).unwrap();
         let grant = drain_until(&alice, 5000, |m| matches!(m, ServerMessage::ItemGrant { items }
             if items.first().map(|(id, _)| id.as_str()) == Some("stone")));
@@ -1200,7 +1269,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "alice"), (&b, "bob")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -1273,7 +1342,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "alice"), (&b, "bob")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -1330,7 +1399,7 @@ mod tests {
         }
         for (sock, name) in [(&a, "alice"), (&b, "bob"), (&c, "carol")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(250);
@@ -1397,7 +1466,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "smith"), (&b, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -1460,7 +1529,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "smith"), (&b, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -1513,7 +1582,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "forger"), (&b, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -1575,7 +1644,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "smith"), (&b, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION,
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
             })).unwrap();
         }
         pump(150);
@@ -1619,6 +1688,263 @@ mod tests {
         offer(vec![("log".into(), 3)]);
         assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
             "exactly two logs were consumed by the one craft");
+
+        server.stop();
+    }
+
+    // ===== THE PLACE-PAYMENT LAWS (protocol v8) =====
+
+    /// Join helpers shared by the place-payment laws: a and b join as
+    /// survival players (a first, so a's ledger id is 1).
+    fn join_two(
+        server: &mut Server,
+        a_name: &str,
+        b_name: &str,
+    ) -> (UdpSocket, UdpSocket) {
+        let addr = server.local_addr();
+        let a = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        a.set_nonblocking(true).unwrap();
+        b.set_nonblocking(true).unwrap();
+        a.connect(addr).unwrap();
+        b.connect(addr).unwrap();
+        for (sock, name) in [(&a, a_name), (&b, b_name)] {
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+            })).unwrap();
+        }
+        pump(150);
+        let _ = drain(&a);
+        let _ = drain(&b);
+        (a, b)
+    }
+
+    fn place(sock: &UdpSocket, x: i32, y: i32, z: i32, block: u32, item: Option<&str>) {
+        sock.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+            x, y, z, block,
+            mine: None,
+            place: item.map(|i| lf_protocol::PlaceClaim { item: i.to_string() }),
+        })).unwrap();
+    }
+
+    /// THE PAID-PLACEMENT MOVES-THE-LEDGER LAW: a survival placement
+    /// claiming an item the ledger holds is accepted — the peer sees the
+    /// edit land, the editor hears no echo (no-self-echo) — and the
+    /// ledger PAID: two placed stones are two consumed stones (offers of
+    /// seven refuse, six pass, through the trade gate alone).
+    #[test]
+    fn a_paid_placement_moves_the_ledger() {
+        use lf_voxel::registry::block;
+        let mut server = Server::start("127.0.0.1:0", 931).expect("start server");
+        let (a, b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("stone".into(), 8)],
+        })).unwrap();
+        pump(150);
+
+        place(&a, 6, 200, 6, block::STONE, Some("stone"));
+        place(&a, 7, 200, 7, block::STONE, Some("stone"));
+        let landed = drain_until(&b, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 7, y: 200, z: 7, block: b2 } if *b2 == block::STONE));
+        assert!(landed.is_some(), "the peer sees the second placement land");
+        pump(250);
+        assert!(!drain(&a).iter().any(|m| matches!(m, ServerMessage::Reject { .. })),
+            "a paid placement is never refused");
+        assert!(!drain(&a).iter().any(|m| matches!(m, ServerMessage::BlockUpdate { .. })),
+            "the editor never hears its own accepted placement");
+
+        // THE LEDGER PAID BOTH: eight uploaded, two consumed by the two
+        // placements — six pass the trade gate, seven refuse.
+        let offer = |give: Vec<(String, u8)>| {
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+                to: 2, give, want: vec![],
+            })).unwrap();
+            pump(250);
+        };
+        offer(vec![("stone".into(), 7)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "seven stones were never held: two placements consumed two");
+        offer(vec![("stone".into(), 6)]);
+        assert!(drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "exactly six stones remain: the placements paid the ledger");
+
+        server.stop();
+    }
+
+    /// THE SHORT-LEDGER REFUSAL LAW: a placement the ledger cannot pay
+    /// moves nothing — the world edit never lands (the peer never sees
+    /// it), and the editor alone hears the corrective echo (the server's
+    /// true block: still air) plus a reasoned Reject.
+    #[test]
+    fn an_unpaid_placement_refuses_and_lands_nothing() {
+        use lf_voxel::registry::block;
+        let mut server = Server::start("127.0.0.1:0", 932).expect("start server");
+        let (a, b) = join_two(&mut server, "smith", "target");
+
+        place(&a, 8, 200, 8, block::STONE, Some("stone"));
+        let echo = drain_until(&a, 5000, |m| matches!(m, ServerMessage::BlockUpdate { x: 8, y: 200, z: 8, block: 0 }));
+        assert!(echo.is_some(), "the corrective echo carries the server's true (air) block");
+        let reject = drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { reason } if reason.contains("ledger")));
+        assert!(reject.is_some(), "the refusal names the ledger");
+        pump(300);
+        assert!(!drain(&b).iter().any(|m| matches!(m, ServerMessage::BlockUpdate { x: 8, .. })),
+            "THE GATE: an unpaid placement never lands for anyone");
+
+        server.stop();
+    }
+
+    /// THE MISMATCHED-CLAIM LAW: paying dirt for a stone refuses by the
+    /// shared placement law — the ledger is untouched (five uploaded
+    /// dirts all pass the gate afterward), the block never lands.
+    #[test]
+    fn a_mismatched_place_claim_refuses() {
+        use lf_voxel::registry::block;
+        let mut server = Server::start("127.0.0.1:0", 933).expect("start server");
+        let (a, b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("dirt".into(), 5)],
+        })).unwrap();
+        pump(150);
+
+        place(&a, 9, 200, 9, block::STONE, Some("dirt"));
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { reason } if reason.contains("cannot place"))).is_some(),
+            "dirt cannot place a stone: the shared law refuses");
+        pump(300);
+        assert!(!drain(&b).iter().any(|m| matches!(m, ServerMessage::BlockUpdate { x: 9, .. })),
+            "the mismatched placement never landed");
+
+        // THE LEDGER IS UNTOUCHED by a refused placement.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("dirt".into(), 5)], want: vec![],
+        })).unwrap();
+        pump(250);
+        assert!(drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "a refused placement consumed nothing");
+
+        server.stop();
+    }
+
+    /// THE SMUGGLE GUARD: one edit carries one claim — a mine claim and
+    /// a place claim on the same datagram is a forged op. It refuses
+    /// (echo + reason), and the smuggled mine never pays a grant.
+    #[test]
+    fn the_smuggled_double_claim_refuses() {
+        use lf_voxel::registry::block;
+        let mut server = Server::start("127.0.0.1:0", 934).expect("start server");
+        let (a, _b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("stone".into(), 8)],
+        })).unwrap();
+        pump(150);
+
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+            x: 12, y: 200, z: 12, block: block::AIR,
+            mine: Some(lf_protocol::MineClaim { held: Some("stone_pickaxe".into()) }),
+            place: Some(lf_protocol::PlaceClaim { item: "stone".into() }),
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { reason } if reason.contains("both mine and place"))).is_some(),
+            "the forged op is named");
+        pump(300);
+        assert!(!drain(&a).iter().any(|m| matches!(m, ServerMessage::ItemGrant { .. })),
+            "the smuggled mine never pays");
+        assert!(!drain(&a).iter().any(|m| matches!(m, ServerMessage::Reject { reason } if reason.contains("ledger"))),
+            "the gate never charged the placement either");
+
+        server.stop();
+    }
+
+    /// THE CREATIVE LAW: a creative joiner places without a claim and
+    /// without a ledger — nothing is gated, nothing consumed — and the
+    /// placed blocks are real (mining them back pays the canonical
+    /// grants). Two placements, two landings, two grants.
+    #[test]
+    fn creative_places_ungated() {
+        use lf_voxel::registry::block;
+        let mut server = Server::start("127.0.0.1:0", 935).expect("start server");
+        let addr = server.local_addr();
+        // b joins first so the creative joiner's grants are observable
+        // through a stable second socket; ids: b = 1, c = 2.
+        let b = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let c = UdpSocket::bind("127.0.0.1:0").unwrap();
+        b.set_nonblocking(true).unwrap();
+        c.set_nonblocking(true).unwrap();
+        b.connect(addr).unwrap();
+        c.connect(addr).unwrap();
+        b.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+            name: "target".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+        })).unwrap();
+        c.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+            name: "creator".into(), protocol_version: PROTOCOL_VERSION, creative: true,
+        })).unwrap();
+        pump(150);
+        let _ = drain(&b);
+        let _ = drain(&c);
+
+        place(&c, 13, 200, 13, block::DIRT, None);
+        place(&c, 14, 200, 14, block::DIRT, None);
+        assert!(drain_until(&b, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 14, y: 200, z: 14, block: bl } if *bl == block::DIRT)).is_some(),
+            "the creative placement lands ungated");
+        pump(300);
+        assert!(!drain(&c).iter().any(|m| matches!(m, ServerMessage::Reject { .. })),
+            "no ledger, no claim, no refusal: creative is infinite by law");
+
+        // The blocks are REAL: mining them back pays the canonical drops.
+        for (x, z) in [(13, 13), (14, 14)] {
+            c.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+                x, y: 200, z, block: block::AIR,
+                mine: Some(lf_protocol::MineClaim { held: None }), place: None,
+            })).unwrap();
+            assert!(drain_until(&c, 5000, |m| matches!(m, ServerMessage::ItemGrant { items }
+                if items.first().map(|(id, _)| id.as_str()) == Some("dirt"))).is_some(),
+                "the creative-placed block was really there (the dig pays)");
+        }
+
+        server.stop();
+    }
+
+    /// THE SIM-TIER LAW (pinned consciously): a claim-free edit from a
+    /// survival player is a simulation edit — fluids, falling blocks,
+    /// machines, spell effects — and lands ungated, exactly as shipped.
+    /// Its forged-claim residual is that tier's trust, deferred with it.
+    #[test]
+    fn the_simulation_edit_lands_without_a_claim() {
+        use lf_voxel::registry::block;
+        let mut server = Server::start("127.0.0.1:0", 936).expect("start server");
+        let (a, b) = join_two(&mut server, "smith", "target");
+
+        place(&a, 15, 200, 15, block::DIRT, None);
+        assert!(drain_until(&b, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 15, y: 200, z: 15, block: bl } if *bl == block::DIRT)).is_some(),
+            "the simulation edit lands ungated");
+        pump(300);
+        assert!(!drain(&a).iter().any(|m| matches!(m, ServerMessage::Reject { .. })),
+            "the client-simmed tier is never refused (as shipped)");
+
+        server.stop();
+    }
+
+    /// THE WIDE-STATE LAW (v8): the wire carries the FULL BlockState — a
+    /// slab-bottom stone placement arrives a slab to the peer and to the
+    /// server's canonical world (it used to arrive a full cube, so peers
+    /// and the editor's own chunk reload disagreed with the placement).
+    #[test]
+    fn the_placed_shape_rides_the_wire() {
+        use lf_voxel::registry::block;
+        let mut server = Server::start("127.0.0.1:0", 937).expect("start server");
+        let (a, b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("stone".into(), 8)],
+        })).unwrap();
+        pump(150);
+
+        let slab_stone = block::STONE | (1 << 28); // Shape::SlabBottom nibble
+        place(&a, 16, 200, 16, slab_stone, Some("stone"));
+        assert!(drain_until(&b, 5000, |m| matches!(m,
+            ServerMessage::BlockUpdate { x: 16, y: 200, z: 16, block: bl } if *bl == slab_stone)).is_some(),
+            "the peer receives the slab state, not a full cube");
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_none(),
+            "the shape-bearing placement pays like any other");
 
         server.stop();
     }

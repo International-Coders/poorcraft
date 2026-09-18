@@ -6,7 +6,7 @@ use std::net::UdpSocket;
 
 use lf_game::host::EditKind;
 use lf_game::survival::{Inventory, ItemStack};
-use lf_protocol::{ClientMessage, MineClaim, ProtocolCodec, ServerMessage, PROTOCOL_VERSION};
+use lf_protocol::{ClientMessage, MineClaim, PlaceClaim, ProtocolCodec, ServerMessage, PROTOCOL_VERSION};
 
 /// THE MINE-CLAIM LAW: only a player MINED edit claims its hand on the
 /// wire, and the claim is honest — the held item id, or `None` for a bare
@@ -22,6 +22,21 @@ pub fn mine_claim_for(reason: EditKind, held: Option<&ItemStack>) -> Option<Mine
         EditKind::Mine => Some(MineClaim {
             held: held.map(|s| s.item_id.clone()),
         }),
+        _ => None,
+    }
+}
+
+/// THE PLACE-CLAIM LAW (protocol v8): only a player ITEM PLACEMENT claims
+/// its payment on the wire, only in survival (creative never consumes —
+/// its claim would ask the server to pay an infinite pack), and only
+/// when the caller names the paying item. The item is the honest held
+/// item for a hand placement, or the bill item for a blueprint-paste
+/// cell. The claim is what the server gates against the ledger — the
+/// pack already shrank locally (or will match at the next sync), so a
+/// refused placement's payment never left the ledger's twin for long.
+pub fn place_claim_for(reason: EditKind, pay_item: Option<&str>, consumes_items: bool) -> Option<PlaceClaim> {
+    match (reason, pay_item, consumes_items) {
+        (EditKind::Place, Some(item), true) => Some(PlaceClaim { item: item.to_string() }),
         _ => None,
     }
 }
@@ -253,6 +268,31 @@ mod tests {
                     "{reason:?} edits claim nothing — only digs can pay");
         }
     }
+
+    /// THE PLACE-CLAIM LAW (v8): a player ITEM PLACEMENT claims its
+    /// payment — the named paying item, survival only — and every other
+    /// shape (a mine, a simulation edit, creative, a missing witness)
+    /// claims nothing, so only paid placements can ever land online.
+    #[test]
+    fn only_paid_survival_placements_claim() {
+        use lf_game::host::EditKind;
+
+        let claim = place_claim_for(EditKind::Place, Some("stone"), true).expect("a paid survival placement claims");
+        assert_eq!(claim.item, "stone", "the claim names the paying item");
+
+        // creative never consumes: its placements claim nothing.
+        assert!(place_claim_for(EditKind::Place, Some("stone"), false).is_none(),
+                "creative placements claim nothing — the pack is infinite by law");
+        // a placement without a witness is a caller bug, never a claim.
+        assert!(place_claim_for(EditKind::Place, None, true).is_none(),
+                "no paying item, no claim");
+        // mines and simulation edits are the other claims' territory.
+        for reason in [EditKind::Mine, EditKind::Machine, EditKind::Fluid,
+                       EditKind::Falling, EditKind::Console, EditKind::Server] {
+            assert!(place_claim_for(reason, Some("stone"), true).is_none(),
+                    "{reason:?} edits claim no payment — only placements pay");
+        }
+    }
 }
 
 pub struct NetClient {
@@ -342,13 +382,14 @@ pub struct RemotePlayer {
 }
 
 impl NetClient {
-    pub fn connect(host: &str, name: &str) -> std::io::Result<Self> {
+    pub fn connect(host: &str, name: &str, creative: bool) -> std::io::Result<Self> {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
         socket.connect(host)?;
         socket.set_nonblocking(true)?;
         let hello = ProtocolCodec::encode_client(&ClientMessage::Hello {
             name: name.to_string(),
             protocol_version: PROTOCOL_VERSION,
+            creative,
         });
         socket.send(&hello)?;
         Ok(Self {
@@ -372,8 +413,13 @@ impl NetClient {
         let _ = self.socket.send(&msg);
     }
 
-    pub fn send_block(&self, x: i32, y: i32, z: i32, block: u32, mine: Option<MineClaim>) {
-        let msg = ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block, mine });
+    /// THE WIDE-STATE WIRE (v8): `state` is the FULL BlockState u32 — the
+    /// shape/fluid nibbles ride the high bits, so a placed slab arrives a
+    /// slab on the server and every peer. `mine` claims a player-mined
+    /// dig, `place` claims a paid placement; both None is a simulation
+    /// edit.
+    pub fn send_block(&self, x: i32, y: i32, z: i32, state: u32, mine: Option<MineClaim>, place: Option<PlaceClaim>) {
+        let msg = ProtocolCodec::encode_client(&ClientMessage::SetBlock { x, y, z, block: state, mine, place });
         let _ = self.socket.send(&msg);
     }
 

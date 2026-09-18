@@ -3,10 +3,23 @@ use serde::{Deserialize, Serialize};
 /// Messages a client sends to the server.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ClientMessage {
-    Hello { name: String, protocol_version: u32 },
+    /// `creative` is the v8 join-mode claim: the joiner's honest game mode,
+    /// fixed for the session (a world is created in one mode). The server
+    /// records it per player: a CREATIVE joiner's placements are ungated
+    /// (creative is infinite by its own law), a SURVIVAL joiner's
+    /// placements must pay (the place-payment gate). It is a client
+    /// claim of prior-session state — the same honest-bootstrap tier as
+    /// PackSync, not a server-verified fact.
+    Hello { name: String, protocol_version: u32, creative: bool },
     /// Player state, sent ~20/s.
     Position { pos: [f32; 3], yaw: f32, pitch: f32 },
     /// Request to change a block (validated/applied by the server).
+    /// `block` is the FULL BlockState u32 (v8): the block id in the low
+    /// bits and the shape/fluid state nibbles in the high bits, so a
+    /// placed slab arrives as a slab (it used to arrive as a full cube —
+    /// peers and the editor's own chunk reload disagreed with the
+    /// placement). The server masks the id wherever the law needs ids.
+    ///
     /// `mine` is the v5 mine claim: `Some(..)` iff this edit is a player
     /// MINED dig (places and simulation edits claim nothing), carrying the
     /// held item id (`None` inside = a bare hand). The server evaluates
@@ -15,7 +28,19 @@ pub enum ClientMessage {
     /// ([`ServerMessage::ItemGrant`]) — a rejected or already-mined dig
     /// never pays, and a bare-handed dig of a no-tool block pays the same
     /// as it does offline.
-    SetBlock { x: i32, y: i32, z: i32, block: u32, mine: Option<MineClaim> },
+    ///
+    /// `place` is the v8 PLACE-PAYMENT claim: `Some(..)` iff this edit is a
+    /// player ITEM PLACEMENT, naming the item whose consumption paid for
+    /// the block. The server gates it against the player's canonical
+    /// LEDGER — the item must be able to place this block
+    /// (`lf_game::items::placement_pays`) and the ledger must hold one,
+    /// which is then consumed. A placement the ledger cannot pay is
+    /// refused (corrective echo + Reject, editor alone) and moves
+    /// nothing. BOTH claims on one edit is a smuggle and refuses. Both
+    /// `None` is a simulation edit (fluids, falling blocks, machines,
+    /// spell effects) — the client-simmed tier, accepted ungated as
+    /// shipped.
+    SetBlock { x: i32, y: i32, z: i32, block: u32, mine: Option<MineClaim>, place: Option<PlaceClaim> },
     Chat { text: String },
     /// P37 (protocol v4) player trading: offer items to a player.
     TradeOffer { to: u64, give: Vec<(String, u8)>, want: Vec<(String, u8)> },
@@ -110,10 +135,23 @@ pub struct MineClaim {
     pub held: Option<String>,
 }
 
-/// v7: the craft request/verdict round trip (the server-computed ledger).
-/// Server and client ship together; the existing version gate rejects
-/// mismatched peers.
-pub const PROTOCOL_VERSION: u32 = 7;
+/// THE PLACE-PAYMENT CLAIM (protocol v8): rides a `SetBlock` that is a
+/// player ITEM PLACEMENT. `item` names the item whose consumption paid
+/// for the block — the server verifies the item can place that block and
+/// that the ledger holds one, then consumes it. Payment is the point:
+/// a placed block that cost nothing is world content fabricated from
+/// nothing, and since the yield law (v5) pays canonical drops for mined
+/// blocks, a free placement would mint items through the server's own
+/// grant (place ore, mine it, collect the drop).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct PlaceClaim {
+    pub item: String,
+}
+
+/// v8: the place-payment round trip and the join-mode claim. Server and
+/// client ship together; the existing version gate rejects mismatched
+/// peers.
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// THE PACK-SYNC CADENCE: a drifted pack is uploaded at most this often
 /// (the client's PackMirror enforces it), except after a server-side
@@ -159,7 +197,7 @@ mod trade_tests {
         };
         let back: ServerMessage = bincode::deserialize(&bincode::serialize(&resolved).unwrap()).unwrap();
         assert_eq!(back, resolved);
-        assert_eq!(PROTOCOL_VERSION, 7);
+        assert_eq!(PROTOCOL_VERSION, 8);
     }
 
     /// v7: the craft round trip — the request names the recipe spec and a
@@ -199,32 +237,50 @@ mod trade_tests {
             Some(refused),
             "a refusal carries its reason"
         );
-        assert_eq!(PROTOCOL_VERSION, 7);
+        assert_eq!(PROTOCOL_VERSION, 8);
     }
 
-    /// v6: the mine claim, the yield grant, and the pack sync round-trip.
+    /// v6/v8: the mine claim, the place-payment claim, and the pack sync round-trip.
     #[test]
     fn mine_claim_item_grant_and_pack_sync_round_trip() {
         let tool_mine = ClientMessage::SetBlock {
             x: 3, y: 70, z: -4, block: 0,
             mine: Some(MineClaim { held: Some("stone_pickaxe".into()) }),
+            place: None,
         };
         assert_eq!(
             ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&tool_mine)),
             Some(tool_mine),
             "a tool mine claim survives the wire"
         );
-        let bare_mine = ClientMessage::SetBlock { x: 3, y: 70, z: -4, block: 0, mine: Some(MineClaim { held: None }) };
+        let bare_mine = ClientMessage::SetBlock { x: 3, y: 70, z: -4, block: 0, mine: Some(MineClaim { held: None }), place: None };
         assert_eq!(
             ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&bare_mine)),
             Some(bare_mine),
             "a bare-handed mine still claims the mine"
         );
-        let place = ClientMessage::SetBlock { x: 3, y: 70, z: -4, block: 2, mine: None };
+        let sim = ClientMessage::SetBlock { x: 3, y: 70, z: -4, block: 2, mine: None, place: None };
         assert_eq!(
-            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&place)),
-            Some(place),
-            "a place carries no claim"
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&sim)),
+            Some(sim),
+            "a simulation edit carries no claim"
+        );
+        let paid_place = ClientMessage::SetBlock {
+            x: 3, y: 70, z: -4, block: 2,
+            mine: None,
+            place: Some(PlaceClaim { item: "stone".into() }),
+        };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&paid_place)),
+            Some(paid_place),
+            "the place-payment claim survives the wire"
+        );
+        // v8: the join-mode claim rides Hello.
+        let hello = ClientMessage::Hello { name: "smith".into(), protocol_version: PROTOCOL_VERSION, creative: true };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&hello)),
+            Some(hello),
+            "the creative join claim survives the wire"
         );
         let grant = ServerMessage::ItemGrant { items: vec![("stone".into(), 1), ("raw_iron".into(), 2)] };
         assert_eq!(
@@ -240,7 +296,7 @@ mod trade_tests {
             Some(sync),
             "the pack claim survives the wire (u32 counts: a pack holds >255 of one item)"
         );
-        assert_eq!(PROTOCOL_VERSION, 7);
+        assert_eq!(PROTOCOL_VERSION, 8);
     }
 }
 
@@ -292,9 +348,9 @@ mod tests {
     #[test]
     fn client_roundtrip() {
         let msgs = vec![
-            ClientMessage::Hello { name: "zari".into(), protocol_version: PROTOCOL_VERSION },
+            ClientMessage::Hello { name: "zari".into(), protocol_version: PROTOCOL_VERSION, creative: false },
             ClientMessage::Position { pos: [1.0, 65.0, 2.0], yaw: 0.5, pitch: -0.1 },
-            ClientMessage::SetBlock { x: -3, y: 70, z: 12, block: 2, mine: None },
+            ClientMessage::SetBlock { x: -3, y: 70, z: 12, block: 2, mine: None, place: None },
             ClientMessage::Chat { text: "hello world".into() },
             ClientMessage::PackSync { items: vec![("wood".into(), 3)] },
             ClientMessage::CraftRequest {

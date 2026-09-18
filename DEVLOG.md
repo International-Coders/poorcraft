@@ -9956,3 +9956,102 @@ played loop, so this tier makes the pack ledger server-COMPUTED for it.
   and the next PackSync re-claim trims the ledger (at-most-once, never
   fabricated).
 - The windowed two-client route (the GPU-side end of the wire laws).
+
+## Loop 468 (2026-09-17): The placed block is paid for — server-side place-item payment over real UDP
+
+### What was done
+Closed STATE.next_task item (2)'s wider half: server-side block-PLACE
+item payment, chosen over smelting by next_task's own rule ("whichever
+closes the wider trust gap in the played loop first"): smelting
+fabricates only its own output; a free placement fabricates ANY world
+content and, through loop 465's server-paid mining, was a full item
+mint (place ore free, mine it, collect the server's own grant).
+
+- THE WIRE (crates/lf_protocol/src/lib.rs): SetBlock gains
+  `place: Option<PlaceClaim { item }>`; Hello gains `creative: bool`;
+  the block field is the FULL BlockState u32 (shape/fluid nibbles
+  ride). PROTOCOL_VERSION 7 -> 8.
+- THE WIDE-STATE FIX (proof-discovered wart in this exact path):
+  placements sent `state.id()`, stripping the shape nibble — an
+  online slab arrived a full cube to the server and every peer, and
+  the placer's own chunk reload reverted it. Now the full state rides
+  and the server masks ids (is_known_block, tool_satisfies,
+  block_drop) wherever the law needs ids.
+- THE SERVER (crates/lf_server/src/lib.rs): Player.creative from
+  Hello; THE SMUGGLE GUARD (mine+place on one edit refuses, the
+  smuggled mine never pays); THE PLACE-PAYMENT GATE —
+  `lf_game::items::placement_pays` (the shared pure law) plus
+  `count_of >= 1`, then `remove_count(1)`; ANY refusal moves nothing
+  (no edit, no broadcast) and answers the editor alone with the
+  corrective echo + a reasoned Reject; creative joiners place
+  ungated; claim-free edits stay the client-simmed tier, accepted
+  ungated as shipped (pinned by law).
+- THE CLIENT (crates/lf_client/src/net.rs, lib.rs, ui.rs):
+  `net::place_claim_for` (Place kind + a paying witness + survival
+  only); `host_set_block` gains the witness and sends the full
+  state; all four player-facing placement sites name their payment
+  (shaped/mirror/held-block pay the held item; a blueprint-paste
+  cell pays its own drop); the mirror consumes one more online
+  (offline keeps the mirror-free law); the hearthlight spell light
+  re-kinded Place -> Machine (a spell effect like its own burnout —
+  claims nothing); the claim is computed in exactly one place (the
+  funnel); ui.rs passes the joiner's mode to connect().
+- THE STEAM FEATURE (crates/lf_steam): the v8 Hello reached its
+  cfg-gated announce probe and examples — repaired and re-verified
+  (`--features steam` lib + examples compile; the feature stays off
+  by default and untested on hardware, as shipped).
+
+### Files touched
+- crates/lf_protocol/src/lib.rs (PlaceClaim, Hello.creative, the
+  wide-state wire, v8, tests)
+- crates/lf_game/src/items.rs (placement_pays + shaped_base + unit law)
+- crates/lf_server/src/lib.rs (Player.creative, the gates, 7 wire laws)
+- crates/lf_client/src/net.rs (place_claim_for, connect, send_block,
+  unit law)
+- crates/lf_client/src/lib.rs (the funnel witness, four placement
+  sites, the mirror consume, the hearthlight re-kind, source law)
+- crates/lf_client/src/ui.rs (the join-mode claim at connect)
+- crates/lf_steam/src/net_steam.rs + examples (the v8 Hello sites)
+- STATE.md / BACKLOG.md / CHANGELOG.md / DEVLOG.md
+
+### How it was verified
+- cargo test --workspace: 534 green / 0 failed (xtask's 12 included;
+  = loop 467's 524 + 10 new laws: lf_game 179 -> 180, lf_server
+  16 -> 23, lf_client 108 -> 110, lf_protocol same count — the v8
+  round-trips fold into the existing wire laws; raw #[test] counts).
+- make smoke: OK (headless logic + GUI liveness).
+- FULL vistest battery: 110 scenes [ok] / 0 FAIL, exit-0, across TWO
+  runs; every committed scene PNG byte-identical (md5 digest
+  462b2318ed4c98d9a882266cd81fbd7d before == after) — singleplayer
+  render paths pixel-proven unchanged (multiplayer-only change).
+- The steam feature build: `cargo build -p lf_steam --features steam
+  --examples` compiles clean (the pre-existing unused-import warnings
+  remain, untouched).
+- Runtimes refreshed: dist/loreforge-macos.dmg 8.8 MB (hdiutil verify
+  VALID), dist/loreforge-linux-x86_64.tar.gz 8.4 MB,
+  dist/loreforge.app binary 20 MB, dist/loreforge-server. Windows exe
+  honestly skipped (mingw absent).
+
+### Proof-discovered problems
+- THE WIDE-STATE WART: the wire stripped the shape nibble
+  (state.id()), so every online slab/stairs placement diverged — the
+  server stored a full cube, peers saw a cube, and the placer's own
+  chunk reload reverted the slab. Fixed by carrying the full
+  BlockState u32 and masking ids server-side; pinned by the
+  wide-state wire law.
+- The steam-gated code does not compile under the default build, so
+  the v8 Hello silently broke `--features steam`; caught by building
+  the feature explicitly and repaired before committing.
+
+### Honestly deferred
+- The forged sim-claim residual: a modified client can send claim-
+  free ops (posing as fluids/falling/machines/spell effects) — that
+  is the client-simmed tier's own trust, deferred with it (server-
+  side sim verification is the closing tier).
+- Smelting and eating stay client-side (the remaining consumption
+  tiers of the same shape).
+- A lying `creative: true` at Hello is the PackSync bootstrap tier
+  (a client claim of prior-session state; full closure = server-side
+  mode authority).
+- The windowed two-client route (the GPU-side end of the wire laws).
+- Hardcoded connect name "smith" (audit note).
