@@ -1,5 +1,94 @@
 # CHANGELOG
 
+## 2026-09-18 — The peer sees the dig land: the two-client route over real UDP (loop 471)
+
+- Closed STATE's next_task item (1) — the windowed two-client route,
+  the GPU-side end of the wire laws, carried since loop 450 and the TOP
+  item since 470 closed the consumption tiers. Until now every
+  multiplayer law was proven message-deep (real UDP, real gates, real
+  ledgers) but no proof ever showed a SECOND CLIENT'S RENDERED PIXELS
+  carrying another player's edit — loop 462's honest limit ("the
+  multiplayer GPU client has no visual harness"). The route: a real
+  dedicated server, the REAL client code on both sides, and the
+  witness's own pixels.
+- THE DRIVER (lf_client): `GameState::new_headless` — the surfaceless
+  render path STATE scoped for. The windowed constructor is one boot
+  (`new_inner`) parameterized on the window: the surfaceless driver has
+  NO window, NO surface, NO egui, NO audio output — everything else
+  identical (preview world, boot ring, streamer, host, net). `window`,
+  `surface`, and `egui` are Options with guards at every consumer
+  (cursor lock/unlock, `update_title`, `resize`, the tick UI pass, the
+  render pass, the App event path); icons get a standalone egui
+  context. NO client logic is duplicated anywhere: the route's join is
+  the UI's `NetClient::connect`, its dig is the mining input's
+  `host_set_block` call, and the witness's sight is `snapshot_image` —
+  take_screenshot's own body factored out (sorted chunk order, because
+  a HashMap's iteration order shuffled the submission order run-to-run
+  and flipped scattered edge pixels in the readback — a proof image
+  must be byte-stable).
+- THE ROUTE (one law in the standard workspace suite, `make twoclient`
+  on demand): `Server::start("127.0.0.1:0", 4242)` -> the WITNESS joins
+  headless and adopts the server's seed through the real Welcome arm
+  (the join-identity law) -> enters the world (the player camera, not
+  the title orbit) and sights a bare-hand-diggable cube near its spawn
+  — solid, opaque, air above, `required_tool` None: the SAME gate the
+  server is about to apply -> THE BEFORE PICTURE -> the DIGGER joins
+  and digs the sighted column through the host funnel (MineClaim on
+  the wire, protocol v10 standing) -> the no-self-echo law proven from
+  the editor's own socket (no BlockUpdate, no Reject — the ItemGrant
+  arrives instead) -> the witness's world takes the dig, its chunk
+  remeshes (mesh hash differs), and THE PIXEL GATE: the frame-center
+  ROI where the column was aimed moves (mean |d| > 8.0, >1500 pixels
+  over 40) — a refused or lost edit leaves those pixels identical.
+  INSPECTED: the before picture's intact grass cube is, in the after
+  picture, a clean 1x1 notch with shadowed interior walls and freshly
+  exposed neighbor faces.
+- THREE PROOF-TRACED NONDETERMINISM CURES, each found by re-running
+  the route and pinned where it bites: (1) THE DETERMINISTIC SIGHT —
+  the view distance is pinned to the boot ring BEFORE the join, so the
+  adoption's streamer never requests beyond it and the wall-clock
+  chunk-arrival order can never leak into the pixels; (2) the pose is
+  pinned immediately before each snapshot (`route_plant_sight`) —
+  physics settle leaves sub-ulp eye drift that flips scattered
+  rasterization pixels; (3) THE FROZEN WIND — env.time is
+  self.elapsed (wall clock) while FX are allowed and foliage sways
+  with it, so the route rides the low quality tier's own freeze
+  (particles off -> env.time 0.0) and pins the weather. The committed
+  PNGs rewrite byte-identical across runs AND across debug/release
+  profiles.
+- REGRESSION: cargo test --workspace 552 green / 0 failed, exit 0
+  (xtask's 12 included = loop 470's 551 + 1); make smoke OK; make
+  twoclient (release) PASS in 2.06 s with PNGs byte-identical to the
+  debug runs; FULL vistest battery 110 scenes [ok] / 0 FAIL exit-0
+  across TWO runs with every committed PNG byte-identical (md5
+  462b2318ed4c98d9a882266cd81fbd7d pre == mid == post) — singleplayer
+  render paths pixel-proven unchanged; --features steam compiles
+  clean; POORCRAFT 3D builds untouched; runtimes refreshed.
+- PERF: not applicable — proof-only work (one test, run on demand);
+  the windowed client's shipped paths are unchanged (branch-on-Option
+  guards), pixel-proven by the battery digest.
+- LORE: canon touched: none — multiplayer proof plumbing (the
+  462/465-470 precedent); the route's ground is the realm's own shared
+  terrain; no faction, place, event, term, NPC, item, or spell data
+  changed; no new canon text. Canon preserved: the chronicle as the
+  player-authored history; Anima as a material energetic property; no
+  identity assigned. World expression: in shared Valdenmoor what one
+  adventurer breaks is seen gone by another — the route proves the
+  realm's shared ground is real in the picture a peer actually
+  renders.
+- Migration: none — no wire change (protocol v10 stands), no save
+  format, no block/item change, GENERATOR_VERSION unchanged,
+  ClientSave untouched. The only manifest change is lf_client's
+  dev-dependency on lf_server (test-only; no cycle).
+- Deferred honestly: the lying-PackSync bootstrap tier (a modified
+  client's claim can re-seed the ledger — named at 466, now the TOP
+  item); route extensions (the peer seeing a PLACEMENT land; two real
+  clients trading through the escrow); the forged sim-claim residual
+  (the client-simmed tier's trust); client-local block entities (chest
+  contents, furnace-slot persistence across peers); hardcoded connect
+  name "smith" (audit note); the route runs one GPU+UDP test in the
+  standard suite (~16 s debug / ~2 s release on this host).
+
 ## 2026-09-18 — The bite is the ledger's to feed: server-side eating over real UDP (loop 470)
 
 - Closed STATE's next_task item (2) — eating, the last client-side

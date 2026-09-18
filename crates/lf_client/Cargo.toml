@@ -35,3 +35,7 @@ serde_json.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+# THE TWO-CLIENT ROUTE: the visual end of the wire laws — a real
+# dedicated server on a real UDP port, the real headless client driving
+# both sides, and the witness's own pixels proving the dig landed.
+lf_server = { path = "../lf_server" }

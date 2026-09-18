@@ -11,6 +11,35 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The peer sees the dig land: the two-client route over real UDP
+      (2026-09-18, loop 471, root workspace): closed STATE's next_task
+      item (1) — the windowed two-client route, the GPU-side end of the
+      wire laws (carried since 450; top item after 470). THE DRIVER:
+      GameState::new_headless, the surfaceless render path — the real
+      client with no window/surface/egui/audio, driven through the same
+      tick the windowed loop runs and read through the same headless
+      render take_screenshot uses; no client logic duplicated (the join
+      is the UI's connect, the dig is the mining input's host_set_block,
+      the sight is the factored snapshot_image with sorted chunk order).
+      THE ROUTE: real Server::start on an ephemeral port -> witness
+      joins (Welcome adoption) -> sights a bare-hand-diggable cube (the
+      server's own gate) -> BEFORE picture -> digger joins and digs (the
+      no-self-echo law proven from the editor's own socket; the
+      ItemGrant arrives) -> witness world AIR, mesh hash differs, PIXEL
+      GATE (ROI mean |d| > 8, >1500 strong pixels) -> INSPECTED: the
+      grass cube becomes a clean 1x1 notch. THREE PROOF-TRACED
+      NONDETERMINISM CURES: view distance pinned to the boot ring
+      before the join; the pose pinned before each snapshot; the wind
+      frozen by the low tier's own law (particles off -> env.time 0)
+      + weather pinned — the committed PNGs rewrite byte-identical
+      across runs and across debug/release. Evidence: workspace 552/0
+      (xtask 12 included); smoke OK; make twoclient (release) PASS;
+      battery 110 scenes exit-0 twice with committed PNGs byte-identical
+      (md5 462b2318ed4c98d9a882266cd81fbd7d); steam feature compiles;
+      runtimes fresh. Deferred honestly: the lying-PackSync bootstrap
+      tier (now TOP); route extensions (placement/trade visuals); the
+      forged sim-claim residual; client-local block entities.
+
 - [x] The bite is the ledger's to feed: server-side eating over real
       UDP (2026-09-18, loop 470, root workspace): closed STATE's
       next_task item (2) — eating, the last client-side consumption

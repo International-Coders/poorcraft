@@ -43,6 +43,9 @@ perf: ## Frame-time benchmark (p50/p95) of a representative scene
 vistest: ## Render every proof scene into shots/
 	cargo run --release -p xtask -- vistest shots
 
+twoclient: ## The two-client route: a real server + client A digs + client B renders the hole (pixel-gated; shots/twoclient_peer_{before,after}.png)
+	cargo test --release -p lf_client the_two_client_route -- --nocapture
+
 screenshot: ## Render one scene: make screenshot SCENE=terrain_vista OUT=shots/x.png
 	cargo run --release -p xtask -- screenshot $(SCENE) $(OUT)
 

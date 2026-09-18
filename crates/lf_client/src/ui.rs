@@ -1014,7 +1014,8 @@ impl GameState {
         self.prev_ui_open = self.ui_open;
         // UI scale = user preference × viewport size (720p reference), on
         // top of the native display density egui-winit provides.
-        let native_pts_h = self.config.height as f32 / self.window.scale_factor() as f32;
+        let native_pts_h = self.config.height as f32
+            / self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0) as f32;
         let viewport_factor = (native_pts_h / 720.0).clamp(0.8, 1.5);
         ctx.set_zoom_factor(self.settings.ui_scale * viewport_factor);
         if hud_visible(&self.ui_open, self.settings_from_title) {

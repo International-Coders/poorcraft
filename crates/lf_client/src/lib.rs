@@ -748,7 +748,10 @@ impl ApplicationHandler for App {
         // egui sees events only while a screen is open (the HUD itself is
         // display-only).
         if state.ui_open != UiOpen::None {
-            let consumed = state.egui.on_event(&state.window, &event);
+            let (Some(egui), Some(window)) = (&mut state.egui, state.window.as_ref()) else {
+                return;
+            };
+            let consumed = egui.on_event(window, &event);
             if debug_input && matches!(event, WindowEvent::KeyboardInput { .. } | WindowEvent::MouseInput { .. }) {
                 tracing::info!("[input] egui consumed={}", consumed);
             }
@@ -1085,8 +1088,12 @@ pub enum SmeltMoveKind {
 }
 
 struct GameState {
-    window: Arc<winit::window::Window>,
-    surface: wgpu::Surface<'static>,
+    /// THE SURFACELESS DRIVER: `None` in headless construction
+    /// (`new_headless`) — proofs and tools drive the real client with no
+    /// OS window. Every consumer guards on presence; the windowed App
+    /// always has one.
+    window: Option<Arc<winit::window::Window>>,
+    surface: Option<wgpu::Surface<'static>>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -1443,7 +1450,9 @@ struct GameState {
     /// apply in canonical order — the client never mutates the world
     /// directly for migrated systems.
     host: lf_game::host::SimHost,
-    pub egui: EguiPlatform,
+    /// UI platform — `None` in the surfaceless driver (its tick skips the
+    /// UI pass entirely; the headless snapshot renders world pixels only).
+    pub egui: Option<EguiPlatform>,
     last_instant: Instant,
     next_autosave: Instant,
     next_hunger_tick: Instant,
@@ -1454,20 +1463,65 @@ struct GameState {
 }
 
 impl GameState {
+    /// THE SURFACELESS DRIVER (the two-client route): the real client
+    /// constructed with NO window, NO surface, NO egui, and NO audio
+    /// output — everything else identical to the windowed boot (preview
+    /// world, boot ring, streamer, host, net). The route drives this
+    /// state through the same `tick` the windowed loop runs and reads
+    /// pixels through the same headless render `take_screenshot` uses;
+    /// no client logic is duplicated anywhere.
+    pub async fn new_headless() -> Self {
+        Self::new_inner(None).await
+    }
+
     async fn new(window: Arc<winit::window::Window>) -> Self {
+        Self::new_inner(Some(window)).await
+    }
+
+    async fn new_inner(window: Option<Arc<winit::window::Window>>) -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
         });
-        let surface = instance.create_surface(window.clone()).expect("create surface");
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .expect("request adapter");
+        // The windowed path needs a surface-compatible adapter and takes
+        // its format/size from the window; the surfaceless driver picks a
+        // fixed sRGB target (the snapshot path never presents anyway).
+        const HEADLESS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+        let (surface, adapter, format, size, alpha_mode) = if let Some(window) = &window {
+            let surface = instance.create_surface(window.clone()).expect("create surface");
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    compatible_surface: Some(&surface),
+                    force_fallback_adapter: false,
+                })
+                .await
+                .expect("request adapter");
+            let caps = surface.get_capabilities(&adapter);
+            let format = caps.formats.iter().find(|f| f.is_srgb()).copied().unwrap_or(caps.formats[0]);
+            let size = window.inner_size();
+            // Opaque (loop 331): the compositor must ignore framebuffer
+            // alpha. With a premultiplied/inherited mode the desktop behind
+            // the window blended through pixels whose alpha wasn't 1
+            // (water, ice, unlit regions) — the reported "black box" while
+            // playing was the dark window behind showing through.
+            let alpha_mode = if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::Opaque) {
+                wgpu::CompositeAlphaMode::Opaque
+            } else {
+                caps.alpha_modes[0]
+            };
+            (Some(surface), adapter, format, size, alpha_mode)
+        } else {
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    compatible_surface: None,
+                    force_fallback_adapter: false,
+                })
+                .await
+                .expect("request adapter");
+            (None, adapter, HEADLESS_FORMAT, winit::dpi::PhysicalSize::new(1280, 720), wgpu::CompositeAlphaMode::Opaque)
+        };
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -1489,29 +1543,19 @@ impl GameState {
             .await
             .expect("request device");
 
-        let caps = surface.get_capabilities(&adapter);
-        let format = caps.formats.iter().find(|f| f.is_srgb()).copied().unwrap_or(caps.formats[0]);
-        let size = window.inner_size();
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::AutoVsync,
-            // Opaque (loop 331): the compositor must ignore framebuffer
-            // alpha. With a premultiplied/inherited mode the desktop behind
-            // the window blended through pixels whose alpha wasn't 1
-            // (water, ice, unlit regions) — the reported "black box" while
-            // playing was the dark window behind showing through.
-            alpha_mode: if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::Opaque) {
-                wgpu::CompositeAlphaMode::Opaque
-            } else {
-                caps.alpha_modes[0]
-            },
+            alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
-        surface.configure(&device, &config);
+        if let Some(surface) = &surface {
+            surface.configure(&device, &config);
+        }
 
         // Load mods into the live registries before touching the world.
         // Steam Workshop items installed into `workshop/` (UGC staging dir
@@ -1599,8 +1643,14 @@ impl GameState {
         let spawn_point = Vec3::new(0.5, world.surface_height(0, 0) as f32 + 0.2, 0.5);
         let mut player = Player::new(spawn_point);
         player.flying = false;
-        let egui = EguiPlatform::new(&device, config.format, &window);
-        let icons = icons::ItemIcons::new(&egui.ctx);
+        let egui = window.as_ref().map(|w| EguiPlatform::new(&device, config.format, w));
+        // Item icons need an egui context for their textures; the
+        // surfaceless driver hands them a standalone context (no UI pass
+        // ever draws it).
+        let icons = icons::ItemIcons::new(&egui.as_ref().map(|e| e.ctx.clone()).unwrap_or_default());
+        // The surfaceless driver arms no audio output; the windowed boot
+        // does. Read before the struct literal moves window/egui.
+        let windowed = egui.is_some();
 
         // The worker skips chunks that come from the save.
         let mut worker_skip = saved_set.clone();
@@ -1660,7 +1710,7 @@ impl GameState {
             fluid_queued: HashSet::new(),
             grade_tint: [1.0, 1.0, 1.0],
             grade_sat: 1.0,
-            audio: lf_audio::Audio::new(),
+            audio: if windowed { lf_audio::Audio::new() } else { None },
             shake: 0.0,
             keymap: crate::input::Keymap::from_pairs(&settings.keymap_pairs),
             rebind_capture: None,
@@ -2505,15 +2555,19 @@ impl GameState {
         // Enter input mode even if the OS grab fails (some window managers
         // refuse grabs): mouse motion still arrives via DeviceEvent, and
         // clicks must keep working instead of being swallowed forever.
-        if self.window.set_cursor_grab(CursorGrabMode::Locked).is_ok() {
-            self.window.set_cursor_visible(false);
+        if let Some(window) = &self.window {
+            if window.set_cursor_grab(CursorGrabMode::Locked).is_ok() {
+                window.set_cursor_visible(false);
+            }
         }
         self.input.cursor_locked = true;
     }
 
     fn unlock_cursor(&mut self) {
-        let _ = self.window.set_cursor_grab(CursorGrabMode::None);
-        self.window.set_cursor_visible(true);
+        if let Some(window) = &self.window {
+            let _ = window.set_cursor_grab(CursorGrabMode::None);
+            window.set_cursor_visible(true);
+        }
         self.input.cursor_locked = false;
         self.input.keys.clear();
         self.input.break_pressed = false;
@@ -2605,6 +2659,7 @@ impl GameState {
     }
 
     fn update_title(&self) {
+        let Some(window) = &self.window else { return };
         let p = &self.player;
         let title = format!(
             "LOREFORGE — {} [{}/9] — pos ({:.1}, {:.1}, {:.1}) — chunks {} — F fly · F2 shot · Esc release",
@@ -2613,14 +2668,16 @@ impl GameState {
             p.position.x, p.position.y, p.position.z,
             self.batches.len(),
         );
-        self.window.set_title(&title);
+        window.set_title(&title);
     }
 
     fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             self.config.width = width;
             self.config.height = height;
-            self.surface.configure(&self.device, &self.config);
+            if let Some(surface) = &self.surface {
+                surface.configure(&self.device, &self.config);
+            }
             let (texture, view) = MeshBatch::create_depth_texture(&self.device, width, height);
             self._depth_texture = texture;
             self.depth_view = view;
@@ -2659,7 +2716,7 @@ impl GameState {
         }
 
         // Live ray tracing: trace at the internal scale each frame.
-        if self.settings.rt_mode == RtMode::Live && self.ui_open == UiOpen::None {
+        if self.settings.rt_mode == RtMode::Live && self.ui_open == UiOpen::None && self.egui.is_some() {
             let scale = self.settings.rt_scale.clamp(0.1, 0.5);
             let w = ((self.config.width as f32 * scale) as u32).max(64);
             let h = ((self.config.height as f32 * scale) as u32).max(48);
@@ -2681,7 +2738,7 @@ impl GameState {
                 let sun = sun;
                 if let Ok(img) = tracer.render_frame(camera, center, sun, day) {
                     let size = [img.width() as usize, img.height() as usize];
-                    let ctx = self.egui.ctx.clone();
+                    let ctx = self.egui.as_ref().expect("guarded above").ctx.clone();
                     let pixels: Vec<egui::Color32> = img.pixels().map(|p| egui::Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3])).collect();
                     let image = egui::ColorImage { size, pixels };
                     let tex = match self.live_rt_texture.take() {
@@ -2696,7 +2753,9 @@ impl GameState {
             }
         }
 
-        // UI frame.
+        // UI frame. The surfaceless driver has no UI: its tick runs the
+        // same systems below (physics, net, streaming) with the panels
+        // skipped — it is driven by its driver, not by clicks.
         self.menu_reveal = (self.menu_reveal + dt).min(3.0);
         if self.ui_open == UiOpen::Title {
             // title_orbit now counts seconds; the orbit period lives in
@@ -2724,10 +2783,12 @@ impl GameState {
             self.last_hotbar_index = self.hotbar_index;
             self.hotbar_pick_time = 1.0;
         }
-        let window = self.window.clone();
-        self.egui.begin_frame(&window);
-        let ctx = self.egui.ctx.clone();
-        self.draw_ui(&ctx);
+        if let Some(egui) = &mut self.egui {
+            let window = self.window.clone().expect("egui implies a window");
+            egui.begin_frame(&window);
+            let ctx = egui.ctx.clone();
+            self.draw_ui(&ctx);
+        }
 
         let playing = matches!(self.ui_open, UiOpen::None) && self.stats.health > 0.0;
         let input = if playing {
@@ -6507,24 +6568,47 @@ impl GameState {
         }
     }
 
-    fn take_screenshot(&mut self) {
+    /// The world snapshot pixels: every meshed chunk's CPU vertices
+    /// rendered through the engine's headless pipeline — the SAME image
+    /// take_screenshot saves, exposed for proofs (the two-client route
+    /// reads it to pixel-gate what a peer truly renders). No window, no
+    /// surface, no UI pass: world pixels only.
+    fn snapshot_image(&self) -> image::RgbaImage {
+        static SNAPSHOT_SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let mut vertices: Vec<GpuVertex> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
-        for (v, i) in self.cpu_meshes.values() {
+        // Sorted chunk order: a HashMap's iteration order would shuffle
+        // the submission order run-to-run and flip scattered edge pixels
+        // in the readback — a proof image must be byte-stable.
+        let mut keys: Vec<(i32, i32)> = self.cpu_meshes.keys().copied().collect();
+        keys.sort();
+        for k in &keys {
+            let (v, i) = &self.cpu_meshes[k];
             let base = vertices.len() as u32;
             vertices.extend_from_slice(v);
             indices.extend(i.iter().map(|idx| idx + base));
         }
-        let _ = (&self.water_batches); // water omitted from quick screenshots
+        let camera = self.camera();
+        let env = self.env();
+        let textures = lf_assets::generate_atlas();
+        let dir = std::env::temp_dir().join(format!(
+            "lf_snapshot_{}_{}.png",
+            std::process::id(),
+            SNAPSHOT_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        match lf_engine::headless::render_to_png(&vertices, &indices, &[], &[], &textures, &camera, &env, self.clear_color(), 1280, 720, &dir, None) {
+            Ok(()) => image::open(&dir).expect("snapshot readback").to_rgba8(),
+            Err(e) => panic!("snapshot render failed: {e}"),
+        }
+    }
+
+    fn take_screenshot(&mut self) {
         self.screenshot_counter += 1;
         let path = std::path::PathBuf::from(format!("shots/screenshot_{}.png", self.screenshot_counter));
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).ok();
         }
-        let camera = self.camera();
-        let env = self.env();
-        let textures = lf_assets::generate_atlas();
-        match lf_engine::headless::render_to_png(&vertices, &indices, &[], &[], &textures, &camera, &env, self.clear_color(), 1280, 720, &path, None) {
+        match image::save_buffer(&path, self.snapshot_image().as_raw(), 1280, 720, image::ColorType::Rgba8) {
             Ok(()) => tracing::info!("screenshot saved to {}", path.display()),
             Err(e) => tracing::error!("screenshot failed: {}", e),
         }
@@ -6568,6 +6652,11 @@ impl GameState {
     }
 
     fn render(&mut self) {
+        // THE SURFACELESS DRIVER never presents: its frames are read back
+        // through the headless snapshot path, not this surface pass.
+        if self.surface.is_none() {
+            return;
+        }
         self.rebuild_drop_batch();
         self.rebuild_crack_batch();
         self.rebuild_particle_batch();
@@ -6624,10 +6713,11 @@ impl GameState {
         }
         self.outline.update_camera(&self.queue, &camera);
 
-        let output = match self.surface.get_current_texture() {
+        let surface = self.surface.as_ref().expect("checked at the top of render");
+        let output = match surface.get_current_texture() {
             Ok(o) => o,
             Err(wgpu::SurfaceError::Lost) => {
-                self.surface.configure(&self.device, &self.config);
+                surface.configure(&self.device, &self.config);
                 return;
             }
             Err(e) => {
@@ -6723,16 +6813,18 @@ impl GameState {
             }
         }
         // egui UI pass on top of the world.
-        let (paint_jobs, screen) = {
-            let window = &self.window;
-            let device = &self.device;
-            let queue = &self.queue;
-            self.egui.end_frame(window, device, queue, &mut encoder)
-        };
-        self.egui.paint(&mut encoder, &view, paint_jobs, &screen);
+        if let Some(egui) = &mut self.egui {
+            let (paint_jobs, screen) = {
+                let window = self.window.as_ref().expect("egui implies a window");
+                egui.end_frame(window, &self.device, &self.queue, &mut encoder)
+            };
+            egui.paint(&mut encoder, &view, paint_jobs, &screen);
+        }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
-        let _ = self.window.pre_present_notify();
+        if let Some(window) = &self.window {
+            let _ = window.pre_present_notify();
+        }
     }
 }
 
@@ -8444,5 +8536,262 @@ mod tests {
         assert!(region.contains("self.stats.max_hunger"), "a granted bite feeds the hunger");
         assert!(region.contains("cannot eat: "), "a refusal says why");
         assert!(!region.contains("consume_selected("), "the resolver never consumes the held slot directly");
+    }
+
+    // ------------------------------------------------------------------
+    // THE TWO-CLIENT ROUTE (the GPU-side end of the wire laws): a real
+    // dedicated server on a real UDP port, the REAL client code on both
+    // sides (surfaceless drivers — new_headless — running the same tick
+    // the windowed loop runs), and the WITNESS's own rendered pixels
+    // proving the digger's edit landed. No client logic is duplicated:
+    // the join is the UI's connect, the dig is the mining input's
+    // host_set_block call, the witness's sight is snapshot_image — the
+    // same headless render take_screenshot saves.
+
+    /// FNV-1a over a chunk mesh — two different worlds never hash equal.
+    fn route_mesh_hash(mesh: &(Vec<GpuVertex>, Vec<u32>)) -> u64 {
+        let mut h: u64 = 0xcbf29ce484222325;
+        for v in &mesh.0 {
+            for bits in v.position.map(|f: f32| f.to_bits()) {
+                h = (h ^ bits as u64).wrapping_mul(0x100000001b3);
+            }
+            h = (h ^ v.tex_index as u64).wrapping_mul(0x100000001b3);
+        }
+        for idx in &mesh.1 {
+            h = (h ^ *idx as u64).wrapping_mul(0x100000001b3);
+        }
+        h
+    }
+
+    /// THE DETERMINISTIC SIGHT: plant the witness's body on the adopted
+    /// surface and aim its camera at the dug column's top face. Physics
+    /// settle leaves sub-ulp pose drift (wall-clock dt), and a drifted
+    /// eye flips scattered rasterization pixels — the route pins the
+    /// pose immediately before every snapshot so the committed PNGs are
+    /// byte-stable across runs.
+    fn route_plant_sight(witness: &mut GameState, dx: i32, dy: i32, dz: i32) {
+        // THE FROZEN WIND: env.time is self.elapsed (wall clock) while the
+        // quality tier allows FX, and foliage sways with it — the route
+        // rides the low tier's own freeze (particles off → env.time 0.0)
+        // and pins the weather, so the sky and the leaves are the same on
+        // every run.
+        witness.settings.particles = false;
+        witness.weather_raining = false;
+        witness.player.position = Vec3::new(0.5, witness.world.surface_height(0, 0) as f32, 0.5);
+        witness.player.velocity = Vec3::ZERO;
+        let eye = witness.player.eye_position();
+        let target = Vec3::new(dx as f32 + 0.5, dy as f32 + 0.5, dz as f32 + 0.5);
+        let dir = (target - eye).normalize();
+        // look_dir = (sin_y·cos_p, sin_p, -cos_y·cos_p) — invert it.
+        witness.player.yaw = dir.x.atan2(-dir.z);
+        witness.player.pitch = dir.y.asin();
+    }
+
+    #[test]
+    fn the_two_client_route_the_peer_sees_the_dig_land() {
+        const ROUTE_SEED: u64 = 4242;
+        // Pinned daylight: wall-clock ticks advance the sky between the
+        // two snapshots; the route's claim is the EDIT, not the hour.
+        const ROUTE_TICK: u64 = lf_game::TimeOfDay::TICKS_PER_DAY / 4;
+        const AIR: u32 = registry::block::AIR;
+        // The boot ring's chunk count (BOOT_RADIUS 1 → 3×3).
+        const RING_CHUNKS: usize = 9;
+
+        // 1. The real dedicated server on an ephemeral port.
+        let mut server = lf_server::Server::start("127.0.0.1:0", ROUTE_SEED)
+            .expect("the route's server binds");
+
+        // 2. The WITNESS (the peer who must SEE the dig) joins the way the
+        //    UI's connect button does, then adopts the server's seed via
+        //    the real Welcome arm (the join-identity law). THE
+        //    DETERMINISTIC SIGHT: the route pins the view distance to the
+        //    boot ring BEFORE the join, so the adoption's streamer never
+        //    requests beyond it — both snapshots hold exactly the same nine
+        //    meshed chunks on every run, and the streamer's wall-clock
+        //    arrival order can never leak into the pixels (re-running the
+        //    route rewrites the committed PNGs byte-identically).
+        let addr = server.local_addr().to_string();
+        let mut witness = pollster::block_on(GameState::new_headless());
+        witness.settings.view_distance = 1;
+        witness.net = Some(net::NetClient::connect(&addr, "witness", false)
+            .expect("the witness connects"));
+        for _ in 0..600 {
+            witness.tick();
+            let connected = witness.net.as_ref().is_some_and(|n| n.connected);
+            if connected && witness.world_seed == ROUTE_SEED {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(16));
+        }
+        assert!(witness.net.as_ref().is_some_and(|n| n.connected), "the witness never got Welcome");
+        assert_eq!(witness.world_seed, ROUTE_SEED, "the witness never adopted the server's seed");
+
+        // 3. Plant the witness on the adopted surface and let the walk law
+        //    settle the body. Entering the world (the title screen's
+        //    "play" — ui_open None) is what puts the PLAYER camera in
+        //    control; the boot state shows the scenic orbit instead.
+        witness.ui_open = UiOpen::None;
+        witness.player.position = Vec3::new(0.5, witness.world.surface_height(0, 0) as f32 + 0.2, 0.5);
+        witness.player.velocity = Vec3::ZERO;
+        for _ in 0..20 {
+            witness.tick();
+        }
+        assert_eq!(
+            witness.world.chunks.len(), RING_CHUNKS,
+            "the witness's sight is not the boot ring",
+        );
+
+        // 4. Sight the dig column: a full opaque cube a few paces from the
+        //    spawn (inside the boot ring) whose top the server itself would
+        //    let a bare hand take — the SAME gate the dig must pass.
+        let mut site: Option<(i32, i32, i32, u32)> = None;
+        let mut scanned: Vec<String> = Vec::new();
+        for d in 3..=10 {
+            for (x, z) in [(d, 0), (-d, 0), (0, d), (0, -d)] {
+                let top = witness.world.surface_height(x, z) - 1;
+                let b = witness.world.get_block(x, top, z);
+                let above = witness.world.get_block(x, top + 1, z).id();
+                scanned.push(format!("({x},{z})={}", registry::block::name(b.id())));
+                if registry::is_solid(b)
+                    && registry::is_opaque(b)
+                    && above == AIR
+                    && lf_game::mining::required_tool(b.id()).is_none()
+                {
+                    site = Some((x, top, z, b.id()));
+                    break;
+                }
+            }
+            if site.is_some() {
+                break;
+            }
+        }
+        let (dx, dy, dz, block_id) = site.unwrap_or_else(|| {
+            panic!(
+                "no bare-hand-diggable cube sighted near the spawn — pick another route seed; scanned: {}",
+                scanned.join(" ")
+            )
+        });
+        // Aim the witness's camera at the column's top face.
+        route_plant_sight(&mut witness, dx, dy, dz);
+        let eye = witness.player.eye_position();
+        println!(
+            "route: dig site ({dx},{dy},{dz}) block {} — witness eye {eye:.1}",
+            registry::block::name(block_id)
+        );
+        let chunk = net::RemoteEditBuffer::chunk_of(dx, dz);
+        assert!(witness.world.chunk(chunk.0, chunk.1).is_some(), "the sighted column left the boot ring");
+        let before_mesh = witness.cpu_meshes.get(&chunk).expect("the sighted chunk is meshed").clone();
+
+        // 5. THE BEFORE PICTURE — the witness's own pixels, sky pinned.
+        witness.time = lf_game::TimeOfDay::new(ROUTE_TICK);
+        let before = witness.snapshot_image();
+        // The repo's proof directory, from the workspace root (tests run
+        // with the crate dir as CWD).
+        let shots = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors().nth(2).expect("crate inside a workspace").join("shots");
+        std::fs::create_dir_all(&shots).ok();
+        before.save(shots.join("twoclient_peer_before.png")).expect("before PNG saved");
+
+        // 6. The DIGGER joins the same server.
+        let mut digger = pollster::block_on(GameState::new_headless());
+        digger.net = Some(net::NetClient::connect(&addr, "digger", false)
+            .expect("the digger connects"));
+        for _ in 0..600 {
+            digger.tick();
+            let connected = digger.net.as_ref().is_some_and(|n| n.connected);
+            if connected && digger.world_seed == ROUTE_SEED {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(16));
+        }
+        assert!(digger.net.as_ref().is_some_and(|n| n.connected), "the digger never got Welcome");
+
+        // 7. THE DIG — the exact call the mining input makes (the host
+        //    funnel: queue, apply, remesh, claim, broadcast).
+        let landed = digger.host_set_block(dx, dy, dz, BlockState::AIR, lf_game::host::EditKind::Mine, None);
+        assert!(landed, "the digger's own ground took the dig");
+        assert_eq!(digger.world.get_block(dx, dy, dz).id(), AIR, "the digger's optimistic apply holds");
+
+        // 8. THE NO-SELF-ECHO LAW, seen from the editor: the server never
+        //    reads the digger's own accepted edit back to it, and the
+        //    digger's yield grant arrives instead.
+        let mut saw_grant = false;
+        for _ in 0..60 {
+            if let Some(n) = digger.net.as_mut() {
+                for msg in n.poll() {
+                    match msg {
+                        lf_protocol::ServerMessage::BlockUpdate { x, y, z, .. } => {
+                            panic!("the editor heard its own edit echoed at ({x},{y},{z})");
+                        }
+                        lf_protocol::ServerMessage::Reject { reason } => {
+                            panic!("the dig was refused: {reason}");
+                        }
+                        lf_protocol::ServerMessage::ItemGrant { .. } => saw_grant = true,
+                        _ => {}
+                    }
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(saw_grant, "the digger never received the canonical yield grant");
+
+        // 9. THE WITNESS SEES IT: its world, then its mesh, then — the
+        //    point of the whole route — its own rendered pixels.
+        let mut saw_state = false;
+        for _ in 0..600 {
+            witness.tick();
+            if witness.world.get_block(dx, dy, dz).id() == AIR {
+                saw_state = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(16));
+        }
+        assert!(saw_state, "the witness's world never took the dig");
+        for _ in 0..5 {
+            witness.tick();
+        }
+        let after_mesh = witness.cpu_meshes.get(&chunk).expect("the chunk is still meshed").clone();
+        assert_ne!(
+            route_mesh_hash(&before_mesh), route_mesh_hash(&after_mesh),
+            "the witness remeshed the dug chunk",
+        );
+        route_plant_sight(&mut witness, dx, dy, dz);
+        witness.time = lf_game::TimeOfDay::new(ROUTE_TICK);
+        let after = witness.snapshot_image();
+        after.save(shots.join("twoclient_peer_after.png")).expect("after PNG saved");
+
+        // 10. THE PIXEL GATE — the hole is IN the picture. ROI: the frame
+        //     center, where the sighted column was aimed. A refused or
+        //     lost edit leaves these pixels identical.
+        let (w, h) = (before.width(), before.height());
+        let (cx, cy) = (w / 2, h / 2);
+        let (rw, rh) = (160u32, 110u32);
+        let mut roi_delta_sum = 0f64;
+        let mut roi_strong = 0u64;
+        let mut roi_px = 0u64;
+        for y in (cy - rh)..(cy + rh) {
+            for x in (cx - rw)..(cx + rw) {
+                let p = before.get_pixel(x, y);
+                let q = after.get_pixel(x, y);
+                let dmax = p.0.iter().zip(q.0.iter()).map(|(a, b)| a.abs_diff(*b)).max().unwrap();
+                roi_delta_sum += dmax as f64;
+                if dmax > 40 {
+                    roi_strong += 1;
+                }
+                roi_px += 1;
+            }
+        }
+        let roi_mean = roi_delta_sum / roi_px as f64;
+        assert!(roi_mean > 8.0, "the ROI barely changed (mean |d| = {roi_mean:.2}) — the dig is not in the pixels");
+        assert!(roi_strong > 1500, "only {roi_strong} ROI pixels moved strongly — the dig is not in the pixels");
+
+        // 11. Clean shutdown — the streamers stop generating (their
+        //     threads would otherwise churn through the rest of the
+        //     suite) and the server thread joins (the port frees).
+        witness.streamer.shutdown();
+        digger.streamer.shutdown();
+        drop(witness);
+        drop(digger);
+        server.stop();
     }
 }

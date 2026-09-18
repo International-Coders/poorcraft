@@ -10185,3 +10185,59 @@ crafting, placement, smelting, eating) is server-computed.
   twin — each click is one user intent; errs against the clicker,
   never for one).
 - Hardcoded connect name "smith" (audit note).
+
+
+## 2026-09-18 — The peer sees the dig land: the two-client route over real UDP (loop 471)
+
+### What was done
+Closed STATE's next_task item (1) — the windowed two-client route (the
+GPU-side end of the wire laws; the multiplayer authority program's
+remaining proof). Built the surfaceless driver STATE scoped for, then
+the route: server + client A digs + client B renders the hole,
+pixel-gated.
+
+### Files touched
+- crates/lf_client/src/lib.rs (GameState::new_inner/new_headless —
+  window/surface/egui Option-ified with guards; audio None headless;
+  snapshot_image factored from take_screenshot, sorted chunk order;
+  render/event/cursor/title/resize guards; the two-client route law +
+  route_mesh_hash + route_plant_sight in the test module)
+- crates/lf_client/src/ui.rs (the UI-scale path guards window None)
+- crates/lf_client/Cargo.toml (dev-dependency lf_server, test-only)
+- Cargo.lock (dev-dep edge)
+- Makefile (make twoclient)
+- shots/twoclient_peer_before.png / shots/twoclient_peer_after.png
+  (the route's own committed evidence)
+- STATE.md / BACKLOG.md / CHANGELOG.md
+
+### How it was verified
+- cargo test --workspace: 552 green / 0 failed, exit 0 (loop 470's 551
+  + 1 route law).
+- make smoke: OK (headless logic 300 ticks + 12 s GUI liveness).
+- make twoclient (release): PASS in 2.06 s; PNGs byte-identical to the
+  debug runs (md5 a6a80ee29d53c81a7f0ca0fb401d4897 before /
+  66f3602cab945b89cf8720cfc62ec300 after).
+- FULL vistest battery: 110 scenes [ok] / 0 FAIL exit-0 across TWO
+  runs; committed scene PNGs byte-identical throughout (md5
+  462b2318ed4c98d9a882266cd81fbd7d pre == mid == post) — singleplayer
+  render paths pixel-proven unchanged.
+- --features steam: cargo build -p lf_steam --features steam --examples
+  compiles clean.
+- Both route PNGs INSPECTED (intact grass cube before; clean 1x1 notch
+  with shadowed interior after).
+- Runtimes refreshed: dist/loreforge-macos.dmg (8.9 MB, hdiutil VALID),
+  dist/loreforge-linux-x86_64.tar.gz (8.5 MB), dist/loreforge.app
+  binary (20 MB), dist/loreforge-server. Windows exe honestly skipped
+  (mingw absent).
+
+### Honestly deferred
+- The lying-PackSync bootstrap tier: a modified client's claim can
+  re-seed the ledger (named at 466; now the TOP carried item — full
+  closure = server-side mode authority + a server-seeded spawn
+  inventory, protocol v11).
+- Route extensions now that the route exists: the peer SEEING a
+  placement land; two real clients trading through the escrow.
+- The forged sim-claim residual (the client-simmed tier's trust).
+- Client-local block entities (chest contents, furnace-slot
+  persistence across peers).
+- Hardcoded connect name "smith" (audit note).
