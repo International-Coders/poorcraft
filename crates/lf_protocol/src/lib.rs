@@ -95,6 +95,18 @@ pub enum ClientMessage {
     /// truly paid. `req_id` is client-chosen and monotonic; a replayed id
     /// is refused with a no-op (a duplicated datagram pays once).
     SmeltRequest { req_id: u64, op: SmeltOp },
+    /// THE BITE-LEDGER LAW (protocol v10): while connected, SURVIVAL
+    /// eating is a REQUEST, not a local act — the client names the food
+    /// and how many it bites. The server gates it against the realm's
+    /// own catalog (`lf_game::items` — what the realm does not call
+    /// food, it will not feed) and the player's canonical LEDGER (the
+    /// bite must be paid), consumes exactly `count`, and answers the
+    /// eater ALONE with [`ServerMessage::Eat`]; the local pack and the
+    /// hunger stat move only when the verdict lands (a creative joiner
+    /// bites locally — infinite by its own law, the placement law's
+    /// twin). `req_id` is client-chosen and monotonic; a replayed id is
+    /// refused with a no-op (a duplicated datagram pays once).
+    EatRequest { req_id: u64, item: String, count: u32 },
     Goodbye,
 }
 
@@ -144,6 +156,24 @@ pub struct SmeltVerdict {
     pub reason: Option<String>,
 }
 
+/// THE EAT-VERDICT LAW (protocol v10): the canonical answer to a
+/// [`ClientMessage::EatRequest`], delivered to the eater ALONE — the
+/// server, not the client, decides what a bite costs. The verdict
+/// carries no item delta: the client applied nothing before it (the
+/// pack claim stays exact in both UDP orderings), and on `granted` the
+/// client consumes one of the named food and applies the bite (hunger,
+/// sound). A refusal carries the reason (what the realm does not call
+/// food, a short ledger, a replayed id) and moves nothing. A lost
+/// verdict errs safe: the hunger never applies and the pack's next
+/// re-claim restores the ledger's remainder — a bite can be lost in
+/// flight, never fabricated.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct EatVerdict {
+    pub req_id: u64,
+    pub granted: bool,
+    pub reason: Option<String>,
+}
+
 /// Messages the server sends to clients.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ServerMessage {
@@ -188,6 +218,9 @@ pub enum ServerMessage {
     /// THE FURNACE-LEDGER VERDICT (protocol v9): the canonical answer to
     /// a [`ClientMessage::SmeltRequest`] — see [`SmeltVerdict`].
     Smelt(SmeltVerdict),
+    /// THE BITE-LEDGER VERDICT (protocol v10): the canonical answer to a
+    /// [`ClientMessage::EatRequest`] — see [`EatVerdict`].
+    Eat(EatVerdict),
 }
 
 /// THE MINE CLAIM (protocol v5): rides a `SetBlock` that is a player
@@ -212,11 +245,11 @@ pub struct PlaceClaim {
     pub item: String,
 }
 
-/// v9: the furnace-ledger round trip — deposits pay the ledger into a
-/// furnace's commitments, withdrawals pay out of them, and a completed
-/// smelt is backed by the realm's own furnace law. Server and client
-/// ship together; the existing version gate rejects mismatched peers.
-pub const PROTOCOL_VERSION: u32 = 9;
+/// v10: the bite-ledger round trip — a survival bite is paid food from
+/// the eater's canonical ledger, gated by the realm's own catalog.
+/// Server and client ship together; the existing version gate rejects
+/// mismatched peers.
+pub const PROTOCOL_VERSION: u32 = 10;
 
 /// THE PACK-SYNC CADENCE: a drifted pack is uploaded at most this often
 /// (the client's PackMirror enforces it), except after a server-side
@@ -262,7 +295,7 @@ mod trade_tests {
         };
         let back: ServerMessage = bincode::deserialize(&bincode::serialize(&resolved).unwrap()).unwrap();
         assert_eq!(back, resolved);
-        assert_eq!(PROTOCOL_VERSION, 9);
+        assert_eq!(PROTOCOL_VERSION, 10);
     }
 
     /// v7: the craft round trip — the request names the recipe spec and a
@@ -302,7 +335,7 @@ mod trade_tests {
             Some(refused),
             "a refusal carries its reason"
         );
-        assert_eq!(PROTOCOL_VERSION, 9);
+        assert_eq!(PROTOCOL_VERSION, 10);
     }
 
     /// v9: the furnace-ledger round trip — every op survives the wire,
@@ -364,7 +397,38 @@ mod trade_tests {
             Some(refused),
             "a smelt refusal carries its reason"
         );
-        assert_eq!(PROTOCOL_VERSION, 9);
+        assert_eq!(PROTOCOL_VERSION, 10);
+    }
+
+    /// v10: the bite-ledger round trip — the request names the food and
+    /// a client-chosen req id; the verdict rides to the eater alone
+    /// (grant or reasoned refusal; a grant carries no item delta — the
+    /// client applied nothing before it).
+    #[test]
+    fn eat_request_and_verdict_round_trip() {
+        let bite = ClientMessage::EatRequest { req_id: 11, item: "apple".into(), count: 1 };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&bite)),
+            Some(bite),
+            "a bite request survives the wire"
+        );
+        let granted = ServerMessage::Eat(EatVerdict { req_id: 11, granted: true, reason: None });
+        assert_eq!(
+            ProtocolCodec::decode_server(&ProtocolCodec::encode_server(&granted)),
+            Some(granted),
+            "a granted eat verdict survives the wire"
+        );
+        let refused = ServerMessage::Eat(EatVerdict {
+            req_id: 12,
+            granted: false,
+            reason: Some("the ledger holds no 1xapple".into()),
+        });
+        assert_eq!(
+            ProtocolCodec::decode_server(&ProtocolCodec::encode_server(&refused)),
+            Some(refused),
+            "an eat refusal carries its reason"
+        );
+        assert_eq!(PROTOCOL_VERSION, 10);
     }
 
     /// v6/v8: the mine claim, the place-payment claim, and the pack sync round-trip.
@@ -423,7 +487,7 @@ mod trade_tests {
             Some(sync),
             "the pack claim survives the wire (u32 counts: a pack holds >255 of one item)"
         );
-        assert_eq!(PROTOCOL_VERSION, 9);
+        assert_eq!(PROTOCOL_VERSION, 10);
     }
 }
 

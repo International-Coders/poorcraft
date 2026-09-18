@@ -1,5 +1,96 @@
 # CHANGELOG
 
+## 2026-09-18 — The bite is the ledger's to feed: server-side eating over real UDP (loop 470)
+
+- Closed STATE's next_task item (2) — eating, the last client-side
+  consumption tier of the same gated-request shape (smelting closed
+  loop 469), chosen over the windowed two-client route per the
+  priority ladder (an authority gap above a missing proof, the
+  465–469 precedent). Until now a connected player's bite was fully
+  client-local: the food left the local pack and the hunger rose with
+  no word to the server, so the canonical ledger still counted the
+  eaten food and it could be traded afterward — eating was a quiet
+  duplication door. After this loop every player-facing consumption of
+  the played loop — mining, trading, crafting, placement, smelting,
+  eating — is server-computed against the canonical ledger.
+- THE WIRE (lf_protocol, v10): `EatRequest { req_id, item, count }`
+  and `ServerMessage::Eat(EatVerdict { req_id, granted, reason })`,
+  delivered to the eater ALONE. THE VERDICT CARRIES NO ITEM DELTA, on
+  purpose: the client applied nothing at the click (deposits of
+  attention only), so the PackSync claim stays exact in both UDP
+  orderings — a grant means "consume the bite you asked for". A lost
+  verdict errs safe: the hunger never applies and the pack's next
+  re-claim restores the ledger's remainder — a bite can be lost in
+  flight, never fabricated. PROTOCOL_VERSION 9 -> 10 (matched
+  binaries; the existing gate rejects mismatched peers).
+- THE SERVER (lf_server): THE EAT-OP LAW (the shared pure fn
+  `eat_op`, unit-lawed) stands between every request and the ledger:
+  THE FOOD GATE first — the realm's own catalog decides what food is
+  (`lf_game::items::item_def`: what the realm does not call food, it
+  will not feed; a log, a stone pickaxe, an unknown stew, and a
+  zero-count bite all refuse by name) — then THE LEDGER (count_of
+  must cover the bite; remove_count pays exactly, the pre-check
+  guaranteeing the pay). THE REPLAY WINDOW (the craft pays-once law's
+  eating twin, its own per-kind seen window) answers a duplicated
+  datagram with a no-op refusal, so a bite pays once. Peers hear
+  nothing about another player's appetite; unknown senders (no Hello,
+  no ledger) are ignored like every stateful message.
+- THE CLIENT (lf_client): the right-click food arm is the ONE eat
+  site — while a SURVIVAL session is connected the click SENDS
+  (`net::request_eat`) and records a bounded in-flight bite
+  (`EAT_IN_FLIGHT_CAP` 64); offline and creative keep the shipped
+  local bite byte-equal (creative is infinite by its own law — the
+  placement law's twin). The Eat arm is a thin delegate to the ONE
+  resolver (`resolve_eat_verdict`): a granted bite consumes exactly
+  one of the food BY ITEM ID (the ledger paid "one apple", not "that
+  slot" — the click's hotbar selection may have scrolled away while
+  the verdict flew) plus the hunger clamped and the eat sound; a
+  refusal hints "cannot eat: …" and moves nothing; a verdict for a
+  dropped id is ignored — at-most-once, never fabricated.
+- 6 NEW LAWS (root 545 -> 551; lf_protocol 8 -> 9, lf_server 30 ->
+  34, lf_client 113 -> 114): the eat round-trip codec law; the
+  eat-op unit law (food pays exactly; non-food, unknown, zero-count,
+  and short-ledger bites refuse by name and move nothing); the
+  funded-bite wire law (the ledger pays, the trade gate proves the
+  remainder, the peer hears nothing, an unpaid bite refuses by name
+  and never conjures an apple); the food-gate wire law (the ledger
+  never moves on a refused bite — the offer gate passes everything);
+  the bite-pays-once replay wire law; the online-bites source law.
+- REGRESSION: cargo test --workspace 551 green / 0 failed (xtask's 12
+  included = loop 469's 545 + 6); make smoke OK; FULL vistest battery
+  110 scenes [ok] / 0 FAIL exit-0 across TWO runs with every committed
+  PNG byte-identical (md5 462b2318ed4c98d9a882266cd81fbd7d before ==
+  after both runs) — singleplayer render paths pixel-proven unchanged;
+  --features steam lib + examples compile clean with the v10 wire;
+  POORCRAFT 3D builds untouched; runtimes refreshed.
+- PERF: not applicable — one small request datagram per bite and one
+  small verdict back; the server adds one catalog lookup plus one
+  count_of/remove_count per request; zero singleplayer cost (the
+  offline branch is byte-equal).
+- LORE: canon touched: none — multiplayer economy plumbing (the
+  465–469 precedent); the food gate reads the existing item catalog;
+  no faction, place, event, term, NPC, item, or spell data changed; no
+  new canon text (rejection reasons are UI hints). Canon preserved:
+  the chronicle as the player-authored history; Anima as a material
+  energetic property (a bite is mundane sustenance the realm's ledger
+  can account — no miracle, no identity assigned). World expression:
+  in shared Valdenmoor the realm's ledger knows what each adventurer
+  truly ate — a bite is paid from the pack the ledger knows, and every
+  refusal says why.
+- Migration: PROTOCOL_VERSION bump only (matched client+server; old
+  peers rejected by the existing gate) — no save format, no block/item
+  change, GENERATOR_VERSION unchanged, ClientSave untouched (eating is
+  stateless per request; no new server-persisted state).
+- Deferred honestly: the windowed two-client route (now the TOP
+  carried item — the multiplayer authority program's remaining proof);
+  the lying-PackSync bootstrap tier (a modified client's claim can
+  re-seed the ledger — named at 466, unchanged); the forged sim-claim
+  residual (a modified client eating without sending — the
+  client-simmed tier's own trust, named at 468); a bite in flight is
+  not re-gated at verdict time (two rapid clicks pay two bites — the
+  craft-click law's eating twin; errs against the cheater, never for
+  one); hardcoded connect name "smith" (audit note).
+
 ## 2026-09-18 — The furnace is the server's fire: server-side smelting over real UDP (loop 469)
 
 - Closed STATE's next_task item (2) — the last player-facing

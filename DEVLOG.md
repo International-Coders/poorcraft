@@ -10128,3 +10128,60 @@ byte-equal to the shipped law.
   furnace's commitments are session-local server memory.
 - The windowed two-client route (the GPU-side end of the wire laws).
 - Hardcoded connect name "smith" (audit note).
+
+## 2026-09-18 — The bite is the ledger's to feed: server-side eating over real UDP (loop 470)
+
+### What was done
+Closed STATE's next_task item (2) — server-side eating, the last
+client-side consumption tier of the same gated-request shape (chosen
+over the windowed two-client route per the priority ladder's
+authority-gap rule, the 465-469 precedent). While a SURVIVAL session
+is connected, a food click is only a REQUEST: the server gates it
+against the realm's own food catalog and the player's canonical
+ledger, and the EatVerdict answers the eater alone. After this loop
+every player-facing consumption of the played loop (mining, trading,
+crafting, placement, smelting, eating) is server-computed.
+
+### Files touched
+- crates/lf_protocol/src/lib.rs (EatRequest, EatVerdict,
+  ServerMessage::Eat, v10, the codec round-trip law)
+- crates/lf_server/src/lib.rs (the pure eat_op law + 1 unit law; the
+  EatRequest arm with the food gate, the ledger pay, and the per-kind
+  replay window; 3 wire laws over real UDP)
+- crates/lf_client/src/net.rs (the request_eat sender)
+- crates/lf_client/src/lib.rs (EAT_IN_FLIGHT_CAP + eat_in_flight +
+  next_eat_id state; the food arm routes online survival bites
+  through the wire; the Eat arm; resolve_eat_verdict — the one
+  applier; the online-bites source law)
+- STATE.md / BACKLOG.md / CHANGELOG.md
+
+### How it was verified
+- cargo test --workspace: 551 green / 0 failed (xtask's 12 included;
+  = loop 469's 545 + 6 new laws: lf_protocol 8 -> 9, lf_server
+  30 -> 34, lf_client 113 -> 114).
+- make smoke: OK (headless logic + 12s GUI liveness on the release
+  binary).
+- FULL vistest battery: 110 scenes [ok] / 0 FAIL, exit-0, across TWO
+  runs; every committed scene PNG byte-identical (md5 digest
+  462b2318ed4c98d9a882266cd81fbd7d before == after both runs) —
+  singleplayer render paths pixel-proven unchanged (multiplayer-only
+  change; the offline eat branch is byte-equal to the shipped law).
+- The steam feature build: cargo build -p lf_steam --features steam
+  --examples compiles clean with the v10 wire (checked proactively —
+  the v8/v9 lesson). POORCRAFT 3D builds untouched.
+- Runtimes refreshed: dist/loreforge-macos.dmg (hdiutil verify),
+  dist/loreforge-linux-x86_64.tar.gz, dist/loreforge.app binary,
+  dist/loreforge-server. Windows exe honestly skipped (mingw absent).
+
+### Honestly deferred
+- The windowed two-client route (the GPU-side end of the wire laws) —
+  now the TOP carried item with the consumption tiers closed.
+- The lying-PackSync bootstrap tier: a modified client's claim can
+  re-seed the ledger (named at 466; unchanged by this loop).
+- The forged sim-claim residual: a modified client eating without
+  sending (the client-simmed tier's own trust, named at 468).
+- A bite in flight is not re-gated at verdict time: two rapid clicks
+  within one round trip pay two bites (the craft-click law's eating
+  twin — each click is one user intent; errs against the clicker,
+  never for one).
+- Hardcoded connect name "smith" (audit note).

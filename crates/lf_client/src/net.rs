@@ -511,6 +511,15 @@ impl NetClient {
         let _ = self.socket.send(&msg);
     }
 
+    /// THE BITE-LEDGER SENDER (protocol v10): while connected, a
+    /// survival bite is SENT, not eaten — the server's ledger pays, and
+    /// the verdict feeds the hunger. One call per intent (a click); a
+    /// fresh retry is a fresh request.
+    pub fn request_eat(&self, req_id: u64, item: String, count: u32) {
+        let msg = ProtocolCodec::encode_client(&ClientMessage::EatRequest { req_id, item, count });
+        let _ = self.socket.send(&msg);
+    }
+
     /// Drain incoming server messages (also prunes stale remotes).
     pub fn poll(&mut self) -> Vec<ServerMessage> {
         let mut received = Vec::new();

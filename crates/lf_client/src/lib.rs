@@ -132,6 +132,10 @@ const DAY_SKY: [f64; 4] = [0.53, 0.81, 0.98, 1.0];
 /// an overflowed report is not sent and its bar stays unbacked — a
 /// withdrawal of it refuses, which errs safe.
 const SMELT_DONES_CAP: usize = 64;
+/// THE BITES IN FLIGHT are bounded (protocol v10): one click is one
+/// request; a verdict lost in flight errs safe and its entry eventually
+/// ages out.
+const EAT_IN_FLIGHT_CAP: usize = 64;
 
 /// Blocks available in the hotbar (P4 replaces this with a real inventory).
 const HOTBAR: [u32; 9] = [
@@ -1303,6 +1307,16 @@ struct GameState {
     /// Monotonic client-chosen ids for smelt requests (one counter for
     /// both channels; the server's replay window keys on them).
     pub next_smelt_id: u64,
+    /// THE BITES IN FLIGHT (protocol v10): outstanding EatRequests —
+    /// (req id, the food, its hunger) — bounded like the smelt reports.
+    /// The client applied NOTHING at the click (the pack claim stays
+    /// exact); a granted verdict consumes one of the food and feeds the
+    /// hunger, a refusal only says why — a lost verdict errs safe (the
+    /// hunger never applies; the ledger's re-claim restores the food).
+    pub eat_in_flight: Vec<(u64, String, u8)>,
+    /// Monotonic client-chosen ids for eat requests (the server's replay
+    /// window keys on them, so a duplicated datagram pays once).
+    pub next_eat_id: u64,
     /// Quest log tab: 0 = active quests, 1 = chronicle.
     pub quest_tab: usize,
     pub last_fps: f32,
@@ -1771,6 +1785,8 @@ impl GameState {
             smelt_move: None,
             smelt_dones: Vec::new(),
             next_smelt_id: 1,
+            eat_in_flight: Vec::new(),
+            next_eat_id: 1,
             quest_tab: 0,
             last_fps: 0.0,
             quest_log,
@@ -1891,6 +1907,30 @@ impl GameState {
             if !granted {
                 self.revert_smelt_done(pos, &input, reason);
             }
+        }
+    }
+
+    /// THE EAT-VERDICT RESOLVER (protocol v10) — the one applier. The
+    /// client applied nothing at the click, so a granted bite consumes
+    /// one of the named food from wherever the ledger's twin holds it
+    /// (the click's hotbar slot may have scrolled away while the verdict
+    /// flew — the ledger paid "one apple", not "that slot") and feeds
+    /// the hunger exactly as the realm's catalog priced the food; a
+    /// refusal says why and moves nothing — the food stays, the ledger
+    /// stays. A verdict for an id no longer in flight (a dropped entry,
+    /// a reconnect) is ignored: a bite can be lost in flight, never
+    /// fabricated.
+    pub fn resolve_eat_verdict(&mut self, verdict: lf_protocol::EatVerdict) {
+        let Some(at) = self.eat_in_flight.iter().position(|(id, _, _)| *id == verdict.req_id) else {
+            return;
+        };
+        let (_, item, heal) = self.eat_in_flight.remove(at);
+        if verdict.granted {
+            self.inventory.remove_count(&item, 1);
+            self.stats.hunger = (self.stats.hunger + heal as f32).min(self.stats.max_hunger);
+            self.play_sfx(lf_audio::Sfx::Eat, 0.9);
+        } else if let Some(reason) = verdict.reason {
+            self.push_hint(&format!("cannot eat: {}", reason));
         }
     }
 
@@ -3424,6 +3464,14 @@ impl GameState {
                     lf_protocol::ServerMessage::Smelt(verdict) => {
                         self.resolve_smelt_verdict(verdict);
                     }
+                    // THE BITE-VERDICT LAW, client side (protocol v10):
+                    // the resolver is the ONE applier — the click applied
+                    // nothing, so a granted bite consumes one of the food
+                    // and feeds the hunger now; a refusal says why and
+                    // moves nothing (the food stays, the ledger stays).
+                    lf_protocol::ServerMessage::Eat(verdict) => {
+                        self.resolve_eat_verdict(verdict);
+                    }
                     // P37: escrowed trades deliver to the inventory
                     lf_protocol::ServerMessage::TradeResolved { accepted, items, .. } => {
                         if accepted {
@@ -4187,9 +4235,37 @@ impl GameState {
                     let def = item_def(&stack.item_id);
                     match def.map(|d| d.kind) {
                         Some(ItemKind::Food(heal)) if self.stats.hunger < self.stats.max_hunger => {
-                            self.stats.hunger = (self.stats.hunger + heal as f32).min(self.stats.max_hunger);
-                            self.consume_selected(1);
-                            self.play_sfx(lf_audio::Sfx::Eat, 0.9);
+                            // THE BITE IS THE LEDGER'S TO FEED (protocol
+                            // v10): while a SURVIVAL session is connected,
+                            // the click is only a REQUEST — the server's
+                            // canonical ledger pays and the EatVerdict
+                            // feeds the hunger when it lands (nothing was
+                            // applied at the click, so the pack claim
+                            // stays exact in both UDP orderings).
+                            // Creative bites locally (infinite by its own
+                            // law — the placement law's twin); offline the
+                            // integrated host is the same authority in
+                            // process, byte-equal to the shipped law.
+                            let mut sent = false;
+                            if self.game_mode.consumes_items() {
+                                if let Some(n) = &self.net {
+                                    if n.connected {
+                                        self.next_eat_id += 1;
+                                        let req = self.next_eat_id;
+                                        n.request_eat(req, stack.item_id.clone(), 1);
+                                        self.eat_in_flight.push((req, stack.item_id.clone(), heal));
+                                        if self.eat_in_flight.len() > EAT_IN_FLIGHT_CAP {
+                                            self.eat_in_flight.remove(0);
+                                        }
+                                        sent = true;
+                                    }
+                                }
+                            }
+                            if !sent {
+                                self.stats.hunger = (self.stats.hunger + heal as f32).min(self.stats.max_hunger);
+                                self.consume_selected(1);
+                                self.play_sfx(lf_audio::Sfx::Eat, 0.9);
+                            }
                         }
                         Some(ItemKind::Block(b)) => {
                             if let Some((pos, normal)) = target {
@@ -8329,5 +8405,44 @@ mod tests {
         let apply_region = &lib[applier..applier + applier_end];
         assert!(apply_region.contains("pack_or_drop("),
             "goods never vanish with a closed furnace");
+    }
+
+    /// THE BITE-LEDGER SOURCE LAW (protocol v10): the right-click food
+    /// arm is the ONE eat site, and while a survival session is
+    /// connected it SENDS the bite instead of eating — the Eat verdict
+    /// arm is the ONE resolver, and the resolver is the only place a
+    /// bite's consumption and hunger land (exactly one food per granted
+    /// verdict; a refusal only hints). Offline and creative keep the
+    /// shipped local bite.
+    #[test]
+    fn online_bites_route_through_the_wire_verdict() {
+        let lib = include_str!("lib.rs");
+        let live_end = lib.find("mod tests {").expect("the tests module exists");
+        let live = &lib[..live_end];
+        // exactly one eat sender, and it guards on a live session and on
+        // survival (creative is infinite by its own law and never pays)
+        let send = concat!("n.", "request_eat", "(");
+        assert_eq!(live.matches(send).count(), 1,
+            "the food arm is the one bite sender");
+        let site = live.find(send).expect("the sender exists");
+        let region = &live[site.saturating_sub(900)..site + 900];
+        assert!(region.contains("n.connected {"), "the sender guards on a live session");
+        assert!(region.contains("consumes_items()"), "the sender guards on survival");
+        assert!(region.contains("if !sent {"), "offline and creative keep the local bite");
+        assert!(live.contains("EAT_IN_FLIGHT_CAP"), "the bites in flight are bounded");
+        // the verdict arm is a thin delegate to the one resolver
+        let start = live.find("ServerMessage::Eat(verdict)").expect("the eat arm exists");
+        let arm = &live[start..start + 300];
+        assert!(arm.contains("resolve_eat_verdict(verdict)"),
+            "the arm is a thin delegate — the resolver is the one applier");
+        // the resolver consumes exactly one food and feeds the hunger;
+        // a refusal only hints
+        let resolver = live.find("pub fn resolve_eat_verdict").expect("the resolver exists");
+        let resolver_end = live[resolver..].find("fn apply_smelt_move").expect("the resolver is bounded");
+        let region = &live[resolver..resolver + resolver_end];
+        assert!(region.contains("remove_count(&item, 1)"), "a granted bite consumes exactly one");
+        assert!(region.contains("self.stats.max_hunger"), "a granted bite feeds the hunger");
+        assert!(region.contains("cannot eat: "), "a refusal says why");
+        assert!(!region.contains("consume_selected("), "the resolver never consumes the held slot directly");
     }
 }

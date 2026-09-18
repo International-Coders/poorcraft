@@ -267,6 +267,32 @@ pub fn smelt_op(
     }
 }
 
+/// THE EAT-OP LAW (protocol v10), the pure heart of server-side eating:
+/// a bite is PAID FOOD — the realm's own catalog decides what food is
+/// (`lf_game::items::item_def`: what the realm does not call food, it
+/// will not feed), a bite is at least one, and the LEDGER must hold the
+/// count. A legal bite consumes exactly `count` from the ledger; ANY
+/// refusal moves nothing and says why. (Hunger is a client-simmed stat —
+/// the server gates the CONSUMPTION, not the stat; the eater applies the
+/// bite's hunger and sound only when the verdict lands.)
+pub fn eat_op(inv: &mut Inventory, item: &str, count: u32) -> Result<(), String> {
+    let Some(def) = lf_game::items::item_def(item) else {
+        return Err(format!("the realm knows no {}", item));
+    };
+    if !matches!(def.kind, lf_game::items::ItemKind::Food(_)) {
+        return Err(format!("the realm does not call {} food", item));
+    }
+    if count == 0 {
+        return Err("nothing to eat".into());
+    }
+    if inv.count_of(item) < count {
+        return Err(format!("the ledger holds no {}x{}", count, item));
+    }
+    let removed = inv.remove_count(item, count);
+    debug_assert_eq!(removed, count, "the pre-check guarantees the pay");
+    Ok(())
+}
+
 fn craft_replay_seen(seen: &mut VecDeque<(u64, u64)>, seen_set: &mut std::collections::HashSet<(u64, u64)>, player: u64, req_id: u64) -> bool {
     if !seen_set.insert((player, req_id)) {
         return true;
@@ -343,6 +369,8 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
     let mut smelt_accounts: HashMap<(u64, (i32, i32, i32)), FurnaceAccount> = HashMap::new();
     let mut smelt_seen: VecDeque<(u64, u64)> = VecDeque::new();
     let mut smelt_seen_set: std::collections::HashSet<(u64, u64)> = std::collections::HashSet::new();
+    let mut eat_seen: VecDeque<(u64, u64)> = VecDeque::new();
+    let mut eat_seen_set: std::collections::HashSet<(u64, u64)> = std::collections::HashSet::new();
     let mut last_snapshot = std::time::Instant::now();
     let mut buf = [0u8; 2048];
 
@@ -357,6 +385,7 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
                             &mut edits, &mut next_id, &mut offers, &mut next_offer_id,
                             &mut craft_seen, &mut craft_seen_set,
                             &mut smelt_accounts, &mut smelt_seen, &mut smelt_seen_set,
+                            &mut eat_seen, &mut eat_seen_set,
                             src, msg);
                     }
                 }
@@ -405,6 +434,8 @@ fn handle_message(
     smelt_accounts: &mut HashMap<(u64, (i32, i32, i32)), FurnaceAccount>,
     smelt_seen: &mut VecDeque<(u64, u64)>,
     smelt_seen_set: &mut std::collections::HashSet<(u64, u64)>,
+    eat_seen: &mut VecDeque<(u64, u64)>,
+    eat_seen_set: &mut std::collections::HashSet<(u64, u64)>,
     src: SocketAddr,
     msg: ClientMessage,
 ) {
@@ -775,6 +806,45 @@ fn handle_message(
                 lf_protocol::SmeltVerdict { req_id, granted: verdict_reason.is_none(), reason: verdict_reason },
             ));
             let _ = socket.send_to(&verdict, src);
+        }
+        ClientMessage::EatRequest { req_id, item, count } => {
+            // THE BITE IS THE SERVER'S TO FEED (protocol v10): while
+            // connected, a SURVIVAL bite is a REQUEST — the canonical
+            // ledger pays and the verdict (granted/refused + reason)
+            // goes to the eater ALONE. Two gates stand between the
+            // request and the ledger: THE FOOD GATE (the realm's own
+            // catalog decides what food is — `eat_op`'s item_def door;
+            // a connected client cannot eat its pickaxe or a stone) and
+            // THE LEDGER ITSELF (the bite must be paid — `count` leaves
+            // the pack exactly). A replayed req_id (a duplicated
+            // datagram) is answered with a no-op refusal, so a bite pays
+            // once (the craft pays-once law's eating twin). Peers hear
+            // nothing about another player's appetite. Unknown senders
+            // (no Hello, no ledger) are ignored like every stateful
+            // message.
+            let Some(id) = id_of(players, src) else { return };
+            if craft_replay_seen(eat_seen, eat_seen_set, id, req_id) {
+                let replay = ProtocolCodec::encode_server(&ServerMessage::Eat(
+                    lf_protocol::EatVerdict {
+                        req_id, granted: false,
+                        reason: Some("already answered".into()),
+                    },
+                ));
+                let _ = socket.send_to(&replay, src);
+                return;
+            }
+            let verdict = match inventories.get_mut(&id) {
+                Some(inv) => match eat_op(inv, &item, count) {
+                    Ok(()) => ServerMessage::Eat(lf_protocol::EatVerdict {
+                        req_id, granted: true, reason: None,
+                    }),
+                    Err(reason) => ServerMessage::Eat(lf_protocol::EatVerdict {
+                        req_id, granted: false, reason: Some(reason),
+                    }),
+                },
+                None => return,
+            };
+            let _ = socket.send_to(&ProtocolCodec::encode_server(&verdict), src);
         }
         ClientMessage::TradeOffer { to, give, want } => {
             // P37 escrow: register the offer, notify the recipient.
@@ -2339,6 +2409,50 @@ mod tests {
         assert_eq!(acc.outputs.get("glass"), Some(&1));
     }
 
+    // ---- THE BITE LEDGER (protocol v10): the unit law ----
+
+    /// THE EAT-OP LAW (unit): a bite is paid food — the realm's catalog
+    /// decides what food is, a bite is at least one, and the ledger must
+    /// hold the count. A legal bite consumes exactly the count; every
+    /// refusal (unknown item, non-food, zero count, short ledger) moves
+    /// nothing.
+    #[test]
+    fn the_eat_op_feeds_only_what_the_ledger_pays_for() {
+        let mut inv = Inventory::new();
+        assert_eq!(inv.add_item("apple", 10), 0);
+        assert_eq!(inv.add_item("log", 3), 0);
+
+        // Food the ledger holds: the bite pays exactly.
+        eat_op(&mut inv, "apple", 1).unwrap();
+        eat_op(&mut inv, "apple", 4).unwrap();
+        assert_eq!(inv.count_of("apple"), 5, "five apples bitten, five remain");
+
+        // What the realm does not call food refuses by name and moves
+        // nothing (a log is an ingredient, not a meal; so is a tool).
+        assert_eq!(
+            eat_op(&mut inv, "log", 1).unwrap_err(),
+            "the realm does not call log food",
+        );
+        assert_eq!(eat_op(&mut inv, "stone_pickaxe", 1).unwrap_err(),
+            "the realm does not call stone_pickaxe food");
+        assert_eq!(inv.count_of("log"), 3, "the refusal never bit the log");
+
+        // An item the realm does not know at all refuses by name.
+        assert_eq!(
+            eat_op(&mut inv, "ghost_stew", 1).unwrap_err(),
+            "the realm knows no ghost_stew",
+        );
+
+        // A bite is at least one; a bite the ledger cannot pay refuses
+        // and moves nothing.
+        assert_eq!(eat_op(&mut inv, "apple", 0).unwrap_err(), "nothing to eat");
+        assert_eq!(
+            eat_op(&mut inv, "apple", 6).unwrap_err(),
+            "the ledger holds no 6xapple",
+        );
+        assert_eq!(inv.count_of("apple"), 5, "the unpaid bite moved nothing");
+    }
+
     // ---- THE FURNACE LEDGER (protocol v9): the wire laws ----
 
     fn smelt(sock: &UdpSocket, req_id: u64, op: SmeltOp) {
@@ -2554,6 +2668,144 @@ mod tests {
         assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
             Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { granted: false, .. })),
         ), "the old fire's commitments burned out at Goodbye");
+        server.stop();
+    }
+
+    // ---- THE BITE LEDGER (protocol v10): the wire laws ----
+
+    fn eat(sock: &UdpSocket, req_id: u64, item: &str, count: u32) {
+        sock.send(&ProtocolCodec::encode_client(&ClientMessage::EatRequest {
+            req_id, item: item.into(), count,
+        })).unwrap();
+    }
+
+    /// THE FUNDED-BITE LAW: a survival bite consumes the player's
+    /// canonical LEDGER and answers the eater ALONE (the peer hears
+    /// nothing about another player's appetite), and the ledger really
+    /// paid: the trade gate proves what remains.
+    #[test]
+    fn a_funded_bite_pays_the_ledger_and_answers_the_eater_alone() {
+        let mut server = Server::start("127.0.0.1:0", 946).expect("start server");
+        let (a, b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("apple".into(), 2)],
+        })).unwrap();
+        pump(150);
+
+        eat(&a, 1, "apple", 1);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict { req_id: 1, granted: true, .. })),
+        ), "the funded bite is granted");
+        pump(300);
+        assert!(!drain(&b).iter().any(|m| matches!(m, ServerMessage::Eat(_))),
+            "the peer never hears another player's bite");
+
+        // The ledger paid one: only one apple remains, so an offer of
+        // two refuses through the trade gate alone.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("apple".into(), 2)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the bitten apple left the ledger");
+
+        // The second bite is granted; a third (an unpaid bite) refuses
+        // with a reason and moves nothing.
+        eat(&a, 2, "apple", 1);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict { req_id: 2, granted: true, .. })),
+        ));
+        eat(&a, 3, "apple", 1);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict {
+                granted: false, reason: Some(reason), ..
+            })) if reason.contains("the ledger holds no"),
+        ), "the unpaid bite refuses by name");
+        // The refused bite moved nothing: the pack was already empty, so
+        // an offer of one apple refuses exactly as it would have before
+        // the refusal — a refusal is a no-op, never a grant, never a
+        // charge.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("apple".into(), 1)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "an unpaid bite never conjures an apple");
+        server.stop();
+    }
+
+    /// THE FOOD-GATE LAW: the realm's own catalog decides what a bite is
+    /// — an EatRequest for anything else refuses by name and the ledger
+    /// never moves (the offer gate proves the goods all remain).
+    #[test]
+    fn the_realm_does_not_feed_what_it_does_not_call_food() {
+        let mut server = Server::start("127.0.0.1:0", 947).expect("start server");
+        let (a, _b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("log".into(), 3), ("stone_pickaxe".into(), 1)],
+        })).unwrap();
+        pump(150);
+
+        eat(&a, 1, "log", 1);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict {
+                req_id: 1, granted: false, reason: Some(reason),
+            })) if reason == "the realm does not call log food",
+        ), "a log is an ingredient, not a meal");
+        eat(&a, 2, "stone_pickaxe", 1);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict { granted: false, .. })),
+        ), "a tool is not a meal either");
+        eat(&a, 3, "ghost_stew", 1);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict { granted: false, .. })),
+        ), "an unknown item is not a meal");
+        eat(&a, 4, "apple", 0);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict { granted: false, .. })),
+        ), "a bite is at least one");
+
+        // The ledger never moved: every refused bite left the goods, so
+        // an offer of all of them passes the offer gate (no Reject).
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("log".into(), 3), ("stone_pickaxe".into(), 1)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_none(),
+            "a refused bite never consumed the ledger");
+        server.stop();
+    }
+
+    /// THE BITE PAYS ONCE: a duplicated datagram (the same req_id twice)
+    /// is answered with a no-op refusal, and the ledger moved exactly
+    /// once — the craft pays-once law's eating twin.
+    #[test]
+    fn a_replayed_bite_pays_once() {
+        let mut server = Server::start("127.0.0.1:0", 948).expect("start server");
+        let (a, _b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("porkchop".into(), 4)],
+        })).unwrap();
+        pump(150);
+
+        eat(&a, 11, "porkchop", 1);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict { req_id: 11, granted: true, .. })),
+        ));
+        eat(&a, 11, "porkchop", 1);
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Eat(_))),
+            Some(ServerMessage::Eat(lf_protocol::EatVerdict {
+                req_id: 11, granted: false, reason: Some(reason),
+            })) if reason == "already answered",
+        ), "the replay is a named no-op");
+        // The ledger paid for ONE bite: 3 porkchops remain.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("porkchop".into(), 4)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the replay never charged twice");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("porkchop".into(), 3)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_none(),
+            "the honest remainder passes");
         server.stop();
     }
 }

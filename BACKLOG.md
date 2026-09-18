@@ -11,6 +11,36 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The bite is the ledger's to feed: server-side eating over real
+      UDP (2026-09-18, loop 470, root workspace): closed STATE's
+      next_task item (2) — eating, the last client-side consumption
+      tier of the same gated-request shape. Until now a connected
+      player's bite was client-local: the eaten food stayed counted in
+      the server's ledger and could be traded afterward. Wire v10:
+      EatRequest + a delta-less Eat verdict to the eater alone — the
+      client applied nothing at the click, so the PackSync claim stays
+      exact. THE SERVER: the pure eat-op law (the food gate reads the
+      realm's own catalog — what the realm does not call food, it will
+      not feed; the ledger must pay exactly) + the eating replay
+      window (a duplicated datagram pays once). THE CLIENT: the food
+      arm is the one eat site (online survival it sends and records a
+      bounded in-flight bite; offline and creative keep the shipped
+      local bite byte-equal), the Eat arm a thin delegate to the one
+      resolver (a granted bite consumes exactly one BY ITEM ID — the
+      ledger paid "one apple", not "that slot" — plus clamped hunger;
+      a refusal hints and moves nothing). With this loop every
+      player-facing consumption of the played loop is server-computed.
+      Evidence: 6 new laws (codec round-trip; the eat-op unit law; the
+      funded-bite, food-gate, and pays-once wire laws over real UDP;
+      the online-bites source law); workspace 551/0 (xtask 12
+      included); smoke OK; battery 110 scenes exit-0 twice with PNGs
+      byte-identical (singleplayer pixel-proven unchanged); steam
+      feature compiles clean with v10; runtimes fresh. Deferred
+      honestly: the windowed two-client route (now the TOP carried
+      item); the lying-PackSync bootstrap tier; the forged sim-claim
+      residual; a bite in flight is not re-gated at verdict time (the
+      craft-click law's twin).
+
 - [x] The furnace is the server's fire: server-side smelting over real
       UDP (2026-09-18, loop 469, root workspace): closed STATE's
       next_task item (2) — the last player-facing consumption tier that
