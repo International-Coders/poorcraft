@@ -11,11 +11,13 @@ use egui_winit::State as EguiWinitState;
 use crate::ui_kit::{self as kit, Theme};
 use crate::workbench;
 use crate::{BlockEntity, GameState, RtMode, UiOpen};
+use crate::{SmeltMoveIntent, SmeltMoveKind};
 use lf_game::items::{item_def, ItemKind};
 use lf_game::research::Era;
 use lf_game::survival::ItemStack;
 use crate::QuestEvent;
 use lf_npc::trade_offers;
+use lf_protocol::SmeltSlot;
 use lf_voxel::registry;
 
 /// The single caption line above the hotbar: the just-picked item's
@@ -326,6 +328,56 @@ fn take_one(slots: &mut [Option<ItemStack>], id: &str) -> Option<ItemStack> {
         }
     }
     None
+}
+
+/// THE FURNACE-MOVE INTENT (pure, protocol v9): what one click between
+/// the hand and a furnace slot asked for, read from the click's own
+/// before/after diff. `None` — the click moved nothing. `Some(Ok(..))` —
+/// exactly one directional move: a DEPOSIT (the hand paid N of one item,
+/// the slot gained N) or a WITHDRAWAL (the slot paid N, the hand gained
+/// N). `Some(Err(..))` — a swap of two different stacks: two intents in
+/// one click, which the online furnace refuses to read. The move is
+/// UNDONE by the caller before the request is sent; this function only
+/// names it.
+fn furnace_move_intent(
+    cursor_before: &Option<ItemStack>,
+    slot_before: &Option<ItemStack>,
+    cursor_after: &Option<ItemStack>,
+    slot_after: &Option<ItemStack>,
+) -> Option<Result<SmeltMoveKind, &'static str>> {
+    use SmeltMoveKind::{Deposit, Withdraw};
+    let as_pair = |s: &Option<ItemStack>| -> (String, u32) {
+        s.as_ref().map(|v| (v.item_id.clone(), v.count as u32)).unwrap_or_default()
+    };
+    let (cb, sb, ca, sa) =
+        (as_pair(cursor_before), as_pair(slot_before), as_pair(cursor_after), as_pair(slot_after));
+    if cb == ca && sb == sa {
+        return None; // the click moved nothing
+    }
+    // Each side's delta (positive = that side gained). A legal furnace
+    // move moves ONE item kind, one direction, same count both sides; a
+    // swap of two different stacks changes ids on both sides and refuses.
+    let hand_delta = ca.1 as i64 - cb.1 as i64;
+    let slot_delta = sa.1 as i64 - sb.1 as i64;
+    let one_family = |before: &(String, u32), after: &(String, u32)| -> bool {
+        before.1 == 0 || after.1 == 0 || before.0 == after.0
+    };
+    if hand_delta < 0 && slot_delta > 0 && -hand_delta == slot_delta
+        && one_family(&cb, &ca) && one_family(&sb, &sa)
+    {
+        // (pos, slot) are the caller's to name — the click's own site.
+        let item = if !sa.0.is_empty() { sa.0.clone() } else { cb.0.clone() };
+        return Some(Ok(Deposit { pos: (0, 0, 0), slot: SmeltSlot::Input, item, count: slot_delta as u32 }));
+    }
+    if hand_delta > 0 && slot_delta < 0 && hand_delta == -slot_delta
+        && one_family(&cb, &ca) && one_family(&sb, &sa)
+    {
+        let item = if !ca.0.is_empty() { ca.0.clone() } else { sb.0.clone() };
+        return Some(Ok(Withdraw {
+            pos: (0, 0, 0), slot: SmeltSlot::Input, item, count: hand_delta as u32, quick: false,
+        }));
+    }
+    Some(Err("the furnace moves one stack at a time"))
 }
 
 // ------------------------------------------------------------------
@@ -2466,14 +2518,7 @@ impl GameState {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
                         ui.label(egui::RichText::new("Input").small().color(Theme::TEXT_DIM));
-                        let mut input = furnace.input.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let out = slot_button(ui, &mut input, &mut cursor, false, &self.icons);
-                        if let Some(mut q) = out.quick_moved {
-                            quick_insert(&mut self.inventory.slots[..36], &mut q);
-                        }
-                        furnace.input = input;
-                        self.cursor_stack = cursor;
+                        self.furnace_slot(ui, pos, SmeltSlot::Input, &mut furnace.input);
                         // painted flame (burn remaining)
                         let flame = if furnace.burn_total > 0.0 {
                             (furnace.burn_left / furnace.burn_total).clamp(0.0, 1.0)
@@ -2495,14 +2540,7 @@ impl GameState {
                                 egui::Color32::from_rgb(255, 210, 90));
                         }
                         ui.label(egui::RichText::new("Fuel").small().color(Theme::TEXT_DIM));
-                        let mut fuel = furnace.fuel.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let out = slot_button(ui, &mut fuel, &mut cursor, false, &self.icons);
-                        if let Some(mut q) = out.quick_moved {
-                            quick_insert(&mut self.inventory.slots[..36], &mut q);
-                        }
-                        furnace.fuel = fuel;
-                        self.cursor_stack = cursor;
+                        self.furnace_slot(ui, pos, SmeltSlot::Fuel, &mut furnace.fuel);
                     });
                     ui.add_space(8.0);
                     // smelt progress arrow
@@ -2519,14 +2557,7 @@ impl GameState {
                     ui.add_space(8.0);
                     ui.vertical(|ui| {
                         ui.label(egui::RichText::new("Output").small().color(Theme::TEXT_DIM));
-                        let mut output = furnace.output.take();
-                        let mut cursor = self.cursor_stack.take();
-                        let out = slot_button(ui, &mut output, &mut cursor, false, &self.icons);
-                        if let Some(mut q) = out.quick_moved {
-                            quick_insert(&mut self.inventory.slots[..36], &mut q);
-                        }
-                        furnace.output = output;
-                        self.cursor_stack = cursor;
+                        self.furnace_slot(ui, pos, SmeltSlot::Output, &mut furnace.output);
                     });
                 });
                 ui.add_space(6.0);
@@ -2535,6 +2566,84 @@ impl GameState {
                 });
             });
         self.block_entities.insert(pos, BlockEntity::Furnace(furnace));
+    }
+
+    /// THE FURNACE SLOT GATE (protocol v9): one interaction site for all
+    /// three furnace slots. Offline the click is the move (the cursor
+    /// exchange plays as shipped). While connected the click is a
+    /// REQUEST — the intended move is read from the click's own diff
+    /// ([`furnace_move_intent`]), then UNDONE: nothing settles into the
+    /// slot or the hand until the server's verdict grants it, so the
+    /// PackSync claim and the furnace's commitments stay exact. One
+    /// player-intent move is in flight at a time: while it settles,
+    /// every further click waits with a hint.
+    fn furnace_slot(
+        &mut self,
+        ui: &mut egui::Ui,
+        pos: (i32, i32, i32),
+        slot: SmeltSlot,
+        furnace_stack: &mut Option<ItemStack>,
+    ) {
+        let cursor_before = self.cursor_stack.clone();
+        let slot_before = furnace_stack.clone();
+        let mut cursor = self.cursor_stack.take();
+        let mut stack = furnace_stack.take();
+        let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
+        let online = self.net.as_ref().is_some_and(|n| n.connected);
+        if !online {
+            // THE OFFLINE FURNACE: the click is the move, exactly as
+            // shipped (the integrated host is the same authority in
+            // process; nothing leaves the machine).
+            if let Some(mut q) = out.quick_moved {
+                quick_insert(&mut self.inventory.slots[..36], &mut q);
+            }
+            *furnace_stack = stack;
+            self.cursor_stack = cursor;
+            return;
+        }
+        // THE ONLINE FURNACE: read the intent, then undo the click.
+        let intent = if out.quick_moved.is_some() {
+            // shift-click: the slot's whole stack asked to join the pack
+            slot_before.as_ref().map(|s| Ok(SmeltMoveKind::Withdraw {
+                pos, slot, item: s.item_id.clone(), count: s.count as u32, quick: true,
+            }))
+        } else {
+            furnace_move_intent(&cursor_before, &slot_before, &cursor, &stack)
+                .map(|r| r.map(|kind| match kind {
+                    SmeltMoveKind::Withdraw { item, count, .. } => SmeltMoveKind::Withdraw {
+                        pos, slot, item, count, quick: false,
+                    },
+                    deposit => deposit,
+                }))
+        };
+        *furnace_stack = slot_before;
+        self.cursor_stack = cursor_before;
+        let Some(intent) = intent else { return }; // a click that moved nothing
+        match intent {
+            Ok(kind) => {
+                if self.smelt_move.is_some() {
+                    self.push_hint("the furnace ledger is settling...");
+                    return;
+                }
+                self.next_smelt_id += 1;
+                let req = self.next_smelt_id;
+                if let Some(n) = &self.net {
+                    let op = match &kind {
+                        SmeltMoveKind::Deposit { pos, slot, item, count } =>
+                            lf_protocol::SmeltOp::Deposit {
+                                pos: *pos, slot: *slot, item: item.clone(), count: *count,
+                            },
+                        SmeltMoveKind::Withdraw { pos, slot, item, count, .. } =>
+                            lf_protocol::SmeltOp::Withdraw {
+                                pos: *pos, slot: *slot, item: item.clone(), count: *count,
+                            },
+                    };
+                    n.request_smelt(req, op);
+                }
+                self.smelt_move = Some(SmeltMoveIntent { req_id: req, kind });
+            }
+            Err(why) => self.push_hint(why),
+        }
     }
 
     fn draw_chest(&mut self, ctx: &egui::Context, pos: (i32, i32, i32)) {
@@ -2611,27 +2720,68 @@ impl GameState {
     }
 
     /// Player storage + hotbar below a container screen; shift-click sends
-    /// slots across the inventory (storage <-> hotbar).
+    /// slots across the inventory (storage <-> hotbar). While a furnace
+    /// move is settling (protocol v9), the rows still paint but every
+    /// click waits with a hint — the hand's goods are already promised to
+    /// the fire, and a second move could split them.
     fn draw_storage_rows(&mut self, ui: &mut egui::Ui) {
+        let frozen = self.smelt_move.is_some() && matches!(self.ui_open, UiOpen::Furnace(_));
+        if !frozen {
+            Self::paint_storage_rows(ui, &mut self.inventory, &mut self.cursor_stack,
+                                     self.hotbar_index, &self.icons);
+            return;
+        }
+        // Paint-only pass: the clicks land in throwaway copies.
+        let probe_cursor = self.cursor_stack.clone();
+        let probed = Self::paint_storage_rows_probed(ui, &self.inventory, &probe_cursor,
+                                                     self.hotbar_index, &self.icons);
+        if probed != probe_cursor {
+            self.push_hint("the furnace ledger is settling...");
+        }
+    }
+
+    /// The frozen rows' probe pass: identical pixels, mutated copies.
+    /// Answers the hand the painted pass would leave behind — if it
+    /// differs from the real hand, the player clicked while settling.
+    fn paint_storage_rows_probed(
+        ui: &mut egui::Ui,
+        inventory: &lf_game::survival::Inventory,
+        cursor: &Option<ItemStack>,
+        hotbar_index: usize,
+        icons: &crate::icons::ItemIcons,
+    ) -> Option<ItemStack> {
+        let mut inv = inventory.clone();
+        let mut cursor = cursor.clone();
+        Self::paint_storage_rows(ui, &mut inv, &mut cursor, hotbar_index, icons);
+        cursor
+    }
+
+    /// THE ONE STORAGE-ROWS PAINTER: shared by the live and the frozen
+    /// passes, so the frozen rows cannot drift from the real ones.
+    fn paint_storage_rows(
+        ui: &mut egui::Ui,
+        inventory: &mut lf_game::survival::Inventory,
+        cursor: &mut Option<ItemStack>,
+        hotbar_index: usize,
+        icons: &crate::icons::ItemIcons,
+    ) {
         // armor row (loop 329): head/chest/legs/feet + the total worn readout
         ui.horizontal(|ui| {
             for (i, label) in [36, 37, 38, 39].iter().zip(["head", "chest", "legs", "feet"]) {
                 ui.vertical(|ui| {
-                    let mut stack = self.inventory.slots[*i].clone();
-                    let mut cursor = self.cursor_stack.take();
-                    let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
-                    self.cursor_stack = cursor;
+                    let mut stack = inventory.slots[*i].clone();
+                    let out = slot_button(ui, &mut stack, cursor, false, icons);
                     if let Some(mut q) = out.quick_moved {
-                        quick_insert(&mut self.inventory.slots[..36], &mut q);
+                        quick_insert(&mut inventory.slots[..36], &mut q);
                     }
-                    self.inventory.slots[*i] = stack;
+                    inventory.slots[*i] = stack;
                     let (r, _) = ui.allocate_exact_size(egui::vec2(SLOT_SIZE, 11.0), egui::Sense::hover());
                     ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label,
                         egui::FontId::proportional(9.0), Theme::TEXT_DISABLED);
                 });
                 ui.add_space(4.0);
             }
-            let armor = lf_game::combat::worn_armor_points(&self.inventory.slots);
+            let armor = lf_game::combat::worn_armor_points(&inventory.slots);
             let (r, _) = ui.allocate_exact_size(egui::vec2(110.0, SLOT_SIZE), egui::Sense::hover());
             ui.painter().text(r.left_center(), egui::Align2::LEFT_CENTER,
                 format!("armor {}", armor),
@@ -2643,28 +2793,24 @@ impl GameState {
             ui.horizontal(|ui| {
                 for col in 0..9 {
                     let idx = 9 + row * 9 + col;
-                    let mut stack = self.inventory.slots[idx].clone();
-                    let mut cursor = self.cursor_stack.take();
-                    let out = slot_button(ui, &mut stack, &mut cursor, false, &self.icons);
-                    self.cursor_stack = cursor;
+                    let mut stack = inventory.slots[idx].clone();
+                    let out = slot_button(ui, &mut stack, cursor, false, icons);
                     if let Some(mut q) = out.quick_moved {
-                        quick_insert(&mut self.inventory.slots[..9], &mut q);
+                        quick_insert(&mut inventory.slots[..9], &mut q);
                     }
-                    self.inventory.slots[idx] = stack;
+                    inventory.slots[idx] = stack;
                 }
             });
         }
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             for i in 0..9 {
-                let mut stack = self.inventory.slots[i].clone();
-                let mut cursor = self.cursor_stack.take();
-                let out = slot_button(ui, &mut stack, &mut cursor, i == self.hotbar_index, &self.icons);
-                self.cursor_stack = cursor;
+                let mut stack = inventory.slots[i].clone();
+                let out = slot_button(ui, &mut stack, cursor, i == hotbar_index, icons);
                 if let Some(mut q) = out.quick_moved {
-                    quick_insert(&mut self.inventory.slots[9..36], &mut q);
+                    quick_insert(&mut inventory.slots[9..36], &mut q);
                 }
-                self.inventory.slots[i] = stack;
+                inventory.slots[i] = stack;
             }
         });
     }
@@ -4871,6 +5017,54 @@ fn ui_time(ctx: &egui::Context) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// THE FURNACE-MOVE INTENT LAW (protocol v9): one click between the
+    /// hand and a furnace slot reads as at most ONE directional move —
+    /// a deposit (the hand paid N, the slot gained N), a withdrawal (the
+    /// slot paid N, the hand gained N) — and a swap of two different
+    /// stacks refuses: two intents in one click cannot be gated.
+    #[test]
+    fn the_furnace_move_intent_reads_one_move_per_click() {
+        let hand = |id: &str, n: u8| -> Option<ItemStack> {
+            Some(ItemStack { item_id: id.into(), count: n })
+        };
+        let none: Option<ItemStack> = None;
+
+        // A whole-stack deposit: the hand pays, the (empty) slot gains.
+        assert!(matches!(
+            furnace_move_intent(&hand("raw_iron", 5), &none, &none, &hand("raw_iron", 5)),
+            Some(Ok(SmeltMoveKind::Deposit { item, count, .. })) if item == "raw_iron" && count == 5,
+        ), "an empty-slot deposit reads whole");
+        // A merge deposit onto a same-item slot; the click is undone by
+        // the caller, so the intent names the moved count only.
+        assert!(matches!(
+            furnace_move_intent(&hand("coal", 5), &hand("coal", 3), &none, &hand("coal", 8)),
+            Some(Ok(SmeltMoveKind::Deposit { item, count, .. })) if item == "coal" && count == 5,
+        ), "a merge deposit reads the moved count");
+        // A right-click places exactly one.
+        assert!(matches!(
+            furnace_move_intent(&hand("coal", 5), &hand("coal", 3), &hand("coal", 4), &hand("coal", 4)),
+            Some(Ok(SmeltMoveKind::Deposit { count: 1, .. })),
+        ), "a right-click place reads one");
+        // A whole pick-up; a right-click split-pick reads half.
+        assert!(matches!(
+            furnace_move_intent(&none, &hand("raw_iron", 7), &hand("raw_iron", 7), &none),
+            Some(Ok(SmeltMoveKind::Withdraw { item, count: 7, quick: false, .. })) if item == "raw_iron",
+        ), "a pick-up reads a withdrawal");
+        assert!(matches!(
+            furnace_move_intent(&none, &hand("raw_iron", 10), &hand("raw_iron", 5), &hand("raw_iron", 5)),
+            Some(Ok(SmeltMoveKind::Withdraw { count: 5, .. })),
+        ), "a split-pick reads half");
+        // A click that moved nothing reads nothing.
+        assert!(furnace_move_intent(&none, &none, &none, &none).is_none());
+        assert!(furnace_move_intent(&hand("coal", 3), &none, &hand("coal", 3), &none).is_none());
+        // A swap of two different stacks is two intents: refused.
+        assert!(matches!(
+            furnace_move_intent(&hand("coal", 5), &hand("raw_iron", 3),
+                                &hand("raw_iron", 3), &hand("coal", 5)),
+            Some(Err(_)),
+        ), "a swap refuses");
+    }
 
     /// Loop 347 caption: the line above the hotbar shows the just-picked
     /// item while its fade window is live (scroll feedback), then hands

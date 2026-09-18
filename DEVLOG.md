@@ -10055,3 +10055,76 @@ mint (place ore free, mine it, collect the server's own grant).
   mode authority).
 - The windowed two-client route (the GPU-side end of the wire laws).
 - Hardcoded connect name "smith" (audit note).
+
+## 2026-09-18 — The furnace is the server's fire: server-side smelting over real UDP (loop 469)
+
+### What was done
+Closed STATE's next_task item (2) — server-side smelting, the last
+player-facing consumption tier that fabricates its own output (chosen
+over the windowed two-client route per next_task's own rule and the
+465-468 authority-gap precedent). While connected, a furnace's whole
+economy is gated requests against the player's canonical ledger and a
+per-(player, furnace) commitment account; offline furnaces play
+byte-equal to the shipped law.
+
+### Files touched
+- crates/lf_protocol/src/lib.rs (SmeltRequest, SmeltOp, SmeltSlot,
+  SmeltVerdict, v9, the codec round-trip law)
+- crates/lf_server/src/lib.rs (FurnaceAccount + the pure smelt_op law
+  + the burn reconciliation + 2 unit laws; the SmeltRequest arm with
+  ledger pre-checks, the replay window, Goodbye burn-out; 5 wire laws
+  over real UDP)
+- crates/lf_client/src/net.rs (the pack claim includes the held
+  cursor — the carried-hand law; request_smelt sender)
+- crates/lf_client/src/lib.rs (the furnace tick as the ONE SmeltDone
+  site with a bounded in-flight list; the Smelt verdict arm -> the one
+  resolver: apply/revert/pack_or_drop; the sync_pack call site; the
+  furnace source law)
+- crates/lf_client/src/ui.rs (furnace_slot — the one gate for all
+  three slots; the pure furnace_move_intent diff reader + its unit
+  law; the frozen storage-rows painter shared by both passes)
+- STATE.md / BACKLOG.md / CHANGELOG.md / DEVLOG.md
+
+### How it was verified
+- cargo test --workspace: 545 green / 0 failed (xtask's 12 included;
+  = loop 468's 534 + 11 new laws: lf_protocol 7 -> 8, lf_server
+  23 -> 30, lf_client 110 -> 113).
+- make smoke: OK (headless logic + 12s GUI liveness), re-run on the
+  final binary after the last code change.
+- FULL vistest battery: 110 scenes [ok] / 0 FAIL, exit-0, across TWO
+  runs (the second on the final code); every committed scene PNG
+  byte-identical (md5 digest 462b2318ed4c98d9a882266cd81fbd7d before
+  == after) — singleplayer render paths pixel-proven unchanged
+  (multiplayer-only change).
+- The steam feature build: `cargo build -p lf_steam --features steam
+  --examples` compiles clean with the v9 wire (checked proactively —
+  the v8 lesson).
+- Runtimes refreshed: dist/loreforge-macos.dmg (hdiutil verify VALID),
+  dist/loreforge-linux-x86_64.tar.gz, dist/loreforge.app binary,
+  dist/loreforge-server. Windows exe honestly skipped (mingw absent).
+
+### Proof-discovered problems
+- THE CLOSED-UI DUPLICATION (traced before running the battery): a
+  refused deposit whose furnace UI had closed would have re-returned
+  the hand's goods to the pack — goods close_ui had ALREADY returned —
+  duplicating them. Fixed: the refused-with-closed-UI branch restores
+  nothing.
+- THE CLAIM RACE (traced during design): the pack claim excluded the
+  held cursor, so a drift upload between the pack pick-up and the
+  furnace deposit would mis-size the ledger against the very goods
+  being committed (an honest deposit could refuse; the aggregate could
+  double-spend). Fixed by making the claim TRUE — the held cursor is
+  carried goods — pinned by the carried-hand law.
+
+### Honestly deferred
+- Eating: the last client-side consumption tier of the same gated-
+  request shape (the played loop's consumption list closes with it).
+- The lying-PackSync bootstrap tier: a modified client's claim can
+  re-seed the ledger (named at 466; unchanged by this loop).
+- The forged sim-claim residual (claim-free ops — the client-simmed
+  tier's trust, named at 468).
+- Client-local block entities: chest contents, furnace-slot
+  persistence across peers (the sim/block-entity sync tier); a
+  furnace's commitments are session-local server memory.
+- The windowed two-client route (the GPU-side end of the wire laws).
+- Hardcoded connect name "smith" (audit note).

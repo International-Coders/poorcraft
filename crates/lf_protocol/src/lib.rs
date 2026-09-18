@@ -80,7 +80,68 @@ pub enum ClientMessage {
         output_count: u8,
         qty: u32,
     },
+    /// THE FURNACE-LEDGER LAW (protocol v9): while connected, a furnace's
+    /// economy is a sequence of REQUESTS, not a client-local act — the
+    /// server owns the smelt. A [`SmeltOp::Deposit`] moves goods from the
+    /// player's canonical LEDGER into that furnace's commitments (the
+    /// slot fills only when the verdict grants); a [`SmeltOp::Withdraw`]
+    /// pays out of the commitments and grants the goods back to the
+    /// ledger; a [`SmeltOp::SmeltDone`] — one per smelt the local furnace
+    /// sim completes — transforms one committed input plus
+    /// [`lf_game::smelting::SMELT_TIME`] of banked burn into one BACKED
+    /// output bar. Every op is gated against the realm's own smelt law
+    /// (`lf_game::smelting`) and the player's own prior payments, so a
+    /// bar the fire yields is always backed by ore and fuel the ledger
+    /// truly paid. `req_id` is client-chosen and monotonic; a replayed id
+    /// is refused with a no-op (a duplicated datagram pays once).
+    SmeltRequest { req_id: u64, op: SmeltOp },
     Goodbye,
+}
+
+/// One furnace-economy operation (protocol v9). `pos` names the furnace
+/// block; the server keeps one commitment account per (player, furnace),
+/// so two furnaces never pool each other's fuel.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum SmeltOp {
+    /// Goods move from the player's ledger into the furnace (the local
+    /// slot fills only on the verdict). Any item may be committed to any
+    /// slot — the furnace law decides what burns and what smelts.
+    Deposit { pos: (i32, i32, i32), slot: SmeltSlot, item: String, count: u32 },
+    /// Goods move from the furnace's commitments back to the player's
+    /// ledger (granted — the local cursor/slot move happens only then).
+    /// A fuel item is withdrawable only while its seconds remain banked:
+    /// an unburned item leaves, a burned one cannot be taken back out.
+    Withdraw { pos: (i32, i32, i32), slot: SmeltSlot, item: String, count: u32 },
+    /// The local furnace sim completed one smelt of `input`. The server
+    /// charges one committed input and [`lf_game::smelting::SMELT_TIME`]
+    /// of banked burn and backs one output bar (withdrawable later).
+    SmeltDone { pos: (i32, i32, i32), input: String },
+}
+
+/// Which furnace slot a [`SmeltOp`] names (protocol v9).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SmeltSlot {
+    Input,
+    Fuel,
+    Output,
+}
+
+/// THE SMELT-VERDICT LAW (protocol v9): the canonical answer to a
+/// [`ClientMessage::SmeltRequest`], delivered to the smelter ALONE — the
+/// server, not the client, decides what a furnace commits, releases, and
+/// yields. A grant carries no item delta: the client applied nothing
+/// before it (deposits and withdrawals WAIT for the verdict, so the
+/// PackSync claim stays exact), and on `granted` the client applies the
+/// move it asked for. A refusal carries the reason (a short ledger, an
+/// unbacked commitment, no banked burn, a replayed id) and moves
+/// nothing. A lost verdict errs safe: the move never happens locally and
+/// the commitment stays on the server's side of the fire — a smelt op
+/// can be lost in flight, never fabricated.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SmeltVerdict {
+    pub req_id: u64,
+    pub granted: bool,
+    pub reason: Option<String>,
 }
 
 /// Messages the server sends to clients.
@@ -124,6 +185,9 @@ pub enum ServerMessage {
         output: Option<(String, u32)>,
         reason: Option<String>,
     },
+    /// THE FURNACE-LEDGER VERDICT (protocol v9): the canonical answer to
+    /// a [`ClientMessage::SmeltRequest`] — see [`SmeltVerdict`].
+    Smelt(SmeltVerdict),
 }
 
 /// THE MINE CLAIM (protocol v5): rides a `SetBlock` that is a player
@@ -148,10 +212,11 @@ pub struct PlaceClaim {
     pub item: String,
 }
 
-/// v8: the place-payment round trip and the join-mode claim. Server and
-/// client ship together; the existing version gate rejects mismatched
-/// peers.
-pub const PROTOCOL_VERSION: u32 = 8;
+/// v9: the furnace-ledger round trip — deposits pay the ledger into a
+/// furnace's commitments, withdrawals pay out of them, and a completed
+/// smelt is backed by the realm's own furnace law. Server and client
+/// ship together; the existing version gate rejects mismatched peers.
+pub const PROTOCOL_VERSION: u32 = 9;
 
 /// THE PACK-SYNC CADENCE: a drifted pack is uploaded at most this often
 /// (the client's PackMirror enforces it), except after a server-side
@@ -197,7 +262,7 @@ mod trade_tests {
         };
         let back: ServerMessage = bincode::deserialize(&bincode::serialize(&resolved).unwrap()).unwrap();
         assert_eq!(back, resolved);
-        assert_eq!(PROTOCOL_VERSION, 8);
+        assert_eq!(PROTOCOL_VERSION, 9);
     }
 
     /// v7: the craft round trip — the request names the recipe spec and a
@@ -237,7 +302,69 @@ mod trade_tests {
             Some(refused),
             "a refusal carries its reason"
         );
-        assert_eq!(PROTOCOL_VERSION, 8);
+        assert_eq!(PROTOCOL_VERSION, 9);
+    }
+
+    /// v9: the furnace-ledger round trip — every op survives the wire,
+    /// and the verdict rides to the smelter alone (grant or reasoned
+    /// refusal; a grant carries no item delta — the client applied
+    /// nothing before it).
+    #[test]
+    fn smelt_request_and_verdict_round_trip() {
+        let deposit = ClientMessage::SmeltRequest {
+            req_id: 5,
+            op: SmeltOp::Deposit {
+                pos: (12, 64, -3),
+                slot: SmeltSlot::Fuel,
+                item: "coal".into(),
+                count: 7,
+            },
+        };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&deposit)),
+            Some(deposit),
+            "a furnace deposit survives the wire"
+        );
+        let withdraw = ClientMessage::SmeltRequest {
+            req_id: 6,
+            op: SmeltOp::Withdraw {
+                pos: (12, 64, -3),
+                slot: SmeltSlot::Output,
+                item: "iron_ingot".into(),
+                count: 1,
+            },
+        };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&withdraw)),
+            Some(withdraw),
+            "a furnace withdrawal survives the wire"
+        );
+        let done = ClientMessage::SmeltRequest {
+            req_id: 7,
+            op: SmeltOp::SmeltDone { pos: (12, 64, -3), input: "raw_iron".into() },
+        };
+        assert_eq!(
+            ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&done)),
+            Some(done),
+            "a completed-smelt report survives the wire"
+        );
+        let granted = ServerMessage::Smelt(SmeltVerdict { req_id: 7, granted: true, reason: None });
+        assert_eq!(
+            ProtocolCodec::decode_server(&ProtocolCodec::encode_server(&granted)),
+            Some(granted),
+            "a granted smelt verdict survives the wire"
+        );
+        let refused = ServerMessage::Smelt(SmeltVerdict {
+            req_id: 8,
+            granted: false,
+            reason: Some("the furnace holds no raw_iron".into()),
+        });
+        assert_eq!(
+            ProtocolCodec::decode_server(&ProtocolCodec::encode_server(&refused)),
+            Some(refused),
+            "a smelt refusal carries its reason"
+        );
+        assert_eq!(PROTOCOL_VERSION, 9);
     }
 
     /// v6/v8: the mine claim, the place-payment claim, and the pack sync round-trip.
@@ -296,7 +423,7 @@ mod trade_tests {
             Some(sync),
             "the pack claim survives the wire (u32 counts: a pack holds >255 of one item)"
         );
-        assert_eq!(PROTOCOL_VERSION, 8);
+        assert_eq!(PROTOCOL_VERSION, 9);
     }
 }
 

@@ -94,6 +94,179 @@ fn escrow(
 /// (player, req) pairs; the refusal moves nothing on either side.
 const CRAFT_REPLAY_WINDOW: usize = 512;
 
+/// THE FURNACE ACCOUNT (protocol v9): one furnace's committed goods for
+/// one player — what their LEDGER paid into this fire and what it may
+/// still take back out of it. `inputs` and `fuels` hold committed slot
+/// goods by item id; `outputs` holds BACKED bars (each one paid for by a
+/// committed input plus `SMELT_TIME` of burn); `burn` is the banked burn
+/// time in seconds, funded when fuel is committed and spent by smelts.
+/// Nothing here exists without a ledger payment behind it.
+#[derive(Clone, Debug, Default)]
+pub struct FurnaceAccount {
+    pub inputs: HashMap<String, u32>,
+    pub fuels: HashMap<String, u32>,
+    pub outputs: HashMap<String, u32>,
+    pub burn: f32,
+}
+
+impl FurnaceAccount {
+    /// Total committed input count for one item.
+    fn input_of(&self, item: &str) -> u32 {
+        self.inputs.get(item).copied().unwrap_or(0)
+    }
+
+    /// Total committed (still unburned) fuel-slot count for one item.
+    fn fuel_of(&self, item: &str) -> u32 {
+        self.fuels.get(item).copied().unwrap_or(0)
+    }
+
+    /// Total banked seconds represented by the committed fuel items.
+    /// A kind with no burn time (junk in the fuel slot) banks none and is
+    /// never spent by the reconciliation below.
+    fn fuel_seconds_banked(&self) -> f32 {
+        self.fuels.iter()
+            .map(|(id, n)| lf_game::smelting::fuel_seconds(id) * *n as f32)
+            .sum()
+    }
+
+    /// THE BURN RECONCILIATION: keep the committed fuel items within the
+    /// banked seconds — as the bank is spent by smelts, whole fuel items
+    /// leave the commitments (they burned; they cannot be taken back
+    /// out). The spend order is deterministic — positive-burn kinds by
+    /// item id — so two servers replaying the same ops agree.
+    fn reconcile_burn(&mut self) {
+        let mut kinds: Vec<String> = self.fuels.keys()
+            .filter(|id| lf_game::smelting::fuel_seconds(id) > 0.0)
+            .cloned()
+            .collect();
+        kinds.sort();
+        for id in kinds {
+            while self.fuel_seconds_banked() > self.burn {
+                match self.fuels.get_mut(&id) {
+                    Some(n) if *n > 0 => {
+                        *n -= 1;
+                        if *n == 0 {
+                            self.fuels.remove(&id);
+                        }
+                    }
+                    _ => break,
+                }
+            }
+        }
+    }
+}
+
+/// What a granted smelt op moves through the LEDGER: `take` is consumed
+/// from the player's canonical pack (a deposit's payment), `give` is
+/// added to it (a withdrawal's grant). Both are pre-verified by the
+/// caller against the ledger before they are applied — the account op
+/// itself never fails on ledger grounds, so a commit is unconditional.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SmeltLedgerMove {
+    pub take: Vec<(String, u32)>,
+    pub give: Vec<(String, u32)>,
+}
+
+/// THE FURNACE-OP LAW (protocol v9), the pure heart of server-side
+/// smelting — the same three doors the client's furnace UI plays:
+/// - DEPOSIT: goods leave the ledger and enter the commitments. Fuel
+///   banks its burn seconds the moment it is committed (an item with no
+///   burn time banks none — junk in the fuel slot sits, withdrawable,
+///   never burned).
+/// - WITHDRAW: goods leave the commitments and return to the ledger —
+///   but a fuel item is withdrawable only while its seconds remain
+///   banked: an unburned item leaves, a burned one cannot be taken back.
+/// - SMELT-DONE: one committed input plus `SMELT_TIME` of banked burn
+///   becomes one BACKED output bar of the realm's own smelt law
+///   (`lf_game::smelting::smelt_result` — the same table the client's
+///   furnace plays; what the fire cannot smelt, it does not yield).
+/// ANY refusal moves nothing anywhere and says why.
+pub fn smelt_op(
+    account: &mut FurnaceAccount,
+    op: &lf_protocol::SmeltOp,
+) -> Result<SmeltLedgerMove, String> {
+    use lf_protocol::{SmeltOp, SmeltSlot};
+    match op {
+        SmeltOp::Deposit { slot, item, count, .. } => {
+            if *count == 0 {
+                return Err("nothing to commit".into());
+            }
+            match slot {
+                SmeltSlot::Input => {
+                    *account.inputs.entry(item.clone()).or_insert(0) += count;
+                }
+                SmeltSlot::Fuel => {
+                    *account.fuels.entry(item.clone()).or_insert(0) += count;
+                    account.burn += lf_game::smelting::fuel_seconds(item) * *count as f32;
+                }
+                SmeltSlot::Output => {
+                    *account.outputs.entry(item.clone()).or_insert(0) += count;
+                }
+            }
+            Ok(SmeltLedgerMove {
+                take: vec![(item.clone(), *count)],
+                give: vec![],
+            })
+        }
+        SmeltOp::Withdraw { slot, item, count, .. } => {
+            if *count == 0 {
+                return Err("nothing to take".into());
+            }
+            match slot {
+                SmeltSlot::Input => {
+                    let held = account.input_of(item);
+                    if held < *count {
+                        return Err(format!("the furnace holds no {}x{} {}", count, held, item));
+                    }
+                    *account.inputs.get_mut(item).unwrap() -= count;
+                }
+                SmeltSlot::Fuel => {
+                    let held = account.fuel_of(item);
+                    if held < *count {
+                        return Err(format!("the furnace holds no {}x{} {}", count, held, item));
+                    }
+                    let seconds = lf_game::smelting::fuel_seconds(item) * *count as f32;
+                    if account.burn < seconds {
+                        return Err(format!("the fire has burned into the {}", item));
+                    }
+                    *account.fuels.get_mut(item).unwrap() -= count;
+                    account.burn -= seconds;
+                }
+                SmeltSlot::Output => {
+                    let held = account.outputs.get(item).copied().unwrap_or(0);
+                    if held < *count {
+                        return Err(format!("the furnace has not yielded {}x{} {}", count, held, item));
+                    }
+                    *account.outputs.get_mut(item).unwrap() -= count;
+                }
+            }
+            Ok(SmeltLedgerMove {
+                take: vec![],
+                give: vec![(item.clone(), *count)],
+            })
+        }
+        SmeltOp::SmeltDone { input, .. } => {
+            let Some(out) = lf_game::smelting::smelt_result(input) else {
+                return Err(format!("the fire cannot smelt {}", input));
+            };
+            if account.input_of(input) < 1 {
+                return Err(format!("the furnace holds no {}", input));
+            }
+            if account.burn < lf_game::smelting::SMELT_TIME {
+                return Err("the fire lacks burn".into());
+            }
+            *account.inputs.get_mut(input).unwrap() -= 1;
+            if account.input_of(input) == 0 {
+                account.inputs.remove(input);
+            }
+            account.burn -= lf_game::smelting::SMELT_TIME;
+            account.reconcile_burn();
+            *account.outputs.entry(out.to_string()).or_insert(0) += 1;
+            Ok(SmeltLedgerMove { take: vec![], give: vec![] })
+        }
+    }
+}
+
 fn craft_replay_seen(seen: &mut VecDeque<(u64, u64)>, seen_set: &mut std::collections::HashSet<(u64, u64)>, player: u64, req_id: u64) -> bool {
     if !seen_set.insert((player, req_id)) {
         return true;
@@ -164,6 +337,12 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
     let mut next_offer_id: u64 = 1;
     let mut craft_seen: VecDeque<(u64, u64)> = VecDeque::new();
     let mut craft_seen_set: std::collections::HashSet<(u64, u64)> = std::collections::HashSet::new();
+    // THE FURNACE COMMITMENTS (protocol v9): one account per
+    // (player, furnace block) — what that adventurer's LEDGER paid into
+    // that fire. Dropped when the player leaves (Goodbye).
+    let mut smelt_accounts: HashMap<(u64, (i32, i32, i32)), FurnaceAccount> = HashMap::new();
+    let mut smelt_seen: VecDeque<(u64, u64)> = VecDeque::new();
+    let mut smelt_seen_set: std::collections::HashSet<(u64, u64)> = std::collections::HashSet::new();
     let mut last_snapshot = std::time::Instant::now();
     let mut buf = [0u8; 2048];
 
@@ -176,7 +355,9 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
                     if let Some(msg) = ProtocolCodec::decode_client(&buf[..len]) {
                         handle_message(&socket, &mut players, &mut inventories, &mut world, &gen,
                             &mut edits, &mut next_id, &mut offers, &mut next_offer_id,
-                            &mut craft_seen, &mut craft_seen_set, src, msg);
+                            &mut craft_seen, &mut craft_seen_set,
+                            &mut smelt_accounts, &mut smelt_seen, &mut smelt_seen_set,
+                            src, msg);
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
@@ -221,6 +402,9 @@ fn handle_message(
     next_offer_id: &mut u64,
     craft_seen: &mut VecDeque<(u64, u64)>,
     craft_seen_set: &mut std::collections::HashSet<(u64, u64)>,
+    smelt_accounts: &mut HashMap<(u64, (i32, i32, i32)), FurnaceAccount>,
+    smelt_seen: &mut VecDeque<(u64, u64)>,
+    smelt_seen_set: &mut std::collections::HashSet<(u64, u64)>,
     src: SocketAddr,
     msg: ClientMessage,
 ) {
@@ -491,6 +675,107 @@ fn handle_message(
             };
             let _ = socket.send_to(&ProtocolCodec::encode_server(&verdict), src);
         }
+        ClientMessage::SmeltRequest { req_id, op } => {
+            // THE FURNACE IS THE SERVER'S FIRE (protocol v9): while
+            // connected, a furnace's economy is a sequence of gated ops
+            // against the player's canonical LEDGER and this furnace's
+            // own commitment account. A DEPOSIT consumes the ledger (the
+            // pack's claim includes the held cursor, so the goods cannot
+            // ride in two places at once); a WITHDRAW pays out of the
+            // account's commitments and grants the goods back to the
+            // ledger; a SMELT-DONE transforms one committed input plus
+            // SMELT_TIME of banked burn into one backed bar of the
+            // realm's own smelt law. A replayed req_id (a duplicated
+            // datagram) is answered with a no-op refusal, so an op pays
+            // once. EVERY refusal moves nothing and answers the smelter
+            // ALONE (a reasoned SmeltVerdict); peers hear nothing about
+            // another player's furnace. Unknown senders (no Hello, no
+            // ledger) are ignored like every stateful message.
+            let Some(id) = id_of(players, src) else { return };
+            if craft_replay_seen(smelt_seen, smelt_seen_set, id, req_id) {
+                let replay = ProtocolCodec::encode_server(&ServerMessage::Smelt(
+                    lf_protocol::SmeltVerdict {
+                        req_id, granted: false,
+                        reason: Some("already answered".into()),
+                    },
+                ));
+                let _ = socket.send_to(&replay, src);
+                return;
+            }
+            let verdict_reason: Option<String> = {
+                // Ledger pre-checks before the account op: a deposit must
+                // be payable, a withdrawal's grant must fit the ledger's
+                // own 36-slot law (trial on a clone — the escrow idiom).
+                let op_reason = match &op {
+                    lf_protocol::SmeltOp::Deposit { item, count, .. } => {
+                        match inventories.get(&id) {
+                            Some(inv) if inv.count_of(item) >= *count => None,
+                            Some(_) => Some(format!("the ledger holds no {}x{}", count, item)),
+                            None => Some("no ledger".into()),
+                        }
+                    }
+                    lf_protocol::SmeltOp::Withdraw { item, count, .. } => {
+                        match inventories.get(&id) {
+                            Some(inv) => {
+                                let mut trial = inv.clone();
+                                let mut remaining = *count;
+                                while remaining > 0 {
+                                    let batch = remaining.min(u8::MAX as u32) as u8;
+                                    let moved = batch - trial.add_item(item, batch);
+                                    if moved == 0 { break; }
+                                    remaining -= moved as u32;
+                                }
+                                if remaining > 0 {
+                                    Some(format!("the ledger's pack has no room for {}x{}", count, item))
+                                } else {
+                                    None
+                                }
+                            }
+                            None => Some("no ledger".into()),
+                        }
+                    }
+                    lf_protocol::SmeltOp::SmeltDone { .. } => None,
+                };
+                if op_reason.is_some() {
+                    op_reason
+                } else {
+                    let pos = match &op {
+                        lf_protocol::SmeltOp::Deposit { pos, .. }
+                        | lf_protocol::SmeltOp::Withdraw { pos, .. }
+                        | lf_protocol::SmeltOp::SmeltDone { pos, .. } => *pos,
+                    };
+                    // One commitment account per (player, furnace): two
+                    // fires never pool each other's fuel.
+                    let account = smelt_accounts.entry((id, pos)).or_default();
+                    match smelt_op(account, &op) {
+                        Ok(moves) => {
+                            // The commit is unconditional here: the ledger
+                            // pre-checks verified both directions before
+                            // the account moved.
+                            let inv = inventories.get_mut(&id).expect("pre-checked");
+                            for (item, count) in &moves.take {
+                                inv.remove_count(item, *count);
+                            }
+                            for (item, count) in &moves.give {
+                                let mut remaining = *count;
+                                while remaining > 0 {
+                                    let batch = remaining.min(u8::MAX as u32) as u8;
+                                    let moved = batch - inv.add_item(item, batch);
+                                    if moved == 0 { break; }
+                                    remaining -= moved as u32;
+                                }
+                            }
+                            None
+                        }
+                        Err(reason) => Some(reason),
+                    }
+                }
+            };
+            let verdict = ProtocolCodec::encode_server(&ServerMessage::Smelt(
+                lf_protocol::SmeltVerdict { req_id, granted: verdict_reason.is_none(), reason: verdict_reason },
+            ));
+            let _ = socket.send_to(&verdict, src);
+        }
         ClientMessage::TradeOffer { to, give, want } => {
             // P37 escrow: register the offer, notify the recipient.
             // THE OFFER GATE (protocol v6): the offerer's canonical
@@ -633,6 +918,10 @@ fn handle_message(
             if let Some(id) = leaving {
                 players.remove(&id);
                 inventories.remove(&id);
+                // THE FURNACE COMMITMENTS BURN OUT: a leaver's furnace
+                // accounts drop with their ledger — the next join starts
+                // with nothing committed to any fire.
+                smelt_accounts.retain(|(pid, _), _| *pid != id);
                 let left = ProtocolCodec::encode_server(&ServerMessage::PlayerLeft { id });
                 for p in players.values() {
                     let _ = socket.send_to(&left, p.addr);
@@ -1946,6 +2235,325 @@ mod tests {
         assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_none(),
             "the shape-bearing placement pays like any other");
 
+        server.stop();
+    }
+
+    // ---- THE FURNACE ACCOUNT (protocol v9): the pure law ----
+
+    use lf_protocol::{SmeltOp, SmeltSlot};
+
+    fn deposit(pos: (i32, i32, i32), slot: SmeltSlot, item: &str, count: u32) -> SmeltOp {
+        SmeltOp::Deposit { pos, slot, item: item.into(), count }
+    }
+
+    fn withdraw(pos: (i32, i32, i32), slot: SmeltSlot, item: &str, count: u32) -> SmeltOp {
+        SmeltOp::Withdraw { pos, slot, item: item.into(), count }
+    }
+
+    /// THE FURNACE-OP LAW (unit): every payout was funded, every refusal
+    /// moves nothing, and the burn reconciliation is deterministic. Three
+    /// doors: a deposit funds commitments, a withdrawal pays out of them
+    /// (a fuel item only while its seconds remain banked), and a
+    /// smelt-done transforms exactly one committed input plus SMELT_TIME
+    /// of burn into one backed bar of the realm's smelt law.
+    #[test]
+    fn the_furnace_account_law_gates_every_door() {
+        let pos = (3, 64, -7);
+        let mut acc = FurnaceAccount::default();
+
+        // The empty fire yields nothing: no input, no burn.
+        assert_eq!(
+            smelt_op(&mut acc, &SmeltOp::SmeltDone { pos, input: "raw_iron".into() }),
+            Err("the furnace holds no raw_iron".into()),
+            "an unbacked smelt refuses by name",
+        );
+        // What the fire cannot smelt, it does not yield.
+        assert!(smelt_op(&mut acc, &SmeltOp::SmeltDone { pos, input: "dirt".into() }).is_err(),
+            "the realm's smelt law gates the input");
+        // A funded deposit moves the ledger's take; the junk fuel banks
+        // no seconds.
+        let mv = smelt_op(&mut acc, &deposit(pos, SmeltSlot::Input, "raw_iron", 3)).unwrap();
+        assert_eq!(mv.take, vec![("raw_iron".into(), 3)]);
+        assert_eq!(mv.give, vec![]);
+        let mv = smelt_op(&mut acc, &deposit(pos, SmeltSlot::Fuel, "coal", 2)).unwrap();
+        assert_eq!(mv.take, vec![("coal".into(), 2)]);
+        assert!((acc.burn - 160.0).abs() < 1e-4, "two coals bank 160s, got {}", acc.burn);
+        smelt_op(&mut acc, &deposit(pos, SmeltSlot::Fuel, "dirt", 4)).unwrap();
+        assert!((acc.burn - 160.0).abs() < 1e-4, "junk banks nothing");
+
+        // Each completed smelt consumes one input and SMELT_TIME of burn
+        // and backs exactly one bar of the law's own output.
+        for _ in 0..3 {
+            smelt_op(&mut acc, &SmeltOp::SmeltDone { pos, input: "raw_iron".into() }).unwrap();
+        }
+        assert_eq!(acc.inputs.get("raw_iron"), None, "all three inputs spent");
+        assert!((acc.burn - 130.0).abs() < 1e-4, "30s spent smelting, got {}", acc.burn);
+        // THE BURN RECONCILIATION: one coal was spent by the smelts (its
+        // whole seconds left the bank), so only one withdrawable coal
+        // remains — the deterministic kind order decides which kind a
+        // mixed fire spends first.
+        assert_eq!(acc.fuels.get("coal"), Some(&1), "one coal burned away, one remains");
+        assert_eq!(acc.fuels.get("dirt"), Some(&4), "junk is never burned");
+        assert_eq!(acc.outputs.get("iron_ingot"), Some(&3), "three bars backed");
+
+        // The backed bars are withdrawable; a fourth is not.
+        let mv = smelt_op(&mut acc, &withdraw(pos, SmeltSlot::Output, "iron_ingot", 3)).unwrap();
+        assert_eq!(mv.give, vec![("iron_ingot".into(), 3)]);
+        assert!(smelt_op(&mut acc, &withdraw(pos, SmeltSlot::Output, "iron_ingot", 1)).is_err(),
+            "an unyielded bar refuses");
+        // The unburned coal is withdrawable only while its seconds
+        // remain banked.
+        let mv = smelt_op(&mut acc, &withdraw(pos, SmeltSlot::Fuel, "coal", 1)).unwrap();
+        assert_eq!(mv.give, vec![("coal".into(), 1)]);
+        assert!((acc.burn - 50.0).abs() < 1e-4, "the coal's 80s left with it, got {}", acc.burn);
+        assert!(smelt_op(&mut acc, &withdraw(pos, SmeltSlot::Fuel, "coal", 1)).is_err(),
+            "a burned coal cannot be taken back out");
+        // The junk withdraws freely (it never burned).
+        smelt_op(&mut acc, &withdraw(pos, SmeltSlot::Fuel, "dirt", 4)).unwrap();
+        // Zero-count ops refuse before anything moves.
+        assert!(smelt_op(&mut acc, &deposit(pos, SmeltSlot::Input, "raw_iron", 0)).is_err());
+        assert!(smelt_op(&mut acc, &withdraw(pos, SmeltSlot::Input, "raw_iron", 0)).is_err());
+    }
+
+    /// THE RECONCILIATION IS DETERMINISTIC (unit): a mixed fire spends
+    /// positive-burn kinds by item id, so replaying the same ops anywhere
+    /// leaves the same commitments — and the spend never dips below the
+    /// banked seconds.
+    #[test]
+    fn the_burn_reconciliation_spends_kinds_in_a_deterministic_order() {
+        let pos = (0, 0, 0);
+        let mut acc = FurnaceAccount::default();
+        // 1 log (15s) + 1 stick (5s) + 1 coal (80s): the id-sorted spend
+        // order is coal, log, stick.
+        smelt_op(&mut acc, &deposit(pos, SmeltSlot::Fuel, "stick", 1)).unwrap();
+        smelt_op(&mut acc, &deposit(pos, SmeltSlot::Fuel, "coal", 1)).unwrap();
+        smelt_op(&mut acc, &deposit(pos, SmeltSlot::Fuel, "log", 1)).unwrap();
+        smelt_op(&mut acc, &deposit(pos, SmeltSlot::Input, "sand", 1)).unwrap();
+        // One glass: 10s spent; bank 90s; the banked items hold 100s, so
+        // the coal (id-first) leaves the commitments.
+        smelt_op(&mut acc, &SmeltOp::SmeltDone { pos, input: "sand".into() }).unwrap();
+        assert_eq!(acc.fuels.get("coal"), None, "the id-first kind burned away");
+        assert_eq!(acc.fuels.get("log"), Some(&1));
+        assert_eq!(acc.fuels.get("stick"), Some(&1));
+        assert!((acc.burn - 90.0).abs() < 1e-4);
+        assert_eq!(acc.outputs.get("glass"), Some(&1));
+    }
+
+    // ---- THE FURNACE LEDGER (protocol v9): the wire laws ----
+
+    fn smelt(sock: &UdpSocket, req_id: u64, op: SmeltOp) {
+        sock.send(&ProtocolCodec::encode_client(&ClientMessage::SmeltRequest { req_id, op })).unwrap();
+    }
+
+    /// THE FUNDED-DEPOSIT LAW: a furnace deposit consumes the player's
+    /// canonical LEDGER and lands in that furnace's commitments — the
+    /// verdict answers the depositor ALONE (the peer hears nothing about
+    /// another player's fire), and the ledger really paid: an offer of
+    /// more than remains refuses through the trade gate alone.
+    #[test]
+    fn a_funded_deposit_pays_the_ledger_and_answers_the_depositor_alone() {
+        let mut server = Server::start("127.0.0.1:0", 941).expect("start server");
+        let (a, b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("raw_iron".into(), 3)],
+        })).unwrap();
+        pump(150);
+
+        smelt(&a, 1, deposit((9, 70, 9), SmeltSlot::Input, "raw_iron", 3));
+        let verdict = drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_)));
+        assert!(matches!(verdict,
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { req_id: 1, granted: true, .. })),
+        ), "the funded deposit is granted: {:?}", verdict);
+        pump(300);
+        assert!(!drain(&b).iter().any(|m| matches!(m, ServerMessage::Smelt(_))),
+            "the peer never hears another player's furnace");
+
+        // The ledger paid: 0 raw_iron remain, so even 1 refuses the offer
+        // gate; committing a fourth was impossible in the first place.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("raw_iron".into(), 1)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the deposit consumed the ledger's raw_iron");
+
+        // A deposit the ledger cannot pay refuses, moves nothing, and
+        // still answers the depositor alone.
+        smelt(&a, 2, deposit((9, 70, 9), SmeltSlot::Input, "raw_iron", 1));
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { granted: false, reason: Some(_), .. })),
+        ), "the unpaid deposit refuses with a reason");
+        server.stop();
+    }
+
+    /// THE BACKED-BAR LAW: a bar only the fire yielded is the ledger's to
+    /// give — the full loop deposits ore and fuel, smelts three times,
+    /// and the ledger ends having consumed 3 ore + fuel and produced
+    /// exactly 3 bars; a fourth withdrawal refuses. A smelt with no
+    /// committed input or no banked burn yields NOTHING.
+    #[test]
+    fn the_fire_yields_only_what_the_ledger_funded() {
+        let mut server = Server::start("127.0.0.1:0", 942).expect("start server");
+        let (a, _b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("raw_iron".into(), 5), ("coal".into(), 2)],
+        })).unwrap();
+        pump(150);
+        let pos = (4, 70, 4);
+
+        // No commitments yet: the smelt yields nothing, by name.
+        smelt(&a, 1, SmeltOp::SmeltDone { pos, input: "raw_iron".into() });
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { granted: false, .. })),
+        ), "an unfunded fire yields nothing");
+
+        // Commit 3 ore + 1 coal, then smelt three times.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::SmeltRequest {
+            req_id: 2, op: deposit(pos, SmeltSlot::Input, "raw_iron", 3),
+        })).unwrap();
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::SmeltRequest {
+            req_id: 3, op: deposit(pos, SmeltSlot::Fuel, "coal", 1),
+        })).unwrap();
+        pump(150);
+        let _ = drain(&a);
+        for i in 4..=6 {
+            smelt(&a, i, SmeltOp::SmeltDone { pos, input: "raw_iron".into() });
+        }
+        pump(300);
+        let granted_n = drain(&a).iter().filter(|m| matches!(m,
+            ServerMessage::Smelt(lf_protocol::SmeltVerdict { granted: true, .. }))).count();
+        assert_eq!(granted_n, 3, "three smelts, three grants");
+
+        // The three bars are backed: withdraw them all.
+        smelt(&a, 7, withdraw(pos, SmeltSlot::Output, "iron_ingot", 3));
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { req_id: 7, granted: true, .. })),
+        ), "the backed bars are withdrawable");
+        // A fourth bar was never yielded: it refuses.
+        smelt(&a, 8, withdraw(pos, SmeltSlot::Output, "iron_ingot", 1));
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { granted: false, .. })),
+        ), "an unyielded bar refuses");
+
+        // THE LEDGER IS EXACT: the pack claimed 5 ore + 2 coal; the
+        // ledger consumed the committed 3 ore + 1 coal and received the
+        // 3 bars — an offer of 2 ore + 1 coal + 3 bars passes, one bar
+        // more refuses (through the trade gate alone).
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2,
+            give: vec![("raw_iron".into(), 2), ("coal".into(), 1), ("iron_ingot".into(), 3)],
+            want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_none(),
+            "the ledger holds exactly the loop's net goods");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2,
+            give: vec![("iron_ingot".into(), 4)],
+            want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "a fourth bar was never minted");
+        server.stop();
+    }
+
+    /// THE PAY-ONCE LAW (smelting): a replayed req_id — a duplicated
+    /// datagram — is answered with a no-op refusal; the ledger moved for
+    /// the first answer only (the offer gate proves the second deposit
+    /// never charged).
+    #[test]
+    fn a_replayed_smelt_request_pays_once() {
+        let mut server = Server::start("127.0.0.1:0", 943).expect("start server");
+        let (a, _b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("coal".into(), 8)],
+        })).unwrap();
+        pump(150);
+        let pos = (2, 70, 2);
+
+        smelt(&a, 11, deposit(pos, SmeltSlot::Fuel, "coal", 2));
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { req_id: 11, granted: true, .. })),
+        ));
+        smelt(&a, 11, deposit(pos, SmeltSlot::Fuel, "coal", 2));
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict {
+                req_id: 11, granted: false, reason: Some(reason),
+            })) if reason == "already answered",
+        ), "the replay is a named no-op");
+        // The ledger paid for ONE deposit: 6 coals remain.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("coal".into(), 7)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the replay never charged twice");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("coal".into(), 6)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_none(),
+            "the honest remainder passes");
+        server.stop();
+    }
+
+    /// THE TWO-FIRES LAW: each furnace's commitments are its own — fuel
+    /// committed to one fire never funds another's smelt.
+    #[test]
+    fn two_fires_never_pool_each_others_fuel() {
+        let mut server = Server::start("127.0.0.1:0", 944).expect("start server");
+        let (a, _b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("raw_iron".into(), 2), ("coal".into(), 4)],
+        })).unwrap();
+        pump(150);
+        let fire_a = (10, 70, 10);
+        let fire_b = (20, 70, 20);
+
+        smelt(&a, 1, deposit(fire_a, SmeltSlot::Input, "raw_iron", 1));
+        smelt(&a, 2, deposit(fire_a, SmeltSlot::Fuel, "coal", 4));
+        pump(200);
+        let _ = drain(&a);
+        // Fire B holds nothing: its smelt refuses however rich fire A is.
+        smelt(&a, 3, SmeltOp::SmeltDone { pos: fire_b, input: "raw_iron".into() });
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { granted: false, .. })),
+        ), "fire B is not funded by fire A");
+        // Fire A smelts its own.
+        smelt(&a, 4, SmeltOp::SmeltDone { pos: fire_a, input: "raw_iron".into() });
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { req_id: 4, granted: true, .. })),
+        ), "fire A yields from its own commitments");
+        server.stop();
+    }
+
+    /// THE BURN-OUT LAW: a leaver's furnace commitments drop with their
+    /// ledger — a returning adventurer commits anew.
+    #[test]
+    fn goodbye_burns_out_the_furnace_commitments() {
+        let mut server = Server::start("127.0.0.1:0", 945).expect("start server");
+        let (a, _b) = join_two(&mut server, "smith", "target");
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("raw_iron".into(), 2), ("coal".into(), 2)],
+        })).unwrap();
+        pump(150);
+        let pos = (5, 70, 5);
+
+        smelt(&a, 1, deposit(pos, SmeltSlot::Input, "raw_iron", 2));
+        smelt(&a, 2, deposit(pos, SmeltSlot::Fuel, "coal", 2));
+        pump(200);
+        let _ = drain(&a);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::Goodbye)).unwrap();
+        pump(200);
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+            name: "smith".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+        })).unwrap();
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("raw_iron".into(), 2), ("coal".into(), 2)],
+        })).unwrap();
+        pump(200);
+        let _ = drain(&a);
+
+        smelt(&a, 3, withdraw(pos, SmeltSlot::Input, "raw_iron", 1));
+        assert!(matches!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Smelt(_))),
+            Some(ServerMessage::Smelt(lf_protocol::SmeltVerdict { granted: false, .. })),
+        ), "the old fire's commitments burned out at Goodbye");
         server.stop();
     }
 }

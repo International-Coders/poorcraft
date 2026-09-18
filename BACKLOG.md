@@ -11,6 +11,43 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The furnace is the server's fire: server-side smelting over real
+      UDP (2026-09-18, loop 469, root workspace): closed STATE's
+      next_task item (2) — the last player-facing consumption tier that
+      fabricates its own output. Wire v9: SmeltRequest (Deposit /
+      Withdraw / SmeltDone, per furnace pos + slot) and a delta-less
+      SmeltVerdict to the smelter alone — the client applied nothing
+      before it, so deposits and withdrawals WAIT for the verdict and
+      the PackSync claim stays exact. THE SERVER: one commitment
+      account per (player, furnace) — the pure furnace-op law
+      (deposits fund; withdrawals pay out, a fuel item only while its
+      seconds remain banked; a smelt-done transforms one input +
+      SMELT_TIME burn into one backed bar of the realm's own smelt
+      table), the deterministic burn reconciliation, ledger
+      pre-checks, the smelting replay window, Goodbye burn-out. THE
+      CLIENT: the furnace tick is the one SmeltDone site (refused
+      reports revert their furnace's delta — at-most-once), the slot
+      gate reads each click as at most one directional move and undoes
+      it until granted (one move in flight; the storage rows freeze
+      with a hint), and the pack claim now includes the held cursor
+      (goods in hand are carried — the trace-proved fix that keeps
+      every furnace op claim-invisible and ledger-exact). En-route
+      proof-traced bug fixed before the battery: a refused deposit
+      whose UI closed would have duplicated the goods close_ui already
+      returned. Evidence: 11 new laws (codec round-trip; the
+      furnace-account + intent unit laws; the funded-deposit,
+      backed-bar, pay-once, two-fires, burn-out, and carried-hand wire
+      laws over real UDP; the furnace source law); workspace 545/0
+      (xtask 12 included); smoke OK twice; battery 110 scenes exit-0
+      twice with PNGs byte-identical (singleplayer pixel-proven
+      unchanged); steam feature compiles clean with v9; runtimes
+      fresh. Deferred honestly: eating (the last client-side
+      consumption tier of the same shape); the lying-PackSync bootstrap
+      tier (a modified client's claim can re-seed the ledger — named at
+      466, unchanged); client-local block entities (chest contents,
+      furnace-slot persistence across peers — the sim/block-entity sync
+      tier); the windowed two-client route.
+
 - [x] The placed block is paid for: server-side place-item payment
       over real UDP (2026-09-17, loop 468, root workspace): closed
       STATE's next_task item (2)'s wider half — chosen over smelting

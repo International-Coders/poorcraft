@@ -127,6 +127,11 @@ fn crosshair_mob(
 
 const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(30);
 const DAY_SKY: [f64; 4] = [0.53, 0.81, 0.98, 1.0];
+/// THE FURNACE-REPORT CAP (protocol v9): completed-smelt reports in
+/// flight at once. A completion is one 10 s smelt, so this is generous;
+/// an overflowed report is not sent and its bar stays unbacked — a
+/// withdrawal of it refuses, which errs safe.
+const SMELT_DONES_CAP: usize = 64;
 
 /// Blocks available in the hotbar (P4 replaces this with a real inventory).
 const HOTBAR: [u32; 9] = [
@@ -1056,6 +1061,25 @@ pub fn run_with_autostart(autostart: bool) {
     event_loop.run_app(&mut app);
 }
 
+/// THE FURNACE MOVE IN FLIGHT (protocol v9): the one outstanding
+/// player-intent furnace op and exactly what to apply when its verdict
+/// lands. Nothing has moved yet — the local slot and the hand settle
+/// only on a grant, so the PackSync claim stays exact.
+#[derive(Clone, Debug)]
+pub struct SmeltMoveIntent {
+    pub req_id: u64,
+    pub kind: SmeltMoveKind,
+}
+
+#[derive(Clone, Debug)]
+pub enum SmeltMoveKind {
+    /// The hand's stack (or part of it) settles into the furnace slot.
+    Deposit { pos: (i32, i32, i32), slot: lf_protocol::SmeltSlot, item: String, count: u32 },
+    /// The furnace slot's stack (or part of it) settles into the hand;
+    /// `quick` drops it straight into the pack rows instead.
+    Withdraw { pos: (i32, i32, i32), slot: lf_protocol::SmeltSlot, item: String, count: u32, quick: bool },
+}
+
 struct GameState {
     window: Arc<winit::window::Window>,
     surface: wgpu::Surface<'static>,
@@ -1265,6 +1289,20 @@ struct GameState {
     /// Monotonic client-chosen ids for craft requests; the server's
     /// replay window keys on them, so a duplicated datagram pays once.
     pub next_craft_id: u64,
+    /// THE FURNACE MOVE IN FLIGHT (protocol v9): the one outstanding
+    /// player-intent furnace op — a slot deposit or withdrawal — whose
+    /// verdict gates the local move. While it is outstanding every other
+    /// furnace interaction waits (the furnace ledger is settling), so a
+    /// move can never be applied against a slot that changed under it.
+    pub smelt_move: Option<SmeltMoveIntent>,
+    /// Completed-smelt reports awaiting their verdicts — (req id, the
+    /// furnace, what it was smelting) — bounded: a completion is one
+    /// 10 s smelt, so the cap is generous. A refused SmeltDone reverts
+    /// that furnace's own delta — at-most-once, never fabricated.
+    pub smelt_dones: Vec<(u64, (i32, i32, i32), String)>,
+    /// Monotonic client-chosen ids for smelt requests (one counter for
+    /// both channels; the server's replay window keys on them).
+    pub next_smelt_id: u64,
     /// Quest log tab: 0 = active quests, 1 = chronicle.
     pub quest_tab: usize,
     pub last_fps: f32,
@@ -1730,6 +1768,9 @@ impl GameState {
             craft_queue: Vec::new(),
             craft_in_flight: None,
             next_craft_id: 1,
+            smelt_move: None,
+            smelt_dones: Vec::new(),
+            next_smelt_id: 1,
             quest_tab: 0,
             last_fps: 0.0,
             quest_log,
@@ -1810,6 +1851,195 @@ impl GameState {
         self.ui_open = UiOpen::None;
         if self.stats.health > 0.0 {
             self.lock_cursor();
+        }
+    }
+
+    /// THE FURNACE-VERDICT RESOLVER (protocol v9) — the one applier. The
+    /// client applied nothing before the verdict, so a grant settles the
+    /// move exactly as asked and a refusal says why while nothing has
+    /// moved. A completed-smelt report resolves its own furnace: granted,
+    /// the bar is backed; refused, that furnace's own delta reverts (the
+    /// input returns, the unbacked bar leaves) — at-most-once, never
+    /// fabricated.
+    pub fn resolve_smelt_verdict(&mut self, verdict: lf_protocol::SmeltVerdict) {
+        let lf_protocol::SmeltVerdict { req_id, granted, reason } = verdict;
+        if self.smelt_move.as_ref().is_some_and(|m| m.req_id == req_id) {
+            let intent = self.smelt_move.take().expect("the in-flight move matched");
+            if granted {
+                self.apply_smelt_move(&intent.kind);
+            } else {
+                // The refusal says why. A deposit asked from a
+                // since-CLOSED furnace needs no restore: close_ui already
+                // returned the hand's goods to the pack — re-returning
+                // them would duplicate them.
+                if let SmeltMoveKind::Deposit { .. } = &intent.kind {
+                    if !matches!(self.ui_open, UiOpen::Furnace(_)) {
+                        if let Some(reason) = reason {
+                            self.push_hint(&format!("furnace: {}", reason));
+                        }
+                        return;
+                    }
+                }
+                if let Some(reason) = reason {
+                    self.push_hint(&format!("furnace: {}", reason));
+                }
+            }
+            return;
+        }
+        if let Some(at) = self.smelt_dones.iter().position(|(id, _, _)| *id == req_id) {
+            let (_, pos, input) = self.smelt_dones.remove(at);
+            if !granted {
+                self.revert_smelt_done(pos, &input, reason);
+            }
+        }
+    }
+
+    /// Apply a granted furnace move: the hand pays exactly what it
+    /// committed, the slot gains it; a withdrawal drains the slot into
+    /// the hand (or the pack, for a shift-click). If the furnace entity
+    /// vanished while the verdict flew (a peer broke the block), the
+    /// goods land in the pack — the realm's accounting never eats them.
+    fn apply_smelt_move(&mut self, kind: &SmeltMoveKind) {
+        match kind {
+            SmeltMoveKind::Deposit { pos, slot, item, count } => {
+                // the hand pays (the freeze guarantees it still holds the
+                // goods; the defensive shortfall comes out of the pack)
+                let mut paid = 0u32;
+                if let Some(cursor) = &mut self.cursor_stack {
+                    if cursor.item_id == *item {
+                        let moved = (*count - paid).min(cursor.count as u32);
+                        cursor.count -= moved as u8;
+                        paid += moved;
+                        if cursor.count == 0 {
+                            self.cursor_stack = None;
+                        }
+                    }
+                }
+                if paid < *count {
+                    paid += self.inventory.remove_count(item, *count - paid);
+                }
+                let rest = count - paid;
+                let mut spilled = rest;
+                if let Some(BlockEntity::Furnace(f)) = self.block_entities.get_mut(pos) {
+                    let slot = match slot {
+                        lf_protocol::SmeltSlot::Input => &mut f.input,
+                        lf_protocol::SmeltSlot::Fuel => &mut f.fuel,
+                        lf_protocol::SmeltSlot::Output => &mut f.output,
+                    };
+                    let cap = item_def(item).map(|d| d.max_stack).unwrap_or(64);
+                    let fits = match slot {
+                        Some(s) if s.item_id == *item => (cap - s.count).min(rest as u8) as u32,
+                        None => rest.min(cap as u32),
+                        _ => 0,
+                    };
+                    match slot {
+                        Some(s) if s.item_id == *item => s.count += fits as u8,
+                        s @ None => {
+                            *s = Some(ItemStack { item_id: item.clone(), count: fits as u8 });
+                        }
+                        _ => {}
+                    }
+                    spilled = rest - fits;
+                }
+                if spilled > 0 {
+                    self.pack_or_drop(item, spilled);
+                }
+            }
+            SmeltMoveKind::Withdraw { pos, slot, item, count, quick } => {
+                let mut taken = 0u32;
+                if let Some(BlockEntity::Furnace(f)) = self.block_entities.get_mut(pos) {
+                    let held_slot = match slot {
+                        lf_protocol::SmeltSlot::Input => &mut f.input,
+                        lf_protocol::SmeltSlot::Fuel => &mut f.fuel,
+                        lf_protocol::SmeltSlot::Output => &mut f.output,
+                    };
+                    if let Some(s) = held_slot.as_mut() {
+                        if s.item_id == *item {
+                            taken = (*count).min(s.count as u32);
+                            s.count -= taken as u8;
+                            if s.count == 0 {
+                                *held_slot = None;
+                            }
+                        }
+                    }
+                }
+                if taken == 0 {
+                    // the slot emptied under the verdict (a smelt consumed
+                    // the input mid-flight): the grant's goods were the
+                    // smelt's — they arrive as the backed bar instead.
+                    return;
+                }
+                if *quick {
+                    self.pack_or_drop(item, taken);
+                } else {
+                    match &mut self.cursor_stack {
+                        None => {
+                            self.cursor_stack = Some(ItemStack {
+                                item_id: item.clone(), count: taken as u8,
+                            });
+                        }
+                        Some(cursor) if cursor.item_id == *item => {
+                            cursor.count += taken as u8;
+                        }
+                        _ => self.pack_or_drop(item, taken),
+                    }
+                }
+            }
+        }
+    }
+
+    /// Revert a refused SmeltDone: the input the refused smelt consumed
+    /// returns to its slot (or the pack, if the furnace is gone), and
+    /// the unbacked bar leaves the output slot — it was never backed, so
+    /// it can never have been withdrawn (withdrawals wait for backing).
+    fn revert_smelt_done(
+        &mut self,
+        pos: (i32, i32, i32),
+        input: &str,
+        reason: Option<String>,
+    ) {
+        let out_id = lf_game::smelting::smelt_result(input).map(str::to_string);
+        let mut pack_input = true;
+        if let Some(BlockEntity::Furnace(f)) = self.block_entities.get_mut(&pos) {
+            match &mut f.input {
+                Some(s) if s.item_id == input && (s.count as u32) < u8::MAX as u32 => s.count += 1,
+                Some(_) | None => {
+                    f.input = Some(ItemStack { item_id: input.to_string(), count: 1 });
+                }
+            }
+            if let (Some(out), Some(out_id)) = (&mut f.output, &out_id) {
+                if out.item_id == *out_id && out.count > 0 {
+                    out.count -= 1;
+                    if out.count == 0 {
+                        f.output = None;
+                    }
+                }
+            }
+            pack_input = false;
+        }
+        if pack_input {
+            self.pack_or_drop(input, 1);
+        }
+        if let Some(reason) = reason {
+            self.push_hint(&format!("furnace: {}", reason));
+        }
+    }
+
+    /// Add to the pack; whatever the pack cannot hold spills at the feet
+    /// (the ItemGrant idiom — nothing vanishes).
+    fn pack_or_drop(&mut self, item: &str, count: u32) {
+        let mut remaining = count;
+        while remaining > 0 {
+            let batch = remaining.min(u8::MAX as u32) as u8;
+            let moved = batch - self.inventory.add_item(item, batch);
+            if moved == 0 {
+                break;
+            }
+            remaining -= moved as u32;
+        }
+        if remaining > 0 {
+            let spill = remaining.min(u8::MAX as u32) as u8;
+            self.spawn_drop(item, spill, self.player.eye_position());
         }
     }
 
@@ -2506,6 +2736,13 @@ impl GameState {
         // distribute_power runs the field (producers first, batteries cover
         // gaps, surplus recharges), then everything is reinserted.
         use lf_game::machines::PowerSource;
+        // THE ONE SMELT-DONE SITE (protocol v9): while connected, every
+        // completed smelt is reported to the server (the fire's verdict
+        // backs the bar); offline the furnace plays fully local. The
+        // output-slot count before/after the tick is the completion
+        // detector — the furnace law's own +1 (a player deposit into the
+        // output moves it by other counts; a burn pause moves it never).
+        let mut smelt_completions: Vec<((i32, i32, i32), String)> = Vec::new();
         let mut sources: Vec<((i32, i32, i32), PowerSource)> = Vec::new();
         let mut machine_positions: Vec<(i32, i32, i32)> = Vec::new();
         let mut conduit_positions: Vec<(i32, i32, i32)> = Vec::new();
@@ -2546,12 +2783,41 @@ impl GameState {
                 BlockEntity::Belt(_) => {} // belt pass below
                 BlockEntity::Screen { .. } => {}
                 BlockEntity::Furnace(f) => {
+                    let out_before = f.output.as_ref().map(|s| s.count).unwrap_or(0u8);
+                    let smelt_input = f.input.as_ref().map(|s| s.item_id.clone());
                     f.tick(dt);
+                    let out_after = f.output.as_ref().map(|s| s.count).unwrap_or(0u8);
+                    if out_after == out_before.wrapping_add(1) {
+                        if let Some(id) = smelt_input {
+                            smelt_completions.push((*pos, id));
+                        }
+                    }
                 }
                 BlockEntity::ElectricFurnace(_) | BlockEntity::Crusher(_) | BlockEntity::Assembler(_) => {
                     machine_positions.push(*pos);
                 }
                 BlockEntity::Chest { .. } => {}
+            }
+        }
+        // THE FIRE REPORTS TO THE REALM (protocol v9): one SmeltDone per
+        // completed smelt, each awaiting its verdict so a refusal can
+        // revert that furnace's own delta. The in-flight list is bounded
+        // — an overflowed report is simply not sent, and an unbacked bar
+        // can never be withdrawn (the withdrawal pays from the server's
+        // backing), so dropping one errs safe.
+        if self.net.as_ref().is_some_and(|n| n.connected) {
+            for (pos, input) in smelt_completions {
+                if self.smelt_dones.len() >= SMELT_DONES_CAP {
+                    break;
+                }
+                self.next_smelt_id += 1;
+                let req = self.next_smelt_id;
+                if let Some(n) = &self.net {
+                    n.request_smelt(req, lf_protocol::SmeltOp::SmeltDone {
+                        pos, input: input.clone(),
+                    });
+                }
+                self.smelt_dones.push((req, pos, input));
             }
         }
         // Steam Age pass: equalize adjacent pipes pairwise (canonical
@@ -3146,6 +3412,18 @@ impl GameState {
                             }
                         }
                     }
+                    // THE FURNACE-VERDICT LAW, client side (protocol v9):
+                    // the client applied NOTHING before the verdict — a
+                    // granted move applies now (the slot and the hand
+                    // settle exactly as asked), a refusal says why and
+                    // moves nothing. A completed-smelt report resolves
+                    // its own furnace: granted, the bar is backed; a
+                    // refusal reverts that furnace's own delta (the
+                    // input returns, the unbacked bar leaves) — at-most-
+                    // once, never fabricated.
+                    lf_protocol::ServerMessage::Smelt(verdict) => {
+                        self.resolve_smelt_verdict(verdict);
+                    }
                     // P37: escrowed trades deliver to the inventory
                     lf_protocol::ServerMessage::TradeResolved { accepted, items, .. } => {
                         if accepted {
@@ -3180,12 +3458,13 @@ impl GameState {
         }
         // THE PACK MIRROR, ticked OUTSIDE the poll borrow (the message
         // arms call whole-self methods): re-claim the pack after any
-        // server delta, then upload if the live pack drifted.
+        // server delta, then upload if the carried total (pack + hand)
+        // drifted.
         if let Some(n) = &mut self.net {
             if pack_delta_landed {
                 n.pack_mirror.request_sync();
             }
-            n.sync_pack(&self.inventory);
+            n.sync_pack(&self.inventory, self.cursor_stack.as_ref());
         }
 
         if let Some((_, t)) = &mut self.chronicle_toast {
@@ -7898,7 +8177,7 @@ mod tests {
 
         let mut idx = 0;
         let mut sites: Vec<usize> = Vec::new();
-        while let Some(pos) = live[idx..].find("n.sync_pack(&self.inventory)") {
+        while let Some(pos) = live[idx..].find("n.sync_pack(&self.inventory, self.cursor_stack.as_ref())") {
             sites.push(idx + pos);
             idx = idx + pos + 1;
         }
@@ -8000,5 +8279,55 @@ mod tests {
         assert!(arm.contains("add_item(&out_id, batch)"), "the verdict produces its delta in u8 batches");
         assert!(arm.contains("o == &out_id"), "the queue head completes only on its own output");
         assert!(arm.contains("craft_in_flight = None"), "the verdict releases the queue's wait");
+    }
+
+    /// THE FURNACE-LEDGER SOURCE LAW (protocol v9): the furnace tick is
+    /// the ONE SmeltDone site (a completed smelt is reported, its delta
+    /// revertable), the Smelt verdict arm is the ONE resolver, and the
+    /// UI's slot gate is the ONE player-move sender — every sender
+    /// guarded on a live session, so offline furnaces play byte-equal to
+    /// the shipped law and online furnaces can never self-bank a bar.
+    #[test]
+    fn every_furnace_economy_op_routes_through_the_wire() {
+        let lib = include_str!("lib.rs");
+        let ui = include_str!("ui.rs");
+        let live_end = lib.find("mod tests {").expect("the tests module exists");
+        let live = &lib[..live_end];
+        // exactly one completed-smelt reporter, and it is the tick funnel
+        let send = concat!("n.", "request_smelt", "(");
+        let sites: Vec<usize> = {
+            let mut out = Vec::new();
+            let mut idx = 0;
+            for src in [live, ui] {
+                idx = 0;
+                while let Some(pos) = src[idx..].find(send) {
+                    out.push(pos);
+                    idx = idx + pos + 1;
+                }
+            }
+            out
+        };
+        assert_eq!(sites.len(), 2,
+            "the tick funnel (SmeltDone) and the slot gate (moves) are the two senders");
+        assert!(live.contains("smelt_completions.push("),
+            "the tick funnel is the one completion site");
+        assert!(live.contains("SMELT_DONES_CAP"), "the in-flight reports are bounded");
+        // the verdict arm resolves both channels through the one resolver
+        let start = lib.find("ServerMessage::Smelt(verdict)").expect("the smelt arm exists");
+        let arm = &lib[start..start + 400];
+        assert!(arm.contains("resolve_smelt_verdict(verdict)"),
+            "the arm is a thin delegate — the resolver is the one applier");
+        // the resolver settles both channels
+        let resolver = lib.find("pub fn resolve_smelt_verdict").expect("the resolver exists");
+        let resolver_end = lib[resolver..].find("fn apply_smelt_move").expect("the applier follows");
+        let region = &lib[resolver..resolver + resolver_end];
+        assert!(region.contains("smelt_move.take()"), "a settled move releases the freeze");
+        assert!(region.contains("revert_smelt_done("), "a refused smelt reverts its furnace's delta");
+        // the applier never lets a closed furnace eat the goods
+        let applier = lib.find("fn apply_smelt_move").expect("the applier exists");
+        let applier_end = lib[applier..].find("fn revert_smelt_done").expect("the reverter follows");
+        let apply_region = &lib[applier..applier + applier_end];
+        assert!(apply_region.contains("pack_or_drop("),
+            "goods never vanish with a closed furnace");
     }
 }

@@ -195,30 +195,31 @@ mod tests {
         ItemStack { item_id: id.to_string(), count: 1 }
     }
 
-    /// THE PACK-SYNC LAWS (protocol v6): the mirror bootstraps the join
-    /// (an empty pack is still a claim — the ledger must learn the pack
-    /// is EMPTY, not stay unseeded), uploads only drift, aggregates
-    /// split stacks into one sorted claim, and a server-side delta
-    /// forces the next upload past the cadence.
+    /// THE PACK-SYNC LAWS (protocol v6/v9): the mirror bootstraps the
+    /// join (an empty pack is still a claim — the ledger must learn the
+    /// pack is EMPTY, not stay unseeded), uploads only drift, aggregates
+    /// split stacks into one sorted claim, counts the held cursor as
+    /// carried, and a server-side delta forces the next upload past the
+    /// cadence.
     #[test]
     fn the_mirror_bootstraps_and_only_uploads_drift() {
         let t0 = std::time::Instant::now();
         let mut mirror = PackMirror::new();
         let inv = Inventory::new();
 
-        let first = mirror.sync_message(&inv, t0).expect("the join uploads the bootstrap claim");
+        let first = mirror.sync_message(&inv, None, t0).expect("the join uploads the bootstrap claim");
         assert_eq!(first, ClientMessage::PackSync { items: vec![] },
             "an empty pack is still claimed — the ledger learns the pack is empty");
-        assert!(mirror.sync_message(&inv, t0).is_none(), "no drift, no upload");
+        assert!(mirror.sync_message(&inv, None, t0).is_none(), "no drift, no upload");
 
         let mut inv = Inventory::new();
         inv.add_item("wood", 1);
-        assert!(mirror.sync_message(&inv, t0).is_none(),
+        assert!(mirror.sync_message(&inv, None, t0).is_none(),
             "drift inside the cadence waits — the claim is not spammed");
         mirror.request_sync();
-        let second = mirror.sync_message(&inv, t0).expect("a forced upload ignores the cadence");
+        let second = mirror.sync_message(&inv, None, t0).expect("a forced upload ignores the cadence");
         assert_eq!(second, ClientMessage::PackSync { items: vec![("wood".into(), 1)] });
-        assert!(mirror.sync_message(&inv, t0).is_none(), "the claim is remembered");
+        assert!(mirror.sync_message(&inv, None, t0).is_none(), "the claim is remembered");
     }
 
     #[test]
@@ -232,7 +233,7 @@ mod tests {
         inv.add_item("apple", 3);
         inv.slots[36] = Some(held("iron_helmet")); // worn armor is carried too
 
-        let claim = mirror.sync_message(&inv, t0).expect("the drift uploads");
+        let claim = mirror.sync_message(&inv, None, t0).expect("the drift uploads");
         let ClientMessage::PackSync { items } = claim else {
             panic!("the mirror sends PackSync, got {claim:?}");
         };
@@ -246,6 +247,39 @@ mod tests {
             ],
             "split stacks aggregate, the claim is sorted, counts are u32"
         );
+    }
+
+    /// THE CARRIED-HAND LAW (protocol v9): the held cursor is part of the
+    /// claim — goods in hand mid-move are carried, so a furnace deposit
+    /// cannot ride in two places at once (a drift upload between the
+    /// pick-up and the deposit would mis-size the ledger against the
+    /// very goods being committed).
+    #[test]
+    fn the_claim_includes_the_held_cursor() {
+        let t0 = std::time::Instant::now();
+        let mut mirror = PackMirror::new();
+        let mut inv = Inventory::new();
+        inv.add_item("wood", 8);
+
+        let pick_up = ItemStack { item_id: "raw_iron".into(), count: 5 };
+        let claim = mirror.sync_message(&inv, Some(&pick_up), t0)
+            .expect("picking goods into the hand is a drift the ledger must see");
+        let ClientMessage::PackSync { items } = claim else {
+            panic!("the mirror sends PackSync, got {claim:?}");
+        };
+        assert_eq!(
+            items,
+            vec![("raw_iron".into(), 5), ("wood".into(), 8)],
+            "the hand's goods are claimed with the pack's"
+        );
+
+        // Committing the hand's goods into a furnace leaves the claim
+        // unchanged (pack 8 wood, empty hand): the same goods moved from
+        // one carried place to another — no re-upload, no clobber of the
+        // deposit the server is about to charge.
+        let committed = mirror.sync_message(&inv, None, t0);
+        assert!(committed.is_none(),
+            "hand -> furnace slot keeps the carried total: no drift, no upload");
     }
 
     /// THE MINE-CLAIM LAW: a MINE claims its honest hand — tool id when
@@ -330,12 +364,20 @@ impl PackMirror {
     }
 
     /// THE PACK SNAPSHOT LAW: the claim is the aggregated (item, count)
-    /// of every carried stack, sorted — slot layout is presentation, the
-    /// ledger is contents. Counts aggregate to u32 (a full pack holds
+    /// of every carried stack — the pack's slots AND the held cursor —
+    /// sorted. Slot layout is presentation, the ledger is contents, and
+    /// goods in hand mid-move are still carried: a furnace deposit's
+    /// items must not be able to ride in two places at once (a claim
+    /// that dropped the cursor would let a drift upload land between the
+    /// pick-up and the deposit and mis-size the ledger against the very
+    /// goods being committed). Counts aggregate to u32 (a full pack holds
     /// far more than 255 of one item).
-    pub fn snapshot(inv: &Inventory) -> Vec<(String, u32)> {
+    pub fn snapshot(inv: &Inventory, held: Option<&ItemStack>) -> Vec<(String, u32)> {
         let mut agg: HashMap<String, u32> = HashMap::new();
         for stack in inv.slots.iter().flatten() {
+            *agg.entry(stack.item_id.clone()).or_insert(0) += stack.count as u32;
+        }
+        if let Some(stack) = held {
             *agg.entry(stack.item_id.clone()).or_insert(0) += stack.count as u32;
         }
         let mut out: Vec<(String, u32)> = agg.into_iter().collect();
@@ -348,10 +390,16 @@ impl PackMirror {
         self.forced = true;
     }
 
-    /// Compare the live pack against the last claim; answer the message
-    /// to send, if any (and record it). Call every frame while connected.
-    pub fn sync_message(&mut self, inv: &Inventory, now: std::time::Instant) -> Option<ClientMessage> {
-        let snap = Self::snapshot(inv);
+    /// Compare the live pack (and what the hand holds) against the last
+    /// claim; answer the message to send, if any (and record it). Call
+    /// every frame while connected.
+    pub fn sync_message(
+        &mut self,
+        inv: &Inventory,
+        held: Option<&ItemStack>,
+        now: std::time::Instant,
+    ) -> Option<ClientMessage> {
+        let snap = Self::snapshot(inv, held);
         if self.last_synced.as_ref() == Some(&snap) {
             self.forced = false;
             return None;
@@ -441,16 +489,26 @@ impl NetClient {
     }
 
     /// THE ONE PACK-SYNC SENDER: detects drift against the live pack and
-    /// uploads the claim. Call every frame while a session is connected;
-    /// a no-op before the server has said Welcome.
-    pub fn sync_pack(&mut self, inv: &Inventory) {
+    /// the held stack, and uploads the claim. Call every frame while a
+    /// session is connected; a no-op before the server has said Welcome.
+    pub fn sync_pack(&mut self, inv: &Inventory, held: Option<&ItemStack>) {
         if !self.connected {
             return;
         }
-        if let Some(msg) = self.pack_mirror.sync_message(inv, std::time::Instant::now()) {
+        if let Some(msg) = self.pack_mirror.sync_message(inv, held, std::time::Instant::now()) {
             let encoded = ProtocolCodec::encode_client(&msg);
             let _ = self.socket.send(&encoded);
         }
+    }
+
+    /// THE FURNACE-LEDGER SENDER (protocol v9): while connected, a
+    /// furnace slot move or a completed smelt is SENT, not made — the
+    /// server's commitment account pays, and the verdict moves the
+    /// slot. One call per intent (a click, a finished smelt); a fresh
+    /// retry is a fresh request.
+    pub fn request_smelt(&self, req_id: u64, op: lf_protocol::SmeltOp) {
+        let msg = ProtocolCodec::encode_client(&ClientMessage::SmeltRequest { req_id, op });
+        let _ = self.socket.send(&msg);
     }
 
     /// Drain incoming server messages (also prunes stale remotes).

@@ -1,5 +1,132 @@
 # CHANGELOG
 
+## 2026-09-18 — The furnace is the server's fire: server-side smelting over real UDP (loop 469)
+
+- Closed STATE's next_task item (2) — the last player-facing
+  consumption tier that fabricates its own output (smelting), chosen
+  over the windowed two-client route per next_task's own rule and the
+  465–468 authority-gap precedent. Until now a connected player's
+  furnace was fully client-local: ore committed to a fire, the burn,
+  and every bar it yielded were the client's own say-so. A lying
+  client could smelt ore it never carried; even an honest client's
+  bars reached the ledger only through its own claim.
+- THE WIRE (lf_protocol, v9): `SmeltRequest { req_id, op: SmeltOp }` —
+  `Deposit` (furnace pos + slot + item + u32 count), `Withdraw` (same
+  shape), `SmeltDone` (furnace pos + input) — and
+  `ServerMessage::Smelt(SmeltVerdict { req_id, granted, reason })`,
+  delivered to the smelter ALONE. THE VERDICT CARRIES NO ITEM DELTA,
+  on purpose: the client applied nothing before it (deposits and
+  withdrawals WAIT for the verdict), so a grant means "apply the move
+  you asked for" and the PackSync claim stays exact in both UDP
+  orderings. PROTOCOL_VERSION 8 -> 9 (matched binaries; the existing
+  gate rejects mismatched peers).
+- THE SERVER (lf_server): THE FURNACE ACCOUNT — one commitment account
+  per (player, furnace pos): committed inputs, committed fuel items,
+  backed output bars, and a banked-burn f32. THE FURNACE-OP LAW (the
+  shared pure fn `smelt_op`, unit-lawed): a deposit funds commitments
+  (fuel banks its seconds the moment it is committed; an item with no
+  burn time banks none — junk in the fuel slot sits, withdrawable,
+  never burned); a withdrawal pays out of them (THE UNBURNED-ITEM LAW:
+  a fuel item is withdrawable only while its seconds remain banked —
+  an unburned coal leaves, a burned one cannot be taken back out); a
+  smelt-done transforms one committed input plus SMELT_TIME of banked
+  burn into one BACKED output bar of the realm's own smelt law
+  (`lf_game::smelting::smelt_result` — the same table offline plays;
+  what the fire cannot smelt, it does not yield). THE BURN
+  RECONCILIATION keeps committed fuel within the banked seconds as
+  smelts spend them — whole burned items leave the commitments in a
+  deterministic id-sorted order, so replayed sessions agree. Ledger
+  pre-checks run before the account op (a deposit must be payable; a
+  withdrawal's grant must fit the ledger's own 36-slot law — the
+  escrow trial idiom), so a committed account op applies its ledger
+  moves unconditionally. The replay window (the craft pays-once law's
+  smelting twin) answers a duplicated datagram with a no-op refusal.
+  Goodbye burns out the leaver's accounts.
+- THE CLIENT (lf_client): THE FURNACE TICK IS THE ONE SMELT-DONE SITE —
+  the output-slot count before/after the tick is the completion
+  detector; each completion reports to the server (bounded in-flight
+  list) and a REFUSED report reverts that furnace's own delta (the
+  input returns to its slot, the unbacked bar leaves — it could never
+  have been withdrawn, since withdrawals pay from the server's
+  backing): at-most-once, never fabricated. THE SLOT GATE (ui.rs `furnace_slot`)
+  is the one site for all three slots: offline the click is the move
+  exactly as shipped; online the click's own before/after diff is read
+  by the pure `furnace_move_intent` as at most ONE directional move (a
+  swap of two different stacks is two intents and refuses with a
+  hint), the click is then UNDONE, the request is sent, and ONE
+  player-intent move is in flight at a time — the storage rows freeze
+  with a hint while it settles. THE RESOLVER is the one applier: a
+  granted move settles exactly as asked (a furnace that vanished under
+  the verdict never eats the goods); a refused deposit whose UI closed
+  does NOT re-return the goods `close_ui` already returned — the
+  proof-traced duplication bug, found by tracing the closed-UI paths
+  before running the battery and fixed. THE PACK CLAIM IS TRUE
+  (net.rs): the snapshot now aggregates the pack slots PLUS the held
+  cursor — goods in hand are carried. Without it, a drift upload
+  between the pack pick-up and the furnace deposit would mis-size the
+  ledger against the very goods being committed; with it every furnace
+  op is claim-invisible and ledger-exact in both UDP orderings.
+- 11 NEW LAWS (root 534 -> 545; lf_protocol 7 -> 8, lf_server 23 ->
+  30, lf_client 110 -> 113): the smelt round-trip codec law; the
+  furnace-account unit law (unfunded smelts refuse by name; junk fuel
+  banks nothing; three smelts spend exactly one coal; backed bars
+  withdraw; a fourth refuses; a burned coal cannot return; zero-count
+  ops refuse); the deterministic reconciliation law (a mixed
+  coal/log/stick fire spends kinds id-first); the funded-deposit wire
+  law (the ledger pays, the peer hears nothing, an unpaid deposit
+  refuses with a reason); the backed-bar wire law (the full loop: 3
+  ore + fuel committed, exactly 3 smelts granted, exactly 3 bars
+  withdrawable, a fourth refuses, the ledger exact through the trade
+  gate alone); the pay-once replay wire law; the two-fires wire law
+  (one furnace's fuel never funds another's smelt); the burn-out wire
+  law (Goodbye drops the commitments); the carried-hand law (the claim
+  includes the cursor; committing the hand is claim-invisible — no
+  drift, no upload); the furnace-move-intent unit law (whole/merge/
+  one-at-a-time deposits, whole/split pick-ups, no-op clicks, swaps
+  refuse); the furnace source law (the tick is the one SmeltDone site,
+  the Smelt arm the one resolver, the slot gate the one move sender —
+  every sender guarded on a live session).
+- REGRESSION: cargo test --workspace 545 green / 0 failed (xtask's 12
+  included; = loop 468's 534 + 11); make smoke OK (headless logic +
+  GUI liveness, re-run on the final binary); FULL vistest battery 110
+  scenes [ok] / 0 FAIL exit-0 across TWO runs (the second on the final
+  code) with every committed PNG byte-identical (md5
+  462b2318ed4c98d9a882266cd81fbd7d before == after) — singleplayer
+  render paths pixel-proven unchanged; `--features steam` lib +
+  examples compile clean with the v9 wire (the v8 lesson applied
+  proactively); runtimes refreshed (dist/ dmg + linux tarball + .app
+  + server); Windows exe honestly skipped (mingw absent); POORCRAFT
+  3D untouched; the six windowed_wild_*.png dirties remain
+  deliberately NOT staged. PERF: not applicable — one small request
+  datagram per furnace intent and per completed smelt (one per 10 s of
+  actual burning), one small verdict back; the server adds one bounded
+  map update per op; zero singleplayer cost (offline branches
+  unchanged). LORE: canon touched: none — multiplayer economy
+  plumbing (the 465/466/467/468 precedent); the furnace law is the
+  existing smelt/fuel tables; no faction, place, event, term, NPC,
+  item, or spell data changed; no new canon text (rejection reasons
+  are UI hints). Canon preserved: the chronicle as the player-authored
+  history; Anima as a material energetic property (a furnace is fuel
+  and fire, not a miracle — every bar is paid from ore and burn the
+  realm knows); no identity assigned. World expression: in shared
+  Valdenmoor the forge gives what the realm's ledger can pay for — ore
+  committed to a fire is ore the adventurer truly carried, a burned
+  fuel is spent, and every bar the fire yields is the realm's own
+  accounting. Migration: PROTOCOL_VERSION bump only (matched
+  client+server; old peers rejected by the existing gate) — no save
+  format, no block/item change, GENERATOR_VERSION unchanged,
+  ClientSave untouched (furnace commitment accounts are session-local
+  server memory). Deferred honestly: eating (the last client-side
+  consumption tier of the same shape — server-side eating is the same
+  gated-request shape and closes the played loop's consumption list);
+  the lying-PackSync bootstrap tier (a modified client's claim can
+  re-seed the ledger — named at 466, unchanged by this loop); the
+  forged sim-claim residual (claim-free ops, the client-simmed tier's
+  trust); client-local block entities (chest contents, furnace-slot
+  persistence across peers — the sim/block-entity sync tier); the
+  windowed two-client route; hardcoded connect name "smith" (audit
+  note).
+
 ## 2026-09-17 — The placed block is paid for: server-side place-item payment over real UDP (loop 468)
 
 - Closed STATE's next_task item (2)'s wider half — server-side
