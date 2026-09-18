@@ -38,6 +38,18 @@ pub struct Inventory {
     pub slots: Vec<Option<ItemStack>>, // 36 main/hotbar + 4 armor + 1 offhand = 41
 }
 
+/// THE SPAWN-INVENTORY LAW: the realm's starting pack — what every
+/// freshly-woken adventurer carries before their first find. ONE source for
+/// both doors of the same law: the offline world creates the player's pack
+/// from it, and the dedicated server seeds (and grants) each joiner's
+/// canonical ledger from it, so online and offline beginnings are the same
+/// realm's welcome and no client word can seed the ledger instead. Today the
+/// realm welcomes with empty hands (the starter quests begin at a tree); if
+/// it ever welcomes with more, both doors move together.
+pub fn spawn_inventory() -> Inventory {
+    Inventory::new()
+}
+
 impl Inventory {
     pub fn new() -> Self {
         Self {
@@ -108,5 +120,18 @@ mod tests {
         assert_eq!(rem, 0);
         assert_eq!(inv.slots[3].as_ref().unwrap().count, 1);
         assert_eq!(inv.slots[4].as_ref().unwrap().count, 1);
+    }
+
+    /// THE SPAWN-INVENTORY LAW: the realm's welcome is one pack — 41
+    /// legal slots, empty hands — and every door that opens the realm
+    /// (an offline world, a server's joiner ledger) reads this one fn.
+    #[test]
+    fn the_spawn_inventory_is_the_realm_s_one_welcome() {
+        let kit = spawn_inventory();
+        assert_eq!(kit.slots.len(), 41, "the kit is a physically legal pack");
+        assert!(kit.slots.iter().all(|s| s.is_none()),
+            "the realm welcomes with empty hands — the starter quests begin at a tree");
+        // Deterministic: two doors open the same welcome.
+        assert_eq!(spawn_inventory().slots.len(), kit.slots.len());
     }
 }

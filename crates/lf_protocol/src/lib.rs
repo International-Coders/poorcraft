@@ -3,14 +3,14 @@ use serde::{Deserialize, Serialize};
 /// Messages a client sends to the server.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ClientMessage {
-    /// `creative` is the v8 join-mode claim: the joiner's honest game mode,
-    /// fixed for the session (a world is created in one mode). The server
-    /// records it per player: a CREATIVE joiner's placements are ungated
-    /// (creative is infinite by its own law), a SURVIVAL joiner's
-    /// placements must pay (the place-payment gate). It is a client
-    /// claim of prior-session state — the same honest-bootstrap tier as
-    /// PackSync, not a server-verified fact.
-    Hello { name: String, protocol_version: u32, creative: bool },
+    /// v11: the join carries NO mode claim. The joiner's name and protocol
+    /// version are all it says; the game mode is THE SERVER'S WORLD'S OWN
+    /// fact, granted in [`ServerMessage::Welcome`] (`creative`). The v8
+    /// `creative: bool` claim was the last bootstrap tier a modified
+    /// client could speak to escape the gates — a survival realm's
+    /// placements and bites are paid, whatever the connecting client
+    /// would have preferred to be.
+    Hello { name: String, protocol_version: u32 },
     /// Player state, sent ~20/s.
     Position { pos: [f32; 3], yaw: f32, pitch: f32 },
     /// Request to change a block (validated/applied by the server).
@@ -48,17 +48,21 @@ pub enum ClientMessage {
     TradeAccept { offer_id: u64 },
     /// Cancel/decline a standing offer (either side).
     TradeCancel { offer_id: u64 },
-    /// THE PACK-SYNC LAW (protocol v6): the client's claim of its own
-    /// pack — aggregated (item id, count) pairs, counts as u32 because a
-    /// full pack can hold far more than 255 of one item — sent on join
-    /// and whenever the live pack drifts from the last uploaded
-    /// snapshot. The server rebuilds its per-player canonical LEDGER
-    /// from it; the ledger is what the trade escrow gates against and
-    /// what mined yields pay into. A client-claimed seed is the honest
-    /// bootstrap (the server cannot know prior-session history);
-    /// server-known deltas (grants, escrow moves) are applied by the
-    /// server itself, so an honest client's ledger never overcounts its
-    /// real pack.
+    /// THE PACK-SYNC LAW (protocol v6, reconciled v11): the client's claim
+    /// of its own pack — aggregated (item id, count) pairs, counts as u32
+    /// because a full pack can hold far more than 255 of one item — sent on
+    /// join and whenever the live pack drifts from the last uploaded
+    /// snapshot. What the claim may DO depends on the realm's mode, which
+    /// the server alone knows: in a CREATIVE session the claim seeds the
+    /// ledger as before (nothing there is ledger-gated — creative is
+    /// infinite by its own law — but the trade escrow still reads the
+    /// ledger). In a SURVIVAL session the claim is REMOVE-ONLY
+    /// reconciliation: the ledger is the server's (seeded with the realm's
+    /// spawn kit at join, grown only by server-known flows), and a claim
+    /// can only shrink it toward the client's word — a claimed surplus
+    /// adds nothing (THE LYING-CLAIM LAW: a modified client cannot conjure
+    /// goods into the gates), a claimed shortfall prunes (a lost verdict's
+    /// remainder is reclaimed — the window errs safe, never fabricated).
     PackSync { items: Vec<(String, u32)> },
     /// THE CRAFT-REQUEST LAW (protocol v7): while connected, a workbench
     /// craft is a REQUEST, not a local act — the client names the recipe
@@ -177,8 +181,13 @@ pub struct EatVerdict {
 /// Messages the server sends to clients.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ServerMessage {
-    /// Acceptance + your id + world seed + current player list.
-    Welcome { your_id: u64, seed: u64, players: Vec<(u64, String)> },
+    /// Acceptance + your id + world seed + current player list + THE
+    /// REALM'S MODE (v11): `creative` is the server world's own game mode —
+    /// the authority the joiner ADOPTS for the session's online gates (a
+    /// creative realm's placements and bites are free; a survival realm's
+    /// are paid from the ledger), exactly as the seed adoption adopts the
+    /// terrain. No client word can change it.
+    Welcome { your_id: u64, seed: u64, players: Vec<(u64, String)>, creative: bool },
     /// Snapshot of all player states (id, position, yaw), ~20/s.
     PlayerStates { states: Vec<(u64, [f32; 3], f32)> },
     BlockUpdate { x: i32, y: i32, z: i32, block: u32 },
@@ -245,11 +254,12 @@ pub struct PlaceClaim {
     pub item: String,
 }
 
-/// v10: the bite-ledger round trip — a survival bite is paid food from
-/// the eater's canonical ledger, gated by the realm's own catalog.
+/// v11: the bootstrap is the server's — the mode is the realm's own word
+/// (Welcome `creative`), the joiner's ledger is seeded by the realm's spawn
+/// kit, and a survival session's pack claim is remove-only reconciliation.
 /// Server and client ship together; the existing version gate rejects
 /// mismatched peers.
-pub const PROTOCOL_VERSION: u32 = 10;
+pub const PROTOCOL_VERSION: u32 = 11;
 
 /// THE PACK-SYNC CADENCE: a drifted pack is uploaded at most this often
 /// (the client's PackMirror enforces it), except after a server-side
@@ -295,7 +305,7 @@ mod trade_tests {
         };
         let back: ServerMessage = bincode::deserialize(&bincode::serialize(&resolved).unwrap()).unwrap();
         assert_eq!(back, resolved);
-        assert_eq!(PROTOCOL_VERSION, 10);
+        assert_eq!(PROTOCOL_VERSION, 11);
     }
 
     /// v7: the craft round trip — the request names the recipe spec and a
@@ -335,7 +345,7 @@ mod trade_tests {
             Some(refused),
             "a refusal carries its reason"
         );
-        assert_eq!(PROTOCOL_VERSION, 10);
+        assert_eq!(PROTOCOL_VERSION, 11);
     }
 
     /// v9: the furnace-ledger round trip — every op survives the wire,
@@ -397,7 +407,7 @@ mod trade_tests {
             Some(refused),
             "a smelt refusal carries its reason"
         );
-        assert_eq!(PROTOCOL_VERSION, 10);
+        assert_eq!(PROTOCOL_VERSION, 11);
     }
 
     /// v10: the bite-ledger round trip — the request names the food and
@@ -428,7 +438,7 @@ mod trade_tests {
             Some(refused),
             "an eat refusal carries its reason"
         );
-        assert_eq!(PROTOCOL_VERSION, 10);
+        assert_eq!(PROTOCOL_VERSION, 11);
     }
 
     /// v6/v8: the mine claim, the place-payment claim, and the pack sync round-trip.
@@ -466,12 +476,19 @@ mod trade_tests {
             Some(paid_place),
             "the place-payment claim survives the wire"
         );
-        // v8: the join-mode claim rides Hello.
-        let hello = ClientMessage::Hello { name: "smith".into(), protocol_version: PROTOCOL_VERSION, creative: true };
+        // v11: the join carries NO mode claim — the realm's mode is the
+        // server's own word, granted in Welcome.
+        let hello = ClientMessage::Hello { name: "smith".into(), protocol_version: PROTOCOL_VERSION };
         assert_eq!(
             ProtocolCodec::decode_client(&ProtocolCodec::encode_client(&hello)),
             Some(hello),
-            "the creative join claim survives the wire"
+            "the join survives the wire carrying no mode claim"
+        );
+        let welcome = ServerMessage::Welcome { your_id: 3, seed: 9, players: vec![], creative: true };
+        assert_eq!(
+            ProtocolCodec::decode_server(&ProtocolCodec::encode_server(&welcome)),
+            Some(welcome),
+            "the realm's mode grant survives the wire"
         );
         let grant = ServerMessage::ItemGrant { items: vec![("stone".into(), 1), ("raw_iron".into(), 2)] };
         assert_eq!(
@@ -487,7 +504,7 @@ mod trade_tests {
             Some(sync),
             "the pack claim survives the wire (u32 counts: a pack holds >255 of one item)"
         );
-        assert_eq!(PROTOCOL_VERSION, 10);
+        assert_eq!(PROTOCOL_VERSION, 11);
     }
 }
 
@@ -539,7 +556,7 @@ mod tests {
     #[test]
     fn client_roundtrip() {
         let msgs = vec![
-            ClientMessage::Hello { name: "zari".into(), protocol_version: PROTOCOL_VERSION, creative: false },
+            ClientMessage::Hello { name: "zari".into(), protocol_version: PROTOCOL_VERSION },
             ClientMessage::Position { pos: [1.0, 65.0, 2.0], yaw: 0.5, pitch: -0.1 },
             ClientMessage::SetBlock { x: -3, y: 70, z: 12, block: 2, mine: None, place: None },
             ClientMessage::Chat { text: "hello world".into() },
@@ -559,7 +576,7 @@ mod tests {
     #[test]
     fn server_roundtrip() {
         let msgs = vec![
-            ServerMessage::Welcome { your_id: 7, seed: 12345, players: vec![(7, "zari".into())] },
+            ServerMessage::Welcome { your_id: 7, seed: 12345, players: vec![(7, "zari".into())], creative: false },
             ServerMessage::PlayerStates { states: vec![(7, [0.0, 64.0, 0.0], 1.5)] },
             ServerMessage::BlockUpdate { x: 1, y: 2, z: 3, block: 0 },
             ServerMessage::Chat { from: "zari".into(), text: "hi".into() },

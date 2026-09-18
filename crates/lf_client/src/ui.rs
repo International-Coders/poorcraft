@@ -4850,7 +4850,7 @@ impl GameState {
         let reveal = kit::ease_out_cubic((self.menu_reveal / 0.35).clamp(0.0, 1.0));
         let mut go_back = false;
         let mut connect: Option<String> = None;
-        let mut host_slot: Option<String> = None;
+        let mut host_slot: Option<(String, u64, crate::slots::GameMode)> = None;
         let slots = crate::slots::list_slots();
         egui::CentralPanel::default()
             .frame(egui::Frame::new())
@@ -4931,7 +4931,12 @@ impl GameState {
                             if kit::menu_link(ui, "Start Server", "mp-host", reveal, true, !slots.is_empty()) {
                                 let idx = self.mp_host_idx.min(slots.len().saturating_sub(1));
                                 if let Some(meta) = slots.get(idx) {
-                                    host_slot = Some(meta.name.clone());
+                                    // THE REALM'S MODE IS THE HOST'S WORD
+                                    // (v11): the hosted server is started
+                                    // with the slot's own seed and mode —
+                                    // a creative world hosts a creative
+                                    // realm; a survival world a gated one.
+                                    host_slot = Some((meta.name.clone(), meta.seed, meta.game_mode));
                                 }
                             }
                             ui.label(egui::RichText::new("runs the dedicated LOREFORGE server, then connects")
@@ -4953,13 +4958,16 @@ impl GameState {
             self.menu_reveal = 0.0;
         }
         if let Some(addr) = connect {
-            // THE JOIN-MODE CLAIM (protocol v8): the joiner's honest game
-            // mode rides Hello — creative joins place ungated, survival
-            // joins pay for every placement.
-            let creative = self.game_mode == crate::slots::GameMode::Creative;
-            match crate::net::NetClient::connect(&addr, "smith", creative) {
+            // v11: the join carries NO mode claim — the realm's mode is
+            // the server's own word, granted in Welcome and adopted by the
+            // session (the seed adoption's law, for gates).
+            match crate::net::NetClient::connect(&addr, "smith") {
                 Ok(n) => {
                     self.net = Some(n);
+                    // The realm has not spoken yet — the gated default
+                    // until its Welcome grants the mode.
+                    self.net_granted_creative = false;
+                    self.place_in_flight.clear();
                     self.chat_log = vec![format!("joining {}...", addr)];
                     self.close_ui();
                 }
@@ -4968,8 +4976,8 @@ impl GameState {
                 }
             }
         }
-        if let Some(slot) = host_slot {
-            self.mp_status = Some(start_dedicated_server(&slot, &self.mp_port));
+        if let Some((slot, seed, mode)) = host_slot {
+            self.mp_status = Some(start_dedicated_server(&slot, seed, mode, &self.mp_port));
         }
     }
 
@@ -5431,20 +5439,33 @@ fn world_type_glyph(world_type: lf_worldgen::WorldType) -> &'static str {
 /// Spawn the dedicated server binary for a slot (C3 Host World). Returns a
 /// user-facing status line: honest about a missing binary instead of
 /// pretending a server started.
-fn start_dedicated_server(slot: &str, port: &str) -> String {
+fn start_dedicated_server(slot: &str, seed: u64, mode: crate::slots::GameMode, port: &str) -> String {
     let candidates = ["target/release/loreforge-server", "./loreforge-server", "../loreforge-server"];
     let bin = candidates.iter().find(|c| std::path::Path::new(c).exists());
     match bin {
         Some(bin) => {
             let port_num: u16 = port.parse().unwrap_or(25565);
-            match std::process::Command::new(bin)
-                .arg("--world").arg(slot)
+            // THE REALM'S MODE IS THE HOST'S WORD (v11): the slot's own
+            // seed and mode ride to the dedicated server — its Welcome
+            // will grant exactly what the hosted world is.
+            let mut cmd = std::process::Command::new(bin);
+            cmd.arg("--world").arg(slot)
                 .arg("--port").arg(port_num.to_string())
+                .arg("--seed").arg(seed.to_string());
+            if mode == crate::slots::GameMode::Creative {
+                cmd.arg("--creative");
+            }
+            match cmd
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .spawn()
             {
-                Ok(_) => format!("server for '{}' starting on :{} — connect to 127.0.0.1:{}", slot, port_num, port_num),
+                Ok(_) => format!(
+                    "server for '{}' starting on :{} ({}) — connect to 127.0.0.1:{}",
+                    slot, port_num,
+                    if mode == crate::slots::GameMode::Creative { "creative" } else { "survival" },
+                    port_num,
+                ),
                 Err(e) => format!("could not launch server: {}", e),
             }
         }

@@ -1,5 +1,118 @@
 # CHANGELOG
 
+## 2026-09-18 — The bootstrap is the server's: protocol v11 closes the lying-PackSync tier (loop 472)
+
+- Closed STATE's next_task item (1) — the TOP carried item since 471,
+  named at 466. Until now a connected client's word seeded its own
+  canonical ledger (the join-time PackSync claim replaced it wholesale —
+  a modified client could conjure a full pack of phantom goods into
+  every gate), and its Hello claimed its own game mode (a lying
+  `creative` escaped the placement and bite gates entirely). Every
+  player-facing flow was already server-computed (465–470); the ledger
+  itself still took the client's word for what it held. Now the
+  bootstrap is the server's.
+- THE WIRE (lf_protocol v11): `Hello` carries NO mode claim — the v8
+  `creative: bool` is deleted; `Welcome` carries THE REALM'S MODE
+  (`creative`), the server world's own fact, which the joiner ADOPTS for
+  the session's online gates exactly as the seed adoption adopts the
+  terrain. PROTOCOL_VERSION 10 → 11 (matched binaries; the existing
+  gate rejects mismatched peers).
+- THE SERVER (lf_server): `Server::start` is the gated survival realm,
+  `start_creative` opens it, `start_with_mode` is the shared door. The
+  joiner's ledger is seeded by THE REALM'S SPAWN KIT — new shared law
+  `lf_game::survival::spawn_inventory`, the ONE source the offline
+  world's create_world builds its pack from too (empty hands today; the
+  starter quests begin at a tree) — and the same rows are granted to the
+  joiner, so pack and ledger begin equal by construction. THE PACKSYNC
+  ARM SPLITS BY THE REALM'S MODE: in a creative session the claim seeds
+  the ledger as before (nothing there is ledger-gated but the trade
+  escrow); in a survival session the claim is REMOVE-ONLY
+  RECONCILIATION — each slot settles at min(held, claimed), so a
+  surplus claim adds nothing (THE LYING-CLAIM LAW: a modified client
+  can at most strip its own ledger) and a shortfall prunes exactly that
+  (a lost verdict's remainder is reclaimed — the window errs safe,
+  never fabricated; slot legality survives because the law only lowers
+  counts).
+- THE CLIENT (lf_client): the session's consumption authority is the
+  server's word — `net_granted_creative`, adopted at every Welcome with
+  a legible hint ("the realm is survival — everything is paid from the
+  ledger"); `session_consumes_items()` answers it while connected and
+  the local world's own mode offline (byte-equal). The place-claim
+  funnel, the bite sender, and every consume-by-the-session door
+  (placements, the symmetry mirror, scroll learning, the local bite)
+  gate on it — a creative realm spends nothing even under a survival
+  local world; a survival realm is paid even under a creative local
+  world. THE REFUSED-PLACEMENT UNDO: a claimed placement's local
+  consume is pending in a bounded ring (8 entries, 2 s) until the realm
+  answers — accepted silently (no-self-echo; the entry ages out),
+  refused by the corrective echo naming the position with a different
+  block, in which case the pack regains the item (the realm refused, so
+  nothing was paid; under v10 the drift re-claim healed this — the
+  remove-only claim needs the undo to be explicit).
+- THE HONEST COSTS, NAMED: goods the server never counted are not the
+  realm's to vouch — a joining player's prior-session wealth, and
+  client-simmed production (mob drops, machine output, vassal goods),
+  stay pack-local while the gates refuse them by name, until each
+  source gains server authority (the named next tiers). And a verdict
+  lost in flight now STRANDS its consumed side (the claim cannot
+  re-add); the replay windows remembering their answers — a retried
+  req_id re-delivering the original verdict — is the honest self-heal,
+  queued as the next task.
+- EN-ROUTE BUG FIXED: the client's "Start Server" button passed
+  `--world/--port` flags the dedicated binary never parsed (it read
+  positional argv), so hosting from the UI died on a failed bind,
+  silently (stdio nulled). The binary now parses flags — pure
+  `ServerArgs` (--world slot dir, --port, --seed, --creative; the
+  legacy positional [bind] [seed] kept) with 4 laws — and the button
+  starts the slot's own seed AND its own mode: a creative world hosts a
+  creative realm, a survival world a gated one. THE REALM'S MODE IS THE
+  HOST'S WORD.
+- 10 NEW LAWS: the server's lying-claim law (a rich phantom claim
+  conjures nothing — kit-seeded ledger, phantom placements refuse),
+  remove-only reconciliation (surplus adds nothing, shortfall prunes,
+  absence empties — over real UDP), and the realm's-mode grant (Welcome
+  carries the server's own word, survival and creative); the client's
+  session-authority source law (the server's word gates exactly the
+  seven consumption doors) and the join-carries-no-claim source law;
+  the lf_game spawn-kit law (one legal empty pack — both doors of the
+  same welcome); the dedicated binary's argv laws (host decides the
+  mode; the Start Server flags parse; legacy positional survives; bare
+  defaults). REGRESSION: cargo test --workspace 562 green / 0 failed,
+  exit 0 (xtask's 12 included = loop 471's 552 + 10); make smoke OK;
+  make twoclient (release) PASS in 3.62 s with the route PNGs
+  byte-identical to the committed ones (a6a80ee2 / 66f3602c) — the
+  peer still sees the dig land over v11; FULL vistest battery 110
+  scenes [ok] / 0 FAIL exit-0 with every committed PNG byte-identical
+  (digest a8150ffb pre == post) — singleplayer render paths
+  pixel-proven unchanged; --features steam compiles clean with the v11
+  wire (the v8/v9/v10 lesson applied proactively); runtimes refreshed
+  (dist/ dmg hdiutil VALID + linux tarball + .app binary + server);
+  Windows exe honestly skipped (mingw absent); the six
+  windowed_wild_*.png dirties remain deliberately NOT staged. PERF: not
+  applicable — the wire shrinks (Hello drops a bool, Welcome gains
+  one), the survival PackSync arm replaces a full ledger rebuild with
+  one bounded per-slot pass, and the undo ring is a bounded idle
+  structure; zero singleplayer cost. LORE: canon touched: none —
+  multiplayer economy plumbing (the 465–471 precedent); the spawn kit
+  is the realm's existing (empty) welcome; no faction, place, event,
+  term, NPC, item, or spell data changed; no new canon text (mode hints
+  are UI lines). Canon preserved: the chronicle as the player-authored
+  history; Anima as a material energetic property; no identity assigned
+  (the joiner stays nameless to the realm beyond its spoken name).
+  World expression: in shared Valdenmoor the realm's ledger vouches
+  only what it counted — a joiner arrives with the realm's own welcome
+  and keeps what the realm can vouch; what it did not count, its gates
+  refuse, and every refusal says why. Migration: PROTOCOL_VERSION bump
+  only (matched client+server; old peers rejected by the existing
+  gate) — no save format, no block/item change, GENERATOR_VERSION
+  unchanged, ClientSave untouched (the pack stays local; vouching is
+  per-session server state). Deferred honestly: the verdict
+  re-delivery (the replay windows re-answer a retried req_id with the
+  original verdict — the lost-verdict self-heal, now the TOP item); the
+  unvouched-wealth tiers (mob drops, machine output, vassal goods);
+  route extensions (the peer seeing a placement land; two real clients
+  trading); the forged sim-claim residual; client-local block
+  entities; hardcoded connect name "smith" (audit note).
 ## 2026-09-18 — The peer sees the dig land: the two-client route over real UDP (loop 471)
 
 - Closed STATE's next_task item (1) — the windowed two-client route,

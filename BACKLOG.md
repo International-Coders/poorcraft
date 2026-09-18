@@ -11,6 +11,46 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] The bootstrap is the server's: protocol v11 closes the
+      lying-PackSync tier (2026-09-18, loop 472, root workspace):
+      closed STATE's next_task item (1), TOP since 471, named at 466.
+      Until now the join-time PackSync claim replaced the joiner's
+      canonical ledger wholesale (a modified client conjured a full
+      pack of phantom goods into every gate) and Hello claimed its own
+      game mode (a lying creative escaped the gates). Wire v11: Hello
+      carries NO mode claim; Welcome carries THE REALM'S MODE — the
+      server world's own fact, adopted by the joiner for the session's
+      online gates as the seed adoption adopts terrain. THE SERVER:
+      the joiner's ledger is seeded by the realm's spawn kit
+      (lf_game::survival::spawn_inventory — the ONE source the offline
+      world's create_world uses too) and granted back to the joiner;
+      the PackSync arm splits by the realm's mode — creative keeps the
+      claim-seeded ledger, survival goes REMOVE-ONLY (per-slot
+      min(held, claimed): a surplus claim adds nothing — THE
+      LYING-CLAIM LAW; a shortfall prunes; errs safe, never
+      fabricated). THE CLIENT: the session's consumption authority is
+      the server's word (net_granted_creative, adopted every Welcome +
+      hint; session_consumes_items gates the place-claim funnel, the
+      bite sender, and every consume door; offline falls back to the
+      local mode byte-equal); the refused-placement undo ring re-adds
+      the pay item when the corrective echo names the position
+      (nothing was paid). EN-ROUTE BUG FIXED: the Start Server button's
+      --world/--port flags were never parsed by the dedicated binary
+      (hosting from the UI died on a failed bind) — the binary now
+      parses --world/--port/--seed/--creative (pure ServerArgs + 4
+      laws) and hosts the slot's own seed AND mode. Honest costs named:
+      unvouched wealth (prior-session packs, client-simmed production)
+      stays pack-local until each source gains server authority; a
+      lost verdict now strands its consumed side (verdict re-delivery
+      is the next task). Evidence: 10 new laws; workspace 562/0 (xtask
+      12 included); smoke OK; make twoclient release PASS with route
+      PNGs byte-identical (the peer sees the dig land over v11);
+      battery 110 scenes exit-0 with committed PNGs byte-identical;
+      steam feature compiles clean with v11; runtimes fresh. Deferred
+      honestly: verdict re-delivery (TOP); the unvouched-wealth tiers
+      (mob drops, machines, vassals); route extensions; the forged
+      sim-claim residual; client-local block entities.
+
 - [x] The peer sees the dig land: the two-client route over real UDP
       (2026-09-18, loop 471, root workspace): closed STATE's next_task
       item (1) — the windowed two-client route, the GPU-side end of the

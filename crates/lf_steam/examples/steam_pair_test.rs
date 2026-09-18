@@ -18,7 +18,7 @@ fn main() {
     // client -> host: protocol-v4 Hello
     let hello = ProtocolCodec::encode_client(&ClientMessage::Hello {
         name: "pair-probe".into(),
-        protocol_version: PROTOCOL_VERSION, creative: false,
+        protocol_version: PROTOCOL_VERSION,
     });
     assert!(host_end.receive_raw(16).is_empty(), "nothing queued before send");
     assert!(client_end.send_raw(&hello, true), "client send failed");
@@ -38,6 +38,7 @@ fn main() {
                         your_id: 1,
                         seed: 42,
                         players: vec![(1, name)],
+                        creative: false, // the realm's own word (v11)
                     });
                     assert!(host_end.send_raw(&welcome, true), "host send failed");
                     host_end.flush();
@@ -69,7 +70,7 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     match got {
-        Some(ServerMessage::Welcome { your_id, seed, players }) => {
+        Some(ServerMessage::Welcome { your_id, seed, players, .. }) => {
             println!(
                 "EXCHANGE PASS: Welcome {{ your_id: {your_id}, seed: {seed}, players: {} }}",
                 players.len()

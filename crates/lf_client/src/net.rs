@@ -209,7 +209,7 @@ mod tests {
 
         let first = mirror.sync_message(&inv, None, t0).expect("the join uploads the bootstrap claim");
         assert_eq!(first, ClientMessage::PackSync { items: vec![] },
-            "an empty pack is still claimed — the ledger learns the pack is empty");
+            "an empty pack is still claimed — what it does is the realm's mode (the server's word)");
         assert!(mirror.sync_message(&inv, None, t0).is_none(), "no drift, no upload");
 
         let mut inv = Inventory::new();
@@ -327,6 +327,27 @@ mod tests {
                     "{reason:?} edits claim no payment — only placements pay");
         }
     }
+
+    /// THE JOIN CARRIES NO MODE CLAIM (protocol v11): `connect` speaks a
+    /// Hello of name + protocol version only — the realm's mode is the
+    /// server's own word, granted in Welcome and adopted by the session
+    /// (GameState's net_granted_creative). A modified client cannot ask
+    /// to be creative anymore.
+    #[test]
+    fn the_join_carries_no_mode_claim() {
+        let source = include_str!("net.rs");
+        // The impl is the LAST "impl NetClient" (the tests' own needles
+        // can never be it) — search from it so the tests' own needles
+        // can never count.
+        let impl_at = source.rfind("impl NetClient {").expect("the client impl exists");
+        let live = &source[impl_at..];
+        let hello = live.find("ClientMessage::Hello {").expect("the join is built here");
+        let hello_region = &live[hello..hello + 220];
+        assert!(!hello_region.contains("creative"),
+            "the join carries no mode claim — the realm's word decides");
+        assert!(!live.contains("creative: bool"),
+            "no creative parameter survives anywhere in the client's net layer");
+    }
 }
 
 pub struct NetClient {
@@ -341,17 +362,20 @@ pub struct NetClient {
     last_send: std::time::Instant,
 }
 
-/// THE PACK MIRROR (protocol v6): the client's side of the pack-sync
-/// law. The server holds a canonical LEDGER of what each player carries;
-/// this mirror keeps the client's last uploaded claim and detects drift.
-/// Uploads happen on join (the bootstrap — the ledger starts empty) and
-/// whenever the live pack's aggregated contents drift from the last
-/// claim, rate-limited to [`lf_protocol::PACK_SYNC_MIN_INTERVAL`] —
-/// except when a server-side delta (an ItemGrant, an accepted trade)
-/// just landed, which forces the next upload so the server's ledger is
-/// re-claimed WITH the delta inside one round trip (a stale upload can
-/// only ever remove server-known deltas, never add phantom items — the
-/// window errs safe).
+/// THE PACK MIRROR (protocol v6, reconciled v11): the client's side of
+/// the pack-sync law. The server holds a canonical LEDGER of what each
+/// player carries; this mirror keeps the client's last uploaded claim and
+/// detects drift. Uploads happen on join (the bootstrap) and whenever the
+/// live pack's aggregated contents drift from the last claim, rate-limited
+/// to [`lf_protocol::PACK_SYNC_MIN_INTERVAL`] — except when a server-side
+/// delta (an ItemGrant, an accepted trade) just landed, which forces the
+/// next upload so the server's ledger is re-claimed WITH the delta inside
+/// one round trip. What the claim DOES is the realm's mode, the server's
+/// word: in a creative session it seeds the ledger; in a survival session
+/// it is REMOVE-ONLY reconciliation (a claimed surplus adds nothing — the
+/// lying-claim law — a shortfall prunes), so the window errs safe in both
+/// UDP orderings: an upload can never fabricate, and a lost verdict's
+/// remainder is reclaimed.
 pub struct PackMirror {
     last_synced: Option<Vec<(String, u32)>>,
     last_upload: Option<std::time::Instant>,
@@ -430,14 +454,16 @@ pub struct RemotePlayer {
 }
 
 impl NetClient {
-    pub fn connect(host: &str, name: &str, creative: bool) -> std::io::Result<Self> {
+    /// v11: the join carries NO mode claim — the realm's mode is the
+    /// server's own word, granted in Welcome and adopted by the session
+    /// (the seed adoption's law, for gates instead of terrain).
+    pub fn connect(host: &str, name: &str) -> std::io::Result<Self> {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
         socket.connect(host)?;
         socket.set_nonblocking(true)?;
         let hello = ProtocolCodec::encode_client(&ClientMessage::Hello {
             name: name.to_string(),
             protocol_version: PROTOCOL_VERSION,
-            creative,
         });
         socket.send(&hello)?;
         Ok(Self {

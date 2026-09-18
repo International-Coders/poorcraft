@@ -10241,3 +10241,81 @@ pixel-gated.
 - Client-local block entities (chest contents, furnace-slot
   persistence across peers).
 - Hardcoded connect name "smith" (audit note).
+
+## 2026-09-18 — Loop 472: the bootstrap is the server's (protocol v11 closes the lying-PackSync tier)
+
+### What was done
+Closed STATE's next_task item (1), TOP since 471 (named at 466): the
+join-time PackSync claim seeded the joiner's canonical ledger wholesale
+(a modified client conjured phantom goods into every gate) and Hello
+claimed its own game mode (a lying creative escaped the placement and
+bite gates). v11 makes the bootstrap the server's: the mode is the
+realm's own word, the ledger starts at the realm's spawn kit, and a
+survival realm's pack claim is remove-only reconciliation.
+
+### Files touched
+- crates/lf_protocol/src/lib.rs (Hello drops `creative`; Welcome gains
+  `creative` — the realm's mode; PROTOCOL_VERSION 10 -> 11; the v11
+  join round-trip law; docs)
+- crates/lf_server/src/lib.rs (start_with_mode/start_creative; Player
+  drops its mode field; Hello seeds spawn_inventory + grants the kit
+  rows + Welcome carries the mode; the PackSync arm splits by the
+  realm's mode — survival remove-only min(held, claimed); the
+  creative-claim fixtures moved to start_creative; placement fixtures
+  re-funded by honest mined grants; 3 new v11 laws)
+- crates/lf_game/src/survival.rs (spawn_inventory — the realm's one
+  welcome; the kit law)
+- crates/lf_client/src/lib.rs (net_granted_creative adopted at Welcome
+  + hint; session_consumes_items — the server's word while connected,
+  the local mode offline; the funnel's place claim, the bite sender,
+  and the consume doors gate on it; the refused-placement undo ring on
+  the BlockUpdate arm; create_world's pack = spawn_inventory; the
+  session-authority source law; route connect updates)
+- crates/lf_client/src/net.rs (connect(host, name) — the claim
+  parameter deleted; the PackMirror doc reconciled; the
+  join-carries-no-claim source law)
+- crates/lf_client/src/ui.rs (the connect site drops the claim; the
+  Start Server button passes the slot's seed AND mode)
+- crates/lf_steam/{src/net_steam.rs,examples/*} (the v11 wire shapes —
+  the feature compiles clean)
+- apps/loreforge-server/src/main.rs (ServerArgs::parse — --world/
+  --port/--seed/--creative + legacy positional, 4 laws; --creative
+  starts a creative realm; FIXES the Start Server button's dead bind)
+- Cargo.lock (no new deps — unchanged from 471's dev-dep edge)
+- STATE.md / BACKLOG.md / CHANGELOG.md
+
+### How it was verified
+- cargo test --workspace: 562 green / 0 failed, exit 0 (loop 471's 552
+  + 10 new laws: 3 server v11 wire laws, 2 client source laws, 1
+  lf_game kit law, 4 server-binary argv laws).
+- make smoke: OK (headless logic + GUI liveness).
+- make twoclient (release): PASS in 3.62 s; route PNGs byte-identical
+  to the committed evidence (md5 a6a80ee29d53c81a7f0ca0fb401d4897
+  before / 66f3602cab945b89cf8720cfc62ec300 after) — the peer still
+  sees the dig land over the v11 wire.
+- FULL vistest battery: 110 scenes [ok] / 0 FAIL exit-0 with every
+  committed scene PNG byte-identical (digest a8150ffb13814ac24eb627dc
+  bc978d33 pre == post) — singleplayer render paths pixel-proven
+  unchanged.
+- --features steam: cargo check -p lf_steam --features steam
+  --examples compiles clean with the v11 wire.
+- Runtimes refreshed: dist/loreforge-macos.dmg (hdiutil VALID),
+  dist/loreforge-linux-x86_64.tar.gz, dist/loreforge.app binary,
+  dist/loreforge-server. Windows exe honestly skipped (mingw absent).
+
+### Honestly deferred
+- THE VERDICT RE-DELIVERY (now TOP): v11's honest cost made sharp — a
+  verdict lost in flight strands its consumed side (the remove-only
+  claim cannot re-add what the server consumed), and a lost craft
+  verdict also jams the queue head (pre-existing). Closure: the replay
+  windows remember their ANSWER (a retried req_id re-delivers the
+  original verdict) + a bounded client retry.
+- The unvouched-wealth tiers (each closed by server authority): mob
+  drops (hunted meat is uneatable online — the played loop's sharpest
+  cost), machine output, vassal goods.
+- Route extensions: the peer SEES a placement land; two real clients
+  trading through the escrow.
+- The forged sim-claim residual (claim-free SetBlock edits).
+- Client-local block entities (chest contents, furnace-slot
+  persistence across peers).
+- Hardcoded connect name "smith" (audit note).

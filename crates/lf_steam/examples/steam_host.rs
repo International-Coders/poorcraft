@@ -19,15 +19,16 @@ fn main() {
             match event {
                 HostEvent::PeerConnected(peer) => println!("PEER   PASS: connected {peer}"),
                 HostEvent::PeerMessage(peer, cm) => match cm {
-                    lf_protocol::ClientMessage::Hello { name, protocol_version, creative } => {
+                    lf_protocol::ClientMessage::Hello { name, protocol_version } => {
                         println!(
-                            "HELLO  PASS: {name} protocol_version={protocol_version} creative={creative}"
+                            "HELLO  PASS: {name} protocol_version={protocol_version}"
                         );
                         assert_eq!(protocol_version, lf_protocol::PROTOCOL_VERSION);
                         host.send_to(peer, &ServerMessage::Welcome {
                             your_id: 1,
                             seed: 42,
                             players: vec![(1, name)],
+                            creative: false, // the realm's own word (v11)
                         });
                         println!("WELCOME SENT");
                         exchanged = true;

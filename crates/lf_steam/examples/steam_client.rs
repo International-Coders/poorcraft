@@ -34,13 +34,13 @@ fn main() {
                     println!("CONN   PASS: P2P session up");
                     net.send(&ClientMessage::Hello {
                         name: "probe-client".into(),
-                        protocol_version: PROTOCOL_VERSION, creative: false,
+                        protocol_version: PROTOCOL_VERSION,
                     });
                     hello_sent = true;
                     println!("HELLO  SENT (protocol v{})", PROTOCOL_VERSION);
                 }
                 SteamClientEvent::Message(sm) => {
-                    if let lf_protocol::ServerMessage::Welcome { your_id, seed, players } = sm {
+                    if let lf_protocol::ServerMessage::Welcome { your_id, seed, players, .. } = sm {
                         println!(
                             "EXCHANGE PASS: Welcome {{ your_id: {your_id}, seed: {seed}, players: {:?} }}",
                             players.len()

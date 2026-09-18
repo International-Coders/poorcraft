@@ -23,13 +23,9 @@ struct Player {
     addr: SocketAddr,
     pos: [f32; 3],
     yaw: f32,
-    /// THE JOIN-MODE LAW (protocol v8): the joiner's claimed game mode,
-    /// fixed for the session (a world is created in one mode). A CREATIVE
-    /// joiner's placements are ungated — creative is infinite by its own
-    /// law — while a SURVIVAL joiner pays for every placement at the
-    /// place-payment gate. A client claim of prior-session state (the
-    /// PackSync bootstrap tier), not a server-verified fact.
-    creative: bool,
+    // v11: the joiner carries NO mode of its own. The realm's mode is the
+    // server world's own fact (`run`'s `creative`), granted in Welcome and
+    // adopted by the joiner — the v8 per-player `creative` claim is gone.
 }
 
 /// THE ESCROW LAW: a trade completes only when BOTH canonical ledgers can
@@ -85,6 +81,14 @@ fn escrow(
         from.add_item(id, *n);
     }
     Ok(())
+}
+
+/// THE KIT ROWS: the realm's spawn kit as (item, count) rows — the ONE
+/// source (`lf_game::survival::spawn_inventory`) read through once, so the
+/// ledger's seed and the joiner's kit grant are the same welcome by
+/// construction.
+fn kit_rows(kit: Inventory) -> Vec<(String, u8)> {
+    kit.slots.iter().flatten().map(|s| (s.item_id.clone(), s.count)).collect()
 }
 
 /// THE CRAFT REPLAY WINDOW: a client-chosen `req_id` answered recently is
@@ -314,9 +318,25 @@ pub struct Server {
 }
 
 impl Server {
-    /// Start a server bound to `bind` (e.g. "127.0.0.1:0" for tests) with
-    /// the given world seed.
+    /// Start a SURVIVAL server bound to `bind` (e.g. "127.0.0.1:0" for
+    /// tests) with the given world seed. The realm's mode is the server's
+    /// own authority (v11) — `start` is the gated realm; `start_creative`
+    /// opens it.
     pub fn start(bind: &str, seed: u64) -> std::io::Result<Self> {
+        Self::start_with_mode(bind, seed, false)
+    }
+
+    /// Start a CREATIVE server: the realm's placements are ungated
+    /// (creative is infinite by its own law) and a pack claim seeds the
+    /// ledger as before (nothing there is ledger-gated but the trade
+    /// escrow). Welcome carries `creative: true` and the joiner adopts it.
+    pub fn start_creative(bind: &str, seed: u64) -> std::io::Result<Self> {
+        Self::start_with_mode(bind, seed, true)
+    }
+
+    /// Start a server bound to `bind` with the given world seed and THE
+    /// REALM'S MODE (v11) — the one authority no client word can change.
+    pub fn start_with_mode(bind: &str, seed: u64, creative: bool) -> std::io::Result<Self> {
         let socket = Arc::new(UdpSocket::bind(bind)?);
         socket.set_nonblocking(true)?;
         let local_addr = socket.local_addr()?;
@@ -324,7 +344,7 @@ impl Server {
         let worker_socket = Arc::clone(&socket);
         let worker_stop = Arc::clone(&stop);
         let handle = thread::spawn(move || {
-            run(worker_socket, worker_stop, seed);
+            run(worker_socket, worker_stop, seed, creative);
         });
         Ok(Self { socket, stop, handle: Some(handle), local_addr })
     }
@@ -347,15 +367,18 @@ impl Drop for Server {
     }
 }
 
-fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
+fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64, creative: bool) {
     let gen = WorldGen::new(Seed(seed));
     let mut world = World::new();
     let mut players: HashMap<u64, Player> = HashMap::new();
     // THE CANONICAL LEDGERS: one per player, the server's own copy of
-    // what each adventurer holds. Seeded by PackSync (the client's
-    // honest claim — the server cannot know prior-session history),
-    // fed by every server-known flow (mined-yield grants, escrow
-    // moves), and the ONLY thing the trade gates consult.
+    // what each adventurer holds. Seeded by THE REALM'S SPAWN KIT at
+    // Hello (v11 — the client's claim no longer seeds it), fed by every
+    // server-known flow (mined-yield grants, escrow moves, verdicts),
+    // and the ONLY thing the trade gates consult. In a creative realm a
+    // pack claim still seeds the ledger (nothing there is ledger-gated
+    // but the escrow); in a survival realm the claim is remove-only
+    // reconciliation — THE LYING-CLAIM LAW (see the PackSync arm).
     let mut inventories: HashMap<u64, Inventory> = HashMap::new();
     let mut edits: Vec<(i32, i32, i32, u32)> = Vec::new();
     let mut next_id: u64 = 1;
@@ -386,7 +409,7 @@ fn run(socket: Arc<UdpSocket>, stop: Arc<AtomicBool>, seed: u64) {
                             &mut craft_seen, &mut craft_seen_set,
                             &mut smelt_accounts, &mut smelt_seen, &mut smelt_seen_set,
                             &mut eat_seen, &mut eat_seen_set,
-                            src, msg);
+                            creative, src, msg);
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
@@ -436,11 +459,12 @@ fn handle_message(
     smelt_seen_set: &mut std::collections::HashSet<(u64, u64)>,
     eat_seen: &mut VecDeque<(u64, u64)>,
     eat_seen_set: &mut std::collections::HashSet<(u64, u64)>,
+    creative: bool,
     src: SocketAddr,
     msg: ClientMessage,
 ) {
     match msg {
-        ClientMessage::Hello { name, protocol_version, creative } => {
+        ClientMessage::Hello { name, protocol_version } => {
             if protocol_version != PROTOCOL_VERSION {
                 let reply = ProtocolCodec::encode_server(&ServerMessage::Reject {
                     reason: format!("version mismatch: server {}", PROTOCOL_VERSION),
@@ -449,19 +473,35 @@ fn handle_message(
                 return;
             }
             // A reconnect from the same address replaces the old session
-            // wholesale — ledger included (the fresh PackSync re-seeds it).
+            // wholesale — ledger included (the realm re-welcomes).
             players.retain(|_, p| p.addr != src);
             let id = *next_id;
             *next_id += 1;
             let roster: Vec<(u64, String)> = players.iter().map(|(pid, p)| (*pid, p.name.clone())).collect();
-            players.insert(id, Player { name: name.clone(), addr: src, pos: [0.0, 80.0, 0.0], yaw: 0.0, creative });
-            inventories.insert(id, Inventory::new());
+            players.insert(id, Player { name: name.clone(), addr: src, pos: [0.0, 80.0, 0.0], yaw: 0.0 });
+            // THE SPAWN-INVENTORY LAW (v11): the joiner's ledger starts at
+            // the realm's own welcome — lf_game's `spawn_inventory`, the
+            // ONE source the offline world creates its pack from too. No
+            // client claim seeds it (THE LYING-CLAIM LAW: the PackSync arm).
+            inventories.insert(id, lf_game::survival::spawn_inventory());
             let welcome = ProtocolCodec::encode_server(&ServerMessage::Welcome {
                 your_id: id,
                 seed: gen.seed(), // the true world seed (P23)
                 players: roster,
+                creative, // THE REALM'S MODE: the server's own word (v11)
             });
             let _ = socket.send_to(&welcome, src);
+            // THE KIT GRANT: whatever the realm welcomes with rides to the
+            // joiner (editor alone) exactly as it seeded the ledger, so
+            // pack and ledger begin equal. The welcome is empty hands
+            // today, so nothing rides; the loop stands so a richer
+            // welcome moves both doors together.
+            for (item, count) in kit_rows(lf_game::survival::spawn_inventory()) {
+                let grant = ProtocolCodec::encode_server(&ServerMessage::ItemGrant {
+                    items: vec![(item, count)],
+                });
+                let _ = socket.send_to(&grant, src);
+            }
             let joined = ProtocolCodec::encode_server(&ServerMessage::PlayerJoined { id, name });
             for p in players.values() {
                 if p.addr != src {
@@ -488,7 +528,9 @@ fn handle_message(
             // below reads the id via BlockState::id().
             let state = BlockState(block);
             let block_id = state.id();
-            let creative = players.values().find(|p| p.addr == src).map(|p| p.creative);
+            // THE REALM'S MODE (v11): the gate reads the server world's own
+            // mode — the same word Welcome granted. No client claim sits
+            // between the realm and its gates.
             // THE NO-SELF-ECHO LAW: the editor applied its edit optimistically
             // before sending it, so echoing an ACCEPTED edit back would
             // double-apply (a second host event for one player action plus a
@@ -536,7 +578,7 @@ fn handle_message(
                 // with it.
                 let mut refused: Option<String> = None;
                 if let Some(claim) = &place {
-                    if creative != Some(true) {
+                    if !creative {
                         let item = claim.item.as_str();
                         if !lf_game::items::placement_pays(item, state) {
                             refused = Some(format!("{} cannot place that block", item));
@@ -628,26 +670,64 @@ fn handle_message(
             // correct and nothing to broadcast.
         }
         ClientMessage::PackSync { items } => {
-            // THE PACK-SYNC LAW: the client's claim replaces its ledger
-            // wholesale. Rebuild through add_item so the ledger stays a
-            // physically legal 36-slot pack — a claim larger than the
-            // pack can hold is truncated at the pack's own law, never
-            // counted. Unknown senders are ignored (no Hello, no ledger).
+            // THE PACK-SYNC LAW, reconciled (v11): what a claim may do
+            // depends on THE REALM'S MODE — the server's own word, never
+            // the client's.
             if let Some(id) = id_of(players, src) {
-                let mut inv = Inventory::new();
-                for (item, count) in items {
-                    // u32 claims add in u8-sized batches until the pack's
-                    // own law stops them (a full ledger drops the rest —
-                    // an oversized claim is truncated, never counted).
-                    let mut remaining = count;
-                    while remaining > 0 {
-                        let batch = remaining.min(u8::MAX as u32) as u8;
-                        let moved = batch - inv.add_item(&item, batch);
-                        if moved == 0 { break; }
-                        remaining -= moved as u32;
+                if creative {
+                    // THE CREATIVE CLAIM: a creative realm seeds its ledger
+                    // from the claim as before (nothing there is
+                    // ledger-gated — creative is infinite by its own law —
+                    // but the trade escrow still reads the ledger, so the
+                    // claim keeps it honest about the pack). Rebuild
+                    // through add_item so the ledger stays a physically
+                    // legal 36-slot pack — a claim larger than the pack
+                    // can hold is truncated at the pack's own law, never
+                    // counted.
+                    let mut inv = Inventory::new();
+                    for (item, count) in items {
+                        // u32 claims add in u8-sized batches until the pack's
+                        // own law stops them (a full ledger drops the rest —
+                        // an oversized claim is truncated, never counted).
+                        let mut remaining = count;
+                        while remaining > 0 {
+                            let batch = remaining.min(u8::MAX as u32) as u8;
+                            let moved = batch - inv.add_item(&item, batch);
+                            if moved == 0 { break; }
+                            remaining -= moved as u32;
+                        }
+                    }
+                    inventories.insert(id, inv);
+                } else {
+                    // THE REMOVE-ONLY RECONCILIATION (the survival realm):
+                    // the ledger is the SERVER'S — seeded with the realm's
+                    // spawn kit at Hello and grown only by server-known
+                    // flows (mined-yield grants, escrow moves, verdicts).
+                    // A claim can only SHRINK it toward the client's word:
+                    // each slot settles at min(held, claimed), so a claimed
+                    // SURPLUS adds nothing (THE LYING-CLAIM LAW — a modified
+                    // client cannot conjure goods into the gates; it can at
+                    // most strip its own ledger) and a claimed shortfall or
+                    // absence prunes exactly that much (a lost verdict's
+                    // remainder is reclaimed — the window errs safe, never
+                    // fabricated). Slot legality survives: the law only
+                    // ever lowers counts.
+                    if let Some(inv) = inventories.get_mut(&id) {
+                        let claim: std::collections::HashMap<&str, u32> =
+                            items.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+                        for slot in inv.slots.iter_mut() {
+                            let Some(stack) = slot else { continue };
+                            let allowed = claim.get(stack.item_id.as_str()).copied().unwrap_or(0);
+                            if stack.count as u32 > allowed {
+                                if allowed == 0 {
+                                    *slot = None;
+                                } else {
+                                    stack.count = allowed.min(u8::MAX as u32) as u8;
+                                }
+                            }
+                        }
                     }
                 }
-                inventories.insert(id, inv);
             }
         }
         ClientMessage::CraftRequest { req_id, ingredients, output, output_count, qty } => {
@@ -1062,11 +1142,11 @@ mod tests {
         c2.connect(addr).unwrap();
 
         c1.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "alice".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+            name: "alice".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
         pump(150);
         c2.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "bob".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+            name: "bob".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
         pump(150);
 
@@ -1100,7 +1180,9 @@ mod tests {
     /// sides on accept, and a cancel path that frees the offer.
     #[test]
     fn trade_escrow_over_real_udp() {
-        let mut server = Server::start("127.0.0.1:0", 12345).expect("start server");
+        // A creative realm: the pack claim seeds the ledger there (v11) —
+        // the escrow under test reads the ledger the same way in both.
+        let mut server = Server::start_creative("127.0.0.1:0", 12345).expect("start server");
         let addr = server.local_addr();
         let c1 = UdpSocket::bind("127.0.0.1:0").unwrap();
         let c2 = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -1113,7 +1195,7 @@ mod tests {
         // the canonical ledgers cover.
         for (sock, name) in [(&c1, "alice"), (&c2, "bob")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1214,7 +1296,7 @@ mod tests {
         observer.connect(addr).unwrap();
         for (sock, name) in [(&sender, "editor"), (&observer, "peer")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1262,7 +1344,7 @@ mod tests {
         a.set_nonblocking(true).unwrap();
         a.connect(addr).unwrap();
         a.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "early".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+            name: "early".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
         pump(150);
         let _ = drain(&a);
@@ -1282,7 +1364,7 @@ mod tests {
         b.set_nonblocking(true).unwrap();
         b.connect(addr).unwrap();
         b.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "newcomer".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+            name: "newcomer".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
 
         // The newcomer's replay must carry every historical edit.
@@ -1326,7 +1408,7 @@ mod tests {
         peer.connect(addr).unwrap();
         for (sock, name) in [(&editor, "miner"), (&peer, "watcher")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1381,7 +1463,7 @@ mod tests {
         editor.set_nonblocking(true).unwrap();
         editor.connect(addr).unwrap();
         editor.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "gater".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+            name: "gater".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
         pump(150);
         let _ = drain(&editor);
@@ -1431,7 +1513,7 @@ mod tests {
         late.connect(addr).unwrap();
         for (sock, name) in [(&editor, "first"), (&late, "second")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1536,16 +1618,17 @@ mod tests {
         assert_eq!(full.count_of("stone"), 0, "the payment went out");
     }
 
-    /// THE PACK-SYNC LAW + THE OFFER GATE, over real UDP: the uploaded
-    /// pack seeds the canonical ledger, a MINED yield pays into the same
-    /// ledger (the grant's stone is gate-visible though it was never
-    /// uploaded), and an offer beyond the ledger is refused to the
-    /// offerer alone while the target hears nothing.
+    /// THE CREATIVE CLAIM LAW + THE OFFER GATE, over real UDP: in a
+    /// CREATIVE realm the pack claim seeds the canonical ledger (v11 —
+    /// the survival claim is remove-only; see the lying-claim law), a
+    /// MINED yield pays into the same ledger, and an offer beyond the
+    /// ledger is refused to the offerer alone while the target hears
+    /// nothing.
     #[test]
     fn the_pack_sync_seeds_the_ledger_and_the_gate_counts_mined_grants() {
         use lf_voxel::registry::block;
 
-        let mut server = Server::start("127.0.0.1:0", 915).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 915).expect("start server");
         let addr = server.local_addr();
         let alice = UdpSocket::bind("127.0.0.1:0").unwrap();
         let bob = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -1555,7 +1638,7 @@ mod tests {
         bob.connect(addr).unwrap();
         for (sock, name) in [(&alice, "miner"), (&bob, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1618,7 +1701,7 @@ mod tests {
     /// offers, the received goods admit them.
     #[test]
     fn the_escrow_moves_both_ledgers_atomically_over_real_udp() {
-        let mut server = Server::start("127.0.0.1:0", 917).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 917).expect("start server");
         let addr = server.local_addr();
         let a = UdpSocket::bind("127.0.0.1:0").unwrap();
         let b = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -1628,7 +1711,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "alice"), (&b, "bob")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1691,7 +1774,7 @@ mod tests {
     /// passes, proving the failed escrow deducted nothing.
     #[test]
     fn an_accept_that_cannot_pay_dissolves_without_moving_anything() {
-        let mut server = Server::start("127.0.0.1:0", 919).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 919).expect("start server");
         let addr = server.local_addr();
         let a = UdpSocket::bind("127.0.0.1:0").unwrap();
         let b = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -1701,7 +1784,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "alice"), (&b, "bob")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1747,7 +1830,7 @@ mod tests {
     /// — the offer survives for its true target.
     #[test]
     fn self_trades_and_third_party_accepts_never_move_a_ledger() {
-        let mut server = Server::start("127.0.0.1:0", 921).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 921).expect("start server");
         let addr = server.local_addr();
         let a = UdpSocket::bind("127.0.0.1:0").unwrap();
         let b = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -1758,7 +1841,7 @@ mod tests {
         }
         for (sock, name) in [(&a, "alice"), (&b, "bob"), (&c, "carol")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(250);
@@ -1815,7 +1898,7 @@ mod tests {
     /// crafted planks are hers to offer, the consumed logs are not.
     #[test]
     fn a_granted_craft_moves_the_ledger_exactly() {
-        let mut server = Server::start("127.0.0.1:0", 923).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 923).expect("start server");
         let addr = server.local_addr();
         let a = UdpSocket::bind("127.0.0.1:0").unwrap();
         let b = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -1825,7 +1908,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "smith"), (&b, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1878,7 +1961,7 @@ mod tests {
     /// and the re-offer of the untouched goods proves the atomicity.
     #[test]
     fn a_blocked_craft_moves_nothing_and_says_why() {
-        let mut server = Server::start("127.0.0.1:0", 925).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 925).expect("start server");
         let addr = server.local_addr();
         let a = UdpSocket::bind("127.0.0.1:0").unwrap();
         let b = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -1888,7 +1971,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "smith"), (&b, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1931,7 +2014,7 @@ mod tests {
     /// offer refuses).
     #[test]
     fn a_fabricated_spec_is_refused_by_the_book() {
-        let mut server = Server::start("127.0.0.1:0", 927).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 927).expect("start server");
         let addr = server.local_addr();
         let a = UdpSocket::bind("127.0.0.1:0").unwrap();
         let b = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -1941,7 +2024,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "forger"), (&b, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -1993,7 +2076,7 @@ mod tests {
     /// exactly one batch's worth exists.
     #[test]
     fn a_replayed_craft_request_pays_once() {
-        let mut server = Server::start("127.0.0.1:0", 929).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 929).expect("start server");
         let addr = server.local_addr();
         let a = UdpSocket::bind("127.0.0.1:0").unwrap();
         let b = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -2003,7 +2086,7 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, "smith"), (&b, "target")] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
@@ -2053,8 +2136,9 @@ mod tests {
 
     // ===== THE PLACE-PAYMENT LAWS (protocol v8) =====
 
-    /// Join helpers shared by the place-payment laws: a and b join as
-    /// survival players (a first, so a's ledger id is 1).
+    /// Join helpers shared by the place-payment laws: a and b join (a
+    /// first, so a's ledger id is 1). The realm's mode is the server's
+    /// own — the join says nothing about it (v11).
     fn join_two(
         server: &mut Server,
         a_name: &str,
@@ -2069,13 +2153,32 @@ mod tests {
         b.connect(addr).unwrap();
         for (sock, name) in [(&a, a_name), (&b, b_name)] {
             sock.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-                name: name.into(), protocol_version: PROTOCOL_VERSION, creative: false,
+                name: name.into(), protocol_version: PROTOCOL_VERSION,
             })).unwrap();
         }
         pump(150);
         let _ = drain(&a);
         let _ = drain(&b);
         (a, b)
+    }
+
+    /// THE HONEST FUNDING (v11): a survival ledger is fed by MINED grants
+    /// — a block staged claim-free (the sim tier) and then mined with an
+    /// honest claim; the realm's own harvest law pays the ledger. Answers
+    /// how many grants landed (the caller asserts the funding).
+    fn fund_by_mines(sock: &UdpSocket, x0: i32, z: i32, block: u32, held: Option<&str>, n: usize) -> usize {
+        for i in 0..n {
+            let x = x0 + i as i32 * 2;
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+                x, y: 200, z, block, mine: None, place: None,
+            })).unwrap();
+            sock.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
+                x, y: 200, z, block: lf_voxel::registry::block::AIR,
+                mine: Some(lf_protocol::MineClaim { held: held.map(|s| s.to_string()) }), place: None,
+            })).unwrap();
+        }
+        pump(500);
+        drain(sock).iter().filter(|m| matches!(m, ServerMessage::ItemGrant { .. })).count()
     }
 
     fn place(sock: &UdpSocket, x: i32, y: i32, z: i32, block: u32, item: Option<&str>) {
@@ -2096,10 +2199,11 @@ mod tests {
         use lf_voxel::registry::block;
         let mut server = Server::start("127.0.0.1:0", 931).expect("start server");
         let (a, b) = join_two(&mut server, "smith", "target");
-        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
-            items: vec![("stone".into(), 8)],
-        })).unwrap();
-        pump(150);
+        // THE HONEST FUNDING (v11): the pack claim no longer seeds the
+        // survival ledger — the eight stones are MINED into it, each paid
+        // by the realm's own harvest law.
+        assert_eq!(fund_by_mines(&a, 30, 30, block::STONE, Some("stone_pickaxe"), 8), 8,
+            "the funding mines paid eight stones into the ledger");
 
         place(&a, 6, 200, 6, block::STONE, Some("stone"));
         place(&a, 7, 200, 7, block::STONE, Some("stone"));
@@ -2112,7 +2216,7 @@ mod tests {
         assert!(!drain(&a).iter().any(|m| matches!(m, ServerMessage::BlockUpdate { .. })),
             "the editor never hears its own accepted placement");
 
-        // THE LEDGER PAID BOTH: eight uploaded, two consumed by the two
+        // THE LEDGER PAID BOTH: eight mined, two consumed by the two
         // placements — six pass the trade gate, seven refuse.
         let offer = |give: Vec<(String, u8)>| {
             a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
@@ -2153,17 +2257,15 @@ mod tests {
     }
 
     /// THE MISMATCHED-CLAIM LAW: paying dirt for a stone refuses by the
-    /// shared placement law — the ledger is untouched (five uploaded
-    /// dirts all pass the gate afterward), the block never lands.
+    /// shared placement law — the ledger is untouched (five mined dirts
+    /// all pass the gate afterward), the block never lands.
     #[test]
     fn a_mismatched_place_claim_refuses() {
         use lf_voxel::registry::block;
         let mut server = Server::start("127.0.0.1:0", 933).expect("start server");
         let (a, b) = join_two(&mut server, "smith", "target");
-        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
-            items: vec![("dirt".into(), 5)],
-        })).unwrap();
-        pump(150);
+        assert_eq!(fund_by_mines(&a, 40, 40, block::DIRT, None, 5), 5,
+            "the funding mines paid five dirts into the ledger");
 
         place(&a, 9, 200, 9, block::STONE, Some("dirt"));
         assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { reason } if reason.contains("cannot place"))).is_some(),
@@ -2191,10 +2293,8 @@ mod tests {
         use lf_voxel::registry::block;
         let mut server = Server::start("127.0.0.1:0", 934).expect("start server");
         let (a, _b) = join_two(&mut server, "smith", "target");
-        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
-            items: vec![("stone".into(), 8)],
-        })).unwrap();
-        pump(150);
+        // No funding at all: the smuggle guard fires before the payment
+        // gate, so an empty ledger cannot mask the forged op's refusal.
 
         a.send(&ProtocolCodec::encode_client(&ClientMessage::SetBlock {
             x: 12, y: 200, z: 12, block: block::AIR,
@@ -2212,16 +2312,17 @@ mod tests {
         server.stop();
     }
 
-    /// THE CREATIVE LAW: a creative joiner places without a claim and
-    /// without a ledger — nothing is gated, nothing consumed — and the
-    /// placed blocks are real (mining them back pays the canonical
-    /// grants). Two placements, two landings, two grants.
+    /// THE CREATIVE REALM (v11): the mode is the server's own word —
+    /// Welcome grants it, and a creative realm's placements land without
+    /// a claim and without a ledger — nothing is gated, nothing consumed
+    /// — and the placed blocks are real (mining them back pays the
+    /// canonical grants). Two placements, two landings, two grants.
     #[test]
     fn creative_places_ungated() {
         use lf_voxel::registry::block;
-        let mut server = Server::start("127.0.0.1:0", 935).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 935).expect("start server");
         let addr = server.local_addr();
-        // b joins first so the creative joiner's grants are observable
+        // b joins first so the creative realm's grants are observable
         // through a stable second socket; ids: b = 1, c = 2.
         let b = UdpSocket::bind("127.0.0.1:0").unwrap();
         let c = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -2230,14 +2331,21 @@ mod tests {
         b.connect(addr).unwrap();
         c.connect(addr).unwrap();
         b.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "target".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+            name: "target".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
         c.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "creator".into(), protocol_version: PROTOCOL_VERSION, creative: true,
+            name: "creator".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
         pump(150);
+        // THE REALM'S MODE IS THE SERVER'S WORD: the join carried no mode
+        // claim; the grant comes back in Welcome.
+        let welcome_creative = drain(&c).iter().find_map(|m| match m {
+            ServerMessage::Welcome { creative, .. } => Some(*creative),
+            _ => None,
+        });
+        assert_eq!(welcome_creative, Some(true),
+            "a creative realm grants creative in its own Welcome");
         let _ = drain(&b);
-        let _ = drain(&c);
 
         place(&c, 13, 200, 13, block::DIRT, None);
         place(&c, 14, 200, 14, block::DIRT, None);
@@ -2292,10 +2400,9 @@ mod tests {
         use lf_voxel::registry::block;
         let mut server = Server::start("127.0.0.1:0", 937).expect("start server");
         let (a, b) = join_two(&mut server, "smith", "target");
-        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
-            items: vec![("stone".into(), 8)],
-        })).unwrap();
-        pump(150);
+        // THE HONEST FUNDING (v11): the paid shape is mined into the ledger.
+        assert_eq!(fund_by_mines(&a, 50, 50, block::STONE, Some("stone_pickaxe"), 1), 1,
+            "the funding mine paid a stone into the ledger");
 
         let slab_stone = block::STONE | (1 << 28); // Shape::SlabBottom nibble
         place(&a, 16, 200, 16, slab_stone, Some("stone"));
@@ -2466,7 +2573,7 @@ mod tests {
     /// more than remains refuses through the trade gate alone.
     #[test]
     fn a_funded_deposit_pays_the_ledger_and_answers_the_depositor_alone() {
-        let mut server = Server::start("127.0.0.1:0", 941).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 941).expect("start server");
         let (a, b) = join_two(&mut server, "smith", "target");
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("raw_iron".into(), 3)],
@@ -2506,7 +2613,7 @@ mod tests {
     /// committed input or no banked burn yields NOTHING.
     #[test]
     fn the_fire_yields_only_what_the_ledger_funded() {
-        let mut server = Server::start("127.0.0.1:0", 942).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 942).expect("start server");
         let (a, _b) = join_two(&mut server, "smith", "target");
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("raw_iron".into(), 5), ("coal".into(), 2)],
@@ -2575,7 +2682,7 @@ mod tests {
     /// never charged).
     #[test]
     fn a_replayed_smelt_request_pays_once() {
-        let mut server = Server::start("127.0.0.1:0", 943).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 943).expect("start server");
         let (a, _b) = join_two(&mut server, "smith", "target");
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("coal".into(), 8)],
@@ -2611,7 +2718,7 @@ mod tests {
     /// committed to one fire never funds another's smelt.
     #[test]
     fn two_fires_never_pool_each_others_fuel() {
-        let mut server = Server::start("127.0.0.1:0", 944).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 944).expect("start server");
         let (a, _b) = join_two(&mut server, "smith", "target");
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("raw_iron".into(), 2), ("coal".into(), 4)],
@@ -2641,7 +2748,7 @@ mod tests {
     /// ledger — a returning adventurer commits anew.
     #[test]
     fn goodbye_burns_out_the_furnace_commitments() {
-        let mut server = Server::start("127.0.0.1:0", 945).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 945).expect("start server");
         let (a, _b) = join_two(&mut server, "smith", "target");
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("raw_iron".into(), 2), ("coal".into(), 2)],
@@ -2656,7 +2763,7 @@ mod tests {
         a.send(&ProtocolCodec::encode_client(&ClientMessage::Goodbye)).unwrap();
         pump(200);
         a.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
-            name: "smith".into(), protocol_version: PROTOCOL_VERSION, creative: false,
+            name: "smith".into(), protocol_version: PROTOCOL_VERSION,
         })).unwrap();
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("raw_iron".into(), 2), ("coal".into(), 2)],
@@ -2685,7 +2792,7 @@ mod tests {
     /// paid: the trade gate proves what remains.
     #[test]
     fn a_funded_bite_pays_the_ledger_and_answers_the_eater_alone() {
-        let mut server = Server::start("127.0.0.1:0", 946).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 946).expect("start server");
         let (a, b) = join_two(&mut server, "smith", "target");
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("apple".into(), 2)],
@@ -2737,7 +2844,7 @@ mod tests {
     /// never moves (the offer gate proves the goods all remain).
     #[test]
     fn the_realm_does_not_feed_what_it_does_not_call_food() {
-        let mut server = Server::start("127.0.0.1:0", 947).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 947).expect("start server");
         let (a, _b) = join_two(&mut server, "smith", "target");
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("log".into(), 3), ("stone_pickaxe".into(), 1)],
@@ -2778,7 +2885,7 @@ mod tests {
     /// once — the craft pays-once law's eating twin.
     #[test]
     fn a_replayed_bite_pays_once() {
-        let mut server = Server::start("127.0.0.1:0", 948).expect("start server");
+        let mut server = Server::start_creative("127.0.0.1:0", 948).expect("start server");
         let (a, _b) = join_two(&mut server, "smith", "target");
         a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
             items: vec![("porkchop".into(), 4)],
@@ -2807,5 +2914,146 @@ mod tests {
         assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_none(),
             "the honest remainder passes");
         server.stop();
+    }
+
+    // ===== THE BOOTSTRAP IS THE SERVER'S (protocol v11) =====
+
+    /// THE LYING-CLAIM LAW (v11): a survival realm's ledger is the
+    /// server's — seeded with the realm's spawn kit at Hello (empty
+    /// hands: the same welcome the offline world creates) and grown only
+    /// by server-known flows. A pack claim, however rich, conjures
+    /// nothing: the trade gate proves the phantom goods never entered,
+    /// and the target hears nothing of the phantom offers.
+    #[test]
+    fn the_lying_claim_conjures_nothing() {
+        let mut server = Server::start("127.0.0.1:0", 951).expect("start server");
+        let (a, b) = join_two(&mut server, "liar", "target");
+
+        // THE KIT LAW: the ledger began at the realm's welcome — before
+        // any word of the joiner's — so an offer of anything refuses.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+            to: 2, give: vec![("dirt".into(), 1)], want: vec![],
+        })).unwrap();
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the ledger started at the realm's spawn kit, not at the client's word");
+
+        // THE LIE: a rich phantom claim.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("diamond".into(), 64), ("stone".into(), 64)],
+        })).unwrap();
+        pump(250);
+        let offer = |give: Vec<(String, u8)>| {
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+                to: 2, give, want: vec![],
+            })).unwrap();
+            pump(250);
+        };
+        offer(vec![("stone".into(), 64)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the claimed stones were never the server's to count");
+        offer(vec![("diamond".into(), 64)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the claimed diamonds were never the server's to count");
+        pump(300);
+        assert!(!drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "the target never hears a phantom offer");
+        // And the rich claim PAID NOTHING IN: the phantom goods cannot be
+        // placed either (the placement gate reads the same ledger).
+        place(&a, 60, 200, 60, lf_voxel::registry::block::STONE, Some("stone"));
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { reason } if reason.contains("ledger"))).is_some(),
+            "the lying claim cannot fund a placement either");
+
+        server.stop();
+    }
+
+    /// THE REMOVE-ONLY RECONCILIATION LAW (v11): in a survival realm a
+    /// claim settles the ledger toward the client's word FROM ABOVE ONLY
+    /// — a surplus claim adds nothing (the mined stones stay exact), a
+    /// shortfall prunes exactly that much, and an absence prunes whole.
+    /// At-most-once, never fabricated; a claimed-back good stays gone.
+    #[test]
+    fn the_survival_claim_reconciles_remove_only() {
+        use lf_voxel::registry::block;
+        let mut server = Server::start("127.0.0.1:0", 952).expect("start server");
+        let (a, b) = join_two(&mut server, "miner", "target");
+        assert_eq!(fund_by_mines(&a, 70, 70, block::STONE, Some("stone_pickaxe"), 3), 3,
+            "three honest mines fund the ledger");
+
+        let offer = |give: Vec<(String, u8)>| {
+            a.send(&ProtocolCodec::encode_client(&ClientMessage::TradeOffer {
+                to: 2, give, want: vec![],
+            })).unwrap();
+            pump(250);
+        };
+        // Exactly what the mines paid passes.
+        offer(vec![("stone".into(), 3)]);
+        assert!(drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "the three mined stones are the ledger's to offer");
+
+        // A SURPLUS claim adds nothing: the ledger stays at three.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("stone".into(), 99)],
+        })).unwrap();
+        pump(250);
+        offer(vec![("stone".into(), 4)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the claimed surplus was never admitted");
+
+        // A SHORTFALL prunes exactly that much: three claimed as one
+        // leaves one the gate can count.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![("stone".into(), 1)],
+        })).unwrap();
+        pump(250);
+        offer(vec![("stone".into(), 2)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the shortfall pruned the ledger toward the client's word");
+        offer(vec![("stone".into(), 1)]);
+        assert!(drain(&b).iter().any(|m| matches!(m, ServerMessage::TradeOffered { .. })),
+            "exactly the claimed one survives");
+
+        // AN ABSENCE prunes whole: an empty claim empties the ledger.
+        a.send(&ProtocolCodec::encode_client(&ClientMessage::PackSync {
+            items: vec![],
+        })).unwrap();
+        pump(250);
+        offer(vec![("stone".into(), 1)]);
+        assert!(drain_until(&a, 5000, |m| matches!(m, ServerMessage::Reject { .. })).is_some(),
+            "the empty claim emptied the ledger — errs safe, never fabricated");
+
+        server.stop();
+    }
+
+    /// THE REALM'S MODE IS THE SERVER'S WORD (v11): the join carries no
+    /// mode claim, and Welcome grants the realm's own — survival from a
+    /// survival world, creative from a creative one. The same join, two
+    /// realms, one law. (The creative realm's open gates are proven by
+    /// creative_places_ungated; the survival gates by the payment laws.)
+    #[test]
+    fn welcome_grants_the_realm_s_own_mode() {
+        for (seed, start, want) in [
+            (953, false, false),
+            (954, true, true),
+        ] {
+            let mut server = if start {
+                Server::start_creative("127.0.0.1:0", seed)
+            } else {
+                Server::start("127.0.0.1:0", seed)
+            }.expect("start server");
+            let addr = server.local_addr();
+            let c = UdpSocket::bind("127.0.0.1:0").unwrap();
+            c.set_nonblocking(true).unwrap();
+            c.connect(addr).unwrap();
+            c.send(&ProtocolCodec::encode_client(&ClientMessage::Hello {
+                name: "wanderer".into(), protocol_version: PROTOCOL_VERSION,
+            })).unwrap();
+            let granted = drain_until(&c, 5000, |m| matches!(m, ServerMessage::Welcome { .. }));
+            match granted {
+                Some(ServerMessage::Welcome { creative, .. }) => assert_eq!(creative, want,
+                    "Welcome carries the realm's own mode"),
+                other => panic!("the joiner is welcomed, got {other:?}"),
+            }
+            server.stop();
+        }
     }
 }

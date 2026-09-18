@@ -198,7 +198,6 @@ impl SteamClientNet {
             let bytes = ProtocolCodec::encode_client(&ClientMessage::Hello {
                 name: String::new(),
                 protocol_version: lf_protocol::PROTOCOL_VERSION,
-                creative: false,
             });
             let probe = self.conn.send_message(&bytes, SendFlags::UNRELIABLE);
             if probe.is_ok() {

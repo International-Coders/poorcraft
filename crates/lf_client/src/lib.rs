@@ -1130,6 +1130,22 @@ struct GameState {
     /// The active world's game mode (C1). Saved with the world; Creative
     /// is a stub that plays like Survival until content gates exist.
     pub game_mode: slots::GameMode,
+    /// THE REALM'S MODE (protocol v11): the game mode the connected
+    /// server's world granted in Welcome — the authority for the session's
+    /// online consumption gates (place claims, bite requests), exactly as
+    /// the seed adoption is the authority for terrain. `false` (survival,
+    /// the gated direction) until the server speaks; offline the local
+    /// world's own mode rules.
+    net_granted_creative: bool,
+    /// THE REFUSED-PLACEMENT UNDO (v11): placements consumed locally and
+    /// sent with a pay claim, awaiting the server's word: (position, pay
+    /// item, the placed state, when). The ledger pays an accepted
+    /// placement silently (no-self-echo — its entry just ages out); a
+    /// REFUSED placement's corrective echo names the position with a
+    /// different block, and its consume is undone — the realm refused, so
+    /// nothing was paid. (Under v10 the drift re-claim healed this; the
+    /// remove-only claim needs the undo to be explicit.)
+    place_in_flight: VecDeque<((i32, i32, i32), String, u32, std::time::Instant)>,
     /// (target, stage) the crack decal batch was built for.
     crack_state: Option<((i32, i32, i32), u32)>,
     crack_batch: Option<MeshBatch>,
@@ -1749,6 +1765,8 @@ impl GameState {
             },
             difficulty: slots::Difficulty::Easy,
             game_mode: slots::GameMode::Survival,
+            net_granted_creative: false,
+            place_in_flight: VecDeque::new(),
             slot_name_input: String::new(),
             slot_new_type: lf_worldgen::WorldType::Normal,
             title_show_new: false,
@@ -2232,8 +2250,10 @@ impl GameState {
         self.world_identity = identity;
         self.difficulty = difficulty;
         self.game_mode = game_mode;
-        // fresh state
-        self.inventory = Inventory::new();
+        // fresh state — the pack is THE REALM'S SPAWN KIT (the one source
+        // the server seeds a joiner's ledger from too: both doors of the
+        // same welcome)
+        self.inventory = lf_game::survival::spawn_inventory();
         self.stats = PlayerStats::default();
         self.mobs.clear();
         self.drops.clear();
@@ -2338,6 +2358,10 @@ impl GameState {
         self.slot_meta = slots::SlotMeta { seed, updated_secs: meta.updated_secs, ..meta };
         self.difficulty = self.slot_meta.difficulty;
         self.game_mode = self.slot_meta.game_mode;
+        // A load is a different realm or none: the session's consumption
+        // authority resets to the loaded world's own mode.
+        self.net_granted_creative = false;
+        self.place_in_flight.clear();
         self.world_seed = seed;
         self.world_type = world_type;
         self.world_identity = identity;
@@ -2604,14 +2628,31 @@ impl GameState {
                 // claim is the honest held item (net::mine_claim_for).
                 let held = self.inventory.slots[self.hotbar_index].as_ref();
                 let mine = net::mine_claim_for(reason, held);
-                // THE PLACE-CLAIM LAW: only a player ITEM PLACEMENT claims
-                // its payment (net::place_claim_for) — the paying item,
-                // in survival only.
-                let place = net::place_claim_for(reason, pay_item, self.game_mode.consumes_items());
+                // THE PLACE-CLAIM LAW + THE SESSION'S CONSUMPTION LAW
+                // (v11): only a player ITEM PLACEMENT claims its payment,
+                // and only while the REALM (the server's word, not the
+                // local world) consumes.
+                let place = net::place_claim_for(reason, pay_item, self.session_consumes_items());
                 // THE WIDE-STATE WIRE: the FULL BlockState rides (shape
                 // and fluid nibbles in the high bits) — a placed slab
                 // arrives a slab everywhere.
-                n.send_block(x, y, z, state.0, mine, place);
+                n.send_block(x, y, z, state.0, mine, place.clone());
+                // THE REFUSED-PLACEMENT UNDO (v11): a claimed placement is
+                // pending until the realm answers — an accepted one
+                // silently (no-self-echo; the entry ages out), a refused
+                // one by the corrective echo naming this position (the
+                // BlockUpdate arm undoes the local consume: the realm
+                // refused, so nothing was paid).
+                if let Some(item) = pay_item {
+                    if place.is_some() {
+                        let now = std::time::Instant::now();
+                        self.place_in_flight.retain(|(.., _, t)| now.duration_since(*t).as_secs_f32() < 2.0);
+                        while self.place_in_flight.len() >= 8 {
+                            self.place_in_flight.pop_front();
+                        }
+                        self.place_in_flight.push_back(((x, y, z), item.to_string(), state.0, now));
+                    }
+                }
             }
         }
         landed
@@ -3378,20 +3419,23 @@ impl GameState {
             n.send_state(self.player.position.to_array(), self.player.yaw, self.player.pitch);
             for msg in n.poll() {
                 match msg {
-                    // N05: the multiplayer seed contract — Welcome carries
-                    // the server's seed and the client ADOPTS it as its
-                    // world identity before generating further terrain.
-                    // THE JOIN-IDENTITY LAW: adopting the seed adopts the
-                    // TERRAIN. Locally-seeded chunks (the boot ring, all
-                    // columns the old streamer had delivered) must go —
-                    // otherwise the joiner walks a patchwork of two seeds
-                    // and the server's replayed edits land in foreign
-                    // terrain. Player session state (inventory, quests,
-                    // chronicle, position) stays; world-derived collections
-                    // (mobs, drops, block entities, map) follow their world
-                    // out, and the replay-window buffer purges because the
-                    // server's own replay arrives right after Welcome.
-                    lf_protocol::ServerMessage::Welcome { seed: server_seed, .. } => {
+                    // THE JOIN-IDENTITY LAW + THE REALM'S MODE (v11): the
+                    // Welcome carries the server's seed AND the server
+                    // world's game mode. Adopting the seed adopts the
+                    // TERRAIN; adopting the mode adopts the GATES — the
+                    // session's online consumption follows the realm's
+                    // word (creative realms never consume; survival realms
+                    // pay the ledger), whatever the local world was. The
+                    // seed adoption is guarded on a seed mismatch; the
+                    // mode is recorded every Welcome (a reconnect to a
+                    // different realm re-grants it).
+                    lf_protocol::ServerMessage::Welcome { seed: server_seed, creative: granted_creative, .. } => {
+                        self.net_granted_creative = granted_creative;
+                        self.push_hint(if granted_creative {
+                            "the realm is creative — its gates are open"
+                        } else {
+                            "the realm is survival — everything is paid from the ledger"
+                        });
                         if server_seed != self.world_seed {
                             self.world_seed = server_seed;
                             self.world_identity = lf_worldgen::identity::WorldIdentity::new(
@@ -3435,6 +3479,25 @@ impl GameState {
                         }
                     }
                     lf_protocol::ServerMessage::BlockUpdate { x, y, z, block } => {
+                        // THE REFUSED-PLACEMENT UNDO (v11): the server's
+                        // corrective echo for a position we have a pending
+                        // pay claim on means the realm REFUSED the
+                        // placement — nothing was paid, so the optimistic
+                        // local consume is undone (the pack regains the
+                        // item; overflow spills at the feet, nothing
+                        // vanishes). A matching echo (the same block we
+                        // placed — a peer's coincidental edit) is not a
+                        // refusal; the entry stays until it ages out.
+                        if let Some(idx) = self.place_in_flight.iter().position(|((px, py, pz), _, placed, _)| {
+                            *px == x && *py == y && *pz == z && *placed != block
+                        }) {
+                            let (_, item, _, _) = self.place_in_flight.remove(idx).unwrap();
+                            let leftover = self.inventory.add_item(&item, 1);
+                            if leftover > 0 {
+                                self.spawn_drop(&item, leftover, self.player.eye_position());
+                            }
+                            pack_delta_landed = true;
+                        }
                         self.apply_remote_block_update(x, y, z, block);
                     }
                     // THE YIELD-GRANT LAW, client side (loop 465): in
@@ -4100,7 +4163,11 @@ impl GameState {
                                 EventType::Discovery,
                                 format!("a scroll unravels — {} learned", spell.name()),
                             );
-                            self.consume_selected(1);
+                            // THE SESSION'S CONSUMPTION LAW (v11): a
+                            // creative realm spends nothing.
+                            if self.session_consumes_items() {
+                                self.consume_selected(1);
+                            }
                         }
                         return;
                     }
@@ -4273,7 +4340,13 @@ impl GameState {
                                 if self.host_set_block(place.x, place.y, place.z, final_state, lf_game::host::EditKind::Place, Some(&stack.item_id)) {
                                     self.after_edit(place.x, place.y, place.z);
                                     self.play_block_sound(final_state.id(), lf_audio::Action::Place);
-                                    self.consume_selected(1);
+                                    // THE SESSION'S CONSUMPTION LAW (v11):
+                                    // what the realm (not the local world)
+                                    // consumes — a refused placement is
+                                    // undone by the corrective echo.
+                                    if self.session_consumes_items() {
+                                        self.consume_selected(1);
+                                    }
                                     // symmetry mirrors the placement; ONLINE the
                                     // realm's ledger pays for the mirror too (every
                                     // placed block is paid), so the mirror consumes
@@ -4283,7 +4356,8 @@ impl GameState {
                                         let mx = (2.0 * px - place.x as f32).round() as i32;
                                         if self.world.get_block(mx, place.y, place.z) == BlockState::AIR {
                                             if self.host_set_block(mx, place.y, place.z, final_state, lf_game::host::EditKind::Place, Some(&stack.item_id))
-                                                && self.net.is_some() {
+                                                && self.net.is_some()
+                                                && self.session_consumes_items() {
                                                 self.consume_selected(1);
                                             }
                                         }
@@ -4297,18 +4371,18 @@ impl GameState {
                     match def.map(|d| d.kind) {
                         Some(ItemKind::Food(heal)) if self.stats.hunger < self.stats.max_hunger => {
                             // THE BITE IS THE LEDGER'S TO FEED (protocol
-                            // v10): while a SURVIVAL session is connected,
-                            // the click is only a REQUEST — the server's
-                            // canonical ledger pays and the EatVerdict
-                            // feeds the hunger when it lands (nothing was
-                            // applied at the click, so the pack claim
-                            // stays exact in both UDP orderings).
-                            // Creative bites locally (infinite by its own
-                            // law — the placement law's twin); offline the
-                            // integrated host is the same authority in
-                            // process, byte-equal to the shipped law.
+                            // v10) + THE SESSION'S CONSUMPTION LAW (v11):
+                            // while a session the realm calls SURVIVAL is
+                            // connected, the click is only a REQUEST — the
+                            // server's canonical ledger pays and the
+                            // EatVerdict feeds the hunger when it lands
+                            // (nothing was applied at the click, so the
+                            // pack claim stays exact in both UDP
+                            // orderings). Creative realms and offline play
+                            // bite locally — the realm's word decides
+                            // which, not the local world's.
                             let mut sent = false;
-                            if self.game_mode.consumes_items() {
+                            if self.session_consumes_items() {
                                 if let Some(n) = &self.net {
                                     if n.connected {
                                         self.next_eat_id += 1;
@@ -4324,7 +4398,12 @@ impl GameState {
                             }
                             if !sent {
                                 self.stats.hunger = (self.stats.hunger + heal as f32).min(self.stats.max_hunger);
-                                self.consume_selected(1);
+                                // A creative realm's bite consumes nothing
+                                // (offline creative is consume_selected's
+                                // own gate — the same law, one door each).
+                                if self.session_consumes_items() {
+                                    self.consume_selected(1);
+                                }
                                 self.play_sfx(lf_audio::Sfx::Eat, 0.9);
                             }
                         }
@@ -4404,7 +4483,12 @@ impl GameState {
                                         // catch a floating granular column
                                         self.after_edit(place.x, place.y, place.z);
                                         self.play_block_sound(b, lf_audio::Action::Place);
-                                        self.consume_selected(1);
+                                        // THE SESSION'S CONSUMPTION LAW (v11):
+                                        // what the realm consumes; a refused
+                                        // placement is undone by the echo.
+                                        if self.session_consumes_items() {
+                                            self.consume_selected(1);
+                                        }
                                     }
                                 }
                             }
@@ -4873,6 +4957,20 @@ impl GameState {
             if stack.count == 0 {
                 self.inventory.slots[self.hotbar_index] = None;
             }
+        }
+    }
+
+    /// THE SESSION'S CONSUMPTION LAW (protocol v11): while a session is
+    /// connected, WHAT COSTS is the server's word — the realm mode granted
+    /// in Welcome (creative realms never consume; survival realms pay the
+    /// ledger). Offline, the local world's own mode rules, byte-equal to
+    /// the shipped law. The local feel gates (flight, damage, hunger,
+    /// instant mining) stay the world's own.
+    fn session_consumes_items(&self) -> bool {
+        if self.net.is_some() {
+            !self.net_granted_creative
+        } else {
+            self.game_mode.consumes_items()
         }
     }
 
@@ -8512,14 +8610,16 @@ mod tests {
         let live_end = lib.find("mod tests {").expect("the tests module exists");
         let live = &lib[..live_end];
         // exactly one eat sender, and it guards on a live session and on
-        // survival (creative is infinite by its own law and never pays)
+        // the REALM'S WORD (v11 — the granted mode, creative is infinite
+        // by its own law and never pays)
         let send = concat!("n.", "request_eat", "(");
         assert_eq!(live.matches(send).count(), 1,
             "the food arm is the one bite sender");
         let site = live.find(send).expect("the sender exists");
         let region = &live[site.saturating_sub(900)..site + 900];
         assert!(region.contains("n.connected {"), "the sender guards on a live session");
-        assert!(region.contains("consumes_items()"), "the sender guards on survival");
+        assert!(region.contains("session_consumes_items()"),
+            "the sender guards on the realm's word, not the local world's mode");
         assert!(region.contains("if !sent {"), "offline and creative keep the local bite");
         assert!(live.contains("EAT_IN_FLIGHT_CAP"), "the bites in flight are bounded");
         // the verdict arm is a thin delegate to the one resolver
@@ -8536,6 +8636,44 @@ mod tests {
         assert!(region.contains("self.stats.max_hunger"), "a granted bite feeds the hunger");
         assert!(region.contains("cannot eat: "), "a refusal says why");
         assert!(!region.contains("consume_selected("), "the resolver never consumes the held slot directly");
+    }
+
+    /// THE SESSION'S CONSUMPTION AUTHORITY (protocol v11): what costs is
+    /// the SERVER'S WORD — the mode granted in Welcome — never a client
+    /// claim. The one helper answers it (offline falls back to the local
+    /// world's own mode, byte-equal to the shipped law), the Welcome arm
+    /// records the grant every join, the place claim in the funnel reads
+    /// it, and every consume-by-the-session site is gated on it. The
+    /// join's Hello carries no mode claim at all.
+    #[test]
+    fn the_session_s_consumption_authority_is_the_server_s_word() {
+        let lib = include_str!("lib.rs");
+        let live_end = lib.find("mod tests {").expect("the tests module exists");
+        let live = &lib[..live_end];
+
+        // The Welcome arm records the realm's grant every join.
+        let welcome = live.find("ServerMessage::Welcome { seed: server_seed, creative: granted_creative, .. }")
+            .expect("the Welcome arm reads the mode grant");
+        let welcome_region = &live[welcome..welcome + 400];
+        assert!(welcome_region.contains("self.net_granted_creative = granted_creative"),
+            "the session adopts the realm's mode");
+
+        // The one helper: connected = the server's word, offline = the
+        // local world's own mode.
+        let helper = live.find("fn session_consumes_items(&self)").expect("the helper exists");
+        let helper_region = &live[helper..helper + 300];
+        assert!(helper_region.contains("self.net.is_some()"),
+            "offline falls back to the local mode");
+        assert!(helper_region.contains("!self.net_granted_creative"),
+            "connected, the server's word rules");
+
+        // Every session-gated consume reads the helper — the funnel's
+        // place claim, the shaped/mirror/block-item placements, the
+        // scroll learn, and the local bite — never a raw game_mode read.
+        assert_eq!(live.matches("self.session_consumes_items()").count(), 7,
+            "the session law gates exactly the seven consumption doors");
+        assert!(!live[..helper].contains("place_claim_for(reason, pay_item, self.game_mode"),
+            "the claim never follows the local world's mode");
     }
 
     // ------------------------------------------------------------------
@@ -8613,7 +8751,7 @@ mod tests {
         let addr = server.local_addr().to_string();
         let mut witness = pollster::block_on(GameState::new_headless());
         witness.settings.view_distance = 1;
-        witness.net = Some(net::NetClient::connect(&addr, "witness", false)
+        witness.net = Some(net::NetClient::connect(&addr, "witness")
             .expect("the witness connects"));
         for _ in 0..600 {
             witness.tick();
@@ -8694,7 +8832,7 @@ mod tests {
 
         // 6. The DIGGER joins the same server.
         let mut digger = pollster::block_on(GameState::new_headless());
-        digger.net = Some(net::NetClient::connect(&addr, "digger", false)
+        digger.net = Some(net::NetClient::connect(&addr, "digger")
             .expect("the digger connects"));
         for _ in 0..600 {
             digger.tick();
