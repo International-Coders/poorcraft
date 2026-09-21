@@ -693,6 +693,11 @@ pub struct Renderer {
     detail_flag: f32,
     /// Atmosphere state (NWR-006): LEGACY (all off) until a tier is set.
     atmosphere: crate::atmosphere::Atmosphere,
+    /// Day phase in [0, 1): drives the sun and night fog. Default 0.12
+    /// (late morning) so proofs match the historical warm-dawn look.
+    /// `None` keeps the classic [`crate::scene::SUN_DIR`] (pixel probes /
+    /// offscreen proofs). `Some` drives the live day/night arc.
+    day_phase: Option<f32>,
     /// The env uniform buffer (fog/shadow/material params + light VP).
     env_buf: wgpu::Buffer,
     /// The sun's depth map view (a cleared 1x1 dummy when shadows are off).
@@ -939,6 +944,7 @@ impl Renderer {
             depth,
             offscreen: None,
             atmosphere: crate::atmosphere::LEGACY,
+            day_phase: None,
             env_buf,
             shadow_view,
             shadow_tex: _dummy_tex,
@@ -1041,6 +1047,7 @@ impl Renderer {
             depth,
             offscreen: Some(texture),
             atmosphere: crate::atmosphere::LEGACY,
+            day_phase: None,
             env_buf,
             shadow_view,
             shadow_tex: _dummy_tex,
@@ -1195,6 +1202,24 @@ impl Renderer {
             );
         }
         self.atmosphere = atm;
+    }
+
+    /// Day phase in [0, 1): 0 dawn, 0.25 noon, 0.5 dusk, 0.75 midnight.
+    /// Calling this opts the renderer into the live sun arc (proofs that
+    /// never call it keep [`crate::scene::SUN_DIR`]).
+    pub fn set_day_phase(&mut self, phase: f32) {
+        self.day_phase = Some(phase.rem_euclid(1.0));
+    }
+
+    pub fn day_phase(&self) -> f32 {
+        self.day_phase.unwrap_or(0.12)
+    }
+
+    pub fn sun_dir(&self) -> [f32; 3] {
+        match self.day_phase {
+            Some(p) => crate::scene::sun_at_phase(p).0,
+            None => crate::scene::SUN_DIR,
+        }
     }
 
     /// The current atmosphere parameters (proof introspection).
@@ -2235,6 +2260,10 @@ impl Renderer {
         let fwd = cam.fwd();
         let right = cam.right();
         let up = cam.up();
+        let (sun, night) = match self.day_phase {
+            Some(p) => crate::scene::sun_at_phase(p),
+            None => (crate::scene::SUN_DIR, 0.0),
+        };
         let globals = Globals {
             view_proj: cam.view_proj(aspect),
             cam_pos: [
@@ -2246,12 +2275,7 @@ impl Renderer {
             fwd: [fwd[0], fwd[1], fwd[2], 0.0],
             right: [right[0], right[1], right[2], 0.0],
             up: [up[0], up[1], up[2], 0.0],
-            sun_dir: [
-                crate::scene::SUN_DIR[0],
-                crate::scene::SUN_DIR[1],
-                crate::scene::SUN_DIR[2],
-                0.0,
-            ],
+            sun_dir: [sun[0], sun[1], sun[2], night],
             tan_aspect: [
                 cam.tan_half_fov(),
                 aspect,
@@ -2265,7 +2289,8 @@ impl Renderer {
             .write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&globals));
 
         // Atmosphere (NWR-006): the sun's stable ortho box follows the
-        // camera focus; every zero value keeps the legacy look.
+        // camera focus; every zero value keeps the legacy look. Night
+        // pulls fog toward a deep blue so caves and open ground read dark.
         let atm = self.atmosphere;
         let focus = [
             cam.pose.position[0] + fwd[0] * 45.0,
@@ -2274,7 +2299,7 @@ impl Renderer {
         ];
         let lvp = crate::atmosphere::light_view_proj(
             focus,
-            crate::scene::SUN_DIR,
+            sun,
             if atm.shadow_res > 0 {
                 atm.shadow_half_m
             } else {
@@ -2283,11 +2308,16 @@ impl Renderer {
             atm.shadow_res.max(1),
             atm.shadow_res > 0,
         );
+        let fog = [
+            atm.fog_color[0] * (1.0 - 0.75 * night) + 0.02 * night,
+            atm.fog_color[1] * (1.0 - 0.75 * night) + 0.03 * night,
+            atm.fog_color[2] * (1.0 - 0.55 * night) + 0.08 * night,
+        ];
         let env = EnvGpu {
             light_view_proj: lvp,
-            fog_color: [atm.fog_color[0], atm.fog_color[1], atm.fog_color[2], 1.0],
+            fog_color: [fog[0], fog[1], fog[2], 1.0],
             params1: [
-                atm.fog_density,
+                atm.fog_density * (1.0 + 1.5 * night),
                 if atm.shadow_res > 0 { 1.0 } else { 0.0 },
                 crate::atmosphere::shadow_texel(atm.shadow_half_m, atm.shadow_res),
                 atm.detail_strength,
@@ -2301,7 +2331,7 @@ impl Renderer {
             params3: [
                 if self.height_debug { 1.0 } else { 0.0 },
                 if self.scene_debug != SceneDebugMode::Normal { 1.0 } else { 0.0 },
-                0.0,
+                night,
                 0.0,
             ],
         };
@@ -2563,7 +2593,7 @@ impl Renderer {
                     cam.pose.position[1] + f[1] * 45.0,
                     cam.pose.position[2] + f[2] * 45.0,
                 ],
-                crate::scene::SUN_DIR,
+                self.sun_dir(),
                 if atm.shadow_res > 0 {
                     atm.shadow_half_m
                 } else {

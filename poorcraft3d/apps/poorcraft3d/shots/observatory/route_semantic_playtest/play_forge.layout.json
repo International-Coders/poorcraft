@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        466,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -244,6 +255,50 @@
     },
     {
       "button_state": "",
+      "id": "interact_panel",
+      "kind": "panel",
+      "rect": [
+        120,
+        219,
+        560,
+        150
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_line_0",
+      "kind": "text",
+      "rect": [
+        140,
+        261,
+        418,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_line_1",
+      "kind": "text",
+      "rect": [
+        140,
+        283,
+        418,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_hint",
+      "kind": "text",
+      "rect": [
+        578,
+        345,
+        82,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "forge_panel",
       "kind": "panel",
       "rect": [
@@ -327,8 +382,8 @@
     "forge": {
       "bars": 0,
       "blocked": false,
-      "fuel": 0.30000001192092896,
-      "heat": 0.0833333358168602,
+      "fuel": 0.3166666626930237,
+      "heat": 0.0416666679084301,
       "ore": 2,
       "state": "HEATING"
     },
@@ -346,9 +401,14 @@
       "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK IRON_ORE 2 · WOOD_PICK 1 · BREAD 2",
       "xp": 0.0
     },
+    "interact": "MAP MARKER",
+    "journal": null,
+    "journal_open": false,
     "modal": null,
+    "ore_harvested": 4,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -361,25 +421,31 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 18:40",
+        "modified": "2026-09-21 14:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 18:40",
+        "modified": "2026-09-21 14:25",
         "name": "beta-shot",
         "seed": 7
       }
     ],
+    "stock": [
+      "IRON_ORE x2",
+      "WOOD_PICK x1",
+      "BREAD x2"
+    ],
     "toasts": [
       {
-        "age_s": 0.8573783040046692,
+        "age_s": 0.7834305763244629,
         "text": "FUEL LOADED"
       },
       {
-        "age_s": 0.8573783040046692,
+        "age_s": 0.7834305763244629,
         "text": "ORE LOADED (2)"
       }
-    ]
+    ],
+    "wallet": 0
   }
 }

@@ -1,0 +1,30 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_crowd_yield-dev",
+  "commands": [
+    "--observe route_crowd_yield"
+  ],
+  "diff_paths": [],
+  "digest": "4678dc91ff7d5477",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_crowd_yield",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [
+    "crowd_staged.png",
+    "crowd_yield.png",
+    "crowd_pass.png",
+    "crowd_arrived.png"
+  ],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

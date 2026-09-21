@@ -6,7 +6,7 @@
     "--observe route_semantic_playtest"
   ],
   "diff_paths": [],
-  "digest": "83c0a0d8fb6e8f8a",
+  "digest": "05c46411869a857c",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
@@ -18,8 +18,16 @@
     "play_door_outside.png",
     "play_interior.png",
     "play_talk.png",
+    "play_chest.png",
+    "play_harvest.png",
+    "play_marker.png",
     "play_forge.png",
-    "play_taken.png"
+    "play_taken.png",
+    "play_journal.png",
+    "play_journal_progress.png",
+    "play_fall_air.png",
+    "play_fall_landed.png",
+    "play_final.png"
   ],
   "seed": "3",
   "verdict_path": "verdict.json",

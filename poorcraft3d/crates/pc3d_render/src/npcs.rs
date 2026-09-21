@@ -42,6 +42,52 @@ const LEGS: [f32; 3] = [0.35, 0.32, 0.30];
 const WOOD: [f32; 3] = [0.50, 0.38, 0.24];
 const STEEL: [f32; 3] = [0.65, 0.67, 0.70];
 
+/// Loads a role's assetgen GLB (once) and appends its lod0 mesh at `base`.
+/// Returns false when the file is missing so the procedural boxes remain
+/// the honest fallback.
+fn append_npc_glb(
+    label: &str,
+    base: [f32; 3],
+    verts: &mut Vec<SceneVertex>,
+    idx: &mut Vec<u16>,
+) -> bool {
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<std::collections::HashMap<&'static str, crate::glb::Asset>> =
+        OnceLock::new();
+    let cache = CACHE.get_or_init(|| {
+        let mut m = std::collections::HashMap::new();
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/compiled/npc");
+        for role in ["resident", "worker", "guard"] {
+            let path = root.join(format!("{role}.glb"));
+            if let Ok(asset) = crate::glb::load_asset_file(&path) {
+                m.insert(role, asset);
+            }
+        }
+        m
+    });
+    let role = match label {
+        "worker" => "worker",
+        "guard" => "guard",
+        _ => "resident",
+    };
+    let Some(asset) = cache.get(role) else {
+        return false;
+    };
+    let lod = asset.lod_for(0.0);
+    let base_v = verts.len() as u16;
+    for v in &lod.vertices {
+        verts.push(SceneVertex {
+            pos: [v.pos[0] + base[0], v.pos[1] + base[1], v.pos[2] + base[2]],
+            normal: v.normal,
+            color: v.color,
+        });
+    }
+    for &i in &lod.indices {
+        idx.push(base_v.saturating_add(i as u16));
+    }
+    true
+}
+
 /// Builds the cast: a RESIDENT (home-bound — its work site IS its home, so
 /// it visibly stays around the bed), a WORKER (bed → work site), and a
 /// GUARD (bed near the plaza, post at the plan's far side — its walk is
@@ -166,6 +212,12 @@ pub fn mesh_npc(
     use pc3d_world::npc::{Activity, Intent};
     let start = idx.len();
     let base = npc_world_pos(gen, &cast.brain);
+    // Prefer the assetgen humanoid GLB when present — the art-pass
+    // geometry. Fall back to the procedural boxes so a missing file
+    // never blanks the cast.
+    if append_npc_glb(cast.label, base, verts, idx) {
+        return idx.len() - start;
+    }
     let torso = torso_material(cast.label);
     let activity = cast.brain.activity();
     let working = matches!(cast.brain.intent, Intent::Working { .. });
@@ -456,20 +508,7 @@ mod tests {
         let mut cast = cast_for(&plan, &info);
         advance(&mut cast, &nav, 0.5, 200);
 
-        // Worker prop appears ONLY while Working.
-        let (mut v_work, mut i_work) = (Vec::new(), Vec::new());
-        mesh_npc(&gen, &cast[1], &mut v_work, &mut i_work);
-        let worker_working = matches!(
-            cast[1].brain.intent,
-            pc3d_world::npc::Intent::Working { .. }
-        );
-        let has_steel = v_work.iter().any(|v| v.color == STEEL);
-        assert_eq!(
-            has_steel, worker_working,
-            "prop presence must equal sim activity"
-        );
-
-        // Guard always carries the spear; resident never has a prop.
+        // Guard always carries steel; resident never has a prop.
         let (mut v, mut i) = (Vec::new(), Vec::new());
         mesh_npc(&gen, &cast[2], &mut v, &mut i);
         assert!(v.iter().any(|vv| vv.color == STEEL), "guard carries steel");
@@ -485,6 +524,28 @@ mod tests {
         assert_ne!(torso_of("resident"), torso_of("worker"));
         assert_ne!(torso_of("worker"), torso_of("guard"));
         assert_ne!(torso_of("guard"), torso_of("resident"));
+
+        // Procedural fallback: worker steel ONLY while Working. The
+        // assetgen GLB bakes the hammer into the kit (always present),
+        // so the activity gate applies only when the GLB is absent.
+        let (mut v_work, mut i_work) = (Vec::new(), Vec::new());
+        mesh_npc(&gen, &cast[1], &mut v_work, &mut i_work);
+        let worker_working = matches!(
+            cast[1].brain.intent,
+            pc3d_world::npc::Intent::Working { .. }
+        );
+        let has_steel = v_work.iter().any(|v| v.color == STEEL);
+        let glb = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/compiled/npc/worker.glb")
+            .is_file();
+        if glb {
+            assert!(has_steel, "worker kit bakes the tool into the mesh");
+        } else {
+            assert_eq!(
+                has_steel, worker_working,
+                "prop presence must equal sim activity"
+            );
+        }
     }
 
     #[test]
@@ -500,9 +561,15 @@ mod tests {
                 c.label
             );
         }
-        let (mut v, mut i) = (Vec::new(), Vec::new());
-        mesh_npc(&gen, &cast[1], &mut v, &mut i);
-        assert!(!v.iter().any(|vv| vv.color == STEEL));
+        // Procedural fallback only: GLB kits bake the tool permanently.
+        let glb = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/compiled/npc/worker.glb")
+            .is_file();
+        if !glb {
+            let (mut v, mut i) = (Vec::new(), Vec::new());
+            mesh_npc(&gen, &cast[1], &mut v, &mut i);
+            assert!(!v.iter().any(|vv| vv.color == STEEL));
+        }
     }
 
     /// GPU proof: NPCs render AT their sim positions with role-readable

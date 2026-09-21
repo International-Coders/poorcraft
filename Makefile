@@ -334,12 +334,21 @@ p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowe
 	run vertical-slice       $$BIN --play-slice   "$$SHOTS" 3; \
 	run ui-states            $$BIN --ui-shots     "$$SHOTS"; \
 	run asset-manifest       $$BIN --validate-assets; \
+	run layout-laws          $$BIN --gate-check   "$$SHOTS"; \
 	echo "" | tee -a "$$REPORT"; \
 	if [ $$fail -eq 0 ]; then \
 		echo "ALL VISUAL GATES PASS (report: $$REPORT)" | tee -a "$$REPORT"; \
 	else \
 		echo "VISUAL GATES FAILED — see $$REPORT" | tee -a "$$REPORT"; exit 1; \
 	fi
+
+p3d-gate-check: ## The layout laws over every *.layout.json on disk (no GPU needed): no overlapping text, one panel at a time, no unreachable hint keys
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --gate-check $(if $(SHOTS),$(SHOTS),poorcraft3d/apps/poorcraft3d/shots) || exit 1
+
+p3d-daynight: ## Art-pass: noon vs midnight mean-luminance gate (writes windowed_day/night.png)
+	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-daynight $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1
 
 p3d-quality: ## Windowed quality-tier proof (same scene at Low/Mid/High + memory/frame record): make p3d-quality [OUTDIR=shots] [SEED=3]
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d

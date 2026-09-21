@@ -11,6 +11,11 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] POORCRAFT 3D revival Phase 4 art-pass (2026-09-21): NPC GLBs +
+      faction kits, live day/night (`make p3d-daynight` 48% darker),
+      beta-critical promotions, layout/subject/grounded gates +
+      ActivePanel + survival/craft/machines/social wiring from the same
+      revival (see docs/POORCRAFT-3D/23-HONEST-AUDIT.md postscript).
 - [x] The bootstrap is the server's: protocol v11 closes the
       lying-PackSync tier (2026-09-18, loop 472, root workspace):
       closed STATE's next_task item (1), TOP since 471, named at 466.

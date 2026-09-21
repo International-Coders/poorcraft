@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -60,20 +71,20 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        113,
+        65,
         397,
-        574,
+        670,
         14
       ]
     },
     {
       "button_state": "",
-      "id": "toast_FORGED 1 BARS",
+      "id": "toast_NOTHING TO TAKE YET",
       "kind": "toast",
       "rect": [
-        313,
+        277,
         375,
-        174,
+        246,
         16
       ]
     },
@@ -194,7 +205,7 @@
       "rect": [
         140,
         261,
-        166,
+        262,
         14
       ]
     },
@@ -255,13 +266,13 @@
     "focus": 0,
     "forge": {
       "bars": 0,
-      "blocked": false,
+      "blocked": true,
       "fuel": 0.15000000596046448,
-      "heat": 0.2083333283662796,
-      "ore": 1,
-      "state": "HEATING"
+      "heat": 0.4583333432674408,
+      "ore": 0,
+      "state": "BLOCKED: no ore"
     },
-    "forge_bars_taken": 1,
+    "forge_bars_taken": 0,
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
@@ -272,12 +283,17 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK EMPTY",
       "xp": 0.0
     },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
     "modal": null,
+    "ore_harvested": 0,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -290,21 +306,25 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-21 14:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-21 14:25",
         "name": "beta-shot",
         "seed": 7
       }
     ],
+    "stock": [
+      "CARRYING NOTHING"
+    ],
     "toasts": [
       {
-        "age_s": 0.9742550253868103,
-        "text": "FORGED 1 BARS"
+        "age_s": 1.452713966369629,
+        "text": "NOTHING TO TAKE YET"
       }
-    ]
+    ],
+    "wallet": 0
   }
 }

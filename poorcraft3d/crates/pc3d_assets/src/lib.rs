@@ -390,7 +390,12 @@ pub struct DetailSpec {
 /// The four atlas tiles' generator parameters [noise scale (px), seed] —
 /// grass, rock, sand, snow. The renderer's procedural atlas is a pure
 /// function of this table (no image files ship).
-pub const DETAIL_ATLAS_SPECS: [[u32; 2]; 4] = [[8, 11], [10, 23], [6, 37], [7, 53]];
+pub const DETAIL_ATLAS_SPECS: [[u32; 2]; 4] = [
+    [9, 11],  // grass — finer blades
+    [14, 29], // rock — coarser grain
+    [5, 41],  // sand/timber — soft dunes
+    [11, 67], // snow — sparse sparkle
+];
 
 #[cfg(test)]
 mod material_tests {
@@ -516,7 +521,13 @@ mod tests {
         assert!(guard
             .runtime_consumers
             .contains(&"npc_renderer".to_string()));
-        assert_eq!(guard.proof_scene, "vertical_slice_city");
+        assert_eq!(guard.proof_scene, "route_npc_talk");
+        assert_eq!(guard.status, Status::Beta);
+        // Promoted rows leave placeholder behind — the art-pass proof.
+        assert!(
+            m.assets.iter().any(|a| a.status == Status::Beta),
+            "at least one row must be off placeholder"
+        );
     }
 
     #[test]

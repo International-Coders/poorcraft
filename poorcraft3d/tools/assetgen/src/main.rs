@@ -819,6 +819,46 @@ fn asset_rock_slab() -> Vec<(&'static str, Mesh)> {
     vec![("lod0", lod0), ("lod1", lod1)]
 }
 
+/// WT-002 / art-pass — a low-poly humanoid for the three beta NPC roles.
+/// Faction kit distinction is the torso color (resident warm / worker
+/// clay / guard steel), baked into the mesh so the live cast does not
+/// need a second material pass.
+fn asset_npc(role: &str) -> Vec<(&'static str, Mesh)> {
+    let torso = match role {
+        "worker" => [0.60, 0.48, 0.36],
+        "guard" => [0.42, 0.44, 0.50],
+        _ => [0.72, 0.62, 0.50],
+    };
+    let skin = [0.78, 0.66, 0.54];
+    let legs = [0.35, 0.32, 0.30];
+    let wood = [0.50, 0.38, 0.24];
+    let steel = [0.65, 0.67, 0.70];
+    let mut lod0 = Mesh::default();
+    // Pivot at ground between the feet. Units: meters.
+    box_at(&mut lod0, -0.09, 0.375, 0.0, 0.07, 0.375, 0.08, legs);
+    box_at(&mut lod0, 0.09, 0.375, 0.0, 0.07, 0.375, 0.08, legs);
+    box_at(&mut lod0, 0.0, 1.05, 0.0, 0.20, 0.30, 0.12, torso);
+    box_at(&mut lod0, 0.0, 1.52, 0.0, 0.13, 0.17, 0.13, skin);
+    // Arms.
+    box_at(&mut lod0, -0.28, 1.10, 0.0, 0.06, 0.28, 0.06, torso);
+    box_at(&mut lod0, 0.28, 1.10, 0.0, 0.06, 0.28, 0.06, torso);
+    match role {
+        "guard" => {
+            box_at(&mut lod0, 0.36, 1.30, 0.0, 0.02, 0.75, 0.02, wood);
+            box_at(&mut lod0, 0.36, 2.10, 0.0, 0.04, 0.08, 0.04, steel);
+        }
+        "worker" => {
+            box_at(&mut lod0, 0.36, 0.90, 0.0, 0.02, 0.20, 0.02, wood);
+            box_at(&mut lod0, 0.36, 0.72, 0.0, 0.06, 0.04, 0.02, steel);
+        }
+        _ => {}
+    }
+    let mut lod1 = Mesh::default();
+    box_at(&mut lod1, 0.0, 0.85, 0.0, 0.18, 0.85, 0.12, torso);
+    box_at(&mut lod1, 0.0, 1.55, 0.0, 0.12, 0.15, 0.12, skin);
+    vec![("lod0", lod0), ("lod1", lod1)]
+}
+
 /// WT-002 starter batch — the openable chest: timber box, iron bands,
 /// keyhole plate, and a lid thrown open against the back edge. The
 /// `open` anchor sits at the front where the player stands; `lid` marks
@@ -2379,6 +2419,9 @@ fn generate(id: &str) -> Vec<(&'static str, Mesh)> {
         "prop.rock_granite" => asset_rock(),
         "prop.chest" => asset_chest(),
         "prop.ore_node" => asset_ore_node(),
+        "npc.resident" => asset_npc("resident"),
+        "npc.worker" => asset_npc("worker"),
+        "npc.guard" => asset_npc("guard"),
         "module.house_croft" => asset_house(),
         "flora.tree_pine" => asset_tree_pine(),
         "flora.tree_broadleaf" => asset_tree_broadleaf(),
@@ -2519,10 +2562,12 @@ fn main() {
     let out_module = root.join("poorcraft3d/assets/compiled/module");
     let out_flora = root.join("poorcraft3d/assets/compiled/flora");
     let out_landmark = root.join("poorcraft3d/assets/compiled/landmark");
+    let out_npc = root.join("poorcraft3d/assets/compiled/npc");
     std::fs::create_dir_all(&out_prop).expect("mkdir prop");
     std::fs::create_dir_all(&out_module).expect("mkdir module");
     std::fs::create_dir_all(&out_flora).expect("mkdir flora");
     std::fs::create_dir_all(&out_landmark).expect("mkdir landmark");
+    std::fs::create_dir_all(&out_npc).expect("mkdir npc");
 
     // lod0 budgets from the pack manifest (first_asset_batch.json).
     let budgets: &[(&str, u32)] = &[
@@ -2533,6 +2578,9 @@ fn main() {
         // WT-002-SEMANTIC-ASSET-FACTORY-LAB/asset_factory_queue.json).
         ("prop.chest", 200),
         ("prop.ore_node", 400),
+        ("npc.resident", 300),
+        ("npc.worker", 320),
+        ("npc.guard", 340),
         // NWR-007 wilderness set (budgets from
         // docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/wilderness_batch.json).
         ("flora.tree_pine", 900),
@@ -2563,6 +2611,8 @@ fn main() {
             &out_flora
         } else if id.starts_with("landmark.") {
             &out_landmark
+        } else if id.starts_with("npc.") {
+            &out_npc
         } else if id.starts_with("prop.") {
             &out_prop
         } else {

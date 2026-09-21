@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        622,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -68,11 +79,22 @@
     },
     {
       "button_state": "",
+      "id": "toast_QUEST ACCEPTED",
+      "kind": "toast",
+      "rect": [
+        307,
+        375,
+        186,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "toast_FORGED 1 BARS",
       "kind": "toast",
       "rect": [
         313,
-        375,
+        353,
         174,
         16
       ]
@@ -233,6 +255,171 @@
     },
     {
       "button_state": "",
+      "id": "journal_panel",
+      "kind": "panel",
+      "rect": [
+        80,
+        127,
+        640,
+        246
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_wallet",
+      "kind": "text",
+      "rect": [
+        510,
+        171,
+        190,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_0",
+      "kind": "text",
+      "rect": [
+        100,
+        171,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_0",
+      "kind": "text",
+      "rect": [
+        100,
+        186,
+        311,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_1",
+      "kind": "text",
+      "rect": [
+        100,
+        201,
+        346,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_1",
+      "kind": "text",
+      "rect": [
+        100,
+        216,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_2",
+      "kind": "text",
+      "rect": [
+        100,
+        231,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_2",
+      "kind": "text",
+      "rect": [
+        100,
+        246,
+        341,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_3",
+      "kind": "text",
+      "rect": [
+        100,
+        261,
+        370,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_3",
+      "kind": "text",
+      "rect": [
+        100,
+        276,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_hint",
+      "kind": "text",
+      "rect": [
+        162,
+        349,
+        538,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_panel",
+      "kind": "panel",
+      "rect": [
+        120,
+        219,
+        560,
+        150
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_line_0",
+      "kind": "text",
+      "rect": [
+        140,
+        261,
+        418,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_line_1",
+      "kind": "text",
+      "rect": [
+        140,
+        283,
+        418,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "interact_hint",
+      "kind": "text",
+      "rect": [
+        578,
+        345,
+        82,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "forge_panel",
       "kind": "panel",
       "rect": [
@@ -335,9 +522,47 @@
       "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK IRON_ORE 2 · IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
       "xp": 0.0
     },
+    "interact": "MAP MARKER",
+    "journal": [
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "greet",
+        "progress": "0/4",
+        "reward": 31,
+        "state": "OFFERED",
+        "title": "THE FARMER'S greet"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
+        "kind": "build",
+        "progress": "0/11",
+        "reward": 27,
+        "state": "OFFERED",
+        "title": "THE BUILDER'S build"
+      },
+      {
+        "giver": "Dunstan Fernbrook (the guard)",
+        "kind": "excavate",
+        "progress": "0/8",
+        "reward": 39,
+        "state": "ACTIVE",
+        "title": "THE GUARD'S excavate"
+      },
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "excavate",
+        "progress": "0/8",
+        "reward": 35,
+        "state": "OFFERED",
+        "title": "THE FARMER'S excavate"
+      }
+    ],
+    "journal_open": true,
     "modal": null,
+    "ore_harvested": 4,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -350,21 +575,32 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 18:40",
+        "modified": "2026-09-21 14:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 18:40",
+        "modified": "2026-09-21 14:25",
         "name": "beta-shot",
         "seed": 7
       }
     ],
+    "stock": [
+      "IRON_ORE x2",
+      "IRON_BAR x1",
+      "WOOD_PICK x1",
+      "BREAD x2"
+    ],
     "toasts": [
       {
-        "age_s": 1.2114578485488892,
+        "age_s": 1.5273218154907227,
         "text": "FORGED 1 BARS"
+      },
+      {
+        "age_s": 0.03703823685646057,
+        "text": "QUEST ACCEPTED"
       }
-    ]
+    ],
+    "wallet": 0
   }
 }

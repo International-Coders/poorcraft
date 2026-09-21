@@ -253,7 +253,10 @@ fn passable_at(gen: &WorldGen, cx: i32, cy: i32, cz: i32) -> bool {
     matches!(a.material, CellMaterial::Air | CellMaterial::Water)
 }
 
-fn is_water_at(gen: &WorldGen, x: f32, y: f32, z: f32) -> bool {
+/// True when the cell containing this world point is water. Public so the
+/// render layer asks the same question the swim law does rather than
+/// inventing a second notion of "in the river".
+pub fn is_water_at(gen: &WorldGen, x: f32, y: f32, z: f32) -> bool {
     let a = final_solid(
         gen,
         (x.floor() as i64) * 1000,

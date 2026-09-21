@@ -26,6 +26,21 @@ impl CameraPose {
             pitch,
         }
     }
+
+    /// The pose at `eye` aimed at `target`.
+    ///
+    /// Proof cameras must aim at their subject rather than carry a
+    /// hand-tuned pitch: the city overview hardcoded ~30 degrees while its
+    /// own eye placement needed ~48, so the capture looked straight over the
+    /// city into the sky and the gate passed anyway.
+    pub fn look_at(eye: [f32; 3], target: [f32; 3]) -> Self {
+        let d = [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]];
+        let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+        if len <= f32::EPSILON {
+            return Self::new(eye, 0.0, 0.0);
+        }
+        Self::new(eye, (-d[0]).atan2(-d[2]), (d[1] / len).asin())
+    }
 }
 
 pub const DEFAULT_FOV_Y_RAD: f32 = 70.0_f32.to_radians();
@@ -250,6 +265,30 @@ mod tests {
         assert!((z(-0.1) - 0.0).abs() < EPS);
         assert!((z(-100.0) - 1.0).abs() < EPS);
         assert!(z(-1.0) > 0.0 && z(-1.0) < 1.0);
+    }
+
+    #[test]
+    fn look_at_aims_the_pose_at_its_target() {
+        // Straight north, level.
+        let p = CameraPose::look_at([0.0, 0.0, 0.0], [0.0, 0.0, -10.0]);
+        assert!(p.yaw.abs() < EPS && p.pitch.abs() < EPS, "{p:?}");
+
+        // The city-overview geometry: 90 m up, 80 m south of the target
+        // needs ~48 degrees down, not the 30 the proof used to hardcode.
+        let p = CameraPose::look_at([0.0, 90.0, 80.0], [0.0, 0.0, 0.0]);
+        let want = -(90.0f32 / 80.0).atan();
+        assert!((p.pitch - want).abs() < 1e-4, "pitch {} want {want}", p.pitch);
+        assert!(p.pitch < (-0.75f32).atan2(1.3), "must be steeper than the old constant");
+
+        // And the aim actually lands: the target projects near centre.
+        let vp = Camera::new(p).view_proj(1.6);
+        let w = vp[3] * 0.0 + vp[7] * 0.0 + vp[11] * 0.0 + vp[15];
+        let (nx, ny) = (vp[12] / w, vp[13] / w);
+        assert!(nx.abs() < 1e-3 && ny.abs() < 1e-3, "target off centre: {nx},{ny}");
+
+        // Degenerate: eye on the target yields a level pose, not NaN.
+        let p = CameraPose::look_at([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]);
+        assert!(p.yaw.is_finite() && p.pitch.is_finite());
     }
 
     #[test]

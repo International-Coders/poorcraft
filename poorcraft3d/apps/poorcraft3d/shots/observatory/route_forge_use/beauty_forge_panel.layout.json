@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -60,20 +71,20 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        113,
+        65,
         397,
-        574,
+        670,
         14
       ]
     },
     {
       "button_state": "",
-      "id": "toast_ORE LOADED (2)",
+      "id": "toast_NO ORE IN STOCK - HARVEST THE NODE (WITH A PICK)",
       "kind": "toast",
       "rect": [
-        307,
+        103,
         375,
-        186,
+        594,
         16
       ]
     },
@@ -269,7 +280,7 @@
       "blocked": false,
       "fuel": 0.30000001192092896,
       "heat": 0.0833333358168602,
-      "ore": 2,
+      "ore": 0,
       "state": "HEATING"
     },
     "forge_bars_taken": 0,
@@ -283,12 +294,17 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK EMPTY",
       "xp": 0.0
     },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
     "modal": null,
+    "ore_harvested": 0,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -301,25 +317,29 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-21 14:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-21 14:25",
         "name": "beta-shot",
         "seed": 7
       }
     ],
+    "stock": [
+      "CARRYING NOTHING"
+    ],
     "toasts": [
       {
-        "age_s": 0.6179748773574829,
+        "age_s": 1.0614255666732788,
         "text": "FUEL LOADED"
       },
       {
-        "age_s": 0.6179748773574829,
-        "text": "ORE LOADED (2)"
+        "age_s": 1.0614255666732788,
+        "text": "NO ORE IN STOCK - HARVEST THE NODE (WITH A PICK)"
       }
-    ]
+    ],
+    "wallet": 0
   }
 }

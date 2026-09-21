@@ -1,0 +1,116 @@
+{
+  "build_hash": "dev",
+  "camera": "scripted_route_camera",
+  "command": "--observe route_walk_off",
+  "gpu_markers": {
+    "reason": "pass markers pending WT-007 slice 1",
+    "value": null
+  },
+  "interactions": {
+    "gameplay_input_blocked": false,
+    "pointer_grabbed": true,
+    "tracked_ui_state_events": 2
+  },
+  "machines": {
+    "reason": "sim machines not mounted in UI routes (see --journey)",
+    "value": null
+  },
+  "npcs": {
+    "reason": "no crowd mounted in UI routes (see --play-people)",
+    "value": null
+  },
+  "perf": {
+    "avg_fps": 31.5,
+    "frames": 237,
+    "p50_ms": 30.959999084472656,
+    "p95_ms": 37.459999084472656
+  },
+  "player": {
+    "note": "player pose rides the route camera script in UI routes"
+  },
+  "proof_paths": [],
+  "quality": "mid",
+  "scene": "showcase_seed_3_rebuild",
+  "seed": "3",
+  "timestamp_utc": "1790000842",
+  "ui": {
+    "debug_overlay": false,
+    "dialog": null,
+    "focus": 0,
+    "forge": null,
+    "forge_bars_taken": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": false,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 0.646492063999176,
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "stock": "PACK EMPTY",
+      "xp": 0.0
+    },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
+    "modal": null,
+    "ore_harvested": 0,
+    "pointer_grabbed": true,
+    "screen": "gameplay",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-09-21 14:27",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-09-21 14:27",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "stock": [],
+    "toasts": [
+      {
+        "age_s": 1.1805057525634766,
+        "text": "THE GROUND GIVES WAY"
+      },
+      {
+        "age_s": 0.10459168255329132,
+        "text": "FELL — HEALTH 64%"
+      }
+    ],
+    "wallet": 0
+  },
+  "verdict": "exported",
+  "version": 1,
+  "viewport": [
+    800,
+    500
+  ],
+  "visible_assets": {
+    "count": 7,
+    "note": "the asset inspection route dumps the full starter batch"
+  },
+  "world": {
+    "built_count": {
+      "reason": "construction not mounted in UI routes",
+      "value": null
+    },
+    "seed_resolved": "3",
+    "spawn_safe": null
+  }
+}

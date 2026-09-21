@@ -65,6 +65,25 @@ pub const SUN_DIR: [f32; 3] = {
     [0.55 / l, 0.35 / l, 0.25 / l]
 };
 
+/// Day phase in [0, 1): 0 = dawn, 0.25 = noon, 0.5 = dusk, 0.75 = midnight.
+/// Returns a unit sun direction and a night factor (0 = full day, 1 = night).
+pub fn sun_at_phase(phase: f32) -> ([f32; 3], f32) {
+    let p = phase.rem_euclid(1.0);
+    // Elevation peaks at noon (p = 0.25) and bottoms at midnight (p = 0.75).
+    let elev = ((p - 0.25) * std::f32::consts::TAU).cos();
+    let azim = p * std::f32::consts::TAU;
+    let horiz = elev.max(0.05).sqrt();
+    let mut dir = [azim.sin() * horiz, elev.max(-0.25), azim.cos() * horiz * 0.4];
+    let len = (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2])
+        .sqrt()
+        .max(1e-6);
+    dir = [dir[0] / len, dir[1] / len, dir[2] / len];
+    // Horizon (elev ≈ 0) is twilight, not full day — ramp night across
+    // elev ∈ [-0.2, 0.2] so dawn/dusk dim while noon stays bright.
+    let night = ((0.2 - elev) / 0.4).clamp(0.0, 1.0);
+    (dir, night)
+}
+
 pub const AMBIENT: f32 = 0.35;
 pub const SUN_STRENGTH: f32 = 1.1;
 
@@ -373,6 +392,248 @@ pub fn verify_frame_rgba(rgba: &[u8], width: u32, height: u32, probes: &[Probe])
     }
 }
 
+// ---------------------------------------------------------------------------
+// THE SUBJECT LAWS
+//
+// `PixelReport::passes` asks whether the frame is colorful and opaque. It
+// never asks whether the thing the proof is named after is actually on
+// screen, which is how `windowed_city.png` passed the castle-city gate while
+// showing an empty sky and a grey plate.
+//
+// A proof now declares the world-space box its subject occupies. The law
+// projects that box and reads the pixels inside it.
+// ---------------------------------------------------------------------------
+
+/// An axis-aligned world-space box, in meters.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Aabb {
+    pub min: [f32; 3],
+    pub max: [f32; 3],
+}
+
+impl Aabb {
+    pub fn new(min: [f32; 3], max: [f32; 3]) -> Aabb {
+        Aabb { min, max }
+    }
+
+    /// The box around a point, `r` meters in every direction.
+    pub fn around(c: [f32; 3], r: f32) -> Aabb {
+        Aabb {
+            min: [c[0] - r, c[1] - r, c[2] - r],
+            max: [c[0] + r, c[1] + r, c[2] + r],
+        }
+    }
+
+    pub fn corners(&self) -> [[f32; 3]; 8] {
+        let (a, b) = (self.min, self.max);
+        [
+            [a[0], a[1], a[2]], [b[0], a[1], a[2]],
+            [a[0], b[1], a[2]], [b[0], b[1], a[2]],
+            [a[0], a[1], b[2]], [b[0], a[1], b[2]],
+            [a[0], b[1], b[2]], [b[0], b[1], b[2]],
+        ]
+    }
+}
+
+/// The verdict of [`subject_in_frame`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubjectReport {
+    /// Pixel rect the subject projects to, clipped to the frame.
+    pub rect: Option<(u32, u32, u32, u32)>,
+    /// Subject pixels as a fraction of the whole frame.
+    pub coverage: f32,
+    /// Distinct colors inside the subject rect.
+    pub distinct_colors: usize,
+    /// Fraction of subject pixels that match the frame's sky color.
+    pub sky_fraction: f32,
+    /// Subject centre in normalised frame coords (0..1, y down). A well-aimed
+    /// camera puts this near (0.5, 0.5).
+    pub center: (f32, f32),
+    pub reason: Option<String>,
+}
+
+impl SubjectReport {
+    pub fn passes(&self) -> bool {
+        self.reason.is_none()
+    }
+}
+
+/// Projects a world AABB into the pixel rect it covers from `pose`.
+/// `None` when the box is entirely behind the camera or off screen.
+pub fn project_aabb(
+    pose: CameraPose,
+    aspect: f32,
+    aabb: Aabb,
+    width: u32,
+    height: u32,
+) -> Option<(u32, u32, u32, u32)> {
+    let vp = crate::camera::Camera::new(pose).view_proj(aspect);
+    let (mut lo_x, mut lo_y) = (f32::MAX, f32::MAX);
+    let (mut hi_x, mut hi_y) = (f32::MIN, f32::MIN);
+    let mut any = false;
+    for p in aabb.corners() {
+        let x = vp[0] * p[0] + vp[4] * p[1] + vp[8] * p[2] + vp[12];
+        let y = vp[1] * p[0] + vp[5] * p[1] + vp[9] * p[2] + vp[13];
+        let w = vp[3] * p[0] + vp[7] * p[1] + vp[11] * p[2] + vp[15];
+        // Behind the eye: that corner contributes nothing.
+        if w <= 1e-6 {
+            continue;
+        }
+        any = true;
+        let (nx, ny) = (x / w, y / w);
+        lo_x = lo_x.min(nx);
+        hi_x = hi_x.max(nx);
+        lo_y = lo_y.min(ny);
+        hi_y = hi_y.max(ny);
+    }
+    if !any {
+        return None;
+    }
+    let to_px_x = |n: f32| ((n + 1.0) * 0.5 * width as f32).clamp(0.0, width as f32);
+    // NDC y is up; rows count down.
+    let to_px_y = |n: f32| ((1.0 - n) * 0.5 * height as f32).clamp(0.0, height as f32);
+    let x0 = to_px_x(lo_x).floor() as u32;
+    let x1 = to_px_x(hi_x).ceil() as u32;
+    // hi_y (NDC, up) maps to the smaller row.
+    let y0 = to_px_y(hi_y).floor() as u32;
+    let y1 = to_px_y(lo_y).ceil() as u32;
+    if x1 <= x0 || y1 <= y0 {
+        return None;
+    }
+    Some((x0, y0, x1 - x0, y1 - y0))
+}
+
+/// THE SUBJECT-IN-FRAME LAW: the thing a proof is named after must occupy a
+/// real share of the frame and must not be the empty sky.
+///
+/// `sky` is the frame's background color (sampled from a corner by
+/// [`frame_sky_color`]). A subject rect that is almost entirely sky means the
+/// camera is pointed somewhere the subject is not, which is exactly the
+/// failure the old gates could not see.
+pub fn subject_in_frame(
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+    pose: CameraPose,
+    aabb: Aabb,
+    min_coverage: f32,
+) -> SubjectReport {
+    let aspect = width as f32 / height as f32;
+    let sky = frame_sky_color(rgba, width, height);
+    let Some(rect) = project_aabb(pose, aspect, aabb, width, height) else {
+        return SubjectReport {
+            rect: None,
+            coverage: 0.0,
+            distinct_colors: 0,
+            sky_fraction: 1.0,
+            center: (0.5, 0.5),
+            reason: Some("subject projects entirely off screen or behind the camera".into()),
+        };
+    };
+    let (rx, ry, rw, rh) = rect;
+    let mut distinct = HashSet::new();
+    let mut sky_px = 0u64;
+    let mut total = 0u64;
+    for y in ry..(ry + rh).min(height) {
+        for x in rx..(rx + rw).min(width) {
+            let i = ((y * width + x) * 4) as usize;
+            let c = (rgba[i], rgba[i + 1], rgba[i + 2]);
+            distinct.insert(c);
+            if near_color(c, sky, 10) {
+                sky_px += 1;
+            }
+            total += 1;
+        }
+    }
+    let coverage = total as f32 / (width as f32 * height as f32);
+    let sky_fraction = if total == 0 { 1.0 } else { sky_px as f32 / total as f32 };
+    let center = (
+        (rx as f32 + rw as f32 / 2.0) / width as f32,
+        (ry as f32 + rh as f32 / 2.0) / height as f32,
+    );
+    // A camera aimed at its subject puts the subject near the middle. Outside
+    // this band the subject is clinging to an edge, which is what a
+    // mis-pitched proof camera produces.
+    let off_center = (center.0 - 0.5).abs().max((center.1 - 0.5).abs()) > 0.2;
+    let reason = if coverage < min_coverage {
+        Some(format!(
+            "subject covers {:.4} of the frame, below the {:.4} the proof demands",
+            coverage, min_coverage
+        ))
+    } else if sky_fraction > 0.95 {
+        Some(format!(
+            "subject rect is {:.1}% sky — the camera is not looking at it",
+            sky_fraction * 100.0
+        ))
+    } else if off_center {
+        Some(format!(
+            "subject centre is ({:.2}, {:.2}) — the camera is not aimed at it",
+            center.0, center.1
+        ))
+    } else if distinct.len() < 3 {
+        Some(format!(
+            "subject rect holds {} distinct colors — nothing is drawn there",
+            distinct.len()
+        ))
+    } else {
+        None
+    };
+    SubjectReport {
+        rect: Some(rect),
+        coverage,
+        distinct_colors: distinct.len(),
+        sky_fraction,
+        center,
+        reason,
+    }
+}
+
+/// The frame's background color: the most common color along the top row,
+/// which is sky in every outdoor proof pose.
+pub fn frame_sky_color(rgba: &[u8], width: u32, height: u32) -> (u8, u8, u8) {
+    let mut counts: std::collections::HashMap<(u8, u8, u8), u32> = std::collections::HashMap::new();
+    let _ = height;
+    for x in 0..width {
+        let i = (x * 4) as usize;
+        *counts.entry((rgba[i], rgba[i + 1], rgba[i + 2])).or_default() += 1;
+    }
+    counts.into_iter().max_by_key(|(_, n)| *n).map(|(c, _)| c).unwrap_or((0, 0, 0))
+}
+
+fn near_color(a: (u8, u8, u8), b: (u8, u8, u8), tol: i32) -> bool {
+    (a.0 as i32 - b.0 as i32).abs() <= tol
+        && (a.1 as i32 - b.1 as i32).abs() <= tol
+        && (a.2 as i32 - b.2 as i32).abs() <= tol
+}
+
+/// THE GROUNDED-GEOMETRY LAW: a placed instance's base must sit on the
+/// terrain, not hover above it.
+///
+/// Returns the placements whose base is further than `tol` meters from the
+/// ground height sampled beneath them. Floating canopies and hovering props
+/// are exactly this defect, and no pixel check can name them.
+pub fn ungrounded_placements<F>(
+    placements: &[(String, [f32; 3])],
+    ground_at: F,
+    tol: f32,
+) -> Vec<(String, f32)>
+where
+    F: Fn(f32, f32) -> Option<f32>,
+{
+    placements
+        .iter()
+        .filter_map(|(id, pos)| {
+            let g = ground_at(pos[0], pos[2])?;
+            let gap = pos[1] - g;
+            if gap.abs() > tol {
+                Some((id.clone(), gap))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 /// View direction for an NDC point given a camera pose (mirrors the sky
 /// shader's ray reconstruction; needs the same fov/aspect the renderer used).
 pub fn dir_from_ndc(pose: CameraPose, ndc: (f32, f32), aspect: f32) -> [f32; 3] {
@@ -493,6 +754,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn sun_at_phase_arcs_from_dawn_to_night() {
+        let (dawn, n0) = sun_at_phase(0.0);
+        let (noon, n1) = sun_at_phase(0.25);
+        let (_dusk, n2) = sun_at_phase(0.5);
+        let (_mid, n3) = sun_at_phase(0.75);
+        assert!(noon[1] > dawn[1], "noon is higher than dawn");
+        assert!(n1 < 0.15, "noon is day ({n1})");
+        assert!(n0 > 0.4 && n0 < 0.9, "dawn is twilight ({n0})");
+        assert!((n0 - n2).abs() < 0.15, "dawn and dusk are symmetric");
+        assert!(n3 > 0.85, "midnight is night ({n3})");
+    }
+
+    #[test]
     fn scene_mesh_is_valid_indexed_geometry() {
         let (verts, idx) = build_scene();
         // 1 ground quad + 2 six-faced boxes = 26 triangles.
@@ -587,6 +861,153 @@ mod tests {
         assert_eq!(marker_hue_pixels(&frame), 1);
         frame[..3].copy_from_slice(&[210, 60, 60]);
         assert_eq!(marker_hue_pixels(&frame), 0);
+    }
+
+    /// A synthetic frame: `sky` everywhere, with `subject` painted into the
+    /// given pixel rect.
+    fn frame_with(
+        w: u32,
+        h: u32,
+        sky: [u8; 3],
+        subject: Option<((u32, u32, u32, u32), [u8; 3])>,
+    ) -> Vec<u8> {
+        let mut f = vec![255u8; (w * h * 4) as usize];
+        for y in 0..h {
+            for x in 0..w {
+                let i = ((y * w + x) * 4) as usize;
+                f[i..i + 3].copy_from_slice(&sky);
+            }
+        }
+        if let Some(((rx, ry, rw, rh), c)) = subject {
+            for y in ry..(ry + rh).min(h) {
+                for x in rx..(rx + rw).min(w) {
+                    let i = ((y * w + x) * 4) as usize;
+                    // Vary slightly so the distinct-color floor is met.
+                    f[i] = c[0].saturating_add((x % 3) as u8);
+                    f[i + 1] = c[1].saturating_add((y % 3) as u8);
+                    f[i + 2] = c[2];
+                }
+            }
+        }
+        f
+    }
+
+    #[test]
+    fn project_aabb_brackets_the_subject_and_rejects_what_is_behind() {
+        // Camera at origin looking north (-Z); a 4 m cube 10 m ahead.
+        let pose = CameraPose::new([0.0, 0.0, 0.0], 0.0, 0.0);
+        let ahead = Aabb::new([-2.0, -2.0, -12.0], [2.0, 2.0, -8.0]);
+        let r = project_aabb(pose, 1.0, ahead, 400, 400).expect("cube ahead must project");
+        let (x, y, w, h) = r;
+        // Symmetric about the center, and not the whole frame.
+        assert!((x as i32 + (w / 2) as i32 - 200).abs() <= 2, "not centered: {r:?}");
+        assert!((y as i32 + (h / 2) as i32 - 200).abs() <= 2, "not centered: {r:?}");
+        assert!(w < 400 && w > 20, "implausible width: {r:?}");
+
+        // The same cube directly behind the eye must not project at all.
+        let behind = Aabb::new([-2.0, -2.0, 8.0], [2.0, 2.0, 12.0]);
+        assert_eq!(project_aabb(pose, 1.0, behind, 400, 400), None);
+    }
+
+    /// THE SUBJECT-IN-FRAME LAW must accept a framed subject and reject the
+    /// two ways a proof lies: subject too small, and subject is empty sky.
+    #[test]
+    fn subject_in_frame_catches_the_empty_sky_and_the_speck() {
+        let pose = CameraPose::new([0.0, 0.0, 0.0], 0.0, 0.0);
+        let subject = Aabb::new([-2.0, -2.0, -12.0], [2.0, 2.0, -8.0]);
+        let sky = [90, 140, 210];
+        let rect = project_aabb(pose, 1.0, subject, 400, 400).unwrap();
+
+        // Drawn: passes.
+        let good = frame_with(400, 400, sky, Some((rect, [120, 90, 60])));
+        let rep = subject_in_frame(&good, 400, 400, pose, subject, 0.01);
+        assert!(rep.passes(), "a drawn subject must pass: {rep:?}");
+        assert!(rep.sky_fraction < 0.05, "{rep:?}");
+
+        // Not drawn — the rect is pure sky. This is `windowed_city.png`.
+        let empty = frame_with(400, 400, sky, None);
+        let rep = subject_in_frame(&empty, 400, 400, pose, subject, 0.01);
+        assert!(!rep.passes(), "an all-sky subject rect must fail");
+        assert!(
+            rep.reason.as_deref().unwrap().contains("sky"),
+            "wrong reason: {rep:?}"
+        );
+
+        // Framed so small it proves nothing: demand more coverage than a
+        // 4 m cube at 10 m can give.
+        let rep = subject_in_frame(&good, 400, 400, pose, subject, 0.9);
+        assert!(!rep.passes(), "a subject below the coverage floor must fail");
+        assert!(rep.reason.as_deref().unwrap().contains("covers"));
+    }
+
+    /// A camera pitched too shallow for its own height looks over its
+    /// subject. The law must both aim the check (the projected rect moves
+    /// down the frame) and reject the miss.
+    ///
+    /// This is the geometry behind `windowed_city.png`: the city overview eye
+    /// sits `span*0.9` above and `span*0.8` south of the city centre, which
+    /// needs a 48-degree downward pitch, but the proof hardcodes 30 degrees.
+    #[test]
+    fn subject_in_frame_follows_the_aim_and_rejects_a_miss() {
+        let subject = Aabb::new([-20.0, 0.0, -20.0], [20.0, 12.0, 20.0]);
+        let eye = [0.0, 90.0, 80.0];
+        let sky = [90, 140, 210];
+        let shallow = CameraPose::new(eye, 0.0, (-0.75f32).atan2(1.3));
+        let aimed = CameraPose::new(eye, 0.0, (-90.0f32).atan2(80.0));
+
+        // The aimed pose centres the subject; the shallow one pushes it down.
+        let lo = project_aabb(shallow, 1.6, subject, 800, 500).expect("still on screen");
+        let hi = project_aabb(aimed, 1.6, subject, 800, 500).expect("aimed");
+        assert!(
+            lo.1 > hi.1,
+            "the shallow pitch must push the subject down the frame: {lo:?} vs {hi:?}"
+        );
+        assert!(
+            (hi.1 + hi.3 / 2).abs_diff(250) < 40,
+            "the aimed pose must centre the subject vertically: {hi:?}"
+        );
+
+        // Aim at the subject and draw it: the law is satisfied.
+        let drawn = frame_with(800, 500, sky, Some((hi, [120, 110, 100])));
+        assert!(subject_in_frame(&drawn, 800, 500, aimed, subject, 0.02).passes());
+
+        // Aim past it so nothing is drawn where the subject should be: the
+        // law names the miss even though the frame is not blank.
+        let missed = frame_with(800, 500, sky, Some(((0, 450, 800, 50), [120, 110, 100])));
+        let rep = subject_in_frame(&missed, 800, 500, aimed, subject, 0.02);
+        assert!(!rep.passes(), "a subject rect full of sky must fail: {rep:?}");
+
+        // The shallow pitch draws the subject, but clinging to the bottom
+        // edge. Coverage alone would not catch that; the aim check does.
+        let low = frame_with(800, 500, sky, Some((lo, [120, 110, 100])));
+        let rep = subject_in_frame(&low, 800, 500, shallow, subject, 0.02);
+        assert!(!rep.passes(), "an edge-clinging subject must fail: {rep:?}");
+        assert!(
+            rep.reason.as_deref().unwrap().contains("not aimed"),
+            "wrong reason: {rep:?}"
+        );
+    }
+
+    /// THE GROUNDED-GEOMETRY LAW: a hovering placement is named, a seated
+    /// one is not.
+    #[test]
+    fn ungrounded_placements_names_the_floating_canopy() {
+        // Flat ground at y = 50.
+        let ground = |_x: f32, _z: f32| Some(50.0);
+        let placements = vec![
+            ("trunk".to_string(), [10.0, 50.0, 10.0]),
+            ("canopy_floating".to_string(), [12.0, 62.0, 12.0]),
+            ("shrub_sunk".to_string(), [14.0, 46.0, 14.0]),
+            ("within_tolerance".to_string(), [16.0, 50.2, 16.0]),
+        ];
+        let bad = ungrounded_placements(&placements, ground, 0.5);
+        let ids: Vec<&str> = bad.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, vec!["canopy_floating", "shrub_sunk"], "{bad:?}");
+        assert_eq!(bad[0].1, 12.0, "must report how far it floats");
+
+        // Unknown ground is not a violation — the law never guesses.
+        let bad = ungrounded_placements(&placements, |_, _| None, 0.5);
+        assert!(bad.is_empty());
     }
 
     #[test]

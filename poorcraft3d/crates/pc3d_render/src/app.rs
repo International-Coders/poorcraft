@@ -123,6 +123,12 @@ pub struct SliceSetup {
 /// boxes. Keys: WASD walk, mouse look (click), F place at ray target, R
 /// remove at ray target, B save, L reload, I inspect boxes; live owner builds
 /// use Escape for pause/resume and Q for explicit quit.
+/// Frames between world simulation ticks. At ~60 fps this runs the host at
+/// 6 ticks/s, so `TICKS_PER_DAY = 600` makes an in-game day 100 seconds —
+/// long enough to notice, short enough that a settlement or a reactor does
+/// something while you watch.
+const WORLD_TICK_FRAMES: u64 = 10;
+
 pub struct SliceHost {
     pub seed: u64,
     /// The NWR-011 rebuild stack: crowd ticking + surface walking +
@@ -163,6 +169,22 @@ pub struct SliceHost {
     pub credits: i64,
     /// Frame counter for the forge's work tick.
     pub forge_tick_frame: u64,
+    /// Frame counter for the world simulation tick.
+    pub world_tick_frame: u64,
+    /// Hostile creatures in the live slice (combat).
+    pub creatures: pc3d_world::combat::CreatureSystem,
+    /// Recruited companion, if any.
+    pub companion: Option<pc3d_world::companion::Companion>,
+    /// Cached nav patch for the companion (keyed by patch coord).
+    pub companion_nav: Option<(pc3d_world::coords::PatchCoord, pc3d_world::nav::NavPatch)>,
+    /// Faction relations (player = 0, town = 1).
+    pub factions: pc3d_world::faction::FactionRelations,
+    /// Karma baselines + evidence deltas toward the player.
+    pub karma: pc3d_world::perception::Karma,
+    /// Capital garrison mirror for the oversight panel.
+    pub garrison: pc3d_world::garrison::Garrison,
+    /// Capital economy mirror for the oversight panel.
+    pub economy: pc3d_world::economy::EconomicState,
     /// Explicit airborne state: the walk must not snap Y while true,
     /// and the arc integrates whether or not a panel blocks input —
     /// gravity is the world, not the menu.
@@ -1571,6 +1593,46 @@ impl App {
         lines
     }
 
+    /// The machine panel's view of the live network.
+    fn machines_view_of(slice: &SliceHost) -> crate::ui::MachinesView {
+        use pc3d_world::machines::MachineKind as K;
+        let region = pc3d_world::hydro::RiverGraph::region_at(
+            (slice.player.pos[0] * 1000.0) as i64,
+            (slice.player.pos[2] * 1000.0) as i64,
+        );
+        let h = slice.host.borrow();
+        let rows = h
+            .machines
+            .machines
+            .values()
+            .map(|m| match m.kind {
+                K::Boiler => format!(
+                    "BOILER    FUEL {:>5} WATER {:>6} STEAM {:>5}",
+                    m.fuel_milli, m.water_milli, m.out_buffer
+                ),
+                K::SteamEngine => format!(
+                    "ENGINE    STEAM IN {:>5} SHAFT OUT {:>5}",
+                    m.in_buffer, m.out_buffer
+                ),
+                K::Generator => format!(
+                    "GENERATOR SHAFT IN {:>5} CURRENT OUT {:>5}",
+                    m.in_buffer, m.out_buffer
+                ),
+                K::Battery => format!(
+                    "BATTERY   CHARGE {:>5} / {}",
+                    m.stored,
+                    pc3d_world::machines::BATTERY_CAP
+                ),
+            })
+            .collect();
+        crate::ui::MachinesView {
+            rows,
+            at_water: pc3d_world::flow::withdrawal_milli(&slice.scene.flow, region) > 0,
+            fuel_in_pack: slice.inventory.count(pc3d_world::items::ItemId(1)),
+            stored_milli: h.machines.stored_charge(),
+        }
+    }
+
     /// Submit a quest event to every ACTIVE quest (the authority
     /// decides what counts). Returns whether anything progressed.
     fn submit_quest_event(&mut self, ev: pc3d_world::quest::QuestEvent) -> bool {
@@ -1646,6 +1708,9 @@ impl App {
             .as_ref()
             .and_then(|slice| slice.forge.as_ref().map(forge_view_of));
         if let Some(state) = self.state.as_mut() {
+            if view.is_some() {
+                state.ui.close_panels();
+            }
             state.ui.forge = view;
             state.ui_dirty = true;
         }
@@ -1724,6 +1789,7 @@ impl App {
                             .map(|slice| Self::sync_stock_lines_of(slice))
                             .unwrap_or_default();
                         if let Some(s) = self.state.as_mut() {
+                            s.ui.close_panels();
                             s.ui.interact = Some((title, lines));
                             s.ui.stock_lines = stock;
                             s.ui_dirty = true;
@@ -1777,6 +1843,7 @@ impl App {
                             }
                         }
                         if let (Some(line), Some(s)) = (talked, self.state.as_mut()) {
+                            s.ui.close_panels();
                             s.ui.dialog = Some(line);
                             s.ui_dirty = true;
                         }
@@ -2009,11 +2076,11 @@ impl App {
                             slice.quest_rows.clone().unwrap_or_default()
                         });
                     if let (Some(rows), Some(s)) = (rows, self.state.as_mut()) {
-                        s.ui.journal = if s.ui.journal.is_some() {
-                            None
-                        } else {
-                            Some(rows)
-                        };
+                        let was_open = s.ui.journal.is_some();
+                        s.ui.close_panels();
+                        if !was_open {
+                            s.ui.journal = Some(rows);
+                        }
                         if let Some(slice) = self.cfg.slice_host.as_ref() {
                             s.ui.wallet = slice.credits;
                         }
@@ -2054,6 +2121,278 @@ impl App {
                         .unwrap_or_default();
                     if let Some(s) = self.state.as_mut() {
                         s.ui.stock_lines = stock;
+                    }
+                }
+                UiAction::ToggleCraft => {
+                    // Build the bench rows from the live pack. The
+                    // affordability flag comes from the same `can_craft`
+                    // the craft itself uses, so the row can never promise
+                    // a craft that then fails.
+                    let rows = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| craft_rows_of(&slice.inventory))
+                        .unwrap_or_default();
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.close_panels();
+                        s.ui.craft = Some(rows);
+                        s.ui.craft_focus = 0;
+                        s.ui_dirty = true;
+                    }
+                }
+                UiAction::CraftRecipe(code) => {
+                    let outcome = self.cfg.slice_host.as_mut().and_then(|slice| {
+                        let recipe = pc3d_world::craft::recipe_by_code(*code)?;
+                        let made = pc3d_world::craft::craft(&mut slice.inventory, recipe)?;
+                        Some((made, recipe.output))
+                    });
+                    // Rebuild the rows either way: a successful craft
+                    // changes what else is affordable.
+                    let rows = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| craft_rows_of(&slice.inventory))
+                        .unwrap_or_default();
+                    let stock = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::sync_stock_lines_of(slice))
+                        .unwrap_or_default();
+                    if let Some(s) = self.state.as_mut() {
+                        match outcome {
+                            Some((made, output)) => s.ui.toast(format!(
+                                "CRAFTED {made} {}",
+                                pc3d_world::items::item_name(pc3d_world::items::ItemId(output))
+                            )),
+                            None => s.ui.toast("NOT ENOUGH MATERIALS"),
+                        }
+                        if s.ui.craft.is_some() {
+                            s.ui.craft = Some(rows);
+                        }
+                        s.ui.stock_lines = stock;
+                        s.ui_dirty = true;
+                    }
+                }
+                UiAction::ToggleMachines => {
+                    // The chain is built once, at the site the hydro sim
+                    // itself chose for the water wheel — the same
+                    // `best_wheel_site` the wheel mesh stands on, so the
+                    // machine the panel talks about is the machine you see.
+                    if let Some(slice) = self.cfg.slice_host.as_mut() {
+                        ensure_chain(&mut slice.host.borrow_mut());
+                    }
+                    let view = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::machines_view_of(slice))
+                        .unwrap_or(crate::ui::MachinesView {
+                            rows: Vec::new(),
+                            at_water: false,
+                            fuel_in_pack: 0,
+                            stored_milli: 0,
+                        });
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.close_panels();
+                        s.ui.machines = Some(view);
+                        s.ui_dirty = true;
+                    }
+                }
+                UiAction::FeedBoilerFromRiver => {
+                    // THE RIVER-POWERED LOOP: the water comes from the
+                    // flow table through the P3D-306 consumer query (so a
+                    // dry region refuses), the fuel comes from the pack
+                    // (so it is the wood you cut), and the host's own
+                    // `FeedBoiler` command applies both.
+                    let outcome: Option<Result<i64, &'static str>> =
+                        self.cfg.slice_host.as_mut().map(|slice| {
+                        let boiler = boiler_id(&slice.host.borrow());
+                        let (boiler, water) = river_feed(
+                            &slice.scene.flow,
+                            slice.player.pos,
+                            &slice.inventory,
+                            boiler,
+                        )?;
+                        slice.inventory.remove(WOOD, 1);
+                        let mut h = slice.host.borrow_mut();
+                        h.submit(pc3d_world::host::HostCommand::FeedBoiler {
+                            machine: boiler,
+                            // One log = one fuel unit of burnable heat.
+                            fuel_milli: pc3d_world::machines::FUEL_UNIT,
+                            water_milli: water,
+                        });
+                        // Apply the command and let the chain convert, so
+                        // the panel the player is looking at shows the
+                        // steam this press made.
+                        h.run_ticks(4);
+                        Ok(water)
+                    });
+                    let view = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::machines_view_of(slice));
+                    let stock = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::sync_stock_lines_of(slice))
+                        .unwrap_or_default();
+                    if let Some(s) = self.state.as_mut() {
+                        match outcome {
+                            Some(Ok(water)) => {
+                                s.ui.toast(format!("DREW {water} mWATER + 1 WOOD"))
+                            }
+                            Some(Err(why)) => s.ui.toast(why),
+                            None => {}
+                        }
+                        if let Some(v) = &view {
+                            s.ui.machine_charge_milli =
+                                s.ui.machine_charge_milli.max(v.stored_milli);
+                        }
+                        if s.ui.machines.is_some() {
+                            s.ui.machines = view;
+                        }
+                        s.ui.stock_lines = stock;
+                        s.ui_dirty = true;
+                    }
+                }
+                UiAction::ToggleOversight => {
+                    let view = self
+                        .cfg
+                        .slice_host
+                        .as_mut()
+                        .map(|slice| {
+                            sync_capital_mirrors(slice);
+                            oversight_view_of(slice)
+                        });
+                    if let (Some(view), Some(s)) = (view, self.state.as_mut()) {
+                        s.ui.close_panels();
+                        s.ui.oversight = Some(view);
+                        s.ui_dirty = true;
+                    }
+                }
+                UiAction::MeleeAttack => {
+                    let outcome = self.cfg.slice_host.as_mut().map(|slice| {
+                        let cell = player_cell(slice);
+                        let tick = slice.host.borrow().tick;
+                        let before = slice.creatures.creatures.len();
+                        let loot = slice.creatures.player_attack(cell, tick);
+                        let killed = before > slice.creatures.creatures.len();
+                        for (id, n) in &loot {
+                            slice.inventory.add(*id, *n);
+                        }
+                        // Journey step 9: a witnessed assault. Any cast
+                        // member within sight remembers it, and the town
+                        // faction's trust toward the player drops.
+                        let event = pc3d_world::perception::MoralEvent {
+                            actor_id: PLAYER_ACTOR,
+                            kind: pc3d_world::perception::MoralKind::Assault,
+                            at: cell,
+                            tick,
+                        };
+                        let mut witnesses = 0u64;
+                        for npc in &slice.scene.cast {
+                            // Sight is column-wise: a tall height delta
+                            // between bed and plaza must not hide a blow
+                            // that happened next to the body.
+                            let eye = pc3d_world::coords::CellCoord {
+                                x: npc.brain.pos.x,
+                                y: cell.y,
+                                z: npc.brain.pos.z,
+                            };
+                            if pc3d_world::perception::witness(
+                                eye,
+                                pc3d_world::perception::SIGHT_RADIUS,
+                                &event,
+                            ) {
+                                witnesses += 1;
+                            }
+                        }
+                        if witnesses > 0 {
+                            slice.karma.apply(
+                                PLAYER_ACTOR,
+                                pc3d_world::perception::MoralKind::Assault,
+                                pc3d_world::perception::WITNESSED_CONFIDENCE,
+                            );
+                            let _ = slice.factions.diplomacy(
+                                pc3d_world::faction::FactionId(0),
+                                pc3d_world::faction::FactionId(1),
+                                pc3d_world::faction::DiplomacyAction::Insult,
+                            );
+                        }
+                        (loot, killed, witnesses)
+                    });
+                    let stock = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| Self::sync_stock_lines_of(slice))
+                        .unwrap_or_default();
+                    if let Some(s) = self.state.as_mut() {
+                        match outcome {
+                            Some((loot, killed, witnesses)) if killed => {
+                                s.ui.creatures_slain += 1;
+                                let names = loot
+                                    .iter()
+                                    .map(|(id, n)| {
+                                        format!(
+                                            "{}x{}",
+                                            pc3d_world::items::item_name(*id).to_uppercase(),
+                                            n
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(" ");
+                                s.ui.toast(format!("SLEW A CREATURE · LOOT {names}"));
+                                if witnesses > 0 {
+                                    s.ui.witnessed_assaults += witnesses;
+                                    s.ui.toast(format!(
+                                        "{witnesses} WITNESSED THE BLOW — TRUST FALLS"
+                                    ));
+                                }
+                            }
+                            Some((_, false, _)) => s.ui.toast("NO CREATURE IN REACH"),
+                            _ => {}
+                        }
+                        s.ui.stock_lines = stock;
+                        s.ui_dirty = true;
+                    }
+                }
+                UiAction::CompanionCommand => {
+                    let line = self.cfg.slice_host.as_mut().map(|slice| {
+                        use pc3d_world::companion::CompanionCommand as CC;
+                        match &mut slice.companion {
+                            None => {
+                                let cell = player_cell(slice);
+                                let spawn = pc3d_world::coords::CellCoord {
+                                    x: cell.x - 1,
+                                    y: cell.y,
+                                    z: cell.z,
+                                };
+                                slice.companion = Some(pc3d_world::companion::Companion::new(
+                                    pc3d_world::entities::EntityId(9001),
+                                    spawn,
+                                ));
+                                "COMPANION FOLLOWS · N WAITS".to_string()
+                            }
+                            Some(c) if c.command == CC::Follow => {
+                                c.set_command(CC::Wait, None);
+                                "COMPANION WAITS · N FOLLOWS".to_string()
+                            }
+                            Some(c) => {
+                                c.set_command(CC::Follow, None);
+                                "COMPANION FOLLOWS · N WAITS".to_string()
+                            }
+                        }
+                    });
+                    if let (Some(line), Some(s)) = (line, self.state.as_mut()) {
+                        s.ui.companion_line = line.clone();
+                        s.ui.toast(line);
+                        s.ui_dirty = true;
                     }
                 }
                 UiAction::DeliverAtSite => {
@@ -2534,14 +2873,31 @@ impl App {
         let Some(root) = root else { return };
         match crate::slice::load_slice(root.as_ref(), name) {
             Ok((seed, host, player)) => {
-                if let Some(slice) = self.cfg.slice_host.as_mut() {
-                    slice.seed = seed;
-                    *slice.host.borrow_mut() = host;
-                    slice.player = player;
-                    slice.world_name = name.to_string();
-                    let h = slice.host.borrow();
+                // Re-assemble the scene for the SAVED seed, exactly as
+                // `create_world` does. Swapping only the seed, host and
+                // player left `slice.scene` showing the world that happened
+                // to be running, so loading a save from a different seed put
+                // the player in the wrong terrain with the right blocks.
+                let (found_seed, scene) = crate::slice::find_showcase(seed);
+                let scene = std::rc::Rc::new(scene);
+                let mut fresh = crate::slice::assemble_rebuild(
+                    &mut state.renderer,
+                    &scene,
+                    found_seed,
+                    root.clone(),
+                    name,
+                );
+                // The save is the authority for everything the scene does
+                // not own.
+                fresh.seed = seed;
+                *fresh.host.borrow_mut() = host;
+                fresh.player = player;
+                fresh.world_name = name.to_string();
+                {
+                    let h = fresh.host.borrow();
                     state.renderer.update_construction(&h.construction);
                 }
+                self.cfg.slice_host = Some(Box::new(fresh));
                 state.ui.screen = Screen::Gameplay;
                 state.ui.pointer_grabbed = true;
                 state.ui.modal = None;
@@ -3493,10 +3849,111 @@ impl App {
                 state.renderer.crowd_tick(0.35, 1);
             }
             state.renderer.set_pose(slice.player.pose());
+            // A full day every ten minutes of live play — slow enough to
+            // feel, fast enough that a session sees dusk.
+            {
+                let phase = state.renderer.day_phase() + dt / 600.0;
+                state.renderer.set_day_phase(phase);
+            }
             // The forge work tick (inside the slice's own scope): the
             // plaza forge smelts while it exists (every 20 frames) —
             // INCLUDING while its own panel is open (a menu freezes the
             // PLAYER, not the fire); the open panel view syncs in place.
+            // THE WORLD TICK. `SoloHost::run_ticks` is what advances
+            // machines, reactors, settlements and dragons. It used to be
+            // called only from the build and remove arms, so the whole
+            // simulation stood still unless the player was placing or
+            // breaking a block — systems that looked unwired were in fact
+            // wired and simply never given any time.
+            //
+            // Same rule as the forge below: a menu freezes the PLAYER, not
+            // the world. The frame divisor is the budget cap: one tick per
+            // WORLD_TICK_FRAMES frames can never spiral, and a dropped
+            // frame costs at most one tick rather than a catch-up burst.
+            if gameplay_active || state.ui.blocks_gameplay() {
+                slice.world_tick_frame += 1;
+                if slice.world_tick_frame % WORLD_TICK_FRAMES == 0 {
+                    slice.host.borrow_mut().run_ticks(1);
+                    // Combat: keep a hostile within a short walk so journey
+                    // step 3's danger is reachable. A goblin left behind at
+                    // the gate after a teleport is not a threat — cull and
+                    // respawn beside the player when none are near.
+                    {
+                        let cell = player_cell(slice);
+                        let near = slice.creatures.creatures.iter().any(|c| {
+                            (c.pos.x - cell.x).abs().max((c.pos.z - cell.z).abs()) <= 8
+                        });
+                        if !near {
+                            slice.creatures.creatures.clear();
+                            slice.creatures.spawn(
+                                pc3d_world::combat::CreatureKind::Goblin,
+                                pc3d_world::coords::CellCoord {
+                                    x: cell.x + 1,
+                                    y: cell.y,
+                                    z: cell.z,
+                                },
+                            );
+                        }
+                    }
+                    let tick = slice.host.borrow().tick;
+                    let cell = player_cell(slice);
+                    let hits = slice.creatures.creature_attacks(cell, tick);
+                    if !hits.is_empty() {
+                        let dmg = hits.len() as f32 * CREATURE_HIT_FRAC;
+                        state.ui.hud.health = (state.ui.hud.health - dmg).max(0.0);
+                        state.ui.toast(format!("HIT FOR {} DAMAGE", hits.len() * 4));
+                        state.ui_dirty = true;
+                        if state.ui.hud.health <= 0.0 {
+                            let plaza = slice.scene.plan.plaza;
+                            slice.player.pos = [
+                                plaza.x as f32 + 0.5,
+                                slice.player.pos[1],
+                                plaza.z as f32 + 0.5,
+                            ];
+                            state.ui.hud.health = 0.5;
+                            state.ui.toast("YOU WERE SLAIN — RECOVERED AT THE PLAZA");
+                        }
+                    }
+                    // Companion follow/wait on the player's patch nav.
+                    if let Some(comp) = slice.companion.as_mut() {
+                        let patch = pc3d_world::coords::PatchCoord {
+                            x: cell.x.div_euclid(16),
+                            y: cell.y.div_euclid(16).max(0),
+                            z: cell.z.div_euclid(16),
+                        };
+                        let need_nav = slice
+                            .companion_nav
+                            .as_ref()
+                            .map(|(p, _)| *p != patch)
+                            .unwrap_or(true);
+                        if need_nav {
+                            let nav = pc3d_world::nav::NavPatch::from_gen(&slice.scene.gen, patch);
+                            slice.companion_nav = Some((patch, nav));
+                        }
+                        if let Some((_, nav)) = slice.companion_nav.as_ref() {
+                            comp.step(nav, cell);
+                        }
+                        state.ui.companion_line = match comp.command {
+                            pc3d_world::companion::CompanionCommand::Follow => {
+                                "COMPANION FOLLOWS · N WAITS".into()
+                            }
+                            pc3d_world::companion::CompanionCommand::Wait => {
+                                "COMPANION WAITS · N FOLLOWS".into()
+                            }
+                            pc3d_world::companion::CompanionCommand::Assist => {
+                                "COMPANION ASSISTS".into()
+                            }
+                        };
+                    }
+                    // Refresh an open oversight panel so the world tick's
+                    // settlement day shows up live.
+                    if state.ui.oversight.is_some() {
+                        sync_capital_mirrors(slice);
+                        state.ui.oversight = Some(oversight_view_of(slice));
+                        state.ui_dirty = true;
+                    }
+                }
+            }
             let forge_working = gameplay_active || state.ui.forge.is_some();
             if forge_working {
                 slice.forge_tick_frame += 1;
@@ -3544,7 +4001,7 @@ impl App {
                     .unwrap_or(false);
                 let want = match (&npc, forge_near, deliver_ready) {
                     (_, _, true) => {
-                        "D DELIVER BARS · F BUILD · R REMOVE · ESC PAUSE".to_string()
+                        "V DELIVER BARS · F BUILD · R REMOVE · ESC PAUSE".to_string()
                     }
                     (Some((_n, nd)), true, _) if fd <= *nd => {
                         "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE".to_string()
@@ -3675,6 +4132,17 @@ impl App {
                     .unwrap_or_default();
                 if state.ui.hud.stock != stock {
                     state.ui.hud.stock = stock;
+                }
+                // Slots 6-9 carry what the player owns rather than staying
+                // permanently empty: craft a pick and it appears here.
+                let carried = self
+                    .cfg
+                    .slice_host
+                    .as_ref()
+                    .map(|s| carried_slots_of(&s.inventory))
+                    .unwrap_or_default();
+                for (i, item) in carried.into_iter().enumerate() {
+                    state.ui.hud.slots[CARRIED_SLOT_0 + i] = item;
                 }
             }
             if state.ui.screen == Screen::Gameplay && !state.ui.blocks_gameplay() {
@@ -3844,6 +4312,201 @@ fn best_pick_tier(inventory: &pc3d_world::items::Inventory) -> Option<u8> {
 }
 
 /// Map winit keycodes onto the UI's abstract key set (None: not a UI key).
+/// First hotbar index that shows carried goods rather than a build material.
+/// Slots 1-5 are the terrain palette builds place; 6-9 were reserved and
+/// permanently empty.
+const CARRIED_SLOT_0: usize = 5;
+
+/// The carried tools and food, for hotbar slots 6-9.
+///
+/// Four entries, in a fixed order so a slot does not change meaning as the
+/// pack changes: the three picks then bread. An item the player does not
+/// have leaves its slot empty.
+fn carried_slots_of(
+    inv: &pc3d_world::items::Inventory,
+) -> Vec<Option<crate::ui::HotItem>> {
+    use pc3d_world::items::{item_name, ItemId};
+    // (item code, swatch)
+    const CARRIED: &[(u16, [u8; 3])] = &[
+        (12, [150, 116, 74]),  // wood_pick
+        (10, [138, 132, 126]), // stone_pick
+        (11, [176, 178, 184]), // iron_pick
+        (20, [201, 160, 92]),  // bread
+    ];
+    CARRIED
+        .iter()
+        .map(|&(code, color)| {
+            (inv.count(ItemId(code)) > 0).then(|| crate::ui::HotItem {
+                label: item_name(ItemId(code)),
+                color,
+            })
+        })
+        .collect()
+}
+
+/// Every recipe as a bench row, judged against `inv`.
+///
+/// Affordability comes from `craft::can_craft` — the same predicate
+/// `craft::craft` checks — so a row that says it can be made can be made.
+fn craft_rows_of(inv: &pc3d_world::items::Inventory) -> Vec<crate::ui::CraftRow> {
+    use pc3d_world::items::{item_name, ItemId};
+    pc3d_world::craft::RECIPES
+        .iter()
+        .map(|r| crate::ui::CraftRow {
+            code: r.code,
+            output: format!(
+                "{} x{}",
+                item_name(ItemId(r.output)).to_uppercase(),
+                r.output_count
+            ),
+            cost: r
+                .ingredients
+                .iter()
+                .map(|&(item, n)| {
+                    format!(
+                        "{} {}/{}",
+                        item_name(ItemId(item)).to_uppercase(),
+                        inv.count(ItemId(item)).min(n),
+                        n
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" · "),
+            affordable: pc3d_world::craft::can_craft(inv, r),
+        })
+        .collect()
+}
+
+/// Build the river-fed chain — boiler → engine → generator → battery —
+/// once, and only once, returning the boiler's id either way.
+///
+/// The typed `connect` refuses a mis-wired chain (a shaft may not charge a
+/// battery; the generator is the required link), so if this returns, the
+/// chain is sound by construction.
+fn ensure_chain(host: &mut pc3d_world::host::SoloHost) -> u64 {
+    use pc3d_world::machines::MachineKind as K;
+    if let Some(id) = boiler_id(host) {
+        return id;
+    }
+    let boiler = host.machines.add_machine(K::Boiler);
+    let engine = host.machines.add_machine(K::SteamEngine);
+    let generator = host.machines.add_machine(K::Generator);
+    let battery = host.machines.add_machine(K::Battery);
+    host.machines.connect(boiler, engine).expect("steam port");
+    host.machines.connect(engine, generator).expect("shaft port");
+    host.machines
+        .connect(generator, battery)
+        .expect("electrical port");
+    boiler
+}
+
+fn boiler_id(host: &pc3d_world::host::SoloHost) -> Option<u64> {
+    host.machines
+        .machines
+        .values()
+        .find(|m| m.kind == pc3d_world::machines::MachineKind::Boiler)
+        .map(|m| m.id)
+}
+
+/// THE RIVER-FEED DECISION, pure: what the boiler may take where the
+/// player stands, or the refusal the panel shows them.
+///
+/// Water comes from the P3D-306 flow-consumer query, so a region the
+/// river does not reach refuses; fuel comes from the pack, so it is the
+/// wood the player actually cut.
+fn river_feed(
+    flow: &pc3d_world::flow::FlowTable,
+    pos: [f32; 3],
+    inv: &pc3d_world::items::Inventory,
+    boiler: Option<u64>,
+) -> Result<(u64, i64), &'static str> {
+    let region = pc3d_world::hydro::RiverGraph::region_at(
+        (pos[0] * 1000.0) as i64,
+        (pos[2] * 1000.0) as i64,
+    );
+    let water = pc3d_world::flow::withdrawal_milli(flow, region);
+    if water <= 0 {
+        return Err("NO FLOW HERE - STAND AT THE RIVER");
+    }
+    if inv.count(WOOD) < 1 {
+        return Err("NO WOOD IN PACK - CUT A TREE (G)");
+    }
+    boiler.map(|b| (b, water)).ok_or("NO BOILER BUILT")
+}
+
+/// Wood: the boiler's fuel and the crafting bench's first ingredient.
+const WOOD: pc3d_world::items::ItemId = pc3d_world::items::ItemId(1);
+/// The player's actor id in moral events and karma evidence.
+const PLAYER_ACTOR: u64 = 1;
+/// Creature melee damage as a HUD health fraction (goblin 4 → 0.04).
+const CREATURE_HIT_FRAC: f32 = 0.04;
+
+fn player_cell(slice: &SliceHost) -> pc3d_world::coords::CellCoord {
+    pc3d_world::coords::CellCoord {
+        x: slice.player.pos[0].floor() as i32,
+        y: slice.player.pos[1].floor() as i32,
+        z: slice.player.pos[2].floor() as i32,
+    }
+}
+
+/// Keep the capital garrison/economy mirrors honest against the nearest
+/// settlement's live aggregate (the oversight panel's source of truth).
+fn sync_capital_mirrors(slice: &mut SliceHost) {
+    let region = pc3d_world::hydro::RiverGraph::region_at(
+        (slice.player.pos[0] * 1000.0) as i64,
+        (slice.player.pos[2] * 1000.0) as i64,
+    );
+    let host = slice.host.borrow();
+    let Some(s) = host.settlements.nearest_to(region) else {
+        return;
+    };
+    let agg = s.aggregate;
+    drop(host);
+    slice.economy.population = agg.population;
+    slice.economy.food = agg.food;
+    slice.economy.prosperity = agg.prosperity;
+    slice.economy.goods = agg.prosperity; // prosperity doubles as trade stock until workshops wire in
+    let soldiers = agg.defense.max(0) as u32;
+    slice.garrison.max_soldiers = soldiers.max(20);
+    slice.garrison.soldiers = soldiers.min(slice.garrison.max_soldiers);
+    slice.garrison.supply = agg.food.max(0);
+}
+
+fn oversight_view_of(slice: &SliceHost) -> crate::ui::OversightView {
+    let region = pc3d_world::hydro::RiverGraph::region_at(
+        (slice.player.pos[0] * 1000.0) as i64,
+        (slice.player.pos[2] * 1000.0) as i64,
+    );
+    let host = slice.host.borrow();
+    let (name, agg) = host
+        .settlements
+        .nearest_to(region)
+        .map(|s| (s.name.to_string(), s.aggregate))
+        .unwrap_or_else(|| ("NONE".into(), Default::default()));
+    drop(host);
+    let summary = pc3d_world::oversight::OversightPanel::query(
+        &agg,
+        &slice.garrison,
+        &slice.economy,
+    );
+    crate::ui::OversightView {
+        settlement: name,
+        population: summary.population,
+        food: summary.food,
+        defense: summary.defense,
+        prosperity: summary.prosperity,
+        garrison_soldiers: summary.garrison_soldiers,
+        garrison_readiness: summary.garrison_readiness,
+        goods: summary.goods,
+        health: summary.health,
+        faction_trust: slice.factions.trust(
+            pc3d_world::faction::FactionId(0),
+            pc3d_world::faction::FactionId(1),
+        ),
+        disposition: slice.karma.disposition_toward(1, PLAYER_ACTOR),
+    }
+}
+
 fn ui_key(code: KeyCode) -> Option<Key> {
     Some(match code {
         KeyCode::Enter | KeyCode::NumpadEnter => Key::Enter,
@@ -3856,9 +4519,18 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         KeyCode::KeyQ => Key::KeyQ,
         KeyCode::KeyE => Key::Char('e'),
         KeyCode::KeyJ => Key::Char('j'),
-        KeyCode::KeyD => Key::Char('d'),
+        KeyCode::KeyV => Key::Char('v'),
+        KeyCode::KeyC => Key::Char('c'),
+        KeyCode::KeyM => Key::Char('m'),
+        KeyCode::KeyN => Key::Char('n'),
+        KeyCode::KeyO => Key::Char('o'),
+        KeyCode::KeyP => Key::Char('p'),
         KeyCode::KeyX => Key::Char('x'),
         KeyCode::KeyG => Key::Char('g'),
+        // The forge advertises "G FUEL · H ORE · T TAKE · E CLOSE"; without
+        // these two the ore->smelt->take chain dead-ends at loading fuel.
+        KeyCode::KeyH => Key::Char('h'),
+        KeyCode::KeyT => Key::Char('t'),
         KeyCode::Digit1 | KeyCode::Numpad1 => Key::Digit(1),
         KeyCode::Digit2 | KeyCode::Numpad2 => Key::Digit(2),
         KeyCode::Digit3 | KeyCode::Numpad3 => Key::Digit(3),
@@ -4011,6 +4683,274 @@ mod tests {
         assert_eq!(
             dig_outcome(CM::Rock, Some(1)),
             DigOutcome::Take(vec![(ItemId(2), 1)]),
+        );
+    }
+
+    /// THE KEY-REACHABILITY SOURCE LAW.
+    ///
+    /// `ui::MAPPED_CHAR_KEYS` is the promise the UI layer makes to the
+    /// player, and `ui_key` is the only thing that can keep it. Every key on
+    /// that list must be producible by some physical key.
+    ///
+    /// This is the law the old forge test could not be: that test called
+    /// `on_key` with abstract keys and so never crossed `ui_key`, which is
+    /// precisely the layer where H and T were missing.
+    #[test]
+    fn every_promised_char_key_is_reachable_from_a_physical_key() {
+        const CODES: &[KeyCode] = &[
+            KeyCode::KeyA, KeyCode::KeyB, KeyCode::KeyC, KeyCode::KeyD,
+            KeyCode::KeyE, KeyCode::KeyF, KeyCode::KeyG, KeyCode::KeyH,
+            KeyCode::KeyI, KeyCode::KeyJ, KeyCode::KeyK, KeyCode::KeyL,
+            KeyCode::KeyM, KeyCode::KeyN, KeyCode::KeyO, KeyCode::KeyP,
+            KeyCode::KeyQ, KeyCode::KeyR, KeyCode::KeyS, KeyCode::KeyT,
+            KeyCode::KeyU, KeyCode::KeyV, KeyCode::KeyW, KeyCode::KeyX,
+            KeyCode::KeyY, KeyCode::KeyZ,
+        ];
+        for &want in ui::MAPPED_CHAR_KEYS {
+            let reachable = CODES
+                .iter()
+                .any(|&c| ui_key(c) == Some(Key::Char(want)));
+            assert!(
+                reachable,
+                "ui::MAPPED_CHAR_KEYS promises '{want}' but no physical key \
+                 produces it — a hint advertising it would be a lie"
+            );
+        }
+    }
+
+    /// Journey steps 3/8/9 + D-019: P reaches melee through the real
+    /// input map, N recruits a companion, O asks for oversight, and a
+    /// witnessed assault lowers town trust.
+    #[test]
+    fn combat_companion_and_oversight_reach_the_player() {
+        assert_eq!(ui_key(KeyCode::KeyP), Some(Key::Char('p')));
+        assert_eq!(ui_key(KeyCode::KeyN), Some(Key::Char('n')));
+        assert_eq!(ui_key(KeyCode::KeyO), Some(Key::Char('o')));
+
+        let mut s = UiState::default();
+        s.screen = Screen::Gameplay;
+        assert!(
+            ui::on_key(&mut s, Key::Char('p')).contains(&UiAction::MeleeAttack),
+            "P must ask the app to melee"
+        );
+        assert!(
+            ui::on_key(&mut s, Key::Char('n')).contains(&UiAction::CompanionCommand),
+            "N must ask the app for the companion"
+        );
+        assert!(
+            ui::on_key(&mut s, Key::Char('o')).contains(&UiAction::ToggleOversight),
+            "O must ask the app for oversight"
+        );
+
+        // Pure combat: spawn, hit, kill, loot.
+        let mut creatures = pc3d_world::combat::CreatureSystem::default();
+        let pos = pc3d_world::coords::CellCoord { x: 0, y: 0, z: 0 };
+        creatures.spawn(pc3d_world::combat::CreatureKind::Goblin, pos);
+        assert!(creatures.player_attack(pos, 0).is_empty(), "first hit wounds");
+        let loot = creatures.player_attack(pos, 1);
+        assert!(!loot.is_empty(), "second hit kills and yields loot");
+        assert!(creatures.creatures.is_empty());
+
+        // Witnessed assault shifts karma and faction trust.
+        let mut karma = pc3d_world::perception::Karma::new(&[(1, 0)]);
+        let mut factions = pc3d_world::faction::FactionRelations::new();
+        factions.set_trust(
+            pc3d_world::faction::FactionId(0),
+            pc3d_world::faction::FactionId(1),
+            50,
+        );
+        let event = pc3d_world::perception::MoralEvent {
+            actor_id: PLAYER_ACTOR,
+            kind: pc3d_world::perception::MoralKind::Assault,
+            at: pos,
+            tick: 1,
+        };
+        assert!(pc3d_world::perception::witness(
+            pos,
+            pc3d_world::perception::SIGHT_RADIUS,
+            &event
+        ));
+        karma.apply(
+            PLAYER_ACTOR,
+            pc3d_world::perception::MoralKind::Assault,
+            pc3d_world::perception::WITNESSED_CONFIDENCE,
+        );
+        let trust = factions.diplomacy(
+            pc3d_world::faction::FactionId(0),
+            pc3d_world::faction::FactionId(1),
+            pc3d_world::faction::DiplomacyAction::Insult,
+        );
+        assert!(karma.disposition_toward(1, PLAYER_ACTOR) < 0);
+        assert!(trust < pc3d_world::faction::TrustLevel::Neutral || factions.trust(
+            pc3d_world::faction::FactionId(0),
+            pc3d_world::faction::FactionId(1),
+        ) < 50);
+
+        // Oversight reads real aggregate + garrison + economy.
+        let agg = pc3d_world::settlement::Aggregate {
+            population: 20,
+            food: 100,
+            defense: 10,
+            prosperity: 40,
+        };
+        let mut g = pc3d_world::garrison::Garrison::new(20, 200);
+        g.recruit(20, 5);
+        let econ = pc3d_world::economy::EconomicState::new(20, 100);
+        let summary = pc3d_world::oversight::OversightPanel::query(&agg, &g, &econ);
+        assert_eq!(summary.population, 20);
+        assert_eq!(summary.garrison_soldiers, 5);
+        assert!(summary.health > 0);
+    }
+
+    /// Journey steps 3-4 ("harness that river with a machine"): M must
+    /// reach the panel through the real input map, the chain the panel
+    /// builds must be the sound one, and G at the river must turn wood
+    /// plus the flow table's own water share into charge in the battery.
+    ///
+    /// This is the P3D-306 runtime proof: the water is not granted, it
+    /// comes from `flow::withdrawal_milli` at the region the player stands
+    /// in, and a region with no flow refuses.
+    #[test]
+    fn the_river_feeds_the_machine_chain_from_a_real_key() {
+        use pc3d_world::items::Inventory;
+
+        // M reaches the UI through the real input map, and the panel's own
+        // G is the feed verb (not the dig).
+        assert_eq!(ui_key(KeyCode::KeyM), Some(Key::Char('m')));
+        let mut s = UiState::default();
+        s.screen = Screen::Gameplay;
+        let acts = ui::on_key(&mut s, Key::Char('m'));
+        assert!(
+            acts.contains(&UiAction::ToggleMachines),
+            "M in open gameplay must ask the app for the chain: {acts:?}"
+        );
+        s.machines = Some(ui::MachinesView {
+            rows: Vec::new(),
+            at_water: true,
+            fuel_in_pack: 1,
+            stored_milli: 0,
+        });
+        let acts = ui::on_key(&mut s, Key::Char('g'));
+        assert!(
+            acts.contains(&UiAction::FeedBoilerFromRiver)
+                && !acts.contains(&UiAction::DigAtCrosshair),
+            "the open machine panel owns G: {acts:?}"
+        );
+
+        // The chain builds sound and idempotent.
+        let seed = 2024;
+        let gen = pc3d_world::gen::WorldGen::new(seed);
+        let graph = pc3d_world::hydro::RiverGraph::new(&gen, 24);
+        let flow = pc3d_world::flow::FlowTable::from_graph(&graph);
+        let mut host = pc3d_world::host::SoloHost::new(seed);
+        let boiler = ensure_chain(&mut host);
+        assert_eq!(host.machines.machines.len(), 4, "boiler→engine→gen→battery");
+        assert_eq!(host.machines.wires.len(), 3, "three typed wires");
+        assert_eq!(ensure_chain(&mut host), boiler, "built once, not per open");
+        assert_eq!(host.machines.machines.len(), 4);
+
+        // A dry region refuses before it touches the pack.
+        let mut inv = Inventory::new(12);
+        inv.add(WOOD, 2);
+        let (dry, _) = (0..2000)
+            .map(|x| {
+                let r = pc3d_world::coords::RegionCoord { x: -x, z: 0 };
+                (r, pc3d_world::flow::withdrawal_milli(&flow, r))
+            })
+            .find(|(_, w)| *w == 0)
+            .expect("somewhere outside the 24-region band has no flow");
+        let dry_pos = [dry.x as f32 * 256.0 + 128.0, 0.0, 128.0];
+        assert!(
+            river_feed(&flow, dry_pos, &inv, Some(boiler)).is_err(),
+            "a region the river does not reach must refuse"
+        );
+        assert_eq!(inv.count(WOOD), 2, "a refusal never spends the pack");
+
+        // At the sim's own wheel site the river gives water, and an empty
+        // pack still refuses — the fuel is the wood you cut.
+        let (site, _) = graph.best_wheel_site(&gen, None).expect("a wheel site");
+        let wet_pos = [site.x as f32 * 256.0 + 128.0, 0.0, site.z as f32 * 256.0 + 128.0];
+        let empty = Inventory::new(12);
+        assert!(river_feed(&flow, wet_pos, &empty, Some(boiler)).is_err());
+
+        let (fed, water) = river_feed(&flow, wet_pos, &inv, Some(boiler)).expect("the river gives");
+        assert_eq!(fed, boiler);
+        assert!(water > 0);
+
+        // The visible consequence: charge arrives in the battery.
+        assert_eq!(host.machines.stored_charge(), 0);
+        host.submit(pc3d_world::host::HostCommand::FeedBoiler {
+            machine: boiler,
+            fuel_milli: pc3d_world::machines::FUEL_UNIT,
+            water_milli: water,
+        });
+        host.run_ticks(8);
+        assert!(
+            host.machines.stored_charge() > 0,
+            "wood + river water must end as stored charge"
+        );
+    }
+
+    /// Journey step 2 ("a first useful production loop"): the craft bench
+    /// must be reachable from a real keypress, and the row it offers must be
+    /// backed by the pure authority.
+    #[test]
+    fn the_craft_bench_opens_from_a_real_key_and_crafts_what_it_offers() {
+        use pc3d_world::items::{Inventory, ItemId};
+
+        // C reaches the UI through the real input map.
+        assert_eq!(ui_key(KeyCode::KeyC), Some(Key::Char('c')));
+        let mut s = UiState::default();
+        s.screen = Screen::Gameplay;
+        let acts = ui::on_key(&mut s, Key::Char('c'));
+        assert!(
+            acts.contains(&UiAction::ToggleCraft),
+            "C in open gameplay must ask the app for the bench: {acts:?}"
+        );
+
+        // An empty pack affords nothing; four wood affords the wood pick.
+        let empty = Inventory::new(12);
+        let rows = craft_rows_of(&empty);
+        assert!(!rows.is_empty(), "the bench must list the authority's recipes");
+        assert!(
+            rows.iter().all(|r| !r.affordable),
+            "an empty pack must afford nothing"
+        );
+
+        let mut inv = Inventory::new(12);
+        inv.add(ItemId(1), 4); // wood x4 -> wood_pick (recipe 6)
+        let rows = craft_rows_of(&inv);
+        let pick = rows.iter().find(|r| r.code == 6).expect("wood pick recipe");
+        assert!(pick.affordable, "4 wood must afford the wood pick: {pick:?}");
+        assert!(pick.cost.contains("4"), "the row must show the cost: {pick:?}");
+
+        // And the offer is honest: crafting it actually succeeds, and the
+        // bench then reports it unaffordable because the wood is gone.
+        let recipe = pc3d_world::craft::recipe_by_code(6).unwrap();
+        assert_eq!(pc3d_world::craft::craft(&mut inv, recipe), Some(1));
+        assert_eq!(inv.count(ItemId(1)), 0, "wood must be consumed");
+        assert_eq!(inv.count(ItemId(12)), 1, "the pick must arrive");
+        let after = craft_rows_of(&inv);
+        assert!(!after.iter().find(|r| r.code == 6).unwrap().affordable);
+
+        // The crafted pick reaches the hotbar: slots 6-9 used to be
+        // permanently empty no matter what the player carried.
+        let carried = carried_slots_of(&inv);
+        assert_eq!(carried.len() + CARRIED_SLOT_0, 9, "must fill slots 6-9");
+        assert_eq!(
+            carried[0].as_ref().map(|h| h.label),
+            Some("wood_pick"),
+            "the crafted pick must show in the hotbar: {carried:?}"
+        );
+        assert!(carried[3].is_none(), "no bread carried, so no bread slot");
+
+        // Enter on a focused row names that recipe to the app.
+        s.craft = Some(craft_rows_of(&inv));
+        s.craft_focus = after.iter().position(|r| r.code == 6).unwrap();
+        let acts = ui::on_key(&mut s, Key::Enter);
+        assert!(
+            acts.contains(&UiAction::CraftRecipe(6)),
+            "Enter must craft the focused recipe: {acts:?}"
         );
     }
 

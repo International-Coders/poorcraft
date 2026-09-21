@@ -222,12 +222,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 21:31",
+        "modified": "2026-09-21 14:29",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 21:31",
+        "modified": "2026-09-21 14:29",
         "name": "beta-shot",
         "seed": 7
       }

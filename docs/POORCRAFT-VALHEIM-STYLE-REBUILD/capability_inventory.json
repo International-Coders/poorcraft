@@ -1463,6 +1463,9 @@
     "assets/compiled/module/wall_segment.glb",
     "assets/compiled/module/watchtower.glb",
     "assets/compiled/module/water_wheel.glb",
+    "assets/compiled/npc/guard.glb",
+    "assets/compiled/npc/resident.glb",
+    "assets/compiled/npc/worker.glb",
     "assets/compiled/prop/chest.glb",
     "assets/compiled/prop/ore_node.glb",
     "assets/compiled/prop/rock_granite.glb",
@@ -1631,6 +1634,10 @@
       {
         "name": "ui-states",
         "command_flag": "--ui-shots"
+      },
+      {
+        "name": "layout-laws",
+        "command_flag": "--gate-check"
       }
     ]
   },
@@ -1660,7 +1667,9 @@
     "--soak",
     "--journey",
     "--ui-shots",
-    "--ui-inspect"
+    "--ui-inspect",
+    "--gate-check",
+    "--play-daynight"
   ],
   "data_boundaries": {
     "pc3d_world": "deterministic, rendering-free (no wgpu/winit/UI/texture deps)",

@@ -229,6 +229,51 @@ pub struct FloraStreamer {
 /// WT-009: which variant a slot grows — a pure FNV pick of the slot
 /// coordinates + kind, deterministic everywhere (cosmetic diversity
 /// derived from the world's own coordinates).
+/// Where one slot's plant stands, and which variant grows there.
+///
+/// The single source of truth for flora placement: the streamer calls it to
+/// fill the cache and the grounded-geometry law calls it to audit the result,
+/// so the law can never drift from what is actually drawn. `None` when the
+/// slot is bare, holds grass (which streams in its own bucket), or holds a
+/// vine with no anchor.
+pub fn placement_of(
+    gen: &WorldGen,
+    slot: SlotCoord,
+    variant_count: &dyn Fn(PlantKind) -> u16,
+) -> Option<(PlantKind, Instance, u16)> {
+    let plant = flora::plant_at(gen, slot)?;
+    if plant.kind == PlantKind::Grass {
+        return None;
+    }
+    let [cxm, czm] = slot.center_m();
+    let j = flora::jitter(gen, slot);
+    let rot = j[2] * 6.28;
+    // WT-009: which variant this slot grows — the pure slot-hash pick over
+    // the kind's batch.
+    let variant = variant_of(plant.kind, slot, variant_count(plant.kind));
+    // THE VINE PIVOT: a vine's mesh hangs DOWNWARD from y=0, so its
+    // instance sits at the ANCHOR point (beside the anchor trunk, at canopy
+    // height) — every other kind stands on the ground at its own slot
+    // center.
+    let pos = if plant.kind == PlantKind::Vine {
+        let ([ax, az], top_y) = flora::vine_anchor(gen, slot)?;
+        [ax, top_y, az]
+    } else {
+        let x = cxm + j[0];
+        let z = czm + j[1];
+        let y = gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0;
+        [x, y, z]
+    };
+    Some((
+        plant.kind,
+        Instance {
+            pos_scale: [pos[0], pos[1], pos[2], j[2]],
+            params: [rot, plant.kind.wind(), 1.0, 0.0],
+        },
+        variant,
+    ))
+}
+
 pub fn variant_of(kind: PlantKind, slot: SlotCoord, count: u16) -> u16 {
     if count == 0 {
         return 0;
@@ -460,6 +505,19 @@ impl FloraStreamer {
         }
     }
 
+    /// Every cached placement as `(kind@slot, world position)`, for the
+    /// grounded-geometry law in [`crate::scene::ungrounded_placements`].
+    pub fn placements(&self) -> Vec<(PlantKind, String, [f32; 3])> {
+        self.cache
+            .iter()
+            .filter_map(|(slot, e)| {
+                let (kind, inst, _) = e.as_ref()?;
+                let p = inst.pos_scale;
+                Some((*kind, format!("{}@{},{}", kind.name(), slot.x, slot.z), [p[0], p[1], p[2]]))
+            })
+            .collect()
+    }
+
     pub fn set_config(&mut self, cfg: FloraConfig) {
         if cfg != self.config {
             self.config = cfg;
@@ -503,48 +561,10 @@ impl FloraStreamer {
                     if examined_new > self.config.max_slots_per_update {
                         break 'scan; // bounded: the rest comes next call
                     }
-                    let entry = flora::plant_at(gen, slot).and_then(|plant| {
-                        if plant.kind == PlantKind::Grass {
-                            return None; // grass streams in its own bucket
-                        }
-                        let [cxm, czm] = slot.center_m();
-                        let j = flora::jitter(gen, slot);
-                        let rot = j[2] * 6.28;
-                        // WT-009: which variant this slot grows — the
-                        // pure slot-hash pick over the kind's batch.
-                        let count = self
-                            .kinds
-                            .get(&plant.kind)
-                            .map(|k| k.variant_count)
-                            .unwrap_or(0);
-                        let variant = variant_of(plant.kind, slot, count);
-                        // THE VINE PIVOT: a vine's mesh hangs DOWNWARD
-                        // from y=0, so its instance sits at the ANCHOR
-                        // point (beside the anchor trunk, at canopy
-                        // height) — every other kind stands on the
-                        // ground at its own slot center.
-                        let (pos, wind) = if plant.kind == PlantKind::Vine {
-                            let ([ax, az], top_y) = flora::vine_anchor(gen, slot)?;
-                            ([ax, top_y, az], plant.kind.wind())
-                        } else {
-                            let x = cxm + j[0];
-                            let z = czm + j[1];
-                            let y = gen.effective_surface_mm(
-                                (x * 1000.0) as i64,
-                                (z * 1000.0) as i64,
-                            ) as f32
-                                / 1000.0;
-                            ([x, y, z], plant.kind.wind())
-                        };
-                        Some((
-                            plant.kind,
-                            Instance {
-                                pos_scale: [pos[0], pos[1], pos[2], j[2]],
-                                params: [rot, wind, 1.0, 0.0],
-                            },
-                            variant,
-                        ))
-                    });
+                    let count_for = |kind: PlantKind| {
+                        self.kinds.get(&kind).map(|k| k.variant_count).unwrap_or(0)
+                    };
+                    let entry = placement_of(gen, slot, &count_for);
                     if entry.is_some() {
                         added += 1;
                     }
@@ -1280,6 +1300,68 @@ mod tests {
     /// THE VINE LAW (GPU): a real vine slot renders its strand at the
     /// ANCHOR point (beside the anchor trunk at canopy height, not
     /// dropped on the slot-center ground), and the hang SWAYS at its
+    /// THE GROUNDED-GEOMETRY LAW over the real placement authority.
+    ///
+    /// Everything that grows from the soil must have its base on the soil.
+    /// A vine is the one deliberate exception: it hangs from a canopy, so it
+    /// must instead sit above the ground and beside a solid trunk. Detached
+    /// canopies floating in the sky are exactly the defect this names, and
+    /// no pixel count can see it.
+    #[test]
+    fn every_plant_is_grounded_and_every_vine_hangs_from_a_trunk() {
+        let gen = WorldGen::new(4242);
+        let ground = |x: f32, z: f32| {
+            Some(gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0)
+        };
+        let count = |_k: PlantKind| 4u16;
+
+        let mut standing: Vec<(String, [f32; 3])> = Vec::new();
+        let mut vines: Vec<(String, [f32; 3])> = Vec::new();
+        for sx in -60..60i32 {
+            for sz in -60..60i32 {
+                let slot = SlotCoord { x: sx, z: sz };
+                let Some((kind, inst, _)) = placement_of(&gen, slot, &count) else { continue };
+                let p = inst.pos_scale;
+                let id = format!("{}@{sx},{sz}", kind.name());
+                if kind == PlantKind::Vine {
+                    vines.push((id, [p[0], p[1], p[2]]));
+                } else {
+                    standing.push((id, [p[0], p[1], p[2]]));
+                }
+            }
+        }
+        assert!(standing.len() > 50, "too few plants to audit: {}", standing.len());
+
+        // Standing plants: base on the terrain, within a 10 cm tolerance.
+        let floating = crate::scene::ungrounded_placements(&standing, ground, 0.1);
+        assert!(
+            floating.is_empty(),
+            "{} of {} plants do not touch the ground, e.g. {:?}",
+            floating.len(),
+            standing.len(),
+            &floating[..floating.len().min(5)]
+        );
+
+        // Vines: above the ground (they hang) and beside a solid trunk.
+        assert!(!vines.is_empty(), "seed 4242 must grow vines to audit");
+        for (id, pos) in &vines {
+            let g = ground(pos[0], pos[2]).unwrap();
+            assert!(
+                pos[1] > g,
+                "{id} anchors at {:.2} which is below its ground {g:.2}",
+                pos[1]
+            );
+            let near_trunk = [(0.0, 0.0), (1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)]
+                .iter()
+                .any(|(dx, dz)| trunk_solid(&gen, pos[0] + dx, pos[2] + dz));
+            assert!(
+                near_trunk,
+                "{id} hangs at {pos:?} with no trunk within a metre — a canopy \
+                 floating detached in the sky"
+            );
+        }
+    }
+
     /// tip between two frozen times — the abs() sway-weight law — with
     /// grass excluded so the vine is the only mover in frame.
     #[test]

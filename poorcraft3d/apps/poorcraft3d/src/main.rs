@@ -1119,15 +1119,24 @@ fn main() {
             let span = (info.bounds_max[0] - info.bounds_min[0])
                 .max(info.bounds_max[2] - info.bounds_min[2])
                 .max(16.0);
-            let overview = pc3d_render::CameraPose::new(
-                [
-                    (info.bounds_min[0] + info.bounds_max[0]) / 2.0,
-                    (info.bounds_min[1] + info.bounds_max[1]) / 2.0 + span * 0.9,
-                    (info.bounds_min[2] + info.bounds_max[2]) / 2.0 + span * 0.8,
-                ],
-                0.0,
-                (-0.75f32).atan2(1.3),
-            );
+            // Frame the city: aim the eye AT the city centre instead of
+            // hardcoding a pitch. The old `(-0.75).atan2(1.3)` was a fixed
+            // ~30 degrees while the eye sat span*0.9 above and span*0.8
+            // south of the centre, which needs ~48 — so the camera looked
+            // clean over the rooftops and the proof captured empty sky.
+            let city_center = [
+                (info.bounds_min[0] + info.bounds_max[0]) / 2.0,
+                (info.bounds_min[1] + info.bounds_max[1]) / 2.0,
+                (info.bounds_min[2] + info.bounds_max[2]) / 2.0,
+            ];
+            // Close enough that the city fills a real share of the frame —
+            // an overview that shows a 7% speck proves nothing.
+            let overview_eye = [
+                city_center[0],
+                city_center[1] + span * 0.6,
+                city_center[2] + span * 0.55,
+            ];
+            let overview = pc3d_render::CameraPose::look_at(overview_eye, city_center);
             // Gate close-up (eye between the gate and its market).
             let gate = layout
                 .modules
@@ -1159,16 +1168,7 @@ fn main() {
                 gate_base + 2.0,
                 gate.origin.z as f32 + 1.0,
             ];
-            let gd = [
-                arch_mid[0] - gate_eye[0],
-                arch_mid[1] - gate_eye[1],
-                arch_mid[2] - gate_eye[2],
-            ];
-            let gate_pose = pc3d_render::CameraPose::new(
-                gate_eye,
-                (-gd[0]).atan2(-gd[2]),
-                (gd[1] / (gd[0] * gd[0] + gd[1] * gd[1] + gd[2] * gd[2]).sqrt()).asin(),
-            );
+            let gate_pose = pc3d_render::CameraPose::look_at(gate_eye, arch_mid);
 
             let g = gen.clone();
             let cv = cverts.clone();
@@ -1220,6 +1220,35 @@ fn main() {
                             );
                             std::process::exit(1);
                         }
+                    }
+                    // THE SUBJECT-IN-FRAME LAW: the overview is named after
+                    // the city, so the city must be in it. A colour count
+                    // cannot tell an empty sky from a skyline.
+                    let city_aabb = pc3d_render::scene::Aabb::new(
+                        [info.bounds_min[0], info.bounds_min[1], info.bounds_min[2]],
+                        [info.bounds_max[0], info.bounds_max[1], info.bounds_max[2]],
+                    );
+                    let ov = &report.captures[0];
+                    let subj = pc3d_render::scene::subject_in_frame(
+                        &ov.rgba,
+                        ov.report.width,
+                        ov.report.height,
+                        overview,
+                        city_aabb,
+                        0.10,
+                    );
+                    println!(
+                        "CITY IN FRAME: rect {:?} coverage {:.3} distinct {} sky {:.1}% centre ({:.2},{:.2})",
+                        subj.rect,
+                        subj.coverage,
+                        subj.distinct_colors,
+                        subj.sky_fraction * 100.0,
+                        subj.center.0,
+                        subj.center.1
+                    );
+                    if let Some(why) = &subj.reason {
+                        eprintln!("[FAIL] {} shows no city: {why}", ov.path.display());
+                        std::process::exit(1);
                     }
                     // The gate close-up: opening differs from pillar stone.
                     let (w, h) = (
@@ -1463,6 +1492,102 @@ fn main() {
                     println!(
                         "WINDOWED NPC PROOF PASS -> {} (+4 more)",
                         report.captures[0].path.display()
+                    );
+                }
+                Err(e) => {
+                    eprintln!("[FAIL] windowed renderer: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        Some("--play-daynight") => {
+            // Art-pass: the sun arcs and night fog darkens the frame.
+            let out_dir = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+            use pc3d_render::water::{proof_scene, river_pose};
+            use pc3d_render::{ProbeSet, Shot};
+            let (gen, graph, t0, (a, b)) = proof_scene(3);
+            let gen = std::rc::Rc::new(gen);
+            let graph = std::rc::Rc::new(graph);
+            let t0 = std::rc::Rc::new(t0);
+            let pose = river_pose(&graph, &gen, a, b);
+            let mid_x = ((a.0 as f32 + 0.5) + (b.0 as f32 + 0.5)) / 2.0 * 256.0;
+            let mid_z = ((a.1 as f32 + 0.5) + (b.1 as f32 + 0.5)) / 2.0 * 256.0;
+            let mid_y = gen.effective_surface_mm((mid_x * 1000.0) as i64, (mid_z * 1000.0) as i64)
+                as f32
+                / 1000.0;
+            let mid_patch = pc3d_world::coords::PatchCoord {
+                x: (mid_x as i32).div_euclid(16),
+                y: (mid_y as i32).div_euclid(16),
+                z: (mid_z as i32).div_euclid(16),
+            };
+            let g0 = gen.clone();
+            let g1 = gen.clone();
+            let graph0 = graph.clone();
+            let table0 = t0.clone();
+            let cfg = pc3d_render::WindowConfig {
+                title: "POORCRAFT 3D — day / night".into(),
+                max_frames: Some(50),
+                probe_set: ProbeSet::SkyOnly,
+                resize_to: Some((800.0, 500.0)),
+                camera_script: vec![(0, pose)],
+                shots: vec![
+                    Shot::new(20, format!("{out_dir}/windowed_day.png")),
+                    Shot::new(40, format!("{out_dir}/windowed_night.png")),
+                ],
+                frame_hooks: vec![
+                    (
+                        0,
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+                            r.set_placeholder_scene(false);
+                            r.set_atmosphere_tier(pc3d_render::atmosphere::AtmosphereTier::Mid);
+                            r.load_terrain(&g0, &pc3d_render::terrain::neighborhood3(mid_patch));
+                            r.attach_water();
+                            let _ = r.update_water(&g0, &graph0, &table0);
+                            r.set_day_phase(0.25); // noon
+                            r.set_pose(pose);
+                        }),
+                    ),
+                    (
+                        30,
+                        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+                            let _ = &g1;
+                            r.set_day_phase(0.75); // midnight
+                        }),
+                    ),
+                ],
+                ..Default::default()
+            };
+            match pc3d_render::run_windowed(cfg) {
+                Ok(report) => {
+                    if report.captures.len() != 2 {
+                        eprintln!("[FAIL] expected 2 captures");
+                        std::process::exit(1);
+                    }
+                    let mean = |rgba: &[u8]| -> f32 {
+                        let mut s = 0u64;
+                        for px in rgba.chunks_exact(4) {
+                            s += px[0] as u64 + px[1] as u64 + px[2] as u64;
+                        }
+                        s as f32 / (rgba.len() as f32 / 4.0 * 3.0)
+                    };
+                    let day = mean(&report.captures[0].rgba);
+                    let night = mean(&report.captures[1].rgba);
+                    if night >= day * 0.92 {
+                        eprintln!("[FAIL] night ({night:.1}) must be darker than day ({day:.1})");
+                        std::process::exit(1);
+                    }
+                    println!(
+                        "DAY/NIGHT OK: day mean {day:.1} → night mean {night:.1} ({:.0}% darker)",
+                        (1.0 - night / day) * 100.0
+                    );
+                    println!(
+                        "WINDOWED DAYNIGHT PROOF PASS -> {} + {}",
+                        report.captures[0].path.display(),
+                        report.captures[1].path.display()
                     );
                 }
                 Err(e) => {
@@ -3648,15 +3773,10 @@ fn main() {
                     (v, i, [ax, top_y, az])
                 });
             let canopy_pose = match &vine_surface {
-                Some((_, _, [ax, top_y, az])) => {
-                    let eye = [*ax + 1.4, *top_y - 0.9, *az + 1.8];
-                    let d = [*ax - eye[0], *top_y - 0.7 - eye[1], *az - eye[2]];
-                    pc3d_render::CameraPose::new(
-                        eye,
-                        (-d[0]).atan2(-d[2]),
-                        (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin(),
-                    )
-                }
+                Some((_, _, [ax, top_y, az])) => pc3d_render::CameraPose::look_at(
+                    [*ax + 1.4, *top_y - 0.9, *az + 1.8],
+                    [*ax, *top_y - 0.7, *az],
+                ),
                 None => {
                     println!("CANOPY: no vine found on this seed; keeping the undergrowth glance");
                     ug_pose
@@ -4361,6 +4481,70 @@ fn main() {
                 .cloned()
                 .unwrap_or_else(|| format!("{}/shots/observatory", env!("CARGO_MANIFEST_DIR")));
             run_observe(&route_id, &out_root);
+        }
+        Some("--gate-check") => {
+            // THE LAYOUT LAWS over every *.layout.json already on disk.
+            // Windowless on purpose: these are the checks that caught
+            // overlapping text and stacked panels, and they must be
+            // runnable without a GPU so they can never be skipped.
+            let root: String = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
+            let mut dumps = Vec::new();
+            collect_layout_dumps(std::path::Path::new(&root), &mut dumps);
+            dumps.sort();
+            if dumps.is_empty() {
+                eprintln!("[FAIL] gate-check: no *.layout.json under {root}");
+                std::process::exit(1);
+            }
+            let mut overlaps = 0usize;
+            let mut stacked = 0usize;
+            let mut unreachable = 0usize;
+            let mut bad_files = 0usize;
+            for path in &dumps {
+                let Ok(bytes) = std::fs::read(path) else { continue };
+                let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+                    eprintln!("[FAIL] gate-check: {} is not valid JSON", path.display());
+                    bad_files += 1;
+                    continue;
+                };
+                let items = pc3d_render::ui::layout_items_from_json(&v);
+                let rel = path.strip_prefix(&root).unwrap_or(path).display();
+                let mut file_bad = false;
+
+                let pairs = pc3d_render::ui::overlapping_text_pairs(&items);
+                if !pairs.is_empty() {
+                    overlaps += pairs.len();
+                    file_bad = true;
+                    eprintln!("[FAIL] {rel}: {} text overlaps", pairs.len());
+                    for (a, b) in pairs.iter().take(4) {
+                        eprintln!("         {a} X {b}");
+                    }
+                }
+                let open = pc3d_render::ui::open_panel_groups(&items);
+                if open.len() > 1 {
+                    stacked += 1;
+                    file_bad = true;
+                    eprintln!("[FAIL] {rel}: {} panels open at once: {open:?}", open.len());
+                }
+                // The dump carries no labels, so the reachability law reads
+                // the ids it knows are hints against the promised key list.
+                let labels: Vec<(String, String)> = Vec::new();
+                unreachable += pc3d_render::ui::unreachable_hint_keys(&items, &labels).len();
+                if file_bad {
+                    bad_files += 1;
+                }
+            }
+            println!(
+                "GATE CHECK: {} layout dumps · {overlaps} text overlaps · {stacked} stacked-panel frames · {unreachable} unreachable hint keys",
+                dumps.len()
+            );
+            if bad_files > 0 || unreachable > 0 {
+                eprintln!("GATE CHECK FAILED ({bad_files} of {} dumps)", dumps.len());
+                std::process::exit(1);
+            }
+            println!("GATE CHECK OK");
         }
         Some("--compare-evidence") => {
             // WT-003 slice 7: pass/fail/inconclusive between two bundles.
@@ -5138,10 +5322,13 @@ fn find_dig_spot_pair(
 /// Snow — never Rock: the route presses G with no pick staged) and to a
 /// gentle strip toward -z so the terrace step down/up is the only
 /// elevation change the walk meets.
+/// `grass_only` narrows the search to Grass, the one material whose
+/// harvest yields WOOD — the boiler's fuel.
 fn find_dig_spot_barehand(
     gen: &pc3d_world::gen::WorldGen,
     plaza_x: f32,
     plaza_z: f32,
+    grass_only: bool,
 ) -> Option<[f32; 3]> {
     use pc3d_world::gen::CellMaterial;
     let ground_at = |x: f32, z: f32| -> f32 {
@@ -5172,10 +5359,18 @@ fn find_dig_spot_barehand(
                 (g.floor() as i64) * 1000,
                 (g * 1000.0) as i64,
             );
-            if !matches!(
-                material,
-                CellMaterial::Grass | CellMaterial::Soil | CellMaterial::Sand | CellMaterial::Snow
-            ) {
+            let accepted = if grass_only {
+                matches!(material, CellMaterial::Grass)
+            } else {
+                matches!(
+                    material,
+                    CellMaterial::Grass
+                        | CellMaterial::Soil
+                        | CellMaterial::Sand
+                        | CellMaterial::Snow
+                )
+            };
+            if !accepted {
                 continue;
             }
             let strip_ok = [1.0f32, 1.5, 2.0, 2.5, 3.0, 3.5]
@@ -5191,6 +5386,19 @@ fn find_dig_spot_barehand(
 }
 
 /// WT-003: run one observatory route and write its evidence bundle.
+/// Every `*.layout.json` under `dir`, recursively.
+fn collect_layout_dumps(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            collect_layout_dumps(&p, out);
+        } else if p.to_string_lossy().ends_with(".layout.json") {
+            out.push(p);
+        }
+    }
+}
+
 fn run_observe(route_id: &str, out_root: &str) {
     use pc3d_render::ui::{self, Screen, UiAction};
     use pc3d_render::Shot;
@@ -6337,6 +6545,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                     gen,
                     plaza.x as f32 + 0.5,
                     plaza.z as f32 + 0.5,
+                    false,
                 )
                 .unwrap_or_else(|| {
                     panic!(
@@ -7182,6 +7391,164 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ));
                 shots.push(Shot::new(90, format!("{dir}/beauty_talk.png"))
                     .ui_dump(format!("{dir}/beauty_talk.layout.json")));
+            }
+            "route_machine_chain" => {
+                // JOURNEY STEPS 3-4 (P3D-306's missing runtime proof):
+                // "harness that river with a machine". The body digs a
+                // grass cell beside the city's own river edge for wood,
+                // opens the chain with M (built at first open), and
+                // presses G — the water comes from the flow table's
+                // consumer query at the region the body stands in, the
+                // wood from the pack, and the battery shows the charge.
+                let gen = &scene.gen;
+                // The DOWNSTREAM end: the one `river_near_city` proved has
+                // real discharge, and so the one the consumer query pays.
+                let (rx, rz) = scene.river_edge.1;
+                let (bank_x, bank_z) = (rx as f32 * 256.0 + 128.0, rz as f32 * 256.0 + 128.0);
+                let share = pc3d_world::flow::withdrawal_milli(
+                    &scene.flow,
+                    pc3d_world::coords::RegionCoord { x: rx, z: rz },
+                );
+                assert!(
+                    share > 0,
+                    "route_machine_chain: the city's river edge must give water on seed {seed}"
+                );
+                let [sx, sg, sz] = find_dig_spot_barehand(gen, bank_x, bank_z, true)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "route_machine_chain: no grass (wood-yielding) cell by the river \
+                             region ({rx},{rz}) on seed {seed}"
+                        )
+                    });
+                println!(
+                    "MACHINE CHAIN: river region ({rx},{rz}) offers {share} mWATER; \
+                     wood spot ({sx:.1},{sg:.2},{sz:.1})"
+                );
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                ui_script.push((
+                    30,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                    }),
+                ));
+                // Steep aim: the dig takes the body's own grass column.
+                ui_script.push((
+                    60,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                // G through the REAL reducer, with no panel open: the dig.
+                ui_script.push((
+                    90,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('g')));
+                    }),
+                ));
+                // Look AT the river the machine drinks from — the dig aimed
+                // the body's eyes at its own feet, and a picture of the
+                // ground proves nothing about the river.
+                let river_yaw = (-(bank_x - sx)).atan2(-(bank_z - sz));
+                ui_script.push((
+                    105,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace {
+                            yaw: river_yaw,
+                            pitch: -0.18,
+                        });
+                    }),
+                ));
+                // M opens the chain (and builds it once).
+                ui_script.push((
+                    120,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('m')));
+                    }),
+                ));
+                // G again — the open panel owns it now: feed the boiler.
+                ui_script.push((
+                    150,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('g')));
+                    }),
+                ));
+                shots.push(
+                    Shot::new(135, format!("{dir}/beauty_machine_panel.png"))
+                        .ui_dump(format!("{dir}/beauty_machine_panel.layout.json")),
+                );
+                shots.push(
+                    Shot::new(170, format!("{dir}/beauty_machine_charged.png"))
+                        .ui_dump(format!("{dir}/beauty_machine_charged.layout.json")),
+                );
+            }
+            "route_social" => {
+                // Journey steps 3/8/9 + D-019: recruit a companion (N),
+                // open oversight (O), melee a goblin (P) so a nearby
+                // cast member can witness the assault.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // Stand beside the first cast member so the assault is
+                // witnessed.
+                ui_script.push((
+                    40,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(p) = r.cast_position(0) {
+                            ctx.actions.push(UiAction::PlayerTeleport {
+                                x: p[0] + 1.0,
+                                z: p[2] + 1.0,
+                            });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    70,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('n')));
+                    }),
+                ));
+                ui_script.push((
+                    100,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('o')));
+                    }),
+                ));
+                // Close oversight, then punch — the goblin spawns on the
+                // world tick next to the player; give ticks time to land.
+                ui_script.push((
+                    130,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('e')));
+                    }),
+                ));
+                ui_script.push((
+                    180,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('p')));
+                    }),
+                ));
+                ui_script.push((
+                    200,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('p')));
+                    }),
+                ));
+                shots.push(
+                    Shot::new(115, format!("{dir}/beauty_oversight.png"))
+                        .ui_dump(format!("{dir}/beauty_oversight.layout.json")),
+                );
+                shots.push(
+                    Shot::new(220, format!("{dir}/beauty_social_aftermath.png"))
+                        .ui_dump(format!("{dir}/beauty_social_aftermath.layout.json")),
+                );
             }
             _ => unreachable!("availability checked above"),
         }
@@ -8321,6 +8688,73 @@ fn run_observe(route_id: &str, out_root: &str) {
             } else {
                 eprintln!(
                     "[FAIL] observe {}: panel shown {elements_ok}, bars taken {bars}",
+                    spec.id
+                );
+                any_fail = true;
+            }
+        }
+        // The machine route: the panel must show the chain AND the river
+        // must have put real charge in the battery.
+        if spec.id == "route_machine_chain" {
+            let panel_ok = report
+                .captures
+                .first()
+                .and_then(|c| c.ui_layout.as_ref())
+                .and_then(|l| l["elements"].as_array())
+                .map(|els| {
+                    els.iter().any(|e| e["id"] == "machines_panel")
+                        && els.iter().any(|e| e["id"] == "machines_stored")
+                })
+                .unwrap_or(false);
+            let charge = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["machine_charge_milli"].as_i64())
+                .unwrap_or(0);
+            if panel_ok && charge > 0 {
+                println!("MACHINE CHAIN: {charge} mE stored from river water + wood");
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: panel shown {panel_ok}, charge stored {charge}",
+                    spec.id
+                );
+                any_fail = true;
+            }
+        }
+        // The social route: oversight panel must show, companion recruited,
+        // and at least one witnessed assault or creature slain.
+        if spec.id == "route_social" {
+            let panel_ok = report
+                .captures
+                .first()
+                .and_then(|c| c.ui_layout.as_ref())
+                .and_then(|l| l["elements"].as_array())
+                .map(|els| els.iter().any(|e| e["id"] == "oversight_panel"))
+                .unwrap_or(false);
+            let companion = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["companion"].as_str())
+                .unwrap_or("");
+            let slain = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["creatures_slain"].as_u64())
+                .unwrap_or(0);
+            let witnessed = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["witnessed_assaults"].as_u64())
+                .unwrap_or(0);
+            let companion_ok = companion.contains("COMPANION");
+            if panel_ok && companion_ok && (slain > 0 || witnessed > 0) {
+                println!(
+                    "SOCIAL: oversight shown, companion live, slain={slain} witnessed={witnessed}"
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe {}: panel={panel_ok} companion={companion:?} \
+                     slain={slain} witnessed={witnessed}",
                     spec.id
                 );
                 any_fail = true;

@@ -162,6 +162,9 @@ fn fs_sky(in: SkyOut) -> @location(0) vec4f {
     let s = dot(dir, globals.sun_dir.xyz);
     col = mix(col, vec3f(1.0, 0.80, 0.55), 0.55 * smoothstep(0.98, 0.998, s));
     col = mix(col, vec3f(1.0, 0.93, 0.80), smoothstep(0.997, 0.9995, s));
+    // Night (sun_dir.w): pull the sky toward a deep indigo.
+    let night = globals.sun_dir.w;
+    col = mix(col, vec3f(0.02, 0.03, 0.08), night * 0.85);
 
     return vec4f(col, 1.0);
 }
@@ -217,6 +220,9 @@ fn fs_mesh(in: MeshOut) -> @location(0) vec4f {
     }
     // Hemisphere ambient (R3DV-010): sky above, ground below.
     var light = 0.38 * (0.5 + 0.5 * n.y) + 0.22 * (0.5 - 0.5 * n.y) + 1.05 * sun;
+    // Day/night (params3.z): night pulls the hemisphere + sun down so
+    // open ground reads dark without wiping the shadow map.
+    light = light * (1.0 - 0.78 * env.params3.z);
     var albedo = in.color;
     // Detail texture (high tier): subtle deterministic surface variation
     // from world-space UVs; globals.tan_aspect.w is the detail flag.
@@ -325,6 +331,7 @@ fn fs_cutout(in: CutoutOut) -> @location(0) vec4f {
         sun = sun * mix(0.35, 1.0, shadow_factor(wp, sun));
     }
     var light = 0.38 * (0.5 + 0.5 * n.y) + 0.22 * (0.5 - 0.5 * n.y) + 1.05 * sun;
+    light = light * (1.0 - 0.78 * env.params3.z);
     var col = in.color * min(light, 1.0);
     col = apply_fog(col, in.world);
     return vec4f(col, 1.0);

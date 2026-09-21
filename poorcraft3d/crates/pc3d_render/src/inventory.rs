@@ -315,7 +315,11 @@ mod tests {
         ] {
             assert!(paths.contains(expected), "missing renderer path {expected}");
         }
-        assert_eq!(inv.screenshot_gates.gates.len(), 10, "the 10-gate battery (ui-states joined)");
+        assert_eq!(
+            inv.screenshot_gates.gates.len(),
+            11,
+            "the 11-gate battery (layout-laws joined)"
+        );
         assert!(!inv.runtime_commands.is_empty());
     }
 }

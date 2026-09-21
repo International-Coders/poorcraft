@@ -306,8 +306,54 @@ fn state_col_1() -> [u8; 3] {
     [143, 111, 212]
 }
 
+/// The capital oversight panel (D-019 / P3D-608): real settlement metrics.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OversightView {
+    pub settlement: String,
+    pub population: i64,
+    pub food: i64,
+    pub defense: i64,
+    pub prosperity: i64,
+    pub garrison_soldiers: u32,
+    pub garrison_readiness: u8,
+    pub goods: i64,
+    pub health: u8,
+    /// Faction trust toward the player (0–100), from the live relations.
+    pub faction_trust: i32,
+    /// Disposition toward the player from witnessed karma evidence.
+    pub disposition: i32,
+}
+
+/// The machine chain as the panel shows it (synced from the live
+/// `MachineNetwork` on the host).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MachinesView {
+    /// One line per machine: kind, buffers, on/off.
+    pub rows: Vec<String>,
+    /// Whether the player is standing at water the boiler can draw from.
+    pub at_water: bool,
+    /// Wood available in the pack, in whole logs.
+    pub fuel_in_pack: u32,
+    /// Electrical charge stored in the battery (milli-electrical).
+    pub stored_milli: i64,
+}
+
+/// One recipe as the crafting bench shows it: what it makes, what it costs,
+/// and whether the player can afford it right now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CraftRow {
+    /// The recipe code from `pc3d_world::craft::RECIPES`.
+    pub code: u16,
+    /// "WOOD PICK x1" — the output.
+    pub output: String,
+    /// "WOOD 4" — the ingredient list.
+    pub cost: String,
+    /// Whether the live inventory affords it.
+    pub affordable: bool,
+}
+
 /// One journal row (synced from pc3d_world::quest's authority).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuestRow {
     pub id: u32,
     pub title: String,
@@ -376,6 +422,16 @@ pub const KEYMAP: &[KeyBinding] = &[
     KeyBinding { action: "BUILD", key: "F" },
     KeyBinding { action: "REMOVE", key: "R" },
     KeyBinding { action: "DIG", key: "G" },
+    KeyBinding { action: "TALK / CLOSE", key: "E" },
+    KeyBinding { action: "JOURNAL", key: "J" },
+    KeyBinding { action: "CRAFT", key: "C" },
+    KeyBinding { action: "MACHINES", key: "M" },
+    KeyBinding { action: "OVERSIGHT", key: "O" },
+    KeyBinding { action: "ATTACK", key: "P" },
+    KeyBinding { action: "COMPANION", key: "N" },
+    KeyBinding { action: "EAT", key: "X" },
+    KeyBinding { action: "DELIVER", key: "V" },
+    KeyBinding { action: "FORGE FUEL/ORE/TAKE", key: "G H T" },
     KeyBinding { action: "SAVE", key: "B" },
     KeyBinding { action: "LOAD", key: "L" },
     KeyBinding { action: "INSPECT", key: "I" },
@@ -431,12 +487,88 @@ pub struct UiState {
     pub journal: Option<Vec<QuestRow>>,
     /// The journal's focused row (Up/Down; Enter accepts/claims).
     pub journal_focus: usize,
+    /// The crafting bench (C): one row per recipe, from the live inventory.
+    pub craft: Option<Vec<CraftRow>>,
+    /// The craft list's focused row (Up/Down; Enter crafts).
+    pub craft_focus: usize,
+    /// The machine chain (M): the river-fed boiler → engine → generator →
+    /// battery, from the live host network.
+    pub machines: Option<MachinesView>,
+    /// The high-water mark of stored charge the chain has reached (the
+    /// river-machine route's proof: it survives the panel closing).
+    pub machine_charge_milli: i64,
+    /// Capital oversight (O): D-019's panel backed by real settlement data.
+    pub oversight: Option<OversightView>,
+    /// Companion status line under the pack echo (empty = none recruited).
+    pub companion_line: String,
+    /// Creatures slain this session (combat route proof).
+    pub creatures_slain: u64,
+    /// Witnessed assaults that shifted karma (journey step 9 proof).
+    pub witnessed_assaults: u64,
     /// The player stock lines (the chest/harvest panel view).
     pub stock_lines: Vec<String>,
     /// Ore harvested + bars obtained (the route's proof).
     pub ore_harvested: u64,
     /// The player's credit wallet (claim payouts).
     pub wallet: i64,
+}
+
+/// Which gameplay panel owns the frame.
+///
+/// The four panel payloads below used to be independent `Option`s that never
+/// closed each other, so a player could stack all four and the layout dumps
+/// recorded up to 4 panels and 14 colliding text runs in a single frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivePanel {
+    None,
+    Forge,
+    Interact,
+    Dialog,
+    Journal,
+    Craft,
+    Machines,
+    Oversight,
+}
+
+impl UiState {
+    /// The one panel that may draw this frame.
+    ///
+    /// Every open path calls [`UiState::close_panels`] first, so in practice
+    /// only one payload is ever `Some`. The precedence here is the backstop
+    /// that keeps the exclusivity law true for the *drawn* frame even if some
+    /// future path forgets: panels bound to a world object outrank the
+    /// journal overlay.
+    pub fn active_panel(&self) -> ActivePanel {
+        if self.forge.is_some() {
+            ActivePanel::Forge
+        } else if self.interact.is_some() {
+            ActivePanel::Interact
+        } else if self.dialog.is_some() {
+            ActivePanel::Dialog
+        } else if self.journal.is_some() {
+            ActivePanel::Journal
+        } else if self.craft.is_some() {
+            ActivePanel::Craft
+        } else if self.machines.is_some() {
+            ActivePanel::Machines
+        } else if self.oversight.is_some() {
+            ActivePanel::Oversight
+        } else {
+            ActivePanel::None
+        }
+    }
+
+    /// Dismisses every gameplay panel. Call before opening one: a panel takes
+    /// the frame, it does not join a pile.
+    pub fn close_panels(&mut self) {
+        self.dialog = None;
+        self.forge = None;
+        self.interact = None;
+        self.journal = None;
+        self.craft = None;
+        self.machines = None;
+        self.oversight = None;
+    }
 }
 
 impl Default for UiState {
@@ -465,6 +597,14 @@ impl Default for UiState {
             interact: None,
             journal: None,
             journal_focus: 0,
+            craft: None,
+            craft_focus: 0,
+            machines: None,
+            machine_charge_milli: 0,
+            oversight: None,
+            companion_line: String::new(),
+            creatures_slain: 0,
+            witnessed_assaults: 0,
             stock_lines: Vec::new(),
             ore_harvested: 0,
             wallet: 0,
@@ -524,6 +664,19 @@ impl UiState {
             "wallet": self.wallet,
             "stock": self.stock_lines,
             "interact": self.interact.as_ref().map(|(t, _)| t.clone()),
+            "machines": self.machines.as_ref().map(|m| serde_json::json!({
+                "rows": m.rows, "at_water": m.at_water,
+                "fuel_in_pack": m.fuel_in_pack, "stored_milli": m.stored_milli,
+            })),
+            "machine_charge_milli": self.machine_charge_milli,
+            "creatures_slain": self.creatures_slain,
+            "witnessed_assaults": self.witnessed_assaults,
+            "companion": self.companion_line,
+            "oversight": self.oversight.as_ref().map(|o| serde_json::json!({
+                "settlement": o.settlement, "population": o.population,
+                "food": o.food, "health": o.health,
+                "faction_trust": o.faction_trust, "disposition": o.disposition,
+            })),
             "journal_open": self.journal.is_some(),
             "journal": self.journal.as_ref().map(|rows| {
                 rows.iter().map(|r| serde_json::json!({
@@ -535,13 +688,14 @@ impl UiState {
         })
     }
 
+    /// An open panel owns the frame. Asking [`Self::active_panel`] keeps
+    /// this honest for every panel group at once: the craft bench and the
+    /// machine chain were both invisible to the old hand-listed version,
+    /// so WASD walked the player around behind them.
     pub fn blocks_gameplay(&self) -> bool {
         self.screen.blocks_gameplay()
             || self.modal.is_some()
-            || self.dialog.is_some()
-            || self.forge.is_some()
-            || self.interact.is_some()
-            || self.journal.is_some()
+            || self.active_panel() != ActivePanel::None
     }
 
     pub fn toast(&mut self, text: impl Into<String>) {
@@ -738,6 +892,13 @@ const BTN_GAP: i32 = 12;
 const PANEL_PAD: i32 = 20;
 const BAR_W: i32 = 240;
 const BAR_H: i32 = 18;
+/// One flowed row of scale-2 text, and the gap between row groups. Panels
+/// derive their height from these instead of hardcoding one, so content can
+/// never outgrow its frame and collide with the hint.
+const ROW_H: i32 = 22;
+const ROW_GAP: i32 = 6;
+/// Vertical space a panel's title bar takes before its first row.
+const TITLE_H: i32 = 22;
 const BAR_GAP: i32 = 10;
 const SLOT: i32 = 52;
 const SLOT_GAP: i32 = 6;
@@ -1153,6 +1314,16 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             // bread. The item authority's own line, verbatim.
             if !state.hud.stock.is_empty() {
                 ctx.text("hud_stock", &state.hud.stock, bx, y + ctx.px(6), 2);
+                y += ctx.px(ROW_H);
+            }
+            if !state.companion_line.is_empty() {
+                ctx.text(
+                    "hud_companion",
+                    &state.companion_line,
+                    bx,
+                    y + ctx.px(6),
+                    2,
+                );
             }
             // Crosshair at true center.
             let ch = ctx.px(16);
@@ -1203,12 +1374,17 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     Rect::new(wi - SAFE_MARGIN_PX - tw as i32, SAFE_MARGIN_PX + ctx.px(4), tw as u32, th as u32),
                 );
             }
+            // Exactly one gameplay panel may draw (they all claim the same
+            // centre of the screen).
+            let active = state.active_panel();
             // The NPC talk panel: above the toast band, centered — the
             // villager's name, role + live activity, their line, the
             // close hint. A dialog owns the frame like a modal.
-            if let Some(d) = &state.dialog {
+            if let (Some(d), ActivePanel::Dialog) = (&state.dialog, active) {
                 let panel_w = 560;
-                let panel_h = 132;
+                // Speaker (scale 3), activity, line, then the hint row.
+                let panel_h =
+                    PANEL_PAD + TITLE_H + 26 + ROW_H + ROW_H + ROW_GAP + ROW_H + PANEL_PAD;
                 let pw = ctx.px(panel_w);
                 let ph = ctx.px(panel_h);
                 let py = (hy - xp_h - ctx.px(6) - ctx.px(24) - ph - ctx.px(28))
@@ -1216,29 +1392,30 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
                 ctx.panel("dialog_panel", panel, Some("SPEAKING"));
                 let lx = panel.x + ctx.px(PANEL_PAD);
-                let mut dy = panel.y + ctx.px(PANEL_PAD) + ctx.px(22);
+                let mut dy = panel.y + ctx.px(PANEL_PAD) + ctx.px(TITLE_H);
                 let head = format!("{} · {}", d.speaker, d.role);
                 let head = fit_to_width(&head, 3 * ctx.k, (pw - PANEL_PAD * 2) as u32);
                 ctx.text("dialog_speaker", &head, lx, dy, 3);
                 dy += ctx.px(26);
                 let tag = format!("NOW: {}", d.activity);
                 ctx.text("dialog_activity", &tag, lx, dy, 2);
-                dy += ctx.px(24);
+                dy += ctx.px(ROW_H);
                 let line_w = (pw - PANEL_PAD * 2) as u32;
                 let text = fit_to_width(&d.text, 2 * ctx.k, line_w);
                 ctx.text("dialog_text", &text, lx, dy, 2);
+                dy += ctx.px(ROW_H) + ctx.px(ROW_GAP);
                 let (hw, _) = font::text_size("E CLOSE", 2);
                 ctx.text(
                     "dialog_hint",
                     "E CLOSE",
                     panel.right() - ctx.px(PANEL_PAD) - hw as i32,
-                    panel.bottom() - ctx.px(24),
+                    dy,
                     2,
                 );
             }
             // The quest journal (J): the settlement's quests from the
             // authority — title, giver, state, progress, reward.
-            if let Some(rows) = &state.journal {
+            if let (Some(rows), ActivePanel::Journal) = (&state.journal, active) {
                 let panel_w = 640;
                 let panel_h = (92 + rows.len().min(6) as i32 * 30 + 34).min(hi - 80);
                 let pw = ctx.px(panel_w);
@@ -1296,9 +1473,12 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 );
             }
             // The generic interact panel (chest loot / map marker).
-            if let Some((title, lines)) = &state.interact {
+            if let (Some((title, lines)), ActivePanel::Interact) = (&state.interact, active) {
                 let panel_w = 560;
-                let panel_h = 150;
+                // Sized to the lines it actually shows, plus the hint row.
+                let shown_n = lines.len().min(4) as i32;
+                let panel_h =
+                    PANEL_PAD + TITLE_H + shown_n * ROW_H + ROW_GAP + ROW_H + PANEL_PAD;
                 let pw = ctx.px(panel_w);
                 let ph = ctx.px(panel_h);
                 let py = (hy - ctx.px(5) - ctx.px(6) - ctx.px(24) - ph - ctx.px(28))
@@ -1306,13 +1486,13 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
                 ctx.panel("interact_panel", panel, Some(title));
                 let lx = panel.x + ctx.px(PANEL_PAD);
-                let mut iy = panel.y + ctx.px(PANEL_PAD) + ctx.px(22);
+                let mut iy = panel.y + ctx.px(PANEL_PAD) + ctx.px(TITLE_H);
                 let max_w = (pw - PANEL_PAD * 2) as u32;
                 let mut shown = 0;
                 for line in lines.iter().take(4) {
                     let l = fit_to_width(line, 2 * ctx.k, max_w);
                     ctx.text(&format!("interact_line_{shown}"), &l, lx, iy, 2);
-                    iy += ctx.px(22);
+                    iy += ctx.px(ROW_H);
                     shown += 1;
                 }
                 let hint = "E CLOSE";
@@ -1321,15 +1501,25 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     "interact_hint",
                     hint,
                     panel.right() - ctx.px(PANEL_PAD) - hw as i32,
-                    panel.bottom() - ctx.px(24),
+                    iy + ctx.px(ROW_GAP),
                     2,
                 );
             }
             // The forge panel: the live authority view (fuel/heat bars,
             // ore/bar slots, state line, key hints).
-            if let Some(f) = &state.forge {
+            if let (Some(f), ActivePanel::Forge) = (&state.forge, active) {
                 let panel_w = 560;
-                let panel_h = 150;
+                // Content-derived height. The old `panel_h = 150` flowed its
+                // rows downward but anchored the hint to `panel.bottom()`,
+                // so `forge_slots` landed on top of `forge_hint` in every
+                // dump. Rows are declared once, then the panel is sized to
+                // hold them and the hint is simply the last row.
+                let rows_h = ROW_H            // state
+                    + BAR_H + ROW_GAP         // fuel
+                    + BAR_H + ROW_GAP         // heat
+                    + ROW_H                   // slots
+                    + ROW_GAP + ROW_H; // hint
+                let panel_h = PANEL_PAD + TITLE_H + rows_h + PANEL_PAD;
                 let pw = ctx.px(panel_w);
                 let ph = ctx.px(panel_h);
                 let py = (hy - xp_h_placeholder() - ctx.px(6) - ctx.px(24) - ph - ctx.px(28))
@@ -1337,7 +1527,7 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
                 ctx.panel("forge_panel", panel, Some("THE FORGE"));
                 let lx = panel.x + ctx.px(PANEL_PAD);
-                let mut fy = panel.y + ctx.px(PANEL_PAD) + ctx.px(22);
+                let mut fy = panel.y + ctx.px(PANEL_PAD) + ctx.px(TITLE_H);
                 let (state_col, state_txt) = if f.blocked {
                     ([194, 68, 56], format!("STATE: {}", f.state_label))
                 } else if f.state_label == "READY" {
@@ -1346,32 +1536,208 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     ([201, 138, 61], format!("STATE: {}", f.state_label))
                 };
                 ctx.text("forge_state", &state_txt, lx, fy, 2);
-                fy += ctx.px(22);
+                fy += ctx.px(ROW_H);
                 let bw = ctx.px(BAR_W + 100);
                 ctx.push(
                     "forge_fuel",
                     ElementKind::Bar { frac: f.fuel_frac, color: state_col_1(), label: "FUEL".into() },
                     Rect::new(lx, fy, bw as u32, ctx.px(BAR_H) as u32),
                 );
+                fy += ctx.px(BAR_H) + ctx.px(ROW_GAP);
                 ctx.push(
                     "forge_heat",
                     ElementKind::Bar { frac: f.heat_frac, color: [201, 96, 40], label: "HEAT".into() },
-                    Rect::new(lx, fy + ctx.px(BAR_H) + ctx.px(6), bw as u32, ctx.px(BAR_H) as u32),
+                    Rect::new(lx, fy, bw as u32, ctx.px(BAR_H) as u32),
                 );
+                fy += ctx.px(BAR_H) + ctx.px(ROW_GAP);
                 let counts = format!("ORE {} / {} · BARS {} / {}", f.ore, pc3d_world::forge::ORE_SLOTS, f.bars, pc3d_world::forge::BAR_SLOTS);
-                ctx.text("forge_slots", &counts, lx, fy + (ctx.px(BAR_H) + ctx.px(6)) * 2 + ctx.px(6), 2);
+                ctx.text("forge_slots", &counts, lx, fy, 2);
+                fy += ctx.px(ROW_H) + ctx.px(ROW_GAP);
                 let hint = "G FUEL · H ORE · T TAKE · E CLOSE";
                 let (hw, _) = font::text_size(hint, 2);
                 ctx.text(
                     "forge_hint",
                     hint,
                     panel.right() - ctx.px(PANEL_PAD) - hw as i32,
-                    panel.bottom() - ctx.px(24),
+                    fy,
                     2,
                 );
             }
-            // Click-to-capture hint when the pointer is free.
-            if !state.pointer_grabbed {
+            // The crafting bench (C): every recipe from the authority with
+            // its cost and whether the live pack affords it. Journey step 2
+            // ("a first useful production loop") had no surface at all —
+            // `pc3d_world::craft` was fully tested and completely
+            // unreachable.
+            if let (Some(rows), ActivePanel::Craft) = (&state.craft, active) {
+                let panel_w = 640;
+                let shown_n = rows.len().min(6).max(1) as i32;
+                let panel_h = PANEL_PAD
+                    + TITLE_H
+                    + shown_n * (ROW_H + ROW_H)
+                    + ROW_GAP
+                    + ROW_H
+                    + PANEL_PAD;
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = centered_y(hi, ph);
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("craft_panel", panel, Some("CRAFTING"));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut ky = panel.y + ctx.px(PANEL_PAD) + ctx.px(TITLE_H);
+                let max_w = (pw - PANEL_PAD * 2) as u32;
+                if rows.is_empty() {
+                    ctx.text("craft_empty", "NO RECIPES KNOWN", lx, ky, 2);
+                    ky += ctx.px(ROW_H);
+                }
+                for (i, r) in rows.iter().take(6).enumerate() {
+                    let focused = i == state.craft_focus;
+                    let mark = if r.affordable { "" } else { " · SHORT" };
+                    let head = format!(
+                        "{}{}{}",
+                        if focused { "> " } else { "  " },
+                        r.output,
+                        mark
+                    );
+                    let head = fit_to_width(&head, 2 * ctx.k, max_w);
+                    ctx.text(&format!("craft_row_{i}"), &head, lx, ky, 2);
+                    ky += ctx.px(ROW_H);
+                    let cost = fit_to_width(&format!("    NEEDS {}", r.cost), 1 * ctx.k, max_w);
+                    ctx.text(&format!("craft_cost_{i}"), &cost, lx, ky, 1);
+                    ky += ctx.px(ROW_H);
+                }
+                let hint = "UP DOWN PICK · ENTER CRAFT · E CLOSE";
+                let (hw, _) = font::text_size(hint, 2);
+                ctx.text(
+                    "craft_hint",
+                    hint,
+                    panel.right() - ctx.px(PANEL_PAD) - hw as i32,
+                    ky + ctx.px(ROW_GAP),
+                    2,
+                );
+            }
+            // The machine chain (M): journey steps 3-4, "harness that river
+            // with a machine without needing a debug explanation". The
+            // boiler draws water from the river you stand at and wood from
+            // your pack; steam becomes shaft, shaft becomes current, and the
+            // battery shows it arriving.
+            if let (Some(m), ActivePanel::Machines) = (&state.machines, active) {
+                let panel_w = 760;
+                let shown_n = m.rows.len().min(6).max(1) as i32;
+                let panel_h = PANEL_PAD
+                    + TITLE_H
+                    + ROW_H              // the supply line
+                    + shown_n * ROW_H
+                    + ROW_GAP
+                    + ROW_H              // the stored-charge line
+                    + ROW_GAP
+                    + ROW_H              // the hint
+                    + PANEL_PAD;
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = centered_y(hi, ph);
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("machines_panel", panel, Some("THE MACHINE CHAIN"));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut my = panel.y + ctx.px(PANEL_PAD) + ctx.px(TITLE_H);
+                let max_w = (pw - PANEL_PAD * 2) as u32;
+                let supply = format!(
+                    "WATER: {} · WOOD IN PACK: {}",
+                    if m.at_water { "AT THE RIVER" } else { "NO WATER HERE" },
+                    m.fuel_in_pack
+                );
+                ctx.text("machines_supply", &fit_to_width(&supply, 2 * ctx.k, max_w), lx, my, 2);
+                my += ctx.px(ROW_H);
+                if m.rows.is_empty() {
+                    ctx.text("machines_empty", "NO MACHINES BUILT", lx, my, 2);
+                    my += ctx.px(ROW_H);
+                }
+                for (i, row) in m.rows.iter().take(6).enumerate() {
+                    ctx.text(
+                        &format!("machines_row_{i}"),
+                        &fit_to_width(row, 2 * ctx.k, max_w),
+                        lx,
+                        my,
+                        2,
+                    );
+                    my += ctx.px(ROW_H);
+                }
+                my += ctx.px(ROW_GAP);
+                let stored = format!("STORED CHARGE: {} mE", m.stored_milli);
+                ctx.text("machines_stored", &stored, lx, my, 2);
+                my += ctx.px(ROW_H) + ctx.px(ROW_GAP);
+                let hint = "G FEED FROM RIVER · E CLOSE";
+                let (hw, _) = font::text_size(hint, 2);
+                ctx.text(
+                    "machines_hint",
+                    hint,
+                    panel.right() - ctx.px(PANEL_PAD) - hw as i32,
+                    my,
+                    2,
+                );
+            }
+            // Capital oversight (O) — D-019: real population/food/defense,
+            // not decoration. Built from the nearest settlement's aggregate
+            // plus the live garrison/economy mirrors and faction karma.
+            if let (Some(o), ActivePanel::Oversight) = (&state.oversight, active) {
+                let panel_w = 560;
+                let panel_h = PANEL_PAD
+                    + TITLE_H
+                    + 8 * ROW_H
+                    + ROW_GAP
+                    + ROW_H
+                    + PANEL_PAD;
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = centered_y(hi, ph);
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("oversight_panel", panel, Some("CITY OVERSIGHT"));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut oy = panel.y + ctx.px(PANEL_PAD) + ctx.px(TITLE_H);
+                let max_w = (pw - PANEL_PAD * 2) as u32;
+                let rows = [
+                    format!("SETTLEMENT: {}", o.settlement),
+                    format!(
+                        "POPULATION: {} · FOOD: {} · GOODS: {}",
+                        o.population, o.food, o.goods
+                    ),
+                    format!(
+                        "DEFENSE: {} · PROSPERITY: {} · HEALTH: {}%",
+                        o.defense, o.prosperity, o.health
+                    ),
+                    format!(
+                        "GARRISON: {} SOLDIERS · READINESS {}%",
+                        o.garrison_soldiers, o.garrison_readiness
+                    ),
+                    format!(
+                        "FACTION TRUST: {} · DISPOSITION: {}",
+                        o.faction_trust, o.disposition
+                    ),
+                ];
+                for (i, row) in rows.iter().enumerate() {
+                    ctx.text(
+                        &format!("oversight_row_{i}"),
+                        &fit_to_width(row, 2 * ctx.k, max_w),
+                        lx,
+                        oy,
+                        2,
+                    );
+                    oy += ctx.px(ROW_H);
+                }
+                oy += ctx.px(ROW_GAP);
+                let hint = "E CLOSE";
+                let (hw, _) = font::text_size(hint, 2);
+                ctx.text(
+                    "oversight_hint",
+                    hint,
+                    panel.right() - ctx.px(PANEL_PAD) - hw as i32,
+                    oy,
+                    2,
+                );
+            }
+            // Click-to-capture hint when the pointer is free. Not while a
+            // panel owns the frame: capturing the mouse is a gameplay
+            // affordance, and the hint sits dead centre where panels draw.
+            if !state.pointer_grabbed && active == ActivePanel::None {
                 let hint = "CLICK TO CAPTURE MOUSE · ESC PAUSES";
                 let (tw, _) = font::text_size(hint, 2);
                 ctx.text("capture_hint", hint, cx - tw as i32 / 2, hi / 2 + ctx.px(40), 2);
@@ -1940,6 +2306,24 @@ pub enum UiAction {
     /// room), lowers the column one walkable step through the same
     /// surface edit, and credits the yield to the inventory.
     DigAtCrosshair,
+    /// C: ask the app to build the craft rows from the live inventory.
+    ToggleCraft,
+    /// Enter on a craft row: perform that recipe through the pure
+    /// `pc3d_world::craft` authority (atomic — the pack is untouched when
+    /// an ingredient is short).
+    CraftRecipe(u16),
+    /// M: ask the app to build the machine rows from the live host network,
+    /// building the river-fed chain on first open.
+    ToggleMachines,
+    /// G with the machine panel open: draw a bucket of river water and a log
+    /// from the pack into the boiler (`HostCommand::FeedBoiler`).
+    FeedBoilerFromRiver,
+    /// O: open capital oversight from the nearest settlement's real data.
+    ToggleOversight,
+    /// P: melee the nearest creature in range (combat).
+    MeleeAttack,
+    /// N: recruit a companion at the player's side, or cycle Follow/Wait.
+    CompanionCommand,
     Repaint,
 }
 
@@ -1990,6 +2374,74 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                 state.journal = None;
                 acts.push(UiAction::Repaint);
             }
+            Key::Escape if state.craft.is_some() => {
+                state.craft = None;
+                acts.push(UiAction::Repaint);
+            }
+            Key::Up if state.craft.is_some() => {
+                let n = state.craft.as_ref().map(|r| r.len()).unwrap_or(0);
+                if n > 0 {
+                    state.craft_focus = (state.craft_focus + n - 1) % n;
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Down if state.craft.is_some() => {
+                let n = state.craft.as_ref().map(|r| r.len()).unwrap_or(0);
+                if n > 0 {
+                    state.craft_focus = (state.craft_focus + 1) % n;
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Enter if state.craft.is_some() => {
+                // The app owns the inventory, so it performs the craft; the
+                // panel only names which recipe the player chose.
+                if let Some(code) = state
+                    .craft
+                    .as_ref()
+                    .and_then(|r| r.get(state.craft_focus))
+                    .map(|r| r.code)
+                {
+                    acts.push(UiAction::CraftRecipe(code));
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Char('c') => {
+                if state.craft.take().is_none() {
+                    acts.push(UiAction::ToggleCraft);
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Escape if state.machines.is_some() => {
+                state.machines = None;
+                acts.push(UiAction::Repaint);
+            }
+            // The open machine panel owns G, exactly as the forge does.
+            Key::Char('g') if state.machines.is_some() => {
+                acts.push(UiAction::FeedBoilerFromRiver);
+                acts.push(UiAction::Repaint);
+            }
+            Key::Char('m') => {
+                if state.machines.take().is_none() {
+                    acts.push(UiAction::ToggleMachines);
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Escape if state.oversight.is_some() => {
+                state.oversight = None;
+                acts.push(UiAction::Repaint);
+            }
+            Key::Char('o') => {
+                if state.oversight.take().is_none() {
+                    acts.push(UiAction::ToggleOversight);
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Char('p') => {
+                acts.push(UiAction::MeleeAttack);
+            }
+            Key::Char('n') => {
+                acts.push(UiAction::CompanionCommand);
+            }
             Key::Up if state.journal.is_some() => {
                 let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
                 if n > 0 {
@@ -2034,12 +2486,20 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
                     // E closes the interact panel.
                 } else if state.journal.take().is_some() {
                     // E closes the journal too.
+                } else if state.machines.take().is_some() {
+                    // E closes the machine chain too.
+                } else if state.oversight.take().is_some() {
+                    // E closes oversight too.
                 } else {
                     acts.push(UiAction::TryTalk);
                 }
                 acts.push(UiAction::Repaint);
             }
-            Key::Char('d') => {
+            // Delivery lives on V, not D. D is strafe-right: while it was
+            // bound to both, every rightward step — and every OS key repeat
+            // during that step — fired a delivery attempt and toasted
+            // "NOTHING TO DELIVER HERE".
+            Key::Char('v') => {
                 acts.push(UiAction::DeliverAtSite);
             }
             Key::Char('x') => {
@@ -2049,6 +2509,7 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
                 if state.forge.is_none()
                     && state.dialog.is_none()
                     && state.journal.is_none()
+                    && state.machines.is_none()
                     && state.interact.is_none() =>
             {
                 // THE DIG VERB (the forge arm above owns G while the
@@ -2563,6 +3024,182 @@ pub fn no_interactive_overlap(list: &DrawList) -> bool {
     true
 }
 
+// ---------------------------------------------------------------------------
+// The layout laws (one implementation, two readers)
+//
+// `no_interactive_overlap` above only judges buttons and hotbar slots, so
+// colliding *text* and simultaneously-open panels both passed every gate.
+// The laws below close that. They read `LayoutItem`, which both the live
+// `DrawList` and an on-disk `*.layout.json` reduce to, so the rule the unit
+// tests enforce is byte-for-byte the rule `--gate-check` enforces.
+// ---------------------------------------------------------------------------
+
+/// One element reduced to what the layout laws need.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LayoutItem {
+    pub id: String,
+    pub kind: String,
+    pub rect: Rect,
+}
+
+/// The exclusive panel groups. At most one may be open in a frame: each owns
+/// the same screen real estate, so two open at once is guaranteed collision.
+pub const PANEL_GROUPS: &[&str] = &[
+    "dialog",
+    "journal",
+    "interact",
+    "forge",
+    "craft",
+    "machines",
+    "oversight",
+];
+
+/// The char keys the window layer promises to deliver to [`on_key`].
+///
+/// `app::ui_key` is pinned to this list by a source law and
+/// [`unreachable_hint_keys`] reads it, so a panel hint can never again
+/// advertise a key the player has no way to press.
+pub const MAPPED_CHAR_KEYS: &[char] =
+    &['c', 'e', 'g', 'h', 'j', 'm', 'n', 'o', 'p', 't', 'v', 'x'];
+
+/// Hint elements whose advertised keys are routed through [`on_key`] (and so
+/// must be reachable via `app::ui_key`). Gameplay prompts are excluded: their
+/// keys are handled by the window's own gameplay path, not the UI layer.
+pub const PANEL_HINT_IDS: &[&str] = &[
+    "dialog_hint",
+    "journal_hint",
+    "interact_hint",
+    "forge_hint",
+    "craft_hint",
+    "machines_hint",
+    "oversight_hint",
+];
+
+/// Words a hint may use for keys that are not single characters.
+const NON_CHAR_KEY_WORDS: &[&str] =
+    &["ESC", "ENTER", "UP", "DOWN", "LEFT", "RIGHT", "TAB", "SPACE"];
+
+pub fn layout_items(list: &DrawList) -> Vec<LayoutItem> {
+    list.elements
+        .iter()
+        .map(|e| LayoutItem {
+            id: e.id.clone(),
+            kind: kind_name(&e.kind).to_string(),
+            rect: e.rect,
+        })
+        .collect()
+}
+
+/// Reads the items back out of a `*.layout.json` dump written by
+/// [`DrawList::to_json`].
+pub fn layout_items_from_json(v: &serde_json::Value) -> Vec<LayoutItem> {
+    v.get("elements")
+        .and_then(|e| e.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|e| {
+                    let r = e.get("rect")?.as_array()?;
+                    Some(LayoutItem {
+                        id: e.get("id")?.as_str()?.to_string(),
+                        kind: e.get("kind")?.as_str()?.to_string(),
+                        rect: Rect::new(
+                            r.first()?.as_i64()? as i32,
+                            r.get(1)?.as_i64()? as i32,
+                            r.get(2)?.as_i64()? as u32,
+                            r.get(3)?.as_i64()? as u32,
+                        ),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// THE NO-TEXT-OVERLAP LAW: two text runs may never share a pixel. Overlapping
+/// glyphs are unreadable, and unreadable text is a broken screen even when
+/// every pixel check passes.
+pub fn overlapping_text_pairs(items: &[LayoutItem]) -> Vec<(String, String)> {
+    let text: Vec<&LayoutItem> = items.iter().filter(|e| e.kind == "text").collect();
+    let mut out = Vec::new();
+    for i in 0..text.len() {
+        for j in (i + 1)..text.len() {
+            if text[i].rect.intersects(&text[j].rect) {
+                out.push((text[i].id.clone(), text[j].id.clone()));
+            }
+        }
+    }
+    out
+}
+
+/// THE PANEL-EXCLUSIVITY LAW: at most one exclusive panel group is open.
+pub fn open_panel_groups(items: &[LayoutItem]) -> Vec<&'static str> {
+    PANEL_GROUPS
+        .iter()
+        .copied()
+        .filter(|g| {
+            let prefix = format!("{g}_");
+            items.iter().any(|e| e.id.starts_with(&prefix))
+        })
+        .collect()
+}
+
+/// THE KEY-REACHABILITY LAW: every key a panel hint advertises must be one the
+/// window layer can actually deliver.
+///
+/// Hints read `"G FUEL · H ORE · T TAKE · E CLOSE"`, so a key is the
+/// single-character token that opens each `·`-separated clause. Returns the
+/// `(hint id, key)` pairs that no keypress can ever produce.
+pub fn unreachable_hint_keys(items: &[LayoutItem], labels: &[(String, String)]) -> Vec<(String, char)> {
+    let mut out = Vec::new();
+    for (id, label) in labels {
+        if !PANEL_HINT_IDS.contains(&id.as_str()) {
+            continue;
+        }
+        if !items.iter().any(|e| &e.id == id) {
+            continue;
+        }
+        for key in advertised_keys(label) {
+            if !MAPPED_CHAR_KEYS.contains(&key) {
+                out.push((id.clone(), key));
+            }
+        }
+    }
+    out
+}
+
+/// The single-character keys a hint string advertises.
+pub fn advertised_keys(label: &str) -> Vec<char> {
+    label
+        .split('·')
+        .filter_map(|clause| {
+            let mut words = clause.split_whitespace();
+            let first = words.next()?;
+            // A key clause is "<KEY> <ACTION>"; a bare trailing word is prose.
+            words.next()?;
+            if NON_CHAR_KEY_WORDS.contains(&first) {
+                return None;
+            }
+            let mut ch = first.chars();
+            let c = ch.next()?;
+            if ch.next().is_some() || !c.is_ascii_alphabetic() {
+                return None;
+            }
+            Some(c.to_ascii_lowercase())
+        })
+        .collect()
+}
+
+/// Every text element's `(id, label)`, for the key-reachability law.
+pub fn text_labels(list: &DrawList) -> Vec<(String, String)> {
+    list.elements
+        .iter()
+        .filter_map(|e| match &e.kind {
+            ElementKind::Text { label, .. } => Some((e.id.clone(), label.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
 /// Counts pixels carrying UI ink (alpha > 0) inside a rect of the canvas.
 pub fn ink_px(canvas: &[u8], cw: u32, rect: Rect) -> u64 {
     let ch = (canvas.len() / (cw as usize * 4)).max(1) as u32;
@@ -2766,6 +3403,221 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Every gameplay panel combination the player can actually reach.
+    fn panel_states() -> Vec<(&'static str, UiState)> {
+        let dialog = pc3d_world::dialog::DialogLine {
+            speaker: "Bram Stonehand".into(),
+            role: "FARMER",
+            activity: "FARMING",
+            text: "Good soil this season. The village will eat well.".into(),
+        };
+        let forge = ForgeView {
+            state_label: "HEATING".into(),
+            blocked: false,
+            fuel_frac: 0.7,
+            heat_frac: 0.3,
+            ore: 2,
+            bars: 0,
+        };
+        let interact = (
+            "THE CHEST".to_string(),
+            vec!["A WOOD PICK".to_string(), "2 BREAD".to_string()],
+        );
+        let mut out = Vec::new();
+        let mut s = state(Screen::Gameplay);
+        s.dialog = Some(dialog.clone());
+        out.push(("dialog", s));
+        let mut s = state(Screen::Gameplay);
+        s.forge = Some(forge.clone());
+        out.push(("forge", s));
+        let mut s = state(Screen::Gameplay);
+        s.interact = Some(interact.clone());
+        out.push(("interact", s));
+        let mut s = state(Screen::Gameplay);
+        s.craft = Some(vec![
+            CraftRow {
+                code: 6,
+                output: "WOOD PICK x1".into(),
+                cost: "WOOD 4/4".into(),
+                affordable: true,
+            },
+            CraftRow {
+                code: 1,
+                output: "STONE PICK x1".into(),
+                cost: "WOOD 3/3 · STONE 0/2".into(),
+                affordable: false,
+            },
+        ]);
+        out.push(("craft", s));
+        let mut s = state(Screen::Gameplay);
+        s.machines = Some(MachinesView {
+            rows: vec![
+                "BOILER   FUEL   1000 · WATER   24000 · STEAM OUT   6000".into(),
+                "ENGINE   STEAM IN   2000 · SHAFT OUT   1000".into(),
+                "GENERATOR SHAFT IN   1000 · CURRENT OUT    900".into(),
+                "BATTERY  CHARGE    900 / 50000".into(),
+            ],
+            at_water: true,
+            fuel_in_pack: 7,
+            stored_milli: 900,
+        });
+        out.push(("machines", s));
+        let mut s = state(Screen::Gameplay);
+        s.oversight = Some(OversightView {
+            settlement: "Fordhall".into(),
+            population: 20,
+            food: 200,
+            defense: 15,
+            prosperity: 50,
+            garrison_soldiers: 5,
+            garrison_readiness: 70,
+            goods: 40,
+            health: 80,
+            faction_trust: 50,
+            disposition: 0,
+        });
+        out.push(("oversight", s));
+        out
+    }
+
+    /// THE NO-TEXT-OVERLAP LAW. Colliding glyphs are unreadable; the old
+    /// `no_interactive_overlap` judged only buttons, so this went unseen.
+    #[test]
+    fn text_never_overlaps_text_in_any_panel() {
+        for (w, h) in RESOLUTIONS {
+            for (name, s) in panel_states() {
+                let items = layout_items(&build(&s, w, h));
+                let bad = overlapping_text_pairs(&items);
+                assert!(
+                    bad.is_empty(),
+                    "{name} at {w}x{h} has overlapping text: {bad:?}"
+                );
+            }
+        }
+    }
+
+    /// THE PANEL-EXCLUSIVITY LAW. Opening one panel must close the rest;
+    /// they all claim the same screen real estate.
+    #[test]
+    fn at_most_one_panel_is_ever_open() {
+        // Opening each panel in turn from a state where another is already
+        // open must leave exactly one standing.
+        let opens: Vec<(&str, fn(&mut UiState))> = vec![
+            ("dialog", |s: &mut UiState| {
+                s.dialog = Some(pc3d_world::dialog::DialogLine {
+                    speaker: "Bram".into(),
+                    role: "FARMER",
+                    activity: "FARMING",
+                    text: "Hello.".into(),
+                })
+            }),
+            ("forge", |s: &mut UiState| {
+                s.forge = Some(ForgeView {
+                    state_label: "READY".into(),
+                    blocked: false,
+                    fuel_frac: 0.5,
+                    heat_frac: 0.5,
+                    ore: 1,
+                    bars: 0,
+                })
+            }),
+            ("interact", |s: &mut UiState| {
+                s.interact = Some(("THE CHEST".into(), vec!["A WOOD PICK".into()]))
+            }),
+            ("craft", |s: &mut UiState| {
+                s.craft = Some(vec![CraftRow {
+                    code: 6,
+                    output: "WOOD PICK x1".into(),
+                    cost: "WOOD 4/4".into(),
+                    affordable: true,
+                }])
+            }),
+            ("journal", |s: &mut UiState| {
+                s.journal = Some(vec![QuestRow {
+                    id: 1,
+                    title: "Farmer visit".into(),
+                    giver: "Bram Stonehand (the farmer)".into(),
+                    kind: "visit",
+                    state: "OFFERED",
+                    progress: "0/1".into(),
+                    reward: 12,
+                }])
+            }),
+            ("machines", |s: &mut UiState| {
+                s.machines = Some(MachinesView {
+                    rows: vec!["BOILER   FUEL   1000 · WATER  24000 · STEAM OUT 6000".into()],
+                    at_water: true,
+                    fuel_in_pack: 3,
+                    stored_milli: 0,
+                })
+            }),
+            ("oversight", |s: &mut UiState| {
+                s.oversight = Some(OversightView {
+                    settlement: "Fordhall".into(),
+                    population: 12,
+                    food: 80,
+                    defense: 8,
+                    prosperity: 40,
+                    garrison_soldiers: 3,
+                    garrison_readiness: 55,
+                    goods: 20,
+                    health: 70,
+                    faction_trust: 45,
+                    disposition: -10,
+                })
+            }),
+        ];
+        for (first_name, first) in &opens {
+            for (second_name, second) in &opens {
+                let mut s = state(Screen::Gameplay);
+                first(&mut s);
+                second(&mut s);
+                let items = layout_items(&build(&s, 1280, 720));
+                let open = open_panel_groups(&items);
+                assert!(
+                    open.len() <= 1,
+                    "opening {second_name} after {first_name} left {open:?} open at once"
+                );
+            }
+        }
+    }
+
+    /// THE KEY-REACHABILITY LAW. A hint that advertises a key the window
+    /// layer cannot deliver is a lie told to the player.
+    #[test]
+    fn panel_hints_only_advertise_reachable_keys() {
+        for (name, s) in panel_states() {
+            let list = build(&s, 1280, 720);
+            let bad = unreachable_hint_keys(&layout_items(&list), &text_labels(&list));
+            assert!(
+                bad.is_empty(),
+                "{name} advertises keys the player cannot press: {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn advertised_keys_reads_key_clauses_and_ignores_prose() {
+        assert_eq!(
+            advertised_keys("G FUEL · H ORE · T TAKE · E CLOSE"),
+            vec!['g', 'h', 't', 'e']
+        );
+        // ESC is a named key, not a char key; a bare clause is prose.
+        assert_eq!(advertised_keys("E TALK · ESC PAUSE · LOADING"), vec!['e']);
+        assert!(advertised_keys("ORE LOADED (2)").is_empty());
+    }
+
+    /// The JSON reader and the live reader must agree, or `--gate-check`
+    /// would police a different rule than the unit tests do.
+    #[test]
+    fn layout_items_round_trip_through_the_dump() {
+        let list = build(&state(Screen::Title), 1280, 720);
+        let from_live = layout_items(&list);
+        let from_json = layout_items_from_json(&list.to_json("title"));
+        assert_eq!(from_live, from_json);
+        assert!(!from_live.is_empty());
     }
 
     #[test]
@@ -3563,6 +4415,16 @@ mod tests {
         for k in ["W A S D", "MOUSE", "SPACE", "SHIFT", "F", "R", "B", "L", "I", "ESC", "Q", "1-9 / WHEEL"] {
             assert!(keys.contains(&k), "keymap must list {k}");
         }
+        // The player-facing verbs the UI layer routes. A verb the keymap
+        // does not document is a verb nobody finds.
+        for k in ["E", "J", "X", "V", "C", "G H T"] {
+            assert!(keys.contains(&k), "keymap must list {k}");
+        }
+        // And D must not be advertised as anything but movement.
+        assert!(
+            !keys.contains(&"D"),
+            "D is strafe-right; binding a verb to it double-fires on every step"
+        );
     }
 }
 

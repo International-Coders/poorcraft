@@ -35,6 +35,17 @@
     },
     {
       "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -60,9 +71,9 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        113,
+        65,
         397,
-        574,
+        670,
         14
       ]
     },
@@ -248,12 +259,17 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · B SAVE · L LOAD · I INSPECT",
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
+      "stock": "PACK EMPTY",
       "xp": 0.0
     },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
     "modal": null,
+    "ore_harvested": 0,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -266,16 +282,18 @@
     },
     "slots": [
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-21 14:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-11 17:50",
+        "modified": "2026-09-21 14:25",
         "name": "beta-shot",
         "seed": 7
       }
     ],
-    "toasts": []
+    "stock": [],
+    "toasts": [],
+    "wallet": 0
   }
 }

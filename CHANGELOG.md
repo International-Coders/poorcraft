@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-09-21 — POORCRAFT 3D revival Phase 4: art + atmosphere
+
+- NPC cast draws assetgen humanoids (`assets/compiled/npc/{resident,worker,guard}.glb`) with baked faction kits; procedural boxes remain the fallback.
+- Live day/night: `sun_at_phase` + WGSL night dim (mesh `params3.z`, sky `sun_dir.w`); proofs keep classic `SUN_DIR` until `set_day_phase`.
+- `make p3d-daynight` / `--play-daynight` mean-luminance gate (day→night ~48% darker); beta-critical promotions with in-world `proof_scene`.
+- `make p3d-gate-check` and layout-laws joined the visual battery earlier in the same revival.
+
 ## 2026-09-18 — The bootstrap is the server's: protocol v11 closes the lying-PackSync tier (loop 472)
 
 - Closed STATE's next_task item (1) — the TOP carried item since 471,

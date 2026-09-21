@@ -197,6 +197,39 @@ impl FlowTable {
     }
 }
 
+/// P3D-306: the share of a region's channel capacity one consumer may
+/// withdraw per tick. A twentieth: a river feeds many wheels, pumps and
+/// boilers, and no single one may drain it.
+pub const CONSUMER_SHARE_DEN: i64 = 20;
+
+/// Milli-water per tick carried by one unit of accumulated discharge.
+/// Discharge is a region count; the machines are integer milli-units, and
+/// this is the one place the two scales meet.
+pub const MILLI_WATER_PER_DISCHARGE: i64 = 1_000;
+
+/// P3D-306 — THE FLOW-CONSUMER QUERY. What a water consumer standing in
+/// `region` may withdraw this tick, in milli-water.
+///
+/// Independent by construction: the answer is a pure function of the flow
+/// record, so a boiler, a pump and a mill standing in the same region all
+/// get the same number, and none of them can see or change the others.
+///
+/// Below [`crate::hydro::RIVER_THRESHOLD`] the answer is 0 — the same
+/// authority `is_river` uses, so what the map draws as a river is exactly
+/// what a machine can drink from, and a damp hillside honestly refuses.
+pub fn withdrawal_milli(table: &FlowTable, region: RegionCoord) -> i64 {
+    let Some(rec) = table.get(region) else {
+        return 0;
+    };
+    if rec.discharge < crate::hydro::RIVER_THRESHOLD {
+        return 0;
+    }
+    // Capacity is discharge already scaled by slope, so a steeper reach
+    // gives more per tick than a slack one of the same volume.
+    (rec.capacity.min(i64::MAX as u64) as i64).saturating_mul(MILLI_WATER_PER_DISCHARGE)
+        / CONSUMER_SHARE_DEN
+}
+
 /// A water crossing on a region/patch boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Port {
@@ -256,6 +289,52 @@ mod tests {
 
     fn table() -> FlowTable {
         FlowTable::from_graph(&RiverGraph::new(&WorldGen::new(2024), 24))
+    }
+
+    /// P3D-306: the consumer query answers from the record alone, gives
+    /// every consumer in a region the same share, refuses a dry region,
+    /// and never lets a share drain the channel.
+    #[test]
+    fn p3d306_the_flow_consumer_query_is_independent_and_bounded() {
+        let g = RiverGraph::new(&WorldGen::new(2024), 24);
+        let t = table();
+        let mut wet = 0usize;
+        for x in -24..=24 {
+            for z in -24..=24 {
+                let r = RegionCoord { x, z };
+                let share = withdrawal_milli(&t, r);
+                let rec = t.get(r).unwrap();
+                assert!(share >= 0, "a withdrawal is never negative");
+                assert!(
+                    share * CONSUMER_SHARE_DEN
+                        <= rec.capacity as i64 * MILLI_WATER_PER_DISCHARGE,
+                    "one consumer's share can never exceed the channel"
+                );
+                // The query and the map agree on what a river is.
+                assert_eq!(
+                    share > 0,
+                    rec.discharge >= crate::hydro::RIVER_THRESHOLD,
+                    "only a real river gives water at {r:?}"
+                );
+                if share > 0 {
+                    wet += 1;
+                }
+                // Independent: asking again, from any caller, answers the
+                // same — the query holds no consumer state.
+                assert_eq!(share, withdrawal_milli(&t, r));
+            }
+        }
+        assert!(wet > 0, "a 24-region band must offer water somewhere");
+        // The sim's own best wheel site is a place a consumer can draw.
+        let (site, _) = g
+            .best_wheel_site(&WorldGen::new(2024), None)
+            .expect("a wheel site in a 24-region band");
+        assert!(
+            withdrawal_milli(&t, site) > 0,
+            "the site the sim picks for a wheel must have water to give"
+        );
+        // Off the table entirely: no record, no water.
+        assert_eq!(withdrawal_milli(&t, RegionCoord { x: 9999, z: 0 }), 0);
     }
 
     /// Directions agree with the downstream map; slope is never negative

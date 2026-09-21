@@ -10319,3 +10319,33 @@ survival realm's pack claim is remove-only reconciliation.
 - Client-local block entities (chest contents, furnace-slot
   persistence across peers).
 - Hardcoded connect name "smith" (audit note).
+
+## 2026-09-21 — POORCRAFT 3D revival Phase 4 (art-pass)
+
+WHAT: Close the revival plan art/atmosphere pass for poorcraft3d.
+NPC humanoid GLBs (resident/worker/guard) with baked faction kits;
+DETAIL_ATLAS retune; live day/night (`sun_at_phase` + WGSL mesh/sky
+night dim via params3.z / sun_dir.w); promote beta-critical rows off
+placeholder with in-world proof_scene; `make p3d-daynight` +
+`p3d-gate-check` Makefile targets; capability inventory lists the new
+NPC GLBs. Proofs keep classic SUN_DIR until `set_day_phase` (live /
+`--play-daynight`) opts into the arc.
+
+HOW: tools/assetgen `asset_npc`; pc3d_render {scene,renderer,shaders,
+npcs,app}; pc3d_assets DETAIL_ATLAS + beta_critical test; main.rs
+`--play-daynight`; docs beta_critical_assets.json promotions;
+capability_inventory.json; Makefile; 23-HONEST-AUDIT postscript.
+Shadows were already PCF-live (NWR-006) — not reinvented.
+
+VERIFICATION:
+- cargo test -p pc3d_render --lib -- sun_at_phase / inventory / npc role
+  / face_flip / surface slope: green after Option day_phase + inventory
+  NPC rows + GLB-aware NPC laws.
+- `--play-daynight`: DAY/NIGHT OK day mean 194 → night mean ~100 (~48%
+  darker); shots at apps/poorcraft3d/shots/windowed_{day,night}.png.
+- make p3d-dmg → poorcraft3d/dist3d/poorcraft3d-macos.dmg.
+- Full pc3d_render --lib battery re-run with this entry.
+
+HONESTLY DEFERRED: SSAO / cave-occlusion beyond night fog + hemisphere;
+city.rs still procedural boxes (NPC cast is the art-pass subject);
+re-score the ten-step journey against a fresh play session.

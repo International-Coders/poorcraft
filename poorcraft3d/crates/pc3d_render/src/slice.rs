@@ -251,6 +251,23 @@ pub fn assemble(
         last_message: "WALK WITH WASD - CLICK TO LOOK".into(),
         forge: None,
         forge_tick_frame: 0,
+        world_tick_frame: 0,
+        creatures: pc3d_world::combat::CreatureSystem::default(),
+        companion: None,
+        companion_nav: None,
+        factions: {
+            let mut f = pc3d_world::faction::FactionRelations::new();
+            // Player (0) and the town (1) start Neutral.
+            f.set_trust(
+                pc3d_world::faction::FactionId(0),
+                pc3d_world::faction::FactionId(1),
+                50,
+            );
+            f
+        },
+        karma: pc3d_world::perception::Karma::new(&[(1, 0)]),
+        garrison: pc3d_world::garrison::Garrison::new(20, 200),
+        economy: pc3d_world::economy::EconomicState::new(20, 200),
         falling: false,
         hang: None,
         released_from: None,
@@ -367,6 +384,14 @@ mod tests {
             .river
             .downstream(RegionCoord { x: a.0, z: a.1 })
             .is_some());
+        // And it is a river a MACHINE can drink from: the P3D-306
+        // consumer query must answer with water at the DOWNSTREAM end
+        // (the end `river_near_city` checked for real discharge), or the
+        // river-machine loop has no source within walking distance.
+        assert!(
+            pc3d_world::flow::withdrawal_milli(&scene.flow, RegionCoord { x: b.0, z: b.1 }) > 0,
+            "the showcase river edge must offer a consumer share downstream"
+        );
         // Cave: enclosed pocket with wall + ceiling.
         let (air, wall, _) = scene.cave;
         assert_ne!((air.x, air.z), (wall.x, wall.z));
@@ -782,6 +807,22 @@ pub fn assemble_rebuild(
             .into(),
         forge: None,
         forge_tick_frame: 0,
+        world_tick_frame: 0,
+        creatures: pc3d_world::combat::CreatureSystem::default(),
+        companion: None,
+        companion_nav: None,
+        factions: {
+            let mut f = pc3d_world::faction::FactionRelations::new();
+            f.set_trust(
+                pc3d_world::faction::FactionId(0),
+                pc3d_world::faction::FactionId(1),
+                50,
+            );
+            f
+        },
+        karma: pc3d_world::perception::Karma::new(&[(1, 0)]),
+        garrison: pc3d_world::garrison::Garrison::new(20, 200),
+        economy: pc3d_world::economy::EconomicState::new(20, 200),
         falling: false,
         hang: None,
         released_from: None,
