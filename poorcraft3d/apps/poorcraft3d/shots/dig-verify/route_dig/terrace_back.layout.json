@@ -40,7 +40,7 @@
       "rect": [
         20,
         110,
-        466,
+        238,
         14
       ]
     },
@@ -71,20 +71,20 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        83,
+        65,
         397,
-        634,
+        670,
         14
       ]
     },
     {
       "button_state": "",
-      "id": "toast_HARVESTED 2 IRON ORE",
+      "id": "toast_HIT FOR 4 DAMAGE",
       "kind": "toast",
       "rect": [
-        271,
+        295,
         375,
-        258,
+        210,
         16
       ]
     },
@@ -186,105 +186,6 @@
         52,
         52
       ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        237,
-        560,
-        132
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_speaker",
-      "kind": "text",
-      "rect": [
-        140,
-        279,
-        411,
-        21
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_activity",
-      "kind": "text",
-      "rect": [
-        140,
-        305,
-        154,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_text",
-      "kind": "text",
-      "rect": [
-        140,
-        329,
-        430,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_hint",
-      "kind": "text",
-      "rect": [
-        578,
-        345,
-        82,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        219,
-        560,
-        150
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_line_0",
-      "kind": "text",
-      "rect": [
-        140,
-        261,
-        418,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_line_1",
-      "kind": "text",
-      "rect": [
-        140,
-        283,
-        418,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_hint",
-      "kind": "text",
-      "rect": [
-        578,
-        345,
-        82,
-        14
-      ]
     }
   ],
   "scale": 1.0,
@@ -294,13 +195,10 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
-    "dialog": {
-      "activity": "BUILDING",
-      "role": "BUILDER",
-      "speaker": "Maren Oldford",
-      "text": "We build it once, we build it right."
-    },
+    "dialog": null,
     "focus": 0,
     "forge": null,
     "forge_bars_taken": 0,
@@ -309,22 +207,25 @@
       "quality": "MID",
       "seed": 22
     },
-    "gameplay_input_blocked": true,
+    "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 1.0,
-      "health": 1.0,
-      "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
+      "food": 0.9942229986190796,
+      "health": 0.9906721711158752,
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
-      "stock": "PACK IRON_ORE 4 · WOOD_PICK 1 · BREAD 2",
+      "stock": "PACK WOOD 1 · SOIL 1",
       "xp": 0.0
     },
-    "interact": "MAP MARKER",
+    "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
-    "ore_harvested": 4,
+    "ore_harvested": 0,
+    "oversight": null,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -337,22 +238,24 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-09-29 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-09-29 15:28",
         "name": "beta-shot",
         "seed": 7
       }
     ],
-    "stock": [
-      "IRON_ORE x4",
-      "WOOD_PICK x1",
-      "BREAD x2"
+    "stock": [],
+    "toasts": [
+      {
+        "age_s": 1.5336182117462158,
+        "text": "HIT FOR 4 DAMAGE"
+      }
     ],
-    "toasts": [],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

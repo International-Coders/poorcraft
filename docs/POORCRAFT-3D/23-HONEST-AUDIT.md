@@ -263,3 +263,19 @@ Evidence: `make p3d-daynight` → day mean 194 → night mean 100 (48% darker);
 already PCF-live (NWR-006); day/night + hemisphere ambient close the atmosphere
 gap the audit named. Journey scorecard above is the *baseline* measured before
 the pass — re-score against a fresh play session when wiring the next loop.
+
+## Post-revival delta (2026-09-29)
+
+Do **not** treat the Sep 21 journey table above as current product truth.
+Re-measured scorecard: [`25-JOURNEY-SCORECARD.md`](25-JOURNEY-SCORECARD.md).
+VS contract: [`24-VERTICAL-SLICE-BETA.md`](24-VERTICAL-SLICE-BETA.md).
+Living P3D state: [`STATE.md`](STATE.md).
+
+Headline fixes since this baseline: world ticks every N frames (D1), forge
+H/T through `ui_key` (D2), delivery rebound to V (D3), LOAD WORLD rebuilds
+the scene (D4), craft/machines/oversight panels reach play (D6/D7),
+`ActivePanel` exclusivity in code (D5 — refresh stale layout dumps).
+
+Still open for VS: pack inventory UI, save/load of inventory/quests, play-
+wired onboarding marks, Talk needs, subject gates in the full visual
+battery, packaging dual-binary honesty (D10).

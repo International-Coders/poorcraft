@@ -62,8 +62,12 @@ fn sample_height(gen: &WorldGen, wx_m: f32, wz_m: f32) -> f32 {
 }
 
 fn sample_material(gen: &WorldGen, wx_m: f32, wz_m: f32) -> pc3d_world::gen::CellMaterial {
-    pc3d_world::terrain::final_solid(gen, (wx_m * 1000.0) as i64, 0, (wz_m * 1000.0) as i64)
-        .material
+    // Sample the *surface* cell (top meter), not y=0. Deep underground is
+    // always Rock/Soil — that made every biome dress as grey rock.
+    let wx = (wx_m * 1000.0) as i64;
+    let wz = (wz_m * 1000.0) as i64;
+    let surface_mm = gen.effective_surface_mm(wx, wz);
+    pc3d_world::terrain::final_solid(gen, wx, surface_mm.saturating_sub(500), wz).material
 }
 
 impl SurfacePatch {
@@ -496,6 +500,44 @@ mod tests {
     fn region() -> SurfaceRegion {
         let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
         SurfaceRegion::new(WorldGen::new(seed), coord)
+    }
+
+    #[test]
+    fn surface_material_follows_biome_not_deep_rock() {
+        // Regression: sampling y=0 painted every biome as Rock. The top
+        // meter must match the biome dress (Grass/Sand/Snow/Rock).
+        use pc3d_world::coords::RegionCoord;
+        use pc3d_world::gen::{Biome, CellMaterial};
+        let g = WorldGen::new(42);
+        let mut found_grass = false;
+        let mut found_rock = false;
+        for rz in -40..40i32 {
+            for rx in -40..40i32 {
+                let region = RegionCoord { x: rx, z: rz };
+                let biome = g.biome(region);
+                let o = region.origin();
+                let wx_m = (o.x + 128_000) as f32 / 1000.0;
+                let wz_m = (o.z + 128_000) as f32 / 1000.0;
+                let mat = sample_material(&g, wx_m, wz_m);
+                match biome {
+                    Biome::Ocean | Biome::Coast => {
+                        assert_eq!(mat, CellMaterial::Sand, "coast/ocean at {region:?}");
+                    }
+                    Biome::SnowPeaks => {
+                        assert_eq!(mat, CellMaterial::Snow, "snow at {region:?}");
+                    }
+                    Biome::Mountains | Biome::Highlands => {
+                        assert_eq!(mat, CellMaterial::Rock, "highland rock at {region:?}");
+                        found_rock = true;
+                    }
+                    Biome::Plains | Biome::Forest | Biome::Wetland => {
+                        assert_eq!(mat, CellMaterial::Grass, "grassland at {region:?}");
+                        found_grass = true;
+                    }
+                }
+            }
+        }
+        assert!(found_grass && found_rock, "need both grass and rock biomes");
     }
 
     #[test]

@@ -15,16 +15,37 @@ from one coherent source of intent instead of guessing from scattered ideas.
 
 For POORCRAFT 3D work, use this order:
 
-1. The current user-approved direction in this folder.
-2. The task contract for the active job.
-3. Repository safety and verification rules in `AGENTS.md`.
-4. Current source, tests, assets, and runtime evidence.
-5. Older POORCRAFT/LOREFORGE documents as historical references only.
+1. `00-DESIGN-CONSTITUTION.md` — non-negotiable identity and anti-goals.
+2. `18-DECISION-REGISTER.md` — accepted owner decisions (incl. D-022 pillars).
+3. **Living product truth:** `STATE.md`, `24-VERTICAL-SLICE-BETA.md`,
+   `25-JOURNEY-SCORECARD.md` (current VS bar and measured status).
+4. `11-TASK-CONTRACT-TEMPLATE.md` — the contract for the active job.
+5. Repository safety and verification rules in `AGENTS.md`.
+6. Current source, tests, assets, and runtime evidence.
+7. Roadmap horizons: `27-ROADMAP-VS-TO-GREATEST.md` (H0 → H1 → H2).
+8. Older design docs in this folder (02–22) as design depth, not “done” claims.
+9. Older POORCRAFT/LOREFORGE root documents as historical references only.
+
+**Tooling / prompt libraries (not product truth):** `GLM-*`, `WT-*`,
+`ZCODE-IDLE-UPGRADE/` — use them to generate work and proofs; never treat a
+pack checklist as proof that the played game ships a feature.
 
 No document in this folder proves that a feature exists. A feature is real
 only when its implementation, tests, runtime behavior, and evidence agree.
+Root `STATE.md` tracks LOREFORGE only; P3D living state is `docs/POORCRAFT-3D/STATE.md`.
 
 ## Pack map
+
+### Living truth (start here for implementation)
+
+- `STATE.md` — P3D loop, build, proofs, `next_task`, blockers (not LOREFORGE root STATE).
+- `24-VERTICAL-SLICE-BETA.md` — VS-Beta V1–V6 contract, non-goals, fun bar, proofs.
+- `25-JOURNEY-SCORECARD.md` — living 10-step + VS scorecard (re-measure after play).
+- `26-SYSTEM-GAP-MATRIX.md` — per-system play-path gaps and VS priority.
+- `27-ROADMAP-VS-TO-GREATEST.md` — H0 VS → H1 full beta → H2 ambition.
+- `23-HONEST-AUDIT.md` — Sep 21 baseline + post-revival pointer (do not erase).
+
+### Design pack
 
 - `00-DESIGN-CONSTITUTION.md` — the non-negotiable center of the game, its
   anti-goals, and the decision filter for every future feature.

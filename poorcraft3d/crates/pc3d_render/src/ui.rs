@@ -425,6 +425,7 @@ pub const KEYMAP: &[KeyBinding] = &[
     KeyBinding { action: "TALK / CLOSE", key: "E" },
     KeyBinding { action: "JOURNAL", key: "J" },
     KeyBinding { action: "CRAFT", key: "C" },
+    KeyBinding { action: "PACK", key: "K" },
     KeyBinding { action: "MACHINES", key: "M" },
     KeyBinding { action: "OVERSIGHT", key: "O" },
     KeyBinding { action: "ATTACK", key: "P" },
@@ -499,6 +500,10 @@ pub struct UiState {
     pub machine_charge_milli: i64,
     /// Capital oversight (O): D-019's panel backed by real settlement data.
     pub oversight: Option<OversightView>,
+    /// Pack panel (K): per-slot lines from the live inventory.
+    pub pack: Option<Vec<String>>,
+    /// Focused slot in the pack panel.
+    pub pack_focus: usize,
     /// Companion status line under the pack echo (empty = none recruited).
     pub companion_line: String,
     /// Creatures slain this session (combat route proof).
@@ -526,6 +531,7 @@ pub enum ActivePanel {
     Dialog,
     Journal,
     Craft,
+    Pack,
     Machines,
     Oversight,
 }
@@ -549,6 +555,8 @@ impl UiState {
             ActivePanel::Journal
         } else if self.craft.is_some() {
             ActivePanel::Craft
+        } else if self.pack.is_some() {
+            ActivePanel::Pack
         } else if self.machines.is_some() {
             ActivePanel::Machines
         } else if self.oversight.is_some() {
@@ -566,6 +574,7 @@ impl UiState {
         self.interact = None;
         self.journal = None;
         self.craft = None;
+        self.pack = None;
         self.machines = None;
         self.oversight = None;
     }
@@ -599,6 +608,8 @@ impl Default for UiState {
             journal_focus: 0,
             craft: None,
             craft_focus: 0,
+            pack: None,
+            pack_focus: 0,
             machines: None,
             machine_charge_milli: 0,
             oversight: None,
@@ -652,7 +663,7 @@ impl UiState {
             "gameplay_input_blocked": self.blocks_gameplay(),
             "dialog": self.dialog.as_ref().map(|d| serde_json::json!({
                 "speaker": d.speaker, "role": d.role,
-                "activity": d.activity, "text": d.text,
+                "activity": d.activity, "need": d.need, "text": d.text,
             })),
             "forge": self.forge.as_ref().map(|f| serde_json::json!({
                 "state": f.state_label, "blocked": f.blocked,
@@ -663,6 +674,7 @@ impl UiState {
             "ore_harvested": self.ore_harvested,
             "wallet": self.wallet,
             "stock": self.stock_lines,
+            "pack_open": self.pack.is_some(),
             "interact": self.interact.as_ref().map(|(t, _)| t.clone()),
             "machines": self.machines.as_ref().map(|m| serde_json::json!({
                 "rows": m.rows, "at_water": m.at_water,
@@ -1382,9 +1394,9 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             // close hint. A dialog owns the frame like a modal.
             if let (Some(d), ActivePanel::Dialog) = (&state.dialog, active) {
                 let panel_w = 560;
-                // Speaker (scale 3), activity, line, then the hint row.
+                // Speaker, activity, need, line, hint.
                 let panel_h =
-                    PANEL_PAD + TITLE_H + 26 + ROW_H + ROW_H + ROW_GAP + ROW_H + PANEL_PAD;
+                    PANEL_PAD + TITLE_H + 26 + ROW_H + ROW_H + ROW_H + ROW_GAP + ROW_H + PANEL_PAD;
                 let pw = ctx.px(panel_w);
                 let ph = ctx.px(panel_h);
                 let py = (hy - xp_h - ctx.px(6) - ctx.px(24) - ph - ctx.px(28))
@@ -1399,6 +1411,9 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 dy += ctx.px(26);
                 let tag = format!("NOW: {}", d.activity);
                 ctx.text("dialog_activity", &tag, lx, dy, 2);
+                dy += ctx.px(ROW_H);
+                let need = fit_to_width(&d.need, 2 * ctx.k, (pw - PANEL_PAD * 2) as u32);
+                ctx.text("dialog_need", &need, lx, dy, 2);
                 dy += ctx.px(ROW_H);
                 let line_w = (pw - PANEL_PAD * 2) as u32;
                 let text = fit_to_width(&d.text, 2 * ctx.k, line_w);
@@ -1609,6 +1624,46 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 let (hw, _) = font::text_size(hint, 2);
                 ctx.text(
                     "craft_hint",
+                    hint,
+                    panel.right() - ctx.px(PANEL_PAD) - hw as i32,
+                    ky + ctx.px(ROW_GAP),
+                    2,
+                );
+            }
+            // The pack (K): every inventory slot as a readable row — the
+            // VS V3 fun bar ("see the pack change in a readable UI").
+            if let (Some(rows), ActivePanel::Pack) = (&state.pack, active) {
+                let panel_w = 520;
+                let shown_n = rows.len().min(12).max(1) as i32;
+                let panel_h = PANEL_PAD + TITLE_H + shown_n * ROW_H + ROW_GAP + ROW_H + PANEL_PAD;
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = centered_y(hi, ph);
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("pack_panel", panel, Some("PACK"));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut ky = panel.y + ctx.px(PANEL_PAD) + ctx.px(TITLE_H);
+                let max_w = (pw - PANEL_PAD * 2) as u32;
+                if rows.is_empty() {
+                    ctx.text("pack_empty", "PACK EMPTY", lx, ky, 2);
+                    ky += ctx.px(ROW_H);
+                }
+                for (i, row) in rows.iter().take(12).enumerate() {
+                    let focused = i == state.pack_focus;
+                    let head = format!("{}{}", if focused { "> " } else { "  " }, row);
+                    ctx.text(
+                        &format!("pack_row_{i}"),
+                        &fit_to_width(&head, 2 * ctx.k, max_w),
+                        lx,
+                        ky,
+                        2,
+                    );
+                    ky += ctx.px(ROW_H);
+                }
+                let hint = "UP DOWN · X EAT · C CRAFT · K CLOSE";
+                let (hw, _) = font::text_size(hint, 2);
+                ctx.text(
+                    "pack_hint",
                     hint,
                     panel.right() - ctx.px(PANEL_PAD) - hw as i32,
                     ky + ctx.px(ROW_GAP),
@@ -2308,6 +2363,8 @@ pub enum UiAction {
     DigAtCrosshair,
     /// C: ask the app to build the craft rows from the live inventory.
     ToggleCraft,
+    /// K: ask the app to build the pack slot lines from the live inventory.
+    TogglePack,
     /// Enter on a craft row: perform that recipe through the pure
     /// `pc3d_world::craft` authority (atomic — the pack is untouched when
     /// an ingredient is short).
@@ -2378,6 +2435,24 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                 state.craft = None;
                 acts.push(UiAction::Repaint);
             }
+            Key::Escape if state.pack.is_some() => {
+                state.pack = None;
+                acts.push(UiAction::Repaint);
+            }
+            Key::Up if state.pack.is_some() => {
+                let n = state.pack.as_ref().map(|r| r.len()).unwrap_or(0);
+                if n > 0 {
+                    state.pack_focus = (state.pack_focus + n - 1) % n;
+                }
+                acts.push(UiAction::Repaint);
+            }
+            Key::Down if state.pack.is_some() => {
+                let n = state.pack.as_ref().map(|r| r.len()).unwrap_or(0);
+                if n > 0 {
+                    state.pack_focus = (state.pack_focus + 1) % n;
+                }
+                acts.push(UiAction::Repaint);
+            }
             Key::Up if state.craft.is_some() => {
                 let n = state.craft.as_ref().map(|r| r.len()).unwrap_or(0);
                 if n > 0 {
@@ -2411,6 +2486,12 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                 }
                 acts.push(UiAction::Repaint);
             }
+            Key::Char('k') => {
+                if state.pack.take().is_none() {
+                    acts.push(UiAction::TogglePack);
+                }
+                acts.push(UiAction::Repaint);
+            }
             Key::Escape if state.machines.is_some() => {
                 state.machines = None;
                 acts.push(UiAction::Repaint);
@@ -2428,6 +2509,13 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
             }
             Key::Escape if state.oversight.is_some() => {
                 state.oversight = None;
+                acts.push(UiAction::Repaint);
+            }
+            Key::Escape if state.interact.is_some() => {
+                // Interact was the one panel Escape did NOT clear — ESC
+                // jumped to Pause with the panel still open, Resume left
+                // `blocks_gameplay` true, and WASD silently did nothing.
+                state.interact = None;
                 acts.push(UiAction::Repaint);
             }
             Key::Char('o') => {
@@ -2528,6 +2616,9 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
                 acts.push(UiAction::ForgeTake);
             }
             Key::Escape => {
+                // Belt: never carry a panel into Pause. Resume must be
+                // able to walk without an orphan Interact/Craft/etc.
+                state.close_panels();
                 state.screen = Screen::Pause;
                 state.pointer_grabbed = false;
                 state.focus = 0;
@@ -2678,6 +2769,7 @@ fn activate_title(state: &mut UiState, idx: usize) -> Vec<UiAction> {
     match idx {
         0 => {
             state.screen = Screen::Gameplay;
+            state.close_panels();
             state.pointer_grabbed = true;
             state.last_activated = Some("btn_play".into());
             vec![UiAction::StartPlaying]
@@ -2709,6 +2801,7 @@ fn activate_pause(state: &mut UiState, idx: usize) -> Vec<UiAction> {
     match idx {
         0 => {
             state.screen = Screen::Gameplay;
+            state.close_panels();
             state.pointer_grabbed = true;
             state.last_activated = Some("pause_resume".into());
             vec![UiAction::StartPlaying]
@@ -3050,6 +3143,7 @@ pub const PANEL_GROUPS: &[&str] = &[
     "interact",
     "forge",
     "craft",
+    "pack",
     "machines",
     "oversight",
 ];
@@ -3060,7 +3154,7 @@ pub const PANEL_GROUPS: &[&str] = &[
 /// [`unreachable_hint_keys`] reads it, so a panel hint can never again
 /// advertise a key the player has no way to press.
 pub const MAPPED_CHAR_KEYS: &[char] =
-    &['c', 'e', 'g', 'h', 'j', 'm', 'n', 'o', 'p', 't', 'v', 'x'];
+    &['c', 'e', 'g', 'h', 'j', 'k', 'm', 'n', 'o', 'p', 't', 'v', 'x'];
 
 /// Hint elements whose advertised keys are routed through [`on_key`] (and so
 /// must be reachable via `app::ui_key`). Gameplay prompts are excluded: their
@@ -3071,6 +3165,7 @@ pub const PANEL_HINT_IDS: &[&str] = &[
     "interact_hint",
     "forge_hint",
     "craft_hint",
+    "pack_hint",
     "machines_hint",
     "oversight_hint",
 ];
@@ -3411,6 +3506,7 @@ mod tests {
             speaker: "Bram Stonehand".into(),
             role: "FARMER",
             activity: "FARMING",
+            need: "NEEDS: FED · RESTED".into(),
             text: "Good soil this season. The village will eat well.".into(),
         };
         let forge = ForgeView {
@@ -3451,6 +3547,13 @@ mod tests {
             },
         ]);
         out.push(("craft", s));
+        let mut s = state(Screen::Gameplay);
+        s.pack = Some(vec![
+            " 1. WOOD ×3".into(),
+            " 2. —".into(),
+            " 3. STONE PICK ×1".into(),
+        ]);
+        out.push(("pack", s));
         let mut s = state(Screen::Gameplay);
         s.machines = Some(MachinesView {
             rows: vec![
@@ -3510,6 +3613,7 @@ mod tests {
                     speaker: "Bram".into(),
                     role: "FARMER",
                     activity: "FARMING",
+                    need: "NEEDS: FED · RESTED".into(),
                     text: "Hello.".into(),
                 })
             }),
@@ -3533,6 +3637,9 @@ mod tests {
                     cost: "WOOD 4/4".into(),
                     affordable: true,
                 }])
+            }),
+            ("pack", |s: &mut UiState| {
+                s.pack = Some(vec![" 1. WOOD ×2".into(), " 2. —".into()])
             }),
             ("journal", |s: &mut UiState| {
                 s.journal = Some(vec![QuestRow {
@@ -3906,13 +4013,14 @@ mod tests {
             speaker: "Bram Stonehand".into(),
             role: "FARMER",
             activity: "FARMING",
+            need: "NEEDS: FED · RESTED".into(),
             text: "Good soil this season. The village will eat well.".into(),
         });
         assert!(s.blocks_gameplay(), "a dialog owns the frame like a modal");
         let list = build(&s, 1280, 720);
         for id in [
             "dialog_panel", "dialog_speaker", "dialog_activity",
-            "dialog_text", "dialog_hint",
+            "dialog_need", "dialog_text", "dialog_hint",
         ] {
             assert!(list.by_id(id).is_some(), "dialog element {id} missing");
         }

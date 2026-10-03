@@ -131,6 +131,162 @@ impl Quest {
         }
         q
     }
+
+    /// Compact binary for slice save (VS V6). Title is rebuilt on load.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut b = Vec::with_capacity(32);
+        b.extend_from_slice(&self.id.to_le_bytes());
+        b.push(role_byte(self.giver_role));
+        b.extend_from_slice(&self.giver_cell.x.to_le_bytes());
+        b.extend_from_slice(&self.giver_cell.y.to_le_bytes());
+        b.extend_from_slice(&self.giver_cell.z.to_le_bytes());
+        kind_encode(&mut b, self.kind);
+        b.push(state_byte(self.state));
+        b.push(self.progress);
+        b.extend_from_slice(&self.reward.to_le_bytes());
+        b
+    }
+
+    pub fn decode(bytes: &[u8]) -> Option<(Quest, usize)> {
+        if bytes.len() < 22 {
+            return None;
+        }
+        let id = u32::from_le_bytes(bytes[0..4].try_into().ok()?);
+        let giver_role = role_from(bytes[4])?;
+        let giver_cell = CellCoord {
+            x: i32::from_le_bytes(bytes[5..9].try_into().ok()?),
+            y: i32::from_le_bytes(bytes[9..13].try_into().ok()?),
+            z: i32::from_le_bytes(bytes[13..17].try_into().ok()?),
+        };
+        let (kind, kind_len) = kind_decode(&bytes[17..])?;
+        let o = 17 + kind_len;
+        if bytes.len() < o + 6 {
+            return None;
+        }
+        let state = state_from(bytes[o])?;
+        let progress = bytes[o + 1];
+        let reward = u32::from_le_bytes(bytes[o + 2..o + 6].try_into().ok()?);
+        let title = format!("{} {}", giver_role_name(giver_role), kind.name());
+        Some((
+            Quest {
+                id,
+                title,
+                giver_role,
+                giver_cell,
+                kind,
+                state,
+                progress,
+                reward,
+            },
+            o + 6,
+        ))
+    }
+}
+
+fn role_byte(r: Role) -> u8 {
+    match r {
+        Role::Farmer => 0,
+        Role::Fisher => 1,
+        Role::Builder => 2,
+        Role::Guard => 3,
+    }
+}
+
+fn role_from(b: u8) -> Option<Role> {
+    Some(match b {
+        0 => Role::Farmer,
+        1 => Role::Fisher,
+        2 => Role::Builder,
+        3 => Role::Guard,
+        _ => return None,
+    })
+}
+
+fn state_byte(s: QuestState) -> u8 {
+    match s {
+        QuestState::Offered => 0,
+        QuestState::Active => 1,
+        QuestState::Complete => 2,
+        QuestState::Claimed => 3,
+    }
+}
+
+fn state_from(b: u8) -> Option<QuestState> {
+    Some(match b {
+        0 => QuestState::Offered,
+        1 => QuestState::Active,
+        2 => QuestState::Complete,
+        3 => QuestState::Claimed,
+        _ => return None,
+    })
+}
+
+fn kind_encode(b: &mut Vec<u8>, k: QuestKind) {
+    match k {
+        QuestKind::Visit { target } => {
+            b.push(0);
+            b.extend_from_slice(&target.x.to_le_bytes());
+            b.extend_from_slice(&target.y.to_le_bytes());
+            b.extend_from_slice(&target.z.to_le_bytes());
+        }
+        QuestKind::Deliver { site, blocks } => {
+            b.push(1);
+            b.extend_from_slice(&site.x.to_le_bytes());
+            b.extend_from_slice(&site.y.to_le_bytes());
+            b.extend_from_slice(&site.z.to_le_bytes());
+            b.push(blocks);
+        }
+        QuestKind::Build { site, blocks } => {
+            b.push(2);
+            b.extend_from_slice(&site.x.to_le_bytes());
+            b.extend_from_slice(&site.y.to_le_bytes());
+            b.extend_from_slice(&site.z.to_le_bytes());
+            b.push(blocks);
+        }
+        QuestKind::Greet { count } => {
+            b.push(3);
+            b.push(count);
+        }
+        QuestKind::Excavate { cells } => {
+            b.push(4);
+            b.push(cells);
+        }
+    }
+}
+
+fn kind_decode(bytes: &[u8]) -> Option<(QuestKind, usize)> {
+    if bytes.is_empty() {
+        return None;
+    }
+    match bytes[0] {
+        0 if bytes.len() >= 13 => {
+            let target = CellCoord {
+                x: i32::from_le_bytes(bytes[1..5].try_into().ok()?),
+                y: i32::from_le_bytes(bytes[5..9].try_into().ok()?),
+                z: i32::from_le_bytes(bytes[9..13].try_into().ok()?),
+            };
+            Some((QuestKind::Visit { target }, 13))
+        }
+        1 if bytes.len() >= 14 => {
+            let site = CellCoord {
+                x: i32::from_le_bytes(bytes[1..5].try_into().ok()?),
+                y: i32::from_le_bytes(bytes[5..9].try_into().ok()?),
+                z: i32::from_le_bytes(bytes[9..13].try_into().ok()?),
+            };
+            Some((QuestKind::Deliver { site, blocks: bytes[13] }, 14))
+        }
+        2 if bytes.len() >= 14 => {
+            let site = CellCoord {
+                x: i32::from_le_bytes(bytes[1..5].try_into().ok()?),
+                y: i32::from_le_bytes(bytes[5..9].try_into().ok()?),
+                z: i32::from_le_bytes(bytes[9..13].try_into().ok()?),
+            };
+            Some((QuestKind::Build { site, blocks: bytes[13] }, 14))
+        }
+        3 if bytes.len() >= 2 => Some((QuestKind::Greet { count: bytes[1] }, 2)),
+        4 if bytes.len() >= 2 => Some((QuestKind::Excavate { cells: bytes[1] }, 2)),
+        _ => None,
+    }
 }
 
 /// Simulation-side progress events (submitted by gameplay; the quest

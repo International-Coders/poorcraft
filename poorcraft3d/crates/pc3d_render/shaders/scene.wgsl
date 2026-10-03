@@ -101,7 +101,8 @@ fn material_weights(a: vec3f) -> vec4f {
     let val = (a.r + a.g + a.b) / 3.0;
     let w_grass = max(a.g - max(a.r, a.b), 0.0);
     let w_rock = max(1.0 - sat * 3.0, 0.0);
-    let w_sand = max(min(a.r, a.g) - a.b, 0.0);
+    // Sand is warm (r ≳ g); suppress when green exceeds red (mirrors CPU).
+    let w_sand = max(min(a.r, a.g) - a.b, 0.0) * max(1.0 - max(a.g - a.r, 0.0) * 5.0, 0.0);
     let w_snow = max((val - 0.70) * 6.0, 0.0);
     let sum = w_grass + w_rock + w_sand + w_snow;
     if sum < 1e-5 { return vec4f(0.0, 1.0, 0.0, 0.0); }

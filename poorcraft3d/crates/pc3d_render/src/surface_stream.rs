@@ -489,12 +489,15 @@ impl SurfaceStreamer {
         let mat = |gx: usize, gz: usize| -> [f32; 3] {
             let wx = ox + (gx as f32 + 0.5) * step;
             let wz = oz + (gz as f32 + 0.5) * step;
+            let wx_mm = (wx * 1000.0) as i64;
+            let wz_mm = (wz * 1000.0) as i64;
+            let surface_mm = self.gen.effective_surface_mm(wx_mm, wz_mm);
             crate::terrain::terrain_albedo(
                 pc3d_world::terrain::final_solid(
                     &self.gen,
-                    (wx * 1000.0) as i64,
-                    0,
-                    (wz * 1000.0) as i64,
+                    wx_mm,
+                    surface_mm.saturating_sub(500),
+                    wz_mm,
                 )
                 .material,
             )

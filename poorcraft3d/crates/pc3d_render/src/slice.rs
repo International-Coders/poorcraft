@@ -15,7 +15,6 @@ use pc3d_world::gen::WorldGen;
 use pc3d_world::hydro::RiverGraph;
 use pc3d_world::nav::NavPatch;
 use pc3d_world::settlement_plan::SettlementPlan;
-use pc3d_world::terrain::final_solid;
 
 pub use crate::app::SliceHost;
 
@@ -148,37 +147,28 @@ pub fn find_showcase(seed_start: u64) -> (u64, SliceScene) {
     panic!("no showcase seed in [{seed_start}, {})", seed_start + 40);
 }
 
-/// The player's spawn: on open ground just south of the gate.
+/// The player's spawn: standing in the settlement plaza on real surface
+/// height, facing the capital gate so the first look reads as "you are
+/// in town". The old gate-south voxel probe often seated the body inside
+/// kit wall cells on the rebuild surface path — WASD looked dead because
+/// every axis move was `blocked_on`.
 pub fn spawn_player(scene: &SliceScene) -> PlayerBody {
-    let gen = &scene.gen;
-    for dz in 4..=12i32 {
-        let x = scene.gate.x + 1;
-        let z = scene.gate.z + dz;
-        let mut y = (scene.gate.y + 40).max(60);
-        while y > scene.gate.y - 40 {
-            let solid_here =
-                final_solid(gen, x as i64 * 1000, y as i64 * 1000, z as i64 * 1000).solid;
-            let solid_above =
-                final_solid(gen, x as i64 * 1000, (y + 1) as i64 * 1000, z as i64 * 1000).solid;
-            if solid_here && !solid_above {
-                return PlayerBody {
-                    pos: [x as f32, (y + 1) as f32, z as f32],
-                    yaw: 0.0,
-                    pitch: 0.0,
-                };
-            }
-            y -= 1;
-        }
-    }
-    // Fallback: the gate cell itself.
+    let plaza = scene.plan.plaza;
+    let gate = scene.gate;
+    let wx = plaza.x as f32 + 0.5;
+    let wz = plaza.z as f32 + 0.5;
+    let gy = scene
+        .gen
+        .effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64) as f32
+        / 1000.0;
+    // Look toward the gate (walk forward = hf = [-sin yaw, -cos yaw]).
+    let dx = gate.x as f32 + 0.5 - wx;
+    let dz = gate.z as f32 + 0.5 - wz;
+    let yaw = (-dx).atan2(-dz);
     PlayerBody {
-        pos: [
-            scene.gate.x as f32,
-            scene.gate.y as f32 + 4.0,
-            scene.gate.z as f32,
-        ],
-        yaw: 0.0,
-        pitch: 0.0,
+        pos: [wx, gy + 0.05, wz],
+        yaw,
+        pitch: -0.12,
     }
 }
 
@@ -277,16 +267,22 @@ pub fn assemble(
         quest_rows: None,
         quests: None,
         credits: 0,
+        onboarding: pc3d_world::survival::Onboarding::default(),
     }
 }
 
-/// Save the slice world: meta (seed), construction snapshots, player.
+/// Save the slice world: meta (seed), construction snapshots, player+pack,
+/// forge + quests (VS V6 session extras).
 pub fn save_slice(
     save_root: &std::path::Path,
     world: &str,
     seed: u64,
     host: &pc3d_world::host::SoloHost,
     player: &PlayerBody,
+    inventory: &pc3d_world::items::Inventory,
+    onboarding: &pc3d_world::survival::Onboarding,
+    forge: Option<&pc3d_world::forge::Forge>,
+    quests: Option<&[pc3d_world::quest::Quest]>,
 ) -> Result<(), pc3d_save::store::LoadError> {
     let sup = pc3d_core::SupportedVersions::epoch1();
     pc3d_save::store::save_world_meta(
@@ -312,6 +308,17 @@ pub fn save_slice(
             pos: player.pos,
             yaw: player.yaw,
             pitch: player.pitch,
+            inventory: inventory.clone(),
+            onboarding_mask: onboarding.encode()[0],
+        },
+        &sup,
+    )?;
+    pc3d_save::session_store::save_session(
+        save_root,
+        world,
+        &pc3d_save::session_store::SessionExtras {
+            forge: forge.cloned(),
+            quests: quests.map(|q| q.to_vec()).unwrap_or_default(),
         },
         &sup,
     )?;
@@ -320,11 +327,23 @@ pub fn save_slice(
 
 /// Rebuild the world from disk: the host replays its seed, construction
 /// snapshots overlay, and the player state returns. Returns (seed, host,
-/// player) with the construction IDENTICAL to what was saved.
+/// player, inventory, onboarding, forge, quests) with the construction
+/// IDENTICAL to what was saved.
 pub fn load_slice(
     save_root: &std::path::Path,
     world: &str,
-) -> Result<(u64, pc3d_world::host::SoloHost, PlayerBody), pc3d_save::store::LoadError> {
+) -> Result<
+    (
+        u64,
+        pc3d_world::host::SoloHost,
+        PlayerBody,
+        pc3d_world::items::Inventory,
+        pc3d_world::survival::Onboarding,
+        Option<pc3d_world::forge::Forge>,
+        Option<Vec<pc3d_world::quest::Quest>>,
+    ),
+    pc3d_save::store::LoadError,
+> {
     let sup = pc3d_core::SupportedVersions::epoch1();
     let meta = pc3d_save::store::load_world_meta(save_root, world, &sup)?;
     let mut host = pc3d_world::host::SoloHost::new(meta.seed);
@@ -360,7 +379,22 @@ pub fn load_slice(
         yaw: p.yaw,
         pitch: p.pitch,
     };
-    Ok((meta.seed, host, player))
+    let onboarding = pc3d_world::survival::Onboarding::decode(p.onboarding_mask);
+    let extras = pc3d_save::session_store::load_session(save_root, world, &sup)?;
+    let quests = if extras.quests.is_empty() {
+        None
+    } else {
+        Some(extras.quests)
+    };
+    Ok((
+        meta.seed,
+        host,
+        player,
+        p.inventory,
+        onboarding,
+        extras.forge,
+        quests,
+    ))
 }
 
 #[cfg(test)]
@@ -395,9 +429,24 @@ mod tests {
         // Cave: enclosed pocket with wall + ceiling.
         let (air, wall, _) = scene.cave;
         assert_ne!((air.x, air.z), (wall.x, wall.z));
-        // Spawn: on open ground near the gate.
+        // Spawn: plaza center on real surface height, facing the gate.
         let p = spawn_player(&scene);
-        assert!((p.pos[0] - scene.gate.x as f32).abs() < 3.0);
+        assert!(
+            (p.pos[0] - scene.plan.plaza.x as f32 - 0.5).abs() < 0.1
+                && (p.pos[2] - scene.plan.plaza.z as f32 - 0.5).abs() < 0.1,
+            "spawn is the plaza center, got {:?}",
+            p.pos
+        );
+        let surf = scene
+            .gen
+            .effective_surface_mm((p.pos[0] * 1000.0) as i64, (p.pos[2] * 1000.0) as i64)
+            as f32
+            / 1000.0;
+        assert!(
+            (p.pos[1] - surf).abs() < 0.2,
+            "spawn feet sit on the surface ({:?} vs {surf})",
+            p.pos[1]
+        );
     }
 
     /// THE JOURNEY (R3DV-011): one GPU-rendered walk through the whole
@@ -414,30 +463,31 @@ mod tests {
         let (seed, scene) = find_showcase(3);
         let mut host = pc3d_world::host::SoloHost::new(seed);
 
-        // 1. WALK: spawn at the gate, 4 m north on colliding terrain.
+        // 1. WALK: spawn in the plaza, face the gate, walk toward it.
         let mut player = spawn_player(&scene);
-        // Face south (yaw = pi: walking "forward" heads +z, out the gate
-        // onto the approach road — away from the keep walls).
-        player.yaw = std::f32::consts::PI;
         let start = player.pos;
         for _ in 0..60 {
             player.walk(&scene.gen, 1.0, 0.0, 1.0 / 60.0);
         }
+        let moved = (player.pos[0] - start[0]).hypot(player.pos[2] - start[2]);
         assert!(
-            (player.pos[2] - start[2] - 4.0).abs() < 0.25,
-            "walked ~4 m south out the gate: {:?} -> {:?}",
+            moved > 2.0,
+            "walked forward from the plaza toward the gate: {:?} -> {:?} (moved {moved})",
             start,
             player.pos
         );
-        let ground = player.pos[1];
-        let below_solid = pc3d_world::terrain::final_solid(
-            &scene.gen,
-            player.pos[0] as i64 * 1000,
-            (ground - 0.5) as i64 * 1000,
-            player.pos[2] as i64 * 1000,
-        )
-        .solid;
-        assert!(below_solid, "the walker stands ON the world");
+        let surf = scene
+            .gen
+            .effective_surface_mm(
+                (player.pos[0] * 1000.0) as i64,
+                (player.pos[2] * 1000.0) as i64,
+            ) as f32
+            / 1000.0;
+        assert!(
+            (player.pos[1] - surf).abs() < 2.5,
+            "the walker stays near the surface ({:?} vs {surf})",
+            player.pos[1]
+        );
 
         // 2. CAVE: teleport to the pocket — enclosed by definition.
         let (air, _wall, _dir) = scene.cave;
@@ -574,8 +624,19 @@ mod tests {
             yaw: 0.5,
             pitch: -0.1,
         };
-        save_slice(root.path(), "slice", seed, &host, &save_player).expect("save");
-        let (seed2, host2, p2) = load_slice(root.path(), "slice").expect("load");
+        save_slice(
+            root.path(),
+            "slice",
+            seed,
+            &host,
+            &save_player,
+            &pc3d_world::items::Inventory::new(12),
+            &pc3d_world::survival::Onboarding::default(),
+            None,
+            None,
+        )
+        .expect("save");
+        let (seed2, host2, p2, _, _, _, _) = load_slice(root.path(), "slice").expect("load");
         assert_eq!(seed, seed2);
         assert_eq!(p2.pos, save_player.pos);
         assert_eq!(p2.yaw, save_player.yaw);
@@ -682,11 +743,41 @@ mod tests {
         moved.yaw = 0.75;
 
         let root = tempfile::tempdir().expect("tmp");
-        save_slice(root.path(), "slice", seed, &host, &moved).expect("save");
+        let mut pack = pc3d_world::items::Inventory::new(12);
+        pack.add(pc3d_world::items::ItemId(1), 4);
+        let mut onboard = pc3d_world::survival::Onboarding::default();
+        onboard.mark("first_tree");
+        let mut forge = pc3d_world::forge::Forge::default();
+        forge.load_fuel(800, 400);
+        forge.load_ore(1);
+        forge.tick();
+        let quests = vec![pc3d_world::quest::Quest {
+            id: 99,
+            title: "THE FARMER'S greet".into(),
+            giver_role: pc3d_world::npc::Role::Farmer,
+            giver_cell: pc3d_world::coords::CellCoord { x: 0, y: 0, z: 0 },
+            kind: pc3d_world::quest::QuestKind::Greet { count: 2 },
+            state: pc3d_world::quest::QuestState::Active,
+            progress: 1,
+            reward: 12,
+        }];
+        save_slice(
+            root.path(),
+            "slice",
+            seed,
+            &host,
+            &moved,
+            &pack,
+            &onboard,
+            Some(&forge),
+            Some(&quests),
+        )
+        .expect("save");
 
         // A fresh load returns the same seed, the same built cells, the
-        // same player state.
-        let (seed2, host2, p2) = load_slice(root.path(), "slice").expect("load");
+        // same player state + pack + forge + quests.
+        let (seed2, host2, p2, inv2, on2, forge2, quests2) =
+            load_slice(root.path(), "slice").expect("load");
         assert_eq!(seed, seed2);
         let con = host2
             .construction
@@ -700,6 +791,14 @@ mod tests {
         );
         assert_eq!(p2.pos, moved.pos);
         assert_eq!(p2.yaw, moved.yaw);
+        assert_eq!(inv2.count(pc3d_world::items::ItemId(1)), 4);
+        assert!(on2.is_done("first_tree"));
+        let f2 = forge2.expect("forge persisted");
+        assert_eq!(f2.ore, forge.ore);
+        assert_eq!(f2.fuel_milli, forge.fuel_milli);
+        let q2 = quests2.expect("quests persisted");
+        assert_eq!(q2[0].id, 99);
+        assert_eq!(q2[0].progress, 1);
 
         // Refusal law: an unknown world refuses cleanly.
         assert!(load_slice(root.path(), "ghost").is_err());
@@ -788,6 +887,15 @@ pub fn assemble_rebuild(
     r.attach_construction();
     let player = spawn_player(scene);
     r.set_pose(player.pose());
+    // Warm the full ring around the spawn so the first WASD frame has
+    // a ground answer (SurfaceStreamer refuses outside loaded Full).
+    for _ in 0..12 {
+        r.surface_stream_frame();
+    }
+    let mut player = player;
+    let gy = r.ground_y_at(&scene.gen, player.pos[0], player.pos[2]);
+    player.pos[1] = gy + 0.05;
+    r.set_pose(player.pose());
     let mut host = SliceHost {
         seed,
         rebuild: true,
@@ -832,6 +940,7 @@ pub fn assemble_rebuild(
         quest_rows: None,
         quests: None,
         credits: 0,
+        onboarding: pc3d_world::survival::Onboarding::default(),
     };
     host.host.borrow_mut().run_ticks(0);
     host

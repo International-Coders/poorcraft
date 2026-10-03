@@ -79,28 +79,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_NO ORE IN STOCK - HARVEST THE NODE (WITH A PICK)",
-      "kind": "toast",
-      "rect": [
-        103,
-        375,
-        594,
-        16
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "toast_FUEL LOADED",
-      "kind": "toast",
-      "rect": [
-        325,
-        353,
-        150,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -197,72 +175,6 @@
         52,
         52
       ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        219,
-        560,
-        150
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_state",
-      "kind": "text",
-      "rect": [
-        140,
-        261,
-        166,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_fuel",
-      "kind": "bar",
-      "rect": [
-        140,
-        283,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_heat",
-      "kind": "bar",
-      "rect": [
-        140,
-        307,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_slots",
-      "kind": "text",
-      "rect": [
-        140,
-        337,
-        262,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_hint",
-      "kind": "text",
-      "rect": [
-        266,
-        345,
-        394,
-        14
-      ]
     }
   ],
   "scale": 1.0,
@@ -272,24 +184,19 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
-    "forge": {
-      "bars": 0,
-      "blocked": false,
-      "fuel": 0.30000001192092896,
-      "heat": 0.0833333358168602,
-      "ore": 0,
-      "state": "HEATING"
-    },
+    "forge": null,
     "forge_bars_taken": 0,
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
       "seed": 22
     },
-    "gameplay_input_blocked": true,
+    "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
       "food": 1.0,
@@ -303,8 +210,11 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 0,
+    "oversight": null,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -317,29 +227,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-09-29 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-09-29 15:28",
         "name": "beta-shot",
         "seed": 7
       }
     ],
-    "stock": [
-      "CARRYING NOTHING"
-    ],
-    "toasts": [
-      {
-        "age_s": 1.0614255666732788,
-        "text": "FUEL LOADED"
-      },
-      {
-        "age_s": 1.0614255666732788,
-        "text": "NO ORE IN STOCK - HARVEST THE NODE (WITH A PICK)"
-      }
-    ],
-    "wallet": 0
+    "stock": [],
+    "toasts": [],
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

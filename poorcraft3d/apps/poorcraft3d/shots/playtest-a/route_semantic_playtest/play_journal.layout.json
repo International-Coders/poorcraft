@@ -90,17 +90,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_FORGED 1 BARS",
-      "kind": "toast",
-      "rect": [
-        313,
-        353,
-        174,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -196,61 +185,6 @@
         432,
         52,
         52
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        237,
-        560,
-        132
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_speaker",
-      "kind": "text",
-      "rect": [
-        140,
-        279,
-        411,
-        21
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_activity",
-      "kind": "text",
-      "rect": [
-        140,
-        305,
-        154,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_text",
-      "kind": "text",
-      "rect": [
-        140,
-        329,
-        430,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_hint",
-      "kind": "text",
-      "rect": [
-        578,
-        345,
-        82,
-        14
       ]
     },
     {
@@ -373,116 +307,6 @@
         538,
         14
       ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        219,
-        560,
-        150
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_line_0",
-      "kind": "text",
-      "rect": [
-        140,
-        261,
-        418,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_line_1",
-      "kind": "text",
-      "rect": [
-        140,
-        283,
-        418,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_hint",
-      "kind": "text",
-      "rect": [
-        578,
-        345,
-        82,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        219,
-        560,
-        150
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_state",
-      "kind": "text",
-      "rect": [
-        140,
-        261,
-        166,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_fuel",
-      "kind": "bar",
-      "rect": [
-        140,
-        283,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_heat",
-      "kind": "bar",
-      "rect": [
-        140,
-        307,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_slots",
-      "kind": "text",
-      "rect": [
-        140,
-        337,
-        262,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_hint",
-      "kind": "text",
-      "rect": [
-        266,
-        345,
-        394,
-        14
-      ]
     }
   ],
   "scale": 1.0,
@@ -492,22 +316,12 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
-    "dialog": {
-      "activity": "BUILDING",
-      "role": "BUILDER",
-      "speaker": "Maren Oldford",
-      "text": "We build it once, we build it right."
-    },
+    "dialog": null,
     "focus": 0,
-    "forge": {
-      "bars": 0,
-      "blocked": false,
-      "fuel": 0.15000000596046448,
-      "heat": 0.2083333283662796,
-      "ore": 1,
-      "state": "HEATING"
-    },
+    "forge": null,
     "forge_bars_taken": 1,
     "form": {
       "name": "WORLD-22",
@@ -525,7 +339,7 @@
       "stock": "PACK IRON_ORE 2 · IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
       "xp": 0.0
     },
-    "interact": "MAP MARKER",
+    "interact": null,
     "journal": [
       {
         "giver": "Edda Quarrylee (the farmer)",
@@ -561,8 +375,12 @@
       }
     ],
     "journal_open": true,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 4,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -575,12 +393,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 21:25",
+        "modified": "2026-09-29 15:32",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 21:25",
+        "modified": "2026-09-29 15:32",
         "name": "beta-shot",
         "seed": 7
       }
@@ -593,14 +411,11 @@
     ],
     "toasts": [
       {
-        "age_s": 1.7398873567581177,
-        "text": "FORGED 1 BARS"
-      },
-      {
-        "age_s": 0.6237297654151917,
+        "age_s": 2.002316951751709,
         "text": "QUEST ACCEPTED"
       }
     ],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

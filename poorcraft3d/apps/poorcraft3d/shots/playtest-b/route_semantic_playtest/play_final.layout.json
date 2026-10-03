@@ -71,9 +71,9 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        83,
+        137,
         397,
-        634,
+        526,
         14
       ]
     },
@@ -174,61 +174,6 @@
         432,
         52,
         52
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        237,
-        560,
-        132
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_speaker",
-      "kind": "text",
-      "rect": [
-        140,
-        279,
-        411,
-        21
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_activity",
-      "kind": "text",
-      "rect": [
-        140,
-        305,
-        154,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_text",
-      "kind": "text",
-      "rect": [
-        140,
-        329,
-        430,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_hint",
-      "kind": "text",
-      "rect": [
-        578,
-        345,
-        82,
-        14
       ]
     },
     {
@@ -351,116 +296,6 @@
         538,
         14
       ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        219,
-        560,
-        150
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_line_0",
-      "kind": "text",
-      "rect": [
-        140,
-        261,
-        418,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_line_1",
-      "kind": "text",
-      "rect": [
-        140,
-        283,
-        418,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "interact_hint",
-      "kind": "text",
-      "rect": [
-        578,
-        345,
-        82,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        219,
-        560,
-        150
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_state",
-      "kind": "text",
-      "rect": [
-        140,
-        261,
-        262,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_fuel",
-      "kind": "bar",
-      "rect": [
-        140,
-        283,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_heat",
-      "kind": "bar",
-      "rect": [
-        140,
-        307,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_slots",
-      "kind": "text",
-      "rect": [
-        140,
-        337,
-        262,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_hint",
-      "kind": "text",
-      "rect": [
-        266,
-        345,
-        394,
-        14
-      ]
     }
   ],
   "scale": 1.0,
@@ -470,22 +305,12 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
-    "dialog": {
-      "activity": "BUILDING",
-      "role": "BUILDER",
-      "speaker": "Maren Oldford",
-      "text": "We build it once, we build it right."
-    },
+    "dialog": null,
     "focus": 0,
-    "forge": {
-      "bars": 1,
-      "blocked": true,
-      "fuel": 0.0,
-      "heat": 0.3333333432674408,
-      "ore": 0,
-      "state": "BLOCKED: no ore"
-    },
+    "forge": null,
     "forge_bars_taken": 1,
     "form": {
       "name": "WORLD-22",
@@ -496,14 +321,14 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.33080101013183594,
-      "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
+      "health": 0.4259134829044342,
+      "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK IRON_ORE 4 · IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
       "xp": 0.0
     },
-    "interact": "MAP MARKER",
+    "interact": null,
     "journal": [
       {
         "giver": "Edda Quarrylee (the farmer)",
@@ -539,8 +364,12 @@
       }
     ],
     "journal_open": true,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 6,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -553,12 +382,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 21:25",
+        "modified": "2026-09-29 15:33",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 21:25",
+        "modified": "2026-09-29 15:33",
         "name": "beta-shot",
         "seed": 7
       }
@@ -570,6 +399,7 @@
       "BREAD x2"
     ],
     "toasts": [],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

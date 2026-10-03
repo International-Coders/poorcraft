@@ -159,7 +159,9 @@ pub fn material_weights(albedo: [f32; 3]) -> [f32; 4] {
     let val = (r + g + b) / 3.0;
     let w_grass = (g - r.max(b)).max(0.0);
     let w_rock = (1.0 - sat * 3.0).max(0.0);
-    let w_sand = (r.min(g) - b).max(0.0);
+    // Sand is warm (r ≳ g). Suppress when green exceeds red so grass
+    // albedo does not leak ~24% sand weight into Mid/High detail blend.
+    let w_sand = (r.min(g) - b).max(0.0) * (1.0 - (g - r).max(0.0) * 5.0).max(0.0);
     let w_snow = ((val - 0.70) * 6.0).max(0.0);
     let sum = w_grass + w_rock + w_sand + w_snow;
     if sum < 1e-5 {

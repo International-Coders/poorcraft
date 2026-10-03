@@ -5,6 +5,10 @@
 # The source revision stamped into play-test builds (binary + DMG volume
 # name): a stale mounted DMG must never be mistakable for a fresh one.
 P3D_GIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+# Cursor/sandbox often sets CARGO_TARGET_DIR away from poorcraft3d/target/.
+# Recipes and DMGs expect poorcraft3d/target/release/poorcraft3d — sync it.
+P3D_BIN := poorcraft3d/target/release/poorcraft3d
+P3D_BUILD = cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d && mkdir -p poorcraft3d/target/release && if [ -n "$$CARGO_TARGET_DIR" ] && [ -f "$$CARGO_TARGET_DIR/release/poorcraft3d" ]; then cp -f "$$CARGO_TARGET_DIR/release/poorcraft3d" $(P3D_BIN); fi
 
 .PHONY: help build test run smoke vistest perf package runtimes push night-plan-check idle-upgrade-check seedlab sounds
 
@@ -116,41 +120,41 @@ p3d-atlas: ## Render a POORCRAFT 3D seed atlas PNG: make p3d-atlas SEED=1
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --atlas $(if $(SEED),$(SEED),1)
 
 p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p3d-assets [MANIFEST=]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(MANIFEST),$(MANIFEST),) || exit 1; \
 	echo "P3D ASSETS OK"
 
 p3d-slice: ## Windowed VERTICAL SLICE showcase (city+cave+build captures): make p3d-slice [OUTDIR=shots] [SEED=3]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
 	echo "P3D SLICE PROOF OK"
 
 p3d-slice-live: ## Classic slice with owner menu: Enter/click start, WASD, F/R, B/L, I, Esc pause, Q quit
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice live $(if $(SEED),$(SEED),3)
 
 p3d-assetgen: ## NWR-002: regenerate the original GLB assets (deterministic, budget-checked): make p3d-assetgen
 	cargo run --manifest-path poorcraft3d/Cargo.toml -p assetgen -- $$(pwd) || exit 1
 
 p3d-asset-sidecars: ## WT-002: semantic starter-batch inspection sidecars (windowless; anchor law vs GLB bytes): make p3d-asset-sidecars
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-sidecar all poorcraft3d/apps/poorcraft3d/shots || exit 1; \
 	echo "P3D ASSET SIDECARS OK"
 
 p3d-observe: ## WT-003: the observatory — all routes as evidence bundles (PNG+state+perf+verdict; honest unavailability where interactions don't exist yet): make p3d-observe
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/observatory
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe all poorcraft3d/apps/poorcraft3d/shots/observatory || exit 1; \
 	echo "P3D OBSERVATORY OK"
 
 p3d-asset-captures: ## WT-002/003 slice 3: beauty+wireframe+anchor-overlay windowed captures per GLB starter asset (pixel checks + sidecars): make p3d-asset-captures
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/asset-captures
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-capture all poorcraft3d/apps/poorcraft3d/shots/asset-captures || exit 1; \
 	echo "P3D ASSET CAPTURES OK"
 
 p3d-playtest: ## WT-002 slice 5 capstone: the semantic playtest (house->talk->forge->live fall in one walk) run TWICE + comparator (deterministic same seed): make p3d-playtest
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/playtest-a poorcraft3d/apps/poorcraft3d/shots/playtest-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_semantic_playtest poorcraft3d/apps/poorcraft3d/shots/playtest-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_semantic_playtest poorcraft3d/apps/poorcraft3d/shots/playtest-b || exit 1; \
@@ -158,7 +162,7 @@ p3d-playtest: ## WT-002 slice 5 capstone: the semantic playtest (house->talk->fo
 	echo "P3D SEMANTIC PLAYTEST OK (chained + deterministic)"
 
 p3d-climb: ## The vine grip route (12 m drop caught by a strand, climb, tip release, land unharmed) run TWICE + comparator: make p3d-climb
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/climb-a poorcraft3d/apps/poorcraft3d/shots/climb-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_vine_climb poorcraft3d/apps/poorcraft3d/shots/climb-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_vine_climb poorcraft3d/apps/poorcraft3d/shots/climb-b || exit 1; \
@@ -166,7 +170,7 @@ p3d-climb: ## The vine grip route (12 m drop caught by a strand, climb, tip rele
 	echo "P3D VINE CLIMB OK (chained + deterministic)"
 
 p3d-steer: ## The air steer route (same 5 m drop twice: the free fall holds its line, A held drifts it a bounded strafe fraction) run TWICE + comparator: make p3d-steer
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/steer-a poorcraft3d/apps/poorcraft3d/shots/steer-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_air_steer poorcraft3d/apps/poorcraft3d/shots/steer-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_air_steer poorcraft3d/apps/poorcraft3d/shots/steer-b || exit 1; \
@@ -174,7 +178,7 @@ p3d-steer: ## The air steer route (same 5 m drop twice: the free fall holds its 
 	echo "P3D AIR STEER OK (chained + deterministic)"
 
 p3d-walkoff: ## The walk-off route (the floor dug out under the standing body: step law refuses, commit flips the fall, arc lands the wound) run TWICE + comparator: make p3d-walkoff
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/walkoff-a poorcraft3d/apps/poorcraft3d/shots/walkoff-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_walk_off poorcraft3d/apps/poorcraft3d/shots/walkoff-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_walk_off poorcraft3d/apps/poorcraft3d/shots/walkoff-b || exit 1; \
@@ -182,7 +186,7 @@ p3d-walkoff: ## The walk-off route (the floor dug out under the standing body: s
 	echo "P3D WALK OFF OK (chained + deterministic)"
 
 p3d-pitwall: ## The pit wall route (dug 5 m pit: the body falls in, the wall refuses the walk-out, a 0.5 m step admits, the outer wall refuses again — the up-step law) run TWICE + comparator: make p3d-pitwall
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/pitwall-a poorcraft3d/apps/poorcraft3d/shots/pitwall-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_pit_wall poorcraft3d/apps/poorcraft3d/shots/pitwall-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_pit_wall poorcraft3d/apps/poorcraft3d/shots/pitwall-b || exit 1; \
@@ -190,7 +194,7 @@ p3d-pitwall: ## The pit wall route (dug 5 m pit: the body falls in, the wall ref
 	echo "P3D PIT WALL OK (chained + deterministic)"
 
 p3d-dig: ## The dig verb route (one real G press through the UI input path: the aimed column drops one walkable step, the take is credited, the HUD pack line reads PACK EMPTY -> the yield's own line, the terrace is walked down and back up unhurt) run TWICE + comparator: make p3d-dig
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/dig-a poorcraft3d/apps/poorcraft3d/shots/dig-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_dig poorcraft3d/apps/poorcraft3d/shots/dig-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_dig poorcraft3d/apps/poorcraft3d/shots/dig-b || exit 1; \
@@ -198,7 +202,7 @@ p3d-dig: ## The dig verb route (one real G press through the UI input path: the 
 	echo "P3D DIG OK (chained + deterministic)"
 
 p3d-crowd: ## The staged-yield crowd route (two NPCs walk one row head-on through the live crowd law: one sidesteps around the other, nobody shares a cell, both arrive at their declared sites) run TWICE + comparator: make p3d-crowd
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/crowd-a poorcraft3d/apps/poorcraft3d/shots/crowd-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_crowd_yield poorcraft3d/apps/poorcraft3d/shots/crowd-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_crowd_yield poorcraft3d/apps/poorcraft3d/shots/crowd-b || exit 1; \
@@ -206,7 +210,7 @@ p3d-crowd: ## The staged-yield crowd route (two NPCs walk one row head-on throug
 	echo "P3D CROWD YIELD OK (chained + deterministic)"
 
 p3d-recovery: ## The plaza-recovery route (a 14 m pit empties the body's health: the lethal fall wakes it at the plaza's heart ON the plaza ground, health EXACTLY 0.5, food halved, under its own toast) run TWICE + comparator: make p3d-recovery
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/recovery-a poorcraft3d/apps/poorcraft3d/shots/recovery-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_plaza_recovery poorcraft3d/apps/poorcraft3d/shots/recovery-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_plaza_recovery poorcraft3d/apps/poorcraft3d/shots/recovery-b || exit 1; \
@@ -214,7 +218,7 @@ p3d-recovery: ## The plaza-recovery route (a 14 m pit empties the body's health:
 	echo "P3D PLAZA RECOVERY OK (chained + deterministic)"
 
 p3d-hangoff: ## The hang-off route (drop onto a real strand, caught: SPACE hops OFF and the body falls PAST its own strand to the law's exact wound; S past the tip falls free and lands safe — the release law) run TWICE + comparator: make p3d-hangoff
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/hangoff-a poorcraft3d/apps/poorcraft3d/shots/hangoff-b
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_vine_hangoff poorcraft3d/apps/poorcraft3d/shots/hangoff-a || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --observe route_vine_hangoff poorcraft3d/apps/poorcraft3d/shots/hangoff-b || exit 1; \
@@ -222,33 +226,33 @@ p3d-hangoff: ## The hang-off route (drop onto a real strand, caught: SPACE hops 
 	echo "P3D HANG OFF OK (chained + deterministic)"
 
 p3d-export-data: ## WT-008: local-only data extraction (worldgen/npc/machine windowless exports + the full exporter surface manifest): make p3d-export-data
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	rm -rf poorcraft3d/apps/poorcraft3d/shots/export
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --export-data poorcraft3d/apps/poorcraft3d/shots/export || exit 1; \
 	echo "P3D EXPORT DATA OK (local-only)"
 
 p3d-terrain-analyze: ## Terrain analysis tool: per-biome census (slope/roughness) + relief + slope PNGs: make p3d-terrain-analyze [SEED=4242]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --terrain-analyze $(SEED) poorcraft3d/apps/poorcraft3d/shots/terrain || exit 1; \
 	echo "P3D TERRAIN ANALYZE OK"
 
 p3d-assets-window: ## NWR-002: windowed asset-factory proof (tree/rock/house): make p3d-assets-window [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-assets $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D ASSET PROOF OK"
 
 p3d-surface: ## NWR-003: natural-terrain surface spike proof (3x3 region + edit): make p3d-surface [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-surface $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D SURFACE SPIKE OK"
 
 p3d-surface-stream: ## NWR-004: streamed SURFACE terrain vista proof: make p3d-surface-stream [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-surface-stream $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D SURFACE STREAM OK"
 
 p3d-dmg: ## The play-test DMG (.app bundle + hdiutil): make p3d-dmg -> poorcraft3d/dist3d/poorcraft3d-macos.dmg (volume POORCRAFT3D-<git>, title screen shows BUILD <git>)
-	PC3D_BUILD=$(P3D_GIT) cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	PC3D_BUILD=$(P3D_GIT) cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d && mkdir -p poorcraft3d/target/release && if [ -n "$$CARGO_TARGET_DIR" ] && [ -f "$$CARGO_TARGET_DIR/release/poorcraft3d" ]; then cp -f "$$CARGO_TARGET_DIR/release/poorcraft3d" $(P3D_BIN); fi
 	rm -rf poorcraft3d/dist3d/POORCRAFT3D.app poorcraft3d/dist3d/poorcraft3d-macos.dmg
 	mkdir -p "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/MacOS" "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Resources"
 	cp poorcraft3d/target/release/poorcraft3d "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/MacOS/poorcraft3d"
@@ -259,55 +263,55 @@ p3d-dmg: ## The play-test DMG (.app bundle + hdiutil): make p3d-dmg -> poorcraft
 	ls -la poorcraft3d/dist3d/poorcraft3d-macos.dmg
 
 p3d-rebuild: ## NWR-011: the rebuild vertical slice (route captures + save/reload proof): make p3d-rebuild [SEED=3] [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-rebuild $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(SEED) || exit 1; \
 	echo "P3D REBUILD SLICE OK"
 
 p3d-rebuild-live: ## Owner LIVE slice with the real UI (title screen, menus, HUD; Esc pauses, never exits)
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-rebuild live
 
 p3d-ui-shots: ## GLM UI rework: 11 deterministic UI state screenshots + pixel checks + layout dumps
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --ui-shots poorcraft3d/apps/poorcraft3d/shots
 
 p3d-seed-preview: ## WT-001: New World seed preview shots + sidecars + pixel report; make p3d-seed-preview [SEED=4242]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --ui-seed-preview-shots poorcraft3d/apps/poorcraft3d/shots || exit 1; \
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --seed-preview $(if $(SEED),$(SEED),4242) poorcraft3d/apps/poorcraft3d/shots || exit 1; \
 	echo "P3D SEED PREVIEW OK"
 
 p3d-ui-inspect: ## GLM UI rework: the local JSON inspector (e.g. make p3d-ui-inspect CMD='<json>')
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --ui-inspect '$(CMD)'
 
 p3d-deck-bench: ## NWR-010: Steam Deck benchmark walk (3 tiers + documented report): make p3d-deck-bench [SEED=3] [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	@BIN=$$(pwd)/poorcraft3d/target/release/poorcraft3d; 	SHOTS=$$(pwd)/poorcraft3d/apps/poorcraft3d/shots; 	for t in low mid high; do 		"$$BIN" --deck-bench $(if $(SEED),$(SEED),3) "$$SHOTS" $$t || exit 1; 	done; 	"$$BIN" --deck-bench $(if $(SEED),$(SEED),3) "$$SHOTS" report || exit 1; 	echo "P3D DECK BENCH OK"
 
 p3d-people: ## NWR-009: NPC rig proof (plaza/stride/guard/anchors, crowd budget): make p3d-people [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-people $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D PEOPLE OK"
 
 p3d-settlement: ## NWR-008: settlement kit proof (overview/street, socket kit, budgets): make p3d-settlement [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-settlement $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D SETTLEMENT OK"
 
 p3d-wilderness: ## NWR-007: instanced wilderness proof (control/vista/landmark/undergrowth/canopy/low-tier): make p3d-wilderness [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-wilderness $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D WILDERNESS OK"
 
 p3d-materials: ## NWR-006: materials + atmosphere proof (shadows/fog/grain/glint/cutout, tier rows): make p3d-materials [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-materials $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; 	echo "P3D MATERIALS OK"
 
 p3d-caves: ## NWR-005: caves + conforming water + local-edit proof (cave interior, river before/after dam): make p3d-caves [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-caves $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D CAVES+WATER OK"
 
 p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowed proof must PASS); writes gates report to poorcraft3d/shots/gates_report.txt
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	@BIN=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
 	SHOTS=$$(pwd)/poorcraft3d/apps/poorcraft3d/shots; \
 	mkdir -p "$$SHOTS"; \
@@ -343,50 +347,50 @@ p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowe
 	fi
 
 p3d-gate-check: ## The layout laws over every *.layout.json on disk (no GPU needed): no overlapping text, one panel at a time, no unreachable hint keys
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --gate-check $(if $(SHOTS),$(SHOTS),poorcraft3d/apps/poorcraft3d/shots) || exit 1
 
 p3d-daynight: ## Art-pass: noon vs midnight mean-luminance gate (writes windowed_day/night.png)
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-daynight $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1
 
 p3d-quality: ## Windowed quality-tier proof (same scene at Low/Mid/High + memory/frame record): make p3d-quality [OUTDIR=shots] [SEED=3]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-quality $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
 	echo "P3D QUALITY PROOF OK"
 
 p3d-npcs: ## Windowed NPC proof (cast at sim positions + Bed/Work/Idle inspect boxes): make p3d-npcs [OUTDIR=shots] [SEED=3]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-npcs $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
 	echo "P3D NPC PROOF OK"
 
 p3d-city: ## Windowed castle/city proof (capital + town + gate close-up from the plans): make p3d-city [OUTDIR=shots] [SEED=3]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-city $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
 	echo "P3D CITY PROOF OK"
 
 p3d-water: ## Windowed river-water proof (transparent current + dam edit, dirty sections): make p3d-water [OUTDIR=shots] [SEED=3]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-water $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
 	echo "P3D WATER PROOF OK"
 
 p3d-stream: ## Windowed streamed-terrain LOD walk (bounded work, budget, culling): make p3d-stream [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-stream $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D STREAM WALK OK"
 
 p3d-terrain: ## Windowed terrain proof (hill/cliff/cave+overhang from final_solid): make p3d-terrain [OUTDIR=shots]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-terrain $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) || exit 1; \
 	echo "P3D TERRAIN PROOF OK"
 
 p3d-build-proof: ## Windowed construction proof (host-owned wall, rock->sand edit, bounded remesh): make p3d-build-proof [PNG=path] [SEED=4242]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-build $(if $(PNG),$(PNG),poorcraft3d/apps/poorcraft3d/shots/windowed_build.png) $(if $(SEED),$(SEED),4242) || exit 1; \
 	echo "P3D BUILD PROOF OK"
 
 p3d-build-live: ## Interactive construction: F places, R removes (host command path): make p3d-build-live [SEED=4242]
-	cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d
+	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-build live $(if $(SEED),$(SEED),4242)
 
 p3d-play: ## Interactive POORCRAFT 3D 3D window: click to look, WASD+Space/Shift move, Esc quits

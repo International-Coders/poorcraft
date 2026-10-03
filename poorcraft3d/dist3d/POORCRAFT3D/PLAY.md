@@ -42,8 +42,17 @@ machine.
   default).
 
   WASD walk the surface · mouse look · F build on INSPECTED ground
-  (rejections name the reason) · R remove · B save · L reload · I
-  inspect Bed/Work/Idle boxes · ESC pause.
+  (rejections name the reason) · R remove · G dig · K open PACK
+  (readable slots) · C craft · M machines (G feeds boiler at river) ·
+  E talk · J journal · O oversight · H/T forge ore/take · X eat ·
+  V deliver · B save · L reload · I inspect Bed/Work/Idle boxes ·
+  ESC closes a panel first, then pauses.
+  You spawn in the settlement PLAZA facing the capital gate.
+
+## Vertical-Slice Beta (VS) — first session goal
+  Survive (dig into pack) → craft a pick → find river → M feed boiler →
+  talk to a villager (job + needs) → save/load and keep your pack.
+  Living status: docs/POORCRAFT-3D/STATE.md + 24-VERTICAL-SLICE-BETA.md.
 
 ## The automated proofs
   ./poorcraft3d --play-rebuild            # the 5-stop route proof

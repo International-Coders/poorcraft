@@ -79,17 +79,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_HARVESTED 2 IRON ORE",
-      "kind": "toast",
-      "rect": [
-        271,
-        375,
-        258,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -189,68 +178,13 @@
     },
     {
       "button_state": "",
-      "id": "dialog_panel",
-      "kind": "panel",
-      "rect": [
-        120,
-        237,
-        560,
-        132
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_speaker",
-      "kind": "text",
-      "rect": [
-        140,
-        279,
-        411,
-        21
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_activity",
-      "kind": "text",
-      "rect": [
-        140,
-        305,
-        154,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_text",
-      "kind": "text",
-      "rect": [
-        140,
-        329,
-        430,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "dialog_hint",
-      "kind": "text",
-      "rect": [
-        578,
-        345,
-        82,
-        14
-      ]
-    },
-    {
-      "button_state": "",
       "id": "interact_panel",
       "kind": "panel",
       "rect": [
         120,
-        219,
+        235,
         560,
-        150
+        134
       ]
     },
     {
@@ -259,7 +193,7 @@
       "kind": "text",
       "rect": [
         140,
-        261,
+        277,
         418,
         14
       ]
@@ -270,7 +204,7 @@
       "kind": "text",
       "rect": [
         140,
-        283,
+        299,
         418,
         14
       ]
@@ -281,7 +215,7 @@
       "kind": "text",
       "rect": [
         578,
-        345,
+        327,
         82,
         14
       ]
@@ -294,13 +228,10 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
-    "dialog": {
-      "activity": "BUILDING",
-      "role": "BUILDER",
-      "speaker": "Maren Oldford",
-      "text": "We build it once, we build it right."
-    },
+    "dialog": null,
     "focus": 0,
     "forge": null,
     "forge_bars_taken": 0,
@@ -323,8 +254,12 @@
     "interact": "MAP MARKER",
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 4,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -337,12 +272,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-14 21:25",
+        "modified": "2026-09-29 15:32",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-14 21:25",
+        "modified": "2026-09-29 15:32",
         "name": "beta-shot",
         "seed": 7
       }
@@ -352,12 +287,8 @@
       "WOOD_PICK x1",
       "BREAD x2"
     ],
-    "toasts": [
-      {
-        "age_s": 2.2545411586761475,
-        "text": "HARVESTED 2 IRON ORE"
-      }
-    ],
-    "wallet": 0
+    "toasts": [],
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

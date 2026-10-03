@@ -2429,6 +2429,12 @@ impl Renderer {
     /// documented recovery policy for lost/outdated/timeout surfaces.
     /// Offscreen: draws into the proof target.
     pub fn render_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
+        // Streamed surface needs a tick every frame (same as the live app
+        // path). Proofs that only `attach_surface_stream` would otherwise
+        // draw empty fog forever.
+        if self.surface_stream.is_some() {
+            self.surface_stream_frame();
+        }
         self.prepare_frame();
         if self.surface.is_some() {
             let mut attempt = 0;

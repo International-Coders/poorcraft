@@ -167,6 +167,8 @@ pub struct SliceHost {
     /// The player's credit wallet (claim payouts; economy trade uses
     /// i64 balances — this is the player-side counter).
     pub credits: i64,
+    /// Survival onboarding checklist (VS V2 milestones).
+    pub onboarding: pc3d_world::survival::Onboarding,
     /// Frame counter for the forge's work tick.
     pub forge_tick_frame: u64,
     /// Frame counter for the world simulation tick.
@@ -2007,6 +2009,15 @@ impl App {
                                     for (id, n) in &yields {
                                         slice.inventory.add(*id, *n);
                                     }
+                                    // VS V2 onboarding: grass dig yields wood
+                                    // as "first_tree"; any dig that takes is
+                                    // the first survival verb.
+                                    if yields
+                                        .iter()
+                                        .any(|(id, _)| id.0 == 1)
+                                    {
+                                        slice.onboarding.mark("first_tree");
+                                    }
                                     // A dig that takes is excavation
                                     // progress (the authority decides
                                     // what counts — same as the
@@ -2138,6 +2149,20 @@ impl App {
                         s.ui.close_panels();
                         s.ui.craft = Some(rows);
                         s.ui.craft_focus = 0;
+                        s.ui_dirty = true;
+                    }
+                }
+                UiAction::TogglePack => {
+                    let rows = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|slice| pc3d_world::items::pack_slot_lines(&slice.inventory))
+                        .unwrap_or_default();
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.close_panels();
+                        s.ui.pack = Some(rows);
+                        s.ui.pack_focus = 0;
                         s.ui_dirty = true;
                     }
                 }
@@ -2691,6 +2716,7 @@ impl App {
                         // The reducer sets these itself; script-driven
                         // actions land here directly — set unconditionally.
                         s.ui.screen = Screen::Gameplay;
+                        s.ui.close_panels();
                         s.ui.pointer_grabbed = true;
                         s.reconcile_pointer();
                     }
@@ -2856,6 +2882,10 @@ impl App {
             slice.seed,
             &slice.host.borrow(),
             &slice.player,
+            &slice.inventory,
+            &slice.onboarding,
+            slice.forge.as_ref(),
+            slice.quests.as_deref(),
         );
         state.ui.toast(match r {
             Ok(()) => format!("SAVED '{}'", slice.world_name),
@@ -2872,7 +2902,7 @@ impl App {
             .or_else(|| self.cfg.slice_host.as_ref().map(|s| s.save_root.clone()));
         let Some(root) = root else { return };
         match crate::slice::load_slice(root.as_ref(), name) {
-            Ok((seed, host, player)) => {
+            Ok((seed, host, player, inventory, onboarding, forge, quests)) => {
                 // Re-assemble the scene for the SAVED seed, exactly as
                 // `create_world` does. Swapping only the seed, host and
                 // player left `slice.scene` showing the world that happened
@@ -2892,6 +2922,10 @@ impl App {
                 fresh.seed = seed;
                 *fresh.host.borrow_mut() = host;
                 fresh.player = player;
+                fresh.inventory = inventory;
+                fresh.onboarding = onboarding;
+                fresh.forge = forge;
+                fresh.quests = quests;
                 fresh.world_name = name.to_string();
                 {
                     let h = fresh.host.borrow();
@@ -3363,11 +3397,14 @@ impl App {
                                 material,
                                 owner: 7,
                             });
-                        } else {
+                            slice.onboarding.mark("first_build");
+                        } else if code != KeyCode::KeyF {
                             h.submit(pc3d_world::host::HostCommand::RemoveBuild {
                                 cell,
                                 owner: 7,
                             });
+                        } else {
+                            // F rejected by foundation — do not remove.
                         }
                         h.run_ticks(1);
                         state.renderer.update_construction(&h.construction);
@@ -3425,6 +3462,10 @@ impl App {
                         slice.seed,
                         &slice.host.borrow(),
                         &slice.player,
+                        &slice.inventory,
+                        &slice.onboarding,
+                        slice.forge.as_ref(),
+                        slice.quests.as_deref(),
                     );
                     slice.last_message = match r {
                         Ok(()) => "SAVED".into(),
@@ -3439,10 +3480,14 @@ impl App {
                     let root = slice.save_root.clone();
                     let name = slice.world_name.clone();
                     match crate::slice::load_slice(root.as_ref(), &name) {
-                        Ok((seed, host, player)) => {
+                        Ok((seed, host, player, inventory, onboarding, forge, quests)) => {
                             slice.seed = seed;
                             *slice.host.borrow_mut() = host;
                             slice.player = player;
+                            slice.inventory = inventory;
+                            slice.onboarding = onboarding;
+                            slice.forge = forge;
+                            slice.quests = quests;
                             let h = slice.host.borrow();
                             state.renderer.update_construction(&h.construction);
                             slice.last_message = "RELOADED".into();
@@ -3659,6 +3704,12 @@ impl App {
         let mut sprinting = false;
         let moving;
         if let Some(slice) = self.cfg.slice_host.as_mut() {
+            // Prime the streamed surface BEFORE the walk so `ground_at`
+            // answers on the first frames (the old order walked into an
+            // empty full-ring and felt stuck until the stream caught up).
+            if slice.rebuild {
+                let _ = state.renderer.surface_stream_frame();
+            }
             let key = |k: KeyCode| state.keys.contains(&k) as i32 as f32;
             let fwd = if gameplay_active {
                 key(KeyCode::KeyW) - key(KeyCode::KeyS)
@@ -3852,8 +3903,14 @@ impl App {
             // A full day every ten minutes of live play — slow enough to
             // feel, fast enough that a session sees dusk.
             {
-                let phase = state.renderer.day_phase() + dt / 600.0;
+                let phase_before = state.renderer.day_phase();
+                let phase = phase_before + dt / 600.0;
                 state.renderer.set_day_phase(phase);
+                // VS V2: first night once the day cycle crosses dusk (0.5).
+                let crossed_dusk = (phase_before % 1.0) < 0.5 && (phase % 1.0) >= 0.5;
+                if crossed_dusk {
+                    slice.onboarding.mark("first_night");
+                }
             }
             // The forge work tick (inside the slice's own scope): the
             // plaza forge smelts while it exists (every 20 frames) —
@@ -3874,23 +3931,23 @@ impl App {
                 slice.world_tick_frame += 1;
                 if slice.world_tick_frame % WORLD_TICK_FRAMES == 0 {
                     slice.host.borrow_mut().run_ticks(1);
-                    // Combat: keep a hostile within a short walk so journey
-                    // step 3's danger is reachable. A goblin left behind at
-                    // the gate after a teleport is not a threat — cull and
-                    // respawn beside the player when none are near.
+                    // Combat: keep a hostile in the neighbourhood so journey
+                    // danger exists — well outside melee range (1) and outside
+                    // a short dig/terrace walk (~5 m). Adjacent spawn made
+                    // route_dig take free hits (HIT FOR 4 DAMAGE → unhurt fail).
                     {
                         let cell = player_cell(slice);
                         let near = slice.creatures.creatures.iter().any(|c| {
-                            (c.pos.x - cell.x).abs().max((c.pos.z - cell.z).abs()) <= 8
+                            (c.pos.x - cell.x).abs().max((c.pos.z - cell.z).abs()) <= 24
                         });
                         if !near {
                             slice.creatures.creatures.clear();
                             slice.creatures.spawn(
                                 pc3d_world::combat::CreatureKind::Goblin,
                                 pc3d_world::coords::CellCoord {
-                                    x: cell.x + 1,
+                                    x: cell.x + 16,
                                     y: cell.y,
-                                    z: cell.z,
+                                    z: cell.z + 16,
                                 },
                             );
                         }
@@ -4521,6 +4578,7 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         KeyCode::KeyJ => Key::Char('j'),
         KeyCode::KeyV => Key::Char('v'),
         KeyCode::KeyC => Key::Char('c'),
+        KeyCode::KeyK => Key::Char('k'),
         KeyCode::KeyM => Key::Char('m'),
         KeyCode::KeyN => Key::Char('n'),
         KeyCode::KeyO => Key::Char('o'),
@@ -4617,6 +4675,37 @@ mod tests {
         assert_eq!(next_free_shot_frame(&shots, 100), 102);
         // An empty schedule takes requested_at + 1 directly.
         assert_eq!(next_free_shot_frame(&[], 40), 41);
+    }
+
+    #[test]
+    fn escape_closes_interact_before_pause() {
+        let mut s = UiState::default();
+        s.screen = Screen::Gameplay;
+        s.interact = Some(("THE CHEST".into(), vec!["A WOOD PICK".into()]));
+        assert!(s.blocks_gameplay(), "open interact blocks WASD");
+        let _ = ui::on_key(&mut s, Key::Escape);
+        assert!(s.interact.is_none(), "first Escape dismisses interact");
+        assert_eq!(s.screen, Screen::Gameplay, "does not jump to Pause yet");
+        assert!(!s.blocks_gameplay(), "WASD is free again");
+    }
+
+    #[test]
+    fn pause_clears_orphan_panels_so_resume_can_walk() {
+        let mut s = UiState::default();
+        s.screen = Screen::Gameplay;
+        s.interact = Some(("THE CHEST".into(), vec!["LOOT".into()]));
+        // Force the Pause arm (interact already closed would Pause; after
+        // the interact Escape above, a second Escape pauses — here we
+        // simulate Escape-to-Pause with a leftover by opening Pause via
+        // the final Escape arm after clearing interact first).
+        let _ = ui::on_key(&mut s, Key::Escape); // closes interact
+        let _ = ui::on_key(&mut s, Key::Escape); // pauses
+        assert_eq!(s.screen, Screen::Pause);
+        assert!(s.interact.is_none());
+        // Resume.
+        let _ = ui::on_key(&mut s, Key::Escape);
+        assert_eq!(s.screen, Screen::Gameplay);
+        assert!(!s.blocks_gameplay(), "resume must not inherit a stuck panel");
     }
 
     #[test]

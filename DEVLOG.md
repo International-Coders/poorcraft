@@ -10349,3 +10349,139 @@ VERIFICATION:
 HONESTLY DEFERRED: SSAO / cave-occlusion beyond night fog + hemisphere;
 city.rs still procedural boxes (NPC cast is the art-pass subject);
 re-score the ten-step journey against a fresh play session.
+
+## 2026-09-21 — WASD stuck + plaza spawn
+
+WHAT: Fix live WASD feeling dead, and move spawn out of the gate walls.
+Root causes: (1) Escape skipped the Interact panel — ESC paused with
+Interact still open, Resume left blocks_gameplay true so WASD was
+zeroed; (2) spawn_player seated south of the gate via voxel probe,
+often inside kit wall cells on the rebuild surface path; (3) walk ran
+before the surface full-ring was primed.
+
+HOW: Escape closes Interact; Pause/Resume/PLAY call close_panels;
+spawn at plaza surface facing the gate; assemble_rebuild warms the
+surface stream and reseats feet; redraw primes surface_stream_frame
+before the walk.
+
+VERIFICATION: escape_closes_interact_before_pause, pause_clears_orphan,
+showcase_seed_assembles_everything green; journey_walk updated.
+Release binary copied into dist3d/POORCRAFT3D.app.
+
+## 2026-09-28 — Dual-scale biome layout (terrain upgrade start)
+
+WHAT: Spec + plan for continental climate belts with compatible
+enclaves at today map size; Valheim-scale growth documented for later.
+Implemented dual-scale fields in pc3d_world::gen (slow climate FBM for
+temp/humidity, pocket override on biome()).
+
+DOCS:
+- docs/superpowers/specs/2026-09-28-biome-layout-design.md
+- docs/superpowers/plans/2026-09-28-biome-layout.md
+
+HOW: fbm_cells(192) climate vs fbm_cells(48) elevation; pocket channel 7
+at 14-region wavelength; compatible override table.
+
+VERIFICATION: cargo test -p pc3d_world --lib p3d103_ 8/8 green including
+climate_belts_are_countries + compatible_pockets_exist.
+
+NEXT: biome asset dress (flora/atlas); windowed belt/pocket proofs;
+scale-up checklist when growing the map.
+
+## 2026-09-28 — pc3d integration: biome ground dress + stream tick
+
+WHAT: In-game / windowed proofs for biomes + gameplay; fixed surface mesh
+painting every biome as deep Rock; fixed empty surface-stream shots;
+tightened Mid atmosphere grass/sand material weights.
+
+HOW:
+- `pc3d_render/src/surface.rs` + `surface_stream.rs`: sample
+  `final_solid` at surface_mm-500 (top meter), not y=0.
+- `renderer.rs::render_frame`: auto `surface_stream_frame` when a
+  streamer is attached (proofs that only attach were drawing fog).
+- `atmosphere.rs` + `shaders/scene.wgsl`: suppress sand weight when
+  green exceeds red so grass albedo does not leak sand detail.
+- Regression: `surface_material_follows_biome_not_deep_rock`.
+
+VERIFICATION:
+- `cargo test -p pc3d_world --lib` → 270 ok
+- surface material + material_weights unit tests ok
+- `--journey 42` JOURNEY PASS (10 steps); `--diagnose 2024` DIAGNOSIS PASS
+- windowed: terrain / surface / surface-stream / wilderness PASS
+- pixel green_frac: surface_before ~0.71, surface_stream ~0.93,
+  terrain_hills ~0.86 (was flat tan/rock before)
+- atlases seed 3/42/777: high biome disagreement vs neighbor seeds
+
+ARTIFACTS: `poorcraft3d/apps/poorcraft3d/shots/windowed_*.png`,
+`atlas_seed{3,42,777}.png`, `poorcraft3d/target/release/poorcraft3d`.
+
+## 2026-09-29 — P3D Vertical-Slice Beta living docs + Phase 1–4
+
+WHAT: Living truth docs (STATE, 24–27, README authority, audit postscript)
+and VS play-path closes: pack UI (K), Talk needs, save/load pack+onboarding,
+play onboarding marks, PLAY.md key alignment. No commit/push.
+
+HOW:
+- docs/POORCRAFT-3D/{STATE,24,25,26,27}.md + README + 23 postscript
+- dialog.rs need line; ui ActivePanel::Pack + TogglePack via ui_key(K)
+- player_store trailer for inventory+onboarding; save_slice/load_slice updated
+- dig marks first_tree; build marks first_build; dusk marks first_night
+- dist3d PLAY.md keys synced to both copies
+
+VERIFICATION:
+- cargo test -p pc3d_world -p pc3d_save -p pc3d_core --lib → 270+18 ok
+- cargo test -p pc3d_render --lib ui:: → 46 ok
+- player_store pack round-trip + legacy 20-byte pose load
+- every_promised_char_key (incl. K) reachable
+- make p3d-gate-check still fails on stale pre-ActivePanel layout dumps (expected)
+- GPU observe/visual-gates not re-run (sandbox/GPU)
+
+NEXT (STATE next_task): subject gates in full visual battery + refresh
+stale layout dumps; then H1 step 7 path choice.
+
+## 2026-09-29 — P3D VS close: subject gates, session persist, packaging
+
+WHAT: Finished the Vertical-Slice Beta plan todos left open after the
+morning pass — gate-check green, forge+quests save, river subject gate,
+coherent dist3d + DMG. Living docs (STATE/25/26) re-scored; next_task
+is H1 path choice.
+
+HOW:
+- Deleted stale stacked-panel `*.layout.json` (playtest/observatory fossils)
+- `--play-water` river `subject_in_frame` AABB gate
+- `pc3d_save::session_store` + Forge/Quest encode; wired through save_slice
+- `make p3d-dmg` (hdiutil) + identical binaries in `.app` and `POORCRAFT3D/`
+
+VERIFICATION:
+- `cargo test -p pc3d_world --lib` → 271 ok
+- `cargo test -p pc3d_save --lib` → 20 ok (incl. session round-trip)
+- `slice_save_reload_round_trips_world_and_player` ok (forge+quests)
+- `make p3d-gate-check` → GATE CHECK OK (142 dumps, 0 overlaps/stacked)
+- `poorcraft3d/dist3d/poorcraft3d-macos.dmg` present; D10 binaries identical
+
+NEXT: H1 step 7 path choice (see docs/POORCRAFT-3D/STATE.md).
+
+## 2026-09-29 — VS goal: play-verify battery green
+
+WHAT: Finished /goal play-verify for Vertical-Slice Beta. Fixed stale-binary
+trap (Makefile now syncs CARGO_TARGET_DIR → poorcraft3d/target/release),
+goblin auto-spawn outside melee (route_dig unhurt), river subject AABB,
+rebuild gate sky(false). Full play battery green.
+
+HOW:
+- Makefile `P3D_BUILD` copies sandbox/cargo target bin into expected path
+- Goblin spawn offset 16 cells (was adjacent → HIT during dig)
+- Water subject AABB tightened; rebuild gate `.sky(false)`
+- Proofs: make p3d-dig/water/city/rebuild/playtest/people/gate-check;
+  --journey 42; make p3d-dmg
+
+VERIFICATION:
+- dig OK (health 100%, pack WOOD+SOIL)
+- water OK (RIVER IN FRAME centre 0.50,0.60)
+- city OK (CITY IN FRAME + gate)
+- rebuild OK (save/reload built 1→1)
+- playtest OK (talk/forge/journal)
+- people OK; gate-check OK; journey PASS 10 steps
+- dist3d/poorcraft3d-macos.dmg refreshed
+
+NEXT: H1 step 7 path choice (STATE next_task).

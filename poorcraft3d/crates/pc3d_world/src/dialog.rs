@@ -16,6 +16,8 @@ pub struct DialogLine {
     pub speaker: String,
     pub role: &'static str,
     pub activity: &'static str,
+    /// Player-facing need summary from the live brain (hunger · energy).
+    pub need: String,
     pub text: String,
 }
 
@@ -102,6 +104,26 @@ fn work_line(role: Role, h: u64) -> &'static str {
     }
 }
 
+/// Hunger/energy in player language — Talk (E) must show a need, not only
+/// a job tag (VS V5).
+fn need_line(needs: &crate::npc::Needs) -> String {
+    let hunger = if needs.hunger >= 70 {
+        "HUNGRY"
+    } else if needs.hunger >= 40 {
+        "PECKISH"
+    } else {
+        "FED"
+    };
+    let energy = if needs.energy <= 20 {
+        "EXHAUSTED"
+    } else if needs.energy <= 50 {
+        "TIRED"
+    } else {
+        "RESTED"
+    };
+    format!("NEEDS: {hunger} · {energy}")
+}
+
 /// What the villager says right now — derived from the LIVE brain.
 pub fn talk_with(brain: &NpcBrain) -> DialogLine {
     let name = villager_name(brain.home);
@@ -138,6 +160,7 @@ pub fn talk_with(brain: &NpcBrain) -> DialogLine {
         speaker: name,
         role: role_str(brain.role),
         activity: activity_str(activity),
+        need: need_line(&brain.needs),
         text,
     }
 }
@@ -174,10 +197,16 @@ mod tests {
         let c = talk_with(&b);
         assert_eq!(a, c, "same brain, same moment: same line");
         assert_eq!(a.activity, "FARMING");
+        assert_eq!(a.need, "NEEDS: FED · RESTED");
         // A different brain state says a different class of thing.
         let sleeping = talk_with(&brain(Role::Farmer, Intent::Sleeping, (3, 0, 4)));
         assert_eq!(sleeping.activity, "SLEEPING");
         assert_ne!(a.activity, sleeping.activity);
+        let mut hungry = brain(Role::Farmer, Intent::Idle, (3, 0, 4));
+        hungry.needs.hunger = 80;
+        hungry.needs.energy = 10;
+        let needy = talk_with(&hungry);
+        assert_eq!(needy.need, "NEEDS: HUNGRY · EXHAUSTED");
     }
 
     #[test]

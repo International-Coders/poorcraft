@@ -1043,6 +1043,33 @@ fn main() {
                         eprintln!("[FAIL] the dam must change the image ({diff})");
                         std::process::exit(1);
                     }
+                    // SUBJECT-IN-FRAME: a box around the river look-at the
+                    // proof pose was built for (not a huge corridor cube —
+                    // that projected off-centre and failed the aim band).
+                    let river_aabb = pc3d_render::scene::Aabb::new(
+                        [mid_x - 20.0, mid_y - 1.5, mid_z - 20.0],
+                        [mid_x + 20.0, mid_y + 3.0, mid_z + 20.0],
+                    );
+                    let ov = &report.captures[0];
+                    let subj = pc3d_render::scene::subject_in_frame(
+                        &ov.rgba,
+                        ov.report.width,
+                        ov.report.height,
+                        pose,
+                        river_aabb,
+                        0.04,
+                    );
+                    println!(
+                        "RIVER IN FRAME: coverage {:.3} sky {:.1}% centre ({:.2},{:.2})",
+                        subj.coverage,
+                        subj.sky_fraction * 100.0,
+                        subj.center.0,
+                        subj.center.1
+                    );
+                    if let Some(why) = &subj.reason {
+                        eprintln!("[FAIL] {} shows no river: {why}", ov.path.display());
+                        std::process::exit(1);
+                    }
                     println!(
                         "DAM EDIT OK: {}/{} sections remeshed, image changed {:.2}%",
                         after.remeshed,
@@ -2788,7 +2815,7 @@ fn main() {
                     Shot::new(70, format!("{out_dir}/windowed_rebuild_street.png")),
                     Shot::new(110, format!("{out_dir}/windowed_rebuild_river.png")).sky(false),
                     Shot::new(150, format!("{out_dir}/windowed_rebuild_cave.png")).sky(false),
-                    Shot::new(190, format!("{out_dir}/windowed_rebuild_gate.png")),
+                    Shot::new(190, format!("{out_dir}/windowed_rebuild_gate.png")).sky(false),
                 ],
                 frame_hooks: vec![(
                     0,
@@ -2840,9 +2867,19 @@ fn main() {
                         };
                         let dir = std::env::temp_dir().join("pc3d_rebuild_save");
                         let _ = std::fs::remove_dir_all(&dir);
-                        pc3d_render::slice::save_slice(&dir, "rebuild", seed, &h, &player)
+                        pc3d_render::slice::save_slice(
+                            &dir,
+                            "rebuild",
+                            seed,
+                            &h,
+                            &player,
+                            &pc3d_world::items::Inventory::new(12),
+                            &pc3d_world::survival::Onboarding::default(),
+                            None,
+                            None,
+                        )
                             .expect("save");
-                        let (_s2, h2, _p2) =
+                        let (_s2, h2, _p2, _, _, _, _) =
                             pc3d_render::slice::load_slice(&dir, "rebuild").expect("reload");
                         let c1: usize = h.construction.values().map(|c| c.built_count()).sum();
                         let c2: usize = h2.construction.values().map(|c| c.built_count()).sum();
@@ -4947,7 +4984,17 @@ fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
             yaw: 0.5,
             pitch: -0.1,
         };
-        pc3d_render::slice::save_slice(&root, name, seed, &host, &player)
+        pc3d_render::slice::save_slice(
+            &root,
+            name,
+            seed,
+            &host,
+            &player,
+            &pc3d_world::items::Inventory::new(12),
+            &pc3d_world::survival::Onboarding::default(),
+            None,
+            None,
+        )
             .expect("write test world");
     }
     std::rc::Rc::new(root)

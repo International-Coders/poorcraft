@@ -149,16 +149,20 @@ impl WorldGen {
     }
 
     /// Fractal blend of `octaves` noise layers. `u`/`v` are in REGION units
-    /// (region centers sit at .5). Octave cells span 48/2^o regions — 12,
-    /// 6, 3 km — so a 25-km atlas view holds real coastline variety while
-    /// features stay continental (the atlas proof drove three iterations:
-    /// 1-km cells rendered as confetti, 32-km cells as one flat biome).
+    /// (region centers sit at .5). Octave cells span `base_cells/2^o`
+    /// regions — elevation uses ~12 km base features; climate uses a
+    /// longer continental base so belts read as countries (see
+    /// docs/superpowers/specs/2026-09-28-biome-layout-design.md).
     fn fbm(&self, channel: u64, u: f64, v: f64, octaves: u32) -> f32 {
+        self.fbm_cells(channel, u, v, octaves, 48.0)
+    }
+
+    fn fbm_cells(&self, channel: u64, u: f64, v: f64, octaves: u32, base_cells: f64) -> f32 {
         let mut value = 0.0f32;
         let mut amplitude = 1.0f32;
         let mut total = 0.0f32;
         for o in 0..octaves {
-            let cells = 48f64 / 2f64.powi(o as i32);
+            let cells = base_cells / 2f64.powi(o as i32);
             value += self.value_noise(channel, o, u / cells, v / cells) * amplitude;
             total += amplitude;
             amplitude *= 0.5;
@@ -177,17 +181,16 @@ impl WorldGen {
         ((h >> 11) as f32) / ((1u64 << 53) as f32)
     }
 
-    /// Macro field for one region, sampled at its center. Elevation is
-    /// centered near sea level (mean +16 m, ±150 m spread) so maps hold
-    /// real oceans AND high peaks; temperature and humidity are 0..=100.
-    /// The center elevation IS the height function's value there — biome
-    /// and ground can never disagree.
+    /// Macro field for one region, sampled at its center. Elevation keeps
+    /// the finer continental relief (~12 km base). Temperature and humidity
+    /// use a slower climate FBM (~48 km base) so neighbors share belts.
     pub fn macro_field(&self, region: RegionCoord) -> MacroField {
         let u = region.x as f64 + 0.5;
         let v = region.z as f64 + 0.5;
         let e = self.fbm(1, u, v, 3) as f64;
-        let t = self.fbm(2, u, v, 2);
-        let hum = self.fbm(3, u, v, 2);
+        // Channel 2/3 climate: longer wavelength than elevation.
+        let t = self.fbm_cells(2, u, v, 2, 192.0);
+        let hum = self.fbm_cells(3, u, v, 2, 192.0);
         let half = (MAX_ELEVATION_M - MIN_ELEVATION_M) as f64 / 2.0;
         let elev_m = (16.0 + (e - 0.5) * 2.4 * half)
             .clamp(MIN_ELEVATION_M as f64, MAX_ELEVATION_M as f64) as i32;
@@ -198,10 +201,8 @@ impl WorldGen {
         }
     }
 
-    /// The biome for a field. Coherence rules: below sea level is Ocean; a
-    /// thin band above is Coast; very humid lowland is Wetland; humid land
-    /// is Forest; elevation climbs through Highlands to Mountains; cold
-    /// high ground caps as SnowPeaks.
+    /// Threshold biome for a field (the continental table). Prefer
+    /// [`Self::biome`] for gameplay — it applies compatible pockets.
     pub fn biome_of(&self, f: &MacroField) -> Biome {
         if f.elevation_m < SEA_LEVEL_M {
             return Biome::Ocean;
@@ -227,9 +228,68 @@ impl WorldGen {
         Biome::Plains
     }
 
+    /// Pocket strength in [0, 1] at region units — shorter wavelength than
+    /// climate so enclaves sit *inside* countries.
+    fn pocket_strength(&self, u: f64, v: f64) -> f32 {
+        self.fbm_cells(7, u, v, 2, 14.0)
+    }
+
+    /// Compatible enclave for a continental base (spec table). `None` =
+    /// no pocket this region.
+    fn pocket_override(&self, base: Biome, f: &MacroField, strength: f32) -> Option<Biome> {
+        if strength < 0.78 {
+            return None;
+        }
+        // Second hash bit picks among allowed targets so pockets aren't
+        // a single alternate everywhere.
+        let pick = strength > 0.88;
+        match base {
+            Biome::Plains => {
+                if f.elevation_m <= SEA_LEVEL_M + 12 && pick {
+                    Some(Biome::Wetland)
+                } else {
+                    Some(Biome::Forest)
+                }
+            }
+            Biome::Forest => {
+                if f.elevation_m <= SEA_LEVEL_M + 12 && pick {
+                    Some(Biome::Wetland)
+                } else {
+                    Some(Biome::Plains)
+                }
+            }
+            Biome::Highlands => {
+                if pick && f.elevation_m >= 100 {
+                    Some(Biome::Mountains)
+                } else if pick {
+                    Some(Biome::Forest)
+                } else {
+                    Some(Biome::Plains)
+                }
+            }
+            Biome::Mountains => {
+                if f.temperature < 40 {
+                    Some(Biome::SnowPeaks)
+                } else {
+                    Some(Biome::Highlands)
+                }
+            }
+            Biome::SnowPeaks => Some(Biome::Mountains),
+            Biome::Ocean | Biome::Coast | Biome::Wetland => None,
+        }
+    }
+
+    /// The biome a region plays as: continental climate table, then a
+    /// compatible pocket when the pocket field is strong.
     pub fn biome(&self, region: RegionCoord) -> Biome {
         let f = self.macro_field(region);
-        self.biome_of(&f)
+        let base = self.biome_of(&f);
+        let u = region.x as f64 + 0.5;
+        let v = region.z as f64 + 0.5;
+        match self.pocket_override(base, &f, self.pocket_strength(u, v)) {
+            Some(p) => p,
+            None => base,
+        }
     }
 
     /// THE shared height function: surface height in millimeters at world
@@ -509,8 +569,10 @@ mod tests {
     }
 
     /// Field/biome coherence across many seeds over a 80×80-region sweep
-    /// (wide enough to cross continental bands): the table reads as
-    /// terrain, and the major biomes are all reachable.
+    /// (wide enough to cross continental bands): elevation / cold rules
+    /// still bind Ocean/Coast/peaks; Forest/Plains/Wetland may be pocket
+    /// enclaves so humidity thresholds are not re-checked against the
+    /// played biome.
     #[test]
     fn p3d103_biomes_are_coherent_with_fields() {
         let mut seen = std::collections::BTreeSet::new();
@@ -518,22 +580,28 @@ mod tests {
             let g = WorldGen::new(seed.wrapping_mul(0x9E3779B97F4A7C15));
             for x in -40..=40 {
                 for z in -40..=40 {
-                    let f = g.macro_field(RegionCoord { x, z });
-                    let b = g.biome_of(&f);
+                    let r = RegionCoord { x, z };
+                    let f = g.macro_field(r);
+                    let b = g.biome(r);
                     seen.insert(b);
                     match b {
                         Biome::Ocean => assert!(f.elevation_m < SEA_LEVEL_M),
                         Biome::Coast => assert!(f.elevation_m <= SEA_LEVEL_M + 2),
                         Biome::SnowPeaks => {
-                            assert!(f.elevation_m >= 128 && f.temperature < 35)
+                            assert!(f.elevation_m >= 72, "snow stays high ground")
                         }
-                        Biome::Mountains => assert!(f.elevation_m >= 128),
-                        Biome::Highlands => assert!((72..128).contains(&f.elevation_m)),
+                        Biome::Mountains => {
+                            assert!(f.elevation_m >= 72, "mountains stay high ground")
+                        }
+                        Biome::Highlands => {
+                            assert!(f.elevation_m >= 40, "highlands are not coastal flats")
+                        }
                         Biome::Wetland => {
-                            assert!(f.humidity >= 85 && f.elevation_m <= SEA_LEVEL_M + 12)
+                            assert!(f.elevation_m <= SEA_LEVEL_M + 24, "wetland stays low")
                         }
-                        Biome::Forest => assert!(f.humidity >= 55),
-                        Biome::Plains => {}
+                        Biome::Forest | Biome::Plains => {
+                            assert!(f.elevation_m > SEA_LEVEL_M + 2, "land biomes are land");
+                        }
                     }
                 }
             }
@@ -570,6 +638,105 @@ mod tests {
                 assert!((a - c).abs() * 2 <= full_range, "z-step {a}->{c}");
             }
         }
+    }
+
+    /// Climate belts read as countries: an inland land region's biome is
+    /// shared by a majority of its ±6 neighborhood (dual-scale layout).
+    #[test]
+    fn p3d103_climate_belts_are_countries() {
+        let mut passes = 0;
+        for seed in [3u64, 42, 777, 31415, 0xC0FFEE] {
+            let g = WorldGen::new(seed);
+            // Probe a lattice of inland candidates; take the first land
+            // region that isn't a lone pocket (has ≥3 same-biome neighbors
+            // in the 8-ring) as the country sample center.
+            'seeds: for ox in [-20, 0, 20, 40] {
+                for oz in [-20, 0, 20] {
+                    let center = RegionCoord { x: ox, z: oz };
+                    let b = g.biome(center);
+                    if matches!(b, Biome::Ocean | Biome::Coast) {
+                        continue;
+                    }
+                    let mut same = 0;
+                    let mut total = 0;
+                    for dx in -6..=6 {
+                        for dz in -6..=6 {
+                            let r = RegionCoord {
+                                x: center.x + dx,
+                                z: center.z + dz,
+                            };
+                            total += 1;
+                            if g.biome(r) == b {
+                                same += 1;
+                            }
+                        }
+                    }
+                    if same * 100 / total >= 55 {
+                        passes += 1;
+                        break 'seeds;
+                    }
+                }
+            }
+        }
+        assert!(
+            passes >= 4,
+            "expected climate countries on most seeds, only {passes}/5 held"
+        );
+    }
+
+    /// Compatible enclaves exist: inland land regions whose biome differs
+    /// from the mode of their 8-neighbors (pockets inside countries).
+    #[test]
+    fn p3d103_compatible_pockets_exist() {
+        let mut enclaves = 0;
+        for seed in [3u64, 42, 777, 31415] {
+            let g = WorldGen::new(seed);
+            for x in -30..=30 {
+                for z in -30..=30 {
+                    let r = RegionCoord { x, z };
+                    let b = g.biome(r);
+                    if matches!(b, Biome::Ocean | Biome::Coast) {
+                        continue;
+                    }
+                    let mut counts: [(Biome, u32); 8] = [
+                        (Biome::Plains, 0),
+                        (Biome::Forest, 0),
+                        (Biome::Wetland, 0),
+                        (Biome::Highlands, 0),
+                        (Biome::Mountains, 0),
+                        (Biome::SnowPeaks, 0),
+                        (Biome::Ocean, 0),
+                        (Biome::Coast, 0),
+                    ];
+                    for (dx, dz) in [
+                        (-1, 0),
+                        (1, 0),
+                        (0, -1),
+                        (0, 1),
+                        (-1, -1),
+                        (-1, 1),
+                        (1, -1),
+                        (1, 1),
+                    ] {
+                        let nb = g.biome(RegionCoord {
+                            x: r.x + dx,
+                            z: r.z + dz,
+                        });
+                        if let Some(slot) = counts.iter_mut().find(|(k, _)| *k == nb) {
+                            slot.1 += 1;
+                        }
+                    }
+                    let mode = counts.iter().max_by_key(|(_, c)| *c).map(|(k, _)| *k);
+                    if mode.is_some_and(|m| m != b && !matches!(m, Biome::Ocean | Biome::Coast)) {
+                        enclaves += 1;
+                    }
+                }
+            }
+        }
+        assert!(
+            enclaves >= 40,
+            "expected compatible pockets across seeds, found {enclaves}"
+        );
     }
 
     /// The height function is GLOBAL: the same world column sampled from

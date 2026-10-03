@@ -1,0 +1,30 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_dig-dev",
+  "commands": [
+    "--observe route_dig"
+  ],
+  "diff_paths": [],
+  "digest": "a4a6de5c3908c196",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_dig",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [
+    "dig_before.png",
+    "dig_after.png",
+    "on_terrace.png",
+    "terrace_back.png"
+  ],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

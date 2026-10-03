@@ -199,6 +199,23 @@ pub fn stock_line(inv: &Inventory) -> String {
     }
 }
 
+/// Per-slot lines for the pack panel (K): numbered, empty slots shown as —.
+pub fn pack_slot_lines(inv: &Inventory) -> Vec<String> {
+    inv.slots
+        .iter()
+        .enumerate()
+        .map(|(i, s)| match s {
+            Some(st) => format!(
+                "{:>2}. {} ×{}",
+                i + 1,
+                item_name(st.item).to_uppercase(),
+                st.count
+            ),
+            None => format!("{:>2}. —", i + 1),
+        })
+        .collect()
+}
+
 /// Harvest yields for digging a terrain material with a tool tier.
 /// Bare hands (None) gather Soil/Sand/Snow but not Stone; any pick takes
 /// Stone. Wood yields from Soil/Grass surfaces (trees).

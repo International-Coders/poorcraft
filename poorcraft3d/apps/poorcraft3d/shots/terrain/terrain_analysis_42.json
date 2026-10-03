@@ -1,0 +1,15 @@
+{
+  "biomes": [
+    {
+      "biome": "forest",
+      "mean_elevation_m": 43.70000076293945,
+      "mean_slope_pct": 0.800000011920929,
+      "regions": 576,
+      "roughness_pct": 0.5
+    }
+  ],
+  "build_hash": "dev",
+  "seed": 42,
+  "version": 1,
+  "window_regions": 24
+}

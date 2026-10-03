@@ -32,7 +32,7 @@ pub enum ForgeState {
 }
 
 /// One forge.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Forge {
     pub fuel_milli: i64,
     pub water_milli: i64,
@@ -135,6 +135,34 @@ impl Forge {
             ForgeState::Heating
         }
     }
+
+    /// Fixed 42-byte payload for slice save (VS V6).
+    pub fn encode(&self) -> [u8; 42] {
+        let mut b = [0u8; 42];
+        b[0..8].copy_from_slice(&self.fuel_milli.to_le_bytes());
+        b[8..16].copy_from_slice(&self.water_milli.to_le_bytes());
+        b[16..24].copy_from_slice(&self.heat_milli.to_le_bytes());
+        b[24] = self.ore;
+        b[25] = self.bars;
+        b[26..34].copy_from_slice(&self.lifetime_bars.to_le_bytes());
+        b[34..42].copy_from_slice(&self.lifetime_fuel_burned.to_le_bytes());
+        b
+    }
+
+    pub fn decode(bytes: &[u8]) -> Option<Forge> {
+        if bytes.len() < 42 {
+            return None;
+        }
+        Some(Forge {
+            fuel_milli: i64::from_le_bytes(bytes[0..8].try_into().ok()?),
+            water_milli: i64::from_le_bytes(bytes[8..16].try_into().ok()?),
+            heat_milli: i64::from_le_bytes(bytes[16..24].try_into().ok()?),
+            ore: bytes[24],
+            bars: bytes[25],
+            lifetime_bars: u64::from_le_bytes(bytes[26..34].try_into().ok()?),
+            lifetime_fuel_burned: i64::from_le_bytes(bytes[34..42].try_into().ok()?),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +212,22 @@ mod tests {
         let mut f = Forge::default();
         assert!(f.load_ore(ORE_SLOTS));
         assert!(!f.load_ore(1), "no overfilling the ore slots");
+    }
+
+    #[test]
+    fn forge_encode_round_trips() {
+        let mut f = Forge::default();
+        f.load_fuel(1500, 800);
+        f.load_ore(2);
+        for _ in 0..10 {
+            f.tick();
+        }
+        let back = Forge::decode(&f.encode()).expect("decode");
+        assert_eq!(f.fuel_milli, back.fuel_milli);
+        assert_eq!(f.ore, back.ore);
+        assert_eq!(f.bars, back.bars);
+        assert_eq!(f.heat_milli, back.heat_milli);
+        assert_eq!(f.lifetime_bars, back.lifetime_bars);
     }
 
     #[test]
