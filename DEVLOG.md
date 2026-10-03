@@ -10580,3 +10580,39 @@ draw calls are still one-per-patch per pass (the ring-megabuffer design
 is the next frame-time lever); regenerate_patch got 60% slower from the
 richer noise (accepted: ocean invariant, warm meshing still 10.7x);
 Windows exe honestly skipped (mingw absent).
+
+## 2026-10-03 — P3D Beta 0.2 plan: "The Wide World" (planning job — docs only, by owner request)
+
+WHAT: The owner asked for a followable plan to Beta 0.2: 10× assets and
+functions, the map as big as originally wanted, a much better menu/HUD,
+and an engine prepared for many future additions. Deliverable is the plan
+document; no code shipped in this pass (stated plainly — the ground rule
+stands for progress claims, and this job claims none).
+
+HOW: Grounded in the design pack (04/15/18 for world scale, 08 + WT-002/
+WT-005 for assets, 02/06/07 for functions, 22 + the UI guide for the
+shell, 03/09/13/16 for engine rules) plus the measured truth in STATE.md.
+Key grounding: no km² target was ever owner-pinned — D-026 (capitals
+10–25 min apart) is the owned size answer, and the biome spec's
+scale-up checklist is the approved path to it; 1,327 GLBs exist but only
+~47 are wired (the 08-doc gate makes "wired" the only honest count); the
+H1 queue is exactly the designed-but-unplayed list.
+
+DELIVERABLE: docs/POORCRAFT-3D/28-BETA-0.2-PLAN.md — five workstreams
+(W1 Wide World: version-stamped scale dials 96/320/1024 → 192/640/2048 m,
+far-horizon sky blend, six realm capitals per D-026, RiverCarve;
+W2 10× assets: wired-count metric + inventory gate, 300+ visible kinds,
+6 faction kits wired into city.rs, creatures/NPCs, the ui_100 icon set;
+W3 10× functions: the numbered Function Catalog as a battery gate, path
+choice W3.1, machines 2→10 + 40 recipes, survival verbs (fishing/cook/
+farm/sleep/armor), social depth; W4 menu/HUD: UiAssetCatalog → UiDrawList
+→ title → 9-bar HUD → menus at three proof resolutions; W5 engine doors:
+worker threads behind the bounded queues, WORLDGEN_LAYOUT_VERSION +
+catalog stamps, the P3D-506 TOML content boundary (the mod door), the
+headless authoritative host (the co-op door)). Sequenced Stage 0–5 with
+per-stage proofs; three owner decisions surfaced (scale dials, the wired-
+asset metric, the two 0.2 careers). README pack map + STATE next_task
+point at the plan.
+
+VERIFICATION: planning job — no code or test claims. All numbers in the
+plan cite the design docs or this session's measured results.

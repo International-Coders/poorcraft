@@ -12,7 +12,7 @@ This file is the living truth for `poorcraft3d/` work.
 | Horizon | **H0 Vertical-Slice Beta** (see `24-VERTICAL-SLICE-BETA.md`) |
 | Build | libs green (pc3d_world 277, pc3d_render 255); `make p3d-beta` = the full beta battery (38 stages, one report) |
 | Last measure | 2026-10-03 — engine perf: live terrain mesh warm 622 → 45-58 µs/patch (10.7-13.8×), deck mid p50 13.02 → 6.57-7.01 ms (75 → 125-145 fps); mapgen: real ridged mountains (peaks to 170 m), 28 m border dither, 130-160 m altitude snow line; observatory 19/19 routes PASS (forge + social routes repaired); fresh DMG |
-| `next_task` | **H1 step 7 — path choice (technology / magic / exploration / political) as a player-facing fork** |
+| `next_task` | **H1 step 7 — path choice as a player-facing fork** (= Beta 0.2 plan W3.1; the plan: `28-BETA-0.2-PLAN.md` — its Stage 0 meters come first) |
 
 ## VS-Beta gates (V1–V6) — current
 

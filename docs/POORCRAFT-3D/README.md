@@ -44,6 +44,7 @@ Root `STATE.md` tracks LOREFORGE only; P3D living state is `docs/POORCRAFT-3D/ST
 - `26-SYSTEM-GAP-MATRIX.md` — per-system play-path gaps and VS priority.
 - `27-ROADMAP-VS-TO-GREATEST.md` — H0 VS → H1 full beta → H2 ambition.
 - `23-HONEST-AUDIT.md` — Sep 21 baseline + post-revival pointer (do not erase).
+- `28-BETA-0.2-PLAN.md` — the Wide World plan: 10× wired assets, function catalog, six-realm map, UI shell, engine doors (sequenced + gated).
 
 ### Design pack
 
