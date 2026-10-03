@@ -9,6 +9,7 @@
 
 pub mod bounds;
 pub mod build;
+pub mod cache;
 pub mod castle;
 pub mod castle_law;
 pub mod civic;

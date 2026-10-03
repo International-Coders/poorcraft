@@ -155,6 +155,62 @@ fn main() {
                 );
             }
         }
+        Some("--gen-bench") => {
+            // PERF-106: the engine-speed microbench — regenerate_patch,
+            // the cube mesher, and the streamed surface mesher, one
+            // patch size each, windowless and deterministic. The
+            // before/after evidence for the perf pass.
+            let seed: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(4242);
+            let n: usize = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(64);
+            let gen = pc3d_world::gen::WorldGen::new(seed);
+            let coords: Vec<pc3d_world::coords::PatchCoord> = (0..n)
+                .map(|i| pc3d_world::coords::PatchCoord {
+                    x: (i % 8) as i32,
+                    y: 0,
+                    z: (i / 8) as i32,
+                })
+                .collect();
+            let _ = gen.regenerate_patch(coords[0]);
+            let t0 = std::time::Instant::now();
+            let mut digest: u64 = 0;
+            for c in &coords {
+                digest ^= gen.regenerate_patch(*c).hash();
+            }
+            let gen_us = t0.elapsed().as_secs_f64() * 1e6 / n as f64;
+            let _ = pc3d_render::terrain::mesh_patch_natural(&gen, coords[0]);
+            let t0 = std::time::Instant::now();
+            let mut tris = 0usize;
+            for c in &coords {
+                let (_v, i) = pc3d_render::terrain::mesh_patch_natural(&gen, *c);
+                tris += i.len() / 3;
+            }
+            let cube_us = t0.elapsed().as_secs_f64() * 1e6 / n as f64;
+            let rc = std::rc::Rc::new(gen);
+            let mut bench = pc3d_render::surface_stream::SurfaceMeshBench::new(&rc);
+            let _ = bench.mesh(coords[0], pc3d_world::lod::LodLevel::Full);
+            let t0 = std::time::Instant::now();
+            for c in &coords {
+                let _ = bench.mesh(*c, pc3d_world::lod::LodLevel::Full);
+            }
+            let surf_us = t0.elapsed().as_secs_f64() * 1e6 / n as f64;
+            // Warm remesh: the same patches again — the live streamer's
+            // steady state (LOD flips and edits remesh known ground; the
+            // memo hits). Cold vs warm is the cache's honest spread.
+            let t0 = std::time::Instant::now();
+            for c in &coords {
+                let _ = bench.mesh(*c, pc3d_world::lod::LodLevel::Full);
+            }
+            let surf_warm_us = t0.elapsed().as_secs_f64() * 1e6 / n as f64;
+            let gen2 = pc3d_world::gen::WorldGen::new(seed);
+            let t0 = std::time::Instant::now();
+            for c in &coords {
+                let (_v, _i) = pc3d_render::terrain::mesh_patch_natural(&gen2, *c);
+            }
+            let cube_warm_us = t0.elapsed().as_secs_f64() * 1e6 / n as f64;
+            println!(
+                "GEN BENCH seed {seed} over {n} patches: regenerate {gen_us:.0} us/patch · cube-mesh {cube_us:.0} us/patch (warm {cube_warm_us:.0}) ({tris} tris) · surface-mesh-full {surf_us:.0} us/patch (warm {surf_warm_us:.0}) · digest {digest:016x}"
+            );
+        }
         Some("--debug-overlay") => {
             // P3D-207: per-patch debug rows + a visual LOD-ring atlas.
             let seed: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(1);

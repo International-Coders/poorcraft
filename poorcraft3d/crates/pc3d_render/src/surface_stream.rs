@@ -82,6 +82,9 @@ struct Slot {
 
 pub struct SurfaceStreamer {
     gen: Rc<WorldGen>,
+    /// The generator memo (PERF-101): biome/surface answers shared across
+    /// every mesh this streamer builds — value-identical, never recomputed.
+    cache: pc3d_world::cache::GenCache,
     max_mesh_per_frame: usize,
     gpu_byte_budget: usize,
     tiers: &'static [Tier],
@@ -99,6 +102,7 @@ pub struct SurfaceStreamer {
 impl SurfaceStreamer {
     pub fn new(gen: Rc<WorldGen>, tiers: &'static [Tier], y_level: i32) -> Self {
         Self {
+            cache: pc3d_world::cache::GenCache::new(),
             gen,
             max_mesh_per_frame: 2,
             gpu_byte_budget: 24 * 1024 * 1024,
@@ -193,7 +197,8 @@ impl SurfaceStreamer {
 
     /// Rebuilds a SurfacePatch from the generator + the stored deltas.
     fn patch_with_deltas(&self, coord: PatchCoord) -> crate::surface::SurfacePatch {
-        let mut p = crate::surface::SurfacePatch::build(&self.gen, coord);
+        let mut p =
+            crate::surface::SurfacePatch::build_cached(&self.cache, &self.gen, coord);
         if let Some(deltas) = self.deltas.get(&coord) {
             for (i, d) in deltas {
                 p.delta[*i as usize] = *d;
@@ -467,7 +472,7 @@ impl SurfaceStreamer {
 
     /// Meshes one patch at an LOD grid resolution with a 2 m skirt around
     /// all four edges (seam-safe at any LOD boundary — no stitching).
-    fn mesh_patch(&self, coord: PatchCoord, lod: LodLevel) -> (Vec<SceneVertex>, Vec<u32>) {
+    pub(crate) fn mesh_patch(&self, coord: PatchCoord, lod: LodLevel) -> (Vec<SceneVertex>, Vec<u32>) {
         let p = self.patch_with_deltas(coord);
         let n = grid_for(lod);
         let step = PATCH_M / (n - 1) as f32;
@@ -491,16 +496,10 @@ impl SurfaceStreamer {
             let wz = oz + (gz as f32 + 0.5) * step;
             let wx_mm = (wx * 1000.0) as i64;
             let wz_mm = (wz * 1000.0) as i64;
-            let surface_mm = self.gen.effective_surface_mm(wx_mm, wz_mm);
-            crate::terrain::terrain_albedo(
-                pc3d_world::terrain::final_solid(
-                    &self.gen,
-                    wx_mm,
-                    surface_mm.saturating_sub(500),
-                    wz_mm,
-                )
-                .material,
-            )
+            // The memoized surface sample (PERF-101): one surface + one
+            // biome + one carve per cell, shared across every mesh this
+            // streamer builds — value-identical to the direct queries.
+            crate::terrain::terrain_albedo(self.cache.surface_material(&self.gen, wx_mm, wz_mm))
         };
         let mut verts: Vec<SceneVertex> = Vec::with_capacity(n * n + 4 * n);
         let mut grid_idx = vec![0u32; n * n];
@@ -515,6 +514,27 @@ impl SurfaceStreamer {
             }
         }
         let mut idx: Vec<u32> = Vec::with_capacity((n - 1) * (n - 1) * 6 + 4 * (n - 1) * 6);
+        // Facet normal for one 6-index group's FIRST triangle, written to
+        // its three verts (PERF-107: computed inline at emit time — the
+        // old code re-walked every index group in a second full pass;
+        // same values, same order, half the index walk).
+        let facet_normal = |verts: &mut Vec<SceneVertex>, g: [u32; 3]| {
+            let a = verts[g[0] as usize].pos;
+            let b = verts[g[1] as usize].pos;
+            let c = verts[g[2] as usize].pos;
+            let e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+            let e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+            let nn = [
+                e1[1] * e2[2] - e1[2] * e2[1],
+                e1[2] * e2[0] - e1[0] * e2[2],
+                e1[0] * e2[1] - e1[1] * e2[0],
+            ];
+            let l = nn.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-9);
+            let nn = [nn[0] / l, nn[1] / l, nn[2] / l];
+            for vi in g {
+                verts[vi as usize].normal = nn;
+            }
+        };
         // Surface triangles (CCW from above — the NWR-003 lesson).
         for gz in 0..n - 1 {
             for gx in 0..n - 1 {
@@ -523,6 +543,8 @@ impl SurfaceStreamer {
                 let i01 = grid_idx[(gz + 1) * n + gx];
                 let i11 = grid_idx[(gz + 1) * n + gx + 1];
                 idx.extend_from_slice(&[i00, i11, i10, i00, i01, i11]);
+                facet_normal(&mut verts, [i00, i11, i10]);
+                facet_normal(&mut verts, [i00, i01, i11]);
             }
         }
         // Skirt walls per edge (outward-wound so they render from
@@ -569,26 +591,7 @@ impl SurfaceStreamer {
                     color: cb,
                 });
                 idx.extend_from_slice(&[ia, ib2, ib, ia, ia2, ib2]);
-            }
-        }
-        // Facet normals for the surface triangles.
-        for t in 0..idx.len() / 6 {
-            let base = t * 6;
-            let tri = [idx[base], idx[base + 1], idx[base + 2]];
-            let a = verts[tri[0] as usize].pos;
-            let b = verts[tri[1] as usize].pos;
-            let c = verts[tri[2] as usize].pos;
-            let e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-            let e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-            let nn = [
-                e1[1] * e2[2] - e1[2] * e2[1],
-                e1[2] * e2[0] - e1[0] * e2[2],
-                e1[0] * e2[1] - e1[1] * e2[0],
-            ];
-            let l = nn.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-9);
-            let nn = [nn[0] / l, nn[1] / l, nn[2] / l];
-            for vi in tri {
-                verts[vi as usize].normal = nn;
+                facet_normal(&mut verts, [ia, ib2, ib]);
             }
         }
         (verts, idx)
@@ -974,5 +977,26 @@ impl crate::player::CollisionSurface for SurfaceStreamer {
 
     fn cell_solid(&self, _gen: &WorldGen, _x: i32, _y: i32, _z: i32) -> bool {
         false // slopes gate walkability through ground_at stepping
+    }
+}
+
+/// PERF-106 bench hook: mesh patches through the ordinary streamed
+/// surface path WITHOUT a GPU (the mesh math is pure; only the upload
+/// needs a device). One bench = one streamer, exactly like live play —
+/// the generator memo persists across the patches it meshes.
+pub struct SurfaceMeshBench {
+    s: SurfaceStreamer,
+}
+
+impl SurfaceMeshBench {
+    pub fn new(gen: &std::rc::Rc<WorldGen>) -> Self {
+        Self {
+            s: SurfaceStreamer::new(gen.clone(), &[Tier::Full], 0),
+        }
+    }
+
+    pub fn mesh(&mut self, coord: PatchCoord, lod: LodLevel) -> usize {
+        let (v, _i) = self.s.mesh_patch(coord, lod);
+        v.len()
     }
 }

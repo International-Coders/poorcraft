@@ -61,6 +61,15 @@ fn sample_height(gen: &WorldGen, wx_m: f32, wz_m: f32) -> f32 {
     gen.effective_surface_mm((wx_m * 1000.0) as i64, (wz_m * 1000.0) as i64) as f32 / 1000.0
 }
 
+fn sample_height_cached(
+    cache: &pc3d_world::cache::GenCache,
+    gen: &WorldGen,
+    wx_m: f32,
+    wz_m: f32,
+) -> f32 {
+    cache.effective_surface_mm(gen, (wx_m * 1000.0) as i64, (wz_m * 1000.0) as i64) as f32 / 1000.0
+}
+
 fn sample_material(gen: &WorldGen, wx_m: f32, wz_m: f32) -> pc3d_world::gen::CellMaterial {
     // Sample the *surface* cell (top meter), not y=0. Deep underground is
     // always Rock/Soil — that made every biome dress as grey rock.
@@ -68,6 +77,17 @@ fn sample_material(gen: &WorldGen, wx_m: f32, wz_m: f32) -> pc3d_world::gen::Cel
     let wz = (wz_m * 1000.0) as i64;
     let surface_mm = gen.effective_surface_mm(wx, wz);
     pc3d_world::terrain::final_solid(gen, wx, surface_mm.saturating_sub(500), wz).material
+}
+
+fn sample_material_cached(
+    cache: &pc3d_world::cache::GenCache,
+    gen: &WorldGen,
+    wx_m: f32,
+    wz_m: f32,
+) -> pc3d_world::gen::CellMaterial {
+    let wx = (wx_m * 1000.0) as i64;
+    let wz = (wz_m * 1000.0) as i64;
+    cache.surface_material(gen, wx, wz)
 }
 
 impl SurfacePatch {
@@ -136,6 +156,8 @@ impl SurfacePatch {
 /// The 3x3 spike region: a center patch and its eight neighbors.
 pub struct SurfaceRegion {
     pub gen: WorldGen,
+    /// The generator memo shared by every patch build/mesh here (PERF-101).
+    pub(crate) cache: pc3d_world::cache::GenCache,
     pub center: PatchCoord,
     patches: std::collections::BTreeMap<(i32, i32), SurfacePatch>,
 }
@@ -145,6 +167,7 @@ impl SurfaceRegion {
     /// generator (heights + materials sampled from effective_surface_mm /
     /// final_solid — the same source the cube path reads).
     pub fn new(gen: WorldGen, center: PatchCoord) -> Self {
+        let cache = pc3d_world::cache::GenCache::new();
         let mut patches = std::collections::BTreeMap::new();
         for dx in -1..=1i32 {
             for dz in -1..=1i32 {
@@ -153,11 +176,15 @@ impl SurfaceRegion {
                     y: center.y,
                     z: center.z + dz,
                 };
-                patches.insert((coord.x, coord.z), SurfacePatch::build(&gen, coord));
+                patches.insert(
+                    (coord.x, coord.z),
+                    SurfacePatch::build_cached(&cache, &gen, coord),
+                );
             }
         }
         Self {
             gen,
+            cache,
             center,
             patches,
         }
@@ -165,6 +192,7 @@ impl SurfaceRegion {
 
     /// An empty region scaffold (for edit semantics around one patch).
     pub fn empty(gen: &WorldGen, center: PatchCoord, ring: i32) -> Self {
+        let cache = pc3d_world::cache::GenCache::new();
         let mut patches = std::collections::BTreeMap::new();
         for dx in -ring..=ring {
             for dz in -ring..=ring {
@@ -173,11 +201,15 @@ impl SurfaceRegion {
                     y: center.y,
                     z: center.z + dz,
                 };
-                patches.insert((coord.x, coord.z), SurfacePatch::build(gen, coord));
+                patches.insert(
+                    (coord.x, coord.z),
+                    SurfacePatch::build_cached(&cache, gen, coord),
+                );
             }
         }
         Self {
             gen: *gen,
+            cache,
             center,
             patches,
         }
@@ -291,7 +323,7 @@ impl SurfaceRegion {
         let mut versions = Vec::new();
         for (key, p) in &self.patches {
             versions.push((*key, p.version));
-            let (v, i) = p.mesh(&self.gen);
+            let (v, i) = p.mesh_cached(&self.cache, &self.gen);
             let base = verts.len() as u32;
             verts.extend(v);
             idx.extend(i.iter().map(|k| k + base));
@@ -302,12 +334,21 @@ impl SurfaceRegion {
 
 impl SurfacePatch {
     pub(crate) fn build(gen: &WorldGen, coord: PatchCoord) -> SurfacePatch {
+        Self::build_cached(&pc3d_world::cache::GenCache::new(), gen, coord)
+    }
+
+    /// The memoized build (PERF-101): same cells, shared answers.
+    pub(crate) fn build_cached(
+        cache: &pc3d_world::cache::GenCache,
+        gen: &WorldGen,
+        coord: PatchCoord,
+    ) -> SurfacePatch {
         let mut base = vec![0.0; GRID * GRID];
         for lz in 0..GRID {
             for lx in 0..GRID {
                 let wx = coord.x as f32 * PATCH_M + lx as f32 * STEP;
                 let wz = coord.z as f32 * PATCH_M + lz as f32 * STEP;
-                base[lz * GRID + lx] = sample_height(gen, wx, wz);
+                base[lz * GRID + lx] = sample_height_cached(cache, gen, wx, wz);
             }
         }
         SurfacePatch {
@@ -321,6 +362,15 @@ impl SurfacePatch {
     /// The patch's low-poly surface: 16x16 cells, 2 triangles each,
     /// split along the FIXED diagonal (NW-SE) for uniform facet grain.
     pub fn mesh(&self, gen: &WorldGen) -> (Vec<SceneVertex>, Vec<u32>) {
+        self.mesh_cached(&pc3d_world::cache::GenCache::new(), gen)
+    }
+
+    /// The memoized mesh (PERF-101): identical vertices, shared answers.
+    pub fn mesh_cached(
+        &self,
+        cache: &pc3d_world::cache::GenCache,
+        gen: &WorldGen,
+    ) -> (Vec<SceneVertex>, Vec<u32>) {
         let mut verts = Vec::with_capacity(GRID * GRID);
         for lz in 0..GRID {
             for lx in 0..GRID {
@@ -342,7 +392,7 @@ impl SurfacePatch {
                 // center; a facet belongs to its lower-left cell.
                 let cx = self.coord.x as f32 * PATCH_M + (lx as f32 + 0.5) * STEP;
                 let cz = self.coord.z as f32 * PATCH_M + (lz as f32 + 0.5) * STEP;
-                let color = terrain_albedo(sample_material(gen, cx, cz));
+                let color = terrain_albedo(sample_material_cached(cache, gen, cx, cz));
                 for vi in [i00, i10, i01, i11] {
                     verts[vi as usize].color = color;
                 }

@@ -392,9 +392,15 @@ impl WorldGen {
         if wy < 0 || depth_mm < 4_000 || depth_mm > 120_000 {
             return false;
         }
+        // Band A gates band B (same truth as `&&`, one 3D field cheaper):
+        // a cell outside band A can never be carved, so band B's trilinear
+        // blend (8 lattice hashes) is only paid when A already passed.
         let a = self.value_noise_3d(30, 24_000, wx, wy, wz);
+        if (a - 0.5).abs() >= 0.085 {
+            return false;
+        }
         let b = self.value_noise_3d(31, 16_000, wx, wy, wz);
-        (a - 0.5).abs() < 0.085 && (b - 0.5).abs() < 0.12
+        (b - 0.5).abs() < 0.12
     }
 
     /// Shared carving step: `regenerate_patch` and `final_solid` both call

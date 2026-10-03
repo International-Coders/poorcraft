@@ -606,6 +606,10 @@ struct HudResources {
     vertex_buffer: wgpu::Buffer,
     line: String,
     anchor: HudAnchor,
+    /// PERF-103: the texture re-rasterizes + re-uploads only when the
+    /// line changed (steady frames used to rasterize + write_texture the
+    /// same bytes 60x a second).
+    dirty: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -642,6 +646,10 @@ pub struct Renderer {
     ui_layer: Option<UiLayer>,
     /// Depth attachment for the active target (window or offscreen).
     depth: Option<wgpu::Texture>,
+    /// The sun matrix from the last prepare_frame (PERF-104): the shadow
+    /// pass culls with the same matrix the env uniform carries, computed
+    /// once. None until the first prepare (proof paths derive it).
+    last_light_vp: Option<[f32; 16]>,
     offscreen: Option<wgpu::Texture>,
     /// Host-owned construction overlay, meshed per patch (R3DV-004).
     construction: Option<crate::construction::ConstructionGpu>,
@@ -942,6 +950,7 @@ impl Renderer {
             hud,
             ui_layer: None,
             depth,
+            last_light_vp: None,
             offscreen: None,
             atmosphere: crate::atmosphere::LEGACY,
             day_phase: None,
@@ -1045,6 +1054,7 @@ impl Renderer {
             hud,
             ui_layer: None,
             depth,
+            last_light_vp: None,
             offscreen: Some(texture),
             atmosphere: crate::atmosphere::LEGACY,
             day_phase: None,
@@ -1691,7 +1701,7 @@ impl Renderer {
         };
         let viewer = [self.camera.pose.position[0], self.camera.pose.position[2]];
         let rows = crate::npcs::crowd_instances(&g, &cast.borrow(), viewer, t, 64.0);
-        crowd.upload(&self.ctx.device, &rows);
+        crowd.upload(&self.ctx.device, &self.ctx.queue, &rows);
     }
 
     /// The settlement kit draw/triangle record.
@@ -2108,11 +2118,13 @@ impl Renderer {
     pub fn set_hud_line(&mut self, line: &str) {
         self.hud.line = format!("{:<width$}", line, width = HUD_LINE_CHARS);
         self.hud.anchor = HudAnchor::TopLeft;
+        self.hud.dirty = true;
     }
 
     pub fn set_hud_text_centered(&mut self, text: &str) {
         self.hud.line = text.to_string();
         self.hud.anchor = HudAnchor::Center;
+        self.hud.dirty = true;
     }
 
     /// Uploads (or clears) the owner-facing UI layer canvas. Straight-alpha
@@ -2308,6 +2320,10 @@ impl Renderer {
             atm.shadow_res.max(1),
             atm.shadow_res > 0,
         );
+        // PERF-104: computed ONCE here — the shadow pass culls with this
+        // same matrix (it used to be re-derived a second time in
+        // encode_frame every frame).
+        self.last_light_vp = Some(lvp);
         let fog = [
             atm.fog_color[0] * (1.0 - 0.75 * night) + 0.02 * night,
             atm.fog_color[1] * (1.0 - 0.75 * night) + 0.03 * night,
@@ -2377,38 +2393,44 @@ impl Renderer {
             self.crowd_frame((t / step).floor() * step);
         }
 
-        // HUD: re-rasterize the line and refresh the quad to the target size.
-        let (bytes, tw, th) = crate::font::rasterize_text(&self.hud.line.clone(), HUD_SCALE);
-        if (tw, th) != self.hud.size {
-            self.hud.texture = create_hud_texture(&self.ctx.device, tw, th);
-            self.hud.size = (tw, th);
-            self.bg_hud = create_hud_bind_group(
-                &self.ctx.device,
-                &self.pipelines.layout_hud,
-                &self.globals_buf,
-                &self.hud.texture,
-                ui_view_format(self.format),
+        // HUD: re-rasterize the line and refresh the quad to the target
+        // size — but only when the line actually changed (PERF-103); a
+        // steady frame rewrites only the 96-byte quad.
+        if self.hud.dirty {
+            let (bytes, tw, th) = crate::font::rasterize_text(&self.hud.line.clone(), HUD_SCALE);
+            if (tw, th) != self.hud.size {
+                self.hud.texture = create_hud_texture(&self.ctx.device, tw, th);
+                self.hud.size = (tw, th);
+                self.bg_hud = create_hud_bind_group(
+                    &self.ctx.device,
+                    &self.pipelines.layout_hud,
+                    &self.globals_buf,
+                    &self.hud.texture,
+                    ui_view_format(self.format),
+                );
+            }
+            self.ctx.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.hud.texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &bytes,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(tw * 4),
+                    rows_per_image: None,
+                },
+                wgpu::Extent3d {
+                    width: tw,
+                    height: th,
+                    depth_or_array_layers: 1,
+                },
             );
+            self.hud.dirty = false;
         }
-        self.ctx.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &self.hud.texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            &bytes,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(tw * 4),
-                rows_per_image: None,
-            },
-            wgpu::Extent3d {
-                width: tw,
-                height: th,
-                depth_or_array_layers: 1,
-            },
-        );
+        let (tw, th) = self.hud.size;
         let (x0, y1, x1, y0) = hud_quad_ndc(tw, th, w, h, self.hud.anchor);
         // Six vertices = two triangles (see set_ui_layer: TriangleList
         // discards the 4th vertex, cutting the quad along its diagonal).
@@ -2589,28 +2611,40 @@ impl Renderer {
         // 0. Sun shadow pass (NWR-006): depth-only from the light's ortho
         // box (env.light_view_proj, written in prepare_frame). The whole
         // opaque world draws; the streamers cull with the LIGHT matrix.
-        let light_vp: [f32; 16] = {
-            let atm = self.atmosphere;
-            let cam = &self.camera;
-            let f = cam.fwd();
-            crate::atmosphere::light_view_proj(
-                [
-                    cam.pose.position[0] + f[0] * 45.0,
-                    cam.pose.position[1] + f[1] * 45.0,
-                    cam.pose.position[2] + f[2] * 45.0,
-                ],
-                self.sun_dir(),
-                if atm.shadow_res > 0 {
-                    atm.shadow_half_m
-                } else {
-                    1.0
-                },
-                atm.shadow_res.max(1),
-                atm.shadow_res > 0,
-            )
+        let light_vp: [f32; 16] = match self.last_light_vp {
+            Some(vp) => vp,
+            None => {
+                // Direct encode without prepare (proof paths): derive it.
+                let atm = self.atmosphere;
+                let cam = &self.camera;
+                let f = cam.fwd();
+                crate::atmosphere::light_view_proj(
+                    [
+                        cam.pose.position[0] + f[0] * 45.0,
+                        cam.pose.position[1] + f[1] * 45.0,
+                        cam.pose.position[2] + f[2] * 45.0,
+                    ],
+                    self.sun_dir(),
+                    if atm.shadow_res > 0 {
+                        atm.shadow_half_m
+                    } else {
+                        1.0
+                    },
+                    atm.shadow_res.max(1),
+                    atm.shadow_res > 0,
+                )
+            }
         };
         encoder.push_debug_group("pc3d.frame.prepare");
         self.marker_log.push("pc3d.frame.prepare");
+        // Flora streams ONCE per frame (PERF-105): the shadow and color
+        // passes draw the same upload — updating per pass burned the
+        // bounded slot-scan budget twice every frame.
+        if let (Some(f), Some(g)) = (self.flora.as_mut(), self.flora_gen.clone()) {
+            let vp = self.camera.pose.position;
+            f.update(&g, [vp[0], vp[2]]);
+            f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
+        }
         if self.atmosphere.shadow_res > 0 {
             let mut spass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("pc3d sun shadow pass"),
@@ -2666,13 +2700,10 @@ impl Renderer {
             if let Some(st) = self.settlement.as_mut() {
                 st.draw_shadow(&mut spass, &self.pipelines.flora, &self.bg_light);
             }
-            // Wilderness instances cast shadows too (NWR-007): the
-            // placement update runs here so the shadow and color passes
-            // agree even mid-stream.
-            if let (Some(f), Some(g)) = (self.flora.as_mut(), self.flora_gen.clone()) {
-                let vp = self.camera.pose.position;
-                f.update(&g, [vp[0], vp[2]]);
-                f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
+            // Wilderness instances cast shadows (NWR-007) from the upload
+            // taken once before this pass (PERF-105) — shadow and color
+            // passes still agree mid-stream.
+            if let Some(f) = self.flora.as_mut() {
                 f.draw_shadow(&mut spass, &self.pipelines.flora, &self.bg_light);
             }
         }
@@ -2791,10 +2822,7 @@ impl Renderer {
         // 2b4b..2b4d: instanced world content (flora, crowd, settlement
         // kit) — the asset-instances pass continuation.
         self.mark(&mut pass, "pc3d.pass.assets");
-        if let (Some(f), Some(g)) = (self.flora.as_mut(), self.flora_gen.clone()) {
-            let vp = self.camera.pose.position;
-            f.update(&g, [vp[0], vp[2]]);
-            f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
+        if let Some(f) = self.flora.as_mut() {
             f.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
             self.draw_calls += 1;
         }
@@ -2857,16 +2885,30 @@ impl Renderer {
 /// The uploaded crowd: per part color, a colored box mesh + its
 /// instance buffer (a whole crowd is one draw per color, <= ~8 draws).
 struct CrowdGpu {
-    /// (vertices, indices, instances, index count, instance count)
-    buckets: Vec<(wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, u32, u32)>,
+    /// Persistent per-color pool (PERF-102): the colored box mesh and a
+    /// growing instance buffer live for the session; a frame re-writes
+    /// instance data (queue.write_buffer) instead of recreating every
+    /// buffer 60x a second.
+    pool: std::collections::BTreeMap<crate::npcs::PartColor, CrowdPoolEntry>,
+    /// This frame's drawn buckets, in PartColor order.
+    active: Vec<(crate::npcs::PartColor, u32)>,
     pub draws: usize,
     pub instances: usize,
+}
+
+struct CrowdPoolEntry {
+    vb: wgpu::Buffer,
+    ib: wgpu::Buffer,
+    idx_count: u32,
+    inst: wgpu::Buffer,
+    inst_cap: usize,
 }
 
 impl CrowdGpu {
     fn new(_device: &wgpu::Device) -> Self {
         Self {
-            buckets: Vec::new(),
+            pool: std::collections::BTreeMap::new(),
+            active: Vec::new(),
             draws: 0,
             instances: 0,
         }
@@ -2875,44 +2917,65 @@ impl CrowdGpu {
     fn upload(
         &mut self,
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         rows: &std::collections::BTreeMap<crate::npcs::PartColor, Vec<crate::npcs::BoxInstance>>,
     ) {
         use wgpu::util::DeviceExt;
-        // One colored box mesh per present part color.
-        let (verts, idx) = crate::npcs::unit_box_mesh();
-        let mut buckets = Vec::new();
+        self.active.clear();
         let mut instances = 0usize;
         for (color, list) in rows {
             if list.is_empty() {
                 continue;
             }
-            let colored: Vec<SceneVertex> = verts
-                .iter()
-                .map(|v| SceneVertex {
-                    pos: v.pos,
-                    normal: v.normal,
-                    color: color.albedo(),
-                })
-                .collect();
-            let vb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("crowd box vertices"),
-                contents: bytemuck::cast_slice(&colored),
-                usage: wgpu::BufferUsages::VERTEX,
+            let entry = self.pool.entry(*color).or_insert_with(|| {
+                // One colored box mesh per part color — built once; the
+                // palette is fixed for the session.
+                let (verts, idx) = crate::npcs::unit_box_mesh();
+                let colored: Vec<SceneVertex> = verts
+                    .iter()
+                    .map(|v| SceneVertex {
+                        pos: v.pos,
+                        normal: v.normal,
+                        color: color.albedo(),
+                    })
+                    .collect();
+                CrowdPoolEntry {
+                    vb: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("crowd box vertices"),
+                        contents: bytemuck::cast_slice(&colored),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    }),
+                    ib: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("crowd box indices"),
+                        contents: bytemuck::cast_slice(&idx),
+                        usage: wgpu::BufferUsages::INDEX,
+                    }),
+                    idx_count: idx.len() as u32,
+                    inst: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("crowd instances"),
+                        contents: bytemuck::cast_slice(list),
+                        // COPY_DST: every later frame re-writes instance
+                        // data through queue.write_buffer (PERF-102).
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    }),
+                    inst_cap: list.len(),
+                }
             });
-            let ib = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("crowd box indices"),
-                contents: bytemuck::cast_slice(&idx),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-            let inst = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("crowd instances"),
-                contents: bytemuck::cast_slice(list),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+            if list.len() > entry.inst_cap {
+                // Grow with headroom; only the used prefix is written.
+                let cap = list.len().max(entry.inst_cap * 2);
+                entry.inst = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("crowd instances"),
+                    size: (cap * std::mem::size_of::<crate::npcs::BoxInstance>()) as u64,
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                entry.inst_cap = cap;
+            }
+            queue.write_buffer(&entry.inst, 0, bytemuck::cast_slice(list));
             instances += list.len();
-            buckets.push((vb, ib, inst, idx.len() as u32, list.len() as u32));
+            self.active.push((*color, list.len() as u32));
         }
-        self.buckets = buckets;
         self.instances = instances;
     }
 
@@ -2922,17 +2985,24 @@ impl CrowdGpu {
         pipelines: &FloraPipelines,
         bg_globals: &wgpu::BindGroup,
     ) {
+        if self.active.is_empty() {
+            self.draws = 0;
+            return;
+        }
         pass.set_pipeline(&pipelines.inst_box);
         pass.set_bind_group(0, bg_globals, &[]);
         let mut draws = 0usize;
-        for (vb, ib, inst, ic, n) in &self.buckets {
+        for (color, n) in &self.active {
+            let Some(entry) = self.pool.get(color) else {
+                continue;
+            };
             if *n == 0 {
                 continue;
             }
-            pass.set_vertex_buffer(0, vb.slice(..));
-            pass.set_vertex_buffer(1, inst.slice(..));
-            pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint16);
-            pass.draw_indexed(0..*ic, 0, 0..*n);
+            pass.set_vertex_buffer(0, entry.vb.slice(..));
+            pass.set_vertex_buffer(1, entry.inst.slice(..));
+            pass.set_index_buffer(entry.ib.slice(..), wgpu::IndexFormat::Uint16);
+            pass.draw_indexed(0..entry.idx_count, 0, 0..*n);
             draws += 1;
         }
         self.draws = draws;
@@ -3178,6 +3248,7 @@ fn create_hud(device: &wgpu::Device, _layout: &wgpu::BindGroupLayout) -> HudReso
         vertex_buffer,
         line: String::new(),
         anchor: HudAnchor::TopLeft,
+        dirty: true,
     }
 }
 

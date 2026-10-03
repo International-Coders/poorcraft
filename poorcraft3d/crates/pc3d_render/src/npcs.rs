@@ -792,7 +792,7 @@ mod tests {
 // ---------------------------------------------------------------------------
 
 /// Part colors (bucket keys — one draw per color for the whole crowd).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PartColor {
     Legs,
     Skin,

@@ -101,6 +101,10 @@ pub fn mesh_patch_lod(
     // every cell and face neighbor costs exactly ONE final_solid call
     // (direct meshing asks ~7x more). The cache IS the authoritative
     // answer — the consistency tests verify it against direct queries.
+    // The generator memo (PERF-101) sits underneath: the 18 cells of one
+    // column share ONE surface answer, and the whole patch shares its
+    // region biome — value-identical, a fraction of the re-derivation.
+    let gen_cache = pc3d_world::cache::GenCache::new();
     let stride = (n + 2) as usize;
     let mut cache = vec![
         pc3d_world::terrain::SolidAnswer {
@@ -117,7 +121,7 @@ pub fn mesh_patch_lod(
                     y: base.1 + by as i32 - 1,
                     z: base.2 + bz as i32 - 1,
                 };
-                let a = final_solid(
+                let a = gen_cache.final_solid(
                     gen,
                     cell.x as i64 * CELL_MM,
                     cell.y as i64 * CELL_MM,
