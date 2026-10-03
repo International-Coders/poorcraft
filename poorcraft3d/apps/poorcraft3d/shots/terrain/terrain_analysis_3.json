@@ -1,18 +1,32 @@
 {
   "biomes": [
     {
+      "biome": "plains",
+      "mean_elevation_m": 88.19999694824219,
+      "mean_slope_pct": 4.0,
+      "regions": 8,
+      "roughness_pct": 1.2000000476837158
+    },
+    {
       "biome": "forest",
-      "mean_elevation_m": 67.4000015258789,
-      "mean_slope_pct": 2.0999999046325684,
-      "regions": 49,
-      "roughness_pct": 0.30000001192092896
+      "mean_elevation_m": 65.9000015258789,
+      "mean_slope_pct": 2.5,
+      "regions": 27,
+      "roughness_pct": 1.0
     },
     {
       "biome": "highlands",
-      "mean_elevation_m": 95.4000015258789,
-      "mean_slope_pct": 1.399999976158142,
-      "regions": 527,
-      "roughness_pct": 0.6000000238418579
+      "mean_elevation_m": 103.30000305175781,
+      "mean_slope_pct": 4.199999809265137,
+      "regions": 450,
+      "roughness_pct": 2.200000047683716
+    },
+    {
+      "biome": "mountains",
+      "mean_elevation_m": 137.5,
+      "mean_slope_pct": 4.400000095367432,
+      "regions": 91,
+      "roughness_pct": 2.0
     }
   ],
   "build_hash": "dev",

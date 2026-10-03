@@ -603,34 +603,66 @@ mod tests_support {
 
     #[test]
     fn conforming_water_follows_surface_and_remeshes_locally() {
-        let (gen, r) = region();
-        let graph = RiverGraph::new(&gen, 8);
+        // Rivers converge with upstream area: the watershed needs a wide
+        // band before any edge gathers RIVER_THRESHOLD discharge, so the
+        // graph spans 16 regions; the tested region lives AT the river so
+        // the local-edit law exercises the water's own ground.
+        let (gen, _scene) = region();
+        let graph = RiverGraph::new(&gen, 16);
         let flow = FlowTable::from_graph(&graph);
-        // Find a river region near the scene.
         let mut center = RegionCoord { x: 0, z: 0 };
-        'find: for x in -8..=8 {
-            for z in -8..=8 {
+        let mut best = i32::MAX;
+        let mut found = false;
+        for x in -15..=15 {
+            for z in -15..=15 {
                 let reg = RegionCoord { x, z };
                 if let Some(d) = graph.downstream(reg) {
                     if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
-                        center = reg;
-                        break 'find;
+                        let dist = x.abs() + z.abs();
+                        if dist < best {
+                            best = dist;
+                            center = reg;
+                            found = true;
+                        }
                     }
                 }
             }
         }
+        assert!(found, "a river region exists within 15 regions of origin");
+        let river_patch = PatchCoord {
+            x: center.x * 16 + 8,
+            y: {
+                let cx = (center.x * 256 + 128) as i64 * 1000;
+                let cz = (center.z * 256 + 128) as i64 * 1000;
+                gen.effective_surface_mm(cx, cz).div_euclid(16_000) as i32
+            },
+            z: center.z * 16 + 8,
+        };
+        let r = crate::surface::SurfaceRegion::new(gen, river_patch);
+        let gen = r.gen;
         let mut water = ConformingWater::build(&gen, &graph, &flow, center, &r);
         assert!(!water.sections.is_empty(), "sections built near a river");
         let total = water.sections.len();
-        // Terrain edit near one section's strip: only nearby sections
-        // refresh (LOCAL), the rest keep their heights.
+        // Terrain edit ON one section's own strip (the section's flow
+        // direction picks the side): only nearby sections refresh
+        // (LOCAL), the rest keep their heights.
         let s0 = &water.sections[0];
         let ox = (s0.region.0 as f32 + 0.5) * 256.0;
         let oz = (s0.region.1 as f32 + 0.5) * 256.0;
+        let strip_dir = match s0.direction {
+            0 => [1.0f32, 0.0],
+            1 => [1.0, 1.0],
+            2 => [0.0, 1.0],
+            3 => [-1.0, 1.0],
+            4 => [-1.0, 0.0],
+            5 => [-1.0, -1.0],
+            6 => [0.0, -1.0],
+            _ => [1.0, -1.0],
+        };
         let edit_patch = PatchCoord {
-            x: ((ox + 64.0) / PATCH_M).floor() as i32,
+            x: ((ox + strip_dir[0] * 96.0) / PATCH_M).floor() as i32,
             y: r.center.y,
-            z: ((oz + 64.0) / PATCH_M).floor() as i32,
+            z: ((oz + strip_dir[1] * 96.0) / PATCH_M).floor() as i32,
         };
         let mut edited = std::collections::BTreeSet::new();
         edited.insert(edit_patch);

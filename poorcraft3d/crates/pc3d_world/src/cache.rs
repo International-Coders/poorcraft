@@ -95,8 +95,7 @@ impl GenCache {
     /// repeated biome/surface re-derivation.
     pub fn final_solid(&self, gen: &WorldGen, wx: i64, wy: i64, wz: i64) -> SolidAnswer {
         let surface_mm = self.effective_surface_mm(gen, wx, wz);
-        let region = crate::coords::WorldPos::from_mm(wx, wy, wz).region();
-        let biome = self.biome(gen, region);
+        let biome = gen.surface_biome_with(wx, wz, surface_mm, |r| self.biome(gen, r));
         let depth_mm = surface_mm - wy;
         let material = gen.carve(crate::gen::cell_material(biome, wy, surface_mm), wx, wy, wz, depth_mm);
         SolidAnswer {

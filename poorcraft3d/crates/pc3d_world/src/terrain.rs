@@ -32,11 +32,11 @@ pub struct SolidAnswer {
 
 /// The single authoritative final-solid query: pure, deterministic,
 /// O(1). Guaranteed to agree with regenerated/stored patch cells because
-/// both call the same `gen::cell_material` decision.
+/// both call the same `gen::cell_material` decision over the same
+/// ground-biome answer (MAPGEN-101: the column dither included).
 pub fn final_solid(gen: &WorldGen, wx: i64, wy: i64, wz: i64) -> SolidAnswer {
     let surface_mm = gen.effective_surface_mm(wx, wz);
-    let region = WorldPos::from_mm(wx, wy, wz).region();
-    let biome = gen.biome(region);
+    let biome = gen.surface_biome(wx, wz, surface_mm);
     let depth_mm = surface_mm - wy;
     let material = gen.carve(cell_material(biome, wy, surface_mm), wx, wy, wz, depth_mm);
     SolidAnswer {
@@ -102,43 +102,94 @@ impl SceneSpec {
         }
     }
 
-    /// The (seed, patch) each scene extracts — REGION-CENTER patches (the
-    /// +8 offsets) at the y-level containing the analytic surface (probed:
-    /// hills surface 23.3 m, highlands 89.7 m, coast +2.4 m). The
-    /// alignment + fidelity tests guard these pins.
+    /// The (seed, patch) each scene extracts — found by a DETERMINISTIC
+    /// SEEK per scene contract, not hand-pinned coordinates (the
+    /// generator may be retuned; the scenes must track it). The y level
+    /// is derived from the surface at the patch center (the same rule
+    /// the Cliff seek uses). The alignment + fidelity tests guard the
+    /// seeks.
     pub fn patch(self) -> (u64, PatchCoord) {
+        const SEEK_SEED: u64 = 3;
+        /// Patch at a 400 m-grid seek point, y-level from the surface.
+        fn patch_at(gen: &crate::gen::WorldGen, x_m: i64, z_m: i64) -> PatchCoord {
+            let surface = gen.effective_surface_mm(x_m * 1000, z_m * 1000);
+            PatchCoord {
+                x: x_m.div_euclid(16) as i32,
+                y: surface.div_euclid(16_000) as i32,
+                z: z_m.div_euclid(16) as i32,
+            }
+        }
+        /// Deterministic 400 m-grid sweep (the Cliff seek's lattice).
+        fn seek(
+            gen: &crate::gen::WorldGen,
+            accept: impl Fn(i64, i64) -> bool,
+        ) -> (i64, i64) {
+            for r in 0..=20_000i64 {
+                for (x, z) in [
+                    (r, 0),
+                    (-r, 0),
+                    (0, r),
+                    (0, -r),
+                    (r, r),
+                    (-r, -r),
+                    (r, -r),
+                    (-r, r),
+                ] {
+                    if x.rem_euclid(400) != 0 || z.rem_euclid(400) != 0 {
+                        continue;
+                    }
+                    if accept(x, z) {
+                        return (x, z);
+                    }
+                }
+            }
+            unreachable!("every scene band must exist (proven by gen tests)");
+        }
         match self {
-            SceneSpec::SmoothHills => (
-                3,
-                PatchCoord {
-                    x: -60 * 16 + 8,
-                    y: 1,
-                    z: -31 * 16 + 8,
-                },
-            ),
-            SceneSpec::Highlands => (
-                3,
-                PatchCoord {
-                    x: -9 * 16 + 8,
-                    y: 5,
-                    z: -12 * 16 + 8,
-                },
-            ),
-            SceneSpec::Coast => (
-                3,
-                PatchCoord {
-                    x: -60 * 16 + 8,
-                    y: 0,
-                    z: -11 * 16 + 8,
-                },
-            ),
+            SceneSpec::SmoothHills => {
+                let gen = crate::gen::WorldGen::new(SEEK_SEED);
+                // Rolling hills: land, modestly above the sea, gentle.
+                let (x, z) = seek(&gen, |x, z| {
+                    let s = gen.effective_surface_mm(x * 1000, z * 1000);
+                    if !(10_000..=40_000).contains(&s) {
+                        return false;
+                    }
+                    // No cliff terraces in the hills scene.
+                    if gen.cliff_mask(x * 1000, z * 1000) > 0.6 {
+                        return false;
+                    }
+                    // Gently rolling, not a plain: a neighbor cell
+                    // (100 m away) may drop or climb up to 20 m — enough
+                    // relief for slopes to read, never a wall.
+                    for (dx, dz) in [(100i64, 0), (-100, 0), (0, 100), (0, -100)] {
+                        let n = gen.effective_surface_mm((x + dx) * 1000, (z + dz) * 1000);
+                        if (n - s).abs() > 20_000 {
+                            return false;
+                        }
+                    }
+                    true
+                });
+                (SEEK_SEED, patch_at(&gen, x, z))
+            }
+            SceneSpec::Highlands => {
+                let gen = crate::gen::WorldGen::new(SEEK_SEED);
+                let (x, z) = seek(&gen, |x, z| {
+                    gen.effective_surface_mm(x * 1000, z * 1000) >= 90_000
+                });
+                (SEEK_SEED, patch_at(&gen, x, z))
+            }
+            SceneSpec::Coast => {
+                let gen = crate::gen::WorldGen::new(SEEK_SEED);
+                let (x, z) = seek(&gen, |x, z| {
+                    let s = gen.effective_surface_mm(x * 1000, z * 1000);
+                    // Land just above the waterline, with sea 300 m away.
+                    (1_000..=3_000).contains(&s)
+                        && gen.effective_surface_mm((x + 300) * 1000, z * 1000) < 0
+                });
+                (SEEK_SEED, patch_at(&gen, x, z))
+            }
             SceneSpec::Cliff => {
-                // Deterministic seek: first 400 m-grid point (sweeping
-                // +-20 km) inside a cliff mask band > 4 m above sea level.
-                // Patch coords are PATCHES (16 m), not meters: the patch
-                // containing the seek point, at the y level containing its
-                // terraced surface.
-                let gen = crate::gen::WorldGen::new(3);
+                let gen = crate::gen::WorldGen::new(SEEK_SEED);
                 for x in -20_000..=20_000i64 {
                     for z in -20_000..=20_000i64 {
                         if x.rem_euclid(400) != 0 || z.rem_euclid(400) != 0 {
@@ -149,16 +200,7 @@ impl SceneSpec {
                         if gen.cliff_mask(wx, wz) > 0.56 {
                             let base = gen.surface_base_mm(wx, wz);
                             if base > 4_000 {
-                                let surface = gen.effective_surface_mm(wx, wz);
-                                let py = surface.div_euclid(16_000) as i32;
-                                return (
-                                    3,
-                                    PatchCoord {
-                                        x: x.div_euclid(16) as i32,
-                                        y: py,
-                                        z: z.div_euclid(16) as i32,
-                                    },
-                                );
+                                return (SEEK_SEED, patch_at(&gen, x, z));
                             }
                         }
                     }

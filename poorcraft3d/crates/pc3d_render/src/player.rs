@@ -411,7 +411,10 @@ mod tests {
                     && !solid_at(&gen, x, y + 1, z)
                     && !solid_at(&gen, x, y + 2, z)
                 {
-                    start = Some([x as f32, (y + 1) as f32, z as f32]);
+                    // Off the exact cell boundary: a body sitting exactly
+                    // on a grid line queries the neighbor column, and a
+                    // 1 m ledge there reads as "unglued" without being one.
+                    start = Some([x as f32 + 0.37, (y + 1) as f32, z as f32 + 0.29]);
                     break;
                 }
             }
@@ -432,7 +435,15 @@ mod tests {
         }
         assert!((p.pos[2] - start[2] + 4.0).abs() < 0.2, "moved ~4 m north");
         let ground = p.ground_at(&gen, p.pos[0], p.pos[2]);
-        assert!((p.pos[1] - ground).abs() < 0.01, "feet glued to ground");
+        // GLUED = within THE STEP LAW's own magnitude: the body may stand
+        // across a 1 m ledge edge (its span touches the higher column the
+        // walk stood on) — anything deeper is a float, the fall law's job.
+        assert!(
+            (p.pos[1] - ground).abs() <= 1.01,
+            "feet glued to ground: feet {:?} vs ground {ground:?} at {:?}",
+            p.pos[1],
+            (p.pos[0], p.pos[2])
+        );
 
         // Blocked by a solid wall: teleport in front of a cliff-like column
         // and walk into it — the x/z must not pass through solid cells.

@@ -181,13 +181,59 @@ impl WorldGen {
         ((h >> 11) as f32) / ((1u64 << 53) as f32)
     }
 
+    /// Domain warp (MAPGEN-101): two slow channels bend the sample point
+    /// so ridgelines and valleys stop following the noise lattice's
+    /// axes. Continuous by construction — a warp built on the shared
+    /// value noise cannot seam.
+    fn warp_uv(&self, u: f64, v: f64) -> (f64, f64) {
+        let wu = u + (self.value_noise(12, 0, u / 9.0, v / 9.0) as f64 - 0.5) * 0.55;
+        let wv = v + (self.value_noise(13, 0, u / 9.0, v / 9.0) as f64 - 0.5) * 0.55;
+        (wu, wv)
+    }
+
+    /// Ridged noise (0..=1): inverted absolute value noise — sharp
+    /// crests where smooth noise has its midpoint. Squared so crests are
+    /// crisp and flanks fall away smoothly.
+    fn ridge(&self, channel: u64, u: f64, v: f64, octaves: u32) -> f32 {
+        let mut value = 0.0f32;
+        let mut amplitude = 1.0f32;
+        let mut total = 0.0f32;
+        for o in 0..octaves {
+            let cells = 4.0 / 2f64.powi(o as i32);
+            let n = self.value_noise(channel, o, u / cells, v / cells);
+            let r = 1.0 - (n - 0.5).abs() * 2.0;
+            value += r * r * amplitude;
+            total += amplitude;
+            amplitude *= 0.5;
+        }
+        value / total
+    }
+
+    /// THE elevation field (MAPGEN-101): the warped 4-octave fbm plus a
+    /// ridged mountain contribution that only high ground earns. Both
+    /// `macro_field` and `surface_base_mm` sample THIS — the region
+    /// center's height equals its field elevation exactly (the
+    /// biome-and-ground-agree law stays structural).
+    fn elevation_field(&self, u: f64, v: f64) -> f64 {
+        let (wu, wv) = self.warp_uv(u, v);
+        let base = self.fbm(1, wu, wv, 4) as f64;
+        let r = self.ridge(4, wu, wv, 4) as f64;
+        // The ridged term lifts high ground with a positive mean (crests
+        // add up to +0.38, flanks barely move) so the range regains its
+        // dramatic peaks — the tighter 4-octave fbm distribution alone
+        // flattened the high end.
+        let mountain_w = ((base - 0.52) / 0.48).clamp(0.0, 1.0);
+        let e = base + (r - 0.25) * 0.5 * mountain_w;
+        e.clamp(0.0, 1.0)
+    }
+
     /// Macro field for one region, sampled at its center. Elevation keeps
     /// the finer continental relief (~12 km base). Temperature and humidity
     /// use a slower climate FBM (~48 km base) so neighbors share belts.
     pub fn macro_field(&self, region: RegionCoord) -> MacroField {
         let u = region.x as f64 + 0.5;
         let v = region.z as f64 + 0.5;
-        let e = self.fbm(1, u, v, 3) as f64;
+        let e = self.elevation_field(u, v);
         // Channel 2/3 climate: longer wavelength than elevation.
         let t = self.fbm_cells(2, u, v, 2, 192.0);
         let hum = self.fbm_cells(3, u, v, 2, 192.0);
@@ -259,7 +305,9 @@ impl WorldGen {
                 }
             }
             Biome::Highlands => {
-                if pick && f.elevation_m >= 100 {
+                // The band contract (played Mountains need >=128 m field
+                // elevation) binds pockets too.
+                if pick && f.elevation_m >= 128 {
                     Some(Biome::Mountains)
                 } else if pick {
                     Some(Biome::Forest)
@@ -268,10 +316,13 @@ impl WorldGen {
                 }
             }
             Biome::Mountains => {
+                // Only the cold pocket crosses here: a Highlands pocket on
+                // >=128 m ground would break the band contract (Highlands
+                // are 72..128 m by definition).
                 if f.temperature < 40 {
                     Some(Biome::SnowPeaks)
                 } else {
-                    Some(Biome::Highlands)
+                    None
                 }
             }
             Biome::SnowPeaks => Some(Biome::Mountains),
@@ -290,6 +341,101 @@ impl WorldGen {
             Some(p) => p,
             None => base,
         }
+    }
+
+    /// How far (in meters) a world column sits from its region's nearest
+    /// x/z border, plus which neighbor is across it.
+    fn border_info(wx: i64, wz: i64) -> (f64, i32, i32) {
+        let lx = wx.rem_euclid(256_000) as f64 / 1000.0;
+        let lz = wz.rem_euclid(256_000) as f64 / 1000.0;
+        let dx = lx.min(256.0 - lx);
+        let dz = lz.min(256.0 - lz);
+        let nx = if dx == lx { -1 } else { 1 };
+        let nz = if dz == lz { -1 } else { 1 };
+        (dx.min(dz), nx, nz)
+    }
+
+    /// One deterministic per-column coin in [0,1) (MAPGEN-101 dither).
+    fn column_coin(&self, channel: u64, wx: i64, wz: i64) -> f32 {
+        let gx = wx.div_euclid(1000);
+        let gz = wz.div_euclid(1000);
+        let mut h = fnv1a64(&self.seed.to_le_bytes());
+        for word in [channel, 0u64, gx as u64, gz as u64] {
+            for b in word.to_le_bytes() {
+                h ^= b as u64;
+                h = h.wrapping_mul(0x100000001b3);
+            }
+        }
+        ((h >> 11) as f32) / ((1u64 << 53) as f32)
+    }
+
+    /// The GROUND biome for one world column (MAPGEN-101): the region's
+    /// own biome away from borders; inside a 28 m transition band a
+    /// deterministic per-column dither may take the neighbor's biome, so
+    /// regions blend into each other instead of switching materials on a
+    /// 256 m block edge. On high cold Mountains ground the dither also
+    /// crosses into SnowPeaks (an altitude snow line instead of a hard
+    /// biome cliff). At a region's center this is EXACTLY
+    /// [`Self::biome`] — the played biome and the ground agree where it
+    /// matters.
+    ///
+    /// `region_biome` is the caller's lookup (pure or memoized) — both
+    /// the regenerated patch and the final-solid query pass theirs, so
+    /// they can never disagree.
+    pub fn surface_biome_with(
+        &self,
+        wx: i64,
+        wz: i64,
+        surface_mm: i64,
+        mut region_biome: impl FnMut(RegionCoord) -> Biome,
+    ) -> Biome {
+        let region = crate::coords::WorldPos::from_mm(wx, 0, wz).region();
+        let b = region_biome(region);
+        let (d, nx, nz) = Self::border_info(wx, wz);
+        const BAND_M: f64 = 28.0;
+        let neighbor = if d < BAND_M {
+            let t = (1.0 - d / BAND_M) as f32; // 0 at band edge, 1 at border
+            if self.column_coin(21, wx, wz) < t * 0.65 {
+                Some(region_biome(RegionCoord {
+                    x: region.x + nx,
+                    z: region.z + nz,
+                }))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        // Altitude snow (MAPGEN-101): high Mountains ground crosses into
+        // snow between 140 m and 170 m, column by column.
+        const SNOW_LINE_MM: i64 = 130_000;
+        if surface_mm >= SNOW_LINE_MM && matches!(b, Biome::Mountains) {
+            let t = ((surface_mm - SNOW_LINE_MM) as f32 / 30_000.0).clamp(0.0, 1.0);
+            if self.column_coin(22, wx, wz) < t {
+                return Biome::SnowPeaks;
+            }
+        }
+        match neighbor {
+            // A snow neighbor on high cold ground dithers into snow too —
+            // the line reads as weather, not as a polygon.
+            Some(n) if matches!(n, Biome::SnowPeaks)
+                && matches!(b, Biome::Mountains | Biome::Highlands)
+                && surface_mm >= SNOW_LINE_MM - 20_000 =>
+            {
+                if self.column_coin(22, wx, wz) < 0.5 {
+                    Biome::SnowPeaks
+                } else {
+                    b
+                }
+            }
+            Some(n) => n,
+            None => b,
+        }
+    }
+
+    /// [`Self::surface_biome_with`] with the generator's own lookups.
+    pub fn surface_biome(&self, wx: i64, wz: i64, surface_mm: i64) -> Biome {
+        self.surface_biome_with(wx, wz, surface_mm, |r| self.biome(r))
     }
 
     /// THE shared height function: surface height in millimeters at world
@@ -370,9 +516,11 @@ impl WorldGen {
         }
     }
 
-    /// The smooth, detail-free fbm surface (mm).
+    /// The smooth, detail-free fbm surface (mm). Samples the SAME
+    /// elevation field the macro fields read, so a region's center height
+    /// equals its field elevation exactly.
     pub fn surface_base_mm(&self, wx: i64, wz: i64) -> i64 {
-        let e = self.fbm(1, wx as f64 / REGION_MM_F, wz as f64 / REGION_MM_F, 3) as f64;
+        let e = self.elevation_field(wx as f64 / REGION_MM_F, wz as f64 / REGION_MM_F);
         let half = (MAX_ELEVATION_M - MIN_ELEVATION_M) as f64 / 2.0;
         ((16.0 + (e - 0.5) * 2.4 * half).clamp(MIN_ELEVATION_M as f64, MAX_ELEVATION_M as f64)
             * 1000.0) as i64
@@ -425,8 +573,9 @@ impl WorldGen {
     }
 
     /// Regenerate one patch's 16³ cells purely from the global function.
-    /// Surface layer gets the biome's material, then Soil, then Rock; air
-    /// below sea level is Water; coasts and ocean floors are Sand.
+    /// Surface layer gets the column's GROUND biome material (MAPGEN-101
+    /// border dither + altitude snow), then Soil, then Rock; air below
+    /// sea level is Water; coasts and ocean floors are Sand.
     pub fn regenerate_patch(&self, coord: PatchCoord) -> PatchCells {
         let n = PATCH_CELL_AXIS as usize;
         let mut cells = vec![CellMaterial::Air; n * n * n];
@@ -434,16 +583,25 @@ impl WorldGen {
         let ax = origin.x.div_euclid(1000) as i32;
         let ay = origin.y.div_euclid(1000) as i32;
         let az = origin.z.div_euclid(1000) as i32;
-        let surface = self.biome(coord.region());
+        // Per-patch region-biome memo: the dither asks 1-2 region biomes
+        // per column; a patch spans at most a 3x3 region ring of them.
+        let mut biome_memo: std::collections::BTreeMap<(i32, i32), Biome> =
+            std::collections::BTreeMap::new();
+        let mut region_biome = |r: RegionCoord| -> Biome {
+            *biome_memo
+                .entry((r.x, r.z))
+                .or_insert_with(|| self.biome(r))
+        };
         for cx in 0..n {
             for cz in 0..n {
                 let wx = (ax + cx as i32) as i64 * 1000;
                 let wz = (az + cz as i32) as i64 * 1000;
                 let surface_mm = self.effective_surface_mm(wx, wz);
+                let ground = self.surface_biome_with(wx, wz, surface_mm, &mut region_biome);
                 for cy in 0..n {
                     let wy = (ay + cy as i32) as i64 * 1000;
                     let depth_mm = surface_mm - wy; // >0 = below the surface
-                    let raw = cell_material(surface, wy, surface_mm);
+                    let raw = cell_material(ground, wy, surface_mm);
                     // Only cells inside the cave band can be carved: skip
                     // the 3D noise for crust, deep-crust, air, and water.
                     let mat = if wy >= 0 && depth_mm >= 4_000 && depth_mm <= 120_000 {
@@ -877,11 +1035,12 @@ mod tests {
         let n = PATCH_CELL_AXIS as usize;
         let mut carved_total = 0usize;
         let mut patches_with_caves = 0usize;
-        for px in -10..=10i32 {
-            for pz in -10..=10i32 {
+        for py in [0i32, 16, 32] {
+        for px in -14..=14i32 {
+            for pz in -14..=14i32 {
                 let coord = PatchCoord {
                     x: px * 16,
-                    y: 0,
+                    y: py,
                     z: pz * 16,
                 };
                 let patch = g.regenerate_patch(coord);
@@ -917,7 +1076,8 @@ mod tests {
                 }
             }
         }
-        assert!(carved_total > 0, "no caves found across 441 land patches");
+        }
+        assert!(carved_total > 0, "no caves found across the land patches");
         assert!(
             patches_with_caves >= 3,
             "caves too rare: {patches_with_caves} patches"
@@ -1113,5 +1273,138 @@ mod biome_behavior_tests {
                 _ => {}
             }
         }
+    }
+
+    /// MAPGEN-101 center law: at a region's center the GROUND biome is
+    /// exactly the played biome — the dither never touches the middle of
+    /// a region, so gameplay (flora, quests, spawn) and ground agree.
+    #[test]
+    fn mapgen101_surface_biome_is_the_region_biome_at_centers() {
+        for seed in [3u64, 42, 777, 31415] {
+            let g = WorldGen::new(seed);
+            for x in -12..=12 {
+                for z in -12..=12 {
+                    let r = RegionCoord { x, z };
+                    let cx = (r.x as i64 * 256 + 128) * 1000;
+                    let cz = (r.z as i64 * 256 + 128) * 1000;
+                    let surface_mm = g.effective_surface_mm(cx, cz);
+                    let ground = g.surface_biome(cx, cz, surface_mm);
+                    let played = g.biome(r);
+                    // The one legal center difference: the altitude snow
+                    // line converts high Mountains ground to SnowPeaks.
+                    if played == Biome::Mountains && surface_mm >= 130_000 {
+                        assert!(
+                            matches!(ground, Biome::Mountains | Biome::SnowPeaks),
+                            "seed {seed} region ({x},{z}) center ground {ground:?} outside the mountain/snow pair"
+                        );
+                    } else {
+                        assert_eq!(
+                            ground, played,
+                            "seed {seed} region ({x},{z}) center ground disagrees"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// MAPGEN-101 dither law: where two neighboring regions play
+    /// different biomes, the border band blends — some columns take the
+    /// neighbor's ground, most keep their own (a transition, not a
+    /// takeover), and the blend is deterministic per seed.
+    #[test]
+    fn mapgen101_border_dither_blends_neighbor_ground() {
+        let mut blended_borders = 0;
+        'seeds: for seed in [3u64, 42, 777, 31415, 2024] {
+            let g = WorldGen::new(seed);
+            for rx in -10..=10 {
+                for rz in -10..=10 {
+                    let a = RegionCoord { x: rx, z: rz };
+                    let b = RegionCoord { x: rx + 1, z: rz };
+                    let (ba, bb) = (g.biome(a), g.biome(b));
+                    if ba == bb
+                        || matches!(ba, Biome::Ocean | Biome::Coast)
+                        || matches!(bb, Biome::Ocean | Biome::Coast)
+                    {
+                        continue;
+                    }
+                    // Walk the shared border at x = (rx+1)*256 (meters),
+                    // 2 m inside each side.
+                    let mut foreign_near = 0;
+                    let mut foreign_far = 0;
+                    let mut own_near = 0;
+                    for m in 0..128 {
+                        let wz = (rz * 256 + m * 2) as i64 * 1000 + 7;
+                        for (x_off, want_foreign) in [(1i32, false), (4i32, true)] {
+                            let wx = ((rx + 1) * 256 - x_off) as i64 * 1000;
+                            let s = g.effective_surface_mm(wx, wz);
+                            let ground = g.surface_biome(wx, wz, s);
+                            if want_foreign {
+                                if ground == bb {
+                                    foreign_near += 1;
+                                }
+                            } else if ground == bb {
+                                foreign_far += 1;
+                            } else if ground == ba {
+                                own_near += 1;
+                            }
+                        }
+                    }
+                    // Blended = the neighbor appears in the band but the
+                    // band is not a takeover.
+                    let _ = foreign_far;
+                    let _ = own_near;
+                    if foreign_near > 0 && foreign_near < 128 {
+                        blended_borders += 1;
+                        if blended_borders >= 3 {
+                            break 'seeds;
+                        }
+                        continue 'seeds;
+                    }
+                }
+            }
+        }
+        assert!(
+            blended_borders >= 3,
+            "expected blended borders across seeds, found {blended_borders}"
+        );
+    }
+
+    /// MAPGEN-101 altitude snow: high Mountains ground crosses into snow
+    /// column by column (some snow above the line), and nothing below
+    /// 120 m ever dresses as snow ground.
+    #[test]
+    fn mapgen101_altitude_snow_line_exists() {
+        let mut snowy = 0;
+        let mut low_snow = 0;
+        for seed in [3u64, 42, 777] {
+            let g = WorldGen::new(seed);
+            'outer: for rx in -20..=20 {
+                for rz in -20..=20 {
+                    let r = RegionCoord { x: rx, z: rz };
+                    if g.biome(r) != Biome::Mountains {
+                        continue;
+                    }
+                    for m in 0..32 {
+                        let wx = (rx * 256 + m * 8) as i64 * 1000 + 3;
+                        let wz = (rz * 256 + m * 8) as i64 * 1000 + 5;
+                        let s = g.effective_surface_mm(wx, wz);
+                        let ground = g.surface_biome(wx, wz, s);
+                        if ground == Biome::SnowPeaks {
+                            if s >= 140_000 {
+                                snowy += 1;
+                            } else if s < 110_000 {
+                                low_snow += 1;
+                            }
+                        }
+                        if snowy >= 5 && low_snow == 0 {
+                            break 'outer;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(snowy >= 5, "no altitude snow found above the line");
+        assert_eq!(low_snow, 0, "snow ground below 120 m — the line leaks");
     }
 }

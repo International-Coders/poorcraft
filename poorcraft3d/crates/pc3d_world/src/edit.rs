@@ -266,6 +266,38 @@ mod tests {
 
     /// A brush touches exactly its (2r+1)³ cube; apply_edit changes only
     /// solid cells inside it, never air or water.
+
+    /// A solid cell with air above, scanned in deterministic order — the
+    /// terrain is procedural, so tests seek their dig site instead of
+    /// pinning coordinates that a regenerated world may move.
+    fn seek_surface_cell(gen: &WorldGen, coord: crate::coords::PatchCoord) -> CellCoord {
+        use crate::terrain::final_solid;
+        let n = PATCH_CELL_AXIS as i32;
+        let o = coord.origin();
+        for lz in 0..n {
+            for lx in 0..n {
+                for ly in (1..n - 1).rev() {
+                    let c = CellCoord {
+                        x: o.x.div_euclid(1000) as i32 + lx,
+                        y: o.y.div_euclid(1000) as i32 + ly,
+                        z: o.z.div_euclid(1000) as i32 + lz,
+                    };
+                    let here = final_solid(gen, c.x as i64 * 1000, c.y as i64 * 1000, c.z as i64 * 1000);
+                    let above = final_solid(
+                        gen,
+                        c.x as i64 * 1000,
+                        (c.y + 1) as i64 * 1000,
+                        c.z as i64 * 1000,
+                    );
+                    if here.solid && !above.solid {
+                        return c;
+                    }
+                }
+            }
+        }
+        panic!("no solid surface cell in the patch");
+    }
+
     #[test]
     fn p3d204_dig_is_bounded_and_selective() {
         let gen = WorldGen::new(3);
@@ -285,7 +317,7 @@ mod tests {
             y: o.y.div_euclid(1000) as i32 + ly,
             z: o.z.div_euclid(1000) as i32 + lz,
         };
-        let center = world(8, 7, 8);
+        let center = seek_surface_cell(&gen, coord);
         let op = dig(center, 1);
         let changed = apply_edit(&mut patch, &op, None);
         assert!(changed > 0 && changed <= 27);
@@ -489,8 +521,8 @@ mod tests {
             y: o.y.div_euclid(1000) as i32 + ly,
             z: o.z.div_euclid(1000) as i32 + lz,
         };
-        // Build at the local surface cell (8, 7, 8).
-        let built_at = world(8, 7, 8);
+        // Build at a sought solid surface cell (terrain is procedural).
+        let built_at = seek_surface_cell(&gen, coord);
         let mut construction = crate::build::Construction::new(coord);
         construction
             .place(
