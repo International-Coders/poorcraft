@@ -90,6 +90,17 @@
     },
     {
       "button_state": "",
+      "id": "toast_FELL — HEALTH 64%",
+      "kind": "toast",
+      "rect": [
+        289,
+        353,
+        222,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -196,6 +207,10 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -210,8 +225,8 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.993330180644989,
-      "health": 0.7143804430961609,
+      "food": 0.9960659742355347,
+      "health": 0.6756077408790588,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -239,12 +254,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:42",
+        "modified": "2026-10-03 07:53",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:42",
+        "modified": "2026-10-03 07:53",
         "name": "beta-shot",
         "seed": 7
       }
@@ -252,7 +267,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.275879383087158,
+        "age_s": 1.5603764057159424,
+        "text": "FELL — HEALTH 64%"
+      },
+      {
+        "age_s": 1.3650076389312744,
         "text": "THE GROUND GIVES WAY"
       }
     ],

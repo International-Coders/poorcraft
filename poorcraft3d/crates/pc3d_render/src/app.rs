@@ -2304,8 +2304,14 @@ impl App {
                     let outcome = self.cfg.slice_host.as_mut().map(|slice| {
                         let cell = player_cell(slice);
                         let tick = slice.host.borrow().tick;
+                        if std::env::var("PC3D_PUNCH_DEBUG").is_ok() {
+                            eprintln!("PUNCH cell {:?} creatures {:?}", cell, slice.creatures.creatures.iter().map(|c| (c.pos.x, c.pos.y, c.pos.z, c.hp)).collect::<Vec<_>>());
+                        }
                         let before = slice.creatures.creatures.len();
                         let loot = slice.creatures.player_attack(cell, tick);
+                        if std::env::var("PC3D_PUNCH_DEBUG").is_ok() {
+                            eprintln!("  -> loot {:?} after {} creatures hp {:?}", loot, slice.creatures.creatures.len(), slice.creatures.creatures.iter().map(|c| c.hp).collect::<Vec<_>>());
+                        }
                         let killed = before > slice.creatures.creatures.len();
                         for (id, n) in &loot {
                             slice.inventory.add(*id, *n);
@@ -2336,6 +2342,9 @@ impl App {
                             ) {
                                 witnesses += 1;
                             }
+                        }
+                        if std::env::var("PC3D_PUNCH_DEBUG").is_ok() {
+                            eprintln!("  witnesses {witnesses} cast {} at {:?}", slice.scene.cast.len(), slice.scene.cast.iter().map(|n| (n.brain.pos.x, n.brain.pos.z)).take(3).collect::<Vec<_>>());
                         }
                         if witnesses > 0 {
                             slice.karma.apply(
@@ -3568,6 +3577,12 @@ impl App {
     /// can share a frame). Returns false when the run should stop (quit
     /// action fired).
     fn run_ui_script(&mut self, event_loop: &ActiveEventLoop) -> bool {
+        // The script is consumed IN ORDER, so it must run in frame order:
+        // sort once on the first call (route authors append by topic, not
+        // by frame — an out-of-order entry would starve every later step).
+        if self.next_ui_step == 0 && self.cfg.ui_script.len() > 1 {
+            self.cfg.ui_script.sort_by_key(|(frame, _)| *frame);
+        }
         loop {
             if self.next_ui_step >= self.cfg.ui_script.len() {
                 return true;
@@ -3950,6 +3965,11 @@ impl App {
                                     z: cell.z + 16,
                                 },
                             );
+                        }
+                        // The hint is the LIVE address (the hostile walks):
+                        // refreshed every world tick, not just at spawn.
+                        if let Some(c) = slice.creatures.creatures.first() {
+                            state.ui.creature_hint = [c.pos.x as f32, c.pos.z as f32];
                         }
                     }
                     let tick = slice.host.borrow().tick;

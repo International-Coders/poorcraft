@@ -5818,11 +5818,21 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ui_script.push((
                     650,
                     Box::new(|ui, _r, _ctx| {
-                        // Down twice: focus the excavate row (the
-                        // script vec must stay frame-ordered — the
-                        // drain loop only checks the NEXT step).
-                        let _ = pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Down);
-                        let _ = pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Down);
+                        // SEEK the excavate row (the route's digs progress
+                        // it): the seeded roll's row order is world
+                        // content, not the route's — focus follows the
+                        // first OFFERED excavate wherever it sits.
+                        let idx = ui
+                            .journal
+                            .as_ref()
+                            .and_then(|rows| {
+                                rows.iter()
+                                    .position(|r| r.kind == "excavate" && r.state == "OFFERED")
+                            })
+                            .unwrap_or(0);
+                        for _ in 0..idx {
+                            let _ = pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Down);
+                        }
                     }),
                 ));
                 ui_script.push((
@@ -6793,6 +6803,43 @@ fn run_observe(route_id: &str, out_root: &str) {
                         back.set(v);
                     }),
                 ));
+                // THE CAPTURE POSES (VIS-201): the steep aim is the DIG's
+                // mechanics, but a camera pitched 86 degrees down films
+                // 1.7 m of magnified grass — unreadable pictures. The
+                // captures pose at a playable angle; the steep aim is
+                // restored before the press so the underfoot law holds.
+                // (Script entries are consumed in insertion order — keep
+                // the frame numbers ascending.)
+                ui_script.push((
+                    83,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -0.55 });
+                    }),
+                ));
+                ui_script.push((
+                    88,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                ui_script.push((
+                    104,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -0.55 });
+                    }),
+                ));
+                ui_script.push((
+                    129,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -0.35 });
+                    }),
+                ));
+                ui_script.push((
+                    184,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -0.35 });
+                    }),
+                ));
                 shots.push(Shot::new(85, format!("{dir}/dig_before.png"))
                     .ui_dump(format!("{dir}/dig_before.layout.json")));
                 shots.push(Shot::new(105, format!("{dir}/dig_after.png"))
@@ -7437,25 +7484,65 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ));
                 ui_script.push((
                     40,
+                    Box::new(|_ui, r, ctx| {
+                        // THE PICK FIRST: the chest at the plaza holds it
+                        // (the semantic playtest's staging — the ore node
+                        // refuses bare hands).
+                        if let Some(p) = r.plaza_interactable_pos(0) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    55,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // chest opens (the pick)
+                    }),
+                ));
+                ui_script.push((
+                    70,
+                    Box::new(|_ui, r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // closes the chest
+                        if let Some(p) = r.plaza_interactable_pos(1) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    85,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::HarvestOre); // the pick works
+                    }),
+                ));
+                ui_script.push((
+                    100,
                     Box::new(|_ui, _r, ctx| {
                         // E at the plaza: the forge zone owns it.
                         ctx.actions.push(UiAction::TryTalk);
                     }),
                 ));
                 ui_script.push((
-                    70,
+                    115,
                     Box::new(|_ui, _r, ctx| {
                         ctx.actions.push(UiAction::ForgeLoadFuel);
                         ctx.actions.push(UiAction::ForgeLoadOre);
                     }),
                 ));
                 ui_script.push((
-                    240,
+                    270,
                     Box::new(|_ui, _r, ctx| {
                         ctx.actions.push(UiAction::ForgeTake);
                     }),
                 ));
-                shots.push(Shot::new(100, format!("{dir}/beauty_forge_panel.png"))
+                ui_script.push((
+                    275,
+                    Box::new(|_ui, _r, ctx| {
+                        // The take closed the panel; reopen it so the
+                        // "taken" capture shows THE FORGE holding its bar.
+                        ctx.actions.push(UiAction::TryTalk);
+                    }),
+                ));
+                shots.push(Shot::new(120, format!("{dir}/beauty_forge_panel.png"))
                     .ui_dump(format!("{dir}/beauty_forge_panel.layout.json")));
                 shots.push(Shot::new(280, format!("{dir}/beauty_forge_taken.png"))
                     .ui_dump(format!("{dir}/beauty_forge_taken.layout.json")));
@@ -7641,6 +7728,24 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ui_script.push((
                     200,
                     Box::new(|ui, _r, ctx| {
+                        // THE GOBLIN'S OWN ADDRESS (the spawn law's recorded
+                        // cell): it rises 16 cells out — well outside melee
+                        // — so the second punch happens where it stands.
+                        let [gx, gz] = ui.creature_hint;
+                        ctx.actions.push(UiAction::PlayerTeleport { x: gx, z: gz });
+                    }),
+                ));
+                ui_script.push((
+                    215,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions.extend(ui::on_key(ui, ui::Key::Char('p')));
+                    }),
+                ));
+                // The killing blow lands before the static shot list
+                // drains (aftermath at 219 owns the exit).
+                ui_script.push((
+                    218,
+                    Box::new(|ui, _r, ctx| {
                         ctx.actions.extend(ui::on_key(ui, ui::Key::Char('p')));
                     }),
                 ));
@@ -7649,7 +7754,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                         .ui_dump(format!("{dir}/beauty_oversight.layout.json")),
                 );
                 shots.push(
-                    Shot::new(220, format!("{dir}/beauty_social_aftermath.png"))
+                    Shot::new(219, format!("{dir}/beauty_social_aftermath.png"))
                         .ui_dump(format!("{dir}/beauty_social_aftermath.layout.json")),
                 );
             }

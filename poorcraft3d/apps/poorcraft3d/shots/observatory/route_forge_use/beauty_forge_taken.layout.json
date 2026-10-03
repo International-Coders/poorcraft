@@ -40,7 +40,7 @@
       "rect": [
         20,
         110,
-        118,
+        466,
         14
       ]
     },
@@ -71,20 +71,20 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        137,
+        65,
         397,
-        526,
+        670,
         14
       ]
     },
     {
       "button_state": "",
-      "id": "toast_NOTHING TO TAKE YET",
+      "id": "toast_FORGED 1 BARS",
       "kind": "toast",
       "rect": [
-        277,
+        313,
         375,
-        246,
+        174,
         16
       ]
     },
@@ -189,67 +189,34 @@
     },
     {
       "button_state": "",
-      "id": "forge_panel",
+      "id": "interact_panel",
       "kind": "panel",
       "rect": [
         120,
-        187,
+        257,
         560,
-        182
+        112
       ]
     },
     {
       "button_state": "",
-      "id": "forge_state",
-      "kind": "text",
-      "rect": [
-        140,
-        229,
-        262,
-        14
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_fuel",
-      "kind": "bar",
-      "rect": [
-        140,
-        251,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_heat",
-      "kind": "bar",
-      "rect": [
-        140,
-        275,
-        340,
-        18
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "forge_slots",
+      "id": "interact_line_0",
       "kind": "text",
       "rect": [
         140,
         299,
-        262,
+        406,
         14
       ]
     },
     {
       "button_state": "",
-      "id": "forge_hint",
+      "id": "interact_hint",
       "kind": "text",
       "rect": [
-        266,
+        578,
         327,
-        394,
+        82,
         14
       ]
     }
@@ -262,19 +229,16 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
-    "forge": {
-      "bars": 0,
-      "blocked": true,
-      "fuel": 0.1666666716337204,
-      "heat": 0.4166666567325592,
-      "ore": 0,
-      "state": "BLOCKED: no ore"
-    },
-    "forge_bars_taken": 0,
+    "forge": null,
+    "forge_bars_taken": 1,
     "form": {
       "name": "WORLD-22",
       "quality": "MID",
@@ -285,19 +249,19 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
-      "stock": "PACK EMPTY",
+      "stock": "PACK IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
       "xp": 0.0
     },
-    "interact": null,
+    "interact": "THE CHEST",
     "journal": null,
     "journal_open": false,
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
-    "ore_harvested": 0,
+    "ore_harvested": 2,
     "oversight": null,
     "pack_open": false,
     "pointer_grabbed": true,
@@ -312,23 +276,25 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:40",
+        "modified": "2026-10-03 07:52",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:40",
+        "modified": "2026-10-03 07:52",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [
-      "CARRYING NOTHING"
+      "IRON_BAR x1",
+      "WOOD_PICK x1",
+      "BREAD x2"
     ],
     "toasts": [
       {
-        "age_s": 1.0655417442321777,
-        "text": "NOTHING TO TAKE YET"
+        "age_s": 0.1786823719739914,
+        "text": "FORGED 1 BARS"
       }
     ],
     "wallet": 0,

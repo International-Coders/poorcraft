@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 41.900001525878906,
-    "frames": 219,
-    "p50_ms": 24.1299991607666,
-    "p95_ms": 27.440000534057617
+    "avg_fps": 72.0999984741211,
+    "frames": 218,
+    "p50_ms": 13.640000343322754,
+    "p95_ms": 15.180000305175781
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,10 +32,14 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791006209",
+  "timestamp_utc": "1791014056",
   "ui": {
     "companion": "COMPANION FOLLOWS · N WAITS",
-    "creatures_slain": 0,
+    "creature_hint": [
+      416.0,
+      160.0
+    ],
+    "creatures_slain": 1,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
@@ -50,11 +54,11 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 1.0,
-      "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
+      "health": 0.9641587734222412,
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
-      "stock": "PACK EMPTY",
+      "stock": "PACK STONE 2",
       "xp": 0.0
     },
     "interact": null,
@@ -78,27 +82,35 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:43",
+        "modified": "2026-10-03 07:54",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:43",
+        "modified": "2026-10-03 07:54",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [
-      "CARRYING NOTHING"
+      "STONE x2"
     ],
     "toasts": [
       {
-        "age_s": 0.6099388599395752,
+        "age_s": 0.09353084862232208,
         "text": "NO CREATURE IN REACH"
+      },
+      {
+        "age_s": 0.03588797524571419,
+        "text": "SLEW A CREATURE · LOOT STONEx2"
+      },
+      {
+        "age_s": 0.03588797524571419,
+        "text": "3 WITNESSED THE BLOW — TRUST FALLS"
       }
     ],
     "wallet": 0,
-    "witnessed_assaults": 0
+    "witnessed_assaults": 3
   },
   "verdict": "exported",
   "version": 1,

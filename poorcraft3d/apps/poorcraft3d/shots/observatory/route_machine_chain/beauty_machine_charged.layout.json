@@ -295,6 +295,10 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      144.0,
+      152.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -348,12 +352,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:43",
+        "modified": "2026-10-03 07:54",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:43",
+        "modified": "2026-10-03 07:54",
         "name": "beta-shot",
         "seed": 7
       }
@@ -363,11 +367,11 @@
     ],
     "toasts": [
       {
-        "age_s": 2.3953139781951904,
+        "age_s": 1.544950246810913,
         "text": "DUG SOIL+WOOD"
       },
       {
-        "age_s": 0.6331219673156738,
+        "age_s": 0.4028715491294861,
         "text": "DREW 3200 mWATER + 1 WOOD"
       }
     ],

@@ -284,6 +284,10 @@
   ],
   "ui_state": {
     "companion": "COMPANION FOLLOWS · N WAITS",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -318,8 +322,8 @@
       "faction_trust": 50,
       "food": 100,
       "health": 72,
-      "population": 34,
-      "settlement": "Bronmere"
+      "population": 20,
+      "settlement": "Fordhall"
     },
     "pack_open": false,
     "pointer_grabbed": true,
@@ -334,12 +338,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:43",
+        "modified": "2026-10-03 07:54",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:43",
+        "modified": "2026-10-03 07:54",
         "name": "beta-shot",
         "seed": 7
       }
@@ -347,7 +351,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.3743096590042114,
+        "age_s": 0.8662373423576355,
         "text": "COMPANION FOLLOWS · N WAITS"
       }
     ],

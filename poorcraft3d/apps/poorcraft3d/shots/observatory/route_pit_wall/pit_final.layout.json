@@ -185,6 +185,10 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -199,8 +203,8 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9840235114097595,
-      "health": 0.7713536620140076,
+      "food": 0.9905088543891907,
+      "health": 0.7093185782432556,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -228,12 +232,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:42",
+        "modified": "2026-10-03 07:53",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:42",
+        "modified": "2026-10-03 07:53",
         "name": "beta-shot",
         "seed": 7
       }

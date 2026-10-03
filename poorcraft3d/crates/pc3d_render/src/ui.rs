@@ -508,6 +508,9 @@ pub struct UiState {
     pub companion_line: String,
     /// Creatures slain this session (combat route proof).
     pub creatures_slain: u64,
+    /// The live hostile's cell (the spawn law's address) — the social
+    /// route's honest aim (VIS-202); 0,0 before the first spawn.
+    pub creature_hint: [f32; 2],
     /// Witnessed assaults that shifted karma (journey step 9 proof).
     pub witnessed_assaults: u64,
     /// The player stock lines (the chest/harvest panel view).
@@ -615,6 +618,7 @@ impl Default for UiState {
             oversight: None,
             companion_line: String::new(),
             creatures_slain: 0,
+            creature_hint: [0.0, 0.0],
             witnessed_assaults: 0,
             stock_lines: Vec::new(),
             ore_harvested: 0,
@@ -682,6 +686,7 @@ impl UiState {
             })),
             "machine_charge_milli": self.machine_charge_milli,
             "creatures_slain": self.creatures_slain,
+            "creature_hint": self.creature_hint,
             "witnessed_assaults": self.witnessed_assaults,
             "companion": self.companion_line,
             "oversight": self.oversight.as_ref().map(|o| serde_json::json!({

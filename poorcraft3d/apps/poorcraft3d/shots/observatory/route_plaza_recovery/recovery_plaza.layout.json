@@ -79,6 +79,28 @@
     },
     {
       "button_state": "",
+      "id": "toast_YOU FELL — RECOVERED AT THE PLAZA",
+      "kind": "toast",
+      "rect": [
+        193,
+        375,
+        414,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "toast_THE GROUND GIVES WAY",
+      "kind": "toast",
+      "rect": [
+        271,
+        353,
+        258,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -185,6 +207,10 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -228,18 +254,27 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:42",
+        "modified": "2026-10-03 07:53",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:42",
+        "modified": "2026-10-03 07:53",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [],
+    "toasts": [
+      {
+        "age_s": 2.96382212638855,
+        "text": "THE GROUND GIVES WAY"
+      },
+      {
+        "age_s": 1.076047658920288,
+        "text": "YOU FELL — RECOVERED AT THE PLAZA"
+      }
+    ],
     "wallet": 0,
     "witnessed_assaults": 0
   }
