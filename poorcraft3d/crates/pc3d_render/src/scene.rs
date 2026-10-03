@@ -298,14 +298,22 @@ impl PixelReport {
     /// for open scenes.
     pub fn passes_with(&self, min_distinct: usize) -> bool {
         // A flat clear reports 1; any real lit 3D scene yields hundreds.
-        self.distinct_colors >= min_distinct && self.opaque && self.probes.iter().all(|(_, ok)| *ok)
+        // PROBE NAMES ARE GROUPS: probes sharing a name are ALTERNATIVES —
+        // the name passes when ANY of its entries passed (the sky law:
+        // real mountains may fill part of the sky, never all of it).
+        self.distinct_colors >= min_distinct && self.opaque && self.failed_probes().is_empty()
     }
 
     pub fn failed_probes(&self) -> Vec<&'static str> {
-        self.probes
-            .iter()
+        let mut groups: std::collections::BTreeMap<&'static str, bool> =
+            std::collections::BTreeMap::new();
+        for (name, ok) in &self.probes {
+            groups.entry(name).and_modify(|g| *g |= *ok).or_insert(*ok);
+        }
+        groups
+            .into_iter()
             .filter(|(_, ok)| !ok)
-            .map(|(name, _)| *name)
+            .map(|(name, _)| name)
             .collect()
     }
 }

@@ -1,4 +1,4 @@
-POORCRAFT 3D BETA BATTERY — Sat Oct  3 02:38:43 -03 2026 — git ab74137
+POORCRAFT 3D BETA BATTERY — Sat Oct  3 06:40:06 -03 2026 — git c4696e0
 
 === STAGE: static-assets ===
 ASSET MANIFEST PASS: 19 rows in embedded beta_critical_assets.json
@@ -23,7 +23,7 @@ ASSET SIDECARS OK (7 assets)
 STAGE PASS: asset-sidecars
 
 === STAGE: layout-laws ===
-GATE CHECK: 186 layout dumps · 0 text overlaps · 0 stacked-panel frames · 0 unreachable hint keys
+GATE CHECK: 211 layout dumps · 0 text overlaps · 0 stacked-panel frames · 0 unreachable hint keys
 GATE CHECK OK
 STAGE PASS: layout-laws
 
@@ -33,7 +33,7 @@ digest dd019eca900f5a61
 STAGE PASS: headless-smoke
 
 === STAGE: journey-42 ===
-  PASS  spawn              player at -128/47/-128
+  PASS  spawn              player at -128/38/-128
   PASS  gather             wood 10 soil 10
   PASS  craft_first_tool   wood_pick 1
   PASS  mine_stone         stone 4 (tier Some(1))
@@ -43,7 +43,7 @@ STAGE PASS: headless-smoke
   PASS  settlement         Some((0, "Fordhall")) visited, day 1
   PASS  dragon             dragon slain=true dead=true
   PASS  onboarding         4 of 4 done
-JOURNEY PASS (10 steps, digest c4360ff5321bfeef, 13.7ms)
+JOURNEY PASS (10 steps, digest 824e362b17b25b67, 16.2ms)
 STAGE PASS: journey-42
 
 === STAGE: diagnose-2024 ===
@@ -67,33 +67,34 @@ DIAGNOSIS PASS (13 checks)
 STAGE PASS: diagnose-2024
 
 === STAGE: soak-30d ===
-soak seed 4242 days 30 ticks 18000 journal 96 max_events/tick 3 digest 9a092f6adcb83c72
-SOAK PASS (14.7ms)
+soak seed 4242 days 30 ticks 18000 journal 96 max_events/tick 3 digest 1262d09082c060e3
+SOAK PASS (15.7ms)
 STAGE PASS: soak-30d
 
 === STAGE: seed-atlas ===
 [ok] atlas seed 3 -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/atlas_seed3.png (97x97 regions)
-     biome disagreement vs seed 4: 45.1%
-     biome disagreement vs seed 40506: 93.7%
+     biome disagreement vs seed 4: 52.0%
+     biome disagreement vs seed 40506: 90.7%
      patch-hash spot checks: 5/5 ok
 STAGE PASS: seed-atlas
 
 === STAGE: terrain-bench ===
 scene          candidate          extract_us    bytes  rebuild_us     err_m     cols
-smooth_hills   heightfield                86     4096         141     0.505      256
-smooth_hills   density_threshold        4123     4096        4123     0.497      256
-highlands      heightfield                34     4096          68     1.000      256
-highlands      density_threshold        4154     4096        4173     1.594      256
-coast          heightfield                45     4096          70     0.999      256
-coast          density_threshold        4125     4096        4167     2.362      256
-cliff          heightfield                70     4096         139     0.481      256
-cliff          density_threshold        4143     4096        4172     0.409      256
+smooth_hills   heightfield               258     4096         512     0.487      256
+smooth_hills   density_threshold         946     4096        1000     0.475      256
+highlands      heightfield               265     4096         585     0.431      256
+highlands      density_threshold         949     4096         946     0.405      256
+coast          heightfield               253     4096         525     0.469      256
+coast          density_threshold         958     4096         950     0.442      256
+cliff          heightfield               216     4096         434     0.999      256
+cliff          density_threshold         951     4096         948     2.011      256
 STAGE PASS: terrain-bench
 
 === STAGE: terrain-analyze ===
-TERRAIN plains: 74 regions · mean 65.6 m · slope 1.0% · rough 0.4%
-TERRAIN forest: 270 regions · mean 60.2 m · slope 1.0% · rough 0.4%
-TERRAIN highlands: 232 regions · mean 83.6 m · slope 1.1% · rough 0.5%
+TERRAIN plains: 69 regions · mean 73.1 m · slope 3.0% · rough 1.4%
+TERRAIN forest: 177 regions · mean 60.2 m · slope 2.4% · rough 1.2%
+TERRAIN highlands: 323 regions · mean 89.9 m · slope 3.2% · rough 1.7%
+TERRAIN mountains: 7 regions · mean 131.9 m · slope 3.6% · rough 0.9%
 TERRAIN ANALYZE OK -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/terrain/terrain_analysis_4242.json + relief + slope PNGs
 STAGE PASS: terrain-analyze
 
@@ -106,28 +107,28 @@ EXPORT DATA OK (local-only)
 STAGE PASS: export-data
 
 === STAGE: windowed-3d-axes ===
-windowed run: 41 frames · frame p50 0.57 ms · p95 1.83 ms · avg 1195.9 fps
+windowed run: 41 frames · frame p50 0.56 ms · p95 1.85 ms · avg 1165.5 fps
 RESIZE OK: surface followed 800x500 logical -> 800x500 physical (scale 1.00, 2 events)
 PARALLAX OK: 19.9% of pixels differ between pose A and pose B
 WINDOWED 3D SHOT PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_3d.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_3d_poseb.png (800x500, 253 distinct colors)
 STAGE PASS: windowed-3d-axes
 
 === STAGE: terrain-scenes ===
-windowed run: 111 frames · frame p50 0.60 ms · p95 1.92 ms · avg 1232.2 fps
-TERRAIN hills: 27 patches, 31472 verts, 15736 tris, 211 ms mesh
-TERRAIN cliff: 27 patches, 14340 verts, 7170 tris, 193 ms mesh
-TERRAIN cave: 27 patches, 39020 verts, 19510 tris, 231 ms mesh
-TERRAIN hills PROBES PASS (3 checks, 21 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_terrain_hills.png
+windowed run: 111 frames · frame p50 0.73 ms · p95 1.99 ms · avg 1153.2 fps
+TERRAIN hills: 27 patches, 37008 verts, 18504 tris, 53 ms mesh
+TERRAIN cliff: 27 patches, 24848 verts, 12424 tris, 37 ms mesh
+TERRAIN cave: 27 patches, 32212 verts, 16106 tris, 65 ms mesh
+TERRAIN hills PROBES PASS (3 checks, 24 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_terrain_hills.png
 TERRAIN cliff PROBES PASS (3 checks, 21 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_terrain_cliff.png
 TERRAIN cave PROBES PASS (2 checks, 6 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_terrain_cave.png
 WINDOWED TERRAIN PROOF PASS (800x500)
 STAGE PASS: terrain-scenes
 
 === STAGE: stream-walk ===
-windowed run: 351 frames · frame p50 0.84 ms · p95 1.03 ms · avg 1177.7 fps
-STREAM: loaded 346 (full 97 / mid 249), meshed 1053 in 7877 ms total, gpu 24540 KB of 24576 KB budget
-STREAM bounds: max mesh/frame 3 (cap 3), max uploads/frame 3 (cap 6), deferred held 962, queue rejected 1851
-STREAM culling: 29754 draws, 75272 frustum-culled patches
+windowed run: 351 frames · frame p50 0.85 ms · p95 1.13 ms · avg 1152.8 fps
+STREAM: loaded 399 (full 116 / mid 283), meshed 1053 in 2592 ms total, gpu 24531 KB of 24576 KB budget
+STREAM bounds: max mesh/frame 3 (cap 3), max uploads/frame 3 (cap 6), deferred held 795, queue rejected 1226
+STREAM culling: 35845 draws, 68718 frustum-culled patches
 STREAM waypoint 1 PROBE PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_stream_walk1.png
 STREAM waypoint 2 PROBE PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_stream_walk2.png
 STREAM waypoint 3 PROBE PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_stream_walk3.png
@@ -135,19 +136,19 @@ WINDOWED STREAM WALK PASS (800x500)
 STAGE PASS: stream-walk
 
 === STAGE: river-water ===
-windowed run: 56 frames · frame p50 1.05 ms · p95 2.84 ms · avg 688.9 fps
-WATER before: 281 sections, 281 added, 0 remeshed, 45818 verts, 32714 us
-WATER after_dam: 281 sections, 1 added, 5 remeshed, 996 verts, 1397 us
-RIVER IN FRAME: coverage 0.084 sky 0.0% centre (0.50,0.60)
-DAM EDIT OK: 5/281 sections remeshed, image changed 2.15%
+windowed run: 56 frames · frame p50 0.81 ms · p95 1.75 ms · avg 912.0 fps
+WATER before: 129 sections, 129 added, 0 remeshed, 21198 verts, 22712 us
+WATER after_dam: 129 sections, 0 added, 4 remeshed, 628 verts, 1129 us
+RIVER IN FRAME: coverage 0.084 sky 0.4% centre (0.50,0.60)
+DAM EDIT OK: 4/129 sections remeshed, image changed 2.58%
 WINDOWED WATER PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_water_before.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_water_after.png
 STAGE PASS: river-water
 
 === STAGE: castle-city ===
 CITY: 2498 verts / 1242 tris across 13 kinds; 144 collision cells, 4 nav anchors
-TERRAIN under city: 1008 patches in 8143 ms
-windowed run: 56 frames · frame p50 1.62 ms · p95 2.16 ms · avg 640.7 fps
-CITY IN FRAME: rect Some((137, 194, 526, 130)) coverage 0.171 distinct 21 sky 8.0% centre (0.50,0.52)
+TERRAIN under city: 1008 patches in 2234 ms
+windowed run: 56 frames · frame p50 1.48 ms · p95 2.25 ms · avg 657.8 fps
+CITY IN FRAME: rect Some((129, 185, 542, 146)) coverage 0.198 distinct 21 sky 22.4% centre (0.50,0.52)
 GATE OK: opening/pillar delta 0.38
 WINDOWED CITY PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_city.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_city_gate.png
 STAGE PASS: castle-city
@@ -156,7 +157,7 @@ STAGE PASS: castle-city
 NPC resident pos CellCoord { x: 386, y: 0, z: 127 } intent Working { site: CellCoord { x: 386, y: 0, z: 127 } }
 NPC worker   pos CellCoord { x: 380, y: 0, z: 127 } intent Idle
 NPC guard    pos CellCoord { x: 380, y: 0, z: 127 } intent Idle
-windowed run: 86 frames · frame p50 1.02 ms · p95 1.95 ms · avg 860.1 fps
+windowed run: 86 frames · frame p50 1.11 ms · p95 2.11 ms · avg 808.6 fps
 NPC 0 close-up: torso point occupied (sky-delta 0.49)
 NPC 1 close-up: torso point occupied (sky-delta 0.75)
 NPC 2 close-up: torso point occupied (sky-delta 0.75)
@@ -164,52 +165,52 @@ WINDOWED NPC PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcr
 STAGE PASS: npc-cast
 
 === STAGE: day-night ===
-DAY/NIGHT OK: day mean 194.0 → night mean 100.0 (48% darker)
+DAY/NIGHT OK: day mean 198.3 → night mean 103.3 (48% darker)
 WINDOWED DAYNIGHT PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_day.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_night.png
 STAGE PASS: day-night
 
 === STAGE: quality-tiers ===
-windowed run: 116 frames · frame p50 1.22 ms · p95 2.18 ms · avg 711.7 fps
-QUALITY low: loaded 42 patches (full 42 / far 0) gpu 3926 KB meshed 42
-QUALITY mid: loaded 80 patches (full 80 / far 0) gpu 6807 KB meshed 80
-QUALITY high: loaded 102 patches gpu 8467 KB
-WINDOWED QUALITY PROOF PASS -> low/mid/high PNGs in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots (frames p50 1.22 ms p95 2.18 ms)
+windowed run: 116 frames · frame p50 0.92 ms · p95 1.62 ms · avg 958.9 fps
+QUALITY low: loaded 42 patches (full 42 / far 0) gpu 3145 KB meshed 42
+QUALITY mid: loaded 80 patches (full 80 / far 0) gpu 7132 KB meshed 80
+QUALITY high: loaded 102 patches gpu 9062 KB
+WINDOWED QUALITY PROOF PASS -> low/mid/high PNGs in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots (frames p50 0.92 ms p95 1.62 ms)
 STAGE PASS: quality-tiers
 
 === STAGE: vertical-slice ===
-SLICE: showcase seed 22 found in 2.1s (gate CellCoord { x: -1, y: 51, z: 3 }, cave CellCoord { x: 129, y: 21, z: 137 }, river edge ((0, 2), (-1, 1)))
-windowed run: 86 frames · frame p50 0.82 ms · p95 1.88 ms · avg 1062.3 fps
+SLICE: showcase seed 36 found in 2.2s (gate CellCoord { x: -1, y: 35, z: 3 }, cave CellCoord { x: 112, y: 29, z: 153 }, river edge ((-1, 0), (0, 0)))
+windowed run: 86 frames · frame p50 0.66 ms · p95 1.67 ms · avg 1193.3 fps
 WINDOWED SLICE PROOF PASS -> showcase + cave + built in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 STAGE PASS: vertical-slice
 
 === STAGE: asset-factory ===
 ASSETS: tree 234480 B, rock 23760 B, house 10320 B (parsed mesh bytes)
 ASSET SCENE: 4 draws, 1725 tris (1109 lod0 + 480 lod1 + rock 98 + house 38)
-windowed run: 26 frames · frame p50 1.16 ms · p95 1.95 ms · avg 872.8 fps
+windowed run: 26 frames · frame p50 1.25 ms · p95 2.45 ms · avg 778.3 fps
 WINDOWED ASSET PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_assets.png
 STAGE PASS: asset-factory
 
 === STAGE: surface-edit ===
-SURFACE SPIKE: 9 patches, 2601 verts / 4608 tris, mesh 4127 us, versions [((-953, -489), 1), ((-953, -488), 1), ((-953, -487), 1), ((-952, -489), 1), ((-952, -488), 1), ((-952, -487), 1), ((-951, -489), 1), ((-951, -488), 1), ((-951, -487), 1)]
-SURFACE EDIT: dirty {(-952, -489)} -> remesh 2601 verts (bounded)
-windowed run: 66 frames · frame p50 0.61 ms · p95 1.83 ms · avg 1216.4 fps
+SURFACE SPIKE: 9 patches, 2601 verts / 4608 tris, mesh 2891 us, versions [((-351, 349), 1), ((-351, 350), 1), ((-351, 351), 1), ((-350, 349), 1), ((-350, 350), 1), ((-350, 351), 1), ((-349, 349), 1), ((-349, 350), 1), ((-349, 351), 1)]
+SURFACE EDIT: dirty {(-350, 349)} -> remesh 2601 verts (bounded)
+windowed run: 66 frames · frame p50 0.71 ms · p95 1.94 ms · avg 1083.8 fps
 SURFACE EDIT VISIBLE: image diff 0.04%
 WINDOWED SURFACE SPIKE PASS -> before/after in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 STAGE PASS: surface-edit
 
 === STAGE: caves-water ===
-CAVE: pocket CellCoord { x: -15247, y: 14, z: -7819 } spans 34x10x34 cells, 8256 verts / 4128 tris
-RIVER: section 0 at region (-62, -24), 5 conforming sections
-FOUNDATION near river: Valid { leveled_by: 0.33199978 } at +4 m
-LOCAL EDIT: dirty patches {(-986, -376), (-986, -375), (-985, -376), (-985, -375)}; 1/5 sections refreshed, 1 changed data; refresh 10 us, water remesh 4 us, terrain remesh 7803 verts
-windowed run: 146 frames · frame p50 0.56 ms · p95 1.72 ms · avg 1332.1 fps
-WATER EDIT VISIBLE: image diff 0.01%
+CAVE: pocket CellCoord { x: -5599, y: 10, z: 5594 } spans 34x28x34 cells, 9048 verts / 4524 tris
+RIVER: section 0 at region (-19, 17), 4 conforming sections
+FOUNDATION near river: Valid { leveled_by: 0.21450043 } at +4 m
+LOCAL EDIT: dirty patches {(-298, 279), (-298, 280), (-297, 279), (-297, 280)}; 1/4 sections refreshed, 1 changed data; refresh 49 us, water remesh 8 us, terrain remesh 7803 verts
+windowed run: 146 frames · frame p50 0.53 ms · p95 1.68 ms · avg 1345.1 fps
+WATER EDIT VISIBLE: image diff 0.02%
 WINDOWED CAVES+WATER PROOF PASS -> cave interior, river before/after in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 STAGE PASS: caves-water
 
 === STAGE: rebuild-slice ===
-REBUILD SLICE: seed 22 in 2.1s (gate CellCoord { x: -1, y: 51, z: 3 }, cave CellCoord { x: 129, y: 21, z: 137 })
-windowed run: 191 frames · frame p50 19.95 ms · p95 22.69 ms · avg 48.8 fps
+REBUILD SLICE: seed 36 in 2.2s (gate CellCoord { x: -1, y: 35, z: 3 }, cave CellCoord { x: 112, y: 29, z: 153 })
+windowed run: 191 frames · frame p50 13.08 ms · p95 15.76 ms · avg 71.4 fps
 REBUILD SAVE/RELOAD: built 1 -> 1
 WINDOWED REBUILD SLICE PASS -> vantage/street/river/cave/gate in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 STAGE PASS: rebuild-slice
@@ -217,79 +218,79 @@ STAGE PASS: rebuild-slice
 === STAGE: npc-people ===
 PEOPLE: 12 NPCs -> 12 part instances in 3 color buckets (<= 8 draws)
 PEOPLE GPU: 7 draws, 92 part instances
-windowed run: 151 frames · frame p50 13.13 ms · p95 14.68 ms · avg 74.6 fps
-PEOPLE MOTION: stride frames differ 0.60% (d 0.0060)
+windowed run: 151 frames · frame p50 7.13 ms · p95 9.54 ms · avg 130.6 fps
+PEOPLE MOTION: stride frames differ 0.59% (d 0.0059)
 WINDOWED PEOPLE PROOF PASS -> plaza/stride/guard/anchors in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 STAGE PASS: npc-people
 
 === STAGE: settlement-kit ===
 SETTLEMENT: 35 placements (by module {"module.banner_sign": 2, "module.gate_arch": 1, "module.keep": 2, "module.market_stall": 3, "module.settlement_house": 5, "module.settlement_workshop": 3, "module.wall_segment": 14, "module.watchtower": 5}), anchors bed 4 work 3 idle 12
 SETTLEMENT GPU: 8 bucket draws, 620 tris (LOD by vantage)
-windowed run: 141 frames · frame p50 11.05 ms · p95 12.43 ms · avg 87.9 fps
+windowed run: 141 frames · frame p50 6.95 ms · p95 8.29 ms · avg 134.7 fps
 WINDOWED SETTLEMENT PROOF PASS -> overview/street/street-2 in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 STAGE PASS: settlement-kit
 
 === STAGE: wilderness ===
-UNDERGROWTH: framing flora.moss_rock at (-15238,-7814)
-CANOPY: framing flora.vine at slot (-3836,-1969) attach (-15342,25.8,-7877)
-WILDERNESS: vegetated center (-15240,-7816), landmark Some([-14912.926, 31.744, -8085.6177])
-WILDERNESS vista: added 18809 evicted 49929 cached 4480 scanned 561 buckets 100 instances 1214 VARIANT BUCKETS 76 KINDS 18
-LANDMARK: standing stone at (-14913,32,-8086), 102 tris
-windowed run: 226 frames · frame p50 17.40 ms · p95 19.93 ms · avg 67.8 fps
-WILDERNESS VISIBLE: diff 0.20%
+UNDERGROWTH: framing flora.deadtree at (-5610,5598)
+CANOPY: framing flora.vine at slot (-1407,1359) attach (-5630,31.8,5442)
+WILDERNESS: vegetated center (-5608,5592), landmark Some([-5574.8887, 30.995, 5565.84])
+WILDERNESS vista: added 9625 evicted 24684 cached 4480 scanned 561 buckets 83 instances 1116 VARIANT BUCKETS 60 KINDS 18
+LANDMARK: standing stone at (-5575,31,5566), 102 tris
+windowed run: 226 frames · frame p50 8.78 ms · p95 10.92 ms · avg 127.1 fps
+WILDERNESS VISIBLE: diff 0.14%
 WINDOWED WILDERNESS PROOF PASS -> control/vista/landmark/undergrowth/canopy/lowtier in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 STAGE PASS: wilderness
 
 === STAGE: materials ===
 ATMOSPHERE: mid tier (shadow 1024, fog 0.0055, detail 0.55, glint), 36 foliage tris
 ATMOSPHERE: high tier (shadow 2048, fog 0.007, detail 0.85)
-windowed run: 171 frames · frame p50 0.76 ms · p95 2.33 ms · avg 904.1 fps
-ATMOSPHERE DIFFS: mid vs legacy 0.18%, high vs legacy 0.28%
+windowed run: 171 frames · frame p50 0.75 ms · p95 2.61 ms · avg 903.1 fps
+ATMOSPHERE DIFFS: mid vs legacy 0.16%, high vs legacy 0.27%
 WINDOWED MATERIALS PROOF PASS -> mid/legacy/high/cutout in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
 STAGE PASS: materials
 
 === STAGE: surface-stream ===
-windowed run: 251 frames · frame p50 2.30 ms · p95 3.24 ms · avg 404.1 fps
+windowed run: 251 frames · frame p50 2.58 ms · p95 3.70 ms · avg 361.0 fps
 WINDOWED SURFACE STREAM PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/windowed_surface_stream.png
 STAGE PASS: surface-stream
 
 === STAGE: ui-states ===
-UI SHOTS: showcase seed 22 (test save root /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T/p3d-ui-shots-53076)
-windowed run: 481 frames · frame p50 23.80 ms · p95 27.89 ms · avg 41.2 fps
+UI SHOTS: showcase seed 36 (test save root /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T/p3d-ui-shots-73005)
+windowed run: 481 frames · frame p50 13.78 ms · p95 15.48 ms · avg 72.3 fps
 UI SCENE CHECKS PASS:
-  ui_title_1280x720: 8241 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4723/4723 — OK
-  ui_title_focus: 8406 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 482/482 — OK
+  ui_title_1280x720: 7275 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4723/4723 — OK
+  ui_title_focus: 7154 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 482/482 — OK
   focus distinctness: btn_play 2092 px, btn_new_world 2092 px differ — OK
-  ui_new_world: 5798 distinct colors, 25 ui elements, 299844 blended px, no row shear, quad coverage 945/945 — OK
-  ui_load_world: 7668 distinct colors, 10 ui elements, 146392 blended px, no row shear, quad coverage 630/630 — OK
-  ui_settings: 8100 distinct colors, 50 ui elements, 277988 blended px, no row shear, quad coverage 320/320 — OK
-  ui_gameplay_hud_default: 8931 distinct colors, 16 ui elements, 24418 blended px, no row shear, quad coverage 2328/2328 — OK
-  ui_gameplay_hud_debug_values: 9077 distinct colors, 17 ui elements, 28277 blended px, no row shear, quad coverage 1190/1190 — OK
+  ui_new_world: 5576 distinct colors, 24 ui elements, 300384 blended px, no row shear, quad coverage 945/945 — OK
+  ui_load_world: 6486 distinct colors, 10 ui elements, 146392 blended px, no row shear, quad coverage 630/630 — OK
+  ui_settings: 6492 distinct colors, 50 ui elements, 277988 blended px, no row shear, quad coverage 320/320 — OK
+  ui_gameplay_hud_default: 7853 distinct colors, 16 ui elements, 24418 blended px, no row shear, quad coverage 2328/2328 — OK
+  ui_gameplay_hud_debug_values: 8108 distinct colors, 17 ui elements, 28289 blended px, no row shear, quad coverage 1190/1190 — OK
   health bar fill fraction 0.38 (target 0.45) — OK
-  ui_pause: 8294 distinct colors, 7 ui elements, 116594 blended px, no row shear, quad coverage 1886/1886 — OK
-  ui_modal_confirm: 5988 distinct colors, 6 ui elements, 901566 blended px, no row shear, quad coverage 592/592 — OK
-  ui_debug_inspector: 9109 distinct colors, 17 ui elements, 32253 blended px, no row shear, quad coverage 229/229 — OK
-  ui_title_deck: 8797 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 3628/3628 — OK
-  ui_gameplay_hud_1501x801: 10101 distinct colors, 16 ui elements, 24921 blended px, no row shear, quad coverage 1154/1154 — OK
-  ui_title_1501x801: 9817 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4416/4416 — OK
+  ui_pause: 7372 distinct colors, 7 ui elements, 116594 blended px, no row shear, quad coverage 1886/1886 — OK
+  ui_modal_confirm: 5439 distinct colors, 6 ui elements, 901566 blended px, no row shear, quad coverage 592/592 — OK
+  ui_debug_inspector: 8621 distinct colors, 18 ui elements, 35476 blended px, no row shear, quad coverage 243/243 — OK
+  ui_title_deck: 7507 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 3628/3628 — OK
+  ui_gameplay_hud_1501x801: 9458 distinct colors, 16 ui elements, 25007 blended px, no row shear, quad coverage 1154/1154 — OK
+  ui_title_1501x801: 8578 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4416/4416 — OK
 UI SHOTS PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots (13 captures + layout dumps, incl. unaligned 1501x801 + row-shear law)
 STAGE PASS: ui-states
 
 === STAGE: seed-preview-ui ===
 SEED PREVIEW SHOTS: warning-state seed: 8
-windowed run: 401 frames · frame p50 24.17 ms · p95 29.06 ms · avg 40.5 fps
+windowed run: 401 frames · frame p50 14.14 ms · p95 17.59 ms · avg 68.3 fps
 SEED PREVIEW SHOTS PASS:
   seed_preview_empty: valid=false map colors=3, create=disabled, marker=no — OK
-  seed_preview_typed: valid=true map colors=52, create=focused, marker=yes — OK
-  seed_preview_rerolled: valid=true map colors=80, create=normal, marker=yes — OK
-  seed_preview_random: valid=false map colors=36, create=disabled, marker=no — OK
-  seed_preview_deck_1280x800: valid=false map colors=36, create=disabled, marker=no — OK
-  seed_preview_invalid_or_warning: valid=false map colors=48, create=disabled, marker=no — OK
+  seed_preview_typed: valid=true map colors=70, create=focused, marker=yes — OK
+  seed_preview_rerolled: valid=true map colors=75, create=normal, marker=yes — OK
+  seed_preview_random: valid=false map colors=40, create=disabled, marker=no — OK
+  seed_preview_deck_1280x800: valid=false map colors=40, create=disabled, marker=no — OK
+  seed_preview_invalid_or_warning: valid=false map colors=54, create=disabled, marker=no — OK
   pixel report -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/seed_preview_pixel_report.json
 STAGE PASS: seed-preview-ui
 
 === STAGE: seed-preview-4242 ===
-SEED PREVIEW: seed 4242 (numeric), spawn safe=true, 3 biomes, 1 warnings -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/seed_preview_4242.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/seed_preview_4242.json
+SEED PREVIEW: seed 4242 (numeric), spawn safe=true, 4 biomes, 1 warnings -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/seed_preview_4242.png + /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/seed_preview_4242.json
 STAGE PASS: seed-preview-4242
 
 === STAGE: asset-captures ===
@@ -317,82 +318,194 @@ ASSET CAPTURES OK
 STAGE PASS: asset-captures
 
 === STAGE: observatory ===
-OBSERVE route_title_mouse -> PASS (2 captures, 81 frames, p50 21.260000228881836 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_title_mouse/bundle.json
+OBSERVE route_title_mouse -> PASS (2 captures, 81 frames, p50 12.90999984741211 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_title_mouse/bundle.json
 OBSERVATORY OK
-OBSERVE route_new_world_seed -> PASS (1 captures, 71 frames, p50 21.25 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_new_world_seed/bundle.json
+OBSERVE route_new_world_seed -> PASS (1 captures, 71 frames, p50 12.989999771118164 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_new_world_seed/bundle.json
 OBSERVATORY OK
-OBSERVE route_escape_pause -> PASS (1 captures, 91 frames, p50 21.3799991607666 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_escape_pause/bundle.json
+OBSERVE route_escape_pause -> PASS (1 captures, 91 frames, p50 12.960000038146973 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_escape_pause/bundle.json
 OBSERVATORY OK
-OBSERVE route_asset_inspect -> PASS (1 captures, 61 frames, p50 21.209999084472656 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_asset_inspect/bundle.json
+OBSERVE route_asset_inspect -> PASS (1 captures, 61 frames, p50 12.779999732971191 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_asset_inspect/bundle.json
 OBSERVATORY OK
-HOUSE ENTRY: outside vs inside frames differ 58.6%
-OBSERVE route_house_entry -> PASS (2 captures, 121 frames, p50 21.739999771118164 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_house_entry/bundle.json
+HOUSE ENTRY: outside vs inside frames differ 64.8%
+OBSERVE route_house_entry -> PASS (2 captures, 121 frames, p50 13.0600004196167 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_house_entry/bundle.json
 OBSERVATORY OK
 NPC TALK: speaking with Maren Oldford
-OBSERVE route_npc_talk -> PASS (1 captures, 91 frames, p50 21.6200008392334 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_npc_talk/bundle.json
+OBSERVE route_npc_talk -> PASS (1 captures, 91 frames, p50 13.0 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_npc_talk/bundle.json
 OBSERVATORY OK
-[FAIL] observe route_forge_use: panel shown true, bars taken 0
-OBSERVE route_forge_use -> FAIL (2 captures, 281 frames, p50 22.639999389648438 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_forge_use/bundle.json
+FORGE USE: 1 bars smelted and taken
+OBSERVE route_forge_use -> PASS (2 captures, 281 frames, p50 13.84000015258789 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_forge_use/bundle.json
+OBSERVATORY OK
 GPU MARKERS: 12 markers, 11 draw calls, backend "Metal"
-OBSERVE route_gpu_markers -> PASS (1 captures, 61 frames, p50 21.110000610351562 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_gpu_markers/bundle.json
+OBSERVE route_gpu_markers -> PASS (1 captures, 61 frames, p50 12.850000381469727 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_gpu_markers/bundle.json
 OBSERVATORY OK
-SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 4 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 36%)
-OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 24.459999084472656 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_semantic_playtest/bundle.json
+SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 35%)
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 13.970000267028809 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_semantic_playtest/bundle.json
 OBSERVATORY OK
-VINE CLIMB: strand at slot (65,20) anchor (258.6,55.92,82.0) ground 53.18
-VINE CLIMB: the fall was gripped (toast), the drop reached 55.69 (from 65.18) and hung in the span (55.69 in [tip 54.84, attach 55.92]), the climb moved the body, landed unharmed and GROUNDED (feet 53.17 on 53.17, health 100%)
-OBSERVE route_vine_climb -> PASS (4 captures, 381 frames, p50 24.690000534057617 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_vine_climb/bundle.json
+VINE CLIMB: strand at slot (66,13) anchor (262.7,40.64,54.0) ground 37.73
+VINE CLIMB: the fall was gripped (toast), the drop reached 40.47 (from 49.73) and hung in the span (40.47 in [tip 39.32, attach 40.64]), the climb moved the body, landed unharmed and GROUNDED (feet 37.67 on 37.67, health 100%)
+OBSERVE route_vine_climb -> PASS (4 captures, 381 frames, p50 13.680000305175781 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_vine_climb/bundle.json
 OBSERVATORY OK
-AIR STEER: the free fall held its line, the held fall drifted 0.45 m along the strafe (ortho 0.00 m); health 69% -> 43%
-OBSERVE route_air_steer -> PASS (4 captures, 321 frames, p50 24.31999969482422 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_air_steer/bundle.json
+AIR STEER: the free fall held its line, the held fall drifted 0.70 m along the strafe (ortho 0.00 m); health 67% -> 37%
+OBSERVE route_air_steer -> PASS (4 captures, 321 frames, p50 14.029999732971191 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_air_steer/bundle.json
 OBSERVATORY OK
-WALK OFF: dig cell (391.5,54.50,132.5) -> floor 49.50
-WALK OFF: the floor gave way, the body fell 56.19 -> 51.19 (deepest air 51.54, air beat latched at frame 104 for frame 105) and landed wounded 100% -> 65% (toast true)
-OBSERVE route_walk_off -> PASS (3 captures, 240 frames, p50 24.219999313354492 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_walk_off/bundle.json
+WALK OFF: dig cell (386.5,37.67,136.5) -> floor 32.67
+WALK OFF: the floor gave way, the body fell 39.38 -> 34.38 (deepest air 34.56, air beat latched at frame 117 for frame 118) and landed wounded 100% -> 64% (toast true)
+OBSERVE route_walk_off -> PASS (3 captures, 240 frames, p50 14.09000015258789 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_walk_off/bundle.json
 OBSERVATORY OK
-PIT WALL: pit (391.5,54.50,132.5) -> floor 49.50; step cell (391.5,130.5) -> 50.00
-PIT WALL: the pit held (49.49 -> held 49.49 at the wall, then the step at 49.87); health 100% -> 77%
-OBSERVE route_pit_wall -> PASS (4 captures, 341 frames, p50 24.270000457763672 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_pit_wall/bundle.json
+PIT WALL: pit (386.5,37.67,136.5) -> floor 32.67; step cell (386.5,134.5) -> 33.17
+PIT WALL: the pit held (32.68 -> held 32.68 at the wall, then the step at 33.21); health 100% -> 71%
+OBSERVE route_pit_wall -> PASS (4 captures, 341 frames, p50 13.920000076293945 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_pit_wall/bundle.json
 OBSERVATORY OK
-DIG: spot (391.5,54.50,132.5)
+DIG: spot (386.5,37.67,136.5)
 DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
-DIG VERB: G dug (391,132) 54.49 -> 53.49; terrace walked 53.49 -> back 54.35; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
-OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 23.709999084472656 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_dig/bundle.json
+DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.59; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 14.140000343322754 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_dig/bundle.json
 OBSERVATORY OK
 CROWD: staged head-on (387,132) <-> (395,132); parked home (380,127)
 CROWD YIELD: row (387,132) <-> (395,132); 70 frames audited, overlap false / yield true / arrived true/true; parked (380,127) held
-OBSERVE route_crowd_yield -> PASS (4 captures, 131 frames, p50 23.209999084472656 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_crowd_yield/bundle.json
+OBSERVE route_crowd_yield -> PASS (4 captures, 131 frames, p50 14.270000457763672 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_crowd_yield/bundle.json
 OBSERVATORY OK
-PLAZA RECOVERY: pit cell (391.5,54.50,132.5) -> floor 40.50; plaza at (384, 128)
-PLAZA RECOVERY: fell 54.49 -> pit floor 40.49; woke at the plaza (384.5,128.5) feet 55.19 (plaza ground 55.19); health 100% -> 50% EXACT, food 1.00 -> 0.50
-OBSERVE route_plaza_recovery -> PASS (5 captures, 341 frames, p50 24.360000610351562 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_plaza_recovery/bundle.json
+PLAZA RECOVERY: pit cell (386.5,37.67,136.5) -> floor 23.67; plaza at (384, 128)
+PLAZA RECOVERY: fell 37.68 -> pit floor 23.68; woke at the plaza (384.5,128.5) feet 38.35 (plaza ground 38.35); health 100% -> 50% EXACT, food 1.00 -> 0.50
+OBSERVE route_plaza_recovery -> PASS (5 captures, 341 frames, p50 13.8100004196167 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_plaza_recovery/bundle.json
 OBSERVATORY OK
-VINE HANGOFF: strand at slot (65,20) anchor (258.6,55.92,82.0) ground 53.18
-HANG OFF: hang at 55.69 (top 55.92 tip 54.84); hop rose 1.04 m, fell past the strand (min 53.18), air beat latched at frame 232 for 233 (pose 54.62, ground 53.18), grounded at (258.64,82.00) feet 53.18 (ground 53.18); health 100% -> 84% (law 84%); tip release fell free (min 52.71) and landed safe 0.98 m from the strand (health 0.98 -> 1.00)
-OBSERVE route_vine_hangoff -> PASS (7 captures, 700 frames, p50 26.049999237060547 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_vine_hangoff/bundle.json
+VINE HANGOFF: strand at slot (66,13) anchor (262.7,40.64,54.0) ground 37.73
+HANG OFF: hang at 40.47 (top 40.64 tip 39.32); hop rose 1.04 m, fell past the strand (min 37.73), air beat latched at frame 268 for 269 (pose 39.18, ground 37.73), grounded at (262.65,54.00) feet 37.73 (ground 37.73); health 100% -> 80% (law 81%); tip release fell free (min 37.62) and landed safe 1.03 m from the strand (health 0.87 -> 0.90)
+OBSERVE route_vine_hangoff -> PASS (7 captures, 700 frames, p50 14.010000228881836 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_vine_hangoff/bundle.json
 OBSERVATORY OK
-MACHINE CHAIN: river region (-1,1) offers 3200 mWATER; wood spot (-119.5,52.00,384.5)
+MACHINE CHAIN: river region (0,0) offers 3200 mWATER; wood spot (128.5,35.61,136.5)
 MACHINE CHAIN: 450 mE stored from river water + wood
-OBSERVE route_machine_chain -> PASS (2 captures, 171 frames, p50 22.530000686645508 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_machine_chain/bundle.json
+OBSERVE route_machine_chain -> PASS (2 captures, 171 frames, p50 13.729999542236328 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_machine_chain/bundle.json
 OBSERVATORY OK
-[FAIL] observe route_social: panel=true companion="COMPANION FOLLOWS · N WAITS" slain=0 witnessed=0
-OBSERVE route_social -> FAIL (2 captures, 221 frames, p50 24.1299991607666 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_social/bundle.json
-STAGE FAIL: observatory
+SOCIAL: oversight shown, companion live, slain=1 witnessed=3
+OBSERVE route_social -> PASS (2 captures, 220 frames, p50 13.930000305175781 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/observatory/route_social/bundle.json
+OBSERVATORY OK
+OBSERVATORY OK (all routes)
+STAGE PASS: observatory
 
 === STAGE: dig-determinism ===
-sh: : command not found
-STAGE FAIL: dig-determinism
+DIG: spot (386.5,37.67,136.5)
+DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
+DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.56; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 13.880000114440918 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/dig-a/route_dig/bundle.json
+OBSERVATORY OK
+DIG: spot (386.5,37.67,136.5)
+DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
+DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.61; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 13.899999618530273 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/dig-b/route_dig/bundle.json
+OBSERVATORY OK
+{
+  "build_hash": "dev",
+  "checks": [
+    {
+      "detail": "both bundle.json parsed",
+      "name": "bundles_readable",
+      "pass": true
+    },
+    {
+      "detail": "\"route_dig\"",
+      "name": "same_route",
+      "pass": true
+    },
+    {
+      "detail": "all listed paths exist",
+      "name": "A_paths_exist",
+      "pass": true
+    },
+    {
+      "detail": "all listed paths exist",
+      "name": "B_paths_exist",
+      "pass": true
+    },
+    {
+      "detail": "screenshots carry content",
+      "name": "A_nonblank",
+      "pass": true
+    },
+    {
+      "detail": "screenshots carry content",
+      "name": "B_nonblank",
+      "pass": true
+    },
+    {
+      "detail": "\"3\" vs \"3\"",
+      "name": "same_seed",
+      "pass": true
+    }
+  ],
+  "verdict": "pass",
+  "version": 1
+}
+STAGE PASS: dig-determinism
 
 === STAGE: playtest-determinism ===
-sh: : command not found
-STAGE FAIL: playtest-determinism
+SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 35%)
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 13.859999656677246 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/playtest-a/route_semantic_playtest/bundle.json
+OBSERVATORY OK
+SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 35%)
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 13.819999694824219 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/playtest-b/route_semantic_playtest/bundle.json
+OBSERVATORY OK
+{
+  "build_hash": "dev",
+  "checks": [
+    {
+      "detail": "both bundle.json parsed",
+      "name": "bundles_readable",
+      "pass": true
+    },
+    {
+      "detail": "\"route_semantic_playtest\"",
+      "name": "same_route",
+      "pass": true
+    },
+    {
+      "detail": "all listed paths exist",
+      "name": "A_paths_exist",
+      "pass": true
+    },
+    {
+      "detail": "all listed paths exist",
+      "name": "B_paths_exist",
+      "pass": true
+    },
+    {
+      "detail": "screenshots carry content",
+      "name": "A_nonblank",
+      "pass": true
+    },
+    {
+      "detail": "screenshots carry content",
+      "name": "B_nonblank",
+      "pass": true
+    },
+    {
+      "detail": "\"3\" vs \"3\"",
+      "name": "same_seed",
+      "pass": true
+    }
+  ],
+  "verdict": "pass",
+  "version": 1
+}
+STAGE PASS: playtest-determinism
 
 === STAGE: deck-bench ===
-sh: : command not found
-STAGE FAIL: deck-bench
+DECK low: p50 6.37 ms p95 7.61 p99 13.59 worst 37.45 (146 fps), meshed 176 gpu 4915 KB flora 463 setl 1048 tris crowd 92 inst, probe 2689040 -> 2671003 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_low.csv
+DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
+DECK mid: p50 6.82 ms p95 7.83 p99 13.35 worst 24.57 (142 fps), meshed 402 gpu 18654 KB flora 463 setl 1048 tris crowd 92 inst, probe 2691156 -> 2669588 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_mid.csv
+DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
+DECK high: p50 7.02 ms p95 8.23 p99 13.30 worst 23.90 (138 fps), meshed 603 gpu 27359 KB flora 463 setl 1048 tris crowd 92 inst, probe 2777974 -> 2690947 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_high.csv
+DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
+DECK host CPU probe ns (start/end): [2689040, 2671003, 2691156, 2669588, 2777974, 2690947] — within the x1.4 band
+DECK BENCH REPORT -> /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/../../../docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md
+DECK low: p50 6.37 ms p95 7.61 p99 13.59 worst 37.45 (146 fps) probes 2689040/2671003
+DECK mid: p50 6.82 ms p95 7.83 p99 13.35 worst 24.57 (142 fps) probes 2691156/2669588
+DECK high: p50 7.02 ms p95 8.23 p99 13.30 worst 23.90 (138 fps) probes 2777974/2690947
+DECK BENCH PASS -> report + per-tier captures in /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots
+STAGE PASS: deck-bench
 
 === STAGE: package-dmg ===
-PC3D_BUILD=ab74137 cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d && mkdir -p poorcraft3d/target/release && if [ -n "$CARGO_TARGET_DIR" ] && [ -f "$CARGO_TARGET_DIR/release/poorcraft3d" ]; then cp -f "$CARGO_TARGET_DIR/release/poorcraft3d" poorcraft3d/target/release/poorcraft3d; fi
+PC3D_BUILD=c4696e0 cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d && mkdir -p poorcraft3d/target/release && if [ -n "$CARGO_TARGET_DIR" ] && [ -f "$CARGO_TARGET_DIR/release/poorcraft3d" ]; then cp -f "$CARGO_TARGET_DIR/release/poorcraft3d" poorcraft3d/target/release/poorcraft3d; fi
 warning: variable does not need to be mutable
    --> crates/pc3d_core/src/replay.rs:125:9
     |
@@ -580,6 +693,12 @@ warning: unused import: `harvest_yields`
 10 | use crate::items::{harvest_yields, Inventory, ItemId};
    |                    ^^^^^^^^^^^^^^
 
+warning: unused import: `WorldPos`
+  --> crates/pc3d_world/src/terrain.rs:19:33
+   |
+19 | use crate::coords::{PatchCoord, WorldPos};
+   |                                 ^^^^^^^^
+
 warning: unused variable: `kit`
    --> crates/pc3d_world/src/castle.rs:242:9
     |
@@ -670,6 +789,12 @@ warning: unused variable: `gen`
 78 |     pub fn new(gen: &WorldGen, graph: &RiverGraph, half: i32) -> Self {
    |                ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
 
+warning: unused variable: `gen`
+   --> crates/pc3d_world/src/terrain.rs:124:13
+    |
+124 |             gen: &crate::gen::WorldGen,
+    |             ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
 warning: unused variable: `h`
   --> crates/pc3d_world/src/terrain_report.rs:33:9
    |
@@ -710,7 +835,7 @@ warning: function `REGION_PATCH_AXIS_I32` should have a snake case name
 119 | fn REGION_PATCH_AXIS_I32() -> i32 {
     |    ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `region_patch_axis_i32`
 
-warning: `pc3d_world` (lib) generated 39 warnings (run `cargo fix --lib -p pc3d_world` to apply 35 suggestions)
+warning: `pc3d_world` (lib) generated 41 warnings (run `cargo fix --lib -p pc3d_world` to apply 37 suggestions)
 warning: unused import: `crate::framing::FrameError`
  --> crates/pc3d_save/src/journal.rs:7:5
   |
@@ -790,49 +915,49 @@ warning: unused import: `SurfacePatch`
    |                      ^^^^^^^^^^^^
 
 warning: use of deprecated type alias `wgpu::ImageCopyBuffer`: This has been renamed to `TexelCopyBufferInfo`, and will be removed in 25.0.0.
-    --> crates/pc3d_render/src/renderer.rs:2532:23
+    --> crates/pc3d_render/src/renderer.rs:2554:23
      |
-2532 |                 wgpu::ImageCopyBuffer {
+2554 |                 wgpu::ImageCopyBuffer {
      |                       ^^^^^^^^^^^^^^^
      |
      = note: `#[warn(deprecated)]` on by default
 
 warning: use of deprecated type alias `wgpu::ImageDataLayout`: This has been renamed to `TexelCopyBufferLayout`, and will be removed in 25.0.0.
-    --> crates/pc3d_render/src/renderer.rs:2534:35
+    --> crates/pc3d_render/src/renderer.rs:2556:35
      |
-2534 |                     layout: wgpu::ImageDataLayout {
+2556 |                     layout: wgpu::ImageDataLayout {
      |                                   ^^^^^^^^^^^^^^^
 
 warning: use of deprecated type alias `wgpu::ImageCopyBuffer`: This has been renamed to `TexelCopyBufferInfo`, and will be removed in 25.0.0.
-    --> crates/pc3d_render/src/renderer.rs:2555:23
+    --> crates/pc3d_render/src/renderer.rs:2577:23
      |
-2555 |                 wgpu::ImageCopyBuffer {
+2577 |                 wgpu::ImageCopyBuffer {
      |                       ^^^^^^^^^^^^^^^
 
 warning: use of deprecated type alias `wgpu::ImageDataLayout`: This has been renamed to `TexelCopyBufferLayout`, and will be removed in 25.0.0.
-    --> crates/pc3d_render/src/renderer.rs:2557:35
+    --> crates/pc3d_render/src/renderer.rs:2579:35
      |
-2557 |                     layout: wgpu::ImageDataLayout {
+2579 |                     layout: wgpu::ImageDataLayout {
      |                                   ^^^^^^^^^^^^^^^
 
 warning: use of deprecated associated function `winit::window::WindowAttributes::new`: use `Window::default_attributes` instead
-    --> crates/pc3d_render/src/app.rs:3006:39
+    --> crates/pc3d_render/src/app.rs:3015:39
      |
-3006 |         let attrs = WindowAttributes::new()
+3015 |         let attrs = WindowAttributes::new()
      |                                       ^^^
 
 warning: unused variable: `remaining`
-    --> crates/pc3d_render/src/app.rs:2547:36
+    --> crates/pc3d_render/src/app.rs:2556:36
      |
-2547 |                     let (has_pick, remaining) = self
+2556 |                     let (has_pick, remaining) = self
      |                                    ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_remaining`
      |
      = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
 
 warning: unused variable: `dy_signed`
-    --> crates/pc3d_render/src/app.rs:3134:17
+    --> crates/pc3d_render/src/app.rs:3143:17
      |
-3134 |             let dy_signed = if invert { -dy } else { dy };
+3143 |             let dy_signed = if invert { -dy } else { dy };
      |                 ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dy_signed`
 
 warning: variable does not need to be mutable
@@ -889,17 +1014,17 @@ warning: variable does not need to be mutable
     |                     help: remove this `mut`
 
 warning: variable does not need to be mutable
-   --> crates/pc3d_render/src/renderer.rs:793:9
+   --> crates/pc3d_render/src/renderer.rs:801:9
     |
-793 |     let mut line = |from: [f32; 3], to: [f32; 3], c: [f32; 3], out: &mut Vec<crate::scene::SceneVertex>| {
+801 |     let mut line = |from: [f32; 3], to: [f32; 3], c: [f32; 3], out: &mut Vec<crate::scene::SceneVertex>| {
     |         ----^^^^
     |         |
     |         help: remove this `mut`
 
 warning: variable does not need to be mutable
-    --> crates/pc3d_render/src/renderer.rs:1020:13
+    --> crates/pc3d_render/src/renderer.rs:1029:13
      |
-1020 |         let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
+1029 |         let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
      |             ----^^^
      |             |
      |             help: remove this `mut`
@@ -921,45 +1046,45 @@ warning: variable does not need to be mutable
     |         help: remove this `mut`
 
 warning: unused variable: `gen`
-  --> crates/pc3d_render/src/surface.rs:77:32
+  --> crates/pc3d_render/src/surface.rs:97:32
    |
-77 |     pub fn vertex_world(&self, gen: &WorldGen, lx: usize, lz: usize) -> [f32; 3] {
+97 |     pub fn vertex_world(&self, gen: &WorldGen, lx: usize, lz: usize) -> [f32; 3] {
    |                                ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
 
 warning: unused variable: `to_m`
-   --> crates/pc3d_render/src/surface.rs:250:38
+   --> crates/pc3d_render/src/surface.rs:282:38
     |
-250 |                 SurfaceEdit::Level { to_m, .. } => None,
+282 |                 SurfaceEdit::Level { to_m, .. } => None,
     |                                      ^^^^ help: try ignoring the field: `to_m: _`
 
 warning: unused variable: `t0`
-   --> crates/pc3d_render/src/surface_stream.rs:303:13
+   --> crates/pc3d_render/src/surface_stream.rs:308:13
     |
-303 |         let t0 = std::time::Instant::now();
+308 |         let t0 = std::time::Instant::now();
     |             ^^ help: if this is intentional, prefix it with an underscore: `_t0`
 
 warning: unused variable: `is_air`
-   --> crates/pc3d_render/src/terrain.rs:256:9
+   --> crates/pc3d_render/src/terrain.rs:260:9
     |
-256 |     let is_air = |c: CellCoord| !solid_at(gen, c);
+260 |     let is_air = |c: CellCoord| !solid_at(gen, c);
     |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_is_air`
 
 warning: unused variable: `b`
-    --> crates/pc3d_render/src/ui.rs:1291:21
+    --> crates/pc3d_render/src/ui.rs:1296:21
      |
-1291 |             for (i, b) in KEYMAP.iter().enumerate() {
+1296 |             for (i, b) in KEYMAP.iter().enumerate() {
      |                     ^ help: if this is intentional, prefix it with an underscore: `_b`
 
 warning: unused variable: `other_state`
-    --> crates/pc3d_render/src/ui.rs:1464:29
+    --> crates/pc3d_render/src/ui.rs:1469:29
      |
-1464 | ...                   other_state => format!("> {head}"),
+1469 | ...                   other_state => format!("> {head}"),
      |                       ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_other_state`
 
 warning: unused variable: `state_col`
-    --> crates/pc3d_render/src/ui.rs:1546:22
+    --> crates/pc3d_render/src/ui.rs:1551:22
      |
-1546 |                 let (state_col, state_txt) = if f.blocked {
+1551 |                 let (state_col, state_txt) = if f.blocked {
      |                      ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_state_col`
 
 warning: unused variable: `down`
@@ -1009,6 +1134,18 @@ warning: function `cells_of` is never used
 257 | fn cells_of(origin: CellCoord, fw: i32, fh: i32) -> BTreeSet<(i32, i32)> {
     |    ^^^^^^^^
 
+warning: function `sample_height` is never used
+  --> crates/pc3d_render/src/surface.rs:60:4
+   |
+60 | fn sample_height(gen: &WorldGen, wx_m: f32, wz_m: f32) -> f32 {
+   |    ^^^^^^^^^^^^^
+
+warning: function `sample_material` is never used
+  --> crates/pc3d_render/src/surface.rs:73:4
+   |
+73 | fn sample_material(gen: &WorldGen, wx_m: f32, wz_m: f32) -> pc3d_world::gen::CellMaterial {
+   |    ^^^^^^^^^^^^^^^
+
 warning: field `version` is never read
   --> crates/pc3d_render/src/surface_stream.rs:80:5
    |
@@ -1019,15 +1156,15 @@ warning: field `version` is never read
    |     ^^^^^^^
 
 warning: function `scale_for` is never used
-    --> crates/pc3d_render/src/ui.rs:1876:4
+    --> crates/pc3d_render/src/ui.rs:1881:4
      |
-1876 | fn scale_for(_w: i32, _h: i32, base: u32) -> u32 {
+1881 | fn scale_for(_w: i32, _h: i32, base: u32) -> u32 {
      |    ^^^^^^^^^
 
 warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
-    --> crates/pc3d_render/src/app.rs:3186:21
+    --> crates/pc3d_render/src/app.rs:3195:21
      |
-3186 |                     drop(state);
+3195 |                     drop(state);
      |                     ^^^^^-----^
      |                          |
      |                          argument has type `&mut WindowState`
@@ -1035,141 +1172,147 @@ warning: calls to `std::mem::drop` with a reference instead of an owned value do
      = note: `#[warn(dropping_references)]` on by default
 help: use `let _ = ...` to ignore the expression or result
      |
-3186 -                     drop(state);
-3186 +                     let _ = state;
+3195 -                     drop(state);
+3195 +                     let _ = state;
      |
 
 warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
-    --> crates/pc3d_render/src/app.rs:3217:41
+    --> crates/pc3d_render/src/app.rs:3226:41
      |
-3217 | ...                   drop(state);
+3226 | ...                   drop(state);
      |                       ^^^^^-----^
      |                            |
      |                            argument has type `&mut WindowState`
      |
 help: use `let _ = ...` to ignore the expression or result
      |
-3217 -                                         drop(state);
-3217 +                                         let _ = state;
+3226 -                                         drop(state);
+3226 +                                         let _ = state;
      |
 
 warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
-    --> crates/pc3d_render/src/app.rs:3221:37
+    --> crates/pc3d_render/src/app.rs:3230:37
      |
-3221 | ...                   drop(state);
+3230 | ...                   drop(state);
      |                       ^^^^^-----^
      |                            |
      |                            argument has type `&mut WindowState`
      |
 help: use `let _ = ...` to ignore the expression or result
      |
-3221 -                                     drop(state);
-3221 +                                     let _ = state;
+3230 -                                     drop(state);
+3230 +                                     let _ = state;
      |
 
 warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
-    --> crates/pc3d_render/src/app.rs:3269:21
+    --> crates/pc3d_render/src/app.rs:3278:21
      |
-3269 |                     drop(state);
+3278 |                     drop(state);
      |                     ^^^^^-----^
      |                          |
      |                          argument has type `&mut WindowState`
      |
 help: use `let _ = ...` to ignore the expression or result
      |
-3269 -                     drop(state);
-3269 +                     let _ = state;
+3278 -                     drop(state);
+3278 +                     let _ = state;
      |
 
 warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
-    --> crates/pc3d_render/src/app.rs:3284:21
+    --> crates/pc3d_render/src/app.rs:3293:21
      |
-3284 |                     drop(state);
+3293 |                     drop(state);
      |                     ^^^^^-----^
      |                          |
      |                          argument has type `&mut WindowState`
      |
 help: use `let _ = ...` to ignore the expression or result
      |
-3284 -                     drop(state);
-3284 +                     let _ = state;
+3293 -                     drop(state);
+3293 +                     let _ = state;
      |
 
 warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
-    --> crates/pc3d_render/src/app.rs:4116:13
+    --> crates/pc3d_render/src/app.rs:4136:13
      |
-4116 |             drop(state);
+4136 |             drop(state);
      |             ^^^^^-----^
      |                  |
      |                  argument has type `&mut WindowState`
      |
 help: use `let _ = ...` to ignore the expression or result
      |
-4116 -             drop(state);
-4116 +             let _ = state;
+4136 -             drop(state);
+4136 +             let _ = state;
      |
 
 warning: unused `std::result::Result` that must be used
-    --> crates/pc3d_render/src/renderer.rs:1752:9
+    --> crates/pc3d_render/src/renderer.rs:1762:9
      |
-1752 |         rcv.recv().expect("map");
+1762 |         rcv.recv().expect("map");
      |         ^^^^^^^^^^^^^^^^^^^^^^^^
      |
      = note: this `Result` may be an `Err` variant, which should be handled
      = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
 help: use `let _ = ...` to ignore the resulting value
      |
-1752 |         let _ = rcv.recv().expect("map");
+1762 |         let _ = rcv.recv().expect("map");
      |         +++++++
 
-warning: `pc3d_render` (lib) generated 50 warnings (run `cargo fix --lib -p pc3d_render` to apply 30 suggestions)
+warning: `pc3d_render` (lib) generated 52 warnings (run `cargo fix --lib -p pc3d_render` to apply 30 suggestions)
    Compiling poorcraft3d v0.1.0 (/Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d)
 warning: unused import: `SliceHost`
-    --> apps/poorcraft3d/src/main.rs:1832:37
+    --> apps/poorcraft3d/src/main.rs:1930:37
      |
-1832 |             use pc3d_render::{Shot, SliceHost};
+1930 |             use pc3d_render::{Shot, SliceHost};
      |                                     ^^^^^^^^^
      |
      = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
 warning: unused import: `UiAction`
-    --> apps/poorcraft3d/src/main.rs:8890:46
+    --> apps/poorcraft3d/src/main.rs:9102:46
      |
-8890 |     use pc3d_render::ui::{self, Key, Screen, UiAction};
+9102 |     use pc3d_render::ui::{self, Key, Screen, UiAction};
      |                                              ^^^^^^^^
 
 warning: unused import: `Key`
-    --> apps/poorcraft3d/src/main.rs:9162:27
+    --> apps/poorcraft3d/src/main.rs:9374:27
      |
-9162 |     use pc3d_render::ui::{Key, ModalKind, Screen, UiAction};
+9374 |     use pc3d_render::ui::{Key, ModalKind, Screen, UiAction};
      |                           ^^^
 
 warning: variable does not need to be mutable
-    --> apps/poorcraft3d/src/main.rs:2119:17
+    --> apps/poorcraft3d/src/main.rs:2217:17
      |
-2119 |             let mut region = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), coord);
+2217 |             let mut region = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), coord);
      |                 ----^^^^^^
      |                 |
      |                 help: remove this `mut`
      |
      = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
 
+warning: unused variable: `surface_at`
+   --> apps/poorcraft3d/src/main.rs:858:17
+    |
+858 |             let surface_at = |x: f32| {
+    |                 ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_surface_at`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
 warning: unused variable: `patches`
-    --> apps/poorcraft3d/src/main.rs:2995:21
+    --> apps/poorcraft3d/src/main.rs:3093:21
      |
-2995 |                 let patches = patches.clone();
+3093 |                 let patches = patches.clone();
      |                     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_patches`
-     |
-     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
 
 warning: unused variable: `center`
-    --> apps/poorcraft3d/src/main.rs:3407:23
+    --> apps/poorcraft3d/src/main.rs:3505:23
      |
-3407 |             let (gen, center, layout, plan) =
+3505 |             let (gen, center, layout, plan) =
      |                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_center`
 
-warning: `poorcraft3d` (bin "poorcraft3d") generated 6 warnings (run `cargo fix --bin "poorcraft3d" -p poorcraft3d` to apply 6 suggestions)
-    Finished `release` profile [optimized] target(s) in 29.05s
+warning: `poorcraft3d` (bin "poorcraft3d") generated 7 warnings (run `cargo fix --bin "poorcraft3d" -p poorcraft3d` to apply 7 suggestions)
+    Finished `release` profile [optimized] target(s) in 30.54s
 warning: the following packages contain code that will be rejected by a future version of Rust: block v0.1.6
 note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
 rm -rf poorcraft3d/dist3d/POORCRAFT3D.app poorcraft3d/dist3d/poorcraft3d-macos.dmg
@@ -1178,11 +1321,11 @@ cp poorcraft3d/target/release/poorcraft3d "poorcraft3d/dist3d/POORCRAFT3D.app/Co
 printf 'APPLPC3D' > "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/PkgInfo"
 printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>CFBundleExecutable</key><string>poorcraft3d</string>\n<key>CFBundleIdentifier</key><string>com.poorcraft.poorcraft3d</string>\n<key>CFBundleName</key><string>POORCRAFT 3D</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleShortVersionString</key><string>0.11.1</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n' > "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Info.plist"
 cp poorcraft3d/dist3d/POORCRAFT3D/PLAY.md "poorcraft3d/dist3d/POORCRAFT3D.app/Contents/Resources/PLAY.md"
-hdiutil create -volname "POORCRAFT3D-ab74137" -srcfolder poorcraft3d/dist3d/POORCRAFT3D.app -ov -format UDZO poorcraft3d/dist3d/poorcraft3d-macos.dmg
+hdiutil create -volname "POORCRAFT3D-c4696e0" -srcfolder poorcraft3d/dist3d/POORCRAFT3D.app -ov -format UDZO poorcraft3d/dist3d/poorcraft3d-macos.dmg
 created: /Users/zari/Desktop/POORCRAFT/poorcraft3d/dist3d/poorcraft3d-macos.dmg
 ls -la poorcraft3d/dist3d/poorcraft3d-macos.dmg
--rw-r--r--@ 1 zari  staff  3725663 Oct  3 02:44 poorcraft3d/dist3d/poorcraft3d-macos.dmg
+-rw-r--r--@ 1 zari  staff  3754941 Oct  3 06:45 poorcraft3d/dist3d/poorcraft3d-macos.dmg
 STAGE PASS: package-dmg
 
-TOTAL PROOF PNGS ON DISK: 292
-BETA BATTERY FAILED — see /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/BETA-REPORT.txt
+TOTAL PROOF PNGS ON DISK: 319
+BETA BATTERY: ALL STAGES PASS (report: /Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/BETA-REPORT.txt)

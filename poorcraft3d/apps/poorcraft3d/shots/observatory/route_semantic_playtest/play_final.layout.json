@@ -216,7 +216,7 @@
       "rect": [
         100,
         141,
-        370,
+        346,
         14
       ]
     },
@@ -260,7 +260,7 @@
       "rect": [
         100,
         201,
-        310,
+        322,
         14
       ]
     },
@@ -380,7 +380,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.34999001026153564,
+      "health": 0.35120636224746704,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -392,9 +392,9 @@
       {
         "giver": "Edda Quarrylee (the farmer)",
         "kind": "excavate",
-        "progress": "0/8",
+        "progress": "2/8",
         "reward": 35,
-        "state": "OFFERED",
+        "state": "ACTIVE",
         "title": "THE FARMER'S excavate"
       },
       {
@@ -410,7 +410,7 @@
         "kind": "build",
         "progress": "0/11",
         "reward": 27,
-        "state": "ACTIVE",
+        "state": "OFFERED",
         "title": "THE GUARD'S build"
       },
       {
@@ -457,12 +457,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 07:52",
+        "modified": "2026-10-03 09:41",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 07:52",
+        "modified": "2026-10-03 09:41",
         "name": "beta-shot",
         "seed": 7
       }
@@ -475,7 +475,7 @@
     ],
     "toasts": [
       {
-        "age_s": 1.6396397352218628,
+        "age_s": 1.7150073051452637,
         "text": "FELL — HEALTH 33%"
       }
     ],

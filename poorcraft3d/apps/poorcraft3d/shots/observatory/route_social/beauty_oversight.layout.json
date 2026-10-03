@@ -338,12 +338,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 07:54",
+        "modified": "2026-10-03 09:43",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 07:54",
+        "modified": "2026-10-03 09:43",
         "name": "beta-shot",
         "seed": 7
       }
@@ -351,7 +351,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.8662373423576355,
+        "age_s": 0.8913723230361938,
         "text": "COMPANION FOLLOWS · N WAITS"
       }
     ],

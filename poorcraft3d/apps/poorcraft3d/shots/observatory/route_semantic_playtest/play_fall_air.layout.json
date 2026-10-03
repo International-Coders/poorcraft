@@ -90,11 +90,22 @@
     },
     {
       "button_state": "",
-      "id": "toast_QUEST ACCEPTED",
+      "id": "toast_QUEST PROGRESS",
       "kind": "toast",
       "rect": [
         307,
         353,
+        186,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "toast_QUEST ACCEPTED",
+      "kind": "toast",
+      "rect": [
+        307,
+        331,
         186,
         16
       ]
@@ -227,7 +238,7 @@
       "rect": [
         100,
         141,
-        370,
+        346,
         14
       ]
     },
@@ -271,7 +282,7 @@
       "rect": [
         100,
         201,
-        310,
+        322,
         14
       ]
     },
@@ -403,9 +414,9 @@
       {
         "giver": "Edda Quarrylee (the farmer)",
         "kind": "excavate",
-        "progress": "0/8",
+        "progress": "2/8",
         "reward": 35,
-        "state": "OFFERED",
+        "state": "ACTIVE",
         "title": "THE FARMER'S excavate"
       },
       {
@@ -421,7 +432,7 @@
         "kind": "build",
         "progress": "0/11",
         "reward": 27,
-        "state": "ACTIVE",
+        "state": "OFFERED",
         "title": "THE GUARD'S build"
       },
       {
@@ -468,12 +479,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 07:52",
+        "modified": "2026-10-03 09:41",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 07:52",
+        "modified": "2026-10-03 09:41",
         "name": "beta-shot",
         "seed": 7
       }
@@ -486,11 +497,15 @@
     ],
     "toasts": [
       {
-        "age_s": 2.5256025791168213,
+        "age_s": 2.659017324447632,
         "text": "QUEST ACCEPTED"
       },
       {
-        "age_s": 1.5340174436569214,
+        "age_s": 1.6363321542739868,
+        "text": "QUEST PROGRESS"
+      },
+      {
+        "age_s": 1.6363321542739868,
         "text": "HARVESTED 2 IRON ORE"
       }
     ],

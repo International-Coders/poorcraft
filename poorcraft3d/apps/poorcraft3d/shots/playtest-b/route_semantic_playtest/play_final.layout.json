@@ -79,6 +79,17 @@
     },
     {
       "button_state": "",
+      "id": "toast_FELL — HEALTH 33%",
+      "kind": "toast",
+      "rect": [
+        289,
+        375,
+        222,
+        16
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -182,9 +193,9 @@
       "kind": "panel",
       "rect": [
         80,
-        127,
+        97,
         640,
-        246
+        306
       ]
     },
     {
@@ -193,7 +204,7 @@
       "kind": "text",
       "rect": [
         510,
-        171,
+        141,
         190,
         14
       ]
@@ -204,8 +215,8 @@
       "kind": "text",
       "rect": [
         100,
-        171,
-        334,
+        141,
+        346,
         14
       ]
     },
@@ -215,8 +226,8 @@
       "kind": "text",
       "rect": [
         100,
-        186,
-        311,
+        156,
+        329,
         7
       ]
     },
@@ -226,7 +237,7 @@
       "kind": "text",
       "rect": [
         100,
-        201,
+        171,
         346,
         14
       ]
@@ -237,7 +248,7 @@
       "kind": "text",
       "rect": [
         100,
-        216,
+        186,
         329,
         7
       ]
@@ -248,8 +259,8 @@
       "kind": "text",
       "rect": [
         100,
-        231,
-        334,
+        201,
+        322,
         14
       ]
     },
@@ -259,14 +270,36 @@
       "kind": "text",
       "rect": [
         100,
-        246,
-        341,
+        216,
+        323,
         7
       ]
     },
     {
       "button_state": "",
       "id": "journal_row_3",
+      "kind": "text",
+      "rect": [
+        100,
+        231,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_3",
+      "kind": "text",
+      "rect": [
+        100,
+        246,
+        311,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_4",
       "kind": "text",
       "rect": [
         100,
@@ -277,12 +310,34 @@
     },
     {
       "button_state": "",
-      "id": "journal_sub_3",
+      "id": "journal_sub_4",
       "kind": "text",
       "rect": [
         100,
         276,
-        329,
+        341,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_5",
+      "kind": "text",
+      "rect": [
+        100,
+        291,
+        346,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_5",
+      "kind": "text",
+      "rect": [
+        100,
+        306,
+        335,
         7
       ]
     },
@@ -292,7 +347,7 @@
       "kind": "text",
       "rect": [
         162,
-        349,
+        379,
         538,
         14
       ]
@@ -306,6 +361,10 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -321,7 +380,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.36413413286209106,
+      "health": 0.3505924940109253,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -332,35 +391,51 @@
     "journal": [
       {
         "giver": "Edda Quarrylee (the farmer)",
+        "kind": "excavate",
+        "progress": "2/8",
+        "reward": 35,
+        "state": "ACTIVE",
+        "title": "THE FARMER'S excavate"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
         "kind": "greet",
         "progress": "0/4",
         "reward": 31,
         "state": "OFFERED",
-        "title": "THE FARMER'S greet"
+        "title": "THE BUILDER'S greet"
       },
       {
-        "giver": "Calder Stonehand (the builder)",
+        "giver": "Dunstan Fernbrook (the guard)",
         "kind": "build",
         "progress": "0/11",
         "reward": 27,
         "state": "OFFERED",
-        "title": "THE BUILDER'S build"
-      },
-      {
-        "giver": "Dunstan Fernbrook (the guard)",
-        "kind": "excavate",
-        "progress": "2/8",
-        "reward": 39,
-        "state": "ACTIVE",
-        "title": "THE GUARD'S excavate"
+        "title": "THE GUARD'S build"
       },
       {
         "giver": "Edda Quarrylee (the farmer)",
-        "kind": "excavate",
-        "progress": "0/8",
-        "reward": 35,
+        "kind": "build",
+        "progress": "0/10",
+        "reward": 24,
         "state": "OFFERED",
-        "title": "THE FARMER'S excavate"
+        "title": "THE FARMER'S build"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
+        "kind": "deliver",
+        "progress": "0/6",
+        "reward": 20,
+        "state": "OFFERED",
+        "title": "THE BUILDER'S deliver"
+      },
+      {
+        "giver": "Dunstan Fernbrook (the guard)",
+        "kind": "deliver",
+        "progress": "0/5",
+        "reward": 17,
+        "state": "OFFERED",
+        "title": "THE GUARD'S deliver"
       }
     ],
     "journal_open": true,
@@ -382,12 +457,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:46",
+        "modified": "2026-10-03 09:43",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:46",
+        "modified": "2026-10-03 09:43",
         "name": "beta-shot",
         "seed": 7
       }
@@ -398,7 +473,12 @@
       "WOOD_PICK x1",
       "BREAD x2"
     ],
-    "toasts": [],
+    "toasts": [
+      {
+        "age_s": 1.6828229427337646,
+        "text": "FELL — HEALTH 33%"
+      }
+    ],
     "wallet": 0,
     "witnessed_assaults": 0
   }

@@ -4266,15 +4266,23 @@ impl App {
                 let probes = match (self.cfg.probe_set, shot.sky) {
                     (_, false) => vec![],
                     (ProbeSet::Scene, _) => crate::scene::probes_for_pose(pose, aspect),
-                    (ProbeSet::SkyOnly, _) => vec![crate::scene::Probe {
-                        name: "sky_above_horizon",
-                        ndc: (0.0, 0.8),
-                        expected: crate::scene::to_srgb4(crate::scene::sky_color_linear(
-                            crate::scene::dir_from_ndc(pose, (0.0, 0.8), aspect),
-                            crate::scene::SUN_DIR,
-                        )),
-                        tol: 0.05,
-                    }],
+                    // THE SKY LAW as alternatives (same name = any-of in
+                    // PixelReport): the mapgen's real mountains now
+                    // legitimately fill part of the sky in several vistas
+                    // (the cave mouth frames one) — they must never fill
+                    // ALL of it.
+                    (ProbeSet::SkyOnly, _) => [(0.78f32, 0.0), (0.9, 0.0), (0.96, 0.0)]
+                        .iter()
+                        .map(|(ny, _)| crate::scene::Probe {
+                            name: "sky_above_horizon",
+                            ndc: (0.0, *ny),
+                            expected: crate::scene::to_srgb4(crate::scene::sky_color_linear(
+                                crate::scene::dir_from_ndc(pose, (0.0, *ny), aspect),
+                                crate::scene::SUN_DIR,
+                            )),
+                            tol: 0.05,
+                        })
+                        .collect(),
                 };
                 let (report, rgba) = state.renderer.capture_png(&shot.path, &probes);
                 let (ui_canvas, mut ui_layout) = state

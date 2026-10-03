@@ -90,7 +90,7 @@
     },
     {
       "button_state": "",
-      "id": "toast_QUEST ACCEPTED",
+      "id": "toast_QUEST PROGRESS",
       "kind": "toast",
       "rect": [
         307,
@@ -101,12 +101,12 @@
     },
     {
       "button_state": "",
-      "id": "toast_FORGED 1 BARS",
+      "id": "toast_QUEST ACCEPTED",
       "kind": "toast",
       "rect": [
-        313,
+        307,
         331,
-        174,
+        186,
         16
       ]
     },
@@ -238,7 +238,7 @@
       "rect": [
         100,
         141,
-        370,
+        346,
         14
       ]
     },
@@ -282,7 +282,7 @@
       "rect": [
         100,
         201,
-        310,
+        322,
         14
       ]
     },
@@ -414,9 +414,9 @@
       {
         "giver": "Edda Quarrylee (the farmer)",
         "kind": "excavate",
-        "progress": "0/8",
+        "progress": "2/8",
         "reward": 35,
-        "state": "OFFERED",
+        "state": "ACTIVE",
         "title": "THE FARMER'S excavate"
       },
       {
@@ -432,7 +432,7 @@
         "kind": "build",
         "progress": "0/11",
         "reward": 27,
-        "state": "ACTIVE",
+        "state": "OFFERED",
         "title": "THE GUARD'S build"
       },
       {
@@ -479,12 +479,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 07:52",
+        "modified": "2026-10-03 09:41",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 07:52",
+        "modified": "2026-10-03 09:41",
         "name": "beta-shot",
         "seed": 7
       }
@@ -497,15 +497,15 @@
     ],
     "toasts": [
       {
-        "age_s": 2.641249895095825,
-        "text": "FORGED 1 BARS"
-      },
-      {
-        "age_s": 1.972071647644043,
+        "age_s": 2.0386557579040527,
         "text": "QUEST ACCEPTED"
       },
       {
-        "age_s": 0.9804871678352356,
+        "age_s": 1.0159718990325928,
+        "text": "QUEST PROGRESS"
+      },
+      {
+        "age_s": 1.0159718990325928,
         "text": "HARVESTED 2 IRON ORE"
       }
     ],

@@ -185,6 +185,10 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -228,12 +232,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:45",
+        "modified": "2026-10-03 09:43",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:45",
+        "modified": "2026-10-03 09:43",
         "name": "beta-shot",
         "seed": 7
       }

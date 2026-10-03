@@ -1,6 +1,6 @@
 # POORCRAFT 3D — Journey Scorecard (living)
 
-Measured: **2026-09-29** (post-revival + VS Phase 1–4 close).
+Measured: **2026-10-03** (beta battery + engine perf + mapgen + route-repair passes). Previous: 2026-09-29.
 Baseline (do not erase): `23-HONEST-AUDIT.md` (2026-09-21 pre-revival).
 
 Legend: **WORKS** / **PARTIAL** / **IMPOSSIBLE**.
@@ -12,10 +12,10 @@ Columns: Designed · Code exists · Wired to play · Fun · Proof.
 | Gate | Status | Designed | Code | Wired | Fun | Proof |
 | --- | --- | --- | --- | --- | --- | --- |
 | V1 New/Load | **WORKS** | Y | Y | Y | Y | load rebuilds scene |
-| V2 Survive | **PARTIAL** | Y | Y | Y | ~ | dig/recovery; onboarding dig/build/night |
-| V3 Shelter+prod | **PARTIAL** | Y | Y | Y | ~ | K pack + C craft + forge |
+| V2 Survive | **WORKS** | Y | Y | Y | Y | dig/recovery; dig route films readable captures (VIS-201) |
+| V3 Shelter+prod | **WORKS** | Y | Y | Y | Y | K pack + C craft + forge; forge route = full closed loop (pick→ore→smelt→take) |
 | V4 River machine | **WORKS** | Y | Y | Y | Y | M + FeedBoiler; river subject gate |
-| V5 Capital | **PARTIAL** | Y | Y | Y | ~ | Talk NEEDS; city subject gate |
+| V5 Capital | **PARTIAL** | Y | Y | Y | ~ | Talk NEEDS; city subject gate; city still procedural silhouettes (GLB kit unwired) |
 | V6 Persist | **WORKS** | Y | Y | Y | Y | pack+onboarding+forge+quests |
 
 ## Full intentional beta (10 steps)

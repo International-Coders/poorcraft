@@ -395,12 +395,15 @@ mod tests {
         let (seed, coord) = pc3d_world::terrain::SceneSpec::SmoothHills.patch();
         let gen = WorldGen::new(seed);
         let o = coord.origin();
+        // THE SCENE POINT ITSELF: the scene contract clears the 4 m north
+        // stroll at the seek point (per-meter grade under the walk law),
+        // so the walk starts there instead of wandering to a nearby cell
+        // the scene never cleared.
         let cx = o.x.div_euclid(1000) as i32 + 8;
         let cz = o.z.div_euclid(1000) as i32 + 8;
-        // Find open ground near the scene center.
         let mut start = None;
-        for dx in 0..8 {
-            for dz in 0..8 {
+        for dx in [0] {
+            for dz in [0] {
                 let x = cx + dx;
                 let z = cz + dz;
                 let mut y = 40;

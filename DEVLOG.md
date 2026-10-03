@@ -10485,3 +10485,98 @@ VERIFICATION:
 - dist3d/poorcraft3d-macos.dmg refreshed
 
 NEXT: H1 step 7 path choice (STATE next_task).
+
+## 2026-10-03 — P3D real-beta session: the beta battery, 10×+ engine perf, real mountains, and the observatory repaired
+
+WHAT: The owner's /goal session — play the game and capture every screen,
+build the long defined way to test everything, make map generation well
+made, make the voxel engine dramatically faster, upgrade the assets. Five
+passes, each committed and pushed (ab74137, 50bdf4e, 445071b, 5f4dffc,
+c4696e0).
+
+HOW:
+- PASS 0 (recovery): the prior session's finished-but-uncommitted VS Phase
+  1–4 work re-verified (libs 614 green, gate-check OK 170 dumps, smoke OK)
+  and committed as its own pass.
+- PASS 1 (the battery): `make p3d-beta` — 38 defined stages in one command
+  (static truth → headless determinism: smoke/journey/diagnose/soak/atlas/
+  terrain-bench/terrain-analyze/export-data → 22 windowed captures → the
+  19-route observatory → dig+playtest determinism pairs → deck bench →
+  DMG), one STAGE PASS/FAIL ledger in shots/BETA-REPORT.txt, exit 1 on any
+  FAIL. Documented in docs/POORCRAFT-3D/BETA-TEST-PLAN.md. First run: 36/38
+  + 3 harness-bug stages (child-shell vars not exported) — the two real
+  failures were GAME bugs (forge, social), the visual QA by eye found the
+  dig route filming green mush and the world reading as a floating slab.
+- PASS 2 (engine perf, PERF-101..107): pc3d_world::cache::GenCache
+  memoizes macro field/biome/surface with a tested value-identity law
+  (system-level proof: identical --gen-bench digest pre/post); carve
+  short-circuit; facet normals folded into the emit loop; crowd buffers
+  pooled (write_buffer per frame, COPY_DST caught by the render test);
+  HUD re-raster only on change; sun matrix once per frame; flora streams
+  once per frame (shadow+color passes draw the same upload); --gen-bench
+  flag. MEASURED: surface-mesh 622 -> 327 cold / 45 warm µs per patch
+  (warm = the live streamer's steady state, 13.8x); cube-mesh 9038 ->
+  2499 (3.6x); deck bench mid p50 13.02 -> 7.01 ms (75 -> 125 fps),
+  high 13.05 -> 7.54, probes inside the 1.4x band.
+- PASS 3 (mapgen quality, MAPGEN-101): one shared elevation_field (warped
+  4-octave fbm + ridged mountain lift, positive mean) feeds macro_field
+  AND surface_base_mm — seed 3's peaks 141 -> 170 m, 2409 sampled columns
+  >= 128 m (was 113); per-column ground biome with a 28 m border dither
+  and a 130-160 m altitude snow line; pockets refuse to break the band
+  contracts; scene pins/edit digs/caves/slope tests now SEEK their ground
+  (retuning can't orphan a test); softer warp restored seed 3's spawn-band
+  river (1 viable wheel site at half 16, 24 at half 24). Honest cost:
+  regenerate 288 -> 462 µs/patch; ocean provably invariant.
+- PASS 4 (beta blockers, VIS-201/202): route_forge_use runs the FULL loop
+  (chest pick -> ore node -> harvest -> fuel+ore -> smelt -> take -> panel
+  reopened showing the bar; bars 0 -> 1); route_social hunts the goblin to
+  its LIVE recorded cell (ui.creature_hint, refreshed per world tick; the
+  AI walks) — slain 0 -> 1 with 3 witnesses in the 24 m sight law;
+  route_semantic_playtest SEEKS the first OFFERED excavate quest by kind
+  instead of blind-focusing row 2 (the seeded roll moved); the ui_script
+  executor sorts by frame once (authoring order no longer starves steps);
+  the dig route's captures pose at playable angles with the steep aim
+  restored for the press — dig_before/after now show the pit, soil walls,
+  and plaza.
+
+VERIFICATION (final battery on the final code, this entry's evidence):
+- `make p3d-beta` — see shots/BETA-REPORT.txt for the per-stage ledger.
+- cargo test -p pc3d_world --lib 277 green / 0 failed; -p pc3d_render
+  --lib 255 green / 0 failed; root workspace untouched (562 green).
+- --journey 42 PASS 10 steps; --diagnose 2024 PASS 13 checks; --atlas 3
+  patch hashes 5/5; observatory 19/19 routes PASS; deck report PASS.
+
+ARTIFACTS: poorcraft3d/dist3d/poorcraft3d-macos.dmg (fresh, git-stamped
+volume), docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md,
+shots/BETA-REPORT.txt, ~300 proof PNGs + 19 observatory evidence bundles.
+
+- FINAL BATTERY (second full run): the first complete re-run exposed five
+  stages whose probes assumed the OLD world — all repaired and the laws
+  kept: terrain-scenes' vista slope probe now seeks a VISIBLE step (all
+  four faces per top cell, projected in-front + on-screen + sightline
+  cleared at three points — a face turned away or behind a terrace lip
+  never proved anything); the cliff scene seeks the real terrace
+  threshold (mask > 0.78, plus a >= 2.5 m level change inside/next to the
+  patch — the old 0.56 band is smooth ground with no wall); the hills
+  scene contract grew a real 1 m in-patch step and a 4 m north stroll
+  line under the walkable grade; stream-walk and asset-factory pass on
+  the repaired tree (the asset band tracks the ground's y level instead
+  of a fixed patch layer; the crown-region law keeps region presence,
+  hue stays with the material registry); the SkyOnly probe is now THREE
+  same-named alternatives (0.78/0.90/0.96 — PixelReport names are
+  any-of groups: real mountains may fill part of the sky, never all of
+  it); the UI row-shear law runs on the UI CANVAS (the organic dithered
+  world previews scatter row shifts a pitch bug never produces); the
+  conforming-water test builds its region with a delta ring wide enough
+  to cover the strips and raises each section's OWN second sample
+  (the refresh counts only sections whose data actually changed).
+
+HONESTLY DEFERRED: rivers still never carve the height function (the
+RiverCarve design: per-seed RiverGraph cached once, distance-to-segment
+valley depression — queued as STATE next_task #5); city.rs still draws
+procedural silhouettes (the GLB settlement kit is built but unwired); the
+far view reads as a floating slab at the ring edge (fog/sky mismatch);
+draw calls are still one-per-patch per pass (the ring-megabuffer design
+is the next frame-time lever); regenerate_patch got 60% slower from the
+richer noise (accepted: ocean invariant, warm meshing still 10.7x);
+Windows exe honestly skipped (mingw absent).

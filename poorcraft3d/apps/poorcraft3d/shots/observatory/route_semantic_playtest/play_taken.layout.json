@@ -227,7 +227,7 @@
       "rect": [
         100,
         141,
-        370,
+        346,
         14
       ]
     },
@@ -271,7 +271,7 @@
       "rect": [
         100,
         201,
-        310,
+        322,
         14
       ]
     },
@@ -405,7 +405,7 @@
         "kind": "excavate",
         "progress": "0/8",
         "reward": 35,
-        "state": "OFFERED",
+        "state": "ACTIVE",
         "title": "THE FARMER'S excavate"
       },
       {
@@ -421,7 +421,7 @@
         "kind": "build",
         "progress": "0/11",
         "reward": 27,
-        "state": "ACTIVE",
+        "state": "OFFERED",
         "title": "THE GUARD'S build"
       },
       {
@@ -468,12 +468,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 07:52",
+        "modified": "2026-10-03 09:41",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 07:52",
+        "modified": "2026-10-03 09:41",
         "name": "beta-shot",
         "seed": 7
       }
@@ -486,11 +486,11 @@
     ],
     "toasts": [
       {
-        "age_s": 0.6852697730064392,
+        "age_s": 0.6825513243675232,
         "text": "FORGED 1 BARS"
       },
       {
-        "age_s": 0.016092117875814438,
+        "age_s": 0.01660344935953617,
         "text": "QUEST ACCEPTED"
       }
     ],

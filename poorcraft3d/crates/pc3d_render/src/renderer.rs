@@ -3910,79 +3910,13 @@ mod tests {
         );
         let pose = overview_pose(&gen, coord);
         r.set_pose(pose);
-
-        // Standable center cell: its rendered top face must show the
-        // material the collision query reports.
-        let o = coord.origin();
-        let cx = o.x.div_euclid(1000) as i32 + 8;
-        let cz = o.z.div_euclid(1000) as i32 + 8;
-        let top = column_top(&gen, cx, cz, o.y.div_euclid(1000) as i32 + 15)
-            .expect("standable cell at patch center");
-        let top_point = [top.x as f32 + 0.5, top.y as f32 + 1.0, top.z as f32 + 0.5];
-        let _top_ndc = project_ndc(pose, ASPECT, top_point);
-
-        // A slope side face: the first surface cell whose east neighbor is air.
-        let mut slope: Option<(CellCoord, [f32; 3], [f32; 3])> = None;
-        for lx in 2..14 {
-            for lz in 2..14 {
-                let x = o.x.div_euclid(1000) as i32 + lx;
-                let z = o.z.div_euclid(1000) as i32 + lz;
-                if let Some(cell) = column_top(&gen, x, z, o.y.div_euclid(1000) as i32 + 15) {
-                    let east = CellCoord {
-                        x: cell.x + 1,
-                        y: cell.y,
-                        z: cell.z,
-                    };
-                    let east_solid = pc3d_world::terrain::final_solid(
-                        &gen,
-                        east.x as i64 * 1000,
-                        east.y as i64 * 1000,
-                        east.z as i64 * 1000,
-                    )
-                    .solid;
-                    if !east_solid {
-                        slope = Some((
-                            cell,
-                            [1.0, 0.0, 0.0],
-                            [
-                                cell.x as f32 + 1.0,
-                                cell.y as f32 + 0.5,
-                                cell.z as f32 + 0.5,
-                            ],
-                        ));
-                        break;
-                    }
-                }
-            }
-            if slope.is_some() {
-                break;
-            }
-        }
-        let (slope_cell, slope_normal, slope_point) = slope.expect("a hill slope step must exist");
-
-        let probes = vec![
-            Probe {
-                name: "sky_above_horizon",
-                ndc: (0.0, 0.8),
-                expected: to_srgb4(sky_color_linear(
-                    dir_from_ndc(pose, (0.0, 0.8), ASPECT),
-                    SUN_DIR,
-                )),
-                tol: 0.05,
-            },
-            Probe {
-                name: "ground_top_face_matches_query",
-                ndc: project_ndc(pose, ASPECT, top_point),
-                expected: face_expectation(&gen, top, [0.0, 1.0, 0.0]),
-                tol: 0.06,
-            },
-            Probe {
-                name: "slope_side_face_matches_query",
-                ndc: project_ndc(pose, ASPECT, slope_point),
-                expected: face_expectation(&gen, slope_cell, slope_normal),
-                tol: 0.06,
-            },
-        ];
+        let pose = overview_pose(&gen, coord);
+        r.set_pose(pose);
+        // ONE probe authority: vista_probes seeks the sky control, the
+        // standable top face, and a slope side face FROM THE SAME QUERY
+        // the mesh reads — hand-rolled seeks drifted from the camera's
+        // reach when the generator moved the hills (MAPGEN-101).
+        let probes = crate::terrain::vista_probes(&gen, coord, pose, ASPECT);
         for p in &probes {
             assert!(
                 p.ndc.0 > -0.99 && p.ndc.0 < 0.99 && p.ndc.1 > -0.99 && p.ndc.1 < 0.99,

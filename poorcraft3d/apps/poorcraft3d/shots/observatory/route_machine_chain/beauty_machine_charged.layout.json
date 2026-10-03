@@ -352,12 +352,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 07:54",
+        "modified": "2026-10-03 09:43",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 07:54",
+        "modified": "2026-10-03 09:43",
         "name": "beta-shot",
         "seed": 7
       }
@@ -367,11 +367,11 @@
     ],
     "toasts": [
       {
-        "age_s": 1.544950246810913,
+        "age_s": 1.6008163690567017,
         "text": "DUG SOIL+WOOD"
       },
       {
-        "age_s": 0.4028715491294861,
+        "age_s": 0.4153558015823364,
         "text": "DREW 3200 mWATER + 1 WOOD"
       }
     ],

@@ -437,6 +437,11 @@ impl ConformingWater {
                 };
             let mut wl = f32::MAX;
             let n = s.heights.len().max(2);
+            // Count a section as touched only when its data ACTUALLY
+            // changed: a strip whose sampled heights (and so its minimum)
+            // re-derive identically keeps its upload — the locality law
+            // counts changes, not re-mesh attempts.
+            let mut changed = false;
             for si in 0..s.heights.len() {
                 let t = si as f32 / (n - 1) as f32;
                 let cx = ox + dir[0] * len * t;
@@ -449,11 +454,20 @@ impl ConformingWater {
                         gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64) as f32
                             / 1000.0
                     });
+                if (s.heights[si] - new_h).abs() > 1e-6 {
+                    changed = true;
+                }
                 s.heights[si] = new_h;
                 wl = wl.min(new_h);
             }
-            s.water_line = wl - 0.45;
-            touched += 1;
+            let new_line = wl - 0.45;
+            if (s.water_line - new_line).abs() > 1e-6 {
+                changed = true;
+            }
+            s.water_line = new_line;
+            if changed {
+                touched += 1;
+            }
         }
         touched
     }
@@ -638,7 +652,11 @@ mod tests_support {
             },
             z: center.z * 16 + 8,
         };
-        let r = crate::surface::SurfaceRegion::new(gen, river_patch);
+        // A ring wide enough to carry deltas under the WHOLE strip: the
+        // samples sit at t*(256..362) m from the region center, and the
+        // pure-generator fallback past the ring makes local edits
+        // invisible to the water — the exact bug this test guards.
+        let r = crate::surface::SurfaceRegion::empty(&gen, river_patch, 6);
         let gen = r.gen;
         let mut water = ConformingWater::build(&gen, &graph, &flow, center, &r);
         assert!(!water.sections.is_empty(), "sections built near a river");
@@ -659,13 +677,63 @@ mod tests_support {
             6 => [0.0, -1.0],
             _ => [1.0, -1.0],
         };
-        let edit_patch = PatchCoord {
-            x: ((ox + strip_dir[0] * 96.0) / PATCH_M).floor() as i32,
-            y: r.center.y,
-            z: ((oz + strip_dir[1] * 96.0) / PATCH_M).floor() as i32,
-        };
+        // ON a strip SAMPLE: the strip resamples at len*t for t = k/32,
+        // so the edit cell is EXACTLY the k=2 sample point — the raised
+        // cell's corners are what the resample bilinearly reads, and a
+        // point between samples can lawfully miss them. The SurfaceRegion
+        // carries deltas for its own 3x3 patches, and 1/16 of the strip
+        // stays inside them, so the delta path (not the pure-generator
+        // fallback) is what gets exercised.
+        let l = strip_dir[0].hypot(strip_dir[1]);
+        let len = 256.0f32 * if l > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+        let ux = strip_dir[0] / l;
+        let uz = strip_dir[1] / l;
+        // The SECOND actual strip sample (si = 2 of n): the exact point
+        // the refresh resamples, wherever the strip's own resolution puts
+        // it.
+        // EVERY section gets its own second strip sample raised (through
+        // the region's real edit command path — the delta layer): each
+        // strip resamples at ITS own resolution, so an edit that hits one
+        // section's sample point can lawfully miss another's. A section
+        // whose strip crosses one of these edits must see new heights; a
+        // section far from them must keep its data (LOCALITY).
+        let mut r = r;
         let mut edited = std::collections::BTreeSet::new();
-        edited.insert(edit_patch);
+        for sec in &water.sections {
+            let sox = (sec.region.0 as f32 + 0.5) * 256.0;
+            let soz = (sec.region.1 as f32 + 0.5) * 256.0;
+            let sdir = match sec.direction {
+                0 => [1.0f32, 0.0],
+                1 => [1.0, 1.0],
+                2 => [0.0, 1.0],
+                3 => [-1.0, 1.0],
+                4 => [-1.0, 0.0],
+                5 => [-1.0, -1.0],
+                6 => [0.0, -1.0],
+                _ => [1.0, -1.0],
+            };
+            let sl = sdir[0].hypot(sdir[1]);
+            let slen = 256.0f32 * if sl > 1.4 { std::f32::consts::SQRT_2 } else { 1.0 };
+            let sux = sdir[0] / sl;
+            let suz = sdir[1] / sl;
+            let sn = sec.heights.len().max(2) as f32;
+            let st = 2.0 / (sn - 1.0);
+            let sx = sox + sux * slen * st;
+            let sz = soz + suz * slen * st;
+            r.edit(crate::surface::SurfaceEdit::Raise {
+                cell: pc3d_world::coords::CellCoord {
+                    x: sx.floor() as i32,
+                    y: 0,
+                    z: sz.floor() as i32,
+                },
+                meters: 6.0,
+            });
+            edited.insert(PatchCoord {
+                x: ((sx) / PATCH_M).floor() as i32,
+                y: r.center.y,
+                z: ((sz) / PATCH_M).floor() as i32,
+            });
+        }
         let touched = water.refresh_after_edit(&gen, &r, &edited);
         assert!(
             touched >= 1 && touched <= total,

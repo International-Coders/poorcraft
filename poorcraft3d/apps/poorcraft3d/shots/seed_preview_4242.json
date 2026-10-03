@@ -2,18 +2,23 @@
   "biome_counts": [
     {
       "biome": "plains",
-      "percent": 7.199999809265137,
-      "regions": 74
+      "percent": 6.699999809265137,
+      "regions": 69
     },
     {
       "biome": "forest",
-      "percent": 56.79999923706055,
-      "regions": 582
+      "percent": 44.5,
+      "regions": 456
     },
     {
       "biome": "highlands",
-      "percent": 35.900001525878906,
-      "regions": 368
+      "percent": 47.20000076293945,
+      "regions": 483
+    },
+    {
+      "biome": "mountains",
+      "percent": 1.600000023841858,
+      "regions": 16
     }
   ],
   "feature_hints": [
@@ -42,9 +47,9 @@
   "spawn": {
     "reason": "safe",
     "safe": true,
-    "x": -128.0,
-    "y": 75.0009994506836,
-    "z": -128.0
+    "x": 384.0,
+    "y": 89.00399780273438,
+    "z": -384.0
   },
   "valid": true,
   "warnings": [

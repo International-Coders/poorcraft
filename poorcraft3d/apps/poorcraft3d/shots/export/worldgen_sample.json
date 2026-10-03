@@ -4,7 +4,7 @@
   "samples": [
     {
       "biome": "highlands",
-      "elevation_m": 93,
+      "elevation_m": 118,
       "humidity": 80,
       "region": [
         -8,
@@ -14,10 +14,100 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 97,
+      "elevation_m": 115,
       "humidity": 80,
       "region": [
         -7,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 136,
+      "humidity": 80,
+      "region": [
+        -6,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 134,
+      "humidity": 80,
+      "region": [
+        -5,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 141,
+      "humidity": 80,
+      "region": [
+        -4,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 137,
+      "humidity": 80,
+      "region": [
+        -3,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 132,
+      "humidity": 80,
+      "region": [
+        -2,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 128,
+      "humidity": 80,
+      "region": [
+        -1,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        0,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 122,
+      "humidity": 80,
+      "region": [
+        1,
+        -8
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        2,
         -8
       ],
       "temperature": 87
@@ -27,96 +117,6 @@
       "elevation_m": 100,
       "humidity": 80,
       "region": [
-        -6,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        -5,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        -4,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        -3,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        0,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        1,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        2,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
         3,
         -8
       ],
@@ -124,7 +124,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 103,
+      "elevation_m": 95,
       "humidity": 80,
       "region": [
         4,
@@ -139,176 +139,6 @@
       "region": [
         5,
         -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 96,
-      "humidity": 79,
-      "region": [
-        6,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 92,
-      "humidity": 79,
-      "region": [
-        7,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 87,
-      "humidity": 79,
-      "region": [
-        8,
-        -8
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 92,
-      "humidity": 80,
-      "region": [
-        -8,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 96,
-      "humidity": 80,
-      "region": [
-        -7,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 100,
-      "humidity": 80,
-      "region": [
-        -6,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        -5,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        -4,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        -3,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        0,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        1,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        2,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 105,
-      "humidity": 80,
-      "region": [
-        3,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 102,
-      "humidity": 80,
-      "region": [
-        4,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        5,
-        -7
       ],
       "temperature": 87
     },
@@ -318,177 +148,7 @@
       "humidity": 79,
       "region": [
         6,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 90,
-      "humidity": 79,
-      "region": [
-        7,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 85,
-      "humidity": 79,
-      "region": [
-        8,
-        -7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 91,
-      "humidity": 80,
-      "region": [
-        -8,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 95,
-      "humidity": 80,
-      "region": [
-        -7,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 80,
-      "region": [
-        -6,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        -5,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        -4,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        -3,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        -6
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        -6
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        0,
-        -6
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        1,
-        -6
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        2,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 105,
-      "humidity": 80,
-      "region": [
-        3,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 102,
-      "humidity": 80,
-      "region": [
-        4,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 98,
-      "humidity": 79,
-      "region": [
-        5,
-        -6
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 93,
-      "humidity": 79,
-      "region": [
-        6,
-        -6
+        -8
       ],
       "temperature": 87
     },
@@ -498,57 +158,27 @@
       "humidity": 79,
       "region": [
         7,
-        -6
+        -8
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 84,
+      "elevation_m": 81,
       "humidity": 79,
       "region": [
         8,
-        -6
+        -8
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 90,
+      "elevation_m": 97,
       "humidity": 80,
       "region": [
         -8,
-        -5
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 95,
-      "humidity": 80,
-      "region": [
-        -7,
-        -5
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 80,
-      "region": [
-        -6,
-        -5
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 102,
-      "humidity": 80,
-      "region": [
-        -5,
-        -5
+        -7
       ],
       "temperature": 87
     },
@@ -557,78 +187,118 @@
       "elevation_m": 105,
       "humidity": 80,
       "region": [
-        -4,
-        -5
+        -7,
+        -7
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 108,
+      "elevation_m": 112,
+      "humidity": 80,
+      "region": [
+        -6,
+        -7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 127,
+      "humidity": 80,
+      "region": [
+        -5,
+        -7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 134,
+      "humidity": 80,
+      "region": [
+        -4,
+        -7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 133,
       "humidity": 80,
       "region": [
         -3,
-        -5
+        -7
       ],
-      "temperature": 88
+      "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 109,
+      "biome": "mountains",
+      "elevation_m": 136,
       "humidity": 80,
       "region": [
         -2,
-        -5
+        -7
       ],
-      "temperature": 88
+      "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 110,
+      "biome": "mountains",
+      "elevation_m": 129,
       "humidity": 80,
       "region": [
         -1,
-        -5
+        -7
       ],
-      "temperature": 88
+      "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 110,
+      "biome": "mountains",
+      "elevation_m": 129,
       "humidity": 80,
       "region": [
         0,
-        -5
+        -7
       ],
-      "temperature": 88
+      "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 109,
+      "biome": "mountains",
+      "elevation_m": 133,
       "humidity": 80,
       "region": [
         1,
-        -5
+        -7
       ],
-      "temperature": 88
+      "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 107,
+      "elevation_m": 122,
       "humidity": 80,
       "region": [
         2,
-        -5
+        -7
       ],
-      "temperature": 88
+      "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 104,
+      "elevation_m": 125,
       "humidity": 80,
       "region": [
         3,
-        -5
+        -7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 118,
+      "humidity": 80,
+      "region": [
+        4,
+        -7
       ],
       "temperature": 87
     },
@@ -637,18 +307,8 @@
       "elevation_m": 101,
       "humidity": 79,
       "region": [
-        4,
-        -5
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 97,
-      "humidity": 79,
-      "region": [
         5,
-        -5
+        -7
       ],
       "temperature": 87
     },
@@ -658,167 +318,167 @@
       "humidity": 79,
       "region": [
         6,
-        -5
+        -7
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 87,
+      "elevation_m": 88,
       "humidity": 79,
       "region": [
         7,
-        -5
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 82,
-      "humidity": 79,
-      "region": [
-        8,
-        -5
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 90,
-      "humidity": 80,
-      "region": [
-        -8,
-        -4
+        -7
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
       "elevation_m": 94,
+      "humidity": 79,
+      "region": [
+        8,
+        -7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 86,
+      "humidity": 80,
+      "region": [
+        -8,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 91,
       "humidity": 80,
       "region": [
         -7,
-        -4
+        -6
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 98,
+      "elevation_m": 101,
       "humidity": 80,
       "region": [
         -6,
-        -4
+        -6
       ],
       "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 102,
-      "humidity": 80,
-      "region": [
-        -5,
-        -4
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 105,
-      "humidity": 80,
-      "region": [
-        -4,
-        -4
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        -3,
-        -4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        -4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        -4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        0,
-        -4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        1,
-        -4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        2,
-        -4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 104,
-      "humidity": 80,
-      "region": [
-        3,
-        -4
-      ],
-      "temperature": 88
     },
     {
       "biome": "highlands",
       "elevation_m": 100,
-      "humidity": 79,
+      "humidity": 80,
       "region": [
-        4,
-        -4
+        -5,
+        -6
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 96,
+      "elevation_m": 112,
+      "humidity": 80,
+      "region": [
+        -4,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 128,
+      "humidity": 80,
+      "region": [
+        -3,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 156,
+      "humidity": 80,
+      "region": [
+        -2,
+        -6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 157,
+      "humidity": 80,
+      "region": [
+        -1,
+        -6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 150,
+      "humidity": 80,
+      "region": [
+        0,
+        -6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 157,
+      "humidity": 80,
+      "region": [
+        1,
+        -6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 152,
+      "humidity": 80,
+      "region": [
+        2,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 138,
+      "humidity": 80,
+      "region": [
+        3,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 135,
+      "humidity": 80,
+      "region": [
+        4,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 117,
       "humidity": 79,
       "region": [
         5,
-        -4
+        -6
       ],
       "temperature": 87
     },
@@ -828,13 +488,353 @@
       "humidity": 79,
       "region": [
         6,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 83,
+      "humidity": 79,
+      "region": [
+        7,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 85,
+      "humidity": 79,
+      "region": [
+        8,
+        -6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 96,
+      "humidity": 80,
+      "region": [
+        -8,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 100,
+      "humidity": 80,
+      "region": [
+        -7,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 105,
+      "humidity": 80,
+      "region": [
+        -6,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 90,
+      "humidity": 80,
+      "region": [
+        -5,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 100,
+      "humidity": 80,
+      "region": [
+        -4,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 125,
+      "humidity": 80,
+      "region": [
+        -3,
+        -5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 144,
+      "humidity": 80,
+      "region": [
+        -2,
+        -5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 142,
+      "humidity": 80,
+      "region": [
+        -1,
+        -5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 159,
+      "humidity": 80,
+      "region": [
+        0,
+        -5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 129,
+      "humidity": 80,
+      "region": [
+        1,
+        -5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 119,
+      "humidity": 80,
+      "region": [
+        2,
+        -5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 125,
+      "humidity": 80,
+      "region": [
+        3,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 117,
+      "humidity": 79,
+      "region": [
+        4,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 127,
+      "humidity": 79,
+      "region": [
+        5,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 98,
+      "humidity": 79,
+      "region": [
+        6,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 85,
+      "humidity": 79,
+      "region": [
+        7,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 81,
+      "humidity": 79,
+      "region": [
+        8,
+        -5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 95,
+      "humidity": 80,
+      "region": [
+        -8,
         -4
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 86,
+      "elevation_m": 102,
+      "humidity": 80,
+      "region": [
+        -7,
+        -4
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 107,
+      "humidity": 80,
+      "region": [
+        -6,
+        -4
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 93,
+      "humidity": 80,
+      "region": [
+        -5,
+        -4
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 103,
+      "humidity": 80,
+      "region": [
+        -4,
+        -4
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        -3,
+        -4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 138,
+      "humidity": 80,
+      "region": [
+        -2,
+        -4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 151,
+      "humidity": 80,
+      "region": [
+        -1,
+        -4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 160,
+      "humidity": 80,
+      "region": [
+        0,
+        -4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 130,
+      "humidity": 80,
+      "region": [
+        1,
+        -4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        2,
+        -4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 121,
+      "humidity": 80,
+      "region": [
+        3,
+        -4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 119,
+      "humidity": 79,
+      "region": [
+        4,
+        -4
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 137,
+      "humidity": 79,
+      "region": [
+        5,
+        -4
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 105,
+      "humidity": 79,
+      "region": [
+        6,
+        -4
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 83,
       "humidity": 79,
       "region": [
         7,
@@ -854,7 +854,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 89,
+      "elevation_m": 109,
       "humidity": 80,
       "region": [
         -8,
@@ -864,7 +864,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 94,
+      "elevation_m": 118,
       "humidity": 80,
       "region": [
         -7,
@@ -873,418 +873,418 @@
       "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 98,
+      "biome": "mountains",
+      "elevation_m": 133,
       "humidity": 80,
       "region": [
         -6,
         -3
       ],
       "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 128,
+      "humidity": 80,
+      "region": [
+        -5,
+        -3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 144,
+      "humidity": 80,
+      "region": [
+        -4,
+        -3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        -3,
+        -3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 127,
+      "humidity": 80,
+      "region": [
+        -2,
+        -3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 129,
+      "humidity": 80,
+      "region": [
+        -1,
+        -3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 134,
+      "humidity": 80,
+      "region": [
+        0,
+        -3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 142,
+      "humidity": 80,
+      "region": [
+        1,
+        -3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 125,
+      "humidity": 80,
+      "region": [
+        2,
+        -3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 99,
+      "humidity": 80,
+      "region": [
+        3,
+        -3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 104,
+      "humidity": 79,
+      "region": [
+        4,
+        -3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 113,
+      "humidity": 79,
+      "region": [
+        5,
+        -3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 118,
+      "humidity": 79,
+      "region": [
+        6,
+        -3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 103,
+      "humidity": 79,
+      "region": [
+        7,
+        -3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 100,
+      "humidity": 79,
+      "region": [
+        8,
+        -3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 119,
+      "humidity": 80,
+      "region": [
+        -8,
+        -2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 135,
+      "humidity": 80,
+      "region": [
+        -7,
+        -2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 135,
+      "humidity": 80,
+      "region": [
+        -6,
+        -2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 124,
+      "humidity": 80,
+      "region": [
+        -5,
+        -2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 129,
+      "humidity": 80,
+      "region": [
+        -4,
+        -2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 128,
+      "humidity": 80,
+      "region": [
+        -3,
+        -2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 130,
+      "humidity": 80,
+      "region": [
+        -2,
+        -2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 127,
+      "humidity": 80,
+      "region": [
+        -1,
+        -2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 132,
+      "humidity": 80,
+      "region": [
+        0,
+        -2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 153,
+      "humidity": 80,
+      "region": [
+        1,
+        -2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 122,
+      "humidity": 80,
+      "region": [
+        2,
+        -2
+      ],
+      "temperature": 88
     },
     {
       "biome": "highlands",
       "elevation_m": 102,
       "humidity": 80,
       "region": [
-        -5,
-        -3
+        3,
+        -2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 97,
+      "humidity": 79,
+      "region": [
+        4,
+        -2
       ],
       "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 95,
+      "humidity": 79,
+      "region": [
+        5,
+        -2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 99,
+      "humidity": 79,
+      "region": [
+        6,
+        -2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 104,
+      "humidity": 79,
+      "region": [
+        7,
+        -2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 97,
+      "humidity": 79,
+      "region": [
+        8,
+        -2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 132,
+      "humidity": 80,
+      "region": [
+        -8,
+        -1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 115,
+      "humidity": 80,
+      "region": [
+        -7,
+        -1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 113,
+      "humidity": 80,
+      "region": [
+        -6,
+        -1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 112,
+      "humidity": 80,
+      "region": [
+        -5,
+        -1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 117,
+      "humidity": 80,
+      "region": [
+        -4,
+        -1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 129,
+      "humidity": 80,
+      "region": [
+        -3,
+        -1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 130,
+      "humidity": 80,
+      "region": [
+        -2,
+        -1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 108,
+      "humidity": 80,
+      "region": [
+        -1,
+        -1
+      ],
+      "temperature": 88
     },
     {
       "biome": "highlands",
       "elevation_m": 105,
       "humidity": 80,
       "region": [
-        -4,
-        -3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        -3,
-        -3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        -3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        -3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        0,
-        -3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        1,
-        -3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        2,
-        -3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        3,
-        -3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        4,
-        -3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 95,
-      "humidity": 79,
-      "region": [
-        5,
-        -3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 90,
-      "humidity": 79,
-      "region": [
-        6,
-        -3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 85,
-      "humidity": 79,
-      "region": [
-        7,
-        -3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 79,
-      "humidity": 79,
-      "region": [
-        8,
-        -3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 88,
-      "humidity": 80,
-      "region": [
-        -8,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 93,
-      "humidity": 80,
-      "region": [
-        -7,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 97,
-      "humidity": 80,
-      "region": [
-        -6,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 101,
-      "humidity": 80,
-      "region": [
-        -5,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 104,
-      "humidity": 80,
-      "region": [
-        -4,
-        -2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        -3,
-        -2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        -2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        -2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        0,
-        -2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        1,
-        -2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        2,
-        -2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        3,
-        -2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        4,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 94,
-      "humidity": 79,
-      "region": [
-        5,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 89,
-      "humidity": 79,
-      "region": [
-        6,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 84,
-      "humidity": 79,
-      "region": [
-        7,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 78,
-      "humidity": 79,
-      "region": [
-        8,
-        -2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 88,
-      "humidity": 80,
-      "region": [
-        -8,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 93,
-      "humidity": 80,
-      "region": [
-        -7,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 97,
-      "humidity": 80,
-      "region": [
-        -6,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 101,
-      "humidity": 80,
-      "region": [
-        -5,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 104,
-      "humidity": 80,
-      "region": [
-        -4,
-        -1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        -3,
-        -1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        -1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        -1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
         0,
         -1
       ],
       "temperature": 88
     },
     {
-      "biome": "highlands",
-      "elevation_m": 109,
+      "biome": "mountains",
+      "elevation_m": 139,
       "humidity": 80,
       "region": [
         1,
@@ -1294,7 +1294,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 106,
+      "elevation_m": 121,
       "humidity": 80,
       "region": [
         2,
@@ -1304,901 +1304,21 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 103,
+      "elevation_m": 102,
       "humidity": 80,
       "region": [
         3,
         -1
       ],
       "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        4,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 94,
-      "humidity": 79,
-      "region": [
-        5,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 89,
-      "humidity": 79,
-      "region": [
-        6,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 83,
-      "humidity": 79,
-      "region": [
-        7,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 77,
-      "humidity": 79,
-      "region": [
-        8,
-        -1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 88,
-      "humidity": 80,
-      "region": [
-        -8,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 93,
-      "humidity": 80,
-      "region": [
-        -7,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 97,
-      "humidity": 80,
-      "region": [
-        -6,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 101,
-      "humidity": 80,
-      "region": [
-        -5,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 104,
-      "humidity": 80,
-      "region": [
-        -4,
-        0
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        -3,
-        0
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        0
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        0
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        0,
-        0
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        1,
-        0
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        2,
-        0
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        3,
-        0
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        4,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 94,
-      "humidity": 79,
-      "region": [
-        5,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 89,
-      "humidity": 79,
-      "region": [
-        6,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 83,
-      "humidity": 79,
-      "region": [
-        7,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 77,
-      "humidity": 79,
-      "region": [
-        8,
-        0
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 88,
-      "humidity": 80,
-      "region": [
-        -8,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 93,
-      "humidity": 80,
-      "region": [
-        -7,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 97,
-      "humidity": 80,
-      "region": [
-        -6,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 101,
-      "humidity": 80,
-      "region": [
-        -5,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 104,
-      "humidity": 80,
-      "region": [
-        -4,
-        1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        -3,
-        1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -2,
-        1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        -1,
-        1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 110,
-      "humidity": 80,
-      "region": [
-        0,
-        1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        1,
-        1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        2,
-        1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        3,
-        1
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        4,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 94,
-      "humidity": 79,
-      "region": [
-        5,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 89,
-      "humidity": 79,
-      "region": [
-        6,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 83,
-      "humidity": 79,
-      "region": [
-        7,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 78,
-      "humidity": 79,
-      "region": [
-        8,
-        1
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 88,
-      "humidity": 80,
-      "region": [
-        -8,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 92,
-      "humidity": 80,
-      "region": [
-        -7,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 97,
-      "humidity": 80,
-      "region": [
-        -6,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 101,
-      "humidity": 80,
-      "region": [
-        -5,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 104,
-      "humidity": 80,
-      "region": [
-        -4,
-        2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        -3,
-        2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        -2,
-        2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -1,
-        2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        0,
-        2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        1,
-        2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        2,
-        2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        3,
-        2
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        4,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 94,
-      "humidity": 79,
-      "region": [
-        5,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 89,
-      "humidity": 79,
-      "region": [
-        6,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 84,
-      "humidity": 79,
-      "region": [
-        7,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 78,
-      "humidity": 79,
-      "region": [
-        8,
-        2
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 87,
-      "humidity": 80,
-      "region": [
-        -8,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 92,
-      "humidity": 80,
-      "region": [
-        -7,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 96,
-      "humidity": 80,
-      "region": [
-        -6,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 100,
-      "humidity": 80,
-      "region": [
-        -5,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 104,
-      "humidity": 80,
-      "region": [
-        -4,
-        3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        -3,
-        3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        -2,
-        3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -1,
-        3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        0,
-        3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        1,
-        3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        2,
-        3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        3,
-        3
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        4,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 95,
-      "humidity": 79,
-      "region": [
-        5,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 90,
-      "humidity": 79,
-      "region": [
-        6,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 85,
-      "humidity": 79,
-      "region": [
-        7,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 79,
-      "humidity": 79,
-      "region": [
-        8,
-        3
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 87,
-      "humidity": 80,
-      "region": [
-        -8,
-        4
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 92,
-      "humidity": 80,
-      "region": [
-        -7,
-        4
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 96,
-      "humidity": 80,
-      "region": [
-        -6,
-        4
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 100,
-      "humidity": 80,
-      "region": [
-        -5,
-        4
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        -4,
-        4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        -3,
-        4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        -2,
-        4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        -1,
-        4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 109,
-      "humidity": 80,
-      "region": [
-        0,
-        4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        1,
-        4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        2,
-        4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        3,
-        4
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 79,
-      "region": [
-        4,
-        4
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 95,
-      "humidity": 79,
-      "region": [
-        5,
-        4
-      ],
-      "temperature": 87
     },
     {
       "biome": "highlands",
       "elevation_m": 91,
       "humidity": 79,
       "region": [
-        6,
-        4
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 86,
-      "humidity": 79,
-      "region": [
-        7,
-        4
+        4,
+        -1
       ],
       "temperature": 87
     },
@@ -2207,118 +1327,148 @@
       "elevation_m": 81,
       "humidity": 79,
       "region": [
-        8,
-        4
+        5,
+        -1
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 86,
+      "elevation_m": 88,
+      "humidity": 79,
+      "region": [
+        6,
+        -1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 81,
+      "humidity": 79,
+      "region": [
+        7,
+        -1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 72,
+      "humidity": 79,
+      "region": [
+        8,
+        -1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 134,
       "humidity": 80,
       "region": [
         -8,
-        5
+        0
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 91,
+      "elevation_m": 110,
       "humidity": 80,
       "region": [
         -7,
-        5
+        0
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 95,
+      "elevation_m": 111,
       "humidity": 80,
       "region": [
         -6,
-        5
+        0
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 99,
+      "elevation_m": 110,
       "humidity": 80,
       "region": [
         -5,
-        5
+        0
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 103,
+      "elevation_m": 120,
       "humidity": 80,
       "region": [
         -4,
-        5
+        0
       ],
       "temperature": 88
     },
     {
-      "biome": "highlands",
-      "elevation_m": 105,
+      "biome": "mountains",
+      "elevation_m": 135,
       "humidity": 80,
       "region": [
         -3,
-        5
+        0
       ],
       "temperature": 88
     },
     {
-      "biome": "highlands",
-      "elevation_m": 107,
+      "biome": "mountains",
+      "elevation_m": 137,
       "humidity": 80,
       "region": [
         -2,
-        5
+        0
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 108,
+      "elevation_m": 100,
       "humidity": 80,
       "region": [
         -1,
-        5
+        0
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 108,
+      "elevation_m": 102,
       "humidity": 80,
       "region": [
         0,
-        5
+        0
       ],
       "temperature": 88
     },
     {
-      "biome": "highlands",
-      "elevation_m": 107,
+      "biome": "mountains",
+      "elevation_m": 133,
       "humidity": 80,
       "region": [
         1,
-        5
+        0
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 105,
+      "elevation_m": 124,
       "humidity": 80,
       "region": [
         2,
-        5
+        0
       ],
       "temperature": 88
     },
@@ -2328,27 +1478,197 @@
       "humidity": 80,
       "region": [
         3,
-        5
+        0
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 99,
-      "humidity": 80,
+      "elevation_m": 92,
+      "humidity": 79,
       "region": [
         4,
-        5
+        0
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 96,
+      "elevation_m": 92,
       "humidity": 79,
       "region": [
         5,
-        5
+        0
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 85,
+      "humidity": 79,
+      "region": [
+        6,
+        0
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 81,
+      "humidity": 79,
+      "region": [
+        7,
+        0
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 73,
+      "humidity": 79,
+      "region": [
+        8,
+        0
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 125,
+      "humidity": 80,
+      "region": [
+        -8,
+        1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 115,
+      "humidity": 80,
+      "region": [
+        -7,
+        1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 109,
+      "humidity": 80,
+      "region": [
+        -6,
+        1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 107,
+      "humidity": 80,
+      "region": [
+        -5,
+        1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        -4,
+        1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 138,
+      "humidity": 80,
+      "region": [
+        -3,
+        1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 137,
+      "humidity": 80,
+      "region": [
+        -2,
+        1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 100,
+      "humidity": 80,
+      "region": [
+        -1,
+        1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 96,
+      "humidity": 80,
+      "region": [
+        0,
+        1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 113,
+      "humidity": 80,
+      "region": [
+        1,
+        1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 139,
+      "humidity": 80,
+      "region": [
+        2,
+        1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 127,
+      "humidity": 80,
+      "region": [
+        3,
+        1
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 116,
+      "humidity": 79,
+      "region": [
+        4,
+        1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 105,
+      "humidity": 79,
+      "region": [
+        5,
+        1
       ],
       "temperature": 87
     },
@@ -2358,7 +1678,177 @@
       "humidity": 79,
       "region": [
         6,
-        5
+        1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 82,
+      "humidity": 79,
+      "region": [
+        7,
+        1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "forest",
+      "elevation_m": 71,
+      "humidity": 79,
+      "region": [
+        8,
+        1
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 115,
+      "humidity": 80,
+      "region": [
+        -8,
+        2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 110,
+      "humidity": 80,
+      "region": [
+        -7,
+        2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 111,
+      "humidity": 80,
+      "region": [
+        -6,
+        2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 116,
+      "humidity": 80,
+      "region": [
+        -5,
+        2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 124,
+      "humidity": 80,
+      "region": [
+        -4,
+        2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 138,
+      "humidity": 80,
+      "region": [
+        -3,
+        2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 125,
+      "humidity": 80,
+      "region": [
+        -2,
+        2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 94,
+      "humidity": 80,
+      "region": [
+        -1,
+        2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 98,
+      "humidity": 80,
+      "region": [
+        0,
+        2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 101,
+      "humidity": 80,
+      "region": [
+        1,
+        2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 112,
+      "humidity": 80,
+      "region": [
+        2,
+        2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 103,
+      "humidity": 80,
+      "region": [
+        3,
+        2
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 102,
+      "humidity": 79,
+      "region": [
+        4,
+        2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 105,
+      "humidity": 79,
+      "region": [
+        5,
+        2
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 105,
+      "humidity": 79,
+      "region": [
+        6,
+        2
       ],
       "temperature": 87
     },
@@ -2368,117 +1858,267 @@
       "humidity": 79,
       "region": [
         7,
-        5
+        2
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 82,
+      "elevation_m": 78,
       "humidity": 79,
       "region": [
         8,
-        5
+        2
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 86,
+      "elevation_m": 109,
       "humidity": 80,
       "region": [
         -8,
-        6
+        3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        -7,
+        3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 121,
+      "humidity": 80,
+      "region": [
+        -6,
+        3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 113,
+      "humidity": 80,
+      "region": [
+        -5,
+        3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 116,
+      "humidity": 80,
+      "region": [
+        -4,
+        3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 142,
+      "humidity": 80,
+      "region": [
+        -3,
+        3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 115,
+      "humidity": 80,
+      "region": [
+        -2,
+        3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 101,
+      "humidity": 80,
+      "region": [
+        -1,
+        3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 104,
+      "humidity": 80,
+      "region": [
+        0,
+        3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 113,
+      "humidity": 80,
+      "region": [
+        1,
+        3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 107,
+      "humidity": 80,
+      "region": [
+        2,
+        3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 112,
+      "humidity": 80,
+      "region": [
+        3,
+        3
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 104,
+      "humidity": 79,
+      "region": [
+        4,
+        3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 101,
+      "humidity": 79,
+      "region": [
+        5,
+        3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 122,
+      "humidity": 79,
+      "region": [
+        6,
+        3
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
       "elevation_m": 91,
+      "humidity": 79,
+      "region": [
+        7,
+        3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 80,
+      "humidity": 79,
+      "region": [
+        8,
+        3
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 104,
+      "humidity": 80,
+      "region": [
+        -8,
+        4
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 118,
       "humidity": 80,
       "region": [
         -7,
-        6
+        4
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 95,
+      "elevation_m": 123,
       "humidity": 80,
       "region": [
         -6,
-        6
+        4
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 99,
+      "elevation_m": 111,
       "humidity": 80,
       "region": [
         -5,
-        6
+        4
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 102,
+      "elevation_m": 116,
       "humidity": 80,
       "region": [
         -4,
-        6
+        4
       ],
-      "temperature": 87
+      "temperature": 88
     },
     {
-      "biome": "highlands",
-      "elevation_m": 105,
+      "biome": "mountains",
+      "elevation_m": 143,
       "humidity": 80,
       "region": [
         -3,
-        6
+        4
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 107,
+      "elevation_m": 111,
       "humidity": 80,
       "region": [
         -2,
-        6
+        4
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 108,
+      "elevation_m": 110,
       "humidity": 80,
       "region": [
         -1,
-        6
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 108,
-      "humidity": 80,
-      "region": [
-        0,
-        6
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 107,
-      "humidity": 80,
-      "region": [
-        1,
-        6
+        4
       ],
       "temperature": 88
     },
@@ -2487,8 +2127,18 @@
       "elevation_m": 105,
       "humidity": 80,
       "region": [
-        2,
-        6
+        0,
+        4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 113,
+      "humidity": 80,
+      "region": [
+        1,
+        4
       ],
       "temperature": 88
     },
@@ -2497,48 +2147,58 @@
       "elevation_m": 103,
       "humidity": 80,
       "region": [
-        3,
-        6
+        2,
+        4
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 100,
+      "elevation_m": 112,
       "humidity": 80,
       "region": [
+        3,
+        4
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 106,
+      "humidity": 79,
+      "region": [
         4,
-        6
+        4
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 96,
+      "elevation_m": 102,
       "humidity": 79,
       "region": [
         5,
-        6
+        4
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 92,
+      "elevation_m": 116,
       "humidity": 79,
       "region": [
         6,
-        6
+        4
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 88,
+      "elevation_m": 91,
       "humidity": 79,
       "region": [
         7,
-        6
+        4
       ],
       "temperature": 87
     },
@@ -2548,87 +2208,117 @@
       "humidity": 79,
       "region": [
         8,
-        6
+        4
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 86,
+      "elevation_m": 94,
       "humidity": 80,
       "region": [
         -8,
-        7
+        5
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 90,
+      "elevation_m": 124,
       "humidity": 80,
       "region": [
         -7,
-        7
+        5
       ],
       "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 95,
+      "biome": "mountains",
+      "elevation_m": 138,
       "humidity": 80,
       "region": [
         -6,
-        7
+        5
       ],
       "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 98,
+      "biome": "mountains",
+      "elevation_m": 136,
       "humidity": 80,
       "region": [
         -5,
-        7
+        5
       ],
       "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 102,
+      "biome": "mountains",
+      "elevation_m": 140,
       "humidity": 80,
       "region": [
         -4,
-        7
+        5
       ],
-      "temperature": 87
+      "temperature": 88
     },
     {
-      "biome": "highlands",
-      "elevation_m": 104,
+      "biome": "mountains",
+      "elevation_m": 129,
       "humidity": 80,
       "region": [
         -3,
-        7
+        5
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 106,
+      "elevation_m": 119,
       "humidity": 80,
       "region": [
         -2,
-        7
+        5
       ],
       "temperature": 88
     },
     {
       "biome": "highlands",
-      "elevation_m": 107,
+      "elevation_m": 121,
       "humidity": 80,
       "region": [
         -1,
-        7
+        5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 114,
+      "humidity": 80,
+      "region": [
+        0,
+        5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        1,
+        5
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 119,
+      "humidity": 80,
+      "region": [
+        2,
+        5
       ],
       "temperature": 88
     },
@@ -2637,18 +2327,8 @@
       "elevation_m": 107,
       "humidity": 80,
       "region": [
-        0,
-        7
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 106,
-      "humidity": 80,
-      "region": [
-        1,
-        7
+        3,
+        5
       ],
       "temperature": 88
     },
@@ -2657,58 +2337,38 @@
       "elevation_m": 105,
       "humidity": 80,
       "region": [
-        2,
-        7
+        4,
+        5
       ],
-      "temperature": 88
+      "temperature": 87
     },
     {
       "biome": "highlands",
       "elevation_m": 103,
-      "humidity": 80,
-      "region": [
-        3,
-        7
-      ],
-      "temperature": 88
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 100,
-      "humidity": 80,
-      "region": [
-        4,
-        7
-      ],
-      "temperature": 87
-    },
-    {
-      "biome": "highlands",
-      "elevation_m": 97,
       "humidity": 79,
       "region": [
         5,
-        7
+        5
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 93,
+      "elevation_m": 121,
       "humidity": 79,
       "region": [
         6,
-        7
+        5
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 89,
+      "elevation_m": 102,
       "humidity": 79,
       "region": [
         7,
-        7
+        5
       ],
       "temperature": 87
     },
@@ -2718,13 +2378,353 @@
       "humidity": 79,
       "region": [
         8,
+        5
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 92,
+      "humidity": 80,
+      "region": [
+        -8,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 120,
+      "humidity": 80,
+      "region": [
+        -7,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 143,
+      "humidity": 80,
+      "region": [
+        -6,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 117,
+      "humidity": 80,
+      "region": [
+        -5,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 111,
+      "humidity": 80,
+      "region": [
+        -4,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 119,
+      "humidity": 80,
+      "region": [
+        -3,
+        6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 125,
+      "humidity": 80,
+      "region": [
+        -2,
+        6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 131,
+      "humidity": 80,
+      "region": [
+        -1,
+        6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 134,
+      "humidity": 80,
+      "region": [
+        0,
+        6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 126,
+      "humidity": 80,
+      "region": [
+        1,
+        6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 114,
+      "humidity": 80,
+      "region": [
+        2,
+        6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 113,
+      "humidity": 80,
+      "region": [
+        3,
+        6
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 110,
+      "humidity": 80,
+      "region": [
+        4,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 106,
+      "humidity": 79,
+      "region": [
+        5,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 119,
+      "humidity": 79,
+      "region": [
+        6,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 106,
+      "humidity": 79,
+      "region": [
+        7,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 89,
+      "humidity": 79,
+      "region": [
+        8,
+        6
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 97,
+      "humidity": 80,
+      "region": [
+        -8,
         7
       ],
       "temperature": 87
     },
     {
       "biome": "highlands",
-      "elevation_m": 85,
+      "elevation_m": 115,
+      "humidity": 80,
+      "region": [
+        -7,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 109,
+      "humidity": 80,
+      "region": [
+        -6,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 105,
+      "humidity": 80,
+      "region": [
+        -5,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 98,
+      "humidity": 80,
+      "region": [
+        -4,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 105,
+      "humidity": 80,
+      "region": [
+        -3,
+        7
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 108,
+      "humidity": 80,
+      "region": [
+        -2,
+        7
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 142,
+      "humidity": 80,
+      "region": [
+        -1,
+        7
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 145,
+      "humidity": 80,
+      "region": [
+        0,
+        7
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 123,
+      "humidity": 80,
+      "region": [
+        1,
+        7
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 103,
+      "humidity": 80,
+      "region": [
+        2,
+        7
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 113,
+      "humidity": 80,
+      "region": [
+        3,
+        7
+      ],
+      "temperature": 88
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 93,
+      "humidity": 80,
+      "region": [
+        4,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 106,
+      "humidity": 79,
+      "region": [
+        5,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "mountains",
+      "elevation_m": 132,
+      "humidity": 79,
+      "region": [
+        6,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 114,
+      "humidity": 79,
+      "region": [
+        7,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 99,
+      "humidity": 79,
+      "region": [
+        8,
+        7
+      ],
+      "temperature": 87
+    },
+    {
+      "biome": "highlands",
+      "elevation_m": 83,
       "humidity": 80,
       "region": [
         -8,
@@ -2734,7 +2734,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 90,
+      "elevation_m": 114,
       "humidity": 80,
       "region": [
         -7,
@@ -2744,7 +2744,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 94,
+      "elevation_m": 102,
       "humidity": 80,
       "region": [
         -6,
@@ -2754,7 +2754,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 98,
+      "elevation_m": 95,
       "humidity": 80,
       "region": [
         -5,
@@ -2764,7 +2764,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 101,
+      "elevation_m": 86,
       "humidity": 80,
       "region": [
         -4,
@@ -2774,7 +2774,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 104,
+      "elevation_m": 103,
       "humidity": 80,
       "region": [
         -3,
@@ -2784,7 +2784,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 106,
+      "elevation_m": 108,
       "humidity": 80,
       "region": [
         -2,
@@ -2793,8 +2793,8 @@
       "temperature": 88
     },
     {
-      "biome": "highlands",
-      "elevation_m": 107,
+      "biome": "mountains",
+      "elevation_m": 147,
       "humidity": 80,
       "region": [
         -1,
@@ -2803,8 +2803,8 @@
       "temperature": 88
     },
     {
-      "biome": "highlands",
-      "elevation_m": 107,
+      "biome": "mountains",
+      "elevation_m": 144,
       "humidity": 80,
       "region": [
         0,
@@ -2814,7 +2814,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 106,
+      "elevation_m": 121,
       "humidity": 80,
       "region": [
         1,
@@ -2824,7 +2824,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 105,
+      "elevation_m": 103,
       "humidity": 80,
       "region": [
         2,
@@ -2834,7 +2834,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 103,
+      "elevation_m": 111,
       "humidity": 80,
       "region": [
         3,
@@ -2844,7 +2844,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 100,
+      "elevation_m": 92,
       "humidity": 80,
       "region": [
         4,
@@ -2854,7 +2854,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 97,
+      "elevation_m": 109,
       "humidity": 79,
       "region": [
         5,
@@ -2863,8 +2863,8 @@
       "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 94,
+      "biome": "mountains",
+      "elevation_m": 129,
       "humidity": 79,
       "region": [
         6,
@@ -2873,8 +2873,8 @@
       "temperature": 87
     },
     {
-      "biome": "highlands",
-      "elevation_m": 91,
+      "biome": "mountains",
+      "elevation_m": 128,
       "humidity": 79,
       "region": [
         7,
@@ -2884,7 +2884,7 @@
     },
     {
       "biome": "highlands",
-      "elevation_m": 87,
+      "elevation_m": 113,
       "humidity": 79,
       "region": [
         8,
@@ -2895,7 +2895,7 @@
   ],
   "scene": "windowless_authority",
   "seed": "3",
-  "timestamp_utc": 1791005924,
+  "timestamp_utc": 1791020407,
   "verdict": "exported",
   "version": 1,
   "viewport": [

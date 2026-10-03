@@ -858,12 +858,54 @@ fn main() {
             let surface_at = |x: f32| {
                 gen.effective_surface_mm((x * 1000.0) as i64, (cz * 1000.0) as i64) as f32 / 1000.0
             };
-            let pose_at = |x: f32| {
-                let s = surface_at(x);
-                pc3d_render::CameraPose::new([x, s + 1.7, cz], 0.0, -0.08)
+            // Each waypoint seeks LOCALLY FLAT ground off the border
+            // dither band: the view-center probe lights the query's cube
+            // top face — on flat ground the streamed smooth surface and
+            // the cube top agree to the tolerance; a slope or a dithered
+            // border lawfully disagrees with it.
+            let flat_spot = |x0: f32| -> (f32, f32) {
+                // The center ray (pitch -0.08, eye 1.7 m up) hits the
+                // ground ~20 m AHEAD of the waypoint — the flat check
+                // runs at the HIT ZONE (x, cz-21), +-2 m both axes, and
+                // the whole zone must sit within 10 cm of one level.
+                for slide in 0..40u32 {
+                    let x = x0 + (slide as f32) * 8.0;
+                    let lx = (x as i64).rem_euclid(256);
+                    if (0..32).contains(&lx) || lx > 224 {
+                        continue;
+                    }
+                    let hz = cz - 21.0;
+                    let s0 =
+                        gen.effective_surface_mm((x * 1000.0) as i64, (hz * 1000.0) as i64);
+                    let grade_ok = [(-2.0f32, 0.0), (2.0, 0.0), (0.0, -2.0), (0.0, 2.0),
+                        (1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)]
+                        .iter()
+                        .all(|&(dx, dz)| {
+                            let n = gen.effective_surface_mm(
+                                ((x + dx) * 1000.0) as i64,
+                                ((hz + dz) * 1000.0) as i64,
+                            );
+                            (n - s0).abs() <= 100
+                        });
+                    if grade_ok {
+                        return (x, hz);
+                    }
+                }
+                (x0, cz - 21.0)
             };
-            let waypoints = [cx, cx + 96.0, cx + 192.0];
-            let poses: Vec<_> = waypoints.iter().map(|x| pose_at(*x)).collect();
+            let (wx0, wz0) = flat_spot(cx);
+            let (wx1, wz1) = flat_spot(cx + 96.0);
+            let (wx2, wz2) = flat_spot(cx + 192.0);
+            let waypoints = [wx0, wx1, wx2];
+            let wz = [wz0, wz1, wz2];
+            let pose_at = |i: usize| {
+                let x = waypoints[i];
+                let z = wz[i];
+                let s = gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32
+                    / 1000.0;
+                pc3d_render::CameraPose::new([x, s + 1.7, z], 0.0, -0.08)
+            };
+            let poses: Vec<_> = (0..waypoints.len()).map(pose_at).collect();
 
             let gen_hook = gen.clone();
             let cfg = pc3d_render::WindowConfig {
@@ -3913,7 +3955,9 @@ fn main() {
                     Shot::new(80, format!("{out_dir}/windowed_wild_vista.png")),
                     Shot::new(140, format!("{out_dir}/windowed_wild_landmark.png")),
                     Shot::new(165, format!("{out_dir}/windowed_wild_undergrowth.png")),
-                    Shot::new(185, format!("{out_dir}/windowed_wild_canopy.png")),
+                    // The canopy shot looks UP INTO the crowns — the
+                    // frame lawfully contains no sky to probe.
+                    Shot::new(185, format!("{out_dir}/windowed_wild_canopy.png")).sky(false),
                     Shot::new(225, format!("{out_dir}/windowed_wild_lowtier.png")),
                 ],
                 frame_hooks: vec![
@@ -5396,7 +5440,14 @@ fn find_dig_spot_pair(
                 && [-0.5f32, 0.5].iter().all(|dx| {
                     (ground_at(sx + dx, sz - 2.0) - g).abs() <= 0.5
                 });
-            if !strip_ok {
+            // THE FLAT PAD: every side of the pit stays within a meter of
+            // the spot's ground for 3 m — a downslope side would let the
+            // walk-out sail out of the pit where the wall law must hold.
+            let pad_ok = ![[1.0f32, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0],
+                [1.0, 1.0], [-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0]]
+                .iter()
+                .any(|&d| (ground_at(sx + d[0] * 3.0, sz + d[1] * 3.0) - g).abs() > 1.0);
+            if !strip_ok || !pad_ok {
                 continue;
             }
             // No trunk in the step cell's own slot.

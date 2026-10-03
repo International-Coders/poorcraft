@@ -185,6 +185,10 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -200,10 +204,10 @@
     "hover": null,
     "hud": {
       "food": 0.699999988079071,
-      "health": 0.509854257106781,
+      "health": 0.4857393801212311,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 3,
-      "stamina": 0.7189807295799255,
+      "stamina": 0.5501757860183716,
       "stock": "PACK EMPTY",
       "xp": 0.5
     },
@@ -228,12 +232,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:39",
+        "modified": "2026-10-03 09:40",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:39",
+        "modified": "2026-10-03 09:40",
         "name": "beta-shot",
         "seed": 7
       }

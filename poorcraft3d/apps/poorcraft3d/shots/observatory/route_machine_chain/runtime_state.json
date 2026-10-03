@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 72.9000015258789,
+    "avg_fps": 71.0,
     "frames": 169,
-    "p50_ms": 13.180000305175781,
-    "p95_ms": 15.140000343322754
+    "p50_ms": 13.729999542236328,
+    "p95_ms": 15.449999809265137
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791014049",
+  "timestamp_utc": "1791020598",
   "ui": {
     "companion": "",
     "creature_hint": [
@@ -92,12 +92,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 07:54",
+        "modified": "2026-10-03 09:43",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 07:54",
+        "modified": "2026-10-03 09:43",
         "name": "beta-shot",
         "seed": 7
       }
@@ -107,11 +107,11 @@
     ],
     "toasts": [
       {
-        "age_s": 1.544950246810913,
+        "age_s": 1.6008163690567017,
         "text": "DUG SOIL+WOOD"
       },
       {
-        "age_s": 0.4028715491294861,
+        "age_s": 0.4153558015823364,
         "text": "DREW 3200 mWATER + 1 WOOD"
       }
     ],

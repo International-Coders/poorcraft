@@ -1,5 +1,5 @@
 {
-  "build_hash": "ab74137",
+  "build_hash": "dev",
   "camera": "scripted_route_camera",
   "command": "--observe route_dig",
   "gpu_markers": {
@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 42.0,
+    "avg_fps": 70.9000015258789,
     "frames": 182,
-    "p50_ms": 23.799999237060547,
-    "p95_ms": 26.850000381469727
+    "p50_ms": 13.899999618530273,
+    "p95_ms": 15.65999984741211
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,9 +32,13 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791006360",
+  "timestamp_utc": "1791020617",
   "ui": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -49,7 +53,7 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9977758526802063,
+      "food": 0.9985699653625488,
       "health": 1.0,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
@@ -78,12 +82,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:45",
+        "modified": "2026-10-03 09:43",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:45",
+        "modified": "2026-10-03 09:43",
         "name": "beta-shot",
         "seed": 7
       }
@@ -91,7 +95,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.7869303226470947,
+        "age_s": 1.7912482023239136,
         "text": "DUG SOIL+WOOD"
       }
     ],

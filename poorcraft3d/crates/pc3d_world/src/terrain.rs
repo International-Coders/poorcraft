@@ -158,6 +158,45 @@ impl SceneSpec {
                     if gen.cliff_mask(x * 1000, z * 1000) > 0.6 {
                         return false;
                     }
+                    // The vista proof's side-face probe needs a real
+                    // 1 m step INSIDE the patch: some column's surface
+                    // drops >= 1 m one meter east.
+                    let px0 = x.div_euclid(16);
+                    let pz0 = z.div_euclid(16);
+                    let mut has_step = false;
+                    for lx in 0..15i64 {
+                        for lz in 0..16i64 {
+                            let wx = (px0 + lx) * 1000;
+                            let wz = (pz0 + lz) * 1000;
+                            let here = gen.effective_surface_mm(wx, wz);
+                            let east = gen.effective_surface_mm(wx + 1000, wz);
+                            if here - east >= 1_000 {
+                                has_step = true;
+                                break;
+                            }
+                        }
+                        if has_step {
+                            break;
+                        }
+                    }
+                    if !has_step {
+                        return false;
+                    }
+                    // The walker proof strolls 4 m north FROM THE PATCH
+                    // CENTER (its start-seek walks there): every meter of
+                    // that stroll line rises/falls under the walkable
+                    // grade (0.6 m per meter, inside the rise law's 1.6),
+                    // so nothing on the line is a wall.
+                    let pcx = (x.div_euclid(16) * 16 + 8) * 1000;
+                    let pcz = (z.div_euclid(16) * 16 + 8) * 1000;
+                    let mut prev = gen.effective_surface_mm(pcx, pcz);
+                    for d in 1..=5i64 {
+                        let n = gen.effective_surface_mm(pcx, pcz - d * 1000);
+                        if (n - prev).abs() > 200 {
+                            return false;
+                        }
+                        prev = n;
+                    }
                     // Gently rolling, not a plain: a neighbor cell
                     // (100 m away) may drop or climb up to 20 m — enough
                     // relief for slopes to read, never a wall.
@@ -190,6 +229,9 @@ impl SceneSpec {
             }
             SceneSpec::Cliff => {
                 let gen = crate::gen::WorldGen::new(SEEK_SEED);
+                // The TERRACE threshold (0.78) is where the surface
+                // actually quantizes — the 0.56 outer band is smooth
+                // ground with no wall to prove.
                 for x in -20_000..=20_000i64 {
                     for z in -20_000..=20_000i64 {
                         if x.rem_euclid(400) != 0 || z.rem_euclid(400) != 0 {
@@ -197,10 +239,25 @@ impl SceneSpec {
                         }
                         let wx = x * 1000;
                         let wz = z * 1000;
-                        if gen.cliff_mask(wx, wz) > 0.56 {
+                        if gen.cliff_mask(wx, wz) > 0.78 {
                             let base = gen.surface_base_mm(wx, wz);
                             if base > 4_000 {
-                                return (SEEK_SEED, patch_at(&gen, x, z));
+                                // The WALL must be inside (or one patch
+                                // beside) the scene patch: a >= 2.5 m
+                                // level change within 16 m — the terrace
+                                // edge, not the band's flat interior.
+                                let s0 = gen.effective_surface_mm(wx, wz);
+                                let edge = [(16i64, 0), (-16, 0), (0, 16), (0, -16)]
+                                    .iter()
+                                    .any(|&(dx, dz)| {
+                                        (gen.effective_surface_mm(wx + dx * 1000, wz + dz * 1000)
+                                            - s0)
+                                            .abs()
+                                            >= 2_500
+                                    });
+                                if edge {
+                                    return (SEEK_SEED, patch_at(&gen, x, z));
+                                }
                             }
                         }
                     }

@@ -196,6 +196,10 @@
   ],
   "ui_state": {
     "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
     "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
@@ -239,12 +243,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 05:45",
+        "modified": "2026-10-03 09:43",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 05:45",
+        "modified": "2026-10-03 09:43",
         "name": "beta-shot",
         "seed": 7
       }
@@ -252,7 +256,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.0833470821380615,
+        "age_s": 0.7092745900154114,
         "text": "DUG SOIL+WOOD"
       }
     ],

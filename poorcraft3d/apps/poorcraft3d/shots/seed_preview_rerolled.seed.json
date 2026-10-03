@@ -2,18 +2,18 @@
   "biome_counts": [
     {
       "biome": "ocean",
-      "percent": 95.9000015258789,
-      "regions": 982
+      "percent": 96.30000305175781,
+      "regions": 986
     },
     {
       "biome": "coast",
-      "percent": 0.8999999761581421,
-      "regions": 9
+      "percent": 1.100000023841858,
+      "regions": 11
     },
     {
       "biome": "plains",
-      "percent": 3.200000047683716,
-      "regions": 33
+      "percent": 2.5999999046325684,
+      "regions": 27
     }
   ],
   "feature_hints": [
@@ -42,8 +42,8 @@
   "spawn": {
     "reason": "safe",
     "safe": true,
-    "x": 3200.0,
-    "y": 10.062999725341797,
+    "x": 2944.0,
+    "y": 2.1440000534057617,
     "z": -3200.0
   },
   "valid": true,

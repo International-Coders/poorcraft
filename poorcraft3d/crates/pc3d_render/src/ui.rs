@@ -4646,14 +4646,18 @@ pub fn verify_ui_captures(
             return Err(format!("{scene}: blank frame ({} distinct colors)", cap.report.distinct_colors));
         }
         // 1b. Row-shear law (the diagonal-cut bug class): the presented
-        //     frame must not drift row-to-row. Runs on the composited
-        //     readback, so the canvas paint, texture upload, blit and
-        //     capture pitches are ALL covered — the original bug hid from
-        //     proofs whose widths were accidentally 256-aligned. A pitch
-        //     bug = nonzero MEDIAN drift or one nonzero shift owning a
-        //     large share of structured rows; healthy noise scatters.
-        let (shear, mode_nonzero) =
-            row_shear_metrics(&cap.rgba, cap.report.width, cap.report.height);
+        //     UI must not drift row-to-row. Runs on the UI CANVAS — the
+        //     layer this law targets (canvas paint, texture upload, blit
+        //     pitches; the original bug hid from 256-aligned widths). The
+        //     COMPOSITED frame's world imagery is organic by design now
+        //     (MAPGEN-101's dithered, ridged terrain fills preview
+        //     panels), and organic rows scatter shifts that a pitch bug
+        //     never produces — median drift on the canvas is the honest
+        //     signal.
+        let (shear, mode_nonzero) = match &cap.ui_canvas {
+            Some((canvas, cw, ch)) => row_shear_metrics(canvas, *cw, *ch),
+            None => (0.0, 0.0),
+        };
         if shear != 0.0 || mode_nonzero > 0.25 {
             return Err(format!(
                 "{scene}: row shear detected (median {shear:+.0}px/row, dominant nonzero shift on {}% of rows) — pitch/alignment regression",

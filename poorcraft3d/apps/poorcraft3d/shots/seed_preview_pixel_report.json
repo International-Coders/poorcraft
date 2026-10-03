@@ -46,7 +46,7 @@
           "pass": true
         },
         {
-          "detail": "52 distinct colors (map live: true)",
+          "detail": "70 distinct colors (map live: true)",
           "name": "preview_nonblank",
           "pass": true
         },
@@ -83,7 +83,7 @@
           "pass": true
         },
         {
-          "detail": "80 distinct colors (map live: true)",
+          "detail": "75 distinct colors (map live: true)",
           "name": "preview_nonblank",
           "pass": true
         },
@@ -120,7 +120,7 @@
           "pass": true
         },
         {
-          "detail": "36 distinct colors (map live: true)",
+          "detail": "40 distinct colors (map live: true)",
           "name": "preview_nonblank",
           "pass": true
         },
@@ -157,7 +157,7 @@
           "pass": true
         },
         {
-          "detail": "36 distinct colors (map live: true)",
+          "detail": "40 distinct colors (map live: true)",
           "name": "preview_nonblank",
           "pass": true
         },
@@ -194,7 +194,7 @@
           "pass": true
         },
         {
-          "detail": "48 distinct colors (map live: true)",
+          "detail": "54 distinct colors (map live: true)",
           "name": "preview_nonblank",
           "pass": true
         },
