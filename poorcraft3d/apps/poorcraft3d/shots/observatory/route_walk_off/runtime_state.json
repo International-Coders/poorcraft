@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 31.5,
+    "avg_fps": 41.400001525878906,
     "frames": 237,
-    "p50_ms": 30.959999084472656,
-    "p95_ms": 37.459999084472656
+    "p50_ms": 24.219999313354492,
+    "p95_ms": 27.459999084472656
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,8 +32,10 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1790000842",
+  "timestamp_utc": "1791006130",
   "ui": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
@@ -48,7 +50,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.646492063999176,
+      "health": 0.646282970905304,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -58,8 +60,12 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -72,12 +78,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:27",
+        "modified": "2026-10-03 05:42",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:27",
+        "modified": "2026-10-03 05:42",
         "name": "beta-shot",
         "seed": 7
       }
@@ -85,15 +91,16 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.1805057525634766,
+        "age_s": 1.0220853090286255,
         "text": "THE GROUND GIVES WAY"
       },
       {
-        "age_s": 0.10459168255329132,
+        "age_s": 0.09413793683052063,
         "text": "FELL — HEALTH 64%"
       }
     ],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   },
   "verdict": "exported",
   "version": 1,

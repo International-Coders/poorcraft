@@ -1,0 +1,28 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_machine_chain-dev",
+  "commands": [
+    "--observe route_machine_chain"
+  ],
+  "diff_paths": [],
+  "digest": "12d125ce9295b47e",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_machine_chain",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [
+    "beauty_machine_panel.png",
+    "beauty_machine_charged.png"
+  ],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

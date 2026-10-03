@@ -1,17 +1,24 @@
 {
   "biomes": [
     {
-      "biome": "forest",
-      "mean_elevation_m": 61.099998474121094,
+      "biome": "plains",
+      "mean_elevation_m": 65.5999984741211,
       "mean_slope_pct": 1.0,
-      "regions": 337,
+      "regions": 74,
+      "roughness_pct": 0.4000000059604645
+    },
+    {
+      "biome": "forest",
+      "mean_elevation_m": 60.20000076293945,
+      "mean_slope_pct": 1.0,
+      "regions": 270,
       "roughness_pct": 0.4000000059604645
     },
     {
       "biome": "highlands",
-      "mean_elevation_m": 83.30000305175781,
+      "mean_elevation_m": 83.5999984741211,
       "mean_slope_pct": 1.100000023841858,
-      "regions": 239,
+      "regions": 232,
       "roughness_pct": 0.5
     }
   ],

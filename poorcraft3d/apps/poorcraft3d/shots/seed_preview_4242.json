@@ -2,18 +2,18 @@
   "biome_counts": [
     {
       "biome": "plains",
-      "percent": 1.399999976158142,
-      "regions": 14
+      "percent": 7.199999809265137,
+      "regions": 74
     },
     {
       "biome": "forest",
-      "percent": 62.0,
-      "regions": 635
+      "percent": 56.79999923706055,
+      "regions": 582
     },
     {
       "biome": "highlands",
-      "percent": 36.599998474121094,
-      "regions": 375
+      "percent": 35.900001525878906,
+      "regions": 368
     }
   ],
   "feature_hints": [
@@ -36,7 +36,7 @@
     96
   ],
   "resolved_seed": "4242",
-  "screenshot_path": "poorcraft3d/apps/poorcraft3d/shots/seed_preview_4242.png",
+  "screenshot_path": "/Users/zari/Desktop/POORCRAFT/poorcraft3d/apps/poorcraft3d/shots/seed_preview_4242.png",
   "seed_source": "numeric",
   "seed_text": "4242",
   "spawn": {

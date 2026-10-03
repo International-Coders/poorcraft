@@ -206,6 +206,8 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
@@ -220,7 +222,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.6873344779014587,
+      "health": 0.6752926707267761,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -230,8 +232,12 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -244,12 +250,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:27",
+        "modified": "2026-10-03 05:42",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:27",
+        "modified": "2026-10-03 05:42",
         "name": "beta-shot",
         "seed": 7
       }
@@ -257,14 +263,15 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.1467080116271973,
+        "age_s": 1.5446234941482544,
         "text": "FELL — HEALTH 64%"
       },
       {
-        "age_s": 0.4500625729560852,
+        "age_s": 0.32148420810699463,
         "text": "THE GROUND GIVES WAY"
       }
     ],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

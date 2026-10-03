@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 35.5,
+    "avg_fps": 45.900001525878906,
     "frames": 70,
-    "p50_ms": 26.59000015258789,
-    "p95_ms": 33.310001373291016
+    "p50_ms": 21.25,
+    "p95_ms": 23.549999237060547
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,8 +32,10 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1790000717",
+  "timestamp_utc": "1791006030",
   "ui": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
@@ -49,7 +51,7 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK EMPTY",
@@ -58,8 +60,12 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": false,
     "screen": "new_world",
     "session_live": true,
@@ -72,19 +78,20 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-10-03 05:40",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-10-03 05:40",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
     "toasts": [],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   },
   "verdict": "exported",
   "version": 1,

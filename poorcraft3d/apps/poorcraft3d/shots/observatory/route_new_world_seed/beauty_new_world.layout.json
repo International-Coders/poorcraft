@@ -272,6 +272,8 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
@@ -287,7 +289,7 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK EMPTY",
@@ -296,8 +298,12 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": false,
     "screen": "new_world",
     "session_live": true,
@@ -310,18 +316,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-10-03 05:40",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-10-03 05:40",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
     "toasts": [],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

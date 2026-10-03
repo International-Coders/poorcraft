@@ -10,7 +10,7 @@ P3D_GIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 P3D_BIN := poorcraft3d/target/release/poorcraft3d
 P3D_BUILD = cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d && mkdir -p poorcraft3d/target/release && if [ -n "$$CARGO_TARGET_DIR" ] && [ -f "$$CARGO_TARGET_DIR/release/poorcraft3d" ]; then cp -f "$$CARGO_TARGET_DIR/release/poorcraft3d" $(P3D_BIN); fi
 
-.PHONY: help build test run smoke vistest perf package runtimes push night-plan-check idle-upgrade-check seedlab sounds
+.PHONY: help build test run smoke vistest perf package runtimes push night-plan-check idle-upgrade-check seedlab sounds p3d-beta
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -401,6 +401,73 @@ p3d-shot: ## Windowed 3D proof (two poses: face-flip + parallax + live resize, v
 	cargo build --release --manifest-path poorcraft3d/Cargo.toml
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-shot $(if $(PNG),$(PNG),poorcraft3d/apps/poorcraft3d/shots/windowed_3d.png) || exit 1; \
 	echo "P3D WINDOWED 3D SHOT OK"
+
+p3d-beta: ## THE beta battery (docs/POORCRAFT-3D/BETA-TEST-PLAN.md): 8 stages, every proof the game owns, one report (poorcraft3d/apps/poorcraft3d/shots/BETA-REPORT.txt). Long (~20-40 min).
+	$(P3D_BUILD)
+	@mkdir -p docs/POORCRAFT-VALHEIM-STYLE-REBUILD
+	@BIN=$$(pwd)/poorcraft3d/target/release/poorcraft3d; \
+	SHOTS=$$(pwd)/poorcraft3d/apps/poorcraft3d/shots; \
+	export BIN SHOTS; \
+	REPORT="$$SHOTS/BETA-REPORT.txt"; \
+	echo "POORCRAFT 3D BETA BATTERY — $$(date) — git $$(git rev-parse --short HEAD)" > "$$REPORT"; \
+	fail=0; \
+	stage() { \
+		name=$$1; shift; \
+		echo "" | tee -a "$$REPORT"; \
+		echo "=== STAGE: $$name ===" | tee -a "$$REPORT"; \
+		if "$$@" >> "$$REPORT" 2>&1; then \
+			echo "STAGE PASS: $$name" | tee -a "$$REPORT"; \
+		else \
+			echo "STAGE FAIL: $$name" | tee -a "$$REPORT"; fail=1; \
+		fi; \
+	}; \
+	stage static-assets        $$BIN --validate-assets; \
+	stage asset-sidecars       $$BIN --asset-sidecar all "$$SHOTS"; \
+	stage layout-laws          $$BIN --gate-check "$$SHOTS"; \
+	stage headless-smoke       $$BIN --run 5; \
+	stage journey-42           $$BIN --journey 42; \
+	stage diagnose-2024        $$BIN --diagnose 2024; \
+	stage soak-30d             $$BIN --soak 30 4242; \
+	stage seed-atlas           $$BIN --atlas 3; \
+	stage terrain-bench        $$BIN --terrain-bench; \
+	stage terrain-analyze      $$BIN --terrain-analyze 4242 "$$SHOTS/terrain"; \
+	stage export-data          $$BIN --export-data "$$SHOTS/export"; \
+	stage windowed-3d-axes     $$BIN --play-shot "$$SHOTS/windowed_3d.png"; \
+	stage terrain-scenes       $$BIN --play-terrain "$$SHOTS"; \
+	stage stream-walk          $$BIN --play-stream "$$SHOTS"; \
+	stage river-water          $$BIN --play-water "$$SHOTS" 3; \
+	stage castle-city          $$BIN --play-city "$$SHOTS" 3; \
+	stage npc-cast             $$BIN --play-npcs "$$SHOTS" 3; \
+	stage day-night            $$BIN --play-daynight "$$SHOTS"; \
+	stage quality-tiers        $$BIN --play-quality "$$SHOTS" 3; \
+	stage vertical-slice       $$BIN --play-slice "$$SHOTS" 3; \
+	stage asset-factory        $$BIN --play-assets "$$SHOTS"; \
+	stage surface-edit         $$BIN --play-surface "$$SHOTS"; \
+	stage caves-water          $$BIN --play-caves "$$SHOTS"; \
+	stage rebuild-slice        $$BIN --play-rebuild "$$SHOTS" 3; \
+	stage npc-people           $$BIN --play-people "$$SHOTS"; \
+	stage settlement-kit       $$BIN --play-settlement "$$SHOTS"; \
+	stage wilderness           $$BIN --play-wilderness "$$SHOTS"; \
+	stage materials            $$BIN --play-materials "$$SHOTS"; \
+	stage surface-stream       $$BIN --play-surface-stream "$$SHOTS"; \
+	stage ui-states            $$BIN --ui-shots "$$SHOTS"; \
+	stage seed-preview-ui      $$BIN --ui-seed-preview-shots "$$SHOTS"; \
+	stage seed-preview-4242    $$BIN --seed-preview 4242 "$$SHOTS"; \
+	stage asset-captures       $$BIN --asset-capture all "$$SHOTS/asset-captures"; \
+	rm -rf "$$SHOTS/observatory"; \
+	stage observatory          $$BIN --observe all "$$SHOTS/observatory"; \
+	stage dig-determinism      sh -c 'rm -rf "$$SHOTS/dig-a" "$$SHOTS/dig-b" && "$$BIN" --observe route_dig "$$SHOTS/dig-a" && "$$BIN" --observe route_dig "$$SHOTS/dig-b" && "$$BIN" --compare-evidence "$$SHOTS/dig-a/route_dig" "$$SHOTS/dig-b/route_dig"'; \
+	stage playtest-determinism sh -c 'rm -rf "$$SHOTS/playtest-a" "$$SHOTS/playtest-b" && "$$BIN" --observe route_semantic_playtest "$$SHOTS/playtest-a" && "$$BIN" --observe route_semantic_playtest "$$SHOTS/playtest-b" && "$$BIN" --compare-evidence "$$SHOTS/playtest-a/route_semantic_playtest" "$$SHOTS/playtest-b/route_semantic_playtest"'; \
+	stage deck-bench           sh -c '"$$BIN" --deck-bench 3 "$$SHOTS" low && "$$BIN" --deck-bench 3 "$$SHOTS" mid && "$$BIN" --deck-bench 3 "$$SHOTS" high && "$$BIN" --deck-bench 3 "$$SHOTS" report'; \
+	stage package-dmg          $(MAKE) p3d-dmg; \
+	echo "" | tee -a "$$REPORT"; \
+	pngs=$$(find "$$SHOTS" -name '*.png' | wc -l | tr -d ' '); \
+	echo "TOTAL PROOF PNGS ON DISK: $$pngs" | tee -a "$$REPORT"; \
+	if [ $$fail -eq 0 ]; then \
+		echo "BETA BATTERY: ALL STAGES PASS (report: $$REPORT)" | tee -a "$$REPORT"; \
+	else \
+		echo "BETA BATTERY FAILED — see $$REPORT" | tee -a "$$REPORT"; exit 1; \
+	fi
 
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:

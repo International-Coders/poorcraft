@@ -1,0 +1,337 @@
+{
+  "elements": [
+    {
+      "button_state": "",
+      "id": "bar_health",
+      "kind": "bar",
+      "rect": [
+        20,
+        20,
+        240,
+        18
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "bar_stamina",
+      "kind": "bar",
+      "rect": [
+        20,
+        48,
+        240,
+        18
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "bar_food",
+      "kind": "bar",
+      "rect": [
+        20,
+        76,
+        240,
+        18
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hud_stock",
+      "kind": "text",
+      "rect": [
+        20,
+        110,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "crosshair",
+      "kind": "crosshair",
+      "rect": [
+        392,
+        242,
+        16,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "xp_strip",
+      "kind": "bar",
+      "rect": [
+        142,
+        421,
+        516,
+        5
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "prompt",
+      "kind": "text",
+      "rect": [
+        137,
+        397,
+        526,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "toast_NOTHING TO TAKE YET",
+      "kind": "toast",
+      "rect": [
+        277,
+        375,
+        246,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_0",
+      "kind": "hotbar_slot",
+      "rect": [
+        142,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_1",
+      "kind": "hotbar_slot",
+      "rect": [
+        200,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_2",
+      "kind": "hotbar_slot",
+      "rect": [
+        258,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_3",
+      "kind": "hotbar_slot",
+      "rect": [
+        316,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_4",
+      "kind": "hotbar_slot",
+      "rect": [
+        374,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_5",
+      "kind": "hotbar_slot",
+      "rect": [
+        432,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_6",
+      "kind": "hotbar_slot",
+      "rect": [
+        490,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_7",
+      "kind": "hotbar_slot",
+      "rect": [
+        548,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_8",
+      "kind": "hotbar_slot",
+      "rect": [
+        606,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "forge_panel",
+      "kind": "panel",
+      "rect": [
+        120,
+        187,
+        560,
+        182
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "forge_state",
+      "kind": "text",
+      "rect": [
+        140,
+        229,
+        262,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "forge_fuel",
+      "kind": "bar",
+      "rect": [
+        140,
+        251,
+        340,
+        18
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "forge_heat",
+      "kind": "bar",
+      "rect": [
+        140,
+        275,
+        340,
+        18
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "forge_slots",
+      "kind": "text",
+      "rect": [
+        140,
+        299,
+        262,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "forge_hint",
+      "kind": "text",
+      "rect": [
+        266,
+        327,
+        394,
+        14
+      ]
+    }
+  ],
+  "scale": 1.0,
+  "screen": "gameplay",
+  "size": [
+    800,
+    500
+  ],
+  "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
+    "debug_overlay": false,
+    "dialog": null,
+    "focus": 0,
+    "forge": {
+      "bars": 0,
+      "blocked": true,
+      "fuel": 0.1666666716337204,
+      "heat": 0.4166666567325592,
+      "ore": 0,
+      "state": "BLOCKED: no ore"
+    },
+    "forge_bars_taken": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "stock": "PACK EMPTY",
+      "xp": 0.0
+    },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
+    "modal": null,
+    "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
+    "pointer_grabbed": true,
+    "screen": "gameplay",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-10-03 05:40",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-10-03 05:40",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "stock": [
+      "CARRYING NOTHING"
+    ],
+    "toasts": [
+      {
+        "age_s": 1.0655417442321777,
+        "text": "NOTHING TO TAKE YET"
+      }
+    ],
+    "wallet": 0,
+    "witnessed_assaults": 0
+  }
+}

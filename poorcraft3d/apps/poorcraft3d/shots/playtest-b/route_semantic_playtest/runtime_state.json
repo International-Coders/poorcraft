@@ -1,5 +1,5 @@
 {
-  "build_hash": "dev",
+  "build_hash": "ab74137",
   "camera": "scripted_route_camera",
   "command": "--observe route_semantic_playtest",
   "gpu_markers": {
@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 12.199999809265137,
+    "avg_fps": 40.900001525878906,
     "frames": 973,
-    "p50_ms": 77.91000366210938,
-    "p95_ms": 116.80000305175781
+    "p50_ms": 24.479999542236328,
+    "p95_ms": 27.43000030517578
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1790696122",
+  "timestamp_utc": "1791006433",
   "ui": {
     "companion": "",
     "creatures_slain": 0,
@@ -50,7 +50,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.4259134829044342,
+      "health": 0.36413413286209106,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -111,12 +111,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-29 15:33",
+        "modified": "2026-10-03 05:46",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-29 15:33",
+        "modified": "2026-10-03 05:46",
         "name": "beta-shot",
         "seed": 7
       }

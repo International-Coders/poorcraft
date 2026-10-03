@@ -195,6 +195,8 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
@@ -208,8 +210,8 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9915628433227539,
-      "health": 0.7365682125091553,
+      "food": 0.993330180644989,
+      "health": 0.7143804430961609,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -219,8 +221,12 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -233,12 +239,12 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:27",
+        "modified": "2026-10-03 05:42",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:27",
+        "modified": "2026-10-03 05:42",
         "name": "beta-shot",
         "seed": 7
       }
@@ -246,10 +252,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.911745071411133,
+        "age_s": 2.275879383087158,
         "text": "THE GROUND GIVES WAY"
       }
     ],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

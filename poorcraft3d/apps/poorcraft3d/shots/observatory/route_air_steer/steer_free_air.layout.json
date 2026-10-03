@@ -79,17 +79,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_FELL — HEALTH 64%",
-      "kind": "toast",
-      "rect": [
-        289,
-        375,
-        222,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -195,6 +184,8 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": null,
     "focus": 0,
@@ -209,7 +200,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.6498845219612122,
+      "health": 1.0,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -219,8 +210,12 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -233,23 +228,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:26",
+        "modified": "2026-10-03 05:41",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:26",
+        "modified": "2026-10-03 05:41",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [
-      {
-        "age_s": 0.2742169499397278,
-        "text": "FELL — HEALTH 64%"
-      }
-    ],
-    "wallet": 0
+    "toasts": [],
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

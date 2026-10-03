@@ -182,9 +182,9 @@
       "kind": "panel",
       "rect": [
         120,
-        237,
+        187,
         560,
-        132
+        182
       ]
     },
     {
@@ -193,7 +193,7 @@
       "kind": "text",
       "rect": [
         140,
-        279,
+        229,
         411,
         21
       ]
@@ -204,8 +204,19 @@
       "kind": "text",
       "rect": [
         140,
-        305,
+        255,
         154,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "dialog_need",
+      "kind": "text",
+      "rect": [
+        140,
+        277,
+        226,
         14
       ]
     },
@@ -215,7 +226,7 @@
       "kind": "text",
       "rect": [
         140,
-        329,
+        299,
         430,
         14
       ]
@@ -226,7 +237,7 @@
       "kind": "text",
       "rect": [
         578,
-        345,
+        327,
         82,
         14
       ]
@@ -239,9 +250,12 @@
     500
   ],
   "ui_state": {
+    "companion": "",
+    "creatures_slain": 0,
     "debug_overlay": false,
     "dialog": {
       "activity": "BUILDING",
+      "need": "NEEDS: FED · RESTED",
       "role": "BUILDER",
       "speaker": "Maren Oldford",
       "text": "We build it once, we build it right."
@@ -268,8 +282,12 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
     "modal": null,
     "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
     "pointer_grabbed": true,
     "screen": "gameplay",
     "session_live": true,
@@ -282,18 +300,19 @@
     },
     "slots": [
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-10-03 05:41",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-09-21 14:25",
+        "modified": "2026-10-03 05:41",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
     "toasts": [],
-    "wallet": 0
+    "wallet": 0,
+    "witnessed_assaults": 0
   }
 }

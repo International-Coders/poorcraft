@@ -1,12 +1,12 @@
 {
   "asset_dumps": [],
-  "build_hash": "dev",
-  "bundle_id": "route_dig-dev",
+  "build_hash": "ab74137",
+  "bundle_id": "route_dig-ab74137",
   "commands": [
     "--observe route_dig"
   ],
   "diff_paths": [],
-  "digest": "a4a6de5c3908c196",
+  "digest": "eef44f586bee8536",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
