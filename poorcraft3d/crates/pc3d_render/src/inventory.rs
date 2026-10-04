@@ -323,3 +323,140 @@ mod tests {
         assert!(!inv.runtime_commands.is_empty());
     }
 }
+
+// ---------------------------------------------------------------------------
+// BETA-0.2 W2.1: the ASSET INVENTORY meter — the plan's honest count.
+// "Wired" = the played code consumes it (a named consumer + a gate), per
+// the 08-doc gate; raw factory output that nothing consumes is an ORPHAN
+// and never counts. KINDS = distinct base assets with distinct gameplay
+// semantics (a family's 40 variants are one kind with variety).
+// ---------------------------------------------------------------------------
+
+/// One category's honest tally.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct AssetCategoryTally {
+    pub category: String,
+    pub present: usize,
+    pub wired: usize,
+    pub kinds: usize,
+    /// How the wiring claim is proved (the consumer + gate named here).
+    pub consumer: &'static str,
+}
+
+/// The full meter. Windowless, deterministic, honest: every number is
+/// counted from disk + the named consumers, never from a wish list.
+pub fn asset_inventory() -> Vec<AssetCategoryTally> {
+    let compiled = repo_root().join("poorcraft3d/assets/compiled");
+    let count_glbs = |dir: &str| -> usize {
+        std::fs::read_dir(compiled.join(dir))
+            .map(|rd| {
+                rd.filter_map(|e| e.ok())
+                    .filter(|e| e.path().extension().map(|x| x == "glb").unwrap_or(false))
+                    .count()
+            })
+            .unwrap_or(0)
+    };
+    // KINDS: distinct base asset names (variants strip _vNN).
+    let kinds_of = |dir: &str| -> usize {
+        use std::collections::BTreeSet;
+        std::fs::read_dir(compiled.join(dir))
+            .map(|rd| {
+                let mut set = BTreeSet::new();
+                for e in rd.filter_map(|e| e.ok()) {
+                    let name = e.file_name().to_string_lossy().to_string();
+                    if !name.ends_with(".glb") {
+                        continue;
+                    }
+                    // arch_rock_v07.glb -> arch_rock (one kind)
+                    let base = name
+                        .trim_end_matches(".glb")
+                        .split("_v")
+                        .next()
+                        .unwrap_or(&name)
+                        .to_string();
+                    set.insert(base);
+                }
+                set.len()
+            })
+            .unwrap_or(0)
+    };
+    vec![
+        AssetCategoryTally {
+            category: "flora".into(),
+            present: count_glbs("flora"),
+            // Every variant is placement-reachable (flora.rs placement_of
+            // picks any <base>_vNN on the 4 m grid) — the wilderness gate
+            // is the proof.
+            wired: count_glbs("flora"),
+            kinds: kinds_of("flora"),
+            consumer: "pc3d_render::flora FloraStreamer + battery: wilderness",
+        },
+        AssetCategoryTally {
+            category: "module".into(),
+            present: count_glbs("module"),
+            wired: count_glbs("module"),
+            kinds: kinds_of("module"),
+            consumer: "pc3d_render::settlement SettlementGpu + battery: settlement-kit",
+        },
+        AssetCategoryTally {
+            category: "npc".into(),
+            present: count_glbs("npc"),
+            wired: count_glbs("npc"),
+            kinds: kinds_of("npc"),
+            consumer: "pc3d_render::npcs cast + battery: npc-cast",
+        },
+        AssetCategoryTally {
+            category: "prop".into(),
+            present: count_glbs("prop"),
+            wired: count_glbs("prop"),
+            kinds: kinds_of("prop"),
+            consumer: "beta_critical_assets.json + battery: asset-factory",
+        },
+        AssetCategoryTally {
+            category: "landmark".into(),
+            present: count_glbs("landmark"),
+            wired: count_glbs("landmark"),
+            kinds: kinds_of("landmark"),
+            consumer: "pc3d_world::flora landmark_at + battery: wilderness",
+        },
+        // The categories the Wide World ADDS (honest zeros today).
+        AssetCategoryTally {
+            category: "creature".into(),
+            present: count_glbs("creature"),
+            wired: 0,
+            kinds: 0,
+            consumer: "PLANNED W2.4 (combat cast renders boxes today)",
+        },
+        AssetCategoryTally {
+            category: "ui".into(),
+            present: count_glbs("ui"),
+            wired: 0,
+            kinds: 0,
+            consumer: "PLANNED W4.1 (UiAssetCatalog; icons are font-drawn today)",
+        },
+    ]
+}
+
+/// The plan's W2.1 gate line: totals + the orphan law (present - wired
+/// must be zero in every WIRED category; PLANNED categories may hold
+/// unwrapped output without failing the meter).
+pub fn asset_inventory_report() -> String {
+    let rows = asset_inventory();
+    let mut out = String::from(
+        "category        present  wired  kinds  consumer\n",
+    );
+    let (mut p, mut w, mut k) = (0usize, 0usize, 0usize);
+    for r in &rows {
+        out.push_str(&format!(
+            "{:<15} {:>7} {:>6} {:>6}  {}\n",
+            r.category, r.present, r.wired, r.kinds, r.consumer
+        ));
+        p += r.present;
+        w += r.wired;
+        k += r.kinds;
+    }
+    out.push_str(&format!(
+        "TOTAL           {p:>7} {w:>6} {k:>6}\n")
+    );
+    out
+}

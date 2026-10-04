@@ -124,6 +124,13 @@ p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(MANIFEST),$(MANIFEST),) || exit 1; \
 	echo "P3D ASSETS OK"
 
+p3d-asset-inventory: ## BETA-0.2 W2.1: the honest asset meter (present/wired/kinds per category, from disk + named consumers)
+	$(P3D_BUILD)
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-inventory
+
+p3d-catalog-check: ## BETA-0.2 W3.0: the Function Catalog law (rows well-formed, count line truthful, played verbs covered)
+	cargo test -p pc3d_world --lib -- catalog layout
+
 p3d-slice: ## Windowed VERTICAL SLICE showcase (city+cave+build captures): make p3d-slice [OUTDIR=shots] [SEED=3]
 	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --play-slice $(if $(OUTDIR),$(OUTDIR),poorcraft3d/apps/poorcraft3d/shots) $(if $(SEED),$(SEED),3) || exit 1; \
@@ -345,6 +352,13 @@ p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowe
 	else \
 		echo "VISUAL GATES FAILED — see $$REPORT" | tee -a "$$REPORT"; exit 1; \
 	fi
+
+p3d-asset-inventory: ## BETA-0.2 W2.1: the honest asset meter (wired vs present vs kinds, windowless): make p3d-asset-inventory
+	$(P3D_BUILD)
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-inventory
+
+p3d-catalog-check: ## BETA-0.2 W3.0: the Function Catalog law (parses the doc, gates rows/proofs/counts): make p3d-catalog-check
+	cargo test -p pc3d_world --lib -- layout catalog
 
 p3d-gate-check: ## The layout laws over every *.layout.json on disk (no GPU needed): no overlapping text, one panel at a time, no unreachable hint keys
 	$(P3D_BUILD)

@@ -11,9 +11,11 @@ use crate::scales::{MAX_QUERY_PATCHES, PATCH_MM};
 
 /// Interest tier radii in meters (blueprint proposals; configurable by
 /// editing here, benchmarked in P3D-201+).
-pub const TIER_FULL_M: f32 = 96.0;
-pub const TIER_LOD_M: f32 = 320.0;
-pub const TIER_MACRO_M: f32 = 1024.0;
+// THE DIAL LAW (beta0.2 W1.1): these re-export the layout dials — the
+// one place the played view's scale lives is pc3d_world::layout.
+pub const TIER_FULL_M: f32 = crate::layout::TIER_FULL_M;
+pub const TIER_LOD_M: f32 = crate::layout::TIER_LOD_M;
+pub const TIER_MACRO_M: f32 = crate::layout::TIER_MACRO_M;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tier {

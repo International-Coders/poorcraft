@@ -451,6 +451,12 @@ fn main() {
                 }
             }
         }
+        Some("--asset-inventory") => {
+            // BETA-0.2 W2.1: the honest asset meter — wired vs present
+            // vs kinds per category, from disk + named consumers. The
+            // Wide World's score: kinds is the number that matters.
+            println!("{}", pc3d_render::inventory::asset_inventory_report());
+        }
         Some("--validate-assets") => {
             // R3DV-003: validate the canonical beta-critical asset manifest
             // (and, if a path is given, that file instead).
