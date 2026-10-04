@@ -371,6 +371,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -468,12 +469,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:41",
+        "modified": "2026-10-04 18:05",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:41",
+        "modified": "2026-10-04 18:05",
         "name": "beta-shot",
         "seed": 7
       }
@@ -486,11 +487,11 @@
     ],
     "toasts": [
       {
-        "age_s": 0.6825513243675232,
+        "age_s": 1.7204623222351074,
         "text": "FORGED 1 BARS"
       },
       {
-        "age_s": 0.01660344935953617,
+        "age_s": 0.04021038860082626,
         "text": "QUEST ACCEPTED"
       }
     ],

@@ -451,6 +451,41 @@ fn main() {
                 }
             }
         }
+        Some("--realm-map") => {
+            // BETA-0.2 W1.3/W3.5: the realm map — the biome atlas with
+            // the six realm capitals drawn (planner truth, not art) plus
+            // the realm table printed. The HoMM-style war table.
+            let seed: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(3);
+            let half: i32 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(32);
+            let out_dir = args
+                .get(4)
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| {
+                    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("shots")
+                });
+            std::fs::create_dir_all(&out_dir).expect("mkdir shots");
+            let (map, plan) = pc3d_world::proof::render_realm_map(seed, half, 8);
+            let out = out_dir.join(format!("realm_map_seed{seed}.png"));
+            image::save_buffer(
+                &out,
+                &map.rgb,
+                map.size as u32,
+                map.size as u32,
+                image::ColorType::Rgb8,
+            )
+            .expect("encode png");
+            println!("REALM MAP seed {seed} -> {} ({}x{})", out.display(), map.size, map.size);
+            for c in &plan.capitals {
+                println!(
+                    "  realm {} {:<11} at region ({:>3},{:>3}) on {}",
+                    c.realm,
+                    pc3d_world::proof::REALM_NAMES[c.realm as usize],
+                    c.region.x,
+                    c.region.z,
+                    c.biome.name()
+                );
+            }
+        }
         Some("--asset-inventory") => {
             // BETA-0.2 W2.1: the honest asset meter — wired vs present
             // vs kinds per category, from disk + named consumers. The
@@ -2981,9 +3016,10 @@ fn main() {
                             &pc3d_world::survival::Onboarding::default(),
                             None,
                             None,
+                            None, // career: BETA-0.2 (routes stage no path)
                         )
-                            .expect("save");
-                        let (_s2, h2, _p2, _, _, _, _) =
+                        .expect("save");
+                        let (_s2, h2, _p2, _, _, _, _, _) =
                             pc3d_render::slice::load_slice(&dir, "rebuild").expect("reload");
                         let c1: usize = h.construction.values().map(|c| c.built_count()).sum();
                         let c2: usize = h2.construction.values().map(|c| c.built_count()).sum();
@@ -5100,8 +5136,9 @@ fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
             &pc3d_world::survival::Onboarding::default(),
             None,
             None,
+            None, // career: BETA-0.2 (routes stage no path)
         )
-            .expect("write test world");
+        .expect("write test world");
     }
     std::rc::Rc::new(root)
 }
@@ -7639,6 +7676,36 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(90, format!("{dir}/beauty_talk.png"))
                     .ui_dump(format!("{dir}/beauty_talk.layout.json")));
             }
+            "route_path_choice" => {
+                // W3.1: the fork — open the panel (Y), see both paths and
+                // the world's lean, choose ENGINEERING (1), read the
+                // binding toast. The route films the choice a player
+                // makes; the laws live in pc3d_world::career.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                ui_script.push((
+                    40,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions
+                            .extend(ui::on_key(ui, ui::Key::Char('y')));
+                    }),
+                ));
+                ui_script.push((
+                    70,
+                    Box::new(|ui, _r, ctx| {
+                        ctx.actions
+                            .extend(ui::on_key(ui, ui::Key::Char('1')));
+                    }),
+                ));
+                shots.push(Shot::new(60, format!("{dir}/path_panel.png"))
+                    .ui_dump(format!("{dir}/path_panel.layout.json")));
+                shots.push(Shot::new(95, format!("{dir}/path_chosen.png"))
+                    .ui_dump(format!("{dir}/path_chosen.layout.json")));
+            }
             "route_machine_chain" => {
                 // JOURNEY STEPS 3-4 (P3D-306's missing runtime proof):
                 // "harness that river with a machine". The body digs a
@@ -8436,7 +8503,11 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && (v[5] - sz).abs() <= 0.3;
             // Held at the 5 m wall: walked toward +z, stopped at the
             // border, feet on the pit floor — NOT lifted to the rim.
-            let held_wall = v[8] > sz + 0.3
+            // (The window floor is 0.2: the pinned center sits within
+            // half a meter of the border; the exact stop depends on the
+            // spot's own collision tops, which the wide-world dials
+            // moved by centimeters.)
+            let held_wall = v[8] > sz + 0.2
                 && v[8] <= sz + 0.65
                 && (v[7] - eye - (ground - 5.0)).abs() <= 0.35
                 && v[7] < ground - 3.0;
@@ -8960,6 +9031,53 @@ fn run_observe(route_id: &str, out_root: &str) {
         }
         // The machine route: the panel must show the chain AND the river
         // must have put real charge in the battery.
+        if spec.id == "route_path_choice" {
+            // THE FORK VERDICT: the panel showed both paths, the choice
+            // bound (the ui state carries the career), and the binding
+            // toast fired. The world laws (choose-once, unlock-by-path)
+            // are pc3d_world's own tests.
+            let panel_ok = report
+                .captures
+                .first()
+                .and_then(|c| c.ui_layout.as_ref())
+                .and_then(|l| l["elements"].as_array())
+                .map(|els| {
+                    els.iter().any(|e| e["id"] == "path_panel")
+                        && els.iter().any(|e| e["id"] == "path_row_1")
+                        && els.iter().any(|e| e["id"] == "path_row_2")
+                        && els.iter().any(|e| e["id"] == "path_lean")
+                })
+                .unwrap_or(false);
+            let chosen_ok = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["career_chosen"].as_u64())
+                .map(|c| c == 1)
+                .unwrap_or(false);
+            let toast_ok = report.captures.iter().any(|c| {
+                c.ui_layout
+                    .as_ref()
+                    .and_then(|l| l["elements"].as_array())
+                    .map(|els| {
+                        els.iter().any(|e| {
+                            e["id"]
+                                .as_str()
+                                .map(|i| i.starts_with("toast_PATH CHOSEN"))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            });
+            if panel_ok && chosen_ok && toast_ok {
+                println!("PATH CHOICE: panel + lean shown, ENGINEERING bound, toast fired");
+            } else {
+                eprintln!(
+                    "[FAIL] observe {id}: panel {panel_ok}, chosen {chosen_ok}, toast {toast_ok}",
+                    id = spec.id
+                );
+                any_fail = true;
+            }
+        }
         if spec.id == "route_machine_chain" {
             let panel_ok = report
                 .captures

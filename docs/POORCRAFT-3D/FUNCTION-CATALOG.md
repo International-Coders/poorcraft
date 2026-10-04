@@ -36,7 +36,7 @@ yet — the row exists so the meter counts the promise).
 | V18 | Fish (river consumer) | — | PLANNED | W3.3 route_fishing; first_catch onboarding |
 | V19 | Cook (campfire) | — | PLANNED | W3.3 route_cook |
 | V20 | Farm (till/plant/harvest) | — | PLANNED | W3.3 route_farm |
-| V21 | Choose a path (career fork) | — | PLANNED | W3.1 route_path_choice |
+| V21 | Choose a path (career fork, binds) | Y, 1/2 | WORKS | observatory route_path_choice; pc3d_world::career laws |
 | V22 | Realm map screen | — | PLANNED | W3.5 ui_realm_map |
 | V23 | Ride / fast travel between capitals | — | PLANNED | post-0.2 |
 | V24 | Lockpick / chest tiers | — | PLANNED | post-0.2 |
@@ -50,7 +50,7 @@ yet — the row exists so the meter counts the promise).
 | S03 | Food drain + eating | WORKS | pc3d_world survival laws |
 | S04 | XP / levels | WORKS | HUD xp_strip |
 | S05 | Armor bar (live) | PLANNED | W3.3 (bar reserved today) |
-| S06 | Mana bar (live) | PLANNED | W3.1 mysteries path |
+| S06 | Mana bar (live at Mysteries) | PARTIAL | path_panel law (bar draws only when its state exists); mana SPEND = W3.1 follow-up |
 | S07 | Air bar (swim/dive) | PLANNED | post-0.2 |
 | S08 | Temperature bar | PLANNED | post-0.2 |
 | S09 | Karma/corruption bar | PLANNED | W3.4 (witness chain lands) |
@@ -73,12 +73,13 @@ yet — the row exists so the meter counts the promise).
 | W02 | Caves (3D carve, sealed) | WORKS | battery: caves-water; p3d203 |
 | W03 | Rivers (flow graph + conforming water) | WORKS | battery: river-water |
 | W04 | Terraced cliffs | WORKS | battery: terrain-scenes (cliff seek) |
-| W05 | Realm capitals (6, D-026 spaced) | PARTIAL | layout.rs RealmPlan laws (planner done; city render = W1.3) |
+| W05 | Realm capitals (6, D-026 spaced) | PARTIAL | layout.rs RealmPlan laws + realm-map export (planner + map done; city GLB render = W1.3 next) |
 | W06 | RiverCarve (valleys under rivers) | PLANNED | W1.4 |
-| W07 | Far horizon (no slab edge) | PLANNED | W1.2 far_horizon gate |
+| W07 | Far horizon (no slab edge) | WORKS | fog = sky's own horizon color; rebuild-vantage + daynight gates |
 | W08 | Day/night + weather | WORKS | battery: day-night |
 | W09 | Faction trust (witnessed) | PARTIAL | route_social witnesses; reaction = W3.4 |
-| W10 | Two deep career paths | PLANNED | W3.1 (the declared next_task) |
+| W10 | Two deep career paths | WORKS | route_path_choice; craft path gate; career laws (the declared next_task CLOSED) |
+| W11 | Realm map (6 capitals + rivers, planner-true) | WORKS | --realm-map export; beta02_realm_map law |
 
 ## Shell (screens/menus/HUD)
 
@@ -97,4 +98,4 @@ yet — the row exists so the meter counts the promise).
 
 ## Count
 
-Rows: 24 verbs + 9 survival + 5 machines + 10 world + 10 shell = **58** (WORKS 29 · PARTIAL 7 · PLANNED 22). Beta 0.2 closes at >= 250 rows with WORKS >= 200 (the plan's W3.0 meter).
+Rows: 24 verbs + 9 survival + 5 machines + 11 world + 10 shell = **59** (WORKS 33 · PARTIAL 8 · PLANNED 18). Beta 0.2 closes at >= 250 rows with WORKS >= 200 (the plan's W3.0 meter).

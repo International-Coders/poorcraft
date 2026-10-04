@@ -224,6 +224,8 @@ pub fn assemble(
     let player = spawn_player(scene);
     r.set_pose(player.pose());
     SliceHost {
+        career: pc3d_world::career::CareerState::default(),
+        career_lean: None,
         seed,
         rebuild: false,
         jump_vy: 0.0,
@@ -283,6 +285,7 @@ pub fn save_slice(
     onboarding: &pc3d_world::survival::Onboarding,
     forge: Option<&pc3d_world::forge::Forge>,
     quests: Option<&[pc3d_world::quest::Quest]>,
+    career: Option<&pc3d_world::career::Career>,
 ) -> Result<(), pc3d_save::store::LoadError> {
     let sup = pc3d_core::SupportedVersions::epoch1();
     pc3d_save::store::save_world_meta(
@@ -319,6 +322,7 @@ pub fn save_slice(
         &pc3d_save::session_store::SessionExtras {
             forge: forge.cloned(),
             quests: quests.map(|q| q.to_vec()).unwrap_or_default(),
+            career: career.map(|c| c.code()),
         },
         &sup,
     )?;
@@ -341,6 +345,7 @@ pub fn load_slice(
         pc3d_world::survival::Onboarding,
         Option<pc3d_world::forge::Forge>,
         Option<Vec<pc3d_world::quest::Quest>>,
+        Option<pc3d_world::career::Career>,
     ),
     pc3d_save::store::LoadError,
 > {
@@ -394,6 +399,7 @@ pub fn load_slice(
         onboarding,
         extras.forge,
         quests,
+        extras.career.and_then(pc3d_world::career::Career::from_code),
     ))
 }
 
@@ -634,9 +640,10 @@ mod tests {
             &pc3d_world::survival::Onboarding::default(),
             None,
             None,
+            None, // career
         )
         .expect("save");
-        let (seed2, host2, p2, _, _, _, _) = load_slice(root.path(), "slice").expect("load");
+        let (seed2, host2, p2, _, _, _, _, _) = load_slice(root.path(), "slice").expect("load");
         assert_eq!(seed, seed2);
         assert_eq!(p2.pos, save_player.pos);
         assert_eq!(p2.yaw, save_player.yaw);
@@ -771,12 +778,13 @@ mod tests {
             &onboard,
             Some(&forge),
             Some(&quests),
+            Some(&pc3d_world::career::Career::Mysteries), // the trailer round-trips
         )
         .expect("save");
 
         // A fresh load returns the same seed, the same built cells, the
         // same player state + pack + forge + quests.
-        let (seed2, host2, p2, inv2, on2, forge2, quests2) =
+        let (seed2, host2, p2, inv2, on2, forge2, quests2, career2) =
             load_slice(root.path(), "slice").expect("load");
         assert_eq!(seed, seed2);
         let con = host2
@@ -897,6 +905,8 @@ pub fn assemble_rebuild(
     player.pos[1] = gy + 0.05;
     r.set_pose(player.pose());
     let mut host = SliceHost {
+        career: pc3d_world::career::CareerState::default(),
+        career_lean: None,
         seed,
         rebuild: true,
         jump_vy: 0.0,

@@ -195,6 +195,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       278.0,
@@ -243,12 +244,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:42",
+        "modified": "2026-10-04 18:05",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:42",
+        "modified": "2026-10-04 18:05",
         "name": "beta-shot",
         "seed": 7
       }
@@ -256,7 +257,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.05431811511516571,
+        "age_s": 0.07290714979171753,
         "text": "GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO"
       }
     ],

@@ -239,6 +239,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -287,12 +288,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:41",
+        "modified": "2026-10-04 18:05",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:41",
+        "modified": "2026-10-04 18:05",
         "name": "beta-shot",
         "seed": 7
       }
@@ -304,7 +305,7 @@
     ],
     "toasts": [
       {
-        "age_s": 1.3742269277572632,
+        "age_s": 2.266477584838867,
         "text": "HARVESTED 2 IRON ORE"
       }
     ],

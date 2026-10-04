@@ -283,6 +283,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "COMPANION FOLLOWS · N WAITS",
     "creature_hint": [
       400.0,
@@ -338,12 +339,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-04 18:07",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-04 18:07",
         "name": "beta-shot",
         "seed": 7
       }
@@ -351,7 +352,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.8913723230361938,
+        "age_s": 1.150086760520935,
         "text": "COMPANION FOLLOWS · N WAITS"
       }
     ],

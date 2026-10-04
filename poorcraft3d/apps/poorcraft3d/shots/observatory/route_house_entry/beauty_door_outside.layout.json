@@ -184,6 +184,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -232,12 +233,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:41",
+        "modified": "2026-10-04 18:04",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:41",
+        "modified": "2026-10-04 18:04",
         "name": "beta-shot",
         "seed": 7
       }

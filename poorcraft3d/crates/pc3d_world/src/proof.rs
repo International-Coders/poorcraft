@@ -467,3 +467,131 @@ mod wheel_marker_tests {
         assert_eq!(p1, p2);
     }
 }
+
+// ---------------------------------------------------------------------------
+// BETA-0.2 W1.3/W3.5: THE REALM MAP — the world as the player's war map:
+// biome atlas at 8 px per region, river edges drawn, the six realm
+// capitals as faction-colored marks with their keep ring. The same
+// planner the world spawns capitals from feeds the map, so the map and
+// the ground can never disagree.
+// ---------------------------------------------------------------------------
+
+/// The six realms' fixed names (the HoMM-style identity slots; the
+/// faction kits will dress these in W2.3).
+pub const REALM_NAMES: [&str; 6] = [
+    "Tidewatch", // coast/harbor
+    "Heartlands", // plains/farmland
+    "Thornwood", // forest
+    "Merefen", // wetland
+    "Stoneward", // highlands
+    "Frosthold", // snow
+];
+
+/// Faction colors: distinct at a glance on every biome background.
+pub const REALM_COLORS: [[u8; 3]; 6] = [
+    [230, 60, 60],   // Tidewatch red
+    [235, 200, 40],  // Heartlands gold
+    [60, 200, 90],   // Thornwood green
+    [60, 130, 235],  // Merefen blue
+    [180, 90, 220],  // Stoneward purple
+    [240, 240, 255], // Frosthold white
+];
+
+/// The realm map: `scale` px per region (8 = a legible 65-region map is
+/// 520 px). Rivers stay the atlas blue; each capital draws a 3-px
+/// faction cross + a 1-region keep ring. Pure and byte-deterministic.
+pub fn render_realm_map(seed: u64, half_regions: i32, scale: usize) -> (AtlasImage, crate::layout::RealmPlan) {
+    let (atlas, plan) = render_region_atlas_with_plan(seed, half_regions);
+    let s = scale.max(1);
+    let side = atlas.size * s;
+    let mut rgb = vec![0u8; side * side * 3];
+    // Bilinear-free nearest upscale (the map is a war table, not art).
+    for z in 0..side {
+        for x in 0..side {
+            let src = (z / s) * atlas.size + (x / s);
+            let i = (z * side + x) * 3;
+            rgb[i] = atlas.rgb[src * 3];
+            rgb[i + 1] = atlas.rgb[src * 3 + 1];
+            rgb[i + 2] = atlas.rgb[src * 3 + 2];
+        }
+    }
+    let to_px = |region: i32| ((region + half_regions) as usize * s + s / 2).min(side - 1);
+    for c in &plan.capitals {
+        let [cr, cg, cb] = REALM_COLORS[c.realm as usize % 6];
+        let cx = to_px(c.region.x);
+        let cz = to_px(c.region.z);
+        // The keep ring: one region around the capital, faction color.
+        let r = s;
+        for dz in -(r as isize)..=(r as isize) {
+            for dx in -(r as isize)..=(r as isize) {
+                let d = (dx.abs()).max(dz.abs());
+                if d != r as isize {
+                    continue;
+                }
+                let px = cx as isize + dx;
+                let pz = cz as isize + dz;
+                if px < 0 || pz < 0 || px >= side as isize || pz >= side as isize {
+                    continue;
+                }
+                let i = (pz as usize * side + px as usize) * 3;
+                rgb[i] = cr;
+                rgb[i + 1] = cg;
+                rgb[i + 2] = cb;
+            }
+        }
+        // The capital cross at the center.
+        for d in -(s as isize)..=(s as isize) {
+            for (px, pz) in [
+                (cx as isize + d, cz as isize),
+                (cx as isize, cz as isize + d),
+            ] {
+                if px < 0 || pz < 0 || px >= side as isize || pz >= side as isize {
+                    continue;
+                }
+                let i = (pz as usize * side + px as usize) * 3;
+                rgb[i] = cr;
+                rgb[i + 1] = cg;
+                rgb[i + 2] = cb;
+            }
+        }
+    }
+    (AtlasImage { size: side, rgb }, plan)
+}
+
+/// The atlas render that ALSO returns the plan (so the map and its
+/// capitals come from one call — one seed, one truth).
+fn render_region_atlas_with_plan(seed: u64, half_regions: i32) -> (AtlasImage, crate::layout::RealmPlan) {
+    let gen = WorldGen::new(seed);
+    let plan = crate::layout::RealmPlan::for_seed(&gen);
+    (render_region_atlas(seed, half_regions), plan)
+}
+
+#[cfg(test)]
+mod realm_map_tests {
+    use super::*;
+
+    /// THE MAP-TRUTH LAW: every planned capital lands inside the map
+    /// band, its recorded biome is the terrain the map draws there, and
+    /// the render is byte-deterministic.
+    #[test]
+    fn beta02_realm_map_draws_the_plan_truthfully() {
+        for seed in [3u64, 42] {
+            let (a, pa) = render_realm_map(seed, 32, 8);
+            let (b, pb) = render_realm_map(seed, 32, 8);
+            assert_eq!(a.rgb, b.rgb, "seed {seed}: the realm map must replay byte-equal");
+            assert_eq!(pa, pb);
+            assert_eq!(a.size, 65 * 8);
+            for c in &pa.capitals {
+                assert!(
+                    c.region.x.abs() <= 32 && c.region.z.abs() <= 32,
+                    "seed {seed}: capital {:?} outside the map band",
+                    c.region
+                );
+                // The map's ground at the capital's region is the biome
+                // the plan recorded (planner and map agree).
+                let gen = WorldGen::new(seed);
+                assert_eq!(gen.biome(c.region), c.biome);
+            }
+        }
+    }
+}

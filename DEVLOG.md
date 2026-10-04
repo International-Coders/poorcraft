@@ -10616,3 +10616,58 @@ point at the plan.
 
 VERIFICATION: planning job — no code or test claims. All numbers in the
 plan cite the design docs or this session's measured results.
+
+## 2026-10-03 — BETA-0.2 on branch beta0.2-wide-world: the meters, the wide world, the far horizon, the realm map, and the career fork
+
+WHAT: The owner's "work like CRAZY" pass on branch `beta0.2-wide-world`
+(reference flavor: HoMM3 realm identity / Valheim's wide biomed world /
+Skyrim's careers). Four passes, each committed green: Stage 0 meters
+(40dd4fd), W1.1 the dials up (cc003de, evidence 5c0f0d1), then this
+session's W1.2 far horizon + W1.3 realm map + W3.1 career fork (the
+declared next_task, journey step 7 — CLOSED).
+
+HOW:
+- W1.2 THE FAR HORIZON: fog is now the sky's own horizon color (sampled
+  just above the horizon, perpendicular to the sun so the halo never
+  tints it; the authored night pull rides on top). The floating-slab
+  read is dead — the rebuild vantage films terrain dissolving into the
+  haze; the day/night gate held (day 198 → night 101, 49% darker).
+- W1.3/W3.5 THE REALM MAP: render_realm_map in pc3d_world::proof — the
+  biome atlas at 8 px per region, rivers drawn, the six realm capitals
+  as faction-colored marks with keep rings (Tidewatch/Heartlands/
+  Thornwood/Merefen/Stoneward/Frosthold). `--realm-map` arm + make
+  p3d-realm-map. Law: the map draws the planner's truth (capital biomes
+  equal the map's ground, byte-deterministic replay).
+- W3.1 THE CAREER FORK (journey step 7, the declared next_task):
+  pc3d_world::career — Engineering vs Mysteries, CHOOSE-ONCE law (the
+  fork binds; switching refuses without erasing), UNLOCK-BY-PATH law
+  (4 gated recipes: iron_cog/brass_cog for Engineering,
+  ley_sigil/ward_sigil for Mysteries; locked crafts toast the missing
+  path BY NAME), world_lean (a deterministic per-region hint the panel
+  shows), mana_live at Mysteries (the reserved bar law: a bar draws
+  only when its state exists). Session persistence: a trailing career
+  byte in session.bin (old builds ignore it, new builds default old
+  saves to None — compatible both ways; the round-trip law asserts
+  Some(Mysteries)). UI: ActivePanel::Path on Y (1/2 choose, E close),
+  the payload-pattern panel (close_panels law held), the craft gate,
+  the per-frame career sync. The craft law caught my duplicate outputs
+  (7/8 and 9/10 collided) — fixed with distinct goods, better design.
+  Observatory route_path_choice: panel + lean shown, ENGINEERING bound,
+  toast fired. Catalog: V21 + W10 + W07 → WORKS, S06 → PARTIAL, +W11;
+  59 rows, the count law verified.
+
+VERIFICATION:
+- cargo test: pc3d_world 289 green / 0, pc3d_render 256 green / 0,
+  pc3d_save 20 green / 0 (career round-trip included).
+- make p3d-gate-check OK; make p3d-ui-shots PASS (13 captures + laws);
+  route_path_choice PASS; full observatory re-run (20 routes).
+- make p3d-dmg → poorcraft3d/dist3d/poorcraft3d-macos.dmg (hdiutil).
+
+HONESTLY DEFERRED: the far-horizon impostor PLATES (the fog blend fixed
+the read; per-region plates inside the byte budget are W1.2's second
+half); city.rs still draws procedural silhouettes (the realm capitals
+render as the map + planner truth; the GLB faction kits wiring = W2.3);
+mana has no SPEND yet (the bar is live, the sigils have no consumer —
+the W3.1 follow-up); switching paths has no price law yet (the fork
+binds); the craft rows don't VISUALLY mark locked path recipes (the
+gate toasts the name; row styling = polish).

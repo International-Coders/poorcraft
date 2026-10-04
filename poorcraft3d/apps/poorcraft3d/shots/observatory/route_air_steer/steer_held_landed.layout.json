@@ -79,7 +79,7 @@
     },
     {
       "button_state": "",
-      "id": "toast_FELL — HEALTH 34%",
+      "id": "toast_FELL — HEALTH 35%",
       "kind": "toast",
       "rect": [
         289,
@@ -195,6 +195,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -214,8 +215,8 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9956347942352295,
-      "health": 0.37424924969673157,
+      "food": 0.9939622282981873,
+      "health": 0.40920817852020264,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -243,12 +244,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:42",
+        "modified": "2026-10-04 18:06",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:42",
+        "modified": "2026-10-04 18:06",
         "name": "beta-shot",
         "seed": 7
       }
@@ -256,8 +257,8 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.404526710510254,
-        "text": "FELL — HEALTH 34%"
+        "age_s": 2.470193862915039,
+        "text": "FELL — HEALTH 35%"
       }
     ],
     "wallet": 0,

@@ -228,6 +228,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "COMPANION FOLLOWS · N WAITS",
     "creature_hint": [
       416.0,
@@ -248,7 +249,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.9642184972763062,
+      "health": 0.9658058881759644,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -276,12 +277,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-04 18:07",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-04 18:07",
         "name": "beta-shot",
         "seed": 7
       }
@@ -291,15 +292,15 @@
     ],
     "toasts": [
       {
-        "age_s": 0.09514223039150238,
+        "age_s": 0.1360199898481369,
         "text": "NO CREATURE IN REACH"
       },
       {
-        "age_s": 0.03623490035533905,
+        "age_s": 0.06402113288640976,
         "text": "SLEW A CREATURE · LOOT STONEx2"
       },
       {
-        "age_s": 0.03623490035533905,
+        "age_s": 0.06402113288640976,
         "text": "3 WITNESSED THE BLOW — TRUST FALLS"
       }
     ],

@@ -64,6 +64,32 @@ pub const RECIPES: &[Recipe] = &[
         output: 12,
         output_count: 1,
     }, // wood×4 → wood_pick: the craftable FIRST tool
+    // BETA-0.2 W3.1: the career-fork families (gated by pc3d_world::
+    // career — Engineering rules the machine line, Mysteries the ley).
+    Recipe {
+        code: 7,
+        ingredients: &[(7, 1), (1, 2)],
+        output: 30,
+        output_count: 1,
+    }, // ENGINEERING: iron_bar×1 + wood×2 → iron_cog
+    Recipe {
+        code: 8,
+        ingredients: &[(30, 2), (2, 3)],
+        output: 32,
+        output_count: 1,
+    }, // ENGINEERING: cog×2 + stone×3 → brass_cog (the mill gear)
+    Recipe {
+        code: 9,
+        ingredients: &[(4, 1), (5, 2)],
+        output: 31,
+        output_count: 1,
+    }, // MYSTERIES: snow×1 + soil×2 → ley_sigil
+    Recipe {
+        code: 10,
+        ingredients: &[(31, 1), (6, 1)],
+        output: 33,
+        output_count: 1,
+    }, // MYSTERIES: sigil×1 + iron_ore×1 → ward_sigil (the ore remembers)
 ];
 
 /// Find a recipe by code.

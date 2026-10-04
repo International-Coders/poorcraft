@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 71.19999694824219,
+    "avg_fps": 58.70000076293945,
     "frames": 336,
-    "p50_ms": 13.8100004196167,
-    "p95_ms": 15.390000343322754
+    "p50_ms": 16.540000915527344,
+    "p95_ms": 19.510000228881836
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,8 +32,9 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791020577",
+  "timestamp_utc": "1791137227",
   "ui": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -82,23 +83,18 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:42",
+        "modified": "2026-10-04 18:06",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:42",
+        "modified": "2026-10-04 18:06",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [
-      {
-        "age_s": 2.5853304862976074,
-        "text": "YOU FELL — RECOVERED AT THE PLAZA"
-      }
-    ],
+    "toasts": [],
     "wallet": 0,
     "witnessed_assaults": 0
   },

@@ -206,6 +206,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -226,7 +227,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.6528269648551941,
+      "health": 0.6645192503929138,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -254,12 +255,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:42",
+        "modified": "2026-10-04 18:06",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:42",
+        "modified": "2026-10-04 18:06",
         "name": "beta-shot",
         "seed": 7
       }
@@ -267,11 +268,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.42133092880249023,
+        "age_s": 1.0059517621994019,
         "text": "FELL — HEALTH 64%"
       },
       {
-        "age_s": 0.21254228055477142,
+        "age_s": 0.3167840540409088,
         "text": "THE GROUND GIVES WAY"
       }
     ],

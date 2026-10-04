@@ -26,6 +26,10 @@ pub const ITEMS: &[(u16, &str, ItemKind)] = &[
     (10, "stone_pick", ItemKind::Tool { tier: 1 }),
     (11, "iron_pick", ItemKind::Tool { tier: 2 }),
     (12, "wood_pick", ItemKind::Tool { tier: 1 }),
+    (30, "iron_cog", ItemKind::Material),
+    (31, "ley_sigil", ItemKind::Material),
+    (32, "brass_cog", ItemKind::Material),
+    (33, "ward_sigil", ItemKind::Material),
     (20, "bread", ItemKind::Food { heal: 30 }),
     (21, "fish", ItemKind::Food { heal: 15 }),
 ];

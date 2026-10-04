@@ -92,6 +92,11 @@ pub fn routes() -> &'static [RouteSpec] {
             reason: "",
         },
         RouteSpec {
+            id: "route_path_choice",
+            available: true,
+            reason: "",
+        },
+        RouteSpec {
             id: "route_machine_chain",
             available: true,
             reason: "",

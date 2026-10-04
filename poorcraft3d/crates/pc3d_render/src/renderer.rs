@@ -2324,10 +2324,19 @@ impl Renderer {
         // same matrix (it used to be re-derived a second time in
         // encode_frame every frame).
         self.last_light_vp = Some(lvp);
+        // W1.2 THE FAR HORIZON (the floating-slab cure): fog is the SKY's
+        // own horizon color, so the far ring's cut edge dissolves into
+        // the gradient instead of reading as a diorama slab against it.
+        // Sampled just above the horizon, PERPENDICULAR to the sun —
+        // the halo/core must never tint the haze. The night pull keeps
+        // its authored deep-blue shape on top.
+        let side = [-sun[2], 0.0, sun[0]];
+        let sl = (side[0] * side[0] + side[2] * side[2]).sqrt().max(1e-6);
+        let horizon = crate::scene::sky_color_linear([side[0] / sl, 0.04, side[2] / sl], sun);
         let fog = [
-            atm.fog_color[0] * (1.0 - 0.75 * night) + 0.02 * night,
-            atm.fog_color[1] * (1.0 - 0.75 * night) + 0.03 * night,
-            atm.fog_color[2] * (1.0 - 0.55 * night) + 0.08 * night,
+            horizon[0] * (1.0 - 0.85 * night) + 0.02 * night,
+            horizon[1] * (1.0 - 0.85 * night) + 0.03 * night,
+            horizon[2] * (1.0 - 0.85 * night) + 0.08 * night,
         ];
         let env = EnvGpu {
             light_view_proj: lvp,

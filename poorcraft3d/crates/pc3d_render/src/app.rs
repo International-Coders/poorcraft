@@ -164,6 +164,11 @@ pub struct SliceHost {
     /// The LIVE quest list (the authority's own Quest values; accept/
     /// claim/event wiring mutate through it).
     pub quests: Option<Vec<pc3d_world::quest::Quest>>,
+    /// BETA-0.2 W3.1: the career fork state (None until the player
+    /// chooses at the Y panel; persists in the session trailer).
+    pub career: pc3d_world::career::CareerState,
+    /// The world's lean hint, computed once (pure per seed+spawn region).
+    pub career_lean: Option<u8>,
     /// The player's credit wallet (claim payouts; economy trade uses
     /// i64 balances — this is the player-side counter).
     pub credits: i64,
@@ -2040,6 +2045,30 @@ impl App {
                         s.ui_dirty = true;
                     }
                 }
+                UiAction::ChooseCareer { code } => {
+                    let code = *code;
+                    // THE FORK (W3.1): the choose-once law lives in
+                    // pc3d_world; the app applies it, toasts the verdict
+                    // in player language, and syncs the panel + the
+                    // reserved mana bar (live at MYSTERIES).
+                    let Some(state) = self.state.as_mut() else { return };
+                    let Some(slice) = self.cfg.slice_host.as_mut() else { return };
+                    match pc3d_world::career::Career::from_code(code) {
+                        Some(career) => {
+                            let accepted = slice.career.choose(career);
+                            if accepted {
+                                state.ui.career_chosen = Some(code);
+                                state.ui.hud.mana_live = slice.career.mana_live();
+                                state.ui.toast(format!("PATH CHOSEN: {}", career.name()));
+                            } else {
+                                state.ui
+                                    .toast(String::from("THE FORK BINDS — YOUR PATH HOLDS"));
+                            }
+                            state.ui_dirty = true;
+                        }
+                        None => state.ui.toast(String::from("UNKNOWN PATH")),
+                    }
+                }
                 UiAction::ToggleJournal => {
                     // The quest journal: rows from the pure authority
                     // (plan_quests for the spawn region), cached on
@@ -2167,11 +2196,27 @@ impl App {
                     }
                 }
                 UiAction::CraftRecipe(code) => {
-                    let outcome = self.cfg.slice_host.as_mut().and_then(|slice| {
-                        let recipe = pc3d_world::craft::recipe_by_code(*code)?;
-                        let made = pc3d_world::craft::craft(&mut slice.inventory, recipe)?;
-                        Some((made, recipe.output))
-                    });
+                    // THE PATH GATE (W3.1): a career-gated recipe names
+                    // its missing path instead of silently failing — the
+                    // craft never runs, the toast teaches the fork.
+                    let lock_line = self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .and_then(|slice| slice.career.lock_line(*code));
+                    if let (Some(state), Some(line)) = (self.state.as_mut(), lock_line) {
+                        state.ui.toast(String::from(line));
+                        state.ui_dirty = true;
+                    }
+                    let outcome = if lock_line.is_some() {
+                        None
+                    } else {
+                        self.cfg.slice_host.as_mut().and_then(|slice| {
+                            let recipe = pc3d_world::craft::recipe_by_code(*code)?;
+                            let made = pc3d_world::craft::craft(&mut slice.inventory, recipe)?;
+                            Some((made, recipe.output))
+                        })
+                    };
                     // Rebuild the rows either way: a successful craft
                     // changes what else is affordable.
                     let rows = self
@@ -2895,6 +2940,7 @@ impl App {
             &slice.onboarding,
             slice.forge.as_ref(),
             slice.quests.as_deref(),
+            slice.career.chosen.as_ref(),
         );
         state.ui.toast(match r {
             Ok(()) => format!("SAVED '{}'", slice.world_name),
@@ -2911,7 +2957,7 @@ impl App {
             .or_else(|| self.cfg.slice_host.as_ref().map(|s| s.save_root.clone()));
         let Some(root) = root else { return };
         match crate::slice::load_slice(root.as_ref(), name) {
-            Ok((seed, host, player, inventory, onboarding, forge, quests)) => {
+            Ok((seed, host, player, inventory, onboarding, forge, quests, career)) => {
                 // Re-assemble the scene for the SAVED seed, exactly as
                 // `create_world` does. Swapping only the seed, host and
                 // player left `slice.scene` showing the world that happened
@@ -2935,6 +2981,9 @@ impl App {
                 fresh.onboarding = onboarding;
                 fresh.forge = forge;
                 fresh.quests = quests;
+                fresh.career = pc3d_world::career::CareerState {
+                    chosen: career,
+                };
                 fresh.world_name = name.to_string();
                 {
                     let h = fresh.host.borrow();
@@ -3475,6 +3524,7 @@ impl App {
                         &slice.onboarding,
                         slice.forge.as_ref(),
                         slice.quests.as_deref(),
+                        slice.career.chosen.as_ref(),
                     );
                     slice.last_message = match r {
                         Ok(()) => "SAVED".into(),
@@ -3489,7 +3539,7 @@ impl App {
                     let root = slice.save_root.clone();
                     let name = slice.world_name.clone();
                     match crate::slice::load_slice(root.as_ref(), &name) {
-                        Ok((seed, host, player, inventory, onboarding, forge, quests)) => {
+                        Ok((seed, host, player, inventory, onboarding, forge, quests, career)) => {
                             slice.seed = seed;
                             *slice.host.borrow_mut() = host;
                             slice.player = player;
@@ -3497,6 +3547,9 @@ impl App {
                             slice.onboarding = onboarding;
                             slice.forge = forge;
                             slice.quests = quests;
+                            slice.career = pc3d_world::career::CareerState {
+                                chosen: career,
+                            };
                             let h = slice.host.borrow();
                             state.renderer.update_construction(&h.construction);
                             slice.last_message = "RELOADED".into();
@@ -4243,6 +4296,27 @@ impl App {
                     + (hud.health * 100.0) as i32;
                 if before != after {
                     state.ui_dirty = true;
+                }
+                // THE CAREER SYNC (W3.1): the panel's chosen-path line
+                // and the lean hint ride the same gameplay tick — the
+                // lean computes once on the slice (a pure world answer)
+                // and the reserved mana bar follows the chosen path.
+                if let Some(slice) = self.cfg.slice_host.as_mut() {
+                    if slice.career_lean.is_none() {
+                        let region = pc3d_world::coords::RegionCoord {
+                            x: (slice.player.pos[0] as i64 / 256) as i32,
+                            z: (slice.player.pos[2] as i64 / 256) as i32,
+                        };
+                        slice.career_lean = Some(
+                            matches!(
+                                pc3d_world::career::world_lean(&slice.scene.gen, region),
+                                pc3d_world::career::Career::Mysteries
+                            ) as u8,
+                        );
+                    }
+                    state.ui.path_lean = slice.career_lean.unwrap_or(0);
+                    state.ui.career_chosen = slice.career.chosen.map(|c| c.code());
+                    state.ui.hud.mana_live = slice.career.mana_live();
                 }
                 let grabbed_before = state.ui.pointer_grabbed;
                 if grabbed_before != state.pointer_grabbed {

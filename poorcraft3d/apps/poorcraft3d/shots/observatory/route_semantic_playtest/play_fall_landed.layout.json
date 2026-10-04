@@ -90,28 +90,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_HARVESTED 2 IRON ORE",
-      "kind": "toast",
-      "rect": [
-        271,
-        353,
-        258,
-        16
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "toast_QUEST PROGRESS",
-      "kind": "toast",
-      "rect": [
-        307,
-        331,
-        186,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -382,6 +360,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -479,12 +458,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:41",
+        "modified": "2026-10-04 18:05",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:41",
+        "modified": "2026-10-04 18:05",
         "name": "beta-shot",
         "seed": 7
       }
@@ -497,15 +476,7 @@
     ],
     "toasts": [
       {
-        "age_s": 2.883289337158203,
-        "text": "QUEST PROGRESS"
-      },
-      {
-        "age_s": 2.883289337158203,
-        "text": "HARVESTED 2 IRON ORE"
-      },
-      {
-        "age_s": 0.04964558035135269,
+        "age_s": 0.15127043426036835,
         "text": "FELL — HEALTH 33%"
       }
     ],

@@ -10,6 +10,7 @@
 pub mod bounds;
 pub mod build;
 pub mod cache;
+pub mod career;
 pub mod catalog;
 pub mod layout;
 pub mod castle;

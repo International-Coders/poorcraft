@@ -1,0 +1,39 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_semantic_playtest-dev",
+  "commands": [
+    "--observe route_semantic_playtest"
+  ],
+  "diff_paths": [],
+  "digest": "05c46411869a857c",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_semantic_playtest",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_3_rebuild",
+  "screenshots": [
+    "play_door_outside.png",
+    "play_interior.png",
+    "play_talk.png",
+    "play_chest.png",
+    "play_harvest.png",
+    "play_marker.png",
+    "play_forge.png",
+    "play_taken.png",
+    "play_journal.png",
+    "play_journal_progress.png",
+    "play_fall_air.png",
+    "play_fall_landed.png",
+    "play_final.png"
+  ],
+  "seed": "3",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

@@ -15,6 +15,10 @@ const MAGIC: u8 = 1;
 pub struct SessionExtras {
     pub forge: Option<Forge>,
     pub quests: Vec<Quest>,
+    /// BETA-0.2 W3.1: the chosen career path (None = the fork awaits).
+    /// Encoded as a trailing byte — old builds ignore it, new builds
+    /// default it to None on old saves (compatible both ways).
+    pub career: Option<u8>,
 }
 
 impl SessionExtras {
@@ -33,6 +37,8 @@ impl SessionExtras {
             b.extend_from_slice(&(qb.len() as u16).to_le_bytes());
             b.extend_from_slice(&qb);
         }
+        // The career trailer (W3.1): 0 = unchosen, 1/2 = the path's code.
+        b.push(self.career.unwrap_or(0));
         b
     }
 
@@ -109,7 +115,15 @@ impl SessionExtras {
             off += len;
             quests.push(q);
         }
-        Ok(SessionExtras { forge, quests })
+        // The career trailer (W3.1): present in new saves, absent in old
+        // ones — absence is None, never an error (compatible both ways).
+        let career = if off < bytes.len() {
+            let c = bytes[off];
+            if c == 0 { None } else { Some(c) }
+        } else {
+            None
+        };
+        Ok(SessionExtras { forge, quests, career })
     }
 }
 
@@ -172,6 +186,7 @@ mod tests {
         let extras = SessionExtras {
             forge: Some(forge.clone()),
             quests: quests.clone(),
+            career: Some(2),
         };
         save_session(root.path(), "w", &extras, &sup).expect("save");
         let back = load_session(root.path(), "w", &sup).expect("load");
@@ -181,6 +196,7 @@ mod tests {
         assert_eq!(back.quests[0].id, 42);
         assert_eq!(back.quests[0].progress, 1);
         assert_eq!(back.quests[0].state, QuestState::Active);
+        assert_eq!(back.career, Some(2), "the career trailer round-trips");
         assert_eq!(back.quests[0].kind, QuestKind::Greet { count: 3 });
     }
 

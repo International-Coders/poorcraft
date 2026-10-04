@@ -124,6 +124,10 @@ p3d-assets: ## Validate the beta-critical asset manifest (R3DV-003 gate): make p
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --validate-assets $(if $(MANIFEST),$(MANIFEST),) || exit 1; \
 	echo "P3D ASSETS OK"
 
+p3d-realm-map: ## BETA-0.2 W1.3: the realm map PNG + realm table: make p3d-realm-map [SEED=3]
+	$(P3D_BUILD)
+	$$(pwd)/poorcraft3d/target/release/poorcraft3d --realm-map $(if $(SEED),$(SEED),3) 32 $$(pwd)/poorcraft3d/apps/poorcraft3d/shots
+
 p3d-asset-inventory: ## BETA-0.2 W2.1: the honest asset meter (present/wired/kinds per category, from disk + named consumers)
 	$(P3D_BUILD)
 	$$(pwd)/poorcraft3d/target/release/poorcraft3d --asset-inventory

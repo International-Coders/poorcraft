@@ -11,8 +11,8 @@ This file is the living truth for `poorcraft3d/` work.
 | --- | --- |
 | Horizon | **H0 Vertical-Slice Beta** (see `24-VERTICAL-SLICE-BETA.md`) |
 | Build | libs green (pc3d_world 277, pc3d_render 255); `make p3d-beta` = the full beta battery (38 stages, one report) |
-| Last measure | 2026-10-03 — engine perf: live terrain mesh warm 622 → 45-58 µs/patch (10.7-13.8×), deck mid p50 13.02 → 6.57-7.01 ms (75 → 125-145 fps); mapgen: real ridged mountains (peaks to 170 m), 28 m border dither, 130-160 m altitude snow line; observatory 19/19 routes PASS (forge + social routes repaired); fresh DMG |
-| `next_task` | **H1 step 7 — path choice as a player-facing fork** (= Beta 0.2 plan W3.1; the plan: `28-BETA-0.2-PLAN.md` — its Stage 0 meters come first) |
+| Last measure | 2026-10-03 (branch beta0.2-wide-world) — W1.1 dials UP (rings 192/640/2048 m, climate ×2, layout v2; suites green, deck p50 6.62 ms flat); W1.2 far horizon (slab dead, daynight 49% held); W1.3 realm map (6 D-026 capitals, planner-true); W3.1 career fork CLOSED (Engineering/Mysteries, choose-once, gated recipes, mana at Mysteries, route PASS); world 289 / render 256 / save 20 green; 20-route observatory |
+| `next_task` | **W2.3 — wire the six faction kits into city.rs (the V5 closer)** (Beta 0.2 plan; W3.1 the career fork CLOSED — V21/W10 WORKS; far horizon W07 WORKS; realm map W11 WORKS; next: W1.2 impostor plates, W3.2 machines, W4.1 UI catalog) |
 
 ## VS-Beta gates (V1–V6) — current
 

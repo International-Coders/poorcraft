@@ -182,6 +182,11 @@ pub struct HudValues {
     pub stamina: f32,
     pub food: f32,
     pub xp: f32,
+    /// BETA-0.2 S06: mana — reserved-hidden until MYSTERIES is chosen
+    /// (the guide's reserved-bar law: a bar draws only when its state
+    /// exists).
+    pub mana: f32,
+    pub mana_live: bool,
     pub slots: [Option<HotItem>; 9],
     pub selected: usize,
     /// The contextual action prompt near the crosshair/hotbar.
@@ -225,6 +230,8 @@ impl Default for HudValues {
             health: 1.0,
             stamina: 1.0,
             food: 1.0,
+            mana: 1.0,
+            mana_live: false,
             xp: 0.0,
             exhausted: false,
             slots: [
@@ -486,6 +493,15 @@ pub struct UiState {
     pub interact: Option<(String, Vec<String>)>,
     /// The quest journal (J): one row per quest from the authority.
     pub journal: Option<Vec<QuestRow>>,
+    /// BETA-0.2 W3.1: the career fork panel — Some(world-lean) while the
+    /// panel is open (0 leans Engineering, 1 Mysteries); None closed.
+    /// The chosen path itself lives on the slice (career_chosen below).
+    pub path: Option<u8>,
+    /// The chosen path code as the app last synced it (None = the fork
+    /// awaits; the panel reads this, the mana bar obeys it).
+    pub career_chosen: Option<u8>,
+    /// The world's lean hint the app synced (0 Engineering, 1 Mysteries).
+    pub path_lean: u8,
     /// The journal's focused row (Up/Down; Enter accepts/claims).
     pub journal_focus: usize,
     /// The crafting bench (C): one row per recipe, from the live inventory.
@@ -537,6 +553,7 @@ pub enum ActivePanel {
     Pack,
     Machines,
     Oversight,
+    Path,
 }
 
 impl UiState {
@@ -564,9 +581,17 @@ impl UiState {
             ActivePanel::Machines
         } else if self.oversight.is_some() {
             ActivePanel::Oversight
+        } else if self.path.is_some() {
+            ActivePanel::Path
         } else {
             ActivePanel::None
         }
+    }
+
+    /// The lean hint the path panel opens with (the app syncs the pure
+    /// world_lean answer here).
+    pub fn path_lean_hint(&self) -> u8 {
+        self.path_lean
     }
 
     /// Dismisses every gameplay panel. Call before opening one: a panel takes
@@ -580,6 +605,7 @@ impl UiState {
         self.pack = None;
         self.machines = None;
         self.oversight = None;
+        self.path = None;
     }
 }
 
@@ -608,6 +634,9 @@ impl Default for UiState {
             forge_bars_taken: 0,
             interact: None,
             journal: None,
+            path: None,
+            career_chosen: None,
+            path_lean: 0,
             journal_focus: 0,
             craft: None,
             craft_focus: 0,
@@ -687,6 +716,9 @@ impl UiState {
             "machine_charge_milli": self.machine_charge_milli,
             "creatures_slain": self.creatures_slain,
             "creature_hint": self.creature_hint,
+            // BETA-0.2 W3.1: the chosen path code rides the state JSON
+            // (the route verdict + the inspector read it).
+            "career_chosen": self.career_chosen,
             "witnessed_assaults": self.witnessed_assaults,
             "companion": self.companion_line,
             "oversight": self.oversight.as_ref().map(|o| serde_json::json!({
@@ -1326,6 +1358,21 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 ctx.push(id, ElementKind::Bar { frac, color, label: label.into() }, r);
                 y += ctx.px(BAR_H) + ctx.px(BAR_GAP);
             }
+            // THE RESERVED BARS (the guide's 9-bar law): each draws only
+            // when its state exists. W3.1: mana goes live at MYSTERIES.
+            if state.hud.mana_live {
+                let r = Rect::new(bx, y, ctx.px(BAR_W) as u32, ctx.px(BAR_H) as u32);
+                ctx.push(
+                    "bar_mana",
+                    ElementKind::Bar {
+                        frac: state.hud.mana,
+                        color: [70, 110, 200],
+                        label: "MANA".into(),
+                    },
+                    r,
+                );
+                y += ctx.px(BAR_H) + ctx.px(BAR_GAP);
+            }
             // THE PACK ECHO under the status bars: what you carry, as a
             // number — the dig's take, the forge's spend, the eaten
             // bread. The item authority's own line, verbatim.
@@ -1432,6 +1479,52 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     dy,
                     2,
                 );
+            }
+            // THE PATH PANEL (W3.1, key Y): the career fork — two
+            // paths, the world's lean, the binding choice. One panel at
+            // a time like every other (close_panels already ran).
+            if let (Some(lean), ActivePanel::Path) = (&state.path, active) {
+                let panel_w = 560;
+                let panel_h = 240;
+                let pw = ctx.px(panel_w);
+                let ph = ctx.px(panel_h);
+                let py = centered_y(hi, ph);
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("path_panel", panel, Some("CHOOSE YOUR PATH"));
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut fy = panel.y + ctx.px(PANEL_PAD) + ctx.px(24);
+                match state.career_chosen {
+                    None => {
+                        let lean_name = if *lean == 0 { "ENGINEERING" } else { "MYSTERIES" };
+                        let lean_line = format!("THE WORLD HERE LEANS TOWARD {}", lean_name);
+                        ctx.text("path_lean", &lean_line, lx, fy, 2);
+                        fy += ctx.px(ROW_H);
+                        ctx.text("path_row_1", "1  ENGINEERING", lx, fy, 2);
+                        ctx.text("path_sub_1", "MACHINES ANSWER TO YOU: COGS, BOILERS, MILLS", lx + ctx.px(24), fy + ctx.px(ROW_H) - ctx.px(6), 1);
+                        fy += ctx.px(ROW_H * 2);
+                        ctx.text("path_row_2", "2  MYSTERIES", lx, fy, 2);
+                        ctx.text("path_sub_2", "THE LEY ANSWERS TO YOU: SIGILS, WARDS, MANA", lx + ctx.px(24), fy + ctx.px(ROW_H) - ctx.px(6), 1);
+                        fy += ctx.px(ROW_H * 2);
+                        ctx.text("path_bind", "THE CHOICE BINDS — THERE IS NO UNDO", lx, fy, 2);
+                        fy += ctx.px(ROW_H);
+                    }
+                    Some(code) => {
+                        let name = if code == 1 { "ENGINEERING" } else { "MYSTERIES" };
+                        let line = format!("PATH CHOSEN: {}", name);
+                        ctx.text("path_chosen", &line, lx, fy, 2);
+                        fy += ctx.px(ROW_H);
+                        let promise = if code == 1 {
+                            "MACHINES ANSWER TO YOU: COGS, BOILERS, MILLS"
+                        } else {
+                            "THE LEY ANSWERS TO YOU: SIGILS, WARDS, MANA"
+                        };
+                        ctx.text("path_promise", promise, lx, fy, 2);
+                        fy += ctx.px(ROW_H);
+                        ctx.text("path_locked", "LOCKED RECIPES NOW NAME THEIR PATH IN THE CRAFT MENU", lx, fy, 2);
+                        fy += ctx.px(ROW_H);
+                    }
+                }
+                ctx.text("path_hint", "1 OR 2 CHOOSE  ·  E CLOSE", lx, panel.bottom() - ctx.px(PANEL_PAD) - ctx.px(12), 2);
             }
             // The quest journal (J): the settlement's quests from the
             // authority — title, giver, state, progress, reward.
@@ -2326,6 +2419,8 @@ pub enum UiAction {
     /// The quest journal: J toggles (the app stamps the rows from the
     /// quest authority).
     ToggleJournal,
+    /// BETA-0.2 W3.1: choose a career path at the fork (code 1/2).
+    ChooseCareer { code: u8 },
     /// The quest journal: accept the focused OFFERED quest.
     QuestAccept(u32),
     /// The quest journal: claim the focused COMPLETE quest's reward.
@@ -2594,6 +2689,22 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
             // "NOTHING TO DELIVER HERE".
             Key::Char('v') => {
                 acts.push(UiAction::DeliverAtSite);
+            }
+            Key::Char('y') => {
+                // THE PATH PANEL (W3.1): Y opens the fork; 1/2 choose;
+                // the choice binds (choose-once law in pc3d_world).
+                if state.path.is_some() {
+                    state.path = None;
+                } else {
+                    state.close_panels();
+                    state.path = Some(state.path_lean_hint());
+                }
+            }
+            Key::Char('1') if state.path.is_some() => {
+                acts.push(UiAction::ChooseCareer { code: 1 });
+            }
+            Key::Char('2') if state.path.is_some() => {
+                acts.push(UiAction::ChooseCareer { code: 2 });
             }
             Key::Char('x') => {
                 acts.push(UiAction::EatBread);
@@ -4101,6 +4212,39 @@ mod tests {
     }
 
     #[test]
+    /// BETA-0.2 W3.1: the path panel — Y opens, the two rows + lean draw,
+    /// the panel is exclusive (blocks gameplay), and the reserved mana
+    /// bar obeys its state law (hidden until MYSTERIES is chosen).
+    #[test]
+    fn path_panel_lays_out_and_mana_is_reserved_until_mysteries() {
+        let mut s = state(Screen::Gameplay);
+        s.path = Some(0); // the world leans Engineering
+        assert!(s.blocks_gameplay(), "the path panel owns the frame");
+        assert_eq!(s.active_panel(), ActivePanel::Path);
+        let list = build(&s, 1280, 720);
+        for id in ["path_panel", "path_lean", "path_row_1", "path_row_2", "path_bind", "path_hint"] {
+            assert!(list.by_id(id).is_some(), "path element {id} missing");
+        }
+        // Mana reserved-hidden: unchosen draws no mana bar.
+        assert!(list.by_id("bar_mana").is_none());
+        // Chosen MYSTERIES (panel open again): the panel names the path,
+        // mana goes live.
+        let mut m = state(Screen::Gameplay);
+        m.career_chosen = Some(2);
+        m.hud.mana_live = true;
+        m.path = Some(0);
+        let list2 = build(&m, 1280, 720);
+        assert!(list2.by_id("path_chosen").is_some());
+        assert!(list2.by_id("bar_mana").is_some(), "mana must draw once its state exists");
+        // Engineering does NOT open the mana stat (the law's other side) —
+        // and the bar stays hidden even with the panel closed.
+        let mut e = state(Screen::Gameplay);
+        e.career_chosen = Some(1);
+        e.hud.mana_live = false;
+        let list3 = build(&e, 1280, 720);
+        assert!(list3.by_id("bar_mana").is_none(), "Engineering must not grant mana");
+    }
+
     fn quest_journal_panel_lays_out_inks_and_j_toggles() {
         let mut s = state(Screen::Gameplay);
         s.journal = Some(vec![
