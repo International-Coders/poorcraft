@@ -46,7 +46,10 @@ impl SupportedVersions {
     pub const fn epoch1() -> Self {
         SupportedVersions {
             epoch: 1,
-            world: 1,
+            // BETA-0.2 W1.1: layout v2 — the wide-world dials (rings
+            // 192/640/2048, climate x2). pc3d_world::layout's lockstep
+            // law binds this number to WORLDGEN_LAYOUT_VERSION.
+            world: 2,
             save: 1,
             content: 1,
             protocol: 1,

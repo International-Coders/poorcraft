@@ -35,7 +35,10 @@ const _: () = {
 
 /// Hard cap on patches a single spatial query may return — a planet-sized
 /// bound must fail loudly, not hang the caller.
-pub const MAX_QUERY_PATCHES: usize = 1 << 16;
+// BETA-0.2 W1.1: the macro dial widened to 2048 m (a 257x257 = 66,049
+// patch ask), so the guard moves one power with it — still 2x headroom
+// above the dial, still far below any planet-sized query.
+pub const MAX_QUERY_PATCHES: usize = 1 << 17;
 
 #[cfg(test)]
 mod tests {

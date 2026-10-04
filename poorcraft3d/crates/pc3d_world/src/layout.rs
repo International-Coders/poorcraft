@@ -16,22 +16,22 @@ use crate::gen::WorldGen;
 /// The worldgen layout this build speaks. Bumped whenever any dial below
 /// changes the meaning of generated terrain (the save header's `world`
 /// field carries it; older saves refuse with a legible explanation).
-pub const WORLDGEN_LAYOUT_VERSION: u16 = 1;
+pub const WORLDGEN_LAYOUT_VERSION: u16 = 2;
 
 /// Climate field base wavelength, in region cells (1 region = 256 m).
 /// 192 cells ≈ 49 km weather systems (the dual-scale biome law).
 /// The W1 dial: ×2 (384) turns belts into continents.
-pub const CLIMATE_CELLS: f64 = 192.0;
+pub const CLIMATE_CELLS: f64 = 384.0;
 
 /// Elevation field base wavelength, in region cells (the ~12 km relief
 /// base). The W1 dial: ×2 (96) widens mountain systems with the climate.
-pub const ELEVATION_BASE_CELLS: f64 = 48.0;
+pub const ELEVATION_BASE_CELLS: f64 = 96.0;
 
 /// Stream interest rings, in meters (the dials the streamer's tiers read).
 /// The W1 dial: 192/640/2048 widens the played view ~2x per ring.
-pub const TIER_FULL_M: f32 = 96.0;
-pub const TIER_LOD_M: f32 = 320.0;
-pub const TIER_MACRO_M: f32 = 1024.0;
+pub const TIER_FULL_M: f32 = 192.0;
+pub const TIER_LOD_M: f32 = 640.0;
+pub const TIER_MACRO_M: f32 = 2048.0;
 
 /// Capital spacing, in meters, from decision D-026 (10–25 minutes on
 /// foot). The walk rate is 4.3 m/s (WALK_SPEED), so the owned band is
