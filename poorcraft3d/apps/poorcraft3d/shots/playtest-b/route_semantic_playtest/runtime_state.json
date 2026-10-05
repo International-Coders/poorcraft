@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 71.19999694824219,
+    "avg_fps": 47.400001525878906,
     "frames": 973,
-    "p50_ms": 13.819999694824219,
-    "p95_ms": 15.609999656677246
+    "p50_ms": 20.389999389648438,
+    "p95_ms": 28.59000015258789
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,8 +32,9 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791020656",
+  "timestamp_utc": "1791214183",
   "ui": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -54,7 +55,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.3505924940109253,
+      "health": 0.39100381731987,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -131,12 +132,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:29",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:29",
         "name": "beta-shot",
         "seed": 7
       }
@@ -147,12 +148,7 @@
       "WOOD_PICK x1",
       "BREAD x2"
     ],
-    "toasts": [
-      {
-        "age_s": 1.6828229427337646,
-        "text": "FELL — HEALTH 33%"
-      }
-    ],
+    "toasts": [],
     "wallet": 0,
     "witnessed_assaults": 0
   },

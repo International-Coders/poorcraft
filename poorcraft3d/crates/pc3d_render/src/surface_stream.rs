@@ -628,6 +628,12 @@ impl SurfaceStreamer {
         (drawn, culled)
     }
 
+    /// PLAYTEST-0.3 D4: the patch coords whose terrain is on the GPU —
+    /// the flora streamer's ground gate reads this per frame.
+    pub fn loaded_patch_keys(&self) -> Vec<PatchCoord> {
+        self.loaded.keys().copied().collect()
+    }
+
     pub fn mesh_us_total(&self) -> u128 {
         self.counters.mesh_us_total
     }

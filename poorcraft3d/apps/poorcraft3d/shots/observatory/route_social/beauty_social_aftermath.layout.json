@@ -35,11 +35,22 @@
     },
     {
       "button_state": "",
+      "id": "hud_objective",
+      "kind": "text",
+      "rect": [
+        20,
+        106,
+        586,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hud_stock",
       "kind": "text",
       "rect": [
         20,
-        110,
+        132,
         142,
         14
       ]
@@ -50,7 +61,7 @@
       "kind": "text",
       "rect": [
         20,
-        132,
+        154,
         322,
         14
       ]
@@ -249,7 +260,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.9658058881759644,
+      "health": 0.9656510353088379,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -277,12 +288,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:07",
+        "modified": "2026-10-05 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:07",
+        "modified": "2026-10-05 15:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -292,15 +303,15 @@
     ],
     "toasts": [
       {
-        "age_s": 0.1360199898481369,
+        "age_s": 0.12544482946395874,
         "text": "NO CREATURE IN REACH"
       },
       {
-        "age_s": 0.06402113288640976,
+        "age_s": 0.04754485934972763,
         "text": "SLEW A CREATURE · LOOT STONEx2"
       },
       {
-        "age_s": 0.06402113288640976,
+        "age_s": 0.04754485934972763,
         "text": "3 WITNESSED THE BLOW — TRUST FALLS"
       }
     ],

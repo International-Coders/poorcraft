@@ -131,6 +131,11 @@ const WORLD_TICK_FRAMES: u64 = 10;
 
 pub struct SliceHost {
     pub seed: u64,
+    /// PLAYTEST-0.3 D1: the clearance-checked menu backdrop pose (the
+    /// title/new-world/load screens film THIS, not the player spawn —
+    /// a tree trunk in the title lens was the first thing a fresh
+    /// player saw).
+    pub menu_pose: Option<crate::CameraPose>,
     /// The NWR-011 rebuild stack: crowd ticking + surface walking +
     /// foundation-gated placement. None = the classic R3DV slice.
     pub rebuild: bool,
@@ -1137,6 +1142,10 @@ pub struct WindowConfig {
     pub slice_host: Option<Box<SliceHost>>,
     /// Data-only setup: assembled into slice_host at window creation.
     pub slice_setup: Option<SliceSetup>,
+    /// PLAYTEST-0.3 D2: a harness-declared STARTING PACK, applied to the
+    /// assembled slice once at boot (the honest hotbar answers to it).
+    /// None = the survival default (empty hands).
+    pub inventory_seed: Option<Vec<(u16, u32)>>,
     /// Owner-facing live shell: the real UI layer (title/pause/settings
     /// screens + gameplay HUD). Automated proof windows leave this false so
     /// old gate timing stays stable.
@@ -1170,6 +1179,7 @@ impl Default for WindowConfig {
             interactive_host: None,
             slice_host: None,
             slice_setup: None,
+            inventory_seed: None,
             owner_menu: false,
             save_root_override: None,
             resize_to: Some((800.0, 500.0)),
@@ -1736,6 +1746,25 @@ impl App {
                     let plaza = self.state.as_ref().and_then(|s| {
                         s.renderer.nearest_plaza_interactable()
                     });
+                    if std::env::var("PC3D_TALK_DEBUG").is_ok() {
+                        let list = self.state.as_ref().and_then(|s| s.renderer.plaza_interactables_pub());
+                        let campos = self.state.as_ref().map(|s| s.renderer.pose().position);
+                        let (ga, scr, panel) = self
+                            .state
+                            .as_ref()
+                            .map(|s| {
+                                (
+                                    s.gameplay_active(),
+                                    s.ui.screen.clone(),
+                                    s.ui.active_panel(),
+                                )
+                            })
+                            .unwrap_or((false, crate::ui::Screen::Title, crate::ui::ActivePanel::None));
+                        eprintln!(
+                            "TALK resolved {plaza:?} ga {ga} screen {scr:?} panel {panel:?} cam {campos:?} player {:?}",
+                            self.cfg.slice_host.as_ref().map(|sl| sl.player.pos)
+                        );
+                    }
                     if let Some((which, _)) = plaza {
                         let (title, lines, loot) = match which {
                             0 => {
@@ -1884,6 +1913,9 @@ impl App {
                     let _ = gen;
                     if let Some(slice) = self.cfg.slice_host.as_mut() {
                         slice.player.pos = [*x, ground + 0.1, *z];
+                        if std::env::var("PC3D_TALK_DEBUG").is_ok() {
+                            eprintln!("TP to {x},{z} ground {ground} -> pos {:?}", slice.player.pos);
+                        }
                     }
                 }
                 UiAction::EditSurface { x, z, meters } => {
@@ -2834,6 +2866,14 @@ impl App {
                         s.ui_dirty = true;
                         s.reconcile_pointer();
                     }
+                    // Back to the vista (the player pose reads as a stuck
+                    // first-person frame behind the menu).
+                    if let (Some(vista), Some(state)) = (
+                        self.cfg.slice_host.as_ref().and_then(|h| h.menu_pose),
+                        self.state.as_mut(),
+                    ) {
+                        state.renderer.set_pose(vista);
+                    }
                 }
                 UiAction::SaveNow => {
                     self.save_world();
@@ -3080,7 +3120,7 @@ impl ApplicationHandler for App {
         let window_dpi = window.scale_factor() as f32;
         let mut renderer = Renderer::windowed(&window);
         if let Some(setup) = self.cfg.slice_setup.take() {
-            let host = if setup.rebuild {
+            let mut host = if setup.rebuild {
                 crate::slice::assemble_rebuild(
                     &mut renderer,
                     &setup.scene,
@@ -3097,6 +3137,16 @@ impl ApplicationHandler for App {
                     &setup.world_name,
                 )
             };
+            // PLAYTEST-0.3 D1: boot lands on Title — film the vista, not
+            // the player spawn (whose lens had a tree trunk in it).
+            if let Some(vista) = host.menu_pose {
+                renderer.set_pose(vista);
+            }
+            if let Some(seed_items) = &self.cfg.inventory_seed {
+                for &(id, n) in seed_items {
+                    host.inventory.add(pc3d_world::items::ItemId(id), n);
+                }
+            }
             self.cfg.slice_host = Some(Box::new(host));
         }
         let built_count = self
@@ -3449,7 +3499,31 @@ impl App {
                             slice.foundation_ok = !rejected;
                         }
                         let foundation_ok = slice.foundation_ok;
+                        // D2 THE BUILD COST: place only what you carry —
+                        // one pack item per block, refused by name. The
+                        // free infinite palette is gone (survival has
+                        // stakes: dig first, build second).
+                        let mut cost_paid = true;
                         if code == KeyCode::KeyF && foundation_ok {
+                            let cost_item = pc3d_world::items::build_cost(material);
+                            if slice.inventory.count(cost_item) == 0 {
+                                cost_paid = false;
+                                slice.last_message = format!(
+                                    "NO {} IN PACK — DIG FOR IT",
+                                    pc3d_world::items::item_name(cost_item).to_uppercase()
+                                );
+                                if state.owner_menu {
+                                    state.ui.toast(format!(
+                                        "NO {} IN PACK — DIG FOR IT",
+                                        pc3d_world::items::item_name(cost_item).to_uppercase()
+                                    ));
+                                    state.ui_dirty = true;
+                                }
+                            } else {
+                                let _ = slice.inventory.remove(cost_item, 1);
+                            }
+                        }
+                        if code == KeyCode::KeyF && foundation_ok && cost_paid {
                             h.submit(pc3d_world::host::HostCommand::Build {
                                 cell,
                                 material,
@@ -3967,7 +4041,14 @@ impl App {
             if slice.rebuild && gameplay_active {
                 state.renderer.crowd_tick(0.35, 1);
             }
-            state.renderer.set_pose(slice.player.pose());
+            // PLAYTEST-0.3 D1: the body owns the camera whenever the
+            // GAMEPLAY SCREEN is up — panels (dialog/journal/forge) draw
+            // OVER the live body but must never freeze it (the playtest's
+            // fall-with-journal-open depends on the pose staying live).
+            // The MENUS (title/new/load/settings/pause) film the vista.
+            if state.ui.screen == crate::ui::Screen::Gameplay {
+                state.renderer.set_pose(slice.player.pose());
+            }
             // A full day every ten minutes of live play — slow enough to
             // feel, fast enough that a session sees dusk.
             {
@@ -4274,6 +4355,15 @@ impl App {
                 for (i, item) in carried.into_iter().enumerate() {
                     state.ui.hud.slots[CARRIED_SLOT_0 + i] = item;
                 }
+                // D2: the build slots answer to the pack every frame.
+                let build_slots = self
+                    .cfg
+                    .slice_host
+                    .as_ref()
+                    .map(|s| build_slots_of(&s.inventory));
+                if let (Some(bs), Some(s)) = (build_slots, state.ui.hud.slots.get_mut(0..5)) {
+                    s.clone_from_slice(&bs);
+                }
             }
             if state.ui.screen == Screen::Gameplay && !state.ui.blocks_gameplay() {
                 // THE STAMINA FIX: stamina is a SPRINT resource — walking
@@ -4317,6 +4407,12 @@ impl App {
                     state.ui.path_lean = slice.career_lean.unwrap_or(0);
                     state.ui.career_chosen = slice.career.chosen.map(|c| c.code());
                     state.ui.hud.mana_live = slice.career.mana_live();
+                    // D7: the one next objective, from the onboarding law.
+                    state.ui.hud.objective = slice
+                        .onboarding
+                        .objective()
+                        .unwrap_or("")
+                        .to_string();
                 }
                 let grabbed_before = state.ui.pointer_grabbed;
                 if grabbed_before != state.pointer_grabbed {
@@ -4495,12 +4591,38 @@ fn carried_slots_of(
     CARRIED
         .iter()
         .map(|&(code, color)| {
-            (inv.count(ItemId(code)) > 0).then(|| crate::ui::HotItem {
+            let n = inv.count(ItemId(code));
+            (n > 0).then(|| crate::ui::HotItem {
                 label: item_name(ItemId(code)),
                 color,
+                count: None,
             })
         })
         .collect()
+}
+
+/// PLAYTEST-0.3 D2: the BUILD SLOTS from the pack's truth — the five
+/// buildable materials with the counts you actually carry. Empty pack =
+/// empty slots; the palette can never contradict the PACK line again.
+pub fn build_slots_of(inv: &pc3d_world::items::Inventory) -> [Option<crate::ui::HotItem>; 5] {
+    use pc3d_world::gen::CellMaterial;
+    use pc3d_world::items::ItemId;
+    let slot = |m: CellMaterial, label: &'static str, color: [u8; 3]| {
+        let n = inv.count(pc3d_world::items::build_cost(m));
+        let n = if matches!(m, CellMaterial::Grass) { inv.count(ItemId(5)) } else { n };
+        (n > 0).then(|| crate::ui::HotItem {
+            label,
+            color,
+            count: Some(n),
+        })
+    };
+    [
+        slot(CellMaterial::Soil, "SOIL", [122, 85, 58]),
+        slot(CellMaterial::Grass, "GRASS", [92, 138, 78]),
+        slot(CellMaterial::Sand, "SAND", [214, 184, 108]),
+        slot(CellMaterial::Rock, "ROCK", [138, 132, 126]),
+        slot(CellMaterial::Snow, "SNOW", [232, 236, 240]),
+    ]
 }
 
 /// Every recipe as a bench row, judged against `inv`.

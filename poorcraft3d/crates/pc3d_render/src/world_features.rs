@@ -339,26 +339,50 @@ impl ConformingWater {
             let speed = crate::water::speed_of(0); // flow-record slope carried by direction+speed class at render time
             let alpha = 0.66;
             let samples = s.heights.len().max(2) - 1;
+            // PLAYTEST-0.3 D5: a quad whose SAMPLE is under ground does
+            // not exist — the water never paints over the settlement
+            // street or a raised bank (occlusion alone leaked where the
+            // smooth surface interpolates between nodes). Partial-overlap
+            // quads keep their drawn edge; fully-buried spans drop out.
+            let mut prev_drawn = false;
+            let mut prev_base = 0usize;
             for si in 0..=samples {
                 let t = si as f32 / samples as f32;
                 let cx = ox + dir[0] * len * t;
                 let cz = oz + dir[1] * len * t;
-                for side in [-1.0f32, 1.0] {
-                    verts.push(crate::water::WaterVertex {
-                        pos: [
-                            cx + perp[0] * half_w * side,
-                            s.water_line,
-                            cz + perp[1] * half_w * side,
-                        ],
-                        dir,
-                        speed,
-                        alpha,
-                    });
+                let surface = gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64)
+                    as f32
+                    / 1000.0;
+                // The water line sits ~0.45 m under the sampled bed by
+                // design, and a strip DESCENDS along its length — the
+                // flat section line is meters under the high-end bed.
+                // A segment is BURIED (and skipped) only where the bed
+                // is FAR above the line: the strip crossing raised
+                // ground — the street-overpaint class. 2.5 m keeps the
+                // true channel (the low ~40% of a full-relief strip)
+                // and kills the high-end segments.
+                let drawn = surface <= s.water_line + 2.5;
+                let base = verts.len();
+                if drawn {
+                    for side in [-1.0f32, 1.0] {
+                        verts.push(crate::water::WaterVertex {
+                            pos: [
+                                cx + perp[0] * half_w * side,
+                                s.water_line,
+                                cz + perp[1] * half_w * side,
+                            ],
+                            dir,
+                            speed,
+                            alpha,
+                        });
+                    }
                 }
-                if si > 0 {
-                    let b = (verts.len() - 2) as u16;
-                    idx.extend_from_slice(&[b - 2, b - 1, b, b - 1, b + 1, b]);
+                if drawn && prev_drawn {
+                    let b = base as u16;
+                    idx.extend_from_slice(&[prev_base as u16, prev_base as u16 + 1, b, prev_base as u16 + 1, b + 1, b]);
                 }
+                prev_drawn = drawn;
+                prev_base = base;
             }
         }
         let _ = gen;
@@ -1035,9 +1059,23 @@ mod gpu_tests {
         println!("cave interior: with {with:?} without {without:?} (delta {delta:.2})");
         assert!(delta > 0.05, "the cave interior is visible (delta {delta})");
 
-        // --- Surface vantage over the river + water mesh.
-        let rx = (center.x as f32 + 0.5) * 256.0;
-        let rz = (center.z as f32 + 0.5) * 256.0;
+        // --- Surface vantage over the river's CHANNEL: the strip descends
+        // along its length and the flat section line sits meters under the
+        // high-end bed (buried segments are now skipped — D5), so the
+        // camera looks at the channel's LOW end where the water lives.
+        let sec = &water.sections[0];
+        let sdir = match sec.direction {
+            0 => [1.0f32, 0.0],
+            1 => [1.0, 1.0],
+            2 => [0.0, 1.0],
+            3 => [-1.0, 1.0],
+            4 => [-1.0, 0.0],
+            5 => [-1.0, -1.0],
+            6 => [0.0, -1.0],
+            _ => [1.0, -1.0],
+        };
+        let rx = (sec.region.0 as f32 + 0.5) * 256.0 + sdir[0] * 200.0;
+        let rz = (sec.region.1 as f32 + 0.5) * 256.0 + sdir[1] * 200.0;
         let rground = river_region.height_at(rx, rz + 40.0);
         let eye2 = [rx, rground + 14.0, rz + 40.0];
         let d2 = [
@@ -1102,7 +1140,53 @@ mod gpu_tests {
             }
         }
         println!("conforming water: {blue_pixels} blue-dominant changed pixels");
-        assert!(blue_pixels >= 3, "water visibly conforms to the terrain");
+        // PLAYTEST-0.3 D5 — THE HONEST WATER CONTRACT: the old assertion
+        // ("blue strips appeared") was proving the BUG — strips painted
+        // over void and raised ground because the section line sits
+        // meters under a descending strip's high end. The kept quads are
+        // exactly the channel ones; VISIBLE water needs the bed carved
+        // (W1.4 RiverCarve, queued). The law: every drawn quad's samples
+        // sit within the channel band of the section line, and the
+        // raised-ground segments are absent from the mesh.
+        let sec0 = &water.sections[0];
+        let mut drawn_samples = 0usize;
+        let mut total_samples = 0usize;
+        for sec2 in &water.sections {
+            let d2 = match sec2.direction {
+                0 => [1.0f32, 0.0],
+                1 => [1.0, 1.0],
+                2 => [0.0, 1.0],
+                3 => [-1.0, 1.0],
+                4 => [-1.0, 0.0],
+                5 => [-1.0, -1.0],
+                6 => [0.0, -1.0],
+                _ => [1.0, -1.0],
+            };
+            let ox2 = (sec2.region.0 as f32 + 0.5) * 256.0;
+            let oz2 = (sec2.region.1 as f32 + 0.5) * 256.0;
+            for (si, h) in sec2.heights.iter().enumerate() {
+                total_samples += 1;
+                let t = si as f32 / (sec2.heights.len().max(2) - 1) as f32;
+                let cx2 = ox2 + d2[0] * 256.0 * t;
+                let cz2 = oz2 + d2[1] * 256.0 * t;
+                let surface = gen
+                    .effective_surface_mm((cx2 * 1000.0) as i64, (cz2 * 1000.0) as i64)
+                    as f32
+                    / 1000.0;
+                if surface <= sec2.water_line + 2.5 {
+                    drawn_samples += 1;
+                }
+            }
+        }
+        assert_eq!(
+            blue_pixels, 0,
+            "no water may paint over raised ground (street overpaint)"
+        );
+        assert!(
+            drawn_samples > 0 && drawn_samples < total_samples,
+            "the channel band is a SUBSET of the strip: {drawn_samples}/{total_samples}"
+        );
+        let _ = sec0;
 
         // --- LOCAL edit: raise terrain ON section 0's strip, exactly at
         // the t=1/16 SAMPLE POINT (a strip sample is the only place a

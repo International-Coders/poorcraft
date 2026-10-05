@@ -35,17 +35,6 @@
     },
     {
       "button_state": "",
-      "id": "hud_stock",
-      "kind": "text",
-      "rect": [
-        20,
-        110,
-        130,
-        14
-      ]
-    },
-    {
-      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -353,12 +342,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:07",
+        "modified": "2026-10-05 15:27",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:07",
+        "modified": "2026-10-05 15:27",
         "name": "beta-shot",
         "seed": 7
       }
@@ -368,11 +357,11 @@
     ],
     "toasts": [
       {
-        "age_s": 1.9542497396469116,
+        "age_s": 1.802520751953125,
         "text": "DUG SOIL+WOOD"
       },
       {
-        "age_s": 0.5007203221321106,
+        "age_s": 0.5323110222816467,
         "text": "DREW 3200 mWATER + 1 WOOD"
       }
     ],

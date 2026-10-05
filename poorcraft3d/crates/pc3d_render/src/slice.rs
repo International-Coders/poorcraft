@@ -224,6 +224,7 @@ pub fn assemble(
     let player = spawn_player(scene);
     r.set_pose(player.pose());
     SliceHost {
+        menu_pose: Some(menu_vista_pose(&scene.gen, scene)),
         career: pc3d_world::career::CareerState::default(),
         career_lean: None,
         seed,
@@ -819,6 +820,92 @@ mod tests {
 /// the real schedule, the conforming river water, the cave mesh, and
 /// the water wheel — with the player walking the surface and building
 /// through foundation-inspected host commands.
+/// THE MENU VISTA (PLAYTEST-0.3 D1): the menus' backdrop camera — a
+/// clearance-checked vantage over the plaza, so the title never films a
+/// tree trunk in the lens. Candidates orbit the plaza; the first whose
+/// eye AND sightline are clear of solid cells wins; the fallback looks
+/// down from high above (always clear). Pure per seed.
+pub fn menu_vista_pose(gen: &pc3d_world::gen::WorldGen, scene: &SliceScene) -> crate::CameraPose {
+    use pc3d_world::terrain::final_solid;
+    let plaza = scene.plan.plaza;
+    let px = plaza.x as f32 + 0.5;
+    let pz = plaza.z as f32 + 0.5;
+    let ground = |x: f32, z: f32| {
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    let clear_of = |ex: f32, ey: f32, ez: f32, tx: f32, ty: f32, tz: f32| -> bool {
+        // The eye cell and five samples along the sightline must be air.
+        let ok = |x: f32, y: f32, z: f32| {
+            let (x_mm, y_mm, z_mm) = ((x * 1000.0) as i64, (y * 1000.0) as i64, (z * 1000.0) as i64);
+            !final_solid(gen, x_mm, y_mm, z_mm).solid
+        };
+        if !ok(ex, ey, ez) {
+            return false;
+        }
+        (1..=5).all(|t| {
+            let f = t as f32 / 6.0;
+            ok(ex + (tx - ex) * f, ey + (ty - ey) * f, ez + (tz - ez) * f)
+        })
+    };
+    let (ty, tz, tx) = (ground(px, pz) + 2.5, pz, px);
+    for k in 0..12 {
+        let a = k as f32 / 12.0 * std::f32::consts::TAU;
+        let radius = 20.0 + (k % 3) as f32 * 6.0;
+        let ex = px + a.cos() * radius;
+        let ez = pz + a.sin() * radius;
+        let ey = ground(ex, ez) + 8.0 + (k % 2) as f32 * 3.0;
+        if clear_of(ex, ey, ez, tx, ty, tz) {
+            let d = [tx - ex, ty - ey, tz - ez];
+            let pitch = (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin();
+            return crate::CameraPose::new([ex, ey, ez], (-d[0]).atan2(-d[2]), pitch);
+        }
+    }
+    // Fallback: straight down from well above the plaza (never blocked).
+    let ey = ground(px, pz) + 26.0;
+    crate::CameraPose::new([px, ey, pz + 6.0], 0.0, -1.2)
+}
+
+/// PLAYTEST-0.3 D3: the TALK framing — a camera at the NPC's face
+/// height, orbited until BOTH the eye and the sightline to the NPC are
+/// clear of solid cells. The old fixed +1.2/+1.2 offset filmed whatever
+/// tree happened to stand there (a trunk filled the talk shot).
+pub fn talk_view_pose(
+    gen: &pc3d_world::gen::WorldGen,
+    npc: [f32; 3],
+) -> crate::CameraPose {
+    use pc3d_world::terrain::final_solid;
+    let clear = |x: f32, y: f32, z: f32| {
+        !final_solid(gen, (x * 1000.0) as i64, (y * 1000.0) as i64, (z * 1000.0) as i64).solid
+    };
+    let head = [npc[0], npc[1] + 1.4, npc[2]];
+    for k in 0..12 {
+        let a = k as f32 / 12.0 * std::f32::consts::TAU;
+        let radius = 2.4 + (k % 3) as f32 * 0.6;
+        let ex = head[0] + a.cos() * radius;
+        let ez = head[2] + a.sin() * radius;
+        let ey = head[1] + 0.3;
+        if !clear(ex, ey, ez) {
+            continue;
+        }
+        let line_clear = (1..=4).all(|t| {
+            let f = t as f32 / 5.0;
+            clear(
+                ex + (head[0] - ex) * f,
+                ey + (head[1] - ey) * f,
+                ez + (head[2] - ez) * f,
+            )
+        });
+        if line_clear {
+            let d = [head[0] - ex, head[1] - ey, head[2] - ez];
+            let pitch = (d[1] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()).asin();
+            return crate::CameraPose::new([ex, ey, ez], (-d[0]).atan2(-d[2]), pitch);
+        }
+    }
+    // Fallback: face-on from the north at head height (the old behavior
+    // was one fixed candidate; this is no worse).
+    crate::CameraPose::new([head[0] + 1.2, head[1] + 0.3, head[2] + 1.2], -2.356, -0.2)
+}
+
 pub fn assemble_rebuild(
     r: &mut crate::renderer::Renderer,
     scene: &std::rc::Rc<SliceScene>,
@@ -904,7 +991,9 @@ pub fn assemble_rebuild(
     let gy = r.ground_y_at(&scene.gen, player.pos[0], player.pos[2]);
     player.pos[1] = gy + 0.05;
     r.set_pose(player.pose());
+    let menu_pose = menu_vista_pose(&scene.gen, scene);
     let mut host = SliceHost {
+        menu_pose: Some(menu_pose),
         career: pc3d_world::career::CareerState::default(),
         career_lean: None,
         seed,

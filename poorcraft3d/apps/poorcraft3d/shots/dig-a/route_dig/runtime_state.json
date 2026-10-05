@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 71.19999694824219,
+    "avg_fps": 59.599998474121094,
     "frames": 182,
-    "p50_ms": 13.880000114440918,
-    "p95_ms": 15.65999984741211
+    "p50_ms": 16.209999084472656,
+    "p95_ms": 20.18000030517578
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,8 +32,9 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791020611",
+  "timestamp_utc": "1791214102",
   "ui": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -53,7 +54,7 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9986175894737244,
+      "food": 0.9981954097747803,
       "health": 1.0,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
@@ -82,12 +83,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -95,7 +96,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.7826206684112549,
+        "age_s": 2.27559757232666,
         "text": "DUG SOIL+WOOD"
       }
     ],

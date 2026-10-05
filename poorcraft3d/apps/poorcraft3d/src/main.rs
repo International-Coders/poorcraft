@@ -5126,13 +5126,20 @@ fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
             yaw: 0.5,
             pitch: -0.1,
         };
+        // A MID-SESSION pack: the gameplay HUD capture must show the
+        // honest hotbar answering to a real inventory (D2).
+        let mut pack = pc3d_world::items::Inventory::new(12);
+        pack.add(pc3d_world::items::ItemId(5), 4); // soil
+        pack.add(pc3d_world::items::ItemId(2), 2); // stone
+        pack.add(pc3d_world::items::ItemId(1), 3); // wood
+        pack.add(pc3d_world::items::ItemId(12), 1); // wood_pick
         pc3d_render::slice::save_slice(
             &root,
             name,
             seed,
             &host,
             &player,
-            &pc3d_world::items::Inventory::new(12),
+            &pack,
             &pc3d_world::survival::Onboarding::default(),
             None,
             None,
@@ -7663,11 +7670,10 @@ fn run_observe(route_id: &str, out_root: &str) {
                     Box::new(|ui, r, ctx| {
                         let _ = ui;
                         if let Some(p) = r.cast_position(0) {
-                            let pose = pc3d_render::CameraPose::new(
-                                [p[0] + 1.2, p[1] + 1.7, p[2] + 1.2],
-                                (-1.2_f32).atan2(-1.2),
-                                -0.25,
-                            );
+                            // D3: the clearance-checked framing — the talk
+                            // shot films the NPC, not whatever tree stood
+                            // at the old fixed offset.
+                            let pose = pc3d_render::slice::talk_view_pose(&r.scene_gen(), p);
                             r.set_pose(pose);
                         }
                         ctx.actions.push(UiAction::TryTalk);
@@ -9596,6 +9602,26 @@ fn run_ui_shots(out_dir: &str) {
                 ui.pointer_grabbed = true;
                 ui.debug_overlay = true;
                 ui.debug_text = "P3D 0.1 SEED 22 WORLD REBUILD POS 12 6 -4 YAW 28 FPS 240 BUILT 0".into();
+                // PLAYTEST-0.3 D2: the gameplay capture stages a
+                // MID-SESSION pack (the honest hotbar answers to it) — a
+                // fresh world's empty pack is its own capture law, not
+                // this shot's subject.
+                ui.hud.slots[0] = Some(pc3d_render::ui::HotItem {
+                    label: "SOIL",
+                    color: [122, 85, 58],
+                    count: Some(4),
+                });
+                ui.hud.slots[1] = Some(pc3d_render::ui::HotItem {
+                    label: "ROCK",
+                    color: [138, 132, 126],
+                    count: Some(2),
+                });
+                ui.hud.slots[5] = Some(pc3d_render::ui::HotItem {
+                    label: "WOOD_PICK",
+                    color: [150, 116, 74],
+                    count: None,
+                });
+                ui.hud.objective = "OBJECTIVE: BUILD A BLOCK ON FLAT GROUND (F)".into();
             }),
         ),
         (
@@ -9614,6 +9640,14 @@ fn run_ui_shots(out_dir: &str) {
             Box::new(|ui, _r, ctx| {
                 ui.debug_overlay = false; // the 300-step toggled it on
                 ctx.actions.push(UiAction::StartPlaying);
+            }),
+        ),
+        (
+            405,
+            Box::new(|ui, _r, _ctx| {
+                // A mid-session objective line for the wide capture (the
+                // hotbar itself answers to the harness's inventory_seed).
+                ui.hud.objective = "OBJECTIVE: BUILD A BLOCK ON FLAT GROUND (F)".into();
             }),
         ),
         (
@@ -9659,6 +9693,7 @@ fn run_ui_shots(out_dir: &str) {
             save_root: save_root.clone(),
             world_name: "rebuild".into(),
         }),
+        inventory_seed: Some(vec![(5, 4), (2, 2), (1, 3), (12, 1)]),
         owner_menu: true,
         save_root_override: Some(save_root.clone()),
         ui_script: std::mem::take(&mut ui_script),

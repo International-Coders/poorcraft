@@ -35,11 +35,22 @@
     },
     {
       "button_state": "",
+      "id": "hud_objective",
+      "kind": "text",
+      "rect": [
+        20,
+        106,
+        586,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hud_stock",
       "kind": "text",
       "rect": [
         20,
-        110,
+        132,
         118,
         14
       ]
@@ -204,8 +215,8 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9965848326683044,
-      "health": 0.7107561826705933,
+      "food": 0.9965217113494873,
+      "health": 0.7091730833053589,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -233,12 +244,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:06",
+        "modified": "2026-10-05 15:26",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:06",
+        "modified": "2026-10-05 15:26",
         "name": "beta-shot",
         "seed": 7
       }

@@ -580,10 +580,10 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
-      "stock": "PACK EMPTY",
+      "stock": "PACK WOOD 3 · STONE 2 · SOIL 4 · WOOD_PICK 1",
       "xp": 0.0
     },
     "interact": null,
@@ -607,12 +607,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 17:15",
+        "modified": "2026-10-05 15:24",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 17:15",
+        "modified": "2026-10-05 15:24",
         "name": "beta-shot",
         "seed": 7
       }

@@ -34,6 +34,20 @@ pub const ITEMS: &[(u16, &str, ItemKind)] = &[
     (21, "fish", ItemKind::Food { heal: 15 }),
 ];
 
+/// THE BUILD COST LAW (PLAYTEST-0.3 D2): building a block consumes ONE
+/// of the pack item that yields it — the free infinite palette is gone.
+/// Grass builds pay soil (digging grass credits soil: earth grows the
+/// grass), so every buildable block has an honest, diggable cost.
+pub fn build_cost(material: crate::gen::CellMaterial) -> ItemId {
+    match material {
+        crate::gen::CellMaterial::Soil | crate::gen::CellMaterial::Grass => ItemId(5),
+        crate::gen::CellMaterial::Sand => ItemId(3),
+        crate::gen::CellMaterial::Rock => ItemId(2),
+        crate::gen::CellMaterial::Snow => ItemId(4),
+        crate::gen::CellMaterial::Water | crate::gen::CellMaterial::Air => ItemId(5),
+    }
+}
+
 pub fn item_name(id: ItemId) -> &'static str {
     ITEMS
         .iter()

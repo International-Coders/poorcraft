@@ -1283,6 +1283,10 @@ impl Renderer {
 
     /// The nearest plaza interactable within range: (0=chest, 1=ore,
     /// 2=marker, distance).
+    pub fn plaza_interactables_pub(&self) -> Option<[[f32; 3]; 3]> {
+        self.plaza_interactables
+    }
+
     pub fn nearest_plaza_interactable(&self) -> Option<(usize, f32)> {
         const RANGE: f32 = 2.2;
         let list = self.plaza_interactables.as_ref()?;
@@ -1567,6 +1571,14 @@ impl Renderer {
     /// The NPC talk slice: the nearest LIVE villager within TALK_RANGE
     /// of the camera — (name, distance, cast index). None when no one
     /// is close enough to address.
+    /// PLAYTEST-0.3 D3: the crowd's world authority (the talk framing's
+    /// clearance checks run against the same generator the NPC walks).
+    pub fn scene_gen(&self) -> std::rc::Rc<pc3d_world::gen::WorldGen> {
+        self.crowd_gen
+            .clone()
+            .expect("talk framing needs the crowd's world")
+    }
+
     pub fn nearest_talk_target(&self) -> Option<(String, f32, usize)> {
         const TALK_RANGE: f32 = 3.0;
         let cast = self.crowd_cast.as_ref()?;
@@ -2651,6 +2663,16 @@ impl Renderer {
         // bounded slot-scan budget twice every frame.
         if let (Some(f), Some(g)) = (self.flora.as_mut(), self.flora_gen.clone()) {
             let vp = self.camera.pose.position;
+            // D4: the loaded-ground gate — flora draws only over terrain
+            // that is on the GPU (a canopy never floats over a hole).
+            if let Some(ss) = self.surface_stream.as_ref() {
+                let loaded: std::collections::BTreeSet<(i32, i32)> = ss
+                    .loaded_patch_keys()
+                    .into_iter()
+                    .map(|c| (c.x, c.z))
+                    .collect();
+                f.set_ground_gate(loaded);
+            }
             f.update(&g, [vp[0], vp[2]]);
             f.upload(&g, &self.ctx.device, [vp[0], vp[2]]);
         }

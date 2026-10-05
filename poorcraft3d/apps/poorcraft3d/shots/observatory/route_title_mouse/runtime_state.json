@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 59.5,
+    "avg_fps": 62.20000076293945,
     "frames": 79,
-    "p50_ms": 15.720000267028809,
-    "p95_ms": 20.030000686645508
+    "p50_ms": 15.130000114440918,
+    "p95_ms": 18.84000015258789
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791137073",
+  "timestamp_utc": "1791213908",
   "ui": {
     "career_chosen": null,
     "companion": "",
@@ -56,7 +56,7 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "E TALK Maren Oldford · F BUILD · R REMOVE · ESC PAUSE",
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK EMPTY",
@@ -83,12 +83,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:04",
+        "modified": "2026-10-05 15:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:04",
+        "modified": "2026-10-05 15:25",
         "name": "beta-shot",
         "seed": 7
       }

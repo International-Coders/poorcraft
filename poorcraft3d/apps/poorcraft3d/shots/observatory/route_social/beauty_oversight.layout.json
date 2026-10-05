@@ -35,22 +35,11 @@
     },
     {
       "button_state": "",
-      "id": "hud_stock",
-      "kind": "text",
-      "rect": [
-        20,
-        110,
-        118,
-        14
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hud_companion",
       "kind": "text",
       "rect": [
         20,
-        132,
+        110,
         322,
         14
       ]
@@ -339,12 +328,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:07",
+        "modified": "2026-10-05 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:07",
+        "modified": "2026-10-05 15:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -352,7 +341,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.150086760520935,
+        "age_s": 1.2996493577957153,
         "text": "COMPANION FOLLOWS · N WAITS"
       }
     ],

@@ -211,6 +211,12 @@ fn grass_card_mesh() -> (Vec<CutoutVertex>, Vec<u16>) {
 
 pub struct FloraStreamer {
     kinds: BTreeMap<PlantKind, KindGpu>,
+    /// PLAYTEST-0.3 D4: the LOADED-GROUND gate — patches whose terrain is
+    /// on the GPU right now. An instance whose patch is missing does not
+    /// draw: a canopy can never float over a terrain hole again. None =
+    /// no gate (a renderer without a surface streamer draws everything —
+    /// the classic path's own terrain carries the ground).
+    ground_gate: Option<std::collections::BTreeSet<(i32, i32)>>,
     grass: (wgpu::Buffer, wgpu::Buffer, u32),
     grass_mask_bg: Option<wgpu::BindGroup>,
     /// Slot -> what grows there (None = known empty; cached so empty
@@ -491,6 +497,7 @@ impl FloraStreamer {
             usage: wgpu::BufferUsages::INDEX,
         });
         Self {
+            ground_gate: None,
             kinds,
             grass: (gv, gi, gidx.len() as u32),
             grass_mask_bg: None,
@@ -528,6 +535,12 @@ impl FloraStreamer {
     /// Bounded placement work: scans slots around the viewer (ring
     /// order, up to the budget), caches what grows, evicts beyond the
     /// ring. The authority decides WHAT grows; this only caches it.
+    /// D4: refresh the loaded-ground set (the renderer calls this per
+    /// frame from the surface streamer's loaded map).
+    pub fn set_ground_gate(&mut self, loaded: std::collections::BTreeSet<(i32, i32)>) {
+        self.ground_gate = Some(loaded);
+    }
+
     pub fn update(&mut self, gen: &WorldGen, viewer: [f32; 2]) -> &FloraStats {
         let mut added = 0usize;
         let mut evicted = 0usize;
@@ -641,11 +654,29 @@ impl FloraStreamer {
         self.dirty = false;
         use wgpu::util::DeviceExt;
         let mut rows: BTreeMap<(PlantKind, u8, u16), Vec<Instance>> = BTreeMap::new();
+        // D4: an instance whose ground patch is missing does not draw —
+        // only where a streamed surface owns the ground at all.
+        let gate_set = self.ground_gate.clone();
+        let gate = |x: f32, z: f32| -> bool {
+            gate_set
+                .as_ref()
+                .map(|g| {
+                    g.contains(&(
+                        x.div_euclid(16.0).floor() as i32,
+                        z.div_euclid(16.0).floor() as i32,
+                    ))
+                })
+                .unwrap_or(true)
+        };
         for (_, (kind, inst, variant)) in self
             .cache
             .iter()
             .filter_map(|(k, v)| v.as_ref().map(|v| (k, v)))
         {
+            // D4: no loaded ground under the instance — no draw.
+            if !gate(inst.pos_scale[0], inst.pos_scale[2]) {
+                continue;
+            }
             let d = (inst.pos_scale[0] - viewer[0]).hypot(inst.pos_scale[2] - viewer[1]);
             // Mirror of glb::lod_for thresholds.
             let lod = if d < 40.0 {

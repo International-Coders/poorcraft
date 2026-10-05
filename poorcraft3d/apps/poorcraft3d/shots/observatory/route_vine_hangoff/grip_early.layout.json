@@ -35,11 +35,22 @@
     },
     {
       "button_state": "",
+      "id": "hud_objective",
+      "kind": "text",
+      "rect": [
+        20,
+        106,
+        586,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hud_stock",
       "kind": "text",
       "rect": [
         20,
-        110,
+        132,
         118,
         14
       ]
@@ -244,12 +255,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:07",
+        "modified": "2026-10-05 15:27",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:07",
+        "modified": "2026-10-05 15:27",
         "name": "beta-shot",
         "seed": 7
       }
@@ -257,7 +268,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.6532903909683228,
+        "age_s": 0.7226030826568604,
         "text": "GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO"
       }
     ],

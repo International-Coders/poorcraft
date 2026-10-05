@@ -35,11 +35,22 @@
     },
     {
       "button_state": "",
+      "id": "hud_objective",
+      "kind": "text",
+      "rect": [
+        20,
+        106,
+        586,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hud_stock",
       "kind": "text",
       "rect": [
         20,
-        110,
+        132,
         118,
         14
       ]
@@ -255,12 +266,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:06",
+        "modified": "2026-10-05 15:27",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:06",
+        "modified": "2026-10-05 15:27",
         "name": "beta-shot",
         "seed": 7
       }
@@ -268,11 +279,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.821596145629883,
+        "age_s": 2.6750454902648926,
         "text": "THE GROUND GIVES WAY"
       },
       {
-        "age_s": 1.2689602375030518,
+        "age_s": 0.6003952622413635,
         "text": "YOU FELL — RECOVERED AT THE PLAZA"
       }
     ],

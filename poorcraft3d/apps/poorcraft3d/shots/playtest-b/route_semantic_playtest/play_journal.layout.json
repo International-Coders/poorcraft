@@ -35,17 +35,6 @@
     },
     {
       "button_state": "",
-      "id": "hud_stock",
-      "kind": "text",
-      "rect": [
-        20,
-        110,
-        622,
-        14
-      ]
-    },
-    {
-      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -371,6 +360,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -468,12 +458,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:29",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:29",
         "name": "beta-shot",
         "seed": 7
       }
@@ -486,11 +476,11 @@
     ],
     "toasts": [
       {
-        "age_s": 1.0154342651367188,
+        "age_s": 2.6472744941711426,
         "text": "FORGED 1 BARS"
       },
       {
-        "age_s": 0.35971078276634216,
+        "age_s": 0.9677625894546509,
         "text": "QUEST ACCEPTED"
       }
     ],

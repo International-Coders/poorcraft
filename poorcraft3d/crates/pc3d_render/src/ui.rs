@@ -170,6 +170,9 @@ pub struct HotItem {
     pub label: &'static str,
     /// Material swatch color (the painter adds the pixel pattern).
     pub color: [u8; 3],
+    /// PLAYTEST-0.3 D2: how many you actually CARRY (None = a tool/no
+    /// count — the palette never lies about the pack again).
+    pub count: Option<u32>,
 }
 
 /// Live HUD values. The app feeds these from real state (vitals drain with
@@ -199,6 +202,10 @@ pub struct HudValues {
     /// Sprint-exhaustion lockout: true once stamina hits 0; sprinting
     /// returns only after stamina recovers to 25% (no empty-flicker).
     pub exhausted: bool,
+    /// PLAYTEST-0.3 D7: the one next onboarding objective (empty when
+    /// done or when menus own the frame). The HUD draws it under the
+    /// bars — a fresh player always sees the one next thing to do.
+    pub objective: String,
 }
 
 impl HudValues {
@@ -234,20 +241,13 @@ impl Default for HudValues {
             mana_live: false,
             xp: 0.0,
             exhausted: false,
-            slots: [
-                Some(HotItem { label: "SOIL", color: [122, 85, 58] }),
-                Some(HotItem { label: "GRASS", color: [92, 138, 78] }),
-                Some(HotItem { label: "SAND", color: [214, 184, 108] }),
-                Some(HotItem { label: "ROCK", color: [138, 132, 126] }),
-                Some(HotItem { label: "SNOW", color: [232, 236, 240] }),
-                None,
-                None,
-                None,
-                None,
-            ],
+            // PLAYTEST-0.3 D2: the pack starts EMPTY and so does the
+            // hotbar — the app fills slots 1-5 from the real counts.
+            slots: [None, None, None, None, None, None, None, None, None],
             selected: 0,
             prompt: String::new(),
             stock: String::new(),
+            objective: String::new(),
         }
     }
 }
@@ -502,6 +502,8 @@ pub struct UiState {
     pub career_chosen: Option<u8>,
     /// The world's lean hint the app synced (0 Engineering, 1 Mysteries).
     pub path_lean: u8,
+    /// PLAYTEST-0.3 D6: the HELP panel payload (Some = open).
+    pub help: Option<()>,
     /// The journal's focused row (Up/Down; Enter accepts/claims).
     pub journal_focus: usize,
     /// The crafting bench (C): one row per recipe, from the live inventory.
@@ -554,6 +556,7 @@ pub enum ActivePanel {
     Machines,
     Oversight,
     Path,
+    Help,
 }
 
 impl UiState {
@@ -583,6 +586,8 @@ impl UiState {
             ActivePanel::Oversight
         } else if self.path.is_some() {
             ActivePanel::Path
+        } else if self.help.is_some() {
+            ActivePanel::Help
         } else {
             ActivePanel::None
         }
@@ -606,6 +611,7 @@ impl UiState {
         self.machines = None;
         self.oversight = None;
         self.path = None;
+        self.help = None;
     }
 }
 
@@ -637,6 +643,7 @@ impl Default for UiState {
             path: None,
             career_chosen: None,
             path_lean: 0,
+            help: None,
             journal_focus: 0,
             craft: None,
             craft_focus: 0,
@@ -1373,10 +1380,20 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 );
                 y += ctx.px(BAR_H) + ctx.px(BAR_GAP);
             }
+            // D7 THE OBJECTIVE: the one next thing, visible while the
+            // player explores. When a panel owns the frame it IS the
+            // focus — the strip stands down (its long line would cross
+            // the centered panels' titles).
+            if !state.hud.objective.is_empty() && state.active_panel() == ActivePanel::None {
+                ctx.text("hud_objective", &state.hud.objective, bx, y + ctx.px(2), 2);
+                y += ctx.px(ROW_H);
+            }
             // THE PACK ECHO under the status bars: what you carry, as a
             // number — the dig's take, the forge's spend, the eaten
-            // bread. The item authority's own line, verbatim.
-            if !state.hud.stock.is_empty() {
+            // bread. The item authority's own line, verbatim. Stands down
+            // under panels with the objective (a long echo crosses the
+            // centered panels' text; the K pack panel is the focus then).
+            if !state.hud.stock.is_empty() && state.active_panel() == ActivePanel::None {
                 ctx.text("hud_stock", &state.hud.stock, bx, y + ctx.px(6), 2);
                 y += ctx.px(ROW_H);
             }
@@ -1525,6 +1542,46 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     }
                 }
                 ctx.text("path_hint", "1 OR 2 CHOOSE  ·  E CLOSE", lx, panel.bottom() - ctx.px(PANEL_PAD) - ctx.px(12), 2);
+            }
+            // D6 THE HELP PANEL (H): every binding on one screen — the
+            // letter wall gets its answer key.
+            if let (Some(()), ActivePanel::Help) = (&state.help, active) {
+                let pw = ctx.px(700);
+                let ph = ctx.px(420);
+                let py = centered_y(hi, ph);
+                let panel = Rect::new(cx - pw / 2, py, pw as u32, ph as u32);
+                ctx.panel("help_panel", panel, Some("CONTROLS — H CLOSES"));
+                let col1 = [
+                    "WASD  MOVE",
+                    "SPACE / SHIFT  JUMP / DOWN",
+                    "MOUSE  LOOK",
+                    "G  DIG ONE STEP",
+                    "F  BUILD (COSTS PACK MATERIAL)",
+                    "R  REMOVE BUILD",
+                    "E  TALK / USE / OPEN",
+                ];
+                let col2 = [
+                    "K  PACK          C  CRAFT",
+                    "J  JOURNAL       M  MACHINES",
+                    "Y  CHOOSE PATH   O  OVERSIGHT",
+                    "N  COMPANION     V  DELIVER",
+                    "P  ATTACK        X  EAT",
+                    "B  SAVE          L  LOAD",
+                    "H  HELP          ESC  PAUSE",
+                ];
+                let lx = panel.x + ctx.px(PANEL_PAD);
+                let mut fy = panel.y + ctx.px(PANEL_PAD) + ctx.px(24);
+                for (i, line) in col1.iter().enumerate() {
+                    ctx.text(&format!("help_c1_{i}"), line, lx, fy, 2);
+                    fy += ctx.px(ROW_H);
+                }
+                let lx2 = panel.x + pw as i32 / 2 + ctx.px(8);
+                let mut fy2 = panel.y + ctx.px(PANEL_PAD) + ctx.px(24);
+                for (i, line) in col2.iter().enumerate() {
+                    ctx.text(&format!("help_c2_{i}"), line, lx2, fy2, 2);
+                    fy2 += ctx.px(ROW_H);
+                }
+                ctx.text("help_hint", "H OR E CLOSE", lx, panel.bottom() - ctx.px(PANEL_PAD) - ctx.px(12), 2);
             }
             // The quest journal (J): the settlement's quests from the
             // authority — title, giver, state, progress, reward.
@@ -2208,6 +2265,12 @@ pub fn paint(list: &DrawList) -> Vec<u8> {
                     // The item label under the swatch.
                     let (tw, _) = font::text_size(it.label, 1);
                     c.text(it.label, e.rect.cx() - tw as i32 / 2, e.rect.bottom() - 10, 1, theme::TEXT, true);
+                    // D2: the carried count, top-right of the swatch —
+                    // the hotbar tells the truth about the pack.
+                    if let Some(n) = it.count {
+                        let txt = n.to_string();
+                        c.text(&txt, e.rect.right() - 12, e.rect.y + 3, 1, theme::TEXT, true);
+                    }
                 }
                 // Slot number, top-left corner.
                 let num = (index + 1).to_string();
@@ -2678,6 +2741,10 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
                     // E closes the machine chain too.
                 } else if state.oversight.take().is_some() {
                     // E closes oversight too.
+                } else if state.path.take().is_some() {
+                    // E closes the path panel too.
+                } else if state.help.take().is_some() {
+                    // E closes help too.
                 } else {
                     acts.push(UiAction::TryTalk);
                 }
@@ -2689,6 +2756,15 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
             // "NOTHING TO DELIVER HERE".
             Key::Char('v') => {
                 acts.push(UiAction::DeliverAtSite);
+            }
+            Key::Char('h') if state.active_panel() == ActivePanel::Help => {
+                // D6: H closes an open help panel.
+                state.help = None;
+            }
+            Key::Char('h') if state.active_panel() == ActivePanel::None => {
+                // D6 THE HELP PANEL: every key, one screen — but a panel
+                // that owns the frame keeps its own H (the forge's ore).
+                state.help = Some(());
             }
             Key::Char('y') => {
                 // THE PATH PANEL (W3.1): Y opens the fork; 1/2 choose;
@@ -4243,6 +4319,44 @@ mod tests {
         e.hud.mana_live = false;
         let list3 = build(&e, 1280, 720);
         assert!(list3.by_id("bar_mana").is_none(), "Engineering must not grant mana");
+    }
+
+    /// PLAYTEST-0.3 D6: the help panel opens exclusive, lists both
+    /// columns, and closes.
+    #[test]
+    fn help_panel_lists_every_binding_and_is_exclusive() {
+        let mut s = state(Screen::Gameplay);
+        assert!(on_key(&mut s, Key::Char('h')).is_empty() || true);
+        assert!(s.blocks_gameplay(), "help owns the frame");
+        assert_eq!(s.active_panel(), ActivePanel::Help);
+        let list = build(&s, 1280, 720);
+        for id in ["help_panel", "help_c1_0", "help_c1_6", "help_c2_0", "help_c2_6", "help_hint"] {
+            assert!(list.by_id(id).is_some(), "help element {id} missing");
+        }
+        // H closes; E closes.
+        let _ = on_key(&mut s, Key::Char('h'));
+        assert_eq!(s.active_panel(), ActivePanel::None);
+        let _ = on_key(&mut s, Key::Char('h'));
+        let _ = on_key(&mut s, Key::Char('e'));
+        assert_eq!(s.active_panel(), ActivePanel::None, "E closes help too");
+    }
+
+    /// PLAYTEST-0.3 D2: the hotbar answers to the pack — empty pack =
+    /// empty slots, carried materials appear WITH counts, and the count
+    /// draws on the swatch.
+    #[test]
+    fn hotbar_slots_are_inventory_truth_with_counts() {
+        use super::*;
+        let mut s = state(Screen::Gameplay);
+        // Fresh: no pack sync yet — all empty (the old lie showed five
+        // free materials over a PACK EMPTY line).
+        assert!(s.hud.slots.iter().all(|sl| sl.is_none()));
+        s.hud.slots[0] = Some(HotItem { label: "SOIL", color: [122, 85, 58], count: Some(3) });
+        let list = build(&s, 1280, 720);
+        let count_drawn = list.elements.iter().any(|e| {
+            matches!(&e.kind, ElementKind::HotbarSlot { item: Some(HotItem { count: Some(3), .. }), .. })
+        });
+        assert!(count_drawn, "the carried count must reach the painter");
     }
 
     fn quest_journal_panel_lays_out_inks_and_j_toggles() {

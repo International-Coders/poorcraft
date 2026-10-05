@@ -35,17 +35,6 @@
     },
     {
       "button_state": "",
-      "id": "hud_stock",
-      "kind": "text",
-      "rect": [
-        20,
-        110,
-        622,
-        14
-      ]
-    },
-    {
-      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -469,12 +458,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:05",
+        "modified": "2026-10-05 15:25",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:05",
+        "modified": "2026-10-05 15:25",
         "name": "beta-shot",
         "seed": 7
       }
@@ -487,11 +476,11 @@
     ],
     "toasts": [
       {
-        "age_s": 2.580857276916504,
+        "age_s": 2.470661163330078,
         "text": "FORGED 1 BARS"
       },
       {
-        "age_s": 0.9006059169769287,
+        "age_s": 0.8693007826805115,
         "text": "QUEST ACCEPTED"
       }
     ],

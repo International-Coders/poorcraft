@@ -88,6 +88,23 @@ impl Onboarding {
         self.done.len() == ONBOARDING_STEPS.len()
     }
 
+    /// PLAYTEST-0.3 D7: the CURRENT objective in player language — the
+    /// first unmet step, or None when the list is done. The HUD shows
+    /// exactly one next thing (never a debug mask).
+    pub fn objective(&self) -> Option<&'static str> {
+        let line = |step: &str| match step {
+            "first_tree" => "OBJECTIVE: WALK TO A TREE AND DIG IT (G) FOR WOOD",
+            "first_catch" => "OBJECTIVE: CATCH A FISH AT THE RIVER (E AT WATER)",
+            "first_build" => "OBJECTIVE: BUILD A BLOCK ON FLAT GROUND (F)",
+            "first_night" => "OBJECTIVE: SURVIVE TILL DUSK — WATCH THE SKY",
+            _ => "OBJECTIVE: EXPLORE",
+        };
+        ONBOARDING_STEPS
+            .iter()
+            .find(|s| !self.done.contains(s))
+            .map(|s| line(s))
+    }
+
     /// Ordered progress: done steps in ONBOARDING_STEPS order.
     pub fn progress(&self) -> Vec<&'static str> {
         ONBOARDING_STEPS
@@ -128,6 +145,31 @@ pub fn dig_yield_kind(material: CellMaterial) -> EditKind {
 
 #[cfg(test)]
 mod tests {
+    /// D7: the objective walks the steps in order, in player language,
+    /// and disappears when the list is done.
+    #[test]
+    fn beta030_objective_walks_steps_and_ends() {
+        use super::*;
+        let mut o = Onboarding::default();
+        assert_eq!(
+            o.objective(),
+            Some("OBJECTIVE: WALK TO A TREE AND DIG IT (G) FOR WOOD")
+        );
+        o.mark("first_tree");
+        assert_eq!(
+            o.objective(),
+            Some("OBJECTIVE: CATCH A FISH AT THE RIVER (E AT WATER)")
+        );
+        o.mark("first_catch");
+        o.mark("first_build");
+        assert_eq!(
+            o.objective(),
+            Some("OBJECTIVE: SURVIVE TILL DUSK — WATCH THE SKY")
+        );
+        o.mark("first_night");
+        assert_eq!(o.objective(), None, "done list hides the strip");
+    }
+
     use super::*;
     use crate::hydro::RiverGraph;
 

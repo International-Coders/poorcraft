@@ -35,11 +35,22 @@
     },
     {
       "button_state": "",
+      "id": "hud_objective",
+      "kind": "text",
+      "rect": [
+        20,
+        106,
+        586,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hud_stock",
       "kind": "text",
       "rect": [
         20,
-        110,
+        132,
         118,
         14
       ]
@@ -215,8 +226,8 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9939622282981873,
-      "health": 0.40920817852020264,
+      "food": 0.994232714176178,
+      "health": 0.4069156050682068,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -244,12 +255,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 18:06",
+        "modified": "2026-10-05 15:26",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 18:06",
+        "modified": "2026-10-05 15:26",
         "name": "beta-shot",
         "seed": 7
       }
@@ -257,7 +268,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.470193862915039,
+        "age_s": 2.3810064792633057,
         "text": "FELL — HEALTH 35%"
       }
     ],

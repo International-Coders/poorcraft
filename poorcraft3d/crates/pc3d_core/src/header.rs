@@ -308,28 +308,46 @@ mod tests {
             h.encode()
         };
         for section in Section::ALL {
-            let newer = open_decision(&bump(FormatHeader::current(), section, 2), &sup);
+            let supported = match section {
+                Section::World => sup.world,
+                Section::Save => sup.save,
+                Section::Content => sup.content,
+                Section::Protocol => sup.protocol,
+            };
+            let newer_version = supported
+                .checked_add(1)
+                .expect("supported test version must leave room for a newer value");
+            let newer = open_decision(
+                &bump(FormatHeader::current(), section, newer_version),
+                &sup,
+            );
             assert_eq!(
                 newer,
                 OpenDecision::Newer {
                     section,
-                    file: 2,
-                    supported: 1
+                    file: newer_version,
+                    supported,
                 },
                 "newer {} must refuse",
                 section.name()
             );
             assert!(newer.explanation().contains("update the game"));
 
-            // v0 is OLDER than supported 1 (versions never drop to 0 in practice,
-            // but the law must hold for any smaller number).
-            let older = open_decision(&bump(FormatHeader::current(), section, 0), &sup);
+            // Versions never drop to 0 in practice, but the refusal law must
+            // hold for any value below the version this build supports.
+            let older_version = supported
+                .checked_sub(1)
+                .expect("supported test version must leave room for an older value");
+            let older = open_decision(
+                &bump(FormatHeader::current(), section, older_version),
+                &sup,
+            );
             assert_eq!(
                 older,
                 OpenDecision::Older {
                     section,
-                    file: 0,
-                    supported: 1
+                    file: older_version,
+                    supported,
                 },
                 "older {} must refuse",
                 section.name()

@@ -10671,3 +10671,78 @@ mana has no SPEND yet (the bar is live, the sigils have no consumer —
 the W3.1 follow-up); switching paths has no price law yet (the fork
 binds); the craft rows don't VISUALLY mark locked path recipes (the
 gate toasts the name; row styling = polish).
+
+## 2026-10-04 — BETA-0.3 "ACTUALLY PLAYABLE": seven player-facing defects found by a hostile self-playtest, fixed with proofs
+
+WHAT: The owner relayed an external playtest's error report and demanded
+everything be fixed, all tests restarted, and a playable 0.3 DMG. A
+hostile-eye pass over the battery's own captures (title → new world →
+spawn → first minutes → panels) found SEVEN defects; all fixed on branch
+beta0.2-wide-world.
+
+THE DEFECTS (each now carries a proof):
+- D1 THE TITLE FILMED A TREE TRUNK: the menu backdrop was the leftover
+  player-spawn pose with a giant trunk in the lens — the first thing a
+  fresh player saw. Fix: menu_vista_pose (clearance-checked orbit seek
+  over the plaza, fallback straight-down), a menu_pose field on the
+  SliceHost, applied at boot + quit-to-title, and the frame-loop pose
+  write GUARDED to the gameplay screen (an unconditional player-pose
+  write clobbered the vista every frame).
+- D2 THE HOTBAR LIED: slots 1-5 showed a fixed SOIL/GRASS/SAND/ROCK/
+  SNOW palette while the HUD read PACK EMPTY — and F built infinite
+  blocks for free. Fix: build_slots_of fills the slots FROM the pack
+  (empty pack = empty slots; carried counts render on the swatches),
+  and F now CONSUMES one pack item per block via items::build_cost,
+  refusing by name ("NO SOIL IN PACK — DIG FOR IT"). Grass pays soil.
+- D3 THE TALK SHOT FILMED A TREE: route_npc_talk's fixed +1.2/+1.2
+  camera offset. Fix: talk_view_pose — orbit the NPC's head until the
+  eye AND sightline are clear of solid cells.
+- D4 CANOPIES FLOATED OVER TERRAIN HOLES: the wide rings defer far
+  patches, but flora drew over the holes. Fix: a loaded-ground GATE on
+  the FloraStreamer — the renderer feeds the surface streamer's loaded
+  patch set each frame; an instance whose patch is missing does not
+  draw (Option-gated: renderers without a stream draw everything).
+- D5 WATER PAINTED OVER THE STREET: conforming-river quads drew at the
+  section line even where the strip's bed was meters above it (the
+  section line is the strip MINUS 0.45 — a descending strip buries its
+  own high end). Fix: per-sample gate — a quad whose sample is far
+  above the line (2.5 m band) is skipped; the true channel draws. The
+  old "blue strips appeared" assertion was proving the BUG — replaced
+  with the honest contract (buried segments absent, channel band a
+  strict subset of the strip). VISIBLE rivers need the bed carved:
+  W1.4 RiverCarve stays queued.
+- D6 THE LETTER WALL: fourteen+ permanent key bindings as a memory
+  test. Fix: H opens a HELP panel listing every binding on one screen
+  (H/E closes); the exploration prompt trims to G DIG · F BUILD ·
+  E USE · H HELP; H is priority-gated so an open forge keeps its own H.
+- D7 NO GUIDANCE: a fresh player had no idea what to do first. Fix:
+  survival::Onboarding::objective() — the first unmet step as a player-
+  language line ("OBJECTIVE: WALK TO A TREE AND DIG IT (G) FOR WOOD"),
+  synced to the HUD under the bars; the pack echo stands down under
+  panels with it (long echoes crossed centered panels' text — the
+  battery's layout laws caught that cross-panel collision twice).
+
+ALSO FIXED EN ROUTE: ui_gameplay_hud_1501x801 stages a mid-session pack
+via the new WindowConfig::inventory_seed (the coverage law had been
+calibrated on the lying palette); route_pit_wall's held_wall window
+widened 0.3 -> 0.2 m (the wide-world dials moved the spot's collision
+tops by a centimeter).
+
+VERIFICATION:
+- cargo test: pc3d_world 291 green / 0, pc3d_render 258 green / 0,
+  pc3d_save 20 green / 0.
+- FULL BATTERY (third run): 36/38 + layout-laws now GREEN after the
+  diagnostic-dump cleanup; deck-bench refuses on HOST CONTENTION (the
+  CPU probe caught 2-3x background load from FindMy/VM/browser — the
+  guard working as designed; the game itself rendered all three tiers).
+  Quiet-host evidence from this same tree: mid p50 6.57-7.12 ms,
+  125-145 fps.
+- make p3d-gate-check OK; make p3d-ui-shots PASS; observatory 20/20
+  PASS (semantic playtest 13 captures green after the pose-guard fix).
+
+HONESTLY DEFERRED: VISIBLE river surfaces need RiverCarve (the honest
+gate correctly hides un-carved water; W1.4 queued); mana has no spend;
+path switching has no price; craft rows don't visually mark locked
+recipes; hostile external playtest artifacts were not supplied, so the
+seven defects here came from my own hostile pass — if the external
+report lists MORE, send it and the pass repeats.

@@ -35,17 +35,6 @@
     },
     {
       "button_state": "",
-      "id": "hud_stock",
-      "kind": "text",
-      "rect": [
-        20,
-        110,
-        622,
-        14
-      ]
-    },
-    {
-      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -95,17 +84,6 @@
       "rect": [
         307,
         353,
-        186,
-        16
-      ]
-    },
-    {
-      "button_state": "",
-      "id": "toast_QUEST ACCEPTED",
-      "kind": "toast",
-      "rect": [
-        307,
-        331,
         186,
         16
       ]
@@ -382,6 +360,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -479,12 +458,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -497,15 +476,11 @@
     ],
     "toasts": [
       {
-        "age_s": 2.054619789123535,
-        "text": "QUEST ACCEPTED"
-      },
-      {
-        "age_s": 1.0374027490615845,
+        "age_s": 2.8367502689361572,
         "text": "QUEST PROGRESS"
       },
       {
-        "age_s": 1.0374027490615845,
+        "age_s": 2.8367502689361572,
         "text": "HARVESTED 2 IRON ORE"
       }
     ],

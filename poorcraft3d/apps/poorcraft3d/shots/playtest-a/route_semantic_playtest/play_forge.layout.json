@@ -35,17 +35,6 @@
     },
     {
       "button_state": "",
-      "id": "hud_stock",
-      "kind": "text",
-      "rect": [
-        20,
-        110,
-        466,
-        14
-      ]
-    },
-    {
-      "button_state": "",
       "id": "crosshair",
       "kind": "crosshair",
       "rect": [
@@ -272,6 +261,7 @@
     500
   ],
   "ui_state": {
+    "career_chosen": null,
     "companion": "",
     "creature_hint": [
       400.0,
@@ -327,12 +317,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-03 09:43",
+        "modified": "2026-10-05 15:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -344,11 +334,11 @@
     ],
     "toasts": [
       {
-        "age_s": 0.36920034885406494,
+        "age_s": 0.5536980032920837,
         "text": "FUEL LOADED"
       },
       {
-        "age_s": 0.36920034885406494,
+        "age_s": 0.5536980032920837,
         "text": "ORE LOADED (2)"
       }
     ],

@@ -35,12 +35,23 @@
     },
     {
       "button_state": "",
+      "id": "hud_objective",
+      "kind": "text",
+      "rect": [
+        20,
+        106,
+        586,
+        14
+      ]
+    },
+    {
+      "button_state": "",
       "id": "hud_stock",
       "kind": "text",
       "rect": [
         20,
-        110,
-        118,
+        132,
+        526,
         14
       ]
     },
@@ -75,6 +86,17 @@
         617,
         526,
         14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "toast_SAVED 'REBUILD'",
+      "kind": "toast",
+      "rect": [
+        541,
+        595,
+        198,
+        16
       ]
     },
     {
@@ -216,11 +238,11 @@
     "hover": null,
     "hud": {
       "food": 0.699999988079071,
-      "health": 0.4790768623352051,
+      "health": 0.47760850191116333,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 3,
-      "stamina": 0.5035381317138672,
-      "stock": "PACK EMPTY",
+      "stamina": 0.4932592213153839,
+      "stock": "PACK WOOD 3 · STONE 2 · SOIL 4 · WOOD_PICK 1",
       "xp": 0.5
     },
     "interact": null,
@@ -244,18 +266,23 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 17:15",
+        "modified": "2026-10-05 15:24",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 17:15",
+        "modified": "2026-10-05 15:24",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [],
+    "toasts": [
+      {
+        "age_s": 2.9873557090759277,
+        "text": "SAVED 'REBUILD'"
+      }
+    ],
     "wallet": 0,
     "witnessed_assaults": 0
   }

@@ -95,11 +95,11 @@
     "hover": null,
     "hud": {
       "food": 0.699999988079071,
-      "health": 0.46975114941596985,
+      "health": 0.46763771772384644,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 3,
-      "stamina": 0.4382580518722534,
-      "stock": "PACK EMPTY",
+      "stamina": 0.4234639108181,
+      "stock": "PACK WOOD 3 · STONE 2 · SOIL 4 · WOOD_PICK 1",
       "xp": 0.5
     },
     "interact": null,
@@ -126,12 +126,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-04 17:15",
+        "modified": "2026-10-05 15:24",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-04 17:15",
+        "modified": "2026-10-05 15:24",
         "name": "beta-shot",
         "seed": 7
       }
@@ -139,7 +139,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.4504201412200928,
+        "age_s": 2.0698320865631104,
         "text": "SAVED 'REBUILD'"
       }
     ],
