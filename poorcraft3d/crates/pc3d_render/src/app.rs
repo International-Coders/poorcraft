@@ -1278,6 +1278,10 @@ const BUILD_PALETTE: [Option<pc3d_world::gen::CellMaterial>; 9] = [
 struct WindowState {
     window: Arc<Window>,
     renderer: Renderer,
+    /// BETA-0.4 W-B: the audio host (None = audio off in this harness).
+    audio: Option<pc3d_audio::AudioHost>,
+    /// Footstep cadence accumulator (meters walked since the last step).
+    step_meter: f32,
     frame_no: u64,
     frame_ms: Vec<f32>,
     consecutive_surface_errors: u32,
@@ -1374,6 +1378,26 @@ impl WindowState {
                 self.renderer.pose().yaw,
                 self.renderer.pose().pitch,
             ));
+            // BETA-0.4 W-B B8: FOOTSTEPS at walk cadence — every 2.2 m of
+            // ground movement plays a step (ground-kind aware: stone vs
+            // grass from the authoritative material under the camera).
+            if let Some(audio) = self.audio.as_mut() {
+                self.step_meter += (step[0] * step[0] + step[2] * step[2]).sqrt();
+                if self.step_meter >= 2.2 {
+                    self.step_meter = 0.0;
+                    let material = self
+                        .renderer
+                        .material_under_camera()
+                        .unwrap_or(pc3d_world::gen::CellMaterial::Grass);
+                    let id = match material {
+                        pc3d_world::gen::CellMaterial::Rock
+                        | pc3d_world::gen::CellMaterial::Snow => pc3d_audio::SoundId::StepStone,
+                        pc3d_world::gen::CellMaterial::Sand => pc3d_audio::SoundId::StepWood,
+                        _ => pc3d_audio::SoundId::StepGrass,
+                    };
+                    audio.play(id, 0.5, 0.0);
+                }
+            }
         }
     }
 
@@ -1736,6 +1760,13 @@ impl App {
     /// Execute UI actions through the same path real input takes. Needs the
     /// event loop for the (explicit) quit-to-desktop choice. Each arm holds
     /// the state borrow only as long as it needs — helpers re-borrow self.
+    /// BETA-0.4 W-B: the one audio verb — a Silent host swallows it.
+    fn sfx(&mut self, id: pc3d_audio::SoundId) {
+        if let Some(audio) = self.state.as_mut().and_then(|s| s.audio.as_mut()) {
+            audio.play(id, 0.8, 0.0);
+        }
+    }
+
     fn exec_actions(&mut self, actions: &[UiAction], event_loop: &ActiveEventLoop) {
         for act in actions {
             match act {
@@ -2160,6 +2191,7 @@ impl App {
                     }
                 }
                 UiAction::EatBread => {
+                    self.sfx(pc3d_audio::SoundId::Eat);
                     // X eats: one bread from the stock — the item's
                     // Food{heal:30} maps to +0.30 food, +0.12 health.
                     let ate = self
@@ -2196,6 +2228,7 @@ impl App {
                     }
                 }
                 UiAction::ToggleCraft => {
+                    self.sfx(pc3d_audio::SoundId::UiOpen);
                     // Build the bench rows from the live pack. The
                     // affordability flag comes from the same `can_craft`
                     // the craft itself uses, so the row can never promise
@@ -2214,6 +2247,7 @@ impl App {
                     }
                 }
                 UiAction::TogglePack => {
+                    self.sfx(pc3d_audio::SoundId::UiOpen);
                     let rows = self
                         .cfg
                         .slice_host
@@ -2263,6 +2297,10 @@ impl App {
                         .as_ref()
                         .map(|slice| Self::sync_stock_lines_of(slice))
                         .unwrap_or_default();
+                    let sound = match &outcome {
+                        Some(_) => Some(pc3d_audio::SoundId::Build),
+                        None => Some(pc3d_audio::SoundId::UiDeny),
+                    };
                     if let Some(s) = self.state.as_mut() {
                         match outcome {
                             Some((made, output)) => s.ui.toast(format!(
@@ -2271,6 +2309,11 @@ impl App {
                             )),
                             None => s.ui.toast("NOT ENOUGH MATERIALS"),
                         }
+                    }
+                    if let Some(id) = sound {
+                        self.sfx(id);
+                    }
+                    if let Some(s) = self.state.as_mut() {
                         if s.ui.craft.is_some() {
                             s.ui.craft = Some(rows);
                         }
@@ -2279,6 +2322,7 @@ impl App {
                     }
                 }
                 UiAction::ToggleMachines => {
+                    self.sfx(pc3d_audio::SoundId::UiOpen);
                     // The chain is built once, at the site the hydro sim
                     // itself chose for the water wheel — the same
                     // `best_wheel_site` the wheel mesh stands on, so the
@@ -2765,6 +2809,7 @@ impl App {
                     self.sync_forge_view();
                 }
                 UiAction::ForgeTake => {
+                    self.sfx(pc3d_audio::SoundId::BarReady);
                     let bars = self
                         .cfg
                         .slice_host
@@ -3172,6 +3217,10 @@ impl ApplicationHandler for App {
         let mut state = WindowState {
             window,
             renderer,
+            // BETA-0.4 W-B: the audio host connects with the window
+            // (graceful: a failed connect is a Silent host, never an error).
+            audio: Some(pc3d_audio::AudioHost::connect()),
+            step_meter: 0.0,
             frame_no: 0,
             frame_ms: Vec::new(),
             consecutive_surface_errors: 0,
@@ -4328,7 +4377,37 @@ impl App {
         // Owner UI live state: vitals drift with movement, toasts fade,
         // hover follows the pointer. Repaint only when something changed.
         if state.owner_menu {
+            // W-B B9: the TOAST SOUND HOOK — one central place: a new
+            // toast plays its sound by prefix (dig/build/remove/save/
+            // fell...), so every action that speaks also sounds.
+            let toast_count_before = state.ui.toasts.len();
             state.ui.tick_toasts(dt);
+            if state.ui.toasts.len() > toast_count_before {
+                let newest = state
+                    .ui
+                    .toasts
+                    .last()
+                    .map(|t| t.text.clone())
+                    .unwrap_or_default();
+                let id = if newest.starts_with("DUG") {
+                    pc3d_audio::SoundId::Dig
+                } else if newest.starts_with("PLACED") {
+                    pc3d_audio::SoundId::Build
+                } else if newest.starts_with("REMOVED") {
+                    pc3d_audio::SoundId::Remove
+                } else if newest.starts_with("SAVED") || newest.starts_with("LOADED") {
+                    pc3d_audio::SoundId::ToastTick
+                } else if newest.starts_with("FELL") {
+                    pc3d_audio::SoundId::Land
+                } else if newest.contains("NO ") || newest.contains("REJECTED") {
+                    pc3d_audio::SoundId::UiDeny
+                } else {
+                    pc3d_audio::SoundId::ToastTick
+                };
+                if let Some(audio) = state.audio.as_mut() {
+                    audio.play(id, 0.7, 0.0);
+                }
+            }
             // THE PACK ECHO: the HUD's carried-stock line follows the
             // REAL inventory — every mutator (dig take, forge spend,
             // eaten bread, delivery) marks the UI dirty, and the sync

@@ -1306,6 +1306,22 @@ impl Renderer {
     /// teleport hook's grounding.
     /// Proof-hook ground: the renderer's own mounted generator (the
     /// showcase crowd's) answers, so script closures need no gen.
+    /// PLAYTEST-0.3 / W-B B8: the authoritative material UNDER the
+    /// camera (the footstep law reads it; None = no world attached).
+    pub fn material_under_camera(&self) -> Option<pc3d_world::gen::CellMaterial> {
+        let gen = self.crowd_gen.as_ref()?;
+        let p = self.camera.pose.position;
+        Some(
+            pc3d_world::terrain::final_solid(
+                gen,
+                (p[0] * 1000.0) as i64,
+                (p[1] * 1000.0) as i64,
+                (p[2] * 1000.0) as i64,
+            )
+            .material,
+        )
+    }
+
     pub fn ground_y_at_pub(&self, x: f32, z: f32) -> f32 {
         match self.crowd_gen.as_ref() {
             Some(gen) => self.ground_y_at(gen, x, z),

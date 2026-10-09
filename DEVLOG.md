@@ -10746,3 +10746,40 @@ path switching has no price; craft rows don't visually mark locked
 recipes; hostile external playtest artifacts were not supplied, so the
 seven defects here came from my own hostile pass — if the external
 report lists MORE, send it and the pass repeats.
+
+## 2026-10-05 — BETA-0.4 "FEEL & FINISH" W1: the game learns to SPEAK — audio foundation (W-B B1-B8) live
+
+WHAT: The owner's "too indie" directive, answered with the 180-phase
+polish plan (docs/POORCRAFT-3D/29-BETA-0.4-POLISH-PLAN.md: 6 workstreams
+x 30 gated phases — Game Feel, Audio, Visual Fidelity, UI Polish,
+Living World, Content Depth) and the first phases EXECUTED: the entire
+audio foundation (W-B B1-B8 + parts of B10-B11), because a silent game
+is the loudest indie tell.
+
+HOW:
+- pc3d_audio crate (cpal 0.15 output stream): AudioHost with THE GRACEFUL
+  LAW (no device/failed stream = HostState::Silent, the game runs muted,
+  never crashes); Mixer (stereo bus, constant-power pan, master/sfx
+  gains, shared rendered buffers — footsteps never re-render); Synth —
+  every sound is a DETERMINISTIC pure function of (SoundId, recipe):
+  23 sounds across 4 families (noise-burst footsteps/digs, resonant
+  clicks, sweeps, chimes), seeded FNV noise streams, 48 kHz.
+- HOOKS: footsteps at 2.2 m walk cadence, material-aware (grass/stone/
+  wood from the authoritative material under the camera — new
+  Renderer::material_under_camera); dig/build/remove via the TOAST SOUND
+  HOOK (one central place: a new toast plays its sound by prefix —
+  DUG/PLACED/REMOVED/SAVED/FELL/deny); forge take chime; eat crunch;
+  UI open on pack/craft/machines panels; craft success/deny.
+- Verifications: pc3d_audio 7 law tests (render determinism byte-equal,
+  23-sound signal sanity — no NaN, bounded, non-silent — distinctness,
+  mixer play/drain, master-mute, pan law, shared-bank). App wiring
+  smoked on route_forge_use + route_dig (both PASS) and --run headless.
+
+VERIFICATION: pc3d_audio 7 green; pc3d_world 290 green; pc3d_render 258
+green; pc3d_save 20 green; headless --run p50 22.15 ms (audio adds no
+frame cost — the mixer pulls in the cpal callback thread).
+
+HONESTLY DEFERRED: B12-B29 (ambient bed, music, 3D panning, settings
+rows, occlusion) per the plan's sequence; the sounds are synthesized —
+authored samples/Wwise-class mixing is a later phase if the owner wants
+them; volume sliders land with B16.
