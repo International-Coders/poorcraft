@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 43.400001525878906,
+    "avg_fps": 30.600000381469727,
     "frames": 79,
-    "p50_ms": 22.719999313354492,
-    "p95_ms": 26.049999237060547
+    "p50_ms": 30.799999237060547,
+    "p95_ms": 39.27000045776367
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791559383",
+  "timestamp_utc": "1791562166",
   "ui": {
     "career_chosen": null,
     "companion": "",
@@ -83,12 +83,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-09 15:22",
+        "modified": "2026-10-09 16:09",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-09 15:22",
+        "modified": "2026-10-09 16:09",
         "name": "beta-shot",
         "seed": 7
       }

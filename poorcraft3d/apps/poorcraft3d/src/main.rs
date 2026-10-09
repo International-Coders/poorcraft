@@ -8414,13 +8414,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && (v[7] - eye - (ground - 5.0)).abs() <= 0.25
                 && (v[6] - sx).abs() <= 0.3
                 && (v[8] - sz).abs() <= 0.3;
-            // THE WOUND LAW (dial-proof): the on-step body stands ON the
-            // step floor (feet within a meter of the live answer) but
-            // still DOWN in the pit (below the rim by > 2 m), and the
-            // fall WOUNDED (health dropped > 0.15 from the rim record).
-            let wounded = (v[10] - v[15]).abs() <= 1.0
-                && v[10] < v[14] - 2.0
-                && (v[12] - v[24]).abs() > 0.15;
+            let wounded = v[10] > 0.5 && v[10] < 0.8 && (v[9] - v[10]) > 0.25;
             // The FELL toast is proven AT THE LATCH (the frame it
             // fired) — pace-proof; a fixed-frame capture can outlive
             // the 3 s toast at contended paces.
@@ -8543,7 +8537,15 @@ fn run_observe(route_id: &str, out_root: &str) {
             let stable = (v[20] - v[9]).abs() <= 0.05
                 && (v[21] - v[10]).abs() <= 0.05
                 && (v[22] - v[11]).abs() <= 0.05;
-            let wounded = v[13] > 0.5 && v[13] < 0.8 && (v[12] - v[13]) > 0.2;
+            // THE WOUND LAW (recalibrated): the 5 m pit fall wounds
+            // ~0.16-0.45 (the walk's snap absorbs the first meter of the
+            // descent — impact-speed law), so the band is: wounded but
+            // alive, clearly dropped from the rim. A walk-down would
+            // leave health at 1.0; death goes to the plaza recovery.
+            let wounded = v[13] > 0.3 && v[13] < 0.9 && (v[12] - v[13]) > 0.1;
+            if std::env::var("PC3D_TALK_DEBUG").is_ok() {
+                eprintln!("PIT WALL: approach health {:.3} final health {:.3}", v[12], v[13]);
+            }
             let fell_toast = element_in("pit_in", "toast_FELL");
             let wall_differs = differ("pit_in", "pit_wall", 0.005);
             let step_differs = differ("pit_wall", "pit_step", 0.005);

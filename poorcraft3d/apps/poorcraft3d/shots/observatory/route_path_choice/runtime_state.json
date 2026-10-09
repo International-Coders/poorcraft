@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 33.0,
+    "avg_fps": 22.5,
     "frames": 94,
-    "p50_ms": 28.489999771118164,
-    "p95_ms": 40.09000015258789
+    "p50_ms": 39.75,
+    "p95_ms": 62.060001373291016
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791559693",
+  "timestamp_utc": "1791562603",
   "ui": {
     "career_chosen": 1,
     "companion": "",
@@ -83,12 +83,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-09 15:28",
+        "modified": "2026-10-09 16:16",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-09 15:28",
+        "modified": "2026-10-09 16:16",
         "name": "beta-shot",
         "seed": 7
       }
@@ -96,7 +96,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.1618257761001587,
+        "age_s": 1.5953065156936646,
         "text": "PATH CHOSEN: Engineering"
       }
     ],

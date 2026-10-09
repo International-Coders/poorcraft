@@ -1,5 +1,6 @@
 [workspace]
-members = ["crates/pc3d_core", "crates/pc3d_world", "crates/pc3d_save", "crates/pc3d_render", "crates/pc3d_assets", "apps/poorcraft3d", "tools/assetgen"]
+members = ["crates/pc3d_core", "crates/pc3d_world", "crates/pc3d_save", "crates/pc3d_render", "crates/pc3d_assets",
+  "crates/pc3d_audio", "apps/poorcraft3d", "tools/assetgen", "crates/pc3d_audio"]
 resolver = "2"
 
 [profile.release]

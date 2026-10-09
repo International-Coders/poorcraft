@@ -331,12 +331,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-09 15:28",
+        "modified": "2026-10-09 16:16",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-09 15:28",
+        "modified": "2026-10-09 16:16",
         "name": "beta-shot",
         "seed": 7
       }
@@ -346,7 +346,7 @@
     ],
     "toasts": [
       {
-        "age_s": 0.9671244621276855,
+        "age_s": 1.7201614379882812,
         "text": "DREW 3200 mWATER + 1 WOOD"
       }
     ],

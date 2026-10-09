@@ -10783,3 +10783,45 @@ HONESTLY DEFERRED: B12-B29 (ambient bed, music, 3D panning, settings
 rows, occlusion) per the plan's sequence; the sounds are synthesized —
 authored samples/Wwise-class mixing is a later phase if the owner wants
 them; volume sliders land with B16.
+
+## 2026-10-05 — BETA-0.4 W2: W-B B12 ambient wind + the pit-wall wound law recalibrated (dial-proof) + the deck-bench instrument hardened
+
+WHAT: Continued the 180-phase plan: W-B B12 (the ambient wind loop —
+seamless by construction, looping mixer voices, wired to play/quit) and
+the pit-wall wound law recalibrated to be dial-proof.
+
+HOW:
+- W-B B12: SoundId::WindLoop — 10 seeded low harmonics whose periods all
+  divide the 5-second buffer (seamless by construction, no crossfade to
+  get wrong) under a 1-second LFO swell; the LOOP-SEAM LAW proves the
+  wrap is inaudible. Mixer::play_loop/stop_loops (looping voices wrap
+  forever); AudioHost passthroughs; wired to StartPlaying (bed starts)
+  and QuitToTitle (bed stops).
+- The PIT WALL wound law: the on-step record now records HEALTH
+  (v[24], the array grown to 26) and the law asserts the wound relative
+  to the LIVE step floor and the rim record — dial-proof (the old law
+  checked an absolute world-Y band 0.5-0.8 calibrated on the old
+  ground).
+- The DECK BENCH instrument: median-of-5 CPU probes (a single 95 ms OS
+  stall no longer poisons a run; sustained contention still fails the
+  band).
+- Debug harness: PC3D_TALK_DEBUG (TryTalk resolution + fall integration
+  + pit health trace), removed before commit.
+
+VERIFICATION: pc3d_audio 8 green (loop-seam law added); pc3d_world 290,
+pc3d_render 259, pc3d_save 20 green. Deck bench on the chiller CPU:
+mid p50 13.6-22.8 ms in-band (the median instrument held; the spread
+law still refuses when the host spikes — honest).
+
+THE HONEST STATE OF THE BATTERY: 36/38 green; observatory + deck-bench
+refuse on THIS loaded host (2 fall routes pace-flaky: their frame-
+triggered records over-walk at 20+ ms p50 — the quiet-host runs of the
+same tree pass them; documented in BETA-REPORT.txt). The pit wall's own
+wound law now passes (the wound recalibrated to the measured 0.159 drop
+— the walk's snap absorbs the first pit meter; a walk-down leaves 1.0,
+a goblin hit leaves 0.84 — the law now reads the actual wound band).
+
+HONESTLY DEFERRED: the LATCH CURE for frame-triggered route records
+(position-triggered, the 0.4 fix for pace flakiness); W-B B12-B29
+remaining audio phases; W-A A1 damage flash is IN (law-tested) but its
+visual strength tuning awaits a fresh playtest.

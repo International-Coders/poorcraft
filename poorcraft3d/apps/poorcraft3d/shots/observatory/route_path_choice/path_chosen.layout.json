@@ -288,12 +288,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-09 15:28",
+        "modified": "2026-10-09 16:16",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-09 15:28",
+        "modified": "2026-10-09 16:16",
         "name": "beta-shot",
         "seed": 7
       }
@@ -301,7 +301,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.1618257761001587,
+        "age_s": 1.5953065156936646,
         "text": "PATH CHOSEN: Engineering"
       }
     ],

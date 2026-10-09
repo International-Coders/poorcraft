@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 40.599998474121094,
+    "avg_fps": 17.899999618530273,
     "frames": 169,
-    "p50_ms": 24.139999389648438,
-    "p95_ms": 36.970001220703125
+    "p50_ms": 40.189998626708984,
+    "p95_ms": 156.67999267578125
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791559705",
+  "timestamp_utc": "1791562630",
   "ui": {
     "career_chosen": null,
     "companion": "",
@@ -93,12 +93,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-09 15:28",
+        "modified": "2026-10-09 16:16",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-09 15:28",
+        "modified": "2026-10-09 16:16",
         "name": "beta-shot",
         "seed": 7
       }
@@ -108,7 +108,7 @@
     ],
     "toasts": [
       {
-        "age_s": 0.9671244621276855,
+        "age_s": 1.7201614379882812,
         "text": "DREW 3200 mWATER + 1 WOOD"
       }
     ],

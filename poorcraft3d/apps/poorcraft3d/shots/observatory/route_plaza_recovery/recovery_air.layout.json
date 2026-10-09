@@ -266,12 +266,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-09 15:27",
+        "modified": "2026-10-09 16:15",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-09 15:27",
+        "modified": "2026-10-09 16:15",
         "name": "beta-shot",
         "seed": 7
       }
@@ -279,11 +279,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.8092812299728394,
+        "age_s": 2.0061120986938477,
         "text": "THE GROUND GIVES WAY"
       },
       {
-        "age_s": 0.14862897992134094,
+        "age_s": 0.36781108379364014,
         "text": "YOU FELL — RECOVERED AT THE PLAZA"
       }
     ],
