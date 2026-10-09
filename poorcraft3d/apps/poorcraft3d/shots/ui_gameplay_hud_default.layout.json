@@ -244,12 +244,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-05 15:24",
+        "modified": "2026-10-09 15:21",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-05 15:24",
+        "modified": "2026-10-09 15:21",
         "name": "beta-shot",
         "seed": 7
       }

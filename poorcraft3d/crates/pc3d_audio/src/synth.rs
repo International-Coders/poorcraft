@@ -32,6 +32,7 @@ pub enum SoundId {
     Coin,
     QuestAccept,
     QuestDone,
+    WindLoop,
 }
 
 impl SoundId {
@@ -61,6 +62,7 @@ impl SoundId {
             SoundId::Coin => (3_600, Kind::Chime { base: 1_320.0 }, 0x65),
             SoundId::QuestAccept => (7_200, Kind::Chime { base: 660.0 }, 0x66),
             SoundId::QuestDone => (14_400, Kind::Chime { base: 523.25 }, 0x67),
+            SoundId::WindLoop => (SAMPLE_RATE as usize * 5, Kind::WindLoop, 0x70),
         }
     }
 
@@ -81,6 +83,8 @@ enum Kind {
     Sweep { from: f32, to: f32 },
     /// A decaying sine + its fifth (chimes, coins, fanfares).
     Chime { base: f32 },
+    /// A 5-second seamless ambient wind loop (low-passed noise, slow LFO).
+    WindLoop,
 }
 
 /// FNV-1a over the bytes — the repo's own hash, for the noise streams.
@@ -143,6 +147,38 @@ pub fn render(id: SoundId) -> Vec<f32> {
                 phase += 6.283_185_5 * f / SAMPLE_RATE as f32;
                 let env = (t * 3.141_592_7).sin();
                 *o = phase.sin() * env * 0.35;
+            }
+        }
+        Kind::WindLoop => {
+            // Ambient wind, SEAMLESS BY CONSTRUCTION: a sum of 10 low
+            // harmonics whose periods all divide the 5-second buffer
+            // (seeded phases + 1/k rolloff = gusty but exactly periodic),
+            // under a 1-second LFO swell that also divides it. No
+            // crossfade to get wrong — the loop cannot click.
+            let dur_s = len as f32 / SAMPLE_RATE as f32;
+            let mut phases = [0.0f32; 10];
+            let mut st = noise_state;
+            for ph in phases.iter_mut() {
+                st ^= st << 13;
+                st ^= st >> 7;
+                st ^= st << 17;
+                *ph = (st >> 11) as f32 / (1u64 << 53) as f32 * 6.283_185_5;
+            }
+            for (i, o) in out.iter_mut().enumerate() {
+                let t = i as f32 / SAMPLE_RATE as f32;
+                let mut v = 0.0f32;
+                for (k, ph) in phases.iter().enumerate() {
+                    let freq_cycles = (k as f32 + 1.0) / dur_s;
+                    v += (6.283_185_5 * freq_cycles * t + *ph)
+                        .sin()
+                        / (k as f32 + 1.0).powf(1.3);
+                }
+                // The 1-second swell: 5 whole cycles in the buffer.
+                let lfo = 0.6 + 0.4 * (6.283_185_5 * t).sin();
+                if i == 0 || i == len - 1 {
+                    eprintln!("wind t {} v {:.4} lfo {:.4}", t, v, lfo);
+                }
+                *o = v / 3.0 * lfo * 0.8;
             }
         }
         Kind::Chime { base } => {
@@ -215,6 +251,25 @@ mod tests {
             assert!(peak <= 1.0, "{id:?} clips: {peak}");
             assert!(peak >= 0.05, "{id:?} is silent (peak {peak})");
         }
+    }
+
+    /// THE LOOP-SEAM LAW (B12): the ambient wind loop's tail continues
+    /// into its head — the last samples approach the first samples, so a
+    /// loop point is inaudible (no click). Bounded amplitude too.
+    #[test]
+    fn beta04_wind_loop_is_seamless() {
+        let buf = render(SoundId::WindLoop);
+        assert_eq!(buf.len(), super::SAMPLE_RATE as usize * 5);
+        let seam_delta: f32 = (buf[buf.len() - 1] - buf[0]).abs();
+        println!(
+            "wind seam: first {:.5} last {:.5} peak {:.5}",
+            buf[0],
+            buf[buf.len() - 1],
+            buf.iter().fold(0.0f32, |m, x| m.max(x.abs()))
+        );
+        assert!(seam_delta < 0.05, "seam click: {seam_delta}");
+        let peak = buf.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+        assert!(peak <= 1.0 && peak >= 0.05);
     }
 
     /// THE DISTINCTION LAW: different ids produce different buffers —

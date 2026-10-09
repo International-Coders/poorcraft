@@ -79,17 +79,6 @@
     },
     {
       "button_state": "",
-      "id": "toast_DUG SOIL+WOOD",
-      "kind": "toast",
-      "rect": [
-        313,
-        353,
-        174,
-        16
-      ]
-    },
-    {
-      "button_state": "",
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
@@ -342,12 +331,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-05 15:27",
+        "modified": "2026-10-09 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-05 15:27",
+        "modified": "2026-10-09 15:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -357,11 +346,7 @@
     ],
     "toasts": [
       {
-        "age_s": 1.802520751953125,
-        "text": "DUG SOIL+WOOD"
-      },
-      {
-        "age_s": 0.5323110222816467,
+        "age_s": 0.9671244621276855,
         "text": "DREW 3200 mWATER + 1 WOOD"
       }
     ],

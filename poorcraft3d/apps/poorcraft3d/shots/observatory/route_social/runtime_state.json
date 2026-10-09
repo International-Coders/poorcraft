@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 55.599998474121094,
+    "avg_fps": 27.100000381469727,
     "frames": 218,
-    "p50_ms": 17.399999618530273,
-    "p95_ms": 21.5
+    "p50_ms": 35.869998931884766,
+    "p95_ms": 48.11000061035156
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791214094",
+  "timestamp_utc": "1791559722",
   "ui": {
     "career_chosen": null,
     "companion": "COMPANION FOLLOWS · N WAITS",
@@ -55,7 +55,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.9656510353088379,
+      "health": 0.9715466499328613,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -83,12 +83,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-05 15:28",
+        "modified": "2026-10-09 15:28",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-05 15:28",
+        "modified": "2026-10-09 15:28",
         "name": "beta-shot",
         "seed": 7
       }
@@ -98,15 +98,15 @@
     ],
     "toasts": [
       {
-        "age_s": 0.12544482946395874,
+        "age_s": 0.2785847783088684,
         "text": "NO CREATURE IN REACH"
       },
       {
-        "age_s": 0.04754485934972763,
+        "age_s": 0.10130544006824493,
         "text": "SLEW A CREATURE · LOOT STONEx2"
       },
       {
-        "age_s": 0.04754485934972763,
+        "age_s": 0.10130544006824493,
         "text": "3 WITNESSED THE BLOW — TRUST FALLS"
       }
     ],

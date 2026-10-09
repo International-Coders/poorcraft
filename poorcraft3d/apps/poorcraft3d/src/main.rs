@@ -3203,10 +3203,13 @@ fn main() {
                 // The contention guard brackets the measured run: the
                 // same fixed workload at start and end — inflated
                 // readings mean a foreign process took the CPU.
-                let probe_start = pc3d_render::deck::cpu_probe_ns(pc3d_render::deck::PROBE_ITERS);
+                // BETA-0.4: median-of-5 (a single OS stall poisoned whole runs).
+                let probe_start =
+                    pc3d_render::deck::cpu_probe_median_ns(pc3d_render::deck::PROBE_ITERS / 5, 5);
                 let report =
                     pc3d_render::run_windowed(cfg).unwrap_or_else(|e| panic!("bench {name}: {e}"));
-                let probe_end = pc3d_render::deck::cpu_probe_ns(pc3d_render::deck::PROBE_ITERS);
+                let probe_end =
+                    pc3d_render::deck::cpu_probe_median_ns(pc3d_render::deck::PROBE_ITERS / 5, 5);
                 let cap = &report.captures[0];
                 assert!(
                     cap.report.passes_with(3),
@@ -5686,7 +5689,7 @@ fn run_observe(route_id: &str, out_root: &str) {
         // the LIVE pre-dig ground answer at the body + the LIVE step
         // floor, and the pit + step cell centers — the verdict reads
         // them after the run.
-        let pitwall_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 24]));
+        let pitwall_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 26]));
         // route_dig recordings: approach pose/health/live ground, the
         // aim's target cell + its pre/control ground, post-dig grounds,
         // on-terrace pose/health + live ground at the body, back pose/
@@ -6703,13 +6706,18 @@ fn run_observe(route_id: &str, out_root: &str) {
                 let onstep = pitwall_cells.clone();
                 ui_script.push((
                     320,
-                    Box::new(move |_ui, r, _ctx| {
+                    Box::new(move |ui, r, _ctx| {
                         let pose = r.pose();
                         let mut v = onstep.get();
                         v[9] = pose.position[0];
                         v[10] = pose.position[1];
                         v[11] = pose.position[2];
                         v[23] = pose.yaw;
+                        // The WOUND lives in the health (the fall inside
+                        // the pit wounds; the pit floor's absolute height
+                        // moved with the wide-world dials — the health
+                        // drop is the dial-proof signal).
+                        v[24] = ui.hud.health;
                         onstep.set(v);
                     }),
                 ));
@@ -8406,7 +8414,13 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && (v[7] - eye - (ground - 5.0)).abs() <= 0.25
                 && (v[6] - sx).abs() <= 0.3
                 && (v[8] - sz).abs() <= 0.3;
-            let wounded = v[10] > 0.5 && v[10] < 0.8 && (v[9] - v[10]) > 0.25;
+            // THE WOUND LAW (dial-proof): the on-step body stands ON the
+            // step floor (feet within a meter of the live answer) but
+            // still DOWN in the pit (below the rim by > 2 m), and the
+            // fall WOUNDED (health dropped > 0.15 from the rim record).
+            let wounded = (v[10] - v[15]).abs() <= 1.0
+                && v[10] < v[14] - 2.0
+                && (v[12] - v[24]).abs() > 0.15;
             // The FELL toast is proven AT THE LATCH (the frame it
             // fired) — pace-proof; a fixed-frame capture can outlive
             // the 3 s toast at contended paces.

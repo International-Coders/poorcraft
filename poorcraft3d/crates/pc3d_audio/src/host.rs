@@ -124,6 +124,20 @@ impl AudioHost {
         }
     }
 
+    /// Queue the ambient loop.
+    pub fn play_loop(&self, id: crate::synth::SoundId, gain: f32) {
+        if let Ok(mut m) = self.mixer.lock() {
+            m.play_loop(id, gain);
+        }
+    }
+
+    /// Stop ambient loops.
+    pub fn stop_loops(&self) {
+        if let Ok(mut m) = self.mixer.lock() {
+            m.stop_loops();
+        }
+    }
+
     /// Voices currently playing (the audio gate reads it).
     pub fn playing(&self) -> usize {
         self.mixer.lock().map(|m| m.playing()).unwrap_or(0)

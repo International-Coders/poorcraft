@@ -206,6 +206,9 @@ pub struct HudValues {
     /// done or when menus own the frame). The HUD draws it under the
     /// bars — a fresh player always sees the one next thing to do.
     pub objective: String,
+    /// BETA-0.4 A1: the DAMAGE FLASH — 1.0 right after a health drop,
+    /// decaying to 0 in ~0.3 s. The HUD paints a red vignette by it.
+    pub flash: f32,
 }
 
 impl HudValues {
@@ -248,6 +251,7 @@ impl Default for HudValues {
             prompt: String::new(),
             stock: String::new(),
             objective: String::new(),
+            flash: 0.0,
         }
     }
 }
@@ -848,6 +852,8 @@ pub enum ElementKind {
         h: u32,
         pixels: std::rc::Rc<Vec<u8>>,
     },
+    /// A1: a fullscreen red wash — frac 0..1 drives the alpha.
+    Flash { frac: f32 },
 }
 
 #[derive(Clone, Debug)]
@@ -931,6 +937,7 @@ fn kind_name(k: &ElementKind) -> &'static str {
         ElementKind::Crosshair => "crosshair",
         ElementKind::Logo => "logo",
         ElementKind::Dim => "dim",
+        ElementKind::Flash { .. } => "flash",
         ElementKind::Toast { .. } => "toast",
         ElementKind::Debug { .. } => "debug",
         ElementKind::Image { .. } => "image",
@@ -1379,6 +1386,15 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     r,
                 );
                 y += ctx.px(BAR_H) + ctx.px(BAR_GAP);
+            }
+            // A1 THE DAMAGE FLASH: a red wash proportional to the flash
+            // decay — the world stings when you're hit.
+            if state.hud.flash > 0.01 {
+                ctx.push(
+                    "hud_damage_flash",
+                    ElementKind::Flash { frac: state.hud.flash },
+                    Rect::new(0, 0, wi as u32, hi as u32),
+                );
             }
             // D7 THE OBJECTIVE: the one next thing, visible while the
             // player explores. When a panel owns the frame it IS the
@@ -2278,6 +2294,12 @@ pub fn paint(list: &DrawList) -> Vec<u8> {
             }
             ElementKind::Dim => {
                 c.fill(e.rect, [10, 9, 8, 150]);
+            }
+            ElementKind::Flash { frac } => {
+                // A1: the damage wash — red, alpha by the decay. Never
+                // fully opaque (the world stays readable).
+                let a = (frac.clamp(0.0, 1.0) * 90.0) as u8;
+                c.fill(e.rect, [170, 30, 30, a]);
             }
             ElementKind::Crosshair => {
                 let (cx, cy) = (e.rect.cx(), e.rect.cy());
@@ -4359,6 +4381,25 @@ mod tests {
         assert!(count_drawn, "the carried count must reach the painter");
     }
 
+    /// BETA-0.4 A1: the damage flash — a fullscreen red wash appears
+    /// while the flash decays and is GONE at 0 (the world stays readable
+    /// at 0; alpha never reaches opaque).
+    #[test]
+    fn damage_flash_draws_while_decaying_and_hides_at_zero() {
+        let mut s = state(Screen::Gameplay);
+        s.hud.flash = 1.0;
+        let list = build(&s, 1280, 720);
+        let f = list.by_id("hud_damage_flash").expect("flash element at frac 1");
+        match &f.kind {
+            ElementKind::Flash { frac } => assert!(*frac > 0.9),
+            other => panic!("wrong kind {other:?}"),
+        }
+        s.hud.flash = 0.0;
+        let list = build(&s, 1280, 720);
+        assert!(list.by_id("hud_damage_flash").is_none(), "no flash at 0");
+    }
+
+    /// BETA-0.4 D2: the hotbar answers to the pack — empty pack =
     fn quest_journal_panel_lays_out_inks_and_j_toggles() {
         let mut s = state(Screen::Gameplay);
         s.journal = Some(vec![

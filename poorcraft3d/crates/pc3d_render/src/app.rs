@@ -2851,6 +2851,10 @@ impl App {
                         s.ui.pointer_grabbed = true;
                         s.reconcile_pointer();
                     }
+                    // W-B B12: the ambient wind bed starts with play.
+                    if let Some(audio) = self.state.as_mut().and_then(|s| s.audio.as_mut()) {
+                        audio.play_loop(pc3d_audio::SoundId::WindLoop, 0.18);
+                    }
                 }
                 UiAction::OpenScreen(sc) => {
                     if let Some(s) = self.state.as_mut() {
@@ -2910,6 +2914,10 @@ impl App {
                     if let Some(s) = self.state.as_mut() {
                         s.ui_dirty = true;
                         s.reconcile_pointer();
+                    }
+                    // W-B B12: the wind bed stops with play.
+                    if let Some(audio) = self.state.as_mut().and_then(|s| s.audio.as_mut()) {
+                        audio.stop_loops();
                     }
                     // Back to the vista (the player pose reads as a stuck
                     // first-person frame behind the menu).
@@ -4019,6 +4027,16 @@ impl App {
             // from the impact speed.
             if slice.falling {
                 let prev_y = slice.player.pos[1];
+                if std::env::var("PC3D_TALK_DEBUG").is_ok() && state.frame_no % 10 == 0 {
+                    eprintln!(
+                        "FALL f{} y {:.2} ground {:?}",
+                        state.frame_no,
+                        slice.player.pos[1],
+                        state
+                            .renderer
+                            .ground_y_at_pub(slice.player.pos[0], slice.player.pos[2])
+                    );
+                }
                 let impact_vy = slice.integrate_air(dt, |x, z| {
                     state.renderer.ground_y_at(&gen, x, z)
                 });
@@ -4456,7 +4474,16 @@ impl App {
                 let before = (hud.stamina * 100.0) as i32 * 100
                     + (hud.food * 100.0) as i32
                     + (hud.health * 100.0) as i32;
+                let health_before = hud.health;
                 hud.tick_vitals(sprinting, moving, dt);
+                // A1 THE DAMAGE FLASH: any health drop stings; the wash
+                // decays in ~0.3 s (3.3/s).
+                if hud.health < health_before {
+                    hud.flash = ((health_before - hud.health) * 4.0)
+                        .max(hud.flash)
+                        .min(1.0);
+                }
+                hud.flash = (hud.flash - 3.3 * dt).max(0.0);
                 if hud.food > 0.5 && hud.health < 1.0 {
                     hud.health = (hud.health + 0.02 * dt).min(1.0);
                 }

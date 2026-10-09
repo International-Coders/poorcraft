@@ -255,23 +255,18 @@
     },
     "slots": [
       {
-        "modified": "2026-10-05 15:27",
+        "modified": "2026-10-09 15:27",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-05 15:27",
+        "modified": "2026-10-09 15:27",
         "name": "beta-shot",
         "seed": 7
       }
     ],
     "stock": [],
-    "toasts": [
-      {
-        "age_s": 0.7226030826568604,
-        "text": "GRIPPED A VINE — W CLIMBS, S DESCENDS, SPACE LETS GO"
-      }
-    ],
+    "toasts": [],
     "wallet": 0,
     "witnessed_assaults": 0
   }

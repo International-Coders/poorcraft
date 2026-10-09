@@ -247,6 +247,18 @@ pub fn cpu_probe_ns(iters: u32) -> u64 {
     start.elapsed().as_nanos() as u64
 }
 
+/// BETA-0.4 W-B (instrument robustness): the MEDIAN of 5 probes. A
+/// single OS stall (a 95 ms scheduler hiccup was measured poisoning a
+/// whole run) no longer fails an otherwise-quiet host, while SUSTAINED
+/// contention still shifts every sample and the band still catches it.
+pub fn cpu_probe_median_ns(iters: u32, samples: usize) -> u64 {
+    let mut readings: Vec<u64> = (0..samples)
+        .map(|_| cpu_probe_ns(iters))
+        .collect();
+    readings.sort_unstable();
+    readings[samples / 2]
+}
+
 /// The band law: a run's probe readings must sit within
 /// [`PROBE_CONTENTION_BAND`] of their fastest member, or the host
 /// changed speed mid-run and the frame numbers are not comparable. A

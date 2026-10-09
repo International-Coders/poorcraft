@@ -447,12 +447,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-05 15:25",
+        "modified": "2026-10-09 15:24",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-05 15:25",
+        "modified": "2026-10-09 15:24",
         "name": "beta-shot",
         "seed": 7
       }
@@ -465,7 +465,7 @@
     ],
     "toasts": [
       {
-        "age_s": 0.14417436718940735,
+        "age_s": 0.26956045627593994,
         "text": "FELL — HEALTH 33%"
       }
     ],

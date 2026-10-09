@@ -12,6 +12,8 @@ struct Voice {
     gain: f32,
     /// -1.0 (left) .. 1.0 (right).
     pan: f32,
+    /// Looping voices wrap their position (the ambient bed never drains).
+    looping: bool,
 }
 
 /// The bus. `shares` the rendered buffers (Arc) so repeated sounds
@@ -47,7 +49,34 @@ impl Mixer {
             pos: 0,
             gain: gain.clamp(0.0, 1.0) * self.sfx_gain * self.master,
             pan: pan.clamp(-1.0, 1.0),
+            looping: false,
         });
+    }
+
+    /// Queue a LOOPING sound (the ambient bed): the voice wraps forever
+    /// until `stop_loops`. Only one loop per id — a second call re-gains.
+    pub fn play_loop(&mut self, id: SoundId, gain: f32) {
+        let buffer = self
+            .bank
+            .entry(id)
+            .or_insert_with(|| std::sync::Arc::new(render(id)))
+            .clone();
+        if let Some(v) = self.voices.iter_mut().find(|v| v.buffer == buffer && v.looping) {
+            v.gain = gain.clamp(0.0, 1.0) * self.sfx_gain * self.master;
+            return;
+        }
+        self.voices.push(Voice {
+            buffer,
+            pos: 0,
+            gain: gain.clamp(0.0, 1.0) * self.sfx_gain * self.master,
+            pan: 0.0,
+            looping: true,
+        });
+    }
+
+    /// Stops every looping voice (mute-on-pause consumer).
+    pub fn stop_loops(&mut self) {
+        self.voices.retain(|v| !v.looping);
     }
 
     /// The number of currently playing voices (the audio gate reads it).
@@ -69,8 +98,13 @@ impl Mixer {
             let pan_angle = (v.pan + 1.0) * std::f32::consts::FRAC_PI_4;
             left += s * pan_angle.cos();
             right += s * pan_angle.sin();
-            v.pos += 1;
-            v.pos < v.buffer.len()
+            if v.looping {
+                v.pos = (v.pos + 1) % v.buffer.len();
+                true
+            } else {
+                v.pos += 1;
+                v.pos < v.buffer.len()
+            }
         });
         (left.clamp(-1.0, 1.0), right.clamp(-1.0, 1.0))
     }
