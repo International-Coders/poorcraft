@@ -6,7 +6,7 @@
   "baseline": {
     "screenshot": "baseline/current-windowed-slice-showcase.png",
     "status": "failure-baseline",
-    "fresh_capture_attempt": "make p3d-rebuild OUTDIR=poorcraft3d/apps/poorcraft3d/shots/glm_ui_baseline stalled before PNG output and was interrupted"
+    "fresh_capture_attempt": "make p3d-rebuild OUTDIR=poorcraft-novo/apps/poorcraft3d/shots/glm_ui_baseline stalled before PNG output and was interrupted"
   },
   "required_files": [
     "README.md",

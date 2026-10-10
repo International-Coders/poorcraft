@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "output_root": "poorcraft3d/apps/poorcraft3d/shots",
+  "output_root": "poorcraft-novo/apps/poorcraft3d/shots",
   "required_scenes": [
     {"id": "ui_title_1280x720", "screen": "title", "size": [1280, 720]},
     {"id": "ui_title_deck", "screen": "title", "size": [1280, 800]},

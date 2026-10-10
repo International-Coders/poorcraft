@@ -3,7 +3,7 @@
 Audit run: 2026-09-07, host darwin 24.6.0 x64 (host-iGPU).
 Command: `make p3d-visual-gates` — the full battery re-runs EVERY windowed
 proof in sequence and fails loudly on any regression. Raw console capture:
-`poorcraft3d/apps/poorcraft3d/shots/gates_report.txt`.
+`poorcraft-novo/apps/poorcraft3d/shots/gates_report.txt`.
 
 ## Result: ALL 9 GATES PASS
 

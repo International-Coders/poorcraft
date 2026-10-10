@@ -6,7 +6,7 @@ Inspected image:
 
 Attempted fresh capture:
 
-- Command: `make p3d-rebuild OUTDIR=poorcraft3d/apps/poorcraft3d/shots/glm_ui_baseline`
+- Command: `make p3d-rebuild OUTDIR=poorcraft-novo/apps/poorcraft3d/shots/glm_ui_baseline`
 - Result: build completed and the route seed was found, but the process stalled
   before writing PNGs and was interrupted. Future work should harden the
   owner-facing screenshot path so GLM can always capture title/pause/gameplay

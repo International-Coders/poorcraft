@@ -2645,7 +2645,7 @@ went through a task contract (11-TASK-CONTRACT-TEMPLATE) before code.
 
 HOW: Task contract filled at docs/POORCRAFT-3D/contracts/P3D-001.md
 (goal, current truth, scope + non-goals, invariants, verification,
-done-when, design check). New nested Cargo workspace `poorcraft3d/`
+done-when, design check). New nested Cargo workspace `poorcraft-novo/`
 (resolver 2, own target dir; the ROOT workspace's explicit member list
 is untouched so the two never share a build). `pc3d_core::identity`
 declares the project identity ONCE: PROJECT_NAME "POORCRAFT 3D",
@@ -2656,7 +2656,7 @@ b"PC3D", P3D_FORMAT_VERSION 1, plus ORIGINAL_GAME_EXE/ORIGINAL_SAVE_DIR
 (Accepted only on PC3D magic; ForeignFormat otherwise; TooShort under
 4 bytes) so refusal happens before any parser. Bin `poorcraft3d`:
 --identity prints the block, unknown args exit 2. Makefile p3d-build/
-p3d-test; .gitignore poorcraft3d/target/. Files: poorcraft3d/* (new),
+p3d-test; .gitignore poorcraft-novo/target/. Files: poorcraft-novo/* (new),
 Makefile, .gitignore, docs/POORCRAFT-3D/contracts/P3D-001.md, STATE/
 CHANGELOG/DEVLOG; the whole docs/POORCRAFT-3D/ pack committed too.
 
@@ -2695,8 +2695,8 @@ human lines that name the action (newer file: update the game; older:
 cannot downgrade). `Section::name()` for wording; `FormatHeader::
 current()` writes the build's own header. Binary: `--format` prints
 layout + supported versions + wire bytes; usage line updated. Files:
-poorcraft3d/crates/pc3d_core/src/{lib,header,identity}.rs,
-poorcraft3d/apps/poorcraft3d/src/main.rs, contracts/P3D-002.md,
+poorcraft-novo/crates/pc3d_core/src/{lib,header,identity}.rs,
+poorcraft-novo/apps/poorcraft3d/src/main.rs, contracts/P3D-002.md,
 STATE/CHANGELOG/DEVLOG.
 
 SELF-CAUGHT BEFORE COMPILING: my first draft of the layout test used an
@@ -2976,7 +2976,7 @@ render_region_atlas (pixel per region, biome color x elevation gain
 0.8..1.2, byte-deterministic AtlasImage), cross_seed_disagreement
 (biome fraction differing), verify_patch_hash (double regeneration).
 App: --atlas <seed> [half_regions=48] writes
-poorcraft3d/apps/poorcraft3d/shots/atlas_seed<N>.png via the image crate
+poorcraft-novo/apps/poorcraft3d/shots/atlas_seed<N>.png via the image crate
 (app-only dep; substrate pure), prints census + 5 spot checks, exits 1
 on hash failure. Makefile p3d-atlas SEED=. Both atlas PNGs committed.
 
@@ -3298,7 +3298,7 @@ pc3d_world/src/debug_overlay.rs: rows_for (interest set, ascending,
 lod-consistent, caller-supplied edit/built count closures), lod_color
 (distinct ring palette), render_overlay (pixel per region, ring color x
 elevation gain, byte-deterministic). App --debug-overlay <seed>: renders
-poorcraft3d/apps/poorcraft3d/shots/debug_overlay_seed<N>.png + prints
+poorcraft-novo/apps/poorcraft3d/shots/debug_overlay_seed<N>.png + prints
 ring census. Files: debug_overlay.rs (new), lib.rs, main.rs, contract
 (docs/POORCRAFT-3D/contracts/P3D-207.md; the P3D-205 contract file was
 renamed from a mistaken P3D-205.md reuse), docs.
@@ -4376,7 +4376,7 @@ through the same draw path, readback, semantic verification, byte-identical
 determinism, and resize reconfiguration). Windowed proof: --play-shot opened
 a real window, rendered 40 frames, resized the live window 1280x720→800x500
 (2 Resized events followed by the surface), captured the resized swapchain
-frame → poorcraft3d/apps/poorcraft3d/shots/windowed_bootstrap.png (800x500,
+frame → poorcraft-novo/apps/poorcraft3d/shots/windowed_bootstrap.png (800x500,
 796 distinct colors; assertions: gradient monotonic downward, sky nonuniform,
 all 3 banner colors + pole + ground + sun present, fully opaque) — visually
 inspected by human eye, PASS. Liveness: --play ran 12 s continuously, alive
@@ -4425,7 +4425,7 @@ at pose A and is visible from pose B/C (depth buffer); PARALLAX — 19.5% of
 decoded RGBA pixels differ between the two windowed captures. Windowed run:
 real window, live 1280x720->800x500 resize (2 Resized events followed),
 captures from the resized swapchain, both verified, human visual inspection
-PASS (poorcraft3d/apps/poorcraft3d/shots/windowed_3d.png +
+PASS (poorcraft-novo/apps/poorcraft3d/shots/windowed_3d.png +
 windowed_3d_poseb.png; the stale 2D banner PNG is removed). Perf: 41-frame
 windowed run p50 0.45 ms / p95 1.57 ms. --play 12 s liveness OK. Headless
 sim untouched: p3d-smoke digest dd019eca900f5a61 unchanged.
@@ -4949,7 +4949,7 @@ standing regression battery: it re-runs EVERY windowed proof in sequence —
 windowed-3d-axes, terrain-scenes, stream-walk, river-water, castle-city,
 npc-cast, quality-tiers, vertical-slice, asset-manifest — each with its
 semantic pixel assertions, failing loudly on any regression and writing
-the full console capture to poorcraft3d/shots/gates_report.txt. The audit
+the full console capture to poorcraft-novo/shots/gates_report.txt. The audit
 run: 9/9 GATES PASS. docs/POORCRAFT-3D-VISUAL-RESET/VISUAL-GATES-REPORT.md
 is the .md determination: the per-gate frame records, the consolidated
 performance record, the human review note (every gate PNG inspected in
@@ -5016,7 +5016,7 @@ repository-owned sources, validated pipeline, windowed render proof).
 
 RUNTIMES (NWR-001 close-out, per AGENTS.md): fresh release binary rebuilt
 (29 s), the desktop runtime repackaged as
-poorcraft3d/dist3d/poorcraft3d-macos.zip (2.4 MB) with a REWRITTEN PLAY.md —
+poorcraft-novo/dist3d/poorcraft3d-macos.zip (2.4 MB) with a REWRITTEN PLAY.md —
 the old one still said "the windowed renderer does not exist yet"; the new
 one documents the walkable slice (--play-slice live: WASD/click/F/R/B/L/I)
 and every windowed proof command. CLEAN-EXTRACT VERIFIED from a fresh temp
@@ -5660,10 +5660,10 @@ files was gone before making the focused code/doc edits.
 
 EVIDENCE: alpha audit passed for all eight generated sheets. Tests:
 pc3d_assets 24/24; pc3d_render owner 3/3; pc3d_render font 4/4. Build:
-cargo build --release --manifest-path poorcraft3d/Cargo.toml -p
+cargo build --release --manifest-path poorcraft-novo/Cargo.toml -p
 poorcraft3d passed. Runtime: make p3d-dmg rebuilt
-poorcraft3d/dist3d/POORCRAFT3D.app and
-poorcraft3d/dist3d/poorcraft3d-macos.dmg after rerunning hdiutil outside
+poorcraft-novo/dist3d/POORCRAFT3D.app and
+poorcraft-novo/dist3d/poorcraft3d-macos.dmg after rerunning hdiutil outside
 the sandbox. Root cargo test --workspace first failed on sandboxed UDP bind
 permission, then cleared the UDP tests with escalation, but was manually
 interrupted after the unrelated wizard_towers_generate_in_gated_biomes
@@ -5682,11 +5682,11 @@ inspector commands, telemetry, screenshot scenes, strings, data exports, and
 the task queue.
 
 HOW: Inspected the existing
-poorcraft3d/apps/poorcraft3d/shots/windowed_slice_showcase.png and copied it
+poorcraft-novo/apps/poorcraft3d/shots/windowed_slice_showcase.png and copied it
 into the pack as baseline/current-windowed-slice-showcase.png because it shows
 the owner complaint plainly: clipped top-left debug text and no real HUD. Tried
 to capture a fresh rebuild route with make p3d-rebuild
-OUTDIR=poorcraft3d/apps/poorcraft3d/shots/glm_ui_baseline; the build finished
+OUTDIR=poorcraft-novo/apps/poorcraft3d/shots/glm_ui_baseline; the build finished
 and the route seed was found, but the process stalled before writing PNGs and
 was interrupted. Added pc3d_assets::GLM_UI_REWORK_PACK_JSON plus a guard test
 that proves the required pack files exist, JSON files parse, and the owner's
@@ -5696,7 +5696,7 @@ manifest.
 EVIDENCE: all GLM pack JSON files validated with python3 -m json.tool after
 the guard caught and forced a missing ui_strings.en.json version fix.
 pc3d_assets 25/25 passed. cargo build --release --manifest-path
-poorcraft3d/Cargo.toml -p poorcraft3d passed. Fresh screenshot capture attempt
+poorcraft-novo/Cargo.toml -p poorcraft3d passed. Fresh screenshot capture attempt
 did not complete; the failure is recorded in
 13-BASELINE-SCREENSHOT-NOTES.md and is the first problem UI-001 must solve.
 
@@ -5713,7 +5713,7 @@ UI-008 visual polish.
 
 ### What Changed
 
-- NEW `poorcraft3d/crates/pc3d_render/src/ui.rs` (~1500 lines incl. 26
+- NEW `poorcraft-novo/crates/pc3d_render/src/ui.rs` (~1500 lines incl. 26
   tests): UiState/Screen/ModalKind/HudValues/UiSettings/KEYMAP, the
   DrawList layout builder (SAFE_MARGIN_PX=16, fit-scale law, no
   interactive overlap; tested at 1280x720, 1280x800, 1920x1080,
@@ -5751,12 +5751,12 @@ UI-008 visual polish.
 
 ### How It Was Proven
 
-- Build: `cargo build --release --manifest-path poorcraft3d/Cargo.toml`
+- Build: `cargo build --release --manifest-path poorcraft-novo/Cargo.toml`
   clean. Tests: p3d 457/457 (pc3d_render 153; +30 new), root 474/474.
 - `make p3d-visual-gates`: 10/10 PASS (report:
-  poorcraft3d/apps/poorcraft3d/shots/gates_report.txt).
+  poorcraft-novo/apps/poorcraft3d/shots/gates_report.txt).
 - `make p3d-ui-shots`: 11 captures + 11 layout dumps in
-  poorcraft3d/apps/poorcraft3d/shots/ (ui_*.png / ui_*.layout.json);
+  poorcraft-novo/apps/poorcraft3d/shots/ (ui_*.png / ui_*.layout.json);
   the in-process checks PASS (nonblank, safe margins, no overlap,
   alpha presence, required/forbidden elements, focus distinctness
   2092 px in both focused buttons, health fill ~0.45).
@@ -5767,7 +5767,7 @@ UI-008 visual polish.
   (paragraph notes per scene in GLM-UI-REWORK-PROOF.md).
 - Smoke: no-args launch ALIVE 12 s on the title screen (build + the
   mounted DMG); DMG route proof PASS from the read-only volume;
-  `make p3d-dmg` artifact at poorcraft3d/dist3d/poorcraft3d-macos.dmg.
+  `make p3d-dmg` artifact at poorcraft-novo/dist3d/poorcraft3d-macos.dmg.
 
 ### What Failed First
 
@@ -6047,9 +6047,9 @@ unaligned, gameplay HUD and pause menu at 1501 — median +0.0px, frac
 the mounted volume; stamp "898f337" verified inside the mounted binary's
 rodata adjacent to title_sub; suites p3d 580/580 (+2), root workspace
 exit 0 (untouched by these changes, standing 474); screen proofs
-committed at poorcraft3d/apps/poorcraft3d/shots/screen-proofs/
+committed at poorcraft-novo/apps/poorcraft3d/shots/screen-proofs/
 (p3d_mount_title1501/pause/gameplay/buildline + the default-size title).
-Fresh DMG: poorcraft3d/dist3d/poorcraft3d-macos.dmg, volume
+Fresh DMG: poorcraft-novo/dist3d/poorcraft3d-macos.dmg, volume
 POORCRAFT3D-898f337, 3.2 MB.
 
 HONESTLY DEFERRED: this host's displays are 1x, so the Retina-2x
@@ -6111,9 +6111,9 @@ untouched.
 EVIDENCE: seed_preview_execution_plan.json, seed_preview_ui_wireframe.json,
 seed_preview_outputs.schema.json, seed_preview_test_matrix.json, and the
 parent world_tools_manifest.json all validate with python3 -m json.tool.
-cargo test --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets
+cargo test --manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets
 glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
---manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+--manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
@@ -6141,9 +6141,9 @@ untouched.
 
 EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
 validates with python3 -m json.tool. cargo test --manifest-path
-poorcraft3d/Cargo.toml -p pc3d_assets
+poorcraft-novo/Cargo.toml -p pc3d_assets
 glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
---manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+--manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
@@ -6171,9 +6171,9 @@ pass and were left untouched.
 
 EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
 validates with python3 -m json.tool. cargo test --manifest-path
-poorcraft3d/Cargo.toml -p pc3d_assets
+poorcraft-novo/Cargo.toml -p pc3d_assets
 glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
---manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+--manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
@@ -6204,9 +6204,9 @@ and were left untouched.
 
 EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
 validates with python3 -m json.tool. cargo test --manifest-path
-poorcraft3d/Cargo.toml -p pc3d_assets
+poorcraft-novo/Cargo.toml -p pc3d_assets
 glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
---manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+--manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
@@ -6237,9 +6237,9 @@ pass and were left untouched.
 
 EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
 validates with python3 -m json.tool. cargo test --manifest-path
-poorcraft3d/Cargo.toml -p pc3d_assets
+poorcraft-novo/Cargo.toml -p pc3d_assets
 glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
---manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+--manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
@@ -6270,9 +6270,9 @@ and were left untouched.
 
 EVIDENCE: all JSON under docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK
 validates with python3 -m json.tool. cargo test --manifest-path
-poorcraft3d/Cargo.toml -p pc3d_assets
+poorcraft-novo/Cargo.toml -p pc3d_assets
 glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
---manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+--manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
@@ -6304,9 +6304,9 @@ present before this pass and were left untouched.
 
 EVIDENCE: WT-002 JSON contracts, expanded world_tools_manifest.json, and
 zcode_world_tools_task_queue.json validate with python3 -m json.tool. cargo
-test --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets
+test --manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets
 glm_world_tools_pack_is_parseable_and_complete passed. Full cargo test
---manifest-path poorcraft3d/Cargo.toml -p pc3d_assets passed 27/27. This is
+--manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets passed 27/27. This is
 a tooling/spec pack with a Rust code guard, so no runtime DMG rebuild was
 needed.
 
@@ -6631,9 +6631,9 @@ HOW:
 
 EVIDENCE: all JSON under `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK`
 validates with `python3 -m json.tool`; focused guard
-`cargo test --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets
+`cargo test --manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets
 glm_world_tools_pack_is_parseable_and_complete` passed 1/1; full
-`cargo test --manifest-path poorcraft3d/Cargo.toml -p pc3d_assets`
+`cargo test --manifest-path poorcraft-novo/Cargo.toml -p pc3d_assets`
 passed 33/33. No fresh runtime/DMG was produced for this pass because it
 is a docs/contracts/code-guard handoff pack rather than a playable
 runtime change.
@@ -7777,7 +7777,7 @@ STATE.md; THE OWNER PLAY PASS of the stamped DMG remains THE gate.
   first run's FAIL was exactly this verdict bug, fixed).
 
 ### How
-- Files: poorcraft3d/crates/pc3d_render/src/player.rs (step law +
+- Files: poorcraft-novo/crates/pc3d_render/src/player.rs (step law +
   const move + test), app.rs (re-export + shared airborne machinery
   + EditSurface handler), ui.rs (UiAction::EditSurface), renderer.rs
   (surface_edit), surface_stream.rs (remesh_now), observe.rs (route
@@ -8047,9 +8047,9 @@ fluid-aware nav) — crawlers spawn only on dry ledges by law.
   crowd tick — microseconds against 12 ms frames.
 
 ### Files
-- poorcraft3d/crates/pc3d_world/src/npc.rs (the law + the split +
-  laws), poorcraft3d/crates/pc3d_world/src/nav.rs (local_of pub),
-  poorcraft3d/crates/pc3d_render/src/npcs.rs (wiring + cast law),
+- poorcraft-novo/crates/pc3d_world/src/npc.rs (the law + the split +
+  laws), poorcraft-novo/crates/pc3d_world/src/nav.rs (local_of pub),
+  poorcraft-novo/crates/pc3d_render/src/npcs.rs (wiring + cast law),
   the four windowed_people_*.png captures, STATE/BACKLOG/CHANGELOG/
   DEVLOG. No Makefile change (no new target needed — every proof ran
   through existing targets).
@@ -8132,10 +8132,10 @@ STATE.md next_task); the quiet-host deck-bench re-read (queued by
   445-448 precedent; the quiet-host re-read stays queued (four loops).
 
 ### Files
-- poorcraft3d/crates/pc3d_render/src/player.rs (the law + 4 laws),
-  poorcraft3d/crates/pc3d_render/src/ui.rs + app.rs (PlayerFace),
-  poorcraft3d/crates/pc3d_render/src/observe.rs (route registry),
-  poorcraft3d/apps/poorcraft3d/src/main.rs (spot finders + route +
+- poorcraft-novo/crates/pc3d_render/src/player.rs (the law + 4 laws),
+  poorcraft-novo/crates/pc3d_render/src/ui.rs + app.rs (PlayerFace),
+  poorcraft-novo/crates/pc3d_render/src/observe.rs (route registry),
+  poorcraft-novo/apps/poorcraft3d/src/main.rs (spot finders + route +
   verdict), Makefile (p3d-pitwall), the pitwall-a/b bundles, the
   refreshed climb/playtest/walkoff/steer bundles (digests unchanged),
   STATE/BACKLOG/CHANGELOG/DEVLOG.
@@ -8234,12 +8234,12 @@ is_water_layer/CTM-strip audit; guardian chronicle re-fire.
   precedent; the quiet-host re-read stays queued.
 
 ### Files
-- poorcraft3d/crates/pc3d_world/src/items.rs (can_fit + law),
-  poorcraft3d/crates/pc3d_render/src/player.rs (dig_target + 5
-  laws), poorcraft3d/crates/pc3d_render/src/app.rs (outcome +
-  handler + KeyG + prompts + 2 laws), poorcraft3d/crates/pc3d_render/
-  src/ui.rs (action + G arm + KEYMAP), poorcraft3d/crates/pc3d_render/
-  src/observe.rs (route registered), poorcraft3d/apps/poorcraft3d/
+- poorcraft-novo/crates/pc3d_world/src/items.rs (can_fit + law),
+  poorcraft-novo/crates/pc3d_render/src/player.rs (dig_target + 5
+  laws), poorcraft-novo/crates/pc3d_render/src/app.rs (outcome +
+  handler + KeyG + prompts + 2 laws), poorcraft-novo/crates/pc3d_render/
+  src/ui.rs (action + G arm + KEYMAP), poorcraft-novo/crates/pc3d_render/
+  src/observe.rs (route registered), poorcraft-novo/apps/poorcraft3d/
   src/main.rs (finder + route + verdict + walkoff window), Makefile
   (p3d-dig), the dig-a/b bundles, the refreshed climb/playtest/
   walkoff/steer bundles (chains/digests unchanged except walkoff's
@@ -8351,10 +8351,10 @@ both arrive at their declared sites.
   precedent; the quiet-host re-read stays queued (six loops).
 
 ### Files
-- poorcraft3d/crates/pc3d_render/src/renderer.rs (stage hook + 2
-  readers), poorcraft3d/crates/pc3d_render/src/npcs.rs (1 law),
-  poorcraft3d/crates/pc3d_render/src/observe.rs (route registered),
-  poorcraft3d/apps/poorcraft3d/src/main.rs (route + verdict + the
+- poorcraft-novo/crates/pc3d_render/src/renderer.rs (stage hook + 2
+  readers), poorcraft-novo/crates/pc3d_render/src/npcs.rs (1 law),
+  poorcraft-novo/crates/pc3d_render/src/observe.rs (route registered),
+  poorcraft-novo/apps/poorcraft3d/src/main.rs (route + verdict + the
   people harness's frozen-stride hooks), Makefile (p3d-crowd), the
   crowd-a/b bundles, the refreshed people + playtest bundles (chains/
   digests unchanged), STATE/BACKLOG/CHANGELOG/DEVLOG.
@@ -8445,7 +8445,7 @@ VERIFICATION:
   gate carries the new hud_stock element inside its safe-margin
   law); p3d-smoke OK (digest dd019eca900f5a61 UNCHANGED — headless,
   no HUD); idle-upgrade-check PASS.
-- Runtime: make p3d-dmg -> poorcraft3d/dist3d/poorcraft3d-macos.dmg
+- Runtime: make p3d-dmg -> poorcraft-novo/dist3d/poorcraft3d-macos.dmg
   (stamped BUILD <job commit>).
 
 PERF: no claim, honestly — one small string on UI-dirty frames only,
@@ -8455,12 +8455,12 @@ loop's routes), no bench per the 445-451 precedent; the quiet-host
 re-read stays queued (seven loops).
 
 ### Files
-- poorcraft3d/crates/pc3d_world/src/items.rs (stock_line + 2 laws),
-  poorcraft3d/crates/pc3d_render/src/ui.rs (HudValues.stock +
-  painter + law + to_json), poorcraft3d/crates/pc3d_render/src/
+- poorcraft-novo/crates/pc3d_world/src/items.rs (stock_line + 2 laws),
+  poorcraft-novo/crates/pc3d_render/src/ui.rs (HudValues.stock +
+  painter + law + to_json), poorcraft-novo/crates/pc3d_render/src/
   app.rs (dirty-frame sync + capture ui_state merge),
-  poorcraft3d/crates/pc3d_render/src/font.rs (middle-dot glyph +
-  ink law), poorcraft3d/apps/poorcraft3d/src/main.rs (route_dig
+  poorcraft-novo/crates/pc3d_render/src/font.rs (middle-dot glyph +
+  ink law), poorcraft-novo/apps/poorcraft3d/src/main.rs (route_dig
   expected line + verdict), Makefile (p3d-dig), the dig-a/b +
   playtest-a/b bundles + people/gates evidence, STATE/BACKLOG/
   CHANGELOG/DEVLOG.
@@ -8516,9 +8516,9 @@ WHAT:
      hyphen). Both fall toasts now read with their dash.
 
 HOW:
-- poorcraft3d/crates/pc3d_render/src/observe.rs — route_plaza_recovery
+- poorcraft-novo/crates/pc3d_render/src/observe.rs — route_plaza_recovery
   RouteSpec (available, 16 routes).
-- poorcraft3d/apps/poorcraft3d/src/main.rs — the route arm (spot
+- poorcraft-novo/apps/poorcraft3d/src/main.rs — the route arm (spot
   finder, StartPlaying 12, grounded teleport 30, approach record 70,
   the -14 m EditSurface 90, mid-fall records 122/152, recovered record
   250 with the LIVE plaza-ground read, final record 340; captures
@@ -8527,7 +8527,7 @@ HOW:
   band, two-chance mid-air band, recovered XZ/feet/health/food bands,
   final stability, recovery-toast present + plain-FELL absent, three
   pixel-differ pairs).
-- poorcraft3d/crates/pc3d_render/src/font.rs — the em-dash glyph +
+- poorcraft-novo/crates/pc3d_render/src/font.rs — the em-dash glyph +
   the_em_dash_rasterizes_with_ink (pc3d_render 223 -> 224).
 - Makefile — p3d-recovery (release build, run x2, comparator).
 
@@ -8557,7 +8557,7 @@ VERIFICATION:
   motion 0.66%); p3d-visual-gates ALL 10 PASS; p3d-smoke OK (digest
   dd019eca900f5a61 UNCHANGED — headless, no font path);
   idle-upgrade-check PASS.
-- Runtime: make p3d-dmg -> poorcraft3d/dist3d/poorcraft3d-macos.dmg
+- Runtime: make p3d-dmg -> poorcraft-novo/dist3d/poorcraft3d-macos.dmg
   (stamped BUILD <job commit>).
 
 PERF: no claim, honestly — the route adds work only while it runs (a
@@ -8568,9 +8568,9 @@ p50 20.0-23.4 ms), no bench per the 445-452 precedent; the
 quiet-host re-read stays queued (eight loops).
 
 ### Files
-- poorcraft3d/crates/pc3d_render/src/observe.rs (the route spec),
-  poorcraft3d/apps/poorcraft3d/src/main.rs (route arm + verdict),
-  poorcraft3d/crates/pc3d_render/src/font.rs (em-dash glyph + ink
+- poorcraft-novo/crates/pc3d_render/src/observe.rs (the route spec),
+  poorcraft-novo/apps/poorcraft3d/src/main.rs (route arm + verdict),
+  poorcraft-novo/crates/pc3d_render/src/font.rs (em-dash glyph + ink
   law), Makefile (p3d-recovery), the recovery-a/b + dig/walkoff/
   playtest/people/gates evidence bundles, STATE/BACKLOG/CHANGELOG/
   DEVLOG.
@@ -8610,7 +8610,7 @@ could not see the bug: `the_catch_saves_the_body` modeled no
 post-release grab check.
 
 ### HOW
-- THE LAW (poorcraft3d/crates/pc3d_render/src/app.rs):
+- THE LAW (poorcraft-novo/crates/pc3d_render/src/app.rs):
   `SliceHost.released_from: Option<[f32; 2]>` records the strand a body
   let go of (set at the Space hop-off branch and the step_hang tip
   release); the arc's grab check filters the nearest-strand answer
@@ -8701,11 +8701,11 @@ post-release grab check.
   code pre-spike and its fresh bundles ride the commit.
 
 ### Files
-- poorcraft3d/crates/pc3d_render/src/app.rs (released_from +
+- poorcraft-novo/crates/pc3d_render/src/app.rs (released_from +
   strand_can_catch + the grab-site gate + 3 laws),
-  poorcraft3d/crates/pc3d_render/src/slice.rs (field init x2),
-  poorcraft3d/crates/pc3d_render/src/observe.rs (RouteSpec),
-  poorcraft3d/apps/poorcraft3d/src/main.rs (route_vine_hangoff arm +
+  poorcraft-novo/crates/pc3d_render/src/slice.rs (field init x2),
+  poorcraft-novo/crates/pc3d_render/src/observe.rs (RouteSpec),
+  poorcraft-novo/apps/poorcraft3d/src/main.rs (route_vine_hangoff arm +
   verdict; climb arm records + verdict hardening; max_frames),
   Makefile (p3d-hangoff), the hangoff-a/b + climb-a/b + dig-a/b +
   people/gates evidence bundles, STATE/BACKLOG/CHANGELOG/DEVLOG.
@@ -8753,7 +8753,7 @@ p3d workspace count is unchanged (684 / 0 failed, recounted across 14
 suites).
 
 HOW:
-- poorcraft3d/apps/poorcraft3d/src/main.rs — route scheduling only.
+- poorcraft-novo/apps/poorcraft3d/src/main.rs — route scheduling only.
   WALK-OFF: the recordings cell widened to 20; the fixed frame-112
   mid record + frame-190 landed record replaced by ONE per-frame poll
   (92..=189) recording the DEEPEST AIRBORNE pose (on-ground streak
@@ -8829,12 +8829,12 @@ per-frame records instead of pre-fixed frame indices, and the
 walk-off's two pace-sensitive captures are the first converted.
 
 HOW:
-- poorcraft3d/crates/pc3d_render/src/ui.rs — UiAction::
+- poorcraft-novo/crates/pc3d_render/src/ui.rs — UiAction::
   CaptureAtNextFrame { path, ui_dump } joins the proof-hook family
   (the EditSurface/PlayerFace class): the queue law is written on
   the variant — the request must be fired while the run is alive,
   and a dynamic-capture run sets end_frame.
-- poorcraft3d/crates/pc3d_render/src/app.rs — (a) the pure insertion
+- poorcraft-novo/crates/pc3d_render/src/app.rs — (a) the pure insertion
   law next_free_shot_frame: a dynamic capture fires requested_at+1,
   walking forward past any frame a scheduled shot already owns (two
   shots can never share a frame: the block fires one per frame and
@@ -8851,7 +8851,7 @@ HOW:
   errors up front. (d) 2 unit laws: sorted-insert into a live
   schedule; never-share-a-frame (101 owned -> the request at 100
   walks to 102; empty schedule takes +1 directly).
-- poorcraft3d/apps/poorcraft3d/src/main.rs — route_walk_off only.
+- poorcraft-novo/apps/poorcraft3d/src/main.rs — route_walk_off only.
   The fixed walk_air@112 and walk_landed@190 shots are gone; the
   pre-dig rim stays static at 70 (the one deterministic beat). The
   polls (92..=189) now fire the captures: walk_landed AT the landing
@@ -8961,7 +8961,7 @@ WHAT:
   pace instead of one aliasing could close.
 
 HOW:
-- Files touched: poorcraft3d/apps/poorcraft3d/src/main.rs (three
+- Files touched: poorcraft-novo/apps/poorcraft3d/src/main.rs (three
   routes' polls + shot lists + two verdicts + the end_frame arm +
   recording declarations); STATE.md, BACKLOG.md, CHANGELOG.md, this
   entry. Makefile unchanged (no new or changed targets).
@@ -9094,9 +9094,9 @@ WHAT:
   disk carries the new date and the probe bullet.
 
 HOW:
-- Files touched: poorcraft3d/crates/pc3d_render/src/deck.rs (probe +
+- Files touched: poorcraft-novo/crates/pc3d_render/src/deck.rs (probe +
   band law + BenchRow probe fields + report bullet + 4 laws);
-  poorcraft3d/apps/poorcraft3d/src/main.rs (tier-arm probe bracketing
+  poorcraft-novo/apps/poorcraft3d/src/main.rs (tier-arm probe bracketing
   + CSV columns + deck_report band assert + stdout); the refreshed
   report + deck/people captures; STATE.md, BACKLOG.md, CHANGELOG.md,
   this entry. Makefile unchanged (no new or changed targets;
@@ -9158,7 +9158,7 @@ WHAT:
   tests BEFORE anyone enforces a streamed bound.
 
 HOW:
-- Files touched: poorcraft3d/crates/pc3d_render/src/player.rs (THE
+- Files touched: poorcraft-novo/crates/pc3d_render/src/player.rs (THE
   QUERY-BOUND LAW in the trait doc; the pure in_authority_query_window
   predicate; UNBOUNDED_QUERY_Y + QUERY_REACH_M constants; the walk's
   five feet+2.0 sites renamed; 2 new laws); surface.rs + surface_stream.rs
@@ -10343,7 +10343,7 @@ VERIFICATION:
   NPC rows + GLB-aware NPC laws.
 - `--play-daynight`: DAY/NIGHT OK day mean 194 → night mean ~100 (~48%
   darker); shots at apps/poorcraft3d/shots/windowed_{day,night}.png.
-- make p3d-dmg → poorcraft3d/dist3d/poorcraft3d-macos.dmg.
+- make p3d-dmg → poorcraft-novo/dist3d/poorcraft3d-macos.dmg.
 - Full pc3d_render --lib battery re-run with this entry.
 
 HONESTLY DEFERRED: SSAO / cave-occlusion beyond night fog + hemisphere;
@@ -10412,8 +10412,8 @@ VERIFICATION:
   terrain_hills ~0.86 (was flat tan/rock before)
 - atlases seed 3/42/777: high biome disagreement vs neighbor seeds
 
-ARTIFACTS: `poorcraft3d/apps/poorcraft3d/shots/windowed_*.png`,
-`atlas_seed{3,42,777}.png`, `poorcraft3d/target/release/poorcraft3d`.
+ARTIFACTS: `poorcraft-novo/apps/poorcraft3d/shots/windowed_*.png`,
+`atlas_seed{3,42,777}.png`, `poorcraft-novo/target/release/poorcraft3d`.
 
 ## 2026-09-29 — P3D Vertical-Slice Beta living docs + Phase 1–4
 
@@ -10457,14 +10457,14 @@ VERIFICATION:
 - `cargo test -p pc3d_save --lib` → 20 ok (incl. session round-trip)
 - `slice_save_reload_round_trips_world_and_player` ok (forge+quests)
 - `make p3d-gate-check` → GATE CHECK OK (142 dumps, 0 overlaps/stacked)
-- `poorcraft3d/dist3d/poorcraft3d-macos.dmg` present; D10 binaries identical
+- `poorcraft-novo/dist3d/poorcraft3d-macos.dmg` present; D10 binaries identical
 
 NEXT: H1 step 7 path choice (see docs/POORCRAFT-3D/STATE.md).
 
 ## 2026-09-29 — VS goal: play-verify battery green
 
 WHAT: Finished /goal play-verify for Vertical-Slice Beta. Fixed stale-binary
-trap (Makefile now syncs CARGO_TARGET_DIR → poorcraft3d/target/release),
+trap (Makefile now syncs CARGO_TARGET_DIR → poorcraft-novo/target/release),
 goblin auto-spawn outside melee (route_dig unhurt), river subject AABB,
 rebuild gate sky(false). Full play battery green.
 
@@ -10546,7 +10546,7 @@ VERIFICATION (final battery on the final code, this entry's evidence):
 - --journey 42 PASS 10 steps; --diagnose 2024 PASS 13 checks; --atlas 3
   patch hashes 5/5; observatory 19/19 routes PASS; deck report PASS.
 
-ARTIFACTS: poorcraft3d/dist3d/poorcraft3d-macos.dmg (fresh, git-stamped
+ARTIFACTS: poorcraft-novo/dist3d/poorcraft3d-macos.dmg (fresh, git-stamped
 volume), docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md,
 shots/BETA-REPORT.txt, ~300 proof PNGs + 19 observatory evidence bundles.
 
@@ -10661,7 +10661,7 @@ VERIFICATION:
   pc3d_save 20 green / 0 (career round-trip included).
 - make p3d-gate-check OK; make p3d-ui-shots PASS (13 captures + laws);
   route_path_choice PASS; full observatory re-run (20 routes).
-- make p3d-dmg → poorcraft3d/dist3d/poorcraft3d-macos.dmg (hdiutil).
+- make p3d-dmg → poorcraft-novo/dist3d/poorcraft3d-macos.dmg (hdiutil).
 
 HONESTLY DEFERRED: the far-horizon impostor PLATES (the fog blend fixed
 the read; per-region plates inside the byte budget are W1.2's second
@@ -10825,3 +10825,47 @@ HONESTLY DEFERRED: the LATCH CURE for frame-triggered route records
 (position-triggered, the 0.4 fix for pace flakiness); W-B B12-B29
 remaining audio phases; W-A A1 damage flash is IN (law-tested) but its
 visual strength tuning awaits a fresh playtest.
+
+## 2026-10-10 — Loop 473: split legado/novo + doutrina executável GLM
+
+WHAT: Reestruturei o repositório em duas árvores explícitas sem apagar a
+história: `poorcraft-antigo/` contém LOREFORGE e `poorcraft-novo/` contém o
+POORCRAFT 3D ativo. A raiz virou plano de controle. Criei um manual operacional
+de 17 documentos para que GLM 5.3 trate qualidade visual, experiência da primeira sessão,
+assets, câmera, mundo, áudio, plataformas e distribuição como contratos que
+precisam de prova, não como sugestões.
+
+HOW: Mudei workspaces, assets, mods, shots, runtimes e ferramentas legadas para
+`poorcraft-antigo/`; renomeei `poorcraft3d/` para `poorcraft-novo/`; atualizei
+Makefile, CI, ignores, AGENTS e referências funcionais. Criei 17 documentos em
+`poorcraft-novo/docs/CONTINUACAO-GLM/` e `doctrine.json` com exatamente 30
+fases, 16 gates mínimos de asset, 12 de viewmodel e 20 de mundo. O módulo novo
+`pc3d_assets::doctrine` desserializa e valida esse contrato; o segundo teste
+enfraquece propositalmente o manifesto e prova que a porta fecha. A pesquisa de
+ferramentas foi limitada a projetos primários/oficiais e registrada como
+candidatos, não como dependências instaladas às cegas: Blender MCP,
+Hunyuan3D-2, glTF Validator, cargo-fuzz, cargo-mutants, cargo-nextest,
+FluidSynth e documentação Steamworks. O nome “Huflo” não foi associado com
+segurança a um projeto oficial, portanto o manual exige confirmação antes de
+integrá-lo.
+
+FILES: `.github/workflows/ci.yml`, `.gitignore`, `.zcodeignore`, `AGENTS.md`,
+`README.md`, `Makefile`, bookkeeping raiz, `docs/POORCRAFT-3D/`,
+`poorcraft-antigo/`, `poorcraft-novo/AGENTS.md`, `poorcraft-novo/README.md`,
+`poorcraft-novo/docs/CONTINUACAO-GLM/`, `pc3d_assets/src/doctrine.rs`, paths de
+inventário/asset sidecar e os dois validadores xtask legados.
+
+VERIFICATION: `make p3d-doctrine-check` 2/2; P3D `cargo test --workspace
+-- --test-threads=1` 752/752 (assets 38, audio 8, core 32, render 259, save 20,
+world 290, city sweep 104, nav 1); `make p3d-beta` 38/38, observatory e deck
+bench verdes, 339 PNGs; LOREFORGE `cargo test --workspace -- --test-threads=1`
+562/562; `make vistest` 110/110 cenas; `make smoke` logic + janela 12 s OK.
+A primeira tentativa paralela P3D no
+sandbox não encontrou adaptador GPU; a repetição serial com acesso à GPU real
+passou integralmente. Runtimes produzidos: P3D macOS app/DMG; LOREFORGE macOS
+app/DMG, Linux tarball + server e Windows `.exe`.
+
+HONESTLY DEFERRED: o suporte atual de runtime do POORCRAFT 3D ainda entrega
+somente macOS; Windows/Linux do jogo novo são N24/N25 e não são alegados como
+prontos. Nenhuma ferramenta externa pesquisada foi instalada. O próximo job é
+N01, o harness adversarial que deve falhar assets/cenas deliberadamente ruins.

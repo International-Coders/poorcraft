@@ -62,15 +62,15 @@ Session: GLM 5.3 / Z-code, executing
 
 ## How It Was Proven
 
-- Build: `cargo build --release --manifest-path poorcraft3d/Cargo.toml` —
+- Build: `cargo build --release --manifest-path poorcraft-novo/Cargo.toml` —
   clean.
-- Tests: `cargo test --release --manifest-path poorcraft3d/Cargo.toml` —
+- Tests: `cargo test --release --manifest-path poorcraft-novo/Cargo.toml` —
   pc3d_render 153 passed (26 new UI layout/paint/input tests + app tests:
   escape laws, modal routing, civil-date formatting, framed-meta seed
   parse, palette law); full p3d workspace suite green (counts in
   DEVLOG/STATE).
 - Screenshots: `make p3d-ui-shots` — 11 captures + 11 layout dumps in
-  `poorcraft3d/apps/poorcraft3d/shots/` (`ui_*.png`, `ui_*.layout.json`);
+  `poorcraft-novo/apps/poorcraft3d/shots/` (`ui_*.png`, `ui_*.layout.json`);
   the run's own pixel checks PASS (printed report; also a gate).
 - Inspector: the 12-command proof script (including two `replay_input`
   Escape presses) returned `ok: true`, `screen_after=pause` with

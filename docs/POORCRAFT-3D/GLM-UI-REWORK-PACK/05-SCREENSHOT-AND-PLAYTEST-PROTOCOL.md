@@ -5,9 +5,9 @@ without manual clicking.
 
 ## Required Commands
 
-- `cargo build --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d`
-- `cargo test --manifest-path poorcraft3d/Cargo.toml -p <touched-crate>`
-- a screenshot command that writes PNGs under `poorcraft3d/apps/poorcraft3d/shots/`
+- `cargo build --release --manifest-path poorcraft-novo/Cargo.toml -p poorcraft3d`
+- `cargo test --manifest-path poorcraft-novo/Cargo.toml -p <touched-crate>`
+- a screenshot command that writes PNGs under `poorcraft-novo/apps/poorcraft3d/shots/`
 - `make p3d-dmg` after owner-facing runtime changes
 
 ## Required Screenshot States

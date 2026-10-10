@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-10-10 — Split legado/novo + doutrina de continuação GLM (loop 473)
+
+- Reestruturado o repositório em `poorcraft-antigo/` (LOREFORGE preservado) e
+  `poorcraft-novo/` (POORCRAFT 3D ativo), mantendo a raiz como plano de controle.
+- Adicionado `poorcraft-novo/docs/CONTINUACAO-GLM/`: 17 documentos normativos
+  para visão Valheim/Skyrim + conflito original ordem/caos/vida/morte, criação
+  de assets, viewmodel, mundo/rios/spawn/biomas, onboarding/HUD/construção,
+  áudio procedural, três plataformas e Steam.
+- Adicionado `doctrine.json` e `pc3d_assets::doctrine`: o manual agora falha no
+  teste se forem removidas fases ou garantias. O contrato exige 30 fases, 16
+  gates de asset, 12 de viewmodel e 20 de mundo.
+- Makefile, CI, ignores, paths de runtime e manuais foram atualizados para a
+  divisão. Os validadores não dependem mais do nome antigo `poorcraft3d/`.
+- Verificação: P3D 752/752; `make p3d-beta` 38/38 (339 PNGs); LOREFORGE
+  562/562; `make vistest` 110/110 cenas. Runtimes renovados: P3D macOS e
+  LOREFORGE macOS/Linux/Windows.
+
 ## 2026-09-21 — POORCRAFT 3D revival Phase 4: art + atmosphere
 
 - NPC cast draws assetgen humanoids (`assets/compiled/npc/{resident,worker,guard}.glb`) with baked faction kits; procedural boxes remain the fallback.
@@ -3964,7 +3981,7 @@ The simulation-only roadmap was declared complete; the visual reset
 ## 2026-09-03 — POORCRAFT 3D is born: P3D-001 workspace, identity, save guard (loop 361)
 
 - **The greenfield successor exists as code, not prose.** New nested Cargo
-  workspace `poorcraft3d/` (independent target dir; root workspace
+  workspace `poorcraft-novo/` (independent target dir; root workspace
   membership untouched), crate `pc3d_core`, binary `poorcraft3d` — which
   already answers `--identity`: name, executable, save root `saves3d`,
   magic `PC3D`, format epoch v1, and the explicit "no POORCRAFT
@@ -3980,7 +3997,7 @@ The simulation-only roadmap was declared complete; the visual reset
   P3D-001.md`, filled per `11-TASK-CONTRACT-TEMPLATE.md`), and the full
   `docs/POORCRAFT-3D/` design pack (README + 00–21) is committed with
   this work.
-- `make p3d-build` / `make p3d-test` added; `poorcraft3d/target` ignored.
+- `make p3d-build` / `make p3d-test` added; `poorcraft-novo/target` ignored.
   The original game is untouched: root `cargo test --workspace` still
   **474 green**; the P3D suite is **5 green**. Runtimes not rebuilt (no
   `lf_*` game code changed; the P3D binary is a stub until P3D-005).
@@ -5748,7 +5765,7 @@ The simulation-only roadmap was declared complete; the visual reset
   inspector/wireframe/data-export authorization remains present.
 - Evidence: inspected `baseline/current-windowed-slice-showcase.png` and
   recorded the clipped/debug HUD failure; attempted
-  `make p3d-rebuild OUTDIR=poorcraft3d/apps/poorcraft3d/shots/glm_ui_baseline`
+  `make p3d-rebuild OUTDIR=poorcraft-novo/apps/poorcraft3d/shots/glm_ui_baseline`
   but it stalled before PNG output and was interrupted; JSON validation passed;
   `pc3d_assets` 25/25; POORCRAFT 3D release build OK.
 

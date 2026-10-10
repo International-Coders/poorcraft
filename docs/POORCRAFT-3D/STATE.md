@@ -1,18 +1,19 @@
 # POORCRAFT 3D — Living State
 
-Last updated: 2026-10-03 (beta battery + engine perf + mapgen quality + route-repair passes)
+Last updated: 2026-10-10 (workspace split + enforced GLM continuation doctrine)
 
-Root `STATE.md` / `BACKLOG.md` / `CHANGELOG.md` track **LOREFORGE only**.
-This file is the living truth for `poorcraft3d/` work.
+Root `STATE.md` / `BACKLOG.md` / `CHANGELOG.md` are now the split repository's
+control plane and preserve the LOREFORGE history. This file is the living truth
+for `poorcraft-novo/` work.
 
 ## Loop
 
 | Field | Value |
 | --- | --- |
 | Horizon | **H0 Vertical-Slice Beta** (see `24-VERTICAL-SLICE-BETA.md`) |
-| Build | libs green (pc3d_world 277, pc3d_render 255); `make p3d-beta` = the full beta battery (38 stages, one report) |
-| Last measure | 2026-10-03 (branch beta0.2-wide-world) — W1.1 dials UP (rings 192/640/2048 m, climate ×2, layout v2; suites green, deck p50 6.62 ms flat); W1.2 far horizon (slab dead, daynight 49% held); W1.3 realm map (6 D-026 capitals, planner-true); W3.1 career fork CLOSED (Engineering/Mysteries, choose-once, gated recipes, mana at Mysteries, route PASS); world 289 / render 256 / save 20 green; 20-route observatory |
-| `next_task` | **W2.3 — wire the six faction kits into city.rs (the V5 closer)** (Beta 0.2 plan; W3.1 the career fork CLOSED — V21/W10 WORKS; far horizon W07 WORKS; realm map W11 WORKS; next: W1.2 impostor plates, W3.2 machines, W4.1 UI catalog) |
+| Build | **752/752 tests green** (assets 38, audio 8, core 32, render 259, save 20, world 290, city sweep 104, nav 1); `make p3d-beta` **38/38**, 339 PNGs, one report |
+| Last measure | 2026-10-10 — repository split to `poorcraft-novo/`; full serial GPU suite green; beta battery 38/38 including observatory and deck bench; macOS runtime refreshed |
+| `next_task` | **N01 — adversarial trust harness** from `poorcraft-novo/docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md`: fixtures must prove rejection of clipped/inverted viewmodel, spawn in tree, floating prop and unsupported water |
 
 ## VS-Beta gates (V1–V6) — current
 
@@ -31,7 +32,7 @@ This file is the living truth for `poorcraft3d/` work.
 (38 stages: static truth → headless determinism → 22 windowed captures →
 observatory → determinism pairs → deck bench → DMG). Documented in
 `BETA-TEST-PLAN.md`; the per-stage ledger lands in
-`poorcraft3d/apps/poorcraft3d/shots/BETA-REPORT.txt`.
+`poorcraft-novo/apps/poorcraft3d/shots/BETA-REPORT.txt`.
 
 ## Engine + world facts (measured 2026-10-03)
 

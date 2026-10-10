@@ -4,7 +4,7 @@
 
 This folder corrects the current POORCRAFT 3D execution course.
 
-`poorcraft3d/` has a substantial deterministic simulation, save, networking,
+`poorcraft-novo/` has a substantial deterministic simulation, save, networking,
 world-generation, NPC, settlement, machine, faction, and test foundation. It
 does **not** currently have a windowed 3D renderer, GPU shaders, a terrain mesh,
 a water mesh, a 3D asset loader, or a first-person visual client. Its atlas and

@@ -20,7 +20,7 @@
 
 ## File map
 
-- Modify: `poorcraft3d/crates/pc3d_world/src/gen.rs` — `macro_field`, `biome`, new helpers, new tests
+- Modify: `poorcraft-novo/crates/pc3d_world/src/gen.rs` — `macro_field`, `biome`, new helpers, new tests
 - Touch later (not this plan's first commit): flora densities / detail atlas, windowed proofs
 - Docs: spec above; DEVLOG entry after green tests
 
@@ -29,7 +29,7 @@
 ### Task 1: Belt + pocket laws (failing tests)
 
 **Files:**
-- Modify: `poorcraft3d/crates/pc3d_world/src/gen.rs` (tests module)
+- Modify: `poorcraft-novo/crates/pc3d_world/src/gen.rs` (tests module)
 - Test: same file
 
 **Interfaces:**
@@ -43,7 +43,7 @@
 ### Task 2: Dual-scale fields + pocket override
 
 **Files:**
-- Modify: `poorcraft3d/crates/pc3d_world/src/gen.rs`
+- Modify: `poorcraft-novo/crates/pc3d_world/src/gen.rs`
 
 **Interfaces:**
 - Consumes: existing `fbm` / `value_noise`

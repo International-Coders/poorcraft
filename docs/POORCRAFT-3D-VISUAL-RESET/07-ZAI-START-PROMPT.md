@@ -9,7 +9,7 @@ PNGs a rendered game.
 
 Read AGENTS.md, STATE.md, every file in docs/POORCRAFT-3D-VISUAL-RESET/, and
 the product decisions in docs/POORCRAFT-3D/ before changing code. Preserve
-unrelated dirty edits in poorcraft3d/crates/pc3d_world/src/host.rs and
+unrelated dirty edits in poorcraft-novo/crates/pc3d_world/src/host.rs and
 journey.rs. They are not renderer work.
 
 The immediate goal is R3DV-001 from 06-EXECUTION-QUEUE.md: add a P3D-local

@@ -1,0 +1,1427 @@
+POORCRAFT 3D BETA BATTERY — Sat Oct 10 00:55:51 -03 2026 — git ea9e6e18
+
+=== STAGE: static-assets ===
+ASSET MANIFEST PASS: 19 rows in embedded beta_critical_assets.json
+  castle_module: 5
+  city_anchor: 3
+  construction_block: 2
+  effect: 1
+  machine: 1
+  npc: 3
+  terrain_material: 4
+STAGE PASS: static-assets
+
+=== STAGE: asset-sidecars ===
+INSPECTION PASS starter_house -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/inspection_starter_house.json
+INSPECTION PASS talkable_villager -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/inspection_talkable_villager.json
+INSPECTION PASS working_forge -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/inspection_working_forge.json
+INSPECTION PASS openable_chest -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/inspection_openable_chest.json
+INSPECTION PASS harvestable_ore_node -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/inspection_harvestable_ore_node.json
+INSPECTION PASS map_marker_set -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/inspection_map_marker_set.json
+INSPECTION PASS hud_icon_set -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/inspection_hud_icon_set.json
+ASSET SIDECARS OK (7 assets)
+STAGE PASS: asset-sidecars
+
+=== STAGE: layout-laws ===
+GATE CHECK: 232 layout dumps · 0 text overlaps · 0 stacked-panel frames · 0 unreachable hint keys
+GATE CHECK OK
+STAGE PASS: layout-laws
+
+=== STAGE: headless-smoke ===
+ran 300 frames (5 s) · 400 ticks · 290 journal events · frame p50 22.12 ms p95 31.87 ms
+digest dd019eca900f5a61
+STAGE PASS: headless-smoke
+
+=== STAGE: journey-42 ===
+  PASS  spawn              player at -128/38/-128
+  PASS  gather             wood 10 soil 10
+  PASS  craft_first_tool   wood_pick 1
+  PASS  mine_stone         stone 4 (tier Some(1))
+  PASS  craft_and_eat      stone_pick 1 ate=true
+  PASS  build              block at 4/0/4 built=true
+  PASS  power              battery holds 13500 milli
+  PASS  settlement         Some((0, "Fordhall")) visited, day 1
+  PASS  dragon             dragon slain=true dead=true
+  PASS  onboarding         4 of 4 done
+JOURNEY PASS (10 steps, digest 824e362b17b25b67, 32.2ms)
+STAGE PASS: journey-42
+
+=== STAGE: diagnose-2024 ===
+  PASS  spawn_safe
+  PASS  movement
+  PASS  dig_harvest
+  PASS  navigation
+  PASS  fishing
+  PASS  eat
+  PASS  build
+  PASS  magic
+  PASS  entities
+  PASS  companion
+  PASS  settlements
+  PASS  reservoirs
+  PASS  crafting
+  PNG: /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/diagnose_atlas_seed2024.png
+  PNG: /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/diagnose_debug_overlay_seed2024.png
+  PNG: /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/diagnose_flow_map_seed2024.png
+DIAGNOSIS PASS (13 checks)
+STAGE PASS: diagnose-2024
+
+=== STAGE: soak-30d ===
+soak seed 4242 days 30 ticks 18000 journal 96 max_events/tick 3 digest 1262d09082c060e3
+SOAK PASS (26.2ms)
+STAGE PASS: soak-30d
+
+=== STAGE: seed-atlas ===
+[ok] atlas seed 3 -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/atlas_seed3.png (97x97 regions)
+     biome disagreement vs seed 4: 52.0%
+     biome disagreement vs seed 40506: 90.7%
+     patch-hash spot checks: 5/5 ok
+STAGE PASS: seed-atlas
+
+=== STAGE: terrain-bench ===
+scene          candidate          extract_us    bytes  rebuild_us     err_m     cols
+smooth_hills   heightfield               407     4096         953     0.487      256
+smooth_hills   density_threshold        1795     4096        1535     0.475      256
+highlands      heightfield               407     4096         801     0.431      256
+highlands      density_threshold        1519     4096        1647     0.405      256
+coast          heightfield               427     4096         833     0.469      256
+coast          density_threshold        1485     4096        1573     0.442      256
+cliff          heightfield               348     4096         680     0.999      256
+cliff          density_threshold        1495     4096        1505     2.011      256
+STAGE PASS: terrain-bench
+
+=== STAGE: terrain-analyze ===
+TERRAIN plains: 69 regions · mean 73.1 m · slope 3.0% · rough 1.4%
+TERRAIN forest: 177 regions · mean 60.2 m · slope 2.4% · rough 1.2%
+TERRAIN highlands: 323 regions · mean 89.9 m · slope 3.2% · rough 1.7%
+TERRAIN mountains: 7 regions · mean 131.9 m · slope 3.6% · rough 0.9%
+TERRAIN ANALYZE OK -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/terrain/terrain_analysis_4242.json + relief + slope PNGs
+STAGE PASS: terrain-analyze
+
+=== STAGE: export-data ===
+EXPORT worldgen_sample: 289 region samples -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/export/worldgen_sample.json
+EXPORT npc: 3 cast members -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/export/npc.json
+EXPORT machine: chain charged to 1350 milli -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/export/machine.json
+EXPORT surface manifest -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/export/export_surface.json
+EXPORT DATA OK (local-only)
+STAGE PASS: export-data
+
+=== STAGE: windowed-3d-axes ===
+windowed run: 41 frames · frame p50 15.29 ms · p95 24.54 ms · avg 73.7 fps
+RESIZE OK: surface followed 800x500 logical -> 800x500 physical (scale 1.00, 2 events)
+PARALLAX OK: 19.8% of pixels differ between pose A and pose B
+WINDOWED 3D SHOT PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_3d.png + /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_3d_poseb.png (800x500, 253 distinct colors)
+STAGE PASS: windowed-3d-axes
+
+=== STAGE: terrain-scenes ===
+windowed run: 111 frames · frame p50 19.17 ms · p95 47.13 ms · avg 48.5 fps
+TERRAIN hills: 27 patches, 37008 verts, 18504 tris, 89 ms mesh
+TERRAIN cliff: 27 patches, 24848 verts, 12424 tris, 61 ms mesh
+TERRAIN cave: 27 patches, 32212 verts, 16106 tris, 109 ms mesh
+TERRAIN hills PROBES PASS (3 checks, 24 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_terrain_hills.png
+TERRAIN cliff PROBES PASS (3 checks, 21 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_terrain_cliff.png
+TERRAIN cave PROBES PASS (2 checks, 6 distinct colors) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_terrain_cave.png
+WINDOWED TERRAIN PROOF PASS (800x500)
+STAGE PASS: terrain-scenes
+
+=== STAGE: stream-walk ===
+windowed run: 351 frames · frame p50 2.50 ms · p95 16.36 ms · avg 217.5 fps
+STREAM: loaded 399 (full 116 / mid 283), meshed 1053 in 4293 ms total, gpu 24531 KB of 24576 KB budget
+STREAM bounds: max mesh/frame 3 (cap 3), max uploads/frame 3 (cap 6), deferred held 4567, queue rejected 4998
+STREAM culling: 35845 draws, 68718 frustum-culled patches
+STREAM waypoint 1 PROBE PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_stream_walk1.png
+STREAM waypoint 2 PROBE PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_stream_walk2.png
+STREAM waypoint 3 PROBE PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_stream_walk3.png
+WINDOWED STREAM WALK PASS (800x500)
+STAGE PASS: stream-walk
+
+=== STAGE: river-water ===
+windowed run: 56 frames · frame p50 16.78 ms · p95 36.93 ms · avg 57.8 fps
+WATER before: 129 sections, 129 added, 0 remeshed, 21198 verts, 45239 us
+WATER after_dam: 129 sections, 0 added, 4 remeshed, 628 verts, 1939 us
+RIVER IN FRAME: coverage 0.084 sky 0.4% centre (0.50,0.60)
+DAM EDIT OK: 4/129 sections remeshed, image changed 2.41%
+WINDOWED WATER PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_water_before.png + /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_water_after.png
+STAGE PASS: river-water
+
+=== STAGE: castle-city ===
+CITY: 2498 verts / 1242 tris across 13 kinds; 144 collision cells, 4 nav anchors
+TERRAIN under city: 1008 patches in 3701 ms
+windowed run: 56 frames · frame p50 19.64 ms · p95 30.95 ms · avg 51.6 fps
+CITY IN FRAME: rect Some((129, 185, 542, 146)) coverage 0.198 distinct 21 sky 22.4% centre (0.50,0.52)
+GATE OK: opening/pillar delta 0.38
+WINDOWED CITY PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_city.png + /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_city_gate.png
+STAGE PASS: castle-city
+
+=== STAGE: npc-cast ===
+NPC resident pos CellCoord { x: 386, y: 0, z: 127 } intent Working { site: CellCoord { x: 386, y: 0, z: 127 } }
+NPC worker   pos CellCoord { x: 380, y: 0, z: 127 } intent Idle
+NPC guard    pos CellCoord { x: 380, y: 0, z: 127 } intent Idle
+windowed run: 86 frames · frame p50 20.52 ms · p95 39.44 ms · avg 47.8 fps
+NPC 0 close-up: torso point occupied (sky-delta 0.49)
+NPC 1 close-up: torso point occupied (sky-delta 0.75)
+NPC 2 close-up: torso point occupied (sky-delta 0.75)
+WINDOWED NPC PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_npcs_town.png (+4 more)
+STAGE PASS: npc-cast
+
+=== STAGE: day-night ===
+DAY/NIGHT OK: day mean 198.3 → night mean 101.0 (49% darker)
+WINDOWED DAYNIGHT PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_day.png + /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_night.png
+STAGE PASS: day-night
+
+=== STAGE: quality-tiers ===
+windowed run: 116 frames · frame p50 5.47 ms · p95 28.72 ms · avg 110.5 fps
+QUALITY low: loaded 42 patches (full 42 / far 0) gpu 3145 KB meshed 42
+QUALITY mid: loaded 80 patches (full 80 / far 0) gpu 7132 KB meshed 80
+QUALITY high: loaded 102 patches gpu 9062 KB
+WINDOWED QUALITY PROOF PASS -> low/mid/high PNGs in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots (frames p50 5.47 ms p95 28.72 ms)
+STAGE PASS: quality-tiers
+
+=== STAGE: vertical-slice ===
+SLICE: showcase seed 36 found in 4.0s (gate CellCoord { x: -1, y: 35, z: 3 }, cave CellCoord { x: 112, y: 29, z: 153 }, river edge ((-1, 0), (0, 0)))
+windowed run: 86 frames · frame p50 12.72 ms · p95 32.61 ms · avg 57.5 fps
+WINDOWED SLICE PROOF PASS -> showcase + cave + built in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: vertical-slice
+
+=== STAGE: asset-factory ===
+ASSETS: tree 234480 B, rock 23760 B, house 10320 B (parsed mesh bytes)
+ASSET SCENE: 4 draws, 1725 tris (1109 lod0 + 480 lod1 + rock 98 + house 38)
+windowed run: 26 frames · frame p50 10.93 ms · p95 30.60 ms · avg 70.8 fps
+WINDOWED ASSET PROOF PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_assets.png
+STAGE PASS: asset-factory
+
+=== STAGE: surface-edit ===
+SURFACE SPIKE: 9 patches, 2601 verts / 4608 tris, mesh 8218 us, versions [((-351, 349), 1), ((-351, 350), 1), ((-351, 351), 1), ((-350, 349), 1), ((-350, 350), 1), ((-350, 351), 1), ((-349, 349), 1), ((-349, 350), 1), ((-349, 351), 1)]
+SURFACE EDIT: dirty {(-350, 349)} -> remesh 2601 verts (bounded)
+windowed run: 66 frames · frame p50 16.64 ms · p95 42.24 ms · avg 58.9 fps
+SURFACE EDIT VISIBLE: image diff 0.04%
+WINDOWED SURFACE SPIKE PASS -> before/after in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: surface-edit
+
+=== STAGE: caves-water ===
+CAVE: pocket CellCoord { x: -5599, y: 10, z: 5594 } spans 34x28x34 cells, 9048 verts / 4524 tris
+RIVER: section 0 at region (-19, 17), 4 conforming sections
+FOUNDATION near river: Valid { leveled_by: 0.21450043 } at +4 m
+LOCAL EDIT: dirty patches {(-298, 279), (-298, 280), (-297, 279), (-297, 280)}; 1/4 sections refreshed, 1 changed data; refresh 76 us, water remesh 119 us, terrain remesh 7803 verts
+windowed run: 146 frames · frame p50 19.97 ms · p95 42.32 ms · avg 50.0 fps
+WATER EDIT VISIBLE: image diff 0.02%
+WINDOWED CAVES+WATER PROOF PASS -> cave interior, river before/after in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: caves-water
+
+=== STAGE: rebuild-slice ===
+REBUILD SLICE: seed 36 in 3.9s (gate CellCoord { x: -1, y: 35, z: 3 }, cave CellCoord { x: 112, y: 29, z: 153 })
+windowed run: 191 frames · frame p50 26.81 ms · p95 47.30 ms · avg 37.1 fps
+REBUILD SAVE/RELOAD: built 1 -> 1
+WINDOWED REBUILD SLICE PASS -> vantage/street/river/cave/gate in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: rebuild-slice
+
+=== STAGE: npc-people ===
+PEOPLE: 12 NPCs -> 12 part instances in 3 color buckets (<= 8 draws)
+PEOPLE GPU: 7 draws, 92 part instances
+windowed run: 151 frames · frame p50 38.73 ms · p95 73.79 ms · avg 24.9 fps
+PEOPLE MOTION: stride frames differ 0.58% (d 0.0058)
+WINDOWED PEOPLE PROOF PASS -> plaza/stride/guard/anchors in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: npc-people
+
+=== STAGE: settlement-kit ===
+SETTLEMENT: 35 placements (by module {"module.banner_sign": 2, "module.gate_arch": 1, "module.keep": 2, "module.market_stall": 3, "module.settlement_house": 5, "module.settlement_workshop": 3, "module.wall_segment": 14, "module.watchtower": 5}), anchors bed 4 work 3 idle 12
+SETTLEMENT GPU: 8 bucket draws, 620 tris (LOD by vantage)
+windowed run: 141 frames · frame p50 40.59 ms · p95 71.86 ms · avg 24.3 fps
+WINDOWED SETTLEMENT PROOF PASS -> overview/street/street-2 in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: settlement-kit
+
+=== STAGE: wilderness ===
+UNDERGROWTH: framing flora.deadtree at (-5610,5598)
+CANOPY: framing flora.vine at slot (-1407,1359) attach (-5630,31.8,5442)
+WILDERNESS: vegetated center (-5608,5592), landmark Some([-5574.8887, 30.995, 5565.84])
+WILDERNESS vista: added 9625 evicted 24684 cached 4480 scanned 561 buckets 83 instances 1116 VARIANT BUCKETS 60 KINDS 18
+LANDMARK: standing stone at (-5575,31,5566), 102 tris
+windowed run: 226 frames · frame p50 23.54 ms · p95 51.13 ms · avg 36.7 fps
+WILDERNESS VISIBLE: diff 0.14%
+WINDOWED WILDERNESS PROOF PASS -> control/vista/landmark/undergrowth/canopy/lowtier in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: wilderness
+
+=== STAGE: materials ===
+ATMOSPHERE: mid tier (shadow 1024, fog 0.0055, detail 0.55, glint), 36 foliage tris
+ATMOSPHERE: high tier (shadow 2048, fog 0.007, detail 0.85)
+windowed run: 171 frames · frame p50 18.57 ms · p95 42.77 ms · avg 47.8 fps
+ATMOSPHERE DIFFS: mid vs legacy 0.17%, high vs legacy 0.27%
+WINDOWED MATERIALS PROOF PASS -> mid/legacy/high/cutout in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: materials
+
+=== STAGE: surface-stream ===
+windowed run: 251 frames · frame p50 20.15 ms · p95 40.35 ms · avg 45.2 fps
+WINDOWED SURFACE STREAM PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/windowed_surface_stream.png
+STAGE PASS: surface-stream
+
+=== STAGE: ui-states ===
+UI SHOTS: showcase seed 36 (test save root /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T/p3d-ui-shots-37382)
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+windowed run: 481 frames · frame p50 31.31 ms · p95 46.39 ms · avg 31.1 fps
+UI SCENE CHECKS PASS:
+  ui_title_1280x720: 12027 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4723/4723 — OK
+  ui_title_focus: 12214 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 482/482 — OK
+  focus distinctness: btn_play 2092 px, btn_new_world 2092 px differ — OK
+  ui_new_world: 10097 distinct colors, 24 ui elements, 300384 blended px, no row shear, quad coverage 945/945 — OK
+  ui_load_world: 11652 distinct colors, 10 ui elements, 146392 blended px, no row shear, quad coverage 630/630 — OK
+  ui_settings: 12183 distinct colors, 50 ui elements, 277988 blended px, no row shear, quad coverage 320/320 — OK
+  ui_gameplay_hud_default: 8541 distinct colors, 17 ui elements, 27447 blended px, no row shear, quad coverage 1281/1281 — OK
+  ui_gameplay_hud_debug_values: 8184 distinct colors, 18 ui elements, 31286 blended px, no row shear, quad coverage 1185/1185 — OK
+  health bar fill fraction 0.38 (target 0.45) — OK
+  ui_pause: 618 distinct colors, 7 ui elements, 116594 blended px, no row shear, quad coverage 1886/1886 — OK
+  ui_modal_confirm: 655 distinct colors, 6 ui elements, 901566 blended px, no row shear, quad coverage 592/592 — OK
+  ui_debug_inspector: 8835 distinct colors, 18 ui elements, 35242 blended px, no row shear, quad coverage 245/245 — OK
+  ui_title_deck: 7628 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 3628/3628 — OK
+  ui_gameplay_hud_1501x801: 8773 distinct colors, 17 ui elements, 27800 blended px, no row shear, quad coverage 1139/1139 — OK
+  ui_title_1501x801: 8993 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4416/4416 — OK
+UI SHOTS PASS -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots (13 captures + layout dumps, incl. unaligned 1501x801 + row-shear law)
+STAGE PASS: ui-states
+
+=== STAGE: seed-preview-ui ===
+SEED PREVIEW SHOTS: warning-state seed: 8
+windowed run: 401 frames · frame p50 31.01 ms · p95 53.45 ms · avg 30.1 fps
+SEED PREVIEW SHOTS PASS:
+  seed_preview_empty: valid=false map colors=3, create=disabled, marker=no — OK
+  seed_preview_typed: valid=true map colors=70, create=focused, marker=yes — OK
+  seed_preview_rerolled: valid=true map colors=75, create=normal, marker=yes — OK
+  seed_preview_random: valid=false map colors=40, create=disabled, marker=no — OK
+  seed_preview_deck_1280x800: valid=false map colors=40, create=disabled, marker=no — OK
+  seed_preview_invalid_or_warning: valid=false map colors=54, create=disabled, marker=no — OK
+  pixel report -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/seed_preview_pixel_report.json
+STAGE PASS: seed-preview-ui
+
+=== STAGE: seed-preview-4242 ===
+SEED PREVIEW: seed 4242 (numeric), spawn safe=true, 4 biomes, 1 warnings -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/seed_preview_4242.png + /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/seed_preview_4242.json
+STAGE PASS: seed-preview-4242
+
+=== STAGE: asset-captures ===
+  starter_house/beauty_nonblank: PASS (254 colors)
+  starter_house/wireframe_edges_visible: PASS (5432 center bright px, diff 50.754166%)
+  starter_house/anchors_visible: PASS (34871 ember-ish px, diff 50.94583%)
+ASSET CAPTURE starter_house OK -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/asset-captures/starter_house
+ASSET CAPTURES OK
+  openable_chest/beauty_nonblank: PASS (247 colors)
+  openable_chest/wireframe_edges_visible: PASS (5778 center bright px, diff 77.20556%)
+  openable_chest/anchors_visible: PASS (2888 ember-ish px, diff 77.20556%)
+ASSET CAPTURE openable_chest OK -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/asset-captures/openable_chest
+ASSET CAPTURES OK
+  harvestable_ore_node/beauty_nonblank: PASS (301 colors)
+  harvestable_ore_node/wireframe_edges_visible: PASS (5341 center bright px, diff 73.14653%)
+  harvestable_ore_node/anchors_visible: PASS (4874 ember-ish px, diff 73.14653%)
+ASSET CAPTURE harvestable_ore_node OK -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/asset-captures/harvestable_ore_node
+ASSET CAPTURES OK
+  map_marker_set/beauty_nonblank: PASS (238 colors)
+  map_marker_set/wireframe_edges_visible: PASS (5443 center bright px, diff 64.46667%)
+  map_marker_set/anchors_visible: PASS (15396 ember-ish px, diff 64.46667%)
+ASSET CAPTURE map_marker_set OK -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/asset-captures/map_marker_set
+ASSET CAPTURES OK
+ASSET CAPTURES OK
+STAGE PASS: asset-captures
+
+=== STAGE: observatory ===
+OBSERVE route_title_mouse -> PASS (2 captures, 81 frames, p50 29.520000457763672 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_title_mouse/bundle.json
+OBSERVATORY OK
+OBSERVE route_new_world_seed -> PASS (1 captures, 71 frames, p50 28.270000457763672 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_new_world_seed/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+OBSERVE route_escape_pause -> PASS (1 captures, 91 frames, p50 29.170000076293945 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_escape_pause/bundle.json
+OBSERVATORY OK
+OBSERVE route_asset_inspect -> PASS (1 captures, 61 frames, p50 31.579999923706055 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_asset_inspect/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+HOUSE ENTRY: outside vs inside frames differ 66.1%
+OBSERVE route_house_entry -> PASS (2 captures, 121 frames, p50 30.260000228881836 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_house_entry/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+NPC TALK: speaking with Maren Oldford
+OBSERVE route_npc_talk -> PASS (1 captures, 91 frames, p50 29.639999389648438 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_npc_talk/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+FORGE USE: 1 bars smelted and taken
+OBSERVE route_forge_use -> PASS (2 captures, 281 frames, p50 33.310001373291016 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_forge_use/bundle.json
+OBSERVATORY OK
+GPU MARKERS: 12 markers, 11 draw calls, backend "Metal"
+OBSERVE route_gpu_markers -> PASS (1 captures, 61 frames, p50 30.920000076293945 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_gpu_markers/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 41%)
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 26.110000610351562 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_semantic_playtest/bundle.json
+OBSERVATORY OK
+VINE CLIMB: strand at slot (66,13) anchor (262.7,40.64,54.0) ground 37.73
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+VINE CLIMB: the fall was gripped (toast), the drop reached 40.47 (from 49.73) and hung in the span (40.47 in [tip 39.32, attach 40.64]), the climb moved the body, landed unharmed and GROUNDED (feet 37.75 on 37.75, health 100%)
+OBSERVE route_vine_climb -> PASS (4 captures, 381 frames, p50 20.729999542236328 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_vine_climb/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+AIR STEER: the free fall held its line, the held fall drifted 0.66 m along the strafe (ortho 0.00 m); health 71% -> 48%
+OBSERVE route_air_steer -> PASS (4 captures, 321 frames, p50 25.200000762939453 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_air_steer/bundle.json
+OBSERVATORY OK
+WALK OFF: dig cell (386.5,37.67,136.5) -> floor 32.67
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+WALK OFF: the floor gave way, the body fell 39.38 -> 34.38 (deepest air 34.56, air beat latched at frame 104 for frame 105) and landed wounded 100% -> 65% (toast true)
+OBSERVE route_walk_off -> PASS (3 captures, 240 frames, p50 22.610000610351562 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_walk_off/bundle.json
+OBSERVATORY OK
+PIT WALL: pit (386.5,37.67,136.5) -> floor 32.67; step cell (386.5,134.5) -> 33.17
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+PIT WALL: the pit held (32.68 -> held 32.68 at the wall, then the step at 33.21); health 100% -> 78%
+OBSERVE route_pit_wall -> PASS (4 captures, 341 frames, p50 21.729999542236328 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_pit_wall/bundle.json
+OBSERVATORY OK
+DIG: spot (386.5,37.67,136.5)
+DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.69; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 22.270000457763672 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_dig/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+CROWD: staged head-on (387,132) <-> (395,132); parked home (380,127)
+CROWD YIELD: row (387,132) <-> (395,132); 70 frames audited, overlap false / yield true / arrived true/true; parked (380,127) held
+OBSERVE route_crowd_yield -> PASS (4 captures, 131 frames, p50 21.979999542236328 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_crowd_yield/bundle.json
+OBSERVATORY OK
+PLAZA RECOVERY: pit cell (386.5,37.67,136.5) -> floor 23.67; plaza at (384, 128)
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+PLAZA RECOVERY: fell 37.68 -> pit floor 23.68; woke at the plaza (384.5,128.5) feet 38.35 (plaza ground 38.35); health 100% -> 50% EXACT, food 1.00 -> 0.50
+OBSERVE route_plaza_recovery -> PASS (5 captures, 341 frames, p50 21.950000762939453 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_plaza_recovery/bundle.json
+OBSERVATORY OK
+VINE HANGOFF: strand at slot (66,13) anchor (262.7,40.64,54.0) ground 37.73
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+HANG OFF: hang at 40.47 (top 40.64 tip 39.32); hop rose 1.04 m, fell past the strand (min 37.73), air beat latched at frame 234 for 235 (pose 39.18, ground 37.73), grounded at (262.65,54.00) feet 37.73 (ground 37.73); health 100% -> 81% (law 81%); tip release fell free (min 37.62) and landed safe 1.41 m from the strand (health 0.94 -> 0.98)
+OBSERVE route_vine_hangoff -> PASS (7 captures, 700 frames, p50 23.959999084472656 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_vine_hangoff/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+PATH CHOICE: panel + lean shown, ENGINEERING bound, toast fired
+OBSERVE route_path_choice -> PASS (2 captures, 96 frames, p50 22.139999389648438 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_path_choice/bundle.json
+OBSERVATORY OK
+MACHINE CHAIN: river region (0,0) offers 3200 mWATER; wood spot (128.5,35.61,136.5)
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+MACHINE CHAIN: 450 mE stored from river water + wood
+OBSERVE route_machine_chain -> PASS (2 captures, 171 frames, p50 17.25 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_machine_chain/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+SOCIAL: oversight shown, companion live, slain=1 witnessed=3
+OBSERVE route_social -> PASS (2 captures, 220 frames, p50 22.079999923706055 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/observatory/route_social/bundle.json
+OBSERVATORY OK
+OBSERVATORY OK (all routes)
+STAGE PASS: observatory
+
+=== STAGE: dig-determinism ===
+DIG: spot (386.5,37.67,136.5)
+DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.69; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 22.8700008392334 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/dig-a/route_dig/bundle.json
+OBSERVATORY OK
+DIG: spot (386.5,37.67,136.5)
+DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.69; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 21.959999084472656 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/dig-b/route_dig/bundle.json
+OBSERVATORY OK
+{
+  "build_hash": "dev",
+  "checks": [
+    {
+      "detail": "both bundle.json parsed",
+      "name": "bundles_readable",
+      "pass": true
+    },
+    {
+      "detail": "\"route_dig\"",
+      "name": "same_route",
+      "pass": true
+    },
+    {
+      "detail": "all listed paths exist",
+      "name": "A_paths_exist",
+      "pass": true
+    },
+    {
+      "detail": "all listed paths exist",
+      "name": "B_paths_exist",
+      "pass": true
+    },
+    {
+      "detail": "screenshots carry content",
+      "name": "A_nonblank",
+      "pass": true
+    },
+    {
+      "detail": "screenshots carry content",
+      "name": "B_nonblank",
+      "pass": true
+    },
+    {
+      "detail": "\"3\" vs \"3\"",
+      "name": "same_seed",
+      "pass": true
+    }
+  ],
+  "verdict": "pass",
+  "version": 1
+}
+STAGE PASS: dig-determinism
+
+=== STAGE: playtest-determinism ===
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 40%)
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 25.860000610351562 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/playtest-a/route_semantic_playtest/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 40%)
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 26.260000228881836 ms) -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/playtest-b/route_semantic_playtest/bundle.json
+OBSERVATORY OK
+{
+  "build_hash": "dev",
+  "checks": [
+    {
+      "detail": "both bundle.json parsed",
+      "name": "bundles_readable",
+      "pass": true
+    },
+    {
+      "detail": "\"route_semantic_playtest\"",
+      "name": "same_route",
+      "pass": true
+    },
+    {
+      "detail": "all listed paths exist",
+      "name": "A_paths_exist",
+      "pass": true
+    },
+    {
+      "detail": "all listed paths exist",
+      "name": "B_paths_exist",
+      "pass": true
+    },
+    {
+      "detail": "screenshots carry content",
+      "name": "A_nonblank",
+      "pass": true
+    },
+    {
+      "detail": "screenshots carry content",
+      "name": "B_nonblank",
+      "pass": true
+    },
+    {
+      "detail": "\"3\" vs \"3\"",
+      "name": "same_seed",
+      "pass": true
+    }
+  ],
+  "verdict": "pass",
+  "version": 1
+}
+STAGE PASS: playtest-determinism
+
+=== STAGE: deck-bench ===
+DECK low: p50 9.11 ms p95 13.15 p99 20.45 worst 42.58 (104 fps), meshed 201 gpu 8177 KB flora 463 setl 1048 tris crowd 92 inst, probe 710385 -> 603217 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_low.csv
+DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+DECK mid: p50 9.70 ms p95 13.31 p99 18.47 worst 35.11 (98 fps), meshed 402 gpu 18654 KB flora 463 setl 1048 tris crowd 92 inst, probe 707613 -> 621442 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_mid.csv
+DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+DECK high: p50 9.30 ms p95 13.60 p99 30.41 worst 49.60 (98 fps), meshed 603 gpu 27359 KB flora 463 setl 1048 tris crowd 92 inst, probe 628925 -> 592017 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_high.csv
+DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+DECK host CPU probe ns (start/end): [710385, 603217, 707613, 621442, 628925, 592017] — within the x1.4 band
+DECK BENCH REPORT -> /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/../../../docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md
+DECK low: p50 9.11 ms p95 13.15 p99 20.45 worst 42.58 (104 fps) probes 710385/603217
+DECK mid: p50 9.70 ms p95 13.31 p99 18.47 worst 35.11 (98 fps) probes 707613/621442
+DECK high: p50 9.30 ms p95 13.60 p99 30.41 worst 49.60 (98 fps) probes 628925/592017
+DECK BENCH PASS -> report + per-tier captures in /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots
+STAGE PASS: deck-bench
+
+=== STAGE: package-dmg ===
+PC3D_BUILD=ea9e6e18 cargo build --release --manifest-path poorcraft-novo/Cargo.toml -p poorcraft3d && mkdir -p poorcraft-novo/target/release && if [ -n "$CARGO_TARGET_DIR" ] && [ -f "$CARGO_TARGET_DIR/release/poorcraft3d" ]; then cp -f "$CARGO_TARGET_DIR/release/poorcraft3d" poorcraft-novo/target/release/poorcraft3d; fi
+warning: variable does not need to be mutable
+   --> crates/pc3d_core/src/replay.rs:125:9
+    |
+125 |     let mut cd = cart.digest();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `Cart` is never constructed
+  --> crates/pc3d_core/src/replay.rs:49:8
+   |
+49 | struct Cart {
+   |        ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `Move` is never used
+  --> crates/pc3d_core/src/replay.rs:55:6
+   |
+55 | enum Move {
+   |      ^^^^
+
+warning: methods `apply` and `digest` are never used
+  --> crates/pc3d_core/src/replay.rs:61:8
+   |
+60 | impl Cart {
+   | --------- methods in this implementation
+61 |     fn apply(&mut self, tick: u64, cmd: &Move, journal: &mut Vec<JournalEvent>) {
+   |        ^^^^^
+...
+77 |     fn digest(&self) -> ReplayDigest {
+   |        ^^^^^^
+
+warning: function `run` is never used
+  --> crates/pc3d_core/src/replay.rs:88:4
+   |
+88 | fn run(dts: &[f32]) -> (ReplayDigest, u64, u64) {
+   |    ^^^
+
+warning: struct `EventJournalSink` is never constructed
+   --> crates/pc3d_core/src/replay.rs:131:8
+    |
+131 | struct EventJournalSink {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `next_seq`, `push`, and `events` are never used
+   --> crates/pc3d_core/src/replay.rs:137:8
+    |
+136 | impl EventJournalSink {
+    | --------------------- associated items in this implementation
+137 |     fn new() -> Self {
+    |        ^^^
+...
+143 |     fn next_seq(&self) -> u64 {
+    |        ^^^^^^^^
+...
+146 |     fn push(&mut self, e: JournalEvent) {
+    |        ^^^^
+...
+150 |     fn events(&self) -> &[JournalEvent] {
+    |        ^^^^^^
+
+warning: `pc3d_core` (lib) generated 7 warnings (run `cargo fix --lib -p pc3d_core` to apply 1 suggestion)
+warning: unused import: `CellMaterial`
+  --> crates/pc3d_world/src/castle.rs:11:18
+   |
+11 | use crate::gen::{CellMaterial, WorldGen};
+   |                  ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::terrain::final_solid`
+  --> crates/pc3d_world/src/castle.rs:12:5
+   |
+12 | use crate::terrain::final_solid;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeMap`
+  --> crates/pc3d_world/src/castle.rs:13:5
+   |
+13 | use std::collections::BTreeMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeMap`
+ --> crates/pc3d_world/src/castle_law.rs:8:5
+  |
+8 | use std::collections::BTreeMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ToolState`
+  --> crates/pc3d_world/src/combat.rs:11:55
+   |
+11 | use crate::items::{harvest_yields, Inventory, ItemId, ToolState};
+   |                                                       ^^^^^^^^^
+
+warning: unused import: `MIN_ELEVATION_M`
+  --> crates/pc3d_world/src/constraints.rs:11:35
+   |
+11 | use crate::gen::{Biome, WorldGen, MIN_ELEVATION_M, SEA_LEVEL_M};
+   |                                   ^^^^^^^^^^^^^^^
+
+warning: unused import: `item_name`
+  --> crates/pc3d_world/src/craft.rs:14:20
+   |
+14 | use crate::items::{item_name, Inventory, ItemId};
+   |                    ^^^^^^^^^
+
+warning: unused import: `harvest_yields`
+  --> crates/pc3d_world/src/diagnose.rs:14:20
+   |
+14 | use crate::items::{harvest_yields, Inventory, ItemId};
+   |                    ^^^^^^^^^^^^^^
+
+warning: unused import: `Settlement`
+  --> crates/pc3d_world/src/dragon.rs:13:36
+   |
+13 | use crate::settlement::{Aggregate, Settlement, Settlements};
+   |                                    ^^^^^^^^^^
+
+warning: unused import: `crate::gen::WorldGen`
+  --> crates/pc3d_world/src/flow.rs:12:5
+   |
+12 | use crate::gen::WorldGen;
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `item_name`
+  --> crates/pc3d_world/src/journey.rs:17:20
+   |
+17 | use crate::items::{item_name, Inventory, ItemId, ItemKind};
+   |                    ^^^^^^^^^
+
+warning: unused import: `crate::coords::RegionCoord`
+ --> crates/pc3d_world/src/oversight.rs:7:5
+  |
+7 | use crate::coords::RegionCoord;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::terrain::SceneSpec`
+  --> crates/pc3d_world/src/player.rs:12:5
+   |
+12 | use crate::terrain::SceneSpec;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::npc::Role`
+  --> crates/pc3d_world/src/player_settlement.rs:10:5
+   |
+10 | use crate::npc::Role;
+   |     ^^^^^^^^^^^^^^^^
+
+warning: unused import: `WorldBoundsXz`
+ --> crates/pc3d_world/src/query.rs:8:34
+  |
+8 | use crate::bounds::{WorldBounds, WorldBoundsXz};
+  |                                  ^^^^^^^^^^^^^
+
+warning: unused import: `REGION_MM`
+  --> crates/pc3d_world/src/query.rs:10:50
+   |
+10 | use crate::scales::{MAX_QUERY_PATCHES, PATCH_MM, REGION_MM, REGION_PATCH_AXIS};
+   |                                                  ^^^^^^^^^
+
+warning: unused import: `TICKS_PER_DAY`
+  --> crates/pc3d_world/src/scale.rs:16:42
+   |
+16 | use crate::host::{HostCommand, SoloHost, TICKS_PER_DAY};
+   |                                          ^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeMap`
+  --> crates/pc3d_world/src/settlement.rs:13:5
+   |
+13 | use std::collections::BTreeMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeMap`
+  --> crates/pc3d_world/src/settlement_plan.rs:10:5
+   |
+10 | use std::collections::BTreeMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `harvest_yields`
+  --> crates/pc3d_world/src/survival.rs:10:20
+   |
+10 | use crate::items::{harvest_yields, Inventory, ItemId};
+   |                    ^^^^^^^^^^^^^^
+
+warning: unused import: `WorldPos`
+  --> crates/pc3d_world/src/terrain.rs:19:33
+   |
+19 | use crate::coords::{PatchCoord, WorldPos};
+   |                                 ^^^^^^^^
+
+warning: unused variable: `family`
+   --> crates/pc3d_world/src/layout.rs:151:29
+    |
+151 |                 .find(|(ri, family)| {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_family`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `family`
+   --> crates/pc3d_world/src/layout.rs:156:27
+    |
+156 |             let Some((ri, family)) = claimant else {
+    |                           ^^^^^^ help: if this is intentional, prefix it with an underscore: `_family`
+
+warning: value assigned to `capitals` is never read
+   --> crates/pc3d_world/src/layout.rs:127:47
+    |
+127 |         let mut capitals: Vec<RealmCapital> = Vec::new();
+    |                                               ^^^^^^^^^^ this value is reassigned later and never used
+...
+211 |         capitals = placed;
+    |         -------- `capitals` is overwritten here before the previous value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `kit`
+   --> crates/pc3d_world/src/castle.rs:242:9
+    |
+242 |     let kit = manifest();
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_kit`
+
+warning: unused variable: `tick`
+   --> crates/pc3d_world/src/combat.rs:105:60
+    |
+105 |     pub fn player_attack(&mut self, player_pos: CellCoord, tick: u64) -> Vec<(ItemId, u32)> {
+    |                                                            ^^^^ help: if this is intentional, prefix it with an underscore: `_tick`
+
+warning: unused variable: `graph`
+   --> crates/pc3d_world/src/diagnose.rs:269:9
+    |
+269 |     let graph = RiverGraph::new(&gen, 24);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_graph`
+
+warning: unused variable: `gen`
+   --> crates/pc3d_world/src/flora.rs:375:14
+    |
+375 | fn region_of(gen: &WorldGen, slot: SlotCoord) -> RegionCoord {
+    |              ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
+warning: unused variable: `available_population`
+  --> crates/pc3d_world/src/garrison.rs:33:31
+   |
+33 |     pub fn recruit(&mut self, available_population: i64, count: u32) -> u32 {
+   |                               ^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_available_population`
+
+warning: unused variable: `n`
+  --> crates/pc3d_world/src/nav.rs:66:13
+   |
+66 |         let n = PATCH_CELL_AXIS as usize;
+   |             ^ help: if this is intentional, prefix it with an underscore: `_n`
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_world/src/npc.rs:282:13
+    |
+282 |         let mut held: HashSet<(i32, i32)> =
+    |             ----^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `defense_ok`
+  --> crates/pc3d_world/src/oversight.rs:42:13
+   |
+42 |         let defense_ok = garrison.soldiers > 0;
+   |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_defense_ok`
+
+warning: unused variable: `prosperity_ok`
+  --> crates/pc3d_world/src/oversight.rs:43:13
+   |
+43 |         let prosperity_ok = agg.prosperity > 20;
+   |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_prosperity_ok`
+
+warning: unused variable: `wx`
+  --> crates/pc3d_world/src/player.rs:90:13
+   |
+90 |         let wx = cx as i64 * 1000;
+   |             ^^ help: if this is intentional, prefix it with an underscore: `_wx`
+
+warning: unused variable: `wz`
+  --> crates/pc3d_world/src/player.rs:91:13
+   |
+91 |         let wz = cz as i64 * 1000;
+   |             ^^ help: if this is intentional, prefix it with an underscore: `_wz`
+
+warning: unused variable: `t`
+  --> crates/pc3d_world/src/scale.rs:72:9
+   |
+72 |     for t in 0..ticks {
+   |         ^ help: if this is intentional, prefix it with an underscore: `_t`
+
+warning: unused variable: `graph`
+   --> crates/pc3d_world/src/seed_preview.rs:201:31
+    |
+201 | fn find_spawn(gen: &WorldGen, graph: &RiverGraph) -> SpawnPreview {
+    |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_graph`
+
+warning: unused variable: `gen`
+  --> crates/pc3d_world/src/settlement.rs:78:16
+   |
+78 |     pub fn new(gen: &WorldGen, graph: &RiverGraph, half: i32) -> Self {
+   |                ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
+warning: unused variable: `gen`
+   --> crates/pc3d_world/src/terrain.rs:124:13
+    |
+124 |             gen: &crate::gen::WorldGen,
+    |             ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
+warning: unused variable: `h`
+  --> crates/pc3d_world/src/terrain_report.rs:33:9
+   |
+33 |     let h = gen.effective_surface_mm(x, z);
+   |         ^ help: if this is intentional, prefix it with an underscore: `_h`
+
+warning: constant `CATALOG_REL` is never used
+  --> crates/pc3d_world/src/catalog.rs:11:7
+   |
+11 | const CATALOG_REL: &str = "../../../docs/POORCRAFT-3D/FUNCTION-CATALOG.md";
+   |       ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `floor_y` is never read
+   --> crates/pc3d_world/src/castle.rs:229:5
+    |
+227 | struct SolidProbe {
+    |        ---------- field in this struct
+228 |     solid: bool,
+229 |     floor_y: i64,
+    |     ^^^^^^^
+
+warning: method `water_milli_at` is never used
+   --> crates/pc3d_world/src/machines.rs:549:8
+    |
+547 | impl MachineNetwork {
+    | ------------------- method in this implementation
+548 |     /// Test helper: set a boiler's water directly.
+549 |     fn water_milli_at(&mut self, id: u64, water_milli: i64) {
+    |        ^^^^^^^^^^^^^^
+
+warning: function `PATCH_CELL_AXIS` should have a snake case name
+  --> crates/pc3d_world/src/coords.rs:82:4
+   |
+82 | fn PATCH_CELL_AXIS() -> i32 {
+   |    ^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `patch_cell_axis`
+   |
+   = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `REGION_PATCH_AXIS_I32` should have a snake case name
+   --> crates/pc3d_world/src/coords.rs:119:4
+    |
+119 | fn REGION_PATCH_AXIS_I32() -> i32 {
+    |    ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `region_patch_axis_i32`
+
+warning: `pc3d_world` (lib) generated 45 warnings (run `cargo fix --lib -p pc3d_world` to apply 39 suggestions)
+warning: unused import: `crate::framing::FrameError`
+ --> crates/pc3d_save/src/journal.rs:7:5
+  |
+7 | use crate::framing::FrameError;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `pc3d_save` (lib) generated 1 warning (run `cargo fix --lib -p pc3d_save` to apply 1 suggestion)
+   Compiling pc3d_render v0.1.0 (/Users/zari/Desktop/POORCRAFT/poorcraft-novo/crates/pc3d_render)
+warning: unused import: `view_matrix`
+  --> crates/pc3d_render/src/atmosphere.rs:28:26
+   |
+28 | use crate::camera::{mul, view_matrix, Mat4};
+   |                          ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PlacedModule`
+  --> crates/pc3d_render/src/settlement.rs:14:52
+   |
+14 | use pc3d_world::castle::{CastleLayout, ModuleKind, PlacedModule};
+   |                                                    ^^^^^^^^^^^^
+
+warning: unused import: `BuildingSlot`
+  --> crates/pc3d_render/src/settlement.rs:17:49
+   |
+17 | use pc3d_world::settlement_plan::{BuildingKind, BuildingSlot, SettlementPlan};
+   |                                                 ^^^^^^^^^^^^
+
+warning: unused import: `FACE_BASIS`
+  --> crates/pc3d_render/src/streaming.rs:26:33
+   |
+26 | use crate::scene::{SceneVertex, FACE_BASIS};
+   |                                 ^^^^^^^^^^
+
+warning: unused import: `interest_diff`
+  --> crates/pc3d_render/src/streaming.rs:31:26
+   |
+31 | use pc3d_world::stream::{interest_diff, interest_patches, Admit, BoundedQueue, Tier};
+   |                          ^^^^^^^^^^^^^
+
+warning: unused import: `crate::camera::CameraPose`
+  --> crates/pc3d_render/src/surface.rs:17:5
+   |
+17 | use crate::camera::CameraPose;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `lit_color`
+  --> crates/pc3d_render/src/surface.rs:18:20
+   |
+18 | use crate::scene::{lit_color, SceneVertex};
+   |                    ^^^^^^^^^
+
+warning: unused import: `face_expectation`
+  --> crates/pc3d_render/src/surface.rs:19:22
+   |
+19 | use crate::terrain::{face_expectation, terrain_albedo};
+   |                      ^^^^^^^^^^^^^^^^
+
+warning: unused imports: `GpuContext`, `SurfaceAction`, `SurfaceGuard`, and `surface_action`
+  --> crates/pc3d_render/src/surface_stream.rs:19:18
+   |
+19 | use crate::gpu::{surface_action, GpuContext, SurfaceAction, SurfaceGuard};
+   |                  ^^^^^^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `SurfacePatch`
+  --> crates/pc3d_render/src/surface_stream.rs:21:22
+   |
+21 | use crate::surface::{SurfacePatch, PATCH_M};
+   |                      ^^^^^^^^^^^^
+
+warning: unused import: `SurfacePatch`
+  --> crates/pc3d_render/src/world_features.rs:31:22
+   |
+31 | use crate::surface::{SurfacePatch, SurfaceRegion, PATCH_M};
+   |                      ^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageCopyBuffer`: This has been renamed to `TexelCopyBufferInfo`, and will be removed in 25.0.0.
+    --> crates/pc3d_render/src/renderer.rs:2591:23
+     |
+2591 |                 wgpu::ImageCopyBuffer {
+     |                       ^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated type alias `wgpu::ImageDataLayout`: This has been renamed to `TexelCopyBufferLayout`, and will be removed in 25.0.0.
+    --> crates/pc3d_render/src/renderer.rs:2593:35
+     |
+2593 |                     layout: wgpu::ImageDataLayout {
+     |                                   ^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageCopyBuffer`: This has been renamed to `TexelCopyBufferInfo`, and will be removed in 25.0.0.
+    --> crates/pc3d_render/src/renderer.rs:2614:23
+     |
+2614 |                 wgpu::ImageCopyBuffer {
+     |                       ^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageDataLayout`: This has been renamed to `TexelCopyBufferLayout`, and will be removed in 25.0.0.
+    --> crates/pc3d_render/src/renderer.rs:2616:35
+     |
+2616 |                     layout: wgpu::ImageDataLayout {
+     |                                   ^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `winit::window::WindowAttributes::new`: use `Window::default_attributes` instead
+    --> crates/pc3d_render/src/app.rs:3157:39
+     |
+3157 |         let attrs = WindowAttributes::new()
+     |                                       ^^^
+
+warning: unused variable: `list`
+    --> crates/pc3d_render/src/app.rs:1781:29
+     |
+1781 |                         let list = self.state.as_ref().and_then(|s| s.renderer.plaza_interactables_pub());
+     |                             ^^^^ help: if this is intentional, prefix it with an underscore: `_list`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `remaining`
+    --> crates/pc3d_render/src/app.rs:2677:36
+     |
+2677 |                     let (has_pick, remaining) = self
+     |                                    ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_remaining`
+
+warning: unused variable: `dy_signed`
+    --> crates/pc3d_render/src/app.rs:3299:17
+     |
+3299 |             let dy_signed = if invert { -dy } else { dy };
+     |                 ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dy_signed`
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_render/src/city.rs:658:9
+    |
+658 |     let mut record = |info: &mut CityInfo,
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `evicted` is never read
+   --> crates/pc3d_render/src/flora.rs:546:27
+    |
+546 |         let mut evicted = 0usize;
+    |                           ^^^^^^ this value is reassigned later and never used
+...
+595 |         evicted = before - self.cache.len();
+    |         ----------------------------------- `evicted` is overwritten here before the previous value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `min` is never read
+  --> crates/pc3d_render/src/inspect.rs:73:25
+   |
+73 |                         min = [0.0; 3];
+   |                         ^^^^^^^^^^^^^^
+   |
+   = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_render/src/npcs.rs:324:9
+    |
+324 |     let mut frame = |verts: &mut Vec<SceneVertex>,
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_render/src/npcs.rs:859:9
+    |
+859 |     let mut push = |parts: &mut Vec<RigPart>, off: [f32; 3], sc: [f32; 3], c: PartColor| {
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_render/src/renderer.rs:492:21
+    |
+492 |                 let mut d = wgpu::RenderPipelineDescriptor {
+    |                     ----^
+    |                     |
+    |                     help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_render/src/renderer.rs:801:9
+    |
+801 |     let mut line = |from: [f32; 3], to: [f32; 3], c: [f32; 3], out: &mut Vec<crate::scene::SceneVertex>| {
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> crates/pc3d_render/src/renderer.rs:1029:13
+     |
+1029 |         let mut hud = create_hud(&ctx.device, &pipelines.layout_hud);
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_render/src/settlement.rs:319:9
+    |
+319 |     let mut push = |scene: &mut KitScene,
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_render/src/slice.rs:995:9
+    |
+995 |     let mut host = SliceHost {
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: unused variable: `gen`
+  --> crates/pc3d_render/src/surface.rs:97:32
+   |
+97 |     pub fn vertex_world(&self, gen: &WorldGen, lx: usize, lz: usize) -> [f32; 3] {
+   |                                ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
+warning: unused variable: `to_m`
+   --> crates/pc3d_render/src/surface.rs:282:38
+    |
+282 |                 SurfaceEdit::Level { to_m, .. } => None,
+    |                                      ^^^^ help: try ignoring the field: `to_m: _`
+
+warning: unused variable: `t0`
+   --> crates/pc3d_render/src/surface_stream.rs:308:13
+    |
+308 |         let t0 = std::time::Instant::now();
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_t0`
+
+warning: unused variable: `is_air`
+   --> crates/pc3d_render/src/terrain.rs:260:9
+    |
+260 |     let is_air = |c: CellCoord| !solid_at(gen, c);
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_is_air`
+
+warning: unused variable: `b`
+    --> crates/pc3d_render/src/ui.rs:1342:21
+     |
+1342 |             for (i, b) in KEYMAP.iter().enumerate() {
+     |                     ^ help: if this is intentional, prefix it with an underscore: `_b`
+
+warning: unused variable: `other_state`
+    --> crates/pc3d_render/src/ui.rs:1635:29
+     |
+1635 | ...                   other_state => format!("> {head}"),
+     |                       ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_other_state`
+
+warning: unused variable: `state_col`
+    --> crates/pc3d_render/src/ui.rs:1717:22
+     |
+1717 |                 let (state_col, state_txt) = if f.blocked {
+     |                      ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_state_col`
+
+warning: value assigned to `fy` is never read
+    --> crates/pc3d_render/src/ui.rs:1542:25
+     |
+1542 |                         fy += ctx.px(ROW_H);
+     |                         ^^^^^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+
+warning: value assigned to `fy` is never read
+    --> crates/pc3d_render/src/ui.rs:1557:25
+     |
+1557 |                         fy += ctx.px(ROW_H);
+     |                         ^^^^^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+
+warning: unused variable: `down`
+   --> crates/pc3d_render/src/water.rs:130:14
+    |
+130 |     let Some(down) = graph.downstream(RegionCoord {
+    |              ^^^^ help: if this is intentional, prefix it with an underscore: `_down`
+
+warning: unused variable: `graph`
+   --> crates/pc3d_render/src/water.rs:373:19
+    |
+373 | pub fn river_pose(graph: &RiverGraph, gen: &WorldGen, a: (i32, i32), b: (i32, i32)) -> CameraPose {
+    |                   ^^^^^ help: if this is intentional, prefix it with an underscore: `_graph`
+
+warning: enum `PointerIntent` is never used
+    --> crates/pc3d_render/src/app.rs:1192:6
+     |
+1192 | enum PointerIntent {
+     |      ^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `apply_pointer_intent` is never used
+    --> crates/pc3d_render/src/app.rs:1322:8
+     |
+1313 | impl WindowState {
+     | ---------------- method in this implementation
+...
+1322 |     fn apply_pointer_intent(&mut self, intent: PointerIntent) {
+     |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `ground_at` and `blocked` are never used
+   --> crates/pc3d_render/src/player.rs:202:8
+    |
+180 | impl PlayerBody {
+    | --------------- methods in this implementation
+...
+202 |     fn ground_at(&self, gen: &WorldGen, x: f32, z: f32) -> f32 {
+    |        ^^^^^^^^^
+...
+217 |     fn blocked(&self, gen: &WorldGen, x: f32, z: f32) -> bool {
+    |        ^^^^^^^
+
+warning: function `cells_of` is never used
+   --> crates/pc3d_render/src/settlement.rs:257:4
+    |
+257 | fn cells_of(origin: CellCoord, fw: i32, fh: i32) -> BTreeSet<(i32, i32)> {
+    |    ^^^^^^^^
+
+warning: function `sample_height` is never used
+  --> crates/pc3d_render/src/surface.rs:60:4
+   |
+60 | fn sample_height(gen: &WorldGen, wx_m: f32, wz_m: f32) -> f32 {
+   |    ^^^^^^^^^^^^^
+
+warning: function `sample_material` is never used
+  --> crates/pc3d_render/src/surface.rs:73:4
+   |
+73 | fn sample_material(gen: &WorldGen, wx_m: f32, wz_m: f32) -> pc3d_world::gen::CellMaterial {
+   |    ^^^^^^^^^^^^^^^
+
+warning: field `version` is never read
+  --> crates/pc3d_render/src/surface_stream.rs:80:5
+   |
+72 | struct Slot {
+   |        ---- field in this struct
+...
+80 |     version: u64,
+   |     ^^^^^^^
+
+warning: function `scale_for` is never used
+    --> crates/pc3d_render/src/ui.rs:2047:4
+     |
+2047 | fn scale_for(_w: i32, _h: i32, base: u32) -> u32 {
+     |    ^^^^^^^^^
+
+warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
+    --> crates/pc3d_render/src/app.rs:3351:21
+     |
+3351 |                     drop(state);
+     |                     ^^^^^-----^
+     |                          |
+     |                          argument has type `&mut WindowState`
+     |
+     = note: `#[warn(dropping_references)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+3351 -                     drop(state);
+3351 +                     let _ = state;
+     |
+
+warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
+    --> crates/pc3d_render/src/app.rs:3382:41
+     |
+3382 | ...                   drop(state);
+     |                       ^^^^^-----^
+     |                            |
+     |                            argument has type `&mut WindowState`
+     |
+help: use `let _ = ...` to ignore the expression or result
+     |
+3382 -                                         drop(state);
+3382 +                                         let _ = state;
+     |
+
+warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
+    --> crates/pc3d_render/src/app.rs:3386:37
+     |
+3386 | ...                   drop(state);
+     |                       ^^^^^-----^
+     |                            |
+     |                            argument has type `&mut WindowState`
+     |
+help: use `let _ = ...` to ignore the expression or result
+     |
+3386 -                                     drop(state);
+3386 +                                     let _ = state;
+     |
+
+warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
+    --> crates/pc3d_render/src/app.rs:3434:21
+     |
+3434 |                     drop(state);
+     |                     ^^^^^-----^
+     |                          |
+     |                          argument has type `&mut WindowState`
+     |
+help: use `let _ = ...` to ignore the expression or result
+     |
+3434 -                     drop(state);
+3434 +                     let _ = state;
+     |
+
+warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
+    --> crates/pc3d_render/src/app.rs:3449:21
+     |
+3449 |                     drop(state);
+     |                     ^^^^^-----^
+     |                          |
+     |                          argument has type `&mut WindowState`
+     |
+help: use `let _ = ...` to ignore the expression or result
+     |
+3449 -                     drop(state);
+3449 +                     let _ = state;
+     |
+
+warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
+    --> crates/pc3d_render/src/app.rs:4337:13
+     |
+4337 |             drop(state);
+     |             ^^^^^-----^
+     |                  |
+     |                  argument has type `&mut WindowState`
+     |
+help: use `let _ = ...` to ignore the expression or result
+     |
+4337 -             drop(state);
+4337 +             let _ = state;
+     |
+
+warning: unused `std::result::Result` that must be used
+    --> crates/pc3d_render/src/renderer.rs:1790:9
+     |
+1790 |         rcv.recv().expect("map");
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+     = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+     |
+1790 |         let _ = rcv.recv().expect("map");
+     |         +++++++
+
+warning: `pc3d_render` (lib) generated 55 warnings (run `cargo fix --lib -p pc3d_render` to apply 31 suggestions)
+   Compiling poorcraft3d v0.1.0 (/Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d)
+warning: unused import: `SliceHost`
+    --> apps/poorcraft3d/src/main.rs:1971:37
+     |
+1971 |             use pc3d_render::{Shot, SliceHost};
+     |                                     ^^^^^^^^^
+     |
+     = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `UiAction`
+    --> apps/poorcraft3d/src/main.rs:9248:46
+     |
+9248 |     use pc3d_render::ui::{self, Key, Screen, UiAction};
+     |                                              ^^^^^^^^
+
+warning: unused import: `Key`
+    --> apps/poorcraft3d/src/main.rs:9520:27
+     |
+9520 |     use pc3d_render::ui::{Key, ModalKind, Screen, UiAction};
+     |                           ^^^
+
+warning: variable does not need to be mutable
+    --> apps/poorcraft3d/src/main.rs:2258:17
+     |
+2258 |             let mut region = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), coord);
+     |                 ----^^^^^^
+     |                 |
+     |                 help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `surface_at`
+   --> apps/poorcraft3d/src/main.rs:899:17
+    |
+899 |             let surface_at = |x: f32| {
+    |                 ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_surface_at`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `patches`
+    --> apps/poorcraft3d/src/main.rs:3135:21
+     |
+3135 |                 let patches = patches.clone();
+     |                     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_patches`
+
+warning: unused variable: `center`
+    --> apps/poorcraft3d/src/main.rs:3550:23
+     |
+3550 |             let (gen, center, layout, plan) =
+     |                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_center`
+
+warning: `poorcraft3d` (bin "poorcraft3d") generated 7 warnings (run `cargo fix --bin "poorcraft3d" -p poorcraft3d` to apply 7 suggestions)
+    Finished `release` profile [optimized] target(s) in 57.06s
+warning: the following packages contain code that will be rejected by a future version of Rust: block v0.1.6
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+rm -rf poorcraft-novo/dist3d/POORCRAFT3D.app poorcraft-novo/dist3d/poorcraft3d-macos.dmg
+mkdir -p "poorcraft-novo/dist3d/POORCRAFT3D.app/Contents/MacOS" "poorcraft-novo/dist3d/POORCRAFT3D.app/Contents/Resources"
+cp poorcraft-novo/target/release/poorcraft3d "poorcraft-novo/dist3d/POORCRAFT3D.app/Contents/MacOS/poorcraft3d"
+printf 'APPLPC3D' > "poorcraft-novo/dist3d/POORCRAFT3D.app/Contents/PkgInfo"
+printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>CFBundleExecutable</key><string>poorcraft3d</string>\n<key>CFBundleIdentifier</key><string>com.poorcraft.poorcraft3d</string>\n<key>CFBundleName</key><string>POORCRAFT 3D</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleShortVersionString</key><string>0.11.1</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n' > "poorcraft-novo/dist3d/POORCRAFT3D.app/Contents/Info.plist"
+cp poorcraft-novo/dist3d/POORCRAFT3D/PLAY.md "poorcraft-novo/dist3d/POORCRAFT3D.app/Contents/Resources/PLAY.md"
+hdiutil create -volname "POORCRAFT3D-ea9e6e18" -srcfolder poorcraft-novo/dist3d/POORCRAFT3D.app -ov -format UDZO poorcraft-novo/dist3d/poorcraft3d-macos.dmg
+created: /Users/zari/Desktop/POORCRAFT/poorcraft-novo/dist3d/poorcraft3d-macos.dmg
+ls -la poorcraft-novo/dist3d/poorcraft3d-macos.dmg
+-rw-r--r--@ 1 zari  staff  3829450 Oct 10 01:06 poorcraft-novo/dist3d/poorcraft3d-macos.dmg
+STAGE PASS: package-dmg
+
+TOTAL PROOF PNGS ON DISK: 339
+BETA BATTERY: ALL STAGES PASS (report: /Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/BETA-REPORT.txt)

@@ -7,7 +7,7 @@ Every asset must have all of the following before it is called complete:
 1. An original or suitably licensed source, recorded in the manifest.
 2. A source artifact: normally `.blend` plus an exported reproducible Blender
    Python script, or a repository-owned procedural source.
-3. A compiled `.glb` (glTF 2.0) under `poorcraft3d/assets/compiled/`.
+3. A compiled `.glb` (glTF 2.0) under `poorcraft-novo/assets/compiled/`.
 4. Meters, +Y up, -Z forward, applied transforms, sensible pivot, named nodes,
    material slots, and no missing textures.
 5. Triangle budget, LODs, render category, collider, nav/blocking and socket

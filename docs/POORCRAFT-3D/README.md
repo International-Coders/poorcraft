@@ -15,16 +15,19 @@ from one coherent source of intent instead of guessing from scattered ideas.
 
 For POORCRAFT 3D work, use this order:
 
-1. `00-DESIGN-CONSTITUTION.md` — non-negotiable identity and anti-goals.
-2. `18-DECISION-REGISTER.md` — accepted owner decisions (incl. D-022 pillars).
-3. **Living product truth:** `STATE.md`, `24-VERTICAL-SLICE-BETA.md`,
+1. `../../poorcraft-novo/AGENTS.md` and
+   `../../poorcraft-novo/docs/CONTINUACAO-GLM/00-LEIA-PRIMEIRO.md` — enforced
+   operating law and current execution order.
+2. `00-DESIGN-CONSTITUTION.md` — non-negotiable identity and anti-goals.
+3. `18-DECISION-REGISTER.md` — accepted owner decisions (incl. D-022 pillars).
+4. **Living product truth:** `STATE.md`, `24-VERTICAL-SLICE-BETA.md`,
    `25-JOURNEY-SCORECARD.md` (current VS bar and measured status).
-4. `11-TASK-CONTRACT-TEMPLATE.md` — the contract for the active job.
-5. Repository safety and verification rules in `AGENTS.md`.
-6. Current source, tests, assets, and runtime evidence.
-7. Roadmap horizons: `27-ROADMAP-VS-TO-GREATEST.md` (H0 → H1 → H2).
-8. Older design docs in this folder (02–22) as design depth, not “done” claims.
-9. Older POORCRAFT/LOREFORGE root documents as historical references only.
+5. `11-TASK-CONTRACT-TEMPLATE.md` — the contract for the active job.
+6. Repository safety and verification rules in `AGENTS.md`.
+7. Current source, tests, assets, and runtime evidence.
+8. Roadmap horizons: `27-ROADMAP-VS-TO-GREATEST.md` (H0 → H1 → H2).
+9. Older design docs in this folder (02–22) as design depth, not “done” claims.
+10. `poorcraft-antigo/` as preserved LOREFORGE history, never current P3D truth.
 
 **Tooling / prompt libraries (not product truth):** `GLM-*`, `WT-*`,
 `ZCODE-IDLE-UPGRADE/` — use them to generate work and proofs; never treat a

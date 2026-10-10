@@ -1,0 +1,625 @@
+{
+  "elements": [
+    {
+      "button_state": "",
+      "id": "settings_panel",
+      "kind": "panel",
+      "rect": [
+        385,
+        61,
+        511,
+        598
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_0_label",
+      "kind": "text",
+      "rect": [
+        400,
+        100,
+        202,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_0_value",
+      "kind": "text",
+      "rect": [
+        768,
+        100,
+        34,
+        14
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_0_dec",
+      "kind": "button",
+      "rect": [
+        716,
+        94,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_0_inc",
+      "kind": "button",
+      "rect": [
+        842,
+        94,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_1_label",
+      "kind": "text",
+      "rect": [
+        400,
+        131,
+        94,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_1_value",
+      "kind": "text",
+      "rect": [
+        768,
+        131,
+        34,
+        14
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_1_dec",
+      "kind": "button",
+      "rect": [
+        716,
+        125,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_1_inc",
+      "kind": "button",
+      "rect": [
+        842,
+        125,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_2_label",
+      "kind": "text",
+      "rect": [
+        400,
+        162,
+        154,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_2_value",
+      "kind": "text",
+      "rect": [
+        768,
+        162,
+        70,
+        14
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_2_dec",
+      "kind": "button",
+      "rect": [
+        716,
+        156,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_2_inc",
+      "kind": "button",
+      "rect": [
+        842,
+        156,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_3_label",
+      "kind": "text",
+      "rect": [
+        400,
+        193,
+        94,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_3_value",
+      "kind": "text",
+      "rect": [
+        768,
+        193,
+        46,
+        14
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_3_dec",
+      "kind": "button",
+      "rect": [
+        716,
+        187,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_3_inc",
+      "kind": "button",
+      "rect": [
+        842,
+        187,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_4_label",
+      "kind": "text",
+      "rect": [
+        400,
+        224,
+        166,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_row_4_value",
+      "kind": "text",
+      "rect": [
+        768,
+        224,
+        34,
+        14
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_4_dec",
+      "kind": "button",
+      "rect": [
+        716,
+        218,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_row_4_inc",
+      "kind": "button",
+      "rect": [
+        842,
+        218,
+        26,
+        23
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_controls_title",
+      "kind": "text",
+      "rect": [
+        400,
+        254,
+        94,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        272,
+        77,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        272,
+        65,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        294,
+        65,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        294,
+        77,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        316,
+        95,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        316,
+        83,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        338,
+        113,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        338,
+        47,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        360,
+        53,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        360,
+        35,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        382,
+        89,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        382,
+        59,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        404,
+        47,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        404,
+        41,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        426,
+        65,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        426,
+        71,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        448,
+        53,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        448,
+        71,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        470,
+        35,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        470,
+        59,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        492,
+        155,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        492,
+        41,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        514,
+        41,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        514,
+        59,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        536,
+        59,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap2",
+      "kind": "text",
+      "rect": [
+        663,
+        536,
+        41,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "set_keymap",
+      "kind": "text",
+      "rect": [
+        400,
+        558,
+        53,
+        7
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "set_back",
+      "kind": "button",
+      "rect": [
+        520,
+        577,
+        241,
+        33
+      ]
+    }
+  ],
+  "scale": 0.7519125938415527,
+  "screen": "settings",
+  "size": [
+    1280,
+    720
+  ],
+  "ui_state": {
+    "career_chosen": null,
+    "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
+    "creatures_slain": 0,
+    "debug_overlay": false,
+    "dialog": null,
+    "focus": 0,
+    "forge": null,
+    "forge_bars_taken": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "stock": "PACK WOOD 3 · STONE 2 · SOIL 4 · WOOD_PICK 1",
+      "xp": 0.0
+    },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
+    "modal": null,
+    "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
+    "pointer_grabbed": false,
+    "screen": "settings",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-10-10 03:57",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-10-10 03:57",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "stock": [],
+    "toasts": [],
+    "wallet": 0,
+    "witnessed_assaults": 0
+  }
+}

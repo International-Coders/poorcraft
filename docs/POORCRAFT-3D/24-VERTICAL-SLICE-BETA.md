@@ -48,7 +48,7 @@ Also: `make p3d-gate-check` (layout exclusivity), `make p3d-observe` (GPU routes
 
 ## VS soak / playtest script (Phase 4)
 
-1. Open `poorcraft3d/dist3d/POORCRAFT3D.app` (or DMG volume `POORCRAFT3D-<git>`).
+1. Open `poorcraft-novo/dist3d/POORCRAFT3D.app` (or DMG volume `POORCRAFT3D-<git>`).
 2. NEW WORLD → CREATE → confirm spawn plaza + HUD vitals.
 3. Dig (G) → open pack (K) → see yield; craft (C) or forge (E near plaza).
 4. Find river → M → feed boiler → toast/charge.

@@ -23,8 +23,8 @@ The observatory is local developer tooling. Keep it boring and safe.
 
 Write under explicit output directories such as:
 
-- `poorcraft3d/apps/poorcraft3d/shots/observatory/`;
-- `poorcraft3d/target/observatory/`;
+- `poorcraft-novo/apps/poorcraft3d/shots/observatory/`;
+- `poorcraft-novo/target/observatory/`;
 - `docs/POORCRAFT-3D/GLM-WORLD-TOOLS-ASSET-PACK/evidence/`.
 
 Never write into player save worlds during tests unless the test owns a temp

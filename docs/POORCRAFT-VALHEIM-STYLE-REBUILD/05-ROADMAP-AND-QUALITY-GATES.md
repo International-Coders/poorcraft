@@ -27,7 +27,7 @@ scope. A milestone cannot be waved through by an attractive concept image.
 
 ## Git and work discipline
 
-Keep the rebuild in the existing `poorcraft3d/` workspace so the baseline and
+Keep the rebuild in the existing `poorcraft-novo/` workspace so the baseline and
 new renderer share tests. Use small commits. Do not make docs-only commits;
 every implementation commit must ship working code and tests as `AGENTS.md`
 requires. Preserve unrelated user changes. Push only after the complete required

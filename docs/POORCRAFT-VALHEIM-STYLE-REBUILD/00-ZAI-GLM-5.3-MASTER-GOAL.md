@@ -14,7 +14,7 @@ START BY READING, IN FULL:
 - every file in docs/POORCRAFT-VALHEIM-STYLE-REBUILD/;
 - docs/POORCRAFT-VALHEIM-STYLE-REBUILD/assets/ORIGINAL-ART-BRIEF.md and its
   JSON asset schema/first-batch manifest;
-- poorcraft3d/Cargo.toml and the public module boundaries in pc3d_world,
+- poorcraft-novo/Cargo.toml and the public module boundaries in pc3d_world,
   pc3d_render, pc3d_assets, pc3d_save, and apps/poorcraft3d.
 
 PRODUCT INTENT:

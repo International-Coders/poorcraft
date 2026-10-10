@@ -14,7 +14,9 @@ jobs:
       - name: Install Vulkan drivers
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libasound2-dev
       - name: Build and test
-        run: cargo test --workspace
+        run: cargo test --workspace --manifest-path poorcraft-antigo/Cargo.toml
+      - name: Build and test POORCRAFT 3D
+        run: cargo test --workspace --manifest-path poorcraft-novo/Cargo.toml
 
   build:
     runs-on: ubuntu-22.04
@@ -23,7 +25,9 @@ jobs:
       - name: Install alsa headers (rodio/cpal build dep)
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - name: Build all
-        run: cargo build --workspace --release
+        run: cargo build --workspace --release --manifest-path poorcraft-antigo/Cargo.toml
+      - name: Build POORCRAFT 3D
+        run: cargo build --workspace --release --manifest-path poorcraft-novo/Cargo.toml
 
   vistest:
     runs-on: ubuntu-22.04
@@ -32,12 +36,12 @@ jobs:
       - name: Install Vulkan drivers (lavapipe software rendering)
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libasound2-dev
       - name: Render all scenes headless (real render to PNG)
-        run: cargo run --release -p xtask -- vistest shots
+        run: cd poorcraft-antigo && cargo run --release -p xtask -- vistest shots
       - name: Upload rendered proofs
         uses: actions/upload-artifact@v4
         with:
           name: vistest-proofs
-          path: shots/vistest_*.png
+          path: poorcraft-antigo/shots/vistest_*.png
 
   release:
     runs-on: ${{ matrix.os }}
@@ -50,9 +54,9 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y zip libasound2-dev
       - name: Package
-        run: cargo run --release -p xtask -- package
+        run: cd poorcraft-antigo && cargo run --release -p xtask -- package
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: loreforge-${{ runner.os }}
-          path: dist/*.zip
+          path: poorcraft-antigo/dist/*.zip

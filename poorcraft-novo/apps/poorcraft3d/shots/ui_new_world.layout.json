@@ -1,0 +1,339 @@
+{
+  "elements": [
+    {
+      "button_state": "",
+      "id": "new_world_panel",
+      "kind": "panel",
+      "rect": [
+        158,
+        157,
+        620,
+        406
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_name_label",
+      "kind": "text",
+      "rect": [
+        178,
+        207,
+        118,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_name_value",
+      "kind": "text",
+      "rect": [
+        568,
+        207,
+        94,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_seed_label",
+      "kind": "text",
+      "rect": [
+        178,
+        239,
+        46,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_seed_value",
+      "kind": "text",
+      "rect": [
+        568,
+        239,
+        22,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_type_label",
+      "kind": "text",
+      "rect": [
+        178,
+        271,
+        46,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_type_value",
+      "kind": "text",
+      "rect": [
+        568,
+        271,
+        178,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_quality_label",
+      "kind": "text",
+      "rect": [
+        178,
+        303,
+        82,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_quality_value",
+      "kind": "text",
+      "rect": [
+        568,
+        303,
+        34,
+        14
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "nw_seed_reroll",
+      "kind": "button",
+      "rect": [
+        317,
+        337,
+        148,
+        44
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "nw_seed_random",
+      "kind": "button",
+      "rect": [
+        471,
+        337,
+        148,
+        44
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "nw_quality_down",
+      "kind": "button",
+      "rect": [
+        317,
+        393,
+        148,
+        44
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "nw_quality_up",
+      "kind": "button",
+      "rect": [
+        471,
+        393,
+        148,
+        44
+      ]
+    },
+    {
+      "button_state": "focused",
+      "id": "nw_create",
+      "kind": "button",
+      "rect": [
+        308,
+        449,
+        320,
+        44
+      ]
+    },
+    {
+      "button_state": "normal",
+      "id": "nw_back",
+      "kind": "button",
+      "rect": [
+        308,
+        505,
+        320,
+        44
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_preview_panel",
+      "kind": "panel",
+      "rect": [
+        802,
+        89,
+        320,
+        542
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "preview_map",
+      "kind": "image",
+      "rect": [
+        822,
+        133,
+        280,
+        280
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "spawn_safety",
+      "kind": "text",
+      "rect": [
+        822,
+        423,
+        226,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "biome_summary",
+      "kind": "text",
+      "rect": [
+        822,
+        447,
+        274,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "feature_hint_0",
+      "kind": "text",
+      "rect": [
+        822,
+        471,
+        274,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "feature_hint_1",
+      "kind": "text",
+      "rect": [
+        822,
+        495,
+        274,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "nw_seed_resolved",
+      "kind": "text",
+      "rect": [
+        822,
+        519,
+        250,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "footer_left",
+      "kind": "text",
+      "rect": [
+        18,
+        695,
+        155,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "footer_right",
+      "kind": "text",
+      "rect": [
+        1011,
+        695,
+        251,
+        7
+      ]
+    }
+  ],
+  "scale": 1.0,
+  "screen": "new_world",
+  "size": [
+    1280,
+    720
+  ],
+  "ui_state": {
+    "career_chosen": null,
+    "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
+    "creatures_slain": 0,
+    "debug_overlay": false,
+    "dialog": null,
+    "focus": 0,
+    "forge": null,
+    "forge_bars_taken": 0,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "stock": "PACK WOOD 3 · STONE 2 · SOIL 4 · WOOD_PICK 1",
+      "xp": 0.0
+    },
+    "interact": null,
+    "journal": null,
+    "journal_open": false,
+    "machine_charge_milli": 0,
+    "machines": null,
+    "modal": null,
+    "ore_harvested": 0,
+    "oversight": null,
+    "pack_open": false,
+    "pointer_grabbed": false,
+    "screen": "new_world",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-10-10 03:57",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-10-10 03:57",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "stock": [],
+    "toasts": [],
+    "wallet": 0,
+    "witnessed_assaults": 0
+  }
+}

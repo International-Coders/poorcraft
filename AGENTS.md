@@ -1,8 +1,11 @@
-# AGENTS.md — LOREFORGE (POORCRAFT)
+# AGENTS.md — POORCRAFT repository control plane
 
-Voxel sandbox RPG in Rust (Minecraft-class): wgpu renderer, streamed voxel
-worlds, survival/industrial gameplay, egui UI, compute path tracer, UDP +
-Steam-ready multiplayer, TOML mods.
+This repository now has two physically separated Rust games:
+
+- `poorcraft-antigo/` — preserved LOREFORGE/POORCRAFT legacy workspace.
+- `poorcraft-novo/` — active POORCRAFT 3D workspace.
+
+The root holds shared documentation, history, automation, and repository rules.
 
 ## Read first
 - `STATE.md` — current loop count, milestone, test count, next task
@@ -11,8 +14,9 @@ Steam-ready multiplayer, TOML mods.
 
 ## Non-negotiable ground rules
 1. **No docs-only commits.** Every change ships code and keeps
-   `cargo test --workspace` green. Screenshot claims must come from the
-   vistest harness (`cargo run --release -p xtask -- vistest shots`) —
+   the affected workspace green (`make test` for the legacy game,
+   `make p3d-test` for POORCRAFT 3D). Screenshot claims must come from the
+   appropriate proof harness (`make vistest` or a named `p3d-*` route) —
    pixel-analyze the PNGs; never trust "it rendered".
 2. **Update STATE.md / BACKLOG.md / CHANGELOG.md** after real work only.
 3. Bugs found by proofs are fixed before committing (history: face-winding
@@ -38,66 +42,50 @@ Steam-ready multiplayer, TOML mods.
 
 ## Build & verify
 ```bash
-cargo build --workspace              # must be clean
-cargo test --workspace               # 123 tests currently
-cargo run --release -p loreforge     # play (title screen)
-cargo run --release -p xtask -- vistest shots          # all proof scenes
-cargo run --release -p xtask -- screenshot <scene> <out.png> [seed]
-cargo run --release -p xtask -- package                # dist/ zip
+make build                           # legacy workspace
+make test                            # legacy full suite
+make p3d-build                       # active POORCRAFT 3D
+make p3d-test                        # active POORCRAFT 3D full suite
+make run                             # legacy title screen
+make vistest                         # legacy proof scenes
+make p3d-beta                        # POORCRAFT 3D long visual battery
 make help                            # Makefile lists all targets (.mk info)
 ```
 Smoke test rule: launch the release binary in the background, sleep ~12s,
-check the process is alive, `pkill -f target/release/loreforge`.
+check the process is alive, and stop only that binary. `make smoke` automates it.
 
 ## MANDATORY: desktop runtimes after completing a job
 When a task is finished and green, ALWAYS produce fresh runtimes for the
-user to test, then commit:
-```bash
-cargo build --release -p loreforge -p loreforge-server
-# macOS app bundle + dmg (host is darwin):
-mkdir -p "dist/loreforge.app/Contents/MacOS" "dist/loreforge.app/Contents/Resources"
-cp target/release/loreforge "dist/loreforge.app/Contents/MacOS/"
-cp target/release/loreforge-server dist/
-printf 'APPLLORE' > "dist/loreforge.app/Contents/Resources/PkgInfo"
-cat > "dist/loreforge.app/Contents/Info.plist" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>CFBundleExecutable</key><string>loreforge</string>
-<key>CFBundleIdentifier</key><string>com.loreforge.game</string>
-<key>CFBundleName</key><string>LOREFORGE</string></dict></plist>
-PLIST
-hdiutil create -volname LOREFORGE -srcfolder dist/loreforge.app -ov -format UDZO dist/loreforge-macos.dmg
-tar -czf dist/loreforge-linux-x86_64.tar.gz -C target/release loreforge loreforge-server
-# Windows exe requires cross: rustup target add x86_64-pc-windows-gnu
-#   brew install mingw-w64  (once); then:
-#   cargo build --release -p loreforge --target x86_64-pc-windows-gnu
-#   cp target/x86_64-pc-windows-gnu/release/loreforge.exe dist/
-# If cross tooling is unavailable, ship the linux/macOS artifacts and say so.
-ls -la dist/   # verify artifacts exist before reporting done
-```
+affected game before committing: `make runtimes` for the legacy workspace and
+`make p3d-dmg` (plus the portable package targets when available) for
+POORCRAFT 3D. If cross tooling is unavailable, say so honestly.
 Report artifact paths in the final message. If any target genuinely cannot
 build on this host, state which and why — never claim an artifact that
 isn't on disk. (`make runtimes` automates all of this.)
 
-## Layout
-- `crates/lf_engine` — wgpu renderer (SceneResources/MeshBatch, outline,
+## Legacy layout (`poorcraft-antigo/`)
+- `poorcraft-antigo/crates/lf_engine` — wgpu renderer (SceneResources/MeshBatch, outline,
   atmosphere (clouds/sun/stars/weather), `pathtrace` = compute voxel-DDA
   path tracer + persistent `Pathtracer` for Live RT)
-- `crates/lf_voxel` — blocks (registry.rs is the single source of truth:
+- `poorcraft-antigo/crates/lf_voxel` — blocks (registry.rs is the single source of truth:
   ids, solidity/opacity, mod blocks >=100), meshing (winding matters —
   outward test), light (BFS; y-stride owns the column), World + regions
-- `crates/lf_worldgen` — biome table (30 biomes in biome.rs), trees,
+- `poorcraft-antigo/crates/lf_worldgen` — biome table (30 biomes in biome.rs), trees,
   structures, ore veins, WorldType (Normal/Superflat/Amplified)
-- `crates/lf_game` — survival, items/mining/crafting/smelting, machines
+- `poorcraft-antigo/crates/lf_game` — survival, items/mining/crafting/smelting, machines
   (generator/E-furnace/crusher/assembler + power field), research eras,
   combat (arrows/XP/armor), player physics
-- `crates/lf_client` — the game shell: input, streaming, block entities,
+- `poorcraft-antigo/crates/lf_client` — the game shell: input, streaming, block entities,
   `ui.rs` (screens), `ui_kit.rs` (design system: theme/easing/Reveal/
   animated widgets), `net.rs` (UDP), `atmosphere` lives in lf_engine
-- `apps/loreforge` (client bin), `apps/loreforge-server` (dedicated UDP)
-- `xtask` — vistest/screenshot/package automation
-- `mods/` — example TOML mods (README.md documents the API)
-- `shots/` — proof PNGs; `docs/STEAM.md`; `steam_appid.txt` (480/Spacewar)
+- `poorcraft-antigo/apps/loreforge` and `poorcraft-antigo/apps/loreforge-server`
+- `poorcraft-antigo/xtask`, `poorcraft-antigo/mods/`, `poorcraft-antigo/shots/`
+
+## Current layout (`poorcraft-novo/`)
+- `poorcraft-novo/apps/poorcraft3d` — active executable and proof routes.
+- `poorcraft-novo/crates/pc3d_*` — core, world, render, save, assets, audio.
+- `poorcraft-novo/tools/assetgen` — deterministic GLB factory.
+- `poorcraft-novo/docs/CONTINUACAO-GLM` — mandatory current operating doctrine.
 
 ## Layer rules
 - lf_engine may not depend on gameplay crates; lf_voxel is the substrate
@@ -116,9 +104,10 @@ isn't on disk. (`make runtimes` automates all of this.)
 - Offscreen UI proofs: the egui pass MUST be encoded before the texture
   readback copy or UI silently vanishes from screenshots.
 - Cargo fingerprints occasionally go stale mid-session; if an edit seems
-  ignored, `rm -rf target/release/.fingerprint/lf_vistest*` and rebuild.
+  ignored, clear only the affected package fingerprints inside that workspace.
 - `git status` may show `STATE.md` dirty from a prior loop — read before
-  overwriting; never clobber `worlds/` (player saves) in tests: use
+  overwriting; never clobber `poorcraft-antigo/worlds/` or
+  `poorcraft-novo/saves3d/` in tests: use
   `tempfile` like the existing tests do.
 - Steam: `lf_steam` feature `steam` is OFF by default (SDK links
   dynamically; falls back to UDP when the client isn't running).

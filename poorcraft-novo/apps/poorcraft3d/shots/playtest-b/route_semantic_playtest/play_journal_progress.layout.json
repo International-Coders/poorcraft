@@ -1,0 +1,481 @@
+{
+  "elements": [
+    {
+      "button_state": "",
+      "id": "bar_health",
+      "kind": "bar",
+      "rect": [
+        20,
+        20,
+        240,
+        18
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "bar_stamina",
+      "kind": "bar",
+      "rect": [
+        20,
+        48,
+        240,
+        18
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "bar_food",
+      "kind": "bar",
+      "rect": [
+        20,
+        76,
+        240,
+        18
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "crosshair",
+      "kind": "crosshair",
+      "rect": [
+        392,
+        242,
+        16,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "xp_strip",
+      "kind": "bar",
+      "rect": [
+        142,
+        421,
+        516,
+        5
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "prompt",
+      "kind": "text",
+      "rect": [
+        65,
+        397,
+        670,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "toast_HARVESTED 2 IRON ORE",
+      "kind": "toast",
+      "rect": [
+        271,
+        375,
+        258,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "toast_QUEST PROGRESS",
+      "kind": "toast",
+      "rect": [
+        307,
+        353,
+        186,
+        16
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_0",
+      "kind": "hotbar_slot",
+      "rect": [
+        142,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_1",
+      "kind": "hotbar_slot",
+      "rect": [
+        200,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_2",
+      "kind": "hotbar_slot",
+      "rect": [
+        258,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_3",
+      "kind": "hotbar_slot",
+      "rect": [
+        316,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_4",
+      "kind": "hotbar_slot",
+      "rect": [
+        374,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_5",
+      "kind": "hotbar_slot",
+      "rect": [
+        432,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_6",
+      "kind": "hotbar_slot",
+      "rect": [
+        490,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_7",
+      "kind": "hotbar_slot",
+      "rect": [
+        548,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_8",
+      "kind": "hotbar_slot",
+      "rect": [
+        606,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_panel",
+      "kind": "panel",
+      "rect": [
+        80,
+        97,
+        640,
+        306
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_wallet",
+      "kind": "text",
+      "rect": [
+        510,
+        141,
+        190,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_0",
+      "kind": "text",
+      "rect": [
+        100,
+        141,
+        346,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_0",
+      "kind": "text",
+      "rect": [
+        100,
+        156,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_1",
+      "kind": "text",
+      "rect": [
+        100,
+        171,
+        346,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_1",
+      "kind": "text",
+      "rect": [
+        100,
+        186,
+        329,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_2",
+      "kind": "text",
+      "rect": [
+        100,
+        201,
+        322,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_2",
+      "kind": "text",
+      "rect": [
+        100,
+        216,
+        323,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_3",
+      "kind": "text",
+      "rect": [
+        100,
+        231,
+        334,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_3",
+      "kind": "text",
+      "rect": [
+        100,
+        246,
+        311,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_4",
+      "kind": "text",
+      "rect": [
+        100,
+        261,
+        370,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_4",
+      "kind": "text",
+      "rect": [
+        100,
+        276,
+        341,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_row_5",
+      "kind": "text",
+      "rect": [
+        100,
+        291,
+        346,
+        14
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_sub_5",
+      "kind": "text",
+      "rect": [
+        100,
+        306,
+        335,
+        7
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "journal_hint",
+      "kind": "text",
+      "rect": [
+        162,
+        379,
+        538,
+        14
+      ]
+    }
+  ],
+  "scale": 1.0,
+  "screen": "gameplay",
+  "size": [
+    800,
+    500
+  ],
+  "ui_state": {
+    "career_chosen": null,
+    "companion": "",
+    "creature_hint": [
+      400.0,
+      144.0
+    ],
+    "creatures_slain": 0,
+    "debug_overlay": false,
+    "dialog": null,
+    "focus": 0,
+    "forge": null,
+    "forge_bars_taken": 1,
+    "form": {
+      "name": "WORLD-22",
+      "quality": "MID",
+      "seed": 22
+    },
+    "gameplay_input_blocked": true,
+    "hover": null,
+    "hud": {
+      "food": 1.0,
+      "health": 1.0,
+      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "selected_slot": 0,
+      "stamina": 1.0,
+      "stock": "PACK IRON_ORE 4 · IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
+      "xp": 0.0
+    },
+    "interact": null,
+    "journal": [
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "excavate",
+        "progress": "2/8",
+        "reward": 35,
+        "state": "ACTIVE",
+        "title": "THE FARMER'S excavate"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
+        "kind": "greet",
+        "progress": "0/4",
+        "reward": 31,
+        "state": "OFFERED",
+        "title": "THE BUILDER'S greet"
+      },
+      {
+        "giver": "Dunstan Fernbrook (the guard)",
+        "kind": "build",
+        "progress": "0/11",
+        "reward": 27,
+        "state": "OFFERED",
+        "title": "THE GUARD'S build"
+      },
+      {
+        "giver": "Edda Quarrylee (the farmer)",
+        "kind": "build",
+        "progress": "0/10",
+        "reward": 24,
+        "state": "OFFERED",
+        "title": "THE FARMER'S build"
+      },
+      {
+        "giver": "Calder Stonehand (the builder)",
+        "kind": "deliver",
+        "progress": "0/6",
+        "reward": 20,
+        "state": "OFFERED",
+        "title": "THE BUILDER'S deliver"
+      },
+      {
+        "giver": "Dunstan Fernbrook (the guard)",
+        "kind": "deliver",
+        "progress": "0/5",
+        "reward": 17,
+        "state": "OFFERED",
+        "title": "THE GUARD'S deliver"
+      }
+    ],
+    "journal_open": true,
+    "machine_charge_milli": 0,
+    "machines": null,
+    "modal": null,
+    "ore_harvested": 6,
+    "oversight": null,
+    "pack_open": false,
+    "pointer_grabbed": true,
+    "screen": "gameplay",
+    "session_live": true,
+    "settings": {
+      "fov_deg": 70.0,
+      "invert_y": false,
+      "mouse_sensitivity": 1.0,
+      "quality": "mid",
+      "ui_scale": 1.0
+    },
+    "slots": [
+      {
+        "modified": "2026-10-10 04:04",
+        "name": "alpha-shot",
+        "seed": 22
+      },
+      {
+        "modified": "2026-10-10 04:04",
+        "name": "beta-shot",
+        "seed": 7
+      }
+    ],
+    "stock": [
+      "IRON_ORE x4",
+      "IRON_BAR x1",
+      "WOOD_PICK x1",
+      "BREAD x2"
+    ],
+    "toasts": [],
+    "wallet": 0,
+    "witnessed_assaults": 0
+  }
+}

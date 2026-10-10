@@ -5,14 +5,14 @@ GLM should add or wire commands like these.
 ## Test Commands
 
 ```bash
-cargo test --manifest-path poorcraft3d/Cargo.toml -p pc3d_world seed_preview
-cargo test --manifest-path poorcraft3d/Cargo.toml -p pc3d_render seed_preview
+cargo test --manifest-path poorcraft-novo/Cargo.toml -p pc3d_world seed_preview
+cargo test --manifest-path poorcraft-novo/Cargo.toml -p pc3d_render seed_preview
 ```
 
 ## Screenshot Commands
 
 ```bash
-cargo run --release --manifest-path poorcraft3d/Cargo.toml -p poorcraft3d -- --ui-seed-preview-shots
+cargo run --release --manifest-path poorcraft-novo/Cargo.toml -p poorcraft3d -- --ui-seed-preview-shots
 ```
 
 or integrate into:

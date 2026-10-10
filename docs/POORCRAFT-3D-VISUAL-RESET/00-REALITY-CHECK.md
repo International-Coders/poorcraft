@@ -2,7 +2,7 @@
 
 Audit date: 2026-09-06.
 
-## What exists in `poorcraft3d/`
+## What exists in `poorcraft-novo/`
 
 - Rust workspaces `pc3d_core`, `pc3d_world`, `pc3d_save`, and the
   `poorcraft3d` executable.
@@ -24,7 +24,7 @@ The audit found the following concrete gaps:
 | Required for a 3D game | Current evidence |
 |---|---|
 | window/event loop | absent from the P3D workspace dependencies |
-| GPU renderer | absent: no `wgpu`/renderer crate in `poorcraft3d/Cargo.toml` |
+| GPU renderer | absent: no `wgpu`/renderer crate in `poorcraft-novo/Cargo.toml` |
 | shader sources | zero `.wgsl`, `.glsl`, vertex, or fragment files |
 | real terrain mesh | absent: terrain is cells/data; mesh queue is bookkeeping |
 | first-person rendered scene | absent: executable is a CLI/headless simulator |
@@ -34,7 +34,7 @@ The audit found the following concrete gaps:
 | rendered NPC/castle/city | absent |
 | visual save/reload proof | absent |
 
-`poorcraft3d/dist3d/POORCRAFT3D/PLAY.md` explicitly says the windowed renderer
+`poorcraft-novo/dist3d/POORCRAFT3D/PLAY.md` explicitly says the windowed renderer
 client “does not exist yet.” The current debug proof is therefore evidence of
 simulation state, not evidence that the game looks or plays like a 3D voxel
 world.

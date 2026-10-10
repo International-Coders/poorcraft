@@ -1,0 +1,60 @@
+{
+  "biome_counts": [
+    {
+      "biome": "plains",
+      "percent": 6.699999809265137,
+      "regions": 69
+    },
+    {
+      "biome": "forest",
+      "percent": 44.5,
+      "regions": 456
+    },
+    {
+      "biome": "highlands",
+      "percent": 47.20000076293945,
+      "regions": 483
+    },
+    {
+      "biome": "mountains",
+      "percent": 1.600000023841858,
+      "regions": 16
+    }
+  ],
+  "feature_hints": [
+    {
+      "confidence": 0.8999999761581421,
+      "distance_m": 1536.0,
+      "kind": "stronghold-ground",
+      "placeholder": false
+    },
+    {
+      "confidence": 0.0,
+      "distance_m": 0.0,
+      "kind": "settlement",
+      "placeholder": true
+    }
+  ],
+  "layout_path": "",
+  "preview_size": [
+    96,
+    96
+  ],
+  "resolved_seed": "4242",
+  "screenshot_path": "/Users/zari/Desktop/POORCRAFT/poorcraft-novo/apps/poorcraft3d/shots/seed_preview_4242.png",
+  "seed_source": "numeric",
+  "seed_text": "4242",
+  "spawn": {
+    "reason": "safe",
+    "safe": true,
+    "x": 384.0,
+    "y": 89.00399780273438,
+    "z": -384.0
+  },
+  "valid": true,
+  "warnings": [
+    "settlement hint is a placeholder: no published siting authority yet"
+  ],
+  "window_regions": 32,
+  "world_type": "normal"
+}

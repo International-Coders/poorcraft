@@ -2,7 +2,7 @@
 
 ## Evidence-based baseline
 
-The current `poorcraft3d/` workspace is not empty or simulation-only. It has a
+The current `poorcraft-novo/` workspace is not empty or simulation-only. It has a
 native `winit`/`wgpu` renderer, first-person movement/collision, bounded
 streaming, a real windowed regression suite, cached river strips, city/NPC
 render bindings, and a walkable save/reload slice. Keep these strengths.

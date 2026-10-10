@@ -8,7 +8,7 @@ draw exact state, text, bindings, cooldowns, and fill amounts itself.
 
 ## Runtime Contract
 
-- Store runtime-ready UI images under `poorcraft3d/assets/ui/` once the asset
+- Store runtime-ready UI images under `poorcraft-novo/assets/ui/` once the asset
   loader exists. Keep generated concept sheets in `docs/POORCRAFT-3D/assets/generated/`.
 - Use `ui_asset_manifest.json` as the first naming map. It is allowed to point
   at concept sheets until real sliced runtime files exist.

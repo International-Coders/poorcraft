@@ -1593,7 +1593,7 @@
   },
   "screenshot_gates": {
     "battery": "make p3d-visual-gates",
-    "report": "poorcraft3d/apps/poorcraft3d/shots/gates_report.txt",
+    "report": "poorcraft-novo/apps/poorcraft3d/shots/gates_report.txt",
     "gates": [
       {
         "name": "windowed-3d-axes",

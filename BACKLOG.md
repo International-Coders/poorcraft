@@ -11,6 +11,18 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] Repository split + enforced POORCRAFT 3D continuation doctrine
+      (2026-10-10, loop 473): preserved the former LOREFORGE tree under
+      `poorcraft-antigo/`, promoted the greenfield game to `poorcraft-novo/`,
+      and retained root docs/Makefile as the control plane. Added the 17-part
+      GLM 5.3 manual, machine-readable `doctrine.json`, and Rust validator with
+      a negative weakening test. The doctrine requires 30 ordered QA phases,
+      16 asset gates, 12 viewmodel gates, 20 world/spawn/river gates, first-
+      session/HUD/building proof, original realm identity, procedural-audio
+      staging, and Windows/Linux/macOS/Steam readiness. Evidence: P3D 752/752,
+      beta battery 38/38 and 339 PNGs; legacy 562/562 and 110/110 rendered
+      scenes; fresh P3D macOS and legacy macOS/Linux/Windows runtimes.
+
 - [x] POORCRAFT 3D revival Phase 4 art-pass (2026-09-21): NPC GLBs +
       faction kits, live day/night (`make p3d-daynight` 48% darker),
       beta-critical promotions, layout/subject/grounded gates +

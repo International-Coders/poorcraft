@@ -106,7 +106,7 @@ Deliverables:
 2. Remove duplicate Make targets and add one safe `p3d-clean` command.
 3. Make dirty package builds identify themselves as dirty.
 4. Keep LOREFORGE clearly labeled as the preserved older project and
-   `poorcraft3d/` as the current game.
+   `poorcraft-novo/` as the current game.
 5. Remove generated Cargo caches from handoff copies; keep releases, saves,
    source, assets, and evidence.
 6. Add semantic visual checks:
@@ -118,7 +118,7 @@ Deliverables:
      of the center view.
 
 Exit gate: current tests pass, the packaged build identifies its real source
-state, and a clean checkout can be understood from `poorcraft3d/README.md`.
+state, and a clean checkout can be understood from `poorcraft-novo/README.md`.
 
 ### P1 — Honest new-game start
 

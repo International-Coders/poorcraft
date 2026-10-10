@@ -2,7 +2,7 @@
 
 ## Why this pack exists
 
-`poorcraft3d/` is now a real, fast Rust/wgpu proof-of-concept: it opens a 3D
+`poorcraft-novo/` is now a real, fast Rust/wgpu proof-of-concept: it opens a 3D
 window, streams terrain, supports walking, construction, a river, a city,
 NPCs, save/load, and visual regression gates. It is **not** yet the intended
 game presentation. Its natural ground is culled one-metre cube faces; its
@@ -64,6 +64,6 @@ pass, and the feature is connected to authoritative game data.
 
 Execute the roadmap in order. Finish one milestone, verify it, make a focused
 commit according to `AGENTS.md`, update the project bookkeeping, and only then
-advance. Do not delete `poorcraft3d/`, its existing gates, saves, or working
+advance. Do not delete `poorcraft-novo/`, its existing gates, saves, or working
 renderer. This is a staged replacement of its presentation layer, not an
 unbounded rewrite.

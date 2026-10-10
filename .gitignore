@@ -1,16 +1,16 @@
-/target
+/poorcraft-antigo/target
 **/*.rs.bk
 Cargo.lock
 *.swp
 .DS_Store
 *.log
-dist/
+poorcraft-antigo/dist/
 .vscode/
 .idea/
 *.iml
 node_modules/
-worlds/
+poorcraft-antigo/worlds/
 .zcode/
 
-# POORCRAFT 3D (separate greenfield workspace)
-poorcraft3d/target/
+# POORCRAFT 3D (current workspace)
+poorcraft-novo/target/

@@ -7,7 +7,7 @@ skipped, and how a human repeats the parts a machine cannot.
 - **Runner:** `make p3d-beta` (repo root). Builds the release binary,
   then executes every stage below in order, appending one
   `STAGE PASS` / `STAGE FAIL` line per stage to
-  `poorcraft3d/apps/poorcraft3d/shots/BETA-REPORT.txt`.
+  `poorcraft-novo/apps/poorcraft3d/shots/BETA-REPORT.txt`.
 - **Exit code:** 0 only if every stage passed. Any FAIL fails the battery.
 - **Duration:** roughly 20–40 minutes on the reference host (M-series Mac,
   Metal). Most stages open a real window and drive themselves.
@@ -60,11 +60,11 @@ skipped, and how a human repeats the parts a machine cannot.
 
 ## Evidence inventory (what “tested” means afterwards)
 
-- `poorcraft3d/apps/poorcraft3d/shots/BETA-REPORT.txt` — the per-stage ledger.
+- `poorcraft-novo/apps/poorcraft3d/shots/BETA-REPORT.txt` — the per-stage ledger.
 - ~300 proof PNGs + layout JSONs under
-  `poorcraft3d/apps/poorcraft3d/shots/` (observatory bundles, windowed
+  `poorcraft-novo/apps/poorcraft3d/shots/` (observatory bundles, windowed
   captures, UI states, atlases, terrain analysis, asset captures).
-- `poorcraft3d/dist3d/poorcraft3d-macos.dmg` — the packaged build the
+- `poorcraft-novo/dist3d/poorcraft3d-macos.dmg` — the packaged build the
   battery just tested.
 - `docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md` — frame
   perf per quality tier.
@@ -74,7 +74,7 @@ skipped, and how a human repeats the parts a machine cannot.
 Run after (or before) the battery, from the packaged DMG — this is the
 stranger test from `24-VERTICAL-SLICE-BETA.md`:
 
-1. Open `poorcraft3d/dist3d/POORCRAFT3D.app`.
+1. Open `poorcraft-novo/dist3d/POORCRAFT3D.app`.
 2. NEW WORLD → CREATE → confirm spawn plaza + HUD vitals.
 3. Dig (G) → open pack (K) → see the yield line.
 4. Craft (C) or forge (E at the plaza forge; H fuel, T ore, T take).

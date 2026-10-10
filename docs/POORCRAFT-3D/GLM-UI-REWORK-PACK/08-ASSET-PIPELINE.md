@@ -7,7 +7,7 @@ concept sheets and slice references, not proof that runtime UI exists.
 
 1. Decide whether each component should be image-backed or renderer-native.
 2. Slice image-backed assets into stable named runtime files or atlas regions.
-3. Put runtime assets under `poorcraft3d/assets/ui/`.
+3. Put runtime assets under `poorcraft-novo/assets/ui/`.
 4. Keep a manifest that maps names to file/atlas coordinates.
 5. Load assets through a tested catalog.
 6. Draw text, counts, binding labels, cooldowns, and bar fills in-engine.
