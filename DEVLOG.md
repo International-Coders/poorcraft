@@ -10863,7 +10863,10 @@ bench verdes, 339 PNGs; LOREFORGE `cargo test --workspace -- --test-threads=1`
 A primeira tentativa paralela P3D no
 sandbox não encontrou adaptador GPU; a repetição serial com acesso à GPU real
 passou integralmente. Runtimes produzidos: P3D macOS app/DMG; LOREFORGE macOS
-app/DMG, Linux tarball + server e Windows `.exe`.
+app/DMG/CLI tar e Windows `.exe`. FILE-FORMAT AUDIT: o tar anteriormente
+chamado Linux continha binários Mach-O, pois era empacotado do target nativo
+Darwin. Ele foi renomeado como macOS CLI; o Makefile agora cria tar Linux apenas
+em host Linux. Linux permanece honestamente não produzido nesta máquina.
 
 HONESTLY DEFERRED: o suporte atual de runtime do POORCRAFT 3D ainda entrega
 somente macOS; Windows/Linux do jogo novo são N24/N25 e não são alegados como

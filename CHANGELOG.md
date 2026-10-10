@@ -15,7 +15,8 @@
   divisão. Os validadores não dependem mais do nome antigo `poorcraft3d/`.
 - Verificação: P3D 752/752; `make p3d-beta` 38/38 (339 PNGs); LOREFORGE
   562/562; `make vistest` 110/110 cenas. Runtimes renovados: P3D macOS e
-  LOREFORGE macOS/Linux/Windows.
+  LOREFORGE macOS/Windows. O audit de formato recusou o antigo tar “Linux”
+  contendo Mach-O; o Makefile agora só nomeia Linux quando roda em Linux.
 
 ## 2026-09-21 — POORCRAFT 3D revival Phase 4: art + atmosphere
 

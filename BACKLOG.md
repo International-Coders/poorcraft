@@ -21,7 +21,9 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
       session/HUD/building proof, original realm identity, procedural-audio
       staging, and Windows/Linux/macOS/Steam readiness. Evidence: P3D 752/752,
       beta battery 38/38 and 339 PNGs; legacy 562/562 and 110/110 rendered
-      scenes; fresh P3D macOS and legacy macOS/Linux/Windows runtimes.
+      scenes; fresh P3D macOS and legacy macOS/Windows runtimes. A file-format
+      audit caught the old “Linux” tar recipe packaging Mach-O binaries; the
+      target now names the Darwin CLI tar honestly and emits Linux only on Linux.
 
 - [x] POORCRAFT 3D revival Phase 4 art-pass (2026-09-21): NPC GLBs +
       faction kits, live day/night (`make p3d-daynight` 48% darker),

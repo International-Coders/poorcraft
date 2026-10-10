@@ -64,14 +64,20 @@ sounds: ## Generate missing sound effects via ElevenLabs (needs ELEVENLABS_API_K
 package: ## Portable zip distribution into dist/
 	cd $(LEGACY_DIR) && cargo run --release -p xtask -- package
 
-runtimes: release ## macOS .app + .dmg + Linux tarball (+ Windows exe if mingw present) into dist/
+runtimes: release ## Native packages: macOS app/DMG/CLI tar on Darwin, Linux tar on Linux, plus Windows exe when mingw exists
 	@mkdir -p $(LEGACY_DIR)/dist/loreforge.app/Contents/MacOS $(LEGACY_DIR)/dist/loreforge.app/Contents/Resources
 	@cp $(LEGACY_TARGET)/release/loreforge $(LEGACY_DIR)/dist/loreforge.app/Contents/MacOS/
 	@cp $(LEGACY_TARGET)/release/loreforge-server $(LEGACY_DIR)/dist/
 	@printf 'APPLLORE' > $(LEGACY_DIR)/dist/loreforge.app/Contents/Resources/PkgInfo
 	@printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>loreforge</string><key>CFBundleIdentifier</key><string>com.loreforge.game</string><key>CFBundleName</key><string>LOREFORGE</string><key>NSHighResolutionCapable</key><true/></dict></plist>\n' > $(LEGACY_DIR)/dist/loreforge.app/Contents/Info.plist
 	hdiutil create -volname LOREFORGE -srcfolder $(LEGACY_DIR)/dist/loreforge.app -ov -format UDZO $(LEGACY_DIR)/dist/loreforge-macos.dmg
-	tar -czf $(LEGACY_DIR)/dist/loreforge-linux-x86_64.tar.gz -C $(LEGACY_TARGET)/release loreforge loreforge-server
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		tar -czf $(LEGACY_DIR)/dist/loreforge-macos-cli-x86_64.tar.gz -C $(LEGACY_TARGET)/release loreforge loreforge-server; \
+		echo "macOS CLI tarball: loreforge-macos-cli-x86_64.tar.gz"; \
+	else \
+		tar -czf $(LEGACY_DIR)/dist/loreforge-linux-x86_64.tar.gz -C $(LEGACY_TARGET)/release loreforge loreforge-server; \
+		echo "Linux tarball: loreforge-linux-x86_64.tar.gz"; \
+	fi
 	@if command -v x86_64-w64-mingw32-gcc > /dev/null 2>&1; then \
 		cargo build --release --manifest-path $(LEGACY_MANIFEST) -p loreforge --target x86_64-pc-windows-gnu && \
 		cp $(LEGACY_TARGET)/x86_64-pc-windows-gnu/release/loreforge.exe $(LEGACY_DIR)/dist/; \
