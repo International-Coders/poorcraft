@@ -2,8 +2,13 @@
 
 This repository now has two physically separated Rust games:
 
-- `poorcraft-antigo/` — preserved LOREFORGE/POORCRAFT legacy workspace.
-- `poorcraft-novo/` — active POORCRAFT 3D workspace.
+- `Poorcraft/` — preserved LOREFORGE/POORCRAFT legacy workspace (frozen;
+  keep it green, but NO new features land here).
+- `Poorcraft 3D/` — active POORCRAFT 3D workspace. ALL upgrades, features,
+  and new development land here.
+
+(The folders were renamed from `poorcraft-antigo/` and `poorcraft-novo/`
+on 2026-10-10; older docs and logs may still use those names as history.)
 
 The root holds shared documentation, history, automation, and repository rules.
 
@@ -63,29 +68,29 @@ Report artifact paths in the final message. If any target genuinely cannot
 build on this host, state which and why — never claim an artifact that
 isn't on disk. (`make runtimes` automates all of this.)
 
-## Legacy layout (`poorcraft-antigo/`)
-- `poorcraft-antigo/crates/lf_engine` — wgpu renderer (SceneResources/MeshBatch, outline,
+## Legacy layout (`Poorcraft/`)
+- `Poorcraft/crates/lf_engine` — wgpu renderer (SceneResources/MeshBatch, outline,
   atmosphere (clouds/sun/stars/weather), `pathtrace` = compute voxel-DDA
   path tracer + persistent `Pathtracer` for Live RT)
-- `poorcraft-antigo/crates/lf_voxel` — blocks (registry.rs is the single source of truth:
+- `Poorcraft/crates/lf_voxel` — blocks (registry.rs is the single source of truth:
   ids, solidity/opacity, mod blocks >=100), meshing (winding matters —
   outward test), light (BFS; y-stride owns the column), World + regions
-- `poorcraft-antigo/crates/lf_worldgen` — biome table (30 biomes in biome.rs), trees,
+- `Poorcraft/crates/lf_worldgen` — biome table (30 biomes in biome.rs), trees,
   structures, ore veins, WorldType (Normal/Superflat/Amplified)
-- `poorcraft-antigo/crates/lf_game` — survival, items/mining/crafting/smelting, machines
+- `Poorcraft/crates/lf_game` — survival, items/mining/crafting/smelting, machines
   (generator/E-furnace/crusher/assembler + power field), research eras,
   combat (arrows/XP/armor), player physics
-- `poorcraft-antigo/crates/lf_client` — the game shell: input, streaming, block entities,
+- `Poorcraft/crates/lf_client` — the game shell: input, streaming, block entities,
   `ui.rs` (screens), `ui_kit.rs` (design system: theme/easing/Reveal/
   animated widgets), `net.rs` (UDP), `atmosphere` lives in lf_engine
-- `poorcraft-antigo/apps/loreforge` and `poorcraft-antigo/apps/loreforge-server`
-- `poorcraft-antigo/xtask`, `poorcraft-antigo/mods/`, `poorcraft-antigo/shots/`
+- `Poorcraft/apps/loreforge` and `Poorcraft/apps/loreforge-server`
+- `Poorcraft/xtask`, `Poorcraft/mods/`, `Poorcraft/shots/`
 
-## Current layout (`poorcraft-novo/`)
-- `poorcraft-novo/apps/poorcraft3d` — active executable and proof routes.
-- `poorcraft-novo/crates/pc3d_*` — core, world, render, save, assets, audio.
-- `poorcraft-novo/tools/assetgen` — deterministic GLB factory.
-- `poorcraft-novo/docs/CONTINUACAO-GLM` — mandatory current operating doctrine.
+## Current layout (`Poorcraft 3D/`)
+- `Poorcraft 3D/apps/poorcraft3d` — active executable and proof routes.
+- `Poorcraft 3D/crates/pc3d_*` — core, world, render, save, assets, audio.
+- `Poorcraft 3D/tools/assetgen` — deterministic GLB factory.
+- `Poorcraft 3D/docs/CONTINUACAO-GLM` — mandatory current operating doctrine.
 
 ## Layer rules
 - lf_engine may not depend on gameplay crates; lf_voxel is the substrate
@@ -106,8 +111,8 @@ isn't on disk. (`make runtimes` automates all of this.)
 - Cargo fingerprints occasionally go stale mid-session; if an edit seems
   ignored, clear only the affected package fingerprints inside that workspace.
 - `git status` may show `STATE.md` dirty from a prior loop — read before
-  overwriting; never clobber `poorcraft-antigo/worlds/` or
-  `poorcraft-novo/saves3d/` in tests: use
+  overwriting; never clobber `Poorcraft/worlds/` or
+  `Poorcraft 3D/saves3d/` in tests: use
   `tempfile` like the existing tests do.
 - Steam: `lf_steam` feature `steam` is OFF by default (SDK links
   dynamically; falls back to UDP when the client isn't running).

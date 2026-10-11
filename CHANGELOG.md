@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-10-10 — Pastas renomeadas: `Poorcraft/` e `Poorcraft 3D/` (loop 474)
+
+- `poorcraft-antigo/` → `Poorcraft/` (LOREFORGE/POORCRAFT preservado) e
+  `poorcraft-novo/` → `Poorcraft 3D/` (jogo ativo). TODAS as melhorias e novos
+  recursos continuam a pousar exclusivamente no `Poorcraft 3D/`; a pasta
+  `Poorcraft/` permanece congelada como história preservada.
+- `git mv` moveu as duas workspaces intactas (2.887 caminhos rastreados).
+- Makefile reescrito com aspas seguras para o espaço em "Poorcraft 3D" em cada
+  receita; CI (.github/workflows/ci.yml), `.gitignore`, `.zcodeignore`,
+  `AGENTS.md`, `README.md`, `STATE.md`, docs vivas de P3D e o pack
+  `CONTINUACAO-GLM` atualizados. Joins de path em Rust (`assetgen`,
+  `pc3d_render::{inventory,glb}`, `pc3d_assets::v2`, `pc3d_world::catalog`)
+  apontam para `Poorcraft 3D/`.
+- Lição aplicada: o `target/` movido junto carregava binários com o path
+  absoluto antigo em `env!("CARGO_MANIFEST_DIR")` — os 10 testes do `lf_lore`
+  falharam lendo `lore/` vazio. Ambos os workspaces foram limpos
+  (`cargo clean`) e reconstruídos do zero; o gate green abaixo é pós-limpeza.
+- Verificação (clean rebuild): P3D 752/752; LOREFORGE 562/562; `make smoke`
+  OK (lógica 300 ticks + janela 12 s); `make p3d-smoke` OK (300 frames, 400
+  ticks, digest dd019eca900f5a61); `make p3d-doctrine-check` 2/2; vistest e
+  runtimes renovados (ver DEVLOG). Registros históricos anteriores guardam os
+  nomes antigos de propósito.
+
 ## 2026-10-10 — Split legado/novo + doutrina de continuação GLM (loop 473)
 
 - Reestruturado o repositório em `poorcraft-antigo/` (LOREFORGE preservado) e

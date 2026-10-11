@@ -1,19 +1,19 @@
-/poorcraft-antigo/target
+/Poorcraft/target
 **/*.rs.bk
 Cargo.lock
 *.swp
 .DS_Store
 *.log
-poorcraft-antigo/dist/
+Poorcraft/dist/
 .vscode/
 .idea/
 *.iml
 node_modules/
-poorcraft-antigo/worlds/
+Poorcraft/worlds/
 .zcode/
 
 # POORCRAFT 3D (current workspace)
-poorcraft-novo/target/
+Poorcraft 3D/target/
 
 # ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
 .git/
@@ -45,3 +45,8 @@ pip-wheel-metadata/
 wheels/
 # ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
 # 自定义规则写在下方（本行提示可删除）
+
+# Ruflo ZCode plugin runtime state
+.claude-flow/
+.swarm/
+ruvector.db

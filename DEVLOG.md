@@ -10872,3 +10872,49 @@ HONESTLY DEFERRED: o suporte atual de runtime do POORCRAFT 3D ainda entrega
 somente macOS; Windows/Linux do jogo novo são N24/N25 e não são alegados como
 prontos. Nenhuma ferramenta externa pesquisada foi instalada. O próximo job é
 N01, o harness adversarial que deve falhar assets/cenas deliberadamente ruins.
+## Session: rename das pastas — `Poorcraft/` e `Poorcraft 3D/` (loop 474, 2026-10-10)
+
+O quê: o dono pediu para renomear as duas workspaces e deixar claro que TODAS
+as melhorias pousam no jogo 3D. `poorcraft-antigo/` -> `Poorcraft/` (LOREFORGE
+preservado, congelado — só manter verde) e `poorcraft-novo/` -> `Poorcraft 3D/`
+(jogo ativo).
+
+COMO: `git mv` moveu as duas árvores intactas (2.887 caminhos rastreados;
+`worlds/`, `saves3d/`, `assets/compiled` verificados no lugar novo). O Makefile
+foi reescrito com aspas seguras para o espaço em "Poorcraft 3D" em cada receita
+(regras ordenadas: comentários sem aspas; `$$(pwd)/...` e atribuições
+`BIN=`/`SHOTS=` com a path inteira citada; `--manifest-path`; regra genérica
+com lookbehind para não citar duas vezes — validado com `make -n`). Atualizados:
+`.github/workflows/ci.yml`, `.gitignore`/`.zcodeignore` (e ignorados os estados
+de runtime do plugin ruflo), `AGENTS.md` (agora declara a lei: novos recursos
+SOMENTE em `Poorcraft 3D/`), `README.md`, `STATE.md`, `BACKLOG.md`,
+`docs/POORCRAFT-3D/{README,STATE,CURRENT-PLAN}.md`, o pack
+`Poorcraft 3D/docs/CONTINUACAO-GLM/00-LEIA-PRIMEIRO.md` e os joins de path em
+Rust que derivam da raiz do repo (`assetgen/src/main.rs`,
+`pc3d_render/src/{inventory,glb}.rs`, `pc3d_assets/src/v2.rs`,
+`pc3d_world/src/catalog.rs`). Registros históricos (CHANGELOG/DEVLOG antigos,
+contracts, plans) guardam os nomes antigos de propósito — são história datada.
+
+BUG ENCONTRADO E CURADO PELO GATE: a primeira `make test` pós-rename falhou com
+10 testes do `lf_lore` (registro de facções/timeline vazio). Causa raiz: o
+`target/` moveu junto com a pasta e os binários antigos tinham o path absoluto
+pré-rename dentro de `env!("CARGO_MANIFEST_DIR")` — o cargo considerou tudo
+fresco. Ambos os workspaces foram limpos (`cargo clean`, 4,7 GiB no legado) e
+reconstruídos do zero; o gate verde abaixo é pós-limpeza total.
+
+VERIFICATION (clean rebuild): LOREFORGE `make test` 562/562 verde; `make smoke`
+OK (lógica 300 ticks + janela viva 12 s); `make vistest` 110/110 cenas [ok].
+P3D `make p3d-test` 752/752 verde; `make p3d-doctrine-check` 2/2;
+`make p3d-smoke` OK (300 frames / 400 ticks, digest dd019eca900f5a61);
+`make p3d-beta` 38/38 ESTÁGIOS PASS, 339 PNGs de prova
+(`Poorcraft 3D/apps/poorcraft3d/shots/BETA-REPORT.txt`).
+
+RUNTIMES frescos: `Poorcraft 3D/dist3d/poorcraft3d-macos.dmg` (volume
+POORCRAFT3D-c63d258f, hdiutil OK); legado `Poorcraft/dist/`: loreforge-macos.dmg,
+loreforge-macos-cli-x86_64.tar.gz, loreforge.app, loreforge-server e
+loreforge.exe (mingw presente neste host — o Windows exe foi produzido).
+
+HONESTLY DEFERRED: Linux segue sem runtime nativo (host Darwin); nada além do
+rename foi alterado em gameplay/render; os PNGs do vistest saíram
+byte-idênticos. Próximo job: N01 no `Poorcraft 3D/` (harness adversarial de
+confiança), mais a fila raiz do protocolo v11 no legado.

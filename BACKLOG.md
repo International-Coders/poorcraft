@@ -11,6 +11,17 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] Folders renamed `Poorcraft/` (legacy, frozen) + `Poorcraft 3D/`
+      (active; ALL upgrades land here) (2026-10-10, loop 474): both
+      workspaces moved intact via `git mv`; Makefile rewritten with
+      space-safe quoting; CI, ignores, root control-plane docs, the GLM
+      continuation pack, and the Rust repo-root path joins updated. A moved
+      `target/` carried binaries with the old absolute path baked into
+      `env!("CARGO_MANIFEST_DIR")` (10 lf_lore lore-table tests failed on an
+      empty registry) — both workspaces were `cargo clean`ed and rebuilt from
+      zero. Evidence: P3D 752/752, legacy 562/562, both smokes OK, doctrine
+      2/2, vistest and fresh runtimes (see DEVLOG). Dated history keeps the
+      old names on purpose.
 - [x] Repository split + enforced POORCRAFT 3D continuation doctrine
       (2026-10-10, loop 473): preserved the former LOREFORGE tree under
       `poorcraft-antigo/`, promoted the greenfield game to `poorcraft-novo/`,

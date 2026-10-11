@@ -4,7 +4,7 @@ Last updated: 2026-10-10 (workspace split + enforced GLM continuation doctrine)
 
 Root `STATE.md` / `BACKLOG.md` / `CHANGELOG.md` are now the split repository's
 control plane and preserve the LOREFORGE history. This file is the living truth
-for `poorcraft-novo/` work.
+for `Poorcraft 3D/` work (folder renamed from `poorcraft-novo/` on 2026-10-10).
 
 ## Loop
 
@@ -13,7 +13,7 @@ for `poorcraft-novo/` work.
 | Horizon | **H0 Vertical-Slice Beta** (see `24-VERTICAL-SLICE-BETA.md`) |
 | Build | **752/752 tests green** (assets 38, audio 8, core 32, render 259, save 20, world 290, city sweep 104, nav 1); `make p3d-beta` **38/38**, 339 PNGs, one report |
 | Last measure | 2026-10-10 — repository split to `poorcraft-novo/`; full serial GPU suite green; beta battery 38/38 including observatory and deck bench; macOS runtime refreshed |
-| `next_task` | **N01 — adversarial trust harness** from `poorcraft-novo/docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md`: fixtures must prove rejection of clipped/inverted viewmodel, spawn in tree, floating prop and unsupported water |
+| `next_task` | **N01 — adversarial trust harness** from `Poorcraft 3D/docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md`: fixtures must prove rejection of clipped/inverted viewmodel, spawn in tree, floating prop and unsupported water |
 
 ## VS-Beta gates (V1–V6) — current
 
@@ -32,7 +32,7 @@ for `poorcraft-novo/` work.
 (38 stages: static truth → headless determinism → 22 windowed captures →
 observatory → determinism pairs → deck bench → DMG). Documented in
 `BETA-TEST-PLAN.md`; the per-stage ledger lands in
-`poorcraft-novo/apps/poorcraft3d/shots/BETA-REPORT.txt`.
+`Poorcraft 3D/apps/poorcraft3d/shots/BETA-REPORT.txt`.
 
 ## Engine + world facts (measured 2026-10-03)
 

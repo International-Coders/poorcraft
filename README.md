@@ -2,13 +2,13 @@
 
 O repositório foi separado fisicamente em duas gerações:
 
-- [`poorcraft-antigo/`](poorcraft-antigo/) preserva LOREFORGE/POORCRAFT, seus
+- [`Poorcraft/`](Poorcraft/) preserva LOREFORGE/POORCRAFT, seus
   crates, mods, saves, screenshots e runtimes.
-- [`poorcraft-novo/`](poorcraft-novo/) contém o POORCRAFT 3D ativo.
+- [`Poorcraft 3D/`](Poorcraft%203D/) contém o POORCRAFT 3D ativo.
 
 O Makefile, o histórico geral e a documentação compartilhada permanecem na
 raiz. Rode `make help` daqui. Para continuar o jogo atual, comece em
-[`poorcraft-novo/docs/CONTINUACAO-GLM/README.md`](poorcraft-novo/docs/CONTINUACAO-GLM/README.md)
+[`Poorcraft 3D/docs/CONTINUACAO-GLM/README.md`](Poorcraft%203D/docs/CONTINUACAO-GLM/README.md)
 e valide a doutrina com `make p3d-doctrine-check`.
 
 Comandos principais:

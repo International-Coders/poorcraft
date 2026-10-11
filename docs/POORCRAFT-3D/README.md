@@ -15,8 +15,8 @@ from one coherent source of intent instead of guessing from scattered ideas.
 
 For POORCRAFT 3D work, use this order:
 
-1. `../../poorcraft-novo/AGENTS.md` and
-   `../../poorcraft-novo/docs/CONTINUACAO-GLM/00-LEIA-PRIMEIRO.md` — enforced
+1. `../Poorcraft 3D/AGENTS.md` and
+   `../Poorcraft 3D/docs/CONTINUACAO-GLM/00-LEIA-PRIMEIRO.md` — enforced
    operating law and current execution order.
 2. `00-DESIGN-CONSTITUTION.md` — non-negotiable identity and anti-goals.
 3. `18-DECISION-REGISTER.md` — accepted owner decisions (incl. D-022 pillars).
@@ -27,7 +27,7 @@ For POORCRAFT 3D work, use this order:
 7. Current source, tests, assets, and runtime evidence.
 8. Roadmap horizons: `27-ROADMAP-VS-TO-GREATEST.md` (H0 → H1 → H2).
 9. Older design docs in this folder (02–22) as design depth, not “done” claims.
-10. `poorcraft-antigo/` as preserved LOREFORGE history, never current P3D truth.
+10. `Poorcraft/` (formerly `poorcraft-antigo/`) as preserved LOREFORGE history, never current P3D truth.
 
 **Tooling / prompt libraries (not product truth):** `GLM-*`, `WT-*`,
 `ZCODE-IDLE-UPGRADE/` — use them to generate work and proofs; never treat a
