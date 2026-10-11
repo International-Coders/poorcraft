@@ -20,10 +20,10 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 40.20000076293945,
+    "avg_fps": 41.400001525878906,
     "frames": 973,
-    "p50_ms": 23.81999969482422,
-    "p95_ms": 34.38999938964844
+    "p50_ms": 23.0,
+    "p95_ms": 30.780000686645508
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
@@ -32,7 +32,7 @@
   "quality": "mid",
   "scene": "showcase_seed_3_rebuild",
   "seed": "3",
-  "timestamp_utc": "1791678960",
+  "timestamp_utc": "1791683958",
   "ui": {
     "career_chosen": null,
     "companion": "",
@@ -55,7 +55,7 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.4085112512111664,
+      "health": 0.3980356454849243,
       "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -132,12 +132,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 00:35",
+        "modified": "2026-10-11 01:58",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 00:35",
+        "modified": "2026-10-11 01:58",
         "name": "beta-shot",
         "seed": 7
       }

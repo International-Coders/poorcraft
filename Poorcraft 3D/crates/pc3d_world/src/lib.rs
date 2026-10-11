@@ -19,6 +19,7 @@ pub mod civic;
 pub mod combat;
 pub mod companion;
 pub mod constraints;
+pub mod trust;
 pub mod coords;
 pub mod craft;
 pub mod debug_overlay;

@@ -1,10 +1,10 @@
 # POORCRAFT 3D — Steam Deck quality report (NWR-010)
 
-- date: unix+1791678975s
+- date: unix+1791683971s
 - host hardware: Apple host iGPU (documented evidence machine; the contract targets Steam Deck) (documented; Deck numbers are the contract's target, this host is the evidence machine)
 - window: 800x500
 - runs: 3
-- host CPU probe ns (start/end per tier, band x1.4): low 693695/651444, mid 782100/672582, high 824748/595731
+- host CPU probe ns (start/end per tier, band x1.4): low 594697/615181, mid 696874/651898, high 659077/595023
 
 ## The quality contract
 
@@ -27,9 +27,9 @@
 
 | tier | frames | p50 ms | p95 ms | p99 ms | worst | avg fps | meshed | GPU KB | flora inst | setl tris | crowd inst |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| low | 201 | 8.20 | 10.81 | 15.72 | 35.60 | 115.4 | 201 | 8177 | 463 | 1048 | 92 |
-| mid | 201 | 9.45 | 11.66 | 17.95 | 40.64 | 101.1 | 402 | 18654 | 463 | 1048 | 92 |
-| high | 201 | 9.08 | 11.44 | 18.60 | 41.70 | 104.5 | 603 | 27359 | 463 | 1048 | 92 |
+| low | 201 | 7.98 | 11.12 | 15.09 | 35.20 | 119.0 | 201 | 8177 | 463 | 1048 | 92 |
+| mid | 201 | 8.91 | 10.74 | 18.09 | 35.72 | 107.7 | 402 | 18654 | 463 | 1048 | 92 |
+| high | 201 | 8.58 | 10.21 | 16.53 | 38.25 | 112.6 | 603 | 27359 | 463 | 1048 | 92 |
 
 ## Bottleneck notes (measured, not guessed)
 

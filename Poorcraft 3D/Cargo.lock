@@ -1538,6 +1538,8 @@ name = "pc3d_world"
 version = "0.1.0"
 dependencies = [
  "pc3d_core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

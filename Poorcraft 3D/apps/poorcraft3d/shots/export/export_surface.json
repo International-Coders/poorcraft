@@ -12,6 +12,7 @@
     "player": "--ui-inspect player_look/camera_pose",
     "scene": "--ui-inspect dump_visible_world",
     "seed_preview": "--seed-preview <seed> (png + json)",
+    "trust_audit": "--trust-audit <out> [seed] (N01 guilty-scene gates + captures)",
     "ui": "--ui-shots (layout dumps + pixel checks)",
     "worldgen_sample": "--export-data worldgen_sample (live windowless)"
   },
@@ -22,7 +23,7 @@
   },
   "scene": "windowless_authority",
   "seed": "3",
-  "timestamp_utc": 1791678521,
+  "timestamp_utc": 1791683523,
   "verdict": "exported",
   "version": 1,
   "viewport": [

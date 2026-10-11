@@ -1,4 +1,4 @@
-POORCRAFT 3D BETA BATTERY — Sat Oct 10 21:28:38 -03 2026 — git c63d258f
+POORCRAFT 3D BETA BATTERY — Sat Oct 10 22:52:00 -03 2026 — git f4aceb83
 
 === STAGE: static-assets ===
 ASSET MANIFEST PASS: 19 rows in embedded beta_critical_assets.json
@@ -43,7 +43,7 @@ STAGE PASS: headless-smoke
   PASS  settlement         Some((0, "Fordhall")) visited, day 1
   PASS  dragon             dragon slain=true dead=true
   PASS  onboarding         4 of 4 done
-JOURNEY PASS (10 steps, digest 824e362b17b25b67, 17.0ms)
+JOURNEY PASS (10 steps, digest 824e362b17b25b67, 16.3ms)
 STAGE PASS: journey-42
 
 === STAGE: diagnose-2024 ===
@@ -68,7 +68,7 @@ STAGE PASS: diagnose-2024
 
 === STAGE: soak-30d ===
 soak seed 4242 days 30 ticks 18000 journal 96 max_events/tick 3 digest 1262d09082c060e3
-SOAK PASS (16.6ms)
+SOAK PASS (17.2ms)
 STAGE PASS: soak-30d
 
 === STAGE: seed-atlas ===
@@ -80,14 +80,14 @@ STAGE PASS: seed-atlas
 
 === STAGE: terrain-bench ===
 scene          candidate          extract_us    bytes  rebuild_us     err_m     cols
-smooth_hills   heightfield               271     4096         515     0.487      256
-smooth_hills   density_threshold         990     4096        1011     0.475      256
-highlands      heightfield               264     4096         529     0.431      256
-highlands      density_threshold         952     4096         968     0.405      256
-coast          heightfield               261     4096         583     0.469      256
-coast          density_threshold         974     4096         947     0.442      256
-cliff          heightfield               216     4096         438     0.999      256
-cliff          density_threshold         947     4096         949     2.011      256
+smooth_hills   heightfield               305     4096         540     0.487      256
+smooth_hills   density_threshold        1085     4096        1084     0.475      256
+highlands      heightfield               277     4096         555     0.431      256
+highlands      density_threshold        1089     4096        1140     0.405      256
+coast          heightfield               292     4096         589     0.469      256
+coast          density_threshold        1176     4096        1219     0.442      256
+cliff          heightfield               262     4096         519     0.999      256
+cliff          density_threshold        1222     4096        1292     2.011      256
 STAGE PASS: terrain-bench
 
 === STAGE: terrain-analyze ===
@@ -107,16 +107,16 @@ EXPORT DATA OK (local-only)
 STAGE PASS: export-data
 
 === STAGE: windowed-3d-axes ===
-windowed run: 41 frames · frame p50 9.52 ms · p95 11.29 ms · avg 117.4 fps
+windowed run: 41 frames · frame p50 9.49 ms · p95 10.86 ms · avg 121.5 fps
 RESIZE OK: surface followed 800x500 logical -> 800x500 physical (scale 1.00, 2 events)
 PARALLAX OK: 19.9% of pixels differ between pose A and pose B
 WINDOWED 3D SHOT PASS -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_3d.png + /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_3d_poseb.png (800x500, 253 distinct colors)
 STAGE PASS: windowed-3d-axes
 
 === STAGE: terrain-scenes ===
-windowed run: 111 frames · frame p50 9.83 ms · p95 11.12 ms · avg 110.5 fps
+windowed run: 111 frames · frame p50 9.84 ms · p95 10.45 ms · avg 113.5 fps
 TERRAIN hills: 27 patches, 37008 verts, 18504 tris, 69 ms mesh
-TERRAIN cliff: 27 patches, 24848 verts, 12424 tris, 54 ms mesh
+TERRAIN cliff: 27 patches, 24848 verts, 12424 tris, 46 ms mesh
 TERRAIN cave: 27 patches, 32212 verts, 16106 tris, 80 ms mesh
 TERRAIN hills PROBES PASS (3 checks, 24 distinct colors) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_terrain_hills.png
 TERRAIN cliff PROBES PASS (3 checks, 21 distinct colors) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_terrain_cliff.png
@@ -125,8 +125,8 @@ WINDOWED TERRAIN PROOF PASS (800x500)
 STAGE PASS: terrain-scenes
 
 === STAGE: stream-walk ===
-windowed run: 351 frames · frame p50 1.27 ms · p95 1.69 ms · avg 770.5 fps
-STREAM: loaded 399 (full 116 / mid 283), meshed 1053 in 3284 ms total, gpu 24531 KB of 24576 KB budget
+windowed run: 351 frames · frame p50 1.25 ms · p95 1.87 ms · avg 763.4 fps
+STREAM: loaded 399 (full 116 / mid 283), meshed 1053 in 3265 ms total, gpu 24531 KB of 24576 KB budget
 STREAM bounds: max mesh/frame 3 (cap 3), max uploads/frame 3 (cap 6), deferred held 4567, queue rejected 4998
 STREAM culling: 35845 draws, 68718 frustum-culled patches
 STREAM waypoint 1 PROBE PASS -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_stream_walk1.png
@@ -136,18 +136,18 @@ WINDOWED STREAM WALK PASS (800x500)
 STAGE PASS: stream-walk
 
 === STAGE: river-water ===
-windowed run: 56 frames · frame p50 9.68 ms · p95 10.97 ms · avg 115.6 fps
-WATER before: 129 sections, 129 added, 0 remeshed, 21198 verts, 31220 us
-WATER after_dam: 129 sections, 0 added, 4 remeshed, 628 verts, 1402 us
+windowed run: 56 frames · frame p50 9.69 ms · p95 10.91 ms · avg 114.6 fps
+WATER before: 129 sections, 129 added, 0 remeshed, 21198 verts, 35334 us
+WATER after_dam: 129 sections, 0 added, 4 remeshed, 628 verts, 2442 us
 RIVER IN FRAME: coverage 0.084 sky 0.4% centre (0.50,0.60)
-DAM EDIT OK: 4/129 sections remeshed, image changed 2.41%
+DAM EDIT OK: 4/129 sections remeshed, image changed 2.39%
 WINDOWED WATER PROOF PASS -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_water_before.png + /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_water_after.png
 STAGE PASS: river-water
 
 === STAGE: castle-city ===
 CITY: 2498 verts / 1242 tris across 13 kinds; 144 collision cells, 4 nav anchors
-TERRAIN under city: 1008 patches in 2764 ms
-windowed run: 56 frames · frame p50 9.93 ms · p95 19.96 ms · avg 87.1 fps
+TERRAIN under city: 1008 patches in 2846 ms
+windowed run: 56 frames · frame p50 9.92 ms · p95 20.39 ms · avg 90.1 fps
 CITY IN FRAME: rect Some((129, 185, 542, 146)) coverage 0.198 distinct 21 sky 22.4% centre (0.50,0.52)
 GATE OK: opening/pillar delta 0.38
 WINDOWED CITY PROOF PASS -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_city.png + /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_city_gate.png
@@ -157,7 +157,7 @@ STAGE PASS: castle-city
 NPC resident pos CellCoord { x: 386, y: 0, z: 127 } intent Working { site: CellCoord { x: 386, y: 0, z: 127 } }
 NPC worker   pos CellCoord { x: 380, y: 0, z: 127 } intent Idle
 NPC guard    pos CellCoord { x: 380, y: 0, z: 127 } intent Idle
-windowed run: 86 frames · frame p50 9.91 ms · p95 20.26 ms · avg 87.2 fps
+windowed run: 86 frames · frame p50 9.92 ms · p95 20.17 ms · avg 97.2 fps
 NPC 0 close-up: torso point occupied (sky-delta 0.49)
 NPC 1 close-up: torso point occupied (sky-delta 0.75)
 NPC 2 close-up: torso point occupied (sky-delta 0.75)
@@ -170,30 +170,30 @@ WINDOWED DAYNIGHT PROOF PASS -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/
 STAGE PASS: day-night
 
 === STAGE: quality-tiers ===
-windowed run: 116 frames · frame p50 1.76 ms · p95 7.38 ms · avg 304.7 fps
+windowed run: 116 frames · frame p50 2.33 ms · p95 7.41 ms · avg 289.5 fps
 QUALITY low: loaded 42 patches (full 42 / far 0) gpu 3145 KB meshed 42
 QUALITY mid: loaded 80 patches (full 80 / far 0) gpu 7132 KB meshed 80
 QUALITY high: loaded 102 patches gpu 9062 KB
-WINDOWED QUALITY PROOF PASS -> low/mid/high PNGs in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots (frames p50 1.76 ms p95 7.38 ms)
+WINDOWED QUALITY PROOF PASS -> low/mid/high PNGs in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots (frames p50 2.33 ms p95 7.41 ms)
 STAGE PASS: quality-tiers
 
 === STAGE: vertical-slice ===
 SLICE: showcase seed 36 found in 2.8s (gate CellCoord { x: -1, y: 35, z: 3 }, cave CellCoord { x: 112, y: 29, z: 153 }, river edge ((-1, 0), (0, 0)))
-windowed run: 86 frames · frame p50 9.82 ms · p95 10.76 ms · avg 110.8 fps
+windowed run: 86 frames · frame p50 9.81 ms · p95 10.78 ms · avg 112.2 fps
 WINDOWED SLICE PROOF PASS -> showcase + cave + built in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: vertical-slice
 
 === STAGE: asset-factory ===
 ASSETS: tree 234480 B, rock 23760 B, house 10320 B (parsed mesh bytes)
 ASSET SCENE: 4 draws, 1725 tris (1109 lod0 + 480 lod1 + rock 98 + house 38)
-windowed run: 26 frames · frame p50 9.30 ms · p95 10.32 ms · avg 127.7 fps
+windowed run: 26 frames · frame p50 8.76 ms · p95 11.34 ms · avg 126.9 fps
 WINDOWED ASSET PROOF PASS -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_assets.png
 STAGE PASS: asset-factory
 
 === STAGE: surface-edit ===
-SURFACE SPIKE: 9 patches, 2601 verts / 4608 tris, mesh 4169 us, versions [((-351, 349), 1), ((-351, 350), 1), ((-351, 351), 1), ((-350, 349), 1), ((-350, 350), 1), ((-350, 351), 1), ((-349, 349), 1), ((-349, 350), 1), ((-349, 351), 1)]
+SURFACE SPIKE: 9 patches, 2601 verts / 4608 tris, mesh 4251 us, versions [((-351, 349), 1), ((-351, 350), 1), ((-351, 351), 1), ((-350, 349), 1), ((-350, 350), 1), ((-350, 351), 1), ((-349, 349), 1), ((-349, 350), 1), ((-349, 351), 1)]
 SURFACE EDIT: dirty {(-350, 349)} -> remesh 2601 verts (bounded)
-windowed run: 66 frames · frame p50 9.84 ms · p95 10.09 ms · avg 115.4 fps
+windowed run: 66 frames · frame p50 8.87 ms · p95 11.29 ms · avg 125.5 fps
 SURFACE EDIT VISIBLE: image diff 0.04%
 WINDOWED SURFACE SPIKE PASS -> before/after in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: surface-edit
@@ -202,15 +202,15 @@ STAGE PASS: surface-edit
 CAVE: pocket CellCoord { x: -5599, y: 10, z: 5594 } spans 34x28x34 cells, 9048 verts / 4524 tris
 RIVER: section 0 at region (-19, 17), 4 conforming sections
 FOUNDATION near river: Valid { leveled_by: 0.21450043 } at +4 m
-LOCAL EDIT: dirty patches {(-298, 279), (-298, 280), (-297, 279), (-297, 280)}; 1/4 sections refreshed, 1 changed data; refresh 54 us, water remesh 80 us, terrain remesh 7803 verts
-windowed run: 146 frames · frame p50 9.84 ms · p95 10.16 ms · avg 108.0 fps
+LOCAL EDIT: dirty patches {(-298, 279), (-298, 280), (-297, 279), (-297, 280)}; 1/4 sections refreshed, 1 changed data; refresh 57 us, water remesh 86 us, terrain remesh 7803 verts
+windowed run: 146 frames · frame p50 9.84 ms · p95 11.36 ms · avg 107.9 fps
 WATER EDIT VISIBLE: image diff 0.02%
 WINDOWED CAVES+WATER PROOF PASS -> cave interior, river before/after in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: caves-water
 
 === STAGE: rebuild-slice ===
 REBUILD SLICE: seed 36 in 2.5s (gate CellCoord { x: -1, y: 35, z: 3 }, cave CellCoord { x: 112, y: 29, z: 153 })
-windowed run: 191 frames · frame p50 13.52 ms · p95 20.89 ms · avg 70.4 fps
+windowed run: 191 frames · frame p50 13.82 ms · p95 19.54 ms · avg 70.7 fps
 REBUILD SAVE/RELOAD: built 1 -> 1
 WINDOWED REBUILD SLICE PASS -> vantage/street/river/cave/gate in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: rebuild-slice
@@ -218,15 +218,15 @@ STAGE PASS: rebuild-slice
 === STAGE: npc-people ===
 PEOPLE: 12 NPCs -> 12 part instances in 3 color buckets (<= 8 draws)
 PEOPLE GPU: 7 draws, 92 part instances
-windowed run: 151 frames · frame p50 10.64 ms · p95 22.24 ms · avg 71.6 fps
-PEOPLE MOTION: stride frames differ 0.60% (d 0.0060)
+windowed run: 151 frames · frame p50 11.40 ms · p95 21.96 ms · avg 74.0 fps
+PEOPLE MOTION: stride frames differ 0.59% (d 0.0059)
 WINDOWED PEOPLE PROOF PASS -> plaza/stride/guard/anchors in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: npc-people
 
 === STAGE: settlement-kit ===
 SETTLEMENT: 35 placements (by module {"module.banner_sign": 2, "module.gate_arch": 1, "module.keep": 2, "module.market_stall": 3, "module.settlement_house": 5, "module.settlement_workshop": 3, "module.wall_segment": 14, "module.watchtower": 5}), anchors bed 4 work 3 idle 12
 SETTLEMENT GPU: 8 bucket draws, 620 tris (LOD by vantage)
-windowed run: 141 frames · frame p50 10.49 ms · p95 22.04 ms · avg 71.1 fps
+windowed run: 141 frames · frame p50 10.21 ms · p95 21.91 ms · avg 75.2 fps
 WINDOWED SETTLEMENT PROOF PASS -> overview/street/street-2 in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: settlement-kit
 
@@ -236,7 +236,7 @@ CANOPY: framing flora.vine at slot (-1407,1359) attach (-5630,31.8,5442)
 WILDERNESS: vegetated center (-5608,5592), landmark Some([-5574.8887, 30.995, 5565.84])
 WILDERNESS vista: added 9625 evicted 24684 cached 4480 scanned 561 buckets 83 instances 1116 VARIANT BUCKETS 60 KINDS 18
 LANDMARK: standing stone at (-5575,31,5566), 102 tris
-windowed run: 226 frames · frame p50 12.61 ms · p95 17.09 ms · avg 77.4 fps
+windowed run: 226 frames · frame p50 13.34 ms · p95 20.87 ms · avg 72.8 fps
 WILDERNESS VISIBLE: diff 0.14%
 WINDOWED WILDERNESS PROOF PASS -> control/vista/landmark/undergrowth/canopy/lowtier in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: wilderness
@@ -244,43 +244,43 @@ STAGE PASS: wilderness
 === STAGE: materials ===
 ATMOSPHERE: mid tier (shadow 1024, fog 0.0055, detail 0.55, glint), 36 foliage tris
 ATMOSPHERE: high tier (shadow 2048, fog 0.007, detail 0.85)
-windowed run: 171 frames · frame p50 9.84 ms · p95 10.75 ms · avg 106.5 fps
-ATMOSPHERE DIFFS: mid vs legacy 0.17%, high vs legacy 0.27%
+windowed run: 171 frames · frame p50 9.85 ms · p95 10.73 ms · avg 105.7 fps
+ATMOSPHERE DIFFS: mid vs legacy 0.17%, high vs legacy 0.28%
 WINDOWED MATERIALS PROOF PASS -> mid/legacy/high/cutout in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: materials
 
 === STAGE: surface-stream ===
-windowed run: 251 frames · frame p50 9.87 ms · p95 11.31 ms · avg 102.7 fps
+windowed run: 251 frames · frame p50 9.84 ms · p95 11.03 ms · avg 101.5 fps
 WINDOWED SURFACE STREAM PASS -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/windowed_surface_stream.png
 STAGE PASS: surface-stream
 
 === STAGE: ui-states ===
-UI SHOTS: showcase seed 36 (test save root /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T/p3d-ui-shots-94095)
+UI SHOTS: showcase seed 36 (test save root /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T/p3d-ui-shots-99898)
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
-windowed run: 481 frames · frame p50 20.79 ms · p95 25.31 ms · avg 49.1 fps
+windowed run: 481 frames · frame p50 20.39 ms · p95 25.01 ms · avg 49.2 fps
 UI SCENE CHECKS PASS:
-  ui_title_1280x720: 12021 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4723/4723 — OK
-  ui_title_focus: 12136 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 482/482 — OK
+  ui_title_1280x720: 11995 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4723/4723 — OK
+  ui_title_focus: 12146 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 482/482 — OK
   focus distinctness: btn_play 2092 px, btn_new_world 2092 px differ — OK
-  ui_new_world: 10095 distinct colors, 24 ui elements, 300384 blended px, no row shear, quad coverage 945/945 — OK
-  ui_load_world: 11602 distinct colors, 10 ui elements, 146392 blended px, no row shear, quad coverage 630/630 — OK
-  ui_settings: 12115 distinct colors, 50 ui elements, 277988 blended px, no row shear, quad coverage 320/320 — OK
-  ui_gameplay_hud_default: 8729 distinct colors, 17 ui elements, 27447 blended px, no row shear, quad coverage 1281/1281 — OK
-  ui_gameplay_hud_debug_values: 8950 distinct colors, 18 ui elements, 31306 blended px, no row shear, quad coverage 1185/1185 — OK
+  ui_new_world: 10085 distinct colors, 24 ui elements, 300384 blended px, no row shear, quad coverage 945/945 — OK
+  ui_load_world: 11590 distinct colors, 10 ui elements, 146392 blended px, no row shear, quad coverage 630/630 — OK
+  ui_settings: 12124 distinct colors, 50 ui elements, 277988 blended px, no row shear, quad coverage 320/320 — OK
+  ui_gameplay_hud_default: 8710 distinct colors, 17 ui elements, 27447 blended px, no row shear, quad coverage 1281/1281 — OK
+  ui_gameplay_hud_debug_values: 8999 distinct colors, 18 ui elements, 31306 blended px, no row shear, quad coverage 1185/1185 — OK
   health bar fill fraction 0.38 (target 0.45) — OK
-  ui_pause: 590 distinct colors, 7 ui elements, 116594 blended px, no row shear, quad coverage 1886/1886 — OK
-  ui_modal_confirm: 700 distinct colors, 6 ui elements, 901566 blended px, no row shear, quad coverage 592/592 — OK
-  ui_debug_inspector: 8490 distinct colors, 18 ui elements, 35304 blended px, no row shear, quad coverage 249/249 — OK
-  ui_title_deck: 7267 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 3628/3628 — OK
-  ui_gameplay_hud_1501x801: 9564 distinct colors, 17 ui elements, 27924 blended px, no row shear, quad coverage 1139/1139 — OK
-  ui_title_1501x801: 9080 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4416/4416 — OK
+  ui_pause: 591 distinct colors, 7 ui elements, 116594 blended px, no row shear, quad coverage 1886/1886 — OK
+  ui_modal_confirm: 704 distinct colors, 6 ui elements, 901566 blended px, no row shear, quad coverage 592/592 — OK
+  ui_debug_inspector: 8517 distinct colors, 18 ui elements, 35295 blended px, no row shear, quad coverage 246/246 — OK
+  ui_title_deck: 7233 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 3628/3628 — OK
+  ui_gameplay_hud_1501x801: 9595 distinct colors, 17 ui elements, 27924 blended px, no row shear, quad coverage 1139/1139 — OK
+  ui_title_1501x801: 9043 distinct colors, 10 ui elements, 124278 blended px, no row shear, quad coverage 4416/4416 — OK
 UI SHOTS PASS -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots (13 captures + layout dumps, incl. unaligned 1501x801 + row-shear law)
 STAGE PASS: ui-states
 
 === STAGE: seed-preview-ui ===
 SEED PREVIEW SHOTS: warning-state seed: 8
-windowed run: 401 frames · frame p50 20.46 ms · p95 24.60 ms · avg 47.8 fps
+windowed run: 401 frames · frame p50 21.32 ms · p95 24.17 ms · avg 47.2 fps
 SEED PREVIEW SHOTS PASS:
   seed_preview_empty: valid=false map colors=3, create=disabled, marker=no — OK
   seed_preview_typed: valid=true map colors=70, create=focused, marker=yes — OK
@@ -320,102 +320,102 @@ ASSET CAPTURES OK
 STAGE PASS: asset-captures
 
 === STAGE: observatory ===
-OBSERVE route_title_mouse -> PASS (2 captures, 81 frames, p50 17.700000762939453 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_title_mouse/bundle.json
+OBSERVE route_title_mouse -> PASS (2 captures, 81 frames, p50 18.09000015258789 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_title_mouse/bundle.json
 OBSERVATORY OK
-OBSERVE route_new_world_seed -> PASS (1 captures, 71 frames, p50 18.059999465942383 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_new_world_seed/bundle.json
-OBSERVATORY OK
-wind t 0 v 0.3620 lfo 0.6000
-wind t 4.999979 v 0.3620 lfo 0.5999
-OBSERVE route_escape_pause -> PASS (1 captures, 91 frames, p50 18.309999465942383 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_escape_pause/bundle.json
-OBSERVATORY OK
-OBSERVE route_asset_inspect -> PASS (1 captures, 61 frames, p50 17.8700008392334 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_asset_inspect/bundle.json
+OBSERVE route_new_world_seed -> PASS (1 captures, 71 frames, p50 19.969999313354492 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_new_world_seed/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
-HOUSE ENTRY: outside vs inside frames differ 66%
-OBSERVE route_house_entry -> PASS (2 captures, 121 frames, p50 18.219999313354492 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_house_entry/bundle.json
+OBSERVE route_escape_pause -> PASS (1 captures, 91 frames, p50 19.690000534057617 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_escape_pause/bundle.json
+OBSERVATORY OK
+OBSERVE route_asset_inspect -> PASS (1 captures, 61 frames, p50 18.65999984741211 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_asset_inspect/bundle.json
+OBSERVATORY OK
+wind t 0 v 0.3620 lfo 0.6000
+wind t 4.999979 v 0.3620 lfo 0.5999
+HOUSE ENTRY: outside vs inside frames differ 65.9%
+OBSERVE route_house_entry -> PASS (2 captures, 121 frames, p50 19.450000762939453 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_house_entry/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 NPC TALK: speaking with Maren Oldford
-OBSERVE route_npc_talk -> PASS (1 captures, 91 frames, p50 19.530000686645508 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_npc_talk/bundle.json
+OBSERVE route_npc_talk -> PASS (1 captures, 91 frames, p50 19.31999969482422 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_npc_talk/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 FORGE USE: 1 bars smelted and taken
-OBSERVE route_forge_use -> PASS (2 captures, 281 frames, p50 19.420000076293945 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_forge_use/bundle.json
+OBSERVE route_forge_use -> PASS (2 captures, 281 frames, p50 20.299999237060547 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_forge_use/bundle.json
 OBSERVATORY OK
 GPU MARKERS: 12 markers, 11 draw calls, backend "Metal"
-OBSERVE route_gpu_markers -> PASS (1 captures, 61 frames, p50 17.799999237060547 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_gpu_markers/bundle.json
+OBSERVE route_gpu_markers -> PASS (1 captures, 61 frames, p50 18.790000915527344 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_gpu_markers/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
-SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 41%)
-OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 24.3799991607666 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_semantic_playtest/bundle.json
+SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 40%)
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 24.780000686645508 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_semantic_playtest/bundle.json
 OBSERVATORY OK
 VINE CLIMB: strand at slot (66,13) anchor (262.7,40.64,54.0) ground 37.73
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
-VINE CLIMB: the fall was gripped (toast), the drop reached 40.47 (from 49.73) and hung in the span (40.47 in [tip 39.32, attach 40.64]), the climb moved the body, landed unharmed and GROUNDED (feet 37.74 on 37.74, health 100%)
-OBSERVE route_vine_climb -> PASS (4 captures, 381 frames, p50 19.31999969482422 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_vine_climb/bundle.json
+VINE CLIMB: the fall was gripped (toast), the drop reached 40.24 (from 49.73) and hung in the span (40.24 in [tip 39.32, attach 40.64]), the climb moved the body, landed unharmed and GROUNDED (feet 37.74 on 37.74, health 100%)
+OBSERVE route_vine_climb -> PASS (4 captures, 381 frames, p50 19.829999923706055 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_vine_climb/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
-AIR STEER: the free fall held its line, the held fall drifted 0.51 m along the strafe (ortho 0.00 m); health 69% -> 44%
-OBSERVE route_air_steer -> PASS (4 captures, 321 frames, p50 20.209999084472656 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_air_steer/bundle.json
+AIR STEER: the free fall held its line, the held fall drifted 0.50 m along the strafe (ortho 0.00 m); health 69% -> 44%
+OBSERVE route_air_steer -> PASS (4 captures, 321 frames, p50 20.360000610351562 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_air_steer/bundle.json
 OBSERVATORY OK
 WALK OFF: dig cell (386.5,37.67,136.5) -> floor 32.67
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
-WALK OFF: the floor gave way, the body fell 39.38 -> 34.38 (deepest air 34.72, air beat latched at frame 104 for frame 105) and landed wounded 100% -> 64% (toast true)
-OBSERVE route_walk_off -> PASS (3 captures, 240 frames, p50 19.780000686645508 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_walk_off/bundle.json
+WALK OFF: the floor gave way, the body fell 39.38 -> 34.38 (deepest air 34.72, air beat latched at frame 104 for frame 105) and landed wounded 100% -> 65% (toast true)
+OBSERVE route_walk_off -> PASS (3 captures, 240 frames, p50 20.649999618530273 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_walk_off/bundle.json
 OBSERVATORY OK
 PIT WALL: pit (386.5,37.67,136.5) -> floor 32.67; step cell (386.5,134.5) -> 33.17
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 PIT WALL: the pit held (32.68 -> held 32.68 at the wall, then the step at 33.21); health 100% -> 77%
-OBSERVE route_pit_wall -> PASS (4 captures, 341 frames, p50 20.350000381469727 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_pit_wall/bundle.json
+OBSERVE route_pit_wall -> PASS (4 captures, 341 frames, p50 20.079999923706055 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_pit_wall/bundle.json
 OBSERVATORY OK
 DIG: spot (386.5,37.67,136.5)
 DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.69; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
-OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 20.420000076293945 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_dig/bundle.json
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 19.8799991607666 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_dig/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 CROWD: staged head-on (387,132) <-> (395,132); parked home (380,127)
 CROWD YIELD: row (387,132) <-> (395,132); 70 frames audited, overlap false / yield true / arrived true/true; parked (380,127) held
-OBSERVE route_crowd_yield -> PASS (4 captures, 131 frames, p50 19.469999313354492 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_crowd_yield/bundle.json
+OBSERVE route_crowd_yield -> PASS (4 captures, 131 frames, p50 20.260000228881836 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_crowd_yield/bundle.json
 OBSERVATORY OK
 PLAZA RECOVERY: pit cell (386.5,37.67,136.5) -> floor 23.67; plaza at (384, 128)
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 PLAZA RECOVERY: fell 37.68 -> pit floor 23.68; woke at the plaza (384.5,128.5) feet 38.35 (plaza ground 38.35); health 100% -> 50% EXACT, food 1.00 -> 0.50
-OBSERVE route_plaza_recovery -> PASS (5 captures, 341 frames, p50 20.649999618530273 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_plaza_recovery/bundle.json
+OBSERVE route_plaza_recovery -> PASS (5 captures, 341 frames, p50 23.84000015258789 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_plaza_recovery/bundle.json
 OBSERVATORY OK
 VINE HANGOFF: strand at slot (66,13) anchor (262.7,40.64,54.0) ground 37.73
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
-HANG OFF: hang at 40.47 (top 40.64 tip 39.32); hop rose 1.04 m, fell past the strand (min 37.73), air beat latched at frame 236 for 237 (pose 39.07, ground 37.73), grounded at (262.65,54.00) feet 37.73 (ground 37.73); health 100% -> 81% (law 81%); tip release fell free (min 37.62) and landed safe 1.22 m from the strand (health 0.93 -> 0.97)
-OBSERVE route_vine_hangoff -> PASS (7 captures, 700 frames, p50 20.68000030517578 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_vine_hangoff/bundle.json
+HANG OFF: hang at 40.47 (top 40.64 tip 39.32); hop rose 1.04 m, fell past the strand (min 37.73), air beat latched at frame 236 for 237 (pose 39.07, ground 37.73), grounded at (262.65,54.00) feet 37.73 (ground 37.73); health 100% -> 80% (law 81%); tip release fell free (min 37.62) and landed safe 1.17 m from the strand (health 0.93 -> 0.97)
+OBSERVE route_vine_hangoff -> PASS (7 captures, 700 frames, p50 20.790000915527344 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_vine_hangoff/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 PATH CHOICE: panel + lean shown, ENGINEERING bound, toast fired
-OBSERVE route_path_choice -> PASS (2 captures, 96 frames, p50 18.059999465942383 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_path_choice/bundle.json
+OBSERVE route_path_choice -> PASS (2 captures, 96 frames, p50 18.700000762939453 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_path_choice/bundle.json
 OBSERVATORY OK
 MACHINE CHAIN: river region (0,0) offers 3200 mWATER; wood spot (128.5,35.61,136.5)
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 MACHINE CHAIN: 450 mE stored from river water + wood
-OBSERVE route_machine_chain -> PASS (2 captures, 171 frames, p50 15.010000228881836 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_machine_chain/bundle.json
+OBSERVE route_machine_chain -> PASS (2 captures, 171 frames, p50 14.5600004196167 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_machine_chain/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 SOCIAL: oversight shown, companion live, slain=1 witnessed=3
-OBSERVE route_social -> PASS (2 captures, 220 frames, p50 20.3700008392334 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_social/bundle.json
+OBSERVE route_social -> PASS (2 captures, 220 frames, p50 19.950000762939453 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/observatory/route_social/bundle.json
 OBSERVATORY OK
 OBSERVATORY OK (all routes)
 STAGE PASS: observatory
@@ -426,14 +426,14 @@ DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.69; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
-OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 19.469999313354492 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/dig-a/route_dig/bundle.json
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 20.1299991607666 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/dig-a/route_dig/bundle.json
 OBSERVATORY OK
 DIG: spot (386.5,37.67,136.5)
 DIG: pack echo expects "PACK WOOD 1 · SOIL 1"
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 DIG VERB: G dug (386,136) 37.68 -> 36.68; terrace walked 36.68 -> back 37.69; health 100% -> 100%; pack "PACK EMPTY" -> "PACK WOOD 1 · SOIL 1"
-OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 19.540000915527344 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/dig-b/route_dig/bundle.json
+OBSERVE route_dig -> PASS (4 captures, 186 frames, p50 20.110000610351562 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/dig-b/route_dig/bundle.json
 OBSERVATORY OK
 {
   "build_hash": "dev",
@@ -483,12 +483,12 @@ STAGE PASS: dig-determinism
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
 SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 40%)
-OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 24.020000457763672 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/playtest-a/route_semantic_playtest/bundle.json
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 25.059999465942383 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/playtest-a/route_semantic_playtest/bundle.json
 OBSERVATORY OK
 wind t 0 v 0.3620 lfo 0.6000
 wind t 4.999979 v 0.3620 lfo 0.5999
-SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 41%)
-OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 23.81999969482422 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/playtest-b/route_semantic_playtest/bundle.json
+SEMANTIC PLAYTEST: house entered (frames differ),  talked, 1 bar(s) forged, 6 ore harvested, chest+marker read, journal 6 quests (1 active, progress live), IRON BAR in stock, fell 8 m over the open journal (health 40%)
+OBSERVE route_semantic_playtest -> PASS (13 captures, 986 frames, p50 23.0 ms) -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/playtest-b/route_semantic_playtest/bundle.json
 OBSERVATORY OK
 {
   "build_hash": "dev",
@@ -535,22 +535,22 @@ OBSERVATORY OK
 STAGE PASS: playtest-determinism
 
 === STAGE: deck-bench ===
-DECK low: p50 8.21 ms p95 10.81 p99 15.72 worst 35.60 (115 fps), meshed 201 gpu 8177 KB flora 463 setl 1048 tris crowd 92 inst, probe 693695 -> 651444 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_low.csv
+DECK low: p50 7.98 ms p95 11.12 p99 15.09 worst 35.20 (119 fps), meshed 201 gpu 8177 KB flora 463 setl 1048 tris crowd 92 inst, probe 594697 -> 615181 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_low.csv
 DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
-DECK mid: p50 9.45 ms p95 11.66 p99 17.96 worst 40.64 (101 fps), meshed 402 gpu 18654 KB flora 463 setl 1048 tris crowd 92 inst, probe 782100 -> 672582 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_mid.csv
+DECK mid: p50 8.91 ms p95 10.74 p99 18.09 worst 35.72 (108 fps), meshed 402 gpu 18654 KB flora 463 setl 1048 tris crowd 92 inst, probe 696874 -> 651898 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_mid.csv
 DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
-DECK high: p50 9.08 ms p95 11.44 p99 18.60 worst 41.70 (104 fps), meshed 603 gpu 27359 KB flora 463 setl 1048 tris crowd 92 inst, probe 824748 -> 595731 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_high.csv
+DECK high: p50 8.58 ms p95 10.21 p99 16.53 worst 38.25 (113 fps), meshed 603 gpu 27359 KB flora 463 setl 1048 tris crowd 92 inst, probe 659077 -> 595023 ns -> /var/folders/wf/hc4xrs2n27n8x_wb4wj8rm900000gn/T//deck_bench_high.csv
 DECK BENCH TIER PASS -> capture in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
-DECK host CPU probe ns (start/end): [693695, 651444, 782100, 672582, 824748, 595731] — within the x1.4 band
+DECK host CPU probe ns (start/end): [594697, 615181, 696874, 651898, 659077, 595023] — within the x1.4 band
 DECK BENCH REPORT -> /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/../../../docs/POORCRAFT-VALHEIM-STYLE-REBUILD/DECK-BENCH-REPORT.md
-DECK low: p50 8.20 ms p95 10.81 p99 15.72 worst 35.60 (115 fps) probes 693695/651444
-DECK mid: p50 9.45 ms p95 11.66 p99 17.95 worst 40.64 (101 fps) probes 782100/672582
-DECK high: p50 9.08 ms p95 11.44 p99 18.60 worst 41.70 (104 fps) probes 824748/595731
+DECK low: p50 7.98 ms p95 11.12 p99 15.09 worst 35.20 (119 fps) probes 594697/615181
+DECK mid: p50 8.91 ms p95 10.74 p99 18.09 worst 35.72 (108 fps) probes 696874/651898
+DECK high: p50 8.58 ms p95 10.21 p99 16.53 worst 38.25 (113 fps) probes 659077/595023
 DECK BENCH PASS -> report + per-tier captures in /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots
 STAGE PASS: deck-bench
 
 === STAGE: package-dmg ===
-PC3D_BUILD=c63d258f cargo build --release --manifest-path "Poorcraft 3D/Cargo.toml" -p poorcraft3d && mkdir -p "Poorcraft 3D/target/release" && if [ -n "$CARGO_TARGET_DIR" ] && [ -f "$CARGO_TARGET_DIR/release/poorcraft3d" ]; then cp -f "$CARGO_TARGET_DIR/release/poorcraft3d" "Poorcraft 3D/target/release/poorcraft3d"; fi
+PC3D_BUILD=f4aceb83 cargo build --release --manifest-path "Poorcraft 3D/Cargo.toml" -p poorcraft3d && mkdir -p "Poorcraft 3D/target/release" && if [ -n "$CARGO_TARGET_DIR" ] && [ -f "$CARGO_TARGET_DIR/release/poorcraft3d" ]; then cp -f "$CARGO_TARGET_DIR/release/poorcraft3d" "Poorcraft 3D/target/release/poorcraft3d"; fi
 warning: variable does not need to be mutable
    --> crates/pc3d_core/src/replay.rs:125:9
     |
@@ -781,6 +781,12 @@ warning: unused variable: `tick`
 105 |     pub fn player_attack(&mut self, player_pos: CellCoord, tick: u64) -> Vec<(ItemId, u32)> {
     |                                                            ^^^^ help: if this is intentional, prefix it with an underscore: `_tick`
 
+warning: unused variable: `kind`
+   --> crates/pc3d_world/src/trust.rs:613:17
+    |
+613 |     let (_slot, kind, trunk, ground) = first_tree_slot_near(gen, at)?;
+    |                 ^^^^ help: if this is intentional, prefix it with an underscore: `_kind`
+
 warning: unused variable: `graph`
    --> crates/pc3d_world/src/diagnose.rs:269:9
     |
@@ -909,7 +915,7 @@ warning: function `REGION_PATCH_AXIS_I32` should have a snake case name
 119 | fn REGION_PATCH_AXIS_I32() -> i32 {
     |    ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `region_patch_axis_i32`
 
-warning: `pc3d_world` (lib) generated 45 warnings (run `cargo fix --lib -p pc3d_world` to apply 39 suggestions)
+warning: `pc3d_world` (lib) generated 46 warnings (run `cargo fix --lib -p pc3d_world` to apply 40 suggestions)
 warning: unused import: `crate::framing::FrameError`
  --> crates/pc3d_save/src/journal.rs:7:5
   |
@@ -1366,15 +1372,15 @@ warning: unused import: `SliceHost`
      = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
 warning: unused import: `UiAction`
-    --> apps/poorcraft3d/src/main.rs:9248:46
+    --> apps/poorcraft3d/src/main.rs:9263:46
      |
-9248 |     use pc3d_render::ui::{self, Key, Screen, UiAction};
+9263 |     use pc3d_render::ui::{self, Key, Screen, UiAction};
      |                                              ^^^^^^^^
 
 warning: unused import: `Key`
-    --> apps/poorcraft3d/src/main.rs:9520:27
+    --> apps/poorcraft3d/src/main.rs:9535:27
      |
-9520 |     use pc3d_render::ui::{Key, ModalKind, Screen, UiAction};
+9535 |     use pc3d_render::ui::{Key, ModalKind, Screen, UiAction};
      |                           ^^^
 
 warning: variable does not need to be mutable
@@ -1407,8 +1413,28 @@ warning: unused variable: `center`
 3550 |             let (gen, center, layout, plan) =
      |                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_center`
 
-warning: `poorcraft3d` (bin "poorcraft3d") generated 7 warnings (run `cargo fix --bin "poorcraft3d" -p poorcraft3d` to apply 7 suggestions)
-    Finished `release` profile [optimized] target(s) in 36.26s
+warning: value assigned to `agreement_pass` is never read
+     --> apps/poorcraft3d/src/main.rs:10301:38
+      |
+10301 |             let mut agreement_pass = false;
+      |                                      ^^^^^ this value is reassigned later and never used
+...
+10327 |                 agreement_pass = true;
+      |                 --------------------- `agreement_pass` is overwritten here before the previous value is read
+      |
+      = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `agreement_reason` is never read
+     --> apps/poorcraft3d/src/main.rs:10302:40
+      |
+10302 |             let mut agreement_reason = String::new();
+      |                                        ^^^^^^^^^^^^^ this value is reassigned later and never used
+...
+10328 |                 agreement_reason = format!(
+      |                 ---------------- `agreement_reason` is overwritten here before the previous value is read
+
+warning: `poorcraft3d` (bin "poorcraft3d") generated 9 warnings (run `cargo fix --bin "poorcraft3d" -p poorcraft3d` to apply 7 suggestions)
+    Finished `release` profile [optimized] target(s) in 36.08s
 warning: the following packages contain code that will be rejected by a future version of Rust: block v0.1.6
 note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
 rm -rf "Poorcraft 3D/dist3d/POORCRAFT3D.app" "Poorcraft 3D/dist3d/poorcraft3d-macos.dmg"
@@ -1417,11 +1443,11 @@ cp "Poorcraft 3D/target/release/poorcraft3d" "Poorcraft 3D/dist3d/POORCRAFT3D.ap
 printf 'APPLPC3D' > "Poorcraft 3D/dist3d/POORCRAFT3D.app/Contents/PkgInfo"
 printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>CFBundleExecutable</key><string>poorcraft3d</string>\n<key>CFBundleIdentifier</key><string>com.poorcraft.poorcraft3d</string>\n<key>CFBundleName</key><string>POORCRAFT 3D</string>\n<key>CFBundlePackageType</key><string>APPL</string>\n<key>CFBundleShortVersionString</key><string>0.11.1</string>\n<key>NSHighResolutionCapable</key><true/>\n</dict></plist>\n' > "Poorcraft 3D/dist3d/POORCRAFT3D.app/Contents/Info.plist"
 cp "Poorcraft 3D/dist3d/POORCRAFT3D/PLAY.md" "Poorcraft 3D/dist3d/POORCRAFT3D.app/Contents/Resources/PLAY.md"
-hdiutil create -volname "POORCRAFT3D-c63d258f" -srcfolder "Poorcraft 3D/dist3d/POORCRAFT3D.app" -ov -format UDZO "Poorcraft 3D/dist3d/poorcraft3d-macos.dmg"
+hdiutil create -volname "POORCRAFT3D-f4aceb83" -srcfolder "Poorcraft 3D/dist3d/POORCRAFT3D.app" -ov -format UDZO "Poorcraft 3D/dist3d/poorcraft3d-macos.dmg"
 created: /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/dist3d/poorcraft3d-macos.dmg
 ls -la "Poorcraft 3D/dist3d/poorcraft3d-macos.dmg"
--rw-r--r--@ 1 zari  staff  3829101 Oct 10 21:36 Poorcraft 3D/dist3d/poorcraft3d-macos.dmg
+-rw-r--r--@ 1 zari  staff  3869244 Oct 10 23:00 Poorcraft 3D/dist3d/poorcraft3d-macos.dmg
 STAGE PASS: package-dmg
 
-TOTAL PROOF PNGS ON DISK: 339
+TOTAL PROOF PNGS ON DISK: 341
 BETA BATTERY: ALL STAGES PASS (report: /Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/BETA-REPORT.txt)

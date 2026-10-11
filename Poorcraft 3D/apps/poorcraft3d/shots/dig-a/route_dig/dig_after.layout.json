@@ -255,12 +255,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 00:34",
+        "modified": "2026-10-11 01:57",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 00:34",
+        "modified": "2026-10-11 01:57",
         "name": "beta-shot",
         "seed": 7
       }
@@ -268,7 +268,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 0.3214058578014374,
+        "age_s": 0.3245643973350525,
         "text": "DUG SOIL+WOOD"
       }
     ],

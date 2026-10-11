@@ -1,0 +1,43 @@
+{
+  "agreement": {
+    "pass": true,
+    "reason": "culprit tree-mass fraction 0.075 vs control 0.001 (need >+0.02); mean RGB |delta| sum 20.0 (need >4)"
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        179.40052777777777,
+        180.22322222222223,
+        172.22872222222222
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/trust/trust_culprit_spawn_tree.png",
+      "role": "culprit_spawn_tree",
+      "tree_mass_fraction": 0.07490972429513931
+    },
+    {
+      "mean_rgb": [
+        186.95730555555556,
+        185.94816666666668,
+        178.95347222222222
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/trust/trust_control_spawn.png",
+      "role": "control_spawn",
+      "tree_mass_fraction": 0.0005833333125337958
+    }
+  ],
+  "command": "--trust-audit",
+  "control_site_m": [
+    640.0,
+    42.0099983215332,
+    -384.0
+  ],
+  "culprit_site_m": [
+    650.4451904296875,
+    97.61299896240234,
+    -382.1357116699219
+  ],
+  "report_path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/trust/trust_report.json",
+  "schema": 1,
+  "seed": 4242,
+  "separation_m": 10.610258102416992
+}

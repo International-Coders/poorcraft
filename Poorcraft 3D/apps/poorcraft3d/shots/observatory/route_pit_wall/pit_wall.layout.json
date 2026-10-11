@@ -226,8 +226,8 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9931394457817078,
-      "health": 0.7162596583366394,
+      "food": 0.9934236407279968,
+      "health": 0.7130980491638184,
       "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
       "selected_slot": 0,
       "stamina": 1.0,
@@ -255,12 +255,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 00:32",
+        "modified": "2026-10-11 01:55",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 00:32",
+        "modified": "2026-10-11 01:55",
         "name": "beta-shot",
         "seed": 7
       }
@@ -268,7 +268,7 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 2.3393661975860596,
+        "age_s": 2.248262882232666,
         "text": "THE GROUND GIVES WAY"
       }
     ],

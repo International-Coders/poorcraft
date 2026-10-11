@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-10-10 — N01: harness adversarial de confiança fecha no POORCRAFT 3D (loop 475)
+
+- Novo `Poorcraft 3D/crates/pc3d_world/src/trust.rs`: tipos puros
+  `TrustFixture`/`TrustViolation`/`TrustVerdict` e quatro gates semânticos —
+  viewmodel (winding/grip/hemisfério/near/envelope, NaN é falha própria),
+  spawn (suporte sólido, seco/acima do mar, cápsula vs tronco, visão frontal),
+  prop (contato ≤ 2 cm) e água (leito amostrado abaixo da superfície). Toda
+  violação nomeia sujeito, medida, valor, tolerância e seed. As mutações
+  vivem só no teste e no comando de auditoria — nunca no runtime.
+- 14 testes novos, incluindo os meta-testes: desligar cada gate produz
+  mutante sobrevivente (gate load-bearing); trocar a câmera não converte
+  culpado em válido; dado não-finito não é convertido em silêncio.
+- Novo `--trust-audit [out] [seed]` + `make p3d-trust-audit`: relatório
+  windowless (4 culpados + 4 controles + meta) em `trust_report.json`,
+  evidência janelada do fixture de spawn em `trust_capture.json` + duas
+  capturas (pinheiro culpado vs terraço aberto, quase-nadir, inspecionadas à
+  mão). Falha se culpado passar, controle falhar ou os pixels discordarem do
+  sidecar. Os outros três culpados são recusados antes da malha — o sidecar
+  registra a indisponibilidade honesta de captura até N03/N05.
+- Doutrina promovida: `required_next_job` N01 → N02 (json + pino no
+  validador); `12-FILA-DE-EXECUCAO.md` marca N01 FECHADO.
+- Verificação: P3D 766/766 (14 leis novas no world); doctrine 2/2;
+  `make p3d-trust-audit` OK (seed 4242); p3d-beta 38/38. Legado intocado
+  (baselines do loop 474 vigentes). Runtime P3D macOS renovado.
+
 ## 2026-10-10 — Pastas renomeadas: `Poorcraft/` e `Poorcraft 3D/` (loop 474)
 
 - `poorcraft-antigo/` → `Poorcraft/` (LOREFORGE/POORCRAFT preservado) e

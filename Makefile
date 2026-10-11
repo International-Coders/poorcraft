@@ -161,6 +161,11 @@ p3d-asset-sidecars: ## WT-002: semantic starter-batch inspection sidecars (windo
 	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --asset-sidecar all "Poorcraft 3D/apps/poorcraft3d/shots" || exit 1; \
 	echo "P3D ASSET SIDECARS OK"
 
+p3d-trust-audit: ## N01: the adversarial trust audit (4 guilty fixtures refused + 4 controls + load-bearing meta + windowed spawn evidence): make p3d-trust-audit [SEED=4242]
+	$(P3D_BUILD)
+	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --trust-audit "$$(pwd)/Poorcraft 3D/apps/poorcraft3d/shots/trust" $(if $(SEED),$(SEED),4242) || exit 1; \
+	echo "P3D TRUST AUDIT OK"
+
 p3d-observe: ## WT-003: the observatory — all routes as evidence bundles (PNG+state+perf+verdict; honest unavailability where interactions don't exist yet): make p3d-observe
 	$(P3D_BUILD)
 	rm -rf "Poorcraft 3D/apps/poorcraft3d/shots/observatory"

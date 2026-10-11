@@ -7,12 +7,21 @@ P3 escala social/reinos → P4 distribuição. Um P0 aberto bloqueia volume novo
 
 ## Épico A — confiança espacial e câmera
 
-### N01 — Harness adversarial de confiança
+### N01 — Harness adversarial de confiança — FECHADO (loop 475, 2026-10-10)
 
 Criar fixtures deliberadamente ruins para provar que os gates detectam:
 viewmodel invertido/clipado, spawn dentro de árvore, prop 0.5 m no ar e água
 sem suporte. O job fecha apenas quando cada mutação falha pelo motivo correto e
 a cena válida passa.
+
+Fechado: `pc3d_world::trust` (tipos TrustFixture/TrustViolation/TrustVerdict,
+quatro gates puros, builders, meta de gate load-bearing, 14 testes) +
+`--trust-audit` / `make p3d-trust-audit` (relatório + sidecar + capturas
+janela do fixture de spawn: culpado sob o pinheiro vs controle no terraço
+aberto; os outros três culpados são recusados antes da malha e o sidecar
+registra indisponibilidade honesta de captura até N03/N05). Fechamento: 4/4
+culpados recusados, 4/4 controles aceitos, 4/4 gates load-bearing, pixels de
+acordo com o sidecar.
 
 ### N02 — Safe spawn multi-seed
 

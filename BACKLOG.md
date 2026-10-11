@@ -11,6 +11,18 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] N01 adversarial trust harness (2026-10-10, loop 475, `Poorcraft 3D/`):
+      `pc3d_world::trust` — pure fixture/violation/verdict types, four
+      semantic gates (viewmodel winding/grip/hemisphere, spawn
+      capsule/frontal/support, prop contact, water bed support), builders,
+      and load-bearing meta-tests (disabling each gate lets its mutant
+      survive; camera swaps cannot validate a culprit; non-finite data is
+      its own failure). `--trust-audit` + `make p3d-trust-audit` write the
+      report sidecar and the windowed spawn-fixture evidence (culprit pine
+      vs open terrace, inspected). Evidence: P3D 766/766, doctrine 2/2,
+      audit 4/4 culprits refused + 4/4 controls + pixel agreement, p3d-beta
+      38/38. Doctrine promoted to N02; N02 (safe spawn multi-seed) is next
+      and must consume the spawn-clearance gate in production `spawn_safe`.
 - [x] Folders renamed `Poorcraft/` (legacy, frozen) + `Poorcraft 3D/`
       (active; ALL upgrades land here) (2026-10-10, loop 474): both
       workspaces moved intact via `git mv`; Makefile rewritten with

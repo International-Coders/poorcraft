@@ -146,6 +146,6 @@
     "min_viewmodel_gates": 12,
     "min_worldgen_gates": 20,
     "required_platform_count": 3,
-    "required_next_job": "N01"
+    "required_next_job": "N02"
   }
 }

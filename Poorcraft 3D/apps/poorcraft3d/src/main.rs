@@ -4625,6 +4625,7 @@ fn main() {
                 "worldgen_sample": "--export-data worldgen_sample (live windowless)",
                 "perf": "--observe <route> perf.json (p50/p95)",
                 "evidence_bundle": "--observe <route> + --compare-evidence",
+                "trust_audit": "--trust-audit <out> [seed] (N01 guilty-scene gates + captures)",
             });
             surface["safety"] = serde_json::json!({
                 "local_only": true,
@@ -4770,6 +4771,20 @@ fn main() {
                 std::process::exit(1);
             }
             println!("ASSET SIDECARS OK ({} assets)", sidecars.len());
+        }
+        Some("--trust-audit") => {
+            // N01: the adversarial trust harness — 4 guilty fixtures must
+            // be refused, 4 controls accepted, every gate proven
+            // load-bearing, plus the windowed spawn-fixture evidence
+            // (culprit tree site vs control spawn site, same world).
+            // Deterministic for a seed; exits nonzero if a culprit passes,
+            // a control fails, or the pixels disagree with the sidecar.
+            let out_root: String = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/trust", env!("CARGO_MANIFEST_DIR")));
+            let seed: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(4242);
+            run_trust_audit_cmd(&out_root, seed);
         }
         Some("--seed-preview") => {
             // WT-001 developer export: the deterministic preview for one
@@ -10075,6 +10090,269 @@ fn run_ui_inspect(spec: &str) {
         }
         Err(e) => {
             eprintln!("[FAIL] windowed renderer: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+// ----------------------------------------------------------------------- //
+// N01 — the adversarial trust audit (`--trust-audit`).                     //
+// ----------------------------------------------------------------------- //
+
+/// Fraction of center-ROI pixels that read as tree mass — dark (bark or
+/// shadowed canopy) OR green-dominant (needles) — the signature the spawn
+/// fixture's culprit side must show against an open pale terrace.
+fn center_tree_mass_fraction(rgba: &[u8], w: u32, h: u32) -> f32 {
+    let (x0, x1) = ((w / 5) as usize, (w * 4 / 5) as usize);
+    let (y0, y1) = ((h / 5) as usize, (h * 4 / 5) as usize);
+    let mut mass = 0usize;
+    let mut total = 0usize;
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let i = (y * w as usize + x) * 4;
+            let (r, g, b) = (rgba[i] as f32, rgba[i + 1] as f32, rgba[i + 2] as f32);
+            let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            let green_dominant = g > r + 8.0 && g > b + 8.0;
+            if luma < 120.0 || green_dominant {
+                mass += 1;
+            }
+            total += 1;
+        }
+    }
+    if total == 0 { 0.0 } else { mass as f32 / total as f32 }
+}
+
+/// Mean center-ROI color — the culprit/control pixel-agreement metric.
+fn center_mean_color(rgba: &[u8], w: u32, h: u32) -> [f64; 3] {
+    let (x0, x1) = ((w / 5) as usize, (w * 4 / 5) as usize);
+    let (y0, y1) = ((h / 5) as usize, (h * 4 / 5) as usize);
+    let mut acc = [0.0f64; 3];
+    let mut n = 0usize;
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let i = (y * w as usize + x) * 4;
+            for k in 0..3 {
+                acc[k] += rgba[i + k] as f64;
+            }
+            n += 1;
+        }
+    }
+    if n == 0 {
+        [0.0; 3]
+    } else {
+        [acc[0] / n as f64, acc[1] / n as f64, acc[2] / n as f64]
+    }
+}
+
+/// Distinct quantized colors sampled over the frame — the non-blank law
+/// the observatory's screenshot check uses (>= 8).
+fn distinct_colors(rgba: &[u8], w: u32, h: u32) -> usize {
+    let mut seen = std::collections::BTreeSet::new();
+    for y in (0..h as usize).step_by(4) {
+        for x in (0..w as usize).step_by(4) {
+            let i = (y * w as usize + x) * 4;
+            seen.insert(((rgba[i] as u32) << 16) | ((rgba[i + 1] as u32) << 8) | rgba[i + 2] as u32);
+        }
+    }
+    seen.len()
+}
+
+fn run_trust_audit_cmd(out_root: &str, seed: u64) {
+    std::fs::create_dir_all(out_root).expect("create trust out dir");
+    let report = pc3d_world::trust::run_trust_audit(seed);
+    println!("TRUST AUDIT — seed {seed} (schema {}, gen {})", report.schema, report.gen_algo);
+    for v in &report.verdicts {
+        if v.refused {
+            println!("  REFUSED  {:<20} {}", v.fixture_id, v.violations[0].message());
+        } else {
+            println!("  accepted {:<20}", v.fixture_id);
+        }
+    }
+    for m in &report.meta {
+        println!("  meta     {:<10} load_bearing={} ({})", m.gate, m.load_bearing, m.detail);
+    }
+    let report_path = format!("{out_root}/trust_report.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&report).unwrap())
+        .expect("write trust report");
+    println!("TRUST REPORT -> {report_path}");
+    let gates_clear = report.all_clear();
+
+    // Windowed evidence: the spawn fixture's culprit and control share
+    // one world; each gets one capture from the same camera offset.
+    let gen = pc3d_world::gen::WorldGen::new(seed);
+    let culprit = pc3d_world::trust::fixture_bad_spawn_tree(&gen, seed)
+        .expect("spawn culprit fixture for the windowed evidence");
+    let control = pc3d_world::trust::fixture_spawn_control(&gen, seed);
+    let culprit_feet = match culprit.payload {
+        pc3d_world::trust::FixturePayload::Spawn { feet, .. } => feet,
+        _ => unreachable!(),
+    };
+    let control_feet = match control.payload {
+        pc3d_world::trust::FixturePayload::Spawn { feet, .. } => feet,
+        _ => unreachable!(),
+    };
+    let separation =
+        ((culprit_feet[0] - control_feet[0]).powi(2) + (culprit_feet[2] - control_feet[2]).powi(2))
+            .sqrt();
+    // The camera hovers near-nadir above each site: 14 m up, 2 m south —
+    // no terrace wall can stand between an overhead eye and its site (the
+    // first attempt aimed horizontally across the spawn terrace and the
+    // control eye ended up against a 56 m cliff face). The eye still
+    // clamps above the surface AT THE EYE. The culprit frames its pine's
+    // canopy; the control frames open terrace.
+    let pose_for = |gen: &pc3d_world::gen::WorldGen, site: [f32; 3]| {
+        let ex = site[0];
+        let ez = site[2] + 2.0;
+        let ground_eye = gen.effective_surface_mm((ex * 1000.0) as i64, (ez * 1000.0) as i64)
+            as f32
+            / 1000.0;
+        let eye = [ex, site[1].max(ground_eye) + 14.0, ez];
+        pc3d_render::CameraPose::look_at(eye, [site[0], site[1] + 0.5, site[2]])
+    };
+    let pose_culprit = pose_for(&gen, culprit_feet);
+    let pose_control = pose_for(&gen, control_feet);
+
+    // Each site gets its own 3x3 patch neighborhood, keyed to the SURFACE
+    // height under it: the culprit (a tree site) and the control (the
+    // spawn) can sit tens of meters apart in height, and one midpoint
+    // neighborhood would cover neither. The frame hooks swap the loaded
+    // terrain right before each capture (the proven before/after pattern).
+    let site_patch = |gen: &pc3d_world::gen::WorldGen, site: [f32; 3]| {
+        let surface_m = gen.effective_surface_mm(
+            (site[0] * 1000.0) as i64,
+            (site[2] * 1000.0) as i64,
+        ) as f32
+            / 1000.0;
+        pc3d_world::coords::PatchCoord {
+            x: (site[0] as i32).div_euclid(16),
+            y: (surface_m as i32).div_euclid(16),
+            z: (site[2] as i32).div_euclid(16),
+        }
+    };
+    let culprit_patch = site_patch(&gen, culprit_feet);
+    let control_patch = site_patch(&gen, control_feet);
+    let g0 = std::rc::Rc::new(gen);
+    let g1 = g0.clone();
+    let control_in_view = separation <= 40.0;
+    let mut shots =
+        vec![pc3d_render::Shot::new(20, format!("{out_root}/trust_culprit_spawn_tree.png"))];
+    let mut camera_script: Vec<(u64, pc3d_render::CameraPose)> = vec![(5, pose_culprit)];
+    if control_in_view {
+        shots.push(pc3d_render::Shot::new(45, format!("{out_root}/trust_control_spawn.png")));
+        camera_script.push((30, pose_control));
+    }
+    let want_captures = shots.len();
+    let mut frame_hooks: Vec<(u64, pc3d_render::app::FrameHook)> = vec![(
+        0,
+        Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+            r.set_placeholder_scene(false);
+            r.load_terrain(&g0, &pc3d_render::terrain::neighborhood3(culprit_patch));
+            // The guilty trunk is flora, not terrain cells: attach the
+            // flora streamer so the tree itself renders.
+            let fg = g0.clone();
+            r.attach_flora(fg);
+            r.set_pose(pose_culprit);
+        }),
+    )];
+    if control_in_view {
+        frame_hooks.push((
+            25,
+            Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+                r.load_terrain(&g1, &pc3d_render::terrain::neighborhood3(control_patch));
+                r.set_pose(pose_control);
+            }),
+        ));
+    }
+    let cfg = pc3d_render::WindowConfig {
+        title: "POORCRAFT 3D — trust audit (spawn fixture)".into(),
+        max_frames: Some(50),
+        probe_set: pc3d_render::ProbeSet::SkyOnly,
+        resize_to: Some((800.0, 500.0)),
+        camera_script,
+        shots,
+        frame_hooks,
+        ..Default::default()
+    };
+    match pc3d_render::run_windowed(cfg) {
+        Ok(rep) => {
+            print_window_report(&rep);
+            if rep.captures.len() != want_captures {
+                eprintln!("[FAIL] trust captures: expected {want_captures}, got {}", rep.captures.len());
+                std::process::exit(1);
+            }
+            let (w, h) = rep.final_physical;
+            let rgba_ok = |c: &pc3d_render::CaptureOutcome| c.rgba.len() == (w * h * 4) as usize;
+            let cap_c = &rep.captures[0];
+            if !rgba_ok(cap_c) || distinct_colors(&cap_c.rgba, w, h) < 8 {
+                eprintln!("[FAIL] culprit capture unreadable or blank: {}", cap_c.path.display());
+                std::process::exit(1);
+            }
+            let mut sidecar = serde_json::json!({
+                "schema": 1,
+                "seed": seed,
+                "command": "--trust-audit",
+                "report_path": report_path,
+                "culprit_site_m": culprit_feet,
+                "control_site_m": control_feet,
+                "separation_m": separation,
+                "captures": [],
+                "agreement": { "pass": false, "reason": "pending" },
+            });
+            let mut agreement_pass = false;
+            let mut agreement_reason = String::new();
+            if control_in_view {
+                let cap_k = &rep.captures[1];
+                if !rgba_ok(cap_k) || distinct_colors(&cap_k.rgba, w, h) < 8 {
+                    eprintln!("[FAIL] control capture unreadable or blank: {}", cap_k.path.display());
+                    std::process::exit(1);
+                }
+                let mass_c = center_tree_mass_fraction(&cap_c.rgba, w, h);
+                let mass_k = center_tree_mass_fraction(&cap_k.rgba, w, h);
+                let mean_c = center_mean_color(&cap_c.rgba, w, h);
+                let mean_k = center_mean_color(&cap_k.rgba, w, h);
+                let mean_diff = (mean_c[0] - mean_k[0]).abs()
+                    + (mean_c[1] - mean_k[1]).abs()
+                    + (mean_c[2] - mean_k[2]).abs();
+                agreement_pass = mass_c > mass_k + 0.02 && mean_diff > 4.0;
+                agreement_reason = format!(
+                    "culprit tree-mass fraction {mass_c:.3} vs control {mass_k:.3} (need >+0.02); mean RGB |delta| sum {mean_diff:.1} (need >4)"
+                );
+                sidecar["captures"] = serde_json::json!([
+                    { "role": "culprit_spawn_tree", "path": cap_c.path.display().to_string(),
+                      "tree_mass_fraction": mass_c, "mean_rgb": mean_c },
+                    { "role": "control_spawn", "path": cap_k.path.display().to_string(),
+                      "tree_mass_fraction": mass_k, "mean_rgb": mean_k },
+                ]);
+            } else {
+                agreement_pass = true;
+                agreement_reason = format!(
+                    "control site lies {separation:.0} m from the culprit — outside the loaded \
+                     neighborhood; control evidence is the semantic verdict in the trust report"
+                );
+                sidecar["captures"] = serde_json::json!([
+                    { "role": "culprit_spawn_tree", "path": cap_c.path.display().to_string(),
+                      "tree_mass_fraction": center_tree_mass_fraction(&cap_c.rgba, w, h) },
+                ]);
+            }
+            sidecar["agreement"] = serde_json::json!({
+                "pass": agreement_pass, "reason": agreement_reason,
+            });
+            let capture_path = format!("{out_root}/trust_capture.json");
+            std::fs::write(&capture_path, serde_json::to_string_pretty(&sidecar).unwrap())
+                .expect("write trust capture sidecar");
+            println!("TRUST CAPTURES -> {capture_path}");
+            if !gates_clear {
+                eprintln!("[FAIL] trust audit: gates did not close (see {report_path})");
+                std::process::exit(1);
+            }
+            if !agreement_pass {
+                eprintln!("[FAIL] trust audit: pixels disagree with the sidecar — {agreement_reason}");
+                std::process::exit(1);
+            }
+            println!("TRUST AUDIT OK (4/4 culprits refused, 4/4 controls accepted, gates load-bearing)");
+        }
+        Err(e) => {
+            eprintln!("[FAIL] trust windowed evidence: {e}");
             std::process::exit(1);
         }
     }

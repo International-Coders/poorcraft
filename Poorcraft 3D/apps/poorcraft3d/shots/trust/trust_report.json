@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "seed": 4242,
+  "gen_algo": 1,
+  "verdicts": [
+    {
+      "fixture_id": "bad_viewmodel_flip",
+      "kind": "Culprit",
+      "refused": true,
+      "violations": [
+        {
+          "gate": "viewmodel_winding",
+          "subject": "viewmodel pose 'bad_viewmodel_flip'",
+          "measurement": "scale_determinant",
+          "value": -1.0,
+          "tolerance": 0.0,
+          "seed": 4242
+        }
+      ]
+    },
+    {
+      "fixture_id": "viewmodel_control",
+      "kind": "Control",
+      "refused": false,
+      "violations": []
+    },
+    {
+      "fixture_id": "bad_spawn_tree",
+      "kind": "Culprit",
+      "refused": true,
+      "violations": [
+        {
+          "gate": "spawn_capsule_clear",
+          "subject": "spawn feet (650.45, 97.61, -382.14) vs TreePine trunk at (650.45, -382.14)",
+          "measurement": "capsule_trunk_distance_m",
+          "value": 0.0,
+          "tolerance": 0.75,
+          "seed": 4242
+        }
+      ]
+    },
+    {
+      "fixture_id": "spawn_control",
+      "kind": "Control",
+      "refused": false,
+      "violations": []
+    },
+    {
+      "fixture_id": "bad_prop_float",
+      "kind": "Culprit",
+      "refused": true,
+      "violations": [
+        {
+          "gate": "prop_ground_contact",
+          "subject": "prop 'floating_rock'",
+          "measurement": "contact_gap_m",
+          "value": 0.5,
+          "tolerance": 0.019999999552965164,
+          "seed": 4242
+        }
+      ]
+    },
+    {
+      "fixture_id": "prop_control",
+      "kind": "Control",
+      "refused": false,
+      "violations": []
+    },
+    {
+      "fixture_id": "bad_water_air",
+      "kind": "Culprit",
+      "refused": true,
+      "violations": [
+        {
+          "gate": "water_bed_support",
+          "subject": "water strip at (-4896.0, -4992.0) m wide 4.0",
+          "measurement": "centerline_bed_below_surface_m",
+          "value": -2.0,
+          "tolerance": 0.15000000596046448,
+          "seed": 4242
+        },
+        {
+          "gate": "water_bed_support",
+          "subject": "water strip at (-4896.0, -4992.0) m wide 4.0",
+          "measurement": "supported_bed_samples",
+          "value": 0.0,
+          "tolerance": 3.0,
+          "seed": 4242
+        }
+      ]
+    },
+    {
+      "fixture_id": "water_control",
+      "kind": "Control",
+      "refused": false,
+      "violations": []
+    }
+  ],
+  "meta": [
+    {
+      "gate": "viewmodel",
+      "load_bearing": true,
+      "detail": "culprit refused with gate on: true; culprit survives with gate off: true"
+    },
+    {
+      "gate": "spawn",
+      "load_bearing": true,
+      "detail": "culprit refused with gate on: true; culprit survives with gate off: true"
+    },
+    {
+      "gate": "prop",
+      "load_bearing": true,
+      "detail": "culprit refused with gate on: true; culprit survives with gate off: true"
+    },
+    {
+      "gate": "water",
+      "load_bearing": true,
+      "detail": "culprit refused with gate on: true; culprit survives with gate off: true"
+    }
+  ]
+}

@@ -228,8 +228,8 @@ pub fn validate(json: &str) -> Result<Doctrine, Vec<String>> {
         }
     }
 
-    if doctrine.release_gate.required_next_job != "N01" {
-        errors.push("the first unclosed job must remain N01 until bookkeeping promotes it".into());
+    if doctrine.release_gate.required_next_job != "N02" {
+        errors.push("the first unclosed job must remain N02 until bookkeeping promotes it".into());
     }
     if doctrine.tool_candidates.len() < 5 {
         errors.push("tool research must retain at least five evaluated candidates".into());

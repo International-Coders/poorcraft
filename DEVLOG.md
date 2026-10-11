@@ -10918,3 +10918,65 @@ HONESTLY DEFERRED: Linux segue sem runtime nativo (host Darwin); nada além do
 rename foi alterado em gameplay/render; os PNGs do vistest saíram
 byte-idênticos. Próximo job: N01 no `Poorcraft 3D/` (harness adversarial de
 confiança), mais a fila raiz do protocolo v11 no legado.
+## Session: N01 — harness adversarial de confiança fecha no `Poorcraft 3D/` (loop 475, 2026-10-10)
+
+O quê: fechamento do card N01 do pack CONTINUACAO-GLM (13-PLANO-N01-N05):
+infraestrutura de "cenas culpadas" que prova que os gates ficam vermelhos pelas
+razões certas — viewmodel invertido, spawn dentro de árvore, prop flutuante e
+água sem leito não atravessam a bateria. Tudo no jogo ativo (diretiva do dono:
+melhorias SOMENTE em `Poorcraft 3D/`; legado intocado).
+
+COMO:
+- `Poorcraft 3D/crates/pc3d_world/src/trust.rs` (novo, ~700 linhas com testes):
+  tipos puros `TrustFixture`/`TrustViolation`/`TrustVerdict`/`MetaCheck` +
+  `GateSwitches`; quatro gates puros e determinísticos —
+  `viewmodel_pose_violations` (winding por determinante de escala, tolerância
+  de grip, near plane, hemisfério de ação, envelope de tela; NaN é falha
+  própria, nunca convertida), `spawn_clearance_violations` (suporte sólido na
+  célula do piso — mesma célula que o spawn_safe pisou; seco e acima do mar;
+  envelope de cápsula 0.30+0.45 m vs troncos da flora via `plant_at`+`jitter`
+  espelhando EXATAMENTE o pivot do render; visão frontal 1.6 m/35° com
+  jurisdição própria — tronco dentro da cápsula é lei da cápsula),
+  `prop_contact_violation` (gap ≤ 2 cm) e `water_bed_violations` (5 colunas
+  amostradas; centerline obrigatória; maioria com leito na janela de
+  profundidade). Builders das 4 fixtures + 4 controles (seed, tag do
+  gerador, mutação, erro esperado, nota de câmera). `run_trust_audit(seed)` +
+  `meta_checks(seed)`: cada gate é load-bearing quando desligá-lo deixa o
+  mutante sobreviver. A câmera é nota informativa — o veredito é dado do
+  mundo, não screenshot.
+- `apps/poorcraft3d/src/main.rs`: braço `--trust-audit [out] [seed]` +
+  `run_trust_audit_cmd` — relatório windowless em `trust_report.json`;
+  evidência janelada do fixture de spawn (o único culpado que existe no mundo
+  vivo): hooks de frame carregam a vizinhança 3×3 de CADA site na altura da
+  PRÓPRIA superfície (a tentativa de vizinhança única no ponto médio falhou —
+  os sites distam ~40 m de ALTURA e a caixa não cobria nenhum dos dois),
+  `attach_flora` para o pinheiro culpado existir como malha (sem isso a cena
+  culpada era só terreno), câmera quase-nadir 14 m acima com clamp na
+  superfície DO OLHO (a tentativa horizontal 3.5 m ao sul Terminou com o olho
+  dentro de um platô de 56 m — fundo cinza uniforme). Leis de pixels:
+  ≥ 8 cores distintas (não-vazio), fração de "massa de árvore" (luma < 120 OU
+  verde dominante) do culpado > controle + 0.02, e média RGB |Δ| > 4 —
+  escritas em `trust_capture.json` com a razão. Exit 1 se culpado passar,
+  controle falhar, gates não fecharem ou pixels discordarem.
+- `Makefile`: alvo `p3d-trust-audit [SEED=4242]`. Manifest do `--export-data`
+  ganhou a linha `trust_audit`. Doutrina: `required_next_job` N01 → N02 no
+  `doctrine.json` + pino no `doctrine.rs` (a lei do "primeiro job não
+  fechado"); `12-FILA-DE-EXECUCAO.md` marca N01 FECHADO com o resumo.
+
+VERIFICATION: `cargo test -p pc3d_world p3dn01` 14/14 (controles aceitos em
+seeds 4242/777/2024; culpados recusados com a lei certa nomeada; jurisdição
+frontal sem sobrepor a cápsula; meta 4/4 load-bearing; ortogonalidade de
+gates; câmera não valida culpado; NaN recusado; round-trip serde). P3D full
+`make p3d-test` 766/766. `make p3d-doctrine-check` 2/2 (pino N02).
+`make p3d-trust-audit` (seed 4242): 4/4 culpados recusados — winding
+det −1.0; cápsula 0.00 m vs 0.75; gap 0.50 vs 0.02; leito −2.00 m vs 0.15 —
+4/4 controles aceitos, meta 4/4, pixels de acordo. Capturas inspecionadas à
+mão: o pinheiro culpado está morto no centro da foto do culpado; o controle
+mostra terraço aberto. `make p3d-beta` 38/38 (339 PNGs). DMG P3D renovado.
+
+HONESTLY DEFERRED: capturas janeladas dos outros três culpados (viewmodel,
+prop, água) — os três são recusados ANTES da malha, então não há o que
+fotografar ainda; o sidecar registra a indisponibilidade com razão, e as
+capturas reais chegam com N03 (RiverCarve) e N05 (viewmodel real). N02 agora
+é o primeiro job não fechado e deve consumir `spawn_clearance_violations` no
+`spawn_safe` de produção (hoje as leis novas valem nos testes e na auditoria).

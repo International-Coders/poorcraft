@@ -11,9 +11,9 @@ for `Poorcraft 3D/` work (folder renamed from `poorcraft-novo/` on 2026-10-10).
 | Field | Value |
 | --- | --- |
 | Horizon | **H0 Vertical-Slice Beta** (see `24-VERTICAL-SLICE-BETA.md`) |
-| Build | **752/752 tests green** (assets 38, audio 8, core 32, render 259, save 20, world 290, city sweep 104, nav 1); `make p3d-beta` **38/38**, 339 PNGs, one report |
-| Last measure | 2026-10-10 — repository split to `poorcraft-novo/`; full serial GPU suite green; beta battery 38/38 including observatory and deck bench; macOS runtime refreshed |
-| `next_task` | **N01 — adversarial trust harness** from `Poorcraft 3D/docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md`: fixtures must prove rejection of clipped/inverted viewmodel, spawn in tree, floating prop and unsupported water |
+| Build | **766/766 tests green** (assets 38, audio 8, core 32, render 259, save 20, world 304 incl. the 14 N01 trust laws, city sweep 104, nav 1); `make p3d-beta` **38/38**, 339 PNGs, one report |
+| Last measure | 2026-10-10 — N01 adversarial trust harness closed: `pc3d_world::trust` + `make p3d-trust-audit` (4/4 culprits refused, 4/4 controls accepted, 4/4 gates load-bearing, windowed spawn-fixture evidence); doctrine promoted to N02 |
+| `next_task` | **N02 — safe spawn multi-seed** from `Poorcraft 3D/docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md`: validated spawn search with a candidate sidecar, 256-seed daily matrix, and the visual route showing the first view and the first resource — evolving `pc3d_world/src/player.rs::spawn_safe`, which must consume the N01 `spawn_clearance_violations` gate |
 
 ## VS-Beta gates (V1–V6) — current
 
