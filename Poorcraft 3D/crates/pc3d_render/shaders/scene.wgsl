@@ -541,3 +541,57 @@ fn fs_water(in: WaterOut) -> @location(0) vec4f {
     }
     return vec4f(apply_fog(col.rgb, in.world), col.a);
 }
+
+// --- Viewmodel (N05) --------------------------------------------------------
+// THE SEPARATE PASS (card law): arms/hands/tool in CAMERA space, projected
+// by the viewmodel's OWN projection (identity view; the CPU derives the
+// matrix from the same FOV/aspect/near/far the pure validator used, so a
+// point the validator cleared is a point this pass draws inside the
+// envelope). Depth policy: its own depth buffer, near-clipped by the same
+// near plane the validator enforces — world geometry cannot clip through
+// the tool and the tool cannot clip into the world.
+
+struct VmGlobals {
+    // proj * (tool transform), column-major, applied to camera-space verts.
+    vm_proj: mat4x4f,
+    // Camera basis for coherent lighting: the tool is lit by THE SAME sun
+    // the world sees (globals.sun_dir), evaluated in camera space here.
+    cam_right: vec4f,
+    cam_up: vec4f,
+    cam_fwd: vec4f,
+    sun_dir_cam: vec4f, // xyz sun in CAMERA space, w = night factor
+    params: vec4f,      // x = dim world flag, y = unused, z, w unused
+};
+
+@group(1) @binding(0) var<uniform> vm: VmGlobals;
+
+struct VmIn {
+    @location(0) pos: vec3f,    // CAMERA-space vertex
+    @location(1) normal: vec3f, // camera-space normal
+    @location(2) color: vec3f,
+};
+
+struct VmOut {
+    @builtin(position) pos: vec4f,
+    @location(0) color: vec3f,
+};
+
+@vertex
+fn vs_viewmodel(v: VmIn) -> VmOut {
+    var out: VmOut;
+    out.pos = vm.vm_proj * vec4f(v.pos, 1.0);
+    // Coherent light: same sun vector, camera space, with a fixed fill so
+    // the near tool never reads flat black against a bright world.
+    let n = normalize(v.normal);
+    let sun = max(dot(n, normalize(vm.sun_dir_cam.xyz)), 0.0);
+    let fill = 0.45;
+    let night = vm.sun_dir_cam.w;
+    let lit = v.color * (fill + (1.0 - fill) * sun) * (1.0 - 0.75 * night);
+    out.color = lit;
+    return out;
+}
+
+@fragment
+fn fs_viewmodel(in: VmOut) -> @location(0) vec4f {
+    return vec4f(in.color, 1.0);
+}

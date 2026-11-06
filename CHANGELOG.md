@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## Loop 480 — N05 Viewmodel foundation (Poorcraft 3D)
+- The pure half: `pc3d_render/src/viewmodel.rs` — `ViewmodelSpec` (dominant
+  hand, grips, off-hand, screen envelope, reticle exclusion, near clearance,
+  reference FOV, sweep + SHARED hit window, idle bob, equip seconds, wall
+  retract/probe), `project_to_screen` (FOV-derived, documented depth policy),
+  `validate_cell`/`validate_matrix` (the card matrix FOV 60/75/90 ×
+  16:9/16:10/21:9 × left/right × idle/equip/attack/wall). The first authored
+  pose FAILED the matrix RED (FOV 60 crushes NDC y: −1.44 vs the 0.72
+  envelope) and was re-SOLVED numerically against the tightest cell.
+- The GPU half: a SEPARATE render pass (`pc3d.pass.viewmodel`) with its OWN
+  projection (identity view; projection × hand-mirror × tool-translate
+  composed CPU-side in `prepare_frame`), the shared sun rotated into camera
+  space for coherent light, drawn after the world with its own depth law.
+- `equip_viewmodel` runs the matrix gate AT EQUIP: a violating spec is
+  refused by name (`reticle_clearance`) and nothing mounts;
+  `unequip_viewmodel` clears everything (the nothing-persists law);
+  `viewmodel_attack` drives the shared hit window; `viewmodel_wall_probe`
+  consults THE WORLD (ground ladder) — never post-processed depth.
+- First complete tool: the camera-space SHOVEL (shaft/blade/fist/off-hand),
+  authored at the grip origin in camera meters — the world item and the
+  viewmodel share identity, never transforms.
+- Proofs: 8 pure tests + 5 GPU reference-diff tests (equipped at the
+  projected grip, unequip clears, sweep moves the silhouette, refused equip
+  leaves the frame unchanged, left mirror honest — and no mass at the
+  mirrored-away position) + `route_viewmodel` windowed PASS (tool 8611 px,
+  sweep 8477 px, wall 6216 px, matrix clean; 4 captures with human
+  inspection). `p3d-test` 18/18 binaries green; doctrine check green.
+
 ## Loop 479 — N04 GroundingResult universal (Poorcraft 3D)
 - One grounding authority: `pc3d_world::grounding` — pure
   `ground_at(gen, x, z, GroundQuery::{Point, Footprint, Capsule})` →

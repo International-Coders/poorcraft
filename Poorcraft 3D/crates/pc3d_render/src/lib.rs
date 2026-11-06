@@ -43,6 +43,7 @@ pub mod streaming;
 pub mod surface;
 pub mod surface_stream;
 pub mod terrain;
+pub mod viewmodel;
 pub mod ui;
 pub mod water;
 pub mod world_features;

@@ -106,6 +106,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_viewmodel",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

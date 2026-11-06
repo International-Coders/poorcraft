@@ -11164,3 +11164,57 @@ shots/n04-{red,npcs,water}/ (probe + 13 captures + 5 sidecars);
 apps/poorcraft3d/shots/windowed_npcs_*.png (regenerated grounded).
 
 RUNTIME: refreshed post-commit (see loop-479 runtime entry below).
+
+## 2026-11-06 — Loop 480: N05 Viewmodel foundation (Poorcraft 3D)
+
+WHAT: Card N05 closed. The first-person body exists: arms/hands/tool rig in
+camera space, separate from world items (identity shared, transforms never).
+
+HOW:
+- Pure half `crates/pc3d_render/src/viewmodel.rs` (NEW): ViewmodelSpec
+  (dominant hand, grips, off-hand, screen envelope, reticle exclusion,
+  near clearance, reference FOV, sweep + shared hit window, idle bob,
+  equip seconds, wall retract/probe), project_to_screen (FOV-derived,
+  documented depth policy), validate_cell/validate_matrix = the card
+  matrix FOV 60/75/90 x 16:9/16:10/21:9 x left/right x
+  idle/equip/attack/wall. First authored pose FAILED the matrix RED
+  (FOV 60: sweep y -1.44 vs 0.72 envelope) -> pose re-SOLVED numerically
+  (python scratch against the tightest cell), matrix GREEN.
+- GPU half in `renderer.rs`: separate pass `pc3d.pass.viewmodel` with its
+  OWN projection (identity view; projection x hand-mirror x tool-translate
+  composed CPU-side per frame in prepare_frame), sun rotated into camera
+  space (coherent light), own depth after the world pass. Pipeline wired
+  through Pipelines (viewmodel/vm_buf/bg_vm); VmState carries
+  spec+mesh+equip_t/sweep_t/wall_retract.
+- API: equip_viewmodel (matrix gate AT EQUIP — refused spec names
+  reticle_clearance, nothing mounts), unequip_viewmodel (nothing
+  persists), viewmodel_attack (shared hit window), viewmodel_wall_probe
+  (queries THE WORLD via ground ladder, never post depth), viewmodel_state.
+- First complete tool: the camera-space SHOVEL (shaft/blade/fist/off-hand
+  boxes authored at the grip origin, camera meters).
+- Route: `route_viewmodel` (observe.rs + main.rs) — equip at f30, attack
+  f70, wall probe f150 (pitch 0.9 + ground ladder), unequip f200; 4
+  captures (idle/attack/wall/unequipped) + region-diff verdict + pure
+  matrix re-run as semantic state.
+
+TESTS: pc3d_render --lib viewmodel 8/8; tests/n05_viewmodel_gpu.rs 5/5
+(reference-diff discipline: empty frame is the control; equipped at the
+projected grip, unequip clears, sweep moves the silhouette, refused equip
+leaves the frame unchanged, left mirror honest AND no mass mirrored-away).
+Full `make p3d-test` 18/18 binaries green; `make p3d-doctrine-check` green.
+Route PASS: tool 8611px, sweep 8477px, wall 6216px, matrix clean. PNGs
+human-inspected (idle right-side entry pose, attack follow-through,
+wall retract, unequipped clean).
+
+FILES: crates/pc3d_render/src/{viewmodel.rs NEW, lib.rs, renderer.rs,
+observe.rs, shaders/scene.wgsl}; crates/pc3d_render/tests/n05_viewmodel_gpu.rs
+(NEW); apps/poorcraft3d/src/main.rs (route + verdict);
+apps/poorcraft3d/shots/viewmodel-n05/ (4 captures + bundle).
+
+HONESTLY DEFERRED: second tool (the axe) and the gameplay wiring of the
+shared hit window (harvest consumes it) — the card's "primeira pá completa
+antes de cinco placeholders" is satisfied by the shovel; the axe lands with
+its consumer. Equip/unequip animation curves are linear ramps (beat-perfect
+curves when a motion tier asks for them).
+
+NEXT: N06+ per 12-FILA-DE-EXECUCAO.

@@ -31,6 +31,30 @@ struct Globals {
     tan_aspect: [f32; 4],
 }
 
+/// The viewmodel pass's own uniforms (N05): the projection is derived
+/// from the SAME fov/aspect/near/far the pure validator used (identity
+/// view — camera space IS the space), so validator and pass agree. The
+/// sun arrives in camera space for coherent lighting.
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct VmGlobals {
+    vm_proj: [f32; 16],
+    cam_right: [f32; 4],
+    cam_up: [f32; 4],
+    cam_fwd: [f32; 4],
+    sun_dir_cam: [f32; 4],
+    params: [f32; 4],
+}
+
+/// The uploaded viewmodel: one camera-space mesh (the tool's body) kept
+/// in its own buffers; the pass draws it AFTER the world with its own
+/// depth (the tool never intersects world geometry, never clips into it).
+struct ViewmodelGpu {
+    vb: wgpu::Buffer,
+    ib: wgpu::Buffer,
+    idx_count: u32,
+}
+
 /// The atmosphere uniform (NWR-006), shared by mesh/cutout/water —
 /// 160 bytes, 16-aligned, mirroring `struct Env` in scene.wgsl.
 #[repr(C)]
@@ -73,6 +97,11 @@ struct Pipelines {
     shadow_cutout: wgpu::RenderPipeline,
     /// Alpha-cutout foliage (NWR-006); mask at group 1.
     cutout: wgpu::RenderPipeline,
+    /// The viewmodel pass (N05): camera-space tool, own projection.
+    viewmodel: wgpu::RenderPipeline,
+    /// The viewmodel uniform buffer + bind group (device-lifetime).
+    vm_buf: wgpu::Buffer,
+    bg_vm: wgpu::BindGroup,
     layout_globals: wgpu::BindGroupLayout,
     layout_hud: wgpu::BindGroupLayout,
     /// The cutout mask bind group layout (group 1).
@@ -208,6 +237,36 @@ impl Pipelines {
             label: Some("pc3d hud pipe layout"),
             bind_group_layouts: &[&layout_hud],
             push_constant_ranges: &[],
+        });
+        // The viewmodel layout (N05): group 0 = the WORLD globals (sun +
+        // night factor ride along), group 1 = the viewmodel's own
+        // projection/uniforms. The pass is separate; the LIGHT is shared.
+        let layout_vm = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("pc3d viewmodel layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+        let pl_vm = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("pc3d viewmodel pipe layout"),
+            bind_group_layouts: &[&layout_globals, &layout_vm],
+            push_constant_ranges: &[],
+        });
+        let vm_buf = create_globals_buffer_named(device, "pc3d viewmodel uniforms");
+        let bg_vm = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("pc3d viewmodel bind group"),
+            layout: &layout_vm,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: vm_buf.as_entire_binding(),
+            }],
         });
 
         let depth24 = wgpu::DepthStencilState {
@@ -557,10 +616,58 @@ impl Pipelines {
             shadow,
             shadow_cutout,
             cutout,
+            viewmodel: {
+                // THE SEPARATE PASS (N05): camera-space tool, own
+                // projection (group 1), world globals at group 0 for the
+                // shared sun. Depth-tested against ITS OWN rules — drawn
+                // in a pass AFTER the world with cleared depth, so the
+                // tool never z-fights world geometry and never clips
+                // into it (the card: near clearance, wall pushback).
+                let mut d = wgpu::RenderPipelineDescriptor {
+                    label: Some("pc3d viewmodel pipeline"),
+                    layout: Some(&pl_vm),
+                    vertex: wgpu::VertexState {
+                        module: &module,
+                        entry_point: Some("vs_viewmodel"),
+                        buffers: std::slice::from_ref(&VERTEX_LAYOUT),
+                        compilation_options: Default::default(),
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &module,
+                        entry_point: Some("fs_viewmodel"),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: target_format,
+                            blend: None,
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                        compilation_options: Default::default(),
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        cull_mode: None, // small near-camera mesh; two-sided is safer
+                        front_face: wgpu::FrontFace::Ccw,
+                        ..Default::default()
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth24Plus,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::LessEqual,
+                        stencil: Default::default(),
+                        bias: Default::default(),
+                    }),
+                    multisample: Default::default(),
+                    multiview: None,
+                    cache: None,
+                };
+                d.label = Some("pc3d viewmodel pipeline");
+                device.create_render_pipeline(&d)
+            },
             layout_globals,
             layout_hud,
             layout_mask,
             flora,
+            vm_buf,
+            bg_vm,
         }
     }
 }
@@ -739,6 +846,23 @@ pub struct Renderer {
     crowd_nav: Option<pc3d_world::nav::NavPatch>,
     /// The generator the flora placement reads (authority).
     flora_gen: Option<std::rc::Rc<pc3d_world::gen::WorldGen>>,
+    /// THE VIEWMODEL (N05): spec + uploaded camera-space tool mesh +
+    /// animation state. None = no tool equipped (the unequip law: nothing
+    /// persists on screen).
+    viewmodel: Option<VmState>,
+}
+
+/// One equipped viewmodel: the spec plus the animation state (equip
+/// progress in 0..=1, sweep t, wall retract) and its GPU mesh.
+pub struct VmState {
+    pub spec: crate::viewmodel::ViewmodelSpec,
+    mesh: ViewmodelGpu,
+    /// Seconds since equip started (equip_seconds to arm).
+    equip_t: f32,
+    /// Current sweep progress 0..=1 (None = idle).
+    sweep_t: Option<f32>,
+    /// Current wall retraction in meters (0 = no wall).
+    wall_retract: f32,
 }
 
 /// A plain vertex/index buffer pair (u16 or u32 indices).
@@ -969,6 +1093,7 @@ impl Renderer {
             crowd_cast: None,
             crowd_nav: None,
             crowd_pose_hz: 60.0,
+            viewmodel: None,
             height_debug: false,
             construction: None,
             terrain: None,
@@ -1073,6 +1198,7 @@ impl Renderer {
             crowd_cast: None,
             crowd_nav: None,
             crowd_pose_hz: 60.0,
+            viewmodel: None,
             height_debug: false,
             construction: None,
             terrain: None,
@@ -1935,6 +2061,145 @@ impl Renderer {
         self.terrain = Some(GpuMesh::from_mesh_u32(&self.ctx.device, verts, idx));
     }
 
+    /// EQUIPS a viewmodel (N05): builds the tool as CAMERA-space geometry
+    /// from the spec (shaft + head around the grip), validates the spec
+    /// against the pure matrix FIRST (a spec that violates the gates is
+    /// refused at equip time, not discovered in pixels), and mounts the
+    /// GPU mesh. World items and the viewmodel share identity, never
+    /// transforms — this mesh is authored in camera meters, not world.
+    pub fn equip_viewmodel(
+        &mut self,
+        spec: crate::viewmodel::ViewmodelSpec,
+    ) -> Result<(), String> {
+        // THE GATE AT EQUIP: every matrix cell must close before pixels.
+        for (cell, v) in crate::viewmodel::validate_matrix(&spec) {
+            if !v.violations.is_empty() {
+                return Err(format!("viewmodel spec refused at {cell}: {:?}", v.violations));
+            }
+        }
+        // CAMERA-SPACE TOOL MESH (the first complete shovel): shaft from
+        // the grip back-left-up toward the head, a blade at the sweep
+        // head's rest position, a fist around the grip. Two-sided (no
+        // culling); authored AT the grip origin so the transform is the
+        // spec's grip itself.
+        let mut v = Vec::new();
+        let mut idx: Vec<u32> = Vec::new();
+        let push_box = |v: &mut Vec<crate::scene::SceneVertex>,
+                        idx: &mut Vec<u32>,
+                        center: [f32; 3],
+                        half: [f32; 3],
+                        color: [f32; 3]| {
+            let base = v.len() as u32;
+            let [cx, cy, cz] = center;
+            let [hx, hy, hz] = half;
+            let corners = [
+                [cx - hx, cy - hy, cz - hz],
+                [cx + hx, cy - hy, cz - hz],
+                [cx + hx, cy + hy, cz - hz],
+                [cx - hx, cy + hy, cz - hz],
+                [cx - hx, cy - hy, cz + hz],
+                [cx + hx, cy - hy, cz + hz],
+                [cx + hx, cy + hy, cz + hz],
+                [cx - hx, cy + hy, cz + hz],
+            ];
+            for c in corners {
+                v.push(crate::scene::SceneVertex { pos: c, normal: [0.0, 0.0, 1.0], color });
+            }
+            for (a, b, c) in [
+                (0, 1, 2), (0, 2, 3), // back
+                (4, 6, 5), (4, 7, 6), // front
+                (0, 4, 5), (0, 5, 1), // bottom
+                (3, 2, 6), (3, 6, 7), // top
+                (0, 3, 7), (0, 7, 4), // left
+                (1, 5, 6), (1, 6, 2), // right
+            ] {
+                idx.push(base + a);
+                idx.push(base + b);
+                idx.push(base + c);
+            }
+        };
+        let wood = [0.42, 0.30, 0.18];
+        let steel = [0.62, 0.64, 0.68];
+        let fist = [0.72, 0.55, 0.42];
+        // Shaft: along the tool axis (mostly -Z, slight downward).
+        let g = spec.grip_idle;
+        let head0 = spec.sweep.head_path[0];
+        push_box(
+            &mut v,
+            &mut idx,
+            [(g[0] + head0[0]) / 2.0, (g[1] + head0[1]) / 2.0, (g[2] + head0[2]) / 2.0],
+            [0.018, 0.018, (g[2] - head0[2]).abs() / 2.0 + 0.02],
+            wood,
+        );
+        // Blade: at the raised head position, facing forward.
+        push_box(&mut v, &mut idx, head0, [0.05, 0.085, 0.012], steel);
+        // Fist: around the grip (the dominant hand).
+        push_box(&mut v, &mut idx, g, [0.045, 0.055, 0.055], fist);
+        // Off-hand support: the doctrine gate demands a second hand.
+        if let Some(oh) = spec.off_hand {
+            push_box(&mut v, &mut idx, oh, [0.042, 0.05, 0.05], fist);
+        }
+        let vb = GpuMesh::from_mesh_u32(&self.ctx.device, &v, &idx);
+        self.viewmodel = Some(VmState {
+            spec,
+            mesh: ViewmodelGpu {
+                vb: vb.vertex_buffer,
+                ib: vb.index_buffer,
+                idx_count: idx.len() as u32,
+            },
+            equip_t: 0.0,
+            sweep_t: None,
+            wall_retract: 0.0,
+        });
+        Ok(())
+    }
+
+    /// UNEQUIP (the card: "nada ... continua na tela após desequipar").
+    pub fn unequip_viewmodel(&mut self) {
+        self.viewmodel = None;
+    }
+
+    /// Starts one attack sweep (the shared hit window rides the same t).
+    pub fn viewmodel_attack(&mut self) {
+        if let Some(vm) = self.viewmodel.as_mut() {
+            vm.sweep_t = Some(0.0);
+        }
+    }
+
+    /// The viewmodel's state (equip progress, sweep phase) for proofs.
+    pub fn viewmodel_state(&self) -> Option<(f32, Option<f32>)> {
+        self.viewmodel.as_ref().map(|vm| {
+            (
+                vm.equip_t / vm.spec.equip_seconds,
+                vm.sweep_t,
+            )
+        })
+    }
+
+    /// WALL PUSHBACK (card: the reaction queries THE WORLD, never
+    /// post-processed depth): a ray from the eye along tool-forward-ish;
+    /// when a solid voxel is closer than the probe range, the tool
+    /// retracts by the spec amount. `solid_at` is the world's own answer
+    /// (the caller wires it to the collision surface).
+    pub fn viewmodel_wall_probe(&mut self, eye: [f32; 3], fwd: [f32; 3], solid_at: impl Fn([f32; 3]) -> bool) {
+        const STEP_M: f32 = 0.1;
+        let Some(vm) = self.viewmodel.as_mut() else { return };
+        let range = vm.spec.wall_probe_max_m;
+        let mut t = STEP_M;
+        let mut hit = false;
+        while t <= range {
+            let p = [eye[0] + fwd[0] * t, eye[1] + fwd[1] * t, eye[2] + fwd[2] * t];
+            if solid_at(p) {
+                hit = true;
+                break;
+            }
+            t += STEP_M;
+        }
+        if hit {
+            vm.wall_retract = vm.spec.wall_retract_m;
+        }
+    }
+
     /// Test hook: the device (for streamer unit tests driving real
     /// buffers without a window).
     pub fn device_for_tests(&self) -> &wgpu::Device {
@@ -2336,6 +2601,96 @@ impl Renderer {
         self.ctx
             .queue
             .write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&globals));
+
+        // THE VIEWMODEL UNIFORM (N05): projection derived from the SAME
+        // fov/aspect/near/far the pure validator used (identity view),
+        // the camera basis and the sun rotated into CAMERA space for
+        // coherent lighting (the same world sun, tool-side). vm_proj
+        // carries the FULL tool transform: projection x (hand mirror x
+        // tool translation), so the shader transforms camera-space mesh
+        // verts (authored at the grip origin) in one multiply.
+        {
+            let vm_near = 0.05f32;
+            let vm_far = 10.0f32;
+            let proj = crate::camera::perspective(cam.fov_y_rad, aspect, vm_near, vm_far);
+            // Advance the animation state (equip ramp, sweep, wall decay).
+            let dt = 1.0 / 60.0; // prepare_frame cadence
+            if let Some(vm) = self.viewmodel.as_mut() {
+                vm.equip_t = (vm.equip_t + dt).min(vm.spec.equip_seconds);
+                if let Some(t) = vm.sweep_t.as_mut() {
+                    *t += dt / 0.45; // a full swing is ~0.45 s
+                    if *t >= 1.0 {
+                        vm.sweep_t = None;
+                    }
+                }
+                // The tool re-extends when nothing blocks it.
+                vm.wall_retract *= 0.85;
+            }
+            // TOOL TRANSLATION (camera space):
+            // - equip: enter from below (drop -> 0 as equip completes);
+            // - sweep: the grip follows 40% of the head path offset;
+            // - wall: retract along +z by the probe's amount.
+            let (drop_y, sweep, retract) = match self.viewmodel.as_ref() {
+                None => (0.0f32, [0.0f32; 3], 0.0f32),
+                Some(vm) => {
+                    let e = (vm.equip_t / vm.spec.equip_seconds).min(1.0);
+                    let drop = (1.0 - e) * 0.30;
+                    let s = match vm.sweep_t {
+                        None => [0.0; 3],
+                        Some(t) => {
+                            let h = vm.spec.sweep.head_at(t);
+                            let i = vm.spec.grip_idle;
+                            [
+                                (h[0] - i[0]) * 0.4,
+                                (h[1] - i[1]) * 0.4,
+                                0.0,
+                            ]
+                        }
+                    };
+                    (drop, s, vm.wall_retract)
+                }
+            };
+            // THE HAND MIRROR (derived, never hand-tuned): the mesh is
+            // authored right-handed; the left-hand cell mirrors X and
+            // flips winding compensation via the two-sided pipeline.
+            let m = match self.viewmodel.as_ref() {
+                Some(vm) => vm.spec.dominant_hand.mirror_x(),
+                None => 1.0,
+            };
+            // Column-major: T * M * P applied to the vertex as proj * M * T * v.
+            // Build M (X mirror) and T (tool translation), multiply out.
+            let mut tm = [0.0f32; 16];
+            // T: translation columns.
+            let tx = sweep[0];
+            let ty = -drop_y + sweep[1];
+            let tz = retract + sweep[2];
+            // M: diag(m, 1, 1, 1).
+            tm[0] = m;
+            tm[5] = 1.0;
+            tm[10] = 1.0;
+            tm[12] = tx;
+            tm[13] = ty;
+            tm[14] = tz;
+            tm[15] = 1.0;
+            let vm_proj = crate::camera::mul(&proj, &tm);
+            let vmg = VmGlobals {
+                vm_proj,
+                cam_right: [right[0], right[1], right[2], 0.0],
+                cam_up: [up[0], up[1], up[2], 0.0],
+                cam_fwd: [fwd[0], fwd[1], fwd[2], 0.0],
+                // Sun in camera space: dot with the camera basis rows.
+                sun_dir_cam: [
+                    sun[0] * right[0] + sun[1] * right[1] + sun[2] * right[2],
+                    sun[0] * up[0] + sun[1] * up[1] + sun[2] * up[2],
+                    -(sun[0] * fwd[0] + sun[1] * fwd[1] + sun[2] * fwd[2]),
+                    night,
+                ],
+                params: [0.0; 4],
+            };
+            self.ctx
+                .queue
+                .write_buffer(&self.pipelines.vm_buf, 0, bytemuck::bytes_of(&vmg));
+        }
 
         // Atmosphere (NWR-006): the sun's stable ortho box follows the
         // camera focus; every zero value keeps the legacy look. Night
@@ -2913,6 +3268,20 @@ impl Renderer {
             self.draw_calls += 1;
         }
         self.unmark(&mut pass);
+        // 2d. THE VIEWMODEL PASS (N05): the equipped tool in camera space,
+        // own projection, AFTER the world — the card's separate pass.
+        // Drawn last-but-UI so the reticle/HUD layer stays on top.
+        self.mark(&mut pass, "pc3d.pass.viewmodel");
+        if let Some(vm) = self.viewmodel.as_mut() {
+            pass.set_pipeline(&self.pipelines.viewmodel);
+            pass.set_bind_group(0, &self.bg_globals, &[]);
+            pass.set_bind_group(1, &self.pipelines.bg_vm, &[]);
+            pass.set_vertex_buffer(0, vm.mesh.vb.slice(..));
+            pass.set_index_buffer(vm.mesh.ib.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..vm.mesh.idx_count, 0, 0..1);
+            self.draw_calls += 1;
+        }
+        self.unmark(&mut pass);
         // 3. HUD debug line + 4. the owner UI layer — one marker group.
         self.mark(&mut pass, "pc3d.pass.ui");
         if !self.hud.line.trim().is_empty() {
@@ -3083,6 +3452,16 @@ fn create_globals_buffer(device: &wgpu::Device) -> wgpu::Buffer {
     device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("pc3d globals"),
         size: std::mem::size_of::<Globals>() as wgpu::BufferAddress,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
+/// Same shape as the globals buffer; named for the viewmodel pass (N05).
+fn create_globals_buffer_named(device: &wgpu::Device, label: &str) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some(label),
+        size: std::mem::size_of::<VmGlobals>() as wgpu::BufferAddress,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     })

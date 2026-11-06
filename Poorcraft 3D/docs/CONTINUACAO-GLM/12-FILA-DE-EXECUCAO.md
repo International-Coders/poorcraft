@@ -91,10 +91,22 @@ encosta, canal, footprint, fundação e cápsula. Deferral honesto: campo
 quando o primeiro consumidor o exigir (lei do card: nada entra sem
 consumidor).
 
-### N05 — Viewmodel foundation
+### N05 — Viewmodel foundation — FECHADO (loop 480, 2026-11-06)
 
 Rig de braços, `ViewmodelSpec`, pass e matriz FOV. Primeira pá/axe passa mão,
 grip, sweep, retículo e parede.
+
+Fechado: `pc3d_render::viewmodel` (spec completa, projeção derivada do FOV
+com depth policy documentada, matriz 60/75/90 × 16:9/16:10/21:9 × mãos ×
+idle/equip/ataque/parede; pose RESOLVIDA contra a célula mais apertada após
+RED honesto), pass separado `pc3d.pass.viewmodel` com projeção própria e sol
+compartilhado em espaço de câmera, gate de recusa no equip (spec ruim é
+recusada pelo nome e nada monta), unequip sem resíduo, sweep com hit window
+compartilhada, wall probe consultando O MUNDO (nunca depth pós-processado).
+Primeira ferramenta completa: a pá em espaço de câmera. Provas: 8 testes
+puros + 5 testes GPU por referência-dif + `route_viewmodel` PASS (8611 px
+ferramenta, 8477 px sweep, 6216 px parede, matriz limpa). A segunda
+ferramenta (machado) entra com seu consumidor de gameplay.
 
 ## Épico B — primeira sessão
 

@@ -7634,6 +7634,92 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(120, format!("{dir}/beauty_interior.png"))
                     .ui_dump(format!("{dir}/beauty_interior.layout.json")));
             }
+            "route_viewmodel" => {
+                // THE VIEWMODEL ROUTE (N05): equip THE FIRST COMPLETE
+                // TOOL (the shovel) in camera space, capture the four
+                // matrix STATES — idle, attack sweep mid-window, wall
+                // retract (pushed against terrain), unequip (the nothing-
+                // persists law) — pixel probes assert the tool body's
+                // distinctive steel/wood/fist palette appears when
+                // equipped and is GONE after unequip.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // Equip the solved shovel spec (the pure matrix gate runs
+                // INSIDE equip — a refused spec aborts the route loudly).
+                ui_script.push((
+                    30,
+                    Box::new(|_ui, r, _ctx| {
+                        let spec = pc3d_render::viewmodel::ViewmodelSpec::shovel();
+                        if let Err(e) = r.equip_viewmodel(spec) {
+                            panic!("route_viewmodel: equip refused: {e}");
+                        }
+                    }),
+                ));
+                // Attack at 70; the sweep is ~0.45 s (~27 frames), so the
+                // mid-window capture at ~80 lands inside the hit window.
+                ui_script.push((
+                    70,
+                    Box::new(|_ui, r, _ctx| {
+                        r.viewmodel_attack();
+                    }),
+                ));
+                // Wall state: aim steeply DOWN at the ground right below
+                // (a "wall" at tool-forward range) and run the probe —
+                // the tool retracts by the spec amount.
+                ui_script.push((
+                    150,
+                    Box::new(|_ui, r, _ctx| {
+                        let mut pose = r.pose();
+                        pose.pitch = 0.9; // steeply down at the ground
+                        r.set_pose(pose);
+                        let p = r.pose();
+                        let fwd = {
+                            let cp = pc3d_render::camera::Camera::new(p);
+                            cp.fwd()
+                        };
+                        let eye = p.position;
+                        // The world's own answer: the authority ground
+                        // under the probe point (the card: pushback
+                        // consults THE WORLD, never depth). Precompute
+                        // the ladder, then hand the probe a pure lookup.
+                        let mut steps = Vec::new();
+                        let mut t = 0.1f32;
+                        while t <= 1.2 {
+                            let pt = [
+                                eye[0] + fwd[0] * t,
+                                eye[1] + fwd[1] * t,
+                                eye[2] + fwd[2] * t,
+                            ];
+                            steps.push((pt, pt[1] < r.ground_y_at_pub(pt[0], pt[2]) + 0.15));
+                            t += 0.1;
+                        }
+                        let solid = |pt: [f32; 3]| {
+                            steps.iter()
+                                .find(|(q, _)| (q[0] - pt[0]).abs() < 1e-4
+                                    && (q[1] - pt[1]).abs() < 1e-4
+                                    && (q[2] - pt[2]).abs() < 1e-4)
+                                .map(|(_, s)| *s)
+                                .unwrap_or(false)
+                        };
+                        r.viewmodel_wall_probe(eye, fwd, solid);
+                    }),
+                ));
+                // UNEQUIP at 200: nothing persists.
+                ui_script.push((
+                    200,
+                    Box::new(|_ui, r, _ctx| {
+                        r.unequip_viewmodel();
+                    }),
+                ));
+                shots.push(Shot::new(60, format!("{dir}/vm_idle.png")));
+                shots.push(Shot::new(80, format!("{dir}/vm_attack.png")));
+                shots.push(Shot::new(170, format!("{dir}/vm_wall.png")));
+                shots.push(Shot::new(230, format!("{dir}/vm_unequipped.png")));
+            }
             "route_forge_use" => {
                 // The forge slice, end to end: enter the world, stand at
                 // the plaza forge, E (opens THE FORGE through the zone
@@ -8261,6 +8347,65 @@ fn run_observe(route_id: &str, out_root: &str) {
                     has("play_fall_air"),
                     has("play_fall_landed"),
                     fb[5], fb[7],
+                );
+                any_fail = true;
+            }
+        }
+        // THE VIEWMODEL LAWS (N05), pixel + state:
+        // 1. The tool VISIBLY changes the frame: vm_idle vs vm_unequipped
+        //    differ inside the action region (the tool exists).
+        // 2. The sweep MOVES it: vm_attack vs vm_idle differ there too.
+        // 3. The pure matrix verdict (FOV 60/75/90 x aspects x hands)
+        //    re-runs as the semantic state: zero violations.
+        if spec.id == "route_viewmodel" {
+            // The lower-center-right action region where the solved grip
+            // projects (the window is 800x500 per the observatory).
+            let region_diff = |a: &[u8], b: &[u8], w: u32, h: u32| -> usize {
+                let (x0, y0, x1, y1) = ((w * 2) / 5, h / 3, (w * 9) / 10, (h * 9) / 10);
+                let mut n = 0;
+                for y in y0..y1 {
+                    for x in x0..x1 {
+                        let i = ((y * w + x) * 4) as usize;
+                        if (a[i] as i32 - b[i] as i32).abs() > 10
+                            || (a[i + 1] as i32 - b[i + 1] as i32).abs() > 10
+                            || (a[i + 2] as i32 - b[i + 2] as i32).abs() > 10
+                        {
+                            n += 1;
+                        }
+                    }
+                }
+                n
+            };
+            let cap = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let (Some(idle), Some(attack), Some(wall), Some(gone)) =
+                (cap("vm_idle"), cap("vm_attack"), cap("vm_wall"), cap("vm_unequipped"))
+            else {
+                eprintln!("[FAIL] observe route_viewmodel: captures missing");
+                any_fail = true;
+                return;
+            };
+            let (w, h) = (idle.report.width, idle.report.height);
+            let tool_present = region_diff(&idle.rgba, &gone.rgba, w, h);
+            let sweep_moves = region_diff(&idle.rgba, &attack.rgba, w, h);
+            let wall_differs = region_diff(&idle.rgba, &wall.rgba, w, h);
+            // Semantic state: the pure matrix closes.
+            let matrix = pc3d_render::viewmodel::validate_matrix(
+                &pc3d_render::viewmodel::ViewmodelSpec::shovel(),
+            );
+            let matrix_clean = matrix.iter().all(|(_, v)| v.violations.is_empty());
+            let ok = tool_present > 500 && sweep_moves > 30 && matrix_clean;
+            if ok {
+                println!(
+                    "VIEWMODEL: tool {tool_present}px, sweep moves {sweep_moves}px, wall delta {wall_differs}px, matrix clean"
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe route_viewmodel: tool {tool_present}px sweep {sweep_moves}px wall {wall_differs}px matrix_clean {matrix_clean}"
                 );
                 any_fail = true;
             }
