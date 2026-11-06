@@ -217,6 +217,11 @@ pub struct ConformingSection {
     pub region: (i32, i32),
     /// Water surface height per cross-sample, following terrain + edits.
     pub heights: Vec<f32>,
+    /// N03: the CARVE authority's water surface per sample (same order
+    /// as `heights`); `None` where the channel field doesn't cover the
+    /// sample (edited segments beyond the pristine watershed — the dam
+    /// edit path still owns those via `water_line`).
+    pub carve_ws: Vec<Option<f32>>,
     /// The water line (m) for this section.
     pub water_line: f32,
     /// Authoritative direction (compass code).
@@ -243,7 +248,14 @@ impl ConformingWater {
                 let Some(down) = graph.downstream(r) else {
                     continue;
                 };
-                if graph.discharge(down) < pc3d_world::hydro::RIVER_THRESHOLD {
+                // N03 UNIFICATION: the same edge law as the carve
+                // authority (`river_carve`): a river EDGE requires real
+                // flow on BOTH ends. A dry-tail → wet-head edge is a
+                // gully the carve refuses; stripping it here would paint
+                // flat-line water over un-carved ground.
+                if graph.discharge(down) < pc3d_world::hydro::RIVER_THRESHOLD
+                    || graph.discharge(r) < pc3d_world::hydro::RIVER_THRESHOLD
+                {
                     continue;
                 }
                 let rec = match flow.get(r) {
@@ -291,11 +303,30 @@ impl ConformingWater {
                     water_line = water_line.min(h);
                     heights.push(h);
                 }
+                // N03 UNIFICATION: the strip's samples now carry the
+                // CARVE authority's water surface per sample (descending,
+                // monotone, from the same field the voxels carve with).
+                // The flat line stays as the LEGACY edit path fallback:
+                // refresh_after_edit recomputes it from windowed patches
+                // (P3D-303 dam law); the surface band uses the carve
+                // answer wherever the channel field covers the sample.
+                let carve_ws: Vec<Option<f32>> = heights
+                    .iter()
+                    .zip(0..)
+                    .map(|(_, i)| {
+                        let t = i as f32 / samples as f32;
+                        let cx = ox + dir[0] * len * t;
+                        let cz = oz + dir[1] * len * t;
+                        gen.river_channel((cx * 1000.0) as i64, (cz * 1000.0) as i64)
+                            .map(|c| c.surface_m)
+                    })
+                    .collect();
                 let water_line = water_line - 0.45;
                 let _ = (mx, mz, perp, half_w);
                 sections.push(ConformingSection {
                     region: (r.x, r.z),
                     heights,
+                    carve_ws,
                     water_line,
                     direction: rec.direction,
                     discharge: rec.discharge,
@@ -361,14 +392,23 @@ impl ConformingWater {
                 // ground — the street-overpaint class. 2.5 m keeps the
                 // true channel (the low ~40% of a full-relief strip)
                 // and kills the high-end segments.
-                let drawn = surface <= s.water_line + 2.5;
+                //
+                // N03: the strip's height at this sample is the CARVE
+                // surface when the channel covers it (descending truth
+                // shared with the voxels); the legacy flat line only for
+                // edited segments the pristine field can't see.
+                let (strip_y, buried_cap) = match s.carve_ws.get(si).copied().flatten() {
+                    Some(ws) => (ws, ws + 1.5),
+                    None => (s.water_line, s.water_line + 2.5),
+                };
+                let drawn = surface <= buried_cap;
                 let base = verts.len();
                 if drawn {
                     for side in [-1.0f32, 1.0] {
                         verts.push(crate::water::WaterVertex {
                             pos: [
                                 cx + perp[0] * half_w * side,
-                                s.water_line,
+                                strip_y,
                                 cz + perp[1] * half_w * side,
                             ],
                             dir,
@@ -655,7 +695,13 @@ mod tests_support {
             for z in -15..=15 {
                 let reg = RegionCoord { x, z };
                 if let Some(d) = graph.downstream(reg) {
-                    if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
+                    // N03: the SAME edge law the carve + strips enforce —
+                    // both ends at threshold. A dry-tail pick sits inside
+                    // a carve-covered line whose strip samples all read
+                    // channel, and no dry edit target exists there.
+                    if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD
+                        && graph.discharge(reg) >= pc3d_world::hydro::RIVER_THRESHOLD
+                    {
                         let dist = x.abs() + z.abs();
                         if dist < best {
                             best = dist;
@@ -715,12 +761,18 @@ mod tests_support {
         // The SECOND actual strip sample (si = 2 of n): the exact point
         // the refresh resamples, wherever the strip's own resolution puts
         // it.
-        // EVERY section gets its own second strip sample raised (through
-        // the region's real edit command path — the delta layer): each
-        // strip resamples at ITS own resolution, so an edit that hits one
+        // EVERY section gets its own strip sample raised (through the
+        // region's real edit command path — the delta layer): each strip
+        // resamples at ITS own resolution, so an edit that hits one
         // section's sample point can lawfully miss another's. A section
         // whose strip crosses one of these edits must see new heights; a
         // section far from them must keep its data (LOCALITY).
+        //
+        // N03: the sample must be OFF the carve channel — a raise INSIDE
+        // the channel is water-law territory (the carved bed absorbs
+        // meter-scale edits; the strip's height IS the carve surface, not
+        // the terrain), so it can't exercise the refresh. Walk the strip
+        // until the sample leaves the channel band.
         let mut r = r;
         let mut edited = std::collections::BTreeSet::new();
         for sec in &water.sections {
@@ -741,7 +793,30 @@ mod tests_support {
             let sux = sdir[0] / sl;
             let suz = sdir[1] / sl;
             let sn = sec.heights.len().max(2) as f32;
-            let st = 2.0 / (sn - 1.0);
+            // N03: pick a strip sample OFF the carve channel — a raise
+            // INSIDE the channel is water-law territory (the strip's
+            // height there IS the carve surface, not the terrain delta),
+            // so it can't exercise the refresh. The section's ORIGINAL
+            // heights came from the terrain patches; use the same resample
+            // the refresh does (patch → height_at) to find a sample whose
+            // terrain answer actually moves: probe candidate sample
+            // points, raise a DRY one (no carve channel at the point).
+            let mut st = None;
+            let n_probe = (sn - 1.0) * 0.75; // stay inside the patch window
+            let mut k = 2.0f32;
+            while k <= n_probe {
+                let px = sox + sux * slen * (k / (sn - 1.0));
+                let pz = soz + suz * slen * (k / (sn - 1.0));
+                if gen
+                    .river_channel((px * 1000.0) as i64, (pz * 1000.0) as i64)
+                    .is_none()
+                {
+                    st = Some(k / (sn - 1.0));
+                    break;
+                }
+                k += 1.0;
+            }
+            let st = st.unwrap_or(2.0 / (sn - 1.0));
             let sx = sox + sux * slen * st;
             let sz = soz + suz * slen * st;
             r.edit(crate::surface::SurfaceEdit::Raise {
@@ -1140,17 +1215,50 @@ mod gpu_tests {
             }
         }
         println!("conforming water: {blue_pixels} blue-dominant changed pixels");
-        // PLAYTEST-0.3 D5 — THE HONEST WATER CONTRACT: the old assertion
-        // ("blue strips appeared") was proving the BUG — strips painted
-        // over void and raised ground because the section line sits
-        // meters under a descending strip's high end. The kept quads are
-        // exactly the channel ones; VISIBLE water needs the bed carved
-        // (W1.4 RiverCarve, queued). The law: every drawn quad's samples
-        // sit within the channel band of the section line, and the
-        // raised-ground segments are absent from the mesh.
+        // PLAYTEST-0.3 D5 + N03 W1.4 — THE HONEST WATER CONTRACT,
+        // updated by the carve: pre-carve, strips painted over void and
+        // raised ground (the old `blue_pixels == 0` proved burial). With
+        // the bed CARVED in the voxel authority, the channel water is
+        // REAL: blue pixels now appear exactly where the strip crosses
+        // the channel hole in the smooth surface — but the D5 core law
+        // stands: nothing paints over RAISED ground. The kept quads are
+        // the channel ones (per-sample carve surface; the strip skips
+        // samples above the channel's own water line), the raised-ground
+        // segments stay absent from the mesh.
         let sec0 = &water.sections[0];
+        // Count how many of the changed-blue samples sit on raised
+        // ground: surface ABOVE the water line + outside the channel.
+        let mut blue_over_rising = 0usize;
+        for x in (0..384usize).step_by(4) {
+            for y in (0..288usize).step_by(4) {
+                let a = sample_ndc(
+                    &with_water,
+                    384,
+                    288,
+                    (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0),
+                );
+                let b = sample_ndc(
+                    &no_water,
+                    384,
+                    288,
+                    (x as f32 / 192.0 - 1.0, 1.0 - y as f32 / 144.0),
+                );
+                let changed = (0..3).map(|i| (a[i] - b[i]).abs()).sum::<f32>() > 0.08;
+                if changed && a[2] > a[0] && a[2] > a[1] {
+                    // Back-project the pixel is overkill; instead verify
+                    // the LAW on the mesh: recomputed below.
+                    blue_over_rising += 0;
+                }
+            }
+        }
+        let _ = blue_over_rising;
+        // THE LAW ON THE MESH (semantic, not photographic): every drawn
+        // sample must carry a channel hit whose surface is at or above
+        // the strip's drawn height; a sample WITHOUT channel coverage
+        // (raised banks, edited streets) must NOT be drawn.
         let mut drawn_samples = 0usize;
         let mut total_samples = 0usize;
+        let mut drawn_outside_channel = 0usize;
         for sec2 in &water.sections {
             let d2 = match sec2.direction {
                 0 => [1.0f32, 0.0],
@@ -1173,14 +1281,40 @@ mod gpu_tests {
                     .effective_surface_mm((cx2 * 1000.0) as i64, (cz2 * 1000.0) as i64)
                     as f32
                     / 1000.0;
-                if surface <= sec2.water_line + 2.5 {
+                let channel = gen.river_channel((cx2 * 1000.0) as i64, (cz2 * 1000.0) as i64);
+                let drawn = match sec2.carve_ws[si] {
+                    // Carve-covered: drawn when the analytic surface
+                    // doesn't bury the channel (the D5 cap).
+                    Some(ws) => {
+                        let d = surface <= ws + 1.5;
+                        if d && channel.is_none() {
+                            drawn_outside_channel += 1;
+                        }
+                        d
+                    }
+                    // Legacy flat-line samples (edit-refreshed segments).
+                    None => surface <= sec2.water_line + 2.5,
+                };
+                if drawn {
                     drawn_samples += 1;
+                    if channel.is_none() {
+                        drawn_outside_channel += 1;
+                    }
                 }
+                let _ = h;
             }
         }
+        // N03: water EXISTS now (the carve made the channel visible) —
+        // blue pixels come from the channel; the street-overpaint law is
+        // enforced on the MESH: no drawn sample may sit outside the
+        // carve channel (the raised bank / settlement street stays dry).
+        assert!(
+            blue_pixels > 0,
+            "the carved channel must be visible from the surface vantage ({blue_pixels} blue pixels)"
+        );
         assert_eq!(
-            blue_pixels, 0,
-            "no water may paint over raised ground (street overpaint)"
+            drawn_outside_channel, 0,
+            "no water may draw over un-channelled (raised) ground: {drawn_outside_channel} samples"
         );
         assert!(
             drawn_samples > 0 && drawn_samples < total_samples,

@@ -11041,3 +11041,58 @@ world 312+1 ignored, save/assets/audio/core; 0 falhas — os 3 timeouts de GPU
 submissão wgpu sob a corrida debug patológica). Evidência regenerada com o
 binário corrigido: matrix 32 (20 tier-1 gate-clean+det+recurso, 12 fallback),
 rota 16/32, DMG renovado (Nov 6 08:15), smoke OK, doctrine 2/2.
+
+
+## Loop 478 — N03 RiverCarve e suporte de água (Poorcraft 3D)
+
+WHAT: o rio agora existe na AUTORIDADE VOXEL, não só na faixa de render.
+`pc3d_world::river_carve` (novo): CarveField constrói as arestas com A
+MESMA lei das faixas (dois extremos ≥ RIVER_THRESHOLD), largura/profundidade
+do discharge, superfícies de água monótonas encadeadas a jusante, cache
+thread-local por seed, WATERSHED_HALF=70 exportado (picks de rota/testes
+usam a MESMA bacia que a autoridade — discharge depende do tamanho da
+janela; um edge achado em half=10 desaparece no half=70, medido na seed 42).
+
+HOW:
+- `WorldGen::carve` responde no band de superfície: Ar acima da superfície,
+  Water em (superfície, leito], Sand no piso — `final_solid`
+  (colisão/nav/spawn) e `regenerate_patch` (malha) compartilham A MESMA
+  função (impossível divergir).
+- LEI DE MATERIALIZAÇÃO: profundidade mínima 0,5→1,2 m (canal <1 m pode
+  não conter NENHUM centro de célula de 1 m — seed 42 media 0 células de
+  água) + teto da rampa 2,0→1,8 (máx ≤ BED_MAX_DEPTH_M=3,0 do trust).
+  Gate novo `p3dn03_every_channel_holds_voxel_water`: 5 seeds × 40 edges,
+  cada canal ≥1 célula Water + leito sólido.
+- pc3d_render: `width_of`/`depth_of` delegam ao carve; faixas amostram a
+  superfície esculpida por vértice (`carve_ws`); lei de aresta unificada em
+  `ConformingWater::build` (antes pintava água flat-line sobre terreno
+  elevado não-esculpado — o gate GPU pegou); superfície luta pula facetas
+  do canal (sem dupla renderização); teste de bioma anda ±x/±z fora do
+  canal; teste de localidade usa a lei de aresta no picker.
+- `--water-route`/`make p3d-water-route` (N=6): rota windowed 6 seeds ×
+  2 capturas (overview a jusante + olho de margem), gates SEMÂNTICOS
+  (voxel truth: water_cells≥1, bed_solid; pixel: azul-dominante nas duas
+  capturas), sidecars+índice. Integrada ao p3d-beta (stage water-route-6).
+- Probe RED preservado: `shots/n03-red/red-probe-water-carve.txt` +
+  `examples/n03_water_carve_repro.rs`.
+
+FILES: crates/pc3d_world/src/river_carve.rs (novo), gen.rs (carve/
+regenerate_patch), lib.rs; pc3d_render: water.rs, world_features.rs,
+surface.rs; apps/poorcraft3d/src/main.rs (--water-route); Makefile
+(p3d-water-route, stage beta); shots/water-route/ (12 PNG + 7 JSON).
+
+VERIFICATION: suíte completa serial: 740/0 (world 316+1 ignored — 4
+p3dn03 novos; render 259; audio 104; save 38; core 32; ui 20+8+1);
+doctrine-check 2/2 (pino N03); --water-route 6 → WATER ROUTE OK
+(12 capturas, verdict PASS; seed 42: 3 células de água — era 0);
+capturas inspecionadas à mão (6 seeds: canais esculpidos com lâmina
+d'água visível, margens secas).
+
+HONESTLY DEFERRED: `trust::water_bed_violations` ainda amostra a
+superfície analítica (deve ler o leito ESCULPIDO) — primeira ação da
+polir N03/ponte N04; a rota entrega 2 câmeras por seed (o cartão pede
+dez, incluindo passes depth/normals/water-id/wireframe) — extensão
+registrada no STATE; runtime/DMG não regenerados nesta sessão (binário
+release funcional verificado pela rota; DMG entra no próximo fechamento
+com beta completo).
+

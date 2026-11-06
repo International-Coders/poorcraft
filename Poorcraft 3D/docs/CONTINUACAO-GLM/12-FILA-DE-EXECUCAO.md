@@ -40,10 +40,23 @@ recurso). Ambos integrados ao `p3d-beta`. Fechamento: 256-seed probe GREEN
 6 biomas variados), suite pc3d_world 313 testes verdes, rota 4-stop
 verificada por pixel (duas perspectivas distintas por seed).
 
-### N03 — RiverCarve e suporte de água
+### N03 — RiverCarve e suporte de água (FECHADO, loop 478)
 
 Unificar leito/superfície/visibilidade e transformar os seeds ruins conhecidos
 em fixtures. Seis seeds × dez câmeras, incluindo altura.
+
+Fechamento (parcial honesto): leito/superfície/água UNIFICADOS na autoridade
+voxel (`pc3d_world::river_carve` → `WorldGen::carve`; `final_solid` e
+`regenerate_patch` compartilham a mesma função); lei de materialização
+(profundidade ≥ 1,2 m; rampa ≤ 3,0 m) com gate `p3dn03_every_channel_
+holds_voxel_water` (5 seeds × 40 edges); lei de aresta única (dois extremos
+≥ threshold) no carve, nas faixas e nos testes; WATERSHED_HALF=70 única
+constante exportada; faixas amostram a superfície esculpida; superfície
+luta pula facetas do canal; `--water-route`/`make p3d-water-route`
+(6 seeds × 2 capturas, gates voxel-truth + pixel, sidecars verdict PASS)
+no p3d-beta; suíte 740/0; probe RED arquivado (shots/n03-red). Deferrals
+registrados no STATE: trust bed gate lê a superfície analítica (mover ao
+leito esculpido) e 2/10 câmeras por seed (depth/normals/water-id/wireframe).
 
 ### N04 — GroundingResult universal
 

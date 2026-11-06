@@ -459,6 +459,7 @@ p3d-beta: ## THE 38-stage beta battery: every proof the game owns, one report ("
 	stage headless-smoke       "$$BIN" --run 5; \
 	stage spawn-matrix-16      "$$BIN" --spawn-matrix 16 "$$SHOTS/spawn-matrix"; \
 	stage spawn-route-6        "$$BIN" --spawn-route "$$SHOTS/spawn-route" 6; \
+	stage water-route-6        "$$BIN" --water-route "$$SHOTS/water-route" 6; \
 	stage journey-42           "$$BIN" --journey 42; \
 	stage diagnose-2024        "$$BIN" --diagnose 2024; \
 	stage soak-30d             "$$BIN" --soak 30 4242; \
@@ -516,6 +517,11 @@ p3d-spawn-route: ## N02: windowed 16-stop visual spawn route (eye+overview per s
 	$(P3D_BUILD)
 	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --spawn-route "$$(pwd)/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route" $(if $(N),$(N),16) || exit 1; \
 	echo "P3D SPAWN ROUTE OK"
+
+p3d-water-route: ## N03: windowed river-channel route (overview+bank per seed, carve gates + pixel evidence + sidecar): make p3d-water-route [N=6]
+	$(P3D_BUILD)
+	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --water-route "$$(pwd)/Poorcraft 3D/apps/poorcraft3d/shots/water-route" $(if $(N),$(N),6) || exit 1; \
+	echo "P3D WATER ROUTE OK"
 
 p3d-spawn-matrix-nightly: ## N02 nightly: the 256-seed spawn matrix (ignored test, release profile; ~4-5 min): make p3d-spawn-matrix-nightly
 	cd "Poorcraft 3D" && cargo test -p pc3d_world --release p3dn02_matrix_nightly -- --ignored && \

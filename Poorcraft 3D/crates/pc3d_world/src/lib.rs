@@ -40,6 +40,7 @@ pub mod host;
 pub mod hydro;
 pub mod ideology;
 pub mod items;
+pub mod river_carve;
 pub mod journey;
 pub mod karma_evidence;
 pub mod kits;

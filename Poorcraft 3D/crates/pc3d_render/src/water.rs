@@ -28,14 +28,16 @@ const REGION_M: f32 = 256.0;
 /// Cross-section sampling along the strip.
 const SAMPLE_STEP_M: f32 = 4.0;
 
-/// Width (m) from discharge — mirrors the 2D map's stroke scaling family.
+/// Width (m) from discharge — SINGLE TRUTH: the formula lives in
+/// `pc3d_world::river_carve` (the voxel channel carves with the same
+/// width the strip draws), render delegates.
 pub fn width_of(discharge: u64) -> f32 {
-    3.0 + (discharge as f32 / 300.0).min(9.0)
+    pc3d_world::river_carve::channel_width_m(discharge)
 }
 
-/// Depth (m) from discharge.
+/// Depth (m) from discharge — delegated to the carve authority.
 pub fn depth_of(discharge: u64) -> f32 {
-    0.5 + (discharge as f32 / 600.0).min(2.0)
+    pc3d_world::river_carve::channel_depth_m(discharge)
 }
 
 /// Water surface sits this far above the sampled terrain line.

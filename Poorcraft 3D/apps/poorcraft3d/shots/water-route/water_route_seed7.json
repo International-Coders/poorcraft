@@ -1,0 +1,48 @@
+{
+  "captures": [
+    {
+      "mean_rgb": [
+        233.35638020833332,
+        209.48548090277777,
+        175.7731892361111
+      ],
+      "path": "./apps/poorcraft3d/shots/water-route/water_overview_seed7.png",
+      "role": "overview",
+      "water_blue_px": 4366
+    },
+    {
+      "mean_rgb": [
+        197.21982118055556,
+        180.15144444444445,
+        153.90838888888888
+      ],
+      "path": "./apps/poorcraft3d/shots/water-route/water_bank_seed7.png",
+      "role": "bank",
+      "water_blue_px": 15646
+    }
+  ],
+  "channel_midpoint_m": {
+    "depth_m": 1.462667465209961,
+    "water_surface_m": -24.350000381469727,
+    "x": -512.0,
+    "z": -128.0
+  },
+  "command": "--water-route",
+  "edge": {
+    "from": [
+      -3,
+      -1
+    ],
+    "to": [
+      -2,
+      -1
+    ]
+  },
+  "schema": 1,
+  "seed": 7,
+  "verdict": "PASS",
+  "voxel_truth": {
+    "bed_solid": true,
+    "water_cells_above_bed": 2
+  }
+}

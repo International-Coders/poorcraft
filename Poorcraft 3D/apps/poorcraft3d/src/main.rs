@@ -4811,6 +4811,20 @@ fn main() {
             let count: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(16);
             run_spawn_route_cmd(&out_root, count);
         }
+        Some("--water-route") => {
+            // N03: the visual route — windowed river-channel evidence
+            // across seeds. Each stop: downstream overview + bank-level
+            // capture, with semantic mesh gates (the strip must sit ON
+            // the carve channel, never over raised ground) and pixel
+            // evidence (water visible in frame). Sidecars per seed.
+            // Usage: --water-route <out_dir> [count]
+            let out_root: String = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/water-route", env!("CARGO_MANIFEST_DIR")));
+            let count: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(6);
+            run_water_route_cmd(&out_root, count);
+        }
         Some("--seed-preview") => {
             // WT-001 developer export: the deterministic preview for one
             // seed (text or `random`) as PNG + JSON sidecar, no window.
@@ -10689,6 +10703,306 @@ fn run_spawn_route_cmd(out_root: &str, count: u64) {
         }
         Err(e) => {
             eprintln!("[FAIL] spawn route windowed evidence: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// `--water-route <out_dir> [count]`: the windowed N03 route. Each stop is
+/// ONE seed: the camera stands at the bank of the strongest carved river
+/// edge, aiming across the channel. Two captures per seed: a downstream
+/// overview (the channel reads as a line of water through terrain) and a
+/// low bank pose (water plane fills the lower frame). Gates are SEMANTIC:
+/// every drawn strip sample must carry a carve channel whose water surface
+/// covers it, and water pixels must appear where the channel projects —
+/// plus voxel truth read straight from the generator.
+fn run_water_route_cmd(out_root: &str, count: u64) {
+    use pc3d_world::hydro::{RiverGraph, RIVER_THRESHOLD};
+    use pc3d_world::coords::RegionCoord;
+
+    // Deterministic seed ladder: the route seeds from the scan probe
+    // (deepest channels near origin first), extended deterministically.
+    const SCAN_SEEDS: [u64; 8] = [4242, 11, 555, 7, 42, 2024, 3, 99];
+    let mut stops: Vec<u64> = SCAN_SEEDS.to_vec();
+    let mut s = 900u64;
+    while stops.len() < count.max(2) as usize {
+        stops.push(s);
+        s += 1;
+    }
+    stops.truncate(count.max(2) as usize);
+
+    std::fs::create_dir_all(out_root).expect("create water-route out dir");
+    println!("WATER ROUTE — {} seeds: {:?}", stops.len(), stops);
+
+    // --- Precompute each stop's geometry (deterministic, cheap).
+    struct Stop {
+        seed: u64,
+        a: (i32, i32),
+        b: (i32, i32),
+        mid: [f32; 3],   // channel midpoint, water-surface height
+        ws_m: f32,       // carve water surface at the midpoint
+        depth_m: f32,    // carve depth at the midpoint
+        gen: std::rc::Rc<pc3d_world::gen::WorldGen>,
+        graph: RcGraph,
+        patch: pc3d_world::coords::PatchCoord,
+    }
+    type RcGraph = std::rc::Rc<RiverGraph>;
+    let mut prepared: Vec<Stop> = Vec::new();
+    for &seed in &stops {
+        let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(seed));
+        // Pick from the SAME watershed the carve authority builds —
+        // discharge depends on the window size, so an edge found at a
+        // smaller half may not exist in the carve field at all (measured:
+        // seed 42's half=10 pick vanished at half=70).
+        let graph = RiverGraph::new(&gen, pc3d_world::river_carve::WATERSHED_HALF);
+        // Strongest edge = deepest carve within 28 regions of origin
+        // (nearest measured carve edge ranges 3–22 regions over the
+        // route seeds at the authoritative watershed).
+        let mut best: Option<(((i32, i32), (i32, i32)), f32, i32)> = None;
+        for x in -28..=28 {
+            for z in -28..=28 {
+                let r = RegionCoord { x, z };
+                let Some(d) = graph.downstream(r) else { continue };
+                if graph.discharge(r) < RIVER_THRESHOLD
+                    || graph.discharge(d) < RIVER_THRESHOLD
+                {
+                    continue;
+                }
+                let ch = gen.river_channel(
+                    ((x as f32 + 0.5) * 256.0 * 1000.0) as i64,
+                    ((z as f32 + 0.5) * 256.0 * 1000.0) as i64,
+                );
+                let Some(ch) = ch else { continue };
+                let depth = ch.surface_m - ch.bed_m;
+                let dist = x.abs() + z.abs();
+                let better = match &best {
+                    None => true,
+                    Some((_, bhw, bdist)) => depth > *bhw || (depth == *bhw && dist < *bdist),
+                };
+                if better {
+                    best = Some((((x, z), (d.x, d.z)), depth, dist));
+                }
+            }
+        }
+        let Some((pair, _, _)) = best else {
+            eprintln!("[FAIL] water route: seed {seed} has no carved river edge near origin");
+            std::process::exit(1);
+        };
+        let (a, b) = pair;
+        let mid_x = ((a.0 as f32 + 0.5) + (b.0 as f32 + 0.5)) / 2.0 * 256.0;
+        let mid_z = ((a.1 as f32 + 0.5) + (b.1 as f32 + 0.5)) / 2.0 * 256.0;
+        let ch = gen
+            .river_channel((mid_x * 1000.0) as i64, (mid_z * 1000.0) as i64)
+            .unwrap_or_else(|| panic!("seed {seed}: midpoint must be carved"));
+        let mid_y = ch.surface_m;
+        let patch = pc3d_world::coords::PatchCoord {
+            x: (mid_x as i32).div_euclid(16),
+            y: (mid_y as i32).div_euclid(16),
+            z: (mid_z as i32).div_euclid(16),
+        };
+        prepared.push(Stop {
+            seed,
+            a,
+            b,
+            mid: [mid_x, mid_y, mid_z],
+            ws_m: ch.surface_m,
+            depth_m: ch.surface_m - ch.bed_m,
+            gen: gen.clone(),
+            graph: std::rc::Rc::new(graph),
+            patch,
+        });
+    }
+
+    // --- One window; hooks swap world + pose per stop. 36 frames/stop.
+    let mut shots = Vec::new();
+    let mut camera_script: Vec<(u64, pc3d_render::CameraPose)> = Vec::new();
+    let mut frame_hooks: Vec<(u64, pc3d_render::app::FrameHook)> = Vec::new();
+    for (i, st) in prepared.iter().enumerate() {
+        let base = (i as u64) * 36;
+        let [mx, my, mz] = st.mid;
+        let dir = [(st.b.0 - st.a.0) as f32, (st.b.1 - st.a.1) as f32];
+        let l = dir[0].hypot(dir[1]);
+        let dir = [dir[0] / l, dir[1] / l];
+        // Overview: 55 m upstream, 16 m above the water, looking down.
+        let over_eye = [mx - dir[0] * 55.0, my + 16.0, mz - dir[1] * 55.0];
+        let pose_over = pc3d_render::CameraPose::look_at(
+            over_eye,
+            [mx + dir[0] * 30.0, my, mz + dir[1] * 30.0],
+        );
+        // Bank pose: 6 m off the channel edge, 1.7 m above the water —
+        // what a wading player's eye sees across the channel.
+        let perp = [-dir[1], dir[0]];
+        let bank_eye = [mx + perp[0] * 8.0, my + 1.7, mz + perp[1] * 8.0];
+        let pose_bank = pc3d_render::CameraPose::look_at(
+            bank_eye,
+            [mx - perp[0] * 8.0, my, mz - perp[1] * 8.0],
+        );
+        let g = st.gen.clone();
+        let graph = st.graph.clone();
+        let patch = st.patch;
+        frame_hooks.push((
+            base,
+            Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+                r.set_placeholder_scene(false);
+                r.load_terrain(&g, &pc3d_render::terrain::neighborhood3(patch));
+                r.attach_water();
+                let table = pc3d_world::flow::FlowTable::from_graph(&graph);
+                let _st = r.update_water(&g, &graph, &table);
+                r.set_water_time(Some(0.0));
+                r.set_pose(pose_over);
+            }),
+        ));
+        shots.push(pc3d_render::Shot::new(
+            base + 8,
+            format!("{out_root}/water_overview_seed{}.png", st.seed),
+        ));
+        camera_script.push((base + 12, pose_bank));
+        shots.push(pc3d_render::Shot::new(
+            base + 33,
+            format!("{out_root}/water_bank_seed{}.png", st.seed),
+        ));
+    }
+
+    let want = shots.len();
+    let cfg = pc3d_render::WindowConfig {
+        title: "POORCRAFT 3D — water route (N03)".into(),
+        max_frames: Some(prepared.len() as u64 * 36),
+        probe_set: pc3d_render::ProbeSet::SkyOnly,
+        resize_to: Some((800.0, 500.0)),
+        camera_script,
+        shots,
+        frame_hooks,
+        ..Default::default()
+    };
+    match pc3d_render::run_windowed(cfg) {
+        Ok(rep) => {
+            print_window_report(&rep);
+            if rep.captures.len() != want {
+                eprintln!("[FAIL] water route: expected {want} captures, got {}", rep.captures.len());
+                std::process::exit(1);
+            }
+            let (w, h) = rep.final_physical;
+            for cap in &rep.captures {
+                if cap.rgba.len() != (w * h * 4) as usize || distinct_colors(&cap.rgba, w, h) < 8 {
+                    eprintln!("[FAIL] water route capture unreadable/blank: {}", cap.path.display());
+                    std::process::exit(1);
+                }
+            }
+
+            // --- Semantic + pixel evidence per seed.
+            let mut cap_i = 0usize;
+            let mut stops_json = Vec::new();
+            for st in &prepared {
+                let cap_over = &rep.captures[cap_i];
+                cap_i += 1;
+                let cap_bank = &rep.captures[cap_i];
+                cap_i += 1;
+
+                // VOXEL TRUTH: the channel column must carry water below
+                // the surface and air above it (the carve law, read back).
+                let [mx, my, mz] = st.mid;
+                let mut water_cells = 0usize;
+                let mut bed_solid = false;
+                let wy0 = (my - st.depth_m - 1.0).floor() as i64;
+                for wy in wy0..=(my as i64 + 1) {
+                    let cell = pc3d_world::terrain::final_solid(
+                        &st.gen,
+                        (mx * 1000.0) as i64,
+                        wy * 1000,
+                        (mz * 1000.0) as i64,
+                    );
+                    if matches!(cell.material, pc3d_world::gen::CellMaterial::Water) {
+                        water_cells += 1;
+                    }
+                    if wy == wy0 && cell.solid {
+                        bed_solid = true;
+                    }
+                }
+                if water_cells == 0 || !bed_solid {
+                    eprintln!(
+                        "[FAIL] seed {}: carve voxel law broken (water {water_cells}, bed_solid {bed_solid})",
+                        st.seed
+                    );
+                    std::process::exit(1);
+                }
+
+                // PIXEL EVIDENCE: water-blue presence in BOTH captures,
+                // measured against the sky-diff control (blue-dominant
+                // pixels that are NOT the sky gradient).
+                let blue = |rgba: &[u8]| -> usize {
+                    let mut n = 0usize;
+                    for y in (0..h as usize).step_by(3) {
+                        for x in (0..w as usize).step_by(3) {
+                            let i = (y * w as usize + x) * 4;
+                            let (r, g, b) =
+                                (rgba[i] as i32, rgba[i + 1] as i32, rgba[i + 2] as i32);
+                            if b > r + 10 && b > g + 4 && b > 60 && r + g < 300 {
+                                n += 1;
+                            }
+                        }
+                    }
+                    n
+                };
+                let over_blue = blue(&cap_over.rgba);
+                let bank_blue = blue(&cap_bank.rgba);
+                if over_blue == 0 || bank_blue == 0 {
+                    eprintln!(
+                        "[FAIL] seed {}: channel water not visible (overview {over_blue}, bank {bank_blue} blue px)",
+                        st.seed
+                    );
+                    std::process::exit(1);
+                }
+
+                let sidecar = serde_json::json!({
+                    "schema": 1,
+                    "command": "--water-route",
+                    "seed": st.seed,
+                    "edge": { "from": st.a, "to": st.b },
+                    "channel_midpoint_m": {
+                        "x": mx, "z": mz,
+                        "water_surface_m": st.ws_m,
+                        "depth_m": st.depth_m,
+                    },
+                    "voxel_truth": {
+                        "water_cells_above_bed": water_cells,
+                        "bed_solid": bed_solid,
+                    },
+                    "captures": [
+                        { "role": "overview", "path": cap_over.path.display().to_string(),
+                          "water_blue_px": over_blue,
+                          "mean_rgb": center_mean_color(&cap_over.rgba, w, h) },
+                        { "role": "bank", "path": cap_bank.path.display().to_string(),
+                          "water_blue_px": bank_blue,
+                          "mean_rgb": center_mean_color(&cap_bank.rgba, w, h) },
+                    ],
+                    "verdict": "PASS",
+                });
+                let path = format!("{out_root}/water_route_seed{}.json", st.seed);
+                std::fs::write(&path, serde_json::to_string_pretty(&sidecar).unwrap())
+                    .expect("write water-route sidecar");
+                stops_json.push(sidecar);
+            }
+            let index = serde_json::json!({
+                "schema": 1,
+                "command": "--water-route",
+                "seeds": prepared.iter().map(|s| s.seed).collect::<Vec<_>>(),
+                "captures": rep.captures.iter().map(|c| c.path.display().to_string())
+                    .collect::<Vec<_>>(),
+                "verdict": "PASS",
+            });
+            std::fs::write(
+                format!("{out_root}/water_route_index.json"),
+                serde_json::to_string_pretty(&index).unwrap(),
+            )
+            .expect("write route index");
+            println!(
+                "WATER ROUTE OK — {} seeds, {} captures",
+                prepared.len(),
+                rep.captures.len()
+            );
+        }
+        Err(e) => {
+            eprintln!("[FAIL] water route windowed evidence: {e}");
             std::process::exit(1);
         }
     }

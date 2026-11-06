@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## Loop 478 — N03 RiverCarve (Poorcraft 3D)
+- Rivers are now CARVED in the voxel authority (`pc3d_world::river_carve`
+  → `WorldGen::carve`): Air above the water surface, Water in
+  (surface, bed], Sand at the floor — the same function answers
+  `final_solid` (collision/nav/spawn) and `regenerate_patch` (meshing),
+  so the floating-strip defect (blue strip over solid ground) is closed
+  structurally, not by patching one consumer.
+- Materialization law: channel depth ≥ 1.2 m (a sub-1 m channel can hold
+  zero 1 m voxel water cells — measured seed 42: 0 cells before) and the
+  discharge slope capped so max depth stays ≤ the trust gate's 3.0 m.
+- Edge law unified everywhere (carve, strips, tests): a river EDGE
+  requires threshold discharge on BOTH ends; watershed half-width 70 is
+  the single exported constant (`WATERSHED_HALF`) all picks must use.
+- Render: water strips sample the carved surface per vertex; smooth
+  surface skips channel facets; `--water-route` (6 seeds, voxel-truth +
+  water-blue pixel gates, sidecars) added to Makefile and p3d-beta.
+- Suite: 740 passed / 0 failed (serial). RED probe archived in
+  `shots/n03-red/`. Deferred honestly: trust bed gate reads the analytic
+  surface (moves to carved bed next), route cameras 2/10 per seed.
+
+
 ## 2026-11-06 — N02: busca de spawn validada multi-seed fecha no POORCRAFT 3D (loop 477)
 
 - `Poorcraft 3D/crates/pc3d_world/src/spawn.rs` reescrito em torno de

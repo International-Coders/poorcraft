@@ -10,6 +10,7 @@
 //! forever and untouched patches never need storing.
 
 use crate::coords::{PatchCoord, RegionCoord};
+use crate::river_carve::{field_for, ChannelHit};
 use crate::scales::PATCH_CELL_AXIS;
 use pc3d_core::{fnv1a64, SeedStreams};
 use std::f64;
@@ -553,7 +554,14 @@ impl WorldGen {
 
     /// Shared carving step: `regenerate_patch` and `final_solid` both call
     /// this, so their agreement stays structural. Only solid underground
-    /// material can be carved.
+    /// material can be carved (caves).
+    ///
+    /// N03 RIVER LAW (surface band): where the river channel covers this
+    /// column, the voxel truth follows the channel — Air above the water
+    /// surface, Water between surface and bed, Sand bed beneath. This is
+    /// the SAME function for meshing and collision/nav, so the blue strip
+    /// and the wading surface cannot diverge (the N03 RED defect: a
+    /// floating strip over solid ground).
     pub fn carve(
         &self,
         material: CellMaterial,
@@ -566,10 +574,32 @@ impl WorldGen {
             return material;
         }
         if self.is_carved(wx, wy, wz, depth_mm) {
-            CellMaterial::Air
-        } else {
-            material
+            return CellMaterial::Air;
         }
+        if let Some(ch) = self.river_channel(wx, wz) {
+            let wy_m = wy as f32 / 1000.0;
+            if wy_m <= ch.surface_m && wy_m > ch.bed_m {
+                // The water body: between bed and surface.
+                return CellMaterial::Water;
+            }
+            if (wy_m - ch.bed_m).abs() < 1.0 && depth_mm < 1000 {
+                // The bed lining: sand at the floor.
+                return CellMaterial::Sand;
+            }
+            if depth_mm < 1000 && wy_m > ch.surface_m {
+                // Raw terrain poking above the water inside the channel:
+                // cut it away so the column's wet part tops at the
+                // surface (banks OUTSIDE the channel keep their law).
+                return CellMaterial::Air;
+            }
+        }
+        material
+    }
+
+    /// The river channel at one column (mm), if the watershed covers it.
+    /// The per-seed field is cached; every caller shares one truth.
+    pub fn river_channel(&self, wx_mm: i64, wz_mm: i64) -> Option<ChannelHit> {
+        field_for(self.seed, self).hit(wx_mm, wz_mm)
     }
 
     /// Regenerate one patch's 16³ cells purely from the global function.
@@ -602,9 +632,15 @@ impl WorldGen {
                     let wy = (ay + cy as i32) as i64 * 1000;
                     let depth_mm = surface_mm - wy; // >0 = below the surface
                     let raw = cell_material(ground, wy, surface_mm);
-                    // Only cells inside the cave band can be carved: skip
-                    // the 3D noise for crust, deep-crust, air, and water.
-                    let mat = if wy >= 0 && depth_mm >= 4_000 && depth_mm <= 120_000 {
+                    // Caves carve the underground band only; the RIVER
+                    // channel law (N03) also answers in the surface band,
+                    // so a channel column gets its bed/water/sand truth
+                    // here too — same function, same truth as
+                    // `final_solid` (skip the 3D cave noise outside the
+                    // cave band; the river branch is cheap).
+                    let in_cave_band = wy >= 0 && depth_mm >= 4_000 && depth_mm <= 120_000;
+                    let in_river_band = wy >= -2_000 && depth_mm >= -8_000 && depth_mm < 4_000;
+                    let mat = if in_cave_band || in_river_band {
                         self.carve(raw, wx, wy, wz, depth_mm)
                     } else {
                         raw

@@ -1,0 +1,22 @@
+N03 RED — water carve absent from the voxel authority (2026-11-06)
+
+Command: cargo run --release -p pc3d_world --example n03_water_carve_repro
+Output:
+  river region RegionCoord { x: -6, z: 12 } (manhattan 18) discharge 17
+  channel center (-1408000, 3200000) analytic surface 34.87 m
+  water cells in top 6 m of the channel column: 0
+  solid ground at the analytic surface: true
+  RED: the voxel authority has NO river channel — the strip floats over land.
+
+Meaning: the river exists ONLY as the render-side strip
+(pc3d_render::world_features::ConformingWater) whose heights follow the
+UNCARVED analytic surface. `final_solid` — the authority collision, nav
+and spawn consume — has no Water cells in the channel: a wading player
+stands on invisible solid ground under a floating blue strip. This is the
+doctrine's suspended-water defect (05: "nenhuma superfície azul existe
+sobre void"; 13/N03: "RiverCarve cria leito sob toda superfície visível").
+
+Next (per 13-PLANO N03): carve the bed into the shared authority
+(gen::carve path consumed by final_solid AND regenerate_patch), keep the
+monotonic longitudinal profile from FlowTable, then make
+trust::water_bed_violations load-bearing against the CARVED bed.

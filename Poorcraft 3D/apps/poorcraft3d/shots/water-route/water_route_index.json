@@ -1,0 +1,27 @@
+{
+  "captures": [
+    "./apps/poorcraft3d/shots/water-route/water_overview_seed4242.png",
+    "./apps/poorcraft3d/shots/water-route/water_bank_seed4242.png",
+    "./apps/poorcraft3d/shots/water-route/water_overview_seed11.png",
+    "./apps/poorcraft3d/shots/water-route/water_bank_seed11.png",
+    "./apps/poorcraft3d/shots/water-route/water_overview_seed555.png",
+    "./apps/poorcraft3d/shots/water-route/water_bank_seed555.png",
+    "./apps/poorcraft3d/shots/water-route/water_overview_seed7.png",
+    "./apps/poorcraft3d/shots/water-route/water_bank_seed7.png",
+    "./apps/poorcraft3d/shots/water-route/water_overview_seed42.png",
+    "./apps/poorcraft3d/shots/water-route/water_bank_seed42.png",
+    "./apps/poorcraft3d/shots/water-route/water_overview_seed2024.png",
+    "./apps/poorcraft3d/shots/water-route/water_bank_seed2024.png"
+  ],
+  "command": "--water-route",
+  "schema": 1,
+  "seeds": [
+    4242,
+    11,
+    555,
+    7,
+    42,
+    2024
+  ],
+  "verdict": "PASS"
+}

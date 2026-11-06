@@ -392,6 +392,16 @@ impl SurfacePatch {
                 // center; a facet belongs to its lower-left cell.
                 let cx = self.coord.x as f32 * PATCH_M + (lx as f32 + 0.5) * STEP;
                 let cz = self.coord.z as f32 * PATCH_M + (lz as f32 + 0.5) * STEP;
+                // N03 UNIFICATION: the smooth-surface layer does not draw
+                // inside the river channel — the voxel terrain (carved
+                // bed/water/sand) and the conforming strip own that
+                // ground. Without the hole, this layer's material sample
+                // (Water at surface-0.5 m) paints blue facets over the
+                // carved voxels and the DAM law's "no paint over raised
+                // ground" contract loses its subject.
+                if gen.river_channel((cx * 1000.0) as i64, (cz * 1000.0) as i64).is_some() {
+                    continue;
+                }
                 let color = terrain_albedo(sample_material_cached(cache, gen, cx, cz));
                 for vi in [i00, i10, i01, i11] {
                     verts[vi as usize].color = color;
@@ -571,23 +581,73 @@ mod tests {
                 let mat = sample_material(&g, wx_m, wz_m);
                 match biome {
                     Biome::Ocean | Biome::Coast => {
+                        // N03: a river channel cutting through a coast
+                        // region answers Air/Water/Sand from the CARVE
+                        // law at the exact region-center column — the
+                        // biome-dress law holds for the non-channel
+                        // columns.
+                        let (mat, _) = off_channel_material(&g, wx_m, wz_m);
                         assert_eq!(mat, CellMaterial::Sand, "coast/ocean at {region:?}");
                     }
                     Biome::SnowPeaks => {
-                        assert_eq!(mat, CellMaterial::Snow, "snow at {region:?}");
+                        // N03: off-channel sample (the channel can cross
+                        // snow ground; its column answers Water/Sand).
+                        let (m, _) = off_channel_material(&g, wx_m, wz_m);
+                        assert_eq!(m, CellMaterial::Snow, "snow at {region:?}");
                     }
                     Biome::Mountains | Biome::Highlands => {
-                        assert_eq!(mat, CellMaterial::Rock, "highland rock at {region:?}");
+                        let (m, _) = off_channel_material(&g, wx_m, wz_m);
+                        assert_eq!(m, CellMaterial::Rock, "highland rock at {region:?}");
                         found_rock = true;
                     }
                     Biome::Plains | Biome::Forest | Biome::Wetland => {
-                        assert_eq!(mat, CellMaterial::Grass, "grassland at {region:?}");
+                        let (m, _) = off_channel_material(&g, wx_m, wz_m);
+                        assert_eq!(m, CellMaterial::Grass, "grassland at {region:?}");
                         found_grass = true;
                     }
                 }
             }
         }
         assert!(found_grass && found_rock, "need both grass and rock biomes");
+    }
+
+    /// N03 helper: the material at the first off-channel sample walking
+    /// ±x then ±z from (wx_m, wz_m) (max 12 m), plus whether the origin
+    /// was itself off-channel. Keeps the biome-dress law honest where a
+    /// river channel crosses the probed region center; a single +x walk
+    /// can stay inside a channel whose edge runs along x.
+    fn off_channel_material(
+        g: &WorldGen,
+        wx_m: f32,
+        wz_m: f32,
+    ) -> (pc3d_world::gen::CellMaterial, bool) {
+        use pc3d_world::gen::CellMaterial;
+        let on = g
+            .river_channel((wx_m * 1000.0) as i64, (wz_m * 1000.0) as i64)
+            .is_some();
+        if !on {
+            return (sample_material(g, wx_m, wz_m), false);
+        }
+        let dirs = [(1.0f32, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)];
+        for (sx, sz) in dirs {
+            let mut k = 3.0f32;
+            while k <= 12.0 {
+                if g
+                    .river_channel(((wx_m + sx * k) * 1000.0) as i64, ((wz_m + sz * k) * 1000.0) as i64)
+                    .is_none()
+                {
+                    return (sample_material(g, wx_m + sx * k, wz_m + sz * k), true);
+                }
+                k += 3.0;
+            }
+        }
+        (CellMaterial::Sand, true)
+    }
+
+    /// The channel predicate the helpers share.
+    fn gen_channel_at(g: &WorldGen, wx_m: f32, wz_m: f32) -> bool {
+        g.river_channel((wx_m * 1000.0) as i64, (wz_m * 1000.0) as i64)
+            .is_some()
     }
 
     #[test]
