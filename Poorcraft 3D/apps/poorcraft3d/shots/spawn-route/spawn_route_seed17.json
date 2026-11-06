@@ -1,0 +1,83 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Forest",
+    "feet_m": [
+      6.0,
+      47.0099983215332,
+      2.0
+    ],
+    "resource": {
+      "kind": "flora.tree_birch",
+      "path_cells": 5,
+      "slot": [
+        0,
+        0
+      ]
+    },
+    "score": 2.8264880180358887,
+    "slot": [
+      1,
+      0
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        132.2483107638889,
+        150.824890625,
+        118.99931770833334
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed17.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.6766597032546997
+    },
+    {
+      "mean_rgb": [
+        135.61327777777777,
+        177.35075868055554,
+        117.59415798611111
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed17.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "resource_front_m": {
+    "bearing_deg": 180.0,
+    "dist_m": 4.0,
+    "x": 2.0,
+    "z": 2.0
+  },
+  "route_biome_tag": "Forest",
+  "schema": 1,
+  "seed": 17,
+  "used_fallback": false
+}

@@ -1,0 +1,55 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Plains",
+    "feet_m": [
+      -2.0,
+      28.010000228881836,
+      2.0
+    ],
+    "resource": {
+      "kind": "flora.rock_boulder",
+      "path_cells": 13,
+      "slot": [
+        -4,
+        0
+      ]
+    },
+    "score": 6.636568546295166,
+    "slot": [
+      -1,
+      0
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -1,
+        -1
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 25,
+  "used_fallback": false
+}

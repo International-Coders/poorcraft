@@ -1,0 +1,183 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Forest",
+    "feet_m": [
+      -6.0,
+      67.01000213623047,
+      6.0
+    ],
+    "resource": {
+      "kind": "flora.tree_broadleaf",
+      "path_cells": 5,
+      "slot": [
+        -1,
+        1
+      ]
+    },
+    "score": 2.700711488723755,
+    "slot": [
+      -2,
+      1
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 25,
+  "rejections_tail": [
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        2,
+        2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -2,
+        2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        2,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        2,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -2,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        2,
+        -1
+      ]
+    },
+    {
+      "detail": "[spawn_capsule_clear] spawn feet (10.00, 67.01, -6.00) vs TreePine trunk at (10.46, -6.12) : capsule_trunk_distance_m = 0.4792 (tolerance 0.7500, seed 4)",
+      "law": "trust_clearance",
+      "slot": [
+        2,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -1,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -2,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        1
+      ]
+    },
+    {
+      "detail": "[spawn_capsule_clear] spawn feet (-2.00, 67.01, 6.00) vs TreeBroadleaf trunk at (-2.24, 5.96) : capsule_trunk_distance_m = 0.2406 (tolerance 0.7500, seed 4)",
+      "law": "trust_clearance",
+      "slot": [
+        -1,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -1,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -1,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 4,
+  "used_fallback": false
+}

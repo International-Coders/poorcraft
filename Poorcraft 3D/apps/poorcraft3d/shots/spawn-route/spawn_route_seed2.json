@@ -1,0 +1,411 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Plains",
+    "feet_m": [
+      14.0,
+      4.010000228881836,
+      -10.0
+    ],
+    "resource": {
+      "kind": "flora.tree_birch",
+      "path_cells": 29,
+      "slot": [
+        7,
+        -3
+      ]
+    },
+    "score": 15.001093864440918,
+    "slot": [
+      3,
+      -3
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        155.33265625,
+        167.98945833333335,
+        135.15312152777778
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed2.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.5104079842567444
+    },
+    {
+      "mean_rgb": [
+        137.11710069444445,
+        180.58196354166665,
+        118.73877777777778
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed2.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 49,
+  "rejections_tail": [
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        3,
+        3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        2,
+        3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -1,
+        3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -2,
+        3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -3,
+        3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        3,
+        2
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -3,
+        2
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        3,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -3,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        3,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -3,
+        0
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -3,
+        -1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -3,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        2,
+        -3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        -3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        -3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -1,
+        -3
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -2,
+        -3
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -3,
+        -3
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        2,
+        2
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        2
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -1,
+        2
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -2,
+        2
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        2,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -2,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        2,
+        0
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -2,
+        0
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -2,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        2,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -2
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -1,
+        -2
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -2,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -1,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        0
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -1,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -1,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "resource_front_m": {
+    "bearing_deg": 0.0,
+    "dist_m": 16.0,
+    "x": 30.0,
+    "z": -10.0
+  },
+  "route_biome_tag": "Plains",
+  "schema": 1,
+  "seed": 2,
+  "used_fallback": false
+}

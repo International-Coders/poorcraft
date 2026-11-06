@@ -1,0 +1,99 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Highlands",
+    "feet_m": [
+      -2.0,
+      81.01000213623047,
+      6.0
+    ],
+    "resource": {
+      "kind": "flora.rock_boulder",
+      "path_cells": 5,
+      "slot": [
+        -2,
+        1
+      ]
+    },
+    "score": 3.63649320602417,
+    "slot": [
+      -1,
+      1
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        182.594140625,
+        177.1622361111111,
+        166.98215972222224
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed1.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.1372673660516739
+    },
+    {
+      "mean_rgb": [
+        182.48096180555555,
+        181.50176736111112,
+        174.65391493055554
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed1.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        0
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "resource_front_m": {
+    "bearing_deg": 180.0,
+    "dist_m": 4.0,
+    "x": -6.0,
+    "z": 6.0
+  },
+  "route_biome_tag": "Highlands",
+  "schema": 1,
+  "seed": 1,
+  "used_fallback": false
+}

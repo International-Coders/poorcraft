@@ -1,0 +1,498 @@
+{
+  "algo_version": 1,
+  "command": "--spawn-matrix",
+  "elapsed_s": 94,
+  "fallbacks": 12,
+  "laws": [
+    "deterministic",
+    "tier1_gate_clean_at_own_yaw",
+    "tier1_resource_nav_confirmed"
+  ],
+  "rows": [
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        -3968.0,
+        6.010000228881836,
+        -3968.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 0,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Highlands",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        -2.0,
+        81.01000213623047,
+        6.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 1,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 49,
+      "feet": [
+        14.0,
+        4.010000228881836,
+        -10.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 2,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Highlands",
+      "deterministic_repeat": true,
+      "evaluated": 25,
+      "feet": [
+        -6.0,
+        106.01000213623047,
+        -2.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 3,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Forest",
+      "deterministic_repeat": true,
+      "evaluated": 25,
+      "feet": [
+        -6.0,
+        67.01000213623047,
+        6.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 4,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        3456.0,
+        5.010000228881836,
+        -3968.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 5,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Highlands",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        6.0,
+        73.01000213623047,
+        2.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 6,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 131,
+      "feet": [
+        -1278.0,
+        2.009999990463257,
+        -1282.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 7,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        -8064.0,
+        5.010000228881836,
+        -5504.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 8,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Forest",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        2.0,
+        65.01000213623047,
+        -2.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 9,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 4656,
+      "feet": [
+        -682.0,
+        2.009999990463257,
+        -702.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 10,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Highlands",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        2.0,
+        94.01000213623047,
+        6.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 11,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 49,
+      "feet": [
+        2.0,
+        52.0099983215332,
+        14.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 12,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        2432.0,
+        1.0099999904632568,
+        -3968.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 13,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Highlands",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        -2.0,
+        63.0099983215332,
+        2.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 14,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        -1920.0,
+        7.010000228881836,
+        -1920.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 15,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        3456.0,
+        4.010000228881836,
+        -384.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 16,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Forest",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        6.0,
+        47.0099983215332,
+        2.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 17,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 387,
+      "feet": [
+        1286.0,
+        1.0099999904632568,
+        -1282.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 18,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Highlands",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        6.0,
+        83.01000213623047,
+        6.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 19,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 81,
+      "feet": [
+        18.0,
+        87.01000213623047,
+        18.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 20,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        -1664.0,
+        3.009999990463257,
+        -3968.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 21,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Forest",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        2.0,
+        53.0099983215332,
+        6.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 22,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        -3968.0,
+        2.009999990463257,
+        -3456.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 23,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        4224.0,
+        1.0099999904632568,
+        -128.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 24,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        -2.0,
+        28.010000228881836,
+        2.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 25,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        -3968.0,
+        4.010000228881836,
+        3200.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 26,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Forest",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        -2.0,
+        71.01000213623047,
+        6.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 27,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Plains",
+      "deterministic_repeat": true,
+      "evaluated": 25,
+      "feet": [
+        -6.0,
+        72.01000213623047,
+        -6.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 28,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        -8064.0,
+        4.010000228881836,
+        -7552.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 29,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Forest",
+      "deterministic_repeat": true,
+      "evaluated": 9,
+      "feet": [
+        -2.0,
+        41.0099983215332,
+        2.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": true,
+      "seed": 30,
+      "used_fallback": false,
+      "yaw_deg": 0.0
+    },
+    {
+      "biome": "Coast",
+      "deterministic_repeat": true,
+      "evaluated": 0,
+      "feet": [
+        3968.0,
+        1.0099999904632568,
+        -3712.0
+      ],
+      "gate_violations_at_own_yaw": 0,
+      "has_resource": false,
+      "seed": 31,
+      "used_fallback": true,
+      "yaw_deg": 0.0
+    }
+  ],
+  "schema": 1,
+  "seeds": 32,
+  "tier1": 20,
+  "verdict": "PASS",
+  "worst_decision_ms": 2842
+}

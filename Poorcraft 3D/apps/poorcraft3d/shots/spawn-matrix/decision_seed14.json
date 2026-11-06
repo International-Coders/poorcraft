@@ -1,0 +1,63 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Highlands",
+    "feet_m": [
+      -2.0,
+      63.0099983215332,
+      2.0
+    ],
+    "resource": {
+      "kind": "flora.rock_boulder",
+      "path_cells": 5,
+      "slot": [
+        -1,
+        1
+      ]
+    },
+    "score": 3.3025670051574707,
+    "slot": [
+      -1,
+      0
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -1,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 14,
+  "used_fallback": false
+}

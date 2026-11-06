@@ -1,0 +1,55 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Forest",
+    "feet_m": [
+      2.0,
+      53.0099983215332,
+      6.0
+    ],
+    "resource": {
+      "kind": "flora.deadtree",
+      "path_cells": 5,
+      "slot": [
+        1,
+        1
+      ]
+    },
+    "score": 3.2144885063171387,
+    "slot": [
+      0,
+      1
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "[spawn_capsule_clear] spawn feet (6.00, 52.01, -2.00) vs TreePine trunk at (6.69, -1.89) : capsule_trunk_distance_m = 0.6983 (tolerance 0.7500, seed 22)",
+      "law": "trust_clearance",
+      "slot": [
+        1,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -1,
+        -1
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 22,
+  "used_fallback": false
+}

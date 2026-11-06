@@ -1,0 +1,24 @@
+N02 GREEN PROBE — 256 seeds, post-fix (2026-11-06)
+
+RED baseline (pre-fix, spawn_repro 256 seeds):
+  A: slot-region biomes at spawn over 256 seeds: {Coast: 61, Plains: 94, Forest: 53, Wetland: 3, Highlands: 40, Mountains: 5}
+  B: euclidean resource within 10 slots: 256/256; nav-path-confirmed: 196/256; none at all: 0/256
+  → 60/256 spawns (23.4%) had NO nav-confirmed starter resource.
+
+GREEN (decide_spawn v1, budget 8192, cell-index support law):
+  worst single decision: 2.87 s (release; happens once per world creation)
+  tier-1 picks: 158 (fallback 98 — deep-ocean worlds, honest hand-off)
+  gate-clean at own yaw: 158/158 (N01 clearance at the chosen compass yaw)
+  nav-confirmed resource: 158/158 (THE law that was red: now 100% on tier-1)
+  spawn biomes: {Coast: 67, Plains: 90, Forest: 55, Wetland: 3, Highlands: 39, Mountains: 2}
+
+Fallback seeds verified: legacy region-cell laws intact (yaw 0, clearance
+gate refuses blocked trunks), used_fallback reported honestly, and the
+decision ledger names the fallback.
+
+Laws every tier-1 spawn satisfies (winner_revalidates_every_law):
+  walkable cell support (cell-index height), slot slope <= 1 m step,
+  above sea level, water margin (3 slots) clean, margin drop (3 m)
+  clean, N01 clearance gate at its own compass yaw, nav-confirmed
+  starter resource within 10 slots and 256 A* cells, deterministic
+  per (gen, seed) — SPAWN_ALGO_VERSION = 1.

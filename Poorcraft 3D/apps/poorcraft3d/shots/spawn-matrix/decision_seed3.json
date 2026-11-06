@@ -1,0 +1,135 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Highlands",
+    "feet_m": [
+      -6.0,
+      106.01000213623047,
+      -2.0
+    ],
+    "resource": {
+      "kind": "flora.tree_pine",
+      "path_cells": 5,
+      "slot": [
+        -3,
+        -1
+      ]
+    },
+    "score": 2.6804919242858887,
+    "slot": [
+      -2,
+      -1
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 25,
+  "rejections_tail": [
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -2,
+        2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -2,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        2,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -2,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        2,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        -2
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -1,
+        0
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        1,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 3,
+  "used_fallback": false
+}

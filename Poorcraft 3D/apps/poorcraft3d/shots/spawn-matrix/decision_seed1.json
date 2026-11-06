@@ -1,0 +1,71 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Highlands",
+    "feet_m": [
+      -2.0,
+      81.01000213623047,
+      6.0
+    ],
+    "resource": {
+      "kind": "flora.rock_boulder",
+      "path_cells": 5,
+      "slot": [
+        -2,
+        1
+      ]
+    },
+    "score": 3.63649320602417,
+    "slot": [
+      -1,
+      1
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        0
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 1,
+  "used_fallback": false
+}

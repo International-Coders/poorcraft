@@ -23,10 +23,22 @@ registra indisponibilidade honesta de captura até N03/N05). Fechamento: 4/4
 culpados recusados, 4/4 controles aceitos, 4/4 gates load-bearing, pixels de
 acordo com o sidecar.
 
-### N02 — Safe spawn multi-seed
+### N02 — Safe spawn multi-seed — FECHADO (loop 477, 2026-11-06)
 
 Implementar busca validada, sidecar de candidatos e 256 seeds no teste diário.
 Rota mostra visão inicial e primeiro recurso.
+
+Fechado: `pc3d_world::spawn::decide_spawn` (busca em anéis concêntricos até
+384 slots, prefilter de bioma, leis de suporte/margem, trust gate 8 direções,
+recurso inicial confirmado por A* com cache, survivors pontuados, fallback
+tier-2 honesto com `used_fallback`) + `spawn_matrix_ok` (prova property) +
+`--spawn-matrix` / `make p3d-spawn-matrix` (32 seeds headless, sidecars
+`decision_seed{N}.json`) + `--spawn-route` / `make p3d-spawn-route` (rota
+visual com captura dupla por seed: olho no yaw do gate + ombro olhando o
+recurso). Ambos integrados ao `p3d-beta`. Fechamento: 256-seed probe GREEN
+(158 tier-1, 158/158 gate-clean no próprio yaw, 158/158 nav-confirmado,
+6 biomas variados), suite pc3d_world 313 testes verdes, rota 4-stop
+verificada por pixel (duas perspectivas distintas por seed).
 
 ### N03 — RiverCarve e suporte de água
 

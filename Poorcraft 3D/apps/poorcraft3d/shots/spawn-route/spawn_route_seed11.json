@@ -1,0 +1,67 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Highlands",
+    "feet_m": [
+      2.0,
+      94.01000213623047,
+      6.0
+    ],
+    "resource": {
+      "kind": "flora.tree_pine",
+      "path_cells": 5,
+      "slot": [
+        1,
+        1
+      ]
+    },
+    "score": 2.648486614227295,
+    "slot": [
+      0,
+      1
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        161.13294791666667,
+        160.84745659722222,
+        150.831140625
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed11.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.3112083375453949
+    },
+    {
+      "mean_rgb": [
+        174.86843055555556,
+        174.77950868055555,
+        167.631359375
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed11.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "[spawn_capsule_clear] spawn feet (6.00, 95.01, 6.00) vs TreePine trunk at (6.46, 5.88) : capsule_trunk_distance_m = 0.4736 (tolerance 0.7500, seed 11)",
+      "law": "trust_clearance",
+      "slot": [
+        1,
+        1
+      ]
+    }
+  ],
+  "resource_front_m": {
+    "bearing_deg": 0.0,
+    "dist_m": 4.0,
+    "x": 6.0,
+    "z": 6.0
+  },
+  "route_biome_tag": "Highlands",
+  "schema": 1,
+  "seed": 11,
+  "used_fallback": false
+}

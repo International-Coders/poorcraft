@@ -11,6 +11,16 @@ below by phase. Its fossil `shots/ev_*.png` "proofs" were removed by the audit.
 
 ## Done (verified)
 
+- [x] N02 safe spawn multi-seed (2026-11-06, loop 477, `Poorcraft 3D/`):
+      `pc3d_world::spawn::decide_spawn` — concentring flora-slot search
+      (4 m slots, r=384), biome prefilter, support/margin laws, production
+      trust gate (`spawn_clearance_violations` capsule+frontal), A*-cached
+      starter-resource confirmation, scored survivors, honest tier-2
+      fallback. `--spawn-matrix`/`--spawn-route` + Makefile targets, both in
+      the p3d-beta battery. Evidence: pc3d_world 313/313, doctrine 2/2,
+      matrix 32 seeds (20 tier-1 + 12 fallback), route 16 stops / 32
+      captures human-inspected, 256-seed probe GREEN. Doctrine promoted to
+      N03; N03 (RiverCarve + water support) is next.
 - [x] N01 adversarial trust harness (2026-10-10, loop 475, `Poorcraft 3D/`):
       `pc3d_world::trust` — pure fixture/violation/verdict types, four
       semantic gates (viewmodel winding/grip/hemisphere, spawn

@@ -1,0 +1,75 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Forest",
+    "feet_m": [
+      2.0,
+      43.0099983215332,
+      6.0
+    ],
+    "resource": {
+      "kind": "flora.tree_broadleaf",
+      "path_cells": 5,
+      "slot": [
+        0,
+        2
+      ]
+    },
+    "score": 3.15748929977417,
+    "slot": [
+      0,
+      1
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        161.60710243055556,
+        174.56327083333332,
+        140.44044097222223
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed57.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.5002482533454895
+    },
+    {
+      "mean_rgb": [
+        134.95191319444444,
+        176.78719618055555,
+        117.07998784722223
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed57.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "resource_front_m": {
+    "bearing_deg": 90.0,
+    "dist_m": 4.0,
+    "x": 2.0,
+    "z": 10.0
+  },
+  "route_biome_tag": "Forest",
+  "schema": 1,
+  "seed": 57,
+  "used_fallback": false
+}

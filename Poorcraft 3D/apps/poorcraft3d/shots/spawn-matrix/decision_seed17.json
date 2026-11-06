@@ -1,0 +1,55 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Forest",
+    "feet_m": [
+      6.0,
+      47.0099983215332,
+      2.0
+    ],
+    "resource": {
+      "kind": "flora.tree_birch",
+      "path_cells": 5,
+      "slot": [
+        0,
+        0
+      ]
+    },
+    "score": 2.8264880180358887,
+    "slot": [
+      1,
+      0
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 17,
+  "used_fallback": false
+}

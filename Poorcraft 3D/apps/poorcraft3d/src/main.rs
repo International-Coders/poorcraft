@@ -4786,6 +4786,31 @@ fn main() {
             let seed: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(4242);
             run_trust_audit_cmd(&out_root, seed);
         }
+        Some("--spawn-matrix") => {
+            // N02: the seed matrix, windowless and deterministic — every
+            // row's laws asserted in the library, the decision sidecars
+            // written next to a matrix report. Exit nonzero on any law
+            // failure. Usage: --spawn-matrix [N] [out_dir]
+            let n: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(32);
+            let out_dir: String = args.get(3).cloned().unwrap_or_else(|| {
+                format!("{}/shots/spawn-matrix", env!("CARGO_MANIFEST_DIR"))
+            });
+            run_spawn_matrix_cmd(n, &out_dir);
+        }
+        Some("--spawn-route") => {
+            // N02: the visual route — 16 spawns across coast/forest/
+            // mountain/frontier worlds; each gets the EYE-LEVEL initial
+            // view (what the player sees, gate yaw applied) with the
+            // confirmed first resource in front where the world allows.
+            // Sidecars carry the decision + gate state per capture.
+            // Usage: --spawn-route <out_dir> [count]
+            let out_root: String = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| format!("{}/shots/spawn-route", env!("CARGO_MANIFEST_DIR")));
+            let count: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(16);
+            run_spawn_route_cmd(&out_root, count);
+        }
         Some("--seed-preview") => {
             // WT-001 developer export: the deterministic preview for one
             // seed (text or `random`) as PNG + JSON sidecar, no window.
@@ -10353,6 +10378,317 @@ fn run_trust_audit_cmd(out_root: &str, seed: u64) {
         }
         Err(e) => {
             eprintln!("[FAIL] trust windowed evidence: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+// ---------------------------------------------------------------------------
+// N02 — the safe-spawn matrix + visual route.                                //
+// ---------------------------------------------------------------------------
+
+/// `--spawn-matrix [N] [out_dir]`: N seeds through the N02 laws,
+/// windowless. Every row is asserted by `spawn_matrix_ok` (deterministic,
+/// tier-1 gate-clean at own yaw, nav-confirmed resource); the report +
+/// per-seed decision sidecars land in `out_dir`. Exit nonzero on failure.
+fn run_spawn_matrix_cmd(n: u64, out_dir: &str) {
+    std::fs::create_dir_all(out_dir).expect("create spawn-matrix out dir");
+    println!("SPAWN MATRIX — {n} seeds (algo v{})", pc3d_world::spawn::SPAWN_ALGO_VERSION);
+    let t0 = std::time::Instant::now();
+    let mut rows = Vec::new();
+    let mut fallbacks = 0usize;
+    let mut tier1 = 0usize;
+    let mut worst = std::time::Duration::ZERO;
+    for seed in 0..n {
+        let t = std::time::Instant::now();
+        let row = pc3d_world::spawn::spawn_matrix_row(seed);
+        let el = t.elapsed();
+        if el > worst {
+            worst = el;
+        }
+        if row.used_fallback {
+            fallbacks += 1;
+        } else {
+            tier1 += 1;
+        }
+        // Per-seed decision sidecar (choice + algo version + ledger tail).
+        let gen = pc3d_world::gen::WorldGen::new(seed);
+        let d = pc3d_world::spawn::decide_spawn(&gen, seed);
+        let sidecar = d.to_sidecar_json();
+        std::fs::write(
+            format!("{out_dir}/decision_seed{seed}.json"),
+            serde_json::to_string_pretty(&sidecar).unwrap(),
+        )
+        .expect("write decision sidecar");
+        rows.push(row);
+    }
+    if let Err(e) = pc3d_world::spawn::spawn_matrix_ok(0..n) {
+        eprintln!("[FAIL] spawn matrix law: {e}");
+        std::process::exit(1);
+    }
+    let report = serde_json::json!({
+        "schema": 1,
+        "command": "--spawn-matrix",
+        "algo_version": pc3d_world::spawn::SPAWN_ALGO_VERSION,
+        "seeds": n,
+        "tier1": tier1,
+        "fallbacks": fallbacks,
+        "worst_decision_ms": worst.as_millis() as u64,
+        "elapsed_s": t0.elapsed().as_secs(),
+        "laws": ["deterministic", "tier1_gate_clean_at_own_yaw", "tier1_resource_nav_confirmed"],
+        "verdict": "PASS",
+        "rows": rows,
+    });
+    let path = format!("{out_dir}/spawn_matrix.json");
+    std::fs::write(&path, serde_json::to_string_pretty(&report).unwrap())
+        .expect("write matrix report");
+    println!(
+        "SPAWN MATRIX OK — {n} seeds: {tier1} tier-1 + {fallbacks} fallback, worst decision {} ms",
+        worst.as_millis()
+    );
+    println!("MATRIX REPORT -> {path}");
+}
+
+/// Pick `count` seeds whose tier-1 spawn lands in distinct biomes
+/// (deterministic sweep; coast/forest/mountain/frontier coverage).
+fn spawn_route_seeds(count: u64) -> Vec<(u64, &'static str)> {
+    const BIOME_NAMES: [&str; 8] = [
+        "Ocean", "Coast", "Plains", "Forest", "Wetland", "Highlands", "Mountains", "SnowPeaks",
+    ];
+    let mut picked: Vec<(u64, &'static str)> = Vec::new();
+    let mut want: Vec<&'static str> = vec!["Coast", "Forest", "Mountains", "Highlands", "Plains"];
+    let mut fallbacks = 0usize;
+    for seed in 0..400u64 {
+        if picked.len() as u64 >= count {
+            break;
+        }
+        let gen = pc3d_world::gen::WorldGen::new(seed);
+        let d = pc3d_world::spawn::decide_spawn(&gen, seed);
+        if d.used_fallback {
+            // Two honest fallback worlds prove the tier-2 hand-off too —
+            // but only after the biome-diverse tier-1 set is in.
+            fallbacks += 1;
+            if picked.len() as u64 + 2 >= count && fallbacks <= 2 && seed > 200 {
+                picked.push((seed, "Fallback"));
+            }
+            continue;
+        }
+        let idx = d.candidate.as_ref().unwrap().biome as usize;
+        let name = BIOME_NAMES.get(idx).copied().unwrap_or("?");
+        // Prefer distinct biomes first, then fill with extra tier-1 worlds.
+        if let Some(i) = want.iter().position(|b| *b == name) {
+            want.remove(i);
+            picked.push((seed, name));
+        } else if want.is_empty()
+            || picked.len() < 4
+            || (count as usize) > picked.len() + want.len()
+        {
+            // ponytail: the <12 cap keeps early variety, but a wish-list
+            // biome that never spawns tier-1 (SnowPeaks) must not starve
+            // the fill — once want can't be satisfied, accept any tier-1.
+            if picked.iter().all(|(_, b)| *b != name) || picked.len() < 12 || want.is_empty() {
+                picked.push((seed, name));
+            }
+        }
+    }
+    picked
+}
+
+/// `--spawn-route <out_dir> [count]`: the windowed N02 route. Each stop
+/// is ONE world: eye-level initial view at the gate yaw, terrain +
+/// flora loaded (the resource may be visible; the sidecar states whether
+/// it is in frame). Two captures per world: player eye + a near-overview
+/// showing the first resource direction.
+fn run_spawn_route_cmd(out_root: &str, count: u64) {
+    let stops = spawn_route_seeds(count.max(2));
+    if stops.len() as u64 != count.max(2) {
+        eprintln!(
+            "[FAIL] spawn route: needed {} biome stops, picked {}",
+            count.max(2),
+            stops.len()
+        );
+        std::process::exit(1);
+    }
+    std::fs::create_dir_all(out_root).expect("create spawn-route out dir");
+    println!("SPAWN ROUTE — {} stops: {:?}", stops.len(), stops);
+
+    // One window; the frame hooks swap world + pose per stop (the proven
+    // pattern from the trust audit's two-site capture).
+    type Hook = (u64, pc3d_render::app::FrameHook);
+    let mut shots = Vec::new();
+    let mut camera_script: Vec<(u64, pc3d_render::CameraPose)> = Vec::new();
+    let mut frame_hooks: Vec<Hook> = Vec::new();
+    let mut sidecars: Vec<serde_json::Value> = Vec::new();
+
+    // Precompute every stop's decision (deterministic; cheap in release).
+    struct Stop {
+        seed: u64,
+        biome: &'static str,
+        feet: [f32; 3],
+        yaw_deg: f32,
+        resource_slot_m: Option<[f32; 2]>,
+        sidecar: serde_json::Value,
+        gen: std::rc::Rc<pc3d_world::gen::WorldGen>,
+        patch: pc3d_world::coords::PatchCoord,
+    }
+    let mut prepared: Vec<Stop> = Vec::new();
+    for (seed, biome) in &stops {
+        let gen = std::rc::Rc::new(pc3d_world::gen::WorldGen::new(*seed));
+        let d = pc3d_world::spawn::decide_spawn(&gen, *seed);
+        let c = d.candidate.as_ref().expect("route seeds are tier-1 or fallback");
+        let res_slot_m = c.resource.as_ref().map(|r| r.slot.center_m());
+        let surface_m = gen
+            .effective_surface_mm((c.feet[0] * 1000.0) as i64, (c.feet[2] * 1000.0) as i64)
+            as f32
+            / 1000.0;
+        let patch = pc3d_world::coords::PatchCoord {
+            x: (c.feet[0] as i32).div_euclid(16),
+            y: (surface_m as i32).div_euclid(16),
+            z: (c.feet[2] as i32).div_euclid(16),
+        };
+        let mut sidecar = d.to_sidecar_json();
+        sidecar["route_biome_tag"] = serde_json::json!(biome);
+        sidecars.push(sidecar.clone());
+        prepared.push(Stop {
+            seed: *seed,
+            biome,
+            feet: c.feet,
+            yaw_deg: c.yaw_deg,
+            resource_slot_m: res_slot_m,
+            sidecar,
+            gen: gen.clone(),
+            patch,
+        });
+    }
+
+    // Camera math: eye 1.62 m above feet (player eye height), looking
+    // along the gate yaw (0 = +z? check the control fixture convention:
+    // angle_to_dir(0) faces +x... the yaw convention lives in trust.rs).
+    for (i, st) in prepared.iter().enumerate() {
+        let base = (i as u64) * 40;
+        let feet = st.feet;
+        let yaw = st.yaw_deg;
+        // The trust gate's yaw convention: 0 deg faces +x, 90 faces +z
+        // (angle_to_dir). Eye looks the same direction the player would.
+        let (dx, dz) = (yaw.to_radians().cos(), yaw.to_radians().sin());
+        let eye_h = 1.62;
+        let eye = [feet[0], feet[1] + eye_h, feet[2]];
+        let target = [feet[0] + dx, feet[1] + eye_h, feet[2] + dz];
+        let pose_eye = pc3d_render::CameraPose::look_at(eye, target);
+        // Overview: 12 m behind the shoulder, 8 m up, looking at the
+        // player site — the first resource direction is visible context.
+        let over_eye = [
+            feet[0] - dx * 10.0,
+            feet[1] + 9.0,
+            feet[2] - dz * 10.0,
+        ];
+        let pose_over = pc3d_render::CameraPose::look_at(over_eye, feet);
+        let g = st.gen.clone();
+        let patch = st.patch;
+        let pose_eye_c = pose_eye;
+        let pose_over_c = pose_over;
+        frame_hooks.push((
+            base,
+            Box::new(move |r: &mut pc3d_render::renderer::Renderer| {
+                r.set_placeholder_scene(false);
+                r.load_terrain(&g, &pc3d_render::terrain::neighborhood3(patch));
+                r.attach_flora(g.clone());
+                r.set_pose(pose_eye_c);
+            }),
+        ));
+        // EYE capture first (base+8, still in the eye pose), THEN the
+        // overview pose at base+12, THEN the overview capture at base+35.
+        shots.push(pc3d_render::Shot::new(
+            base + 8,
+            format!("{out_root}/spawn_eye_seed{}.png", st.seed),
+        ));
+        camera_script.push((base + 12, pose_over_c));
+        shots.push(pc3d_render::Shot::new(
+            base + 35,
+            format!("{out_root}/spawn_overview_seed{}.png", st.seed),
+        ));
+    }
+
+    let want = shots.len();
+    let cfg = pc3d_render::WindowConfig {
+        title: "POORCRAFT 3D — spawn route (N02)".into(),
+        max_frames: Some(prepared.len() as u64 * 40),
+        probe_set: pc3d_render::ProbeSet::SkyOnly,
+        resize_to: Some((800.0, 500.0)),
+        camera_script,
+        shots,
+        frame_hooks,
+        ..Default::default()
+    };
+    match pc3d_render::run_windowed(cfg) {
+        Ok(rep) => {
+            print_window_report(&rep);
+            if rep.captures.len() != want {
+                eprintln!("[FAIL] spawn route: expected {want} captures, got {}", rep.captures.len());
+                std::process::exit(1);
+            }
+            let (w, h) = rep.final_physical;
+            // Pixel sanity: every capture is a real frame (non-blank).
+            for cap in &rep.captures {
+                let px = (w * h * 4) as usize;
+                if cap.rgba.len() != px || distinct_colors(&cap.rgba, w, h) < 8 {
+                    eprintln!("[FAIL] spawn route capture unreadable/blank: {}", cap.path.display());
+                    std::process::exit(1);
+                }
+            }
+            // Resource-in-frame analysis: the tree-mass fraction from the
+            // trust audit applies to the EYE capture when a resource sits
+            // in front of the spawn (the gate law points the player at a
+            // clear quadrant, so this is evidence, not a gate).
+            let mut cap_i = 0usize;
+            for st in &prepared {
+                let cap_eye = &rep.captures[cap_i];
+                cap_i += 1;
+                let cap_over = &rep.captures[cap_i];
+                cap_i += 1;
+                let mut sc = st.sidecar.clone();
+                sc["captures"] = serde_json::json!([
+                    { "role": "spawn_eye", "path": cap_eye.path.display().to_string(),
+                      "tree_mass_fraction": center_tree_mass_fraction(&cap_eye.rgba, w, h),
+                      "mean_rgb": center_mean_color(&cap_eye.rgba, w, h) },
+                    { "role": "spawn_overview", "path": cap_over.path.display().to_string(),
+                      "mean_rgb": center_mean_color(&cap_over.rgba, w, h) },
+                ]);
+                sc["resource_front_m"] = match st.resource_slot_m {
+                    Some(slot) => {
+                        let (x, z) = (slot[0], slot[1]);
+                        serde_json::json!({
+                            "x": x, "z": z,
+                            "dist_m": ((x - st.feet[0]).powi(2) + (z - st.feet[2]).powi(2)).sqrt(),
+                            "bearing_deg": (z - st.feet[2]).atan2(x - st.feet[0]).to_degrees(),
+                        })
+                    }
+                    None => serde_json::Value::Null,
+                };
+                let path = format!("{out_root}/spawn_route_seed{}.json", st.seed);
+                std::fs::write(&path, serde_json::to_string_pretty(&sc).unwrap())
+                    .expect("write spawn-route sidecar");
+            }
+            let index = serde_json::json!({
+                "schema": 1,
+                "command": "--spawn-route",
+                "algo_version": pc3d_world::spawn::SPAWN_ALGO_VERSION,
+                "stops": sidecars.iter().map(|s| serde_json::json!({
+                    "seed": s["seed"], "biome": s["route_biome_tag"],
+                    "used_fallback": s["used_fallback"],
+                })).collect::<Vec<_>>(),
+                "captures": rep.captures.iter().map(|c| c.path.display().to_string())
+                    .collect::<Vec<_>>(),
+                "verdict": "PASS",
+            });
+            std::fs::write(
+                format!("{out_root}/spawn_route_index.json"),
+                serde_json::to_string_pretty(&index).unwrap(),
+            )
+            .expect("write route index");
+            println!("SPAWN ROUTE OK — {} stops, {} captures", prepared.len(), rep.captures.len());
+        }
+        Err(e) => {
+            eprintln!("[FAIL] spawn route windowed evidence: {e}");
             std::process::exit(1);
         }
     }

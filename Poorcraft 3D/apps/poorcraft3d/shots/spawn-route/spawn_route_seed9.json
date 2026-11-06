@@ -1,0 +1,99 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Forest",
+    "feet_m": [
+      2.0,
+      65.01000213623047,
+      -2.0
+    ],
+    "resource": {
+      "kind": "flora.tree_birch",
+      "path_cells": 5,
+      "slot": [
+        0,
+        -2
+      ]
+    },
+    "score": 3.56657075881958,
+    "slot": [
+      0,
+      -1
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        137.40877083333334,
+        150.16321527777777,
+        120.0138298611111
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed9.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.654626727104187
+    },
+    {
+      "mean_rgb": [
+        136.81985243055556,
+        175.3810503472222,
+        116.77327083333333
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed9.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        1
+      ]
+    },
+    {
+      "detail": "[spawn_capsule_clear] spawn feet (-2.00, 65.01, 6.00) vs TreePine trunk at (-2.29, 6.29) : capsule_trunk_distance_m = 0.4107 (tolerance 0.7500, seed 9)",
+      "law": "trust_clearance",
+      "slot": [
+        -1,
+        1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        1,
+        0
+      ]
+    },
+    {
+      "detail": "[spawn_capsule_clear] spawn feet (6.00, 65.01, -2.00) vs TreeBirch trunk at (5.82, -1.59) : capsule_trunk_distance_m = 0.4419 (tolerance 0.7500, seed 9)",
+      "law": "trust_clearance",
+      "slot": [
+        1,
+        -1
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "resource_front_m": {
+    "bearing_deg": -90.0,
+    "dist_m": 4.0,
+    "x": 2.0,
+    "z": -6.0
+  },
+  "route_biome_tag": "Forest",
+  "schema": 1,
+  "seed": 9,
+  "used_fallback": false
+}

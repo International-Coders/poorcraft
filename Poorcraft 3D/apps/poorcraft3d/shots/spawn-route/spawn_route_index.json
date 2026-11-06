@@ -1,0 +1,122 @@
+{
+  "algo_version": 1,
+  "captures": [
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed1.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed1.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed2.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed2.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed3.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed3.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed4.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed4.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed6.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed6.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed7.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed7.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed9.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed9.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed10.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed10.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed11.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed11.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed12.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed12.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed14.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed14.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed17.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed17.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed51.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed51.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed52.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed52.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed55.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed55.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed57.png",
+    "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed57.png"
+  ],
+  "command": "--spawn-route",
+  "schema": 1,
+  "stops": [
+    {
+      "biome": "Highlands",
+      "seed": 1,
+      "used_fallback": false
+    },
+    {
+      "biome": "Plains",
+      "seed": 2,
+      "used_fallback": false
+    },
+    {
+      "biome": "Highlands",
+      "seed": 3,
+      "used_fallback": false
+    },
+    {
+      "biome": "Forest",
+      "seed": 4,
+      "used_fallback": false
+    },
+    {
+      "biome": "Highlands",
+      "seed": 6,
+      "used_fallback": false
+    },
+    {
+      "biome": "Coast",
+      "seed": 7,
+      "used_fallback": false
+    },
+    {
+      "biome": "Forest",
+      "seed": 9,
+      "used_fallback": false
+    },
+    {
+      "biome": "Coast",
+      "seed": 10,
+      "used_fallback": false
+    },
+    {
+      "biome": "Highlands",
+      "seed": 11,
+      "used_fallback": false
+    },
+    {
+      "biome": "Plains",
+      "seed": 12,
+      "used_fallback": false
+    },
+    {
+      "biome": "Highlands",
+      "seed": 14,
+      "used_fallback": false
+    },
+    {
+      "biome": "Forest",
+      "seed": 17,
+      "used_fallback": false
+    },
+    {
+      "biome": "Mountains",
+      "seed": 51,
+      "used_fallback": false
+    },
+    {
+      "biome": "Highlands",
+      "seed": 52,
+      "used_fallback": false
+    },
+    {
+      "biome": "Coast",
+      "seed": 55,
+      "used_fallback": false
+    },
+    {
+      "biome": "Forest",
+      "seed": 57,
+      "used_fallback": false
+    }
+  ],
+  "verdict": "PASS"
+}

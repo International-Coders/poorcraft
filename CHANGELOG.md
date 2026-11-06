@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2026-11-06 — N02: busca de spawn validada multi-seed fecha no POORCRAFT 3D (loop 477)
+
+- `Poorcraft 3D/crates/pc3d_world/src/spawn.rs` reescrito em torno de
+  `decide_spawn(gen, seed) -> SpawnDecision`: busca em anéis concêntricos de
+  slots de flora (4 m, raio 384 ≈ 1,5 km), prefilter de bioma (pula Ocean),
+  leis de suporte (célula sólida + headroom, degrau ≤ 1,0 m, pés secos),
+  margens de água (≤ 3 slots, early-exit) e queda (≤ 3 m), trust gate de
+  produção (`spawn_clearance_violations`: cápsula 0,75 m + visão frontal
+  1,6 m/35° em 8 direções), recurso inicial confirmado por A* com cache de
+  NavPatch, survivors pontuados e fallback tier-2 honesto. `Player::spawn_safe`
+  delega sem mudar call-sites.
+- 9 testes `p3dn02` (determinismo, rejeições nomeadas, yaw quantizado,
+  revalidação total do vencedor, nav-confirm, trust no próprio yaw, sidecar,
+  matriz 32 seeds, fallback honesto) + property `spawn_matrix_ok`.
+- Novas rotas de evidência: `--spawn-matrix` / `make p3d-spawn-matrix` e
+  `--spawn-route` / `make p3d-spawn-route` (captura dupla por seed: olho no
+  yaw do gate + ombro elevado; sidecars + índice; análise de pixels). Ambos
+  entraram no `p3d-beta` (stages `spawn-matrix-16` e `spawn-route-6`).
+- Fix na rota: o seletor de seeds travava em 14/16 quando um bioma da
+  wish-list (SnowPeaks/Mountains) não gerava tier-1 em 400 seeds — depois que
+  a wish-list se torna insatisfatível, fills tier-1 são aceitos livremente
+  (16/16, Mountains via seed 51).
+- Doutrina promovida: `required_next_job` N02 → N03 (json + pino no
+  validador); `12-FILA-DE-EXECUCAO.md` marca N02 FECHADO.
+- Verificação: `make p3d-test` FULL GREEN (render 259, world 312+1 nightly
+  ignored, 0 falhas); doctrine 2/2; matrix 32 seeds OK (20 tier-1
+  gate-clean+determinístico+recurso, 12 fallback honestos); rota 16 stops /
+  32 capturas inspecionadas à mão; probe 256 seeds GREEN (158 tier-1,
+  158/158 gate-clean e nav-confirmado). Seguimento da sessão: fix de
+  performance no `fallback_spawn` (itera regiões, não células — deep-ocean
+  256× menos probes) e o nightly 256-seed virou `#[ignore]` com alvo
+  `make p3d-spawn-matrix-nightly`; DMG renovado; smoke OK.
+
 ## 2026-10-10 — N01: harness adversarial de confiança fecha no POORCRAFT 3D (loop 475)
 
 - Novo `Poorcraft 3D/crates/pc3d_world/src/trust.rs`: tipos puros

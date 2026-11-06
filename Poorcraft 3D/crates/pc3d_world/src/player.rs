@@ -45,72 +45,25 @@ pub struct MoveInput {
 }
 
 impl Player {
-    /// Deterministic safe spawn: start at the SmoothHills scene's region
-    /// center patch and scan outward for a column whose floor is solid,
-    /// with two passable cells above, above sea level. Falls back to a
-    /// deep scan if the scene pin ever moves.
+    /// Deterministic safe spawn — THE N02 validated search (doc 13).
+    /// Delegates to [`crate::spawn::decide_spawn`]: candidate slot rings,
+    /// walkable-support + margin laws, the N01 trust clearance gate at
+    /// the chosen yaw (load-bearing in production), and a nav-CONFIRMED
+    /// starter resource. Falls back to the legacy region-ring expansion
+    /// when the slot search is exhausted; panics only on a true ocean
+    /// world, exactly as before.
     pub fn spawn_safe(gen: &WorldGen) -> Player {
-        // Progressive rings (2, 4, 8, ... patches) around the origin,
-        // REGION-CENTER patches only, with a cheap macro-elevation
-        // prefilter (ocean regions cannot host a land spawn; terrain
-        // features are kilometers wide so small rings can be all ocean).
-        let mut r = 2i32;
-        loop {
-            for px in -r..=r {
-                for pz in -r..=r {
-                    let region = crate::coords::RegionCoord {
-                        x: px.div_euclid(16),
-                        z: pz.div_euclid(16),
-                    };
-                    if gen.macro_field(region).elevation_m < 1 {
-                        continue;
-                    }
-                    // REGION spans 256 cells: its center CELL is
-                    // region*256 + 128 (NOT patch indices — that bug spun
-                    // the scan on an origin-corner forever).
-                    let cell = WorldPosCell {
-                        x: region.x * 256 + 128,
-                        y: 0,
-                        z: region.z * 256 + 128,
-                    };
-                    if let Some(p) = Self::try_spawn_at(gen, cell.x, cell.y, cell.z) {
-                        return p;
-                    }
-                }
-            }
-            r *= 2;
-            if r > 4096 {
-                panic!("no safe spawn found within +-64 km — generator produced an ocean world");
-            }
+        let seed = gen.hash_seed();
+        let decision = crate::spawn::decide_spawn(gen, seed);
+        let feet = decision
+            .feet()
+            .expect("spawn search panicked or returned none — generator produced an ocean world");
+        Player {
+            pos: feet,
+            vel: [0.0; 3],
+            on_ground: true,
+            swimming: false,
         }
-    }
-
-    fn try_spawn_at(gen: &WorldGen, cx: i32, _cy: i32, cz: i32) -> Option<Player> {
-        // Find the surface: topmost solid cell in a generous y range.
-        let wx = cx as i64 * 1000;
-        let wz = cz as i64 * 1000;
-        // Sea-level and terrain range bound the scan.
-        for surface_y in (0..=48).rev() {
-            let floor_solid = solid_at(gen, cx, surface_y, cz);
-            if !floor_solid {
-                continue;
-            }
-            let feet = surface_y + 1;
-            if feet <= 0 {
-                continue; // below sea level: not land spawn
-            }
-            // Two passable cells above the floor.
-            if passable_at(gen, cx, feet, cz) && passable_at(gen, cx, feet + 1, cz) {
-                return Some(Player {
-                    pos: [cx as f32, feet as f32 + 0.01, cz as f32],
-                    vel: [0.0; 3],
-                    on_ground: true,
-                    swimming: false,
-                });
-            }
-            break; // surface found but blocked above: not spawnable here
-        }
-        None
     }
 
     /// One deterministic 60 Hz tick.
@@ -264,13 +217,6 @@ pub fn is_water_at(gen: &WorldGen, x: f32, y: f32, z: f32) -> bool {
         (z.floor() as i64) * 1000,
     );
     a.material == CellMaterial::Water
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct WorldPosCell {
-    x: i32,
-    y: i32,
-    z: i32,
 }
 
 #[cfg(test)]

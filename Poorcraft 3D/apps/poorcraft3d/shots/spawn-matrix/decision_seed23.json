@@ -1,0 +1,32 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Coast",
+    "feet_m": [
+      -3968.0,
+      2.009999990463257,
+      -3456.0
+    ],
+    "resource": null,
+    "score": null,
+    "slot": [
+      -992,
+      -864
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 0,
+  "rejections_tail": [
+    {
+      "detail": "tier-1 slot search exhausted; legacy region cell won",
+      "law": "fallback_used",
+      "slot": [
+        -992,
+        -864
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 23,
+  "used_fallback": true
+}

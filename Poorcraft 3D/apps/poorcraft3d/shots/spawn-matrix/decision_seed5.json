@@ -1,0 +1,32 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Plains",
+    "feet_m": [
+      3456.0,
+      5.010000228881836,
+      -3968.0
+    ],
+    "resource": null,
+    "score": null,
+    "slot": [
+      864,
+      -992
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 0,
+  "rejections_tail": [
+    {
+      "detail": "tier-1 slot search exhausted; legacy region cell won",
+      "law": "fallback_used",
+      "slot": [
+        864,
+        -992
+      ]
+    }
+  ],
+  "schema": 1,
+  "seed": 5,
+  "used_fallback": true
+}

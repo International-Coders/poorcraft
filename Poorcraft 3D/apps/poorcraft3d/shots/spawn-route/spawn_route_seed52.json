@@ -1,0 +1,58 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Highlands",
+    "feet_m": [
+      6.0,
+      83.01000213623047,
+      6.0
+    ],
+    "resource": {
+      "kind": "flora.rock_boulder",
+      "path_cells": 5,
+      "slot": [
+        2,
+        1
+      ]
+    },
+    "score": 2.72570538520813,
+    "slot": [
+      1,
+      1
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        181.455921875,
+        175.49211979166665,
+        164.11279166666668
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed52.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.16084374487400055
+    },
+    {
+      "mean_rgb": [
+        179.66107465277778,
+        178.85971875,
+        172.07497569444445
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed52.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 9,
+  "rejections_tail": [],
+  "resource_front_m": {
+    "bearing_deg": 0.0,
+    "dist_m": 4.0,
+    "x": 10.0,
+    "z": 6.0
+  },
+  "route_biome_tag": "Highlands",
+  "schema": 1,
+  "seed": 52,
+  "used_fallback": false
+}

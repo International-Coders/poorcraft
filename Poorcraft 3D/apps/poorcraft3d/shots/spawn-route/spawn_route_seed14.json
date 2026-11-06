@@ -1,0 +1,91 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Highlands",
+    "feet_m": [
+      -2.0,
+      63.0099983215332,
+      2.0
+    ],
+    "resource": {
+      "kind": "flora.rock_boulder",
+      "path_cells": 5,
+      "slot": [
+        -1,
+        1
+      ]
+    },
+    "score": 3.3025670051574707,
+    "slot": [
+      -1,
+      0
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        189.35297569444444,
+        186.0937986111111,
+        164.64288888888888
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed14.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.18893924355506897
+    },
+    {
+      "mean_rgb": [
+        173.06979513888888,
+        181.00544444444444,
+        162.49811805555555
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed14.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 9,
+  "rejections_tail": [
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -1,
+        1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        -1
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        0,
+        0
+      ]
+    }
+  ],
+  "resource_front_m": {
+    "bearing_deg": 90.0,
+    "dist_m": 4.0,
+    "x": -2.0,
+    "z": 6.0
+  },
+  "route_biome_tag": "Highlands",
+  "schema": 1,
+  "seed": 14,
+  "used_fallback": false
+}

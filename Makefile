@@ -457,6 +457,8 @@ p3d-beta: ## THE 38-stage beta battery: every proof the game owns, one report ("
 	stage asset-sidecars       "$$BIN" --asset-sidecar all "$$SHOTS"; \
 	stage layout-laws          "$$BIN" --gate-check "$$SHOTS"; \
 	stage headless-smoke       "$$BIN" --run 5; \
+	stage spawn-matrix-16      "$$BIN" --spawn-matrix 16 "$$SHOTS/spawn-matrix"; \
+	stage spawn-route-6        "$$BIN" --spawn-route "$$SHOTS/spawn-route" 6; \
 	stage journey-42           "$$BIN" --journey 42; \
 	stage diagnose-2024        "$$BIN" --diagnose 2024; \
 	stage soak-30d             "$$BIN" --soak 30 4242; \
@@ -504,3 +506,17 @@ p3d-beta: ## THE 38-stage beta battery: every proof the game owns, one report ("
 ## Scaffold a new mod folder (Step 39): make new-mod id=foo name="Foo"
 new-mod:
 	cd $(LEGACY_DIR) && cargo run -p xtask -- new-mod $(id) $(if $(name),--name "$(name)",)
+
+p3d-spawn-matrix: ## N02: headless multi-seed spawn authority matrix (gate-clean tier-1 spawns + sidecars): make p3d-spawn-matrix [N=32]
+	$(P3D_BUILD)
+	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --spawn-matrix $(if $(N),$(N),32) "$$(pwd)/Poorcraft 3D/apps/poorcraft3d/shots/spawn-matrix" || exit 1; \
+	echo "P3D SPAWN MATRIX OK"
+
+p3d-spawn-route: ## N02: windowed 16-stop visual spawn route (eye+overview per seed, PNG+sidecar): make p3d-spawn-route [N=16]
+	$(P3D_BUILD)
+	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --spawn-route "$$(pwd)/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route" $(if $(N),$(N),16) || exit 1; \
+	echo "P3D SPAWN ROUTE OK"
+
+p3d-spawn-matrix-nightly: ## N02 nightly: the 256-seed spawn matrix (ignored test, release profile; ~4-5 min): make p3d-spawn-matrix-nightly
+	cd "Poorcraft 3D" && cargo test -p pc3d_world --release p3dn02_matrix_nightly -- --ignored && \
+	echo "P3D SPAWN MATRIX NIGHTLY OK"

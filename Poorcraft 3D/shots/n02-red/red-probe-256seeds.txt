@@ -1,0 +1,4 @@
+    Finished `release` profile [optimized] target(s) in 0.27s
+     Running `target/release/examples/spawn_repro 256`
+A: slot-region biomes at spawn over 256 seeds: {Coast: 61, Plains: 94, Forest: 53, Wetland: 3, Highlands: 40, Mountains: 5}
+B: euclidean resource within 10 slots: 256/256; nav-path-confirmed: 196/256; none at all: 0/256

@@ -1,0 +1,30 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Forest",
+    "feet_m": [
+      -2.0,
+      41.0099983215332,
+      2.0
+    ],
+    "resource": {
+      "kind": "flora.tree_birch",
+      "path_cells": 5,
+      "slot": [
+        -2,
+        0
+      ]
+    },
+    "score": 2.5855679512023926,
+    "slot": [
+      -1,
+      0
+    ],
+    "yaw_deg": 0.0
+  },
+  "evaluated": 9,
+  "rejections_tail": [],
+  "schema": 1,
+  "seed": 30,
+  "used_fallback": false
+}

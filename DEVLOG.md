@@ -10980,3 +10980,64 @@ fotografar ainda; o sidecar registra a indisponibilidade com razão, e as
 capturas reais chegam com N03 (RiverCarve) e N05 (viewmodel real). N02 agora
 é o primeiro job não fechado e deve consumir `spawn_clearance_violations` no
 `spawn_safe` de produção (hoje as leis novas valem nos testes e na auditoria).
+
+## Session: N02 — busca de spawn validada multi-seed fecha no `Poorcraft 3D/` (loop 477, 2026-11-06)
+
+O que foi feito: a lei "spawn é uma busca validada, nunca um ponto aproximado"
+virou código autoritativo em `pc3d_world::spawn`. COMO:
+
+- `spawn.rs` reescrito em torno de `decide_spawn(gen, seed) -> SpawnDecision`:
+  anéis concêntricos de slots de flora (4 m, raio 384 ≈ 1,5 km), prefilter de
+  bioma via macro-field (pula Ocean), leis de suporte do slot (chão sólido por
+  índice de célula + headroom, degrau de canto ≤ 1,0 m, pés secos acima do mar),
+  margens (água ≤ 3 slots com early-exit, queda ≤ 3 m), trust gate de produção
+  consumindo `pc3d_world::trust::spawn_clearance_violations` (cápsula 0,75 m vs
+  troncos + visão frontal 1,6 m/35° em 8 direções), recurso inicial (Tree/Log/
+  RockBoulder) confirmado por A* com cache de NavPatch (≤ 8 candidatos
+  euclidianos, caminho ≤ 256 células), survivors pontuados (flat 1,0 / recurso
+  0,5 / origem 0,02) e fallback tier-2 honesto (`used_fallback`) para mundos
+  oceânicos profundos. `Player::spawn_safe` delega sem mudar call-sites.
+- Provas: `spawn_matrix_ok(range)` property test; `MatrixRow` +
+  `to_sidecar_json()` para evidência; 9 testes `p3dn02` (determinismo,
+  rejeições nomeadas, yaw quantizado em bússola, revalidação de todas as leis
+  no vencedor, nav-confirm do recurso, trust gate no próprio yaw, sidecar
+  redondo, matriz 32 seeds, fallback honesto).
+- Rotas de evidência: `--spawn-matrix N out` (headless, sidecars
+  `decision_seed{N}.json` + `spawn_matrix.json`) e `--spawn-route out N`
+  (janelada, 16 paradas por bioma — Coast/Plains/Forest/Highlands/Mountains —,
+  captura dupla por parada: olho no yaw do gate + ombro elevado olhando o
+  recurso; sidecar por seed + índice; pixels não-branco verificados). Alvos
+  `p3d-spawn-matrix`/`p3d-spawn-route` no Makefile e ambos dentro do
+  `p3d-beta` (stages `spawn-matrix-16` e `spawn-route-6`).
+- Doutrina promovida: `required_next_job` N02 → N03 (json + pino no
+  validador `doctrine.rs`); `12-FILA-DE-EXECUCAO.md` marca N02 FECHADO.
+
+VERIFICATION: pc3d_world 313/313 (9 p3dn02 novos); doctrine-check 2/2 (pino
+N03); `make p3d-spawn-matrix N=32` → 32 seeds OK (20 tier-1 + 12 fallback,
+pior decisão 3,45 s); `make p3d-spawn-route N=16` → 16 paradas / 32 capturas
+OK em `apps/poorcraft3d/shots/spawn-route/` (sidecars com tree_mass do olho,
+ex.: seed 51 Mountains eye tm 0,488; índice verdict PASS). Capturas
+inspecionadas à mão (seed7 Coast eye, seed51 Mountains eye/overview, seed2
+Plains overview): terreno, céu e flora reais, duas perspectivas distintas.
+Probe 256 seeds: 158 tier-1 / 158 gate-clean / 158 nav-confirmado, 6 biomas.
+
+HONESTLY DEFERRED: a rota visual não fotografou stops de fallback
+(deep-ocean) nesta bateria de 16 — o seletor prioriza tier-1 por bioma; os
+12 fallbacks do matrix têm sidecar mas sem captura (a captura de fallback
+entra na bateria N03/N04 quando água ganhar autoridade de leito).
+
+SEGUIMENTO (mesma sessão): o `sample` do teste debug expôs dois custos
+reais. (1) `fallback_spawn` iterava CÉLULAS e recalculava o mesmo
+macro-field da região 256× — corrigido para iterar regiões diretamente
+(O(regiões), não O(células)); deep-ocean cai de segundos para milissegundos
+no release. (2) Em debug (~30× mais lento em NavPatch::from_gen), o matrix
+de 256 seeds custava horas — a suíte padrão agora roda 8-seed spot check em
+debug / 32 em release (a lei de 32 vale no release via `make p3d-spawn-matrix`
+e no p3d-beta), e o nightly 256 virou `#[ignore]` com alvo dedicado
+`make p3d-spawn-matrix-nightly` (release, ~4,5 min, 9/9 p3dn02 com ele
+incluído). Suíte completa `make p3d-test` rerun: TODOS VERDES (render 259,
+world 312+1 ignored, save/assets/audio/core; 0 falhas — os 3 timeouts de GPU
+`surface_stream` da corrida anterior não recursaram; eram starvation de
+submissão wgpu sob a corrida debug patológica). Evidência regenerada com o
+binário corrigido: matrix 32 (20 tier-1 gate-clean+det+recurso, 12 fallback),
+rota 16/32, DMG renovado (Nov 6 08:15), smoke OK, doctrine 2/2.

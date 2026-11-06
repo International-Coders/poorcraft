@@ -1,0 +1,571 @@
+{
+  "algo_version": 1,
+  "candidate": {
+    "biome": "Coast",
+    "feet_m": [
+      -1082.0,
+      1.0099999904632568,
+      1006.0
+    ],
+    "resource": {
+      "kind": "flora.rock_boulder",
+      "path_cells": 5,
+      "slot": [
+        -272,
+        251
+      ]
+    },
+    "score": 32.92033386230469,
+    "slot": [
+      -271,
+      251
+    ],
+    "yaw_deg": 0.0
+  },
+  "captures": [
+    {
+      "mean_rgb": [
+        210.4037204861111,
+        198.54357118055555,
+        173.98608506944444
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed55.png",
+      "role": "spawn_eye",
+      "tree_mass_fraction": 0.007499999832361937
+    },
+    {
+      "mean_rgb": [
+        215.14708854166668,
+        205.94383506944445,
+        172.16497222222222
+      ],
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed55.png",
+      "role": "spawn_overview"
+    }
+  ],
+  "evaluated": 2482,
+  "rejections_tail": [
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -257,
+        273
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -258,
+        273
+      ]
+    },
+    {
+      "detail": "slot (+0,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -259,
+        273
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -260,
+        273
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -261,
+        273
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -262,
+        273
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -263,
+        273
+      ]
+    },
+    {
+      "detail": "slot (-3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -264,
+        273
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -265,
+        273
+      ]
+    },
+    {
+      "detail": "slot (-1,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -266,
+        273
+      ]
+    },
+    {
+      "detail": "slot (+0,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -267,
+        273
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -268,
+        273
+      ]
+    },
+    {
+      "detail": "slot (+2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -269,
+        273
+      ]
+    },
+    {
+      "detail": "slot (+3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -270,
+        273
+      ]
+    },
+    {
+      "detail": "slot (+2,-2) is water",
+      "law": "water_margin",
+      "slot": [
+        -271,
+        273
+      ]
+    },
+    {
+      "detail": "slot (+3,-2) is water",
+      "law": "water_margin",
+      "slot": [
+        -272,
+        273
+      ]
+    },
+    {
+      "detail": "slot (+1,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        272
+      ]
+    },
+    {
+      "detail": "slot (+2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        271
+      ]
+    },
+    {
+      "detail": "slot (+2,-2) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        270
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        269
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        268
+      ]
+    },
+    {
+      "detail": "slot (+2,+1) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        267
+      ]
+    },
+    {
+      "detail": "slot (+2,+2) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        266
+      ]
+    },
+    {
+      "detail": "slot (+2,+3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        265
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -273,
+        260
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        259
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -273,
+        255
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -273,
+        254
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -273,
+        253
+      ]
+    },
+    {
+      "detail": "no nav-confirmed starter resource within 10 slots",
+      "law": "resource_reachable",
+      "slot": [
+        -273,
+        252
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        251
+      ]
+    },
+    {
+      "detail": "slot (-2,-2) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        250
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        249
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        248
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        247
+      ]
+    },
+    {
+      "detail": "slot (+0,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        246
+      ]
+    },
+    {
+      "detail": "slot (-3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        245
+      ]
+    },
+    {
+      "detail": "slot (-3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        244
+      ]
+    },
+    {
+      "detail": "slot (-3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        243
+      ]
+    },
+    {
+      "detail": "slot (+0,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        242
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        241
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        240
+      ]
+    },
+    {
+      "detail": "slot (+3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        239
+      ]
+    },
+    {
+      "detail": "slot (+3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        238
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        237
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        236
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        235
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        234
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        233
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        232
+      ]
+    },
+    {
+      "detail": "slot (+0,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        231
+      ]
+    },
+    {
+      "detail": "slot (+0,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        230
+      ]
+    },
+    {
+      "detail": "slot (-3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        229
+      ]
+    },
+    {
+      "detail": "slot (-3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        228
+      ]
+    },
+    {
+      "detail": "slot (-3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        227
+      ]
+    },
+    {
+      "detail": "slot (-3,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        226
+      ]
+    },
+    {
+      "detail": "slot (+0,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        225
+      ]
+    },
+    {
+      "detail": "slot (+0,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        224
+      ]
+    },
+    {
+      "detail": "slot (-1,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        223
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        222
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        221
+      ]
+    },
+    {
+      "detail": "slot (-2,-3) is water",
+      "law": "water_margin",
+      "slot": [
+        -273,
+        220
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        219
+      ]
+    },
+    {
+      "detail": "steep, underwater, or below sea",
+      "law": "walkable_support",
+      "slot": [
+        -273,
+        218
+      ]
+    }
+  ],
+  "resource_front_m": {
+    "bearing_deg": 180.0,
+    "dist_m": 4.0,
+    "x": -1086.0,
+    "z": 1006.0
+  },
+  "route_biome_tag": "Coast",
+  "schema": 1,
+  "seed": 55,
+  "used_fallback": false
+}

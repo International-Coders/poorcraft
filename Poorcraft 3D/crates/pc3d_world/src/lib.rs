@@ -64,6 +64,7 @@ pub mod scale;
 pub mod scales;
 pub mod seed_preview;
 pub mod session;
+pub mod spawn;
 pub mod settlement;
 pub mod settlement_plan;
 pub mod soak;
