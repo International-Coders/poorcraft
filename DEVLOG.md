@@ -11092,7 +11092,10 @@ HONESTLY DEFERRED: `trust::water_bed_violations` ainda amostra a
 superfície analítica (deve ler o leito ESCULPIDO) — primeira ação da
 polir N03/ponte N04; a rota entrega 2 câmeras por seed (o cartão pede
 dez, incluindo passes depth/normals/water-id/wireframe) — extensão
-registrada no STATE; runtime/DMG não regenerados nesta sessão (binário
-release funcional verificado pela rota; DMG entra no próximo fechamento
-com beta completo).
+registrada no STATE.
+
+RUNTIME (pós-commit ea03dfb0): `make p3d-dmg` OK —
+`Poorcraft 3D/dist3d/poorcraft3d-macos.dmg` (3,9 MB, Nov 6 10:41);
+`make smoke` OK (binário release vivo 12 s, saída limpa). Linux/Windows
+honestamente deferidos (host Darwin sem cross tooling).
 
