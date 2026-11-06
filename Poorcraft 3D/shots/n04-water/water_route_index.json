@@ -1,0 +1,21 @@
+{
+  "captures": [
+    "shots/n04-water/water_overview_seed4242.png",
+    "shots/n04-water/water_bank_seed4242.png",
+    "shots/n04-water/water_overview_seed11.png",
+    "shots/n04-water/water_bank_seed11.png",
+    "shots/n04-water/water_overview_seed555.png",
+    "shots/n04-water/water_bank_seed555.png",
+    "shots/n04-water/water_overview_seed7.png",
+    "shots/n04-water/water_bank_seed7.png"
+  ],
+  "command": "--water-route",
+  "schema": 1,
+  "seeds": [
+    4242,
+    11,
+    555,
+    7
+  ],
+  "verdict": "PASS"
+}

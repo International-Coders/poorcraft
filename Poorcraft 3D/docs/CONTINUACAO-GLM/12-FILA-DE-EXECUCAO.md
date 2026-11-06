@@ -58,10 +58,38 @@ no p3d-beta; suíte 740/0; probe RED arquivado (shots/n03-red). Deferrals
 registrados no STATE: trust bed gate lê a superfície analítica (mover ao
 leito esculpido) e 2/10 câmeras por seed (depth/normals/water-id/wireframe).
 
-### N04 — GroundingResult universal
+### N04 — GroundingResult universal — FECHADO (loop 479, 2026-11-06)
 
 Árvores, pedras, estruturas e loot usam uma autoridade; remover correções Y no
 renderer. Captura collision/normal/footprint.
+
+Fechado: `pc3d_world::grounding` (GroundingResult: surface_y_mm = topo da
+célula sólida mais alta, normal/slope por diferenças centrais 1 m, material,
+clearance de cápsula até 16 m, grounded, channel_hit; GroundQuery Point /
+Footprint {half_w,half_h} responde a coluna mais baixa / Capsule {r,h};
+`foundation_ok` exige coluna sólida, seca, fora de canal em toda a área;
+FORBIDDEN_OFFSETS registra os 3 offsets históricos). Consumidores migrados:
+NPC (`npc_world_pos` via Capsule — o +1.0 m apagado; âncoras de frame via
+Point), flora (`table_pick` recusa planta em coluna afogada; instanciação
+GPU e grama via Point), city (`surface_base` = mínimo do footprint; portos
+de nav via Point com convenção y-sólida documentada), settlement (water wheel
+na superfície d'água esculpida, dock via Footprint; âncoras via Point),
+slice (spawn e props de praça via Point), water (`strip_for`, detector de
+cruzamento e `water_y` de prova leem `river_channel().surface_m` dentro do
+canal — a faixa ficava na margem analítica +0,35 m, metros acima do leito),
+`renderer.ground_y_at` fallback via Point (streamed deltas compõem antes, lei
+das camadas). Gate estático `tests/n04_forbidden_offsets.rs` varre as fontes
+de produção do pc3d_render e falha se um offset Y-particular sobrevive em
+componente de grounding — provado por mutação (injetado `+1.0` → gate RED,
+restaurado → GREEN). Fechamento: pc3d_world 324/0, pc3d_render 259/0 +
+gate 1/1, suite completa p3d-test verde; `--play-npcs` (torso ocupado,
+sky-delta 0.49–0.75) e `--water-route 4` (8 capturas, sidecars verdict PASS:
+voxel truth bed_solid + water_cells ≥ 2, água visível em overview e margem)
+regenerados pós-fix e inspecionados; testes p3dn04_* (8) cobrem plano,
+encosta, canal, footprint, fundação e cápsula. Deferral honesto: campo
+`confidence`/`version` do card não tem consumidor jogável ainda — entra
+quando o primeiro consumidor o exigir (lei do card: nada entra sem
+consumidor).
 
 ### N05 — Viewmodel foundation
 

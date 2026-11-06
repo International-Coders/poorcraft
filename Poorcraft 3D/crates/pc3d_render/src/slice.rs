@@ -157,10 +157,13 @@ pub fn spawn_player(scene: &SliceScene) -> PlayerBody {
     let gate = scene.gate;
     let wx = plaza.x as f32 + 0.5;
     let wz = plaza.z as f32 + 0.5;
-    let gy = scene
-        .gen
-        .effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64) as f32
-        / 1000.0;
+    let gy = pc3d_world::grounding::ground_at(
+        &scene.gen,
+        (wx * 1000.0) as i64,
+        (wz * 1000.0) as i64,
+        pc3d_world::grounding::GroundQuery::Point,
+    )
+    .surface_m();
     // Look toward the gate (walk forward = hf = [-sin yaw, -cos yaw]).
     let dx = gate.x as f32 + 0.5 - wx;
     let dz = gate.z as f32 + 0.5 - wz;
@@ -444,11 +447,15 @@ mod tests {
             "spawn is the plaza center, got {:?}",
             p.pos
         );
-        let surf = scene
-            .gen
-            .effective_surface_mm((p.pos[0] * 1000.0) as i64, (p.pos[2] * 1000.0) as i64)
-            as f32
-            / 1000.0;
+        // N04: the spawn assertion reads the same voxel authority the
+        // spawn grounds through (feet = top of the topmost solid cell).
+        let surf = pc3d_world::grounding::ground_at(
+            &scene.gen,
+            (p.pos[0] * 1000.0) as i64,
+            (p.pos[2] * 1000.0) as i64,
+            pc3d_world::grounding::GroundQuery::Point,
+        )
+        .surface_m();
         assert!(
             (p.pos[1] - surf).abs() < 0.2,
             "spawn feet sit on the surface ({:?} vs {surf})",
@@ -943,11 +950,14 @@ pub fn assemble_rebuild(
             if let Ok(asset) = crate::glb::load_asset_file(&path) {
                 let wx = plaza.x as f32 + ox as f32 + 0.5;
                 let wz = plaza.z as f32 + oz as f32 + 0.5;
-                let gy = scene
-                    .gen
-                    .effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64)
-                    as f32
-                    / 1000.0;
+                // N04: props ground through the voxel authority.
+                let gy = pc3d_world::grounding::ground_at(
+                    &scene.gen,
+                    (wx * 1000.0) as i64,
+                    (wz * 1000.0) as i64,
+                    pc3d_world::grounding::GroundQuery::Point,
+                )
+                .surface_m();
                 r.load_asset(&asset, "lod0", [wx, gy, wz]);
                 [wx, gy, wz]
             } else {

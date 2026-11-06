@@ -488,11 +488,14 @@ pub fn assemble_kit(
         0.0,
         "plaza_banner",
     );
-    if let Some((wx, wz, ground)) = nearest_river_point(gen, plan.plaza) {
-        let y = ground - 0.2;
+    if let Some((wx, wz, water_y)) = nearest_river_point(gen, plan.plaza) {
+        // N04: the wheel origin sits at the CARVE water surface — the
+        // asset's `water_line` socket (y = -0.2 in asset space) encodes
+        // the dip; no by-eye sink is legal. The dock grounds on the bank
+        // through the authority (Footprint: foundation uses the area).
         scene.placements.push(Placement {
             module: KitModule::WaterWheel,
-            pos: [wx, y, wz],
+            pos: [wx, water_y, wz],
             rot_y: 0.0,
             scale: 1.0,
             serves: "water_wheel",
@@ -501,10 +504,17 @@ pub fn assemble_kit(
             .count_by_module
             .entry(KitModule::WaterWheel.name())
             .or_insert(0) += 1;
+        let dock_y = pc3d_world::grounding::ground_at(
+            gen,
+            (wx * 1000.0) as i64,
+            ((wz + 6.0) * 1000.0) as i64,
+            pc3d_world::grounding::GroundQuery::Footprint { half_w_m: 1.0, half_h_m: 3.0 },
+        )
+        .surface_m();
         // The dock reaches the bank from the wheel.
         scene.placements.push(Placement {
             module: KitModule::BridgeDock,
-            pos: [wx, y, wz + 6.0],
+            pos: [wx, dock_y, wz + 6.0],
             rot_y: 0.0,
             scale: 1.0,
             serves: "dock",
@@ -516,25 +526,32 @@ pub fn assemble_kit(
     }
 
     // Anchor marker boxes (bed plum / work marker / idle green) at the
-    // plan's D-033 zones on the local ground.
+    // plan's D-033 zones, grounded through THE authority (N04): the box
+    // sits ON the ground (a marker is a Point consumer; contact ≤ 2 cm).
     let cell_ground = |c: &CellCoord| -> f32 {
-        gen.effective_surface_mm(c.x as i64 * 1000, c.z as i64 * 1000) as f32 / 1000.0
+        pc3d_world::grounding::ground_at(
+            gen,
+            c.x as i64 * 1000,
+            c.z as i64 * 1000,
+            pc3d_world::grounding::GroundQuery::Point,
+        )
+        .surface_m()
     };
     for c in plan.anchors.bed_cells.iter().take(4) {
         scene.anchor_boxes.push((
-            [c.x as f32 + 0.5, cell_ground(c) + 0.5, c.z as f32 + 0.5],
+            [c.x as f32 + 0.5, cell_ground(c), c.z as f32 + 0.5],
             [0.55, 0.25, 0.60],
         ));
     }
     for c in plan.anchors.work_cells.iter().take(4) {
         scene.anchor_boxes.push((
-            [c.x as f32 + 0.5, cell_ground(c) + 0.5, c.z as f32 + 0.5],
+            [c.x as f32 + 0.5, cell_ground(c), c.z as f32 + 0.5],
             [0.95, 0.45, 0.10],
         ));
     }
     for c in plan.anchors.idle_cells.iter().take(4) {
         scene.anchor_boxes.push((
-            [c.x as f32 + 0.5, cell_ground(c) + 0.5, c.z as f32 + 0.5],
+            [c.x as f32 + 0.5, cell_ground(c), c.z as f32 + 0.5],
             [0.55, 0.68, 0.55],
         ));
     }
@@ -557,7 +574,9 @@ fn kit_authored_long(m: KitModule) -> f32 {
 }
 
 /// The nearest river point within a few regions of a cell (deterministic
-/// scan; None when the town sits dry).
+/// scan; None when the town sits dry). Returns the CARVE water surface
+/// height at the channel center (N04: consumers answer the water, not
+/// the analytic bank).
 fn nearest_river_point(gen: &WorldGen, from: CellCoord) -> Option<(f32, f32, f32)> {
     let graph = pc3d_world::hydro::RiverGraph::new(gen, 24);
     let cr = pc3d_world::coords::RegionCoord {
@@ -584,8 +603,14 @@ fn nearest_river_point(gen: &WorldGen, from: CellCoord) -> Option<(f32, f32, f32
     let (reg, _) = best?;
     let wx = (reg.x as f32 + 0.5) * 256.0;
     let wz = (reg.z as f32 + 0.5) * 256.0;
-    let ground =
-        gen.effective_surface_mm((wx * 1000.0) as i64, (wz * 1000.0) as i64) as f32 / 1000.0;
+    let wx_mm = (wx * 1000.0) as i64;
+    let wz_mm = (wz * 1000.0) as i64;
+    // N04: answer the carve water surface when the channel is here (the
+    // wheel turns IN water); fall back to the analytic bank otherwise.
+    let ground = match gen.river_channel(wx_mm, wz_mm) {
+        Some(ch) => ch.surface_m,
+        None => gen.effective_surface_mm(wx_mm, wz_mm) as f32 / 1000.0,
+    };
     Some((wx, wz, ground))
 }
 
@@ -1240,8 +1265,13 @@ mod tests {
             Some(k) => (k.pos[0] + 30.0, k.pos[2] + 30.0),
             None => (a.bounds_min[0] + 20.0, a.bounds_min[2] + 20.0),
         };
-        let gy =
-            gen.effective_surface_mm((ex * 1000.0) as i64, (ez * 1000.0) as i64) as f32 / 1000.0;
+        let gy = pc3d_world::grounding::ground_at(
+            &gen,
+            (ex * 1000.0) as i64,
+            (ez * 1000.0) as i64,
+            pc3d_world::grounding::GroundQuery::Point,
+        )
+        .surface_m();
         let eye = [ex, gy + 16.0, ez];
         let target = keep.map(|k| k.pos).unwrap_or([ex - 30.0, gy, ez - 30.0]);
         let d = [

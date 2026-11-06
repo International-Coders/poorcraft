@@ -249,12 +249,23 @@ fn push_pitched_roof(
 // ---------------------------------------------------------------------------
 
 pub(crate) fn surface_base(gen: &WorldGen, x0: i32, z0: i32, fw: i32, fh: i32) -> f32 {
-    // The lowest surface over the footprint: modules stand on it.
+    // N04: the LOWEST GROUNDED column over the footprint through THE
+    // authority — voxel truth (carve included), not the analytic bank
+    // (a footprint crossing a carved channel sinks to the bed/water
+    // edge instead of floating at bank level).
     let mut base = f32::MAX;
     for dx in 0..fw {
         for dz in 0..fh {
-            let mm = gen.effective_surface_mm((x0 + dx) as i64 * 1000, (z0 + dz) as i64 * 1000);
-            base = base.min(mm as f32 / 1000.0);
+            let wx = (x0 + dx) as i64 * 1000;
+            let wz = (z0 + dz) as i64 * 1000;
+            let g = pc3d_world::grounding::ground_at(
+                gen,
+                wx,
+                wz,
+                pc3d_world::grounding::GroundQuery::Point,
+            );
+            let y = if g.grounded { g.surface_m() } else { f32::MAX };
+            base = base.min(y);
         }
     }
     base
@@ -691,8 +702,21 @@ pub fn mesh_city(
     // Anchors sit on the LOCAL terrain surface at their column (a port two
     // cells downhill from its module must not float at module floor level).
     let ground = |x: i32, z: i32| -> i32 {
-        gen.effective_surface_mm(x as i64 * 1000, z as i64 * 1000)
-            .div_euclid(1000) as i32
+        // N04: nav anchors ground through the voxel authority (a port on a
+        // carved bank must answer the voxels, not the analytic bank).
+        // Anchor convention: cell.y names the SOLID ground cell (feet at
+        // y+1), so subtract the feet cell the authority answers.
+        let g = pc3d_world::grounding::ground_at(
+            gen,
+            x as i64 * 1000,
+            z as i64 * 1000,
+            pc3d_world::grounding::GroundQuery::Point,
+        );
+        if g.grounded {
+            (g.surface_y_mm.div_euclid(1000) - 1) as i32
+        } else {
+            gen.effective_surface_mm(x as i64 * 1000, z as i64 * 1000).div_euclid(1000) as i32
+        }
     };
     let kit = manifest();
     for m in layout.modules.iter() {
@@ -1284,9 +1308,16 @@ mod tests {
         let pillar_ndc = project_ndc(gate_pose, aspect, pillar);
         let gate_path = std::env::temp_dir().join("pc3d_city_gate.png");
         let (gate_report, gate_rgba) = r.capture_png(&gate_path, &[]);
-        // An extreme close-up of two stone pillars is legitimately a couple
-        // of flat colors; the arch-vs-pillar delta below carries the proof.
-        assert!(gate_report.distinct_colors >= 4);
+        // N04 recalibration: module bases now sit ON the voxel surface
+        // (the old analytic base sank them 0.6 m, and the level-gaze
+        // close-up used to catch a terrain strip in frame). An extreme
+        // close-up of flat stone faces is legitimately 2-3 colors; the
+        // floor only gates a BLANK CLEAR (= 1). The semantic proofs are
+        // the arch-vs-pillar delta and the pillar lit-stone match below.
+        assert!(
+            gate_report.distinct_colors >= 2,
+            "gate close-up is a blank clear ({})", gate_report.distinct_colors
+        );
         let arch_px = sample_ndc(&gate_rgba, 384, 288, arch_ndc);
         let pillar_px = sample_ndc(&gate_rgba, 384, 288, pillar_ndc);
         let delta: f32 = (0..3).map(|i| (arch_px[i] - pillar_px[i]).abs()).sum();

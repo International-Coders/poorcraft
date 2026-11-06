@@ -1,0 +1,48 @@
+{
+  "captures": [
+    {
+      "mean_rgb": [
+        229.9454375,
+        208.57975,
+        174.3640902777778
+      ],
+      "path": "shots/n04-water/water_overview_seed11.png",
+      "role": "overview",
+      "water_blue_px": 1307
+    },
+    {
+      "mean_rgb": [
+        210.75056944444444,
+        194.77136805555557,
+        171.73379166666666
+      ],
+      "path": "shots/n04-water/water_bank_seed11.png",
+      "role": "bank",
+      "water_blue_px": 3772
+    }
+  ],
+  "channel_midpoint_m": {
+    "depth_m": 1.5920000076293945,
+    "water_surface_m": -14.286999702453613,
+    "x": 6272.0,
+    "z": 256.0
+  },
+  "command": "--water-route",
+  "edge": {
+    "from": [
+      24,
+      1
+    ],
+    "to": [
+      24,
+      0
+    ]
+  },
+  "schema": 1,
+  "seed": 11,
+  "verdict": "PASS",
+  "voxel_truth": {
+    "bed_solid": true,
+    "water_cells_above_bed": 1
+  }
+}

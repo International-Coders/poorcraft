@@ -1345,7 +1345,16 @@ impl Renderer {
                 return g;
             }
         }
-        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+        // N04: outside the streamed ring the answer is the VOXEL truth
+        // (ground_at), never the analytic bank — carved channels lie by
+        // meters at the analytic layer.
+        pc3d_world::grounding::ground_at(
+            gen,
+            (x * 1000.0) as i64,
+            (z * 1000.0) as i64,
+            pc3d_world::grounding::GroundQuery::Point,
+        )
+        .surface_m()
     }
 
     /// THE DIG EDIT (live): lowers/raises the streamed surface under a

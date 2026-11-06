@@ -160,10 +160,17 @@ pub fn strip_for(
         let t = s as f32 / samples as f32;
         let cx = origin[0] + dir[0] * len * t;
         let cz = origin[1] + dir[1] * len * t;
-        // Surface height: the terrain under the centerline plus a small
-        // offset so the water plane reads above its bed.
-        let terrain_mm = gen.effective_surface_mm((cx * 1000.0) as i64, (cz * 1000.0) as i64);
-        let y = terrain_mm as f32 / 1000.0 + SURFACE_OFFSET_M;
+        let cx_mm = (cx * 1000.0) as i64;
+        let cz_mm = (cz * 1000.0) as i64;
+        // N04 WATER LAW: inside the carved channel the strip sits at the
+        // carve's water surface (the voxels' truth); outside it rides the
+        // terrain bank + offset as before.
+        let y = match gen.river_channel(cx_mm, cz_mm) {
+            Some(ch) => ch.surface_m,
+            None => {
+                gen.effective_surface_mm(cx_mm, cz_mm) as f32 / 1000.0 + SURFACE_OFFSET_M
+            }
+        };
         for side in [-1.0f32, 1.0] {
             verts.push(WaterVertex {
                 pos: [
@@ -454,11 +461,16 @@ pub fn visible_water_crossing(
                 return None;
             };
             if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
-                // The strip plane height under this point.
-                let strip_y =
-                    gen.effective_surface_mm((p[0] * 1000.0) as i64, (p[2] * 1000.0) as i64) as f32
-                        / 1000.0
-                        + SURFACE_OFFSET_M;
+                // The strip plane height under this point (N04: carve
+                // water surface inside the channel, bank + offset outside).
+                let px_mm = (p[0] * 1000.0) as i64;
+                let pz_mm = (p[2] * 1000.0) as i64;
+                let strip_y = match gen.river_channel(px_mm, pz_mm) {
+                    Some(ch) => ch.surface_m,
+                    None => {
+                        gen.effective_surface_mm(px_mm, pz_mm) as f32 / 1000.0 + SURFACE_OFFSET_M
+                    }
+                };
                 let above = p[1] > strip_y;
                 if prev_above && !above {
                     // Crossing between prev_t and t: refine, then require a
@@ -472,11 +484,17 @@ pub fn visible_water_crossing(
                             eye[1] + dir[1] * ft,
                             eye[2] + dir[2] * ft,
                         ];
-                        let qy = gen
-                            .effective_surface_mm((q[0] * 1000.0) as i64, (q[2] * 1000.0) as i64)
-                            as f32
-                            / 1000.0
-                            + SURFACE_OFFSET_M;
+                        // N04: the crossing probe reads the same carve
+                        // truth the strip draws.
+                        let q_mm_x = (q[0] * 1000.0) as i64;
+                        let q_mm_z = (q[2] * 1000.0) as i64;
+                        let qy = match gen.river_channel(q_mm_x, q_mm_z) {
+                            Some(ch) => ch.surface_m,
+                            None => {
+                                gen.effective_surface_mm(q_mm_x, q_mm_z) as f32 / 1000.0
+                                    + SURFACE_OFFSET_M
+                            }
+                        };
                         if q[1] <= qy {
                             // Visible only if nothing solid blocks before q.
                             if crate::terrain::ray_first_hit(gen, eye, dir, ft - 0.6).is_none() {
@@ -673,8 +691,12 @@ mod tests {
         let dir_len = (dir[0] * dir[0] + dir[1] * dir[1]).sqrt();
         let dir = [dir[0] / dir_len, dir[1] / dir_len];
         let water_y = |xz: [f32; 2]| {
-            let mm = gen.effective_surface_mm((xz[0] * 1000.0) as i64, (xz[1] * 1000.0) as i64);
-            mm as f32 / 1000.0 + SURFACE_OFFSET_M
+            let mx = (xz[0] * 1000.0) as i64;
+            let mz = (xz[1] * 1000.0) as i64;
+            match gen.river_channel(mx, mz) {
+                Some(ch) => ch.surface_m,
+                None => gen.effective_surface_mm(mx, mz) as f32 / 1000.0 + SURFACE_OFFSET_M,
+            }
         };
         let strip_origin = [
             rec.region_x as f32 * REGION_M + REGION_M / 2.0,

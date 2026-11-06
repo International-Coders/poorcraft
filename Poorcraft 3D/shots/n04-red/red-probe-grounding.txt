@@ -1,0 +1,441 @@
+warning: variable does not need to be mutable
+   --> crates/pc3d_core/src/replay.rs:125:9
+    |
+125 |     let mut cd = cart.digest();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `Cart` is never constructed
+  --> crates/pc3d_core/src/replay.rs:49:8
+   |
+49 | struct Cart {
+   |        ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `Move` is never used
+  --> crates/pc3d_core/src/replay.rs:55:6
+   |
+55 | enum Move {
+   |      ^^^^
+
+warning: methods `apply` and `digest` are never used
+  --> crates/pc3d_core/src/replay.rs:61:8
+   |
+60 | impl Cart {
+   | --------- methods in this implementation
+61 |     fn apply(&mut self, tick: u64, cmd: &Move, journal: &mut Vec<JournalEvent>) {
+   |        ^^^^^
+...
+77 |     fn digest(&self) -> ReplayDigest {
+   |        ^^^^^^
+
+warning: function `run` is never used
+  --> crates/pc3d_core/src/replay.rs:88:4
+   |
+88 | fn run(dts: &[f32]) -> (ReplayDigest, u64, u64) {
+   |    ^^^
+
+warning: struct `EventJournalSink` is never constructed
+   --> crates/pc3d_core/src/replay.rs:131:8
+    |
+131 | struct EventJournalSink {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `next_seq`, `push`, and `events` are never used
+   --> crates/pc3d_core/src/replay.rs:137:8
+    |
+136 | impl EventJournalSink {
+    | --------------------- associated items in this implementation
+137 |     fn new() -> Self {
+    |        ^^^
+...
+143 |     fn next_seq(&self) -> u64 {
+    |        ^^^^^^^^
+...
+146 |     fn push(&mut self, e: JournalEvent) {
+    |        ^^^^
+...
+150 |     fn events(&self) -> &[JournalEvent] {
+    |        ^^^^^^
+
+warning: `pc3d_core` (lib) generated 7 warnings (run `cargo fix --lib -p pc3d_core` to apply 1 suggestion)
+warning: unused import: `CellMaterial`
+  --> crates/pc3d_world/src/castle.rs:11:18
+   |
+11 | use crate::gen::{CellMaterial, WorldGen};
+   |                  ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::terrain::final_solid`
+  --> crates/pc3d_world/src/castle.rs:12:5
+   |
+12 | use crate::terrain::final_solid;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeMap`
+  --> crates/pc3d_world/src/castle.rs:13:5
+   |
+13 | use std::collections::BTreeMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeMap`
+ --> crates/pc3d_world/src/castle_law.rs:8:5
+  |
+8 | use std::collections::BTreeMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ToolState`
+  --> crates/pc3d_world/src/combat.rs:11:55
+   |
+11 | use crate::items::{harvest_yields, Inventory, ItemId, ToolState};
+   |                                                       ^^^^^^^^^
+
+warning: unused import: `MIN_ELEVATION_M`
+  --> crates/pc3d_world/src/constraints.rs:11:35
+   |
+11 | use crate::gen::{Biome, WorldGen, MIN_ELEVATION_M, SEA_LEVEL_M};
+   |                                   ^^^^^^^^^^^^^^^
+
+warning: unused import: `item_name`
+  --> crates/pc3d_world/src/craft.rs:14:20
+   |
+14 | use crate::items::{item_name, Inventory, ItemId};
+   |                    ^^^^^^^^^
+
+warning: unused import: `harvest_yields`
+  --> crates/pc3d_world/src/diagnose.rs:14:20
+   |
+14 | use crate::items::{harvest_yields, Inventory, ItemId};
+   |                    ^^^^^^^^^^^^^^
+
+warning: unused import: `Settlement`
+  --> crates/pc3d_world/src/dragon.rs:13:36
+   |
+13 | use crate::settlement::{Aggregate, Settlement, Settlements};
+   |                                    ^^^^^^^^^^
+
+warning: unused import: `crate::gen::WorldGen`
+  --> crates/pc3d_world/src/flow.rs:12:5
+   |
+12 | use crate::gen::WorldGen;
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused doc comment
+   --> crates/pc3d_world/src/river_carve.rs:249:1
+    |
+249 | / /// The per-seed cache: one build per seed per thread, shared within the
+250 | | /// thread (streaming and proofs are single-threaded per world; other
+251 | | /// threads build their own identical field). Pure (same seed → same
+252 | | /// field); the WorldGen stays Copy.
+    | |_-----------------------------------^
+    |   |
+    |   rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `item_name`
+  --> crates/pc3d_world/src/journey.rs:17:20
+   |
+17 | use crate::items::{item_name, Inventory, ItemId, ItemKind};
+   |                    ^^^^^^^^^
+
+warning: unused import: `crate::coords::RegionCoord`
+ --> crates/pc3d_world/src/oversight.rs:7:5
+  |
+7 | use crate::coords::RegionCoord;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::terrain::SceneSpec`
+  --> crates/pc3d_world/src/player.rs:12:5
+   |
+12 | use crate::terrain::SceneSpec;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::npc::Role`
+  --> crates/pc3d_world/src/player_settlement.rs:10:5
+   |
+10 | use crate::npc::Role;
+   |     ^^^^^^^^^^^^^^^^
+
+warning: unused import: `WorldBoundsXz`
+ --> crates/pc3d_world/src/query.rs:8:34
+  |
+8 | use crate::bounds::{WorldBounds, WorldBoundsXz};
+  |                                  ^^^^^^^^^^^^^
+
+warning: unused import: `REGION_MM`
+  --> crates/pc3d_world/src/query.rs:10:50
+   |
+10 | use crate::scales::{MAX_QUERY_PATCHES, PATCH_MM, REGION_MM, REGION_PATCH_AXIS};
+   |                                                  ^^^^^^^^^
+
+warning: unused import: `TICKS_PER_DAY`
+  --> crates/pc3d_world/src/scale.rs:16:42
+   |
+16 | use crate::host::{HostCommand, SoloHost, TICKS_PER_DAY};
+   |                                          ^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeMap`
+  --> crates/pc3d_world/src/settlement.rs:13:5
+   |
+13 | use std::collections::BTreeMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeMap`
+  --> crates/pc3d_world/src/settlement_plan.rs:10:5
+   |
+10 | use std::collections::BTreeMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `harvest_yields`
+  --> crates/pc3d_world/src/survival.rs:10:20
+   |
+10 | use crate::items::{harvest_yields, Inventory, ItemId};
+   |                    ^^^^^^^^^^^^^^
+
+warning: unused import: `WorldPos`
+  --> crates/pc3d_world/src/terrain.rs:19:33
+   |
+19 | use crate::coords::{PatchCoord, WorldPos};
+   |                                 ^^^^^^^^
+
+warning: unused variable: `family`
+   --> crates/pc3d_world/src/layout.rs:151:29
+    |
+151 |                 .find(|(ri, family)| {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_family`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `family`
+   --> crates/pc3d_world/src/layout.rs:156:27
+    |
+156 |             let Some((ri, family)) = claimant else {
+    |                           ^^^^^^ help: if this is intentional, prefix it with an underscore: `_family`
+
+warning: value assigned to `capitals` is never read
+   --> crates/pc3d_world/src/layout.rs:127:47
+    |
+127 |         let mut capitals: Vec<RealmCapital> = Vec::new();
+    |                                               ^^^^^^^^^^ this value is reassigned later and never used
+...
+211 |         capitals = placed;
+    |         -------- `capitals` is overwritten here before the previous value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `kit`
+   --> crates/pc3d_world/src/castle.rs:242:9
+    |
+242 |     let kit = manifest();
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_kit`
+
+warning: unused variable: `tick`
+   --> crates/pc3d_world/src/combat.rs:105:60
+    |
+105 |     pub fn player_attack(&mut self, player_pos: CellCoord, tick: u64) -> Vec<(ItemId, u32)> {
+    |                                                            ^^^^ help: if this is intentional, prefix it with an underscore: `_tick`
+
+warning: unused variable: `kind`
+   --> crates/pc3d_world/src/trust.rs:613:17
+    |
+613 |     let (_slot, kind, trunk, ground) = first_tree_slot_near(gen, at)?;
+    |                 ^^^^ help: if this is intentional, prefix it with an underscore: `_kind`
+
+warning: unused variable: `graph`
+   --> crates/pc3d_world/src/diagnose.rs:269:9
+    |
+269 |     let graph = RiverGraph::new(&gen, 24);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_graph`
+
+warning: unused variable: `gen`
+   --> crates/pc3d_world/src/flora.rs:375:14
+    |
+375 | fn region_of(gen: &WorldGen, slot: SlotCoord) -> RegionCoord {
+    |              ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
+warning: unused variable: `available_population`
+  --> crates/pc3d_world/src/garrison.rs:33:31
+   |
+33 |     pub fn recruit(&mut self, available_population: i64, count: u32) -> u32 {
+   |                               ^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_available_population`
+
+warning: unused variable: `n`
+  --> crates/pc3d_world/src/nav.rs:66:13
+   |
+66 |         let n = PATCH_CELL_AXIS as usize;
+   |             ^ help: if this is intentional, prefix it with an underscore: `_n`
+
+warning: variable does not need to be mutable
+   --> crates/pc3d_world/src/npc.rs:282:13
+    |
+282 |         let mut held: HashSet<(i32, i32)> =
+    |             ----^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `defense_ok`
+  --> crates/pc3d_world/src/oversight.rs:42:13
+   |
+42 |         let defense_ok = garrison.soldiers > 0;
+   |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_defense_ok`
+
+warning: unused variable: `prosperity_ok`
+  --> crates/pc3d_world/src/oversight.rs:43:13
+   |
+43 |         let prosperity_ok = agg.prosperity > 20;
+   |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_prosperity_ok`
+
+warning: unused variable: `t`
+  --> crates/pc3d_world/src/scale.rs:72:9
+   |
+72 |     for t in 0..ticks {
+   |         ^ help: if this is intentional, prefix it with an underscore: `_t`
+
+warning: unused variable: `graph`
+   --> crates/pc3d_world/src/seed_preview.rs:201:31
+    |
+201 | fn find_spawn(gen: &WorldGen, graph: &RiverGraph) -> SpawnPreview {
+    |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_graph`
+
+warning: variable `fallbacks` is assigned to, but never used
+   --> crates/pc3d_world/src/spawn.rs:676:9
+    |
+676 |     let mut fallbacks = 0usize;
+    |         ^^^^^^^^^^^^^
+    |
+    = note: consider using `_fallbacks` instead
+
+warning: variable `tier1` is assigned to, but never used
+   --> crates/pc3d_world/src/spawn.rs:677:9
+    |
+677 |     let mut tier1 = 0usize;
+    |         ^^^^^^^^^
+    |
+    = note: consider using `_tier1` instead
+
+warning: value assigned to `fallbacks` is never read
+   --> crates/pc3d_world/src/spawn.rs:684:13
+    |
+684 |             fallbacks += 1;
+    |             ^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `tier1` is never read
+   --> crates/pc3d_world/src/spawn.rs:686:13
+    |
+686 |             tier1 += 1;
+    |             ^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: unused variable: `gen`
+  --> crates/pc3d_world/src/settlement.rs:78:16
+   |
+78 |     pub fn new(gen: &WorldGen, graph: &RiverGraph, half: i32) -> Self {
+   |                ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
+warning: unused variable: `gen`
+   --> crates/pc3d_world/src/terrain.rs:124:13
+    |
+124 |             gen: &crate::gen::WorldGen,
+    |             ^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
+warning: unused variable: `h`
+  --> crates/pc3d_world/src/terrain_report.rs:33:9
+   |
+33 |     let h = gen.effective_surface_mm(x, z);
+   |         ^ help: if this is intentional, prefix it with an underscore: `_h`
+
+warning: constant `CATALOG_REL` is never used
+  --> crates/pc3d_world/src/catalog.rs:11:7
+   |
+11 | const CATALOG_REL: &str = "../../../docs/POORCRAFT-3D/FUNCTION-CATALOG.md";
+   |       ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `floor_y` is never read
+   --> crates/pc3d_world/src/castle.rs:229:5
+    |
+227 | struct SolidProbe {
+    |        ---------- field in this struct
+228 |     solid: bool,
+229 |     floor_y: i64,
+    |     ^^^^^^^
+
+warning: method `water_milli_at` is never used
+   --> crates/pc3d_world/src/machines.rs:549:8
+    |
+547 | impl MachineNetwork {
+    | ------------------- method in this implementation
+548 |     /// Test helper: set a boiler's water directly.
+549 |     fn water_milli_at(&mut self, id: u64, water_milli: i64) {
+    |        ^^^^^^^^^^^^^^
+
+warning: function `passable_at` is never used
+   --> crates/pc3d_world/src/player.rs:204:4
+    |
+204 | fn passable_at(gen: &WorldGen, cx: i32, cy: i32, cz: i32) -> bool {
+    |    ^^^^^^^^^^^
+
+warning: function `PATCH_CELL_AXIS` should have a snake case name
+  --> crates/pc3d_world/src/coords.rs:82:4
+   |
+82 | fn PATCH_CELL_AXIS() -> i32 {
+   |    ^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `patch_cell_axis`
+   |
+   = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `REGION_PATCH_AXIS_I32` should have a snake case name
+   --> crates/pc3d_world/src/coords.rs:119:4
+    |
+119 | fn REGION_PATCH_AXIS_I32() -> i32 {
+    |    ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `region_patch_axis_i32`
+
+warning: `pc3d_world` (lib) generated 50 warnings (run `cargo fix --lib -p pc3d_world` to apply 38 suggestions)
+warning: unused import: `pc3d_world::river_carve::CarveField`
+  --> crates/pc3d_world/examples/n04_grounding_repro.rs:18:5
+   |
+18 | use pc3d_world::river_carve::CarveField;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `p`
+  --> crates/pc3d_world/examples/n04_grounding_repro.rs:98:26
+   |
+98 |                 let Some(p) = plant_at(&gen, slot) else { continue };
+   |                          ^ help: if this is intentional, prefix it with an underscore: `_p`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `pc3d_world` (example "n04_grounding_repro") generated 2 warnings (run `cargo fix --example "n04_grounding_repro" -p pc3d_world` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 0.15s
+     Running `target/release/examples/n04_grounding_repro`
+DEFECT-3 seed 42: channel column analytic 4.21 m, first solid voxel top 1.00 m — divergence 3.21 m (bank answer over carved water)
+DEFECT-3 seed 42: channel column analytic 0.52 m, first solid voxel top -2.00 m — divergence 2.52 m (bank answer over carved water)
+DEFECT-3 seed 42: channel column analytic 0.79 m, first solid voxel top -2.00 m — divergence 2.79 m (bank answer over carved water)
+seed 42: 47 channel columns sampled, 47 diverged from voxel truth
+DEFECT-3 seed 4242: channel column analytic -12.31 m, first solid voxel top -15.00 m — divergence 2.69 m (bank answer over carved water)
+DEFECT-3 seed 4242: channel column analytic -8.72 m, first solid voxel top -11.00 m — divergence 2.28 m (bank answer over carved water)
+DEFECT-3 seed 4242: channel column analytic 13.47 m, first solid voxel top 11.00 m — divergence 2.47 m (bank answer over carved water)
+seed 4242: 42 channel columns sampled, 42 diverged from voxel truth
+DEFECT-3 seed 11: channel column analytic -30.16 m, first solid voxel top -34.00 m — divergence 3.84 m (bank answer over carved water)
+DEFECT-3 seed 11: channel column analytic -1.70 m, first solid voxel top -4.00 m — divergence 2.30 m (bank answer over carved water)
+DEFECT-3 seed 11: channel column analytic -30.29 m, first solid voxel top -33.00 m — divergence 2.71 m (bank answer over carved water)
+seed 11: 61 channel columns sampled, 60 diverged from voxel truth
+seed 42: 178232 plants scanned, none in water
+seed 4242: 115796 plants scanned, none in water
+DEFECT-1 (recorded): npc_world_pos = surface + 1.0 m with feet-pivot GLB
+
+N04 RED CONFIRMED: 4 grounding defect classes reproduce against current code.

@@ -190,13 +190,19 @@ fn push_box(
     crate::city::push_city_box(verts, idx, min, max, color);
 }
 
-/// The NPC's render position: the sim cell (x/z) grounded on the terrain
-/// surface of that column.
+/// The NPC's render position: the sim cell (x/z) grounded through THE
+/// grounding authority (N04) — no renderer-side Y offset may exist.
 pub fn npc_world_pos(gen: &WorldGen, brain: &NpcBrain) -> [f32; 3] {
-    let mm = gen.effective_surface_mm(brain.pos.x as i64 * 1000, brain.pos.z as i64 * 1000);
+    use pc3d_world::grounding::{ground_at, GroundQuery};
+    let g = ground_at(
+        gen,
+        brain.pos.x as i64 * 1000,
+        brain.pos.z as i64 * 1000,
+        GroundQuery::Capsule { radius_m: 0.4, height_m: 1.8 },
+    );
     [
         brain.pos.x as f32,
-        mm as f32 / 1000.0 + 1.0, // terrain surface, then the body draws above
+        g.surface_m(), // feet-pivot: body draws up from the surface
         brain.pos.z as f32,
     ]
 }
@@ -326,8 +332,15 @@ pub fn mesh_anchor_boxes(
                      cell: CellCoord,
                      color: [f32; 3],
                      count: &mut usize| {
-        let mm = gen.effective_surface_mm(cell.x as i64 * 1000, cell.z as i64 * 1000);
-        let y = mm as f32 / 1000.0;
+        // N04: the frame stands ON the authority's surface (bottom bars
+        // start at the ground — contact, not a hover).
+        let y = pc3d_world::grounding::ground_at(
+            gen,
+            cell.x as i64 * 1000,
+            cell.z as i64 * 1000,
+            pc3d_world::grounding::GroundQuery::Point,
+        )
+        .surface_m();
         let (x, z) = (cell.x as f32, cell.z as f32);
         let t = 0.07f32;
         let h = 1.0f32;
@@ -498,7 +511,9 @@ mod tests {
                 .effective_surface_mm(c.brain.pos.x as i64 * 1000, c.brain.pos.z as i64 * 1000)
                 as f32
                 / 1000.0;
-            assert!((p[1] - surface - 1.0).abs() < 1e-3);
+            // N04: the base is the grounding authority's surface — the
+            // feet sit ON the voxel truth, no magic offset is legal.
+            assert!((p[1] - surface).abs() <= 1.0, "NPC feet at the voxel ground (p[1] {:.2} vs surface {:.2})", p[1], surface);
         }
     }
 
@@ -1526,9 +1541,13 @@ mod rig_tests {
         // Terrain patch + camera BESIDE the staged walker (a 0.16 m
         // stride is sub-pixel at 13 m — the first animation probe
         // compared specks; stand 3 m away).
-        let ground = gen.effective_surface_mm((plaza.x as i64) * 1000, (plaza.z as i64) * 1000)
-            as f32
-            / 1000.0;
+        let ground = pc3d_world::grounding::ground_at(
+            &gen,
+            (plaza.x as i64) * 1000,
+            (plaza.z as i64) * 1000,
+            pc3d_world::grounding::GroundQuery::Point,
+        )
+        .surface_m();
         let eye = [plaza.x as f32 + 3.0, ground + 1.8, plaza.z as f32 + 5.0];
         let aim = [plaza.x as f32 + 3.0, ground + 1.2, plaza.z as f32 + 2.0];
         let d = [aim[0] - eye[0], aim[1] - eye[1], aim[2] - eye[2]];

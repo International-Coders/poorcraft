@@ -419,6 +419,28 @@ fn table_pick(gen: &WorldGen, slot: SlotCoord) -> Option<Plant> {
                     return None;
                 }
             }
+            // N04 GROUNDING LAW: nothing grows standing IN carved water.
+            // Reeds/wetland flora belong on the BANKS (the slot center's
+            // column must hold ground above the channel bed); plants in
+            // the drowned half of a channel would float at bank height
+            // over water voxels. Deterministic via the same column the
+            // placement will ground through.
+            let [cx, cz] = slot.center_m();
+            let g = crate::grounding::ground_at(
+                gen,
+                (cx * 1000.0) as i64,
+                (cz * 1000.0) as i64,
+                crate::grounding::GroundQuery::Point,
+            );
+            if let Some(ch) = g.channel_hit {
+                // Carved column: ground_at answers the bed top (water is not
+                // solid). Bed == channel floor, so anything at or below the
+                // water surface is drowned — reject. Only true bank ground
+                // (surface above the waterline) may carry a plant.
+                if g.surface_m() <= ch.surface_m {
+                    return None;
+                }
+            }
             let v = unit(gen.hash_seed(), [slot.x as u64, slot.z as u64, 0x78]);
             return Some(Plant {
                 kind: *kind,
@@ -572,6 +594,60 @@ pub fn landmark_at(gen: &WorldGen, region: RegionCoord) -> Option<[f32; 2]> {
 mod tests {
     use super::*;
     use crate::gen::WorldGen;
+
+    /// N04 GROUNDING LAW: no plant stands inside a carved water column.
+    /// Every plant's slot center must answer a surface ABOVE its channel's
+    /// water surface (the bank), or have no channel at all.
+    #[test]
+    fn p3dn04_no_plant_stands_in_carved_water() {
+        use crate::river_carve::WATERSHED_HALF;
+        for seed in [42u64, 4242, 11] {
+            let gen = WorldGen::new(seed);
+            let graph = crate::hydro::RiverGraph::new(&gen, WATERSHED_HALF);
+            let threshold = crate::hydro::RIVER_THRESHOLD;
+            // Walk channel regions; sample the slots crossing them.
+            let mut sampled = 0usize;
+            for rx in -28..=28i32 {
+                for rz in -28..=28i32 {
+                    let r = crate::coords::RegionCoord { x: rx, z: rz };
+                    let Some(d) = graph.downstream(r) else { continue };
+                    if graph.discharge(r) < threshold || graph.discharge(d) < threshold {
+                        continue;
+                    }
+                    // Slots in the region center's neighborhood.
+                    let cx = ((rx as f32 + 0.5) * 256.0 / 4.0) as i32;
+                    let cz = ((rz as f32 + 0.5) * 256.0 / 4.0) as i32;
+                    for dx in -2..=2i32 {
+                        for dz in -2..=2i32 {
+                            let slot = SlotCoord { x: cx + dx, z: cz + dz };
+                            let Some(_p) = plant_at(&gen, slot) else { continue };
+                            let [px, pz] = slot.center_m();
+                            let g = crate::grounding::ground_at(
+                                &gen,
+                                (px * 1000.0) as i64,
+                                (pz * 1000.0) as i64,
+                                crate::grounding::GroundQuery::Point,
+                            );
+                            sampled += 1;
+                            if let Some(ch) = g.channel_hit {
+                                assert!(
+                                    g.surface_m() > ch.surface_m,
+                                    "seed {seed}: plant at ({px}, {pz}) sits in \
+                                     carved water (surface {:.2} <= water {:.2})",
+                                    g.surface_m(),
+                                    ch.surface_m
+                                );
+                            }
+                        }
+                    }
+                    if sampled >= 40 {
+                        return;
+                    }
+                }
+            }
+            assert!(sampled >= 5, "seed {seed}: too few channel plants sampled");
+        }
+    }
 
     fn scan(gen: &WorldGen, x0: i32, z0: i32, x1: i32, z1: i32) -> Vec<(SlotCoord, Plant)> {
         let mut out = Vec::new();

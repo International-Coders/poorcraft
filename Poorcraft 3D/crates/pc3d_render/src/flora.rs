@@ -267,7 +267,15 @@ pub fn placement_of(
     } else {
         let x = cxm + j[0];
         let z = czm + j[1];
-        let y = gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0;
+        // N04: ground through the voxel authority, not the analytic surface
+        // (the analytic bank lies about carved channel columns).
+        let y = pc3d_world::grounding::ground_at(
+            gen,
+            (x * 1000.0) as i64,
+            (z * 1000.0) as i64,
+            pc3d_world::grounding::GroundQuery::Point,
+        )
+        .surface_m();
         [x, y, z]
     };
     Some((
@@ -743,8 +751,14 @@ impl FloraStreamer {
                 if d > gr {
                     continue;
                 }
-                let y = gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32
-                    / 1000.0;
+                // N04: voxel authority grounds grass too (no analytic bank).
+                let y = pc3d_world::grounding::ground_at(
+                    gen,
+                    (x * 1000.0) as i64,
+                    (z * 1000.0) as i64,
+                    pc3d_world::grounding::GroundQuery::Point,
+                )
+                .surface_m();
                 grass.push(Instance {
                     pos_scale: [x, y, z, 0.8 + j[2] * 0.5],
                     params: [j[2] * 6.28, 1.0, 0.9 + j[2] * 0.2, 0.0],
@@ -1341,8 +1355,19 @@ mod tests {
     #[test]
     fn every_plant_is_grounded_and_every_vine_hangs_from_a_trunk() {
         let gen = WorldGen::new(4242);
+        // N04: the oracle IS the grounding authority. ground_at is proven
+        // voxel-true by pc3d_world's p3dn04_point_answer_matches_voxel_truth,
+        // so measuring placements against it measures them against voxels.
         let ground = |x: f32, z: f32| {
-            Some(gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0)
+            Some(
+                pc3d_world::grounding::ground_at(
+                    &gen,
+                    (x * 1000.0) as i64,
+                    (z * 1000.0) as i64,
+                    pc3d_world::grounding::GroundQuery::Point,
+                )
+                .surface_m(),
+            )
         };
         let count = |_k: PlantKind| 4u16;
 
