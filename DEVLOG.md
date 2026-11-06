@@ -11099,3 +11099,68 @@ RUNTIME (pós-commit ea03dfb0): `make p3d-dmg` OK —
 `make smoke` OK (binário release vivo 12 s, saída limpa). Linux/Windows
 honestamente deferidos (host Darwin sem cross tooling).
 
+
+## Loop 479 (2026-11-06) — N04 GroundingResult universal FECHADO (POORCRAFT 3D)
+
+WHAT: One grounding authority for everything that stands on the world.
+`pc3d_world::grounding` (NEW): pure `ground_at(gen, wx_mm, wz_mm, query) ->
+GroundingResult` with `GroundQuery::{Point, Footprint{half_w,half_h},
+Capsule{radius,height}}` — surface_y_mm is the TOP OF THE TOPMOST SOLID
+voxel cell (feet position), normal/slope by 1 m central differences,
+material of the ground cell, capsule clearance (16 m cap), `grounded`
+flag, `channel_hit` (carve water law). `foundation_ok` = every footprint
+column solid + dry + channel-free. 8 unit tests `p3dn04_*` (plane,
+slope, channel, footprint-min, foundation, capsule, voxel-truth parity,
+water law).
+
+HOW: Consumers migrated one at a time, each re-tested:
+- `npcs.rs`: `npc_world_pos` grounds via Capsule{0.4, 1.8} — the historic
+  `+1.0` float DELETED; anchor-frame meshing via Point.
+- `flora.rs` (world): `table_pick` refuses a slot whose center column is
+  drowned (`g.surface_m() <= ch.surface_m` — the strict carve law; the
+  old `> bed_m` half-condition let bed-standing plants slip through).
+- `flora.rs` (render): plant instances + grass ground via Point (was
+  effective_surface_mm); the grounded-geometry law test's oracle switched
+  to the same authority (voxel truth proven by pc3d_world tests).
+- `city.rs`: `surface_base` = footprint-min via Point; nav-port `ground()`
+  via Point with the SOLID-CELL convention (anchor y names the solid cell,
+  feet = y+1 — divergence found by probe: ground_at answers FEET, so the
+  helper subtracts one; the "anchor floats" gate caught it red).
+- `settlement.rs`: water wheel sits at the CARVE water surface (the -0.2
+  by-eye sink deleted); anchor boxes via Point.
+- `slice.rs`: spawn + plaza props (chest/ore) via Point.
+- `water.rs`: `strip_for`, the visible-crossing probe and the proof
+  `water_y` read `ChannelHit::surface_m` INSIDE the channel — the strip
+  hung at the analytic bank +0.35 m, meters above the carved bed.
+- `renderer.rs`: `ground_y_at` fallback via Point (streamed SurfaceRegion
+  deltas still compose first — the layering law).
+- NEW GATE `tests/n04_forbidden_offsets.rs`: scans pc3d_render PRODUCTION
+  sources for Y-magic (`+1.0/+0.5/-0.2`) in grounding components
+  (comma-split; X/Z half-steps and pixel/UV math exempt). MUTATION-PROVEN:
+  injected `g.surface_m() + 1.0` -> gate RED naming the line; restored ->
+  GREEN.
+
+Evidence (VERIFICATION): pc3d_world 324/0 (8 p3dn04), pc3d_render 259/0 +
+gate 1/1, full `make p3d-test` GREEN serial; `make p3d-doctrine-check` 2/2;
+`--play-npcs` PASS (3 close-ups torso-occupied, sky-delta 0.49–0.75);
+`--water-route 4` PASS (8 captures, 4 sidecars verdict PASS — seed 4242:
+voxel truth water_cells 2 + bed_solid true, overview 1330 / bank 3779
+water-blue px); PNGs human-inspected. RED probe archived
+`shots/n04-red/red-probe-grounding.txt` (4 defect classes reproduced
+pre-fix: NPC +1.0 float, flora in carved water, 60/61 channel columns
+diverged 2.3–3.8 m analytic-vs-voxel, wheel -0.2).
+
+HONESTLY DEFERRED: card's `confidence`/`version` fields have no playable
+consumer yet — land when one appears (doctrine: nothing without a
+consumer). Carried N03 residuals: trust bed gate reads the analytic
+surface; water-route camera extension (10 cams/seed).
+
+FILES: crates/pc3d_world/src/{grounding.rs NEW, lib.rs, flora.rs};
+crates/pc3d_world/examples/n04_grounding_repro.rs (RED repro);
+crates/pc3d_render/src/{npcs,flora,city,settlement,slice,water,renderer}.rs;
+crates/pc3d_render/tests/n04_forbidden_offsets.rs (NEW gate);
+docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md (N04 closure);
+shots/n04-{red,npcs,water}/ (probe + 13 captures + 5 sidecars);
+apps/poorcraft3d/shots/windowed_npcs_*.png (regenerated grounded).
+
+RUNTIME: refreshed post-commit (see loop-479 runtime entry below).

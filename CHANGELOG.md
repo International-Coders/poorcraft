@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## Loop 479 — N04 GroundingResult universal (Poorcraft 3D)
+- One grounding authority: `pc3d_world::grounding` — pure
+  `ground_at(gen, x, z, GroundQuery::{Point, Footprint, Capsule})` →
+  `GroundingResult` (topmost-solid surface, normal/slope, material,
+  clearance, grounded, channel_hit) + `foundation_ok`. NPC feet, flora,
+  city nav ports, settlement anchors, slice spawn/props all consume it;
+  the renderer's historic Y magic numbers (+1.0 NPC float, +0.5 marker,
+  -0.2 wheel) are deleted.
+- Water strips now sit at the carve's `ChannelHit::surface_m` inside the
+  channel (they hung at the analytic bank +0.35 m — meters above the carved
+  bed); crossing probes and proof math read the same truth.
+- `foundation_ok` gates building siting: every footprint column must be
+  solid, dry and channel-free.
+- NEW static gate `pc3d_render/tests/n04_forbidden_offsets.rs` scans
+  production sources for forbidden Y offsets in grounding components —
+  proven by mutation (injected `+1.0` → RED; restore → GREEN).
+- Evidence: world 324/0 (8 p3dn04 tests), render 259/0 + gate 1/1,
+  full `make p3d-test` green; `--play-npcs` and `--water-route 4` PASS
+  with pixel + voxel-truth sidecars, human-inspected. RED probe archived
+  in `shots/n04-red/`. Deferred honestly: confidence/version fields await
+  a playable consumer.
+
+
 ## Loop 478 — N03 RiverCarve (Poorcraft 3D)
 - Rivers are now CARVED in the voxel authority (`pc3d_world::river_carve`
   → `WorldGen::carve`): Air above the water surface, Water in
