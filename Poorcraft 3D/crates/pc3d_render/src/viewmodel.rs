@@ -31,6 +31,25 @@ pub enum DominantHand {
     Left,
 }
 
+/// The tool KIND — the mesh factory and the gameplay wiring share this
+/// identity (a pick builds a pick mesh; a pick's window harvests ore).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToolKind {
+    Shovel,
+    Pick,
+}
+
+impl ToolKind {
+    /// The complete tool of this kind (the card: one complete tool before
+    /// five placeholders — two exist, each with its own sweep law).
+    pub fn spec(self) -> ViewmodelSpec {
+        match self {
+            ToolKind::Shovel => ViewmodelSpec::shovel(),
+            ToolKind::Pick => ViewmodelSpec::pick(),
+        }
+    }
+}
+
 impl DominantHand {
     /// X mirror (the camera-space lateral axis): a right-hand pose maps to
     /// the left hand by negating X and keeping the depth/vertical law.
@@ -83,6 +102,8 @@ impl Sweep {
 pub struct ViewmodelSpec {
     /// The card names the dominant hand explicitly; the matrix runs both.
     pub dominant_hand: DominantHand,
+    /// The tool identity the mesh factory and gameplay share.
+    pub kind: ToolKind,
     /// Tool grip point in camera space at IDLE (meters; -Z is forward).
     pub grip_idle: [f32; 3],
     /// Off-hand support point in camera space at idle (the secondary-hand
@@ -132,6 +153,7 @@ impl ViewmodelSpec {
         // vertical NDC budget).
         Self {
             dominant_hand: DominantHand::Right,
+            kind: ToolKind::Shovel,
             grip_idle: [0.30, -0.18, -0.58],
             off_hand: Some([0.14, -0.26, -0.78]),
             envelope_max_xy: [0.62, 0.72],
@@ -147,6 +169,36 @@ impl ViewmodelSpec {
                     [-0.28, -0.26, -0.70], // recover
                 ],
                 hit_window: (0.30, 0.62),
+            },
+            idle_bob_amplitude_m: 0.012,
+            equip_seconds: 0.28,
+            wall_retract_m: 0.18,
+            wall_probe_max_m: 1.2,
+        }
+    }
+
+    /// THE SECOND TOOL: the pick (N06's gameplay consumer). Different
+    /// silhouette and sweep — a rising strike down through rock — solved
+    /// against the same matrix (the gates are the solver's witness).
+    pub fn pick() -> Self {
+        Self {
+            dominant_hand: DominantHand::Right,
+            kind: ToolKind::Pick,
+            grip_idle: [0.30, -0.18, -0.58],
+            off_hand: Some([0.14, -0.26, -0.78]),
+            envelope_max_xy: [0.62, 0.72],
+            reticle_exclusion_r_ndc: 0.14,
+            near_clearance_m: 0.12,
+            reference_fov_y_rad: 75.0f32.to_radians(),
+            sweep: Sweep {
+                head_path: vec![
+                    [-0.12, -0.34, -0.85], // cocked low-left
+                    [0.04, -0.18, -0.92],  // rising
+                    [0.18, 0.11, -0.95],   // apex over the strike
+                    [0.14, -0.18, -0.90],  // swung DOWN through rock
+                    [0.20, -0.30, -0.80],  // settle
+                ],
+                hit_window: (0.55, 0.80), // the DOWN phase hits
             },
             idle_bob_amplitude_m: 0.012,
             equip_seconds: 0.28,
@@ -385,6 +437,19 @@ mod tests {
             assert!(
                 v.violations.is_empty(),
                 "matrix cell {cell} violated: {:?}",
+                v.violations
+            );
+        }
+    }
+
+    /// THE SECOND TOOL'S MATRIX (the pick): same closure law.
+    #[test]
+    fn p3dn05_pick_matrix_closes_at_all_fovs_aspects_hands() {
+        let spec = ViewmodelSpec::pick();
+        for (cell, v) in validate_matrix(&spec) {
+            assert!(
+                v.violations.is_empty(),
+                "pick matrix cell {cell} violated: {:?}",
                 v.violations
             );
         }

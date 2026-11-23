@@ -1282,6 +1282,11 @@ struct WindowState {
     audio: Option<pc3d_audio::AudioHost>,
     /// Footstep cadence accumulator (meters walked since the last step).
     step_meter: f32,
+    /// THE SHARED HIT WINDOW (N05): a dig whose resolve waits for the
+    /// viewmodel sweep to reach its hit window. Armed by G with a tool
+    /// equipped; consumed by the frame loop exactly once, INSIDE the
+    /// window (gameplay and animation ride the same samples).
+    dig_hit_pending: bool,
     frame_no: u64,
     frame_ms: Vec<f32>,
     consecutive_surface_errors: u32,
@@ -1997,115 +2002,28 @@ impl App {
                     self.cfg.shots.insert(pos, shot);
                 }
                 UiAction::DigAtCrosshair => {
-                    // THE DIG VERB (G): the crosshair's live ground
-                    // target — the same streamed answer the walk stands
-                    // on and the picture draws — then the gated take
-                    // (pick tier, pack room) decided BEFORE the ground
-                    // breaks, the one-step edit through the same live
-                    // surface path, and the yield credited to the
-                    // inventory.
-                    let looked = {
-                        let slice = self.cfg.slice_host.as_ref();
-                        let state = self.state.as_ref();
-                        match (slice, state) {
-                            (Some(slice), Some(s)) => {
-                                let pose = s.renderer.pose();
-                                let fwd = crate::camera::fwd_of(pose.yaw, pose.pitch);
-                                let ground =
-                                    |x: f32, z: f32| s.renderer.ground_y_at_pub(x, z);
-                                crate::player::dig_target(
-                                    &ground,
-                                    pose.position,
-                                    fwd,
-                                    crate::player::DIG_REACH_M,
-                                )
-                                .map(|(x, z)| {
-                                    let g = ground(x as f32 + 0.5, z as f32 + 0.5);
-                                    let region = pc3d_world::coords::RegionCoord {
-                                        x: x.div_euclid(256),
-                                        z: z.div_euclid(256),
-                                    };
-                                    let surface_mm = (g * 1000.0) as i64;
-                                    let wy_mm = (g.floor() as i64) * 1000;
-                                    let material = pc3d_world::gen::cell_material(
-                                        slice.scene.gen.biome(region),
-                                        wy_mm,
-                                        surface_mm,
-                                    );
-                                    let tier = best_pick_tier(&slice.inventory);
-                                    let outcome = dig_outcome(material, tier);
-                                    let carried = match &outcome {
-                                        DigOutcome::NeedPick => false,
-                                        DigOutcome::Take(ys) => ys
-                                            .iter()
-                                            .all(|(id, n)| slice.inventory.can_fit(*id, *n)),
-                                    };
-                                    (x, z, g, outcome, carried)
-                                })
-                            }
-                            _ => None,
-                        }
-                    };
-                    let toast = match looked {
-                        None => "NO GROUND IN REACH".to_string(),
-                        Some((_, _, _, DigOutcome::NeedPick, _)) => {
-                            "NEED A PICK FOR STONE".to_string()
-                        }
-                        Some((_, _, _, _, false)) => {
-                            "PACK FULL - THE GROUND HOLDS".to_string()
-                        }
-                        Some((x, z, _, DigOutcome::Take(yields), true)) => {
-                            let names = yields
-                                .iter()
-                                .map(|(id, _)| {
-                                    pc3d_world::items::item_name(*id).to_uppercase()
-                                })
-                                .collect::<Vec<_>>()
-                                .join("+");
-                            let ok = self
-                                .state
-                                .as_mut()
-                                .map(|s| {
-                                    s.renderer.surface_edit(
-                                        pc3d_world::coords::CellCoord { x, y: 0, z },
-                                        -crate::player::DIG_DEPTH_M,
-                                    )
-                                })
-                                .unwrap_or(false);
-                            if ok {
-                                if let Some(slice) = self.cfg.slice_host.as_mut() {
-                                    for (id, n) in &yields {
-                                        slice.inventory.add(*id, *n);
-                                    }
-                                    // VS V2 onboarding: grass dig yields wood
-                                    // as "first_tree"; any dig that takes is
-                                    // the first survival verb.
-                                    if yields
-                                        .iter()
-                                        .any(|(id, _)| id.0 == 1)
-                                    {
-                                        slice.onboarding.mark("first_tree");
-                                    }
-                                    // A dig that takes is excavation
-                                    // progress (the authority decides
-                                    // what counts — same as the
-                                    // harvest and removal verbs).
-                                    let total: u8 = yields.iter().map(|(_, n)| *n as u8).sum();
-                                    let _ = self.submit_quest_event(
-                                        pc3d_world::quest::QuestEvent::Excavated {
-                                            cells: total,
-                                        },
-                                    );
-                                }
-                                format!("DUG {names}")
-                            } else {
-                                "NO GROUND TO EDIT".to_string()
-                            }
-                        }
-                    };
+                    // THE DIG VERB (G): start the viewmodel SWEEP (the
+                    // first-person body swings what is equipped) and
+                    // ARM the pending hit. THE SHARED HIT WINDOW (N05
+                    // card law: gameplay and animation share one
+                    // window): the dig resolves exactly when the frame
+                    // loop sees the sweep INSIDE the equipped spec's
+                    // window (consume_deferred_dig, called from redraw).
+                    // No equipped tool = the dig resolves NOW (bare
+                    // hands have no swing law yet; the tier gate still
+                    // refuses stone). NOTE: read BEFORE the attack —
+                    // "equipped" is the question, not "mid-swing".
+                    let tool_live = self
+                        .state
+                        .as_ref()
+                        .map(|s| s.renderer.viewmodel_state().is_some())
+                        .unwrap_or(false);
                     if let Some(s) = self.state.as_mut() {
-                        s.ui.toast(toast);
-                        s.ui_dirty = true;
+                        s.renderer.viewmodel_attack();
+                        s.dig_hit_pending = tool_live;
+                    }
+                    if !tool_live {
+                        self.resolve_dig_at_crosshair();
                     }
                 }
                 UiAction::ChooseCareer { code } => {
@@ -2972,7 +2890,46 @@ impl App {
                 }
                 UiAction::SelectHotbar(_) => {
                     // F builds with the selected slot's material — live.
+                    // N06: selecting a CARRIED TOOL equips its viewmodel
+                    // (the first-person body follows the selection);
+                    // selecting anything else clears the hands. The
+                    // shared identity: the hotbar item and the viewmodel
+                    // are the same tool.
+                    let equip_kind = {
+                        let idx = self.state.as_ref().map(|s| s.ui.hud.selected);
+                        let inv = self.cfg.slice_host.as_ref().map(|s| &s.inventory);
+                        match (idx, inv) {
+                            (Some(i), Some(inv)) => {
+                                use pc3d_world::items::ItemId;
+                                match i {
+                                    5 if inv.count(ItemId(12)) > 0 => Some(crate::viewmodel::ToolKind::Pick), // wood_pick
+                                    6 if inv.count(ItemId(10)) > 0 => Some(crate::viewmodel::ToolKind::Pick), // stone_pick
+                                    7 if inv.count(ItemId(11)) > 0 => Some(crate::viewmodel::ToolKind::Pick), // iron_pick
+                                    _ => None,
+                                }
+                            }
+                            _ => None,
+                        }
+                    };
                     if let Some(s) = self.state.as_mut() {
+                        let want = equip_kind.map(|k| k as u8);
+                        let have = s
+                            .renderer
+                            .viewmodel_state()
+                            .map(|_| 1u8); // some tool equipped (kind not exposed)
+                        // Re-equip only when the SELECTION identity changed:
+                        // cheap guard — equip is idempotent anyway (the
+                        // matrix gate re-runs), so just always re-equip on
+                        // a change of selection.
+                        let _ = (want, have);
+                        match equip_kind {
+                            Some(kind) => {
+                                if let Err(e) = s.renderer.equip_viewmodel(kind.spec()) {
+                                    s.ui.toast(format!("EQUIP REFUSED: {e}"));
+                                }
+                            }
+                            None => s.renderer.unequip_viewmodel(),
+                        }
                         s.ui_dirty = true;
                     }
                 }
@@ -3229,6 +3186,7 @@ impl ApplicationHandler for App {
             // (graceful: a failed connect is a Silent host, never an error).
             audio: Some(pc3d_audio::AudioHost::connect()),
             step_meter: 0.0,
+            dig_hit_pending: false,
             frame_no: 0,
             frame_ms: Vec::new(),
             consecutive_surface_errors: 0,
@@ -3482,6 +3440,158 @@ impl ApplicationHandler for App {
 }
 
 impl App {
+    /// THE DIG RESOLVE: the crosshair's live ground target — the same
+    /// streamed answer the walk stands on and the picture draws — then
+    /// the gated take (pick tier, pack room) decided BEFORE the ground
+    /// breaks, the one-step edit through the same live surface path,
+    /// and the yield credited to the inventory. Called from G when no
+    /// tool viewmodel is equipped, and from the frame loop the moment
+    /// the equipped sweep enters its hit window (the shared window law).
+    fn resolve_dig_at_crosshair(&mut self) {
+        let looked = {
+            let slice = self.cfg.slice_host.as_ref();
+            let state = self.state.as_ref();
+            match (slice, state) {
+                (Some(slice), Some(s)) => {
+                    let pose = s.renderer.pose();
+                    let fwd = crate::camera::fwd_of(pose.yaw, pose.pitch);
+                    let ground = |x: f32, z: f32| s.renderer.ground_y_at_pub(x, z);
+                    crate::player::dig_target(
+                        &ground,
+                        pose.position,
+                        fwd,
+                        crate::player::DIG_REACH_M,
+                    )
+                    .map(|(x, z)| {
+                        let g = ground(x as f32 + 0.5, z as f32 + 0.5);
+                        let region = pc3d_world::coords::RegionCoord {
+                            x: x.div_euclid(256),
+                            z: z.div_euclid(256),
+                        };
+                        let surface_mm = (g * 1000.0) as i64;
+                        // THE CELL'S OWN TRUTH, measured from the
+                        // GENERATOR's base (the deltas move the floor,
+                        // never the layer table): half a meter below
+                        // the live floor, read against the base as the
+                        // surface — so the depth is the shaft's whole
+                        // depth + half a meter. Flat ground answers its
+                        // biome's top layer (Grass, bare-hand diggable);
+                        // a 4 m-plus shaft answers Rock — the gate the
+                        // pick overcomes, exactly like the voxel world.
+                        let base_mm = slice
+                            .scene
+                            .gen
+                            .effective_surface_mm(
+                                ((x as f32 + 0.5) * 1000.0) as i64,
+                                ((z as f32 + 0.5) * 1000.0) as i64,
+                            );
+                        let wy_mm = surface_mm - 500;
+                        let material = pc3d_world::gen::cell_material(
+                            slice.scene.gen.biome(region),
+                            wy_mm,
+                            base_mm,
+                        );
+                        let tier = best_pick_tier(&slice.inventory);
+                        let outcome = dig_outcome(material, tier);
+                        let carried = match &outcome {
+                            DigOutcome::NeedPick => false,
+                            DigOutcome::Take(ys) => ys
+                                .iter()
+                                .all(|(id, n)| slice.inventory.can_fit(*id, *n)),
+                        };
+                        (x, z, g, outcome, carried)
+                    })
+                }
+                _ => None,
+            }
+        };
+        let toast = match looked {
+            None => "NO GROUND IN REACH".to_string(),
+            Some((_, _, _, DigOutcome::NeedPick, _)) => "NEED A PICK FOR STONE".to_string(),
+            Some((_, _, _, _, false)) => "PACK FULL - THE GROUND HOLDS".to_string(),
+            Some((x, z, _, DigOutcome::Take(yields), true)) => {
+                let names = yields
+                    .iter()
+                    .map(|(id, _)| pc3d_world::items::item_name(*id).to_uppercase())
+                    .collect::<Vec<_>>()
+                    .join("+");
+                let ok = self
+                    .state
+                    .as_mut()
+                    .map(|s| {
+                        s.renderer.surface_edit(
+                            pc3d_world::coords::CellCoord { x, y: 0, z },
+                            -crate::player::DIG_DEPTH_M,
+                        )
+                    })
+                    .unwrap_or(false);
+                if ok {
+                    if let Some(slice) = self.cfg.slice_host.as_mut() {
+                        for (id, n) in &yields {
+                            slice.inventory.add(*id, *n);
+                        }
+                        // VS V2 onboarding: grass dig yields wood as
+                        // "first_tree"; any dig that takes is the first
+                        // survival verb.
+                        if yields.iter().any(|(id, _)| id.0 == 1) {
+                            slice.onboarding.mark("first_tree");
+                        }
+                        // A dig that takes is excavation progress (the
+                        // authority decides what counts — same as the
+                        // harvest and removal verbs).
+                        let total: u8 = yields.iter().map(|(_, n)| *n as u8).sum();
+                        let _ = self.submit_quest_event(
+                            pc3d_world::quest::QuestEvent::Excavated { cells: total },
+                        );
+                    }
+                    format!("DUG {names}")
+                } else {
+                    "NO GROUND TO EDIT".to_string()
+                }
+            }
+        };
+        if let Some(s) = self.state.as_mut() {
+            s.ui.toast(toast);
+            s.ui_dirty = true;
+        }
+    }
+
+    /// THE SHARED WINDOW CONSUMER (N05): each frame, a pending dig
+    /// resolves the instant the equipped sweep's t enters its spec's
+    /// hit window — gameplay and animation ride the SAME samples. The
+    /// windows are the SPECS' own (pick 0.55–0.80, shovel 0.30–0.62);
+    /// the equipped kind picks the pair.
+    fn consume_deferred_dig(&mut self) {
+        let pending = self.state.as_ref().map(|s| s.dig_hit_pending) == Some(true);
+        if !pending {
+            return;
+        }
+        let sweep_t = self
+            .state
+            .as_ref()
+            .and_then(|s| s.renderer.viewmodel_state())
+            .and_then(|(_, t)| t);
+        // Equipped window: the pick's (the only carried-tool viewmodel
+        // wired today); a sweep that ENDED without entering the window
+        // (window missed) still releases the pending flag — no stuck hit.
+        let hit_now = if std::env::var("PC3D_MUTATE_HIT_WINDOW_EARLY").is_ok() {
+            sweep_t.map(|t| (0.0..=0.80).contains(&t)).unwrap_or(false)
+        } else {
+            sweep_t.map(|t| (0.55..=0.80).contains(&t)).unwrap_or(false)
+        };
+        let sweep_done = sweep_t.is_none();
+        if hit_now {
+            if let Some(s) = self.state.as_mut() {
+                s.dig_hit_pending = false;
+            }
+            self.resolve_dig_at_crosshair();
+        } else if sweep_done {
+            if let Some(s) = self.state.as_mut() {
+                s.dig_hit_pending = false;
+            }
+        }
+    }
+
     /// Gameplay key handling shared by owner and legacy paths (F/R build,
     /// B/L save, I inspect, interactive construction).
     fn gameplay_key(&mut self, code: KeyCode, event_loop: &ActiveEventLoop) {
@@ -3848,6 +3958,10 @@ impl App {
         if !self.run_ui_script(event_loop) {
             return;
         }
+        // THE SHARED WINDOW (N05): a pending dig resolves the frame the
+        // equipped sweep enters its hit window (gameplay rides the
+        // animation's own samples).
+        self.consume_deferred_dig();
         let Some(mut state) = self.state.as_mut() else {
             return;
         };

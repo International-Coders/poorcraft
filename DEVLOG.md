@@ -11218,3 +11218,58 @@ its consumer. Equip/unequip animation curves are linear ramps (beat-perfect
 curves when a motion tier asks for them).
 
 NEXT: N06+ per 12-FILA-DE-EXECUCAO.
+
+## 2026-11-23 — Loop 481: N05 wiring — the pick + the shared hit window (Poorcraft 3D)
+
+WHAT: The N05 deferral closed. The second tool (the PICK) landed together
+with its gameplay consumer: the dig verb now resolves THROUGH the viewmodel
+sweep's shared hit window, and the hotbar of owned items equips/drops the
+tool identity. Card per 14-PLANO; one playable change.
+
+HOW:
+- viewmodel.rs: ToolKind (Shovel|Pick) — mesh factory + gameplay share the
+  identity; ViewmodelSpec::pick (grip/off-hand/envelope per the solved
+  shovel, own sweep rising-then-down through rock, hit window 0.55–0.80);
+  18-cell matrix test p3dn05_pick_matrix (GREEN first run — the pose was
+  inherited from the solved shovel cells).
+- renderer.rs: mesh factory branch — pick spike (crossbar + downward point)
+  vs shovel scoop, same fist/off-hand law.
+- app.rs: DigAtCrosshair with tool → viewmodel_attack + dig_hit_pending;
+  consume_deferred_dig in redraw resolves ONCE inside the window; bare hand
+  resolves now; sweep-end without window releases the flag (no stuck hit).
+  SelectHotbar: slots 6/7/8 with carried pick (ItemId 12/10/11) equip
+  ToolKind::Pick, else unequip — through the real reducer path. Rock depth:
+  material read from the GENERATOR base (surface −500 mm vs base) so the
+  −6 m staged shaft answers Rock — voxel truth, not the delta floor.
+  Debug knob PC3D_MUTATE_HIT_WINDOW_EARLY (default off) = the mutation
+  lever for the route's teeth.
+- main.rs: route_dig_window — stage: grass cell → PlayerTeleport+Face →
+  EditSurface −6 m → G bare (refusal latch + ground held) → chest E (real
+  take) → Digit 6 (real equip) → G armed → per-frame sampler (191–250)
+  latching FIRST ground drop + consume-t. Verdict (9 conditions): refused,
+  ref_ground>0, equipped, resolved, t∈window, stock STONE, ground −1 m,
+  tool-in-frame (>200 px region diff vs refusal), sweep_ran (>30 px).
+- Evidence: shots/dig-window/route_dig_window/ (4 PNGs + 4 sidecars,
+  verdict PASS; PNGs human-inspected: toast NEED A PICK on empty hands,
+  PACK STONE 1 · WOOD_PICK 1 · BREAD 2 after equip+take, tool   silhouette
+  mid-swing, rock floor dropped one meter). RED: shots/dig-window-red/
+  (mutated 0.0 window → resolved false / dropped false / FAIL).
+
+TESTS: make p3d-test FULL GREEN 802/0 (assets 38, audio 8, core 32,
+render 274 — includes the new pick matrix + existing 5 GPU reference-diffs,
+save 20, world 430); make p3d-doctrine-check 2/2. NOTE (honesty): the
+debug-profile suite costs ~45 min wall on this host because the 8-seed
+spawn matrix is O(minutes) in debug (release ~4.5 min) — expected per the
+test's own doc comment, not a hang.
+
+FILES: crates/pc3d_render/src/{viewmodel.rs, renderer.rs, app.rs,
+observe.rs}; apps/poorcraft3d/src/main.rs; apps/poorcraft3d/shots/
+dig-window/; apps/poorcraft3d/shots/dig-window-red/; docs/CONTINUACAO-GLM/
+12-FILA...md; STATE.md; CHANGELOG.md; this log.
+
+HONESTLY DEFERRED: shovel hit-window wiring rides the same consume path
+when the shovel gets its gameplay consumer (N08/N10); window readback is
+hardcoded to the pick's pair until a second equipped kind exists (spec
+carrier lands with it — ceiling named in code).
+
+NEXT: N06 — owned hotbar (14-PLANO-N06-N11).

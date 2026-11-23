@@ -111,6 +111,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_dig_window",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

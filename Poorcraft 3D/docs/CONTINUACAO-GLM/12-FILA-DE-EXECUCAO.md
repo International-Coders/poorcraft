@@ -108,6 +108,21 @@ puros + 5 testes GPU por referência-dif + `route_viewmodel` PASS (8611 px
 ferramenta, 8477 px sweep, 6216 px parede, matriz limpa). A segunda
 ferramenta (machado) entra com seu consumidor de gameplay.
 
+**Wired (loop 481, 2026-11-23):** a segunda ferramenta entrou com consumidor
+real — a **picareta** (`ToolKind::Pick`, spec própria + matrix 18 células
+`p3dn05_pick_matrix`, spike no mesh factory) e o **consumo do hit window**:
+o verbo de cavar (G) com ferramenta equipada arma `dig_hit_pending` e
+resolve exatamente uma vez, no frame em que o sweep entra na janela da
+spec equipada (mão vazia resolve imediato; janela perdida solta o flag —
+sem hit preso). Hotbar de itens possuídos equipa/desequipa o viewmodel
+pela seleção (slots 6/7/8 com picareta possuída). Prova fechada:
+`route_dig_window` (4 capturas, 9 condições: recusa bare-hand na rocha,
+equip pela via real do baixo, resolve dentro da janela t=0.593, crédito
+STONE no pack, queda do chão 31.68→30.68, tool-in-frame + sweep-pixels);
+mutação `PC3D_MUTATE_HIT_WINDOW_EARLY=1` (janela 0.0) → route FAIL
+(resolved false, dropped false), restaurada → PASS. Suíte 802/0
+(render 274, world 430).
+
 ## Épico B — primeira sessão
 
 ### N06 — Hotbar de itens possuídos

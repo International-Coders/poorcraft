@@ -2131,8 +2131,24 @@ impl Renderer {
             [0.018, 0.018, (g[2] - head0[2]).abs() / 2.0 + 0.02],
             wood,
         );
-        // Blade: at the raised head position, facing forward.
-        push_box(&mut v, &mut idx, head0, [0.05, 0.085, 0.012], steel);
+        match spec.kind {
+            crate::viewmodel::ToolKind::Shovel => {
+                // Blade: the flat scoop at the raised head position.
+                push_box(&mut v, &mut idx, head0, [0.05, 0.085, 0.012], steel);
+            }
+            crate::viewmodel::ToolKind::Pick => {
+                // The pick's spike: a slim crossbar + downward point at
+                // the raised head — reads as a pick, not a shovel.
+                push_box(&mut v, &mut idx, head0, [0.075, 0.016, 0.016], steel);
+                push_box(
+                    &mut v,
+                    &mut idx,
+                    [head0[0], head0[1] - 0.05, head0[2] + 0.004],
+                    [0.012, 0.045, 0.010],
+                    steel,
+                );
+            }
+        }
         // Fist: around the grip (the dominant hand).
         push_box(&mut v, &mut idx, g, [0.045, 0.055, 0.055], fist);
         // Off-hand support: the doctrine gate demands a second hand.

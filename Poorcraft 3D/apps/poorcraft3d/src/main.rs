@@ -5646,6 +5646,52 @@ fn find_dig_spot_barehand(
     None
 }
 
+/// THE PICK'S STONE (N06): a flat flora-free ROCK cell near the plaza —
+/// the refusal the pick overcomes. Same cell geometry as the bare-hand
+/// finder; the material gate flips to Rock ONLY.
+fn find_dig_spot_rock(
+    gen: &pc3d_world::gen::WorldGen,
+    plaza_x: f32,
+    plaza_z: f32,
+) -> Option<[f32; 3]> {
+    use pc3d_world::gen::CellMaterial;
+    let ground_at = |x: f32, z: f32| -> f32 {
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    for ring_m in [8.0f32, 14.0, 20.0, 26.0, 34.0, 42.0, 52.0, 64.0, 78.0, 96.0] {
+        for k in 0..24 {
+            let a = k as f32 / 24.0 * std::f32::consts::TAU;
+            let cx = plaza_x + ring_m * a.cos();
+            let cz = plaza_z + ring_m * a.sin();
+            let cell = pc3d_world::coords::CellCoord {
+                x: cx as i32,
+                y: 0,
+                z: cz as i32,
+            };
+            let sx = cell.x as f32 + 0.5;
+            let sz = cell.z as f32 + 0.5;
+            if !dig_spot_ok(gen, sx, sz) {
+                continue;
+            }
+            let g = ground_at(sx, sz);
+            let region = pc3d_world::coords::RegionCoord {
+                x: cell.x.div_euclid(256),
+                z: cell.z.div_euclid(256),
+            };
+            let material = pc3d_world::gen::cell_material(
+                gen.biome(region),
+                (g.floor() as i64) * 1000,
+                (g * 1000.0) as i64,
+            );
+            if material != CellMaterial::Rock {
+                continue;
+            }
+            return Some([sx, g, sz]);
+        }
+    }
+    None
+}
+
 /// WT-003: run one observatory route and write its evidence bundle.
 /// Every `*.layout.json` under `dir`, recursively.
 fn collect_layout_dumps(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
@@ -5791,6 +5837,15 @@ fn run_observe(route_id: &str, out_root: &str) {
         // frames play_fall_landed — no fixed frame for a contended pace
         // to outrun (the 3 s toast can die before one).
         let playtest_fall = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 8]));
+        // route_dig_window recordings (N06): [0] the bare-handed
+        // refusal toast latch, [1] the rock's ground at the refusal
+        // read, [2] the viewmodel-equipped latch, [3] the resolve
+        // latch (the FIRST per-frame ground drop), [4] the pre-drop
+        // ground at the rock (the last intact sample), [5] the
+        // consume-time sweep t + one frame step, [6] the latest
+        // sample's t, [7] the post ground — the verdict reads them
+        // after the run.
+        let dig_window_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 8]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -7720,6 +7775,183 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(170, format!("{dir}/vm_wall.png")));
                 shots.push(Shot::new(230, format!("{dir}/vm_unequipped.png")));
             }
+            "route_dig_window" => {
+                // THE SHARED WINDOW, END TO END (N06): the hotbar
+                // selection EQUIPS the carried pick's viewmodel, the
+                // first swing (G, bare-handed) refuses on the shaft's
+                // ROCK floor, the pick from the CHEST arms the pending
+                // hit, and the dig lands exactly when the equipped
+                // sweep enters ITS window — sampled per frame, the
+                // take latched on the FIRST ground drop while every
+                // earlier sample read the floor intact. The staging
+                // digs a -6 m shaft first (the same EditSurface path
+                // the pit routes stage): past the 4 m soil band the
+                // cell's own truth is Rock — the gate the pick
+                // overcomes, on ground the dig law can actually edit.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                let [sx, sg, sz] = find_dig_spot_barehand(
+                    gen,
+                    plaza.x as f32 + 0.5,
+                    plaza.z as f32 + 0.5,
+                    true,
+                )
+                .unwrap_or_else(|| {
+                    panic!("route_dig_window: no flat grass cell near the plaza on seed {seed}")
+                });
+                println!("DIG WINDOW: grass->shaft spot ({sx:.1},{sg:.2},{sz:.1})");
+                let cells = dig_window_cells.clone();
+                // Frame 12: play. Frame 40: stand ON the cell, steep
+                // aim (underfoot law). Frame 55: the -6 m shaft (the
+                // body rides down — the recovery routes' staged law).
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                ui_script.push((
+                    40,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                ui_script.push((
+                    55,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::EditSurface {
+                            x: sx,
+                            z: sz,
+                            meters: -6.0,
+                        });
+                    }),
+                ));
+                // Frame 80: G with EMPTY hands — the dig resolves NOW
+                // (no viewmodel equipped) and the tier gate refuses on
+                // the rock floor: the toast names it, the ground holds.
+                ui_script.push((
+                    80,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Char('g'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let refusal = cells.clone();
+                ui_script.push((
+                    95,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = refusal.get();
+                        v[0] = ui.toasts
+                            .iter()
+                            .any(|t| t.text.contains("NEED A PICK")) as u8 as f32;
+                        v[1] = r.ground_y_at_pub(sx, sz);
+                        refusal.set(v);
+                    }),
+                ));
+                // Frames 100-120: to the CHEST, E opens it (the pick
+                // arrives through the REAL interact path), E closes.
+                ui_script.push((
+                    100,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(p) = r.plaza_interactable_pos(0) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    115,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // the chest -> the pick
+                    }),
+                ));
+                ui_script.push((
+                    130,
+                    Box::new(|ui, _r, ctx| {
+                        // CLOSE through the reducer's own E (take()) — a
+                        // second TryTalk would RE-OPEN the panel (the
+                        // exec path always opens) and the open panel
+                        // would silently swallow the dig's G below.
+                        let acts =
+                            pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Char('e'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 145: the 6 key selects the wood_pick slot
+                // (carried slot 0) through the REAL reducer — the
+                // handler equips the pick viewmodel (the slot's item
+                // IS the hand's tool).
+                ui_script.push((
+                    145,
+                    Box::new(|ui, _r, ctx| {
+                        let acts =
+                            pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Digit(6));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let equipped = cells.clone();
+                ui_script.push((
+                    158,
+                    Box::new(move |_ui, r, _ctx| {
+                        let mut v = equipped.get();
+                        v[2] = r.viewmodel_state().is_some() as u8 as f32;
+                        equipped.set(v);
+                    }),
+                ));
+                // Frame 170: back IN the shaft, swing. The pending hit
+                // arms (a tool IS live); consume_deferred_dig resolves
+                // the frame the sweep's t enters [0.55, 0.80].
+                ui_script.push((
+                    170,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                ui_script.push((
+                    190,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = pc3d_render::ui::on_key(ui, pc3d_render::ui::Key::Char('g'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // The swing sampler: per-frame (t, ground). The ui step
+                // at frame f reads t BEFORE frame f's render advanced it
+                // and BEFORE f's consume fired — so a drop first seen at
+                // sample k was consumed at k-1 with a t one frame-step
+                // BELOW what sample k reads (the sweep advances ~1/27
+                // per frame: dt/0.45 at the 60 fps prepare cadence). The
+                // latch keeps the FIRST drop; every earlier sample read
+                // the floor intact while the swing ran.
+                for f in 191..=250u64 {
+                    let rec = cells.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |_ui, r, _ctx| {
+                            let mut v = rec.get();
+                            let t = r
+                                .viewmodel_state()
+                                .and_then(|(_, t)| t)
+                                .unwrap_or(f32::NAN);
+                            let ground = r.ground_y_at_pub(sx, sz);
+                            if v[3] < 0.5 && v[4] > 0.0 && ground < v[4] - 1e-3 {
+                                v[3] = 1.0; // THE RESOLVE, latched once
+                                v[5] = t; // consume-time t + one frame step
+                            }
+                            if v[3] < 0.5 {
+                                v[4] = ground;
+                            }
+                            v[6] = t; // latest sample (diagnostics)
+                            v[7] = ground; // the latest floor (verdict)
+                            rec.set(v);
+                        }),
+                    ));
+                }
+                shots.push(Shot::new(90, format!("{dir}/refusal_bare.png")));
+                shots.push(Shot::new(163, format!("{dir}/pick_equipped.png")));
+                shots.push(Shot::new(210, format!("{dir}/swing_mid.png")));
+                shots.push(Shot::new(255, format!("{dir}/rock_took.png")));
+            }
             "route_forge_use" => {
                 // The forge slice, end to end: enter the world, stand at
                 // the plaza forge, E (opens THE FORGE through the zone
@@ -8406,6 +8638,84 @@ fn run_observe(route_id: &str, out_root: &str) {
             } else {
                 eprintln!(
                     "[FAIL] observe route_viewmodel: tool {tool_present}px sweep {sweep_moves}px wall {wall_differs}px matrix_clean {matrix_clean}"
+                );
+                any_fail = true;
+            }
+        }
+        // THE DIG WINDOW VERDICT (N06): the pick arms the hit, the take
+        // lands INSIDE the sweep's own window, the pack gains the
+        // yield, the ground drops one meter, and the bare-handed press
+        // on the same rock was refused first.
+        if spec.id == "route_dig_window" {
+            let v = dig_window_cells.get();
+            let refused = v[0] > 0.5;
+            let ref_ground = v[1];
+            let equipped = v[2] > 0.5;
+            let resolved = v[3] > 0.5;
+            let pre_ground = v[4];
+            let resolve_t = v[5];
+            let in_window = (0.55..=0.80).contains(&resolve_t);
+            let stock_now = report
+                .final_ui_state
+                .as_ref()
+                .and_then(|s| s["hud"]["stock"].as_str())
+                .unwrap_or("")
+                .to_string();
+            // The take credited SOMETHING (rock yields stone; the stock
+            // line must differ from an empty-looking line and name it).
+            let took = stock_now.contains("STONE");
+            let post_ground = v[7];
+            let dropped = post_ground < pre_ground - 0.5 && pre_ground > 0.0;
+            // THE CAPTURES: equipped vs refused differ (the tool in
+            // frame), swing_mid differs from equipped (the sweep ran).
+            let cap = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let (Some(pre_ref), Some(pre_eq), Some(pre_sw)) =
+                (cap("refusal_bare"), cap("pick_equipped"), cap("swing_mid"))
+            else {
+                eprintln!("[FAIL] observe route_dig_window: captures missing");
+                any_fail = true;
+                return;
+            };
+            let (w, h) = (pre_ref.report.width, pre_ref.report.height);
+            let region_diff = |a: &[u8], b: &[u8]| -> usize {
+                let (x0, y0, x1, y1) = ((w * 2) / 5, h / 3, (w * 9) / 10, (h * 9) / 10);
+                let mut n = 0;
+                for y in y0..y1 {
+                    for x in x0..x1 {
+                        let i = ((y * w + x) * 4) as usize;
+                        if (a[i] as i32 - b[i] as i32).abs() > 10
+                            || (a[i + 1] as i32 - b[i + 1] as i32).abs() > 10
+                            || (a[i + 2] as i32 - b[i + 2] as i32).abs() > 10
+                        {
+                            n += 1;
+                        }
+                    }
+                }
+                n
+            };
+            let tool_in_frame = region_diff(&pre_ref.rgba, &pre_eq.rgba) > 200;
+            let sweep_ran = region_diff(&pre_eq.rgba, &pre_sw.rgba) > 30;
+            let ok = refused
+                && ref_ground > 0.0
+                && equipped
+                && resolved
+                && in_window
+                && took
+                && dropped
+                && tool_in_frame
+                && sweep_ran;
+            if ok {
+                println!(
+                    "DIG WINDOW: bare hands refused (ground held at {ref_ground:.2}), the pick equipped, the sweep resolved INSIDE the window (t={resolve_t:.3}), the take credited (\"{stock_now}\"), the rock dropped {pre_ground:.2} -> {post_ground:.2}, tool in frame + sweep pixels move"
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe route_dig_window: refused {refused} / ref_ground {ref_ground:.2} / equipped {equipped} / resolved {resolved} / resolve_t {resolve_t:.3} in {in_window} / took {took} (\"{stock_now}\") / dropped {dropped} ({pre_ground:.2}->{post_ground:.2}) / tool_in_frame {tool_in_frame} / sweep_ran {sweep_ran}"
                 );
                 any_fail = true;
             }

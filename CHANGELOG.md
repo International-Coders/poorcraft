@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## Loop 481 — N05 wiring: the pick + the shared hit window (Poorcraft 3D)
+- `pc3d_render/src/viewmodel.rs`: `ToolKind` (Shovel|Pick) — the mesh factory
+  and the gameplay wiring share one identity; `ViewmodelSpec::pick` (own
+  silhouette, rising-strike sweep, hit window 0.55–0.80) + its 18-cell matrix
+  test `p3dn05_pick_matrix`.
+- `pc3d_render/src/renderer.rs`: pick spike mesh (crossbar + downward point)
+  branched by `spec.kind` in the mesh factory.
+- `pc3d_render/src/app.rs`: `UiAction::DigAtCrosshair` with a tool equipped
+  starts `viewmodel_attack` and arms `dig_hit_pending`; `consume_deferred_dig`
+  (frame loop) resolves the dig exactly ONCE inside the equipped spec's window;
+  bare hand resolves immediately; a missed window releases the flag honestly.
+  `SelectHotbar` equips/unequips the viewmodel from the REAL inventory (slots
+  6/7/8 with a carried pick). Rock depth law: dig material reads the cell's
+  own truth from the generator base (surface −500 mm), so a −6 m shaft
+  answers Rock. Debug mutation knob `PC3D_MUTATE_HIT_WINDOW_EARLY` (default
+  off, true window).
+- `apps/poorcraft3d/src/main.rs`: `route_dig_window` (staged shaft −6 m,
+  bare-hand refusal, chest E → pick, Digit-6 equip through the real reducer,
+  swing with per-frame sampler latching the FIRST ground drop) + 9-condition
+  verdict + `find_dig_spot_rock`.
+- `apps/poorcraft3d/shots/dig-window/route_dig_window/`: 4 captures +
+  bundle/verdict/perf/runtime_state sidecars. RED evidence:
+  `shots3d/dig-window-red/` (mutated window → FAIL, honest reason line).
+- Suite 802/0 (assets 38, audio 8, core 32, render 274, save 20, world 430);
+  doctrine check green.
+
 ## Loop 480 — N05 Viewmodel foundation (Poorcraft 3D)
 - The pure half: `pc3d_render/src/viewmodel.rs` — `ViewmodelSpec` (dominant
   hand, grips, off-hand, screen envelope, reticle exclusion, near clearance,
