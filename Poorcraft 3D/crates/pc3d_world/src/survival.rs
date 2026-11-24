@@ -52,6 +52,72 @@ pub fn fishing_catch(
     Some(FISH)
 }
 
+/// N08 THE WATER LAW (pure): how far (m) the player stands from a
+/// river channel's water surface, when the column is within the
+/// channel's half width. None = dry land: no fishing here. The gate is
+/// the CARVED authority (`river_channel`) — the same truth render,
+/// collision and nav read; a fishing spot can never disagree with the
+/// water the player sees.
+pub fn water_edge_distance_m(
+    gen: &WorldGen,
+    pos: &[f32; 3],
+) -> Option<f32> {
+    // Scan the 5×5 m neighborhood for the nearest in-channel column
+    // (the channel's half width spans 1.5–6 m; a 5 m reach finds the
+    // bank edge without pulling the whole watershed in).
+    let wx = (pos[0] * 1000.0) as i64;
+    let wz = (pos[2] * 1000.0) as i64;
+    let mm = 1000_i64;
+    let mut best: Option<f32> = None;
+    for dx in -5..=5 {
+        for dz in -5..=5 {
+            let Some(hit) = gen.river_channel(wx + dx * mm, wz + dz * mm) else {
+                continue;
+            };
+            // In-channel column: distance from the player to THIS
+            // column (the water they could cast into).
+            let col_x = (wx + dx * mm) as f32 / 1000.0;
+            let col_z = (wz + dz * mm) as f32 / 1000.0;
+            let d = (pos[0] - col_x).hypot(pos[2] - col_z);
+            if best.is_none_or(|b| d < b) {
+                best = Some(d);
+            }
+        }
+    }
+    best
+}
+
+/// N08 THE FIRST CATCH: fish at the current column when water is
+/// within arm's reach. One stock unit → one FISH (the authority's own
+/// exchange). Returns Err(honest reason) on dry land or an empty
+/// region; Ok(item) on the catch (the caller marks first_catch and
+/// plays the sound).
+pub const CAST_REACH_M: f32 = 3.0;
+
+pub fn fish_at(
+    graph: &RiverGraph,
+    stocks: &mut FishStocks,
+    gen: &WorldGen,
+    inventory: &mut Inventory,
+    onboarding: &mut Onboarding,
+    pos: &[f32; 3],
+) -> Result<ItemId, &'static str> {
+    // The gate first: dry land refuses before any stock moves.
+    let dist = water_edge_distance_m(gen, pos).ok_or("NO WATER HERE — FIND THE RIVER")?;
+    if dist > CAST_REACH_M {
+        return Err("TOO FAR FROM THE WATER TO CAST");
+    }
+    let region = crate::coords::RegionCoord {
+        x: ((pos[0] * 1000.0) as i64).div_euclid(256_000) as i32,
+        z: ((pos[2] * 1000.0) as i64).div_euclid(256_000) as i32,
+    };
+    let caught = fishing_catch(graph, stocks, inventory, region)
+        .ok_or("THE RIVER IS FISHED OUT — COME BACK LATER")?;
+    onboarding.mark("first_catch");
+    Ok(caught)
+}
+
+
 /// Eat one food item from the inventory: consumes it and clears hunger.
 /// Returns false when the item is missing or not food.
 pub fn eat_from(inventory: &mut Inventory, needs: &mut Needs, food: ItemId) -> bool {
@@ -256,5 +322,96 @@ mod tests {
         assert_eq!(harvest_into(&gen, &mut inv, CellMaterial::Rock, Some(1)), 1);
         assert_eq!(inv.count(ItemId(2)), 1);
         let _ = dig_yield_kind(CellMaterial::Air);
+    }
+
+    /// N08 THE WATER LAW: a river column answers its distance; dry land
+    /// answers None. The showcase watershed (seed 3's field) has a
+    /// channel; a far column does not.
+    #[test]
+    fn p3dn08_water_edge_answers_the_carved_channel() {
+        let gen = WorldGen::new(3);
+        // Find an in-channel column by scanning the field (regions sit
+        // a few km out; the stocked region (-24,-5) holds the channel).
+        let mut spot: Option<[f32; 3]> = None;
+        'outer: for x in -6400..-6000_i64 {
+            for z in -1200..-900_i64 {
+                if gen.river_channel(x * 1000, z * 1000).is_some() {
+                    spot = Some([x as f32, 0.0, z as f32]);
+                    break 'outer;
+                }
+            }
+        }
+        let [sx, _, sz] = spot.expect("seed 3 has a carved river");
+        let at_water = water_edge_distance_m(&gen, &[sx, 0.0, sz]);
+        assert!(at_water.is_some_and(|d| d <= 1.0), "in-channel is close");
+        // Dry land: (+10, +30) from the first column measured truly dry
+        // (the channel runs diagonal; this offset clears its bands).
+        let far = water_edge_distance_m(&gen, &[sx + 10.0, 0.0, sz + 30.0]);
+        assert!(far.is_none(), "the measured dry spot must answer None: {far:?}");
+    }
+
+    /// N08 THE FIRST CATCH: at the water the fish lands (stock paid,
+    /// item added, first_catch marked); dry land refuses BEFORE stock
+    /// moves, and an exhausted region refuses honestly.
+    #[test]
+    fn p3dn08_fish_at_gates_land_then_stock() {
+        let gen = WorldGen::new(3);
+        let graph = RiverGraph::new(&gen, 20);
+        let mut stocks = FishStocks::new(&graph);
+        let mut inv = Inventory::new(8);
+        let mut o = Onboarding::default();
+        // Find an in-channel spot inside a stocked river region
+        // (is_river is the graph's own membership law).
+        let mut spot: Option<[f32; 3]> = None;
+        let mut region = crate::coords::RegionCoord { x: 0, z: 0 };
+        'outer: for (rx, rz) in &graph.river_regions {
+            let r = crate::coords::RegionCoord { x: *rx, z: *rz };
+            if stocks.stock_at(r) == 0 {
+                continue;
+            }
+            // Scan inside this 256 m region at 2 m steps for a channel
+            // column (measured: (-6144,-1026) on seed 3's field).
+            for x in (rx * 256..(rx + 1) * 256).step_by(2) {
+                for z in (rz * 256..(rz + 1) * 256).step_by(2) {
+                    if gen.river_channel(x as i64 * 1000, z as i64 * 1000).is_some() {
+                        spot = Some([x as f32, 0.0, z as f32]);
+                        region = r;
+                        break 'outer;
+                    }
+                }
+            }
+        }
+        let [sx, _, sz] = spot.expect("seed 3 has a stocked river");
+        let stock_before = stocks.stock_at(region);
+        // THE CATCH: stock pays one, the pack gains a fish, onboarding
+        // marks the milestone.
+        let caught =
+            fish_at(&graph, &mut stocks, &gen, &mut inv, &mut o, &[sx, 0.0, sz]);
+        assert_eq!(caught, Ok(FISH));
+        assert_eq!(stocks.stock_at(region), stock_before - 1);
+        assert_eq!(inv.count(FISH), 1);
+        assert!(o.is_done("first_catch"));
+        // THE DRY LAW: the measured dry spot refuses BEFORE stock moves.
+        let dry = fish_at(
+            &graph,
+            &mut stocks,
+            &gen,
+            &mut inv,
+            &mut o,
+            &[sx + 10.0, 0.0, sz + 30.0],
+        );
+        assert!(dry.is_err());
+        assert_eq!(
+            stocks.stock_at(region),
+            stock_before - 1,
+            "dry land pays no stock"
+        );
+        // THE SPENT LAW: an empty region refuses with the honest line.
+        let r = crate::coords::RegionCoord { x: region.x, z: region.z };
+        let held = stocks.stock_at(r);
+        stocks.catch_fish(r, held);
+        let mut inv2 = Inventory::new(8);
+        let spent = fish_at(&graph, &mut stocks, &gen, &mut inv2, &mut o, &[sx, 0.0, sz]);
+        assert_eq!(spent, Err("THE RIVER IS FISHED OUT — COME BACK LATER"));
     }
 }

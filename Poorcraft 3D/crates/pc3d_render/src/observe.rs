@@ -121,6 +121,16 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_mouse_first",
+            available: true,
+            reason: "",
+        },
+        RouteSpec {
+            id: "route_first_tool",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

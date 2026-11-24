@@ -2452,6 +2452,9 @@ pub enum Key {
     Down,
     Left,
     Right,
+    /// N07: the inventory toggle (the pack panel) — the card's "Tab abre
+    /// inventário".
+    Tab,
     Char(char),
     Digit(u8),
     Backspace,
@@ -2460,6 +2463,23 @@ pub enum Key {
     WheelUp,
     WheelDown,
 }
+
+/// N07: which mouse button a verb resolution was asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MouseSide {
+    /// The primary verb: attack / dig.
+    Left,
+    /// The secondary verb: build.
+    Right,
+}
+
+/// N07 THE BINDING MAP'S PROMPT: the HUD names the mouse verbs (the
+/// letter keys keep working; the prompt teaches the mouse-first law).
+pub const MOUSE_FIRST_PROMPT: &str =
+    "LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE";
+
+/// N07 the contextual tail (E TALK …, V DELIVER…) is prefixed to this.
+pub const MOUSE_FIRST_TAIL: &str = MOUSE_FIRST_PROMPT;
 
 /// What the app should do after a UI event. Everything side-effectful lives
 /// here; the reducer only mutates UiState.
@@ -2546,6 +2566,10 @@ pub enum UiAction {
     /// room), lowers the column one walkable step through the same
     /// surface edit, and credits the yield to the inventory.
     DigAtCrosshair,
+    /// N07 THE MOUSE-FIRST BUILD (RMB): build with the selected slot's
+    /// material through the same vetted path F drives (foundation gate,
+    /// pack cost, quest events). The UI never names a key.
+    BuildSelected,
     /// C: ask the app to build the craft rows from the live inventory.
     ToggleCraft,
     /// K: ask the app to build the pack slot lines from the live inventory.
@@ -2672,6 +2696,14 @@ pub fn on_key(state: &mut UiState, key: Key) -> Vec<UiAction> {
                 acts.push(UiAction::Repaint);
             }
             Key::Char('k') => {
+                if state.pack.take().is_none() {
+                    acts.push(UiAction::TogglePack);
+                }
+                acts.push(UiAction::Repaint);
+            }
+            // N07: TAB opens the inventory (the pack panel) — the card's
+            // "Tab abre inventário"; the same toggle closes it.
+            Key::Tab => {
                 if state.pack.take().is_none() {
                     acts.push(UiAction::TogglePack);
                 }
@@ -3190,6 +3222,56 @@ pub fn on_mouse_move(state: &mut UiState, x: i32, y: i32, list: &DrawList) -> bo
         true
     } else {
         false
+    }
+}
+
+/// N07 THE MOUSE-FIRST RESOLVER (pure): priority modal → menu → panel →
+/// focused interaction → attack (Left) / build (Right). The UI never
+/// writes a fixed key: the app routes the returned actions through the
+/// SAME verb paths the letters drive. Clean gameplay with a free pointer
+/// asks for capture (the click-to-look law) BEFORE any verb.
+pub fn on_mouse_verb(state: &mut UiState, side: MouseSide) -> Vec<UiAction> {
+    // 1. Modals and menus own every click (the click already served its
+    //    UI layer through on_click; a verb must never fire behind them).
+    if state.modal.is_some() || state.screen.blocks_gameplay() {
+        return Vec::new();
+    }
+    // 2. An open data panel owns the frame (the forge, the pack, the
+    //    bench...). The DIALOG is not a data panel — it is tier 3's
+    //    focused interaction and must fall through to it.
+    if state.active_panel() != ActivePanel::None
+        && state.active_panel() != ActivePanel::Dialog
+    {
+        return Vec::new();
+    }
+    // 3. THE FOCUSED INTERACTION: a dialog converts Left to its close
+    //    (E closes it too — the mouse gets the same courtesy); Right is
+    //    swallowed (nothing to build while talking).
+    if state.dialog.is_some() {
+        if side == MouseSide::Left {
+            state.dialog = None;
+            return vec![UiAction::Repaint];
+        }
+        return Vec::new();
+    }
+    // 4. THE POINTER LAW: a free pointer means the click is the LOOK
+    //    request (capture) — the verbs wait for the grab.
+    if !state.pointer_grabbed {
+        return vec![UiAction::CaptureMouse];
+    }
+    // 5. THE VERBS: Left attacks (the dig), Right builds. THE MUTATION
+    //    LEVER: PC3D_MUTATE_MOUSE_BUILD_OFF severs the build verb —
+    //    the route's RMB leg must go RED while every other leg stays
+    //    green (the gate is load-bearing). Off by default (the real
+    //    game builds). Compiled in ALL profiles: the route's mutation
+    //    runs are release binaries (the deck-bench lesson), so a
+    //    debug-only lever would mutate nothing.
+    if std::env::var("PC3D_MUTATE_MOUSE_BUILD_OFF").is_ok() && side == MouseSide::Right {
+        return vec![UiAction::Repaint];
+    }
+    match side {
+        MouseSide::Left => vec![UiAction::DigAtCrosshair, UiAction::Repaint],
+        MouseSide::Right => vec![UiAction::BuildSelected, UiAction::Repaint],
     }
 }
 
@@ -4638,6 +4720,121 @@ mod tests {
         }
         // Slots never overlap.
         assert!(no_interactive_overlap(&list));
+    }
+
+    /// N07 THE MOUSE-FIRST RESOLVER: priority modal → menu → panel →
+    /// focused dialog → attack (Left) / build (Right); the UI never
+    /// writes a fixed key for the verbs.
+    #[test]
+    fn p3dn07_mouse_verbs_resolve_by_priority() {
+        let mut s = state(Screen::Gameplay);
+        // Clean gameplay: Left = the dig attack, Right = the build.
+        // (First click captures the pointer — the verb fires from the
+        // second click on, exactly like the real loop: grab, then play.)
+        let acts = on_mouse_verb(&mut s, MouseSide::Left);
+        assert!(
+            acts.iter().any(|a| matches!(a, UiAction::CaptureMouse)),
+            "an ungrabbed pointer's first click captures: {acts:?}"
+        );
+        s.pointer_grabbed = true;
+        let acts = on_mouse_verb(&mut s, MouseSide::Left);
+        assert!(
+            acts.iter().any(|a| matches!(a, UiAction::DigAtCrosshair)),
+            "Left is the primary verb (attack/dig): {acts:?}"
+        );
+        let acts = on_mouse_verb(&mut s, MouseSide::Right);
+        assert!(
+            acts.iter().any(|a| matches!(a, UiAction::BuildSelected)),
+            "Right is the secondary verb (build): {acts:?}"
+        );
+        // A modal owns everything.
+        let mut m = state(Screen::Gameplay);
+        m.modal = Some(ModalKind::QuitToDesktop);
+        let acts = on_mouse_verb(&mut m, MouseSide::Left);
+        assert!(
+            !acts.iter().any(|a| matches!(a, UiAction::DigAtCrosshair)),
+            "a modal owns the click: {acts:?}"
+        );
+        // A menu owns everything.
+        let mut p = state(Screen::Pause);
+        let acts = on_mouse_verb(&mut p, MouseSide::Right);
+        assert!(acts.is_empty(), "a menu owns the click: {acts:?}");
+        // A panel owns everything.
+        let mut f = state(Screen::Gameplay);
+        f.forge = Some(ForgeView {
+            state_label: "READY".into(),
+            blocked: false,
+            fuel_frac: 0.5,
+            heat_frac: 0.5,
+            ore: 0,
+            bars: 0,
+        });
+        let acts = on_mouse_verb(&mut f, MouseSide::Left);
+        assert!(
+            !acts.iter().any(|a| matches!(a, UiAction::DigAtCrosshair)),
+            "an open panel owns the click: {acts:?}"
+        );
+        // THE FOCUSED INTERACTION: a dialog converts Left to its close
+        // (the focused interaction outranks the attack).
+        let mut d = state(Screen::Gameplay);
+        d.dialog = Some(pc3d_world::dialog::DialogLine {
+            speaker: "Bram".into(),
+            role: "FARMER",
+            activity: "FARMING",
+            need: "".into(),
+            text: "Good soil.".into(),
+        });
+        let acts = on_mouse_verb(&mut d, MouseSide::Left);
+        assert!(
+            d.dialog.is_none() && !acts.iter().any(|a| matches!(a, UiAction::DigAtCrosshair)),
+            "Left on a focused dialog closes it (no dig behind): {acts:?}"
+        );
+    }
+
+    /// N07: TAB opens the inventory (the pack panel) — the card's
+    /// "Tab abre inventário"; Tab again closes. The reducer ASKS
+    /// (`TogglePack`); the app applies (one panel law, pack rows come
+    /// from the live inventory) — here we emulate the app's apply.
+    #[test]
+    fn p3dn07_tab_opens_the_pack() {
+        let mut s = state(Screen::Gameplay);
+        let acts = on_key(&mut s, Key::Tab);
+        assert!(
+            acts.iter().any(|a| matches!(a, UiAction::TogglePack)),
+            "Tab must ask for the pack: {acts:?}"
+        );
+        // The app's apply (exec_actions::TogglePack): close_panels + rows.
+        s.close_panels();
+        s.pack = Some(Vec::new());
+        assert!(s.blocks_gameplay(), "the pack panel owns the frame");
+        // Tab again closes (the panel is already open — no second ask).
+        let acts = on_key(&mut s, Key::Tab);
+        assert!(
+            !acts.iter().any(|a| matches!(a, UiAction::TogglePack)),
+            "Tab with the pack open just closes: {acts:?}"
+        );
+        assert!(!s.blocks_gameplay());
+    }
+
+    /// N07: the binding map's prompt names the mouse verbs.
+    #[test]
+    fn p3dn07_prompt_names_the_mouse_bindings() {
+        let mut s = state(Screen::Gameplay);
+        s.hud.prompt = crate::ui::MOUSE_FIRST_PROMPT.to_string();
+        let list = build(&s, 1280, 720);
+        // The prompt element paints the mouse-first line.
+        let p = list
+            .elements
+            .iter()
+            .find(|e| matches!(&e.kind, ElementKind::Text { label, .. } if label.contains("LMB DIG")))
+            .expect("the mouse-first prompt must reach the painter");
+        match &p.kind {
+            ElementKind::Text { label, .. } => {
+                assert!(label.contains("RMB BUILD"), "{label}");
+                assert!(label.contains("TAB PACK"), "{label}");
+            }
+            _ => unreachable!(),
+        }
     }
 
     /// N06 THE OWNED-SELECTION LAW: digits refuse empty slots; the wheel

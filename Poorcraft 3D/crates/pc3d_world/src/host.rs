@@ -76,6 +76,9 @@ pub struct SoloHost {
     pub tick: u64,
     pub gen: crate::gen::WorldGen,
     pub flow: FlowTable,
+    /// N08: the river's fish (one authority; the graph derives it —
+    /// catching consumes STOCK, the river itself never weakens D-007).
+    pub fish_stocks: crate::hydro::FishStocks,
     pub settlements: Settlements,
     pub construction: std::collections::BTreeMap<(i32, i32, i32), Construction>,
     pub machines: MachineNetwork,
@@ -94,12 +97,14 @@ impl SoloHost {
         let gen = crate::gen::WorldGen::new(world_seed);
         let graph = RiverGraph::new(&gen, 24);
         let flow = FlowTable::from_graph(&graph);
+        let fish_stocks = crate::hydro::FishStocks::new(&graph);
         let settlements = Settlements::new(&gen, &graph, 24);
         SoloHost {
             world_seed,
             tick: 0,
             gen,
             flow,
+            fish_stocks,
             settlements,
             construction: std::collections::BTreeMap::new(),
             machines: MachineNetwork::new(),

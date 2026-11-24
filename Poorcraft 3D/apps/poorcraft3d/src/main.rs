@@ -3018,9 +3018,10 @@ fn main() {
                             None,
                             None, // career: BETA-0.2 (routes stage no path)
                             &pc3d_world::items::ToolWear::default(),
+                            None, // fish stocks: fresh river on reload (N08)
                         )
                         .expect("save");
-                        let (_s2, h2, _p2, _, _, _, _, _, _) =
+                        let (_s2, h2, _p2, _, _, _, _, _, _, _) =
                             pc3d_render::slice::load_slice(&dir, "rebuild").expect("reload");
                         let c1: usize = h.construction.values().map(|c| c.built_count()).sum();
                         let c2: usize = h2.construction.values().map(|c| c.built_count()).sum();
@@ -4540,7 +4541,7 @@ fn main() {
                     "build_hash": pc3d_render::ui::build_stamp(),
                     "command": command,
                     "scene": "windowless_authority",
-                    "seed": "3",
+                    "seed": "windowless",
                     "viewport": [0, 0],
                     "timestamp_utc": std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -4574,7 +4575,7 @@ fn main() {
             println!("EXPORT worldgen_sample: 289 region samples -> {out_dir}/worldgen_sample.json");
 
             // npc: the showcase cast's LIVE brains (the crowd authority).
-            let (_, scene) = pc3d_render::slice::find_showcase(3);
+            let (_, scene) = pc3d_render::slice::find_showcase(123);
             let cast = pc3d_render::npcs::cast_for(&scene.plan, &scene.info);
             let mut npc = stamp("--export-data npc");
             npc["cast"] = cast.iter().map(|c| serde_json::json!({
@@ -4901,7 +4902,7 @@ fn main() {
                 .unwrap_or_else(|| format!("{}/shots", env!("CARGO_MANIFEST_DIR")));
             std::fs::create_dir_all(std::path::Path::new(&out).parent().unwrap_or(std::path::Path::new(".")))
                 .expect("mkdir");
-            let (seed, scene) = pc3d_render::slice::find_showcase(3);
+            let (seed, scene) = pc3d_render::slice::find_showcase(123);
             let scene = std::rc::Rc::new(scene);
             let save_root = std::rc::Rc::new(
                 std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("saves3d"),
@@ -5203,6 +5204,7 @@ fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
             None,
             None, // career: BETA-0.2 (routes stage no path)
             &pc3d_world::items::ToolWear::default(),
+            None, // fish stocks: fresh river on load (N08)
         )
         .expect("write test world");
     }
@@ -5228,8 +5230,8 @@ fn write_unavailable_bundle(route_id: &str, reason: &str, out_root: &str) {
     .unwrap();
     let mut bundle = pc3d_render::observe::bundle_json(
         route_id,
-        "showcase_seed_3_rebuild",
-        "3",
+        "showcase_seed_rebuild",
+        "123",
         (1280, 720),
         "mid",
         &[format!("--observe {route_id}")],
@@ -5580,6 +5582,20 @@ fn find_dig_spot_pair(
     None
 }
 
+/// N08 the route's pack reader: one item's count out of the HUD stock
+/// line ("PACK WOOD 1 · SOIL 1" — the PACK prefix rides the first
+/// segment). 0 when absent.
+fn stock_count(stock: &str, name: &str) -> u32 {
+    stock
+        .split("·")
+        .map(|seg| seg.trim().strip_prefix("PACK ").unwrap_or(seg.trim()))
+        .find_map(|seg| {
+            seg.strip_prefix(name)
+                .and_then(|rest| rest.trim().parse::<u32>().ok())
+        })
+        .unwrap_or(0)
+}
+
 /// THE DIG VERB's spot: the walk-off's flat flora-free cell, gated to a
 /// surface the route can actually take BARE-HANDED (Grass/Soil/Sand/
 /// Snow — never Rock: the route presses G with no pick staged) and to a
@@ -5648,6 +5664,69 @@ fn find_dig_spot_barehand(
     None
 }
 
+/// N08 THE LADDER SPOTS: up to `n` DISTINCT bare-hand (grass_only) cells
+/// — the dig ladder takes wood from four different columns (a repeat dig
+/// on a taken column hits Soil: the layer law, not a bug).
+fn find_dig_spots_barehand(
+    gen: &pc3d_world::gen::WorldGen,
+    plaza_x: f32,
+    plaza_z: f32,
+    n: usize,
+) -> Option<Vec<[f32; 3]>> {
+    use pc3d_world::gen::CellMaterial;
+    let ground_at = |x: f32, z: f32| -> f32 {
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    let mut spots: Vec<[f32; 3]> = Vec::new();
+    for ring_m in [8.0f32, 12.0, 16.0, 20.0, 24.0, 28.0] {
+        for k in 0..24 {
+            if spots.len() >= n {
+                break;
+            }
+            let a = k as f32 / 24.0 * std::f32::consts::TAU;
+            let cx = plaza_x + ring_m * a.cos();
+            let cz = plaza_z + ring_m * a.sin();
+            let cell = pc3d_world::coords::CellCoord {
+                x: cx as i32,
+                y: 0,
+                z: cz as i32,
+            };
+            let sx = cell.x as f32 + 0.5;
+            let sz = cell.z as f32 + 0.5;
+            if spots.iter().any(|s| s[0] == sx && s[2] == sz) {
+                continue;
+            }
+            if !dig_spot_ok(gen, sx, sz) {
+                continue;
+            }
+            let g = ground_at(sx, sz);
+            let region = pc3d_world::coords::RegionCoord {
+                x: cell.x.div_euclid(256),
+                z: cell.z.div_euclid(256),
+            };
+            let material = pc3d_world::gen::cell_material(
+                gen.biome(region),
+                (g.floor() as i64) * 1000,
+                (g * 1000.0) as i64,
+            );
+            if !matches!(material, CellMaterial::Grass) {
+                continue;
+            }
+            let strip_ok = [1.0f32, 1.5, 2.0, 2.5, 3.0, 3.5]
+                .iter()
+                .all(|d| (ground_at(sx, sz - d) - g).abs() <= 0.5);
+            if !strip_ok {
+                continue;
+            }
+            spots.push([sx, g, sz]);
+        }
+        if spots.len() >= n {
+            break;
+        }
+    }
+    (spots.len() >= n).then_some(spots)
+}
+
 /// THE PICK'S STONE (N06): a flat flora-free ROCK cell near the plaza —
 /// the refusal the pick overcomes. Same cell geometry as the bare-hand
 /// finder; the material gate flips to Rock ONLY.
@@ -5694,6 +5773,53 @@ fn find_dig_spot_rock(
     None
 }
 
+/// N08 THE BANK SPOT: a dry, flat cell within the fish cast reach of the
+/// carved river — the exact gate `fish_at` answers, read through the same
+/// authority (`water_edge_distance_m`) the app's E uses. The finder
+/// proves the law end to end: the route's E at this spot MUST cast.
+///
+/// Scans a dense window around the scene's CARVED river-edge midpoint
+/// (the bank is where the water is — rings around the plaza miss a
+/// channel that passes hundreds of m out, or straddle it at 24 angles).
+fn find_bank_spot(
+    gen: &pc3d_world::gen::WorldGen,
+    edge_mid: (f32, f32),
+) -> Option<[f32; 3]> {
+    use pc3d_world::survival::{water_edge_distance_m, CAST_REACH_M};
+    let ground_at = |x: f32, z: f32| -> f32 {
+        gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
+    };
+    let (mx, mz) = (edge_mid.0 as i64, edge_mid.1 as i64);
+    // Dense 24x24 m window over the channel; nearest-flat-first is not
+    // needed — the first cell in scan order that passes every gate wins
+    // (deterministic order, the route films it).
+    for dx in -12..=12_i64 {
+        for dz in -12..=12_i64 {
+            let sx = (mx + dx) as f32 + 0.5;
+            let sz = (mz + dz) as f32 + 0.5;
+            // THE WATER LAW through the app's own query: within cast
+            // reach but ON the bank (d > 0.5 = not standing IN the
+            // channel's own columns).
+            match water_edge_distance_m(gen, &[sx, 0.0, sz]) {
+                Some(d) if (0.5..=CAST_REACH_M).contains(&d) => {}
+                _ => continue,
+            }
+            // Flat ground to stand on (the body must not clip a bank).
+            let g = ground_at(sx, sz);
+            let flat = (0..3).all(|i| {
+                (0..3).all(|j| {
+                    (ground_at(sx - 1.0 + i as f32, sz - 1.0 + j as f32) - g).abs() <= 0.35
+                })
+            });
+            if !flat {
+                continue;
+            }
+            return Some([sx, g, sz]);
+        }
+    }
+    None
+}
+
 /// WT-003: run one observatory route and write its evidence bundle.
 /// Every `*.layout.json` under `dir`, recursively.
 fn collect_layout_dumps(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
@@ -5726,7 +5852,7 @@ fn run_observe(route_id: &str, out_root: &str) {
         std::process::exit(2);
     }
     let save_root = ui_test_save_root();
-    let (seed, scene) = pc3d_render::slice::find_showcase(3);
+    let (seed, scene) = pc3d_render::slice::find_showcase(123);
     let scene = std::rc::Rc::new(scene);
     let mut any_fail = false;
 
@@ -5849,6 +5975,36 @@ fn run_observe(route_id: &str, out_root: &str) {
         // after the run.
         let dig_window_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 8]));
         let hotbar_wear_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 20]));
+        // route_mouse_first recordings: [0] prompt at spawn names LMB,
+        // [1] prompt names RMB, [2] LMB dig credited stone to the pack,
+        // [3] pack stone count after LMB digs, [4] RMB build placed a
+        // cell (construction grew), [5] construction count after RMB,
+        // [6] Tab opened the pack (panel owns the frame), [7] pack
+        // closed again, [8] dialog: Left closed it (no dig behind),
+        // [9] a FREE pointer's click is CaptureMouse (the look law),
+        // [10] pointer grabbed after resume, [11] ground at the shaft
+        // (the LMB digs actually lowered it), [12] pause released the
+        // grab, [13] diag: hotbar selection before RMB.
+        let mouse_first_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 14]));
+        // route_first_tool recordings (N08): [0] wood credited after the
+        // first bare-hand grass dig, [1] wood count, [2] the first_tree
+        // toast, [3] grass ground (diag), [4] wood after 4 digs, [5] the
+        // bench owns the frame, [6] the wood_pick row affordable, [7] the
+        // crafted pick in the carried slot, [8] the spent row unaffordable,
+        // [9] the pick viewmodel equipped, [10] the E FISH prompt at the
+        // bank, [11] the CAUGHT A FISH toast, [12] fish in the pack, [13]
+        // onboarding advanced past first_catch, [14] the ATE FISH toast,
+        // [15] the food bar after eating, [16] fish count after eating.
+        let first_tool_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 17]));
+        let _mouse_first_ground0 = if spec.id == "route_mouse_first" {
+            let gen = &scene.gen;
+            let plaza = scene.plan.plaza;
+            find_dig_spot_barehand(gen, plaza.x as f32 + 0.5, plaza.z as f32 + 0.5, true)
+                .map(|[_, g, _]| g)
+                .unwrap_or(0.0)
+        } else {
+            0.0
+        };
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -8128,6 +8284,625 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // can be read (the 669-frame lesson).
                 shots.push(Shot::new(676, format!("{dir}/refusal_post.png")));
             }
+            "route_mouse_first" => {
+                // THE MOUSE-FIRST LAW, END TO END (N07): the first
+                // ungrabbed click CAPTURES the pointer (look), then LMB
+                // digs (stone reaches the pack), RMB builds (a cell
+                // rises), Tab toggles the pack panel, a dialog converts
+                // Left to its close (the focused interaction outranks
+                // the attack), and the HUD prompt names the mouse verbs.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                let [sx, _sg, sz] =
+                    find_dig_spot_barehand(gen, plaza.x as f32 + 0.5, plaza.z as f32 + 0.5, true)
+                        .unwrap_or_else(|| {
+                            panic!("route_mouse_first: no flat grass cell near the plaza on seed {seed}")
+                        });
+                println!("MOUSE FIRST: dig spot ({sx:.1},{sz:.1})");
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    12,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        // THE PROMPT AT SPAWN: the HUD must teach the
+                        // mouse verbs before any click.
+                        v[0] = ui.hud.prompt.contains("LMB DIG") as u8 as f32;
+                        v[1] = ui.hud.prompt.contains("RMB BUILD") as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                ui_script.push((
+                    16,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // Frame 30: pick up the pick (slot 6 — the dig of rock
+                // needs it), then onto the dig spot aiming underfoot.
+                ui_script.push((
+                    30,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(p) = r.plaza_interactable_pos(0) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    45,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // chest -> pick
+                    }),
+                ));
+                ui_script.push((
+                    60,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('e')); // close chest
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                ui_script.push((
+                    75,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Digit(6)); // equip
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                ui_script.push((
+                    85,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                ui_script.push((
+                    95,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::EditSurface { x: sx, z: sz, meters: -6.0 });
+                    }),
+                ));
+                // Frame 100: PAUSE — the reducer releases the grab
+                // (Escape → Pause sets pointer_grabbed = false). Frame
+                // 116: resume grabs again (StartPlaying) — so the
+                // free-pointer capture is proven through the pure
+                // resolver directly: with a freed pointer, the mouse
+                // verb must answer CaptureMouse (the LOOK request),
+                // never a verb.
+                ui_script.push((
+                    100,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Escape); // pause, release
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    104,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[12] = (!ui.pointer_grabbed && !ui.blocks_gameplay() == false)
+                            as u8 as f32; // paused + released
+                        cells.set(v);
+                    }),
+                ));
+                ui_script.push((
+                    108,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Escape); // resume (grabs)
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    116,
+                    Box::new(move |ui, _r, _ctx| {
+                        // THE LAW, reducer-level: a FREE pointer's click
+                        // is the capture request, never a verb. The
+                        // pause/resume beat above left the pointer
+                        // GRABBED (resume grabs); prove the law on a
+                        // temporary freed mirror of the live state.
+                        let mut mirror = ui::UiState::default();
+                        mirror.screen = ui.screen.clone();
+                        let acts = ui::on_mouse_verb(&mut mirror, ui::MouseSide::Left);
+                        let mut v = cells.get();
+                        v[9] = acts.iter().any(|a| matches!(a, UiAction::CaptureMouse)) as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    120,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[10] = ui.pointer_grabbed as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frames 130/178/226: LMB digs (the rock shaft is under
+                //foot, the pick resolves the take). The MUTATION LEVER
+                // (debug only): PC3D_MUTATE_MOUSE_LMB_G forces the
+                // letter verb — the route's LMB evidence must NOT
+                // appear while G still digs (proves the route reads
+                // the MOUSE path, not any dig). Off by default.
+                let lmb_via_g = std::env::var("PC3D_MUTATE_MOUSE_LMB_G").is_ok();
+                for n in 0..3u64 {
+                    let base = 130 + n * 48;
+                    let via_g = lmb_via_g;
+                    ui_script.push((
+                        base,
+                        Box::new(move |ui, _r, ctx| {
+                            let acts = if via_g {
+                                ui::on_key(ui, ui::Key::Char('g'))
+                            } else {
+                                ui::on_mouse_verb(ui, ui::MouseSide::Left)
+                            };
+                            ctx.actions.extend(acts);
+                        }),
+                    ));
+                    let cells = mouse_first_cells.clone();
+                    ui_script.push((
+                        base + 34,
+                        Box::new(move |ui, r, _ctx| {
+                            let mut v = cells.get();
+                            v[3] = ui.hud.stock.split("·")
+                                .filter_map(|seg| seg.trim().strip_prefix("PACK STONE "))
+                                .next()
+                                .and_then(|c| c.trim().parse::<u32>().ok())
+                                .unwrap_or(0) as f32;
+                            v[2] = (v[3] > 0.0) as u8 as f32;
+                            v[11] = r.ground_y_at_pub(sx, sz);
+                            cells.set(v);
+                        }),
+                    ));
+                }
+                // Frame 290: the ROCK SLOT is selected (slot 4 — the
+                // build material the pack's stone actually pays; slot 1
+                // is SOIL and the pack carries none).
+                ui_script.push((
+                    290,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Digit(4));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    296,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[13] = ui.hud.selected as f32; // diag: the selection took
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 300: RMB builds — a cell rises next to the pit.
+                ui_script.push((
+                    300,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_mouse_verb(ui, ui::MouseSide::Right);
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    334,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        // The ROCK slot count dropping proves the
+                        // pack paid the build cost (one stone per cell).
+                        v[5] = ui.hud.slots.get(3)
+                            .and_then(|sl| sl.as_ref())
+                            .and_then(|it| it.count)
+                            .unwrap_or(0) as f32;
+                        v[4] = (v[5] > 0.0 && v[5] < v[3]) as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 360: TAB opens the pack (the mouse-first map).
+                ui_script.push((
+                    360,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Tab);
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    364,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[6] = ui.blocks_gameplay() as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                ui_script.push((
+                    380,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Tab); // close
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    384,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[7] = (!ui.blocks_gameplay()) as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 400: a dialog opens (teleport beside cast member
+                // 0, then E); frame 420: LMB must CLOSE it, not dig
+                // behind it.
+                ui_script.push((
+                    396,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(p) = r.cast_position(0) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0] + 1.0, z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    400,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    404,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[8] = 0.0; // reset: was the dialog open?
+                        if ui.active_panel() == ui::ActivePanel::Dialog {
+                            v[8] = 1.0;
+                        }
+                        cells.set(v);
+                    }),
+                ));
+                ui_script.push((
+                    420,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_mouse_verb(ui, ui::MouseSide::Left);
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let cells = mouse_first_cells.clone();
+                ui_script.push((
+                    424,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        // v[8] latched 1.0 = dialog WAS open at 404 and
+                        // is CLOSED after the Left click (404 set it; if
+                        // the dialog never opened this stays 0 and the
+                        // verdict fails honestly).
+                        if ui.active_panel() != ui::ActivePanel::Dialog && v[8] > 0.5 {
+                            v[8] = 2.0; // opened, then closed by LMB
+                        }
+                        cells.set(v);
+                    }),
+                ));
+                shots.push(Shot::new(120, format!("{dir}/prompt_lmb.png")));
+                shots.push(Shot::new(250, format!("{dir}/lmb_dug.png")));
+                shots.push(Shot::new(340, format!("{dir}/rmb_built.png")));
+                shots.push(Shot::new(368, format!("{dir}/tab_pack.png")));
+            }
+            "route_first_tool" => {
+                // THE FIRST TOOL LOOP, END TO END (N08): dig a GRASS cell
+                // bare-handed (wood reaches the pack — the "first_tree"
+                // beat), CRAFT the wood pick through the REAL bench (C →
+                // Enter on the recipe row → the pack pays wood×4), EQUIP
+                // it (the viewmodel follows the slot), FISH at the river
+                // (E inside the cast reach — the water law), EAT the
+                // catch (X — fish is food, not a trophy). Five laws in
+                // one walkable arc.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                // The grass dig spot: the one bare-hand material that
+                // yields WOOD (harvest_yields' Grass law).
+                let [sx, _sg, sz] = find_dig_spot_barehand(
+                    gen,
+                    plaza.x as f32 + 0.5,
+                    plaza.z as f32 + 0.5,
+                    true,
+                )
+                .unwrap_or_else(|| {
+                    panic!("route_first_tool: no grass cell near the plaza on seed {seed}")
+                });
+                // The river bank: within the cast reach of the carved
+                // channel (the water law's own answer). The bank scans a
+                // window around the scene's river EDGE midpoint — the
+                // same carve-checked edge river_near_city picked.
+                let (ea, eb) = scene.river_edge;
+                let emx = ((ea.0 as f32 + 0.5) + (eb.0 as f32 + 0.5)) / 2.0 * 256.0;
+                let emz = ((ea.1 as f32 + 0.5) + (eb.1 as f32 + 0.5)) / 2.0 * 256.0;
+                let [bx, _bg, bz] = find_bank_spot(gen, (emx, emz)).unwrap_or_else(|| {
+                    panic!("route_first_tool: no bank cell within cast reach on seed {seed}")
+                });
+                println!(
+                    "FIRST TOOL: grass spot ({sx:.1},{sz:.1}) bank spot ({bx:.1},{bz:.1})"
+                );
+                let cells = first_tool_cells.clone();
+                // Frame 12: enter the world.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // THE WOOD LADDER (four DISTINCT grass columns): one dig
+                // takes Grass (wood+soil) and lowers that column — the
+                // layer law turns a repeat dig on the same column into
+                // Soil (no wood). The route walks four real spots.
+                let ladder = find_dig_spots_barehand(
+                    gen,
+                    plaza.x as f32 + 0.5,
+                    plaza.z as f32 + 0.5,
+                    4,
+                )
+                .unwrap_or_else(|| {
+                    panic!("route_first_tool: no 4-grass ladder near the plaza on seed {seed}")
+                });
+                println!(
+                    "FIRST TOOL ladder: {:?}",
+                    ladder.iter().map(|s| (s[0], s[2])).collect::<Vec<_>>()
+                );
+                for (i, spot) in ladder.iter().enumerate() {
+                    let (lx, lz) = (spot[0], spot[2]);
+                    let hop = 30 + (i as u64) * 12;
+                    let dig = 34 + (i as u64) * 12;
+                    let fx = lx;
+                    let fz = lz;
+                    let first = i == 0;
+                    let rec = first_tool_cells.clone();
+                    ui_script.push((
+                        hop,
+                        Box::new(move |_ui, _r, ctx| {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: fx, z: fz });
+                            ctx.actions
+                                .push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                        }),
+                    ));
+                    ui_script.push((
+                        dig,
+                        Box::new(move |ui, _r, ctx| {
+                            let acts = ui::on_key(ui, ui::Key::Char('g'));
+                            ctx.actions.extend(acts);
+                        }),
+                    ));
+                    if first {
+                        // Frame 38 (+4): sample the take IMMEDIATELY —
+                        // toasts age with wall time (dt clamped 0.1 s),
+                        // so a check 30 frames later at ~3 s/frame finds
+                        // them expired. The durable facts (stock, ground)
+                        // stay in the packed record.
+                        let rec = first_tool_cells.clone();
+                        ui_script.push((
+                            dig + 4,
+                            Box::new(move |ui, r, _ctx| {
+                                let mut v = rec.get();
+                                let wood = stock_count(&ui.hud.stock, "WOOD");
+                                v[0] = (wood >= 1) as u8 as f32;
+                                v[1] = wood as f32;
+                                v[2] = ui
+                                    .toasts
+                                    .iter()
+                                    .any(|t| {
+                                        t.text.contains("first_tree")
+                                            || t.text.contains("WOOD")
+                                            || t.text.contains("DUG")
+                                    })
+                                    as u8 as f32;
+                                v[3] = r.ground_y_at_pub(fx, fz);
+                                rec.set(v);
+                            }),
+                        ));
+                    }
+                }
+                // Sample the ladder sum (+4 after the last dig): wood×4
+                // is recipe 6's cost.
+                let rec = first_tool_cells.clone();
+                let last_dig = 34 + (ladder.len() as u64 - 1) * 12;
+                ui_script.push((
+                    last_dig + 4,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = rec.get();
+                        v[4] = stock_count(&ui.hud.stock, "WOOD") as f32;
+                        rec.set(v);
+                    }),
+                ));
+                // The bench AFTER the ladder (C opens the REAL bench:
+                // recipe 6 wood_pick affordable at wood>=4).
+                ui_script.push((
+                    210,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('c'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let rec = first_tool_cells.clone();
+                ui_script.push((
+                    216,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = rec.get();
+                        v[5] = ui.blocks_gameplay() as u8 as f32; // bench owns the frame
+                        // The wood_pick row must show AFFORDABLE (the
+                        // row's honesty law: same can_craft the craft
+                        // runs).
+                        let pick_row = ui
+                            .craft
+                            .as_ref()
+                            .and_then(|rows| rows.iter().find(|r| r.code == 6));
+                        v[6] = pick_row.map(|r| r.affordable).unwrap_or(false) as u8 as f32;
+                        // Focus the pick row (UP/DOWN walk the ring; the
+                        // default focus 0 IS recipe 1 — move to recipe 6).
+                        rec.set(v);
+                    }),
+                ));
+                // Frame 220: walk the focus down to the wood_pick row and
+                // press Enter — the reducer's own CraftRecipe action.
+                ui_script.push((
+                    220,
+                    Box::new(move |ui, _r, ctx| {
+                        // The rows are in RECIPES order; recipe 6 sits at
+                        // the index the live table gives — walk DOWN until
+                        // the focused row IS 6 (bounded by the row count).
+                        let n = ui.craft.as_ref().map(|r| r.len()).unwrap_or(0);
+                        let cur = ui
+                            .craft
+                            .as_ref()
+                            .map(|r| r.get(ui.craft_focus).map(|row| row.code))
+                            .flatten()
+                            .unwrap_or(0);
+                        let mut acts = Vec::new();
+                        if cur != 6 && n > 0 {
+                            for _ in 0..n {
+                                acts.extend(ui::on_key(ui, ui::Key::Down));
+                                let now = ui
+                                    .craft
+                                    .as_ref()
+                                    .map(|r| r.get(ui.craft_focus).map(|row| row.code))
+                                    .flatten()
+                                    .unwrap_or(0);
+                                if now == 6 {
+                                    break;
+                                }
+                            }
+                        }
+                        acts.extend(ui::on_key(ui, ui::Key::Enter));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let rec = first_tool_cells.clone();
+                ui_script.push((
+                    254,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = rec.get();
+                        // THE CRAFT LANDED: durable facts sampled here —
+                        // the pick shows in carried slot 6 (slots 6-9 are
+                        // the carried mirror) and the bench re-judged the
+                        // pack (wood spent → row unaffordable).
+                        let pick_in_slot = ui
+                            .hud
+                            .slots
+                            .get(5)
+                            .and_then(|sl| sl.as_ref())
+                            .map(|it| it.label == "wood_pick")
+                            .unwrap_or(false);
+                        v[7] = pick_in_slot as u8 as f32;
+                        let row_aff = ui
+                            .craft
+                            .as_ref()
+                            .and_then(|rows| rows.iter().find(|r| r.code == 6))
+                            .map(|r| r.affordable)
+                            .unwrap_or(false);
+                        v[8] = (!row_aff) as u8 as f32; // spent: no longer affordable
+                        rec.set(v);
+                    }),
+                ));
+                // Frame 260: close the bench (C or Escape — the reducer's
+                // C arm only opens; Escape closes).
+                ui_script.push((
+                    260,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Escape);
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 280: equip the pick (Digit 6 — carried slot 0).
+                ui_script.push((
+                    280,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Digit(6));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let rec = first_tool_cells.clone();
+                ui_script.push((
+                    292,
+                    Box::new(move |_ui, r, _ctx| {
+                        let mut v = rec.get();
+                        v[9] = r.viewmodel_state().is_some() as u8 as f32;
+                        rec.set(v);
+                    }),
+                ));
+                // Frame 310: to the RIVER BANK.
+                ui_script.push((
+                    310,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: bx, z: bz });
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -0.2 });
+                    }),
+                ));
+                let rec = first_tool_cells.clone();
+                ui_script.push((
+                    322,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = rec.get();
+                        // THE WATER PROMPT: standing in reach, the HUD
+                        // names the cast (E FISH).
+                        v[10] = ui.hud.prompt.contains("E FISH") as u8 as f32;
+                        rec.set(v);
+                    }),
+                ));
+                // Frame 330: E CASTS (the water zone owns E here).
+                ui_script.push((
+                    330,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk);
+                    }),
+                ));
+                let rec = first_tool_cells.clone();
+                // THE CATCH sampled +4 after E (toasts age in wall time;
+                // the durable facts — fish count, objective — persist).
+                ui_script.push((
+                    334,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = rec.get();
+                        v[11] = ui
+                            .toasts
+                            .iter()
+                            .any(|t| t.text.to_uppercase().contains("CAUGHT A FISH"))
+                            as u8 as f32;
+                        let fish = stock_count(&ui.hud.stock, "FISH");
+                        v[12] = fish as f32;
+                        v[13] = (!ui.hud.objective.contains("CATCH A FISH")
+                            && !ui.hud.objective.is_empty()) as u8 as f32;
+                        rec.set(v);
+                    }),
+                ));
+                // Frame 380: X EATS the catch (bread first — the pack has
+                // none; the fish is the food the law finds).
+                ui_script.push((
+                    380,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('x'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let rec = first_tool_cells.clone();
+                // THE EAT sampled +4 after X (the food bar rose and the
+                // toast is still alive at 4 frames ≈ 0.4 s wall).
+                ui_script.push((
+                    384,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = rec.get();
+                        v[14] = ui
+                            .toasts
+                            .iter()
+                            .any(|t| t.text.contains("ATE FISH"))
+                            as u8 as f32;
+                        let fish_after = stock_count(&ui.hud.stock, "FISH");
+                        // The food bar rose (eat adds heal/100; the HUD
+                        // floor at spawn is 0.5, the catch adds 0.15).
+                        v[15] = ui.hud.food;
+                        v[16] = fish_after as f32;
+                        rec.set(v);
+                    }),
+                ));
+                shots.push(Shot::new(80, format!("{dir}/grass_dug.png")));
+                shots.push(Shot::new(256, format!("{dir}/pick_crafted.png")));
+                shots.push(Shot::new(340, format!("{dir}/fish_caught.png")));
+                shots.push(Shot::new(390, format!("{dir}/fish_eaten.png")));
+            }
             "route_forge_use" => {
                 // The forge slice, end to end: enter the world, stand at
                 // the plaza forge, E (opens THE FORGE through the zone
@@ -8453,6 +9228,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             max_frames: if matches!(
                 spec.id,
                 "route_semantic_playtest" | "route_vine_hangoff" | "route_hotbar_wear"
+                    | "route_mouse_first" | "route_first_tool"
             ) {
                 // The playtest's journey and the hang-off's two legs both
                 // outlive the default 420-frame route cap.
@@ -8466,6 +9242,15 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // side): the static list drains at frame 70, so the
                 // horizon owns the exit.
                 Some(240)
+            } else if spec.id == "route_mouse_first" {
+                // N07: the static list ends at tab_pack (368) but the
+                // route's dialog leg runs to 424 — the horizon owns the
+                // exit past it.
+                Some(460)
+            } else if spec.id == "route_first_tool" {
+                // N08: the eat action fires at 380 and its evidence read
+                // at 384, capture at 390 — the horizon clears all three.
+                Some(420)
             } else if spec.id == "route_vine_hangoff" {
                 // The hang-off's fall and two landing captures are
                 // latch-scheduled too: its static list drains at 430
@@ -8517,8 +9302,8 @@ fn run_observe(route_id: &str, out_root: &str) {
         let state = pc3d_render::observe::runtime_state_json(
             &report,
             last,
-            "showcase_seed_3_rebuild",
-            "3",
+            "showcase_seed_rebuild",
+            "123",
             &command,
             "scripted_route_camera",
         );
@@ -8931,6 +9716,102 @@ fn run_observe(route_id: &str, out_root: &str) {
                 eprintln!(
                     "[FAIL] observe route_hotbar_wear: ladder {counts:?} / stone_ever {stone_ever} / broke_toast {broke_toast} / slot_empty {slot_empty} / sel {sel_after_refuse} / post_refused {post_refused} / post_ground {post_ground:.2} / slot_present_diag {:+}",
                     v[19]
+                );
+                any_fail = true;
+            }
+        }
+        // THE MOUSE-FIRST VERDICT (N07): the spawn prompt teaches the
+        // mouse verbs, a FREE pointer's click asks for capture (the
+        // look law, resolver-level), the pointer grabs on resume, LMB
+        // digs stone into the pack and lowers the ground, RMB with a
+        // stone slot selected builds (the build slot pays a stone),
+        // Tab toggles the pack, and a dialog converts Left to its
+        // close.
+        if spec.id == "route_mouse_first" {
+            let v = mouse_first_cells.get();
+            let prompt_lmb = v[0] > 0.5;
+            let prompt_rmb = v[1] > 0.5;
+            let lmb_stone = v[2] > 0.5;
+            let stone_count = v[3] as u32;
+            let rmb_built = v[4] > 0.5;
+            let slot_after_build = v[5] as u32;
+            let tab_opened = v[6] > 0.5;
+            let tab_closed = v[7] > 0.5;
+            let dialog_closed_by_lmb = v[8] > 1.5;
+            let free_click_captured = v[9] > 0.5;
+            let grabbed = v[10] > 0.5;
+            let ground = v[11];
+            let pause_released = v[12] > 0.5;
+            let sel_before_rmb = v[13] as u32;
+            let ok = prompt_lmb
+                && prompt_rmb
+                && free_click_captured
+                && pause_released
+                && grabbed
+                && lmb_stone
+                && stone_count >= 3
+                && ground > 0.0 && ground < _mouse_first_ground0
+                && rmb_built
+                && sel_before_rmb == 3 // Digit(4) -> ROCK slot (index 3)
+                && slot_after_build < stone_count
+                && tab_opened
+                && tab_closed
+                && dialog_closed_by_lmb;
+            if ok {
+                println!(
+                    "MOUSE FIRST: prompt teaches LMB/RMB, free click asked capture (pause released, resume grabbed), LMB dug stone x{stone_count} (ground {ground:.2}), RMB built (slot {slot_after_build} < {stone_count}), Tab toggled the pack, dialog closed by LMB"
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe route_mouse_first: prompt_lmb {prompt_lmb} / prompt_rmb {prompt_rmb} / free_click_captured {free_click_captured} / pause_released {pause_released} / grabbed {grabbed} / lmb_stone {lmb_stone} ({stone_count}) / ground {ground:.2} vs {_mouse_first_ground0:.2} / rmb_built {rmb_built} (sel {sel_before_rmb} -> slot {slot_after_build}) / tab_opened {tab_opened} / tab_closed {tab_closed} / dialog_closed_by_lmb {dialog_closed_by_lmb}"
+                );
+                any_fail = true;
+            }
+        }
+        // THE FIRST TOOL VERDICT (N08): bare hands dug wood from grass,
+        // the bench crafted the wood pick through the REAL C/Enter path
+        // (affordable before, spent after), the pick equipped, E at the
+        // bank cast (the water law) and the catch landed, and X ate the
+        // fish (the catch is food).
+        if spec.id == "route_first_tool" {
+            let v = first_tool_cells.get();
+            let wood_credited = v[0] > 0.5;
+            let wood_after_first = v[1] as u32;
+            let wood_after_four = v[4] as u32;
+            let bench_opened = v[5] > 0.5;
+            let pick_row_affordable = v[6] > 0.5;
+            let pick_crafted = v[7] > 0.5;
+            let pick_equipped = v[9] > 0.5;
+            let fish_prompt = v[10] > 0.5;
+            let caught = v[11] > 0.5;
+            let fish_count = v[12] as u32;
+            let onboarding_advanced = v[13] > 0.5;
+            let ate_fish = v[14] > 0.5;
+            let food_after = v[15];
+            let fish_after_eat = v[16] as u32;
+            let ok = wood_credited
+                && wood_after_first >= 1
+                && wood_after_four >= 4
+                && bench_opened
+                && pick_row_affordable
+                && pick_crafted
+                && v[8] > 0.5
+                && pick_equipped
+                && fish_prompt
+                && caught
+                && fish_count >= 1
+                && onboarding_advanced
+                && ate_fish
+                && fish_after_eat < fish_count
+                && food_after > 0.5;
+            if ok {
+                println!(
+                    "FIRST TOOL: grass credited wood x{wood_after_four}, bench crafted the pick (row spent), equipped (viewmodel live), E FISH cast at the bank (caught x{fish_count}, onboarding advanced), X ate the catch (food {food_after:.2})"
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe route_first_tool: wood_credited {wood_credited} (first {wood_after_first}, four {wood_after_four}) / bench_opened {bench_opened} / row_affordable {pick_row_affordable} / pick_crafted {pick_crafted} (slot {}) / row_spent {} / equipped {pick_equipped} / fish_prompt {fish_prompt} / caught {caught} (x{fish_count}) / onboarding {onboarding_advanced} / ate {ate_fish} (fish after {fish_after_eat}, food {food_after:.2})",
+                    v[7] as u32, v[8] as u32
                 );
                 any_fail = true;
             }
@@ -9935,8 +10816,8 @@ fn run_observe(route_id: &str, out_root: &str) {
             .collect();
         let mut bundle = pc3d_render::observe::bundle_json(
             spec.id,
-            "showcase_seed_3_rebuild",
-            "3",
+            "showcase_seed_rebuild",
+            "123",
             report.final_physical,
             "mid",
             &[command.clone()],
@@ -9974,7 +10855,7 @@ fn run_ui_seed_preview_shots(out_dir: &str) {
 
     std::fs::create_dir_all(out_dir).expect("mkdir out dir");
     let save_root = ui_test_save_root();
-    let (seed, scene) = pc3d_render::slice::find_showcase(3);
+    let (seed, scene) = pc3d_render::slice::find_showcase(123);
     let scene = std::rc::Rc::new(scene);
 
     // Deterministic search for a warning-state seed: the first in 0..500
@@ -10245,7 +11126,7 @@ fn run_ui_shots(out_dir: &str) {
     use pc3d_render::Shot;
 
     let save_root = ui_test_save_root();
-    let (seed, scene) = pc3d_render::slice::find_showcase(3);
+    let (seed, scene) = pc3d_render::slice::find_showcase(123);
     println!("UI SHOTS: showcase seed {seed} (test save root {})", save_root.display());
     let scene = std::rc::Rc::new(scene);
 
@@ -10758,7 +11639,7 @@ fn run_ui_inspect(spec: &str) {
     }
     let end_frame = frame + 20;
 
-    let (seed, scene) = pc3d_render::slice::find_showcase(3);
+    let (seed, scene) = pc3d_render::slice::find_showcase(123);
     let scene = std::rc::Rc::new(scene);
     let cfg = pc3d_render::WindowConfig {
         title: "POORCRAFT 3D — inspector".into(),

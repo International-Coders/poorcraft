@@ -148,13 +148,52 @@ escada trava em 12, sem quebra, seleção fica 5, G pós-quebra escava
 (18.68) → FAIL de 4 ângulos; default → PASS. Suíte 817/0 (render 270,
 world 431, save 38, assets 38, core 32, audio 8); doctrine 2/2.
 
-### N07 — ActionResolver mouse-first
+### N07 — ActionResolver mouse-first — FECHADO (loop 483)
 
 Left/right/E/Tab substituem letras de sistema, com prompts do binding map.
+
+FECHADO: o RESOLVER PURO `ui::on_mouse_verb` (ui.rs) decide por
+prioridade modal → menu → painel de dados → DIÁLOGO focado → pointer
+law → verbos (o diálogo NÃO é painel de dados: sai do muro do tier 2 e
+cai no tier 3, onde Left o FECHA sem escavar atrás). A LEI DO POINTER:
+ponteiro livre = clique é o LOOK request (CaptureMouse); verbos só com
+grab. OS BINDINGS: LMB = DigAtCrosshair (o mesmo verbo do G: sweep do
+viewmodel + janela compartilhada + wear), RMB = BuildSelected (re-fire
+do F veterano: foundation gate, custo do pack, quest events — UMA lei
+de construção, zero duplicação), Tab abre o pack (o reducer PERGUNTE
+com TogglePack; o app aplica com as linhas do inventário vivo), E
+inalterado. O PROMPT: MOUSE_FIRST_PROMPT ("LMB DIG · RMB BUILD · E USE
+· TAB PACK · ESC PAUSE") é o prompt de spawn e a cauda contextual (E
+TALK nome · V DELIVER BARS); ESC pausa. PROVA: route_mouse_first
+(4 capturas inspecionadas por pixel: viewmodel 5111 px, mundo 2854 px,
+pack panel 87843 px; 12 células: prompt LMB/RMB no spawn, pausa
+libera o grab, clique livre pede capture, resume agarra, LMB escava
+rocha ×3 com o chão caindo 37.67→28.68, Digit(4) seleciona ROCK, RMB
+constrói pagando 1 stone (slot 3→2), Tab abre/fecha o pack, diálogo
+aberto por E é fechado pelo LMB sem escavar); MUTAÇÃO PROVADA:
+PC3D_MUTATE_MOUSE_BUILD_OFF=1 corta o braço Right do resolver →
+FAIL exatamente na perna RMB (rmb_built false, slot 3 travado) com as
+outras 11 pernas verdes; controle → PASS. Suíte: render lib 273/0.
 
 ### N08 — Recursos soltos e primeira ferramenta
 
 Spawn encontra branch/stone/food; receita explica propósito; viewmodel e som.
+FECHADO (2026-11-24): seed 123 é a PRIMEIRA seed-showcase (sonda
+determinística em [3,200): rio esculpido ATRAVESSA o centro da cidade —
+canal em (128,127), margem a 0 m do mid do edge; bolso de caverna no
+anel 3). route_first_tool prova A LEI PRIMEIRA HORA em 17 células:
+cavar 4 colunas de grama DISTINTAS (a 2ª cavada cai no solo — a lei
+estratificada dá wood só na camada de grama) → bancada abre → receita 6
+(wood_pick: 4 wood) fabrica → Digit(6) EQUIPA o viewmodel (FIX: o gate
+lia "PICK" maiúsculo contra label "wood_pick" minúsculo —
+to_uppercase) → margem do rio em alcance de cast (janela densa 24×24 m
+no mid do edge, não anéis) → E fisga (caught ×1, onboarding avança) →
+X come (food 0.50→1.00). PNGs inspecionados (grass_dug: skyline +
+stock; pick_crafted: painel da bancada; fish_caught: água + CAUGHT
+FISH; fish_eaten: ATE FISH + fome cheia). MUTAÇÃO PROVADA:
+PC3D_MUTATE_EQUIP_OFF=1 corta o braço de equip do SelectHotbar →
+FAIL exatamente na célula equipped; controle → PASS. Suíte: render
+lib 273/0 + world 329/0 + save 104/0 + doctrine check.
 
 ### N09 — Bancada e ghost de construção
 

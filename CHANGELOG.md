@@ -1,6 +1,62 @@
 # CHANGELOG
 
-## Loop 482 — N06: the owned hotbar (Poorcraft 3D)
+## Loop 484 — N08: the first-tool loop, seed 123 showcase (Poorcraft 3D)
+- `crates/pc3d_render/src/slice.rs`: `find_showcase` now PROVES its seed —
+  the deterministic probe walks [123..200) for a carved river through the
+  city center AND a cave corridor pocket in ring 3; seeds 3–122 fail one
+  gate (census probes `probe_n08_{seeds,carve,cave}.rs`). Test asserts
+  seed 123 + river through-center + cave pocket.
+- `crates/pc3d_render/src/app.rs`: `UiAction::SelectHotbar` equip gate is
+  CASE-BLIND (`to_uppercase().contains("PICK")`) — `item_name()` yields
+  lowercase `wood_pick` and the old uppercase literal never equipped the
+  viewmodel (the 17th cell). Mutation lever `PC3D_MUTATE_EQUIP_OFF`
+  severs the equip arm (all profiles).
+- `crates/pc3d_render/src/slice.rs` tests: the two `save_slice`/`load_slice`
+  call sites updated to the FishStocks trailer signature (12 args, 10-tuple;
+  the stocks trailer asserts its round-trip).
+- `apps/poorcraft3d/src/main.rs`: `route_first_tool` — THE FIRST-HOUR LAW
+  in 17 cells: 4 DISTINCT grass columns (the stratified depth law turns
+  repeated digs into Soil; wood lives only in the grass band), bench opens,
+  recipe 6 (4 wood → wood_pick) crafts, Digit(6) equips the viewmodel,
+  dense 24×24 m bank scan at the carved river's EDGE MIDPOINT (ring search
+  missed diagonal channels), E casts and catches, X eats (food 0.50→1.00).
+  Toast latches sample +4 frames (debug frames ~3.2 s starve 5 s toasts).
+- PROOF: route PASS 17/17 (grass_dug/pick_crafted/fish_caught/fish_eaten
+  PNGs human-inspected). MUTATION: PC3D_MUTATE_EQUIP_OFF=1 → FAIL exactly
+  on `equipped`; control PASS. SUITE: render 273/0 (1 GPU-wait flake passes
+  isolated), world 329/0, save 104/0, assets/audio/core green, doctrine
+  check green. Files: slice.rs, app.rs, main.rs, observe.rs, 12-FILA,
+  14-PLANO, STATE.md, this log, DEVLOG.md.
+- NEXT: N09 — workbench + build ghost sharing `evaluate_placement`.
+
+## Loop 483 — N07: the mouse-first ActionResolver (Poorcraft 3D)
+- `pc3d_render/src/ui.rs`: `on_mouse_verb` — the PURE resolver: modal →
+  menu → data panel → focused DIALOG (Left closes it; dialogs exit the
+  data-panel wall at tier 2) → pointer law (free click = CaptureMouse,
+  the look request; verbs wait for the grab) → verbs (Left digs, Right
+  builds). `MOUSE_FIRST_PROMPT`/`MOUSE_FIRST_TAIL` constants; Tab asks
+  TogglePack (the app applies — one panel law); the mutation lever
+  `PC3D_MUTATE_MOUSE_BUILD_OFF` (all profiles — the mutation runs are
+  release binaries). Unit gates: resolver priority, Tab pack round-trip,
+  prompt paint.
+- `pc3d_render/src/app.rs`: `UiAction::BuildSelected` re-fires the F
+  veteran (`gameplay_key(KeyCode::KeyF, event_loop)` — foundation gate,
+  pack cost, quest events: ONE build law, zero duplication); grabbed
+  Left/Right window events route the SAME resolver the route script
+  drives; `KeyCode::Tab => Key::Tab`; spawn + contextual prompts teach
+  the mouse verbs (E TALK name · tail).
+- `apps/poorcraft3d/src/main.rs` + `observe.rs`: `route_mouse_first` —
+  end_frame horizon past the static list (the dialog leg runs to 424);
+  14-cell latch record + 14-condition verdict (prompt teaches LMB/RMB,
+  pause releases the grab, free click asks capture, resume grabs, LMB
+  digs stone ×3 with ground 37.67→28.68, Digit(4) selects ROCK, RMB
+  builds paying a stone 3→2, Tab toggles the pack, dialog closed by
+  LMB); 4 captures.
+- PROOF: route PASS (human-inspected: viewmodel 5111 px, world 2854 px,
+  pack panel 87843 px); MUTATION PROVEN: `PC3D_MUTATE_MOUSE_BUILD_OFF=1`
+  fails EXACTLY the RMB leg (rmb_built false, slot 3 held) with 11
+  green legs; control PASS. Render lib 273/0.
+
 - `pc3d_world/src/items.rs`: `ToolWear` — the wear authority (uses left per
   tool code; wood 12 / stone 30 / iron 90; `wear_use` wears and BREAKS on
   the last use; `uses_left` answers the display; sorted-pair save blob,

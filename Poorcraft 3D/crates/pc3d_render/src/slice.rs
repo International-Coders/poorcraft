@@ -38,8 +38,13 @@ fn river_near_city(
     gen: &WorldGen,
     center: RegionCoord,
 ) -> Option<(RiverGraph, FlowTable, ((i32, i32), (i32, i32)))> {
-    // A river graph over a band around the city.
-    let half = 8i32;
+    // THE CARVE AUTHORITY IS THE PICK (N08 lesson): discharge depends on
+    // the window size, so an edge found at a smaller half may not exist
+    // in the carve field at all (measured: seed 42's half=10 pick
+    // vanished at half=70). Build the graph at the carve's watershed,
+    // then demand the edge's midpoint column be CARVED — a river the
+    // voxels never cut is not a river the player can fish.
+    let half = pc3d_world::river_carve::WATERSHED_HALF;
     let graph = RiverGraph::new(gen, half);
     // An edge whose midpoint is within ~450 m of the city center.
     let (ccx, ccz) = (
@@ -53,11 +58,21 @@ fn river_near_city(
             let Some(d) = graph.downstream(r) else {
                 continue;
             };
-            if graph.discharge(d) < pc3d_world::hydro::RIVER_THRESHOLD {
+            // The N03 unification's own edge law: BOTH ends at threshold.
+            if graph.discharge(d) < pc3d_world::hydro::RIVER_THRESHOLD
+                || graph.discharge(r) < pc3d_world::hydro::RIVER_THRESHOLD
+            {
                 continue;
             }
             let mx = ((r.x as f32 + 0.5) + (d.x as f32 + 0.5)) / 2.0 * 256.0;
             let mz = ((r.z as f32 + 0.5) + (d.z as f32 + 0.5)) / 2.0 * 256.0;
+            // THE CARVE GATE: the midpoint column must be carved.
+            if gen
+                .river_channel((mx * 1000.0) as i64, (mz * 1000.0) as i64)
+                .is_none()
+            {
+                continue;
+            }
             let dist = ((mx - ccx).powi(2) + (mz - ccz).powi(2)).sqrt();
             if best.as_ref().map(|(_, b)| dist < *b).unwrap_or(true) {
                 best = Some((((r.x, r.z), (d.x, d.z)), dist));
@@ -102,9 +117,19 @@ fn cave_near_city(gen: &WorldGen, center: RegionCoord) -> Option<(CellCoord, Cel
 }
 
 /// Deterministic showcase search: the first seed whose city scene has a
-/// river within 450 m and a cave within the searched band.
+/// river within 450 m and a cave within the searched band. The seed
+/// ladder is WIDE (the carve gate made rivers rarer — every candidate
+/// must have a real carved channel near the city): 120 seeds from the
+/// start, and the probe/route callers pass their own starts.
+///
+/// MEASURED (N08, probe_n08_seeds): the fast watershed census puts
+/// carved-candidate rivers near the plaza on seeds 75/83/123/63/101/10/
+/// 190/…, but the CAVE band only clears on 123 (75/83/63/10 have no
+/// corridor pocket within ring 3 — 75 s of pocket scans each). So the
+/// default ladder starts at 123, the first seed that passes BOTH gates
+/// end to end (river AT the plaza + cave at (142,0,87)).
 pub fn find_showcase(seed_start: u64) -> (u64, SliceScene) {
-    for seed in seed_start..seed_start + 40 {
+    for seed in seed_start..seed_start + 120 {
         let (gen, center, layout, plan) = city_scene(seed, RegionCoord { x: 0, z: 0 });
         let Some((river, flow, edge)) = river_near_city(&gen, center) else {
             continue;
@@ -292,6 +317,7 @@ pub fn save_slice(
     quests: Option<&[pc3d_world::quest::Quest]>,
     career: Option<&pc3d_world::career::Career>,
     tool_wear: &pc3d_world::items::ToolWear,
+    fish_stocks: Option<&pc3d_world::hydro::FishStocks>,
 ) -> Result<(), pc3d_save::store::LoadError> {
     let sup = pc3d_core::SupportedVersions::epoch1();
     pc3d_save::store::save_world_meta(
@@ -330,6 +356,7 @@ pub fn save_slice(
             quests: quests.map(|q| q.to_vec()).unwrap_or_default(),
             career: career.map(|c| c.code()),
             tool_wear: tool_wear.clone(),
+            fish_stocks: fish_stocks.cloned(),
         },
         &sup,
     )?;
@@ -354,6 +381,7 @@ pub fn load_slice(
         Option<Vec<pc3d_world::quest::Quest>>,
         Option<pc3d_world::career::Career>,
         pc3d_world::items::ToolWear,
+        Option<pc3d_world::hydro::FishStocks>,
     ),
     pc3d_save::store::LoadError,
 > {
@@ -409,6 +437,7 @@ pub fn load_slice(
         quests,
         extras.career.and_then(pc3d_world::career::Career::from_code),
         extras.tool_wear,
+        extras.fish_stocks,
     ))
 }
 
@@ -418,8 +447,8 @@ mod tests {
 
     #[test]
     fn showcase_seed_assembles_everything() {
-        let (seed, scene) = find_showcase(3);
-        assert!(seed < 43, "search stays bounded");
+        let (seed, scene) = find_showcase(123);
+        assert_eq!(seed, 123, "the measured first showcase seed");
         // City: gate + houses + workshop.
         assert!(scene.info.kind_present("gatehouse"));
         assert!(scene.info.kind_present("home"));
@@ -479,7 +508,7 @@ mod tests {
         use crate::scene::{project_ndc, sample_ndc, to_srgb4, Probe};
         use pc3d_world::host::HostCommand;
 
-        let (seed, scene) = find_showcase(3);
+        let (seed, scene) = find_showcase(123);
         let mut host = pc3d_world::host::SoloHost::new(seed);
 
         // 1. WALK: spawn in the plaza, face the gate, walk toward it.
@@ -655,9 +684,10 @@ mod tests {
             None,
             None, // career
             &pc3d_world::items::ToolWear::default(),
+            None, // fish stocks
         )
         .expect("save");
-        let (seed2, host2, p2, _, _, _, _, _, _) =
+        let (seed2, host2, p2, _, _, _, _, _, _, _) =
             load_slice(root.path(), "slice").expect("load");
         assert_eq!(seed, seed2);
         assert_eq!(p2.pos, save_player.pos);
@@ -743,7 +773,7 @@ mod tests {
 
     #[test]
     fn slice_save_reload_round_trips_world_and_player() {
-        let (seed, scene) = find_showcase(3);
+        let (seed, scene) = find_showcase(123);
         let mut host = pc3d_world::host::SoloHost::new(seed);
         // Build two blocks through the host command path.
         use pc3d_world::coords::CellCoord;
@@ -785,6 +815,7 @@ mod tests {
         }];
         let mut wear = pc3d_world::items::ToolWear::default();
         wear.wear_use(pc3d_world::items::ItemId(12)); // 11 left — the trailer round-trips
+        let fish = pc3d_world::hydro::FishStocks::default();
         save_slice(
             root.path(),
             "slice",
@@ -797,13 +828,15 @@ mod tests {
             Some(&quests),
             Some(&pc3d_world::career::Career::Mysteries), // the trailer round-trips
             &wear,
+            Some(&fish), // the stocks trailer round-trips
         )
         .expect("save");
 
         // A fresh load returns the same seed, the same built cells, the
         // same player state + pack + forge + quests + tool wear.
-        let (seed2, host2, p2, inv2, on2, forge2, quests2, career2, wear2) =
+        let (seed2, host2, p2, inv2, on2, forge2, quests2, career2, wear2, fish2) =
             load_slice(root.path(), "slice").expect("load");
+        assert_eq!(fish2, Some(fish), "the fish stocks trailer round-trips");
         assert_eq!(wear2, wear, "the wear trailer round-trips");
         assert_eq!(seed, seed2);
         let con = host2

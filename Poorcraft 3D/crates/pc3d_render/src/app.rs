@@ -1876,6 +1876,19 @@ impl App {
                         .as_ref()
                         .and_then(|s| s.renderer.nearest_talk_target().map(|(_, d, _)| d));
                     let forge_d = self.forge_zone_distance();
+                    // N08 THE WATER ZONE: the river's edge fishes (the
+                    // authority's gate: water within cast reach). Between
+                    // the forge and the NPC in the E priority.
+                    let water_d = self.cfg.slice_host.as_ref().and_then(|slice| {
+                        let gen = &slice.host.borrow().gen;
+                        pc3d_world::survival::water_edge_distance_m(
+                            gen,
+                            &slice.player.pos,
+                        )
+                        .filter(|d| {
+                            *d <= pc3d_world::survival::CAST_REACH_M
+                        })
+                    });
                     let use_forge = match (npc, forge_d) {
                         (Some(nd), Some(fd)) => fd <= nd,
                         (None, Some(_)) => true,
@@ -1886,6 +1899,38 @@ impl App {
                             let _ = slice.forge.get_or_insert_with(Default::default);
                         }
                         self.sync_forge_view();
+                    } else if let Some(_wd) = water_d {
+                        // E AT THE WATER: cast (one stock → one fish; the
+                        // authority refuses dry land and fished-out rivers).
+                        if let Some(slice) = self.cfg.slice_host.as_mut() {
+                            let graph = slice.scene.river.clone();
+                            let gen = slice.host.borrow().gen.clone();
+                            let mut stocks = slice.host.borrow_mut().fish_stocks.clone();
+                            let caught = pc3d_world::survival::fish_at(
+                                &graph,
+                                &mut stocks,
+                                &gen,
+                                &mut slice.inventory,
+                                &mut slice.onboarding,
+                                &slice.player.pos,
+                            );
+                            slice.host.borrow_mut().fish_stocks = stocks;
+                            if let Some(s) = self.state.as_mut() {
+                                match caught {
+                                    Ok(item) => {
+                                        let name = pc3d_world::items::item_name(item);
+                                        s.ui.toast(format!("CAUGHT A {name}"));
+                                        let stock = Self::sync_stock_lines_of(slice);
+                                        s.ui.stock_lines = stock;
+                                        s.ui_dirty = true;
+                                    }
+                                    Err(reason) => s.ui.toast(reason),
+                                }
+                            }
+                            if caught.is_ok() {
+                                self.sfx(pc3d_audio::SoundId::UiOpen);
+                            }
+                        }
                     } else {
                         let (talked, greeted) = self.state.as_ref().and_then(|s| {
                             s.renderer.nearest_talk_target().map(|(_, _, i)| {
@@ -2029,6 +2074,14 @@ impl App {
                         self.resolve_dig_at_crosshair();
                     }
                 }
+                UiAction::BuildSelected => {
+                    // N07 THE MOUSE-FIRST BUILD (RMB): the SAME vetted
+                    // path F drives (foundation gate, pack cost, quest
+                    // events) — one build law, no duplication. The loop
+                    // ref is simply forwarded; `gameplay_key`'s F arm
+                    // never touches it.
+                    self.gameplay_key(KeyCode::KeyF, event_loop);
+                }
                 UiAction::ChooseCareer { code } => {
                     let code = *code;
                     // THE FORK (W3.1): the choose-once law lives in
@@ -2113,28 +2166,40 @@ impl App {
                 }
                 UiAction::EatBread => {
                     self.sfx(pc3d_audio::SoundId::Eat);
-                    // X eats: one bread from the stock — the item's
-                    // Food{heal:30} maps to +0.30 food, +0.12 health.
-                    let ate = self
+                    // X eats: one food from the stock — bread first, then
+                    // caught fish (N08: the catch is food, not a trophy).
+                    // heal/30 maps to food, heal/75 to health.
+                    let food_heal = self
                         .cfg
                         .slice_host
                         .as_mut()
                         .map(|slice| {
-                            if slice.inventory.count(pc3d_world::items::ItemId(20)) > 0 {
-                                slice.inventory.remove(pc3d_world::items::ItemId(20), 1);
-                                true
-                            } else {
-                                false
+                            for code in [20u16, 21u16] {
+                                let id = pc3d_world::items::ItemId(code);
+                                if slice.inventory.count(id) > 0 {
+                                    slice.inventory.remove(id, 1);
+                                    let heal = match pc3d_world::items::item_kind(id) {
+                                        pc3d_world::items::ItemKind::Food { heal } => heal,
+                                        _ => 0,
+                                    };
+                                    return Some(heal);
+                                }
                             }
+                            None
                         })
-                        .unwrap_or(false);
+                        .flatten();
+                    let ate = food_heal.is_some();
+                    let heal = food_heal.unwrap_or(0);
                     if let Some(s) = self.state.as_mut() {
                         if ate {
-                            s.ui.hud.food = (s.ui.hud.food + 0.30).min(1.0);
-                            s.ui.hud.health = (s.ui.hud.health + 0.12).min(1.0);
-                            s.ui.toast("ATE BREAD");
+                            // The item's Food{heal} drives the bars:
+                            // bread 30 → +0.30 food, fish 15 → +0.15.
+                            s.ui.hud.food = (s.ui.hud.food + heal as f32 / 100.0).min(1.0);
+                            s.ui.hud.health = (s.ui.hud.health + heal as f32 / 250.0).min(1.0);
+                            let what = if heal >= 30 { "BREAD" } else { "FISH" };
+                            s.ui.toast(format!("ATE {what}"));
                         } else {
-                            s.ui.toast("NO BREAD — OPEN THE CHEST");
+                            s.ui.toast("NO FOOD — DIG, FISH OR OPEN THE CHEST");
                         }
                         s.ui_dirty = true;
                     }
@@ -2907,7 +2972,17 @@ impl App {
                     let equip_kind = self.state.as_ref().and_then(|s| {
                         s.ui.hud.slots.get(s.ui.hud.selected).and_then(|sl| {
                             sl.as_ref().and_then(|it| {
-                                if it.label.contains("PICK") {
+                                // item_name() yields lowercase ids
+                                // ("wood_pick") — match case-blind or the
+                                // equip gate never fires.
+                                // MUTATION LEVER (debug only):
+                                // PC3D_MUTATE_EQUIP_OFF severs the equip
+                                // arm — the route's equipped evidence must
+                                // NOT appear while selection still works.
+                                // Off by default.
+                                if std::env::var("PC3D_MUTATE_EQUIP_OFF").is_ok() {
+                                    None
+                                } else if it.label.to_uppercase().contains("PICK") {
                                     Some(crate::viewmodel::ToolKind::Pick)
                                 } else {
                                     None
@@ -2986,6 +3061,7 @@ impl App {
             slice.quests.as_deref(),
             slice.career.chosen.as_ref(),
             &slice.tool_wear,
+            Some(&slice.host.borrow().fish_stocks),
         );
         state.ui.toast(match r {
             Ok(()) => format!("SAVED '{}'", slice.world_name),
@@ -3002,7 +3078,7 @@ impl App {
             .or_else(|| self.cfg.slice_host.as_ref().map(|s| s.save_root.clone()));
         let Some(root) = root else { return };
         match crate::slice::load_slice(root.as_ref(), name) {
-            Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear)) => {
+            Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear, fish)) => {
                 // Re-assemble the scene for the SAVED seed, exactly as
                 // `create_world` does. Swapping only the seed, host and
                 // player left `slice.scene` showing the world that happened
@@ -3030,6 +3106,9 @@ impl App {
                     chosen: career,
                 };
                 fresh.tool_wear = tool_wear;
+                if let Some(f) = fish {
+                    fresh.host.borrow_mut().fish_stocks = f;
+                } // None = pre-N08 save keeps the seeded stocks
                 fresh.world_name = name.to_string();
                 {
                     let h = fresh.host.borrow();
@@ -3208,11 +3287,12 @@ impl ApplicationHandler for App {
             state.renderer.set_hud_line("");
             state.ui.session_live = self.cfg.slice_setup.is_some() || self.cfg.slice_host.is_some();
             if state.ui.session_live {
-                state.ui.hud.prompt = "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT".into();
+                state.ui.hud.prompt = crate::ui::MOUSE_FIRST_PROMPT.into();
                 // The talk prompt: name the villager in range, live.
                 if state.ui.dialog.is_none() {
                     if let Some((name, _, _)) = state.renderer.nearest_talk_target() {
-                        state.ui.hud.prompt = format!("E TALK {name} · F BUILD · R REMOVE · ESC PAUSE");
+                        state.ui.hud.prompt =
+                            format!("E TALK {name} · {}", crate::ui::MOUSE_FIRST_TAIL);
                     }
                 }
             }
@@ -3377,7 +3457,18 @@ impl ApplicationHandler for App {
                 state: ElementState::Pressed,
                 ..
             } => {
-                if state.owner_menu {
+                if state.owner_menu && state.ui.pointer_grabbed {
+                    // N07: a GRABBED Left press is the primary verb — the
+                    // pure resolver (modal → menu → panel → focused
+                    // dialog → attack) decides; real input and the route
+                    // script drive the SAME path.
+                    let actions = ui::on_mouse_verb(&mut state.ui, ui::MouseSide::Left);
+                    state.ui_dirty = true;
+                    drop(state);
+                    self.exec_actions(&actions, event_loop);
+                } else if state.owner_menu {
+                    // A FREE pointer click serves the UI layer (menus,
+                    // buttons) — or captures the mouse (click to look).
                     let (mx, my) = (state.mouse_px.0 as i32, state.mouse_px.1 as i32);
                     let actions = state
                         .ui_list
@@ -3391,6 +3482,18 @@ impl ApplicationHandler for App {
                     // Click to look around: lock the pointer, FPS-style.
                     state.grab_pointer();
                 }
+            }
+            // N07 THE SECONDARY VERB: a grabbed Right press builds with
+            // the selected slot's material (the same resolver priority).
+            WindowEvent::MouseInput {
+                button: MouseButton::Right,
+                state: ElementState::Pressed,
+                ..
+            } if state.owner_menu && state.ui.pointer_grabbed => {
+                let actions = ui::on_mouse_verb(&mut state.ui, ui::MouseSide::Right);
+                state.ui_dirty = true;
+                drop(state);
+                self.exec_actions(&actions, event_loop);
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if state.owner_menu && !state.ui.blocks_gameplay() {
@@ -3765,6 +3868,7 @@ impl App {
                 }
                 KeyCode::KeyB => {
                     let root = slice.save_root.clone();
+                    let fish = slice.host.borrow().fish_stocks.clone();
                     let r = crate::slice::save_slice(
                         root.as_ref(),
                         &slice.world_name,
@@ -3777,6 +3881,7 @@ impl App {
                         slice.quests.as_deref(),
                         slice.career.chosen.as_ref(),
                         &slice.tool_wear,
+                        Some(&fish),
                     );
                     slice.last_message = match r {
                         Ok(()) => "SAVED".into(),
@@ -3791,7 +3896,7 @@ impl App {
                     let root = slice.save_root.clone();
                     let name = slice.world_name.clone();
                     match crate::slice::load_slice(root.as_ref(), &name) {
-                        Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear)) => {
+                        Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear, fish)) => {
                             slice.seed = seed;
                             *slice.host.borrow_mut() = host;
                             slice.player = player;
@@ -3803,6 +3908,9 @@ impl App {
                                 chosen: career,
                             };
                             slice.tool_wear = tool_wear;
+                            if let Some(f) = fish {
+                                slice.host.borrow_mut().fish_stocks = f;
+                            } // None = pre-N08 save keeps the seeded stocks
                             let h = slice.host.borrow();
                             state.renderer.update_construction(&h.construction);
                             slice.last_message = "RELOADED".into();
@@ -4381,7 +4489,8 @@ impl App {
                 let p = slice.player.pos;
                 let fd = ((p[0] - pz[0]).powi(2) + (p[2] - pz[1]).powi(2)).sqrt();
                 let forge_near = fd <= 3.5;
-                let base = "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT";
+                let base = crate::ui::MOUSE_FIRST_PROMPT.to_string();
+                let tail = crate::ui::MOUSE_FIRST_TAIL.to_string();
                 // The deliver prompt: standing at an ACTIVE Deliver
                 // quest's site with bars in stock.
                 let deliver_ready = slice
@@ -4404,17 +4513,28 @@ impl App {
                     })
                     .unwrap_or(false);
                 let want = match (&npc, forge_near, deliver_ready) {
-                    (_, _, true) => {
-                        "V DELIVER BARS · F BUILD · R REMOVE · ESC PAUSE".to_string()
-                    }
+                    (_, _, true) => format!("V DELIVER BARS · {tail}"),
                     (Some((_n, nd)), true, _) if fd <= *nd => {
-                        "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE".to_string()
+                        format!("E USE FORGE · {tail}")
                     }
-                    (Some((name, _)), _, _) => {
-                        format!("E TALK {name} · F BUILD · R REMOVE · ESC PAUSE")
+                    (Some((name, _)), _, _) => format!("E TALK {name} · {tail}"),
+                    (None, true, _) => format!("E USE FORGE · {tail}"),
+                    (None, false, _) => {
+                        // N08: at the water E casts (the zone the water
+                        // law owns); otherwise the base prompt.
+                        let water = pc3d_world::survival::water_edge_distance_m(
+                            &slice.host.borrow().gen,
+                            &slice.player.pos,
+                        );
+                        match water {
+                            Some(d)
+                                if d <= pc3d_world::survival::CAST_REACH_M =>
+                            {
+                                format!("E FISH · {tail}")
+                            }
+                            _ => base,
+                        }
                     }
-                    (None, true, _) => "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE".to_string(),
-                    (None, false, _) => base.to_string(),
                 };
                 if state.ui.hud.prompt != want {
                     state.ui.hud.prompt = want;
@@ -5085,6 +5205,8 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         KeyCode::Backspace => Key::Backspace,
         KeyCode::F3 => Key::F3,
         KeyCode::KeyQ => Key::KeyQ,
+        // N07: Tab opens the inventory (the pack panel).
+        KeyCode::Tab => Key::Tab,
         KeyCode::KeyE => Key::Char('e'),
         KeyCode::KeyJ => Key::Char('j'),
         KeyCode::KeyV => Key::Char('v'),

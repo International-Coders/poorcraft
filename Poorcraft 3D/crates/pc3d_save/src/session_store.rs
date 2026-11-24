@@ -22,6 +22,10 @@ pub struct SessionExtras {
     /// N06: tool wear (uses left per carried tool). Trailing blob after
     /// the career byte — pre-N06 saves decode to fresh tools.
     pub tool_wear: pc3d_world::items::ToolWear,
+    /// N08: the river's fish stocks. Trailing blob after the wear blob —
+    /// pre-N08 saves decode to FULL stocks (a living river, not an
+    /// empty one: fish are not player-made).
+    pub fish_stocks: Option<pc3d_world::hydro::FishStocks>,
 }
 
 impl SessionExtras {
@@ -44,6 +48,10 @@ impl SessionExtras {
         b.push(self.career.unwrap_or(0));
         // The N06 wear trailer: the blob after the career byte.
         b.extend_from_slice(&self.tool_wear.encode());
+        // The N08 fish trailer: the blob after the wear blob.
+        if let Some(f) = &self.fish_stocks {
+            b.extend_from_slice(&f.encode());
+        }
         b
     }
 
@@ -135,7 +143,14 @@ impl SessionExtras {
         // saves = fresh tools (compatible both ways).
         let tool_wear = pc3d_world::items::ToolWear::decode(&bytes[off.min(bytes.len())..])
             .unwrap_or_default();
-        Ok(SessionExtras { forge, quests, career, tool_wear })
+        // The wear blob is 1 + n*6 bytes (mirrors encode) — advance the
+        // cursor past it or the fish trailer reads the wear map's bytes.
+        off = (off + 1 + tool_wear.uses_left.len() * 6).min(bytes.len());
+        // The N08 fish trailer: after the wear blob; absent in pre-N08
+        // saves = None (the caller seeds FULL stocks — a living river).
+        let fish_stocks =
+            pc3d_world::hydro::FishStocks::decode(&bytes[off.min(bytes.len())..]);
+        Ok(SessionExtras { forge, quests, career, tool_wear, fish_stocks })
     }
 }
 
@@ -197,11 +212,14 @@ mod tests {
         }];
         let mut wear = pc3d_world::items::ToolWear::default();
         wear.wear_use(pc3d_world::items::ItemId(12)); // wood_pick: 11 left
+        let mut stocks = pc3d_world::hydro::FishStocks::default();
+        stocks.stock.insert((-24, -5), 17);
         let extras = SessionExtras {
             forge: Some(forge.clone()),
             quests: quests.clone(),
             career: Some(2),
             tool_wear: wear.clone(),
+            fish_stocks: Some(stocks.clone()),
         };
         save_session(root.path(), "w", &extras, &sup).expect("save");
         let back = load_session(root.path(), "w", &sup).expect("load");
@@ -218,6 +236,31 @@ mod tests {
             Some(11)
         );
         assert_eq!(back.quests[0].kind, QuestKind::Greet { count: 3 });
+        assert_eq!(
+            back.fish_stocks,
+            Some(stocks),
+            "the fish trailer round-trips"
+        );
+    }
+
+    /// N08: a pre-N08 save (no fish trailer) loads with None — the
+    /// caller seeds FULL stocks (a living river, never an empty one).
+    #[test]
+    fn p3dn08_old_save_without_fish_loads_none() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let sup = SupportedVersions::epoch1();
+        // Hand-encode: MAGIC + no forge + 0 quests + career 0 (no blobs).
+        let old = vec![1u8, 0, 0, 0, 0];
+        // load_session unframes, so the legacy payload ships inside a real
+        // P3D frame (a naked payload would be refused before decode).
+        let old = crate::framing::frame(&FormatHeader::current(), &old);
+        crate::store::write_atomic(
+            &crate::paths::world_root(tmp.path(), "w").join("session.bin"),
+            &old,
+        )
+        .expect("write");
+        let back = load_session(tmp.path(), "w", &sup).expect("load");
+        assert!(back.fish_stocks.is_none(), "absence = None, never an error");
     }
 
     /// N06: a pre-N06 save (no wear trailer) loads with FRESH tools —
@@ -225,9 +268,10 @@ mod tests {
     #[test]
     fn p3dn06_old_save_without_wear_loads_fresh_tools() {
         let tmp = tempfile::tempdir().expect("tmp");
-        let sup = SupportedVersions::default();
+        let sup = SupportedVersions::epoch1();
         // Hand-encode a pre-N06 payload: MAGIC + no forge + 0 quests + career 0.
         let old = vec![1u8, 0, 0, 0, 0];
+        let old = crate::framing::frame(&FormatHeader::current(), &old);
         crate::store::write_atomic(&crate::paths::world_root(tmp.path(), "w").join("session.bin"), &old)
             .expect("write");
         let back = load_session(tmp.path(), "w", &sup).expect("load");

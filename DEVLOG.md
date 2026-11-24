@@ -11334,3 +11334,85 @@ hotbar-wear/ + shots/hotbar-wear-red/; docs/CONTINUACAO-GLM/
 
 NEXT: N07 — ActionResolver mouse-first (Left/right/E/Tab vs the letter
 verbs, binding-map prompts).
+
+## 2026-11-24 — Loop 483 (Poorcraft 3D): N07 mouse-first ActionResolver CLOSED
+
+WHAT: the mouse owns the combat/build/inventory verbs; letters keep
+working. ui::on_mouse_verb (PURE, ui.rs): modal → menu → data panel →
+focused DIALOG → pointer law → verbs. The DIALOG moved out of the
+data-panel wall (tier 2 → tier 3): Left CLOSES the focused dialog
+instead of digging behind it. Pointer law: free click = CaptureMouse
+(the look request); verbs require the grab. Bindings: LMB =
+DigAtCrosshair (the G verbo — sweep + shared window + wear), RMB =
+BuildSelected → exec_actions re-fires gameplay_key(KeyF, event_loop)
+(the veteran build law: foundation gate, pack cost, quest events — no
+duplication), Tab asks TogglePack (reducer asks; app applies with live
+pack rows). MOUSE_FIRST_PROMPT is the spawn prompt and the contextual
+tail (E TALK name · tail). Window events: grabbed Left/Right route the
+SAME resolver.
+
+HOW: unit gates first (resolver priority, Tab pack round-trip via the
+app-apply emulation, prompt paint — p3dn07_*), then route_mouse_first
+(observe.rs + main.rs): StartPlaying → chest pick → Digit(6) equip →
+teleport + -6 m shaft → pause (release) → resume (grab) → free-click
+law on a freed mirror → 3× LMB dig → Digit(4) ROCK → RMB build → Tab
+open/close → teleport to cast member 0 → E dialog → LMB closes. 14
+cells, 14-condition verdict, end_frame 460 (the static list ends at
+368; the dialog leg runs to 424 — the horizon owns the exit).
+
+PROOF: route PASS (12/12 legs). Captures human-inspected + pixel-
+analyzed: prompt_lmb/lmb_dug 5111 px (viewmodel + swing), lmb_dug/
+rmb_built 2854 px (shaft + built cell), rmb_built/tab_pack 87843 px
+(pack panel owns the frame). MUTATION: PC3D_MUTATE_MOUSE_BUILD_OFF=1
+(lever compiled ALL profiles — the first attempt used
+#[cfg(debug_assertions)] and mutated nothing in release; fixed) fails
+EXACTLY rmb_built (slot 3 held) with 11 green legs; control PASS.
+Route lessons: StartPlaying grabs the pointer itself (the "first click
+captures" claim belongs to the free-pointer law, proven at reducer
+level); Digit(1) refused honestly — the pack held STONE, not SOIL
+(Digit(4) ROCK is the paid slot); the run horizon must outlive every
+latch (end_frame).
+
+TESTS: render lib 273/0 (3 new p3dn07 gates). Files touched: crates/
+pc3d_render/src/{ui.rs, app.rs, observe.rs}; apps/poorcraft3d/src/
+main.rs; apps/poorcraft3d/shots/observatory/route_mouse_first/ +
+shots/observatory-mutate/route_mouse_first/; docs/CONTINUACAO-GLM/
+12-FILA-DE-EXECUCAO.md; STATE.md; CHANGELOG.md; this log.
+
+NEXT: N08 — loose starter resources + first tool loop (branch/stone/
+food at spawn; the recipe teaches; viewmodel + sound).
+
+## 2026-11-24 — Loop 484: N08 first-tool loop CLOSED (seed 123 showcase)
+WHAT: the first-hour law end to end — dig grass → 4 wood → bench →
+wood_pick craft → equip viewmodel → river bank cast → catch → eat.
+
+HOW: (1) showcase seed proven, not assumed: deterministic census
+(probe_n08_{seeds,carve,cave}.rs) over [3,200) — seed 123 is the FIRST
+with a carved river THROUGH the city center (channel (128,127), edge mid
+~255 m from plaza) AND a cave corridor pocket in ring 3;
+find_showcase(123) + test. (2) find_bank_spot rewritten: ring search
+missed diagonal channels; now a dense 24×24 m window scan around the
+carve EDGE MIDPOINT (55 flat grass cells within CAST_REACH 3 m).
+(3) find_dig_spots_barehand: 4 DISTINCT grass columns — the stratified
+depth law (cell_material by depth below original surface: <1 m grass →
+wood; 1–4 m soil) converts repeated digs on one column to Soil.
+(4) THE FIX: SelectHotbar equip gate matched "PICK" against the lowercase
+label "wood_pick" → viewmodel never equipped (17th cell false).
+to_uppercase() closes it. (5) Mutation lever PC3D_MUTATE_EQUIP_OFF
+severs the equip arm (all profiles). (6) slice.rs tests updated to the
+FishStocks save/load trailer (12 args / 10-tuple) — they lagged the
+signature and broke `make p3d-test`.
+
+VERIFICATION: route_first_tool PASS 17/17 (grass_dug, pick_crafted,
+fish_caught, fish_eaten PNGs inspected: skyline+stock, bench panel,
+CAUGHT FISH toast at the bank, ATE FISH + food 1.00). MUTATION:
+PC3D_MUTATE_EQUIP_OFF=1 → FAIL exactly on equipped; control PASS.
+TESTS: render 273/0 (teleport_keeps_work_bounded GPU-wait flake passes
+isolated in 18.7 s), world 329/0, save 104/0, assets 38/0 + audio 8/0 +
+core 32/0, doctrine check 2/2. Artifacts: /tmp/pc3d_obs_n08/route_first_tool/
+(control), /tmp/pc3d_mut_n08/route_first_tool/ (mutant). Files: crates/
+pc3d_render/src/{slice.rs,app.rs}; apps/poorcraft3d/src/{main.rs,observe.rs};
+docs 12-FILA + 14-PLANO; STATE.md; CHANGELOG.md; this log.
+
+NEXT: N09 — workbench + build ghost sharing evaluate_placement
+(cost/support/collision; commit re-evaluates; matrix per 14-PLANO).

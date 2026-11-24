@@ -451,7 +451,7 @@ mod consumer_tests {
 /// river region; catching CONSUMES STOCK without weakening the river
 /// (discharge/slope/wetness untouched); restock is deterministic and
 /// bounded by carrying capacity.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct FishStocks {
     pub stock: BTreeMap<(i32, i32), u64>,
 }
@@ -506,6 +506,43 @@ impl FishStocks {
             let room = cap.saturating_sub(*cur);
             *cur += regen.min(room);
         }
+    }
+
+    /// N08 the save codec: count + sorted (region, stock) pairs
+    /// (BTreeMap order = deterministic). Trailing blob, absent in
+    /// pre-N08 saves (compatible both ways: absence = FULL stocks,
+    /// the seeded default — fish are not player-made, so an old save
+    /// gets a living river, not an empty one).
+    pub fn encode(&self) -> Vec<u8> {
+        let mut b = Vec::with_capacity(1 + self.stock.len() * 16);
+        b.push(self.stock.len() as u8);
+        for (r, s) in &self.stock {
+            b.extend_from_slice(&r.0.to_le_bytes());
+            b.extend_from_slice(&r.1.to_le_bytes());
+            b.extend_from_slice(&s.to_le_bytes());
+        }
+        b
+    }
+
+    /// Decode the stock blob; `None` = absent (pre-N08 save) → the
+    /// caller seeds fresh full stocks.
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        if bytes.is_empty() {
+            return None;
+        }
+        let n = bytes[0] as usize;
+        if bytes.len() < 1 + n * 16 {
+            return None;
+        }
+        let mut map = BTreeMap::new();
+        for i in 0..n {
+            let off = 1 + i * 16;
+            let x = i32::from_le_bytes(bytes[off..off + 4].try_into().ok()?);
+            let z = i32::from_le_bytes(bytes[off + 4..off + 8].try_into().ok()?);
+            let s = u64::from_le_bytes(bytes[off + 8..off + 16].try_into().ok()?);
+            map.insert((x, z), s);
+        }
+        Some(FishStocks { stock: map })
     }
 }
 
@@ -806,5 +843,25 @@ mod fishing_tests {
         assert!(fish.stock_at(r) >= snapshot);
         assert!(fish.stock_at(r) <= cap);
         let _ = before_pot;
+    }
+
+    /// N08: the stock blob round-trips; an empty blob is None (fresh
+    /// stocks), and a decode of the encoded form equals the original.
+    #[test]
+    fn p3dn08_stock_blob_round_trips() {
+        let g = WorldGen::new(2024);
+        let graph = RiverGraph::new(&g, 20);
+        let mut fish = FishStocks::new(&graph);
+        let r = RegionCoord {
+            x: graph.river_regions[0].0,
+            z: graph.river_regions[0].1,
+        };
+        fish.catch_fish(r, 3);
+        let blob = fish.encode();
+        let back = FishStocks::decode(&blob).expect("a non-empty blob decodes");
+        assert_eq!(back.stock, fish.stock, "the blob is the same map");
+        // Region codes survive the i16 wire (regions live in ±24 bands).
+        assert_eq!(back.stock_at(r), fish.stock_at(r));
+        assert_eq!(FishStocks::decode(&[]), None, "absent blob = fresh stocks");
     }
 }

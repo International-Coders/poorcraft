@@ -14,3 +14,35 @@ serde_json = "1.0"
 [[bin]]
 name = "poorcraft3d"
 path = "src/main.rs"
+
+[[bin]]
+name = "probe_n08_bank"
+path = "../../tools/probe_n08_bank.rs"
+
+[[bin]]
+name = "probe_n08_seeds"
+path = "../../tools/probe_n08_seeds.rs"
+
+[[bin]]
+name = "probe_n08_carve"
+path = "../../tools/probe_n08_carve.rs"
+
+[[bin]]
+name = "probe_n08_cave"
+path = "../../tools/probe_n08_cave.rs"
+
+[[bin]]
+name = "probe_n08_scene"
+path = "../../tools/probe_n08_scene.rs"
+
+[[bin]]
+name = "probe_n08_plaza"
+path = "../../tools/probe_n08_plaza.rs"
+
+[[bin]]
+name = "probe_n08_near"
+path = "../../tools/probe_n08_near.rs"
+
+[[bin]]
+name = "probe_n08_bank123"
+path = "../../tools/probe_n08_bank123.rs"
