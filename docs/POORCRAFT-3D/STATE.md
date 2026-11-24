@@ -1,6 +1,6 @@
 # POORCRAFT 3D — Living State
 
-Last updated: 2026-10-10 (workspace split + enforced GLM continuation doctrine)
+Last updated: 2026-11-23 (N06 owned hotbar closed: wear/break/selection one authority)
 
 Root `STATE.md` / `BACKLOG.md` / `CHANGELOG.md` are now the split repository's
 control plane and preserve the LOREFORGE history. This file is the living truth
@@ -11,9 +11,9 @@ for `Poorcraft 3D/` work (folder renamed from `poorcraft-novo/` on 2026-10-10).
 | Field | Value |
 | --- | --- |
 | Horizon | **H0 Vertical-Slice Beta** (see `24-VERTICAL-SLICE-BETA.md`) |
-| Build | **766/766 tests green** (assets 38, audio 8, core 32, render 259, save 20, world 304 incl. the 14 N01 trust laws, city sweep 104, nav 1); `make p3d-beta` **38/38**, 339 PNGs, one report |
-| Last measure | 2026-10-10 — N01 adversarial trust harness closed: `pc3d_world::trust` + `make p3d-trust-audit` (4/4 culprits refused, 4/4 controls accepted, 4/4 gates load-bearing, windowed spawn-fixture evidence); doctrine promoted to N02 |
-| `next_task` | **N02 — safe spawn multi-seed** from `Poorcraft 3D/docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md`: validated spawn search with a candidate sidecar, 256-seed daily matrix, and the visual route showing the first view and the first resource — evolving `pc3d_world/src/player.rs::spawn_safe`, which must consume the N01 `spawn_clearance_violations` gate |
+| Build | **817/817 tests green** (assets 38, audio 8, core 32, render 270, save 38, world 431); `make p3d-beta` **38/38** (loop-479 baseline), 339 PNGs, one report |
+| Last measure | 2026-11-23 — N06 owned hotbar closed: `ToolWear` durability (break → empty hand + toast), owned-selection law (empty slots refuse/skip), wear save trailer — loop 482; `route_hotbar_wear` PASS with mutation RED proof; doctrine promoted to N07 |
+| `next_task` | **N07 — ActionResolver mouse-first** from `Poorcraft 3D/docs/CONTINUACAO-GLM/14-PLANO-N06-N11-PRIMEIRA-HORA.md`: Left/right/E/Tab replace the letter-key system verbs with the binding map's prompts |
 
 ## VS-Beta gates (V1–V6) — current
 

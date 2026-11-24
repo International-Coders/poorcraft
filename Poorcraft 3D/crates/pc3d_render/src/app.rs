@@ -159,6 +159,9 @@ pub struct SliceHost {
     /// The player's items (the chest's loot lands here; the forge's H
     /// consumes iron_ore from here).
     pub inventory: pc3d_world::items::Inventory,
+    /// N06 THE WEAR AUTHORITY: uses left per carried tool (the pack owns
+    /// counts, this owns wear — together they are the hotbar authority).
+    pub tool_wear: pc3d_world::items::ToolWear,
     /// The ore node's remaining yield.
     pub ore_remaining: u8,
     /// Whether the chest has been looted.
@@ -2652,6 +2655,11 @@ impl App {
                             n => {
                                 s.ui.toast(format!("HARVESTED {n} IRON ORE"));
                                 s.ui.ore_harvested += n as u64;
+                                // N06 THE WEAR: an ore strike is a pick
+                                // use (the tool's own site).
+                                if let Some(slice) = self.cfg.slice_host.as_mut() {
+                                    wear_pick_and_handle_break(slice, &mut s.renderer, &mut s.ui);
+                                }
                             }
                         }
                         s.ui.stock_lines = stock;
@@ -2893,35 +2901,21 @@ impl App {
                     // N06: selecting a CARRIED TOOL equips its viewmodel
                     // (the first-person body follows the selection);
                     // selecting anything else clears the hands. The
-                    // shared identity: the hotbar item and the viewmodel
-                    // are the same tool.
-                    let equip_kind = {
-                        let idx = self.state.as_ref().map(|s| s.ui.hud.selected);
-                        let inv = self.cfg.slice_host.as_ref().map(|s| &s.inventory);
-                        match (idx, inv) {
-                            (Some(i), Some(inv)) => {
-                                use pc3d_world::items::ItemId;
-                                match i {
-                                    5 if inv.count(ItemId(12)) > 0 => Some(crate::viewmodel::ToolKind::Pick), // wood_pick
-                                    6 if inv.count(ItemId(10)) > 0 => Some(crate::viewmodel::ToolKind::Pick), // stone_pick
-                                    7 if inv.count(ItemId(11)) > 0 => Some(crate::viewmodel::ToolKind::Pick), // iron_pick
-                                    _ => None,
+                    // identity answer reads the LIVE HUD slots (the pack
+                    // echo already synced them) — one authority, no
+                    // duplicated slot maps.
+                    let equip_kind = self.state.as_ref().and_then(|s| {
+                        s.ui.hud.slots.get(s.ui.hud.selected).and_then(|sl| {
+                            sl.as_ref().and_then(|it| {
+                                if it.label.contains("PICK") {
+                                    Some(crate::viewmodel::ToolKind::Pick)
+                                } else {
+                                    None
                                 }
-                            }
-                            _ => None,
-                        }
-                    };
+                            })
+                        })
+                    });
                     if let Some(s) = self.state.as_mut() {
-                        let want = equip_kind.map(|k| k as u8);
-                        let have = s
-                            .renderer
-                            .viewmodel_state()
-                            .map(|_| 1u8); // some tool equipped (kind not exposed)
-                        // Re-equip only when the SELECTION identity changed:
-                        // cheap guard — equip is idempotent anyway (the
-                        // matrix gate re-runs), so just always re-equip on
-                        // a change of selection.
-                        let _ = (want, have);
                         match equip_kind {
                             Some(kind) => {
                                 if let Err(e) = s.renderer.equip_viewmodel(kind.spec()) {
@@ -2991,6 +2985,7 @@ impl App {
             slice.forge.as_ref(),
             slice.quests.as_deref(),
             slice.career.chosen.as_ref(),
+            &slice.tool_wear,
         );
         state.ui.toast(match r {
             Ok(()) => format!("SAVED '{}'", slice.world_name),
@@ -3007,7 +3002,7 @@ impl App {
             .or_else(|| self.cfg.slice_host.as_ref().map(|s| s.save_root.clone()));
         let Some(root) = root else { return };
         match crate::slice::load_slice(root.as_ref(), name) {
-            Ok((seed, host, player, inventory, onboarding, forge, quests, career)) => {
+            Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear)) => {
                 // Re-assemble the scene for the SAVED seed, exactly as
                 // `create_world` does. Swapping only the seed, host and
                 // player left `slice.scene` showing the world that happened
@@ -3034,6 +3029,7 @@ impl App {
                 fresh.career = pc3d_world::career::CareerState {
                     chosen: career,
                 };
+                fresh.tool_wear = tool_wear;
                 fresh.world_name = name.to_string();
                 {
                     let h = fresh.host.borrow();
@@ -3544,6 +3540,20 @@ impl App {
                             pc3d_world::quest::QuestEvent::Excavated { cells: total },
                         );
                     }
+                    // N06 THE WEAR: a rock take consumed a pick use (the
+                    // tool's own site — soft materials cost no wear).
+                    // THE MUTATION LEVER (debug only): the waiver skips
+                    // EVERY wear — the ladder stalls at 11, the break
+                    // never comes, the route verdict goes RED. Off by
+                    // default (the real game always wears).
+                    let wear_waived = std::env::var("PC3D_MUTATE_WEAR_SKIP").is_ok();
+                    if yields.iter().any(|(id, _)| id.0 == 2) && !wear_waived {
+                        if let (Some(slice), Some(s)) =
+                            (self.cfg.slice_host.as_mut(), self.state.as_mut())
+                        {
+                            wear_pick_and_handle_break(slice, &mut s.renderer, &mut s.ui);
+                        }
+                    }
                     format!("DUG {names}")
                 } else {
                     "NO GROUND TO EDIT".to_string()
@@ -3766,6 +3776,7 @@ impl App {
                         slice.forge.as_ref(),
                         slice.quests.as_deref(),
                         slice.career.chosen.as_ref(),
+                        &slice.tool_wear,
                     );
                     slice.last_message = match r {
                         Ok(()) => "SAVED".into(),
@@ -3780,7 +3791,7 @@ impl App {
                     let root = slice.save_root.clone();
                     let name = slice.world_name.clone();
                     match crate::slice::load_slice(root.as_ref(), &name) {
-                        Ok((seed, host, player, inventory, onboarding, forge, quests, career)) => {
+                        Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear)) => {
                             slice.seed = seed;
                             *slice.host.borrow_mut() = host;
                             slice.player = player;
@@ -3791,6 +3802,7 @@ impl App {
                             slice.career = pc3d_world::career::CareerState {
                                 chosen: career,
                             };
+                            slice.tool_wear = tool_wear;
                             let h = slice.host.borrow();
                             state.renderer.update_construction(&h.construction);
                             slice.last_message = "RELOADED".into();
@@ -4557,14 +4569,24 @@ impl App {
                 }
                 // Slots 6-9 carry what the player owns rather than staying
                 // permanently empty: craft a pick and it appears here.
-                let carried = self
-                    .cfg
-                    .slice_host
-                    .as_ref()
-                    .map(|s| carried_slots_of(&s.inventory))
-                    .unwrap_or_default();
-                for (i, item) in carried.into_iter().enumerate() {
-                    state.ui.hud.slots[CARRIED_SLOT_0 + i] = item;
+                // N06: the wear authority rides along — a pick's slot
+                // shows its uses left (the count painter draws it) and a
+                // BROKEN pick leaves the slot empty the same dirty frame.
+                if let Some(s) = self.cfg.slice_host.as_ref() {
+                    let carried = carried_slots_of(&s.inventory, &s.tool_wear);
+                    for (i, item) in carried.into_iter().enumerate() {
+                        state.ui.hud.slots[CARRIED_SLOT_0 + i] = item;
+                    }
+                    // THE BROKEN-TOOL DROP: the selection pointed at a
+                    // slot the pack no longer carries → the hand empties
+                    // (the owned-selection law: empty slots hold nothing,
+                    // not even the highlight).
+                    let sel = state.ui.hud.selected;
+                    if state.ui.hud.slots.get(sel).map(|sl| sl.is_none()) == Some(true)
+                        && sel >= CARRIED_SLOT_0
+                    {
+                        state.ui.hud.selected = 0;
+                    }
                 }
                 // D2: the build slots answer to the pack every frame.
                 let build_slots = self
@@ -4786,6 +4808,44 @@ fn best_pick_tier(inventory: &pc3d_world::items::Inventory) -> Option<u8> {
     }
 }
 
+/// N06 THE TIER-1 PICK in the pack (wood then stone — the first carried).
+fn first_tier1_pick(inventory: &pc3d_world::items::Inventory) -> Option<pc3d_world::items::ItemId> {
+    use pc3d_world::items::ItemId;
+    if inventory.count(ItemId(12)) > 0 {
+        Some(ItemId(12))
+    } else if inventory.count(ItemId(10)) > 0 {
+        Some(ItemId(10))
+    } else {
+        None
+    }
+}
+
+/// N06 THE WEAR + BREAK (shared by every pick verb): wear one use off the
+/// tier-1 pick; a BREAK removes it from the pack, empties the hotbar
+/// selection (the broken tool leaves an empty hand), drops the equipped
+/// viewmodel, and toasts honestly. The next verb re-reads its tier from
+/// the pack — iron/stone in the pack take over automatically; no pick
+/// left means bare-hand refusals again.
+fn wear_pick_and_handle_break(
+    slice: &mut SliceHost,
+    renderer: &mut Renderer,
+    ui: &mut UiState,
+) {
+    let Some(pick) = first_tier1_pick(&slice.inventory) else {
+        return;
+    };
+    if slice.tool_wear.wear_use(pick) {
+        slice.inventory.remove(pick, 1);
+        // THE BROKEN-TOOL DROP: the hand empties — selection off the dead
+        // slot, viewmodel unequipped (nothing of the tool persists).
+        ui.hud.selected = 0;
+        renderer.unequip_viewmodel();
+        let name = pc3d_world::items::item_name(pick).to_uppercase();
+        ui.toast(format!("YOUR {name} BROKE"));
+    }
+}
+
+
 /// Map winit keycodes onto the UI's abstract key set (None: not a UI key).
 /// First hotbar index that shows carried goods rather than a build material.
 /// Slots 1-5 are the terrain palette builds place; 6-9 were reserved and
@@ -4796,11 +4856,13 @@ const CARRIED_SLOT_0: usize = 5;
 ///
 /// Four entries, in a fixed order so a slot does not change meaning as the
 /// pack changes: the three picks then bread. An item the player does not
-/// have leaves its slot empty.
+/// have leaves its slot empty. N06: a pick's slot count is its USES LEFT
+/// (the wear authority answers; bread shows no count).
 fn carried_slots_of(
     inv: &pc3d_world::items::Inventory,
+    wear: &pc3d_world::items::ToolWear,
 ) -> Vec<Option<crate::ui::HotItem>> {
-    use pc3d_world::items::{item_name, ItemId};
+    use pc3d_world::items::{item_kind, item_name, ItemId, ItemKind};
     // (item code, swatch)
     const CARRIED: &[(u16, [u8; 3])] = &[
         (12, [150, 116, 74]),  // wood_pick
@@ -4811,11 +4873,16 @@ fn carried_slots_of(
     CARRIED
         .iter()
         .map(|&(code, color)| {
-            let n = inv.count(ItemId(code));
+            let id = ItemId(code);
+            let n = inv.count(id);
             (n > 0).then(|| crate::ui::HotItem {
-                label: item_name(ItemId(code)),
+                label: item_name(id),
                 color,
-                count: None,
+                count: match item_kind(id) {
+                    // N06 THE WEAR DISPLAY: uses left IS the honest count.
+                    ItemKind::Tool { .. } => wear.uses_left(id),
+                    _ => None,
+                },
             })
         })
         .collect()
@@ -5131,6 +5198,42 @@ mod tests {
         assert!(s.interact.is_none(), "first Escape dismisses interact");
         assert_eq!(s.screen, Screen::Gameplay, "does not jump to Pause yet");
         assert!(!s.blocks_gameplay(), "WASD is free again");
+    }
+
+    /// N06 THE WEAR DISPLAY: a pick's slot count is its USES LEFT from
+    /// the wear authority; bread shows no count; a broken pick's slot is
+    /// GONE (the pack echo drops it the same dirty frame).
+    #[test]
+    fn p3dn06_carried_slots_show_uses_left_and_break_drops_the_slot() {
+        use pc3d_world::items::{Inventory, ItemId, ToolWear};
+        let mut inv = Inventory::new(12);
+        inv.add(ItemId(12), 1); // wood_pick
+        inv.add(ItemId(20), 2); // bread
+        let mut wear = ToolWear::default();
+        wear.wear_use(ItemId(12)); // 11 uses left
+        let slots = carried_slots_of(&inv, &wear);
+        let pick = slots[0].as_ref().expect("the carried pick is in slot 6");
+        assert_eq!(pick.count, Some(11), "the pick's count is USES LEFT");
+        let bread = slots[3].as_ref().expect("bread in slot 9");
+        assert_eq!(bread.count, None, "food shows no count");
+        // THE BREAK: wear is 12 uses total (1 pre + 11 in the loop); the
+        // 12th call inside the loop breaks and the entry resets — detect
+        // the break by its `true` return.
+        let mut broke = false;
+        for _ in 0..12 {
+            broke |= wear.wear_use(ItemId(12));
+        }
+        assert!(broke, "the 12th use breaks");
+        let slots = carried_slots_of(&inv, &wear);
+        // NOTE: the pack removal itself is the verb's job
+        // (wear_pick_and_handle_break); the slot painter only needs the
+        // pack's truth — here the item is still carried, so the slot
+        // shows a FRESH budget (the re-crafted sibling law).
+        assert!(slots[0].is_some(), "still carried = still shown");
+        let mut inv2 = inv.clone();
+        inv2.remove(ItemId(12), 1);
+        let slots2 = carried_slots_of(&inv2, &wear);
+        assert!(slots2[0].is_none(), "broken+removed = the slot empties");
     }
 
     #[test]
@@ -5468,7 +5571,7 @@ mod tests {
 
         // The crafted pick reaches the hotbar: slots 6-9 used to be
         // permanently empty no matter what the player carried.
-        let carried = carried_slots_of(&inv);
+        let carried = carried_slots_of(&inv, &pc3d_world::items::ToolWear::default());
         assert_eq!(carried.len() + CARRIED_SLOT_0, 9, "must fill slots 6-9");
         assert_eq!(
             carried[0].as_ref().map(|h| h.label),

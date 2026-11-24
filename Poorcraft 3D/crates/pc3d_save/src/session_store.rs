@@ -19,6 +19,9 @@ pub struct SessionExtras {
     /// Encoded as a trailing byte — old builds ignore it, new builds
     /// default it to None on old saves (compatible both ways).
     pub career: Option<u8>,
+    /// N06: tool wear (uses left per carried tool). Trailing blob after
+    /// the career byte — pre-N06 saves decode to fresh tools.
+    pub tool_wear: pc3d_world::items::ToolWear,
 }
 
 impl SessionExtras {
@@ -39,6 +42,8 @@ impl SessionExtras {
         }
         // The career trailer (W3.1): 0 = unchosen, 1/2 = the path's code.
         b.push(self.career.unwrap_or(0));
+        // The N06 wear trailer: the blob after the career byte.
+        b.extend_from_slice(&self.tool_wear.encode());
         b
     }
 
@@ -123,7 +128,14 @@ impl SessionExtras {
         } else {
             None
         };
-        Ok(SessionExtras { forge, quests, career })
+        if off < bytes.len() {
+            off += 1;
+        }
+        // The N06 wear trailer: after the career byte; absent in pre-N06
+        // saves = fresh tools (compatible both ways).
+        let tool_wear = pc3d_world::items::ToolWear::decode(&bytes[off.min(bytes.len())..])
+            .unwrap_or_default();
+        Ok(SessionExtras { forge, quests, career, tool_wear })
     }
 }
 
@@ -183,10 +195,13 @@ mod tests {
             progress: 1,
             reward: 15,
         }];
+        let mut wear = pc3d_world::items::ToolWear::default();
+        wear.wear_use(pc3d_world::items::ItemId(12)); // wood_pick: 11 left
         let extras = SessionExtras {
             forge: Some(forge.clone()),
             quests: quests.clone(),
             career: Some(2),
+            tool_wear: wear.clone(),
         };
         save_session(root.path(), "w", &extras, &sup).expect("save");
         let back = load_session(root.path(), "w", &sup).expect("load");
@@ -197,7 +212,26 @@ mod tests {
         assert_eq!(back.quests[0].progress, 1);
         assert_eq!(back.quests[0].state, QuestState::Active);
         assert_eq!(back.career, Some(2), "the career trailer round-trips");
+        assert_eq!(back.tool_wear, wear, "the wear trailer round-trips");
+        assert_eq!(
+            back.tool_wear.uses_left(pc3d_world::items::ItemId(12)),
+            Some(11)
+        );
         assert_eq!(back.quests[0].kind, QuestKind::Greet { count: 3 });
+    }
+
+    /// N06: a pre-N06 save (no wear trailer) loads with FRESH tools —
+    /// absence is honest default, never an error.
+    #[test]
+    fn p3dn06_old_save_without_wear_loads_fresh_tools() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let sup = SupportedVersions::default();
+        // Hand-encode a pre-N06 payload: MAGIC + no forge + 0 quests + career 0.
+        let old = vec![1u8, 0, 0, 0, 0];
+        crate::store::write_atomic(&crate::paths::world_root(tmp.path(), "w").join("session.bin"), &old)
+            .expect("write");
+        let back = load_session(tmp.path(), "w", &sup).expect("load");
+        assert_eq!(back.tool_wear, pc3d_world::items::ToolWear::default());
     }
 
     #[test]

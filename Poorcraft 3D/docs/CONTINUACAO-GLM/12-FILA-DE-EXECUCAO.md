@@ -125,9 +125,28 @@ mutação `PC3D_MUTATE_HIT_WINDOW_EARLY=1` (janela 0.0) → route FAIL
 
 ## Épico B — primeira sessão
 
-### N06 — Hotbar de itens possuídos
+### N06 — Hotbar de itens possuídos — FECHADO (loop 482)
 
 Eliminar palette grátis e ligar quantidade/durabilidade/seleção.
+
+FECHADO: o pack já era a verdade dos slots (D2: builds com contagem,
+slots 6–9 com o que se carrega); o resto da lei caiu neste loop. A
+DURABILIDADE HONESTA: `ToolWear` (pc3d_world::items) é a autoridade de
+desgaste — usos restantes por código de ferramenta (wood 12, stone 30,
+iron 90), `wear_use` desgasta e QUEBRA na última usação (true → o verbo
+remove do pack, limpa a seleção, desequipa o viewmodel, toast honesto
+"YOUR WOOD_PICK BROKE"); os dois sítios de uso do picado (resolve do dig
+em rocha, golpe do minério) passam pela MESMA lei; display: o count do
+slot é USOS RESTANTES. A SELEÇÃO POSSUÍDA: dígito recusa slot vazio,
+roda PULA vazios, belt todo vazio não move; clique idem. O SAVE: trailer
+`tool_wear` no SessionExtras (depois do byte career; save pré-N06 →
+ferramentas novas, compatível nos dois sentidos). PROVA: route_hotbar_wear
+(4 capturas inspecionadas: WOOD_PICK 9 → 2 → BROKE + slot vazio →
+NEED A PICK FOR STONE com chão intacto; escada 11..0, stone creditado,
+dígito 6 recusado pós-quebra); MUTAÇÃO PROVADA: PC3D_MUTATE_WEAR_SKIP=1 →
+escada trava em 12, sem quebra, seleção fica 5, G pós-quebra escava
+(18.68) → FAIL de 4 ângulos; default → PASS. Suíte 817/0 (render 270,
+world 431, save 38, assets 38, core 32, audio 8); doctrine 2/2.
 
 ### N07 — ActionResolver mouse-first
 

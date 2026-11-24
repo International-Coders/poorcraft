@@ -178,6 +178,92 @@ pub struct ToolState {
     pub durability_max: u32,
 }
 
+/// THE WEAR AUTHORITY (N06): how many uses each carried tool has left,
+/// keyed by item code. The pack owns the counts; this owns the wear —
+/// together they are the hotbar's one stack/durability authority.
+///
+/// A use the authority does not know about is FREE; the verbs report
+/// every pick use (dig resolve, ore strike) through `wear_use`, and a
+/// tool whose last use is consumed BREAKS: removed from the pack (the
+/// hand empties), its wear entry dropped.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct ToolWear {
+    /// uses remaining per item code, only for tools that have been used.
+    pub uses_left: std::collections::BTreeMap<u16, u32>,
+}
+
+impl ToolWear {
+    /// Maximum uses by tool code (the craft recipe's quality made law).
+    pub fn max_for(item: ItemId) -> u32 {
+        match item.0 {
+            // wood_pick: the first tool — honest but short-lived.
+            12 => 12,
+            // stone_pick: the workhorse.
+            10 => 30,
+            // iron_pick: the reward tool.
+            11 => 90,
+            _ => 0, // not a tool: never wears
+        }
+    }
+
+    /// Register a USE of `item` (a held tool that did its verb). Returns
+    /// `true` when the tool just BROKE — the caller must remove it from
+    /// the pack. Unknown tool codes are ignored (never wear, never break).
+    pub fn wear_use(&mut self, item: ItemId) -> bool {
+        let max = Self::max_for(item);
+        if max == 0 {
+            return false;
+        }
+        let left = self.uses_left.entry(item.0).or_insert(max);
+        if *left > 1 {
+            *left -= 1;
+            false
+        } else {
+            // THE BREAK: last use consumed.
+            self.uses_left.remove(&item.0);
+            true
+        }
+    }
+
+    /// Uses remaining for `item` (a never-used tool has its full budget).
+    pub fn uses_left(&self, item: ItemId) -> Option<u32> {
+        let max = Self::max_for(item);
+        (max > 0).then(|| *self.uses_left.get(&item.0).unwrap_or(&max))
+    }
+
+    /// The save codec: sorted pairs (BTreeMap order = deterministic).
+    /// Trailing blob, absent in pre-N06 saves (compatible both ways).
+    pub fn encode(&self) -> Vec<u8> {
+        let mut b = Vec::with_capacity(1 + self.uses_left.len() * 6);
+        b.push(self.uses_left.len() as u8);
+        for (code, uses) in &self.uses_left {
+            b.extend_from_slice(&code.to_le_bytes());
+            b.extend_from_slice(&uses.to_le_bytes());
+        }
+        b
+    }
+
+    /// Decode the wear blob; `None` = absent (pre-N06 save) → fresh tools.
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        if bytes.is_empty() {
+            return None;
+        }
+        let n = bytes[0] as usize;
+        if bytes.len() < 1 + n * 6 {
+            return None;
+        }
+        let mut map = std::collections::BTreeMap::new();
+        for i in 0..n {
+            let off = 1 + i * 6;
+            let code = u16::from_le_bytes(bytes[off..off + 2].try_into().ok()?);
+            let uses = u32::from_le_bytes(bytes[off + 2..off + 6].try_into().ok()?);
+            map.insert(code, uses);
+        }
+        Some(ToolWear { uses_left: map })
+    }
+}
+
+
 impl ToolState {
     pub fn new(item: ItemId, durability_max: u32) -> Self {
         ToolState {
@@ -303,6 +389,44 @@ mod tests {
         assert!(!tool.use_once(), "the last use BREAKS the tool");
         assert_eq!(tool.durability, 0);
         assert!(!tool.use_once(), "a broken tool stays broken");
+    }
+
+    /// N06 THE WEAR LAW: every pick use wears the tool; the last use
+    /// BREAKS it (true returned → pack removal); a never-used tool reads
+    /// its full budget; non-tools never wear.
+    #[test]
+    fn p3dn06_wear_use_wears_breaks_and_spares_non_tools() {
+        let mut wear = ToolWear::default();
+        let wood = ItemId(12);
+        assert_eq!(wear.uses_left(wood), Some(12), "fresh tool = full budget");
+        // 11 uses wear; the 12th BREAKS.
+        for i in 0..11 {
+            assert!(!wear.wear_use(wood), "use {} must not break", i + 1);
+            assert_eq!(wear.uses_left(wood), Some(11 - i));
+        }
+        assert!(wear.wear_use(wood), "the last use BREAKS");
+        // The break REMOVED the pool: a held sibling (re-crafted pick)
+        // starts a FRESH budget — the break signal is the `true` return.
+        assert_eq!(wear.uses_left(wood), Some(12), "new pool after break");
+        // Bread (a non-tool) never wears and never breaks.
+        let bread = ItemId(20);
+        assert_eq!(wear.uses_left(bread), None);
+        assert!(!wear.wear_use(bread), "non-tools never break");
+    }
+
+    /// N06 THE WEAR SAVE LAW: the blob round-trips sorted; an empty/absent
+    /// blob decodes to None (pre-N06 save → fresh tools).
+    #[test]
+    fn p3dn06_wear_blob_round_trips_and_absent_decodes_none() {
+        let mut wear = ToolWear::default();
+        wear.wear_use(ItemId(12)); // wood_pick: 11 left
+        wear.wear_use(ItemId(10)); // stone_pick: 29 left
+        let blob = wear.encode();
+        assert_eq!(blob.len(), 1 + 2 * 6);
+        let back = ToolWear::decode(&blob).expect("present blob decodes");
+        assert_eq!(back, wear);
+        assert_eq!(ToolWear::decode(&[]), None, "absent = pre-N06 save");
+        assert_eq!(ToolWear::decode(&[3]), None, "truncated = absent");
     }
 
     /// Harvest gating: bare hands take soil-like materials but not rock;

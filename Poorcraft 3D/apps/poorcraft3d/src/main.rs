@@ -3017,9 +3017,10 @@ fn main() {
                             None,
                             None,
                             None, // career: BETA-0.2 (routes stage no path)
+                            &pc3d_world::items::ToolWear::default(),
                         )
                         .expect("save");
-                        let (_s2, h2, _p2, _, _, _, _, _) =
+                        let (_s2, h2, _p2, _, _, _, _, _, _) =
                             pc3d_render::slice::load_slice(&dir, "rebuild").expect("reload");
                         let c1: usize = h.construction.values().map(|c| c.built_count()).sum();
                         let c2: usize = h2.construction.values().map(|c| c.built_count()).sum();
@@ -5201,6 +5202,7 @@ fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
             None,
             None,
             None, // career: BETA-0.2 (routes stage no path)
+            &pc3d_world::items::ToolWear::default(),
         )
         .expect("write test world");
     }
@@ -5846,6 +5848,7 @@ fn run_observe(route_id: &str, out_root: &str) {
         // sample's t, [7] the post ground — the verdict reads them
         // after the run.
         let dig_window_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 8]));
+        let hotbar_wear_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 20]));
         match spec.id {
             "route_title_mouse" => {
                 ui_script.push((12, Box::new(|ui, _r, _ctx| {
@@ -7952,6 +7955,179 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(210, format!("{dir}/swing_mid.png")));
                 shots.push(Shot::new(255, format!("{dir}/rock_took.png")));
             }
+            "route_hotbar_wear" => {
+                // THE WEAR LAW, END TO END (N06): the carried pick shows
+                // its USES LEFT on the hotbar; every rock take wears one
+                // use (12 → 1); the 12th take BREAKS it — the toast names
+                // it, the slot empties, the empty slot refuses selection,
+                // and the next G refuses the rock bare-handed. Twelve
+                // real digs through the real verb (G → shared window →
+                // take → wear), latched per swing.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                // THE STAGED SHAFT (route_dig_window's law): natural rock
+                // may not sit near the plaza; a grass cell dug -6 m puts
+                // the cell's own truth (Rock) underfoot.
+                let [sx, sg, sz] =
+                    find_dig_spot_barehand(gen, plaza.x as f32 + 0.5, plaza.z as f32 + 0.5, true)
+                        .unwrap_or_else(|| {
+                            panic!("route_hotbar_wear: no flat grass cell near the plaza on seed {seed}")
+                        });
+                println!("HOTBAR WEAR: grass->shaft spot ({sx:.1},{sg:.2},{sz:.1})");
+                let cells = hotbar_wear_cells.clone();
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // Frames 30-75: to the CHEST (15-frame gaps — the zone
+                // needs a tick to register the body before E resolves),
+                // E opens (the pick arrives through the REAL interact
+                // path), E closes, Digit(6) equips.
+                ui_script.push((
+                    30,
+                    Box::new(|_ui, r, ctx| {
+                        if let Some(p) = r.plaza_interactable_pos(0) {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: p[0], z: p[2] });
+                        }
+                    }),
+                ));
+                ui_script.push((
+                    45,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::TryTalk); // chest -> pick
+                    }),
+                ));
+                ui_script.push((
+                    60,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('e')); // close chest
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                ui_script.push((
+                    75,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Digit(6)); // equip the pick
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 70: onto the rock cell, aim underfoot; stage the
+                // -6 m shaft (past the soil band = Rock).
+                ui_script.push((
+                    70,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                ui_script.push((
+                    80,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::EditSurface { x: sx, z: sz, meters: -6.0 });
+                    }),
+                ));
+                // THE TWELVE SWINGS: every 48 frames, G arms the pending
+                // hit; the sweep resolves INSIDE its window; the take
+                // wears one use. The latch at +34 reads the hotbar count
+                // (uses left), the pack stone, the toast set.
+                for n in 1u64..=12u64 {
+                    let base = 90 + (n - 1) * 48;
+                    ui_script.push((
+                        base,
+                        Box::new(|ui, _r, ctx| {
+                            let acts = ui::on_key(ui, ui::Key::Char('g'));
+                            ctx.actions.extend(acts);
+                        }),
+                    ));
+                    let rec = cells.clone();
+                    ui_script.push((
+                        base + 34,
+                        Box::new(move |ui, r, _ctx| {
+                            let mut v = rec.get();
+                            v[n as usize] = ui
+                                .hud
+                                .slots
+                                .get(5)
+                                .and_then(|sl| sl.as_ref())
+                                .and_then(|it| it.count)
+                                .unwrap_or(0) as f32;
+                            v[17] = v[17].max(if ui.hud.stock.contains("STONE") { 1.0 } else { 0.0 });
+                            let _ = r;
+                            if n <= 2 {
+                                v[19] = ui.hud.slots.get(5).map(|sl| sl.is_some()).unwrap_or(false)
+                                    as u8 as f32; // diag: slot present at all
+                            }
+                            rec.set(v);
+                        }),
+                    ));
+                }
+                // THE BREAK landed on swing 12 (base 598, latch 632).
+                let rec = cells.clone();
+                ui_script.push((
+                    640,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = rec.get();
+                        v[16] = ui.toasts.iter().any(|t| t.text.contains("BROKE")) as u8 as f32;
+                        v[18] = {
+                            // wood_pick still in the pack? (the break removed it)
+                            use pc3d_world::items::ItemId;
+                            let _ = ItemId(0);
+                            // The UI slots are the honest mirror the route reads.
+                            ui.hud.slots.get(5).map(|sl| sl.is_none()).unwrap_or(true)
+                                as u8 as f32
+                        };
+                        v[15] = r.ground_y_at_pub(sx, sz);
+                        rec.set(v);
+                    }),
+                ));
+                // Frame 648: Digit(6) on the NOW-EMPTY slot — refused.
+                ui_script.push((
+                    648,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Digit(6));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let rec = cells.clone();
+                ui_script.push((
+                    652,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = rec.get();
+                        v[13] = ui.hud.selected as f32;
+                        rec.set(v);
+                    }),
+                ));
+                // Frame 656: G bare-handed — resolves NOW, the tier gate
+                // refuses the rock: the toast names it, the ground holds.
+                ui_script.push((
+                    656,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('g'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                let rec = cells.clone();
+                ui_script.push((
+                    672,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = rec.get();
+                        v[14] = ui.toasts.iter().any(|t| t.text.contains("NEED A PICK"))
+                            as u8 as f32;
+                        v[15] = r.ground_y_at_pub(sx, sz);
+                        rec.set(v);
+                    }),
+                ));
+                shots.push(Shot::new(160, format!("{dir}/wear_full.png")));
+                shots.push(Shot::new(580, format!("{dir}/wear_low.png")));
+                shots.push(Shot::new(645, format!("{dir}/pick_broken.png")));
+                // The refusal capture sits PAST the post-break G latch
+                // (672): the run's horizon is the last capture + 1, so a
+                // capture before the latch ends the run before the toast
+                // can be read (the 669-frame lesson).
+                shots.push(Shot::new(676, format!("{dir}/refusal_post.png")));
+            }
             "route_forge_use" => {
                 // The forge slice, end to end: enter the world, stand at
                 // the plaza forge, E (opens THE FORGE through the zone
@@ -8276,7 +8452,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             size_is_physical: true,
             max_frames: if matches!(
                 spec.id,
-                "route_semantic_playtest" | "route_vine_hangoff"
+                "route_semantic_playtest" | "route_vine_hangoff" | "route_hotbar_wear"
             ) {
                 // The playtest's journey and the hang-off's two legs both
                 // outlive the default 420-frame route cap.
@@ -8716,6 +8892,45 @@ fn run_observe(route_id: &str, out_root: &str) {
             } else {
                 eprintln!(
                     "[FAIL] observe route_dig_window: refused {refused} / ref_ground {ref_ground:.2} / equipped {equipped} / resolved {resolved} / resolve_t {resolve_t:.3} in {in_window} / took {took} (\"{stock_now}\") / dropped {dropped} ({pre_ground:.2}->{post_ground:.2}) / tool_in_frame {tool_in_frame} / sweep_ran {sweep_ran}"
+                );
+                any_fail = true;
+            }
+        }
+        // THE WEAR VERDICT (N06): the count descends use by use, the pack
+        // never gains stone before swing 1 lands, the BREAK toast fires,
+        // the slot empties, the empty slot refuses selection, and the
+        // post-break G refuses the rock with the ground intact.
+        if spec.id == "route_hotbar_wear" {
+            let v = hotbar_wear_cells.get();
+            let counts: Vec<u32> = (1..=12).map(|i| v[i] as u32).collect();
+            let stone_ever = v[17] > 0.5;
+            let broke_toast = v[16] > 0.5;
+            let slot_empty = v[18] > 0.5;
+            let sel_after_refuse = v[13] as u32;
+            let post_refused = v[14] > 0.5;
+            let post_ground = v[15];
+            // THE LAW: counts are 11,10,...,1,0 (swing n leaves 12-n);
+            // slot 6 shows the pick the whole ladder — until the break
+            // blanks it. v[1..=12] read the count AFTER each swing.
+            let ladder_ok = (0..12)
+                .all(|i| counts[i] == (11 - i as u32).min(12));
+            let ok = ladder_ok
+                && counts[0] == 11
+                && counts[11] == 0
+                && stone_ever
+                && broke_toast
+                && slot_empty
+                && sel_after_refuse != 5
+                && post_refused
+                && post_ground > 0.0;
+            if ok {
+                println!(
+                    "HOTBAR WEAR: count ladder {counts:?}, stone credited, BREAK toast fired, slot emptied, empty slot refused selection (sel={sel_after_refuse}), post-break G refused (ground held at {post_ground:.2})"
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe route_hotbar_wear: ladder {counts:?} / stone_ever {stone_ever} / broke_toast {broke_toast} / slot_empty {slot_empty} / sel {sel_after_refuse} / post_refused {post_refused} / post_ground {post_ground:.2} / slot_present_diag {:+}",
+                    v[19]
                 );
                 any_fail = true;
             }

@@ -116,6 +116,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_hotbar_wear",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

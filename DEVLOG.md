@@ -11273,3 +11273,64 @@ hardcoded to the pick's pair until a second equipped kind exists (spec
 carrier lands with it — ceiling named in code).
 
 NEXT: N06 — owned hotbar (14-PLANO-N06-N11).
+
+## 2026-11-23 — Loop 482: N06 — the owned hotbar (Poorcraft 3D)
+
+WHAT: Quantity/durability/selection became ONE authority — the last
+free-palette residue is gone. The pick now WEARS per use, BREAKS at its
+last use, and its break empties the hand honestly. Card per
+14-PLANO-N06-N11; one playable change.
+
+HOW:
+- items.rs (world authority): ToolWear — uses_left per tool code
+  (BTreeMap), max_for as the catalog law (wood 12/stone 30/iron 90),
+  wear_use wears + BREAKS on the last use (true return), uses_left for
+  the display, encode/decode as a sorted-pair blob (absent = fresh).
+  Two law tests.
+- session_store.rs: SessionExtras.tool_wear trailer AFTER the career
+  byte (career decode tolerates the extra tail; pre-N06 saves decode
+  fresh tools — proven by a hand-encoded old payload test).
+- slice.rs: save/load carry ToolWear (tuple grew to 9); SliceHost
+  constructors default it.
+- app.rs: wear_pick_and_handle_break (break → pack remove + selection
+  0 + unequip_viewmodel + toast YOUR WOOD_PICK BROKE) wired at BOTH
+  pick-use sites (rock-dig resolve inside resolve_dig_at_crosshair —
+  gated on a STONE yield, soft digs cost nothing — and the ore strike).
+  carried_slots_of shows USES LEFT as the pick's count (item_kind Tool
+  check; bread shows none). SelectHotbar's equip identity now reads the
+  LIVE hud slots (no duplicated slot maps). The sync drops the
+  selection when its carried slot dies. Debug knob PC3D_MUTATE_WEAR_SKIP
+  (default off) = the route's mutation lever.
+- ui.rs: THE OWNED-SELECTION LAW — Digit refuses empty slots; wheel
+  SKIPS empties (all-empty belt never moves); click obeys the same rule
+  (empty click keeps the CaptureMouse fallthrough honest).
+- main.rs: route_hotbar_wear — chest E → Digit 6 equip → staged -6 m
+  grass-cell shaft → 12 real digs (48-frame cadence: G, latch at +34
+  reading slot-6 count + stock) → break (toast latch, slot-empty latch)
+  → Digit 6 refused → post-break G refused with the ground held.
+  Verdict: ladder 11..0 + stone_ever + broke_toast + slot_empty +
+  selection != 5 + post_refused + post_ground. 4 captures.
+- Evidence: shots/hotbar-wear/route_hotbar_wear/ (4 PNGs + sidecars,
+  verdict PASS; PNGs human-inspected: WOOD_PICK 9 on the slot at full,
+  WOOD_PICK 2 at low, YOUR WOOD_PICK BROKE + empty slot, NEED A PICK
+  FOR STONE after). RED: shots/hotbar-wear-red/ (PC3D_MUTATE_WEAR_SKIP:
+  ladder 12×12, no toast, sel 5, post-G dug 18.68 → FAIL four ways).
+
+TESTS: world 431/0 (two new wear laws), save 38/0 (round-trip + old-save
+compat), render 270/0 (owned-selection gates + wear display), assets 38,
+core 32, audio 8 = 817/0 total; doctrine 2/2. NOTE (honesty): the
+debug-profile world suite costs ~70 min wall on this host (the 8-seed
+spawn matrix is O(minutes) in debug; release ~2.5 min) — expected per
+the test's own doc comment, not a hang. Route lessons recorded inline:
+route Rc must be the verdict's Rc (zeros came from a locally-created
+Cell), and the refusal capture must sit PAST the final latch (the run
+ends at last-capture + 1).
+
+FILES: crates/pc3d_world/src/items.rs; crates/pc3d_save/src/
+session_store.rs; crates/pc3d_render/src/{slice.rs, app.rs, ui.rs,
+observe.rs}; apps/poorcraft3d/src/main.rs; apps/poorcraft3d/shots/
+hotbar-wear/ + shots/hotbar-wear-red/; docs/CONTINUACAO-GLM/
+12-FILA...md; STATE.md; CHANGELOG.md; this log.
+
+NEXT: N07 — ActionResolver mouse-first (Left/right/E/Tab vs the letter
+verbs, binding-map prompts).

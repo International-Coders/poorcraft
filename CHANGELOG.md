@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## Loop 482 — N06: the owned hotbar (Poorcraft 3D)
+- `pc3d_world/src/items.rs`: `ToolWear` — the wear authority (uses left per
+  tool code; wood 12 / stone 30 / iron 90; `wear_use` wears and BREAKS on
+  the last use; `uses_left` answers the display; sorted-pair save blob,
+  absent blob = pre-N06) + law tests.
+- `pc3d_save/src/session_store.rs`: `SessionExtras.tool_wear` trailer after
+  the career byte — pre-N06 saves decode fresh tools (compatible both
+  ways) + round-trip and old-save tests.
+- `pc3d_render/src/slice.rs`: `save_slice`/`load_slice` carry `ToolWear`;
+  SliceHost constructors own the authority.
+- `pc3d_render/src/app.rs`: `wear_pick_and_handle_break` — break removes
+  the pick, drops the selection, unequips the viewmodel, toasts honestly;
+  wired at BOTH pick-use sites (rock dig resolve, ore strike); the debug
+  mutation lever `PC3D_MUTATE_WEAR_SKIP`; the broken-tool drop empties
+  slot + hand the same dirty frame; carried slots show USES LEFT as the
+  count; `SelectHotbar` reads the live HUD slots for the equip identity.
+- `pc3d_render/src/ui.rs`: THE OWNED-SELECTION LAW — digits refuse empty
+  slots, the wheel skips empties (all-empty belt never moves), click obeys
+  the same rule.
+- `apps/poorcraft3d/src/main.rs`: `route_hotbar_wear` — 12 real digs wear
+  the pick down (ladder 11..0), break at the 12th take, empty-slot refusal,
+  post-break bare-hand refusal (ground held), 4 captures + 9-condition
+  verdict; observe.rs registers the route.
+- Suite 817/0 (render 270, world 431, save 38, assets 38, core 32, audio
+  8); doctrine check green. Mutation RED archived `shots/hotbar-wear-red`.
+
 ## Loop 481 — N05 wiring: the pick + the shared hit window (Poorcraft 3D)
 - `pc3d_render/src/viewmodel.rs`: `ToolKind` (Shovel|Pick) — the mesh factory
   and the gameplay wiring share one identity; `ViewmodelSpec::pick` (own

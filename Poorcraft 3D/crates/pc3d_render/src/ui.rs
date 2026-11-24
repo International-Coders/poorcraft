@@ -2844,19 +2844,43 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
                 acts.push(UiAction::Repaint);
             }
             Key::Digit(d) if (1..=9).contains(&d) => {
-                state.hud.selected = (d - 1) as usize;
-                acts.push(UiAction::SelectHotbar((d - 1) as usize));
-                acts.push(UiAction::Repaint);
+                // N06 THE OWNED-SELECTION LAW: a slot the pack does not
+                // carry cannot take the selection (the hotbar answers to
+                // the pack; a raw index was the free-palette lie).
+                let i = (d - 1) as usize;
+                if matches!(state.hud.slots.get(i), Some(Some(_))) {
+                    state.hud.selected = i;
+                    acts.push(UiAction::SelectHotbar(i));
+                    acts.push(UiAction::Repaint);
+                }
             }
             Key::WheelUp => {
-                state.hud.selected = (state.hud.selected + 8) % 9;
-                acts.push(UiAction::SelectHotbar(state.hud.selected));
-                acts.push(UiAction::Repaint);
+                // N06: the wheel SKIPS empty slots; an all-empty belt
+                // leaves the selection where it is.
+                let mut i = (state.hud.selected + 8) % 9;
+                let mut tries = 0;
+                while tries < 9 && !matches!(state.hud.slots.get(i), Some(Some(_))) {
+                    i = (i + 8) % 9;
+                    tries += 1;
+                }
+                if tries < 9 {
+                    state.hud.selected = i;
+                    acts.push(UiAction::SelectHotbar(i));
+                    acts.push(UiAction::Repaint);
+                }
             }
             Key::WheelDown => {
-                state.hud.selected = (state.hud.selected + 1) % 9;
-                acts.push(UiAction::SelectHotbar(state.hud.selected));
-                acts.push(UiAction::Repaint);
+                let mut i = (state.hud.selected + 1) % 9;
+                let mut tries = 0;
+                while tries < 9 && !matches!(state.hud.slots.get(i), Some(Some(_))) {
+                    i = (i + 1) % 9;
+                    tries += 1;
+                }
+                if tries < 9 {
+                    state.hud.selected = i;
+                    acts.push(UiAction::SelectHotbar(i));
+                    acts.push(UiAction::Repaint);
+                }
             }
             _ => {}
         },
@@ -3190,8 +3214,13 @@ pub fn on_click(state: &mut UiState, x: i32, y: i32, list: &DrawList) -> Vec<UiA
         Screen::Gameplay => {
             if let Some(e) = list.hit(x, y) {
                 if let ElementKind::HotbarSlot { index, .. } = &e.kind {
-                    state.hud.selected = *index;
-                    return vec![UiAction::SelectHotbar(*index), UiAction::Repaint];
+                    // N06 THE OWNED-SELECTION LAW: clicks obey the same
+                    // rule as digits — an empty slot refuses.
+                    if matches!(state.hud.slots.get(*index), Some(Some(_))) {
+                        state.hud.selected = *index;
+                        return vec![UiAction::SelectHotbar(*index), UiAction::Repaint];
+                    }
+                    return vec![];
                 }
             }
             vec![UiAction::CaptureMouse]
@@ -4592,6 +4621,11 @@ mod tests {
     #[test]
     fn hotbar_selection_moves() {
         let mut s = state(Screen::Gameplay);
+        // N06: selection lives on OWNED slots — put goods in the slots
+        // the law moves through.
+        s.hud.slots[0] = Some(HotItem { label: "SOIL", color: [122, 85, 58], count: Some(3) });
+        s.hud.slots[2] = Some(HotItem { label: "ROCK", color: [138, 132, 126], count: Some(1) });
+        s.hud.slots[3] = Some(HotItem { label: "SAND", color: [214, 184, 108], count: Some(2) });
         s.hud.selected = 2;
         let list = build(&s, 1280, 720);
         match &list.by_id("hotbar_2").unwrap().kind {
@@ -4604,6 +4638,31 @@ mod tests {
         }
         // Slots never overlap.
         assert!(no_interactive_overlap(&list));
+    }
+
+    /// N06 THE OWNED-SELECTION LAW: digits refuse empty slots; the wheel
+    /// SKIPS empty slots; an all-empty belt never moves the selection.
+    #[test]
+    fn p3dn06_selection_answers_to_owned_slots() {
+        let mut s = state(Screen::Gameplay);
+        s.hud.slots[0] = Some(HotItem { label: "SOIL", color: [122, 85, 58], count: Some(3) });
+        s.hud.slots[4] = Some(HotItem { label: "SNOW", color: [232, 236, 240], count: Some(1) });
+        // Digit on an EMPTY slot refuses (selection stays at 0).
+        let acts = on_key(&mut s, Key::Digit(3));
+        assert_eq!(s.hud.selected, 0, "empty slot refuses selection");
+        assert!(!acts.iter().any(|a| matches!(a, UiAction::SelectHotbar(_))));
+        // Digit on an OWNED slot takes.
+        let _ = on_key(&mut s, Key::Digit(5));
+        assert_eq!(s.hud.selected, 4, "owned slot takes the selection");
+        // WheelDown from 4 wraps and SKIPS the empties back to 0.
+        let _ = on_key(&mut s, Key::WheelDown);
+        assert_eq!(s.hud.selected, 0, "wheel skips empty slots");
+        // All-empty belt: the wheel cannot move at all.
+        let mut s2 = state(Screen::Gameplay);
+        let _ = on_key(&mut s2, Key::WheelDown);
+        let _ = on_key(&mut s2, Key::WheelUp);
+        let _ = on_key(&mut s2, Key::Digit(7));
+        assert_eq!(s2.hud.selected, 0, "nothing owned = nothing selectable");
     }
 
     #[test]
@@ -4682,13 +4741,18 @@ mod tests {
         assert_eq!(s.form.seed(), 42);
 
         let mut g = state(Screen::Gameplay);
+        // N06: the digit law answers to OWNED slots — carry something in
+        // slot 5 first.
+        g.hud.slots[4] = Some(HotItem { label: "SNOW", color: [232, 236, 240], count: Some(1) });
         let acts = on_key(&mut g, Key::Digit(5));
         assert_eq!(g.hud.selected, 4);
         assert!(acts.contains(&UiAction::SelectHotbar(4)));
 
+        // WheelDown from 4 skips the EMPTY slots (5..8, 0..3) and stays
+        // on the only owned slot — the owned-selection law.
         let acts = on_key(&mut g, Key::WheelDown);
-        assert_eq!(g.hud.selected, 5);
-        assert!(acts.contains(&UiAction::SelectHotbar(5)));
+        assert_eq!(g.hud.selected, 4, "wheel skips empty slots");
+        assert!(acts.contains(&UiAction::SelectHotbar(4)));
     }
 
     #[test]
@@ -4747,11 +4811,12 @@ mod tests {
     fn gameplay_click_without_hit_captures_mouse() {
         let mut s = state(Screen::Gameplay);
         s.pointer_grabbed = false;
+        s.hud.slots[3] = Some(HotItem { label: "SAND", color: [214, 184, 108], count: Some(2) });
         let list = build(&s, 1280, 720);
         // Click the sky (top center, no element there).
         let acts = on_click(&mut s, 640, 100, &list);
         assert!(acts.contains(&UiAction::CaptureMouse));
-        // Clicking a hotbar slot selects it instead.
+        // Clicking an OWNED hotbar slot selects it instead.
         let slot = list.by_id("hotbar_3").unwrap().rect;
         let acts = on_click(&mut s, slot.cx(), slot.cy(), &list);
         assert!(acts.contains(&UiAction::SelectHotbar(3)));
