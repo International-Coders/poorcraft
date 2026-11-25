@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## Loop 486 — N10: the shovel and the predictable ground (Poorcraft 3D)
+- `crates/pc3d_render/src/app.rs`: the PURE authority `evaluate_sculpt`
+  gates every sculpt — the tool gate (no shovel → "NEED A SHOVEL TO
+  SHAPE THE GROUND"), reach ("TOO FAR TO SHAPE"), and the exact meters
+  per op: Lower/Raise = ±DIG_DEPTH_M, Level converges to the body's
+  foot height (capped ±1.0 m per swing), Smooth pulls toward the 4-
+  neighbor mean at half strength; already-shaped ground refuses
+  ("THE GROUND IS ALREADY SHAPED"). `resolve_sculpt` commits through
+  `surface_edit` — the SAME live surface path the dig drives. Mutation
+  lever `PC3D_MUTATE_SCULPT_TOOL_OFF` arms the route's proof. 4 new lib
+  tests (p3dn10): the tool gate names itself; lower/raise exact +
+  level converges and TERMINATES; smooth shrinks variance and refuses
+  flat ground; the lever's own delta.
+- `crates/pc3d_render/src/renderer.rs`: `set_sculpt_ghost` — CYAN when
+  accepted, ORANGE when rejected (the dig family's own colors, drawn
+  through the same 12-bar wire prism law).
+- `crates/pc3d_world`: `wood_shovel` (item 13, Tool tier 1) + recipe 11
+  (wood×2 + soil×1 → wood_shovel, UNGATED — every path shapes ground).
+- `crates/pc3d_render/src/ui.rs` + `app.rs`: THE BELT GREW TO 10 —
+  5 build slots + 5 carried (pick×3, shovel, bread); `slots: [Option<
+  HotItem>; 10]`, Digit 0 → slot 10, hotbar layout 10×SLOT + 9×GAP,
+  equip arm maps SHOVEL → `ToolKind::Shovel`; Z/U keys map to the
+  sculpt verbs (blocked when panels own the frame).
+- `apps/poorcraft3d/src/main.rs` + `observe.rs`: `route_sculpt` — the
+  5-beat law: ladder-dig 3 grass columns → beat A bare-hand Z: RED
+  "NEED A SHOVEL", ground 10.696→10.696 (UNMOVED) → bench: row 11
+  AFFORDABLE, Enter crafts, Digit 9 equips the shovel viewmodel →
+  beat C armed Z: "THE GROUND SINKS", ground 10.696→9.696 (EXACTLY one
+  dig depth), CYAN ghost inside the REAL pit (inspected: dark soil
+  walls) → beat D U beside the pit: "THE GROUND LEVELS", 9.696→10.696
+  (converges to the feet, never teleports) → beat E the far witness
+  cell: 10.441→10.441 (sculpts are LOCAL). Pixel law: before vs lowered
+  at the SAME pose — delta 0.6159 is the REAL pit filling the
+  straight-down frame (bounds 0.02–0.8; the semantic laws pin the
+  meter). PNGs 5/5 inspected. MUTATION PROVEN: tool gate off → the
+  BARE hand sinks the ground (a_unmoved false) and beat C digs a
+  SECOND meter → FAIL exactly on a_red/a_toast/a_unmoved/lowered_exact/
+  leveled_back; control PASS (5 captures, 207 frames, p50 2.66 s).
+- NEXT: N11 — shelter, fire and the first night (the capstone).
+
 ## Loop 485 — N09: the build ghost — preview and commit read ONE law (Poorcraft 3D)
 - `crates/pc3d_render/src/app.rs`: the PURE authority `evaluate_placement`
   gates every placement — body-capsule overlap (0.35 m × 1.8 m vs the

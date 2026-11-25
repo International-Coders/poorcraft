@@ -26,6 +26,9 @@ pub const ITEMS: &[(u16, &str, ItemKind)] = &[
     (10, "stone_pick", ItemKind::Tool { tier: 1 }),
     (11, "iron_pick", ItemKind::Tool { tier: 2 }),
     (12, "wood_pick", ItemKind::Tool { tier: 1 }),
+    // N10: the sculpt tool — Z lowers, U levels, T smooths; soft ground
+    // only (the pick digs through stone, the shovel shapes earth).
+    (13, "wood_shovel", ItemKind::Tool { tier: 1 }),
     (30, "iron_cog", ItemKind::Material),
     (31, "ley_sigil", ItemKind::Material),
     (32, "brass_cog", ItemKind::Material),

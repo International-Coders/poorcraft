@@ -45,6 +45,62 @@ impl GpuContext {
     }
 }
 
+/// THE GPU SERIAL LOCK: every offscreen/windowed device talks to the SAME
+/// driver; in `cargo test` ~40 GPU tests run in parallel, contend for the
+/// queue and one times out on `poll(0)` ("We timed out while waiting on
+/// the last successful submission"). The guard lives in the Renderer and
+/// releases on drop, so GPU tests serialize across threads. REENTRANT on
+/// the same thread (a pthread mutex is not: a test holding `ctrl` while
+/// building `r` must nest, not self-deadlock). ponytail: a global lock is
+/// the ceiling; if a GPU test ever needs true parallelism, shard by
+/// adapter instead. Production cost: one uncontended lock per renderer
+/// (the game and the observe routes are single-threaded). A Renderer
+/// must live and drop on its constructing thread (all proofs and the
+/// app do).
+pub struct GpuSerialGuard;
+
+static GPU_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+thread_local! {
+    static GPU_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    static GPU_HELD: std::cell::RefCell<Option<std::sync::MutexGuard<'static, ()>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+impl GpuSerialGuard {
+    pub fn acquire() -> Self {
+        GPU_DEPTH.with(|d| {
+            let n = d.get();
+            if n == 0 {
+                // A panicked holder must not poison the belt: recover.
+                let g = match GPU_LOCK.lock() {
+                    Ok(g) => g,
+                    Err(p) => p.into_inner(),
+                };
+                GPU_HELD.with(|h| *h.borrow_mut() = Some(g));
+            }
+            d.set(n + 1);
+        });
+        GpuSerialGuard
+    }
+}
+
+impl Drop for GpuSerialGuard {
+    fn drop(&mut self) {
+        GPU_DEPTH.with(|d| {
+            let n = d.get().saturating_sub(1);
+            d.set(n);
+            if n == 0 {
+                // Dropping the held guard releases the mutex.
+                GPU_HELD.with(|h| *h.borrow_mut() = None);
+            }
+        });
+    }
+}
+
+pub fn gpu_serial_lock() -> GpuSerialGuard {
+    GpuSerialGuard::acquire()
+}
+
 /// What to do after a failed `get_current_texture` call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SurfaceAction {

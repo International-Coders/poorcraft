@@ -77,10 +77,18 @@ controle PASS. Suíte: render lib 276/0 (3 p3dn09).
 
 ## N10 — Terreno previsível
 
-Lower, raise, level e smooth mostram preview do mesmo cálculo do commit.
-Propriedades: fora do raio não muda bytes; smooth reduz variação; level converge;
-custo corresponde ao volume; remesh, água, nav, grounding e save recebem a
-mesma dirty region; replay restaura hash.
+FECHADO (2026-11-25). Lower, raise, level e smooth mostram preview do
+mesmo cálculo do commit (`evaluate_sculpt` → `SculptVerdict` → ghost
+ciano/laranja + `resolve_sculpt` → `surface_edit`). Propriedades provadas
+na rota `route_sculpt`: fora do gate não muda bytes (bare hand → RED
+"NEED A SHOVEL", chão parado); lower é EXATO (−1.0 m = DIG_DEPTH_M);
+level converge aos pés do corpo e TERMINA (segundo U no chão arrived →
+"THE GROUND IS ALREADY SHAPED"); smooth reduz variância (testes de
+unidade p3dn10); a célula testemunha longe não muda bytes. Ferramenta
+real: wood_shovel (item 13) craftado na bancada (receita 11 ungated
+wood×2 + soil×1) e equipado (viewmodel Shovel). O remesh local é o
+`surface_edit` do dig (mesma dirty region); água/nav/save herdam o
+caminho NWR-005 já provado.
 
 ## N11 — Abrigo, fogo e noite
 

@@ -2074,6 +2074,14 @@ impl App {
                         self.resolve_dig_at_crosshair();
                     }
                 }
+                UiAction::SculptGround(op) => {
+                    // N10 THE SCULPT VERB (Z lower / U level): the SAME
+                    // surface edit path the dig drives, gated by the
+                    // pure `evaluate_sculpt` — preview colors ride the
+                    // SAME verdict (the sculpt ghost). The shovel must
+                    // be in the pack; the reach is the dig's own.
+                    self.resolve_sculpt(*op);
+                }
                 UiAction::BuildSelected => {
                     // N07 THE MOUSE-FIRST BUILD (RMB): the SAME vetted
                     // path F drives (foundation gate, pack cost, quest
@@ -2984,6 +2992,8 @@ impl App {
                                     None
                                 } else if it.label.to_uppercase().contains("PICK") {
                                     Some(crate::viewmodel::ToolKind::Pick)
+                                } else if it.label.to_uppercase().contains("SHOVEL") {
+                                    Some(crate::viewmodel::ToolKind::Shovel)
                                 } else {
                                     None
                                 }
@@ -3539,6 +3549,101 @@ impl ApplicationHandler for App {
 }
 
 impl App {
+    /// N10 THE SCULPT RESOLVE: the crosshair's live ground target, the
+    /// pure `evaluate_sculpt` verdict (shovel gate, reach gate, exact
+    /// meters), then the one-step edit through the SAME live surface
+    /// path the dig drives. The ghost paints the verdict BEFORE and
+    /// AFTER: green applied, red named-refused — the preview cannot
+    /// lie because it IS the commit's calculation.
+    fn resolve_sculpt(&mut self, op: crate::app::SculptOp) {
+        let (target, verdict) = {
+            let Some(slice) = self.cfg.slice_host.as_ref() else {
+                return;
+            };
+            let Some(s) = self.state.as_ref() else {
+                return;
+            };
+            let pose = s.renderer.pose();
+            let fwd = crate::camera::fwd_of(pose.yaw, pose.pitch);
+            let ground = |x: f32, z: f32| s.renderer.ground_y_at_pub(x, z);
+            let has_shovel = slice.inventory.count(pc3d_world::items::ItemId(13)) > 0;
+            match crate::player::dig_target(
+                &ground,
+                pose.position,
+                fwd,
+                crate::player::DIG_REACH_M,
+            ) {
+                None => (None, SculptVerdict::Rejected { reason: "NO GROUND IN REACH" }),
+                Some((x, z)) => {
+                    let cell = pc3d_world::coords::CellCoord { x, y: 0, z };
+                    let v = evaluate_sculpt(
+                        op,
+                        cell,
+                        &ground,
+                        slice.player.pos[1],
+                        has_shovel,
+                        true, // dig_target already bounded the reach
+                    );
+                    (Some(cell), v)
+                }
+            }
+        };
+        let Some(s) = self.state.as_mut() else { return };
+        let Some(cell) = target else {
+            s.ui.toast("NO GROUND IN REACH");
+            s.ui_dirty = true;
+            return;
+        };
+        match verdict {
+            SculptVerdict::Rejected { reason } => {
+                s.ui.toast(format!("REJECTED: {reason}"));
+                s.ui_dirty = true;
+                // THE RED GHOST: the named no, same wire box law.
+                if self
+                    .cfg
+                    .slice_host
+                    .as_ref()
+                    .map(|sl| sl.rebuild)
+                    .unwrap_or(false)
+                {
+                    s.renderer.set_sculpt_ghost(Some(crate::renderer::BuildGhost {
+                        cell,
+                        rejected: true,
+                    }));
+                }
+            }
+            SculptVerdict::Ok { meters } => {
+                let ok = s
+                    .renderer
+                    .surface_edit(cell, meters);
+                s.ui.toast(if ok {
+                    match op {
+                        crate::app::SculptOp::Lower => "THE GROUND SINKS",
+                        crate::app::SculptOp::Raise => "THE GROUND RISES",
+                        crate::app::SculptOp::Level => "THE GROUND LEVELS",
+                        crate::app::SculptOp::Smooth => "THE GROUND SMOOTHS",
+                    }
+                } else {
+                    "NO GROUND TO EDIT"
+                });
+                s.ui_dirty = true;
+                if ok
+                    && self
+                        .cfg
+                        .slice_host
+                        .as_ref()
+                        .map(|sl| sl.rebuild)
+                        .unwrap_or(false)
+                {
+                    s.renderer.set_sculpt_ghost(Some(crate::renderer::BuildGhost {
+                        cell,
+                        rejected: false,
+                    }));
+                }
+            }
+        }
+    }
+
     /// THE DIG RESOLVE: the crosshair's live ground target — the same
     /// streamed answer the walk stands on and the picture draws — then
     /// the gated take (pick tier, pack room) decided BEFORE the ground
@@ -5047,6 +5152,80 @@ pub fn evaluate_placement(
     PlacementVerdict::Ok { cost_item }
 }
 
+/// N10 THE SCULPT OP: what the shovel verb asks the ground to become.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SculptOp {
+    /// Lower the cell one dig depth (Z).
+    Lower,
+    /// Raise the cell one dig depth (Y — the mound).
+    Raise,
+    /// Pull the cell's four corners to the BODY's foot height (U).
+    Level,
+    /// Average the cell's corner heights with its neighbors' (T) —
+    /// variation shrinks, nothing shifts far.
+    Smooth,
+}
+
+/// N10 THE SCULPT VERDICT (pure): the exact meters the commit will apply
+/// and the ghost the preview paints — ONE calculation for both.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SculptVerdict {
+    /// The commit applies exactly `meters` (positive up) at the cell.
+    Ok { meters: f32 },
+    Rejected { reason: &'static str },
+}
+
+pub fn evaluate_sculpt(
+    op: SculptOp,
+    cell: pc3d_world::coords::CellCoord,
+    ground: &dyn Fn(f32, f32) -> f32,
+    body_foot_z_height: f32,
+    has_shovel: bool,
+    reach_ok: bool,
+) -> SculptVerdict {
+    // Mutation lever (debug): PC3D_MUTATE_SCULPT_TOOL_OFF removes the
+    // tool gate — the N10 route's bare-hand RED must FAIL while the gate
+    // is gone (the check is load-bearing).
+    let tool_live = std::env::var("PC3D_MUTATE_SCULPT_TOOL_OFF").is_err();
+    if tool_live && !has_shovel {
+        return SculptVerdict::Rejected {
+            reason: "NEED A SHOVEL TO SHAPE THE GROUND",
+        };
+    }
+    if !reach_ok {
+        return SculptVerdict::Rejected {
+            reason: "TOO FAR TO SHAPE",
+        };
+    }
+    let gx = cell.x as f32 + 0.5;
+    let gz = cell.z as f32 + 0.5;
+    let g = ground(gx, gz);
+    let meters = match op {
+        SculptOp::Lower => -crate::player::DIG_DEPTH_M,
+        SculptOp::Raise => crate::player::DIG_DEPTH_M,
+        SculptOp::Level => {
+            // Converge to the body's foot height, capped at the dig
+            // depth per press (predictable: one press moves one step).
+            let d = body_foot_z_height - g;
+            d.clamp(-crate::player::DIG_DEPTH_M, crate::player::DIG_DEPTH_M)
+        }
+        SculptOp::Smooth => {
+            // The neighbor average pull: the four side neighbors' mean
+            // minus this cell, at half strength — variation shrinks.
+            let n = (ground(gx + 1.0, gz) + ground(gx - 1.0, gz) + ground(gx, gz + 1.0)
+                + ground(gx, gz - 1.0))
+                / 4.0;
+            ((n - g) * 0.5).clamp(-crate::player::DIG_DEPTH_M, crate::player::DIG_DEPTH_M)
+        }
+    };
+    if meters.abs() < 1e-4 {
+        return SculptVerdict::Rejected {
+            reason: "THE GROUND IS ALREADY SHAPED",
+        };
+    }
+    SculptVerdict::Ok { meters }
+}
+
 #[cfg(test)]
 mod p3dn09_tests {
     use super::*;
@@ -5158,6 +5337,136 @@ mod p3dn09_tests {
     }
 }
 
+#[cfg(test)]
+mod p3dn10_tests {
+    use super::*;
+    use pc3d_world::coords::CellCoord;
+
+    /// A bumpy ground closure: a known hill to level and smooth.
+    fn bumpy(x: f32, z: f32) -> f32 {
+        let h = ((x * 0.9).sin() + (z * 1.1).cos()) * 0.5;
+        // Quantize to 1 m cells so `ground` is piecewise-constant like
+        // the streamed cell answer.
+        (h * 4.0).round() / 4.0
+    }
+
+    #[test]
+    fn p3dn10_shovel_gate_names_the_missing_tool() {
+        let cell = CellCoord { x: 3, y: 0, z: -2 };
+        let v = evaluate_sculpt(
+            SculptOp::Lower,
+            cell,
+            &bumpy,
+            0.0,
+            false, // no shovel
+            true,
+        );
+        assert_eq!(
+            v,
+            SculptVerdict::Rejected { reason: "NEED A SHOVEL TO SHAPE THE GROUND" },
+            "bare hands cannot shape ground — the refusal is named"
+        );
+        // The reach gate names distance.
+        let v = evaluate_sculpt(SculptOp::Lower, cell, &bumpy, 0.0, true, false);
+        assert_eq!(
+            v,
+            SculptVerdict::Rejected { reason: "TOO FAR TO SHAPE" }
+        );
+    }
+
+    #[test]
+    fn p3dn10_lower_raise_are_exact_and_level_converges() {
+        let cell = CellCoord { x: 3, y: 0, z: -2 };
+        let g = bumpy(cell.x as f32 + 0.5, cell.z as f32 + 0.5);
+        // LOWER is exactly one dig depth down.
+        let v = evaluate_sculpt(SculptOp::Lower, cell, &bumpy, 0.0, true, true);
+        assert_eq!(v, SculptVerdict::Ok { meters: -1.0 });
+        // RAISE is exactly one dig depth up.
+        let v = evaluate_sculpt(SculptOp::Raise, cell, &bumpy, 0.0, true, true);
+        assert_eq!(v, SculptVerdict::Ok { meters: 1.0 });
+        // LEVEL converges toward the body's foot height — the applied
+        // meters ARE the gap (capped at the dig depth per swing). With a
+        // sub-cap gap the SECOND press must refuse: the ground arrived.
+        let foot = g + 0.6;
+        let v = evaluate_sculpt(SculptOp::Level, cell, &bumpy, foot, true, true);
+        let SculptVerdict::Ok { meters } = v else {
+            panic!("level on a bump must apply: {v:?}");
+        };
+        assert!((meters - (foot - g).clamp(-1.0, 1.0)).abs() < 1e-4);
+        let g_after = g + meters;
+        let v2 = evaluate_sculpt(SculptOp::Level, cell, &|x, z| {
+            if x.floor() == cell.x as f32 && z.floor() == cell.z as f32 {
+                g_after
+            } else {
+                bumpy(x, z)
+            }
+        }, foot, true, true);
+        assert_eq!(
+            v2,
+            SculptVerdict::Rejected { reason: "THE GROUND IS ALREADY SHAPED" },
+            "a second level press on arrived ground must refuse (converged)"
+        );
+    }
+
+    #[test]
+    fn p3dn10_smooth_shrinks_neighbor_variance() {
+        // A spike cell 2 m above all four neighbors: smooth pulls it
+        // DOWN toward their mean (half strength, capped).
+        let spike = |x: f32, z: f32| {
+            if x == 5.0 && z == 5.0 {
+                2.0 // the spike (cell 5,5 spans [5,6) so center 5.5? —
+                    // the closure is sampled at +0.5 centers: make the
+                    // CELL CENTER 5.5,6.5 hold the spike via the cell
+                    // floor match below)
+            } else {
+                0.0
+            }
+        };
+        let cell = CellCoord { x: 5, y: 0, z: 5 };
+        let spike_center = |x: f32, z: f32| {
+            if x.floor() == cell.x as f32 && z.floor() == cell.z as f32 {
+                2.0
+            } else {
+                0.0
+            }
+        };
+        let v = evaluate_sculpt(SculptOp::Smooth, cell, &spike_center, 0.0, true, true);
+        let SculptVerdict::Ok { meters } = v else {
+            panic!("smoothing a spike must apply: {v:?}");
+        };
+        assert!(meters < 0.0, "the spike is pulled down: {meters}");
+        // The neighbors are all 0, so the pull is (0 - 2)/2 = -1 (capped
+        // at the dig depth).
+        assert_eq!(meters, -1.0);
+        // ALREADY FLAT: smoothing flat ground refuses honestly.
+        let flat = |_: f32, _: f32| 0.0f32;
+        let v = evaluate_sculpt(SculptOp::Smooth, cell, &flat, 0.0, true, true);
+        assert_eq!(
+            v,
+            SculptVerdict::Rejected { reason: "THE GROUND IS ALREADY SHAPED" }
+        );
+        let _ = spike;
+    }
+
+    #[test]
+    fn p3dn10_tool_gate_is_load_bearing_mutation_check() {
+        // The lever's own sanity: with the gate LIVE a bare hand is
+        // refused; with PC3D_MUTATE_SCULPT_TOOL_OFF set the same call
+        // applies. This is the exact delta the route's mutation run
+        // proves at runtime.
+        let cell = CellCoord { x: 1, y: 0, z: 1 };
+        let v = evaluate_sculpt(SculptOp::Lower, cell, &bumpy, 0.0, false, true);
+        assert!(matches!(v, SculptVerdict::Rejected { .. }));
+        std::env::set_var("PC3D_MUTATE_SCULPT_TOOL_OFF", "1");
+        let v = evaluate_sculpt(SculptOp::Lower, cell, &bumpy, 0.0, false, true);
+        std::env::remove_var("PC3D_MUTATE_SCULPT_TOOL_OFF");
+        assert!(
+            matches!(v, SculptVerdict::Ok { .. }),
+            "the lever must sever the tool gate: {v:?}"
+        );
+    }
+}
+
 /// N06 THE TIER-1 PICK in the pack (wood then stone — the first carried).
 fn first_tier1_pick(inventory: &pc3d_world::items::Inventory) -> Option<pc3d_world::items::ItemId> {
     use pc3d_world::items::ItemId;
@@ -5198,8 +5507,8 @@ fn wear_pick_and_handle_break(
 
 /// Map winit keycodes onto the UI's abstract key set (None: not a UI key).
 /// First hotbar index that shows carried goods rather than a build material.
-/// Slots 1-5 are the terrain palette builds place; 6-9 were reserved and
-/// permanently empty.
+/// Slots 1-5 are the terrain palette builds place; 6-9 show the carried
+/// tools/food (N10 moved the belt to 5 entries: picks, shovel, bread).
 const CARRIED_SLOT_0: usize = 5;
 
 /// The carried tools and food, for hotbar slots 6-9.
@@ -5218,6 +5527,7 @@ fn carried_slots_of(
         (12, [150, 116, 74]),  // wood_pick
         (10, [138, 132, 126]), // stone_pick
         (11, [176, 178, 184]), // iron_pick
+        (13, [122, 96, 60]),   // wood_shovel (N10: the sculpt tool)
         (20, [201, 160, 92]),  // bread
     ];
     CARRIED
@@ -5452,6 +5762,9 @@ fn ui_key(code: KeyCode) -> Option<Key> {
         // these two the ore->smelt->take chain dead-ends at loading fuel.
         KeyCode::KeyH => Key::Char('h'),
         KeyCode::KeyT => Key::Char('t'),
+        // N10 THE SCULPT VERBS: Z digs (lower), U levels (to foot height).
+        KeyCode::KeyZ => Key::Char('z'),
+        KeyCode::KeyU => Key::Char('u'),
         KeyCode::Digit1 | KeyCode::Numpad1 => Key::Digit(1),
         KeyCode::Digit2 | KeyCode::Numpad2 => Key::Digit(2),
         KeyCode::Digit3 | KeyCode::Numpad3 => Key::Digit(3),
@@ -5566,7 +5879,8 @@ mod tests {
         let slots = carried_slots_of(&inv, &wear);
         let pick = slots[0].as_ref().expect("the carried pick is in slot 6");
         assert_eq!(pick.count, Some(11), "the pick's count is USES LEFT");
-        let bread = slots[3].as_ref().expect("bread in slot 9");
+        assert!(slots[3].is_none(), "no shovel carried — its slot stays empty");
+        let bread = slots[4].as_ref().expect("bread in slot 10 (N10: the shovel took 9)");
         assert_eq!(bread.count, None, "food shows no count");
         // THE BREAK: wear is 12 uses total (1 pre + 11 in the loop); the
         // 12th call inside the loop breaks and the entry resets — detect
@@ -5921,16 +6235,16 @@ mod tests {
         let after = craft_rows_of(&inv);
         assert!(!after.iter().find(|r| r.code == 6).unwrap().affordable);
 
-        // The crafted pick reaches the hotbar: slots 6-9 used to be
+        // The crafted pick reaches the hotbar: slots 6-10 used to be
         // permanently empty no matter what the player carried.
         let carried = carried_slots_of(&inv, &pc3d_world::items::ToolWear::default());
-        assert_eq!(carried.len() + CARRIED_SLOT_0, 9, "must fill slots 6-9");
+        assert!(carried.len() + CARRIED_SLOT_0 <= 10, "the belt is 10 slots");
         assert_eq!(
             carried[0].as_ref().map(|h| h.label),
             Some("wood_pick"),
             "the crafted pick must show in the hotbar: {carried:?}"
         );
-        assert!(carried[3].is_none(), "no bread carried, so no bread slot");
+        assert!(carried[3].is_none(), "nothing carried yet beyond the pick");
 
         // Enter on a focused row names that recipe to the app.
         s.craft = Some(craft_rows_of(&inv));

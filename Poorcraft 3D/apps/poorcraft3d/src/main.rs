@@ -6007,6 +6007,20 @@ fn run_observe(route_id: &str, out_root: &str) {
         // THERE toast, [11] construction blocks after beat C (must equal
         // [7] — no double pay), [12..14] the free cell diag (x, y, z).
         let build_ghost_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 15]));
+        // route_sculpt recordings (N10): [0] the bare-hand beat latched,
+        // [1] its verdict flag (1 = rejected), [2] the NEED A SHOVEL
+        // toast, [3] ground at S BEFORE any sculpt, [4] the crafted
+        // shovel in carried slot 9, [5] recipe 11 affordable at the
+        // bench, [6] the shovel viewmodel equipped, [7] ground at S
+        // AFTER the shovel LOWER (must be [3]-1), [8] the Z verdict
+        // flag (0 = accepted), [9] the GROUND SINKS toast, [10] ground
+        // at S AFTER the LEVEL (must converge to the body's foot),
+        // [11] the U verdict flag (0 = accepted), [12] the GROUND
+        // LEVELS toast, [13] far-cell ground BEFORE, [14] far-cell
+        // ground AFTER (must equal [13] — sculpts are local), [15..16]
+        // the S cell diag (x, z), [17] ground at S after the BARE-HAND
+        // Z (must equal [3] — no tool, no edit).
+        let sculpt_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 18]));
         let _mouse_first_ground0 = if spec.id == "route_mouse_first" {
             let gen = &scene.gen;
             let plaza = scene.plan.plaza;
@@ -9157,6 +9171,306 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // Frame 220: capture the RED-again ghost.
                 shots.push(Shot::new(220, format!("{dir}/ghost_occupied.png")));
             }
+            "route_sculpt" => {
+                // THE SHOVEL AND THE PREDICTABLE GROUND (N10), END TO
+                // END: dig a grass ladder (wood + soil for recipe 11),
+                // then:
+                //   beat A: press Z BARE-HANDED at the ladder cell →
+                //     RED sculpt ghost, "NEED A SHOVEL" toast, the
+                //     ground DOES NOT MOVE.
+                //   beat B: craft the wood_shovel through the REAL
+                //     bench (C → row 11 → Enter: wood×2 + soil×1),
+                //     equip it (Digit 9 — the viewmodel follows).
+                //   beat C: press Z ON the cell → the ground sinks
+                //     EXACTLY one dig depth, "THE GROUND SINKS" toast,
+                //     cyan sculpt ghost.
+                //   beat D: stand beside the pit, press U → the cell
+                //     LEVELS to the body's foot height (the pit closes
+                //     — converges, never teleports), "THE GROUND
+                //     LEVELS" toast.
+                //   beat E: the FAR ladder cell never moved — sculpts
+                //     are local.
+                // Pixel law: sculpt_before and sculpt_lowered ride the
+                // SAME pose — the only deltas are the verdict repaint
+                // (RED stale ghost → CYAN) and the sunken ground, so a
+                // bounded pixel diff proves the verdict paints.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                let ladder = find_dig_spots_barehand(
+                    gen,
+                    plaza.x as f32 + 0.5,
+                    plaza.z as f32 + 0.5,
+                    3,
+                )
+                .unwrap_or_else(|| {
+                    panic!("route_sculpt: no 3-grass ladder near the plaza on seed {seed}")
+                });
+                println!(
+                    "SCULPT ladder: {:?}",
+                    ladder.iter().map(|s| (s[0], s[2])).collect::<Vec<_>>()
+                );
+                let [sx, _sg, sz] = ladder[0]; // the sculpt cell S
+                let [fx, _fg, fz] = ladder[2]; // the far witness cell
+                let cells = sculpt_cells.clone();
+                // Frame 12: enter the world.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // THE LADDER (3 distinct grass columns): wood + soil
+                // for recipe 11's wood×2 + soil×1.
+                for (i, spot) in ladder.iter().enumerate() {
+                    let (lx, lz) = (spot[0], spot[2]);
+                    let hop = 30 + (i as u64) * 14;
+                    let dig = 34 + (i as u64) * 14;
+                    ui_script.push((
+                        hop,
+                        Box::new(move |_ui, _r, ctx| {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: lx, z: lz });
+                            ctx.actions
+                                .push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                        }),
+                    ));
+                    ui_script.push((
+                        dig,
+                        Box::new(move |ui, _r, ctx| {
+                            let acts = ui::on_key(ui, ui::Key::Char('g'));
+                            ctx.actions.extend(acts);
+                        }),
+                    ));
+                }
+                // Frame 68: latch the baselines — ground at S before
+                // ANY sculpt (S was dug by the ladder; that IS the
+                // baseline) and the far witness's ground.
+                let cells = sculpt_cells.clone();
+                ui_script.push((
+                    68,
+                    Box::new(move |_ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[3] = r.ground_y_at_pub(sx, sz);
+                        v[13] = r.ground_y_at_pub(fx, fz);
+                        v[15] = sx;
+                        v[16] = sz;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 72: BEAT A — bare-hand Z at S (standing ON it,
+                // straight down). The tool gate must refuse.
+                ui_script.push((
+                    72,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                        ctx.actions
+                            .push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                ui_script.push((
+                    76,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('z'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 82: latch beat A — verdict RED, the named
+                // toast alive, ground UNMOVED.
+                let cells = sculpt_cells.clone();
+                ui_script.push((
+                    82,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[0] = 1.0;
+                        v[1] = r.build_ghost_rejected().map(|b| b as u8 as f32).unwrap_or(9.0);
+                        v[2] = ui
+                            .toasts
+                            .iter()
+                            .any(|t| t.text.contains("NEED A SHOVEL"))
+                            as u8 as f32;
+                        v[17] = r.ground_y_at_pub(sx, sz);
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 86: capture the RED sculpt ghost.
+                shots.push(Shot::new(86, format!("{dir}/sculpt_barehand_red.png")));
+                // Frame 90: THE BENCH (C opens the real one).
+                ui_script.push((
+                    90,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('c'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 96: latch recipe 11's affordability (the row's
+                // honesty law — same can_craft the craft runs).
+                let cells = sculpt_cells.clone();
+                ui_script.push((
+                    96,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[5] = ui
+                            .craft
+                            .as_ref()
+                            .and_then(|rows| rows.iter().find(|r| r.code == 11))
+                            .map(|r| r.affordable)
+                            .unwrap_or(false) as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 100: walk the focus to row 11 and press Enter.
+                ui_script.push((
+                    100,
+                    Box::new(move |ui, _r, ctx| {
+                        let n = ui.craft.as_ref().map(|r| r.len()).unwrap_or(0);
+                        let cur = ui
+                            .craft
+                            .as_ref()
+                            .map(|r| r.get(ui.craft_focus).map(|row| row.code))
+                            .flatten()
+                            .unwrap_or(0);
+                        let mut acts = Vec::new();
+                        if cur != 11 && n > 0 {
+                            for _ in 0..n {
+                                acts.extend(ui::on_key(ui, ui::Key::Down));
+                                let now = ui
+                                    .craft
+                                    .as_ref()
+                                    .map(|r| r.get(ui.craft_focus).map(|row| row.code))
+                                    .flatten()
+                                    .unwrap_or(0);
+                                if now == 11 {
+                                    break;
+                                }
+                            }
+                        }
+                        acts.extend(ui::on_key(ui, ui::Key::Enter));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 134: latch the crafted shovel (carried slot 9 —
+                // the owned CARRIED mirror's first held tool here).
+                let cells = sculpt_cells.clone();
+                ui_script.push((
+                    134,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[4] = ui
+                            .hud
+                            .slots
+                            .get(8)
+                            .and_then(|sl| sl.as_ref())
+                            .map(|it| it.label == "wood_shovel")
+                            .unwrap_or(false) as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 138: close the bench, equip the shovel (Digit 9
+                // — carried slot 9 → the Shovel viewmodel).
+                ui_script.push((
+                    138,
+                    Box::new(|ui, _r, ctx| {
+                        let mut acts = ui::on_key(ui, ui::Key::Escape);
+                        acts.extend(ui::on_key(ui, ui::Key::Digit(9)));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 150: latch the equip (the viewmodel is live).
+                let cells = sculpt_cells.clone();
+                ui_script.push((
+                    150,
+                    Box::new(move |_ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[6] = r.viewmodel_state().is_some() as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 154: capture the shovel IN HAND.
+                shots.push(Shot::new(154, format!("{dir}/sculpt_shovel_equipped.png")));
+                // Frame 158: BEAT C's pose — standing ON S, straight
+                // down (the SAME pose the bare-hand beat filmed, so the
+                // pixel law has one delta: verdict + ground).
+                ui_script.push((
+                    158,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx, z: sz });
+                        ctx.actions
+                            .push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                // Frame 162: capture BEFORE the shovel swing (the stale
+                // RED ghost from beat A still paints here).
+                shots.push(Shot::new(162, format!("{dir}/sculpt_before.png")));
+                // Frame 166: BEAT C — Z WITH the shovel: the ground
+                // sinks exactly one dig depth.
+                ui_script.push((
+                    166,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('z'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 176: capture the sunken cell + cyan ghost.
+                shots.push(Shot::new(176, format!("{dir}/sculpt_lowered.png")));
+                // Frame 180: latch beat C — ground at [3]-1, verdict
+                // GREEN (accepted), the named toast.
+                let cells = sculpt_cells.clone();
+                ui_script.push((
+                    180,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[7] = r.ground_y_at_pub(sx, sz);
+                        v[8] = r.build_ghost_rejected().map(|b| b as u8 as f32).unwrap_or(9.0);
+                        v[9] = ui
+                            .toasts
+                            .iter()
+                            .any(|t| t.text.contains("THE GROUND SINKS"))
+                            as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 188: BEAT D's pose — beside the pit (the south
+                // neighbor's edge), pitched at S. The body's foot is at
+                // the UNlowered neighbor height: LEVEL must close the
+                // pit toward it.
+                ui_script.push((
+                    188,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions
+                            .push(UiAction::PlayerTeleport { x: sx, z: sz + 1.5 });
+                        ctx.actions
+                            .push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.2 });
+                    }),
+                ));
+                // Frame 192: BEAT D — U LEVELS the cell to the foot.
+                ui_script.push((
+                    192,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('u'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 202: latch beat D + the far witness — the pit
+                // CLOSED back to [3], the toast named it, and the FAR
+                // cell never moved.
+                let cells = sculpt_cells.clone();
+                ui_script.push((
+                    202,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[10] = r.ground_y_at_pub(sx, sz);
+                        v[11] = r.build_ghost_rejected().map(|b| b as u8 as f32).unwrap_or(9.0);
+                        v[12] = ui
+                            .toasts
+                            .iter()
+                            .any(|t| t.text.contains("THE GROUND LEVELS"))
+                            as u8 as f32;
+                        v[14] = r.ground_y_at_pub(fx, fz);
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 206: capture the leveled ground.
+                shots.push(Shot::new(206, format!("{dir}/sculpt_leveled.png")));
+            }
             "route_forge_use" => {
                 // The forge slice, end to end: enter the world, stand at
                 // the plaza forge, E (opens THE FORGE through the zone
@@ -9483,6 +9797,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                 spec.id,
                 "route_semantic_playtest" | "route_vine_hangoff" | "route_hotbar_wear"
                     | "route_mouse_first" | "route_first_tool" | "route_build_ghost"
+                    | "route_sculpt"
             ) {
                 // The playtest's journey and the hang-off's two legs both
                 // outlive the default 420-frame route cap.
@@ -10138,7 +10453,82 @@ fn run_observe(route_id: &str, out_root: &str) {
                 any_fail = true;
             }
         }
-        // THE VINE GRIP: the drop was CAUGHT (the grip capture carries
+        // THE SCULPT VERDICT (N10): the ground answers TO THE SHOVEL —
+        // bare hands are refused RED with the named toast and the
+        // ground DOES NOT MOVE; the crafted shovel is equipped and its
+        // Z swing sinks the cell EXACTLY one dig depth (the toast
+        // names it); the U swing levels the pit back to the body's
+        // foot height (converges, never teleports); the far witness
+        // cell never moved — sculpts are local. Pixel law:
+        // sculpt_before vs sculpt_lowered share the pose; the deltas
+        // are the verdict repaint (RED stale → CYAN) and the sunken
+        // ground — a nonzero, bounded diff proves both.
+        if spec.id == "route_sculpt" {
+            let v = sculpt_cells.get();
+            let beat_a = v[0] > 0.5;
+            let a_red = v[1] == 1.0;
+            let a_toast = v[2] > 0.5;
+            let base_s = v[3];
+            let a_unmoved = (v[17] - base_s).abs() < 1e-4;
+            let shovel_crafted = v[4] > 0.5;
+            let recipe_affordable = v[5] > 0.5;
+            let shovel_equipped = v[6] > 0.5;
+            let z_green = v[8] == 0.0;
+            let z_toast = v[9] > 0.5;
+            let lowered_exact = (v[7] - (base_s - 1.0)).abs() < 1e-3;
+            let u_green = v[11] == 0.0;
+            let u_toast = v[12] > 0.5;
+            let leveled_back = (v[10] - base_s).abs() < 1e-3;
+            let far_unmoved = (v[14] - v[13]).abs() < 1e-4;
+            let ok = beat_a
+                && a_red
+                && a_toast
+                && a_unmoved
+                && shovel_crafted
+                && recipe_affordable
+                && shovel_equipped
+                && z_green
+                && z_toast
+                && lowered_exact
+                && u_green
+                && u_toast
+                && leveled_back
+                && far_unmoved;
+            let cap = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let pixel_law = match (cap("sculpt_before"), cap("sculpt_lowered")) {
+                (Some(a), Some(b)) => {
+                    let d = pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba);
+                    // The straight-down lens makes the sunk PIT fill the
+                    // lower frame — the delta is the ground's real move
+                    // (inspected: pit walls + cyan ghost), not repaint
+                    // noise. Bounds prove REAL change (not a frozen
+                    // frame) and no garbage swap; the semantic laws
+                    // above pin the exact meter.
+                    (d > 0.02 && d < 0.8, d)
+                }
+                _ => (false, 0.0),
+            };
+            let (pixel_paints, pixel_diff) = pixel_law;
+            let ok = ok && pixel_paints;
+            if ok {
+                println!(
+                    "SCULPT: bare hand refused RED (\"NEED A SHOVEL\", ground held at {base_s:.3}), bench row 11 affordable, shovel crafted + equipped, Z sank the cell exactly to {:.3} (\"THE GROUND SINKS\"), U leveled it back to {base_s:.3} (\"THE GROUND LEVELS\"), far cell held at {:.3}; the verdict repaints the frame (delta {pixel_diff:.4})",
+                    v[7], v[13]
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe route_sculpt: beat_a {beat_a} / a_red {a_red} / a_toast {a_toast} / a_unmoved {a_unmoved} ({:.3} vs {:.3}) / shovel_crafted {shovel_crafted} / recipe_affordable {recipe_affordable} / shovel_equipped {shovel_equipped} / z_green {z_green} / z_toast {z_toast} / lowered_exact {lowered_exact} ({:.3} vs {:.3}) / u_green {u_green} / u_toast {u_toast} / leveled_back {leveled_back} ({:.3} vs {base_s:.3}) / far_unmoved {far_unmoved} ({:.3} vs {:.3}) / pixel_paints {pixel_paints} (delta {pixel_diff:.4}, cell {:?})",
+                    v[17], base_s, v[7], base_s - 1.0, v[10], v[14], v[13],
+                    (v[15] as i32, v[16] as i32)
+                );
+                any_fail = true;
+            }
+        }
         // the grab toast), the climb moved the body along the strand,
         // and the run ends UNHARMED — an uncaught 12 m drop would end
         // plaza-recovered at 0.5, a failed grab leaves no grip toast,

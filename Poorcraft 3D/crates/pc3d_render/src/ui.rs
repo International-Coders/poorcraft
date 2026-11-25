@@ -11,6 +11,7 @@
 //! what the screenshot harness (`--ui-shots`) and the inspector
 //! (`--ui-inspect`) drive.
 
+use crate::app::SculptOp;
 use crate::font;
 
 /// Nothing (text included) may start or end inside this border, at any
@@ -190,7 +191,7 @@ pub struct HudValues {
     /// exists).
     pub mana: f32,
     pub mana_live: bool,
-    pub slots: [Option<HotItem>; 9],
+    pub slots: [Option<HotItem>; 10],
     pub selected: usize,
     /// The contextual action prompt near the crosshair/hotbar.
     pub prompt: String,
@@ -246,7 +247,8 @@ impl Default for HudValues {
             exhausted: false,
             // PLAYTEST-0.3 D2: the pack starts EMPTY and so does the
             // hotbar — the app fills slots 1-5 from the real counts.
-            slots: [None, None, None, None, None, None, None, None, None],
+            // N10: the belt grew to 10 (5 build + 5 carried).
+            slots: [None; 10],
             selected: 0,
             prompt: String::new(),
             stock: String::new(),
@@ -1426,7 +1428,7 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             let ch = ctx.px(16);
             ctx.push("crosshair", ElementKind::Crosshair, Rect::new(cx - ch / 2, hi / 2 - ch / 2, ch as u32, ch as u32));
             // Hotbar bottom center with the XP strip tight above it.
-            let total_w = SLOT * 9 + SLOT_GAP * 8;
+            let total_w = SLOT * 10 + SLOT_GAP * 9;
             let hx0 = cx - (total_w * ctx.s as i32) / 2;
             let hy = hi - SAFE_MARGIN_PX - (SLOT * ctx.s as i32);
             let xp_h = ctx.px(5);
@@ -1453,7 +1455,7 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                 ty -= ctx.px(22);
             }
             // Hotbar slots.
-            for i in 0usize..9 {
+            for i in 0usize..10 {
                 let x = hx0 + ctx.px((SLOT + SLOT_GAP) * i as i32);
                 let r = Rect::new(x, hy, ctx.px(SLOT) as u32, ctx.px(SLOT) as u32);
                 ctx.push(
@@ -2572,6 +2574,10 @@ pub enum UiAction {
     BuildSelected,
     /// C: ask the app to build the craft rows from the live inventory.
     ToggleCraft,
+    /// N10 THE SCULPT VERB (Z lower / U level): reshape the crosshair's
+    /// live ground target through the same surface path the dig drives —
+    /// the commit's `evaluate_sculpt` decides and names the reason.
+    SculptGround(crate::app::SculptOp),
     /// K: ask the app to build the pack slot lines from the live inventory.
     TogglePack,
     /// Enter on a craft row: perform that recipe through the pure
@@ -2860,6 +2866,29 @@ let n = state.journal.as_ref().map(|r| r.len()).unwrap_or(0);
             }
             Key::Char('t') if state.forge.is_some() => {
                 acts.push(UiAction::ForgeTake);
+            }
+            // N10 THE SCULPT VERBS: Z lowers, U levels — world verbs like
+            // G, so panels own the frame and no world edit is made
+            // behind one. The commit's evaluate_sculpt names the reason.
+            Key::Char('z')
+                if state.forge.is_none()
+                    && state.dialog.is_none()
+                    && state.journal.is_none()
+                    && state.machines.is_none()
+                    && state.interact.is_none() =>
+            {
+                acts.push(UiAction::SculptGround(SculptOp::Lower));
+                acts.push(UiAction::Repaint);
+            }
+            Key::Char('u')
+                if state.forge.is_none()
+                    && state.dialog.is_none()
+                    && state.journal.is_none()
+                    && state.machines.is_none()
+                    && state.interact.is_none() =>
+            {
+                acts.push(UiAction::SculptGround(SculptOp::Level));
+                acts.push(UiAction::Repaint);
             }
             Key::Escape => {
                 // Belt: never carry a panel into Pause. Resume must be

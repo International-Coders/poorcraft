@@ -90,6 +90,12 @@ pub const RECIPES: &[Recipe] = &[
         output: 33,
         output_count: 1,
     }, // MYSTERIES: sigil×1 + iron_ore×1 → ward_sigil (the ore remembers)
+    Recipe {
+        code: 11,
+        ingredients: &[(1, 2), (5, 1)],
+        output: 13,
+        output_count: 1,
+    }, // N10: wood×2 + soil×1 → wood_shovel (the sculpt tool)
 ];
 
 /// Find a recipe by code.

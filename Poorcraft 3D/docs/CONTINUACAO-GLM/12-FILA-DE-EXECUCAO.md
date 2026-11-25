@@ -224,7 +224,36 @@ clique; commit≡preview).
 
 ### N10 — Shovel/hoe e terreno previsível
 
-Lower/raise/level/smooth com preview pós-mesh e remesh local.
+FECHADO (2026-11-25): a autoridade PURA `evaluate_sculpt` (app.rs) decide
+lower/raise/level/smooth com `SculptVerdict` → a MESMA resposta pinta o
+ghost de escultura (CIANO aceito, LARANJA recusado, via
+`set_sculpt_ghost`) e comanda o commit (`resolve_sculpt` →
+`surface_edit`, o MESMO caminho do dig). Ferramenta: `wood_shovel`
+(item 13, Tier 1) + receita 11 UNGATED (wood×2 + soil×1) — a bancada
+real a crafta; a frigideira de 5 slots carregados (pick×3, shovel,
+bread) abriu o CINTO para 10 slots (HUD slots[10], Digit 0 → slot 10,
+layout 10×SLOT + 9×GAP). Teclas: Z (lower −1.0 m), U (level → altura
+dos pés do corpo, teto ±1.0 m por golpe). route_sculpt prova 5 leis em
+um arco: escada de 3 grama → A) Z DESARMADO na célula → RED
+"NEED A SHOVEL TO SHAPE THE GROUND", chão 10.696→10.696 (NÃO move) →
+B) bancada: linha 11 AFFORDABLE, Enter crafta, o shovel cai no slot 9
+carregado, Digit 9 equipa o viewmodel → C) Z ARMADO → "THE GROUND
+SINKS", chão 10.696→9.696 (EXATO um dig depth), ghost CIANO dentro do
+buraco real (paredes de soil escuras inspecionadas nos PNGs) → D) U ao
+lado do buraco → "THE GROUND LEVELS", 9.696→10.696 (converge aos pés,
+nunca teleporta) → E) célula TESTEMUNHA longe: 10.441→10.441 (esculpir
+é LOCAL). Pixel law: sculpt_before vs sculpt_lowered na MESMA pose — o
+delta 0.6159 é o buraco REAL enchendo o quadro de câmera vertical
+(inspeção humana: pit walls + ghost cyan), limites 0.02–0.8 provam
+mudança real sem troca de lixo; as leis semânticas fixam o metro exato.
+PNGs inspecionados (5/5). MUTAÇÃO PROVADA:
+PC3D_MUTATE_SCULPT_TOOL_OFF=1 corta o gate da ferramenta → o Z DESARMADO
+UNDE o chão (9.696 vs 10.696, a_unmoved FALSE) e o beat C cava um
+SEGUNDO metro (8.696) → FAIL exato nas células a_red/a_toast/a_unmoved/
+lowered_exact/leveled_back; controle → PASS. Suíte: render lib 4 testes
+p3dn10 (gate nomeia a ferramenta; lower/raise exatos + level converge e
+TERMINA; smooth encolhe a variância e recusa chão já liso; o próprio
+lever do gate). OBSERVE PASS (5 capturas, 207 frames, p50 2.66 s).
 
 ### N11 — Abrigo, fogo e primeira noite
 

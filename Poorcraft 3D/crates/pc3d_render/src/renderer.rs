@@ -738,6 +738,9 @@ struct UiLayer {
 
 pub struct Renderer {
     ctx: GpuContext,
+    /// THE GPU SERIAL LOCK: held for the renderer's whole life; released
+    /// on drop (GPU tests serialize; production is single-renderer).
+    _gpu_lock: crate::gpu::GpuSerialGuard,
     surface: Option<SurfaceGuard>,
     window: Option<Arc<winit::window::Window>>,
     format: wgpu::TextureFormat,
@@ -1038,6 +1041,7 @@ impl GpuMesh {
 impl Renderer {
     /// Live windowed renderer.
     pub fn windowed(window: &Arc<winit::window::Window>) -> Self {
+        let _gpu_lock = crate::gpu::gpu_serial_lock();
         let ctx = GpuContext::new(None);
         let guard = SurfaceGuard::new(&ctx, window);
         let format = guard.format();
@@ -1079,9 +1083,9 @@ impl Renderer {
         );
         Self {
             ctx,
+            _gpu_lock,
             surface: Some(guard),
-            window: Some(window.clone()),
-            format,
+            window: Some(window.clone()),            format,
             pipelines,
             gpu_scene,
             camera,
@@ -1144,6 +1148,8 @@ impl Renderer {
     /// Headless proof renderer: same pipelines and scene, render target
     /// instead of a swapchain, so `cargo test` exercises the exact GPU path.
     pub fn offscreen(width: u32, height: u32) -> Self {
+        // THE GPU SERIAL LOCK: held until this renderer drops.
+        let _gpu_lock = crate::gpu::gpu_serial_lock();
         let ctx = GpuContext::new(None);
         let format = wgpu::TextureFormat::Bgra8UnormSrgb;
         let pipelines = Pipelines::new(&ctx.device, format);
@@ -1187,6 +1193,7 @@ impl Renderer {
         );
         Self {
             ctx,
+            _gpu_lock,
             surface: None,
             window: None,
             format,
@@ -2337,14 +2344,25 @@ impl Renderer {
     /// verdict `evaluate_placement` answered. Replaces any previous
     /// ghost (one preview at a time). None clears it.
     pub fn set_build_ghost(&mut self, ghost: Option<BuildGhost>) {
+        // Sun-aligned bright colors: green = go, red = the named no.
+        self.set_build_ghost_colored(ghost, [0.3, 0.95, 0.35], [0.95, 0.25, 0.2]);
+    }
+
+    /// The wire-prism painter both preview verbs share (N09 build green/
+    /// red, N10 sculpt cyan/orange). One preview at a time; None clears.
+    pub fn set_build_ghost_colored(
+        &mut self,
+        ghost: Option<BuildGhost>,
+        ok_color: [f32; 3],
+        rejected_color: [f32; 3],
+    ) {
         self.build_ghost.clear();
         self.build_ghost_verdict = ghost.map(|g| g.rejected);
         let Some(g) = ghost else { return };
-        // Sun-aligned bright colors: green = go, red = the named no.
         let color = if g.rejected {
-            [0.95, 0.25, 0.2]
+            rejected_color
         } else {
-            [0.3, 0.95, 0.35]
+            ok_color
         };
         // 12 bars over the cell (the anchor-frame shape — contact with
         // the cell, not a hover).
@@ -2385,6 +2403,18 @@ impl Renderer {
     /// `Some(false)` = GREEN (accepted), None = no ghost.
     pub fn build_ghost_rejected(&self) -> Option<bool> {
         self.build_ghost_verdict
+    }
+
+    /// N10 THE SCULPT GHOST: the SAME wire-prism preview the build ghost
+    /// uses, in sculpt colors (CYAN = the edit applies, ORANGE = named
+    /// refusal) at the target cell. Rides the same one-preview slot —
+    /// the verbs share one honest preview.
+    pub fn set_sculpt_ghost(&mut self, ghost: Option<BuildGhost>) {
+        self.set_build_ghost_colored(
+            ghost,
+            [0.3, 0.85, 0.95],  // cyan: the edit applies
+            [0.95, 0.6, 0.2],   // orange: the named refusal
+        );
     }
 
     /// Loads conforming-water vertices into the water pass (transparent,

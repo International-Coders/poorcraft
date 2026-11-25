@@ -11458,3 +11458,58 @@ this log.
 
 NEXT: N10 — shovel/hoe and predictable terrain (lower/raise/level/
 smooth with pre-commit preview).
+
+## Loop 486 — N10: the shovel and the predictable ground (2026-11-25)
+
+WHAT: N10 closed — the ground answers to a TOOL, by exact meters.
+(1) The PURE authority `evaluate_sculpt` (app.rs) gates every sculpt:
+tool gate → reach → exact meters per op (Lower/Raise ±1.0 m, Level
+converges to the body's foot height capped ±1.0 m per swing and
+TERMINATES, Smooth half-pulls toward the 4-neighbor mean), already-
+shaped refuses by name.
+(2) `resolve_sculpt` commits through `surface_edit` (the dig's own live
+surface path); the SAME verdict paints the sculpt ghost — CYAN accepted,
+ORANGE rejected — through the 12-bar wire prism law.
+(3) THE TOOL: wood_shovel (item 13, tier 1) + recipe 11 UNGATED
+(wood×2 + soil×1) at the real bench; equip maps SHOVEL → Shovel
+viewmodel; keys Z (lower) and U (level).
+(4) THE BELT GREW TO 10 SLOTS: CARRIED went to 5 entries (pick×3,
+shovel, bread) and overflowed the 9-slot HUD (index-9 panic caught by
+route_sculpt's own crash) — hud.slots is now [Option<HotItem>; 10],
+Digit 0 selects slot 10, hotbar layout 10×SLOT + 9×GAP, N06 bread
+assertion moved to its new index.
+(5) FLAKE ROOT-CAUSED (the wandering "We timed out while waiting on the
+last successful submission"): ~40 GPU tests each built a wgpu device
+against the same driver and contended for the queue in parallel — one
+loser timed out per run (NPC pair last loop, remesh_bounded this one).
+gpu::GpuSerialGuard now serializes renderers cross-thread and is
+REENTRANT on the constructing thread (a test holding `ctrl` builds `r`
+on the same thread; a bare pthread mutex self-deadlocked — caught by
+the first proof run's hang, fixed with a thread-local depth counter).
+Renderers hold the guard for life; production cost is one uncontended
+lock per renderer.
+
+HOW: items.rs/craft.rs (shovel + recipe); app.rs (evaluate_sculpt +
+resolve_sculpt + belt + equip + p3dn10 tests ×4); renderer.rs
+(set_sculpt_ghost + GpuSerialGuard field); gpu.rs (GpuSerialGuard);
+ui.rs (10-slot array/layout/Z-U reducer arms, SculptOp import);
+main.rs + observe.rs (route_sculpt: ladder → bare-hand RED → bench
+craft → equip → armed Z → U level → far witness; 15-condition verdict
++ pixel law 0.02–0.8); docs 12-FILA + 14-PLANO closed N10; STATE.md;
+CHANGELOG.md (Loop 486); this log.
+
+VERIFICATION: p3dn10 unit tests 4/4 (tool gate names itself; lower/
+raise exact + level converges and TERMINATES; smooth shrinks variance
+and refuses flat ground; the lever's own delta). Control route PASS
+(verdict.json "pass", 5 captures, 207 frames, p50 2.66 s). MUTATION:
+tool gate off → the BARE hand sinks ground (9.696 vs 10.696,
+a_unmoved false) and beat C digs a SECOND meter (8.696) → FAIL exactly
+on a_red/a_toast/a_unmoved/lowered_exact/leveled_back. PNGs 5/5
+inspected (RED refusal + toast; RED stale ghost before; shovel
+viewmodel; REAL 1 m pit with dark soil walls + CYAN ghost; pit closed
+by LEVEL). Suite: render lib 280/0 in 94 s (vs 421 s contended), full
+p3d-test exit 0, doctrine check 2/0, smoke OK. Artifacts:
+/tmp/pc3d_obs_n10c/route_sculpt/ (control),
+/tmp/pc3d_obs_n10_mut/route_sculpt/ (mutant).
+
+NEXT: N11 — shelter, fire and the first night (the capstone route).
