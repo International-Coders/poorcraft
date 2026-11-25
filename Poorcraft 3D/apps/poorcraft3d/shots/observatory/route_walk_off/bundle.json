@@ -6,20 +6,20 @@
     "--observe route_walk_off"
   ],
   "diff_paths": [],
-  "digest": "3fbd16e1c293665a",
+  "digest": "237e1994ac5c62ff",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_walk_off",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "walk_edge.png",
     "walk_air.png",
     "walk_landed.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

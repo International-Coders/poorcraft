@@ -146,12 +146,12 @@ p3d-realm-map: ## BETA-0.2 W1.3: the realm map PNG + realm table: make p3d-realm
 
 p3d-slice: ## Windowed VERTICAL SLICE showcase (city+cave+build captures): make p3d-slice [OUTDIR=shots] [SEED=3]
 	$(P3D_BUILD)
-	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --play-slice $(if $(OUTDIR),$(OUTDIR),"Poorcraft 3D/apps/poorcraft3d/shots") $(if $(SEED),$(SEED),3) || exit 1; \
+	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --play-slice $(if $(OUTDIR),$(OUTDIR),"Poorcraft 3D/apps/poorcraft3d/shots") $(if $(SEED),$(SEED),123) || exit 1; \
 	echo "P3D SLICE PROOF OK"
 
 p3d-slice-live: ## Classic slice with owner menu: Enter/click start, WASD, F/R, B/L, I, Esc pause, Q quit
 	$(P3D_BUILD)
-	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --play-slice live $(if $(SEED),$(SEED),3)
+	"$$(pwd)/Poorcraft 3D/target/release/poorcraft3d" --play-slice live $(if $(SEED),$(SEED),123)
 
 p3d-assetgen: ## NWR-002: regenerate the original GLB assets (deterministic, budget-checked): make p3d-assetgen
 	cargo run --manifest-path "Poorcraft 3D/Cargo.toml" -p assetgen -- $$(pwd) || exit 1
@@ -360,7 +360,7 @@ p3d-visual-gates: ## R3DV-012: the FULL visual regression battery (every windowe
 	run castle-city          "$$BIN" --play-city    "$$SHOTS" 3; \
 	run npc-cast             "$$BIN" --play-npcs    "$$SHOTS" 3; \
 	run quality-tiers        "$$BIN" --play-quality "$$SHOTS" 3; \
-	run vertical-slice       "$$BIN" --play-slice   "$$SHOTS" 3; \
+	run vertical-slice       "$$BIN" --play-slice   "$$SHOTS" 123; \
 	run ui-states            "$$BIN" --ui-shots     "$$SHOTS"; \
 	run asset-manifest       "$$BIN" --validate-assets; \
 	run layout-laws          "$$BIN" --gate-check   "$$SHOTS"; \
@@ -475,11 +475,11 @@ p3d-beta: ## THE 38-stage beta battery: every proof the game owns, one report ("
 	stage npc-cast             "$$BIN" --play-npcs "$$SHOTS" 3; \
 	stage day-night            "$$BIN" --play-daynight "$$SHOTS"; \
 	stage quality-tiers        "$$BIN" --play-quality "$$SHOTS" 3; \
-	stage vertical-slice       "$$BIN" --play-slice "$$SHOTS" 3; \
+	stage vertical-slice       "$$BIN" --play-slice "$$SHOTS" 123; \
 	stage asset-factory        "$$BIN" --play-assets "$$SHOTS"; \
 	stage surface-edit         "$$BIN" --play-surface "$$SHOTS"; \
 	stage caves-water          "$$BIN" --play-caves "$$SHOTS"; \
-	stage rebuild-slice        "$$BIN" --play-rebuild "$$SHOTS" 3; \
+	stage rebuild-slice        "$$BIN" --play-rebuild "$$SHOTS" 123; \
 	stage npc-people           "$$BIN" --play-people "$$SHOTS"; \
 	stage settlement-kit       "$$BIN" --play-settlement "$$SHOTS"; \
 	stage wilderness           "$$BIN" --play-wilderness "$$SHOTS"; \

@@ -6,21 +6,21 @@
     "--observe route_crowd_yield"
   ],
   "diff_paths": [],
-  "digest": "4678dc91ff7d5477",
+  "digest": "1f6843c2ff0ae9da",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_crowd_yield",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "crowd_staged.png",
     "crowd_yield.png",
     "crowd_pass.png",
     "crowd_arrived.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

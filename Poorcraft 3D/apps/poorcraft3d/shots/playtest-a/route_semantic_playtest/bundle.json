@@ -6,14 +6,14 @@
     "--observe route_semantic_playtest"
   ],
   "diff_paths": [],
-  "digest": "05c46411869a857c",
+  "digest": "bc4137b2e9110469",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_semantic_playtest",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "play_door_outside.png",
     "play_interior.png",
@@ -29,7 +29,7 @@
     "play_fall_landed.png",
     "play_final.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

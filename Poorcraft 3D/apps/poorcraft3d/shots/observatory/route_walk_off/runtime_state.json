@@ -20,19 +20,19 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 46.79999923706055,
+    "avg_fps": 17.600000381469727,
     "frames": 237,
-    "p50_ms": 20.649999618530273,
-    "p95_ms": 24.920000076293945
+    "p50_ms": 55.40999984741211,
+    "p95_ms": 62.88999938964844
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
   },
   "proof_paths": [],
   "quality": "mid",
-  "scene": "showcase_seed_3_rebuild",
-  "seed": "3",
-  "timestamp_utc": "1791683759",
+  "scene": "showcase_seed_rebuild",
+  "seed": "123",
+  "timestamp_utc": "1795633018",
   "ui": {
     "career_chosen": null,
     "companion": "",
@@ -55,8 +55,8 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.6461665630340576,
-      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "health": 0.648202657699585,
+      "prompt": "LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK EMPTY",
@@ -65,6 +65,10 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "last_fall_wound": {
+      "damage": 0.3555997610092163,
+      "frame": 105
+    },
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
@@ -83,12 +87,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:55",
+        "modified": "2026-11-25 18:56",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:55",
+        "modified": "2026-11-25 18:56",
         "name": "beta-shot",
         "seed": 7
       }
@@ -96,11 +100,11 @@
     "stock": [],
     "toasts": [
       {
-        "age_s": 1.0108267068862915,
+        "age_s": 1.168176531791687,
         "text": "THE GROUND GIVES WAY"
       },
       {
-        "age_s": 0.08831677585840225,
+        "age_s": 0.1901208907365799,
         "text": "FELL — HEALTH 64%"
       }
     ],
@@ -122,7 +126,7 @@
       "reason": "construction not mounted in UI routes",
       "value": null
     },
-    "seed_resolved": "3",
+    "seed_resolved": "123",
     "spawn_safe": null
   }
 }

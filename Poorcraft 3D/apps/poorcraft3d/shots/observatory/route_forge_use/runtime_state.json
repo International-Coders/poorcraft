@@ -20,19 +20,19 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 48.70000076293945,
+    "avg_fps": 16.799999237060547,
     "frames": 279,
-    "p50_ms": 20.299999237060547,
-    "p95_ms": 23.43000030517578
+    "p50_ms": 56.9900016784668,
+    "p95_ms": 67.55999755859375
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
   },
   "proof_paths": [],
   "quality": "mid",
-  "scene": "showcase_seed_3_rebuild",
-  "seed": "3",
-  "timestamp_utc": "1791683673",
+  "scene": "showcase_seed_rebuild",
+  "seed": "123",
+  "timestamp_utc": "1795632869",
   "ui": {
     "career_chosen": null,
     "companion": "",
@@ -56,7 +56,7 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "prompt": "LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
@@ -65,6 +65,7 @@
     "interact": "THE CHEST",
     "journal": null,
     "journal_open": false,
+    "last_fall_wound": null,
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
@@ -83,12 +84,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:54",
+        "modified": "2026-11-25 18:54",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:54",
+        "modified": "2026-11-25 18:54",
         "name": "beta-shot",
         "seed": 7
       }
@@ -100,7 +101,7 @@
     ],
     "toasts": [
       {
-        "age_s": 0.32290905714035034,
+        "age_s": 0.7358229160308838,
         "text": "FORGED 1 BARS"
       }
     ],
@@ -122,7 +123,7 @@
       "reason": "construction not mounted in UI routes",
       "value": null
     },
-    "seed_resolved": "3",
+    "seed_resolved": "123",
     "spawn_safe": null
   }
 }

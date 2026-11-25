@@ -71,9 +71,9 @@
       "id": "xp_strip",
       "kind": "bar",
       "rect": [
-        142,
+        113,
         421,
-        516,
+        574,
         5
       ]
     },
@@ -82,9 +82,9 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        65,
+        101,
         397,
-        670,
+        598,
         14
       ]
     },
@@ -93,7 +93,7 @@
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
-        142,
+        113,
         432,
         52,
         52
@@ -104,7 +104,7 @@
       "id": "hotbar_1",
       "kind": "hotbar_slot",
       "rect": [
-        200,
+        171,
         432,
         52,
         52
@@ -115,7 +115,7 @@
       "id": "hotbar_2",
       "kind": "hotbar_slot",
       "rect": [
-        258,
+        229,
         432,
         52,
         52
@@ -126,7 +126,7 @@
       "id": "hotbar_3",
       "kind": "hotbar_slot",
       "rect": [
-        316,
+        287,
         432,
         52,
         52
@@ -137,7 +137,7 @@
       "id": "hotbar_4",
       "kind": "hotbar_slot",
       "rect": [
-        374,
+        345,
         432,
         52,
         52
@@ -148,7 +148,7 @@
       "id": "hotbar_5",
       "kind": "hotbar_slot",
       "rect": [
-        432,
+        403,
         432,
         52,
         52
@@ -159,7 +159,7 @@
       "id": "hotbar_6",
       "kind": "hotbar_slot",
       "rect": [
-        490,
+        461,
         432,
         52,
         52
@@ -170,7 +170,7 @@
       "id": "hotbar_7",
       "kind": "hotbar_slot",
       "rect": [
-        548,
+        519,
         432,
         52,
         52
@@ -181,7 +181,18 @@
       "id": "hotbar_8",
       "kind": "hotbar_slot",
       "rect": [
-        606,
+        577,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_9",
+      "kind": "hotbar_slot",
+      "rect": [
+        635,
         432,
         52,
         52
@@ -215,9 +226,9 @@
     "gameplay_input_blocked": false,
     "hover": null,
     "hud": {
-      "food": 0.9837169051170349,
-      "health": 0.7723327279090881,
-      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "food": 0.9619884490966797,
+      "health": 0.9594794511795044,
+      "prompt": "LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK EMPTY",
@@ -226,6 +237,10 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "last_fall_wound": {
+      "damage": 0.3555997610092163,
+      "frame": 105
+    },
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
@@ -244,12 +259,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:55",
+        "modified": "2026-11-25 18:56",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:55",
+        "modified": "2026-11-25 18:56",
         "name": "beta-shot",
         "seed": 7
       }

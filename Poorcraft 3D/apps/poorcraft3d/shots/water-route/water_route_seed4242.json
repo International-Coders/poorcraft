@@ -2,23 +2,23 @@
   "captures": [
     {
       "mean_rgb": [
-        233.39158159722223,
-        209.42028472222222,
-        176.0248107638889
+        234.0266875,
+        209.2511111111111,
+        174.9451736111111
       ],
-      "path": "./apps/poorcraft3d/shots/water-route/water_overview_seed4242.png",
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/water-route/water_overview_seed4242.png",
       "role": "overview",
-      "water_blue_px": 5548
+      "water_blue_px": 1333
     },
     {
       "mean_rgb": [
-        207.39308333333332,
-        197.1766111111111,
-        168.6975815972222
+        207.9522986111111,
+        197.23315277777778,
+        168.03471527777776
       ],
-      "path": "./apps/poorcraft3d/shots/water-route/water_bank_seed4242.png",
+      "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/water-route/water_bank_seed4242.png",
       "role": "bank",
-      "water_blue_px": 15921
+      "water_blue_px": 3771
     }
   ],
   "channel_midpoint_m": {

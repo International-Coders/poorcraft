@@ -6,21 +6,21 @@
     "--observe route_mouse_first"
   ],
   "diff_paths": [],
-  "digest": "c4c39963d6d3b178",
+  "digest": "e478969f97ff97d5",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_mouse_first",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "prompt_lmb.png",
     "lmb_dug.png",
     "rmb_built.png",
     "tab_pack.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

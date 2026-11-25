@@ -6,19 +6,19 @@
     "--observe route_house_entry"
   ],
   "diff_paths": [],
-  "digest": "252a2c024886eb7c",
+  "digest": "cac8b82cab3a76b5",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_house_entry",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "beauty_door_outside.png",
     "beauty_interior.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

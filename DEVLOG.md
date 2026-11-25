@@ -11513,3 +11513,38 @@ p3d-test exit 0, doctrine check 2/0, smoke OK. Artifacts:
 /tmp/pc3d_obs_n10_mut/route_sculpt/ (mutant).
 
 NEXT: N11 — shelter, fire and the first night (the capstone route).
+
+## 2026-11-25 — Loop 487 — BETA: 38-stage battery ALL GREEN (Poorcraft 3D)
+
+WHAT: Closed every red in the `make p3d-beta` battery (38 stages, 442 proof
+PNGs, BETA-REPORT.txt green) and pinned the BETA marco in the doctrine queue.
+
+HOW (root causes, one shared fix each):
+- Creature spawn grounded on its OWN column's authoritative surface
+  (`ground_y_at`), not the player's altitude 16 cells away — the buried
+  goblin was unreachable by melee forever (route_social slain=1 witnessed=3).
+- Fall wounds latched frame-stamped at landing (`ui.last_fall_wound`);
+  pit_wall + plaza_recovery + playtest use the two-phase landing poll
+  (airborne 1 m precondition + 2 grounded streaks) + CaptureAtNextFrame so
+  the FELL/YOU toast (3 s REAL decay) and the regen-refilled health bar
+  cannot outrun the proof at contended paces.
+- route_dig rim walk replaced frame-count W (18 frames = 7.2 m at 96 ms)
+  with a poll latching the first clear-of-dug-cell grounded frame;
+  end_frame 280 owns the exit.
+- vine_hangoff demands a strand >= 2.5 m (pine strands peak 1.9 m = SAFE BY
+  LAW — no wound existed to name); hang band accepts the legal span
+  [tip, top]; wound verdict reads law-exact 100%->91%.
+- wilderness low-tier restores the VISTA camera pose (sky probes were
+  probing grass); playtest wound band < 0.55 (latch-frame impact variance).
+- N09 overlap-gate mutation proven (PC3D_MUTATE_PLACEMENT_OVERLAP_OFF=1
+  kills the beat-A refusal; control PASS).
+
+FILES: apps/poorcraft3d/src/main.rs (routes + verdicts), pc3d_render app.rs
+(spawn law + wound latch), pc3d_render ui.rs (last_fall_wound field + JSON),
+docs 12-FILA (BETA marco), CHANGELOG/STATE.
+
+VERIFICATION: make p3d-beta ALL STAGES PASS; P3D workspace cargo test
+820 passed / 0 failed; make p3d-doctrine-check 2/0; DMG
+`Poorcraft 3D/dist3d/poorcraft3d-macos.dmg` (4.0 MB) built by the battery's
+package-dmg stage on this tree; deck-bench PASS on quiet host (contention
+guard correctly refused a contaminated first run).

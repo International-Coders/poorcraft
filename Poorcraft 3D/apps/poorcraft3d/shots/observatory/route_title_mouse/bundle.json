@@ -6,19 +6,19 @@
     "--observe route_title_mouse"
   ],
   "diff_paths": [],
-  "digest": "68116bc837abfa7d",
+  "digest": "95a9c24e3605e53c",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_title_mouse",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "beauty_title.png",
     "beauty_hover.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

@@ -14,18 +14,18 @@
     "--observe route_asset_inspect"
   ],
   "diff_paths": [],
-  "digest": "cd856d5d42443671",
+  "digest": "8786a5417342ba2c",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_asset_inspect",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "beauty_assets.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

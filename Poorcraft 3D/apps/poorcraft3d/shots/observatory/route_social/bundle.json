@@ -6,19 +6,19 @@
     "--observe route_social"
   ],
   "diff_paths": [],
-  "digest": "3b8ed75a9023e2ab",
+  "digest": "7eb4d0ceccbe7b6a",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_social",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "beauty_oversight.png",
     "beauty_social_aftermath.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

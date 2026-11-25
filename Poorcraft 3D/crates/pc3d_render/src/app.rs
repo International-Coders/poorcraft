@@ -4407,6 +4407,12 @@ impl App {
                     Some(impact_vy) => {
                         let dmg = damage_from_impact(impact_vy);
                         if dmg > 0.0 {
+                            // THE WOUND LATCH (frame-stamped at landing):
+                            // a proof reads the impact itself — the health
+                            // bar bleeds back while the capture list drains
+                            // (real-time regen vs frame-count captures).
+                            state.ui.last_fall_wound =
+                                Some((state.frame_no, dmg));
                             state.ui.hud.health =
                                 (state.ui.hud.health - dmg).max(0.0);
                             if state.ui.hud.health <= 0.0 {
@@ -4521,11 +4527,23 @@ impl App {
                         });
                         if !near {
                             slice.creatures.creatures.clear();
+                            // THE CREATURE STANDS ON ITS OWN SOIL: the
+                            // spawn y answers the authoritative surface at
+                            // the creature's column (the same ground the
+                            // player walks), never the player's altitude —
+                            // a spawn 16 cells out can sit meters lower,
+                            // and a buried body is unreachable by melee
+                            // (dy > MELEE_RANGE forever).
+                            let spawn_x = (cell.x + 16) as f32 + 0.5;
+                            let spawn_z = (cell.z + 16) as f32 + 0.5;
+                            let gy = state
+                                .renderer
+                                .ground_y_at(&gen, spawn_x, spawn_z);
                             slice.creatures.spawn(
                                 pc3d_world::combat::CreatureKind::Goblin,
                                 pc3d_world::coords::CellCoord {
                                     x: cell.x + 16,
-                                    y: cell.y,
+                                    y: gy.floor() as i32,
                                     z: cell.z + 16,
                                 },
                             );

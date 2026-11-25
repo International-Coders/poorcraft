@@ -1,5 +1,37 @@
 # CHANGELOG
 
+## Loop 487 — BETA: the 38-stage battery closes ALL GREEN (Poorcraft 3D)
+- `apps/poorcraft3d/src/main.rs`: the proof harness caught up to the
+  laws it names. The fall routes (pit_wall, plaza_recovery, playtest)
+  now LATCH the wound, the toast, and the capture AT the event frame —
+  a landing poll with an airborne precondition + a two-grounded-streak
+  (the script poll runs BEFORE the frame's physics, so the first
+  grounded poll still reads pre-damage health). route_dig's rim walk is
+  a pace-proof poll (18 frames of W sailed 7.2 m at 96 ms frames); the
+  vine-hangoff searches for a strand tall enough to NAME a wound (a
+  pine's 1.5 m strand + the 1 m hop peaks 1.9 m = 6.1 m/s = SAFE BY
+  LAW; 2.5 m+ strands land the law-exact 100%→91%); the wilderness
+  low-tier shot restores the VISTA camera (the undergrowth pose aims
+  into grass — the sky probes hit soil); the playtest wound band
+  carries the latch-frame impact variance (< 0.55).
+- `crates/pc3d_render/src/app.rs`: THE CREATURE STANDS ON ITS OWN SOIL —
+  the hostile spawn answered the PLAYER's altitude 16 cells away, where
+  the ground can sit meters lower: a buried body is unreachable by
+  melee forever (dy > MELEE_RANGE). Spawn now grounds on
+  `ground_y_at` of the creature's own column (the same authoritative
+  surface the player walks). The fall impact LATCHES
+  (`ui.last_fall_wound = (frame, dmg)`) so proofs read the law, not a
+  health bar real-time regen refills while the capture list drains.
+- `crates/pc3d_render/src/ui.rs`: `last_fall_wound: Option<(u64, f32)>`
+  rides the state JSON for the verdicts.
+- `docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md`: the BETA marco — every
+  law above with its root cause.
+- N09 mutation proof landed: `PC3D_MUTATE_PLACEMENT_OVERLAP_OFF=1` →
+  the beat-A refusal disappears (a_red/a_toast fail); control PASS.
+- VERIFICATION: `make p3d-beta` ALL STAGES PASS (38 stages, 442 proof
+  PNGs on disk, BETA-REPORT.txt green); P3D workspace 820/0; doctrine
+  check 2/0; DMG rebuilt on the committed tree.
+
 ## Loop 486 — N10: the shovel and the predictable ground (Poorcraft 3D)
 - `crates/pc3d_render/src/app.rs`: the PURE authority `evaluate_sculpt`
   gates every sculpt — the tool gate (no shovel → "NEED A SHOVEL TO

@@ -1,0 +1,31 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_sculpt-dev",
+  "commands": [
+    "--observe route_sculpt"
+  ],
+  "diff_paths": [],
+  "digest": "5a137302f91b2140",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_sculpt",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_rebuild",
+  "screenshots": [
+    "sculpt_barehand_red.png",
+    "sculpt_shovel_equipped.png",
+    "sculpt_before.png",
+    "sculpt_lowered.png",
+    "sculpt_leveled.png"
+  ],
+  "seed": "123",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

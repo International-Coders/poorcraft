@@ -71,9 +71,9 @@
       "id": "xp_strip",
       "kind": "bar",
       "rect": [
-        382,
+        353,
         641,
-        516,
+        574,
         5
       ]
     },
@@ -82,9 +82,9 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        377,
+        257,
         617,
-        526,
+        766,
         14
       ]
     },
@@ -93,7 +93,7 @@
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
-        382,
+        353,
         652,
         52,
         52
@@ -104,7 +104,7 @@
       "id": "hotbar_1",
       "kind": "hotbar_slot",
       "rect": [
-        440,
+        411,
         652,
         52,
         52
@@ -115,7 +115,7 @@
       "id": "hotbar_2",
       "kind": "hotbar_slot",
       "rect": [
-        498,
+        469,
         652,
         52,
         52
@@ -126,7 +126,7 @@
       "id": "hotbar_3",
       "kind": "hotbar_slot",
       "rect": [
-        556,
+        527,
         652,
         52,
         52
@@ -137,7 +137,7 @@
       "id": "hotbar_4",
       "kind": "hotbar_slot",
       "rect": [
-        614,
+        585,
         652,
         52,
         52
@@ -148,7 +148,7 @@
       "id": "hotbar_5",
       "kind": "hotbar_slot",
       "rect": [
-        672,
+        643,
         652,
         52,
         52
@@ -159,7 +159,7 @@
       "id": "hotbar_6",
       "kind": "hotbar_slot",
       "rect": [
-        730,
+        701,
         652,
         52,
         52
@@ -170,7 +170,7 @@
       "id": "hotbar_7",
       "kind": "hotbar_slot",
       "rect": [
-        788,
+        759,
         652,
         52,
         52
@@ -181,7 +181,18 @@
       "id": "hotbar_8",
       "kind": "hotbar_slot",
       "rect": [
-        846,
+        817,
+        652,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_9",
+      "kind": "hotbar_slot",
+      "rect": [
+        875,
         652,
         52,
         52
@@ -192,9 +203,9 @@
       "id": "debug_strip",
       "kind": "debug",
       "rect": [
-        450,
+        438,
         20,
-        814,
+        826,
         14
       ]
     }
@@ -227,16 +238,17 @@
     "hover": null,
     "hud": {
       "food": 0.699999988079071,
-      "health": 0.47958746552467346,
-      "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
+      "health": 0.5262802243232727,
+      "prompt": "E USE FORGE · LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 3,
-      "stamina": 0.5071122646331787,
+      "stamina": 0.8339632749557495,
       "stock": "PACK WOOD 3 · STONE 2 · SOIL 4 · WOOD_PICK 1",
       "xp": 0.5
     },
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "last_fall_wound": null,
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
@@ -255,12 +267,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:52",
+        "modified": "2026-11-25 18:51",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:52",
+        "modified": "2026-11-25 18:51",
         "name": "beta-shot",
         "seed": 7
       }

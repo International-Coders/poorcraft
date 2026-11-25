@@ -25,19 +25,19 @@
   "captures": [
     {
       "mean_rgb": [
-        182.594140625,
-        177.1622361111111,
-        166.98215972222224
+        181.66753472222223,
+        176.83134027777777,
+        166.21075694444446
       ],
       "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_eye_seed1.png",
       "role": "spawn_eye",
-      "tree_mass_fraction": 0.1372673660516739
+      "tree_mass_fraction": 0.15221527218818665
     },
     {
       "mean_rgb": [
-        182.48096180555555,
-        181.50176736111112,
-        174.65391493055554
+        180.4778263888889,
+        180.13252083333333,
+        172.74866666666668
       ],
       "path": "/Users/zari/Desktop/POORCRAFT/Poorcraft 3D/apps/poorcraft3d/shots/spawn-route/spawn_overview_seed1.png",
       "role": "spawn_overview"

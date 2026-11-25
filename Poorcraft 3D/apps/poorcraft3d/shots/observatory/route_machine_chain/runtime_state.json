@@ -20,25 +20,25 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 66.0999984741211,
+    "avg_fps": 16.0,
     "frames": 169,
-    "p50_ms": 14.5600004196167,
-    "p95_ms": 21.0
+    "p50_ms": 56.02000045776367,
+    "p95_ms": 92.45999908447266
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
   },
   "proof_paths": [],
   "quality": "mid",
-  "scene": "showcase_seed_3_rebuild",
-  "seed": "3",
-  "timestamp_utc": "1791683844",
+  "scene": "showcase_seed_rebuild",
+  "seed": "123",
+  "timestamp_utc": "1795633197",
   "ui": {
     "career_chosen": null,
     "companion": "",
     "creature_hint": [
-      144.0,
-      152.0
+      148.0,
+      150.0
     ],
     "creatures_slain": 0,
     "debug_overlay": false,
@@ -56,7 +56,7 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "prompt": "LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK SOIL 1",
@@ -65,13 +65,14 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "last_fall_wound": null,
     "machine_charge_milli": 450,
     "machines": {
       "at_water": true,
       "fuel_in_pack": 0,
       "rows": [
-        "BOILER    FUEL   466 WATER      0 STEAM     0",
-        "ENGINE    STEAM IN   200 SHAFT OUT     0",
+        "BOILER    FUEL     0 WATER   7700 STEAM  2000",
+        "ENGINE    STEAM IN  1000 SHAFT OUT     0",
         "GENERATOR SHAFT IN   500 CURRENT OUT     0",
         "BATTERY   CHARGE   450 / 50000"
       ],
@@ -93,12 +94,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:57",
+        "modified": "2026-11-25 18:59",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:57",
+        "modified": "2026-11-25 18:59",
         "name": "beta-shot",
         "seed": 7
       }
@@ -108,12 +109,8 @@
     ],
     "toasts": [
       {
-        "age_s": 2.081732749938965,
-        "text": "DUG SOIL+WOOD"
-      },
-      {
-        "age_s": 0.5949034094810486,
-        "text": "DREW 3200 mWATER + 1 WOOD"
+        "age_s": 1.4321461915969849,
+        "text": "DREW 13700 mWATER + 1 WOOD"
       }
     ],
     "wallet": 0,
@@ -134,7 +131,7 @@
       "reason": "construction not mounted in UI routes",
       "value": null
     },
-    "seed_resolved": "3",
+    "seed_resolved": "123",
     "spawn_safe": null
   }
 }

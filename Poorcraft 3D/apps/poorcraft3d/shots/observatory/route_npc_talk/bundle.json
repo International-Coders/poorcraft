@@ -6,18 +6,18 @@
     "--observe route_npc_talk"
   ],
   "diff_paths": [],
-  "digest": "6f18705242629e95",
+  "digest": "907e557977ca5ea8",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_npc_talk",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "beauty_talk.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

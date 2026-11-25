@@ -20,19 +20,19 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 49.5,
+    "avg_fps": 17.5,
     "frames": 90,
-    "p50_ms": 19.31999969482422,
-    "p95_ms": 21.81999969482422
+    "p50_ms": 54.56999969482422,
+    "p95_ms": 58.52000045776367
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
   },
   "proof_paths": [],
   "quality": "mid",
-  "scene": "showcase_seed_3_rebuild",
-  "seed": "3",
-  "timestamp_utc": "1791683661",
+  "scene": "showcase_seed_rebuild",
+  "seed": "123",
+  "timestamp_utc": "1795632848",
   "ui": {
     "career_chosen": null,
     "companion": "",
@@ -62,7 +62,7 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
+      "prompt": "E USE FORGE · LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK EMPTY",
@@ -71,6 +71,7 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "last_fall_wound": null,
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
@@ -89,12 +90,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:54",
+        "modified": "2026-11-25 18:54",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:54",
+        "modified": "2026-11-25 18:54",
         "name": "beta-shot",
         "seed": 7
       }
@@ -119,7 +120,7 @@
       "reason": "construction not mounted in UI routes",
       "value": null
     },
-    "seed_resolved": "3",
+    "seed_resolved": "123",
     "spawn_safe": null
   }
 }

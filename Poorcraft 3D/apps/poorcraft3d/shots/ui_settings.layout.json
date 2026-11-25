@@ -5,10 +5,10 @@
       "id": "settings_panel",
       "kind": "panel",
       "rect": [
-        385,
-        61,
-        511,
-        598
+        315,
+        73,
+        650,
+        573
       ]
     },
     {
@@ -16,8 +16,8 @@
       "id": "set_row_0_label",
       "kind": "text",
       "rect": [
-        400,
-        100,
+        334,
+        123,
         202,
         14
       ]
@@ -27,8 +27,8 @@
       "id": "set_row_0_value",
       "kind": "text",
       "rect": [
-        768,
-        100,
+        803,
+        123,
         34,
         14
       ]
@@ -38,10 +38,10 @@
       "id": "set_row_0_dec",
       "kind": "button",
       "rect": [
-        716,
-        94,
-        26,
-        23
+        737,
+        115,
+        32,
+        29
       ]
     },
     {
@@ -49,10 +49,10 @@
       "id": "set_row_0_inc",
       "kind": "button",
       "rect": [
-        842,
-        94,
-        26,
-        23
+        898,
+        115,
+        32,
+        29
       ]
     },
     {
@@ -60,8 +60,8 @@
       "id": "set_row_1_label",
       "kind": "text",
       "rect": [
-        400,
-        131,
+        334,
+        161,
         94,
         14
       ]
@@ -71,8 +71,8 @@
       "id": "set_row_1_value",
       "kind": "text",
       "rect": [
-        768,
-        131,
+        803,
+        161,
         34,
         14
       ]
@@ -82,10 +82,10 @@
       "id": "set_row_1_dec",
       "kind": "button",
       "rect": [
-        716,
-        125,
-        26,
-        23
+        737,
+        153,
+        32,
+        29
       ]
     },
     {
@@ -93,10 +93,10 @@
       "id": "set_row_1_inc",
       "kind": "button",
       "rect": [
-        842,
-        125,
-        26,
-        23
+        898,
+        153,
+        32,
+        29
       ]
     },
     {
@@ -104,8 +104,8 @@
       "id": "set_row_2_label",
       "kind": "text",
       "rect": [
-        400,
-        162,
+        334,
+        199,
         154,
         14
       ]
@@ -115,8 +115,8 @@
       "id": "set_row_2_value",
       "kind": "text",
       "rect": [
-        768,
-        162,
+        803,
+        199,
         70,
         14
       ]
@@ -126,10 +126,10 @@
       "id": "set_row_2_dec",
       "kind": "button",
       "rect": [
-        716,
-        156,
-        26,
-        23
+        737,
+        191,
+        32,
+        29
       ]
     },
     {
@@ -137,10 +137,10 @@
       "id": "set_row_2_inc",
       "kind": "button",
       "rect": [
-        842,
-        156,
-        26,
-        23
+        898,
+        191,
+        32,
+        29
       ]
     },
     {
@@ -148,8 +148,8 @@
       "id": "set_row_3_label",
       "kind": "text",
       "rect": [
-        400,
-        193,
+        334,
+        237,
         94,
         14
       ]
@@ -159,8 +159,8 @@
       "id": "set_row_3_value",
       "kind": "text",
       "rect": [
-        768,
-        193,
+        803,
+        237,
         46,
         14
       ]
@@ -170,10 +170,10 @@
       "id": "set_row_3_dec",
       "kind": "button",
       "rect": [
-        716,
-        187,
-        26,
-        23
+        737,
+        229,
+        32,
+        29
       ]
     },
     {
@@ -181,10 +181,10 @@
       "id": "set_row_3_inc",
       "kind": "button",
       "rect": [
-        842,
-        187,
-        26,
-        23
+        898,
+        229,
+        32,
+        29
       ]
     },
     {
@@ -192,8 +192,8 @@
       "id": "set_row_4_label",
       "kind": "text",
       "rect": [
-        400,
-        224,
+        334,
+        275,
         166,
         14
       ]
@@ -203,8 +203,8 @@
       "id": "set_row_4_value",
       "kind": "text",
       "rect": [
-        768,
-        224,
+        803,
+        275,
         34,
         14
       ]
@@ -214,10 +214,10 @@
       "id": "set_row_4_dec",
       "kind": "button",
       "rect": [
-        716,
-        218,
-        26,
-        23
+        737,
+        267,
+        32,
+        29
       ]
     },
     {
@@ -225,10 +225,10 @@
       "id": "set_row_4_inc",
       "kind": "button",
       "rect": [
-        842,
-        218,
-        26,
-        23
+        898,
+        267,
+        32,
+        29
       ]
     },
     {
@@ -236,8 +236,8 @@
       "id": "set_controls_title",
       "kind": "text",
       "rect": [
-        400,
-        254,
+        334,
+        311,
         94,
         14
       ]
@@ -247,8 +247,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        272,
+        334,
+        334,
         77,
         7
       ]
@@ -258,8 +258,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        272,
+        669,
+        334,
         65,
         7
       ]
@@ -269,8 +269,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        294,
+        334,
+        348,
         65,
         7
       ]
@@ -280,8 +280,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        294,
+        669,
+        348,
         77,
         7
       ]
@@ -291,8 +291,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        316,
+        334,
+        362,
         95,
         7
       ]
@@ -302,8 +302,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        316,
+        669,
+        362,
         83,
         7
       ]
@@ -313,8 +313,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        338,
+        334,
+        376,
         113,
         7
       ]
@@ -324,8 +324,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        338,
+        669,
+        376,
         47,
         7
       ]
@@ -335,8 +335,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        360,
+        334,
+        390,
         53,
         7
       ]
@@ -346,8 +346,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        360,
+        669,
+        390,
         35,
         7
       ]
@@ -357,8 +357,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        382,
+        334,
+        404,
         89,
         7
       ]
@@ -368,8 +368,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        382,
+        669,
+        404,
         59,
         7
       ]
@@ -379,8 +379,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        404,
+        334,
+        418,
         47,
         7
       ]
@@ -390,8 +390,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        404,
+        669,
+        418,
         41,
         7
       ]
@@ -401,8 +401,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        426,
+        334,
+        432,
         65,
         7
       ]
@@ -412,8 +412,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        426,
+        669,
+        432,
         71,
         7
       ]
@@ -423,8 +423,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        448,
+        334,
+        446,
         53,
         7
       ]
@@ -434,8 +434,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        448,
+        669,
+        446,
         71,
         7
       ]
@@ -445,8 +445,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        470,
+        334,
+        460,
         35,
         7
       ]
@@ -456,8 +456,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        470,
+        669,
+        460,
         59,
         7
       ]
@@ -467,8 +467,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        492,
+        334,
+        474,
         155,
         7
       ]
@@ -478,8 +478,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        492,
+        669,
+        474,
         41,
         7
       ]
@@ -489,8 +489,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        514,
+        334,
+        488,
         41,
         7
       ]
@@ -500,8 +500,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        514,
+        669,
+        488,
         59,
         7
       ]
@@ -511,8 +511,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        536,
+        334,
+        502,
         59,
         7
       ]
@@ -522,8 +522,8 @@
       "id": "set_keymap2",
       "kind": "text",
       "rect": [
-        663,
-        536,
+        669,
+        502,
         41,
         7
       ]
@@ -533,8 +533,8 @@
       "id": "set_keymap",
       "kind": "text",
       "rect": [
-        400,
-        558,
+        334,
+        516,
         53,
         7
       ]
@@ -544,14 +544,14 @@
       "id": "set_back",
       "kind": "button",
       "rect": [
-        520,
-        577,
-        241,
-        33
+        487,
+        540,
+        306,
+        42
       ]
     }
   ],
-  "scale": 0.7519125938415527,
+  "scale": 0.9555555582046509,
   "screen": "settings",
   "size": [
     1280,
@@ -580,7 +580,7 @@
     "hud": {
       "food": 1.0,
       "health": 1.0,
-      "prompt": "F BUILD · R REMOVE · G DIG · B SAVE · L LOAD · I INSPECT",
+      "prompt": "LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK WOOD 3 · STONE 2 · SOIL 4 · WOOD_PICK 1",
@@ -589,6 +589,7 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "last_fall_wound": null,
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
@@ -607,12 +608,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:52",
+        "modified": "2026-11-25 18:51",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:52",
+        "modified": "2026-11-25 18:51",
         "name": "beta-shot",
         "seed": 7
       }

@@ -6,18 +6,18 @@
     "--observe route_gpu_markers"
   ],
   "diff_paths": [],
-  "digest": "5b10a9ea65e99691",
+  "digest": "6e87e3002ce2210c",
   "gpu_marker_path": "gpu_marker_audit.json",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_gpu_markers",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "beauty_markers.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

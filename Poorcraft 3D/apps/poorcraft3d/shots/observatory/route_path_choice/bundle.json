@@ -6,19 +6,19 @@
     "--observe route_path_choice"
   ],
   "diff_paths": [],
-  "digest": "bab41a138e05a9f8",
+  "digest": "332835cf162d2cf9",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_path_choice",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "path_panel.png",
     "path_chosen.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

@@ -6,21 +6,21 @@
     "--observe route_dig"
   ],
   "diff_paths": [],
-  "digest": "a4a6de5c3908c196",
+  "digest": "05f31f2474fe8073",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_dig",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "dig_before.png",
     "dig_after.png",
     "on_terrace.png",
     "terrace_back.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

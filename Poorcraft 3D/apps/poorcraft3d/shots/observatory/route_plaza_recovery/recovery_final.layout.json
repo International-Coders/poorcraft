@@ -71,9 +71,9 @@
       "id": "xp_strip",
       "kind": "bar",
       "rect": [
-        142,
+        113,
         421,
-        516,
+        574,
         5
       ]
     },
@@ -82,9 +82,9 @@
       "id": "prompt",
       "kind": "text",
       "rect": [
-        137,
+        17,
         397,
-        526,
+        766,
         14
       ]
     },
@@ -93,7 +93,7 @@
       "id": "hotbar_0",
       "kind": "hotbar_slot",
       "rect": [
-        142,
+        113,
         432,
         52,
         52
@@ -104,7 +104,7 @@
       "id": "hotbar_1",
       "kind": "hotbar_slot",
       "rect": [
-        200,
+        171,
         432,
         52,
         52
@@ -115,7 +115,7 @@
       "id": "hotbar_2",
       "kind": "hotbar_slot",
       "rect": [
-        258,
+        229,
         432,
         52,
         52
@@ -126,7 +126,7 @@
       "id": "hotbar_3",
       "kind": "hotbar_slot",
       "rect": [
-        316,
+        287,
         432,
         52,
         52
@@ -137,7 +137,7 @@
       "id": "hotbar_4",
       "kind": "hotbar_slot",
       "rect": [
-        374,
+        345,
         432,
         52,
         52
@@ -148,7 +148,7 @@
       "id": "hotbar_5",
       "kind": "hotbar_slot",
       "rect": [
-        432,
+        403,
         432,
         52,
         52
@@ -159,7 +159,7 @@
       "id": "hotbar_6",
       "kind": "hotbar_slot",
       "rect": [
-        490,
+        461,
         432,
         52,
         52
@@ -170,7 +170,7 @@
       "id": "hotbar_7",
       "kind": "hotbar_slot",
       "rect": [
-        548,
+        519,
         432,
         52,
         52
@@ -181,7 +181,18 @@
       "id": "hotbar_8",
       "kind": "hotbar_slot",
       "rect": [
-        606,
+        577,
+        432,
+        52,
+        52
+      ]
+    },
+    {
+      "button_state": "",
+      "id": "hotbar_9",
+      "kind": "hotbar_slot",
+      "rect": [
+        635,
         432,
         52,
         52
@@ -217,7 +228,7 @@
     "hud": {
       "food": 0.5,
       "health": 0.5,
-      "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
+      "prompt": "E USE FORGE · LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK EMPTY",
@@ -226,6 +237,10 @@
     "interact": null,
     "journal": null,
     "journal_open": false,
+    "last_fall_wound": {
+      "damage": 1.1395983695983887,
+      "frame": 115
+    },
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
@@ -244,12 +259,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:56",
+        "modified": "2026-11-25 18:57",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:56",
+        "modified": "2026-11-25 18:57",
         "name": "beta-shot",
         "seed": 7
       }

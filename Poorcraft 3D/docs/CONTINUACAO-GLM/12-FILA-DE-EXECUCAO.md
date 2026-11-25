@@ -259,6 +259,55 @@ lever do gate). OBSERVE PASS (5 capturas, 207 frames, p50 2.66 s).
 
 Jornada completa em 20 minutos, save/reload e playtest desconhecido.
 
+## Marco BETA — bateria completa VERDE (loop 487, 2026-11-25)
+
+A bateria `make p3d-beta` (38 estágios) fecha ALL STAGES PASS com 442 PNGs
+de prova em disco e `BETA-REPORT.txt` verde. As leis que fecharam a
+bateria (cada uma com causa-raiz, não remendo de sintoma):
+
+- **N09 overlap gate mutação provada**: `PC3D_MUTATE_PLACEMENT_OVERLAP_OFF=1`
+  → beat A perde o RED ("HOLDS YOU") e o toast → FAIL exato em
+  a_red/a_toast; controle PASS. O gate tem dentes.
+- **A lei do solo do próprio NPC (app.rs spawn)**: o goblin nascia na
+  ALTURA DO PLAYER a 16 células de distância — o solo da própria coluna
+  do bicho pode ficar metros abaixo, e um corpo enterrado fica fora de
+  alcance de melee para sempre (dy > MELEE_RANGE). O spawn agora responde
+  `ground_y_at` da coluna de nascimento (o MESMO solo autoritativo que o
+  player pisa). route_social PASS: slain=1, witnessed=3.
+- **A ferida presa no quadro do impacto (`last_fall_wound`)**: a barra de
+  vida sangra de volta (regen 0.02/s enquanto alimentado) enquanto a lista
+  de capturas drena em tempo real — a prova lia a barra, não a lei. O
+  latch grava (frame, dano) NO quadro do pouso; o veredicto lê a lei.
+- **O poll de pouso em duas fases (pit_wall/plaza_recovery)**: poll com
+  pré-condição AIRBORNE (1 m abaixo da borda) + streak de 2 polls no chão
+  → o latch pega o quadro DEPOIS do impacto (o poll do quadro do pouso
+  roda antes da física). FELL toast + ferida + captura latched no quadro
+  do evento (CaptureAtNextFrame) — à prova de ritmo (o toast vive 3 s
+  REAIS; um frame fixo o mata a ritmo contendido).
+- **A caminhada do rim à prova de ritmo (route_dig)**: 18 frames de W era
+  contagem de frames (7.2 m a 96 ms/frame) — agora o poll latcha o
+  PRIMEIRO frame em pé fora da coluna cavada na resposta de solo viva;
+  end_frame 280 assumiu a saída.
+- **A altura do fio que fere (vine_hangoff)**: fio de pinheiro (1,5 m)
+  + hop 1,04 m = pico 1,9 m = 6,1 m/s = SEGURO POR LEI — não havia ferida
+  a nomear. A busca agora exige fio ≥ 2,5 m (dossel 2,9 m → pico 3,9 m →
+  8,8 m/s → a ferida que a lei calcula, 100%→91%, lei-exata). A banda de
+  hang aceita o vão legal inteiro [tip, top] (a janela "crossed" da lei
+  clampar no tip — a rota registra onde a lei pôs o corpo).
+- **Câmera do low-tier restaura a pose VISTA (wilderness)**: o retorno
+  usava a pose UNDERGROWTH (mira no chão) — as sondas de céu batiam em
+  grama. Restaurar a pose que PROVA céu.
+- **A banda da ferida do playtest afrouxada para 0,55**: 0,45 apertada —
+  o latch do quadro varia o impacto por um substep; a recuperação da
+  praça (0,5 EXATO + toast YOU próprio) já está excluída pelo gate
+  fall_toast (exige FELL).
+- **deck-bench**: falha de contenção do HOST (cargo test rodando junto) —
+  o guard de contenção funcionou; re-run em host quieto PASSA.
+
+Suíte: workspace P3D 820/0; doctrine check 2/0; DMG
+`dist3d/poorcraft3d-macos.dmg` reconstruída na árvore committed.
+
+
 ## Épico C — identidade do mundo
 
 ### N12 — Canon original dos seis reinos

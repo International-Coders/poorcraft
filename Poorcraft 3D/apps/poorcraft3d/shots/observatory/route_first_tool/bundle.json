@@ -1,0 +1,30 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_first_tool-dev",
+  "commands": [
+    "--observe route_first_tool"
+  ],
+  "diff_paths": [],
+  "digest": "9ae2ebbf3d1806a2",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_first_tool",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_rebuild",
+  "screenshots": [
+    "grass_dug.png",
+    "pick_crafted.png",
+    "fish_caught.png",
+    "fish_eaten.png"
+  ],
+  "seed": "123",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

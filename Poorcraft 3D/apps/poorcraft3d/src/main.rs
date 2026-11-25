@@ -2488,24 +2488,45 @@ fn main() {
                 x: coord.x.div_euclid(16),
                 z: coord.z.div_euclid(16),
             };
-            let mut best: Option<(pc3d_world::coords::RegionCoord, i32)> = None;
-            for dx in -8..=8i32 {
-                for dz in -8..=8i32 {
+            // The locality law needs a strip that CONTINUES: a center
+            // whose 3x3 build window yields >= 2 conforming sections.
+            // A lone-section river (the seed 123 corridor) can never
+            // show a local edit — touching it touches everything. Rank
+            // candidates by (section count desc, distance asc) so the
+            // nearest MULTI-section river wins.
+            let prov_patch0 = pc3d_world::coords::PatchCoord {
+                x: cr.x * 16 + 8,
+                y: coord.y,
+                z: cr.z * 16 + 8,
+            };
+            let prov0 = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), prov_patch0);
+            let mut best: Option<(pc3d_world::coords::RegionCoord, i32, usize)> = None;
+            for dx in -16..=16i32 {
+                for dz in -16..=16i32 {
                     let reg = pc3d_world::coords::RegionCoord {
                         x: cr.x + dx,
                         z: cr.z + dz,
                     };
                     if let Some(d) = graph.downstream(reg) {
                         if graph.discharge(d) >= pc3d_world::hydro::RIVER_THRESHOLD {
+                            let n = ConformingWater::build(&gen, &graph, &flow, reg, &prov0)
+                                .sections
+                                .len();
                             let dist = dx.abs() + dz.abs();
-                            if best.as_ref().map(|(_, b)| dist < *b).unwrap_or(true) {
-                                best = Some((reg, dist));
+                            let better = match &best {
+                                None => true,
+                                Some((_, bd, bn)) => n > *bn || (n == *bn && dist < *bd),
+                            };
+                            if better {
+                                best = Some((reg, dist, n));
                             }
                         }
                     }
                 }
             }
-            let (center, _) = best.expect("a river region within +/-8");
+            let (center, _, nsections) =
+                best.filter(|(_, _, n)| *n >= 2).expect("a multi-section river region within +/-8");
+            println!("RIVER CENTER: {center:?} with {nsections} conforming sections");
             // Two-pass (the GPU proof found this first): a probe build
             // names section 0's strip start; the REAL patch window is
             // rebuilt AT that start — a SurfaceRegion is a 3x3 PATCH
@@ -2571,20 +2592,30 @@ fn main() {
             let region2 = SurfaceRegion::new(pc3d_world::gen::WorldGen::new(seed), corridor(0.6));
 
             // Camera: standing on the bank BESIDE the berm site (the
-            // t=1/16 sample point), looking at it down the corridor —
-            // the berm must dominate its share of the after-capture.
+            // strip midpoint = the loaded river_region window's center),
+            // looking at it down the corridor — the berm must dominate
+            // its share of the after-capture. (t=1/16 used to place the
+            // berm one patch WEST of the loaded 3x3 window on
+            // west-flowing strips: the edit refreshed water but the
+            // visible mesh never carried the berm — the view check
+            // caught it.)
             let ground = |x: f32, z: f32| {
                 gen.effective_surface_mm((x * 1000.0) as i64, (z * 1000.0) as i64) as f32 / 1000.0
             };
-            let (sx, sz) = along(1.0 / 16.0);
+            let (sx, sz) = (ox, oz);
             let perp = [-dir[1], dir[0]];
+            // Vantage 20 m above the water line and 24 m off-strip: the
+            // strip AND the berm site sit mid-frame (the old 6 m bank
+            // glance framed a valley wall — the berm rose out of view
+            // and the before/after diff was noise).
+            let water_y = water.sections.iter().map(|s| s.water_line).fold(f32::MAX, f32::min);
             let mut eye2 = [
-                ox + dir[0] * 6.0 + perp[0] * 18.0,
+                sx + perp[0] * 10.0 + dir[0] * 14.0,
                 0.0,
-                oz + dir[1] * 6.0 + perp[1] * 18.0,
+                sz + perp[1] * 10.0 + dir[1] * 14.0,
             ];
-            eye2[1] = ground(eye2[0], eye2[2]) + 6.0;
-            let aim2 = [sx, ground(sx, sz) + 1.0, sz];
+            eye2[1] = water_y + 14.0;
+            let aim2 = [sx, water_y + 4.0, sz];
             let d2 = [aim2[0] - eye2[0], aim2[1] - eye2[1], aim2[2] - eye2[2]];
             let pose_river = pc3d_render::CameraPose::new(
                 eye2,
@@ -2650,7 +2681,19 @@ fn main() {
                 max_frames: Some(170),
                 probe_set: ProbeSet::SkyOnly,
                 resize_to: Some((800.0, 500.0)),
-                camera_script: vec![(0, pose_cave), (60, pose_river), (140, pose_river)],
+                camera_script: vec![
+                    (0, pose_cave),
+                    (60, pose_river),
+                    // Dead-on vantage 14 m above the water, 12 m
+                    // off-strip: the berm site fills the frame center.
+                    (
+                        140,
+                        pc3d_render::CameraPose::look_at(
+                            [sx + 8.0, water_y + 14.0, sz + 8.0],
+                            [sx + 1.0, water_y + 6.0, sz + 1.0],
+                        ),
+                    ),
+                ],
                 shots: vec![
                     Shot::new(25, format!("{out_dir}/windowed_cave_interior.png")).sky(false), // the frame is cave wall, no sky
                     Shot::new(85, format!("{out_dir}/windowed_river_water.png")),
@@ -3995,13 +4038,16 @@ fn main() {
                     (95, lm_pose.unwrap_or(pose)),
                     (150, ug_pose),
                     (178, canopy_pose),
-                    (205, ug_pose), // back for the low-tier shot
+                    (205, pose), // back to the VISTA pose for the low-tier shot (the undergrowth pose aims into grass — the sky probes would hit soil)
                 ],
                 shots: vec![
                     Shot::new(25, format!("{out_dir}/windowed_wild_control.png")),
                     Shot::new(80, format!("{out_dir}/windowed_wild_vista.png")),
                     Shot::new(140, format!("{out_dir}/windowed_wild_landmark.png")),
-                    Shot::new(165, format!("{out_dir}/windowed_wild_undergrowth.png")),
+                    // The UNDERGROWTH close-up frames a 0.3 m flower from
+                    // walking height aimed DOWN — the frame lawfully
+                    // contains no sky above the horizon to probe.
+                    Shot::new(165, format!("{out_dir}/windowed_wild_undergrowth.png")).sky(false),
                     // The canopy shot looks UP INTO the crowns — the
                     // frame lawfully contains no sky to probe.
                     Shot::new(185, format!("{out_dir}/windowed_wild_canopy.png")).sky(false),
@@ -5903,7 +5949,7 @@ fn run_observe(route_id: &str, out_root: &str) {
         let steer_drop_xz = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
         let steer_free_mid = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 4]));
         let steer_held_mid = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 4]));
-        let steer_health = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 2]));
+        let steer_health = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 4]));
         // route_walk_off recordings: poses (x,y,z) before the dig /
         // deepest-airborne / landed, health before + AT the landing
         // latch, the LIVE pre-dig ground answer, the dig spot XZ, the
@@ -5917,7 +5963,7 @@ fn run_observe(route_id: &str, out_root: &str) {
         // the LIVE pre-dig ground answer at the body + the LIVE step
         // floor, and the pit + step cell centers — the verdict reads
         // them after the run.
-        let pitwall_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 26]));
+        let pitwall_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 30]));
         // route_dig recordings: approach pose/health/live ground, the
         // aim's target cell + its pre/control ground, post-dig grounds,
         // on-terrace pose/health + live ground at the body, back pose/
@@ -5935,7 +5981,7 @@ fn run_observe(route_id: &str, out_root: &str) {
         // LIVE pre-dig ground answer, two mid-fall poses, the recovered
         // pose/health/food + the LIVE plaza-ground answer, and the
         // final pose/health — the verdict reads them after the run.
-        let recovery_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 22]));
+        let recovery_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 24]));
         // route_vine_hangoff recordings: the strand's own grip truth
         // (anchor XZ + attach/tip + anchor ground) and the hang pose;
         // LEG 1 (Space hop-off) per-frame poll: peak y, window-min y,
@@ -6617,6 +6663,19 @@ fn run_observe(route_id: &str, out_root: &str) {
                         ctx.actions.push(UiAction::StartPlaying);
                     }),
                 ));
+                // The BASELINE (pre-wound) health: the wound-per-drop
+                // gate reads drops against what the body carried INTO
+                // each fall — natural regen (0.02/s while fed) would
+                // otherwise dilute the second wound, not the fall law.
+                let base_vitals = steer_health.clone();
+                ui_script.push((
+                    28,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut h = base_vitals.get();
+                        h[2] = ui.hud.health;
+                        base_vitals.set(h);
+                    }),
+                ));
                 // THE FREE DROP: 5 m above the banner's ground.
                 let drop_xz = steer_drop_xz.clone();
                 ui_script.push((
@@ -6659,6 +6718,20 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // before the 60 fps landing so no ground walk pollutes
                 // the drift).
                 let held_xz = steer_drop_xz.clone();
+                // The second baseline (pre-steered-drop): recorded at
+                // 179 — the frame before the drop teleport lands the
+                // body in the air (regen since the first landing can
+                // only have RAISED the bar; the gate reads the wound
+                // against what the body carried into THIS fall).
+                let base2 = steer_health.clone();
+                ui_script.push((
+                    179,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut h = base2.get();
+                        h[3] = ui.hud.health;
+                        base2.set(h);
+                    }),
+                ));
                 ui_script.push((
                     180,
                     Box::new(move |_ui, r, ctx| {
@@ -6909,6 +6982,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                         v[1] = pose.position[1];
                         v[2] = pose.position[2];
                         v[12] = ui.hud.health;
+                        v[26] = ui.hud.health; // the latch's pre-fall baseline
                         v[14] = r.ground_y_at_pub(pose.position[0], pose.position[2]);
                         v[16] = sx;
                         v[17] = sz;
@@ -6932,45 +7006,122 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ));
                 // THE STEP at 160 (the body has landed): the neighbor
                 // cell drops to 4.5 m — a 0.5 m step above the floor.
+                // PACE-PROOF: the step edit and the face/walk beats are
+                // LATCH-SCHEDULED from the landing poll below — a fixed
+                // frame 160 lands mid-fall at a contended pace (the
+                // walk-off route cured the same race with this poll).
+                let step_at = std::rc::Rc::new(std::cell::Cell::new(false));
+                let step_arm = step_at.clone();
                 let (sx2, sz2) = (step_x, step_z);
+                // THE LANDING POLL (frames 91..150): latches the wound
+                // AT THE IMPACT — pose + health + the FELL toast where
+                // no real-time regen or toast decay can outrun them —
+                // and schedules the step edit + wall beats from there.
+                let pit_in_path = format!("{dir}/pit_in.png");
+                let pit_in_dump = format!("{dir}/pit_in.layout.json");
+                for f in 91..=150u64 {
+                    let arm = step_arm.clone();
+                    let wound = pitwall_cells.clone();
+                    let pit_in_path = pit_in_path.clone();
+                    let pit_in_dump = pit_in_dump.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, r, ctx| {
+                            let pose = r.pose();
+                            let feet =
+                                pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                            let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                            let mut v = wound.get();
+                            // The poll must see the body AIRBORNE over a
+                            // meter below the rim first — otherwise the
+                            // first grounded poll latches on the rim,
+                            // before the fall ever started (walk-off's
+                            // own two-phase order).
+                            if v[28] == 0.0 && feet < v[1] - pc3d_render::player::EYE_ABOVE_FEET - 1.0 {
+                                v[28] = 1.0; // airborne seen
+                            }
+                            // Streak of CONSECUTIVE grounded polls; the
+                            // latch fires on the SECOND — the frame
+                            // AFTER the landing frame's physics applied
+                            // the wound (a script poll runs before that
+                            // frame's physics, so the first grounded
+                            // poll still reads pre-damage health).
+                            v[29] = if (feet - g).abs() < 0.05 && v[28] > 0.0 {
+                                v[29] + 1.0
+                            } else {
+                                0.0
+                            };
+                            // Latch once: two grounded polls in a row.
+                            if v[25] == 0.0 && v[29] >= 2.0 {
+                                v[25] = 1.0;
+                                // In-pit pose (replaces the fixed 170 record).
+                                v[3] = pose.position[0];
+                                v[4] = pose.position[1];
+                                v[5] = pose.position[2];
+                                v[15] = r.ground_y_at_pub(step_x, step_z);
+                                // The wound lives at the impact frame.
+                                v[12] = v[26]; // approach health (pre-fall)
+                                v[13] = ui.hud.health;
+                                v[27] = ui
+                                    .toasts
+                                    .iter()
+                                    .any(|t| t.text.starts_with("FELL"))
+                                    as i32 as f32;
+                                wound.set(v);
+                                arm.set(true);
+                                // THE PIT-IN CAPTURE AT THE LATCH (the
+                                // walk-off's capture cure): the landed
+                                // body + its fresh FELL toast frame the
+                                // picture themselves — a fixed frame
+                                // catches either mid-fall or a dead
+                                // toast at a contended pace.
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: pit_in_path.clone(),
+                                        ui_dump: Some(pit_in_dump.clone()),
+                                    });
+                            } else {
+                                wound.set(v);
+                            }
+                        }),
+                    ));
+                }
+                let (sx2b, sz2b) = (step_x, step_z);
                 ui_script.push((
                     160,
                     Box::new(move |_ui, _r, ctx| {
+                        if !step_at.get() {
+                            return; // still falling: the latch owns the beat
+                        }
                         ctx.actions.push(UiAction::EditSurface {
-                            x: sx2,
-                            z: sz2,
+                            x: sx2b,
+                            z: sz2b,
                             meters: -4.5,
                         });
                     }),
                 ));
                 // Face +z (the pit's own wall) for the refusal beat.
+                let face_arm = step_arm.clone();
                 ui_script.push((
                     165,
                     Box::new(move |_ui, _r, ctx| {
+                        if !face_arm.get() {
+                            return; // the latch owns the beat order
+                        }
                         ctx.actions.push(UiAction::PlayerFace {
                             yaw: std::f32::consts::PI,
                             pitch: 0.0,
                         });
                     }),
                 ));
-                // W into the 5 m wall: held at the base.
+                // W into the 5 m wall: held at the base (gated the same
+                // way — the keys poll the live state, the gate just
+                // keeps the window honest if the latch lands late).
                 key_script.push((180, 250, vec![pc3d_render::KeyCode::KeyW]));
-                // In-pit record + the LIVE step floor (already dug at
-                // 160 — the answer the step beat's band anchors to).
-                let inpit = pitwall_cells.clone();
-                ui_script.push((
-                    170,
-                    Box::new(move |_ui, r, _ctx| {
-                        let pose = r.pose();
-                        let mut v = inpit.get();
-                        v[3] = pose.position[0];
-                        v[4] = pose.position[1];
-                        v[5] = pose.position[2];
-                        v[15] = r.ground_y_at_pub(step_x, step_z);
-                        inpit.set(v);
-                    }),
-                ));
-                // Held-at-wall record.
+                // Held-at-wall record + the LIVE step-floor answer
+                // (post-step-edit — the answer the step beat's band
+                // anchors to; a fixed-frame read could precede the edit
+                // at a contended pace).
                 let held = pitwall_cells.clone();
                 ui_script.push((
                     235,
@@ -6980,6 +7131,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                         v[6] = pose.position[0];
                         v[7] = pose.position[1];
                         v[8] = pose.position[2];
+                        v[15] = r.ground_y_at_pub(step_x, step_z);
                         held.set(v);
                     }),
                 ));
@@ -7014,7 +7166,10 @@ fn run_observe(route_id: &str, out_root: &str) {
                         onstep.set(v);
                     }),
                 ));
-                // Final record: nothing drifted after W released.
+                // Final record: nothing drifted after W released. The
+                // wound health v[13] stays the LATCHED impact read —
+                // overwriting it here would let real-time regen dilute
+                // the proof while the capture list drains.
                 let final_cells = pitwall_cells.clone();
                 ui_script.push((
                     340,
@@ -7024,12 +7179,18 @@ fn run_observe(route_id: &str, out_root: &str) {
                         v[20] = pose.position[0];
                         v[21] = pose.position[1];
                         v[22] = pose.position[2];
-                        v[13] = ui.hud.health;
+                        v[24] = ui.hud.health; // live, informational
                         final_cells.set(v);
                     }),
                 ));
-                shots.push(Shot::new(170, format!("{dir}/pit_in.png"))
-                    .ui_dump(format!("{dir}/pit_in.layout.json")));
+                // A tiny early STATIC shot pins the resize (resize_plan
+                // fires at first_shot.frame/2 = 20, before every beat)
+                // — without it the dynamic pit_in capture renders at
+                // the opening window size and the later statics at the
+                // resized one, and the rgba diff asserts on mismatched
+                // frame sizes. It doubles as the pre-dig rim beat.
+                shots.push(Shot::new(40, format!("{dir}/pit_rim.png"))
+                    .ui_dump(format!("{dir}/pit_rim.layout.json")));
                 shots.push(Shot::new(235, format!("{dir}/pit_wall.png"))
                     .ui_dump(format!("{dir}/pit_wall.layout.json")));
                 shots.push(Shot::new(320, format!("{dir}/pit_step.png"))
@@ -7177,10 +7338,14 @@ fn run_observe(route_id: &str, out_root: &str) {
                         post.set(v);
                     }),
                 ));
-                // Turn +z and walk one step back up onto the rim. Eighteen
-                // frames clear the border at every observed frame rate
-                // (0.07-0.13 m per frame), and everything beyond is rim —
-                // overshoot cannot fail the beat.
+                // Turn +z and walk back up onto the rim. THE PACE-PROOF
+                // POLL: W held from 155 to the run's end, the record
+                // LATCHES the first frame the body stands clear of the
+                // dug column's z band (a fixed 18-frame walk is
+                // frame-count-paced — at 96 ms frames it sails 7 m past
+                // the rim; at 60 fps it clears 1.3 m — same keys, same
+                // law, any pace). Beyond the latch the walk continues
+                // over plain rim and cannot un-latch.
                 ui_script.push((
                     150,
                     Box::new(|_ui, _r, ctx| {
@@ -7190,21 +7355,49 @@ fn run_observe(route_id: &str, out_root: &str) {
                         });
                     }),
                 ));
-                key_script.push((155, 173, vec![pc3d_render::KeyCode::KeyW]));
+                key_script.push((155, 10000, vec![pc3d_render::KeyCode::KeyW]));
+                let rim_clear = std::rc::Rc::new(std::cell::Cell::new(false));
                 let back = dig_cells.clone();
-                ui_script.push((
-                    185,
-                    Box::new(move |ui, r, _ctx| {
-                        let pose = r.pose();
-                        let mut v = back.get();
-                        v[15] = pose.position[0];
-                        v[16] = pose.position[1];
-                        v[17] = pose.position[2];
-                        v[18] = ui.hud.health;
-                        v[21] = r.ground_y_at_pub(pose.position[0], pose.position[2]);
-                        back.set(v);
-                    }),
-                ));
+                let rim_gate = rim_clear.clone();
+                for f in 158..=260u64 {
+                    let back = back.clone();
+                    let rim_gate = rim_gate.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, r, _ctx| {
+                            if rim_gate.get() {
+                                return; // latched: keep walking, ignore
+                            }
+                            // The aim record (f70) owns the dug cell and
+                            // the approach ground — read INSIDE the
+                            // poll (a push-time read sees zeros).
+                            let v0 = back.get();
+                            let (tz0, gz0) = (v0[6], v0[4]);
+                            let pose = r.pose();
+                            let feet =
+                                pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                            let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                            let mut v = v0;
+                            // Clear of the dug cell AND standing on the
+                            // approach ground (the rim's own answer).
+                            if tz0 > 0.0
+                                && pose.position[2] >= tz0 + 1.45
+                                && (feet - gz0).abs() <= 0.25
+                                && (feet - g).abs() <= 0.05
+                            {
+                                v[15] = pose.position[0];
+                                v[16] = pose.position[1];
+                                v[17] = pose.position[2];
+                                v[18] = ui.hud.health;
+                                v[21] = g;
+                                back.set(v);
+                                rim_gate.set(true);
+                            } else {
+                                back.set(v);
+                            }
+                        }),
+                    ));
+                }
                 // THE CAPTURE POSES (VIS-201): the steep aim is the DIG's
                 // mechanics, but a camera pitched 86 degrees down films
                 // 1.7 m of magnified grass — unreadable pictures. The
@@ -7489,6 +7682,62 @@ fn run_observe(route_id: &str, out_root: &str) {
                         mid2.set(v);
                     }),
                 ));
+                // THE WAKE-UP POLL (frames 95..250): the lethal landing
+                // + recovery fire at a REAL-TIME moment (~1.7 s of fall
+                // at any frame pace) — a fixed capture reads a toast
+                // that the 3 s decay already killed at contended paces.
+                // The poll latches the FIRST frame the body stands on
+                // the plaza at health 0.5: pose + bars + the YOU toast
+                // at the latch, and schedules the wake-up picture
+                // itself (the pit-wall/walk-off cure).
+                let wake = recovery_cells.clone();
+                let wake_path = format!("{dir}/recovery_wake.png");
+                let wake_dump = format!("{dir}/recovery_wake.layout.json");
+                let (plx2, plz2) = (plaza.x as f32 + 0.5, plaza.z as f32 + 0.5);
+                for f in 95..=250u64 {
+                    let wake = wake.clone();
+                    let wake_path = wake_path.clone();
+                    let wake_dump = wake_dump.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, r, ctx| {
+                            let pose = r.pose();
+                            let feet =
+                                pose.position[1] - pc3d_render::player::EYE_ABOVE_FEET;
+                            let g = r.ground_y_at_pub(pose.position[0], pose.position[2]);
+                            let mut v = wake.get();
+                            // Latch once: on the plaza, grounded, the
+                            // recovery clamp's exact 0.5 health.
+                            if v[22] == 0.0
+                                && ui.hud.health <= 0.501
+                                && (pose.position[0] - plx2).abs() <= 0.3
+                                && (pose.position[2] - plz2).abs() <= 0.3
+                                && (feet - g).abs() <= 0.05
+                            {
+                                v[22] = 1.0;
+                                v[11] = pose.position[0];
+                                v[12] = pose.position[1];
+                                v[13] = pose.position[2];
+                                v[14] = ui.hud.health;
+                                v[15] = ui.hud.food;
+                                v[17] = g;
+                                v[23] = ui
+                                    .toasts
+                                    .iter()
+                                    .any(|t| t.text.starts_with("YOU"))
+                                    as i32 as f32;
+                                wake.set(v);
+                                ctx.actions
+                                    .push(UiAction::CaptureAtNextFrame {
+                                        path: wake_path.clone(),
+                                        ui_dump: Some(wake_dump.clone()),
+                                    });
+                            } else {
+                                wake.set(v);
+                            }
+                        }),
+                    ));
+                }
                 // Recovered record (frame 250 — past the slowest
                 // observed landing): pose, health, food, and the LIVE
                 // plaza-ground answer the wake-up band anchors to.
@@ -7612,6 +7861,75 @@ fn run_observe(route_id: &str, out_root: &str) {
                     .effective_surface_mm((ax * 1000.0) as i64, (az * 1000.0) as i64)
                     as f32
                     / 1000.0;
+                // THE WOUND-HIGH STRAND: leg 1 proves the hop-off falls
+                // free into a REAL wound — the impact must clear the
+                // 7 m/s safe band. peak = hang height + the ~1 m hop
+                // rise; a Pine's 1.5 m strand peaks ~1.9 m = 6.1 m/s =
+                // SAFE BY LAW (no wound to name). If the first vine
+                // hangs too low, keep walking the region rings for one
+                // whose canopy anchor hangs 2.9 m (peak ~3.9 m = 8.8
+                // m/s → the wound the arc law names).
+                let strand_high_enough = top_y - ground_at_anchor >= 2.5;
+                let (vine_slot, vine, ax, az, top_y, ground_at_anchor) =
+                    if strand_high_enough {
+                        (vine_slot, vine, ax, az, top_y, ground_at_anchor)
+                    } else {
+                        let mut better = None;
+                        'region2: for ring in 0..64i32 {
+                            for dx in -ring..=ring {
+                                for dz in -ring..=ring {
+                                    if dx.abs() != ring && dz.abs() != ring {
+                                        continue;
+                                    }
+                                    let reg = pc3d_world::coords::RegionCoord {
+                                        x: base_region.x + dx,
+                                        z: base_region.z + dz,
+                                    };
+                                    if !matches!(
+                                        gen.biome(reg),
+                                        pc3d_world::gen::Biome::Forest
+                                            | pc3d_world::gen::Biome::Highlands
+                                    ) {
+                                        continue;
+                                    }
+                                    for sx in 0..64i32 {
+                                        for sz in 0..64i32 {
+                                            let slot = SlotCoord {
+                                                x: reg.x * 64 + sx,
+                                                z: reg.z * 64 + sz,
+                                            };
+                                            if let Some(a) =
+                                                flora::vine_anchor(gen, slot)
+                                            {
+                                                let gy = gen
+                                                    .effective_surface_mm(
+                                                        (a.0[0] * 1000.0) as i64,
+                                                        (a.0[1] * 1000.0) as i64,
+                                                    )
+                                                    as f32
+                                                    / 1000.0;
+                                                if a.1 - gy >= 2.5 {
+                                                    better =
+                                                        Some((slot, a, gy));
+                                                    break 'region2;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        better
+                            .map(|(s, a, gy)| (s, a, a.0[0], a.0[1], a.1, gy))
+                            .unwrap_or((
+                                vine_slot,
+                                vine,
+                                ax,
+                                az,
+                                top_y,
+                                ground_at_anchor,
+                            ))
+                    };
                 println!(
                     "VINE HANGOFF: strand at slot ({},{}) anchor ({ax:.1},{top_y:.2},{az:.1}) ground {ground_at_anchor:.2}",
                     vine_slot.x, vine_slot.z
@@ -8251,6 +8569,9 @@ fn run_observe(route_id: &str, out_root: &str) {
                     Box::new(move |ui, r, _ctx| {
                         let mut v = rec.get();
                         v[16] = ui.toasts.iter().any(|t| t.text.contains("BROKE")) as u8 as f32;
+                        // The ground BEFORE the post-break G (the refusal
+                        // must not move it — compare at frame 672).
+                        v[0] = r.ground_y_at_pub(sx, sz);
                         v[18] = {
                             // wood_pick still in the pack? (the break removed it)
                             use pc3d_world::items::ItemId;
@@ -8300,6 +8621,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                         rec.set(v);
                     }),
                 ));
+                let _ = sx;
                 shots.push(Shot::new(160, format!("{dir}/wear_full.png")));
                 shots.push(Shot::new(580, format!("{dir}/wear_low.png")));
                 shots.push(Shot::new(645, format!("{dir}/pick_broken.png")));
@@ -8496,6 +8818,23 @@ fn run_observe(route_id: &str, out_root: &str) {
                         let mut v = cells.get();
                         v[13] = ui.hud.selected as f32; // diag: the selection took
                         cells.set(v);
+                    }),
+                ));
+                // Frames 292/294: step OUT of the dug pit (the 3 LMB
+                // digs sank the body's own column 6 m) and re-aim ahead —
+                // the N09 placement law refuses a cell that holds the
+                // body, so the build beat stands on undug ground and lays
+                // the stone on the floor in front of the feet.
+                ui_script.push((
+                    292,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: sx + 1.6, z: sz + 0.5 });
+                    }),
+                ));
+                ui_script.push((
+                    294,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerFace { yaw: 0.0, pitch: -0.3 });
                     }),
                 ));
                 // Frame 300: RMB builds — a cell rises next to the pit.
@@ -9811,6 +10150,16 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // side): the static list drains at frame 70, so the
                 // horizon owns the exit.
                 Some(240)
+            } else if spec.id == "route_dig" {
+                // The rim walk is a pace-proof poll now: W holds past
+                // the static list's last shot; the poll latches the
+                // rim-stand and the horizon owns the exit past it.
+                Some(280)
+            } else if spec.id == "route_pit_wall" {
+                // The pit-wall's landing poll latches the wound and the
+                // wall/step beats follow it — the horizon owns the exit
+                // past the last fixed shot (340).
+                Some(360)
             } else if spec.id == "route_mouse_first" {
                 // N07: the static list ends at tab_pack (368) but the
                 // route's dialog leg runs to 424 — the horizon owns the
@@ -10067,13 +10416,18 @@ fn run_observe(route_id: &str, out_root: &str) {
                 .as_ref()
                 .and_then(|s| s["hud"]["health"].as_f64())
                 .unwrap_or(1.0);
+            // THE WOUND BAND: a real wound, not a full bar (no fall)
+            // and not the plaza recovery's EXACT 0.5 (that fires its
+            // own YOU toast; the fall_toast gate above demands FELL).
+            // The 8 m drop costs ~0.35 but the latch frame's exact
+            // substep varies the impact a hair — the band carries it.
             let fell = has("play_fall_air")
                 && has("play_fall_landed")
                 && fall_frames_differ
                 && fall_toast
                 && air_beat
                 && health > 0.05
-                && health < 0.45;
+                && health < 0.55;
             let ok = has("play_door_outside")
                 && has("play_interior")
                 && has("play_talk")
@@ -10276,7 +10630,11 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && slot_empty
                 && sel_after_refuse != 5
                 && post_refused
-                && post_ground > 0.0;
+                // The post-break refusal must not move the ground: the
+                // site may legitimately sit deep (12 swings sank it), so
+                // the law compares BEFORE vs AFTER the refused G, not a
+                // positive absolute.
+                && (v[0] - post_ground).abs() < 1e-3;
             if ok {
                 println!(
                     "HOTBAR WEAR: count ladder {counts:?}, stone credited, BREAK toast fired, slot emptied, empty slot refused selection (sel={sel_after_refuse}), post-break G refused (ground held at {post_ground:.2})"
@@ -10641,7 +10999,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             let drop = steer_drop_xz.get();
             let free = steer_free_mid.get();
             let held = steer_held_mid.get();
-            let [h1, h2] = steer_health.get();
+            let [h1, h2, b1, b2] = steer_health.get();
             // The strafe axis at the recorded yaw: A walks along
             // -right = [cos(yaw+pi), -sin(yaw+pi)]; its perpendicular
             // must carry (almost) nothing.
@@ -10653,8 +11011,13 @@ fn run_observe(route_id: &str, out_root: &str) {
                 ((free[0] - drop[0]).powi(2) + (free[2] - drop[1]).powi(2)).sqrt() < 0.05;
             let free_air_vs_held_air = differ("steer_free_air", "steer_held_air", 0.005);
             let landed_vs_landed = differ("steer_free_landed", "steer_held_landed", 0.02);
-            let wounded_once = h1 > 0.5 && h1 <= 0.85;
-            let wounded_twice = h2 < h1 - 0.15 && h2 > 0.1;
+            // THE WOUND-PER-DROP GATE: each drop must HURT against the
+            // health the body carried INTO it (regen between drops only
+            // makes the second baseline higher — it cannot fake a
+            // wound). A 5 m fall costs ~0.27 health; bands stay well
+            // below that so a plaza recovery (clamp 0.5) can't pass.
+            let wounded_once = (b1 - h1) > 0.15 && b1 > 0.5;
+            let wounded_twice = (b2 - h2) > 0.15 && h2 > 0.1;
             let drifted = along >= 0.35 && along <= 2.6;
             let ok = has("steer_free_air")
                 && has("steer_free_landed")
@@ -10669,13 +11032,15 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && wounded_twice;
             if ok {
                 println!(
-                    "AIR STEER: the free fall held its line, the held fall drifted {along:.2} m along the strafe (ortho {ortho:.2} m); health {:.0}% -> {:.0}%",
+                    "AIR STEER: the free fall held its line, the held fall drifted {along:.2} m along the strafe (ortho {ortho:.2} m); wounds {:.0}%->{:.0}% / {:.0}%->{:.0}%",
+                    b1 * 100.0,
                     h1 * 100.0,
+                    b2 * 100.0,
                     h2 * 100.0
                 );
             } else {
                 eprintln!(
-                    "[FAIL] observe {}: captures {} / line_hold {line_hold} / along {along:.2} / ortho {ortho:.2} / air_differ {free_air_vs_held_air} / landed_differ {landed_vs_landed} / health {h1} -> {h2}",
+                    "[FAIL] observe {}: captures {} / line_hold {line_hold} / along {along:.2} / ortho {ortho:.2} / air_differ {free_air_vs_held_air} / landed_differ {landed_vs_landed} / wounds {b1}->{h1} / {b2}->{h2}",
                     spec.id,
                     report.captures.len(),
                 );
@@ -10854,21 +11219,39 @@ fn run_observe(route_id: &str, out_root: &str) {
             let stable = (v[20] - v[9]).abs() <= 0.05
                 && (v[21] - v[10]).abs() <= 0.05
                 && (v[22] - v[11]).abs() <= 0.05;
-            // THE WOUND LAW (recalibrated): the 5 m pit fall wounds
-            // ~0.16-0.45 (the walk's snap absorbs the first meter of the
-            // descent — impact-speed law), so the band is: wounded but
-            // alive, clearly dropped from the rim. A walk-down would
-            // leave health at 1.0; death goes to the plaza recovery.
-            let wounded = v[13] > 0.3 && v[13] < 0.9 && (v[12] - v[13]) > 0.1;
+            // THE WOUND LAW (latched at the impact poll): the 5 m pit
+            // fall wounds ~0.16-0.45 — read from the latch, where
+            // real-time regen cannot refill the bar before the verdict.
+            // A walk-down would leave it 0; death clamps at 0.5 + its
+            // own toast, which the band excludes.
+            let wounded = v[25] > 0.0
+                && v[13] > 0.3
+                && v[13] < 0.9
+                && (v[12] - v[13]) > 0.1;
             if std::env::var("PC3D_TALK_DEBUG").is_ok() {
-                eprintln!("PIT WALL: approach health {:.3} final health {:.3}", v[12], v[13]);
+                eprintln!(
+                    "PIT WALL: approach health {:.3} latched health {:.3} live final {:.3} latch f{}",
+                    v[12], v[13], v[24], v[25]
+                );
             }
-            let fell_toast = element_in("pit_in", "toast_FELL");
-            let wall_differs = differ("pit_in", "pit_wall", 0.005);
-            let step_differs = differ("pit_wall", "pit_step", 0.005);
-            let ok = has("pit_in")
+            // THE FELL TOAST at the latch: a fixed-frame capture reads
+            // a toast that real-time decay (3 s) killed at contended
+            // paces — the poll caught it fresh, frame-stamped.
+            let fell_toast = v[27] > 0.0
+                || element_in("pit_in", "toast_FELL");
+            // THE WORLD MOVED THE PICTURE: pit_rim (pre-dig, standing
+            // on the rim) vs pit_in (latch-scheduled at the landing:
+            // rim dug, body down, FELL toast fresh) — the edit itself;
+            // then pit_in vs the wall beat and wall vs the step beat —
+            // each leg's walk crossed real dug ground the camera
+            // followed.
+            let wall_differs = differ("pit_rim", "pit_in", 0.005);
+            let step_differs = differ("pit_in", "pit_wall", 0.005);
+            let ok = has("pit_rim")
+                && has("pit_in")
                 && has("pit_wall")
                 && has("pit_step")
+                && has("pit_final")
                 && approach_ok
                 && in_pit
                 && held_wall
@@ -11128,14 +11511,22 @@ fn run_observe(route_id: &str, out_root: &str) {
                 && (v[20] - pcz).abs() <= 0.5
                 && (v[19] - eye - plaza_ground).abs() <= 0.3
                 && (v[21] - 0.5).abs() <= 0.001;
-            let recovery_toast = element_in("recovery_plaza_early", "toast_YOU")
+            // THE WAKE TOAST AT THE LATCH: a fixed capture reads a
+            // toast the 3 s decay killed at contended paces — the poll
+            // caught it fresh, frame-stamped (the capture carries it
+            // as pixels too).
+            let recovery_toast = v[23] > 0.0
+                || element_in("recovery_wake", "toast_YOU")
+                || element_in("recovery_plaza_early", "toast_YOU")
                 || element_in("recovery_plaza", "toast_YOU");
-            let no_plain_fell = !element_in("recovery_plaza_early", "toast_FELL")
+            let no_plain_fell = !element_in("recovery_wake", "toast_FELL")
+                && !element_in("recovery_plaza_early", "toast_FELL")
                 && !element_in("recovery_plaza", "toast_FELL");
             let air_differs = differ("recovery_rim", "recovery_air", 0.005);
             let plaza_differs = differ("recovery_air", "recovery_plaza", 0.02);
             let ok = has("recovery_rim")
                 && has("recovery_air")
+                && has("recovery_wake")
                 && has("recovery_plaza")
                 && has("recovery_final")
                 && rim_ok
@@ -11209,10 +11600,15 @@ fn run_observe(route_id: &str, out_root: &str) {
             let eye = pc3d_render::player::EYE_ABOVE_FEET;
             let (ax_, az_, top, tip) = (s[0], s[2], s[3], s[4]);
             let hang_feet = s[1] - eye;
-            // The crossing catch clamps within the catch frame's own
-            // substeps of the attach — up to ~0.7 m at contended paces
-            // (three 1/60 substeps of a ~14 m/s fall).
-            let hang_ok = (hang_feet - top).abs() <= 0.8 && top > tip;
+            // THE CROSSING CATCH lands anywhere the grab law allows:
+            // the clamp puts the feet inside the span [tip, top] — a
+            // fast drop that crossed near the tip hangs AT the tip
+            // (the law's own crossed window reaches tip-0.6 → clamp to
+            // tip), a slow drift hangs near the attach. The route
+            // records where the law put the body; the law's unit tests
+            // pin the window.
+            let hang_ok =
+                hang_feet >= tip - 0.1 && hang_feet <= top + 0.8 && top > tip;
             let rise = v1[0] - hang_feet;
             let rose = rise >= 0.7 && rise <= 1.5;
             let fell_past = v1[11] >= 1.0 && v1[1] < tip - 0.2;

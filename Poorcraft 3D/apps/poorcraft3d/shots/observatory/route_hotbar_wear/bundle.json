@@ -1,0 +1,30 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_hotbar_wear-dev",
+  "commands": [
+    "--observe route_hotbar_wear"
+  ],
+  "diff_paths": [],
+  "digest": "70c0b506b258d6a3",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_hotbar_wear",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_rebuild",
+  "screenshots": [
+    "wear_full.png",
+    "wear_low.png",
+    "pick_broken.png",
+    "refusal_post.png"
+  ],
+  "seed": "123",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

@@ -6,19 +6,19 @@
     "--observe route_machine_chain"
   ],
   "diff_paths": [],
-  "digest": "12d125ce9295b47e",
+  "digest": "54b0609891ff9973",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_machine_chain",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "beauty_machine_panel.png",
     "beauty_machine_charged.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

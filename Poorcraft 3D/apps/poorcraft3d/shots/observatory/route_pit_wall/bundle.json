@@ -6,21 +6,22 @@
     "--observe route_pit_wall"
   ],
   "diff_paths": [],
-  "digest": "df857d26a4e19494",
+  "digest": "c7624881659eaea6",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_pit_wall",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
+    "pit_rim.png",
     "pit_in.png",
     "pit_wall.png",
     "pit_step.png",
     "pit_final.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

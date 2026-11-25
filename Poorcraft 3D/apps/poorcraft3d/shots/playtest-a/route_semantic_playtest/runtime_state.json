@@ -20,19 +20,19 @@
     "value": null
   },
   "perf": {
-    "avg_fps": 39.0,
+    "avg_fps": 15.899999618530273,
     "frames": 973,
-    "p50_ms": 25.059999465942383,
-    "p95_ms": 32.29999923706055
+    "p50_ms": 61.150001525878906,
+    "p95_ms": 74.30999755859375
   },
   "player": {
     "note": "player pose rides the route camera script in UI routes"
   },
   "proof_paths": [],
   "quality": "mid",
-  "scene": "showcase_seed_3_rebuild",
-  "seed": "3",
-  "timestamp_utc": "1791683916",
+  "scene": "showcase_seed_rebuild",
+  "seed": "123",
+  "timestamp_utc": "1795633546",
   "ui": {
     "career_chosen": null,
     "companion": "",
@@ -55,8 +55,8 @@
     "hover": null,
     "hud": {
       "food": 1.0,
-      "health": 0.40036678314208984,
-      "prompt": "E USE FORGE · F BUILD · R REMOVE · ESC PAUSE",
+      "health": 0.4464989900588989,
+      "prompt": "E USE FORGE · LMB DIG · RMB BUILD · E USE · TAB PACK · ESC PAUSE",
       "selected_slot": 0,
       "stamina": 1.0,
       "stock": "PACK IRON_ORE 4 · IRON_BAR 1 · WOOD_PICK 1 · BREAD 2",
@@ -66,54 +66,50 @@
     "journal": [
       {
         "giver": "Edda Quarrylee (the farmer)",
-        "kind": "excavate",
-        "progress": "2/8",
-        "reward": 35,
-        "state": "ACTIVE",
-        "title": "THE FARMER'S excavate"
+        "kind": "greet",
+        "progress": "0/4",
+        "reward": 30,
+        "state": "OFFERED",
+        "title": "THE FARMER'S greet"
       },
       {
         "giver": "Calder Stonehand (the builder)",
-        "kind": "greet",
-        "progress": "0/4",
-        "reward": 31,
-        "state": "OFFERED",
-        "title": "THE BUILDER'S greet"
+        "kind": "excavate",
+        "progress": "2/7",
+        "reward": 34,
+        "state": "ACTIVE",
+        "title": "THE BUILDER'S excavate"
       },
       {
         "giver": "Dunstan Fernbrook (the guard)",
-        "kind": "build",
-        "progress": "0/11",
-        "reward": 27,
+        "kind": "excavate",
+        "progress": "0/8",
+        "reward": 37,
         "state": "OFFERED",
-        "title": "THE GUARD'S build"
+        "title": "THE GUARD'S excavate"
       },
       {
         "giver": "Edda Quarrylee (the farmer)",
-        "kind": "build",
-        "progress": "0/10",
-        "reward": 24,
+        "kind": "visit",
+        "progress": "0/1",
+        "reward": 11,
         "state": "OFFERED",
-        "title": "THE FARMER'S build"
+        "title": "THE FARMER'S visit"
       },
       {
         "giver": "Calder Stonehand (the builder)",
-        "kind": "deliver",
-        "progress": "0/6",
-        "reward": 20,
+        "kind": "visit",
+        "progress": "0/1",
+        "reward": 15,
         "state": "OFFERED",
-        "title": "THE BUILDER'S deliver"
-      },
-      {
-        "giver": "Dunstan Fernbrook (the guard)",
-        "kind": "deliver",
-        "progress": "0/5",
-        "reward": 17,
-        "state": "OFFERED",
-        "title": "THE GUARD'S deliver"
+        "title": "THE BUILDER'S visit"
       }
     ],
     "journal_open": true,
+    "last_fall_wound": {
+      "damage": 0.6691989898681641,
+      "frame": 823
+    },
     "machine_charge_milli": 0,
     "machines": null,
     "modal": null,
@@ -132,12 +128,12 @@
     },
     "slots": [
       {
-        "modified": "2026-10-11 01:57",
+        "modified": "2026-11-25 19:04",
         "name": "alpha-shot",
         "seed": 22
       },
       {
-        "modified": "2026-10-11 01:57",
+        "modified": "2026-11-25 19:04",
         "name": "beta-shot",
         "seed": 7
       }
@@ -167,7 +163,7 @@
       "reason": "construction not mounted in UI routes",
       "value": null
     },
-    "seed_resolved": "3",
+    "seed_resolved": "123",
     "spawn_safe": null
   }
 }

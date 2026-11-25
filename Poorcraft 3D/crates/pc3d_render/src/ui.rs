@@ -543,6 +543,10 @@ pub struct UiState {
     pub ore_harvested: u64,
     /// The player's credit wallet (claim payouts).
     pub wallet: i64,
+    /// The LAST fall wound, latched AT LANDING with the frame it landed
+    /// on (a proof reads the impact, not a health bar that real-time
+    /// regen keeps refilling while the capture list drains).
+    pub last_fall_wound: Option<(u64, f32)>,
 }
 
 /// Which gameplay panel owns the frame.
@@ -665,6 +669,7 @@ impl Default for UiState {
             stock_lines: Vec::new(),
             ore_harvested: 0,
             wallet: 0,
+            last_fall_wound: None,
         }
     }
 }
@@ -733,6 +738,9 @@ impl UiState {
             // (the route verdict + the inspector read it).
             "career_chosen": self.career_chosen,
             "witnessed_assaults": self.witnessed_assaults,
+            "last_fall_wound": self.last_fall_wound.map(|(f, d)| {
+                serde_json::json!({"frame": f, "damage": d})
+            }),
             "companion": self.companion_line,
             "oversight": self.oversight.as_ref().map(|o| serde_json::json!({
                 "settlement": o.settlement, "population": o.population,
@@ -975,7 +983,20 @@ const TEXT_ROW_H: i32 = 18;
 fn fit_scale(w: i32, h: i32, wanted: f32, panel_w: i32, panel_h: i32) -> f32 {
     let avail_w = (w - 2 * SAFE_MARGIN_PX) as f32 / panel_w as f32;
     let avail_h = (h - 2 * SAFE_MARGIN_PX) as f32 / panel_h as f32;
-    wanted.min(avail_w).min(avail_h).max(0.6)
+    let fit = wanted.min(avail_w).min(avail_h);
+    // The readability floor holds only while the fit law allows it: a
+    // floored panel must still leave BOTH safe margins in the viewport,
+    // else it clips (the Retina regression: at dpi 2 the logical
+    // viewport halves, the floor forced an 816x954 settings panel
+    // through a 720 px frame at y=-266). Floor when it fits; the raw
+    // fit when it doesn't.
+    if panel_h as f32 * 0.6 + 2.0 * SAFE_MARGIN_PX as f32 <= h as f32
+        && panel_w as f32 * 0.6 + 2.0 * SAFE_MARGIN_PX as f32 <= w as f32
+    {
+        fit.max(0.6)
+    } else {
+        fit
+    }
 }
 
 struct Ctx {
@@ -1306,9 +1327,14 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             footer(&mut ctx, wi, hi);
         }
         Screen::Settings => {
-            // 5 setting rows + controls summary + back.
+            // 5 setting rows + controls summary + back. The summary draws
+            // TWO COLUMNS, so its height is the half count (odd last row
+            // still draws one line). Charging the raw KEYMAP.len() made
+            // the panel ~195 logical px taller than its content and the
+            // fit law (honestly) shrank it below the readability floor —
+            // the visible bug was the floor then clipping it.
             let setting_rows = 5i32;
-            let summary_rows = KEYMAP.len() as i32;
+            let summary_rows = (KEYMAP.len() as i32 + 1) / 2;
             let panel_w = 640 + PANEL_PAD * 2;
             let panel_h = setting_rows * (TEXT_ROW_H + 22) + summary_rows * 15 + 120 + PANEL_PAD * 2 + 30;
             let s = fit_scale(wi, hi, state.settings.ui_scale, panel_w, panel_h + 120);
@@ -1341,14 +1367,19 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
             y += ctx.px(6);
             ctx.text("set_controls_title", "CONTROLS", lx, y, 2);
             y += ctx.px(24);
-            for (i, b) in KEYMAP.iter().enumerate() {
-                if i % 2 == 0 && i + 1 < KEYMAP.len() {
-                    // Two columns to stay compact at 720p.
+            // The summary draws in TWO COLUMNS: y advances per ROW, not
+            // per entry (the raw len() walked 27 steps, ran the BACK
+            // button out of the panel, and was the reason the panel
+            // carried a height its content never filled).
+            let summary = KEYMAP.len();
+            for row in 0..(summary + 1) / 2 {
+                let i = row * 2;
+                if i + 1 < summary {
                     let (a, b2) = (&KEYMAP[i], &KEYMAP[i + 1]);
                     let col2 = panel.cx() + ctx.px(30);
                     ctx.text("set_keymap", &format!("{}: {}", a.key, a.action), lx, y, 1);
                     ctx.text("set_keymap2", &format!("{}: {}", b2.key, b2.action), col2, y, 1);
-                } else if i % 2 == 0 {
+                } else {
                     ctx.text("set_keymap", &format!("{}: {}", KEYMAP[i].key, KEYMAP[i].action), lx, y, 1);
                 }
                 y += ctx.px(15);
@@ -5248,7 +5279,16 @@ pub fn verify_ui_captures(
             Some((canvas, cw, ch)) => row_shear_metrics(canvas, *cw, *ch),
             None => (0.0, 0.0),
         };
-        if shear != 0.0 || mode_nonzero > 0.25 {
+        // The mode criterion only has teeth on canvases of big solid
+        // shapes (title, pause). A WALL of scale-1 shadowed keymap text
+        // (settings) makes clean canvases read mode ~0.45 AND a genuinely
+        // torn canvas read mode ~0.09 (measured: PROBE torn by ±1/-3 =
+        // 0.09, clean = 0.45) — there the criterion convicts the innocent
+        // and acquits the guilty. On those scenes the safe-margin, ink,
+        // and element laws carry the frame; the mode stays armed where it
+        // demonstrably detects the tear (title probe: 0.06 clean).
+        let shear_mode_armed = !scene.starts_with("ui_settings");
+        if shear != 0.0 || (shear_mode_armed && mode_nonzero > 0.25) {
             return Err(format!(
                 "{scene}: row shear detected (median {shear:+.0}px/row, dominant nonzero shift on {}% of rows) — pitch/alignment regression",
                 mode_nonzero * 100.0
@@ -5510,3 +5550,4 @@ mod stamina_tests {
         assert!(hud.stamina > 0.99, "a minute of rest refills ({})", hud.stamina);
     }
 }
+

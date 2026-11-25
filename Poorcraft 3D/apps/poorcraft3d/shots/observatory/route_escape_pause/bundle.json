@@ -6,18 +6,18 @@
     "--observe route_escape_pause"
   ],
   "diff_paths": [],
-  "digest": "01c32b06808dd089",
+  "digest": "0f2126574d1b13e8",
   "gpu_marker_path": "",
   "overlays": [],
   "perf_path": "perf.json",
   "quality": "mid",
   "route_id": "route_escape_pause",
   "runtime_state_path": "runtime_state.json",
-  "scene": "showcase_seed_3_rebuild",
+  "scene": "showcase_seed_rebuild",
   "screenshots": [
     "beauty_pause.png"
   ],
-  "seed": "3",
+  "seed": "123",
   "verdict_path": "verdict.json",
   "viewport": [
     800,

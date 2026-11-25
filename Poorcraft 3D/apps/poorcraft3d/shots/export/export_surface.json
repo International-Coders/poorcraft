@@ -22,8 +22,8 @@
     "player_saves": "read_only_unless_owner_requested"
   },
   "scene": "windowless_authority",
-  "seed": "3",
-  "timestamp_utc": 1791683523,
+  "seed": "windowless",
+  "timestamp_utc": 1795632616,
   "verdict": "exported",
   "version": 1,
   "viewport": [
