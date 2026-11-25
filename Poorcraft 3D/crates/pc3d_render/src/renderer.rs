@@ -789,6 +789,15 @@ pub struct Renderer {
     /// The GPU anchor/bounds overlay buffer (rebuilt when dirty).
     overlay_gpu: Option<GpuMesh>,
     overlay_dirty: bool,
+    /// N09 THE BUILD GHOST: the single placement-preview mesh (empty =
+    /// nothing pending; the only entry is replaced on every verdict).
+    build_ghost: Vec<GpuMesh>,
+    /// N09: the live verdict the mesh was painted from (None = no
+    /// ghost) — routes latch it as semantic evidence.
+    build_ghost_verdict: Option<bool>,
+    /// N09: the total construction blocks the last host sync saw (the
+    /// mesh's own truth — routes read pay/no-pay through it).
+    construction_blocks: u64,
     /// The scene debug mode: Normal / Wireframe / AnchorOverlay.
     scene_debug: SceneDebugMode,
     /// HOUSE ENTRY (WT-002 slice 5): the settlement's collision cells
@@ -885,6 +894,14 @@ pub struct AssetAnchors {
     pub sockets: Vec<(String, [f32; 3])>,
     pub bounds_min: [f32; 3],
     pub bounds_max: [f32; 3],
+}
+
+/// N09: one placement verdict's ghost — the cell it would build and
+/// whether the authority rejected it (color follows).
+#[derive(Clone, Copy, Debug)]
+pub struct BuildGhost {
+    pub cell: pc3d_world::coords::CellCoord,
+    pub rejected: bool,
 }
 
 /// Extracts the UNIQUE edges of an indexed mesh (each edge once, as a
@@ -1109,6 +1126,9 @@ impl Renderer {
             wire_gpu: None,
             overlay_gpu: None,
             overlay_dirty: true,
+            build_ghost: Vec::new(),
+            build_ghost_verdict: None,
+            construction_blocks: 0,
             scene_debug: SceneDebugMode::Normal,
             settlement_cells: None,
             settlement_doors: Vec::new(),
@@ -1214,6 +1234,9 @@ impl Renderer {
             wire_gpu: None,
             overlay_gpu: None,
             overlay_dirty: true,
+            build_ghost: Vec::new(),
+            build_ghost_verdict: None,
+            construction_blocks: 0,
             scene_debug: SceneDebugMode::Normal,
             settlement_cells: None,
             settlement_doors: Vec::new(),
@@ -1260,7 +1283,17 @@ impl Renderer {
         let Some(con) = self.construction.as_mut() else {
             panic!("call attach_construction() before update_construction()");
         };
+        self.construction_blocks = host_construction
+            .values()
+            .map(|c| c.built_count() as u64)
+            .sum();
         con.update(&self.ctx.device, host_construction)
+    }
+
+    /// N09: the construction truth the last host sync carried — the
+    /// total built block count (routes read pay/no-pay through it).
+    pub fn construction_blocks(&self) -> u64 {
+        self.construction_blocks
     }
 
     /// Loads natural-terrain patches meshed from the authoritative
@@ -2299,6 +2332,61 @@ impl Renderer {
         ));
     }
 
+    /// N09 THE BUILD GHOST: the placement preview at the target cell —
+    /// a 1 m frame box in green (accepted) or red (rejected), the SAME
+    /// verdict `evaluate_placement` answered. Replaces any previous
+    /// ghost (one preview at a time). None clears it.
+    pub fn set_build_ghost(&mut self, ghost: Option<BuildGhost>) {
+        self.build_ghost.clear();
+        self.build_ghost_verdict = ghost.map(|g| g.rejected);
+        let Some(g) = ghost else { return };
+        // Sun-aligned bright colors: green = go, red = the named no.
+        let color = if g.rejected {
+            [0.95, 0.25, 0.2]
+        } else {
+            [0.3, 0.95, 0.35]
+        };
+        // 12 bars over the cell (the anchor-frame shape — contact with
+        // the cell, not a hover).
+        let (x, y, z) = (g.cell.x as f32, g.cell.y as f32, g.cell.z as f32);
+        let t = 0.07f32;
+        let bars: [([f32; 3], [f32; 3]); 12] = [
+            ([x, y, z], [x + 1.0, y + t, z + t]),
+            ([x, y, z + 1.0 - t], [x + 1.0, y + t, z + 1.0]),
+            ([x, y, z], [x + t, y + t, z + 1.0]),
+            ([x + 1.0 - t, y, z], [x + 1.0, y + t, z + 1.0]),
+            ([x, y + 1.0 - t, z], [x + 1.0, y + 1.0, z + t]),
+            ([x, y + 1.0 - t, z + 1.0 - t], [x + 1.0, y + 1.0, z + 1.0]),
+            ([x, y + 1.0 - t, z], [x + t, y + 1.0, z + 1.0]),
+            ([x + 1.0 - t, y + 1.0 - t, z], [x + 1.0, y + 1.0, z + 1.0]),
+            ([x, y, z], [x + t, y + 1.0, z + t]),
+            ([x + 1.0 - t, y, z], [x + 1.0, y + 1.0, z + t]),
+            ([x, y, z + 1.0 - t], [x + t, y + 1.0, z + 1.0]),
+            ([x + 1.0 - t, y, z + 1.0 - t], [x + 1.0, y + 1.0, z + 1.0]),
+        ];
+        let mut verts: Vec<crate::scene::SceneVertex> = Vec::new();
+        let mut idx16: Vec<u16> = Vec::new();
+        for (min, max) in bars {
+            crate::city::push_city_box(&mut verts, &mut idx16, min, max, color);
+        }
+        if !verts.is_empty() {
+            let idxu: Vec<u32> = idx16.iter().map(|&i| i as u32).collect();
+            self.build_ghost
+                .push(GpuMesh::from_mesh_u32(&self.ctx.device, &verts, &idxu));
+        }
+    }
+
+    /// N09: the live ghost mesh (None = nothing pending).
+    pub fn build_ghost_mesh(&self) -> Option<&GpuMesh> {
+        self.build_ghost.first()
+    }
+
+    /// N09: the live ghost verdict — `Some(true)` = RED (rejected),
+    /// `Some(false)` = GREEN (accepted), None = no ghost.
+    pub fn build_ghost_rejected(&self) -> Option<bool> {
+        self.build_ghost_verdict
+    }
+
     /// Loads conforming-water vertices into the water pass (transparent,
     /// depth-read) — the NWR-005 surface-path water.
     pub fn load_water_vertices(&mut self, verts: &[crate::water::WaterVertex], idx: &[u16]) {
@@ -3225,6 +3313,13 @@ impl Renderer {
         self.mark(&mut pass, "pc3d.pass.assets");
         for (a, _) in &self.assets {
             a.draw(&mut pass);
+            self.draw_calls += 1;
+        }
+        // N09 THE BUILD GHOST: the placement preview draws with the
+        // asset pipeline (lit, sun-aligned) — green accepts, red names
+        // the refusal where the block would go.
+        if let Some(g) = self.build_ghost.first() {
+            g.draw(&mut pass);
             self.draw_calls += 1;
         }
         // 2b4a. WT-002/003 slice 3: debug wireframe / anchor overlay —

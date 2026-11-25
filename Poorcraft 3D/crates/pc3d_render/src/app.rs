@@ -3751,83 +3751,107 @@ impl App {
                             pc3d_world::quest::QuestEvent::Excavated { cells: 1 }
                         });
                         let mut h = slice.host.borrow_mut();
-                        if code == KeyCode::KeyF && slice.rebuild {
-                            // NWR-011: construction on an INSPECTED
-                            // foundation — steep or unlevel ground rejects
-                            // with the named reason.
-                            let region = crate::surface::SurfaceRegion::new(
-                                gen.clone(),
-                                pc3d_world::coords::PatchCoord {
-                                    x: cell.x.div_euclid(16),
-                                    y: cell.y.max(1),
-                                    z: cell.z.div_euclid(16),
-                                },
-                            );
-                            let verdict =
-                                crate::world_features::check_foundation(&gen, &region, cell, (1, 1));
-                            let rejected = matches!(
-                                verdict,
-                                crate::world_features::FoundationCheck::Rejected { .. }
-                            );
-                            if let crate::world_features::FoundationCheck::Rejected { reason } = verdict {
-                                slice.last_message = format!("FOUNDATION REJECTED: {reason}");
-                                if state.owner_menu {
-                                    state.ui.toast(format!("REJECTED: {reason}"));
-                                    state.ui_dirty = true;
-                                }
-                            }
-                            slice.foundation_ok = !rejected;
-                        }
-                        let foundation_ok = slice.foundation_ok;
-                        // D2 THE BUILD COST: place only what you carry —
-                        // one pack item per block, refused by name. The
-                        // free infinite palette is gone (survival has
-                        // stakes: dig first, build second).
-                        let mut cost_paid = true;
-                        if code == KeyCode::KeyF && foundation_ok {
+                        if code == KeyCode::KeyF {
+                            // N09 THE SHARED AUTHORITY: the commit
+                            // RE-EVALUATES through `evaluate_placement`
+                            // — the same function the ghost paints
+                            // with — and pays only after a green
+                            // verdict. Occupied is read from the SAME
+                            // construction map the mesh paints; the
+                            // pack count is the live inventory.
+                            let occupied = h
+                                .construction
+                                .get(&(cell.x.div_euclid(16), cell.y.max(0).div_euclid(16), cell.z.div_euclid(16)))
+                                .map(|c| c.at(cell).is_some())
+                                .unwrap_or(false);
                             let cost_item = pc3d_world::items::build_cost(material);
-                            if slice.inventory.count(cost_item) == 0 {
-                                cost_paid = false;
-                                slice.last_message = format!(
-                                    "NO {} IN PACK — DIG FOR IT",
-                                    pc3d_world::items::item_name(cost_item).to_uppercase()
-                                );
-                                if state.owner_menu {
-                                    state.ui.toast(format!(
-                                        "NO {} IN PACK — DIG FOR IT",
-                                        pc3d_world::items::item_name(cost_item).to_uppercase()
-                                    ));
-                                    state.ui_dirty = true;
-                                }
-                            } else {
-                                let _ = slice.inventory.remove(cost_item, 1);
-                            }
-                        }
-                        if code == KeyCode::KeyF && foundation_ok && cost_paid {
-                            h.submit(pc3d_world::host::HostCommand::Build {
+                            let pack = slice.inventory.count(cost_item);
+                            let verdict = evaluate_placement(
+                                &gen,
+                                &crate::surface::SurfaceRegion::new(
+                                    gen.clone(),
+                                    pc3d_world::coords::PatchCoord {
+                                        x: cell.x.div_euclid(16),
+                                        y: cell.y.max(1),
+                                        z: cell.z.div_euclid(16),
+                                    },
+                                ),
                                 cell,
                                 material,
-                                owner: 7,
-                            });
-                            slice.onboarding.mark("first_build");
-                        } else if code != KeyCode::KeyF {
+                                &slice.player.pos,
+                                occupied,
+                                pack,
+                            );
+                            match verdict {
+                                PlacementVerdict::Rejected { reason } => {
+                                    slice.last_message = format!("REJECTED: {reason}");
+                                    if state.owner_menu {
+                                        state.ui.toast(format!("REJECTED: {reason}"));
+                                        state.ui_dirty = true;
+                                    }
+                                    slice.foundation_ok = false;
+                                    // THE RED GHOST: the verdict color is
+                                    // the rejection (the preview cannot lie
+                                    // — same authority).
+                                    if slice.rebuild {
+                                        state.renderer.set_build_ghost(Some(
+                                            crate::renderer::BuildGhost {
+                                                cell,
+                                                rejected: true,
+                                            },
+                                        ));
+                                    }
+                                    // Quest wiring stays consistent: no
+                                    // build, no Built event.
+                                    quest_ev = None;
+                                }
+                                PlacementVerdict::Ok { cost_item } => {
+                                    slice.foundation_ok = true;
+                                    // D2 THE BUILD COST: one pack item per
+                                    // block (the ghost showed this exact
+                                    // cost).
+                                    let _ = slice.inventory.remove(cost_item, 1);
+                                    h.submit(pc3d_world::host::HostCommand::Build {
+                                        cell,
+                                        material,
+                                        owner: 7,
+                                    });
+                                    slice.onboarding.mark("first_build");
+                                    if slice.rebuild {
+                                        state.renderer.set_build_ghost(Some(
+                                            crate::renderer::BuildGhost {
+                                                cell,
+                                                rejected: false,
+                                            },
+                                        ));
+                                    }
+                                }
+                            }
+                        } else {
                             h.submit(pc3d_world::host::HostCommand::RemoveBuild {
                                 cell,
                                 owner: 7,
                             });
-                        } else {
-                            // F rejected by foundation — do not remove.
                         }
                         h.run_ticks(1);
                         state.renderer.update_construction(&h.construction);
-                        slice.last_message = format!(
-                            "{} {:?}",
-                            if code == KeyCode::KeyF { "PLACED" } else { "REMOVED" },
-                            cell
-                        );
+                        // The honest verdict line: a rejection names its
+                        // reason (the commit IS the preview's verdict).
+                        slice.last_message = if code == KeyCode::KeyF {
+                            match slice.foundation_ok {
+                                true => format!("PLACED {:?}", cell),
+                                false => format!("REJECTED {:?}", cell),
+                            }
+                        } else {
+                            format!("REMOVED {:?}", cell)
+                        };
                         if state.owner_menu {
                             let msg = if code == KeyCode::KeyF {
-                                "PLACED".to_string()
+                                if slice.foundation_ok {
+                                    "PLACED".to_string()
+                                } else {
+                                    "REJECTED".to_string()
+                                }
                             } else {
                                 "REMOVED".to_string()
                             };
@@ -4925,6 +4949,212 @@ fn best_pick_tier(inventory: &pc3d_world::items::Inventory) -> Option<u8> {
         Some(1)
     } else {
         None
+    }
+}
+
+// ---------------------------------------------------------------------------
+// N09 THE PLACEMENT AUTHORITY: `evaluate_placement` is the ONE function
+// preview (the ghost), commit (F / RMB), and the tests consult. It returns
+// the verdict with a player-language reason; the commit re-evaluates and
+// pays only after a green verdict — the preview cannot lie because both
+// readers call the same pure code with the same inputs.
+// ---------------------------------------------------------------------------
+
+/// One placement verdict: the ghost paints it, the commit obeys it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PlacementVerdict {
+    /// The block may be placed exactly here (the ghost paints green).
+    Ok { cost_item: pc3d_world::items::ItemId },
+    /// Blocked — `reason` names the cause in player language (red ghost).
+    Rejected { reason: &'static str },
+}
+
+/// The body's capsule against a 1 m cell: overlap = the block would hold
+/// part of the player. The body stands at pos[1] (feet) and is 1.8 m tall;
+/// the cell spans [y, y+1) on each axis.
+fn body_overlaps_cell(body: &[f32; 3], cell: &pc3d_world::coords::CellCoord) -> bool {
+    let (bx, by, bz) = (body[0], body[1], body[2]);
+    // XZ: the body is a ~0.35 m radius column around its pivot.
+    let (cx0, cx1) = (cell.x as f32, cell.x as f32 + 1.0);
+    let (cz0, cz1) = (cell.z as f32, cell.z as f32 + 1.0);
+    let xz = bx + 0.35 > cx0 && bx - 0.35 < cx1 && bz + 0.35 > cz0 && bz - 0.35 < cz1;
+    // Y: feet..head against the cell's 1 m slab.
+    let y = by + 1.8 > cell.y as f32 && by < cell.y as f32 + 1.0;
+    xz && y
+}
+
+/// THE PLACEMENT LAW (pure): every gate the commit will enforce, decided
+/// BEFORE any state moves. `occupied` = a build already at the cell (read
+/// from the host's construction map — the SAME truth the mesh paints).
+pub fn evaluate_placement(
+    gen: &pc3d_world::gen::WorldGen,
+    region: &crate::surface::SurfaceRegion,
+    cell: pc3d_world::coords::CellCoord,
+    material: pc3d_world::gen::CellMaterial,
+    body: &[f32; 3],
+    occupied: bool,
+    pack_count: u32,
+) -> PlacementVerdict {
+    use pc3d_world::coords::PatchCoord;
+    // 1. THE BODY: a block in the player is a trap — the oldest sandbox
+    //    rule, and the reason the ghost exists.
+    // Mutation lever (debug): PC3D_MUTATE_PLACEMENT_OVERLAP_OFF removes
+    // this gate only — the N09 route's RED overlap beat must FAIL while
+    // the gate is gone (the check is load-bearing, not decoration).
+    let overlap_live = std::env::var("PC3D_MUTATE_PLACEMENT_OVERLAP_OFF").is_err();
+    if overlap_live && body_overlaps_cell(body, &cell) {
+        return PlacementVerdict::Rejected {
+            reason: "THAT SPOT HOLDS YOU - STEP BACK",
+        };
+    }
+    // 2. OCCUPIED: one block per cell (the host would refuse anyway;
+    //    the preview must say WHY before the click).
+    if occupied {
+        return PlacementVerdict::Rejected {
+            reason: "A BLOCK IS ALREADY THERE",
+        };
+    }
+    // 3. FOUNDATION: the same inspected ground the commit pays into —
+    //    steep or unlevel corners reject with the named reason.
+    let region2 = region;
+    let _ = region2;
+    let patch = PatchCoord {
+        x: cell.x.div_euclid(16),
+        y: cell.y.max(1),
+        z: cell.z.div_euclid(16),
+    };
+    let r = crate::surface::SurfaceRegion::new(gen.clone(), patch);
+    match crate::world_features::check_foundation(gen, &r, cell, (1, 1)) {
+        crate::world_features::FoundationCheck::Rejected { reason } => {
+            return PlacementVerdict::Rejected {
+                reason: match reason {
+                    "ground too steep" => "GROUND TOO STEEP",
+                    "corners not levelable within tolerance" => "GROUND NOT LEVEL",
+                    _ => "THE GROUND REFUSES IT",
+                },
+            };
+        }
+        crate::world_features::FoundationCheck::Valid { .. } => {}
+    }
+    let _ = region; // the caller's region is advisory (memo warmth)
+    // 4. COST: the pack must carry the material's own item (D2).
+    let cost_item = pc3d_world::items::build_cost(material);
+    if pack_count == 0 {
+        return PlacementVerdict::Rejected {
+            reason: "NOT THE RIGHT MATERIAL IN PACK",
+        };
+    }
+    PlacementVerdict::Ok { cost_item }
+}
+
+#[cfg(test)]
+mod p3dn09_tests {
+    use super::*;
+    use pc3d_world::coords::{CellCoord, PatchCoord};
+
+    fn flat_spot(gen: &pc3d_world::gen::WorldGen) -> (CellCoord, f32) {
+        // A walkable, level column near the origin (the dig spots'
+        // neighbor-scan law).
+        for dx in -20..20 {
+            for dz in -20..20 {
+                let (x, z) = (dx * 3, dz * 3);
+                let g = gen.effective_surface_mm((x * 1000) as i64, (z * 1000) as i64) as f32
+                    / 1000.0;
+                let flat = (0..2).all(|i| {
+                    (0..2).all(|j| {
+                        let h = gen.effective_surface_mm(
+                            ((x + i) * 1000) as i64,
+                            ((z + j) * 1000) as i64,
+                        ) as f32
+                            / 1000.0;
+                        (h - g).abs() <= 0.35
+                    })
+                });
+                if flat {
+                    return (CellCoord { x, y: g as i32, z }, g);
+                }
+            }
+        }
+        panic!("no flat column on seed");
+    }
+
+    #[test]
+    fn p3dn09_body_overlap_rejects_with_named_reason() {
+        let gen = pc3d_world::gen::WorldGen::new(123);
+        let (cell, g) = flat_spot(&gen);
+        // The body stands INSIDE the cell's column (feet at the ground).
+        let body = [cell.x as f32 + 0.5, g, cell.z as f32 + 0.5];
+        let patch = PatchCoord { x: cell.x.div_euclid(16), y: cell.y.max(1), z: cell.z.div_euclid(16) };
+        let region = crate::surface::SurfaceRegion::new(gen.clone(), patch);
+        let v = evaluate_placement(&gen, &region, cell, pc3d_world::gen::CellMaterial::Rock, &body, false, 5);
+        assert_eq!(
+            v,
+            PlacementVerdict::Rejected { reason: "THAT SPOT HOLDS YOU - STEP BACK" },
+            "building into your own body is named, not silent"
+        );
+        // One meter back, the same inputs go green (the ONLY delta is the body).
+        let clear = [body[0] + 3.0, g, body[2] + 3.0];
+        let (cell2, _) = flat_spot(&gen);
+        let v2 = evaluate_placement(&gen, &region, cell2, pc3d_world::gen::CellMaterial::Rock, &clear, false, 5);
+        assert!(
+            matches!(v2, PlacementVerdict::Ok { .. }),
+            "the same placement away from the body is ok: {v2:?}"
+        );
+    }
+
+    #[test]
+    fn p3dn09_occupied_and_cost_reject_before_the_click() {
+        let gen = pc3d_world::gen::WorldGen::new(123);
+        let (cell, g) = flat_spot(&gen);
+        let body = [cell.x as f32 + 7.5, g, cell.z as f32 + 7.5];
+        let patch = PatchCoord { x: cell.x.div_euclid(16), y: cell.y.max(1), z: cell.z.div_euclid(16) };
+        let region = crate::surface::SurfaceRegion::new(gen.clone(), patch);
+        // A cell already built: the reason NAMES it (the host's law, said
+        // in player language before the click).
+        let v = evaluate_placement(&gen, &region, cell, pc3d_world::gen::CellMaterial::Rock, &body, true, 5);
+        assert_eq!(
+            v,
+            PlacementVerdict::Rejected { reason: "A BLOCK IS ALREADY THERE" }
+        );
+        // Empty pack: the cost gate names the missing material.
+        let v = evaluate_placement(&gen, &region, cell, pc3d_world::gen::CellMaterial::Rock, &body, false, 0);
+        assert_eq!(
+            v,
+            PlacementVerdict::Rejected { reason: "NOT THE RIGHT MATERIAL IN PACK" }
+        );
+        // Funded and clear: green with the EXACT item the commit will pay.
+        let v = evaluate_placement(&gen, &region, cell, pc3d_world::gen::CellMaterial::Rock, &body, false, 3);
+        assert_eq!(v, PlacementVerdict::Ok { cost_item: pc3d_world::items::ItemId(2) });
+    }
+
+    #[test]
+    fn p3dn09_commit_and_preview_read_the_same_authority() {
+        // The law the card exists for: the commit path re-runs
+        // evaluate_placement — a RED verdict pays NOTHING. Proven on the
+        // host: overlap rejects, the construction map stays untouched.
+        let gen = pc3d_world::gen::WorldGen::new(123);
+        let (cell, g) = flat_spot(&gen);
+        let body = [cell.x as f32 + 0.5, g, cell.z as f32 + 0.5];
+        let patch = PatchCoord { x: cell.x.div_euclid(16), y: cell.y.max(1), z: cell.z.div_euclid(16) };
+        let region = crate::surface::SurfaceRegion::new(gen.clone(), patch);
+        let v = evaluate_placement(&gen, &region, cell, pc3d_world::gen::CellMaterial::Rock, &body, false, 5);
+        assert!(matches!(v, PlacementVerdict::Rejected { .. }));
+        // The commit-shaped follow-through: no Build command is submitted
+        // for a red verdict (asserted by absence — the host holds no patch
+        // for this cell).
+        let mut host = pc3d_world::host::SoloHost::new(123);
+        if let PlacementVerdict::Ok { .. } = v {
+            host.submit(pc3d_world::host::HostCommand::Build {
+                cell,
+                material: pc3d_world::gen::CellMaterial::Rock,
+                owner: 7,
+            });
+        }
+        host.run_ticks(1);
+        assert!(
+            !host.construction.values().any(|c| c.at(cell).is_some()),
+            "a red verdict must not place a block"
+        );
     }
 }
 

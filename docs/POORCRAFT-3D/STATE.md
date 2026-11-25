@@ -1,6 +1,6 @@
 # POORCRAFT 3D — Living State
 
-Last updated: 2026-11-24 (N08 first-tool loop closed: 17 cells green + mutation proven)
+Last updated: 2026-11-25 (N09 build ghost closed: shared authority + 3-beat route + mutation proven)
 
 Root `STATE.md` / `BACKLOG.md` / `CHANGELOG.md` are now the split repository's
 control plane and preserve the LOREFORGE history. This file is the living truth
@@ -12,8 +12,8 @@ for `Poorcraft 3D/` work (folder renamed from `poorcraft-novo/` on 2026-10-10).
 | --- | --- |
 | Horizon | **H0 Vertical-Slice Beta** (see `24-VERTICAL-SLICE-BETA.md`) |
 | Build | **817/817 tests green** (assets 38, audio 8, core 32, render 270, save 38, world 431); `make p3d-beta` **38/38** (loop-479 baseline), 339 PNGs, one report |
-| Last measure | 2026-11-24 — N08 closed: seed 123 showcase (carved river + cave pocket), route_first_tool 17 cells GREEN (4 grass digs → bench → wood_pick craft → equip viewmodel → bank cast → catch → eat), mutation PC3D_MUTATE_EQUIP_OFF=1 proven RED; doctrine promoted to N09 |
-| `next_task` | **N09 — Bancada e ghost de construção** from `Poorcraft 3D/docs/CONTINUACAO-GLM/14-PLANO-N06-N11-PRIMEIRA-HORA.md`: preview and commit share `evaluate_placement`; cost/support/collision |
+| Last measure | 2026-11-25 — N09 closed: pure `evaluate_placement` (body overlap / occupied / foundation / cost) drives BOTH the ghost preview and the commit; route_build_ghost 3 beats GREEN (RED HOLDS YOU no-pay → GREEN pay-1-soil build → RED ALREADY THERE no-double-pay) + pixel law delta 0.0146; mutation PC3D_MUTATE_PLACEMENT_OVERLAP_OFF=1 proven RED (block placed inside the body); doctrine promoted to N10 |
+| `next_task` | **N10 — Shovel/hoe e terreno previsível** from `Poorcraft 3D/docs/CONTINUACAO-GLM/14-PLANO-N06-N11-PRIMEIRA-HORA.md`: lower/raise/level/smooth with pre-commit preview |
 
 ## VS-Beta gates (V1–V6) — current
 

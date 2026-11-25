@@ -198,6 +198,29 @@ lib 273/0 + world 329/0 + save 104/0 + doctrine check.
 ### N09 — Bancada e ghost de construção
 
 Preview e commit compartilham `evaluate_placement`; custo/suporte/colisão.
+FECHADO (2026-11-25): a autoridade PURA `evaluate_placement` (app.rs)
+decide overlap do corpo (cápsula 0.35 m × 1.8 m vs célula), ocupado
+(mapa de construção do host — a MESMA verdade que a malha pinta),
+fundação (check_foundation: declive + cantos ≤ 1.5 m) e custo (1 item do
+pack por bloco); commit (KeyF/BuildSelected) RE-AVALIA na mesma função
+e só paga com veredito verde. Ghost = prisma de 12 barras (0.07 m) pelo
+pipeline de assets: VERDE aceito, VERMELHO recusado com razão nomeada;
+`build_ghost_rejected()` expõe o veredito vivo, `construction_blocks()`
+expõe a verdade de construção sincronizada. route_build_ghost prova 3
+golpes em uma lei: escada de 3 grama (soil ×3) → A) mira nos pés →
+RED "HOLDS YOU", soil 3→3 (não paga) → B) mira à frente (pitch −0.3
+cruza a camada gy+1 a ~2.4 m; raio nivelado voa sobre o mundo — o ar
+do alvo é (bx, gy+2, bz−2)) → GREEN, soil 3→2, 1 bloco construído →
+C) mesma mira → RED "A BLOCK IS ALREADY THERE", blocos 1→1 (sem pagamento
+duplo). Pixel law: ghost_accepted vs ghost_placed na MESMA pose — o
+delta 0.0146 é a caixa verdict a repintar. PNGs inspecionados (4/4:
+RED+toast HOLDS YOU; GREEN na faixa plana; bloco de soil físico no
+mundo; RED+toast ALREADY THERE). MUTAÇÃO PROVADA:
+PC3D_MUTATE_PLACEMENT_OVERLAP_OFF=1 corta o gate de overlap → beat A
+ACEITA e PAGA (soil 3→2, 2 blocos, um dentro do corpo) → FAIL exato
+nas células a_red/a_toast/a_unpaid; controle → PASS. Suíte: render lib
+276/0 (3 testes p3dn09: overlap nomeia razão; ocupado+custo antes do
+clique; commit≡preview).
 
 ### N10 — Shovel/hoe e terreno previsível
 

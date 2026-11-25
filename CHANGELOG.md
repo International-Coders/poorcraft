@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## Loop 485 — N09: the build ghost — preview and commit read ONE law (Poorcraft 3D)
+- `crates/pc3d_render/src/app.rs`: the PURE authority `evaluate_placement`
+  gates every placement — body-capsule overlap (0.35 m × 1.8 m vs the
+  1 m cell; "THAT SPOT HOLDS YOU"), occupied (the host construction map's
+  own truth), foundation (`check_foundation` steep/level) and cost (1 pack
+  item per block). The commit path (F / RMB → `gameplay_key`) RE-EVALUATES
+  through the same function and pays only on a green verdict; mutation
+  lever `PC3D_MUTATE_PLACEMENT_OVERLAP_OFF` arms the route's proof. 3 new
+  lib tests (p3dn09): overlap names its reason; occupied+cost reject
+  before the click; commit and preview read the same authority.
+- `crates/pc3d_render/src/renderer.rs`: `BuildGhost` — a 12-bar wire
+  prism (0.07 m) meshed through the asset pipeline at the target cell,
+  GREEN when accepted, RED when rejected; `build_ghost_rejected()` exposes
+  the live verdict, `construction_blocks()` the synced build truth.
+- `apps/poorcraft3d/src/main.rs` + `observe.rs`: `route_build_ghost` —
+  the 3-beat law: ladder-dig 3 grass columns (soil ×3) → beat A aim at
+  the feet: RED "HOLDS YOU", soil 3→3 (no pay) → beat B aim ahead (pitch
+  −0.3 crosses layer gy+1; a level ray flies over the world): GREEN, soil
+  3→2, 1 block built → beat C same aim: RED "A BLOCK IS ALREADY THERE",
+  blocks 1→1 (no double pay). Pixel law: ghost_accepted vs ghost_placed
+  at the SAME pose — delta 0.0146 is the verdict box repainting. PNGs
+  4/4 inspected. MUTATION PROVEN: overlap gate off → beat A ACCEPTS and
+  PAYS (a block lands inside the body) → FAIL exactly on a_red/a_toast/
+  a_unpaid; control PASS.
+- NEXT: N10 — shovel/hoe and predictable terrain (sculpt preview).
+
 ## Loop 484 — N08: the first-tool loop, seed 123 showcase (Poorcraft 3D)
 - `crates/pc3d_render/src/slice.rs`: `find_showcase` now PROVES its seed —
   the deterministic probe walks [123..200) for a carved river through the

@@ -131,6 +131,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_build_ghost",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

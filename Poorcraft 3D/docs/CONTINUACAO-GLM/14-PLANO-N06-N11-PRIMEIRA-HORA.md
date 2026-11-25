@@ -64,6 +64,17 @@ usa cor + forma + texto. Commit reavalia e paga só após sucesso.
 Matriz: plano/encosta, snap, sobreposição, sem suporte/material, dentro do
 player, alcance, rotação, multiplayer, save/reload e reembolso.
 
+FECHADO (2026-11-25): evaluate_placement (app.rs, pura) cobre overlap do
+corpo, ocupado, fundação e custo; commit (F/RMB) re-avalia na MESMA função
+e paga só no verde. Ghost de 12 barras pelo pipeline de assets: verde
+aceito / vermelho recusado com razão nomeada. route_build_ghost: 3 golpes
+(A overlap → RED HOLDS YOU sem pagar; B à frente → GREEN paga 1 soil e
+constrói; C mesma mira → RED ALREADY THERE sem pagamento duplo) + pixel
+law (delta 0.0146 na MESMA pose = a caixa repinta). PNGs 4/4 inspecionados.
+MUTAÇÃO PROVADA: PC3D_MUTATE_PLACEMENT_OVERLAP_OFF=1 → beat A aceita e
+paga (bloco dentro do corpo) → FAIL exato em a_red/a_toast/a_unpaid;
+controle PASS. Suíte: render lib 276/0 (3 p3dn09).
+
 ## N10 — Terreno previsível
 
 Lower, raise, level e smooth mostram preview do mesmo cálculo do commit.

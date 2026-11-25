@@ -11416,3 +11416,45 @@ docs 12-FILA + 14-PLANO; STATE.md; CHANGELOG.md; this log.
 
 NEXT: N09 — workbench + build ghost sharing evaluate_placement
 (cost/support/collision; commit re-evaluates; matrix per 14-PLANO).
+
+## 2026-11-25 — Loop 485: N09 build ghost CLOSED (preview = commit = one law)
+WHAT: placement preview and commit now answer to the SAME pure authority —
+the ghost cannot promise what the commit will not do.
+
+HOW: (1) evaluate_placement (app.rs, pure): body-capsule overlap first
+(0.35 m × 1.8 m vs the 1 m cell — "THAT SPOT HOLDS YOU"), then occupied
+(read from the host construction map — the same truth the mesh paints),
+then check_foundation (walkable corners, ≤ 1.5 m leveling), then cost
+(1 pack item per block, D2). (2) The commit path (gameplay_key F arm,
+fed by BuildSelected for RMB) re-evaluates through it and only pays on
+PlacementVerdict::Ok; rejections toast the named reason and set the RED
+ghost; acceptances set the GREEN ghost. (3) renderer.set_build_ghost:
+12-bar wire prism (0.07 m bars) via push_city_box through the asset
+pipeline; build_ghost_rejected() + construction_blocks() expose the live
+verdict and synced build truth to routes. (4) route_build_ghost: ladder
+of 3 grass columns for soil → beat A aim at the FEET (RED, no pay,
+soil 3→3) → beat B aim ahead at the strip (GREEN, pay 1, block built) →
+beat C same aim (RED ALREADY THERE, no double pay, blocks 1→1).
+GEOMETRY LESSON: a level/up ray from eye gy+2.7 flies OVER the world —
+ray_target returns None and nothing happens; pitch −0.3 crosses the top
+solid layer gy+1 at ~2.4 m so the air cell is (bx, gy+2, bz−2).
+(5) Pixel law: ghost_accepted vs ghost_placed share the pose — the
+bounded 0.0146 delta is the verdict box repainting (the ghost paints).
+(6) Mutation lever PC3D_MUTATE_PLACEMENT_OVERLAP_OFF severs the overlap
+gate only.
+
+VERIFICATION: p3dn09 unit tests 3/3 (overlap names its reason;
+occupied+cost reject before the click; commit ≡ preview). Control route
+PASS (verdict.json "pass", 4 captures, 221 frames). MUTATION: overlap
+off → beat A ACCEPTS and PAYS (soil 3→2, 2 blocks — one inside the
+body) → FAIL exactly on a_red/a_toast/a_unpaid. PNGs 4/4 inspected
+(ghost_rejected RED+HOLDS YOU toast; ghost_accepted GREEN on the flat
+strip; ghost_placed the soil block physically there; ghost_occupied
+RED+ALREADY THERE). Artifacts: /tmp/pc3d_obs_n09b/route_build_ghost/
+(control), /tmp/pc3d_obs_n09_mut/route_build_ghost/ (mutant). Files:
+crates/pc3d_render/src/{app.rs,renderer.rs}; apps/poorcraft3d/src/
+{main.rs,observe.rs}; docs 12-FILA + 14-PLANO; STATE.md; CHANGELOG.md;
+this log.
+
+NEXT: N10 — shovel/hoe and predictable terrain (lower/raise/level/
+smooth with pre-commit preview).

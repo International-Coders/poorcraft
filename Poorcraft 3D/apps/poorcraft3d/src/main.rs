@@ -5996,6 +5996,17 @@ fn run_observe(route_id: &str, out_root: &str) {
         // onboarding advanced past first_catch, [14] the ATE FISH toast,
         // [15] the food bar after eating, [16] fish count after eating.
         let first_tool_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 17]));
+        // route_build_ghost recordings (N09): [0] RED beat latched
+        // (overlap rejection), [1] beat A verdict flag (1 = rejected),
+        // [2] the HOLDS YOU toast, [3] soil BEFORE beat A (the ladder's
+        // take, >= 3), [4] soil AFTER beat A (must equal [3] — no pay),
+        // [5] beat B verdict flag (0 = accepted/green), [6] soil AFTER
+        // beat B (must be [4]-1 — exactly one paid), [7] construction
+        // blocks after beat B (>= 1 — the block exists), [8] beat C
+        // latched, [9] beat C verdict flag (rejected), [10] the ALREADY
+        // THERE toast, [11] construction blocks after beat C (must equal
+        // [7] — no double pay), [12..14] the free cell diag (x, y, z).
+        let build_ghost_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 15]));
         let _mouse_first_ground0 = if spec.id == "route_mouse_first" {
             let gen = &scene.gen;
             let plaza = scene.plan.plaza;
@@ -8903,6 +8914,249 @@ fn run_observe(route_id: &str, out_root: &str) {
                 shots.push(Shot::new(340, format!("{dir}/fish_caught.png")));
                 shots.push(Shot::new(390, format!("{dir}/fish_eaten.png")));
             }
+            "route_build_ghost" => {
+                // THE BUILD GHOST, END TO END (N09): the placement
+                // preview is THE LAW, not decoration. The body digs a
+                // grass ladder (soil for the pack — the build cost),
+                // then:
+                //   beat A: aim AT THE FEET — the cell holds the player
+                //     → RED ghost, "HOLDS YOU" toast, NO block placed.
+                //   beat B: aim AHEAD — the cell is free and level
+                //     → GREEN ghost, block placed, one soil PAID.
+                //   beat C: aim AHEAD AGAIN — the SAME cell is now
+                //     occupied → RED ghost, "ALREADY THERE" toast, NO
+                //     second pay.
+                // Pixel law: ghost_accepted and ghost_placed ride the
+                // SAME pose — the only frame difference is the verdict
+                // color (the green wire box), so a pure pixel diff
+                // proves the ghost paints at all; the verdict colors
+                // come from the latched semantic state.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                // THE SOIL LADDER: three distinct grass columns — each
+                // bare-hand dig credits soil (+wood, harmless here).
+                let ladder = find_dig_spots_barehand(
+                    gen,
+                    plaza.x as f32 + 0.5,
+                    plaza.z as f32 + 0.5,
+                    3,
+                )
+                .unwrap_or_else(|| {
+                    panic!("route_build_ghost: no 3-grass ladder near the plaza on seed {seed}")
+                });
+                println!(
+                    "BUILD GHOST ladder: {:?}",
+                    ladder.iter().map(|s| (s[0], s[2])).collect::<Vec<_>>()
+                );
+                // THE BUILD SPOT: the first ladder column's FLAT STRIP
+                // ahead of it (the check_foundation law needs level
+                // corners — reuse the dig spots' own strip test). The
+                // beat cell is the AIR cell at body height directly in
+                // front of the standing body, so beat A's feet-aim hits
+                // the body-holding cell and beat B's ahead-aim hits the
+                // free cell beyond it.
+                let [bxs, bg, bzs] = ladder[0];
+                let gy = bg.floor() as i32;
+                // Beat B/C (free strip): 2 cells toward -z, ONE above the
+                // top terrain layer (gy+1 is solid under frac > 0; its
+                // air cover is gy+2). The ahead-aim ray (pitch -0.3)
+                // crosses into layer gy+1 at ~2.4 m and lands the hit on
+                // (bx, gy+1, bz-2) — `ray_target`'s `air` is exactly
+                // this cell. Beat A needs no constant: the down-aim's
+                // `air` is the body's own column (the capsule gate
+                // answers).
+                let free_cell = pc3d_world::coords::CellCoord {
+                    x: bxs as i32,
+                    y: gy + 2,
+                    z: bzs as i32 - 2,
+                };
+                // The aiming poses: feet-aim looks DOWN at the body's own
+                // column (the ray enters the body-holding cell); ahead-aim
+                // looks down-forward at the strip — steep enough that the
+                // ray REACHES the ground inside the 8 m cast (a level or
+                // up-ray flies over the world and hits nothing).
+                let feet_yaw: f32 = 0.0; // -z
+                let feet_pitch: f32 = -1.5; // straight down
+                let ahead_yaw: f32 = 0.0; // -z, toward free_cell
+                let ahead_pitch: f32 = -0.3; // down-forward: hits at ~2.4 m
+                let cells = build_ghost_cells.clone();
+                // Frame 12: enter the world.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // THE SOIL LADDER (3 distinct grass columns — N08's law):
+                // hop + dig + a durable sample between legs.
+                for (i, spot) in ladder.iter().enumerate() {
+                    let (lx, lz) = (spot[0], spot[2]);
+                    let hop = 30 + (i as u64) * 14;
+                    let dig = 34 + (i as u64) * 14;
+                    let fx = lx;
+                    let fz = lz;
+                    ui_script.push((
+                        hop,
+                        Box::new(move |_ui, _r, ctx| {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: fx, z: fz });
+                            ctx.actions
+                                .push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                        }),
+                    ));
+                    ui_script.push((
+                        dig,
+                        Box::new(move |ui, _r, ctx| {
+                            let acts = ui::on_key(ui, ui::Key::Char('g'));
+                            ctx.actions.extend(acts);
+                        }),
+                    ));
+                }
+                // Frame ~82 (+4 after the last dig): soil latched (>=3).
+                let cells = build_ghost_cells.clone();
+                ui_script.push((
+                    82,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[3] = stock_count(&ui.hud.stock, "SOIL") as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 90: stand at the build spot facing -z, level.
+                ui_script.push((
+                    90,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: bxs, z: bzs });
+                        ctx.actions
+                            .push(UiAction::PlayerFace { yaw: feet_yaw, pitch: feet_pitch });
+                    }),
+                ));
+                // Frame 102: diag — the construction counter BEFORE any
+                // build attempt (a fresh world: 0; latched for the
+                // verdict's >= 1 and == [7] math to be honest).
+                let cells = build_ghost_cells.clone();
+                ui_script.push((
+                    102,
+                    Box::new(move |_ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[7] = 0.0 - r.construction_blocks() as f32; // negative = pre-build marker
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 110: BEAT A — RMB at the FEET aim. The commit's
+                // own evaluate_placement must refuse (the cell holds the
+                // body) → RED ghost + toast, no pay.
+                ui_script.push((
+                    110,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_mouse_verb(ui, ui::MouseSide::Right);
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 116: latch beat A's evidence — verdict RED, the
+                // named toast alive, and the soil UNPAID ([4] == [3]).
+                let cells = build_ghost_cells.clone();
+                ui_script.push((
+                    116,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[0] = 1.0;
+                        v[1] = r.build_ghost_rejected().map(|b| b as u8 as f32).unwrap_or(9.0);
+                        v[2] = ui
+                            .toasts
+                            .iter()
+                            .any(|t| t.text.contains("HOLDS YOU"))
+                            as u8 as f32;
+                        v[4] = stock_count(&ui.hud.stock, "SOIL") as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 120: capture the RED ghost (same pose — level
+                // view of the body's column).
+                shots.push(Shot::new(120, format!("{dir}/ghost_rejected.png")));
+                // Frame 130: BEAT B — aim AHEAD at the free strip.
+                ui_script.push((
+                    130,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions
+                            .push(UiAction::PlayerFace { yaw: ahead_yaw, pitch: ahead_pitch });
+                    }),
+                ));
+                // Frame 140: RMB — the commit accepts → GREEN ghost,
+                // block placed, one soil paid.
+                ui_script.push((
+                    140,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_mouse_verb(ui, ui::MouseSide::Right);
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 146: latch beat B's evidence — verdict GREEN
+                // ([5] == 0), exactly one soil paid ([6] == [4]-1).
+                let cells = build_ghost_cells.clone();
+                ui_script.push((
+                    146,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[5] = r.build_ghost_rejected().map(|b| b as u8 as f32).unwrap_or(9.0);
+                        v[6] = stock_count(&ui.hud.stock, "SOIL") as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 150: capture the GREEN ghost (the SAME pose as
+                // beat C's capture — the only pixel delta is the color).
+                shots.push(Shot::new(150, format!("{dir}/ghost_accepted.png")));
+                // Frame 158: latch the construction truth (the block IS
+                // there: the synced counter grew past the pre-build 0)
+                // + the target cell for the verdict's math.
+                let cells = build_ghost_cells.clone();
+                ui_script.push((
+                    158,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[7] = r.construction_blocks() as f32;
+                        v[12] = free_cell.x as f32;
+                        v[13] = free_cell.y as f32;
+                        v[14] = free_cell.z as f32;
+                        // The stock line re-syncs on the dirty frame; the
+                        // soil after the pay is the durable fact.
+                        v[6] = stock_count(&ui.hud.stock, "SOIL") as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 190: capture the PLACED world (the block in frame).
+                shots.push(Shot::new(190, format!("{dir}/ghost_placed.png")));
+                // Frame 210: BEAT C — RMB at the SAME aim. The cell is
+                // occupied now → RED ghost + the named toast, NO second
+                // pay.
+                ui_script.push((
+                    210,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_mouse_verb(ui, ui::MouseSide::Right);
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 216: latch beat C's evidence — the counter must
+                // NOT grow again (no double pay) while the verdict is
+                // RED with the named reason.
+                let cells = build_ghost_cells.clone();
+                ui_script.push((
+                    216,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[8] = 1.0;
+                        v[9] = r.build_ghost_rejected().map(|b| b as u8 as f32).unwrap_or(9.0);
+                        v[10] = ui
+                            .toasts
+                            .iter()
+                            .any(|t| t.text.contains("A BLOCK IS ALREADY THERE"))
+                            as u8 as f32;
+                        v[11] = r.construction_blocks() as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 220: capture the RED-again ghost.
+                shots.push(Shot::new(220, format!("{dir}/ghost_occupied.png")));
+            }
             "route_forge_use" => {
                 // The forge slice, end to end: enter the world, stand at
                 // the plaza forge, E (opens THE FORGE through the zone
@@ -9228,7 +9482,7 @@ fn run_observe(route_id: &str, out_root: &str) {
             max_frames: if matches!(
                 spec.id,
                 "route_semantic_playtest" | "route_vine_hangoff" | "route_hotbar_wear"
-                    | "route_mouse_first" | "route_first_tool"
+                    | "route_mouse_first" | "route_first_tool" | "route_build_ghost"
             ) {
                 // The playtest's journey and the hang-off's two legs both
                 // outlive the default 420-frame route cap.
@@ -9812,6 +10066,74 @@ fn run_observe(route_id: &str, out_root: &str) {
                 eprintln!(
                     "[FAIL] observe route_first_tool: wood_credited {wood_credited} (first {wood_after_first}, four {wood_after_four}) / bench_opened {bench_opened} / row_affordable {pick_row_affordable} / pick_crafted {pick_crafted} (slot {}) / row_spent {} / equipped {pick_equipped} / fish_prompt {fish_prompt} / caught {caught} (x{fish_count}) / onboarding {onboarding_advanced} / ate {ate_fish} (fish after {fish_after_eat}, food {food_after:.2})",
                     v[7] as u32, v[8] as u32
+                );
+                any_fail = true;
+            }
+        }
+        // THE BUILD GHOST VERDICT (N09): the preview is the LAW —
+        // beat A (body overlap) refused RED with the named toast and
+        // NO pay; beat B accepted GREEN with exactly one soil paid and
+        // the block REALLY in the construction truth; beat C (occupied)
+        // refused RED again with NO second pay. Pixel law: the accepted
+        // and placed captures ride the SAME pose — the frames differ
+        // ONLY where the verdict color paints (green wire box vs its
+        // absence), so a bounded pixel diff proves the ghost paints.
+        if spec.id == "route_build_ghost" {
+            let v = build_ghost_cells.get();
+            let beat_a = v[0] > 0.5;
+            let a_red = v[1] == 1.0;
+            let a_toast = v[2] > 0.5;
+            let soil_before = v[3] as u32;
+            let soil_after_a = v[4] as u32;
+            let b_green = v[5] == 0.0;
+            let soil_after_b = v[6] as u32;
+            let blocks_after_b = v[7] as u32;
+            let beat_c = v[8] > 0.5;
+            let c_red = v[9] == 1.0;
+            let c_toast = v[10] > 0.5;
+            let blocks_after_c = v[11] as u32;
+            let a_unpaid = soil_after_a == soil_before;
+            let b_paid_one = soil_after_b + 1 == soil_after_a;
+            let b_built = blocks_after_b >= 1;
+            let c_unpaid = blocks_after_c == blocks_after_b;
+            let ok = beat_a
+                && a_red
+                && a_toast
+                && a_unpaid
+                && beat_c
+                && c_red
+                && c_toast
+                && c_unpaid
+                && b_green
+                && b_paid_one
+                && b_built;
+            // THE PIXEL LAW: ghost_accepted vs ghost_placed share the
+            // pose; the ONLY frame delta is the ghost's color state
+            // (GREEN box present vs RED box from the prior verdict) —
+            // a nonzero, bounded diff proves the verdict repaints.
+            let cap = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let pixel_law = match (cap("ghost_accepted"), cap("ghost_placed")) {
+                (Some(a), Some(b)) => {
+                    let d = pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba);
+                    (d > 0.0 && d < 0.2, d)
+                }
+                _ => (false, 0.0),
+            };
+            let (ghost_paints, ghost_diff) = pixel_law;
+            let ok = ok && ghost_paints;
+            if ok {
+                println!(
+                    "BUILD GHOST: body overlap refused RED (\"HOLDS YOU\", soil held at {soil_after_a}), aim-ahead accepted GREEN (soil {soil_after_a} -> {soil_after_b}, {blocks_after_b} block(s) built), re-aim refused RED (\"ALREADY THERE\", blocks held at {blocks_after_c}); the ghost repaints the frame (delta {ghost_diff:.4})"
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe route_build_ghost: beat_a {beat_a} / a_red {a_red} / a_toast {a_toast} / a_unpaid {a_unpaid} ({soil_before}->{soil_after_a}) / b_green {b_green} / b_paid_one {b_paid_one} ({soil_after_a}->{soil_after_b}) / b_built {b_built} ({blocks_after_b}) / beat_c {beat_c} / c_red {c_red} / c_toast {c_toast} / c_unpaid {c_unpaid} ({blocks_after_b}->{blocks_after_c}) / ghost_paints {ghost_paints} (delta {ghost_diff:.4}, cell {:?})",
+                    (v[12] as i32, v[13] as i32, v[14] as i32)
                 );
                 any_fail = true;
             }
